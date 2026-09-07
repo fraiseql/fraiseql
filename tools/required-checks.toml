@@ -1,0 +1,69 @@
+# The check contexts that must pass before a commit reaches `dev`.
+#
+# This file is a MIRROR of GitHub ruleset 18506494 ("dev pre-merge gate"), which is
+# the authority — a ruleset lives in GitHub, not in the tree, and no offline gate can
+# read it. What this file buys is that the *rest* of the tree can reason about which
+# legs can fail a merge: `tools/check-suite-coverage.py` uses it to refuse a test
+# suite whose only coverage is a leg that runs but does not gate (#1289), which is
+# how two `*_e2e_pg` tests stayed red on `dev` for two weeks with every required
+# check green.
+#
+# ⚠ A mirror can drift. `tools/check-required-checks.sh` (`make lint-required-checks`)
+# diffs this list against the live ruleset over the API and is the only thing that
+# proves the two agree; it needs a network and a token, so it cannot run in the
+# offline Dagger legs. Run it whenever this file or the ruleset changes, and before
+# cutting a release. The residual — that no CI job runs it automatically — is filed.
+#
+# To ADD a context: change the ruleset first (`gh api --method PUT
+# repos/fraiseql/fraiseql/rulesets/18506494 …`), then add the line here, then run
+# `make lint-required-checks`. A context named here but not in the ruleset is the
+# dangerous direction: the suite-coverage gate would report a merge gate that does
+# not exist.
+#
+# ⚠ A context may only be listed here if its workflow runs on a push to every
+# in-repo working branch. A `branches: [dev]` leg produces no check on the branch
+# being merged, and a path-filtered workflow produces none on a push its filter does
+# not match — GitHub reports "not run", not "passed", so requiring one would block
+# every unrelated push forever. `check-suite-coverage.py` enforces the first half by
+# reading the workflow's own `on:` block, and rejects a `paths:`-filtered workflow
+# outright.
+
+ruleset = 18506494
+branch = "dev"
+
+required = [
+  # dagger-preflight.yml:preflight — fmt, clippy, rustdoc, ~12 shell gates. Compiles
+  # the tests; runs none of them.
+  "preflight",
+  # dagger-security.yml:security — cargo-deny, audit lockstep, secret scanning.
+  "security",
+  # dagger-test.yml:test — the workspace test suite, both toolchains. Binds no
+  # service, so every DB-backed suite self-skips here (#1257 made it required).
+  "test (msrv)",
+  "test (stable)",
+  # dagger-integration.yml:integration — the service-bound suites, one context per
+  # matrix entry. Required as of #1289; the matrix in that workflow and this list
+  # must name the same suites, and check-suite-coverage.py fails when they do not.
+  "integration (postgres)",
+  "integration (nats)",
+  "integration (observers)",
+  "integration (http-e2e)",
+  "integration (tls)",
+  "integration (server)",
+  "integration (redis)",
+  "integration (vault)",
+  "integration (wire)",
+  "integration (storage)",
+  "integration (server-storage)",
+  "integration (federation)",
+  "integration (federation-compose)",
+  "integration (saml)",
+  "integration (quickstart)",
+  "integration (examples)",
+  # sdk-conformance.yml:generated-clients — the four `client_*_consumer` suites shell
+  # out to tsc/ty/go/cargo and the network, so they cannot live in an offline Dagger
+  # leg (#1120) and this GitHub-hosted job is the only thing that runs them. Its
+  # `paths:` filter was removed in #1289 for exactly that reason: a filtered workflow
+  # cannot be required.
+  "Generated clients compile (tsc --strict / ty / go / cargo)",
+]

@@ -10,11 +10,35 @@ name: Dagger — integration
 # max-parallel: 1 — the runner box is RAM-bound (31 GiB); suites run one at a time
 # (preflight/test may still run alongside, up to the org-wide 2-runner cap).
 #
+# Runs on a push to every in-repo branch, not only `dev` (#1289). It used to be
+# `branches: [dev]`, which is the same reasoning #1257 already had to undo for
+# `Dagger — test`, and with the same consequence: a leg that runs only after the
+# merge cannot fail one. Every `crates/*/tests/*_e2e_pg` suite executes HERE and
+# nowhere else — they self-skip without DATABASE_URL, so on the DB-less required
+# legs they read green while asserting nothing — and that is where the execution
+# proof of most recent REST work lives. `dev` merged red on two of them and stayed
+# red for two weeks with all four required checks green.
+#
+# The cost is bounded the same way `Dagger — test`'s is: the fast-forward to `dev`
+# pushes the identical tree, so that run replays this one out of Dagger's
+# content-addressed exec cache rather than repeating it. What it adds is runner
+# occupancy on intermediate branch pushes — `cancel-in-progress` keeps only the
+# head of each ref, and a cancelled run now BLOCKS rather than passing silently,
+# which is the correct reading of "cancelled ≠ ran".
+#
+# Every `integration (<suite>)` context is a required check on `dev`; the list is
+# mirrored in tools/required-checks.toml and enforced by
+# tools/check-suite-coverage.py, which fails when a suite's only coverage is a leg
+# that cannot fail a merge. Adding a suite to the matrix below means adding its
+# context to both.
+#
 # push-only (maintainer-controlled). fraiseql/fraiseql is PUBLIC, so a self-hosted
 # runner must NOT execute fork `pull_request` code — NO pull_request trigger here.
+# `dependabot/**` is excluded for the same reason as in dagger-preflight.yml:
+# Dependabot's degraded token cannot pull the private ghcr base image.
 on:
   push:
-    branches: [dev]
+    branches-ignore: ['dependabot/**', 'gh-readonly-queue/**']
   workflow_dispatch:
 
 # packages: read lets the runner pull the private ghcr.io/fraiseql/* base + service

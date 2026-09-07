@@ -930,6 +930,58 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **The service-bound integration suites can now fail a merge, and a gate says which suites can
+  (#1289).**
+
+  Every `crates/*/tests/*_e2e_pg` suite — 32 of them — runs in `Dagger — integration` and
+  nowhere else. That workflow triggered on a push to `dev` only, so it produced no check on the
+  branch being merged and was not a required check. The suites self-skip without `DATABASE_URL`,
+  which is what made them inert rather than red on the DB-less legs: they read green there while
+  asserting nothing.
+
+  The consequence was measured, not hypothetical. `rest_bulk_safety_e2e_pg` and
+  `rest_export_embedding_e2e_pg` were red on `dev` from 2026-09-05, through four merges, with
+  `preflight`, `security`, `test (msrv)` and `test (stable)` green each time. Nothing reported
+  it, and the leg carrying the *only* execution proof of several recent REST fixes was the leg
+  that could rot.
+
+  `dagger-integration.yml` now runs on a push to every in-repo branch, on the same argument
+  #1257 used for `Dagger — test`, and its sixteen `integration (<suite>)` contexts are required
+  on `dev`. The added cost is bounded the same way: the fast-forward to `dev` pushes an
+  identical tree, so that run replays out of Dagger's content-addressed cache. `cancel-in-progress`
+  is kept — a cancelled required check reads as *not run*, so the starvation that used to make
+  the leg validate nothing now blocks instead of passing quietly.
+
+  `sdk-conformance.yml` lost its `paths:` filter for a related reason: its `generated-clients`
+  job is the only thing that runs the four `client_*_consumer` suites, and a path-filtered
+  workflow can never be a required check — on a push its filter does not match, GitHub reports
+  "not run", which blocks the branch forever rather than passing it.
+
+  **The relationship is now a checked artifact rather than an inference.**
+  `tools/check-suite-coverage.py` used to ask only whether a suite ran somewhere. It now also
+  resolves, for every leg, the check context that carries it — through `dagger call` in the
+  workflows and through `TestIntegration`'s own switch for the `--suite=` fan-out — and fails
+  when a suite's only coverage is a leg no required context carries. It refuses a required
+  context whose workflow is `branches:`-restricted or `paths:`-filtered, and one that no job
+  produces at all. Its report lists each leg against the context that gates it, which is the
+  question #1289 says nobody could answer from the tree. `tools/required-checks.toml` mirrors
+  the ruleset (a ruleset lives in GitHub; no offline gate can read it) and
+  `make lint-required-checks` diffs the mirror against the live one.
+
+- **Two REST end-to-end assertions follow the refusal #1279 moved earlier (#1288).**
+
+  `rest_bulk_safety_e2e_pg::a_dotted_key_that_contributes_no_where_clause_is_refused` and
+  `rest_export_embedding_e2e_pg::an_export_refuses_a_dotted_parameter_that_names_no_relationship`
+  both send `?nonsense.field=x` and both pinned the *wording* of the guard that used to answer
+  it. #1279 taught `RestParamExtractor::extract` to refuse a dotted key whose relationship the
+  type does not declare, at the producer and by name, so neither later guard is reached. The
+  behaviour each test exists to protect — a `400`, and no rows mutated — was correct throughout;
+  only the assertions were stale.
+
+  The export case now asserts the relationship name *and* the `Available:` list, which is the
+  one thing the export gate cannot say — so it stays distinct from the sibling case that sends
+  the known `author.name` and is refused a layer later by the representation's own rule.
+
 - **`?search=` without `?sort=` now ranks by relevance instead of answering `400` (#1284).**
 
   The documented default path of full-text search was the one spelling that could not succeed.

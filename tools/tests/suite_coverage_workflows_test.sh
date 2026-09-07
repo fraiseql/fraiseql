@@ -32,6 +32,7 @@ trap 'rm -rf "$WORK"' EXIT
 # an orphan, so every fixture's verdict is attributable to the workflow alone.
 make_fixture() {
     local dir="$1" workflow="$2"
+    local mirror="${3:-required = [\"gates\"]}" exemptions="${4:-}"
     mkdir -p "$dir/tools" "$dir/.dagger" "$dir/crates/demo/tests" "$dir/.github/workflows"
     cp "$GATE" "$dir/tools/check-suite-coverage.py"
 
@@ -62,6 +63,17 @@ func (m *FraiseqlCi) Nothing() string { return "no invocations here" }
 GO
 
     printf '%s\n' "$workflow" >"$dir/.github/workflows/probe.yml"
+
+    # The gating mirror (#1289). Coverage and gating are different questions, so
+    # every fixture has to answer the second one too. Each names its job `gates`,
+    # and the default mirror declares that context required — which keeps the
+    # coverage assertions about coverage. A fixture whose workflow deliberately
+    # CANNOT gate passes `required = []` instead: an empty mirror produces no
+    # UNGATEABLE noise, so its verdict stays attributable to the one thing it tests.
+    printf '%s\n' "$mirror" >"$dir/tools/required-checks.toml"
+    if [ -n "$exemptions" ]; then
+        printf '%s\n' "$exemptions" >"$dir/tools/suite-coverage-exemptions.toml"
+    fi
 }
 
 # expect <label> <expected-exit> <fixture-dir> [<substring-that-must-appear>]
@@ -97,8 +109,6 @@ make_fixture "$WORK/covered" "$(cat <<'YML'
 name: Probe
 on:
   push:
-    paths:
-      - 'crates/demo/**'
 jobs:
   gates:
     runs-on: ubuntu-latest
@@ -113,6 +123,32 @@ YML
 expect "a pushed --ignored run covers an all-#[ignore]d suite" 0 "$WORK/covered" \
     "all covered"
 
+# ── 1b. A MATCHING paths filter is coverage — and still cannot gate ──────────
+#
+# The pair to case 4. Both halves have to be asserted separately, because they
+# pull in opposite directions and #1289 is where they met: `sdk-conformance.yml`
+# filtered on the codegen tree, which is where the four consumer suites live, so
+# it really did run them — and could still never be a required check, because a
+# push that misses the filter reports "not run" rather than "passed".
+#
+# `required = []` here so the only finding is the one under test. UNGATED rather
+# than ORPHAN is itself the proof that the matching filter WAS read as coverage.
+make_fixture "$WORK/pathsmatch" "$(cat <<'YML'
+name: Probe
+on:
+  push:
+    paths:
+      - 'crates/demo/**'
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cargo test -p demo --test consumer -- --ignored
+YML
+)" 'required = []'
+expect "a matching paths filter is coverage but cannot gate" 1 "$WORK/pathsmatch" \
+    "UNGATED demo::consumer"
+
 # ── 2. workflow_dispatch-only: runs on no push and no PR ─────────────────────
 make_fixture "$WORK/dispatch" "$(cat <<'YML'
 name: Probe
@@ -124,7 +160,7 @@ jobs:
     steps:
       - run: cargo test -p demo --test consumer -- --ignored
 YML
-)"
+)" 'required = []'
 expect "workflow_dispatch-only is not coverage" 1 "$WORK/dispatch" \
     "workflow_dispatch-only"
 
@@ -196,8 +232,9 @@ jobs:
     steps:
       - run: cargo test -p demo --test consumer -- --ignored
 YML
-)"
-expect "a paths filter missing the suite's crate is not coverage" 1 "$WORK/paths"
+)" 'required = []'
+expect "a paths filter missing the suite's crate is not coverage" 1 "$WORK/paths" \
+    "ORPHAN (all-#[ignore]) demo::consumer"
 
 # ── 5. A job-level defaults.run.working-directory (the rust-sdk.yml shape) ───
 make_fixture "$WORK/jobdir" "$(cat <<'YML'
@@ -276,7 +313,8 @@ jobs:
       - run: cargo test -p demo --test consumer
 YML
 )"
-expect "a run without \`-- --ignored\` does not cover an #[ignore]d suite" 1 "$WORK/noignored"
+expect "a run without \`-- --ignored\` does not cover an #[ignore]d suite" 1 "$WORK/noignored" \
+    "ORPHAN (all-#[ignore]) demo::consumer"
 
 # ── 10. An include-only strategy.matrix expands to its entries ───────────────
 #

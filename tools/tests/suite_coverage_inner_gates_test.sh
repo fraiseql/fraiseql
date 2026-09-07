@@ -37,8 +37,28 @@ trap 'rm -rf "$WORK"' EXIT
 # invocation, so a verdict is attributable to those two alone.
 make_fixture() {
     local dir="$1" features="$2" body="$3" invocation="$4"
-    mkdir -p "$dir/tools" "$dir/.dagger" "$dir/crates/demo/src"
+    mkdir -p "$dir/tools" "$dir/.dagger" "$dir/crates/demo/src" "$dir/.github/workflows"
     cp "$GATE" "$dir/tools/check-suite-coverage.py"
+
+    # #1289: the gate now also asks whether a covering leg can fail a merge, so a
+    # fixture has to say how its Dagger leg reaches CI. One workflow calling
+    # `dagger call test`, and a mirror declaring that job's context required —
+    # which keeps every verdict below attributable to the feature gates under test
+    # rather than to a missing merge gate.
+    cat >"$dir/.github/workflows/probe.yml" <<'YML'
+name: Probe
+on:
+  push:
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - run: dagger call test --source=.
+YML
+
+    cat >"$dir/tools/required-checks.toml" <<'TOML'
+required = ["gates"]
+TOML
 
     cat >"$dir/Cargo.toml" <<'TOML'
 [workspace]

@@ -60,8 +60,9 @@ rather than living on a branch that drifts from the trunk.
 ## Keeping the trunk green
 
 The Dagger legs that gate a merge — `preflight` (shell gates · fmt · clippy ·
-rustdoc), `security` (`cargo deny`) and `test` (the workspace suite, on both the MSRV
-and stable toolchains) — run on **push to every in-repo branch**
+rustdoc), `security` (`cargo deny`), `test` (the workspace suite, on both the MSRV
+and stable toolchains) and `integration` (the sixteen service-bound suites) — run on
+**push to every in-repo branch**
 (`branches-ignore: [dependabot/**, …]`) on the self-hosted runner, with a warm sccache
 cache. Because **forks cannot push to this repo**, a `push` trigger only ever runs
 trusted in-repo code — so these legs are **fork-safe by construction**, with no
@@ -70,9 +71,15 @@ would execute the PR *merge-ref's* workflow definition, which a fork can edit �
 its deliberate absence.)
 
 Push-triggered check runs attach to the commit SHA, so they show on any open PR for
-that branch, and the **`dev` ruleset requires `preflight` + `security` +
-`test (msrv)` + `test (stable)`** — a PR cannot merge until all four are green on its
-head. That is what prevents "merged before CI was verified."
+that branch, and the **`dev` ruleset requires `preflight`, `security`,
+`test (msrv)`, `test (stable)`, the sixteen `integration (<suite>)` contexts and
+`Generated clients compile (…)`** — a PR cannot merge until all of them are green on
+its head. That is what prevents "merged before CI was verified."
+
+The authoritative list is the ruleset; `tools/required-checks.toml` mirrors it so the
+tree can reason about it, and `make lint-required-checks` diffs the two (it needs a
+network and a token, so it cannot live in `preflight`). Run it whenever either
+changes.
 
 `test` was on that list from 2026-08-31 and not before. The heavy legs all used to run
 **post-merge on the `dev` push**, to spare the single runner — which meant a merge to
@@ -84,12 +91,33 @@ Waiting for `test` costs ~40 minutes per arm on the shared runner; the fast-forw
 `dev` then replays the branch run out of Dagger's content-addressed cache rather than
 repeating it.
 
-The **remaining** heavy legs (`feature-matrix` and `integration`, which spins up
-PostgreSQL) still run post-merge; dispatch them manually
-(`gh workflow run dagger-<leg>.yml --ref <branch>`) when a change warrants full
-validation before merge. Locally, `make preflight` mirrors the fast gate and
-`make test-leg` mirrors the `test` leg line for line (`make lint-shard-parity` holds
-the two lists together).
+`integration` joined the list on the same argument, from #1289. It was the last leg
+carrying proofs nothing could act on: every `crates/*/tests/*_e2e_pg` suite runs there
+and only there — they self-skip without `DATABASE_URL`, so on the DB-less legs they
+read green while asserting nothing — and `dev` merged red on two of them and stayed
+red for two weeks with all four then-required checks green. Sixteen suites run
+serially on the one runner (`max-parallel: 1`, ~50 minutes warm); the fast-forward to
+`dev` replays them from Dagger's cache.
+
+Two properties make that list a checked artifact rather than a convention.
+`tools/check-suite-coverage.py` fails when a test suite's only coverage is a leg no
+required context carries, and prints which context gates each leg; it also refuses a
+required context whose workflow is `branches:`-restricted or `paths:`-filtered, since
+GitHub reports an unrun workflow as "not run" rather than "passed" and requiring one
+blocks the branch forever. (That is why `sdk-conformance.yml` lost its `paths:` filter
+in #1289: its `generated-clients` job is the only thing that runs the four
+`client_*_consumer` suites.)
+
+⚠ `dagger-integration.yml` keeps `cancel-in-progress: true`, so pushing again while
+the sixteen suites are running cancels them. A cancelled check reads as *not run*, not
+as passed, so the merge is blocked until the head SHA has a completed run — which is
+the intended reading. Before relying on it, stop pushing and let one run finish.
+
+The **remaining** heavy leg, `feature-matrix`, still runs post-merge; dispatch it
+manually (`gh workflow run dagger-feature-matrix.yml --ref <branch>`) when a change
+warrants full validation before merge. Locally, `make preflight` mirrors the fast gate
+and `make test-leg` mirrors the `test` leg line for line (`make lint-shard-parity`
+holds the two lists together).
 
 ### The two things `make preflight` cannot see
 

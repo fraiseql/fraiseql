@@ -12,23 +12,20 @@ name: SDK Conformance
 # new key on the seam breaks every SDK that does not emit it, and that has to surface
 # here rather than in a user's build.
 
+# Unfiltered since #1289. The `paths:` list below used to name the SDK, CLI, codegen
+# and schema trees, which read as a saving and cost the four `client_*_consumer`
+# suites their only merge gate: `generated-clients` is the sole leg that runs them,
+# and a path-filtered workflow cannot be a required check — on a push its filter does
+# not match GitHub reports "not run", which blocks the branch forever rather than
+# passing it. Requiring the context means removing the filter.
+#
+# The cost is small and measured: the whole workflow is ~4 minutes on a GitHub-hosted
+# runner (free for a public repo), 15 of the last 15 runs green. That is cheaper than
+# the self-hosted legs it now sits beside, and it buys a real execution proof for the
+# generated clients instead of one that could rot on any push that missed the filter.
 on:
   push:
-    paths:
-      - 'sdks/official/**'
-      - 'crates/fraiseql-cli/**'
-      - 'crates/fraiseql-codegen/**'
-      - 'crates/fraiseql-core/src/schema/**'
-      - 'docs/architecture/intermediate-schema.md'
-      - '.github/workflows/sdk-conformance.yml'
   pull_request:
-    paths:
-      - 'sdks/official/**'
-      - 'crates/fraiseql-cli/**'
-      - 'crates/fraiseql-codegen/**'
-      - 'crates/fraiseql-core/src/schema/**'
-      - 'docs/architecture/intermediate-schema.md'
-      - '.github/workflows/sdk-conformance.yml'
   workflow_dispatch:
 
 concurrency:

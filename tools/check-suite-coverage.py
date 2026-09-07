@@ -1332,6 +1332,291 @@ def _join(base: str, rel: str) -> str:
     return f"{base}/{rel}"
 
 
+# ── Phase B3: which legs can FAIL A MERGE ─────────────────────────────────────
+#
+# Coverage and *gating* are different questions, and until #1289 this gate only
+# asked the first one. Every `crates/*/tests/*_e2e_pg` suite was covered — by
+# `Dagger — integration`, which ran on a push to `dev` and nowhere else. So a
+# suite could be red for two weeks while every required check stayed green, which
+# is what happened: `dev` merged red on two of them and no one learned.
+#
+# "A proof that cannot fail a merge is a proof that can rot." So the gate now
+# resolves, for every leg, the CHECK CONTEXT it produces and whether that context
+# can block a push to `dev`. Three facts have to line up, and each is read from
+# the file that decides it rather than declared:
+#
+#   1. Which leg a workflow job runs. `.github/workflows/*.yml` calls
+#      `dagger call <function>`; `dagger call test-integration --suite=X` fans out
+#      through `TestIntegration`'s switch in `.dagger/main.go`, so the suite name
+#      is resolved through that switch to the Go method whose `cargo test` lines
+#      Phase B1 already attributed. A workflow job running `cargo test` directly
+#      is its own leg, as in Phase B2.
+#   2. The context name GitHub will report — the job's `name:` with the matrix
+#      expanded, which is the string a ruleset names.
+#   3. Whether the workflow even runs on the branch being merged. A
+#      `branches: [dev]` trigger produces no check before the merge, and a
+#      `paths:`-filtered one produces none on a push its filter misses — GitHub
+#      reports those as "not run", not "passed", so requiring such a context would
+#      block every unrelated push instead of gating anything. Both are refused
+#      here rather than trusted, because listing one in required-checks.toml would
+#      make this gate report a merge gate that does not exist.
+#
+# `tools/required-checks.toml` supplies the fourth fact — which contexts the
+# ruleset requires — because a GitHub ruleset is not in the tree and no offline
+# gate can read it. That file is a mirror, and `make lint-required-checks` is what
+# proves the mirror is true.
+
+REQUIRED_CHECKS = REPO / "tools" / "required-checks.toml"
+
+
+def load_required_contexts() -> set[str]:
+    if not REQUIRED_CHECKS.exists():
+        die(f"tools/{REQUIRED_CHECKS.name} is missing — without it the gate cannot tell a leg that gates from one that merely runs")
+    with open(REQUIRED_CHECKS, "rb") as f:
+        data = tomllib.load(f)
+    req = data.get("required")
+    if not isinstance(req, list) or not all(isinstance(c, str) for c in req):
+        die(f"tools/{REQUIRED_CHECKS.name}: `required` must be a list of context strings")
+    # An EMPTY list is legal and is not an escape hatch: it declares that nothing
+    # gates, so every covered suite becomes an UNGATED finding at once. The failure
+    # mode of a disabling flag — quiet — is unavailable here, which is what makes it
+    # safe to let the self-test fixtures express "this repo has no merge gate".
+    return set(req)
+
+
+def dagger_suite_dispatch(main_go: str) -> dict[str, str]:
+    """`dagger call test-integration --suite=<name>` → the Go method it reaches.
+
+    Read from the switch rather than mirrored, so adding a suite to `.dagger/main.go`
+    and to the workflow matrix is all it takes for the gate to see it — and adding
+    one to only the switch leaves the suite with no context, which the caller
+    reports.
+    """
+    m = re.search(r"func \(m \*FraiseqlCi\) TestIntegration\(", main_go)
+    if not m:
+        # A module with no suite fan-out (the self-test fixtures, and any future
+        # tree that calls its legs directly) is not an error. A workflow that then
+        # calls `test-integration` is — the caller dies on the empty map rather
+        # than silently attributing the suite to nothing.
+        return {}
+    rest = main_go[m.end() :]
+    nxt = re.search(r"\nfunc \(", rest)
+    body = rest[: nxt.start()] if nxt else rest
+    out: dict[str, str] = {}
+    for case in re.finditer(r'case ((?:"[^"]*"(?:,\s*)?)+):\s*\n\s*return m\.(\w+)\(', body):
+        for lit in re.findall(r'"([^"]*)"', case.group(1)):
+            out[lit] = case.group(2)
+    if not out:
+        die(".dagger/main.go: `TestIntegration`'s suite switch did not parse — teach the gate this shape")
+    return out
+
+
+def _dagger_fn(kebab: str) -> str:
+    """`test-integration` → `TestIntegration`, the way the Dagger CLI resolves it."""
+    return "".join(p[:1].upper() + p[1:] for p in kebab.split("-"))
+
+
+# The tail is taken to the end of the command, not flag-by-flag: `--suite=${{
+# matrix.suite }}` contains spaces before it is resolved, so a `\S+` capture stops
+# mid-expression and the suite name is lost.
+DAGGER_CALL = re.compile(
+    r"(?:^|\s|&&|;)dagger\s+call\s+([a-z][a-z0-9-]*)([^\n;&|]*)", re.MULTILINE
+)
+
+
+def _push_reaches_working_branches(autos: dict) -> bool:
+    """Would a push to an ordinary feature branch start this workflow?
+
+    A required check has to produce a run on the branch being merged. A `push:`
+    with a fixed `branches:` allow-list does not, unless the list is a catch-all —
+    `branches: [dev]` is exactly the shape #1289 is about.
+    """
+    if "push" not in autos:
+        return False
+    cfg = autos["push"] or {}
+    if not isinstance(cfg, dict):
+        raise WorkflowUnresolvable(f"unreadable `push:` trigger: {cfg!r}")
+    if "branches" in cfg:
+        pats = cfg["branches"]
+        if not isinstance(pats, list):
+            raise WorkflowUnresolvable(f"`push.branches` is not a list: {pats!r}")
+        return any(str(p) in ("*", "**") for p in pats)
+    return True
+
+
+class LegGate:
+    """One leg's answer to "can a failure here stop a merge?"."""
+
+    __slots__ = ("leg", "contexts", "gating_contexts", "blockers")
+
+    def __init__(self, leg: str):
+        self.leg = leg
+        self.contexts: set[str] = set()
+        self.gating_contexts: set[str] = set()
+        # context -> why it cannot gate, for the ones that are required but unusable
+        self.blockers: list[str] = []
+
+
+def extract_leg_gating(
+    main_go: str, required: set[str], known_legs: set[str]
+) -> tuple[dict[str, LegGate], list[str]]:
+    """Map every leg to the check contexts that carry it, and score each as gating.
+
+    `known_legs` is the set of legs Phase B1/B2 found `cargo test` lines in; a
+    `dagger call` naming anything else (image boots, the feature matrix) runs no
+    suite and is not a leg for this purpose. It is still resolved first, and a call
+    naming a function `.dagger/main.go` does not define is FATAL — a typo there
+    would otherwise read as "that leg runs no tests".
+
+    Returns the map and a list of findings about the *declaration* itself: a
+    required context no job produces, or one whose workflow can never report it.
+    """
+    dispatch = dagger_suite_dispatch(main_go)
+    # Every `.dagger/*.go`, not just main.go: the module is one Go package, so
+    # `dagger call feature-matrix` resolves to feature-combos.go. main.go is still
+    # the only file carrying `cargo test` lines, which is why Phase B1 reads it
+    # alone — but a call site may name a function defined in any of them.
+    defined = {
+        name
+        for src in sorted(DAGGER_MAIN.parent.glob("*.go"))
+        for name in re.findall(
+            r"func \(m \*FraiseqlCi\) (\w+)\(", src.read_text(encoding="utf-8")
+        )
+    }
+    legs: dict[str, LegGate] = {}
+    findings: list[str] = []
+    produced: dict[str, str] = {}  # context -> "<workflow>:<job>"
+
+    def leg_for(name: str) -> LegGate:
+        return legs.setdefault(name, LegGate(name))
+
+    if not WORKFLOWS.is_dir():
+        die(".github/workflows is missing — the gate cannot resolve any check context")
+
+    for wf in sorted(WORKFLOWS.glob("*.yml")) + sorted(WORKFLOWS.glob("*.yaml")):
+        # EVERY workflow, not only the ones running suites. The context names are
+        # what `required-checks.toml` is diffed against, and a context declared
+        # there but produced by a workflow this loop skipped would read as STALE —
+        # a false failure whose only fix is deleting a real merge gate from the
+        # mirror. All 45 parse today; one that does not is a shape to teach the
+        # gate, on the same footing as Phase B2's.
+        text = wf.read_text(encoding="utf-8")
+        try:
+            doc = parse_yaml(text)
+        except YamlError as e:
+            die(f"{wf.name}: {e} — teach tools/check-suite-coverage.py this YAML shape")
+        if not isinstance(doc, dict) or not isinstance(doc.get("jobs"), dict):
+            continue  # Phase B2 already dies on a cargo-running workflow with no jobs.
+        try:
+            autos = _auto_triggers(doc)
+            branch_ok = _push_reaches_working_branches(autos) if autos else False
+            path_filtered = bool(autos) and _trigger_paths(autos) is not None
+        except WorkflowUnresolvable as e:
+            die(f"{wf.name}: {e}")
+        # Could a job in this workflow carry a required check at all? If not, its
+        # job names and flags need not resolve: `feature-flags.yml` is
+        # `workflow_dispatch:`-only and names a job
+        # `${{ matrix.features || 'no-default-features' }}`, an expression form
+        # nothing here has to model. Resolution stays FATAL for a workflow that
+        # *could* gate, where an unreadable name means the gate cannot tell whether
+        # a required context was produced — and that is the direction that lies.
+        could_gate = bool(autos) and branch_ok and not path_filtered
+
+        for job_id, job in doc["jobs"].items():
+            if not isinstance(job, dict):
+                continue
+            try:
+                combos = _expand_matrix((job.get("strategy") or {}).get("matrix") or {})
+            except WorkflowUnresolvable as e:
+                die(f"{wf.name}:{job_id}: {e}")
+            steps = job.get("steps") or []
+            if not isinstance(steps, list):
+                continue
+
+            for combo in combos:
+                where = f"{wf.name}:{job_id}"
+                try:
+                    context = _resolve_expressions(str(job.get("name") or job_id), combo, where)
+                except WorkflowUnresolvable as e:
+                    if could_gate:
+                        die(str(e))
+                    context = f"{job_id} (unresolved name; workflow cannot gate)"
+                produced[context] = where
+
+                # Which legs does this job run? A direct `cargo test` makes the job
+                # its own leg (Phase B2's naming); a `dagger call` names one in
+                # .dagger/main.go.
+                names: set[str] = set()
+                for step in steps:
+                    if not isinstance(step, dict) or not step.get("run"):
+                        continue
+                    script = step["run"]
+                    if not isinstance(script, str):
+                        continue
+                    if _cargo_commands(script) and where in known_legs:
+                        names.add(where)
+                    joined = re.sub(r"\\\n\s*", " ", script)
+                    for call in DAGGER_CALL.finditer(joined):
+                        fn = _dagger_fn(call.group(1))
+                        if fn not in defined:
+                            die(
+                                f"{where}: `dagger call {call.group(1)}` names no "
+                                f"`func (m *FraiseqlCi) {fn}` in .dagger/main.go"
+                            )
+                        if fn != "TestIntegration":
+                            if fn in known_legs:
+                                names.add(fn)
+                            continue
+                        # Only the suite fan-out needs its flags resolved; every other
+                        # call's arguments are irrelevant here, and `${{ github.* }}`
+                        # in an image leg must not be a fatal parse.
+                        try:
+                            flags = _resolve_expressions(call.group(2), combo, where)
+                        except WorkflowUnresolvable as e:
+                            if could_gate:
+                                die(str(e))
+                            continue
+                        suite = re.search(r"--suite=(\S+)", flags)
+                        key = suite.group(1) if suite else ""
+                        if key not in dispatch:
+                            die(
+                                f"{where}: `--suite={key}` is not a case in "
+                                f".dagger/main.go's TestIntegration switch"
+                                + ("" if dispatch else " (which does not exist)")
+                            )
+                        if dispatch[key] in known_legs:
+                            names.add(dispatch[key])
+
+                for name in names:
+                    lg = leg_for(name)
+                    lg.contexts.add(context)
+                    if context not in required:
+                        continue
+                    if not branch_ok:
+                        lg.blockers.append(
+                            f"`{context}` is required but its workflow ({wf.name}) does not run "
+                            f"on a push to a working branch, so it reports nothing before a merge"
+                        )
+                    elif path_filtered:
+                        lg.blockers.append(
+                            f"`{context}` is required but {wf.name} is `paths:`-filtered, so a "
+                            f"push it does not match reports nothing and blocks forever"
+                        )
+                    else:
+                        lg.gating_contexts.add(context)
+
+    for context in sorted(required):
+        if context not in produced:
+            findings.append(
+                f"STALE REQUIRED CONTEXT `{context}`: tools/required-checks.toml names it, but no "
+                f"workflow job produces a check by that name — the ruleset is gating on nothing"
+            )
+    for lg in legs.values():
+        for blocker in lg.blockers:
+            findings.append(f"UNGATEABLE REQUIRED CONTEXT {blocker}")
+    return legs, sorted(set(findings))
+
+
 # ── Phase C: coverage ─────────────────────────────────────────────────────────
 
 
@@ -1440,14 +1725,29 @@ def covers_module(inv: Invocation, mod: LibTestModule) -> bool:
 
 
 def load_exemptions() -> dict[str, str]:
+    return _load_exemption_table("exempt")
+
+
+def load_ungated_exemptions() -> dict[str, str]:
+    """Suites allowed to run only in a leg that cannot fail a merge.
+
+    A separate table from `[[exempt]]` on purpose: those two say different things,
+    and one row must never grant the other. "This suite runs nowhere" and "this
+    suite runs somewhere that cannot block a merge" have different remedies, and a
+    shared table would let the weaker claim silently answer the stronger question.
+    """
+    return _load_exemption_table("ungated")
+
+
+def _load_exemption_table(table: str) -> dict[str, str]:
     if not EXEMPTIONS.exists():
         return {}
     with open(EXEMPTIONS, "rb") as f:
         data = tomllib.load(f)
     out = {}
-    for row in data.get("exempt", []):
+    for row in data.get(table, []):
         if "target" not in row or "reason" not in row or not row["reason"].strip():
-            die(f"exemption row without target/reason: {row}")
+            die(f"[[{table}]] row without target/reason: {row}")
         out[row["target"]] = row["reason"]
     return out
 
@@ -1458,6 +1758,12 @@ def main() -> int:
     workflow_invocations, workflow_ledger = extract_workflow_invocations()
     invocations = dagger_invocations + workflow_invocations
     exemptions = load_exemptions()
+    ungated_exemptions = load_ungated_exemptions()
+    required_contexts = load_required_contexts()
+    leg_gating, gating_findings = extract_leg_gating(
+        main_go, required_contexts, {inv.leg for inv in invocations}
+    )
+    gating_legs = {name for name, lg in leg_gating.items() if lg.gating_contexts}
 
     crates = sorted(p for p in (REPO / "crates").iterdir() if (p / "Cargo.toml").exists())
     binaries: list[TestBinary] = []
@@ -1478,13 +1784,30 @@ def main() -> int:
         binaries.extend(discover_binaries(cd, crate, manifest))
         modules.extend(discover_lib_modules(cd, crate))
 
-    failures: list[str] = []
+    failures: list[str] = list(gating_findings)
     used_exemptions: set[str] = set()
+    used_ungated: set[str] = set()
+
+    def check_gating(target_id: str, legs: list[str], what: str) -> None:
+        """Direction D: is any covering leg one that can fail a merge? (#1289)"""
+        gating = sorted({leg for leg in legs if leg in gating_legs})
+        if gating:
+            return
+        if target_id in ungated_exemptions:
+            used_ungated.add(target_id)
+            return
+        seen = ", ".join(sorted(set(legs)))
+        failures.append(
+            f"UNGATED {target_id}: {what} runs only in [{seen}], and no context those legs "
+            f"produce is a required check — a red test there cannot stop a merge"
+        )
 
     # Direction A+B: every binary covered by some invocation.
     for b in binaries:
         legs = [inv.leg for inv in invocations if covers_binary(inv, b)]
         if legs:
+            if b.target_id not in exemptions:
+                check_gating(b.target_id, legs, "binary")
             continue
         if b.target_id in exemptions:
             used_exemptions.add(b.target_id)
@@ -1512,6 +1835,8 @@ def main() -> int:
     for mod in modules:
         legs = [inv.leg for inv in invocations if covers_module(inv, mod)]
         if legs:
+            if mod.target_id not in exemptions:
+                check_gating(mod.target_id, legs, "lib test module")
             continue
         if mod.target_id in exemptions:
             used_exemptions.add(mod.target_id)
@@ -1545,6 +1870,14 @@ def main() -> int:
     for target in exemptions:
         if target not in all_ids:
             failures.append(f"STALE EXEMPTION {target}: no such target exists any more")
+    for target in ungated_exemptions:
+        if target not in all_ids:
+            failures.append(f"STALE [[ungated]] EXEMPTION {target}: no such target exists any more")
+        elif target not in used_ungated and target not in exemptions:
+            failures.append(
+                f"STALE [[ungated]] EXEMPTION {target}: a required check now covers it — "
+                f"delete the row rather than leaving a granted exemption nothing needs"
+            )
 
     if failures:
         print(f"suite-coverage: FAIL — {len(failures)} finding(s):\n")
@@ -1561,20 +1894,45 @@ def main() -> int:
                 print(f"    · {line}")
         print("  Wire the suite into a leg in .dagger/main.go, or add an exemption with a")
         print("  reason to tools/suite-coverage-exemptions.toml.")
+        print("  An UNGATED finding is different: the suite runs, but in a leg no required")
+        print("  check carries. Put it in a gating leg (see tools/required-checks.toml) or")
+        print("  add an [[ungated]] row saying why it cannot be one.")
+        _print_gating_map(leg_gating, gating_legs)
         return 1
 
     print(
         f"suite-coverage: OK — {len(binaries)} binaries and {len(modules)} feature-gated "
         f"lib modules all covered ({len(dagger_invocations)} Dagger + "
         f"{len(workflow_invocations)} workflow invocations, "
-        f"{len(used_exemptions)} exemptions in use)."
+        f"{len(used_exemptions)} exemptions in use); "
+        f"{len(gating_legs)} of {len(leg_gating)} legs can fail a merge, "
+        f"{len(used_ungated)} suites exempt from that."
     )
+    _print_gating_map(leg_gating, gating_legs)
     # The discounted workflow invocations are printed on success too: they are the
     # cases where a `cargo test` line exists and provides no coverage, which is
     # exactly what a reader skimming the workflows would otherwise miscount.
     for line in sorted(set(workflow_ledger)):
         print(f"  · {line}")
     return 0
+
+
+def _print_gating_map(leg_gating: dict[str, "LegGate"], gating_legs: set[str]) -> None:
+    """Say which leg gates which context, rather than leaving it to be inferred.
+
+    #1289 asks for exactly this: the relationship between "a test exists" and "a
+    check can fail because of it" had to be read out of `.dagger/main.go` and a
+    branch-protection page nobody could see from the tree.
+    """
+    print("\n  Legs, and the check context that carries each (✓ = required on dev):")
+    for name in sorted(leg_gating):
+        lg = leg_gating[name]
+        for context in sorted(lg.contexts):
+            mark = "✓" if context in lg.gating_contexts else " "
+            print(f"    {mark} {name:26} → {context}")
+    ungated = sorted(set(leg_gating) - gating_legs)
+    if ungated:
+        print(f"    · legs no required check carries: {', '.join(ungated)}")
 
 
 def covers_binary_ignoring_env(inv: Invocation, b: TestBinary) -> bool:
