@@ -19,6 +19,59 @@ disagreed, and the promise was the part that was wrong.
 ### Breaking
 
 
+- **A `?rel.field=value` filter with no embed to apply it to is refused, and an embedded count
+  is narrowed by the same filter as its rows (#1285).**
+
+  `?posts.status=published` naming a relationship the type **does** declare, sent without a
+  `?select=` that embeds it, was accepted and then dropped: `200`, with the unfiltered relation.
+  `execute_embeddings` reads `embedding_filters.get(&spec.relationship)` once per *selected*
+  embed, so a filter attached to no selection was read by nothing. The most common spelling —
+  a filter with no `?select=` at all — did not even reach an embed pass: `handle_get` skips the
+  whole block when both selection lists are empty.
+
+  This is the half #1279 deliberately left. #1279 closed the *undeclared*-relationship case at
+  the producer; this one waited because **the right refusal depends on the representation**, and
+  the extractor does not know which one is being served. On an export the same request is
+  already refused by #1275 with the answer an export calls for — narrow the exported rows, or
+  ask for JSON — and refusing earlier would have replaced it with the JSON path's advice, *add
+  `posts(...)` to your `?select=`*, which on an export is a request #1268 refuses. The client
+  would have been told to make a request that cannot succeed.
+
+  So the rule is stated where the representation is known, in `refuse_unapplied_embedding_filters`,
+  beside the export's `refuse_unstreamable_request` rather than inside it:
+
+  ```
+  GET /rest/v1/authors?posts.title[eq]=a-one
+  -> 400 filters were sent for relationships this request did not embed: `posts.title`. …
+        add `posts(...)` to `?select=` to embed and filter it, or `posts.count` to count the
+        matching rows, or drop the filter. `Prefer: handling=lenient` ignores such a filter
+        instead.
+  ```
+
+  `handling=lenient` ignores it and logs, exactly as the extractor's unknown-parameter branch
+  does and as #1279 gave the other dotted refusal. That is the escape hatch for a client that
+  sends filters unconditionally and varies `?select=` per call, which is the one behaviour this
+  change would otherwise break.
+
+  **An embedded count now reads the same filter map as the rows.** `count_related` never read
+  `embedding_filters`, so a request naming both answered with a body that contradicted itself:
+
+  ```
+  ?select=id,posts(id,title),posts.count&posts.title[eq]=a-one
+  -> {"id":1,"posts":[{"id":10,"title":"a-one"}],"posts_count":2}
+  ```
+
+  One post listed, two counted, from one filter over one relationship — #739's shape, a total
+  disagreeing with the rows it is a total of. The count-only spelling was the same drop without
+  the contradiction to give it away: `?select=posts.count&posts.status=published` answered the
+  count of *all* related posts. The filter now travels in `arguments["where"]`, the client's
+  slot, beside the join predicate in `scope_where` and never merged with it (#863, #1170).
+
+  A filter naming a relationship only a **nested** `?select=` mentions is refused too, and
+  correctly: `execute_embeddings` passes an empty map when it recurses, because the
+  `?rel.field=` syntax is flat and one segment deep, so a filter can only ever reach a
+  top-level selection.
+
 - **A filter a query cannot apply is refused instead of dropped (#1283).**
 
   A REST list route whose query declares `auto_params.has_where = false` accepted a client's

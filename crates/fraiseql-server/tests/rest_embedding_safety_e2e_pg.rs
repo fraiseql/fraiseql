@@ -196,12 +196,17 @@ struct Rig {
 
 impl Rig {
     async fn get(&self, uri: &str) -> (StatusCode, Value) {
-        let response = self
-            .router
-            .clone()
-            .oneshot(Request::builder().method("GET").uri(uri).body(Body::empty()).unwrap())
-            .await
-            .unwrap();
+        self.get_with(uri, &[]).await
+    }
+
+    /// The same GET, carrying request headers — `Prefer:` is the only one used here.
+    async fn get_with(&self, uri: &str, headers: &[(&str, &str)]) -> (StatusCode, Value) {
+        let mut builder = Request::builder().method("GET").uri(uri);
+        for (name, value) in headers {
+            builder = builder.header(*name, *value);
+        }
+        let response =
+            self.router.clone().oneshot(builder.body(Body::empty()).unwrap()).await.unwrap();
         let status = response.status();
         let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
         let json = serde_json::from_slice(&bytes)
@@ -847,4 +852,122 @@ async fn a_nested_count_naming_no_relationship_is_refused() {
         body.to_string().contains("bogus"),
         "the refusal must name the relationship it could not find: {body}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// #1285 — a filter needs something to apply it to
+// ---------------------------------------------------------------------------
+
+/// A filter naming a relationship the type declares, on a request that embedded nothing.
+///
+/// `execute_embeddings` reads `embedding_filters.get(&spec.relationship)` once per **selected**
+/// embed, so a filter attached to no selection is read by nothing: accepted, validated, and
+/// answered `200` with the unfiltered relation. Both spellings below produced that — the bare
+/// filter, which is the most common way to write the mistake, and the one with a `?select=` that
+/// names no embed. The first never even reached an embed pass, because `handle_get` skips the
+/// whole block when both selection lists are empty.
+///
+/// The refusal is the JSON representation's, and says what a JSON client can do about it. An
+/// export answers the same request with #1275's refusal instead, which is why this rule cannot
+/// live in the extractor: it runs before `Accept` is read, and would hand an export client
+/// advice — *add `posts(...)` to `?select=`* — that #1268 refuses.
+#[tokio::test]
+async fn a_filter_on_a_relationship_this_request_did_not_embed_is_refused() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    for uri in [
+        "/rest/v1/authors?posts.title[eq]=a-one",
+        "/rest/v1/authors?select=id&posts.title[eq]=a-one",
+    ] {
+        let (status, body) = rig.get(uri).await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{uri}: {body}");
+
+        let message = body["error"]["message"].as_str().unwrap_or_default();
+        assert!(
+            message.contains("`posts.title`"),
+            "{uri}: the refusal names the parameter as sent: {body}"
+        );
+        assert!(
+            message.contains("`posts(...)`"),
+            "{uri}: and the request that would honour it: {body}"
+        );
+    }
+}
+
+/// `Prefer: handling=lenient` ignores it instead — the escape hatch #1279 gave the other
+/// dotted-parameter refusal, and the answer for a client that sends filters unconditionally
+/// and varies `?select=` per call.
+///
+/// The response is the unfiltered one, which is what "ignore what you cannot use" means. It is
+/// only reachable behind the header, which is the whole difference from the old behaviour.
+#[tokio::test]
+async fn a_lenient_client_has_the_unappliable_filter_ignored_rather_than_refused() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig
+        .get_with(
+            "/rest/v1/authors?select=id&posts.title[eq]=a-one",
+            &[("prefer", "handling=lenient")],
+        )
+        .await;
+
+    assert_eq!(status, StatusCode::OK, "lenient handling ignores it: {body}");
+    assert_eq!(
+        body["data"].as_array().map(Vec::len),
+        Some(2),
+        "and answers the read the client asked for: {body}"
+    );
+}
+
+/// A count and the rows it counts cannot disagree about one filter.
+///
+/// `count_related` never read `embedding_filters`, so this exact request answered:
+///
+/// ```text
+/// {"id":1,"posts":[{"id":10,"title":"a-one"}],"posts_count":2}
+/// ```
+///
+/// One post listed, two counted, from one `?posts.title[eq]=` over one relationship — #739's
+/// shape, a total contradicting the rows it is a total of. Author 1 owns `a-one` and `a-two`,
+/// so 1 and 2 are both reachable answers here and only the filtered one is right.
+///
+/// The count-only spelling is the same defect without the contradiction to give it away: the
+/// client asked for the number of matching rows and was answered with the number of all of
+/// them, under a `200`.
+#[tokio::test]
+async fn an_embedded_count_is_narrowed_by_the_filter_that_narrows_its_rows() {
+    let Some(rig) = rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig
+        .get("/rest/v1/authors?select=id,posts(id,title),posts.count&posts.title[eq]=a-one")
+        .await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+
+    assert_eq!(titles(&posts_of(&body, 1)), vec!["a-one"], "the rows are filtered: {body}");
+    assert_eq!(
+        count_of(&body, 1, "posts_count"),
+        Some(1),
+        "and the count is a count of those rows, not of the relation: {body}"
+    );
+    assert_eq!(count_of(&body, 2, "posts_count"), Some(0), "author 2 owns none of them: {body}");
+
+    // The count-only selection, which has no list beside it to contradict.
+    let (_, body) = rig.get("/rest/v1/authors?select=id,posts.count&posts.title[eq]=a-one").await;
+    assert_eq!(count_of(&body, 1, "posts_count"), Some(1), "{body}");
+    assert_eq!(count_of(&body, 2, "posts_count"), Some(0), "{body}");
+
+    // The control: with no filter, the same request counts everything author 1 owns. Without
+    // it, a count wired to return 0 or to fail closed would satisfy the assertions above.
+    let (_, body) = rig.get("/rest/v1/authors?select=id,posts.count").await;
+    assert_eq!(count_of(&body, 1, "posts_count"), Some(2), "{body}");
+    assert_eq!(count_of(&body, 2, "posts_count"), Some(2), "{body}");
 }

@@ -257,6 +257,7 @@ pub(super) async fn count_related<A: DatabaseAdapter>(
     ctx: &EmbedCtx<'_, A>,
     rel: &Relationship,
     row: &serde_json::Value,
+    embedded_filter: Option<&serde_json::Value>,
 ) -> Result<u64, RestError> {
     let parent_key_value = extract_join_key(ctx.schema, ctx.parent_type, row, rel);
 
@@ -277,10 +278,22 @@ pub(super) async fn count_related<A: DatabaseAdapter>(
 
     let target_type_def = ctx.schema.find_type(&rel.target_type);
 
-    // #1170: the scoping slot, not `arguments["where"]` — `count_rows` gates that
-    // argument on the target's `has_where` exactly as the read path does, so a
+    // #1170: the join predicate travels in the scoping slot, not `arguments["where"]` —
+    // `count_rows` composes that argument only when the target declares `has_where`, so a
     // predicate riding in it produced the whole table's count under a parent's key.
-    let arguments: HashMap<String, serde_json::Value> = HashMap::new();
+    //
+    // #1285: the *client's* filter does go in `arguments["where"]`, because that is what it
+    // is, and it is the same value `embed_into_single` builds for the rows. The two slots
+    // stay separate for #863's reason — one `serde_json::Map::insert` per key, and a filter
+    // naming the join column would otherwise replace the scoping.
+    let mut arguments: HashMap<String, serde_json::Value> = HashMap::new();
+    if let Some(filter) = embedded_filter
+        .and_then(|f| f.as_object())
+        .filter(|m| !m.is_empty())
+        .map(|m| serde_json::Value::Object(m.clone()))
+    {
+        arguments.insert("where".to_string(), filter);
+    }
 
     let query_match =
         QueryMatch::from_operation(target_query.clone(), Vec::new(), arguments, target_type_def)

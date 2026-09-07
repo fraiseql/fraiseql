@@ -219,6 +219,96 @@ pub fn refuse_unstreamable_request(
     Ok(())
 }
 
+/// Refuse a `?rel.field=value` filter the **JSON** representation has nothing to apply it to
+/// (#1285).
+///
+/// This is the JSON half of a rule whose other half is in [`refuse_unstreamable_request`]
+/// above, and the two say different things on purpose. A dotted filter is dropped on both
+/// representations, but for different reasons and with different fixes:
+///
+/// * **Export** — an export carries no embed at all, and cannot be made to. #1275's answer: narrow
+///   the exported rows themselves, or ask for JSON.
+/// * **JSON** — this request embedded nothing to filter, and the client can say so. Add the embed,
+///   or the count, or drop the filter.
+///
+/// Which is why the rule cannot live in `RestParamExtractor`, the site it most obviously
+/// belongs to. The extractor runs before `Accept` is looked at, so an extractor-level refusal
+/// would hand an export client the JSON path's advice — *add `posts(...)` to your `?select=`*
+/// — which is a request #1268 refuses. It would tell the caller to make a request that cannot
+/// succeed. The same reason keeps the relay `?limit=` guard where it is.
+///
+/// # What "applied" means, and why the set is these two
+///
+/// `embedding_filters` is keyed by relationship, and exactly two things read it:
+/// [`execute_embeddings`](super::super::embedding::execute_embeddings), once per selected
+/// [`EmbeddedSpec`], and
+/// [`execute_embedding_counts`](super::super::embedding::execute_embedding_counts), once per
+/// selected count. So a key naming neither is read by nothing — accepted, validated against
+/// nothing, and answered `200` with the unfiltered relation.
+///
+/// Note what is *not* in the set: a **nested** embed. `execute_embeddings` passes an empty map
+/// when it recurses, because the `?rel.field=` syntax is flat and one segment deep, so a filter
+/// can only ever reach a top-level selection. A relationship the parent type declares but only
+/// a nested `?select=` mentions is therefore refused here, correctly.
+///
+/// # Errors
+///
+/// `RestError::BadRequest` naming every offending parameter, unless `lenient` — under
+/// `Prefer: handling=lenient` the filters are ignored and logged, exactly as the extractor's
+/// unknown-parameter branch does. That is the same escape hatch #1279 gave a dotted parameter
+/// naming no relationship at all, and it is what a client that sends filters unconditionally
+/// and varies `?select=` per call should reach for.
+pub(super) fn refuse_unapplied_embedding_filters(
+    embeddings: &[super::super::params::EmbeddedSpec],
+    embedding_counts: &[String],
+    embedding_filters: &HashMap<String, serde_json::Value>,
+    lenient: bool,
+) -> Result<(), RestError> {
+    if embedding_filters.is_empty() {
+        return Ok(());
+    }
+
+    // The two consumers' keys, and nothing else. Built from the same selections they iterate,
+    // so a relationship one of them will read cannot be missing from this.
+    let applied: std::collections::HashSet<&str> = embeddings
+        .iter()
+        .map(|spec| spec.relationship.as_str())
+        .chain(embedding_counts.iter().map(String::as_str))
+        .collect();
+
+    let unapplied: HashMap<String, serde_json::Value> = embedding_filters
+        .iter()
+        .filter(|(relationship, _)| !applied.contains(relationship.as_str()))
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+
+    if unapplied.is_empty() {
+        return Ok(());
+    }
+
+    let named = quoted_list(embedding_filter_parameters(&unapplied));
+
+    if lenient {
+        tracing::debug!(
+            parameters = %named,
+            "ignoring embedded-relationship filters with no embed to apply them to \
+             (Prefer: handling=lenient)"
+        );
+        return Ok(());
+    }
+
+    let mut relationships: Vec<&str> = unapplied.keys().map(String::as_str).collect();
+    relationships.sort_unstable();
+    let first = relationships.first().copied().unwrap_or("rel");
+
+    Err(RestError::bad_request(format!(
+        "filters were sent for relationships this request did not embed: {named}. A dotted \
+         parameter narrows an embedded relationship — add `{first}(...)` to `?select=` to embed \
+         and filter it, or `{first}.count` to count the matching rows, or drop the filter. \
+         `Prefer: handling=lenient` ignores such a filter instead."
+    )))
+}
+
 /// The `rel.field` parameters behind an `embedding_filters` map, in a stable order.
 ///
 /// The map is a `HashMap` keyed by relationship, so it carries no order of its own and this has
@@ -617,6 +707,17 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
 
         let mut body = build_query_response(&result, total, &params.pagination)?;
 
+        // #1285: a dotted filter this request embedded nothing to apply is refused here,
+        // where the representation is known — before the gate below, because the most
+        // common spelling of the mistake is a filter with no `?select=` at all, which
+        // leaves both selection lists empty and never reaches an embed pass.
+        refuse_unapplied_embedding_filters(
+            &params.embeddings,
+            &params.embedding_counts,
+            &params.embedding_filters,
+            prefer.handling == Some(super::prefer::HandlingPreference::Lenient),
+        )?;
+
         // Execute embedded resource sub-queries.
         let has_embeddings = !params.embeddings.is_empty() || !params.embedding_counts.is_empty();
         if has_embeddings {
@@ -637,10 +738,15 @@ impl<A: DatabaseAdapter> RestHandler<'_, A> {
                 )
                 .await?;
 
+                // The same filter map the embed pass read. A request naming both
+                // `posts(...)` and `posts.count` with one `?posts.status=` used to answer
+                // with a narrowed list beside a total of everything — a body contradicting
+                // itself, the #739 shape (#1285).
                 super::super::embedding::execute_embedding_counts(
                     &embed_req,
                     data,
                     &params.embedding_counts,
+                    &params.embedding_filters,
                 )
                 .await?;
 

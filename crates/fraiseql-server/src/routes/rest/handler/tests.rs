@@ -1622,3 +1622,106 @@ mod unapplicable_filter {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// #1285: a filter needs something to apply it to
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod unapplied_embedding_filters {
+    use std::collections::HashMap;
+
+    use super::super::query::refuse_unapplied_embedding_filters;
+    use crate::routes::rest::params::{EmbeddedSpec, SelectEntry};
+
+    /// `embedding_filters` as `extract_embedding_filters` builds it: keyed by relationship,
+    /// each value an object of field -> `{op: value}`.
+    fn filters(relationships: &[&str]) -> HashMap<String, serde_json::Value> {
+        relationships
+            .iter()
+            .map(|r| ((*r).to_string(), serde_json::json!({ "status": { "eq": "published" } })))
+            .collect()
+    }
+
+    fn embed(relationship: &str) -> EmbeddedSpec {
+        EmbeddedSpec {
+            relationship: relationship.to_string(),
+            rename:       None,
+            fields:       vec![SelectEntry::Field("id".to_string())],
+        }
+    }
+
+    /// The supported request: the filter names an embed this `?select=` asked for.
+    #[test]
+    fn a_filter_on_a_selected_embed_is_accepted() {
+        assert!(
+            refuse_unapplied_embedding_filters(&[embed("posts")], &[], &filters(&["posts"]), false)
+                .is_ok()
+        );
+    }
+
+    /// And on a selected **count**, which reads the same map since #1285 — so it is applied,
+    /// and refusing it here would refuse a request the engine honours.
+    #[test]
+    fn a_filter_on_a_selected_count_is_accepted() {
+        assert!(
+            refuse_unapplied_embedding_filters(
+                &[],
+                &["posts".to_string()],
+                &filters(&["posts"]),
+                false
+            )
+            .is_ok()
+        );
+    }
+
+    /// The defect: nothing selected, so nothing reads the filter.
+    ///
+    /// Both empty selection lists is the no-`?select=` case, which never reached an embed
+    /// pass at all — `handle_get` skips the block when both are empty, which is why the
+    /// check runs before it.
+    #[test]
+    fn a_filter_on_nothing_selected_is_refused() {
+        let err =
+            refuse_unapplied_embedding_filters(&[], &[], &filters(&["posts"]), false).unwrap_err();
+        assert_eq!(err.status, axum::http::StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("`posts.status`"), "{}", err.message);
+        assert!(err.message.contains("`posts(...)`"), "{}", err.message);
+    }
+
+    /// A request can be right about one relationship and wrong about another, and only the
+    /// second is named. A refusal that named both would send the client to change a
+    /// parameter that was already correct.
+    #[test]
+    fn only_the_unapplied_half_of_a_mixed_request_is_named() {
+        let err = refuse_unapplied_embedding_filters(
+            &[embed("posts")],
+            &[],
+            &filters(&["posts", "comments"]),
+            false,
+        )
+        .unwrap_err();
+        assert!(err.message.contains("`comments.status`"), "{}", err.message);
+        assert!(!err.message.contains("`posts.status`"), "{}", err.message);
+    }
+
+    /// `Prefer: handling=lenient` ignores it, as the extractor's unknown-parameter branch
+    /// does and as #1279 gave the other dotted-parameter refusal.
+    #[test]
+    fn lenient_handling_ignores_it() {
+        assert!(
+            refuse_unapplied_embedding_filters(&[], &[], &filters(&["posts"]), true).is_ok(),
+            "lenient means the server may ignore what it cannot use"
+        );
+    }
+
+    /// No filters, nothing to say — on any selection.
+    #[test]
+    fn a_request_with_no_filters_is_never_refused() {
+        assert!(refuse_unapplied_embedding_filters(&[], &[], &HashMap::new(), false).is_ok());
+        assert!(
+            refuse_unapplied_embedding_filters(&[embed("posts")], &[], &HashMap::new(), false)
+                .is_ok()
+        );
+    }
+}

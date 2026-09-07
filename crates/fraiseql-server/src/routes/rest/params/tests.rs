@@ -1473,23 +1473,29 @@ fn a_dotted_parameter_is_ignored_under_lenient_handling() {
     );
 }
 
-/// A relationship the type *does* declare, filtered without being selected.
+/// A relationship the type *does* declare, filtered without being selected: the extractor
+/// **accepts** it, and that is the answer #1285 kept.
 ///
-/// **This pins current behaviour, which is known-wrong.** `execute_embeddings` reads
-/// `embedding_filters.get(&spec.relationship)` once per **selected** embed (nested embeds are
-/// passed `&no_filters`), so a filter on a relationship no `?select=` named is never read by
-/// anything: accepted, and dropped under a 200.
+/// It is not accepted because it is honoured. `execute_embeddings` and
+/// `execute_embedding_counts` read `embedding_filters` by relationship, once per **selected**
+/// embed or count (nested embeds are passed `&no_filters`), so a filter naming neither is read
+/// by nothing. #1285 refuses it — in `refuse_unapplied_embedding_filters`, after a
+/// representation has been chosen, not here.
 ///
-/// It is deliberately **not** fixed here with #1279's other half. The right refusal depends on
-/// the representation, and the extractor does not know it: on an export the answer is #1275's
-/// ("an export carries no embed to filter; request `Accept: application/json` to embed and
-/// filter"), and refusing earlier in the extractor would hand an export client the JSON path's
-/// advice — "add `author(...)` to `?select=`" — which #1268 refuses. So the rule belongs after a
-/// representation is chosen, and it is filed as #1285 rather than folded in.
+/// **Why not here**, which is where it most obviously belongs: this function runs before
+/// `Accept` is looked at. On an export the same request is already refused by #1275, with the
+/// diagnosis an export calls for — "an export carries no embed to filter; request
+/// `Accept: application/json` to embed and filter". An extractor-level refusal would replace
+/// that with the JSON path's advice, *add `posts(...)` to your `?select=`*, which on an export
+/// is a request #1268 refuses. The client would be told to make a request that cannot succeed.
 ///
-/// ⚠ When #1285 is taken, flip this assertion: the extract should become an `expect_err`.
+/// So the extractor's job here is to produce the filter, and the representation's job is to say
+/// what it does with one it cannot apply. This test pins the first half; the second is
+/// `handler::tests::unapplied_embedding_filters` and
+/// `a_filter_on_a_relationship_this_request_did_not_embed_is_refused`
+/// (`rest_embedding_safety_e2e_pg`).
 #[test]
-fn a_filter_on_an_unselected_relationship_is_still_accepted_for_now() {
+fn a_filter_on_an_unselected_relationship_is_accepted_by_the_extractor() {
     let config = test_config();
     let qd = list_query_def();
     let td = user_type_with_relationships();
@@ -1497,11 +1503,12 @@ fn a_filter_on_an_unselected_relationship_is_still_accepted_for_now() {
 
     let params = ext
         .extract(&[], &[("posts.status", "published")])
-        .expect("current behaviour: a declared relationship needs no `?select=` to be filtered");
+        .expect("the extractor produces the filter; the representation decides what to do");
     assert_eq!(
         params.embedding_filters.len(),
         1,
-        "pinned so #1285 is a visible change rather than a silent one"
+        "an extractor-level refusal would reach the export path too, which needs #1275's \
+         diagnosis rather than this one's"
     );
 
     // The half that must keep working under either answer: the same filter, embed selected.

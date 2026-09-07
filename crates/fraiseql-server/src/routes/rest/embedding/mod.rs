@@ -308,8 +308,13 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
                         if let Some(child) = row.get_mut(output_name) {
                             Box::pin(execute_embeddings(&nested_req, child, &nested, &no_filters))
                                 .await?;
-                            Box::pin(execute_embedding_counts(&nested_req, child, &nested_counts))
-                                .await?;
+                            Box::pin(execute_embedding_counts(
+                                &nested_req,
+                                child,
+                                &nested_counts,
+                                &no_filters,
+                            ))
+                            .await?;
                             strip_projected_keys(child, &injected);
                         }
                     }
@@ -318,8 +323,13 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
                     if let Some(child) = parent_data.get_mut(output_name) {
                         Box::pin(execute_embeddings(&nested_req, child, &nested, &no_filters))
                             .await?;
-                        Box::pin(execute_embedding_counts(&nested_req, child, &nested_counts))
-                            .await?;
+                        Box::pin(execute_embedding_counts(
+                            &nested_req,
+                            child,
+                            &nested_counts,
+                            &no_filters,
+                        ))
+                        .await?;
                         strip_projected_keys(child, &injected);
                     }
                 },
@@ -334,15 +344,42 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
 /// Execute count-only embeddings and merge counts into parent rows.
 ///
 /// For each count field (e.g., `posts.count`), adds a `{rel}_count` field
-/// to each parent row with the count of related resources.
+/// to each parent row with the count of related resources — narrowed by the client's
+/// `?rel.field=value` filter for that relationship, if it sent one.
+///
+/// # Why the count reads the same filter map as the rows
+///
+/// It did not, until #1285, and a request naming both answered with a body that
+/// contradicted itself:
+///
+/// ```text
+/// ?select=id,posts(id,title),posts.count&posts.title[eq]=a-one
+/// -> {"id":1,"posts":[{"id":10,"title":"a-one"}],"posts_count":2}
+/// ```
+///
+/// One post listed, two counted, from one filter over one relationship. That is #739's
+/// shape — a total that disagrees with the rows it is a total of — and the fix is the
+/// same: one filter, read by every reader of the relation it names, rather than applied
+/// on whichever path happened to be written to look for it.
+///
+/// It also settles what `?select=posts.count&posts.status=published` means. The parameter
+/// was accepted and validated and then not applied, so the answer was the count of *all*
+/// related rows under a `200`; the client cannot tell that from a filter that matched
+/// them all.
+///
+/// Nested counts are passed an empty map by `execute_embeddings`, as nested embeds are:
+/// the `?rel.field=` syntax is flat, one segment deep, so a filter can only ever name a
+/// top-level selection.
 ///
 /// # Errors
 ///
 /// Returns `RestError` if a relationship is not found or a count query fails.
+#[allow(clippy::implicit_hasher)] // Reason: generic BuildHasher makes future non-Send
 pub async fn execute_embedding_counts<A: DatabaseAdapter>(
     req: &EmbeddingRequest<'_, A>,
     parent_data: &mut serde_json::Value,
     count_fields: &[String],
+    embedding_filters: &HashMap<String, serde_json::Value>,
 ) -> Result<(), RestError> {
     if count_fields.is_empty() {
         return Ok(());
@@ -373,18 +410,19 @@ pub async fn execute_embedding_counts<A: DatabaseAdapter>(
             })?;
 
         let count_key = format!("{count_rel_name}_count");
+        let embedded_filter = embedding_filters.get(count_rel_name);
 
         match parent_data {
             serde_json::Value::Array(rows) => {
                 for row in rows.iter_mut() {
-                    let count = count_related(&ctx, rel, row).await?;
+                    let count = count_related(&ctx, rel, row, embedded_filter).await?;
                     if let Some(obj) = row.as_object_mut() {
                         obj.insert(count_key.clone(), serde_json::json!(count));
                     }
                 }
             },
             serde_json::Value::Object(_) => {
-                let count = count_related(&ctx, rel, parent_data).await?;
+                let count = count_related(&ctx, rel, parent_data, embedded_filter).await?;
                 if let Some(obj) = parent_data.as_object_mut() {
                     obj.insert(count_key, serde_json::json!(count));
                 }
