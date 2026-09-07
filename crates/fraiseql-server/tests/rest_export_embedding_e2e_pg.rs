@@ -544,9 +544,18 @@ async fn a_csv_export_refuses_an_embedding_filter() {
 
 /// No dotted key is checked against the schema before it is stored.
 ///
-/// The extractor classifies on the dot alone, so a name `Post` does not have is routed to
+/// The extractor classified on the dot alone, so a name `Post` does not have was routed to
 /// `embedding_filters` just as quietly as a real one — and, before this, discarded just as
-/// quietly. It is refused by the same branch, named as sent.
+/// quietly.
+///
+/// **Which guard answers has moved, and the assertion follows it (#1288).** It used to be the
+/// export gate below, naming the parameter as sent. #1279 taught
+/// `RestParamExtractor::extract` the unknown-relationship rule, so the refusal now arrives at
+/// the producer and says something the export gate cannot: which relationships the type
+/// actually has. Asserting that list is what keeps this case distinct from
+/// `an_ndjson_export_refuses_an_embedding_filter`, which sends the *known* `author.name` and
+/// is refused one layer later, by the representation's own rule — so a build that lost the
+/// #1279 refusal would fail here rather than pass on the export gate's message.
 #[tokio::test]
 async fn an_export_refuses_a_dotted_parameter_that_names_no_relationship() {
     let rig = rig_or_skip!();
@@ -554,7 +563,15 @@ async fn an_export_refuses_a_dotted_parameter_that_names_no_relationship() {
     let res = rig.get("/rest/v1/posts?nonsense.field=x", NDJSON).await;
 
     assert_eq!(res.status, StatusCode::BAD_REQUEST, "{}", res.body);
-    assert!(res.message().contains("`nonsense.field`"), "{}", res.message());
+    let msg = res.message();
+    assert!(
+        msg.contains("no relationship 'nonsense'"),
+        "the refusal names the relationship the type does not declare: {msg}"
+    );
+    assert!(
+        msg.contains("author"),
+        "and lists the ones it does, which is what the export gate could not say: {msg}"
+    );
 }
 
 /// The control: the same syntax still narrows a real embed on the JSON representation.

@@ -321,6 +321,22 @@ async fn an_empty_filter_object_is_refused() {
 
 /// A dotted key is routed to `embedding_filters` and never reaches the bulk WHERE clause,
 /// yet it satisfied the guard. The relationship name was never validated either.
+///
+/// **Which guard answers has moved, and the assertion follows it (#1288).** When this was
+/// written the request reached `build_filter_query_match` and died on the missing-filter
+/// guard, whose message contains `filter`. #1279 taught `RestParamExtractor::extract` to
+/// refuse a dotted key whose relationship the type does not declare — at the producer, by
+/// name — so `nonsense` is now rejected before any bulk-specific code runs, and the message
+/// says which relationship was asked for and which ones exist. That refusal is the more
+/// useful one; the invariant this case exists for is the second assertion, which is
+/// unchanged: **a refused bulk delete removes nothing.**
+///
+/// ⚠ The bulk path's own `embedding_filters` refusal (`bulk/mod.rs`, "Embedded-relationship
+/// filters … are not supported on bulk operations") is therefore not what answers here — and
+/// never was, since the missing-filter guard preceded it. Reaching it needs a dotted key
+/// naming a relationship the type *does* declare, which this fixture's single flat
+/// `P13Item` cannot express ("Available: none"). Filed as #1293 rather than widened into
+/// this file.
 #[tokio::test]
 async fn a_dotted_key_that_contributes_no_where_clause_is_refused() {
     let Some(rig) = rig().await else {
@@ -338,8 +354,9 @@ async fn a_dotted_key_that_contributes_no_where_clause_is_refused() {
     );
     let msg = Rig::message(&body);
     assert!(
-        msg.contains("filter"),
-        "the refusal must be the missing-filter guard, not an incidental error: {msg}"
+        msg.contains("no relationship 'nonsense'"),
+        "the refusal must name the relationship the type does not have, not be an incidental \
+         error: {msg}"
     );
     assert_eq!(
         rig.row_count().await,
