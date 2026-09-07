@@ -930,6 +930,33 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **Three `RedisStateStore` tests stop dialling a hardcoded address and start running (#1295).**
+
+  `test_redis_state_store_basic`, `test_redis_state_replay_prevention` and
+  `test_redis_multiple_states` connected to a literal `redis://localhost:6379` and treated a
+  failed connection as a skip. No leg binds a Redis there — `integration (redis)` binds it
+  under a Dagger service alias and exports `REDIS_URL` — so **all three had asserted nothing
+  in any leg, ever**, while reading green. On a developer box that happens to run one they
+  did execute, against whatever was there, and a single slow response `unwrap()`ed and
+  aborted the whole `set -e` test leg at 957 tests of 16 916.
+
+  They now read `REDIS_URL` with no fallback, are `#[ignore]`d, and are named on
+  `integrationRedis`'s command list, so the leg that binds the service is the only thing that
+  runs them. The absent fallback is deliberate: a default localhost address is what let the
+  cases report "connected" or "skipped" for reasons unrelated to whether anything had been
+  provisioned.
+
+  Red capability proved against a real defect rather than a broken assertion: with
+  `RedisStateStore::retrieve`'s atomic `GETDEL` downgraded to `GET` — the replay race its
+  security comment names — the two single-use cases fail and the multi-state case, which
+  asserts nothing about single use, still passes.
+
+  ⚠ The gate half of #1295 turned out to rest on a wrong premise, and is filed as #1297
+  rather than patched here. `SERVICES["redis"]["detect"]` does now match the module's source,
+  and nothing consumes it: `covers_module` has neither a service check nor an `#[ignore]`
+  check, so *every* lib test module is scored service-free — not just this one, and not
+  because of the spelling.
+
 - **The bulk path's embedded-relationship refusal is now reached by a test (#1293).**
 
   `build_filter_query_match` refuses a bulk `PATCH`/`DELETE` carrying `rel.field=value`,

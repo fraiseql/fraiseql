@@ -2209,6 +2209,20 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		"cargo test -p fraiseql-auth --features redis-rate-limiting --test redis_failover_test -- --include-ignored --test-threads=1",
 		"cargo test -p fraiseql-observers --features 'caching,queue,redis-lease,testing' --test integration_test -- --test-threads=1",
 		"cargo test -p fraiseql-auth --features redis-pkce --lib redis_pkce -- --ignored --test-threads=1",
+		// #1295: the RedisStateStore single-use/replay/multi-state cases. They
+		// hardcoded `redis://localhost:6379` and treated a failed connection as a
+		// skip, so they had asserted nothing in ANY leg — this one binds Redis
+		// under a service alias, never on localhost — while a developer box that
+		// did run one could abort the whole `set -e` leg on a slow response. They
+		// now read REDIS_URL and are #[ignore]d, so this is the only line that
+		// runs them.
+		//
+		// ⚠ The filter is load-bearing and nothing checks it still matches: a
+		// rename of `state_store_tests` would make this line run ZERO tests,
+		// print `ok. 0 passed`, and exit 0. It is one of 30 filtered
+		// invocations in this file with that property — see #1300, which is
+		// where the gate for all 30 belongs rather than a grep on this one.
+		"cargo test -p fraiseql-auth --features redis-rate-limiting --lib tests::state_store_tests::test_redis -- --include-ignored --test-threads=1",
 		"echo 'test-integration OK: redis suite passed'",
 	}, "\n")
 

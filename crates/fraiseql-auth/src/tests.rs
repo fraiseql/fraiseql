@@ -1323,100 +1323,124 @@ mod state_store_tests {
         assert!(result.is_ok(), "Should allow at least 1 state minimum");
     }
 
+    /// The address the Redis-backed state-store cases connect to.
+    ///
+    /// # Why there is no fallback (#1295)
+    ///
+    /// These three cases used to hardcode `redis://localhost:6379` and treat a failed
+    /// connection as a skip. No leg binds a Redis at that address — `integrationRedis`
+    /// binds it under a Dagger service alias and exports `REDIS_URL` — so the assertions
+    /// below had **never once executed in CI**, in any leg, while reading green. On a
+    /// developer box that happens to run one, they did execute, against whatever database
+    /// happened to be there, and a single slow response `unwrap()`ed and aborted the whole
+    /// `set -e` test leg at 957 tests of 16 916.
+    ///
+    /// So the fallback is not a convenience here, it is the defect: it is what let the
+    /// cases answer "connected" or "skipped" for reasons unrelated to whether the leg had
+    /// provisioned anything. They are `#[ignore]`d, and the one leg that names them exports
+    /// `REDIS_URL`; if it ever stops, panicking here is the correct answer, because the
+    /// alternative — quietly dialling localhost — is what hid them.
+    #[cfg(feature = "redis-rate-limiting")]
+    fn required_redis_url() -> String {
+        std::env::var("REDIS_URL").expect(
+            "REDIS_URL must be set to run the Redis-backed state-store tests; they are \
+             #[ignore]d and run in the `integration (redis)` suite, which binds the service \
+             and exports it",
+        )
+    }
+
     #[cfg(feature = "redis-rate-limiting")]
     #[tokio::test]
+    #[ignore = "requires Redis — runs in the `integration (redis)` suite, which sets REDIS_URL"]
     async fn test_redis_state_store_basic() {
-        let redis_url = "redis://localhost:6379";
+        let store = RedisStateStore::new(&required_redis_url())
+            .await
+            .expect("Redis connection failed");
 
-        match RedisStateStore::new(redis_url).await {
-            Ok(store) => {
-                let expiry = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .unwrap()
-                    .as_secs()
-                    + 600;
+        let expiry = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 600;
 
-                store
-                    .store("redis_state_1".to_string(), "google".to_string(), expiry)
-                    .await
-                    .unwrap();
+        store
+            .store("redis_state_1".to_string(), "google".to_string(), expiry)
+            .await
+            .unwrap();
 
-                let (provider, retrieved_expiry) = store.retrieve("redis_state_1").await.unwrap();
-                assert_eq!(provider, "google");
-                // #788: the real stored expiry round-trips, rather than a fabricated
-                // `now` that sits on the callers' `now > expiry` rejection boundary.
-                assert_eq!(
-                    retrieved_expiry, expiry,
-                    "retrieve must return the stored expiry, not the current clock"
-                );
+        let (provider, retrieved_expiry) = store.retrieve("redis_state_1").await.unwrap();
+        assert_eq!(provider, "google");
+        // #788: the real stored expiry round-trips, rather than a fabricated
+        // `now` that sits on the callers' `now > expiry` rejection boundary.
+        assert_eq!(
+            retrieved_expiry, expiry,
+            "retrieve must return the stored expiry, not the current clock"
+        );
 
-                let result = store.retrieve("redis_state_1").await;
-                assert!(
-                    matches!(result, Err(AuthError::InvalidState)),
-                    "expected InvalidState for consumed redis state, got: {result:?}"
-                );
-            },
-            Err(_) => {
-                eprintln!("Skipping Redis tests - Redis server not available");
-            },
-        }
+        let result = store.retrieve("redis_state_1").await;
+        assert!(
+            matches!(result, Err(AuthError::InvalidState)),
+            "expected InvalidState for consumed redis state, got: {result:?}"
+        );
     }
 
     #[cfg(feature = "redis-rate-limiting")]
     #[tokio::test]
+    #[ignore = "requires Redis — runs in the `integration (redis)` suite, which sets REDIS_URL"]
     async fn test_redis_state_replay_prevention() {
-        let redis_url = "redis://localhost:6379";
+        let store = RedisStateStore::new(&required_redis_url())
+            .await
+            .expect("Redis connection failed");
 
-        if let Ok(store) = RedisStateStore::new(redis_url).await {
-            let expiry = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-                + 600;
+        let expiry = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 600;
 
-            store
-                .store("redis_replay_test".to_string(), "auth0".to_string(), expiry)
-                .await
-                .unwrap();
+        store
+            .store("redis_replay_test".to_string(), "auth0".to_string(), expiry)
+            .await
+            .unwrap();
 
-            let result1 = store.retrieve("redis_replay_test").await;
-            assert!(result1.is_ok(), "first redis retrieval should succeed: {result1:?}");
+        let result1 = store.retrieve("redis_replay_test").await;
+        assert!(result1.is_ok(), "first redis retrieval should succeed: {result1:?}");
 
-            let result2 = store.retrieve("redis_replay_test").await;
-            assert!(
-                matches!(result2, Err(AuthError::InvalidState)),
-                "redis replay attempt should return InvalidState, got: {result2:?}"
-            );
-        }
+        let result2 = store.retrieve("redis_replay_test").await;
+        assert!(
+            matches!(result2, Err(AuthError::InvalidState)),
+            "redis replay attempt should return InvalidState, got: {result2:?}"
+        );
     }
 
     #[cfg(feature = "redis-rate-limiting")]
     #[tokio::test]
+    #[ignore = "requires Redis — runs in the `integration (redis)` suite, which sets REDIS_URL"]
     async fn test_redis_multiple_states() {
-        let redis_url = "redis://localhost:6379";
+        let store = RedisStateStore::new(&required_redis_url())
+            .await
+            .expect("Redis connection failed");
 
-        if let Ok(store) = RedisStateStore::new(redis_url).await {
-            let expiry = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_secs()
-                + 600;
+        let expiry = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_secs()
+            + 600;
 
-            store
-                .store("redis_state_a".to_string(), "google".to_string(), expiry)
-                .await
-                .unwrap();
-            store
-                .store("redis_state_b".to_string(), "okta".to_string(), expiry)
-                .await
-                .unwrap();
+        store
+            .store("redis_state_a".to_string(), "google".to_string(), expiry)
+            .await
+            .unwrap();
+        store
+            .store("redis_state_b".to_string(), "okta".to_string(), expiry)
+            .await
+            .unwrap();
 
-            let (p1, _) = store.retrieve("redis_state_a").await.unwrap();
-            assert_eq!(p1, "google");
+        let (p1, _) = store.retrieve("redis_state_a").await.unwrap();
+        assert_eq!(p1, "google");
 
-            let (p2, _) = store.retrieve("redis_state_b").await.unwrap();
-            assert_eq!(p2, "okta");
-        }
+        let (p2, _) = store.retrieve("redis_state_b").await.unwrap();
+        assert_eq!(p2, "okta");
     }
 }
 
