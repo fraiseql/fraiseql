@@ -39,7 +39,7 @@ from pathlib import Path
 # The normalised `cargoArgs()` body this parser mirrors. Recompute with
 # `tools/feature-combos.py --print-cargo-args-hash` after an intentional change,
 # and check that the reproduction below still matches.
-CARGO_ARGS_HASH = "8b497f24e04253bce67aba81a91182fc148c3a0491a8123604342b3c2b11d3e0"
+CARGO_ARGS_HASH = "77af505746dd26fbb6ce0207192fb8bf2fc1a8c0c3d462c89a1147e1b909c624"
 
 GO_SOURCE = Path(".dagger/feature-combos.go")
 
@@ -54,14 +54,14 @@ CARGO_ARGS_RE = re.compile(
 LITERAL_RE = re.compile(r"^\s*\{name:.*\},\s*$")
 
 STRING_FIELD_RE = re.compile(r'\b(name|crate): "([^"]*)"')
-BOOL_FIELD_RE = re.compile(r"\b(noDefaultFeatures|clippy): (true|false)")
+BOOL_FIELD_RE = re.compile(r"\b(noDefaultFeatures|clippy|allTargets): (true|false)")
 LIST_FIELD_RE = re.compile(r"\b(features): \[\]string\{([^}]*)\}")
 ELEMENT_RE = re.compile(r'"([^"]*)"')
 # Every `key:` in the literal, so a field this parser does not model is reported
 # instead of dropped.
 ANY_FIELD_RE = re.compile(r"\b([a-zA-Z][a-zA-Z0-9_]*): ")
 
-KNOWN_FIELDS = {"name", "crate", "features", "noDefaultFeatures", "clippy"}
+KNOWN_FIELDS = {"name", "crate", "features", "noDefaultFeatures", "clippy", "allTargets"}
 
 
 class ParseError(Exception):
@@ -112,7 +112,12 @@ def parse_literal(line: str, lineno: int) -> dict:
             f"CARGO_ARGS_HASH if cargoArgs() also changed.\n  {line.strip()}"
         )
 
-    combo: dict = {"features": [], "noDefaultFeatures": False, "clippy": False}
+    combo: dict = {
+        "features": [],
+        "noDefaultFeatures": False,
+        "clippy": False,
+        "allTargets": False,
+    }
     for key, value in STRING_FIELD_RE.findall(line):
         combo[key] = value
     for key, value in BOOL_FIELD_RE.findall(line):
@@ -137,6 +142,8 @@ def cargo_args(combo: dict) -> list[str]:
         args.append("--no-default-features")
     if combo["features"]:
         args += ["--features", ",".join(combo["features"])]
+    if combo["allTargets"] and not combo["clippy"]:
+        args.append("--all-targets")
     if combo["clippy"]:
         args += ["--all-targets", "--", "-D", "warnings"]
     return args

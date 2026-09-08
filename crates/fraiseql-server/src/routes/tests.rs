@@ -1,6 +1,18 @@
 //! Tests for top-level `routes/` modules.
 #![allow(unused_imports)] // Reason: shared test-prelude import used by only some cfg combinations
 
+// `auth_tests` and `revoke_tests` reach for `crate::auth` — `PkceStateStore`,
+// `OidcServerClient`, `StateEncryptionService`, `RevocationRouteState` — which the
+// `auth` feature provides. The module they live in was `#[cfg(test)]` alone, so a
+// build without that feature failed to COMPILE its lib test binary: six errors,
+// on every feature set omitting `auth`, and no gate built that shape (#1277).
+//
+// Gated per-module rather than on the whole `mod tests;`, so the five modules
+// below — health, introspection, metrics, playground, subscriptions — still
+// compile and run under a `rest`-only build. Blanket-gating the file would have
+// traded a compile error for zero route tests in exactly the narrow combos that
+// now build them.
+#[cfg(feature = "auth")]
 mod auth_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
@@ -398,6 +410,7 @@ mod auth_tests {
     }
 }
 
+#[cfg(feature = "auth")]
 mod revoke_tests {
     //! Handler-level authorization tests for `POST /auth/revoke` and
     //! `POST /auth/revoke-all` (issue #358).

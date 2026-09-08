@@ -419,6 +419,28 @@ required-features = ["federation"]
 name = "federation_saga_validation_test"
 required-features = ["federation"]
 
+# The three suites that reach `crate::auth` for `PkceStateStore`,
+# `SecurityConfigFromSchema`, `init_security_config` and friends. Undeclared until
+# #1277, which cost nothing while no gate built a `fraiseql-server` test target
+# without the crate defaults — `auth` is one of them — and cost a compile the
+# moment the narrow `server-rest-*` combos gained `--all-targets`.
+#
+# Declared here rather than with a file-level `#![cfg(feature = "auth")]`, for the
+# reason stated on `admin_sql_console_e2e_pg` above: the inner form compiles to an
+# empty binary that reports 0 tests and reads green in a leg that lacks the
+# feature (#1082), and `check-suite-coverage.py` can only see the declared form.
+[[test]]
+name = "auth_me_integration_test"
+required-features = ["auth"]
+
+[[test]]
+name = "security"
+required-features = ["auth"]
+
+[[test]]
+name = "security_config_runtime_test"
+required-features = ["auth"]
+
 # docs.rs builds a crate with its DEFAULT features unless told otherwise, so the published
 # page showed none of the feature-gated API — and this workspace's documentation links
 # into that API from prose that is not gated (#1199). `all-features` makes the published

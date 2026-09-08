@@ -55,6 +55,17 @@ type featureCombo struct {
 	// clippy is a superset of check, so we run clippy alone rather than both (one
 	// compile, not two — cost over speed).
 	clippy bool
+	// allTargets adds `--all-targets` to a `cargo check` combo, so the crate's TEST
+	// binaries are compiled for this feature set and not only its lib. `clippy`
+	// already implies it; this is for the combos that must build the test targets
+	// without taking on a never-linted build's warning debt.
+	//
+	// #1277: `cargo test -p fraiseql-server --no-default-features --features rest
+	// --lib` failed to compile for months — `routes/tests.rs` used `crate::auth`
+	// symbols with no gate on the feature providing them — and no combo built that
+	// shape. The narrow server combos were `cargo check` (lib only) and the combos
+	// that did build tests all kept the crate defaults, which include `auth`.
+	allTargets bool
 }
 
 // featureCombos is the whole matrix, ported verbatim from feature-flags.yml:
@@ -135,8 +146,13 @@ var featureCombos = []featureCombo{
 	// combo per writer, so a cross-module import in EITHER direction reddens here.
 	// (There is no `export-parquet` combo because the feature no longer exists: it gated
 	// nothing and was deleted in 2.15.0 (#1012). Parquet is `fraiseql-arrow`'s, over Flight.)
-	{name: "server-rest-export-xlsx", crate: "fraiseql-server", noDefaultFeatures: true, features: []string{"rest", "export-xlsx"}},
-	{name: "server-rest-export-csv", crate: "fraiseql-server", noDefaultFeatures: true, features: []string{"rest", "export-csv"}},
+	// `allTargets` since #1277: these two are the only combos that build
+	// fraiseql-server WITHOUT its default features, so they are the only place the
+	// `auth`-off arm of its lib test binary can be compiled. `rest` alone
+	// reproduces that failure identically — the export features change nothing in
+	// `routes/tests.rs` — so gating the arm here covers it without a third build.
+	{name: "server-rest-export-xlsx", crate: "fraiseql-server", noDefaultFeatures: true, allTargets: true, features: []string{"rest", "export-xlsx"}},
+	{name: "server-rest-export-csv", crate: "fraiseql-server", noDefaultFeatures: true, allTargets: true, features: []string{"rest", "export-csv"}},
 	// #1291: `rest` with NEITHER export feature, and the only combo of the three that
 	// clippies. It is the shape a REST deployment that wants no CSV/XLSX writer compiles,
 	// and the one where a `mount` parameter read solely under `export-*` cfgs is unused —
@@ -232,6 +248,9 @@ func (c featureCombo) cargoArgs() []string {
 	}
 	if len(c.features) > 0 {
 		args = append(args, "--features", strings.Join(c.features, ","))
+	}
+	if c.allTargets && !c.clippy {
+		args = append(args, "--all-targets")
 	}
 	if c.clippy {
 		args = append(args, "--all-targets", "--", "-D", "warnings")
