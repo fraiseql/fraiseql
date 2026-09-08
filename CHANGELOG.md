@@ -930,6 +930,97 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **A tags-only workflow stops reading as one that reaches branches (#1298).**
+
+  `check-suite-coverage.py` decides whether a check context may be listed in
+  `tools/required-checks.toml`, and it answered "yes" for a workflow triggered by
+  `on: push: tags: ['v*']`. That is `release.yml`'s trigger, and `docker-build.yml`'s;
+  between them they produce sixteen publish contexts — six `Build Binary (…)`, the GitHub
+  release, three registry publishes, the docker build/push/notify trio. Requiring any one
+  would have wedged `dev` permanently, because GitHub reports a check that never ran as
+  "not run" rather than "passed", and the ruleset waits for it forever. That is strictly
+  worse than the `branches: [dev]` case the gate already refused, which at least reports
+  after the merge.
+
+  The predicate read the absence of a `branches:` key as "no branch restriction". GitHub's
+  rule is the opposite — defining only `tags`/`tags-ignore` leaves branches undefined and
+  the workflow does not run for branch events at all — and this repository's own history
+  shows it: 30 of `release.yml`'s last 30 runs are on a `v*` tag, none on a branch, across
+  hundreds of branch pushes in the same window.
+
+  The rule is "a tag key AND no branch key", not "a tag key": a `push:` naming `branches:`
+  as well runs on those branches exactly as before, and refusing it would be a false
+  failure on a real merge gate. `branches-ignore:` counts as a branch key for the same
+  reason.
+
+- **Two checks that ran on every push and could fail no merge are now required (#1299).**
+
+  `Changelog Completeness` and sdk-conformance's `Author → export → compile → observe`
+  both ran on every branch push and neither could stop a merge — the fourth instance of
+  the family #1257, #1289 and #1296 each fixed one of, and the fourth found by a person
+  noticing rather than by a check. `Changelog Completeness` is the sharper: it was revived
+  in #1127 *because* 48 closed issues had gone undocumented while it sat
+  `workflow_dispatch:`-only, and it was given back its trigger without being given the
+  ability to fail anything. Both are GitHub-hosted, so the runner-cost argument weighed in
+  #1296 does not apply, and both were green over their last 20 runs on `dev`. Ruleset
+  18506494 now carries 25 contexts.
+
+  The gate that finds the next one ships with it. `check-suite-coverage.py` reasoned only
+  from the suite end — it refuses a suite whose coverage cannot gate — so a job running no
+  `cargo test` had no suite and was nobody's subject, which is why three of the four
+  instances needed a survey. It now asks the complementary question directly: every
+  context produced on a push to a working branch by an unfiltered workflow is either
+  required, or carries an `[[unrequired]]` row in
+  `tools/suite-coverage-exemptions.toml` saying why it must not gate. There are no rows.
+
+- **Ten lib test modules that ran in no leg, and the two axes that were not being asked (#1297).**
+
+  The gate that refuses a test suite no CI leg runs has long asked, of an integration test
+  binary, whether a leg binds the services that suite needs and whether it actually runs the
+  suite's `#[ignore]`d tests. Of a lib test module it asked
+  neither of those, so any leg that merely COMPILED a module with the right features was credited
+  with covering it — including one binding no service, where every DB-backed case returns
+  early and reads exactly like a pass. Ten modules were scored that way and every one is a
+  real hole: the four `redis-pkce` and three `redis-rate-limiting` state-store cases in
+  `fraiseql-auth`, `fraiseql-core`'s four Redis APQ cases, both `queue` modules in
+  `fraiseql-observers` (whose only credited leg runs `-- --ignored` over tests carrying no
+  `#[ignore]`), the two advisory-lease modules, `fraiseql-federation`'s saga-store Postgres
+  proof, and `fraiseql-server`'s `identity` and `observers::changelog_handlers` modules.
+  Each is closed with a leg line in `.dagger/main.go`; none with an exemption.
+
+  The observers lease pair was already known — `.dagger/main.go` carried the comment "kept
+  as the legacy `--lib --ignored` no-op … Lease coverage gap == legacy". A comment is not
+  executable, which is the argument for the axis.
+
+  Two things had to be right first or the axes would have reported nothing. A virtual
+  `[feature]` target is a slice of a `tests.rs`, not the file: `fraiseql-auth/src/tests.rs`
+  holds 345 tests of which 9 read as `#[ignore]`, so whole-file counting calls it "not
+  ignore-only" while all four `redis-pkce` tests are ignored — and in the other direction it
+  read `fraiseql-cli`'s `run_tests[run-server]` as needing Postgres and Redis when its own
+  23 tests touch neither. And the comment stripper had to learn what a string is: splitting
+  each line at the first `//` truncates
+  `#[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]` mid-string, and it
+  counted the `#[ignore]d` written inside a message string as a real attribute — 13 phantom
+  `#[test]`s and 2 phantom `#[ignore]`s across 5 files.
+
+- **A CI filter that matches nothing stops reading as a passing leg (#1300).**
+
+  Thirty invocations in `.dagger/main.go` narrow a cargo run with a positional filter, ten
+  of them naming a single test function — the longest 63 characters of path. A filter that
+  matches nothing is not an error: cargo prints `running 0 tests` and exits 0, so a rename,
+  a module move or a typo retires whichever suite the line was added to run while the leg
+  stays green. Nothing checked that any still matched, and the coverage scan could not: it
+  reads a filter matching no module as "this invocation does not cover that module", which
+  is the right conservative answer for coverage and exactly why a broken filter is
+  indistinguishable there from one that was never meant to match.
+
+  `check-suite-coverage.py` now enumerates every `#[test]`/`#[tokio::test]` function's full
+  path — under its inline `mod` chain, its file module chain, and through the twenty
+  `#[path = "…"]` declarations in this tree — and requires each filter to match one. The
+  match is a substring, as cargo's is. All 49 filters are live today. `--skip` is
+  deliberately not checked: a stale skip makes the excluded test start running, which is
+  wrong but loud.
+
 - **`integration (server)` stops discarding the output of the suite that fails it (#1276).**
 
   Twice now that leg has exited `101` with **no failing test anywhere in its log** — #1276's
