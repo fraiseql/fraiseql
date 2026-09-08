@@ -71,15 +71,27 @@ fn test_corrupt_stored_value_display() {
 
 #[tokio::test]
 async fn test_postgres_connection() {
-    if fraiseql_test_utils::try_database_url().is_none() {
-        eprintln!("Skipping: DATABASE_URL not set");
+    // `SAGA_STORE_TEST_URL` still wins, so a run CAN point this at a store of its
+    // own — but there is no localhost fallback behind it. The old default was
+    // `…@localhost:5433/test_fraiseql`, this box's developer database, and the
+    // guard above only asked whether DATABASE_URL was SET: in a leg that binds
+    // Postgres under a service alias the guard passed, the fallback dialled a
+    // localhost nothing listens on, and the test panicked. It had never run
+    // anywhere to show that — the only leg compiling it bound no database, so the
+    // guard skipped it — until #1297 wired this module into `integration
+    // (postgres)`.
+    //
+    // Same shape as #1295, and the same answer: the fallback is not a convenience,
+    // it is the defect. Skipping when neither variable is set stays correct for a
+    // developer with no database; dialling a host that happens to be right on one
+    // machine is what made the failure invisible.
+    let Some(url) = std::env::var("SAGA_STORE_TEST_URL")
+        .ok()
+        .or_else(fraiseql_test_utils::try_database_url)
+    else {
+        eprintln!("Skipping: neither SAGA_STORE_TEST_URL nor DATABASE_URL is set");
         return;
-    }
-    // Use SAGA_STORE_TEST_URL (postgres-specific) so this test targets a store
-    // of its own rather than whatever DATABASE_URL happens to point at.
-    let url = std::env::var("SAGA_STORE_TEST_URL").unwrap_or_else(|_| {
-        "postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql".to_string()
-    });
+    };
     let store = PostgresSagaStore::new(&url).await.expect("Failed to create store");
     store.health_check().await.expect("Health check failed");
 }
