@@ -95,6 +95,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             relay_cursor_type: None,
             rest:              None,
             rest_stream:       false,
+            pagination_order:  None,
         }],
         mutations:         vec![],
         subscriptions:     vec![],

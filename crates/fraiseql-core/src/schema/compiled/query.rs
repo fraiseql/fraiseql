@@ -34,6 +34,62 @@ pub(super) fn is_default_cursor_type(ct: &CursorType) -> bool {
     *ct == CursorType::Int64
 }
 
+/// The total order a `LIMIT`/`OFFSET` page falls back to when the client asked
+/// for none (#1303).
+///
+/// A page is a *slice of a sequence*, and a read with no `ORDER BY` is not a
+/// sequence: PostgreSQL may return the same relation in a different physical
+/// order for each page, so a client walking `?offset=` sees some rows twice and
+/// never sees others — under `200`, with no error anywhere. #1287 closed the
+/// half of that where the client *did* order and the ordering was not total;
+/// this closes the half where it ordered by nothing at all.
+///
+/// # Why the compiler decides and not the SQL layer
+///
+/// A tie-breaker and a default ordering are different things. A tie-breaker has
+/// no semantic content — any total order disambiguates ties *inside* an ordering
+/// the client chose — so the SQL layer may pick one unaided. A default ordering
+/// decides what "page 2" **means** when nobody said, which is the schema
+/// author's call, and choosing well needs the schema: measured against
+/// PostgreSQL 16 over 200 000 rows at a deep offset, `data->>'id'` costs 7.7×
+/// the unordered plan, a native `id` column 4.2×, and `pk_<type>` 1.7×. The
+/// only one of the three a request-time rule can reach without help is the
+/// worst.
+///
+/// This is why the field is derived at compile time and sits beside
+/// [`relay_cursor_column`](QueryDefinition::relay_cursor_column): the other
+/// pagination family already declares its ordering key in the compiled schema,
+/// for the same reason.
+///
+/// # Deliberately not `#[non_exhaustive]`
+///
+/// A downstream `match` over this enum must be exhaustive, so a third way to
+/// reach an identity is a compile error at every site that lowers one rather
+/// than a wildcard arm that silently renders nothing.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PaginationOrder {
+    /// `ORDER BY data->>'id' ASC` — the entity identity extracted from the JSONB
+    /// document as text.
+    ///
+    /// Correct for every type under ADR-0017, which is why it is the answer a
+    /// compile with no `--database` can always give: `id` is an enforced
+    /// invariant, and comparing it as text serves uuid, integer and text keys
+    /// alike without knowing which one a type declares. It is also the most
+    /// expensive of the three — no index applies — so a compile that *can*
+    /// introspect the relation replaces it with [`Column`](Self::Column).
+    JsonIdentity,
+    /// `ORDER BY <column> ASC` — a native column on the relation.
+    ///
+    /// Either declared by the author or discovered by introspection
+    /// (`pk_<type>`, then `id`). The column must be **unique** over the
+    /// relation: a non-unique one leaves the order partial, which is the defect
+    /// this field exists to remove rather than a cheaper way to fix it. Nothing
+    /// in the catalog reports uniqueness for a view, so a declared column is
+    /// checked for existence and taken on trust.
+    Column(String),
+}
+
 /// A query definition compiled from `@fraiseql.query`.
 ///
 /// Queries are declarative bindings to database views/tables.
@@ -138,6 +194,22 @@ pub struct QueryDefinition {
     /// Only meaningful when `relay = true`.
     #[serde(default, skip_serializing_if = "is_default_cursor_type")]
     pub relay_cursor_type: CursorType,
+
+    /// The order an offset-paginated read of this query falls back to when the
+    /// client requests none (#1303).
+    ///
+    /// Resolved at compile time for every list query that paginates, and `None`
+    /// for every query that does not — plus the one that does and whose author
+    /// declared `pagination_order = "none"`, which is how a view carrying its
+    /// own `ORDER BY` keeps it. That opt-out is *declared* rather than inferred:
+    /// the compiler cannot see a view's body, and ordering unconditionally would
+    /// silently destroy the escape hatch its own `auto_param_warnings` tells
+    /// authors to use.
+    ///
+    /// See [`PaginationOrder`] for why this is decided here and not by the SQL
+    /// layer, and for what each variant costs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pagination_order: Option<PaginationOrder>,
 
     /// Server-side parameters injected from JWT claims at runtime.
     ///
@@ -309,6 +381,7 @@ impl QueryDefinition {
             relay:               false,
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::Int64,
+            pagination_order:    None,
             inject_params:       IndexMap::new(),
             read_routing:        ReadRouting::default(),
             cache_ttl_seconds:   None,
@@ -355,7 +428,8 @@ impl QueryDefinition {
     /// indexes), `additional_views` (same cache invalidation) and `deprecation`.
     ///
     /// Dropped, deliberately: `limit`/`offset`/`orderBy` — a total that moved
-    /// with the page would answer a question nobody asked; `relay`, which has
+    /// with the page would answer a question nobody asked; `pagination_order`
+    /// with them, since a scalar total has no rows to order; `relay`, which has
     /// its own `totalCount`; and the REST overrides, since the REST surface
     /// already counts through `Prefer: count=exact`.
     #[must_use]
@@ -374,6 +448,7 @@ impl QueryDefinition {
             relay: false,
             relay_cursor_column: None,
             relay_cursor_type: CursorType::Int64,
+            pagination_order: None,
             rest_path: None,
             rest_method: None,
             description: Some(format!(

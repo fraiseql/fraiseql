@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
 #![allow(clippy::wildcard_imports)] // Reason: test modules use wildcard imports for conciseness
 
-use fraiseql_core::schema::NamingConvention;
+use fraiseql_core::schema::{NamingConvention, PaginationOrder};
 use indexmap::IndexMap;
 
 use super::*;
@@ -574,6 +574,7 @@ fn test_validate_unknown_type_reference() {
             relay_cursor_type: None,
             rest:              None,
             rest_stream:       false,
+            pagination_order:  None,
         }],
         mutations:         vec![],
         subscriptions:     vec![],
@@ -666,6 +667,7 @@ fn test_convert_query_with_arguments() {
             relay_cursor_type: None,
             rest:              None,
             rest_stream:       false,
+            pagination_order:  None,
         }],
         mutations:         vec![],
         subscriptions:     vec![],
@@ -748,6 +750,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
             relay_cursor_type: None,
             rest:              None,
             rest_stream:       false,
+            pagination_order:  None,
         }],
         mutations:         vec![],
         subscriptions:     vec![],
@@ -831,6 +834,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
             relay_cursor_type: None,
             rest:              None,
             rest_stream:       false,
+            pagination_order:  None,
         }],
         mutations:         vec![],
         subscriptions:     vec![],
@@ -3546,6 +3550,7 @@ fn count_query(name: &str, tweak: impl FnOnce(&mut IntermediateQuery)) -> Interm
         relay_cursor_type: None,
         rest:              None,
         rest_stream:       false,
+        pagination_order:  None,
     };
     tweak(&mut q);
     q
@@ -3820,7 +3825,10 @@ mod auto_params_parity_tests {
     ///
     /// `query_defaults: None` on purpose: the divergence is about what a project that
     /// configures *nothing* gets, which is the case every fixture stands in for.
-    fn compiled_auto_params(returns_list: bool, relay: bool) -> AutoParams {
+    fn compiled_query(
+        returns_list: bool,
+        relay: bool,
+    ) -> fraiseql_core::schema::QueryDefinition {
         let intermediate = IntermediateSchema {
             grpc_config:       None,
             security:          None,
@@ -3868,6 +3876,7 @@ mod auto_params_parity_tests {
                 relay_cursor_type: None,
                 rest: None,
                 rest_stream: false,
+                pagination_order: None,
             }],
             mutations:         vec![],
             subscriptions:     vec![],
@@ -3893,9 +3902,12 @@ mod auto_params_parity_tests {
             hierarchies_config:   None,
             changelog_config:     None,
         };
-        SchemaConverter::convert(intermediate).expect("test schema converts").queries[0]
-            .auto_params
-            .clone()
+        SchemaConverter::convert(intermediate).expect("test schema converts").queries[0].clone()
+    }
+
+    /// The compiler's auto-params for one authored shape.
+    fn compiled_auto_params(returns_list: bool, relay: bool) -> AutoParams {
+        compiled_query(returns_list, relay).auto_params
     }
 
     /// The fixture builder's answer for the same shape.
@@ -3932,6 +3944,34 @@ mod auto_params_parity_tests {
         );
     }
 
+    /// #1303: and on the order its pages are cut in.
+    ///
+    /// The same divergence as the auto-params one, one field over: a fixture list
+    /// query carrying no `pagination_order` describes a route the compiler cannot
+    /// produce, and — worse than being merely unrealistic — it is the *pre-fix*
+    /// route. Every runtime test built on such a fixture would go on asserting the
+    /// unordered behaviour after the defect was fixed, and the suite would not move.
+    #[test]
+    fn both_producers_agree_on_the_pagination_order() {
+        let compiled = |list, relay| compiled_query(list, relay).pagination_order;
+        let fixture = |list: bool, relay: bool| {
+            TestQueryBuilder::new("items", "Item")
+                .returns_list(list || relay)
+                .relay(relay)
+                .with_sql_source("v_item")
+                .build()
+                .pagination_order
+        };
+
+        // The shape that has one, and the two that must not.
+        assert_eq!(fixture(true, false), Some(PaginationOrder::JsonIdentity));
+        assert_eq!(fixture(true, false), compiled(true, false));
+        assert_eq!(fixture(false, false), None);
+        assert_eq!(fixture(false, false), compiled(false, false));
+        assert_eq!(fixture(false, true), None);
+        assert_eq!(fixture(false, true), compiled(false, true));
+    }
+
     /// The three shapes are genuinely different, so the equalities above cannot all be
     /// satisfied by one constant.
     ///
@@ -3951,4 +3991,150 @@ mod auto_params_parity_tests {
         assert_eq!(single, AutoParams::none());
         assert_eq!(relay, AutoParams::relay());
     }
+}
+
+// ── #1303 the order an offset page is cut in ─────────────────────────────────
+
+/// A list query, everything else at its default: `IntermediateQueryDefaults` turns
+/// on `limit` and `offset`, so this paginates.
+fn paginating_query(tweak: impl FnOnce(&mut IntermediateQuery)) -> IntermediateQuery {
+    let mut q = IntermediateQuery {
+        name: "users".to_string(),
+        return_type: "User".to_string(),
+        returns_list: true,
+        sql_source: Some("v_user".to_string()),
+        ..IntermediateQuery::default()
+    };
+    tweak(&mut q);
+    q
+}
+
+#[test]
+fn a_paginating_query_with_no_authored_order_gets_the_json_identity() {
+    // The answer a compile with no `--database` can always give: `id` is an
+    // enforced invariant (ADR-0017), so the extraction is valid for every type.
+    let q = convert_one(paginating_query(|_| {})).expect("a plain list query compiles");
+    assert_eq!(q.pagination_order, Some(PaginationOrder::JsonIdentity));
+}
+
+#[test]
+fn an_authored_pagination_column_wins_over_the_derived_identity() {
+    let q = convert_one(paginating_query(|q| {
+        q.pagination_order = Some("pk_user".to_string());
+    }))
+    .expect("an authored column compiles");
+    assert_eq!(q.pagination_order, Some(PaginationOrder::Column("pk_user".to_string())));
+}
+
+#[test]
+fn pagination_order_none_is_the_declared_opt_out() {
+    // The escape hatch for a view carrying its own ORDER BY — which is the
+    // remedy `auto_param_warnings` itself recommends, and which ordering
+    // unconditionally would destroy.
+    let q = convert_one(paginating_query(|q| {
+        q.pagination_order = Some("none".to_string());
+    }))
+    .expect("`none` compiles");
+    assert_eq!(q.pagination_order, None);
+}
+
+#[test]
+fn a_query_that_cannot_paginate_gets_no_pagination_order() {
+    // Three ways not to paginate, and none of them may carry an ordering for
+    // pages that do not exist.
+    let single = convert_one(paginating_query(|q| q.returns_list = false))
+        .expect("a single-item query compiles");
+    assert_eq!(single.pagination_order, None, "a single item is not a page");
+
+    let unpaged = convert_one(paginating_query(|q| {
+        q.auto_params = Some(IntermediateAutoParams {
+            limit:        Some(false),
+            offset:       Some(false),
+            where_clause: None,
+            order_by:     None,
+        });
+    }))
+    .expect("a list query with limit and offset off compiles");
+    assert_eq!(unpaged.pagination_order, None, "no limit and no offset is no page");
+
+    let relay = convert_one(paginating_query(|q| q.relay = true)).expect("a relay query compiles");
+    assert_eq!(
+        relay.pagination_order, None,
+        "relay pages by cursor, ordered by relay_cursor_column"
+    );
+    assert_eq!(relay.relay_cursor_column.as_deref(), Some("pk_user"));
+}
+
+#[test]
+fn only_one_of_limit_and_offset_still_paginates() {
+    // `?limit=` alone slices a prefix and `?offset=` alone slices a suffix; both
+    // are a *slice of a sequence*, so both need one.
+    for (limit, offset) in [(true, false), (false, true)] {
+        let q = convert_one(paginating_query(|q| {
+            q.auto_params = Some(IntermediateAutoParams {
+                limit:        Some(limit),
+                offset:       Some(offset),
+                where_clause: None,
+                order_by:     None,
+            });
+        }))
+        .expect("compiles");
+        assert_eq!(
+            q.pagination_order,
+            Some(PaginationOrder::JsonIdentity),
+            "limit={limit} offset={offset}"
+        );
+    }
+}
+
+#[test]
+fn an_unsafe_pagination_order_identifier_is_refused() {
+    // The value is interpolated into ORDER BY, not bound — the same boundary
+    // `additional_views` is validated at.
+    let err = convert_one(paginating_query(|q| {
+        q.pagination_order = Some("id; DROP TABLE tb_user".to_string());
+    }))
+    .expect_err("an injection payload is not an identifier");
+    assert!(
+        err.to_string().contains("not a valid SQL identifier"),
+        "the refusal must name what is wrong: {err}"
+    );
+}
+
+#[test]
+fn a_pagination_order_on_a_query_that_cannot_paginate_is_refused() {
+    // Refused rather than ignored: an ordering that silently applies to nothing
+    // looks exactly like one that works.
+    let err = convert_one(paginating_query(|q| {
+        q.returns_list = false;
+        q.pagination_order = Some("pk_user".to_string());
+    }))
+    .expect_err("a single-item query has no pages to order");
+    assert!(
+        err.to_string().contains("does not paginate"),
+        "the refusal must name the constraint: {err}"
+    );
+    assert!(
+        err.to_string().contains("returns a single item"),
+        "and say which of the three reasons applies: {err}"
+    );
+
+    let relay_err = convert_one(paginating_query(|q| {
+        q.relay = true;
+        q.pagination_order = Some("pk_user".to_string());
+    }))
+    .expect_err("relay orders by its cursor column");
+    assert!(
+        relay_err.to_string().contains("relay_cursor_column"),
+        "the refusal must point at the field that already decides this: {relay_err}"
+    );
+}
+
+#[test]
+fn the_count_sibling_carries_no_pagination_order() {
+    // A `SELECT COUNT(*)` has no rows to order, and inheriting the parent's
+    // ordering would add a sort to a scalar read.
+    let parent = convert_one(paginating_query(|q| q.count = true)).expect("compiles");
+    assert_eq!(parent.pagination_order, Some(PaginationOrder::JsonIdentity));
+    assert_eq!(parent.count_sibling().pagination_order, None);
 }

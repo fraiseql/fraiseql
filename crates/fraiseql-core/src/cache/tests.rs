@@ -1670,6 +1670,7 @@ mod key_tests {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      HashMap::new(),
+            pagination_order:    None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -1710,6 +1711,7 @@ mod key_tests {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      HashMap::new(),
+            pagination_order:    None,
         };
 
         let views = extract_accessed_views(&query_def);
@@ -1745,6 +1747,7 @@ mod key_tests {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      HashMap::new(),
+            pagination_order:    None,
         };
 
         let views = extract_accessed_views(&query_def);

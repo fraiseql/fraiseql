@@ -85,6 +85,10 @@ impl SchemaExtractor for KotlinExtractor {
                 // `extract` scans SDK source text; it does not parse REST annotations.
                 rest: None,
                 rest_stream: false,
+                // `extract` scrapes source text; the pagination-order override (#1303) is an
+                // authoring decision, made through the SDK or `fraiseql.toml`. Absent, the
+                // compiler derives the entity identity, which is the right answer here.
+                pagination_order: None,
             });
         }
 

@@ -101,6 +101,7 @@ fn test_derive_class_name() {
         relay_cursor_type: None,
         rest:              None,
         rest_stream:       false,
+        pagination_order:  None,
     };
     assert_eq!(derive_class_name(&list_query), "Authors");
 
@@ -133,6 +134,7 @@ fn test_derive_class_name() {
         relay_cursor_type: None,
         rest:              None,
         rest_stream:       false,
+        pagination_order:  None,
     };
     assert_eq!(derive_class_name(&single_query), "AuthorById");
 }
@@ -243,6 +245,7 @@ fn sample_schema() -> IntermediateSchema {
                 relay_cursor_type: None,
                 rest:              None,
                 rest_stream:       false,
+                pagination_order:  None,
             },
             IntermediateQuery {
                 requires_actor:    Vec::new(),
@@ -273,6 +276,7 @@ fn sample_schema() -> IntermediateSchema {
                 relay_cursor_type: None,
                 rest:              None,
                 rest_stream:       false,
+                pagination_order:  None,
             },
         ],
         enums: vec![IntermediateEnum {

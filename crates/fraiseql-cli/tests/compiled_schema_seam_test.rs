@@ -109,7 +109,8 @@ fn sdk_corpus() -> Value {
                 "name": "users",
                 "return_type": "User",
                 "returns_list": true,
-                "sql_source": "v_user"
+                "sql_source": "v_user",
+                "pagination_order": "pk_user"
             }
         ],
         "mutations": [
@@ -218,6 +219,25 @@ const PROBES: &[Probe] = &[
             c.sources.iter().any(|s| s.name == "user_feed"),
             "ingress source user_feed absent",
         )
+    }),
+    // Not a section but a field, and probed here for the same reason the sections
+    // are: the compiler derives a `pagination_order` for every paginating query
+    // (#1303), so a dropped *authored* override does not look empty — it looks
+    // like the default, which is a different total order over the same rows.
+    ("query.pagination_order", |c| {
+        let Some(q) = c.queries.iter().find(|q| q.name == "users") else {
+            return Err("query users absent".into());
+        };
+        if q.pagination_order
+            == Some(fraiseql_core::schema::PaginationOrder::Column("pk_user".into()))
+        {
+            return Ok(());
+        }
+        Err(format!(
+            "authored pagination_order lost; compiled as {:?} — an authored override that \
+             falls back to the derived identity is invisible, because both are orderings",
+            q.pagination_order
+        ))
     }),
 ];
 

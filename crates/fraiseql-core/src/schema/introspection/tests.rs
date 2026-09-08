@@ -49,6 +49,7 @@ fn test_schema() -> crate::schema::CompiledSchema {
         rest_method:         None,
         rest_stream:         false,
         native_columns:      HashMap::new(),
+        pagination_order:    None,
     });
 
     // Add a user query with argument
@@ -84,6 +85,7 @@ fn test_schema() -> crate::schema::CompiledSchema {
         rest_method:         None,
         rest_stream:         false,
         native_columns:      HashMap::new(),
+        pagination_order:    None,
     });
 
     schema
@@ -814,6 +816,7 @@ fn test_deprecated_query_introspection() {
         rest_method:         None,
         rest_stream:         false,
         native_columns:      HashMap::new(),
+        pagination_order:    None,
     });
 
     // Add a non-deprecated query with a deprecated argument
@@ -861,6 +864,7 @@ fn test_deprecated_query_introspection() {
         rest_method:         None,
         rest_stream:         false,
         native_columns:      HashMap::new(),
+        pagination_order:    None,
     });
 
     let introspection = IntrospectionBuilder::build(&schema);

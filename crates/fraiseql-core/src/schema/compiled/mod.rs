@@ -22,7 +22,7 @@ mod tests;
 pub use argument::{ArgumentDefinition, AutoParams};
 pub use directive::{DirectiveDefinition, DirectiveLocationKind};
 pub use mutation::{InputStyle, MutationDefinition, MutationOperation};
-pub use query::{CursorType, QueryDefinition};
+pub use query::{CursorType, PaginationOrder, QueryDefinition};
 pub use schema::{
     AppleSocialConfig, AuthClientConfig, CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema,
     DiscordSocialConfig, FacebookSocialConfig, GitHubSocialConfig, GoogleSocialConfig,

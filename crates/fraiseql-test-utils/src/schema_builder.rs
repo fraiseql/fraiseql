@@ -29,7 +29,8 @@
 
 use fraiseql_core::schema::{
     AutoParams, CompiledSchema, CursorType, DeprecationInfo, FieldDefinition, FieldDenyPolicy,
-    FieldType, MutationDefinition, QueryDefinition, SecurityConfig, TypeDefinition,
+    FieldType, MutationDefinition, PaginationOrder, QueryDefinition, SecurityConfig,
+    TypeDefinition,
 };
 
 // ============================================================================
@@ -202,6 +203,7 @@ pub struct TestQueryBuilder {
     relay_cursor_type:   CursorType,
     rest_stream:         bool,
     auto_params:         Option<AutoParams>,
+    pagination_order:    Option<PaginationOrder>,
 }
 
 impl TestQueryBuilder {
@@ -226,6 +228,7 @@ impl TestQueryBuilder {
             relay_cursor_type:   CursorType::default(),
             rest_stream:         false,
             auto_params:         None,
+            pagination_order:    None,
         }
     }
 
@@ -294,6 +297,16 @@ impl TestQueryBuilder {
     pub fn relay_cursor_column(mut self, col: &str) -> Self {
         self.relay = true;
         self.relay_cursor_column = Some(col.to_string());
+        self
+    }
+
+    /// Order this query's offset pages by a native column (#1303).
+    ///
+    /// Overrides the identity the builder otherwise derives, exactly as an
+    /// authored `pagination_order` overrides the compiler's.
+    #[must_use = "builder method returns modified builder"]
+    pub fn pagination_order(mut self, col: &str) -> Self {
+        self.pagination_order = Some(PaginationOrder::Column(col.to_string()));
         self
     }
 
@@ -414,6 +427,16 @@ impl TestQueryBuilder {
         }
 
         q.relay_cursor_type = self.relay_cursor_type;
+
+        // #1303, mirroring `SchemaConverter::resolve_pagination_order`: a fixture
+        // whose paginating query carried no ordering would describe a route the
+        // compiler cannot produce, and every test built on it would keep asserting
+        // the unordered behaviour after the defect was fixed.
+        q.pagination_order = self.pagination_order.or_else(|| {
+            let paginates =
+                q.returns_list && !q.relay && (q.auto_params.has_limit || q.auto_params.has_offset);
+            paginates.then_some(PaginationOrder::JsonIdentity)
+        });
 
         q
     }

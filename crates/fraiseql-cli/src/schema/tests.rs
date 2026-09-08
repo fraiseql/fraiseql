@@ -163,6 +163,7 @@ mod database_validator_tests {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      HashMap::new(),
+            pagination_order:    None,
         }
     }
 
@@ -1793,6 +1794,7 @@ mod optimizer_tests {
                 rest_method:         None,
                 rest_stream:         false,
                 native_columns:      HashMap::new(),
+                pagination_order:    None,
             }],
             mutations: vec![],
             subscriptions: vec![],
@@ -1856,6 +1858,7 @@ mod optimizer_tests {
                 rest_method:         None,
                 rest_stream:         false,
                 native_columns:      HashMap::new(),
+                pagination_order:    None,
             }],
             mutations: vec![],
             subscriptions: vec![],

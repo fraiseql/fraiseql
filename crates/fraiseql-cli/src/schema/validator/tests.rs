@@ -39,6 +39,7 @@ fn test_detect_unknown_return_type() {
             relay_cursor_type: None,
             rest:              None,
             rest_stream:       false,
+            pagination_order:  None,
         }],
         ..Default::default()
     };
@@ -91,6 +92,7 @@ fn test_detect_duplicate_query_names() {
                 relay_cursor_type: None,
                 rest:              None,
                 rest_stream:       false,
+                pagination_order:  None,
             },
             IntermediateQuery {
                 requires_actor:    Vec::new(),
@@ -114,6 +116,7 @@ fn test_detect_duplicate_query_names() {
                 relay_cursor_type: None,
                 rest:              None,
                 rest_stream:       false,
+                pagination_order:  None,
             },
         ],
         ..Default::default()
@@ -165,6 +168,7 @@ fn test_warning_for_query_without_sql_source() {
             relay_cursor_type: None,
             rest:              None,
             rest_stream:       false,
+            pagination_order:  None,
         }],
         ..Default::default()
     };
@@ -423,6 +427,7 @@ fn test_query_injection_in_sql_source_rejected() {
             relay_cursor_type: None,
             rest:              None,
             rest_stream:       false,
+            pagination_order:  None,
         }],
         ..Default::default()
     };
@@ -473,6 +478,7 @@ fn test_query_schema_qualified_sql_source_passes() {
             relay_cursor_type: None,
             rest:              None,
             rest_stream:       false,
+            pagination_order:  None,
         }],
         ..Default::default()
     };

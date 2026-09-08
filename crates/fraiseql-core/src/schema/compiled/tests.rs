@@ -2173,3 +2173,49 @@ fn a_join_column_resolves_against_a_camel_case_field_name() {
     CompiledSchema::from_json(&doc.to_string(), false)
         .expect("`fk_author` is published as `fkAuthor`, which is the spelling the executor reads");
 }
+
+// ── #1303 the compiled pagination order, on the wire ─────────────────────────
+
+/// Both variants survive a round-trip, and the JSON spelling is the one a reader
+/// of a compiled schema sees.
+///
+/// The spelling is asserted rather than only the round-trip because a round-trip
+/// passes for any pair of matching serializer and deserializer, including one
+/// that emits a shape no author could read.
+#[test]
+fn pagination_order_round_trips_with_a_legible_spelling() {
+    use super::query::PaginationOrder;
+
+    let json_identity = serde_json::to_value(PaginationOrder::JsonIdentity).unwrap();
+    assert_eq!(json_identity, serde_json::json!("json_identity"));
+
+    let column = serde_json::to_value(PaginationOrder::Column("pk_user".into())).unwrap();
+    assert_eq!(column, serde_json::json!({ "column": "pk_user" }));
+
+    for order in [
+        PaginationOrder::JsonIdentity,
+        PaginationOrder::Column("pk_user".into()),
+    ] {
+        let mut q = QueryDefinition::new("users", "User").returning_list();
+        q.pagination_order = Some(order.clone());
+        let back: QueryDefinition =
+            serde_json::from_str(&serde_json::to_string(&q).unwrap()).unwrap();
+        assert_eq!(back.pagination_order, Some(order));
+    }
+}
+
+/// A query with no pagination order emits no key, and one with no key parses back
+/// to no order — the two halves of the sibling contract `relay_cursor_column`
+/// already has.
+#[test]
+fn a_query_with_no_pagination_order_emits_no_key() {
+    let q = QueryDefinition::new("user", "User");
+    let value = serde_json::to_value(&q).unwrap();
+    assert!(
+        value.get("pagination_order").is_none(),
+        "an absent order must not be spelled out: {value}"
+    );
+
+    let back: QueryDefinition = serde_json::from_value(value).unwrap();
+    assert_eq!(back.pagination_order, None);
+}

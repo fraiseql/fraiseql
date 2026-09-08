@@ -550,6 +550,7 @@ mod entities_authz {
             rest_method: None,
             rest_stream: false,
             native_columns: HashMap::new(),
+            pagination_order: None,
         });
         schema.types.push({
             let mut t = TypeDefinition::new("User", "v_user");
@@ -888,6 +889,7 @@ mod entities_authz {
                 rest_method:         None,
                 rest_stream:         false,
                 native_columns:      HashMap::new(),
+                pagination_order:    None,
             });
         }
         schema.types.push({
@@ -1417,6 +1419,7 @@ mod inject {
             rest_method: None,
             rest_stream: false,
             native_columns: HashMap::new(),
+            pagination_order: None,
         });
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
@@ -1800,6 +1803,7 @@ mod field_rbac {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      HashMap::new(),
+            pagination_order:    None,
         });
         let mut user_type = TypeDefinition::new("User", "v_user");
         user_type.fields = vec![
@@ -2426,6 +2430,7 @@ mod field_authz {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      HashMap::new(),
+            pagination_order:    None,
         }
     }
 

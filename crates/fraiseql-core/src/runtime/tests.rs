@@ -1686,6 +1686,7 @@ mod matcher_tests {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      HashMap::new(),
+            pagination_order:    None,
         });
         schema
     }
@@ -2072,6 +2073,7 @@ mod matcher_tests {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      HashMap::new(),
+            pagination_order:    None,
         });
         let matcher = QueryMatcher::new(schema);
 
@@ -2110,6 +2112,7 @@ mod matcher_tests {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      HashMap::new(),
+            pagination_order:    None,
         });
         let matcher = QueryMatcher::new(schema);
 
@@ -2622,6 +2625,7 @@ mod planner_tests {
                 rest_method:         None,
                 rest_stream:         false,
                 native_columns:      HashMap::new(),
+                pagination_order:    None,
             },
             fields:           vec!["id".to_string(), "name".to_string()],
             selections:       vec![FieldSelection {

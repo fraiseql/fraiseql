@@ -397,6 +397,24 @@ pub struct IntermediateQuery {
     /// author who wants an export also override the route.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub rest_stream: bool,
+
+    /// Override the order this query's `LIMIT`/`OFFSET` pages are cut in (#1303).
+    ///
+    /// Two spellings, and absence is the third:
+    ///
+    /// * a **column name** — order pages by this column, which must be unique over `sql_source` or
+    ///   the pages still overlap;
+    /// * the literal **`"none"`** — emit no default ordering. This is how a view that carries its
+    ///   own `ORDER BY` keeps it: the compiler cannot read a view's body, so the opt-out is
+    ///   declared rather than inferred, and declaring it also silences the compile warning about
+    ///   non-deterministic pages, because the author answered it.
+    /// * **absent** — the compiler derives the entity identity, which is what almost every query
+    ///   wants.
+    ///
+    /// `"none"` is therefore not usable as a column name here. A relation column
+    /// actually called `none` must be ordered by through the SQL view instead.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pagination_order: Option<String>,
 }
 
 /// Mutation definition in intermediate format

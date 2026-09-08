@@ -59,6 +59,7 @@ mod sourceless {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      HashMap::new(),
+            pagination_order:    None,
         });
 
         // The adapter has rows to give: if the runner dispatched anyway, the query
@@ -114,6 +115,7 @@ mod routing {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      HashMap::new(),
+            pagination_order:    None,
         });
 
         let user_row = JsonbValue::new(serde_json::json!({"id": "1", "type": "user"}));
@@ -159,6 +161,7 @@ mod auto_params {
             rest_method: None,
             rest_stream: false,
             native_columns: HashMap::new(),
+            pagination_order: None,
         });
         schema
     }
@@ -359,6 +362,7 @@ mod rls_composition {
             rest_method: None,
             rest_stream: false,
             native_columns: HashMap::new(),
+            pagination_order: None,
         });
         schema
     }
@@ -606,6 +610,7 @@ mod rls_composition {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      native_cols,
+            pagination_order:    None,
         });
         schema.types.push({
             let mut t = TypeDefinition::new("User", "v_user");
@@ -1264,6 +1269,7 @@ mod node_authz {
             rest_method: None,
             rest_stream: false,
             native_columns: HashMap::new(),
+            pagination_order: None,
         });
         schema.types.push({
             let mut t = TypeDefinition::new("User", "v_user");
@@ -1445,6 +1451,7 @@ mod explicit_arg_recasing {
             rest_method:         None,
             rest_stream:         false,
             native_columns:      HashMap::new(),
+            pagination_order:    None,
         });
         schema
     }

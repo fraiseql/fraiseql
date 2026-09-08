@@ -69,8 +69,8 @@ pub use compiled::{
     CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, CursorType, DirectiveDefinition,
     DirectiveLocationKind, DiscordSocialConfig, FacebookSocialConfig, GitHubSocialConfig,
     GoogleSocialConfig, InputStyle, LocalAuthConfig, MutationDefinition, MutationOperation,
-    PkceClientConfig, QueryDefinition, SocialAuthConfig, SubscribableEntity, canonicalize_json,
-    content_hash_of, is_safe_sql_identifier,
+    PaginationOrder, PkceClientConfig, QueryDefinition, SocialAuthConfig, SubscribableEntity,
+    canonicalize_json, content_hash_of, is_safe_sql_identifier,
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, ChangelogConfig, CircuitBreakerConfig,

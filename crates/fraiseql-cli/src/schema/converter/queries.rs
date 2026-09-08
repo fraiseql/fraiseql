@@ -2,7 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use anyhow::{Context, Result, bail};
 use fraiseql_core::schema::{
-    ArgumentDefinition, AutoParams, CursorType, InjectedParamSource, QueryDefinition,
+    ArgumentDefinition, AutoParams, CursorType, InjectedParamSource, PaginationOrder,
+    QueryDefinition,
 };
 use tracing::warn;
 
@@ -148,6 +149,17 @@ impl SchemaConverter {
             None
         };
 
+        // The order this query's offset pages are cut in (#1303), resolved here
+        // for the same reason `relay_cursor_column` is: the other pagination
+        // family already declares its ordering key in the compiled schema.
+        let pagination_order = Self::resolve_pagination_order(
+            &intermediate.name,
+            intermediate.pagination_order.as_deref(),
+            &auto_params,
+            intermediate.returns_list,
+            intermediate.relay,
+        )?;
+
         // Validate additional_views entries as safe SQL identifiers.
         for view in &intermediate.additional_views {
             if !Self::is_safe_sql_identifier(view) {
@@ -202,6 +214,7 @@ impl SchemaConverter {
                 Some("uuid") => CursorType::Uuid,
                 _ => CursorType::Int64,
             },
+            pagination_order,
             inject_params,
             read_routing: intermediate.read_routing,
             cache_ttl_seconds: intermediate.cache_ttl_seconds,
@@ -270,6 +283,76 @@ impl SchemaConverter {
                 has_offset:   p.offset.unwrap_or(defaults.offset),
             },
         }
+    }
+
+    /// Resolve the order this query's `LIMIT`/`OFFSET` pages are cut in (#1303).
+    ///
+    /// Offline — no database is required and none is consulted. A compile with
+    /// `--database` sharpens the derived answer afterwards (`pk_<type>`, then a
+    /// native `id` column, both cheaper than the JSONB extraction); a compile
+    /// without one still produces a **correct** answer, because `compile` takes
+    /// the database URL optionally and a derivation that needed introspection
+    /// would be a derivation that breaks offline compiles.
+    ///
+    /// | authored | paginates | result |
+    /// |---|---|---|
+    /// | `"none"` | yes | `None` — the author owns the order |
+    /// | a column | yes | [`PaginationOrder::Column`] |
+    /// | absent | yes | [`PaginationOrder::JsonIdentity`] |
+    /// | anything | no | `None`, or an error if the author declared one |
+    ///
+    /// # Errors
+    ///
+    /// Returns an error when the declared column is not a safe SQL identifier —
+    /// it is interpolated into `ORDER BY` — or when a query that cannot paginate
+    /// declares one at all. The second is refused rather than ignored because an
+    /// ordering that silently applies to nothing looks exactly like one that
+    /// works, and the author is the only one who can see the difference.
+    pub(super) fn resolve_pagination_order(
+        name: &str,
+        authored: Option<&str>,
+        auto_params: &AutoParams,
+        returns_list: bool,
+        relay: bool,
+    ) -> Result<Option<PaginationOrder>> {
+        // Relay is keyset-paginated on `relay_cursor_column` and never reads
+        // `limit`/`offset` (`AutoParams::relay` turns both off), so it is
+        // excluded by the flags below as well — naming it here makes the
+        // exclusion a statement rather than a consequence.
+        let paginates = returns_list && !relay && (auto_params.has_limit || auto_params.has_offset);
+
+        let Some(authored) = authored else {
+            return Ok(paginates.then_some(PaginationOrder::JsonIdentity));
+        };
+
+        if !paginates {
+            bail!(
+                "Query '{name}': pagination_order = {authored:?} is set on a query that does \
+                 not paginate. It orders `LIMIT`/`OFFSET` pages, and this query has none — \
+                 {}. Drop the setting, or enable limit/offset.",
+                if relay {
+                    "relay=true paginates by cursor, ordered by relay_cursor_column"
+                } else if returns_list {
+                    "auto_params disables both limit and offset"
+                } else {
+                    "it returns a single item"
+                }
+            );
+        }
+
+        if authored.eq_ignore_ascii_case("none") {
+            return Ok(None);
+        }
+
+        if !fraiseql_core::schema::is_safe_sql_identifier(authored) {
+            bail!(
+                "Query '{name}': pagination_order {authored:?} is not a valid SQL identifier. \
+                 Use only letters, digits and underscores — the value is interpolated into \
+                 ORDER BY, not bound as a parameter."
+            );
+        }
+
+        Ok(Some(PaginationOrder::Column(authored.to_owned())))
     }
 
     /// Emit compile-time warnings for problematic auto-param combinations.

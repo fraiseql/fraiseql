@@ -411,6 +411,7 @@ pub fn test_schema() -> CompiledSchema {
         rest_method:         None,
         rest_stream:         false,
         native_columns:      HashMap::new(),
+        pagination_order:    None,
     });
     schema
 }
