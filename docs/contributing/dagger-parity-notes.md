@@ -167,6 +167,7 @@ link-arg=-fuse-ld=mold`. Cache volumes: `fraiseql-cargo-registry`,
 `target/` parked aside (instant same-device rename) for `dagger develop`/`functions`
 only; the gates compile into the `fraiseql-rust-target` cache volume, not the host
 tree, so parking doesn't affect them. Cold clippy was fast (2m13s) thanks to jobs=16
+
 - sparse registry + the v8 prebuilt download (not source build).
 
 **Self-hosted run (remote GREEN):** push of `ed76badf4` → `dev` triggered
