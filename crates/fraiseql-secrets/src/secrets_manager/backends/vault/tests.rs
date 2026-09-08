@@ -636,11 +636,21 @@ fn vault_addr_refuses_every_blocked_corpus_entry() {
 
 #[test]
 fn vault_addr_permits_every_allowed_corpus_entry() {
-    use fraiseql_guard::net::vectors::{MUST_ALLOW, url_host};
+    use fraiseql_guard::net::vectors::{MUST_ALLOW, MUST_ALLOW_HOSTS, url_host};
     with_guard_engaged(|| {
         for addr in MUST_ALLOW {
             let url = format!("https://{}:8200", url_host(addr));
             assert!(validate_vault_addr(&url).is_ok(), "must permit {addr}");
+        }
+        // The hostname counterweight (#1280). Measured before it existed: with
+        // `is_ssrf_blocked_host_vault` mutated to refuse every non-literal host,
+        // both corpus tests here stayed green and only the hand-named
+        // `test_vault_addr_allows_public_addresses` reddened — and until #1272
+        // that one ran inside the bypass window, where it passed with the guard
+        // refusing everything.
+        for host in MUST_ALLOW_HOSTS {
+            let url = format!("https://{host}");
+            assert!(validate_vault_addr(&url).is_ok(), "must permit {host}");
         }
     });
 }

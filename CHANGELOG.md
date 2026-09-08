@@ -991,6 +991,41 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **The federation subgraph URL guard stops hand-rolling the hostname rule, and the SSRF
+  corpus asserts a legitimate hostname survives at every entry point (#1280).**
+
+  `fraiseql_guard::net::vectors::MUST_ALLOW_HOSTS` exists to stop a guard passing
+  `MUST_BLOCK_HOSTS` by refusing every hostname — the counterweight `MUST_ALLOW` provides
+  for addresses. It was iterated by **no dependent crate**: only inside the guard crate's
+  own tests, against `blocked_host_reason` directly. The asymmetry was exact — `MUST_BLOCK`
+  wired at 10 entry points, `MUST_BLOCK_HOSTS` at 7, `MUST_ALLOW` at 7, `MUST_ALLOW_HOSTS`
+  at **0** — so no SSRF guard in this workspace asserted that a legitimate *hostname*
+  survives it. Measured at the Vault entry point before the fix: with the guard mutated to
+  refuse every host that is not an IP literal, both corpus tests stayed green.
+
+  Five entry points now iterate it beside `MUST_ALLOW` — the manifest guard, the ClickHouse
+  sink URL, the subscription webhook URL, the observers outbound URL and the Vault address.
+  The remaining two take an `IpAddr`, so no hostname can reach them, and #1280's rule for
+  that case is that it is a finding rather than an exemption. It was, both times:
+
+  * **`fraiseql-federation` — a live gap.** `validate_subgraph_url` hand-rolled the hostname
+    half as `lower == "localhost" || lower.ends_with(".localhost")`. It was the only
+    outbound URL guard in the workspace not calling `blocked_host_reason`; twelve call sites
+    across nine crates do. The hand-rolled rule was a strict subset: it missed the
+    `localhost.` **prefix** arm — `localhost.localdomain`, and `localhost.evil.com`, which
+    anyone can register — and **every metadata hostname**, `metadata.google.internal`
+    included. Every other caller pairs it with `dns_resolve_and_check`, which refuses those
+    names once they resolve; `SubscriptionForwarder::new` calls it **alone** and treats it as
+    its whole SSRF control. It calls the shared rule now, and the corpus is pointed at
+    `validate_subgraph_url` — both block tables and both allow tables — instead of only at
+    the `IpAddr` predicate that no hostname can reach.
+  * **`fraiseql-functions`** — `validate_outbound_url` resolves a non-literal host, and a
+    unit test must not depend on the network, which is why its allow test targets
+    `validate_ip`. It now also asserts the property that needs no network: for every
+    `MUST_ALLOW_HOSTS` entry the refusal, if any, must not be the host rule.
+    `blocked_host_reason` runs before the lookup and reports `Authorization`, a DNS failure
+    reports `Validation`, so a sandbox with no resolver still exercises the branch.
+
 - **Two SQL fixtures stop declaring `public.tb_user`, and the collision is gated (#1281).**
 
   `tests/sql/postgres/init.sql` declared `tb_user` as `id UUID, data JSONB`;

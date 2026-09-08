@@ -201,7 +201,9 @@ mod ssrf_tests {
 
 #[cfg(test)]
 mod corpus {
-    use fraiseql_guard::net::vectors::{MUST_ALLOW, MUST_BLOCK, MUST_BLOCK_HOSTS, url_host};
+    use fraiseql_guard::net::vectors::{
+        MUST_ALLOW, MUST_ALLOW_HOSTS, MUST_BLOCK, MUST_BLOCK_HOSTS, url_host,
+    };
 
     use super::validate_outbound_url;
     use crate::ssrf_test_env::with_ssrf_env_cleared;
@@ -248,6 +250,11 @@ mod corpus {
             for addr in MUST_ALLOW {
                 let url = format!("https://{}/hook", url_host(addr));
                 assert!(validate_outbound_url(&url).is_ok(), "must permit {addr}");
+            }
+            // The hostname counterweight (#1280): MUST_ALLOW is all IP literals.
+            for host in MUST_ALLOW_HOSTS {
+                let url = format!("https://{host}/hook");
+                assert!(validate_outbound_url(&url).is_ok(), "must permit {host}");
             }
         });
     }

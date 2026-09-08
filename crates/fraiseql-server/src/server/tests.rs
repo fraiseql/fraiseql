@@ -303,10 +303,18 @@ mod initialization_tests {
 
     #[test]
     fn manifest_guard_permits_every_allowed_corpus_entry() {
-        use fraiseql_guard::net::vectors::{MUST_ALLOW, url_host};
+        use fraiseql_guard::net::vectors::{MUST_ALLOW, MUST_ALLOW_HOSTS, url_host};
         for addr in MUST_ALLOW {
             let url = format!("http://{}/manifest.json", url_host(addr));
             assert!(!is_manifest_url_ssrf_blocked(&url), "must permit {addr}");
+        }
+        // Every MUST_ALLOW row is an IP literal, so without this loop the guard
+        // could refuse every HOSTNAME and still pass the corpus (#1280). Entries
+        // are already in host position — bracketed, or carrying a port — so they
+        // are interpolated directly, exactly as MUST_BLOCK_HOSTS is above.
+        for host in MUST_ALLOW_HOSTS {
+            let url = format!("http://{host}/manifest.json");
+            assert!(!is_manifest_url_ssrf_blocked(&url), "must permit {host}");
         }
     }
 

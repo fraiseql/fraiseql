@@ -329,3 +329,33 @@ fn permits_every_allowed_corpus_entry() {
         assert!(validate_ip(&ip).is_ok(), "must permit {addr}");
     }
 }
+
+/// The hostname half of that counterweight, at the real entry point (#1280).
+///
+/// `validate_ip` takes an `IpAddr`, so no hostname reaches it, and every row of
+/// `MUST_ALLOW` is an IP literal — so before this test the guard could have
+/// refused every hostname and passed the whole corpus.
+///
+/// It cannot assert `is_ok()`: `validate_outbound_url` resolves a non-literal
+/// host, and a unit test must not depend on the network. It asserts the property
+/// that does not need one — the refusal, if any, must not be the HOST rule.
+/// `blocked_host_reason` runs before the lookup and reports `Authorization`,
+/// while a DNS failure reports `Validation`, so the two are distinguishable and a
+/// sandbox with no resolver still exercises the branch under test.
+#[tokio::test]
+async fn permits_every_allowed_hostname_at_the_url_entry_point() {
+    use fraiseql_guard::net::vectors::MUST_ALLOW_HOSTS;
+    let config = HttpClientConfig {
+        allowed_domains: vec!["*".to_string()],
+        ..Default::default()
+    };
+    for host in MUST_ALLOW_HOSTS {
+        let url = format!("http://{host}/");
+        let outcome = validate_outbound_url(&url, &config).await;
+        // `Validation` is the DNS branch and is not this test's subject; the host
+        // rule reports `Authorization`, and so does the allowlist, which is why the
+        // config above opens it to `*`.
+        let refused_on_a_host_rule = matches!(outcome, Err(FraiseQLError::Authorization { .. }));
+        assert!(!refused_on_a_host_rule, "must not refuse {host} on a host rule: {outcome:?}");
+    }
+}

@@ -105,34 +105,32 @@ pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
         });
     }
 
-    // The `url` crate wraps IPv6 literals in brackets in `host_str()` (e.g. "[::1]").
-    // Strip them before parsing to `IpAddr` so IPv6 SSRF checks work correctly.
-    let host = if host_raw.starts_with('[') && host_raw.ends_with(']') {
-        &host_raw[1..host_raw.len() - 1]
-    } else {
-        host_raw
-    };
-
-    // Block loopback hostnames.
-    let lower_host = host.to_ascii_lowercase();
-    if lower_host == "localhost" || lower_host.ends_with(".localhost") {
+    // Loopback aliases, metadata hostnames and literal reserved addresses, from
+    // the one implementation of that rule (#1280).
+    //
+    // This function used to hand-roll the hostname half as
+    // `lower == "localhost" || lower.ends_with(".localhost")`, and it was the only
+    // outbound URL guard in the workspace not calling `blocked_host_reason` —
+    // twelve call sites across nine crates do. The hand-rolled rule was a strict
+    // subset, missing the `localhost.` PREFIX arm (`localhost.localdomain`,
+    // and `localhost.evil.com`, which anyone can register) and every metadata
+    // hostname, `metadata.google.internal` included.
+    //
+    // That was reachable: every other caller pairs this with
+    // `dns_resolve_and_check`, which would refuse those names once they resolved,
+    // but `SubscriptionForwarder::new` calls this ALONE and treats it as its whole
+    // SSRF control.
+    //
+    // `blocked_host_reason` strips the brackets the `url` crate leaves around an
+    // IPv6 literal in `host_str()`, and parses a host that carries a port, so the
+    // manual unwrapping this replaced is gone with it.
+    if let Some(reason) = fraiseql_guard::net::blocked_host_reason(host_raw) {
         return Err(fraiseql_error::FraiseQLError::Internal {
-            message: format!("Subgraph URL targets a loopback host: {host}"),
+            message: format!(
+                "Subgraph URL targets a host SSRF protection refuses ({host_raw}): {reason}"
+            ),
             source:  None,
         });
-    }
-
-    // Block literal private/reserved IP addresses.
-    if let Ok(ip) = host.parse::<std::net::IpAddr>() {
-        if is_ssrf_blocked_ip(&ip) {
-            return Err(fraiseql_error::FraiseQLError::Internal {
-                message: format!(
-                    "Subgraph URL targets a private or reserved IP address ({ip}) — \
-                     SSRF protection blocked the request"
-                ),
-                source:  None,
-            });
-        }
     }
 
     Ok(())
@@ -473,9 +471,11 @@ mod tests;
 mod corpus {
     use std::net::IpAddr;
 
-    use fraiseql_guard::net::vectors::{MUST_ALLOW, MUST_BLOCK};
+    use fraiseql_guard::net::vectors::{
+        MUST_ALLOW, MUST_ALLOW_HOSTS, MUST_BLOCK, MUST_BLOCK_HOSTS, url_host,
+    };
 
-    use super::is_ssrf_blocked_ip;
+    use super::{is_ssrf_blocked_ip, validate_subgraph_url};
 
     #[test]
     fn refuses_every_blocked_corpus_entry() {
@@ -490,6 +490,37 @@ mod corpus {
         for addr in MUST_ALLOW {
             let ip: IpAddr = addr.parse().expect("corpus entry parses");
             assert!(!is_ssrf_blocked_ip(&ip), "must permit {addr}");
+        }
+    }
+
+    // `is_ssrf_blocked_ip` takes an `IpAddr`, so no HOSTNAME can reach it and the
+    // two tests above cannot answer for the hostname half at all (#1280).
+    // `validate_subgraph_url` is this crate's URL entry point — and the one
+    // `SubscriptionForwarder::new` uses as its whole SSRF control — so the corpus
+    // is pointed there too. It needs no network: the host rule runs before any
+    // lookup, and `dns_resolve_and_check` is a separate function.
+
+    #[test]
+    fn the_url_guard_refuses_every_blocked_corpus_entry() {
+        for (addr, why) in MUST_BLOCK {
+            let url = format!("https://{}/graphql", url_host(addr));
+            assert!(validate_subgraph_url(&url).is_err(), "must refuse {addr} ({why})");
+        }
+        for (host, why) in MUST_BLOCK_HOSTS {
+            let url = format!("https://{host}/graphql");
+            assert!(validate_subgraph_url(&url).is_err(), "must refuse {host} ({why})");
+        }
+    }
+
+    #[test]
+    fn the_url_guard_permits_every_allowed_corpus_entry() {
+        for addr in MUST_ALLOW {
+            let url = format!("https://{}/graphql", url_host(addr));
+            assert!(validate_subgraph_url(&url).is_ok(), "must permit {addr}");
+        }
+        for host in MUST_ALLOW_HOSTS {
+            let url = format!("https://{host}/graphql");
+            assert!(validate_subgraph_url(&url).is_ok(), "must permit {host}");
         }
     }
 }

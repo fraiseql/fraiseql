@@ -221,10 +221,17 @@ fn clickhouse_url_refuses_every_blocked_corpus_entry() {
 
 #[test]
 fn clickhouse_url_permits_every_allowed_corpus_entry() {
-    use fraiseql_guard::net::vectors::{MUST_ALLOW, url_host};
+    use fraiseql_guard::net::vectors::{MUST_ALLOW, MUST_ALLOW_HOSTS, url_host};
     for addr in MUST_ALLOW {
         let url = format!("http://{}:8123", url_host(addr));
         assert!(validate_clickhouse_url(&url).is_ok(), "must permit {addr}");
+    }
+    // The hostname counterweight: MUST_ALLOW is all IP literals, so a guard that
+    // refused every name would pass it (#1280). No port — MUST_ALLOW_HOSTS rows
+    // are already host-position text and two of them carry their own.
+    for host in MUST_ALLOW_HOSTS {
+        let url = format!("http://{host}");
+        assert!(validate_clickhouse_url(&url).is_ok(), "must permit {host}");
     }
 }
 
