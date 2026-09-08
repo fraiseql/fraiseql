@@ -930,6 +930,29 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **`fraiseql-server`'s test targets compile without the `auth` feature, and a combo builds them (#1277).**
+
+  `cargo test -p fraiseql-server --no-default-features --features rest --lib` had failed to
+  COMPILE for months: `routes/tests.rs` reaches `crate::auth` for `PkceStateStore`,
+  `OidcServerClient` and `StateEncryptionService` without being gated on the feature that
+  provides them. No gate built that shape — the narrow feature-matrix combos run `cargo
+  check` without `--all-targets`, so they compile the lib and never its test binary, and
+  every combo that does build test targets keeps the crate defaults, of which `auth` is one.
+
+  `auth_tests` and `revoke_tests` are now gated individually rather than the whole `mod
+  tests;`, so the five modules beside them — health, introspection, metrics, playground,
+  subscriptions — still compile and run under a `rest`-only build; blanket-gating would have
+  traded a compile error for zero route tests in exactly the builds that now compile them.
+  Under a feature set with `auth` the count is unchanged at 51.
+
+  Building the test targets also revealed three integration suites with the same defect —
+  `auth_me_integration_test`, `security`, `security_config_runtime_test` — which now declare
+  `required-features = ["auth"]`, following the crate's existing precedent: a file-level
+  `#![cfg]` would compile them to empty binaries that report 0 tests and read green.
+
+  The gate itself is the durable half: the two `--no-default-features` server combos gained
+  `--all-targets`, and they are the only combos that build this crate without its defaults.
+
 - **A tags-only workflow stops reading as one that reaches branches (#1298).**
 
   `check-suite-coverage.py` decides whether a check context may be listed in
