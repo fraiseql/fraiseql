@@ -36,7 +36,7 @@ trap 'rm -rf "$WORK"' EXIT
 # invocation. Everything the assertion turns on is in the tests.rs body and the
 # invocation, so a verdict is attributable to those two alone.
 make_fixture() {
-    local dir="$1" features="$2" body="$3" invocation="$4"
+    local dir="$1" features="$2" body="$3" invocation="$4" env_binding="${5:-}"
     mkdir -p "$dir/tools" "$dir/.dagger" "$dir/crates/demo/src" "$dir/.github/workflows"
     cp "$GATE" "$dir/tools/check-suite-coverage.py"
 
@@ -86,10 +86,19 @@ RS
 
     printf '%s\n' "$body" >"$dir/crates/demo/src/tests.rs"
 
+    # The optional fifth argument binds a service to the leg. `inv.env` is read
+    # out of the `WithEnvVariable(...)` calls inside the Go function, exactly as
+    # `.dagger/main.go` writes them, so a fixture leg can be made to bind a
+    # service or deliberately not to (#1297).
+    local binding=""
+    if [ -n "$env_binding" ]; then
+        binding="	_ = ctr.WithEnvVariable(\"$env_binding\", \"stub\")"
+    fi
     cat >"$dir/.dagger/main.go" <<GO
 package main
 
 func (m *FraiseqlCi) Test() string {
+$binding
 	script := []string{
 		"$invocation",
 	}
@@ -221,7 +230,113 @@ make_fixture "$WORK/f2" "$FEATS" "$SUBMOD_BODY" "cargo test -p demo --lib --feat
 expect "...and a filter naming a DIFFERENT module does not" 1 "$WORK/f2" "demo::lib::tests::render_tests[transforms]"
 
 echo
+echo "── the service axis: a leg binding nothing covers nothing ──"
+
+# ── S. The service axis: a leg that binds nothing covers nothing ───────────
+#
+# `covers_binary` has asked "does this leg bind the services the suite needs?"
+# since #960. `covers_module` did not, so ANY leg compiling a module with the
+# right features was credited — including one with no service at all, where the
+# tests self-skip and read exactly like passes. That is #960 one level down:
+# there a suite ran in a leg that could not fail a merge, here a suite is
+# credited to a leg that cannot execute it (#1297).
+SERVICE_BODY='#[test]
+fn always_runs() {}
+
+#[cfg(feature = "parquet")]
+#[test]
+fn talks_to_redis() {
+    let _ = std::env::var("REDIS_URL");
+}'
+
+make_fixture "$WORK/svc_none" "$FEATS" "$SERVICE_BODY" "cargo test -p demo --lib --features parquet"
+expect "a module needing a service is not covered by a leg binding none" 1 \
+    "$WORK/svc_none" "demo::lib::tests[parquet]"
+
+make_fixture "$WORK/svc_bound" "$FEATS" "$SERVICE_BODY" \
+    "cargo test -p demo --lib --features parquet" "REDIS_URL"
+expect "...and is covered once the leg binds it" 0 "$WORK/svc_bound"
+
+make_fixture "$WORK/svc_wrong" "$FEATS" "$SERVICE_BODY" \
+    "cargo test -p demo --lib --features parquet" "DATABASE_URL"
+expect "...a DIFFERENT service does not satisfy it" 1 "$WORK/svc_wrong" \
+    "demo::lib::tests[parquet]"
+
+# The service is read from the gated span, not from the file. Whole-file
+# detection would call every target in a tests.rs service-bound because one test
+# somewhere in it dials Redis — it read `commands::tests::run_tests[run-server]`
+# as needing Postgres and Redis when its own 23 tests touch neither, and an
+# over-demanding gate gets an exemption written for it.
+SPLIT_BODY='#[test]
+fn always_runs() {
+    let _ = std::env::var("REDIS_URL");
+}
+
+#[cfg(feature = "parquet")]
+#[test]
+fn touches_nothing() {}'
+
+make_fixture "$WORK/svc_split" "$FEATS" "$SPLIT_BODY" "cargo test -p demo --lib --features parquet"
+expect "...and a service used OUTSIDE the gate is not the gate's need" 0 "$WORK/svc_split"
+
+echo
+echo "── the #[ignore] axis, at the granularity of the gate ──"
+
+# ── I. The #[ignore] axis, at the granularity of the gate ──────────────────
+#
+# `-- --ignored` runs ONLY #[ignore]d tests and a plain run skips them, so each
+# is a leg that executes none of the other's tests. Both directions have a live
+# instance: `integration (redis)` runs `-p fraiseql-observers --lib -- --ignored`
+# over modules with no ignored test at all, and the four `redis-pkce` tests are
+# all #[ignore]d while the only leg compiling them runs plain.
+IGNORED_BODY='#[test]
+fn always_runs() {}
+
+#[cfg(feature = "parquet")]
+#[test]
+#[ignore = "needs the service"]
+fn only_when_asked() {}'
+
+make_fixture "$WORK/ign_plain" "$FEATS" "$IGNORED_BODY" "cargo test -p demo --lib --features parquet"
+expect "an all-#[ignore]d module is not covered by a plain run" 1 "$WORK/ign_plain" \
+    "demo::lib::tests[parquet]"
+
+make_fixture "$WORK/ign_ignored" "$FEATS" "$IGNORED_BODY" \
+    "cargo test -p demo --lib --features parquet -- --ignored"
+expect "...and is covered by an --ignored run" 0 "$WORK/ign_ignored"
+
+make_fixture "$WORK/ign_include" "$FEATS" "$IGNORED_BODY" \
+    "cargo test -p demo --lib --features parquet -- --include-ignored"
+expect "...and by --include-ignored" 0 "$WORK/ign_include"
+
+make_fixture "$WORK/ign_none" "$FEATS" "$PLAIN_BODY" \
+    "cargo test -p demo --lib --features parquet -- --ignored"
+expect "an --ignored run covers nothing in a module with no #[ignore]" 1 \
+    "$WORK/ign_none" "demo::lib::tests[parquet]"
+
+# The counts come from the gated span too, and from source with string literals
+# blanked. `fraiseql-auth/src/tests.rs` holds 345 tests of which 9 look ignored —
+# one of the nine is the text `#[ignore]d` inside a message string — so whole-file
+# counting says "not ignore-only" over a gate whose every test is ignored.
+MIXED_BODY='#[test]
+fn always_runs() {}
+
+#[test]
+#[ignore = "unrelated"]
+fn ungated_and_ignored() {}
+
+#[cfg(feature = "parquet")]
+#[test]
+fn gated_and_not_ignored() {
+    assert_eq!("#[ignore]", "#[ignore]");
+}'
+
+make_fixture "$WORK/ign_span" "$FEATS" "$MIXED_BODY" "cargo test -p demo --lib --features parquet"
+expect "a plain run covers a gate whose own tests are not ignored" 0 "$WORK/ign_span"
+
+echo
 echo "── an ungated module with no inner gates creates no target at all ──"
+
 make_fixture "$WORK/none" "$FEATS" '#[test]
 fn always_runs() {}' "cargo test -p demo --lib"
 expect "no feature cfgs ⇒ nothing to track" 0 "$WORK/none"

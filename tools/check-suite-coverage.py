@@ -46,6 +46,7 @@ import re
 import sys
 import tomllib
 from pathlib import Path
+from typing import NamedTuple
 
 REPO = Path(__file__).resolve().parent.parent
 DAGGER_MAIN = REPO / ".dagger" / "main.go"
@@ -271,6 +272,19 @@ class LibTestModule:
         self.any_groups = any_groups
         # Distinguishes the virtual inner-gate targets from the module itself.
         self.label = label
+        # The two questions `covers_binary` asked and `covers_module` did not
+        # (#1297). Without them any leg that merely COMPILES a module with the
+        # right features was credited with covering it, including one that binds
+        # no service and one that runs none of its `#[ignore]`d tests — the #960
+        # shape one level down, where a suite is credited to a leg that cannot
+        # execute it.
+        self.needs: set[str] = set()  # service-group names from SERVICES
+        self.n_tests = 0
+        self.n_ignored = 0
+
+    @property
+    def ignored_only(self) -> bool:
+        return self.n_tests > 0 and self.n_ignored >= self.n_tests
 
     @property
     def target_id(self) -> str:
@@ -282,14 +296,84 @@ def parse_cargo_toml(crate_dir: Path) -> dict:
         return tomllib.load(f)
 
 
-def strip_line_comments(src: str) -> str:
-    """Drop `//`, `///` and `//!` comment text, keeping line structure.
+_RAW_STR_OPEN = re.compile(r'r(#*)"')
+_CHAR_LIT = re.compile(r"'(?:\\.|[^\\'])'")
 
-    Deliberately naive — it does not understand `//` inside a string literal —
-    because it is only used to count attributes, which cannot appear in a string
-    that matters here. Block comments are left alone for the same reason.
+
+def scrub_source(src: str, blank_strings: bool = False) -> str:
+    """Blank comments — and optionally string literals — preserving every offset.
+
+    Length- and line-preserving on purpose: two scrubs of the same source index
+    identically, so a span found in one can be sliced out of the other. The
+    structural scan wants strings gone (a `"{"` would desynchronise brace
+    counting); the content scan wants them kept (`var("REDIS_URL")` IS the
+    service evidence).
+
+    The states are not independent, which is why this is one pass rather than two
+    regexes. `#[ignore = "requires Redis — set REDIS_URL=redis://localhost:6379"]`
+    is the case that forced it: splitting each line at the first `//` truncated
+    that attribute mid-string, leaving an unclosed `[` that swallowed everything
+    the following brace scan tried to read. It also counted the `#[ignore]d` inside
+    a string on line 1347 of the same file as a real attribute. Rust block comments
+    nest, so their depth is counted rather than searched for a terminator.
     """
-    return "\n".join(line.split("//", 1)[0] for line in src.splitlines())
+    out: list[str] = []
+    i, n = 0, len(src)
+
+    def blanked(seg: str) -> str:
+        return "".join(ch if ch == "\n" else " " for ch in seg)
+
+    while i < n:
+        c = src[i]
+        if c == "/" and src.startswith("//", i):
+            j = src.find("\n", i)
+            j = n if j < 0 else j
+            out.append(blanked(src[i:j]))
+            i = j
+            continue
+        if c == "/" and src.startswith("/*", i):
+            depth, j = 0, i
+            while j < n:
+                if src.startswith("/*", j):
+                    depth += 1
+                    j += 2
+                elif src.startswith("*/", j):
+                    depth -= 1
+                    j += 2
+                    if depth == 0:
+                        break
+                else:
+                    j += 1
+            out.append(blanked(src[i:j]))
+            i = j
+            continue
+        if c == "r" and (mr := _RAW_STR_OPEN.match(src, i)):
+            close = '"' + mr.group(1)
+            j = src.find(close, mr.end())
+            j = n if j < 0 else j + len(close)
+            out.append(blanked(src[i:j]) if blank_strings else src[i:j])
+            i = j
+            continue
+        if c == '"':
+            j = i + 1
+            while j < n:
+                if src[j] == "\\":
+                    j += 2
+                    continue
+                if src[j] == '"':
+                    j += 1
+                    break
+                j += 1
+            out.append(blanked(src[i:j]) if blank_strings else src[i:j])
+            i = j
+            continue
+        if c == "'" and (mc := _CHAR_LIT.match(src, i)):
+            out.append(blanked(mc.group(0)) if blank_strings else mc.group(0))
+            i = mc.end()
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
 
 
 def submodule_sources(entry: Path, src: str, _seen: set[Path] | None = None) -> str:
@@ -349,7 +433,7 @@ def discover_binaries(crate_dir: Path, crate: str, manifest: dict) -> list[TestB
         # never legitimately live in a comment, so stripping them is lossless here.
         # Service detection below deliberately still scans the raw source: over-
         # detecting a service need is the fail-closed direction.
-        code = strip_line_comments(src)
+        code = scrub_source(src, blank_strings=True)
         own_tests = len(re.findall(r"#\[(?:tokio::)?test[\]\(]", code))
         # A binary's tests may live in submodules rather than in the entry file.
         # `crates/fraiseql-server/tests/security.rs` is fourteen lines of
@@ -360,7 +444,7 @@ def discover_binaries(crate_dir: Path, crate: str, manifest: dict) -> list[TestB
         # binary from every coverage check, and the gate printed `OK … all covered`
         # over a suite no leg runs (#1029). Submodule sources are folded in first, so
         # `n_tests == 0` means what it says: nothing to execute.
-        code += "\n" + strip_line_comments(submodule_sources(f, src))
+        code += "\n" + scrub_source(submodule_sources(f, src), blank_strings=True)
         b.n_tests = len(re.findall(r"#\[(?:tokio::)?test[\]\(]", code))
         b.n_ignored = len(re.findall(r"#\[ignore\b", code))
         # Shared harness modules can hold the service getter for the binary.
@@ -446,9 +530,94 @@ NOT_ONE = re.compile(r'not\s*\(\s*feature\s*=\s*"([^"]+)"\s*\)')
 INNER_MOD = re.compile(r"\A\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)")
 
 
-def inner_gate_requirements(
-    text: str,
-) -> list[tuple[str, frozenset[str], frozenset[str], tuple[frozenset[str], ...]]]:
+def _attr_block_start(structural: str, cfg_start: int) -> int:
+    """Walk back over the attributes stacked ABOVE a `#[cfg(…)]` at `cfg_start`."""
+    i = cfg_start
+    while True:
+        j = i - 1
+        while j >= 0 and structural[j].isspace():
+            j -= 1
+        if j < 0 or structural[j] != "]":
+            return i
+        depth = 0
+        while j >= 0:
+            if structural[j] == "]":
+                depth += 1
+            elif structural[j] == "[":
+                depth -= 1
+                if depth == 0:
+                    break
+            j -= 1
+        if j <= 0 or structural[j - 1] != "#":
+            return i
+        i = j - 1
+
+
+def _gated_item_span(structural: str, cfg_start: int, after_cfg: int) -> tuple[int, int]:
+    """The span of the item a `#[cfg(…)]` gates, attributes included.
+
+    Attributes stack in either order — `#[cfg] #[tokio::test] #[ignore] fn` and
+    `#[tokio::test] #[cfg] fn` are both written here — so the span runs from the
+    top of the contiguous attribute block to the end of the item. Taking only the
+    item would drop the very attributes the caller counts: all four `redis-pkce`
+    tests carry `#[tokio::test]` and `#[ignore]` between the cfg and the `fn`, and
+    a span starting after them reported 0 tests and 0 ignored over 2 753 characters
+    that hold four of each.
+
+    The item runs either to its balanced `{…}` body (`mod`, `fn`, `impl`) or to the
+    `;` ending a bodyless one (`use`, `const`). `structural` must be a
+    string-blanked scrub: a `{` inside a literal would otherwise close the wrong
+    brace.
+    """
+    i, n = after_cfg, len(structural)
+    while True:
+        while i < n and structural[i].isspace():
+            i += 1
+        if i < n and structural.startswith("#[", i):
+            depth = 0
+            while i < n:
+                if structural[i] == "[":
+                    depth += 1
+                elif structural[i] == "]":
+                    depth -= 1
+                    if depth == 0:
+                        i += 1
+                        break
+                i += 1
+            continue
+        break
+    head = _attr_block_start(structural, cfg_start)
+    j = i
+    while j < n and structural[j] not in "{;":
+        j += 1
+    if j >= n:
+        return head, n
+    if structural[j] == ";":
+        return head, j + 1
+    depth = 0
+    while j < n:
+        if structural[j] == "{":
+            depth += 1
+        elif structural[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return head, j + 1
+        j += 1
+    return head, n
+
+
+class InnerGate(NamedTuple):
+    """One distinct `#[cfg(…feature…)]` requirement set found inside a tests.rs."""
+
+    submodule: str
+    required: frozenset[str]
+    forbidden: frozenset[str]
+    groups: tuple[frozenset[str], ...]
+    source: str  # gated source, string literals INTACT — service detection
+    code: str  # the same span, string literals blanked — attribute counting
+
+
+def inner_gate_requirements(text: str) -> list[InnerGate]:
     """Distinct (submodule, required, forbidden, any-groups) gates inside one tests.rs.
 
     A test fn behind `#[cfg(feature = "parquet")]` inside an UNGATED `mod tests` is
@@ -458,9 +627,23 @@ def inner_gate_requirements(
     `not(feature)` arms.
 
     `submodule` is the inner `mod` the cfg gates, or "" when it gates a fn or a block.
+
+    The fifth element is the SOURCE the gate covers, concatenated over every site
+    carrying that same requirement set. Without it the two axes `covers_binary`
+    has cannot be asked of a virtual target: `fraiseql-auth/src/tests.rs` holds 345
+    tests of which 9 are `#[ignore]`d, so whole-file counts say "not ignore-only"
+    while all four tests behind `#[cfg(feature = "redis-pkce")]` are ignored and
+    every one of them reads `REDIS_URL` (#1297).
     """
-    out: dict[tuple, tuple[str, frozenset[str], frozenset[str], tuple[frozenset[str], ...]]] = {}
-    stripped = strip_line_comments(text)
+    out: dict[tuple, tuple] = {}
+    bodies: dict[tuple, list[str]] = {}
+    codes: dict[tuple, list[str]] = {}
+    stripped = scrub_source(text)
+    # The predicate is read from the string-KEEPING scrub — `feature = "x"` is a
+    # string literal, so a blanked one carries no feature name at all — and the
+    # item after it from the string-blanked one. Both scrubs are length-preserving,
+    # so `m.end()` indexes either.
+    structural = scrub_source(text, blank_strings=True)
     for m in INNER_CFG.finditer(stripped):
         pred = " ".join(m.group("pred").split())
         # `any(a, b)` is a disjunction: at least one. Lift the groups out first so their
@@ -477,7 +660,7 @@ def inner_gate_requirements(
             continue
         # What does this attribute gate? Skip any further attributes stacked below it
         # (`#[cfg(...)]` then `#[test]` then `fn`), then look for `mod NAME`.
-        tail = stripped[m.end() :]
+        tail = structural[m.end() :]
         while True:
             probe = tail.lstrip()
             if probe.startswith("#["):
@@ -495,8 +678,17 @@ def inner_gate_requirements(
         mod_match = INNER_MOD.match(tail)
         submodule = mod_match.group(1) if mod_match else ""
         key = (submodule, required, forbidden, tuple(sorted(groups, key=sorted)))
-        out[key] = (submodule, required, forbidden, tuple(sorted(groups, key=sorted)))
-    return sorted(out.values(), key=lambda r: (r[0], sorted(r[1]), sorted(r[2])))
+        start, end = _gated_item_span(structural, m.start(), m.end())
+        bodies.setdefault(key, []).append(stripped[start:end])
+        codes.setdefault(key, []).append(structural[start:end])
+        out[key] = key
+    return sorted(
+        (
+            InnerGate(k[0], k[1], k[2], k[3], "\n".join(bodies[k]), "\n".join(codes[k]))
+            for k in out
+        ),
+        key=lambda g: (g.submodule, sorted(g.required), sorted(g.forbidden)),
+    )
 
 
 def _gate_label(required: frozenset[str], forbidden: frozenset[str], groups: tuple[frozenset[str], ...]) -> str:
@@ -542,23 +734,48 @@ def discover_lib_modules(crate_dir: Path, crate: str) -> list[LibTestModule]:
             feats.update(g)
         if not declared_everywhere:
             continue
-        if feats:
-            out.append(LibTestModule(crate, module_path, feats, tf))
         text = tf.read_text(encoding="utf-8", errors="replace")
-        for submodule, required, forbidden, groups in inner_gate_requirements(text):
-            path = f"{module_path}::{submodule}" if submodule else module_path
-            out.append(
-                LibTestModule(
-                    crate,
-                    path,
-                    feats | set(required),
-                    tf,
-                    forbidden=forbidden,
-                    any_groups=groups,
-                    label=_gate_label(required, forbidden, groups),
-                )
+        if feats:
+            whole = LibTestModule(crate, module_path, feats, tf)
+            # The module target IS the whole file, so it is scored over the whole
+            # file: every service any of its tests reaches, and its own counts.
+            _score(whole, text, scrub_source(text, blank_strings=True))
+            out.append(whole)
+        for gate in inner_gate_requirements(text):
+            path = f"{module_path}::{gate.submodule}" if gate.submodule else module_path
+            mod = LibTestModule(
+                crate,
+                path,
+                feats | set(gate.required),
+                tf,
+                forbidden=gate.forbidden,
+                any_groups=gate.groups,
+                label=_gate_label(gate.required, gate.forbidden, gate.groups),
             )
+            # A virtual target is scored over the source its cfg gates, not over the
+            # file. `fraiseql-auth/src/tests.rs` holds 345 tests of which 9 are
+            # `#[ignore]`d — whole-file counts call it "not ignore-only" while all
+            # four tests behind `#[cfg(feature = "redis-pkce")]` are ignored and
+            # every one reads `REDIS_URL`. Scoring at file granularity would also
+            # over-demand: it read `commands::tests::run_tests[run-server]` as
+            # needing Postgres and Redis, which its own 23 tests do not touch.
+            _score(mod, gate.source, gate.code)
+            out.append(mod)
     return out
+
+
+def _score(mod: LibTestModule, source: str, code: str) -> None:
+    """Fill a module's service and `#[ignore]` axes from the source it owns.
+
+    `source` keeps string literals (`var("REDIS_URL")` is the evidence); `code`
+    blanks them, because a `#[ignore]d` written inside a message string is not an
+    attribute — there is one on line 1347 of `fraiseql-auth/src/tests.rs`.
+    """
+    for group, spec in SERVICES.items():
+        if spec["detect"].search(source):
+            mod.needs.add(group)
+    mod.n_tests = len(re.findall(r"#\[(?:tokio::)?test[\]\(]", code))
+    mod.n_ignored = len(re.findall(r"#\[ignore\b", code))
 
 
 # ── Phase B: discover what runs ───────────────────────────────────────────────
@@ -1758,6 +1975,17 @@ def covers_module(inv: Invocation, mod: LibTestModule) -> bool:
     if inv.filters and not any(mod.module_path.startswith(f.rstrip(":")) for f in inv.filters):
         return False
     if any(mod.module_path.startswith(s.rstrip(":")) for s in inv.skips):
+        return False
+    # The two rules `covers_binary` has always applied, asked here too (#1297).
+    # `-- --ignored` runs ONLY #[ignore]d tests; a plain run skips them;
+    # `--include-ignored` runs both.
+    if not inv.include_ignored:
+        if inv.ignored_mode and mod.n_ignored == 0:
+            return False
+        if not inv.ignored_mode and mod.ignored_only:
+            return False
+    # A module needing services counts as covered only by a leg binding them all.
+    if not all(SERVICES[g]["satisfied_by"] & inv.env for g in mod.needs):
         return False
     return True
 

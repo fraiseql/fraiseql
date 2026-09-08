@@ -949,8 +949,14 @@ func (m *FraiseqlCi) Test(
 		// so these unit tests never executed in CI.
 		// arrow/checkpoint/dedup/metrics/search are pure lib features whose unit
 		// modules were compiled out of every leg before (#992).
-		"echo '### cargo test -p fraiseql-observers --lib --features caching,cli,arrow,checkpoint,dedup,metrics,nats,postgres,search (Docker-free unit tests; DB/redis/nats tests are #[ignore]d → integration legs)'",
-		"cargo test -p fraiseql-observers --lib --features 'caching,cli,arrow,checkpoint,dedup,metrics,nats,postgres,search'",
+		// `queue` joined the list in #1297. Its eight lib tests — four in
+		// `tests` and four in `tests::queued_executor_tests` — are pure config and
+		// summary assertions that touch no service, and no leg compiled them: the
+		// only invocations enabling `queue` are the redis leg's `-- --ignored`
+		// line (they carry no #[ignore], so it runs none of them) and the
+		// `--test job_queue_integration` binaries. They ran nowhere at all.
+		"echo '### cargo test -p fraiseql-observers --lib --features caching,cli,arrow,checkpoint,dedup,metrics,nats,postgres,queue,search (Docker-free unit tests; DB/redis/nats tests are #[ignore]d → integration legs)'",
+		"cargo test -p fraiseql-observers --lib --features 'caching,cli,arrow,checkpoint,dedup,metrics,nats,postgres,queue,search'",
 		// #992: observers in-process test binaries — the crate is excluded from
 		// the workspace run, so these executed nowhere.
 		// queue,metrics,testing: job_queue_integration is cfg-gated on them and
@@ -1382,7 +1388,15 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// query_bridge, subsystems::loader, function_metrics and the
 		// pg_function_dlq observers module are functions-runtime-gated too and
 		// executed in no leg.
-		"cargo test -p fraiseql-server --features functions-runtime,observers --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: function_metrics:: observers::pg_function_dlq:: --test-threads=1",
+		// `auth` + `identity::` + `observers::changelog_handlers::` joined in
+		// #1297. Both modules reach Postgres through a skip-clean getter
+		// (`fraiseql_test_support::postgres()`, `try_database_url()`) and the only
+		// leg compiling them was the service-less workspace run, where every
+		// DB-backed case returned early and read exactly like a pass.
+		"cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1",
+		// #1297: saga_store's Postgres orchestration proof, same shape — skip-clean
+		// on `try_database_url()`, compiled only by the DB-less `Test` leg.
+		"cargo test -p fraiseql-federation --features saga --lib saga_store::tests -- --test-threads=1",
 		// #896: the functions subsystem is configured from the schema the server was
 		// built with, on BOTH serving entry points. Its own binary, and
 		// functions-runtime-gated, so it belongs on this line rather than in
@@ -2205,8 +2219,13 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		"set -e",
 		"echo \"### toolchain: $(rustc --version)\"",
 		"echo '### integration: redis (core APQ + observers queue/lease + #428 cache-invalidation) — Dagger-bound redis+postgres'",
-		"bash tools/ci-target-canary.sh -- test -p fraiseql-core --features redis-apq --lib redis", // #880 canary
-		"cargo test -p fraiseql-core --features redis-apq --lib redis -- --ignored --test-threads=1",
+		// The filter names the module rather than the substring `redis` (#1297):
+		// `apq::tests::redis_storage_tests` is the target the coverage gate scores,
+		// and a filter longer than a module path is deliberately not credited to
+		// it. Staying specific also keeps `cache::tests`' manual scaling benchmark
+		// — the crate's other #[ignore]d lib test — out of this leg.
+		"bash tools/ci-target-canary.sh -- test -p fraiseql-core --features redis-apq --lib apq::tests::redis_storage_tests", // #880 canary
+		"cargo test -p fraiseql-core --features redis-apq --lib apq::tests::redis_storage_tests -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-observers --features 'caching,queue,redis-lease' --lib -- --ignored --test-threads=1",
 		// #844: the job-queue worker's dispatch/timeout/DLQ tests. The mock-queue
 		// tests are NOT #[ignore]d (no external service) but compile only with the
@@ -2245,7 +2264,12 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		// ZERO tests without (verified).
 		"cargo test -p fraiseql-auth --features redis-rate-limiting --test redis_failover_test -- --include-ignored --test-threads=1",
 		"cargo test -p fraiseql-observers --features 'caching,queue,redis-lease,testing' --test integration_test -- --test-threads=1",
-		"cargo test -p fraiseql-auth --features redis-pkce --lib redis_pkce -- --ignored --test-threads=1",
+		// Unfiltered since #1297. Under `--features redis-pkce` the only #[ignore]d
+		// lib tests in this crate are the four PKCE ones — the three state-store
+		// cases below are gated on `redis-rate-limiting`, which this build does not
+		// enable — so the set run is unchanged, and dropping the filter is what
+		// lets the coverage gate see that `tests[redis-pkce]` is covered at all.
+		"cargo test -p fraiseql-auth --features redis-pkce --lib -- --ignored --test-threads=1",
 		// #1295: the RedisStateStore single-use/replay/multi-state cases. They
 		// hardcoded `redis://localhost:6379` and treated a failed connection as a
 		// skip, so they had asserted nothing in ANY leg — this one binds Redis
@@ -2254,12 +2278,13 @@ func (m *FraiseqlCi) integrationRedis(ctx context.Context, source *dagger.Direct
 		// now read REDIS_URL and are #[ignore]d, so this is the only line that
 		// runs them.
 		//
-		// ⚠ The filter is load-bearing and nothing checks it still matches: a
-		// rename of `state_store_tests` would make this line run ZERO tests,
-		// print `ok. 0 passed`, and exit 0. It is one of 30 filtered
-		// invocations in this file with that property — see #1300, which is
-		// where the gate for all 30 belongs rather than a grep on this one.
-		"cargo test -p fraiseql-auth --features redis-rate-limiting --lib tests::state_store_tests::test_redis -- --include-ignored --test-threads=1",
+		// Unfiltered since #1297, for the same reason as the PKCE line: under
+		// `--features redis-rate-limiting` these three are the crate's only
+		// #[ignore]d lib tests, so `-- --ignored` runs exactly them, and a filter
+		// longer than the `tests` module path could never be credited as covering
+		// it. It also retires the load-bearing filter this comment used to warn
+		// about — a rename would have made the line print `ok. 0 passed`.
+		"cargo test -p fraiseql-auth --features redis-rate-limiting --lib -- --ignored --test-threads=1",
 		"echo 'test-integration OK: redis suite passed'",
 	}, "\n")
 
@@ -2508,6 +2533,12 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// the SSRF-guard unit tests, which assert the guard is ON and so fail under this
 		// suite's FRAISEQL_OBSERVERS_ALLOW_INSECURE=true. Lease coverage gap == legacy.
 		"cargo test -p fraiseql-observers --features 'postgres,caching,redis-lease' --lib -- --ignored --test-threads=1",
+		// #1297 closes the gap the comment above records. The four advisory-lease
+		// tests are skip-on-None, so the `--ignored` line runs none of them; a
+		// NAME-FILTERED plain run reaches them without pulling in the SSRF-guard
+		// unit tests that fail under this suite's FRAISEQL_OBSERVERS_ALLOW_INSECURE.
+		// This leg binds both Postgres and Redis, so both halves execute here.
+		"cargo test -p fraiseql-observers --features 'postgres,caching,redis-lease' --lib listener::tests -- --test-threads=1",
 		"cargo test -p fraiseql-observers --features 'postgres,nats' --test bridge_integration -- --ignored --test-threads=1",
 		"cargo test -p fraiseql-server --features observers-nats --test observer_runtime_integration_test -- --ignored --test-threads=1",
 		// #928: the observer E2E suite. It had never run in any leg — none of its
