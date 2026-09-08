@@ -10,7 +10,7 @@ use fraiseql_error::{FraiseQLError, Result};
 use futures::stream::StreamExt;
 
 use super::{
-    order_by::render_order_by_columns,
+    order_by::{Tiebreak, render_order_by_columns},
     traits::DatabaseAdapter,
     types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
     where_clause::WhereClause,
@@ -42,7 +42,13 @@ fn order_by_columns(order_by: Option<&[OrderByClause]>) -> Result<Option<String>
             "full-text relevance ordering binds the search text as a parameter, which the              fraiseql-wire adapter cannot supply: it assembles raw SQL. This backend already              refuses full-text search predicates for the same reason.",
         ));
     }
-    Ok(render_order_by_columns(order_by, DatabaseType::PostgreSQL, 1)?.map(|r| r.columns))
+    // `Tiebreak::Identity`: this adapter slices LIMIT/OFFSET in memory, but each
+    // call re-runs the query, so consecutive pages are two orderings of tied rows
+    // exactly as on the SQL path (#1287).
+    Ok(
+        render_order_by_columns(order_by, DatabaseType::PostgreSQL, 1, Tiebreak::Identity)?
+            .map(|r| r.columns),
+    )
 }
 
 /// FraiseQL-Wire database adapter.

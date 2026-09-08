@@ -221,9 +221,18 @@ impl PostgresAdapter {
         // and its reasoning live with the ordering itself, next to the renderer
         // this builder cannot use for it.
         crate::order_by::refuse_relevance_under_cursor_pagination(order_by)?;
-        let order_sql = if let Some(rendered) =
-            crate::order_by::render_order_by_columns(order_by, DatabaseType::PostgreSQL, 1)?
-        {
+        // `Tiebreak::None`: keyset paging resumes from the last row's sort key, so
+        // this ordering must end with the cursor column and nothing after it. The
+        // tie-breaker the offset path appends is this builder's `quoted_col`, added
+        // below — asking the renderer for one too would put a term between the sort
+        // key and the cursor the next page resumes from (#1287).
+        let rendered_order = crate::order_by::render_order_by_columns(
+            order_by,
+            DatabaseType::PostgreSQL,
+            1,
+            crate::order_by::Tiebreak::None,
+        )?;
+        let order_sql = if let Some(rendered) = rendered_order {
             let columns = rendered.columns;
             let primary_dir = if forward { "ASC" } else { "DESC" };
             format!(" ORDER BY {columns}, {quoted_col} {primary_dir}")

@@ -6,7 +6,8 @@ use crate::types::sql_hints::OrderDirection;
 #[test]
 fn test_append_order_by_none() {
     let mut sql = "SELECT data FROM v_user".to_string();
-    let bound = append_order_by(&mut sql, None, DatabaseType::PostgreSQL, 1).unwrap();
+    let bound =
+        append_order_by(&mut sql, None, DatabaseType::PostgreSQL, 1, Tiebreak::Identity).unwrap();
     assert!(bound.is_empty());
     assert!(!sql.contains("ORDER BY"));
 }
@@ -14,7 +15,9 @@ fn test_append_order_by_none() {
 #[test]
 fn test_append_order_by_empty() {
     let mut sql = "SELECT data FROM v_user".to_string();
-    let bound = append_order_by(&mut sql, Some(&[]), DatabaseType::PostgreSQL, 1).unwrap();
+    let bound =
+        append_order_by(&mut sql, Some(&[]), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
+            .unwrap();
     assert!(bound.is_empty());
     assert!(!sql.contains("ORDER BY"));
 }
@@ -26,9 +29,14 @@ fn test_append_order_by_single_clause_postgres() {
         "createdAt".to_string(),
         OrderDirection::Desc,
     )];
-    let bound = append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1).unwrap();
+    let bound =
+        append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
+            .unwrap();
     assert!(bound.is_empty(), "a field ordering binds nothing");
-    assert_eq!(sql, "SELECT data FROM v_user ORDER BY data->>'created_at' DESC");
+    assert_eq!(
+        sql,
+        "SELECT data FROM v_user ORDER BY data->>'created_at' DESC, data->>'id' ASC"
+    );
 }
 
 #[test]
@@ -38,11 +46,14 @@ fn test_append_order_by_multiple_clauses_postgres() {
         OrderByClause::new("lastName".to_string(), OrderDirection::Asc),
         OrderByClause::new("createdAt".to_string(), OrderDirection::Desc),
     ];
-    let bound = append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1).unwrap();
+    let bound =
+        append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
+            .unwrap();
     assert!(bound.is_empty(), "a field ordering binds nothing");
     assert_eq!(
         sql,
-        "SELECT data FROM v_user ORDER BY data->>'last_name' ASC, data->>'created_at' DESC"
+        "SELECT data FROM v_user ORDER BY data->>'last_name' ASC, data->>'created_at' DESC, \
+         data->>'id' ASC"
     );
 }
 
@@ -53,7 +64,8 @@ fn test_append_order_by_invalid_field_name() {
         "field'; DROP TABLE users; --".to_string(),
         OrderDirection::Asc,
     )];
-    let result = append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1);
+    let result =
+        append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1, Tiebreak::Identity);
     assert!(result.is_err());
 }
 
@@ -61,7 +73,9 @@ fn test_append_order_by_invalid_field_name() {
 fn test_append_order_by_snake_case_passthrough() {
     let mut sql = "SELECT data FROM v_user".to_string();
     let clauses = [OrderByClause::new("id".to_string(), OrderDirection::Asc)];
-    let bound = append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1).unwrap();
+    let bound =
+        append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
+            .unwrap();
     assert!(bound.is_empty(), "a field ordering binds nothing");
     assert_eq!(sql, "SELECT data FROM v_user ORDER BY data->>'id' ASC");
 }
@@ -75,9 +89,14 @@ fn test_append_order_by_numeric_cast_postgres() {
     let mut sql = "SELECT data FROM v_order".to_string();
     let mut clause = OrderByClause::new("totalAmount".to_string(), OrderDirection::Desc);
     clause.field_type = ScalarFieldType::Numeric;
-    let bound = append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL, 1).unwrap();
+    let bound =
+        append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
+            .unwrap();
     assert!(bound.is_empty(), "a field ordering binds nothing");
-    assert_eq!(sql, "SELECT data FROM v_order ORDER BY (data->>'total_amount')::numeric DESC");
+    assert_eq!(
+        sql,
+        "SELECT data FROM v_order ORDER BY (data->>'total_amount')::numeric DESC, data->>'id' ASC"
+    );
 }
 
 #[test]
@@ -87,9 +106,14 @@ fn test_append_order_by_datetime_cast_postgres() {
     let mut sql = "SELECT data FROM v_event".to_string();
     let mut clause = OrderByClause::new("createdAt".to_string(), OrderDirection::Desc);
     clause.field_type = ScalarFieldType::DateTime;
-    let bound = append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL, 1).unwrap();
+    let bound =
+        append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
+            .unwrap();
     assert!(bound.is_empty(), "a field ordering binds nothing");
-    assert_eq!(sql, "SELECT data FROM v_event ORDER BY (data->>'created_at')::timestamptz DESC");
+    assert_eq!(
+        sql,
+        "SELECT data FROM v_event ORDER BY (data->>'created_at')::timestamptz DESC, data->>'id' ASC"
+    );
 }
 
 // ── native column ORDER BY ───────────────────────────────────────────
@@ -105,10 +129,12 @@ fn test_append_order_by_native_column() {
         vector:        None,
         relevance:     None,
     };
-    let bound = append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL, 1).unwrap();
+    let bound =
+        append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
+            .unwrap();
     assert!(bound.is_empty(), "a field ordering binds nothing");
     // Native column is used directly — no JSON extraction, no cast.
-    assert_eq!(sql, "SELECT data FROM tv_user ORDER BY created_at DESC");
+    assert_eq!(sql, "SELECT data FROM tv_user ORDER BY created_at DESC, data->>'id' ASC");
 }
 
 #[test]
@@ -131,22 +157,31 @@ fn test_append_order_by_mixed_native_and_jsonb() {
             c
         },
     ];
-    let bound = append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1).unwrap();
+    let bound =
+        append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
+            .unwrap();
     assert!(bound.is_empty(), "a field ordering binds nothing");
-    assert_eq!(sql, "SELECT data FROM tv_user ORDER BY created_at DESC, data->>'name' ASC");
+    assert_eq!(
+        sql,
+        "SELECT data FROM tv_user ORDER BY created_at DESC, data->>'name' ASC, data->>'id' ASC"
+    );
 }
 
 // ── render_order_by_columns (bare list, for backends that supply the keyword) ──
 
 #[test]
 fn test_render_order_by_columns_none() {
-    assert!(render_order_by_columns(None, DatabaseType::PostgreSQL, 1).unwrap().is_none());
+    assert!(
+        render_order_by_columns(None, DatabaseType::PostgreSQL, 1, Tiebreak::None)
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[test]
 fn test_render_order_by_columns_empty() {
     assert!(
-        render_order_by_columns(Some(&[]), DatabaseType::PostgreSQL, 1)
+        render_order_by_columns(Some(&[]), DatabaseType::PostgreSQL, 1, Tiebreak::None)
             .unwrap()
             .is_none()
     );
@@ -158,7 +193,7 @@ fn test_render_order_by_columns_no_keyword_prefix() {
         OrderByClause::new("lastName".to_string(), OrderDirection::Asc),
         OrderByClause::new("createdAt".to_string(), OrderDirection::Desc),
     ];
-    let cols = render_order_by_columns(Some(&clauses), DatabaseType::PostgreSQL, 1)
+    let cols = render_order_by_columns(Some(&clauses), DatabaseType::PostgreSQL, 1, Tiebreak::None)
         .unwrap()
         .unwrap()
         .columns;
@@ -169,17 +204,19 @@ fn test_render_order_by_columns_no_keyword_prefix() {
 
 #[test]
 fn test_render_order_by_columns_matches_append_body() {
-    // The bare list must equal append_order_by's output minus the " ORDER BY " prefix.
+    // The bare list must equal append_order_by's output minus the " ORDER BY " prefix —
+    // for the SAME tie-break question. Asking one for a total order and the other for a
+    // bare render would compare two different contracts and fail for the wrong reason.
     let clauses = [OrderByClause::new(
         "createdAt".to_string(),
         OrderDirection::Desc,
     )];
-    let cols = render_order_by_columns(Some(&clauses), DatabaseType::PostgreSQL, 1)
+    let cols = render_order_by_columns(Some(&clauses), DatabaseType::PostgreSQL, 1, Tiebreak::None)
         .unwrap()
         .unwrap()
         .columns;
     let mut sql = String::new();
-    append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1).unwrap();
+    append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1, Tiebreak::None).unwrap();
     assert_eq!(sql, format!(" ORDER BY {cols}"));
 }
 
@@ -189,7 +226,10 @@ fn test_render_order_by_columns_invalid_field_name() {
         "field'; DROP TABLE users; --".to_string(),
         OrderDirection::Asc,
     )];
-    assert!(render_order_by_columns(Some(&clauses), DatabaseType::PostgreSQL, 1).is_err());
+    assert!(
+        render_order_by_columns(Some(&clauses), DatabaseType::PostgreSQL, 1, Tiebreak::None)
+            .is_err()
+    );
 }
 
 // ── vector-distance ORDER BY (#386, #959) ────────────────────────────────
@@ -211,6 +251,7 @@ fn float_vector_order_casts_to_vector() {
         Some(&[vector_order("<=>", "[1,0,0.5]", VectorOperandKind::Float)]),
         DatabaseType::PostgreSQL,
         1,
+        Tiebreak::None,
     )
     .unwrap()
     .unwrap()
@@ -228,6 +269,7 @@ fn bit_vector_order_casts_to_varbit() {
             Some(&[vector_order(op, "1011", VectorOperandKind::Bit)]),
             DatabaseType::PostgreSQL,
             1,
+            Tiebreak::None,
         )
         .unwrap()
         .unwrap()
@@ -249,6 +291,7 @@ fn a_vector_operator_of_the_other_kind_is_refused() {
             Some(&[vector_order(op, literal, kind)]),
             DatabaseType::PostgreSQL,
             1,
+            Tiebreak::None,
         )
         .unwrap_err()
         .to_string();
@@ -263,6 +306,7 @@ fn a_malformed_bit_literal_is_refused() {
             Some(&[vector_order("<~>", literal, VectorOperandKind::Bit)]),
             DatabaseType::PostgreSQL,
             1,
+            Tiebreak::None,
         )
         .unwrap_err()
         .to_string();
@@ -294,6 +338,7 @@ fn a_relevance_clause_ranks_by_ts_rank_and_binds_its_query() {
         Some(&[relevance_order(&["label"], "row-42")]),
         DatabaseType::PostgreSQL,
         1,
+        Tiebreak::None,
     )
     .unwrap()
     .unwrap();
@@ -325,9 +370,14 @@ fn a_relevance_clause_binds_at_the_index_the_caller_offers() {
         Some(&[relevance_order(&["label"], "x")]),
         DatabaseType::PostgreSQL,
         2,
+        Tiebreak::Identity,
     )
     .unwrap();
-    assert!(sql.ends_with("websearch_to_tsquery($2)) DESC"), "{sql}");
+    assert!(sql.contains("websearch_to_tsquery($2)) DESC"), "{sql}");
+    assert!(
+        sql.ends_with("DESC, data->>'id' ASC"),
+        "a ts_rank ordering is tie-broken too: {sql}"
+    );
     assert_eq!(bound, vec!["x".to_string()]);
 }
 
@@ -343,6 +393,7 @@ fn a_multi_field_relevance_clause_coalesces_every_operand() {
         Some(&[relevance_order(&["title", "body"], "q")]),
         DatabaseType::PostgreSQL,
         1,
+        Tiebreak::None,
     )
     .unwrap()
     .unwrap();
@@ -362,6 +413,7 @@ fn a_relevance_field_name_passes_the_identifier_boundary() {
         Some(&[relevance_order(&["label'; DROP TABLE users; --"], "q")]),
         DatabaseType::PostgreSQL,
         1,
+        Tiebreak::None,
     )
     .unwrap_err()
     .to_string();
@@ -373,10 +425,14 @@ fn a_relevance_field_name_passes_the_identifier_boundary() {
 /// backstop for a future producer that forgets.
 #[test]
 fn a_relevance_clause_with_no_fields_is_refused() {
-    let err =
-        render_order_by_columns(Some(&[relevance_order(&[], "q")]), DatabaseType::PostgreSQL, 1)
-            .unwrap_err()
-            .to_string();
+    let err = render_order_by_columns(
+        Some(&[relevance_order(&[], "q")]),
+        DatabaseType::PostgreSQL,
+        1,
+        Tiebreak::None,
+    )
+    .unwrap_err()
+    .to_string();
     assert!(err.contains("at least one searchable field"), "got: {err}");
 }
 
@@ -415,4 +471,154 @@ fn cursor_pagination_refuses_a_relevance_ordering() {
         .is_ok()
     );
     assert!(refuse_relevance_under_cursor_pagination(None).is_ok());
+}
+
+/// The pagination tie-breaker (#1287).
+///
+/// `LIMIT`/`OFFSET` asks for a slice of a sequence, and a sequence exists only if
+/// the ordering is total. `ORDER BY status` over four distinct statuses is not:
+/// measured against PostgreSQL 16 over 2 000 rows, walking three pages of 100
+/// returned 300 rows of which 156 were distinct — 144 duplicated, and as many
+/// never seen — under `200`, with no error anywhere. With `data->>'id'` appended
+/// the same walk returned 300 distinct rows.
+mod pagination_tiebreak {
+    use super::*;
+
+    fn cols(clauses: &[OrderByClause], tiebreak: Tiebreak) -> String {
+        render_order_by_columns(Some(clauses), DatabaseType::PostgreSQL, 1, tiebreak)
+            .unwrap()
+            .unwrap()
+            .columns
+    }
+
+    #[test]
+    fn a_non_unique_ordering_gains_the_identity() {
+        let clauses = [OrderByClause::new(
+            "status".to_string(),
+            OrderDirection::Asc,
+        )];
+        assert_eq!(cols(&clauses, Tiebreak::Identity), "data->>'status' ASC, data->>'id' ASC");
+    }
+
+    #[test]
+    fn tiebreak_none_renders_exactly_the_clauses_given() {
+        // The relay builder's contract: it appends its cursor column itself, and a
+        // term after that one would sit between the sort key and the cursor the
+        // next page resumes from.
+        let clauses = [OrderByClause::new(
+            "status".to_string(),
+            OrderDirection::Asc,
+        )];
+        assert_eq!(cols(&clauses, Tiebreak::None), "data->>'status' ASC");
+    }
+
+    #[test]
+    fn an_ordering_that_already_names_the_identity_is_left_alone() {
+        let clauses = [OrderByClause::new("id".to_string(), OrderDirection::Asc)];
+        assert_eq!(cols(&clauses, Tiebreak::Identity), "data->>'id' ASC");
+    }
+
+    #[test]
+    fn the_identity_counts_wherever_it_sits_in_the_ordering() {
+        // Not only as the last term: an ordering whose SECOND key is the identity
+        // is already total, and appending a third copy is noise.
+        let clauses = [
+            OrderByClause::new("status".to_string(), OrderDirection::Asc),
+            OrderByClause::new("id".to_string(), OrderDirection::Desc),
+        ];
+        assert_eq!(cols(&clauses, Tiebreak::Identity), "data->>'status' ASC, data->>'id' DESC");
+    }
+
+    fn native(field: &str, column: &str) -> OrderByClause {
+        OrderByClause {
+            field:         field.to_string(),
+            direction:     OrderDirection::Asc,
+            field_type:    crate::types::sql_hints::ScalarFieldType::Text,
+            native_column: Some(column.to_string()),
+            vector:        None,
+            relevance:     None,
+        }
+    }
+
+    #[test]
+    fn a_native_id_column_counts_as_the_identity() {
+        assert_eq!(cols(&[native("id", "id")], Tiebreak::Identity), "id ASC");
+    }
+
+    #[test]
+    fn a_field_named_id_reading_another_native_column_does_not_count() {
+        // `native_column` is what the ordering actually READS. A clause whose
+        // GraphQL field is `id` but whose native column is `tenant_id` orders by
+        // the tenant, which is emphatically not unique — reading the field name
+        // instead would drop the tie-breaker exactly where it is most needed.
+        assert_eq!(
+            cols(&[native("id", "tenant_id")], Tiebreak::Identity),
+            "tenant_id ASC, data->>'id' ASC"
+        );
+    }
+
+    #[test]
+    fn a_field_whose_name_merely_ends_in_id_is_not_the_identity() {
+        // The comparison is `storage_key() == "id"`, not a suffix test. `userId`
+        // snake_cases to `user_id`, which is a foreign key and repeats freely —
+        // reading it as the identity would drop the tie-breaker on one of the most
+        // common orderings there is.
+        let clauses = [OrderByClause::new(
+            "userId".to_string(),
+            OrderDirection::Asc,
+        )];
+        assert_eq!(cols(&clauses, Tiebreak::Identity), "data->>'user_id' ASC, data->>'id' ASC");
+    }
+
+    #[test]
+    fn a_relevance_ordering_is_tie_broken() {
+        // The case #1287 calls worst: `ts_rank` scores collide readily — every row
+        // matching one term once scores identically — and the ordering is the
+        // SERVER's choice since #1284, so a client cannot see that it needs one.
+        let rendered = render_order_by_columns(
+            Some(&[relevance_order(&["label"], "q")]),
+            DatabaseType::PostgreSQL,
+            1,
+            Tiebreak::Identity,
+        )
+        .unwrap()
+        .unwrap();
+        assert!(rendered.columns.ends_with("DESC, data->>'id' ASC"), "{}", rendered.columns);
+        assert_eq!(rendered.params, vec!["q".to_string()]);
+    }
+
+    #[test]
+    fn the_tiebreaker_binds_no_parameter() {
+        // It is a column expression, not a value, so it cannot disturb the
+        // placeholder run WHERE → ORDER BY → LIMIT/OFFSET that #1284 established.
+        let clauses = [OrderByClause::new(
+            "status".to_string(),
+            OrderDirection::Asc,
+        )];
+        let rendered = render_order_by_columns(
+            Some(&clauses),
+            DatabaseType::PostgreSQL,
+            7,
+            Tiebreak::Identity,
+        )
+        .unwrap()
+        .unwrap();
+        assert!(rendered.params.is_empty());
+    }
+
+    #[test]
+    fn no_requested_ordering_still_renders_nothing() {
+        // A read that asked for no order is not a sequence to begin with, and
+        // manufacturing one would turn every unordered list read into a sort.
+        assert!(
+            render_order_by_columns(None, DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
+                .unwrap()
+                .is_none()
+        );
+        assert!(
+            render_order_by_columns(Some(&[]), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
+                .unwrap()
+                .is_none()
+        );
+    }
 }

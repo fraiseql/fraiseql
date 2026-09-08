@@ -34,7 +34,7 @@ use super::{
 use crate::{
     dialect::PostgresDialect,
     identifier::quote_postgres_identifier,
-    order_by::append_order_by,
+    order_by::{Tiebreak, append_order_by},
     postgres::pg_detail,
     traits::DatabaseAdapter,
     types::{
@@ -1542,7 +1542,15 @@ pub(super) fn build_where_select_sql_ordered(
     // parameters. A relevance ordering (#1284) binds the search text, so the
     // placeholders run WHERE → ORDER BY → LIMIT/OFFSET, which is the order the
     // fragments are appended in.
-    for bound in append_order_by(&mut sql, order_by, DatabaseType::PostgreSQL, param_count + 1)? {
+    // `Tiebreak::Identity`: this read is paged by LIMIT/OFFSET, so its ordering
+    // has to be total or the pages are a slice of no sequence (#1287).
+    for bound in append_order_by(
+        &mut sql,
+        order_by,
+        DatabaseType::PostgreSQL,
+        param_count + 1,
+        Tiebreak::Identity,
+    )? {
         param_count += 1;
         typed_params.push(QueryParam::Text(bound));
     }
@@ -1607,7 +1615,15 @@ pub(super) fn build_projection_select_sql(
 
     // ORDER BY must come before LIMIT/OFFSET in SQL — and so must its
     // parameters (#1284); see `build_where_select_sql_ordered`.
-    for bound in append_order_by(&mut sql, order_by, DatabaseType::PostgreSQL, param_count + 1)? {
+    // `Tiebreak::Identity`: this read is paged by LIMIT/OFFSET, so its ordering
+    // has to be total or the pages are a slice of no sequence (#1287).
+    for bound in append_order_by(
+        &mut sql,
+        order_by,
+        DatabaseType::PostgreSQL,
+        param_count + 1,
+        Tiebreak::Identity,
+    )? {
         param_count += 1;
         typed_params.push(QueryParam::Text(bound));
     }

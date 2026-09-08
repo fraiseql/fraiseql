@@ -10,9 +10,44 @@ use crate::{
     projection_generator::ComputedExpr,
     types::{
         DatabaseType,
-        sql_hints::{OrderByClause, RelevanceOrder, VectorOperandKind},
+        sql_hints::{OrderByClause, RelevanceOrder, ScalarFieldType, VectorOperandKind},
     },
 };
+
+/// The storage key of an entity's identity under the JSONB `data` column model.
+const IDENTITY_KEY: &str = "id";
+
+/// Whether a rendered ordering must be made **total** (#1287).
+///
+/// `LIMIT`/`OFFSET` paging asks the database for a *slice of a sequence*, and a
+/// sequence exists only if the ordering is total. `ORDER BY status` over four
+/// distinct statuses is not: PostgreSQL is free to return tied rows in a
+/// different order for each page, so a client walking `?offset=` sees some rows
+/// twice and never sees others — under `200`, with no error anywhere. Measured
+/// against PostgreSQL 16 on 2 000 rows with four distinct statuses, walking
+/// three pages of 100 returned 300 rows of which **156 were distinct**.
+///
+/// Every caller states its answer rather than inheriting a default, so a fifth
+/// call site has to decide rather than silently getting whichever behaviour the
+/// renderer happened to have.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Tiebreak {
+    /// Append the entity identity unless the ordering already carries it.
+    ///
+    /// For any read paged by `LIMIT`/`OFFSET`. The term is
+    /// `data->>'id'` — a *total* order is all a tie-breaker needs, not a
+    /// meaningful one, so extracting the identity as text serves uuid, integer
+    /// and text keys alike (ADR-0017) without knowing which one a type declares.
+    /// A type whose `data` carries no `id` yields NULL on every row, the term
+    /// contributes nothing, and the ordering is exactly what it is today.
+    Identity,
+    /// Render exactly the clauses given.
+    ///
+    /// For a caller that appends its own tie-breaker. The relay builder appends
+    /// its cursor column — keyset paging resumes from the last row's sort key,
+    /// so its ordering must end with that column and nothing else.
+    None,
+}
 
 /// A rendered `ORDER BY`: its column expressions and the parameters they bind.
 ///
@@ -47,6 +82,11 @@ pub struct RenderedOrderBy {
 /// ordering that is a plain field or a vector distance, so a caller with no
 /// relevance ordering sees no change in behaviour.
 ///
+/// `tiebreak` says whether the rendered order must be **total** — see
+/// [`Tiebreak`]. Both in-tree callers of this function build a read paged by
+/// `LIMIT`/`OFFSET` and pass [`Tiebreak::Identity`]; a caller that appends its
+/// own final term wants [`render_order_by_columns`] with [`Tiebreak::None`].
+///
 /// # Errors
 ///
 /// Returns `FraiseQLError::Validation` if any field name fails validation.
@@ -54,24 +94,29 @@ pub struct RenderedOrderBy {
 /// # Examples
 ///
 /// ```
-/// use fraiseql_db::order_by::append_order_by;
+/// use fraiseql_db::order_by::{Tiebreak, append_order_by};
 /// use fraiseql_db::{DatabaseType, OrderByClause, OrderDirection};
 ///
 /// let mut sql = "SELECT data FROM v_user WHERE true".to_string();
 /// let clauses = [
 ///     OrderByClause::new("createdAt".into(), OrderDirection::Desc),
 /// ];
-/// let bound = append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1).unwrap();
+/// let bound =
+///     append_order_by(&mut sql, Some(&clauses), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
+///         .unwrap();
 /// assert!(bound.is_empty());
-/// assert!(sql.contains("ORDER BY data->>'created_at' DESC"));
+/// // `created_at` is not unique, so the identity is appended to make the order
+/// // total — without it, two pages of a `LIMIT`/`OFFSET` walk can overlap (#1287).
+/// assert!(sql.ends_with("ORDER BY data->>'created_at' DESC, data->>'id' ASC"));
 /// ```
 pub fn append_order_by(
     sql: &mut String,
     order_by: Option<&[OrderByClause]>,
     db_type: DatabaseType,
     next_param: usize,
+    tiebreak: Tiebreak,
 ) -> crate::Result<Vec<String>> {
-    match render_order_by_columns(order_by, db_type, next_param)? {
+    match render_order_by_columns(order_by, db_type, next_param, tiebreak)? {
         Some(rendered) => {
             sql.push_str(" ORDER BY ");
             sql.push_str(&rendered.columns);
@@ -90,6 +135,11 @@ pub fn append_order_by(
 /// [`OrderByClause::validate_field_name`] (the SQL injection boundary) and converted to
 /// its snake_case storage key, identical to [`append_order_by`].
 ///
+/// `tiebreak` says whether the rendered order must be **total** — see
+/// [`Tiebreak`]. The relay builder passes [`Tiebreak::None`] because it appends
+/// its cursor column itself; every other paginated caller wants
+/// [`Tiebreak::Identity`].
+///
 /// # Errors
 ///
 /// Returns `FraiseQLError::Validation` if any field name fails validation.
@@ -97,13 +147,14 @@ pub fn append_order_by(
 /// # Examples
 ///
 /// ```
-/// use fraiseql_db::order_by::render_order_by_columns;
+/// use fraiseql_db::order_by::{Tiebreak, render_order_by_columns};
 /// use fraiseql_db::{DatabaseType, OrderByClause, OrderDirection};
 ///
 /// let clauses = [OrderByClause::new("createdAt".into(), OrderDirection::Desc)];
-/// let rendered = render_order_by_columns(Some(&clauses), DatabaseType::PostgreSQL, 1)
-///     .unwrap()
-///     .unwrap();
+/// let rendered =
+///     render_order_by_columns(Some(&clauses), DatabaseType::PostgreSQL, 1, Tiebreak::None)
+///         .unwrap()
+///         .unwrap();
 /// assert_eq!(rendered.columns, "data->>'created_at' DESC");
 /// assert!(rendered.params.is_empty());
 /// ```
@@ -111,7 +162,13 @@ pub fn render_order_by_columns(
     order_by: Option<&[OrderByClause]>,
     db_type: DatabaseType,
     next_param: usize,
+    tiebreak: Tiebreak,
 ) -> crate::Result<Option<RenderedOrderBy>> {
+    // No requested ordering renders no `ORDER BY`, tie-break or not. A read that
+    // asked for no order is not a sequence to begin with, and manufacturing one
+    // would turn every unordered list read into a sort. `warn_auto_params` already
+    // reports that case at compile time; #1287 is about an ordering that exists
+    // and is not total.
     let Some(clauses) = order_by.filter(|c| !c.is_empty()) else {
         return Ok(None);
     };
@@ -155,7 +212,36 @@ pub fn render_order_by_columns(
         write!(columns, "{expr} {}", clause.direction.as_sql())
             .expect("write to String is infallible");
     }
+    if tiebreak == Tiebreak::Identity && !orders_by_identity(clauses) {
+        // ASC unconditionally: a tie-breaker only has to make the order TOTAL,
+        // and which of two tied rows comes first is not a property any client
+        // asked about. Matching the primary clause's direction would suggest it
+        // is, and would make the term look like part of the requested sort.
+        let expr = db_type.typed_json_field_expr(IDENTITY_KEY, ScalarFieldType::Text);
+        write!(columns, ", {expr} ASC").expect("write to String is infallible");
+    }
     Ok(Some(RenderedOrderBy { columns, params }))
+}
+
+/// Does this ordering already end in a unique key, making a tie-breaker redundant?
+///
+/// Only the identity counts. A `UNIQUE` constraint elsewhere in the view would
+/// also do, but nothing in an [`OrderByClause`] reports one, and guessing from a
+/// field name is how a "unique" ordering that is not one gets accepted.
+///
+/// A relevance or vector clause never counts however it is named: its `field` is
+/// not read at all for the first, and the second orders by a distance.
+fn orders_by_identity(clauses: &[OrderByClause]) -> bool {
+    clauses.iter().any(|c| {
+        c.relevance.is_none()
+            && c.vector.is_none()
+            && match c.native_column.as_deref() {
+                // A native column is what the ordering actually reads, whatever
+                // the GraphQL field beside it is called.
+                Some(col) => col == IDENTITY_KEY,
+                None => c.storage_key() == IDENTITY_KEY,
+            }
+    })
 }
 
 /// Refuse a relevance ordering on a cursor-paginated read (#1284).

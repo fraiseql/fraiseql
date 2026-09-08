@@ -5,8 +5,8 @@
 use fraiseql_error::FraiseQLError;
 
 use super::{
-    PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig, SearchPath, build_where_select_sql,
-    compose_startup_options,
+    PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig, SearchPath, build_projection_select_sql,
+    build_where_select_sql, build_where_select_sql_ordered, compose_startup_options,
 };
 
 // ── build_where_select_sql ─────────────────────────────────────────────────
@@ -401,4 +401,64 @@ fn pin_saturates_on_clock_regression() {
     // A clock that steps backwards must land on the safe (pinned) side rather
     // than underflowing.
     assert!(super::pin_active(900, 1_000, 100));
+}
+
+// ── the offset-paginated builders order TOTALLY (#1287) ────────────────────
+//
+// These pin the WIRING, not the renderer: `order_by.rs` can render a total order
+// and it is worth nothing unless the two builders that page by LIMIT/OFFSET ask
+// for one. Both did not, and the result was a slice of no sequence — measured
+// against PostgreSQL 16, walking three pages of 100 over 2 000 rows with four
+// distinct statuses returned 300 rows of which 156 were distinct.
+
+use crate::types::{
+    DatabaseType,
+    sql_hints::{OrderByClause, OrderDirection, SqlProjectionHint},
+};
+
+#[test]
+fn build_where_select_sql_ordered_appends_the_identity() {
+    let clauses = [OrderByClause::new(
+        "status".to_string(),
+        OrderDirection::Asc,
+    )];
+    let (sql, _) =
+        build_where_select_sql_ordered("v_user", None, Some(10), Some(20), Some(&clauses)).unwrap();
+    assert!(
+        sql.contains("ORDER BY data->>'status' ASC, data->>'id' ASC"),
+        "a paginated read must order totally: {sql}"
+    );
+    // And the tie-breaker is a column expression, so it must not disturb the
+    // placeholder run that puts LIMIT/OFFSET last (#1284).
+    assert!(sql.contains("LIMIT $1"), "{sql}");
+    assert!(sql.contains("OFFSET $2"), "{sql}");
+}
+
+#[test]
+fn build_projection_select_sql_appends_the_identity() {
+    let hint = SqlProjectionHint {
+        database:                    DatabaseType::PostgreSQL,
+        projection_template:         "jsonb_build_object('id', data->>'id')".to_string(),
+        estimated_reduction_percent: 50,
+    };
+    let clauses = [OrderByClause::new(
+        "status".to_string(),
+        OrderDirection::Asc,
+    )];
+    let (sql, _) =
+        build_projection_select_sql(&hint, "v_user", None, Some(10), None, Some(&clauses)).unwrap();
+    assert!(
+        sql.contains("ORDER BY data->>'status' ASC, data->>'id' ASC"),
+        "the projection path pages the same way and needs the same order: {sql}"
+    );
+}
+
+#[test]
+fn an_unordered_paginated_read_is_still_unordered() {
+    // The boundary this change deliberately does not cross: a read that asked for
+    // no ordering is not a sequence to begin with, and manufacturing one would
+    // turn every unordered list read into a sort. `warn_auto_params` reports that
+    // case at compile time.
+    let (sql, _) = build_where_select_sql_ordered("v_user", None, Some(10), None, None).unwrap();
+    assert!(!sql.contains("ORDER BY"), "{sql}");
 }

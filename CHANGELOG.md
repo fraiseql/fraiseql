@@ -18,6 +18,68 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Offset pagination orders totally: the entity identity is appended when the requested
+  ordering is not unique (#1287).**
+
+  A `LIMIT`/`OFFSET` read asks the database for a *slice of a sequence*, and a sequence
+  exists only if the ordering is total. `ORDER BY status` over a few distinct statuses is
+  not: PostgreSQL may return tied rows in a different order for each page, so a client
+  walking `?offset=` sees some rows twice and never sees others — under `200`, with no error
+  anywhere. Measured against PostgreSQL 16, 2 000 rows, four distinct statuses, walking
+  three pages of 100:
+
+  ```
+  ORDER BY data->>'status'                     walked=300  distinct=156  DUPLICATED=144
+  ORDER BY data->>'status', data->>'id'        walked=300  distinct=300  DUPLICATED=0
+  ```
+
+  Nearly half of every walk was a row already seen, and as many were never returned at all.
+  The engine already knew this class of hazard — `warn_auto_params` warns at compile time
+  when a query paginates without *any* ordering — and the relay path already appends its
+  cursor column "for stable keyset pagination". The offset path applied neither.
+
+  `render_order_by_columns` and `append_order_by` now take a `Tiebreak`, and every call site
+  states its answer rather than inheriting a default:
+
+  * the two offset builders — `build_where_select_sql_ordered` and
+    `build_projection_select_sql` — pass `Tiebreak::Identity`;
+  * the relay builder passes `Tiebreak::None`, because keyset paging resumes from the last
+    row's sort key and a term after the cursor column would sit between the two;
+  * the fraiseql-wire adapter passes `Tiebreak::Identity` — it slices `LIMIT`/`OFFSET` in
+    memory, but each call re-runs the query, so consecutive pages are two orderings of the
+    same tied rows exactly as on the SQL path.
+
+  A fifth call site has to answer the question rather than silently getting whichever
+  behaviour the renderer happened to have.
+
+  **The term is `data->>'id' ASC`.** A tie-breaker only has to make the order *total*, not
+  meaningful, so extracting the identity as text serves the uuid, integer and text keys
+  ADR-0017 spans without knowing which one a type declares. It is skipped when the ordering
+  already names the identity — including as a native column, and including when it is not
+  the last term. `native_column` is what decides, not the GraphQL field name: a clause whose
+  field is `id` but whose native column is `tenant_id` orders by the tenant and still gets a
+  tie-breaker. A type whose `data` carries no `id` yields NULL on every row and is ordered
+  exactly as it is today.
+
+  **Relevance ordering gets it too**, which is the case that most needed it: `ts_rank` scores
+  collide readily — every row matching one term once scores identically — and since #1284 the
+  ordering is the *server's* choice when `?search=` is sent without `?sort=`, so a client
+  could not see that it needed a tie-breaker.
+
+  **Cost, measured rather than assumed.** The issue's open question was whether a second sort
+  term defeats a single-column index. It does not: with an indexed `ORDER BY status` the plan
+  degrades to an *incremental* sort over the presorted key (planner cost 43.81 → 143.56), and
+  a composite index removes even that (54.33). No sort is introduced that did not already
+  exist — the ordering being tie-broken had already forced one.
+
+  **What this deliberately does not change:** a read requesting *no* ordering still emits no
+  `ORDER BY`. Manufacturing one turns every unordered list read into a full sort — 143× the
+  planner cost on the same fixture, growing with the table — and that case did not reproduce
+  even once, because an unordered read of a quiet table is a plain sequential scan. Imposing
+  a certain, unbounded cost to fix a defect that could not be demonstrated is the wrong trade
+  to make silently; it is #1303, with both measurements and four directions.
+
+
 - **A `?rel.field=value` filter with no embed to apply it to is refused, and an embedded count
   is narrowed by the same filter as its rows (#1285).**
 

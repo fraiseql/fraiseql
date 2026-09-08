@@ -46,6 +46,14 @@ fn a_relevance_ordering_is_refused_rather_than_escaped() {
 
     // An ordinary ordering still renders — the refusal is about the parameter,
     // not about ordering on this backend.
+    //
+    // The identity is appended because this adapter's reads are paged: it slices
+    // LIMIT/OFFSET in memory, but each call re-runs the query, so two consecutive
+    // pages are two orderings of the same tied rows unless the order is total
+    // (#1287). `created_at` is not unique, so the tie-breaker is added.
     let plain = OrderByClause::new("createdAt".to_string(), crate::OrderDirection::Desc);
-    assert_eq!(order_by_columns(Some(&[plain])).unwrap().unwrap(), "data->>'created_at' DESC");
+    assert_eq!(
+        order_by_columns(Some(&[plain])).unwrap().unwrap(),
+        "data->>'created_at' DESC, data->>'id' ASC"
+    );
 }
