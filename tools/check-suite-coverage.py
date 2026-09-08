@@ -843,16 +843,19 @@ def _walk_test_paths(entry: Path, prefix: str, out: list[str], seen: set[Path]) 
                 stack.pop()
             i += 1
             continue
-        if (m := _INLINE_MOD.match(src, i)) :
+        # The two regexes below are tried at every offset, so gate them on the one
+        # character that can begin them: `mod`/`pub` and `fn`/`async`. Without it
+        # this scan costs the gate about seven seconds over the workspace.
+        if c in "mp" and (m := _INLINE_MOD.match(src, i)):
             stack.append((depth + 1, m.group(1)))
             depth += 1
             i = m.end()
             continue
-        if src.startswith("#[", i) and (m := _TEST_ATTR.match(src, i)):
+        if c == "#" and src.startswith("#[", i) and (m := _TEST_ATTR.match(src, i)):
             pending_test = True
             i = m.end()
             continue
-        if (m := _FN_DECL.match(src, i)) :
+        if c in "fa" and (m := _FN_DECL.match(src, i)):
             if pending_test:
                 parts = ([prefix] if prefix else []) + [name for _, name in stack] + [m.group(1)]
                 out.append("::".join(parts))
