@@ -6,6 +6,7 @@
 use crate::{
     db::{WhereClause, WhereOperator},
     error::{FraiseQLError, Result},
+    schema::PaginationOrder,
 };
 
 /// Auto-wired argument names that are handled by the `auto_params` system.
@@ -696,6 +697,63 @@ pub fn enforce_max_page_size(
         }
     }
     Ok(value)
+}
+
+/// Give a paginated read the total order its query declares (#1303).
+///
+/// A `LIMIT`/`OFFSET` page is a slice of a *sequence*. A read with no `ORDER BY`
+/// is not a sequence — PostgreSQL may return the same relation in a different
+/// physical order for each page, so a client walking `?offset=` sees some rows
+/// twice and never sees others, under `200`, with no error anywhere. #1287 closed
+/// the half of that where the client ordered by something non-unique; this closes
+/// the half where it ordered by nothing.
+///
+/// Composed here rather than inferred in the SQL layer, and travelling as a marked
+/// clause in the ordering rather than as a second field on the request, for the
+/// same reason `scope_where` (#1170) and the relevance ranking (#1284) do: it is
+/// **server-composed**, and the argument map is the client's surface. The SQL layer
+/// then applies exactly what it is given.
+///
+/// Three conditions, and every one of them is load-bearing:
+///
+/// * **The query declares an ordering.** `None` covers a query that does not paginate, and the one
+///   whose author declared `pagination_order = "none"` to keep a self-ordering view's own `ORDER
+///   BY`. Manufacturing one there would destroy the escape hatch the compiler's own warning
+///   recommends.
+/// * **The request is actually paged.** A read with neither `limit` nor `offset` returns the whole
+///   filtered relation in one answer; it has no second page to overlap with, and sorting it would
+///   be a cost with no beneficiary. This is what bounds the change to the 1.7–7.7× the gate
+///   weighed.
+/// * **The ordering does not already carry an identity** — asked through `orders_by_identity`, the
+///   same predicate the renderer's tie-breaker uses, so a client that sorted by `id` itself does
+///   not get a second copy.
+///
+/// A client's `orderBy` always wins: the declared identity is *appended*, never
+/// substituted, so it can only break ties the client's own keys left.
+#[must_use]
+pub fn apply_pagination_order(
+    order_by: Option<Vec<crate::db::OrderByClause>>,
+    query_def: &crate::schema::QueryDefinition,
+    limit: Option<u32>,
+    offset: Option<u32>,
+) -> Option<Vec<crate::db::OrderByClause>> {
+    let Some(order) = query_def.pagination_order.as_ref() else {
+        return order_by;
+    };
+    if limit.is_none() && offset.is_none() {
+        return order_by;
+    }
+    let mut clauses = order_by.unwrap_or_default();
+    if crate::db::order_by::orders_by_identity(&clauses) {
+        return Some(clauses);
+    }
+    clauses.push(match order {
+        PaginationOrder::JsonIdentity => crate::db::OrderByClause::identity("id".to_string(), None),
+        PaginationOrder::Column(col) => {
+            crate::db::OrderByClause::identity(col.clone(), Some(col.clone()))
+        },
+    });
+    Some(clauses)
 }
 
 #[cfg(test)]

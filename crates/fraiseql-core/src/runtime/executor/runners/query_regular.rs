@@ -9,9 +9,9 @@ use super::{
     super::{null_masked_fields, resolve_inject_value},
     query::QueryRunner,
     query_params::{
-        client_where_argument, coerce_pagination_arg, combine_explicit_arg_where,
-        compute_projection_reduction, enforce_max_page_size, inject_param_where_clause,
-        nearest_order_and_limit,
+        apply_pagination_order, client_where_argument, coerce_pagination_arg,
+        combine_explicit_arg_where, compute_projection_reduction, enforce_max_page_size,
+        inject_param_where_clause, nearest_order_and_limit,
     },
     query_projection::{
         build_typed_projection_fields, enrich_order_by_clauses, merge_computed_fields,
@@ -558,6 +558,14 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             order_by_clauses.as_ref().and_then(|c| c.first()),
         )?;
 
+        // 8d. #1303: and the total order this query declares, when the request is
+        //     actually paged. After the projection hint, which reads the ordering's
+        //     FIRST clause to project a `nearest` distance — the identity is
+        //     appended, so it can only become that clause on a read that had no
+        //     ordering at all, which has no distance to project either.
+        let order_by_clauses =
+            apply_pagination_order(order_by_clauses, &query_match.query_def, limit, offset);
+
         // 9. Execute query with combined WHERE clause filter, pinning session variables to the
         //    read's connection (fixes #329 for RLS).
         let results = self
@@ -939,6 +947,13 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             order_by_clauses.as_ref().and_then(|c| c.first()),
         )?;
 
+        // 3c. #1303: the declared page ordering, on the same terms as the
+        //     authenticated path. Both runners read the same query definition, and
+        //     a read that is ordered on one entry point and not the other is the
+        //     #739 shape.
+        let order_by_clauses =
+            apply_pagination_order(order_by_clauses, &query_match.query_def, limit, offset);
+
         // No session vars: this is the unauthenticated entrypoint (no
         // SecurityContext), so there is nothing to resolve session variables
         // from. See #329 / resolve_session_vars.
@@ -1308,6 +1323,13 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             true,
             order_by_clauses.as_ref().and_then(|c| c.first()),
         )?;
+
+        // #1303: the declared page ordering. Every REST read resolves through this
+        // function — the GET resolver, the three exports, the embedding sub-query
+        // and the bulk row selection — so an ordering applied here is applied to
+        // all of them, and one applied in the resolver above them would not be.
+        let order_by_clauses =
+            apply_pagination_order(order_by_clauses, &query_match.query_def, limit, offset);
 
         Ok(ResolvedDirectRead {
             sql_source: sql_source.clone(),

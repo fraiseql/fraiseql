@@ -411,7 +411,13 @@ pub fn test_schema() -> CompiledSchema {
         rest_method:         None,
         rest_stream:         false,
         native_columns:      HashMap::new(),
-        pagination_order:    None,
+        // #1303: what `SchemaConverter::resolve_pagination_order` gives this exact
+        // shape — a paginating list query with no authored override — from a compile
+        // with no `--database`. Left at `None` this fixture would describe a route
+        // the compiler cannot emit, and, worse, the *pre-fix* route: every test built
+        // on it would go on asserting the unordered behaviour after the defect was
+        // fixed, and the suite would not move when the bug did.
+        pagination_order:    Some(crate::schema::PaginationOrder::JsonIdentity),
     });
     schema
 }

@@ -1578,3 +1578,204 @@ mod search_relevance {
         );
     }
 }
+
+// ── mod pagination_order: #1303, the order a page is cut in ──────────────
+//
+// An offset page is a slice of a sequence, and a read with no `ORDER BY` is not
+// a sequence: two pages of the same relation can overlap and skip rows, under a
+// `200`. The order is decided by the compiler (`QueryDefinition::pagination_order`)
+// and lowered here, in its own channel — never through `arguments`, which is the
+// client's surface (#1170, #1284).
+mod pagination_order {
+    use super::*;
+    use crate::schema::PaginationOrder;
+
+    /// `test_schema`'s `users`, whose compiled ordering is the JSONB identity.
+    fn users_match(args: &[(&str, serde_json::Value)]) -> crate::runtime::matcher::QueryMatch {
+        let mut qm = crate::runtime::QueryMatcher::new(test_schema())
+            .match_query("{ users { id name } }", None)
+            .unwrap();
+        for (k, v) in args {
+            qm.arguments.insert((*k).to_string(), v.clone());
+        }
+        qm
+    }
+
+    fn schema_with_order(order: Option<PaginationOrder>) -> CompiledSchema {
+        let mut schema = test_schema();
+        schema.queries[0].pagination_order = order;
+        schema
+    }
+
+    async fn captured_for(
+        schema: CompiledSchema,
+        args: &[(&str, serde_json::Value)],
+    ) -> Option<Vec<crate::db::OrderByClause>> {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(schema.clone(), adapter.clone());
+        let mut qm = crate::runtime::QueryMatcher::new(schema)
+            .match_query("{ users { id name } }", None)
+            .unwrap();
+        for (k, v) in args {
+            qm.arguments.insert((*k).to_string(), v.clone());
+        }
+        executor.execute_query_direct(&qm, None, None).await.unwrap();
+        adapter.captured_order_by()
+    }
+
+    #[tokio::test]
+    async fn a_paged_read_with_no_ordering_gets_the_declared_identity() {
+        let captured = captured_for(test_schema(), &[("limit", serde_json::json!(2))])
+            .await
+            .expect("a paged read must be ordered");
+        assert_eq!(captured.len(), 1, "{captured:?}");
+        assert!(captured[0].identity, "the clause must be marked, or the renderer adds a second");
+        assert_eq!(captured[0].field, "id");
+        assert_eq!(captured[0].native_column, None, "the JSONB identity reads no column");
+        assert_eq!(captured[0].direction, crate::db::OrderDirection::Asc);
+    }
+
+    /// The control that makes the case above mean something: an unpaged read has
+    /// no second page to overlap with, and sorting it would be a cost with no
+    /// beneficiary.
+    #[tokio::test]
+    async fn an_unpaged_read_is_still_unordered() {
+        assert_eq!(captured_for(test_schema(), &[]).await, None);
+    }
+
+    /// `?offset=` alone slices a suffix, which is as much a slice of a sequence as
+    /// a prefix is.
+    #[tokio::test]
+    async fn an_offset_alone_is_still_a_page() {
+        let captured = captured_for(test_schema(), &[("offset", serde_json::json!(10))])
+            .await
+            .expect("an offset read must be ordered");
+        assert_eq!(captured.len(), 1);
+        assert!(captured[0].identity);
+    }
+
+    /// A declared column reaches the adapter as a native column, so the renderer
+    /// emits `pk_user ASC` rather than a JSONB extraction — the whole point of
+    /// deciding this where the schema is visible.
+    #[tokio::test]
+    async fn a_declared_column_reaches_the_adapter_as_a_native_column() {
+        let captured = captured_for(
+            schema_with_order(Some(PaginationOrder::Column("pk_user".into()))),
+            &[("limit", serde_json::json!(2))],
+        )
+        .await
+        .expect("a paged read must be ordered");
+        assert_eq!(captured.len(), 1);
+        assert_eq!(captured[0].native_column.as_deref(), Some("pk_user"));
+        assert!(captured[0].identity);
+    }
+
+    /// The declared opt-out: a view carrying its own `ORDER BY` keeps it.
+    #[tokio::test]
+    async fn a_query_that_declared_none_stays_unordered() {
+        assert_eq!(
+            captured_for(schema_with_order(None), &[("limit", serde_json::json!(2))]).await,
+            None
+        );
+    }
+
+    /// A client's sort is never replaced — the identity is appended, so it can
+    /// only break ties the client's own keys left.
+    #[tokio::test]
+    async fn a_client_ordering_keeps_its_keys_and_gains_the_identity() {
+        let captured = captured_for(
+            test_schema(),
+            &[
+                ("limit", serde_json::json!(2)),
+                ("orderBy", serde_json::json!([{ "field": "name", "direction": "DESC" }])),
+            ],
+        )
+        .await
+        .expect("ordered");
+        assert_eq!(captured.len(), 2, "{captured:?}");
+        assert_eq!(captured[0].field, "name");
+        assert_eq!(captured[0].direction, crate::db::OrderDirection::Desc);
+        assert!(!captured[0].identity);
+        assert!(captured[1].identity);
+    }
+
+    /// A client that sorted by the identity itself does not get a second copy —
+    /// asked through the same predicate the renderer's tie-breaker uses.
+    #[tokio::test]
+    async fn a_client_ordering_by_id_is_not_given_a_second_copy() {
+        let captured = captured_for(
+            test_schema(),
+            &[
+                ("limit", serde_json::json!(2)),
+                ("orderBy", serde_json::json!([{ "field": "id", "direction": "DESC" }])),
+            ],
+        )
+        .await
+        .expect("ordered");
+        assert_eq!(captured.len(), 1, "{captured:?}");
+        assert_eq!(captured[0].direction, crate::db::OrderDirection::Desc, "the client's own");
+    }
+
+    /// The ordering is server-composed and never enters the argument map, which
+    /// is the client's surface: a lowering that wrote it there would publish a
+    /// value no client sent (#1170's rule, #1284's defect).
+    #[tokio::test]
+    async fn the_identity_never_enters_the_argument_map() {
+        let qm = users_match(&[("limit", serde_json::json!(2))]);
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(test_schema(), adapter.clone());
+        executor.execute_query_direct(&qm, None, None).await.unwrap();
+
+        assert!(adapter.captured_order_by().is_some(), "the read was ordered");
+        assert!(
+            !qm.arguments.contains_key("orderBy"),
+            "the ordering must not be written back into the client's arguments: {:?}",
+            qm.arguments
+        );
+    }
+
+    /// Both GraphQL runners resolve the same read. An ordering applied on one
+    /// entry point and not the other is the #739 shape — two readers of one query
+    /// disagreeing about what it means.
+    #[tokio::test]
+    async fn the_anonymous_graphql_runner_orders_the_same_read() {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(test_schema(), adapter.clone());
+
+        executor.execute("{ users(limit: 2) { id name } }", None).await.unwrap();
+
+        let captured = adapter.captured_order_by().expect("a paged read must be ordered");
+        assert_eq!(captured.len(), 1);
+        assert!(captured[0].identity);
+    }
+
+    #[tokio::test]
+    async fn the_authenticated_graphql_runner_orders_the_same_read() {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor = Executor::new(test_schema(), adapter.clone());
+        let ctx = SecurityContext {
+            user_id:          "user-42".into(),
+            roles:            vec!["viewer".to_string()],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-1303".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        };
+
+        executor
+            .execute_with_security("{ users(limit: 2) { id name } }", None, &ctx)
+            .await
+            .unwrap();
+
+        let captured = adapter.captured_order_by().expect("a paged read must be ordered");
+        assert_eq!(captured.len(), 1);
+        assert!(captured[0].identity);
+    }
+}
