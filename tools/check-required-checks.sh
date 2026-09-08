@@ -55,10 +55,12 @@ if ! gh api "repos/$SLUG/rulesets/$RULESET" >"$LIVE_JSON" 2>"$LIVE_JSON.err"; th
 repository-administration read): $(cat "$LIVE_JSON.err")"
 fi
 
-python3 - "$MIRROR" "$BRANCH" "$LIVE_JSON" <<'PY'
+python3 - "$MIRROR" "$BRANCH" "$LIVE_JSON" "$SLUG" <<'PY'
 import json, sys, tomllib
 
-mirror_path, branch, live_path = sys.argv[1], sys.argv[2], sys.argv[3]
+mirror_path, branch, live_path, SLUG = (
+    sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+)
 with open(live_path, encoding="utf-8") as f:
     live = json.load(f)
 with open(mirror_path, "rb") as f:
@@ -94,6 +96,28 @@ if missing or extra:
     for c in extra:
         print(f"  ✗ required on {branch} but NOT declared: {c!r}")
         print("      the suite-coverage gate is under-counting what protects the branch")
+
+    # A ONE-SIDED disagreement is almost always a half-finished context change
+    # rather than real drift, and which side it is says which half is missing.
+    # Naming it costs nothing and saves the next reader the diagnosis — #1302 was
+    # filed because two hours of a red `dev` were spent on exactly that (both
+    # states are reachable, so both are named).
+    if missing and not extra:
+        print()
+        print("  Likely cause: a context was added to this FILE and not yet to the ruleset.")
+        print("  That is the documented order (see the note in tools/required-checks.toml):")
+        print("  land the line on your branch first, then update the ruleset before merging.")
+        print("  If that is where you are, this failure is expected and clears when you run")
+        print(f"    gh api --method PUT repos/{SLUG}/rulesets/{live.get('id')} …")
+        print("  Do NOT resolve it by deleting the line — that is the direction that makes")
+        print("  the suite-coverage gate claim protection the branch does not have.")
+    elif extra and not missing:
+        print()
+        print("  Likely cause: the RULESET was changed and its mirror commit has not landed.")
+        print(f"  If this is running on {branch}, a branch adding these lines is probably in")
+        print("  flight — land it; the trunk stays red until it does. That window is why the")
+        print("  documented order is file-first (#1302).")
+
     sys.exit(1)
 
 print(f"required-checks: OK — {len(declared)} contexts, mirror and ruleset {live.get('id')} agree.")

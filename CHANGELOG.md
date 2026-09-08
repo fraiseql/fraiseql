@@ -930,6 +930,29 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **`required-checks.toml` documented the ordering that reddens `dev` (#1302).**
+
+  The file said to change the ruleset first and add the line afterwards. That was safe while
+  the only consumer was a local target; #1294 made the mirror diff a **required CI job**, and
+  from then on the documented order guaranteed a failing required check on the trunk for the
+  whole window between the two steps — however long the branch takes to validate and merge,
+  which here is hours. It happened while landing #1299: the ruleset went 23 → 25 contexts, the
+  matching lines sat on an unmerged branch, and the next push to `dev` failed
+  `required-checks mirror` twelve seconds in, for two hours, over nothing broken.
+
+  The two artifacts cannot change atomically — one is a GitHub ruleset, the other is in the
+  tree — so one window is unavoidable. File-first reddens only the branch already being worked
+  on and self-clears when the ruleset is updated. The note now says so, states the cost it
+  trades away (during the window this file names a context the ruleset does not enforce, so
+  the suite-coverage gate over-estimates protection on that branch — bounded, and it cannot
+  wedge anything), and warns that `make lint-required-checks` fails locally in between, since
+  it diffs the live ruleset. Removal keeps the old order, for the same reason read backwards.
+
+  `check-required-checks.sh` now names the likely cause when the disagreement is one-sided:
+  mirror-only means a context is mid-landing and must not be "fixed" by deleting the line,
+  ruleset-only means a mirror commit has not landed yet. Both still exit 1 — the message says
+  which half is missing, it does not soften the verdict.
+
 - **`fraiseql-server`'s test targets compile without the `auth` feature, and a combo builds them (#1277).**
 
   `cargo test -p fraiseql-server --no-default-features --features rest --lib` had failed to

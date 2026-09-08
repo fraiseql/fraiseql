@@ -20,11 +20,43 @@
 # exit code: GNU make reports every recipe failure as exit 2, which collapses the
 # script's "they disagree" (1) into its "could not run" (2).
 #
-# To ADD a context: change the ruleset first (`gh api --method PUT
-# repos/fraiseql/fraiseql/rulesets/18506494 …`), then add the line here, then run
-# `make lint-required-checks`. A context named here but not in the ruleset is the
-# dangerous direction: the suite-coverage gate would report a merge gate that does
-# not exist.
+# To ADD a context: add the line HERE FIRST, on your branch. Then, once that branch
+# is ready to merge, change the ruleset (`gh api --method PUT
+# repos/fraiseql/fraiseql/rulesets/18506494 …`), re-run the branch's
+# `required-checks mirror` job, and merge.
+#
+# The two artifacts cannot change atomically — one lives in a GitHub ruleset, the
+# other in this tree — so one of the two windows is unavoidable. They are not
+# equally bad, and the order that used to be documented here picked the worse one
+# (#1302):
+#
+#   ruleset first → `dev` carries a failing REQUIRED check for as long as the
+#                   branch takes to validate and merge, which on this repository
+#                   is hours. It happened while landing #1299: 23 → 25 contexts in
+#                   the ruleset, the matching lines still on an unmerged branch,
+#                   and the next push to `dev` failed `required-checks mirror`
+#                   twelve seconds in. Nothing was broken; the trunk just read as
+#                   broken, and the next person had to diagnose that.
+#
+#   file first    → only YOUR branch goes red, on the branch you are already
+#                   working on, and it clears the moment you update the ruleset.
+#                   `dev` never carries a failure.
+#
+# ⚠ In between, `make lint-required-checks` / `tools/check-required-checks.sh` fail
+# LOCALLY too — they diff against the LIVE ruleset, which does not have the context
+# yet. That is the check working, not a mistake to revert. The script says so when
+# the disagreement is one-sided in that direction.
+#
+# The cost of file-first, stated plainly: during the window this file names a
+# context the ruleset does not enforce, so `check-suite-coverage.py` would accept a
+# suite whose only coverage is that context. That is a branch-local
+# over-estimate lasting until you update the ruleset, and it cannot wedge anything.
+# The reverse order trades it for a red trunk on a required check, which can.
+#
+# To REMOVE a context, the order flips for the same reason: change the ruleset
+# first, then delete the line. Dropping the line while the ruleset still enforces
+# the context leaves this file under-counting what protects the branch, which
+# produces false UNGATED findings whose obvious "fix" is to weaken a real gate.
 #
 # ⚠ A context may only be listed here if its workflow runs on a push to every
 # in-repo working branch. A `branches: [dev]` leg produces no check on the branch
