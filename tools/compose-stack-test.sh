@@ -620,9 +620,9 @@ step "B4/B7  seed a FRESH schema under ON_ERROR_STOP=1, and count the rows"
 psql_db() { dc exec -T "$DB_SERVICE" psql -U fraiseql -d fraiseql -v ON_ERROR_STOP=1 "$@"; }
 psql_db -q -c 'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;' >/dev/null
 psql_db -q -f - < "$FIXTURE_SQL" >/dev/null
-rows="$(psql_db -tAc 'SELECT count(*) FROM tb_user' | tr -d '[:space:]')"
+rows="$(psql_db -tAc 'SELECT count(*) FROM tb_e2e_user' | tr -d '[:space:]')"
 [ "$rows" = "$FIXTURE_ROWS" ] \
-  || die "fixture loaded $rows row(s) into tb_user, expected $FIXTURE_ROWS ($FIXTURE_SQL)"
+  || die "fixture loaded $rows row(s) into tb_e2e_user, expected $FIXTURE_ROWS ($FIXTURE_SQL)"
 echo "  seeded $FIXTURE_ROWS row(s) into a freshly created schema"
 
 step "B5/B7  bring up the whole stack, and wait for the IMAGE's healthcheck"
@@ -701,9 +701,9 @@ step "B7/B7  DISCRIMINATOR — change the database, ask again, require the answe
 MARKER="phase06-${SLUG}-$(date +%s%N)-$$"
 grep -q "$MARKER" "$WORKDIR/q1.json" 2>/dev/null \
   && die "the marker already appears in the first answer — it is not discriminating"
-psql_db -q -c "INSERT INTO tb_user (name) VALUES ('$MARKER');" >/dev/null
-after="$(psql_db -tAc 'SELECT count(*) FROM tb_user' | tr -d '[:space:]')"
-[ "$after" = "$((FIXTURE_ROWS + 1))" ] || die "the INSERT did not land: tb_user holds $after row(s)"
+psql_db -q -c "INSERT INTO tb_e2e_user (name) VALUES ('$MARKER');" >/dev/null
+after="$(psql_db -tAc 'SELECT count(*) FROM tb_e2e_user' | tr -d '[:space:]')"
+[ "$after" = "$((FIXTURE_ROWS + 1))" ] || die "the INSERT did not land: tb_e2e_user holds $after row(s)"
 echo "  inserted $MARKER"
 
 code="$(req "$WORKDIR/q2.json" "POST /graphql (re-query)" -X POST "$BASE/graphql" \

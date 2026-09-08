@@ -639,6 +639,12 @@ func (m *FraiseqlCi) ShellGates(
 		// through every consumer and mutates each branch of the rule.
 		"python3 tools/check-trigger-rule-copies.py",
 		"bash tools/tests/workflow_trigger_rule_test.sh",
+		// Two SQL fixtures declared `public.tb_user` with incompatible shapes,
+		// both under `CREATE TABLE IF NOT EXISTS`, so whichever loaded second was
+		// a silent no-op and the loser's dependent objects failed to build. Every
+		// consumer had grown its own defence; nothing guarded the fixtures (#1281).
+		"python3 tools/check-fixture-relation-collisions.py",
+		"bash tools/tests/fixture_relation_collisions_test.sh",
 		// This list and the Makefile's `preflight:` target are two hand-maintained
 		// copies of one thing, so they drift, and `make preflight` says "Safe to
 		// push" over the difference. It had drifted twice when this landed (#1135).
@@ -2508,7 +2514,7 @@ func (m *FraiseqlCi) serverE2eService(source *dagger.Directory) *dagger.Service 
 }
 
 // pgE2eService is a postgres:16 seeded with the E2E fixture (docker/e2e/
-// init-postgres.sql — tb_user + v_users), distinct from the main integration seed.
+// init-postgres.sql — tb_e2e_user + v_users), distinct from the main integration seed.
 func (m *FraiseqlCi) pgE2eService(source *dagger.Directory) *dagger.Service {
 	initDir := dag.Directory().
 		WithFile("00-init.sql", source.File("docker/e2e/init-postgres.sql"))

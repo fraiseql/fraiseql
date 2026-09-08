@@ -18,7 +18,6 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
-
 - **A `?rel.field=value` filter with no embed to apply it to is refused, and an embedded count
   is narrowed by the same filter as its rows (#1285).**
 
@@ -930,6 +929,48 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **Two SQL fixtures stop declaring `public.tb_user`, and the collision is gated (#1281).**
+
+  `tests/sql/postgres/init.sql` declared `tb_user` as `id UUID, data JSONB`;
+  `docker/e2e/init-postgres.sql` declared the same unqualified relation as
+  `id SERIAL, name TEXT`. Both used `CREATE TABLE IF NOT EXISTS`, so whichever loaded
+  second was a silent no-op rather than an error, and the loser's dependent objects then
+  failed to build. Reproduced against PostgreSQL 16, loading the e2e fixture first and the
+  integration seed second, both under `ON_ERROR_STOP=1`:
+
+  ```
+  before:  load 1 rc=0   load 2 rc=3   views present: v_users
+  after:   load 1 rc=0   load 2 rc=0   views present: v_order, v_post, v_user, v_users
+  ```
+
+  `v_user`, `v_post` and `v_order` all missing, with no error at the point of collision —
+  which is the state #1229 reported and could not attribute, because its grep covered
+  `crates/`, `tests/` and `tools/` and that file is under `docker/`.
+
+  The e2e fixture's table is `tb_e2e_user` now. **Its view keeps the name `v_users`**: it
+  never collided with the seed's `v_user`, and leaving it means `docker/e2e/*.compiled.json`,
+  release-smoke's GraphQL assertions and every `sql_source` declaration are untouched — the
+  rename is 31 occurrences across seven files rather than the whole e2e surface, which
+  matters because the affected assertions are row counts, the kind that go vacuously green
+  when a rename is half-applied.
+
+  **The `IF NOT EXISTS` is gone too.** It is what converted a loud failure into a quiet one,
+  and every consumer had grown its own defence against the consequences —
+  `.dagger/image_boot.go` builds a bare Postgres and loads the fixture itself,
+  `tools/compose-stack-test.sh` and `tools/chart-deploy-test.sh` each `DROP SCHEMA` first,
+  all three assert a row count afterwards, and each carries a comment explaining why. Four
+  mitigations at four consumers, for one missing constraint at the fixture. Against a
+  database that already carries the table the load now fails where the collision is.
+
+  `tools/check-fixture-relation-collisions.py` (`make lint-fixture-collisions`) refuses the
+  next one: no two files under `tests/sql/` or `docker/` may declare the same `public`
+  relation. Deliberately narrow — a repository-wide version has false positives everywhere,
+  since benchmark fixtures, example migrations and SDK docs all declare a `v_users` and
+  never share a database. Proved red against the pre-change tree, where it names
+  `public.tb_user` and both its owners; its self-test covers both fixes the message
+  suggests (a prefix, a schema), the shapes that must not be flagged (redeclaring within one
+  file, another schema's relation), and the blind-gate case where it scans nothing.
+
 - **GitHub's push ref-filter rule has one implementation, and two of its four copies were
   wrong (#1301).**
 

@@ -72,7 +72,7 @@ const (
 	imageBootPort = 8000
 
 	// imageBootFixtureRows is the number of rows docker/e2e/init-postgres.sql
-	// seeds into tb_user. Hardcoded on purpose: the point of the assertion is to
+	// seeds into tb_e2e_user. Hardcoded on purpose: the point of the assertion is to
 	// catch a fixture that half-applied, and a count derived from the file the
 	// fixture also feeds would agree with itself no matter what ran. If the
 	// fixture legitimately changes, this constant changes with it — an
@@ -360,9 +360,9 @@ echo "### 2/6  seed a FRESH schema under ON_ERROR_STOP=1"
 # success; from an empty schema the row count below is a real assertion.
 $PSQL -q -c 'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;'
 $PSQL -q -f /fixture/init-postgres.sql
-rows=$($PSQL -tAc 'SELECT count(*) FROM tb_user')
+rows=$($PSQL -tAc 'SELECT count(*) FROM tb_e2e_user')
 [ "$rows" = "@ROWS@" ] \
-  || fail "fixture loaded $rows row(s) into tb_user, expected @ROWS@ (docker/e2e/init-postgres.sql)"
+  || fail "fixture loaded $rows row(s) into tb_e2e_user, expected @ROWS@ (docker/e2e/init-postgres.sql)"
 echo "seeded @ROWS@ row(s) into a freshly created schema"
 
 echo "### 3/6  the image's own CMD serves /health, and it reached the database"
@@ -408,9 +408,9 @@ echo "### 5/6  DISCRIMINATOR — mutate the world behind the engine"
 if grep -q "$MARKER" /tmp/q1.json; then
   fail "the marker was already in the pre-insert response — it is not discriminating"
 fi
-$PSQL -q -c "INSERT INTO tb_user (name) VALUES ('$MARKER');"
-after=$($PSQL -tAc 'SELECT count(*) FROM tb_user')
-[ "$after" = "$((@ROWS@ + 1))" ] || fail "the INSERT did not land: tb_user holds $after row(s)"
+$PSQL -q -c "INSERT INTO tb_e2e_user (name) VALUES ('$MARKER');"
+after=$($PSQL -tAc 'SELECT count(*) FROM tb_e2e_user')
+[ "$after" = "$((@ROWS@ + 1))" ] || fail "the INSERT did not land: tb_e2e_user holds $after row(s)"
 echo "inserted $MARKER"
 
 echo "### 6/6  ask again, and REQUIRE the new row back"

@@ -580,9 +580,9 @@ step "B4/B9  seed a FRESH schema under ON_ERROR_STOP=1, and count the rows"
 psql_pod() { kc exec -i deploy/postgres -- env PGPASSWORD="$PG_PASSWORD" psql -U "$PG_USER" -d "$PG_DATABASE" -v ON_ERROR_STOP=1 "$@"; }
 psql_pod -q -c 'DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public;' >/dev/null
 psql_pod -q -f - < "$FIXTURE_SQL" >/dev/null
-rows="$(psql_pod -tAc 'SELECT count(*) FROM tb_user' | tr -d '[:space:]')"
+rows="$(psql_pod -tAc 'SELECT count(*) FROM tb_e2e_user' | tr -d '[:space:]')"
 [ "$rows" = "$FIXTURE_ROWS" ] \
-  || die "fixture loaded $rows row(s) into tb_user, expected $FIXTURE_ROWS ($FIXTURE_SQL)"
+  || die "fixture loaded $rows row(s) into tb_e2e_user, expected $FIXTURE_ROWS ($FIXTURE_SQL)"
 echo "  seeded $FIXTURE_ROWS row(s) into a freshly created schema"
 
 step "B5/B9  the CLUSTER routes ClusterIP traffic (a rig check, not a chart check)"
@@ -686,9 +686,9 @@ MARKER="phase05-${SLUG}-$(date +%s%N)-$$"
 if grep -q "$MARKER" "$default_render" 2>/dev/null; then
   die "the marker already appears in the render — it is not discriminating"
 fi
-psql_pod -q -c "INSERT INTO tb_user (name) VALUES ('$MARKER');" >/dev/null
-after="$(psql_pod -tAc 'SELECT count(*) FROM tb_user' | tr -d '[:space:]')"
-[ "$after" = "$((FIXTURE_ROWS + 1))" ] || die "the INSERT did not land: tb_user holds $after row(s)"
+psql_pod -q -c "INSERT INTO tb_e2e_user (name) VALUES ('$MARKER');" >/dev/null
+after="$(psql_pod -tAc 'SELECT count(*) FROM tb_e2e_user' | tr -d '[:space:]')"
+[ "$after" = "$((FIXTURE_ROWS + 1))" ] || die "the INSERT did not land: tb_e2e_user holds $after row(s)"
 echo "  inserted $MARKER"
 
 client bash -c "

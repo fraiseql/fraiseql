@@ -63,7 +63,7 @@ jobs:
           # ⚠ `psql -f` without ON_ERROR_STOP does NOT propagate statement errors: a
           # fixture that fails to apply exits 0 and every assertion below then runs
           # against an empty table. Measured against PG16: a dirty/incompatible
-          # tb_user gives exit 0 and 0 rows without this flag, exit 3 with it (#1214).
+          # tb_e2e_user gives exit 0 and 0 rows without this flag, exit 3 with it (#1214).
           PGPASSWORD=fraiseql_test_password psql -v ON_ERROR_STOP=1 \
             -h localhost -p 5433 -U fraiseql_test -d test_fraiseql \
             -f docker/e2e/init-postgres.sql
@@ -72,8 +72,8 @@ jobs:
           # count rather than the exit code alone.
           rows=$(PGPASSWORD=fraiseql_test_password psql -tAq \
             -h localhost -p 5433 -U fraiseql_test -d test_fraiseql \
-            -c 'SELECT count(*) FROM tb_user')
-          echo "tb_user rows: $rows"
+            -c 'SELECT count(*) FROM tb_e2e_user')
+          echo "tb_e2e_user rows: $rows"
           test "$rows" = "3" || {
             echo "::error::E2E fixture seeded $rows rows, expected 3" >&2; exit 1; }
 
@@ -436,7 +436,7 @@ jobs:
           # ⚠ `psql -f` without ON_ERROR_STOP does NOT propagate statement errors: a
           # fixture that fails to apply exits 0 and every assertion below then runs
           # against an empty table. Measured against PG16: a dirty/incompatible
-          # tb_user gives exit 0 and 0 rows without this flag, exit 3 with it (#1214).
+          # tb_e2e_user gives exit 0 and 0 rows without this flag, exit 3 with it (#1214).
           PGPASSWORD=fraiseql_test_password psql -v ON_ERROR_STOP=1 \
             -h localhost -p 5433 -U fraiseql_test -d test_fraiseql \
             -f docker/e2e/init-postgres.sql
@@ -445,8 +445,8 @@ jobs:
           # count rather than the exit code alone.
           rows=$(PGPASSWORD=fraiseql_test_password psql -tAq \
             -h localhost -p 5433 -U fraiseql_test -d test_fraiseql \
-            -c 'SELECT count(*) FROM tb_user')
-          echo "tb_user rows: $rows"
+            -c 'SELECT count(*) FROM tb_e2e_user')
+          echo "tb_e2e_user rows: $rows"
           test "$rows" = "3" || {
             echo "::error::E2E fixture seeded $rows rows, expected 3" >&2; exit 1; }
 
@@ -546,7 +546,7 @@ jobs:
           # ⚠ `psql -f` without ON_ERROR_STOP does NOT propagate statement errors: a
           # fixture that fails to apply exits 0 and every assertion below then runs
           # against an empty table. Measured against PG16: a dirty/incompatible
-          # tb_user gives exit 0 and 0 rows without this flag, exit 3 with it (#1214).
+          # tb_e2e_user gives exit 0 and 0 rows without this flag, exit 3 with it (#1214).
           PGPASSWORD=fraiseql_test_password psql -v ON_ERROR_STOP=1 \
             -h localhost -p 5433 -U fraiseql_test -d test_fraiseql \
             -f docker/e2e/init-postgres.sql
@@ -555,8 +555,8 @@ jobs:
           # count rather than the exit code alone.
           rows=$(PGPASSWORD=fraiseql_test_password psql -tAq \
             -h localhost -p 5433 -U fraiseql_test -d test_fraiseql \
-            -c 'SELECT count(*) FROM tb_user')
-          echo "tb_user rows: $rows"
+            -c 'SELECT count(*) FROM tb_e2e_user')
+          echo "tb_e2e_user rows: $rows"
           test "$rows" = "3" || {
             echo "::error::E2E fixture seeded $rows rows, expected 3" >&2; exit 1; }
 
