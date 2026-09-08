@@ -778,6 +778,115 @@ def _score(mod: LibTestModule, source: str, code: str) -> None:
     mod.n_ignored = len(re.findall(r"#\[ignore\b", code))
 
 
+# ── Test-name enumeration: what a `--lib`/`--test` filter can still match ─────
+#
+# A positional filter (`--lib inbound::`) narrows a run to the tests whose full
+# name CONTAINS it — a substring match, not a prefix one. A filter matching
+# nothing is not an error: cargo prints `running 0 tests` / `test result: ok. 0
+# passed` and exits 0, so the leg stays green and the suite the line was added to
+# run has stopped running. Thirty invocations in `.dagger/main.go` carry one, some
+# naming a single test function 63 characters deep, and nothing checked that any
+# still names something (#1300).
+#
+# The coverage scan cannot answer this. `covers_module` treats a filter matching no
+# discovered module as "this invocation does not cover that module" — the right
+# conservative answer for coverage, and the reason a BROKEN filter is
+# indistinguishable there from one that was never meant to cover anything.
+
+_MOD_PATH_ATTR = re.compile(r'#\[path\s*=\s*"([^"]+)"\]')
+_INLINE_MOD = re.compile(r"(?:pub(?:\([^)]*\))?\s+)?mod\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{")
+_FN_DECL = re.compile(r"(?:async\s+)?fn\s+([A-Za-z_][A-Za-z0-9_]*)")
+_TEST_ATTR = re.compile(r"#\[(?:tokio::)?test[\]\(]")
+
+
+def _child_module_file(parent: Path, name: str, path_attr: str | None) -> Path | None:
+    """Resolve `mod <name>;` declared in `parent` to the file that holds it.
+
+    A `#[path = "…"]` is relative to the directory the DECLARING file sits in,
+    which is not the same as the directory a plain `mod` would search: twenty
+    modules in this tree use it (`#[path = "watch_tests.rs"] mod tests;` beside
+    `watch.rs`), and resolving them the ordinary way would find nothing and read
+    as a dead filter.
+    """
+    if path_attr is not None:
+        cand = parent.parent / path_attr
+        return cand if cand.is_file() else None
+    base = parent.parent if parent.name in ("lib.rs", "mod.rs", "main.rs") else parent.parent / parent.stem
+    for cand in (base / f"{name}.rs", base / name / "mod.rs"):
+        if cand.is_file():
+            return cand
+    return None
+
+
+def _walk_test_paths(entry: Path, prefix: str, out: list[str], seen: set[Path]) -> None:
+    if entry in seen:
+        return
+    seen.add(entry)
+    raw = entry.read_text(encoding="utf-8", errors="replace")
+    src = scrub_source(raw, blank_strings=True)
+    # `#[path = "…"]` is a string literal, so it survives only the string-KEEPING
+    # scrub. Both are length-preserving, so one offset indexes either.
+    text = scrub_source(raw)
+    stack: list[tuple[int, str]] = []
+    depth = i = 0
+    n = len(src)
+    pending_test = False
+    while i < n:
+        c = src[i]
+        if c == "{":
+            depth += 1
+            i += 1
+            continue
+        if c == "}":
+            depth -= 1
+            while stack and stack[-1][0] > depth:
+                stack.pop()
+            i += 1
+            continue
+        if (m := _INLINE_MOD.match(src, i)) :
+            stack.append((depth + 1, m.group(1)))
+            depth += 1
+            i = m.end()
+            continue
+        if src.startswith("#[", i) and (m := _TEST_ATTR.match(src, i)):
+            pending_test = True
+            i = m.end()
+            continue
+        if (m := _FN_DECL.match(src, i)) :
+            if pending_test:
+                parts = ([prefix] if prefix else []) + [name for _, name in stack] + [m.group(1)]
+                out.append("::".join(parts))
+                pending_test = False
+            i = m.end()
+            continue
+        i += 1
+    # `mod x;` declarations, with their `#[path]` if they carry one
+    for m in re.finditer(r"^[^\S\n]*(?:pub(?:\([^)]*\))?[^\S\n]+)?mod[^\S\n]+([A-Za-z0-9_]+)[^\S\n]*;", src, re.M):
+        # Only the contiguous attribute block directly above the declaration
+        # counts; a `#[path]` further up belongs to a different module.
+        block = text[_attr_block_start(src, m.start()) : m.start()]
+        attr = _MOD_PATH_ATTR.search(block)
+        child = _child_module_file(entry, m.group(1), attr.group(1) if attr else None)
+        if child:
+            _walk_test_paths(child, "::".join(p for p in (prefix, m.group(1)) if p), out, seen)
+
+
+def crate_test_names(crate_dir: Path) -> tuple[list[str], dict[str, list[str]]]:
+    """Every lib test path, and every integration binary's test paths, by name."""
+    lib: list[str] = []
+    entry = crate_dir / "src" / "lib.rs"
+    if entry.is_file():
+        _walk_test_paths(entry, "", lib, set())
+    bins: dict[str, list[str]] = {}
+    tests_dir = crate_dir / "tests"
+    if tests_dir.is_dir():
+        for f in sorted(tests_dir.glob("*.rs")):
+            names: list[str] = []
+            _walk_test_paths(f, "", names, set())
+            bins[f.stem] = names
+    return lib, bins
+
+
 # ── Phase B: discover what runs ───────────────────────────────────────────────
 
 
@@ -2158,6 +2267,60 @@ def main() -> int:
             f"no lib invocation compiles it un-filtered — compiled out reads as passing"
         )
 
+    # Direction F: every positional filter still names a test that exists (#1300).
+    #
+    # A filter narrowing a run is a substring match on the full test name, and one
+    # matching nothing exits 0 over `running 0 tests`. Thirty invocations carry
+    # one — several naming a single test function, the longest 63 characters of
+    # path — so a rename, a module move or a typo silently retires whichever suite
+    # the line was added to run. Two comments in this tree already name the hazard
+    # and one records that a case was "verified — a plain run reads ok. 0 passed";
+    # none of that is executable.
+    #
+    # `--skip` is deliberately NOT checked. A stale skip stops excluding something,
+    # so the excluded test starts RUNNING: wrong, but loudly, and a leg that then
+    # fails says so. A stale filter is the silent direction.
+    names_by_crate: dict[str, tuple[list[str], dict[str, list[str]]]] = {}
+
+    def test_names(crate: str) -> tuple[list[str], dict[str, list[str]]]:
+        if crate not in names_by_crate:
+            names_by_crate[crate] = crate_test_names(REPO / "crates" / crate)
+        return names_by_crate[crate]
+
+    filters_checked = 0
+    for inv in invocations:
+        if not inv.filters:
+            continue
+        pool: list[str] = []
+        crate_list = [inv.crate] if inv.crate else sorted(crate_names - inv.excludes)
+        for crate in crate_list:
+            if crate not in crate_names:
+                continue  # Direction C already reports a -p naming no crate
+            lib, bins = test_names(crate)
+            if inv.lib_only:
+                pool += lib
+            elif inv.tests:
+                for t in inv.tests:
+                    pool += [n for b, ns in bins.items() if t in ("*", b) for n in ns]
+            else:
+                pool += lib + [n for ns in bins.values() for n in ns]
+        for f in inv.filters:
+            filters_checked += 1
+            if any(f in name for name in pool):
+                continue
+            failures.append(
+                f"DEAD FILTER {inv.leg}: `{f}` matches no test in "
+                f"{inv.crate or 'the workspace'} — cargo prints `running 0 tests` and "
+                f"exits 0, so this line runs nothing and reads green. Correct the "
+                f"filter or delete the line."
+            )
+    declared_filters = sum(len(inv.filters) for inv in invocations)
+    if filters_checked != declared_filters:
+        die(
+            f"filter liveness checked {filters_checked} of {declared_filters} filters — "
+            f"a scan that silently covers a subset is the failure it exists to catch"
+        )
+
     # Direction C: every --test flag names an existing binary.
     known = {(b.crate, b.name) for b in binaries}
     for inv in invocations:
@@ -2224,7 +2387,8 @@ def main() -> int:
         f"{len(workflow_invocations)} workflow invocations, "
         f"{len(used_exemptions)} exemptions in use); "
         f"{len(gating_legs)} of {len(leg_gating)} legs can fail a merge, "
-        f"{len(used_ungated)} suites exempt from that."
+        f"{len(used_ungated)} suites exempt from that; "
+        f"{filters_checked} positional filters still match a live test."
     )
     _print_gating_map(leg_gating, gating_legs)
     # The discounted workflow invocations are printed on success too: they are the

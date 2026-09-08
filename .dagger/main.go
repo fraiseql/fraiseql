@@ -548,6 +548,10 @@ func (m *FraiseqlCi) ShellGates(
 		// names and still be unable to fail a merge, which is how two `*_e2e_pg`
 		// tests were red on `dev` for two weeks under four green required checks.
 		"make test-suite-coverage-gating",
+		// ...and the pin for its FILTER side (#1300): a positional filter matching
+		// nothing prints `running 0 tests` and exits 0, so a rename retires the
+		// suite the line was added to run and the leg stays green.
+		"make test-suite-coverage-filters",
 		// The conformance harness's own four properties (#1118). `project.py` cited a
 		// `selftest.py` that had never existed, so the growth property — a new construct
 		// fails every SDK until each implements it or declares the gap — was asserted in
