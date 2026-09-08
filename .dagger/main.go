@@ -1750,6 +1750,15 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// a database answers, and it is the assertion that separates ranking from
 		// merely no longer refusing.
 		"cargo test -p fraiseql-server --features rest,export-csv --test rest_search_relevance_e2e_pg -- --test-threads=1",
+		// #1303: an offset page is a slice of a sequence, and an unordered read is
+		// not a sequence — two pages of the same relation overlap and skip rows
+		// under a 200. Which clause reaches the adapter is pinned on the required
+		// test leg; three things need a database: that `ORDER BY pk_p18doc ASC` (the
+		// native-column branch) executes at all, that a three-page walk returns every
+		// row exactly once, and that a view's own ORDER BY survives the declared
+		// `pagination_order = "none"` opt-out — the one case this change would
+		// otherwise make worse.
+		"cargo test -p fraiseql-server --features rest --test rest_pagination_stability_e2e_pg -- --test-threads=1",
 		// #809: schema-per-tenant isolation was a single session `SET search_path` on
 		// one pooled connection. Every other connection resolved against `public`, so
 		// the leak is only visible under concurrency — a single-connection test passes
