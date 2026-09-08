@@ -128,6 +128,7 @@ fn test_append_order_by_native_column() {
         native_column: Some("created_at".to_string()),
         vector:        None,
         relevance:     None,
+        identity:      false,
     };
     let bound =
         append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
@@ -150,6 +151,7 @@ fn test_append_order_by_mixed_native_and_jsonb() {
             native_column: Some("created_at".to_string()),
             vector:        None,
             relevance:     None,
+            identity:      false,
         },
         {
             let mut c = OrderByClause::new("name".to_string(), OrderDirection::Asc);
@@ -537,6 +539,7 @@ mod pagination_tiebreak {
             native_column: Some(column.to_string()),
             vector:        None,
             relevance:     None,
+            identity:      false,
         }
     }
 
@@ -604,6 +607,77 @@ mod pagination_tiebreak {
         .unwrap()
         .unwrap();
         assert!(rendered.params.is_empty());
+    }
+
+    // ── #1303: the identity the SCHEMA declared, not the one this module guesses ──
+
+    #[test]
+    fn a_declared_identity_is_rendered_and_not_tie_broken_again() {
+        // The whole point of the marker: `pk_user` is an ordinary column name to
+        // this module, so without it the renderer would append `data->>'id'` after
+        // an ordering that is already total — a second sort key on every paged read
+        // of every Trinity view, and the expensive one at that.
+        let clauses = [
+            OrderByClause::new("status".to_string(), OrderDirection::Asc),
+            OrderByClause::identity("pk_user".to_string(), Some("pk_user".to_string())),
+        ];
+        assert_eq!(cols(&clauses, Tiebreak::Identity), "data->>'status' ASC, pk_user ASC");
+    }
+
+    #[test]
+    fn a_declared_json_identity_renders_the_same_term_the_tiebreaker_would() {
+        // The fallback and the declared JSONB identity must be the same SQL, or a
+        // schema that declares what the renderer would have chosen anyway changes
+        // the query plan by saying so.
+        let declared = cols(&[OrderByClause::identity("id".to_string(), None)], Tiebreak::Identity);
+        let inferred = cols(
+            &[OrderByClause::new(
+                "status".to_string(),
+                OrderDirection::Asc,
+            )],
+            Tiebreak::Identity,
+        );
+        assert_eq!(declared, "data->>'id' ASC");
+        assert!(inferred.ends_with("data->>'id' ASC"), "{inferred}");
+    }
+
+    #[test]
+    fn an_undeclared_ordering_still_falls_back_to_the_json_identity() {
+        // A schema compiled before #1303, or one whose author declared
+        // `pagination_order = "none"`, hands down no marked clause — and #1287's
+        // guarantee has to hold for it unchanged.
+        let clauses = [OrderByClause::new(
+            "status".to_string(),
+            OrderDirection::Asc,
+        )];
+        assert_eq!(cols(&clauses, Tiebreak::Identity), "data->>'status' ASC, data->>'id' ASC");
+    }
+
+    #[test]
+    fn the_declared_identity_is_ignored_under_tiebreak_none() {
+        // Relay's contract is untouched: it appends its cursor column itself, and
+        // `Tiebreak::None` means "render exactly these clauses" whatever they carry.
+        let clauses = [
+            OrderByClause::new("status".to_string(), OrderDirection::Asc),
+            OrderByClause::identity("pk_user".to_string(), Some("pk_user".to_string())),
+        ];
+        assert_eq!(cols(&clauses, Tiebreak::None), "data->>'status' ASC, pk_user ASC");
+    }
+
+    #[test]
+    fn orders_by_identity_reads_the_marker_before_the_name() {
+        // The predicate the runtime shares, on the three shapes that discriminate:
+        // a marked clause naming no `id`, an unmarked clause naming `id`, and a
+        // clause that is neither.
+        assert!(orders_by_identity(&[OrderByClause::identity(
+            "pk_user".to_string(),
+            Some("pk_user".to_string())
+        )]));
+        assert!(orders_by_identity(&[OrderByClause::new("id".to_string(), OrderDirection::Asc)]));
+        assert!(!orders_by_identity(&[OrderByClause::new(
+            "status".to_string(),
+            OrderDirection::Asc
+        )]));
     }
 
     #[test]

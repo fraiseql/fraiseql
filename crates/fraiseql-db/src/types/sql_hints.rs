@@ -98,6 +98,19 @@ pub struct OrderByClause {
     /// single field a relevance rank belongs to — and is empty by construction.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub relevance:     Option<RelevanceOrder>,
+    /// This clause **is** the entity identity, whatever it is spelled as (#1303).
+    ///
+    /// Set only by [`identity`](Self::identity), which the runtime uses to lower
+    /// the compiled `pagination_order` into an ordering. Read only by the
+    /// tie-breaker, which appends nothing to an ordering that already carries one.
+    ///
+    /// A flag rather than a name comparison because the identity is a *schema*
+    /// fact: it may be `data->>'id'`, a native `id`, or `pk_user`, and this module
+    /// cannot tell the last from any other column. Without the flag the renderer
+    /// would append its own `data->>'id'` on top of a `pk_user` ordering — a
+    /// second, redundant sort key on every paged read of every Trinity view.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub identity:      bool,
 }
 
 /// The full-text operand of an ORDER BY clause (#1284).
@@ -223,6 +236,30 @@ impl OrderByClause {
             native_column: None,
             vector: None,
             relevance: None,
+            identity: false,
+        }
+    }
+
+    /// A clause that orders by the entity identity, ascending (#1303).
+    ///
+    /// `native_column` when the relation exposes the identity as a column
+    /// (`id`, `pk_user`), `None` for the JSONB extraction `data->>'id'`. Which
+    /// one is a compile-time decision recorded in `QueryDefinition::pagination_order`;
+    /// this is its lowering.
+    ///
+    /// **ASC unconditionally.** A total order is all this has to be, and which of
+    /// two otherwise-tied rows comes first is not a property any client asked
+    /// about. Matching a requested clause's direction would suggest it is.
+    #[must_use]
+    pub const fn identity(field: String, native_column: Option<String>) -> Self {
+        Self {
+            field,
+            direction: OrderDirection::Asc,
+            field_type: ScalarFieldType::Text,
+            native_column,
+            vector: None,
+            relevance: None,
+            identity: true,
         }
     }
 
@@ -244,6 +281,7 @@ impl OrderByClause {
             native_column: None,
             vector:        None,
             relevance:     Some(relevance),
+            identity:      false,
         }
     }
 

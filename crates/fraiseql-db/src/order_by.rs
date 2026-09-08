@@ -34,12 +34,21 @@ const IDENTITY_KEY: &str = "id";
 pub enum Tiebreak {
     /// Append the entity identity unless the ordering already carries it.
     ///
-    /// For any read paged by `LIMIT`/`OFFSET`. The term is
-    /// `data->>'id'` — a *total* order is all a tie-breaker needs, not a
-    /// meaningful one, so extracting the identity as text serves uuid, integer
-    /// and text keys alike (ADR-0017) without knowing which one a type declares.
-    /// A type whose `data` carries no `id` yields NULL on every row, the term
-    /// contributes nothing, and the ordering is exactly what it is today.
+    /// For any read paged by `LIMIT`/`OFFSET`. The term is `data->>'id'` — a
+    /// *total* order is all a tie-breaker needs, not a meaningful one, so
+    /// extracting the identity as text serves uuid, integer and text keys alike
+    /// (ADR-0017) without knowing which one a type declares. A type whose `data`
+    /// carries no `id` yields NULL on every row, the term contributes nothing,
+    /// and the ordering is exactly what it is today.
+    ///
+    /// This is the **last resort**, not the primary answer. Since #1303 the
+    /// runtime lowers the query's compiled `pagination_order` into the ordering
+    /// itself, marked with [`OrderByClause::identity`](crate::OrderByClause::identity)
+    /// — so a schema that declares its identity gets that column, which may be an
+    /// index-scannable `pk_user` rather than a JSONB extraction, and this arm
+    /// appends nothing. `data->>'id'` is what a read whose schema declared nothing
+    /// falls back to. One identity per read, chosen where the schema is visible;
+    /// this keeps the guarantee for callers that did not choose.
     Identity,
     /// Render exactly the clauses given.
     ///
@@ -164,11 +173,13 @@ pub fn render_order_by_columns(
     next_param: usize,
     tiebreak: Tiebreak,
 ) -> crate::Result<Option<RenderedOrderBy>> {
-    // No requested ordering renders no `ORDER BY`, tie-break or not. A read that
-    // asked for no order is not a sequence to begin with, and manufacturing one
-    // would turn every unordered list read into a sort. `warn_auto_params` already
-    // reports that case at compile time; #1287 is about an ordering that exists
-    // and is not total.
+    // No requested ordering renders no `ORDER BY`, tie-break or not — and that is
+    // still right after #1303, which manufactures the missing ordering one layer
+    // up. Whether an unordered read is a *page* (and so needs one) depends on the
+    // query definition and the request's limit/offset, neither of which is visible
+    // here; a rule at this level could only be "sort everything", which would turn
+    // an unpaged list read into a sort for no reason. The runtime decides and
+    // hands the clause down; this function renders what it is given.
     let Some(clauses) = order_by.filter(|c| !c.is_empty()) else {
         return Ok(None);
     };
@@ -223,24 +234,39 @@ pub fn render_order_by_columns(
     Ok(Some(RenderedOrderBy { columns, params }))
 }
 
-/// Does this ordering already end in a unique key, making a tie-breaker redundant?
+/// Does this ordering already carry a unique key, making a tie-breaker redundant?
 ///
-/// Only the identity counts. A `UNIQUE` constraint elsewhere in the view would
-/// also do, but nothing in an [`OrderByClause`] reports one, and guessing from a
-/// field name is how a "unique" ordering that is not one gets accepted.
+/// Two ways to carry one, and they answer different questions:
+///
+/// * [`OrderByClause::identity`](crate::OrderByClause::identity) — the runtime lowered the query's
+///   compiled `pagination_order` into this clause (#1303), so it **is** the identity by
+///   construction, whatever column it names. This is the only way `pk_user` can be recognised:
+///   nothing in this module can tell that column from any other, and appending `data->>'id'` after
+///   it would put a second, redundant sort key on every paged read of every Trinity view.
+/// * a clause that names `id` — a client that sorted by the identity itself, which no compiled
+///   value marks.
+///
+/// A `UNIQUE` constraint elsewhere in the view would also make the order total,
+/// but nothing in an [`OrderByClause`] reports one, and guessing from a field name
+/// is how a "unique" ordering that is not one gets accepted.
 ///
 /// A relevance or vector clause never counts however it is named: its `field` is
 /// not read at all for the first, and the second orders by a distance.
-fn orders_by_identity(clauses: &[OrderByClause]) -> bool {
+///
+/// Public because the runtime asks the same question before lowering — a second
+/// implementation of "is this ordering already total" is a second answer.
+#[must_use]
+pub fn orders_by_identity(clauses: &[OrderByClause]) -> bool {
     clauses.iter().any(|c| {
-        c.relevance.is_none()
-            && c.vector.is_none()
-            && match c.native_column.as_deref() {
-                // A native column is what the ordering actually reads, whatever
-                // the GraphQL field beside it is called.
-                Some(col) => col == IDENTITY_KEY,
-                None => c.storage_key() == IDENTITY_KEY,
-            }
+        c.identity
+            || (c.relevance.is_none()
+                && c.vector.is_none()
+                && match c.native_column.as_deref() {
+                    // A native column is what the ordering actually reads, whatever
+                    // the GraphQL field beside it is called.
+                    Some(col) => col == IDENTITY_KEY,
+                    None => c.storage_key() == IDENTITY_KEY,
+                })
     })
 }
 
