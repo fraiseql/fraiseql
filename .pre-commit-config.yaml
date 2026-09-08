@@ -80,7 +80,14 @@ repos:
         # fight — `uv lock` writes its style, pre-commit.ci rewrites all 2586 lines into
         # another, and every PR carries a full-lockfile diff that hides real dependency
         # changes from review.
-        exclude: '((^|/)Cargo\.(toml|lock)|(^|/)uv\.lock|^tools/suite-coverage-exemptions\.toml|^tools/delivery-artifacts\.toml|^\.gitleaks\.toml)$'
+        # required-checks.toml is the fourth ledger of the same kind, and it was measured
+        # rather than assumed: on PR #1308 the bot flattened the hanging indentation out
+        # of #1302's ruleset-first-vs-file-first comparison — the two labelled branches
+        # became one run of prose — and moved `ruleset` below the 25-entry `required`
+        # array, away from the `branch` it is read with. Nothing parses worse (both
+        # readers use tomllib), but the reasoning a future author needs is the content
+        # here, exactly as the three ledgers above.
+        exclude: '((^|/)Cargo\.(toml|lock)|(^|/)uv\.lock|^tools/suite-coverage-exemptions\.toml|^tools/delivery-artifacts\.toml|^tools/required-checks\.toml|^\.gitleaks\.toml)$'
 
   # Markdown linting
   - repo: https://github.com/igorshubovych/markdownlint-cli
