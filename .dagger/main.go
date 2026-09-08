@@ -630,6 +630,15 @@ func (m *FraiseqlCi) ShellGates(
 		// list rather than reported as skipped (#1206).
 		"python3 tools/check-workflow-job-reachability.py",
 		"bash tools/tests/workflow_job_reachability_test.sh",
+		// GitHub's push ref-filter rule — which halves a `push:` leaves defined —
+		// had four implementations in tools/, and two were wrong in opposite
+		// directions: one read `branches-ignore`/`tags-ignore` as neither key, the
+		// other read a missing `branches:` as no restriction, which made sixteen
+		// tag-only publish contexts look branch-reaching. #1301 collapsed them onto
+		// one; this refuses a fifth, and the self-test drives the shared table
+		// through every consumer and mutates each branch of the rule.
+		"python3 tools/check-trigger-rule-copies.py",
+		"bash tools/tests/workflow_trigger_rule_test.sh",
 		// This list and the Makefile's `preflight:` target are two hand-maintained
 		// copies of one thing, so they drift, and `make preflight` says "Safe to
 		// push" over the difference. It had drifted twice when this landed (#1135).

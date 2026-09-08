@@ -166,13 +166,23 @@ def ungated_publishers(pub: dict[str, list[Path]]) -> list[tuple[str, Path]]:
 
 
 
-def _yaml_module():
-    """`parse_yaml` from tools/check-suite-coverage.py.
+_YAML_MODULE = None
 
-    One hand-written YAML-subset parser serves the gates that need one. The ShellGates
-    container is bare Ubuntu plus python3 — no PyYAML — and a gate that skipped when its
-    parser was missing would pass vacuously, so an unloadable sibling is fatal.
+
+def _yaml_module():
+    """`parse_yaml` / `push_ref_filter` from tools/check-suite-coverage.py.
+
+    One hand-written YAML-subset parser, and one copy of GitHub's push ref-filter rule,
+    serve the gates that need them. The ShellGates container is bare Ubuntu plus python3
+    — no PyYAML — and a gate that skipped when its parser was missing would pass
+    vacuously, so an unloadable sibling is fatal.
+
+    Memoized: `_tag_push_runs_workflow` asks the rule once per workflow, and re-executing
+    a 2 400-line module per call is pure waste.
     """
+    global _YAML_MODULE
+    if _YAML_MODULE is not None:
+        return _YAML_MODULE
     path = ROOT / "tools" / "check-suite-coverage.py"
     spec = importlib.util.spec_from_file_location("_fraiseql_suite_coverage", path)
     if spec is None or spec.loader is None:
@@ -180,6 +190,7 @@ def _yaml_module():
     module = importlib.util.module_from_spec(spec)
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)
+    _YAML_MODULE = module
     return module
 
 
@@ -199,16 +210,21 @@ def release_tag() -> str:
 
 def _tag_push_runs_workflow(on: object, tag: str) -> bool:
     """Does pushing `refs/tags/<tag>` start this workflow?"""
-    if not isinstance(on, dict):
+    if not isinstance(on, dict) or "push" not in on:
         return False
-    push = on.get("push")
+    # `on.get("push")` is None for a `push:` that is ABSENT and for one that is
+    # present with no filters, and those are opposite answers: a bare `push:`
+    # defines neither ref half, so every ref matches and a tag push does start it.
+    # Collapsing the two read three live workflows — changelog-check.yml,
+    # required-checks-mirror.yml, sdk-conformance.yml — as tag-unreachable (#1301).
+    push = on["push"] or {}
     if not isinstance(push, dict):
         return False
-    has_branches = "branches" in push or "branches-ignore" in push
-    has_tags = "tags" in push or "tags-ignore" in push
     # #1119: GitHub ANDs the ref filter with the path filter. With `branches` present and
     # `tags` absent, a tag push matches no ref pattern and the workflow never starts.
-    if has_branches and not has_tags:
+    # Which halves a `push:` defines is read from the one implementation of that rule
+    # (#1301) — this file was its fourth independent copy.
+    if _yaml_module().push_ref_filter(push).reaches_no_tag():
         return False
     for pattern in push.get("tags-ignore") or []:
         if fnmatch.fnmatch(tag, str(pattern)):

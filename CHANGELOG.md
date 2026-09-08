@@ -930,6 +930,67 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+- **GitHub's push ref-filter rule has one implementation, and two of its four copies were
+  wrong (#1301).**
+
+  `branches`/`branches-ignore` define the BRANCH half of a workflow's `push:` ref filter and
+  `tags`/`tags-ignore` the TAG half; defining only one half leaves the other undefined, and
+  the workflow does not run for events affecting the undefined ref kind at all. Four gates
+  needed that rule and four gates wrote it:
+
+  | gate | since | verdict |
+  |---|---|---|
+  | `check-sdk-workflow-coverage.py` | #1119 | **wrong** — regexed `^\s*branches:` and `^\s*tags:` out of raw text, so `branches-ignore:`/`tags-ignore:` matched neither key |
+  | `check-workflow-job-reachability.py` | #1206 | correct |
+  | `check-suite-coverage.py` | #1289 | **wrong until #1298** — read a missing `branches:` as "no restriction" |
+  | `check-sdk-publication-claims.py` | #1119 | correct (the tag-side mirror) |
+
+  #1301 was filed against the two the previous run knew about; the other two were found
+  measuring it. Two of the four were wrong, in opposite directions, and the two that were
+  right were no help to the two that were not, because nothing connected them. Measured on a
+  shared table of eleven trigger shapes, the two named in the issue disagreed on **five** —
+  not the zero the issue's "both correct as of #1298" implied, which held only for the
+  triggers that happen to exist in `.github/workflows`.
+
+  The SDK gate's two live errors were exact inversions: a `tags-ignore`-only push read as
+  having no tag key, so a workflow that runs on no branch at all counted as gating an SDK;
+  and a `branches-ignore` push read as having no branch key, so a workflow that gates every
+  working branch was refused. Neither shape is in the tree today, which is why nothing
+  caught them.
+
+  All four now call `push_ref_filter()` in `tools/check-suite-coverage.py`, which is already
+  the shared YAML parser for the same four gates. The rule is stated once; the **policies**
+  stay separate and named, because the three questions genuinely differ —
+  `reaches_any_branch()` is #1119's ("is this SDK gated on a branch push at all?"),
+  `reaches_every_branch()` is #1289's ("may this context be a *required* check?", where only
+  a catch-all qualifies because GitHub reports a check that did not run as "not run"), and
+  `reaches_no_tag()` is the publication gate's mirror. They differ on
+  `branches: ['feature/**']` on purpose.
+
+  Two defects surfaced while wiring it, both in the same class:
+
+  * `_tag_push_runs_workflow` read `on.get("push")` and treated `None` as "no push trigger",
+    conflating an **absent** `push:` with an **empty** one. A bare `push:` defines neither
+    half, so every ref matches and a tag push does start it. Three live workflows have that
+    shape — `changelog-check.yml`, `required-checks-mirror.yml`, `sdk-conformance.yml` — and
+    all three read as tag-unreachable.
+  * `parse_yaml`'s `_parse_flow` documented itself as raising on anything beyond one level of
+    nesting and instead returned the nested source as a **string**: `push: {branches: ['**']}`
+    parsed to `{'branches': "['**']"}`, which every caller reads as "branches is not a list".
+    It raises now, with the shape named.
+
+  `tools/check-trigger-rule-copies.py` (`make lint-trigger-rule-copies`) refuses a fifth copy.
+  It reads the AST rather than source lines — scanning text would flag its own prose, and
+  "skip the gate's own file" is the exemption that lets a real copy hide in it — and it fails
+  when the owner itself stops defining the rule, so a deleted original cannot leave it passing
+  over a tree with no rule in it. Proved red against the pre-#1301 tree: it names all three
+  copies, in both idioms, at their exact lines.
+
+  `tools/tests/workflow_trigger_rule_test.sh` is the acceptance test the issue asked for: one
+  table of trigger shapes, 88 assertions, driven through the rule and through every consumer's
+  own entry point, plus a mutation of each of the six branches of the rule that requires *that
+  branch's own row* to be the one that fails.
+
 - **`required-checks.toml` documented the ordering that reddens `dev` (#1302).**
 
   The file said to change the ruleset first and add the line afterwards. That was safe while

@@ -78,8 +78,11 @@ def die(message: str) -> None:
     raise SystemExit(2)
 
 
+_YAML_MODULE = None
+
+
 def _yaml_module():
-    """`parse_yaml` / `YamlError` from tools/check-suite-coverage.py.
+    """`parse_yaml` / `YamlError` / `push_ref_filter` from tools/check-suite-coverage.py.
 
     One hand-written YAML-subset parser serves both gates. The ShellGates
     container is bare Ubuntu plus python3 — no PyYAML, no pip step — so the
@@ -88,6 +91,9 @@ def _yaml_module():
     reachability gate that quietly scans nothing is the failure it exists to
     prevent.
     """
+    global _YAML_MODULE
+    if _YAML_MODULE is not None:
+        return _YAML_MODULE
     path = REPO / "tools" / "check-suite-coverage.py"
     spec = importlib.util.spec_from_file_location("_fraiseql_suite_coverage", path)
     if spec is None or spec.loader is None:
@@ -98,6 +104,7 @@ def _yaml_module():
     # return None (AttributeError on 3.14, not an import error naming the cause).
     sys.modules[spec.name] = module
     spec.loader.exec_module(module)  # type: ignore[union-attr]
+    _YAML_MODULE = module
     return module
 
 
@@ -189,12 +196,17 @@ def worlds_for(on) -> list[World]:
             # A reusable workflow runs in the caller's context: any event, any ref.
             worlds.append(World(None, RefSpace("unknown"), "workflow_call (caller's event)"))
         elif event in ("push",):
-            has_branches = "branches" in cfg or "branches-ignore" in cfg
-            has_tags = "tags" in cfg or "tags-ignore" in cfg
-            if has_branches or not has_tags:
+            # Which ref HALVES this `push:` leaves defined is the rule three gates
+            # each got wrong independently, so it is read from the one copy of it
+            # (#1301). The PATTERNS stay this gate's own business: it needs the
+            # include/exclude lists, not a yes/no, and `_patterns` also resolves
+            # the `!pattern` form and the empty-list default that no other caller
+            # cares about.
+            refs = _yaml_module().push_ref_filter(cfg)
+            if refs.branch_half_defined or not refs.tag_half_defined:
                 inc, exc = _patterns(cfg, "branches", "branches-ignore")
                 worlds.append(World(event, RefSpace("branch", inc, exc), f"push (branches: {', '.join(inc)})"))
-            if has_tags or not has_branches:
+            if refs.tag_half_defined or not refs.branch_half_defined:
                 inc, exc = _patterns(cfg, "tags", "tags-ignore")
                 worlds.append(World(event, RefSpace("tag", inc, exc), f"push (tags: {', '.join(inc)})"))
         elif event in ("pull_request", "pull_request_target"):

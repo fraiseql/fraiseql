@@ -1203,12 +1203,32 @@ def _strip_comment(line: str) -> str:
     return "".join(out).rstrip()
 
 
+def _flow_item(text: str, where: str):
+    """One entry of a flow collection — a scalar, never another collection.
+
+    A nested `[…]`/`{…}` used to fall through to `_yaml_scalar` and come back as
+    its own source text, so `push: {branches: ['**']}` parsed to the STRING
+    `"['**']"`. Every caller then read that as "a branches key whose value is not
+    a list", which is a plausible wrong answer and exactly what the docstring
+    below says this parser refuses to produce. Nothing in `.github/workflows`
+    writes flow style today; when something does, this says so (#1301).
+    """
+    text = text.strip()
+    if text.startswith(("[", "{")):
+        raise YamlError(
+            f"nested flow collection in {where}: {text!r} — this parser resolves one "
+            "level of flow only, and resolving it to a string would be a plausible "
+            "wrong answer. Write the value in block style, or teach the parser."
+        )
+    return _yaml_scalar(text)
+
+
 def _parse_flow(text: str):
     """`[a, b]` / `{a: b}`, one level of nesting. Raises on anything else."""
     text = text.strip()
     if text.startswith("[") and text.endswith("]"):
         inner = text[1:-1].strip()
-        return [_yaml_scalar(p) for p in _split_flow(inner)] if inner else []
+        return [_flow_item(p, "a flow sequence") for p in _split_flow(inner)] if inner else []
     if text.startswith("{") and text.endswith("}"):
         inner = text[1:-1].strip()
         out = {}
@@ -1216,7 +1236,8 @@ def _parse_flow(text: str):
             if ":" not in part:
                 raise YamlError(f"flow mapping entry without ':': {part!r}")
             k, _, v = part.partition(":")
-            out[_yaml_key(k)] = _yaml_scalar(v)
+            key = _yaml_key(k)
+            out[key] = _flow_item(v, f"the flow mapping key `{key}`")
         return out
     raise YamlError(f"not a flow collection: {text!r}")
 
@@ -1753,40 +1774,147 @@ DAGGER_CALL = re.compile(
 )
 
 
+# ── GitHub's push ref-filter rule — the single implementation ────────────────
+#
+# Three gates ask a question about a workflow's `push:` trigger, and each wrote
+# its own answer without reference to the others (#1301):
+#
+#   check-sdk-workflow-coverage.py   #1119  is this SDK gated on a branch push
+#                                           at ALL?
+#   check-workflow-job-reachability.py #1206 does a branch world exist, and with
+#                                           which patterns?
+#   check-suite-coverage.py          #1289  can this context be REQUIRED — does
+#                                           EVERY working branch produce a run?
+#
+# Those three questions are genuinely different, and they stay different: the
+# policies live in the two methods below and in reachability's own pattern
+# handling. What all three share is the subtle half — which ref KINDS a `push:`
+# block leaves defined — and every copy of that half was wrong at some point:
+#
+#   * #1119's copy regexed `^\s*branches:` and `^\s*tags:` out of raw text, so
+#     `branches-ignore:`/`tags-ignore:` matched neither key. A `branches-ignore`
+#     push read as "no branch key", and a `tags-ignore` push read as "no tag
+#     key" — inverting the verdict in both directions.
+#   * #1289's copy read a missing `branches:` as "no restriction", which made
+#     sixteen tag-only publish contexts look branch-reaching (fixed in #1298).
+#
+# GitHub's actual rule, from the workflow-syntax docs: `branches`/`branches-ignore`
+# define the BRANCH half of the ref filter and `tags`/`tags-ignore` the TAG half,
+# and *defining only one half leaves the other undefined, so the workflow does not
+# run for events affecting the undefined ref kind*. Defining neither leaves both
+# open.
+#
+# The rule is stated once, here. A fourth gate that needs it imports this module
+# the way check-workflow-job-reachability.py already imports `parse_yaml`;
+# `tools/check-trigger-rule-copies.sh` refuses a second copy.
+
+_BRANCH_KEYS = ("branches", "branches-ignore")
+_TAG_KEYS = ("tags", "tags-ignore")
+
+
+class PushRefFilter(NamedTuple):
+    """What a `push:` block does to the branch half of its ref filter.
+
+    `branch_patterns` is the `branches:` allow-list when one is present, and
+    `None` when the branch half carries no allow-list — either because no ref
+    key is present at all, or because only `branches-ignore` is.
+    """
+
+    branch_half_defined: bool
+    tag_half_defined: bool
+    branch_patterns: tuple[str, ...] | None
+
+    def reaches_no_branch(self) -> bool:
+        """True when no push to any branch can ever start this workflow.
+
+        The tags-only case: the tag half is defined, the branch half is not, so
+        GitHub leaves branches undefined and the workflow runs on tag pushes
+        only. `release.yml` demonstrates it in this repository, with 30 of its
+        last 30 runs on a `v*` tag and none on a branch.
+        """
+        return self.tag_half_defined and not self.branch_half_defined
+
+    def reaches_no_tag(self) -> bool:
+        """True when no tag push can ever start this workflow — the mirror case.
+
+        With `branches` present and `tags` absent, GitHub leaves the tag half
+        undefined and a tag push matches no ref pattern at all.
+        `check-sdk-publication-claims.py` needs this side to decide whether a
+        publish job actually runs on the tag `tools/release.sh` creates.
+        """
+        return self.branch_half_defined and not self.tag_half_defined
+
+    def reaches_any_branch(self) -> bool:
+        """Could a push to SOME branch start this workflow? (#1119's question.)
+
+        Deliberately weaker than `reaches_every_branch`: an SDK watched by
+        `branches: ['feature/**']` is gated on the branches a contributor would
+        plausibly use, which is what that gate is asking. A fixed list naming
+        concrete branches still fails — that is the `branches: [dev, main]`
+        post-merge-only case #1119 exists to catch.
+        """
+        if self.reaches_no_branch():
+            return False
+        if self.branch_patterns is None:
+            return True
+        return any(
+            p in ("*", "**") or p.endswith("**") for p in self.branch_patterns
+        )
+
+    def reaches_every_branch(self) -> bool:
+        """Would a push to ANY working branch start this workflow? (#1289's.)
+
+        The bar a required check has to clear: GitHub reports a check that did
+        not run as "not run", never as "passed", so requiring a context whose
+        workflow skips some branch blocks every push from that branch forever.
+        Only a catch-all allow-list qualifies.
+
+        `branches-ignore` is treated as qualifying, as it has been since #1289:
+        an exclusion list naming `gh-pages` still leaves every working branch
+        reachable. A `branches-ignore` that named a working branch would defeat
+        this, and no workflow here has one.
+        """
+        if self.reaches_no_branch():
+            return False
+        if self.branch_patterns is None:
+            return True
+        return any(p in ("*", "**") for p in self.branch_patterns)
+
+
+def push_ref_filter(cfg: dict | None) -> PushRefFilter:
+    """Read a workflow's `push:` mapping into the rule above.
+
+    `cfg` is the parsed value of `on.push` — `None` for a bare `push:` with no
+    filters, which leaves both halves open.
+    """
+    cfg = cfg or {}
+    if not isinstance(cfg, dict):
+        raise WorkflowUnresolvable(f"unreadable `push:` trigger: {cfg!r}")
+
+    pats: tuple[str, ...] | None = None
+    if "branches" in cfg:
+        raw = cfg["branches"]
+        if not isinstance(raw, list):
+            raise WorkflowUnresolvable(f"`push.branches` is not a list: {raw!r}")
+        pats = tuple(str(p) for p in raw)
+
+    return PushRefFilter(
+        branch_half_defined=any(k in cfg for k in _BRANCH_KEYS),
+        tag_half_defined=any(k in cfg for k in _TAG_KEYS),
+        branch_patterns=pats,
+    )
+
+
 def _push_reaches_working_branches(autos: dict) -> bool:
     """Would a push to an ordinary feature branch start this workflow?
 
-    A required check has to produce a run on the branch being merged. A `push:`
-    with a fixed `branches:` allow-list does not, unless the list is a catch-all —
-    `branches: [dev]` is exactly the shape #1289 is about.
-
-    A `push:` filtered by ref KIND does not either. GitHub's rule is that defining
-    only `tags`/`tags-ignore` leaves branches undefined, and the workflow then does
-    not run for events affecting branches at all; `release.yml` demonstrates it here,
-    with 30 of its last 30 runs on a `v*` tag and none on a branch. Reading the
-    absence of a `branches:` key as "no branch restriction" made this answer True for
-    the sixteen publish contexts `release.yml` and `docker-build.yml` produce, any of
-    which would have wedged `dev` permanently — worse than the `branches: [dev]` case,
-    which at least reports after the merge (#1298).
-
-    The test is "a tag key AND no branch key", not "a tag key": a `push:` naming both
-    runs on the branches it names, exactly as before.
+    This gate's own policy over the shared rule: a required check has to produce
+    a run on the branch being merged, so `branches: [dev]` fails (#1289) and a
+    tags-only trigger fails (#1298).
     """
     if "push" not in autos:
         return False
-    cfg = autos["push"] or {}
-    if not isinstance(cfg, dict):
-        raise WorkflowUnresolvable(f"unreadable `push:` trigger: {cfg!r}")
-    if "branches" in cfg:
-        pats = cfg["branches"]
-        if not isinstance(pats, list):
-            raise WorkflowUnresolvable(f"`push.branches` is not a list: {pats!r}")
-        return any(str(p) in ("*", "**") for p in pats)
-    if "branches-ignore" in cfg:
-        return True  # an exclusion list still leaves ordinary branches reachable
-    if "tags" in cfg or "tags-ignore" in cfg:
-        return False
-    return True
+    return push_ref_filter(autos["push"]).reaches_every_branch()
 
 
 class LegGate:
