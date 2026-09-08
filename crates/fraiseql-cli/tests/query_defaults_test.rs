@@ -4,11 +4,14 @@
 //! Verifies the three-tier priority chain:
 //!   hardcoded fallback (all-true) < `[query_defaults]` TOML < per-query `auto_params`
 
-use fraiseql_cli::schema::{
-    SchemaConverter,
-    intermediate::{
-        IntermediateAutoParams, IntermediateQuery, IntermediateQueryDefaults, IntermediateSchema,
-        IntermediateType,
+use fraiseql_cli::{
+    config::toml_schema::PaginationPosture,
+    schema::{
+        SchemaConverter,
+        intermediate::{
+            IntermediateAutoParams, IntermediateQuery, IntermediateQueryDefaults,
+            IntermediateSchema, IntermediateType,
+        },
     },
 };
 use fraiseql_core::schema::NamingConvention;
@@ -174,10 +177,11 @@ fn test_no_toml_defaults_list_query_all_true() {
 fn test_toml_defaults_applied_to_list_query() {
     // TOML: {where:false, limit:false}; no per-query override
     let defaults = IntermediateQueryDefaults {
-        where_clause: false,
-        order_by:     true,
-        limit:        false,
-        offset:       true,
+        where_clause:     false,
+        order_by:         true,
+        limit:            false,
+        offset:           true,
+        pagination_order: PaginationPosture::default(),
     };
     let schema = base_schema_with_query(list_query("items", None), Some(defaults));
     let compiled = SchemaConverter::convert(schema).unwrap();
@@ -193,10 +197,11 @@ fn test_per_query_partial_overrides_toml() {
     // TOML: {where:false, limit:false, order_by:true, offset:true}
     // Per-query: {where: Some(true)} — only `where` is overridden
     let defaults = IntermediateQueryDefaults {
-        where_clause: false,
-        order_by:     true,
-        limit:        false,
-        offset:       true,
+        where_clause:     false,
+        order_by:         true,
+        limit:            false,
+        offset:           true,
+        pagination_order: PaginationPosture::default(),
     };
     let per_query = IntermediateAutoParams {
         where_clause: Some(true),
@@ -217,10 +222,11 @@ fn test_per_query_partial_overrides_toml() {
 fn test_per_query_full_override_ignores_toml() {
     // All 4 flags explicitly set per-query → TOML completely bypassed
     let defaults = IntermediateQueryDefaults {
-        where_clause: false,
-        order_by:     false,
-        limit:        false,
-        offset:       false,
+        where_clause:     false,
+        order_by:         false,
+        limit:            false,
+        offset:           false,
+        pagination_order: PaginationPosture::default(),
     };
     let per_query = IntermediateAutoParams {
         where_clause: Some(true),
@@ -241,10 +247,11 @@ fn test_per_query_full_override_ignores_toml() {
 fn test_single_item_always_none_regardless_of_toml() {
     // Single-item query with TOML defaults all-true → still all-false
     let defaults = IntermediateQueryDefaults {
-        where_clause: true,
-        order_by:     true,
-        limit:        true,
-        offset:       true,
+        where_clause:     true,
+        order_by:         true,
+        limit:            true,
+        offset:           true,
+        pagination_order: PaginationPosture::default(),
     };
     let schema = base_schema_with_query(single_query("item"), Some(defaults));
     let compiled = SchemaConverter::convert(schema).unwrap();
@@ -259,10 +266,11 @@ fn test_single_item_always_none_regardless_of_toml() {
 fn test_relay_hardcoded_regardless_of_toml() {
     // Relay query with TOML limit=true, offset=true → still limit:false, offset:false
     let defaults = IntermediateQueryDefaults {
-        where_clause: false,
-        order_by:     false,
-        limit:        true,
-        offset:       true,
+        where_clause:     false,
+        order_by:         false,
+        limit:            true,
+        offset:           true,
+        pagination_order: PaginationPosture::default(),
     };
     let schema = base_schema_with_query(relay_query("itemsConnection"), Some(defaults));
     let compiled = SchemaConverter::convert(schema).unwrap();
@@ -277,10 +285,11 @@ fn test_relay_hardcoded_regardless_of_toml() {
 fn test_empty_auto_params_dict_inherits_toml() {
     // Empty per_query (all None) → TOML defaults apply for every field
     let defaults = IntermediateQueryDefaults {
-        where_clause: false,
-        order_by:     false,
-        limit:        false,
-        offset:       false,
+        where_clause:     false,
+        order_by:         false,
+        limit:            false,
+        offset:           false,
+        pagination_order: PaginationPosture::default(),
     };
     let per_query = IntermediateAutoParams {
         where_clause: None,
@@ -314,10 +323,11 @@ fn test_cross_concern_per_query_some_true_wins_over_project_false() {
     // Scenario: project disables where and limit; one query re-enables where
     // while inheriting the limit=false default from the project.
     let defaults = IntermediateQueryDefaults {
-        where_clause: false,
-        order_by:     false,
-        limit:        false,
-        offset:       true,
+        where_clause:     false,
+        order_by:         false,
+        limit:            false,
+        offset:           true,
+        pagination_order: PaginationPosture::default(),
     };
     let per_query = IntermediateAutoParams {
         where_clause: Some(true), // explicit per-query enable
@@ -340,10 +350,11 @@ fn test_cross_concern_per_query_none_inherits_project_default() {
     // Scenario: per-query has no overrides at all (all None); project controls
     // the outcome for every field independently.
     let defaults = IntermediateQueryDefaults {
-        where_clause: true,
-        order_by:     false,
-        limit:        true,
-        offset:       false,
+        where_clause:     true,
+        order_by:         false,
+        limit:            true,
+        offset:           false,
+        pagination_order: PaginationPosture::default(),
     };
     let per_query = IntermediateAutoParams {
         where_clause: None,
@@ -383,10 +394,11 @@ fn test_cross_concern_per_query_some_false_wins_over_project_true() {
     // This is the most common production pattern: a security-sensitive query
     // opts out of automatic where/limit while inheriting the rest.
     let defaults = IntermediateQueryDefaults {
-        where_clause: true,
-        order_by:     true,
-        limit:        true,
-        offset:       true,
+        where_clause:     true,
+        order_by:         true,
+        limit:            true,
+        offset:           true,
+        pagination_order: PaginationPosture::default(),
     };
     let per_query = IntermediateAutoParams {
         where_clause: Some(false), // explicit disable

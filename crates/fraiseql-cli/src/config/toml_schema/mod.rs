@@ -36,7 +36,9 @@ pub use federation::{
 use fraiseql_core::schema::{ChangelogConfig, CrudNamingConfig, NamingConvention};
 pub use observability::ObservabilityConfig;
 pub use observers::{EventHandler, ObserversConfig};
-pub use operations::{MutationDefinition, QueryDefaults, QueryDefinition, SchemaMetadata};
+pub use operations::{
+    MutationDefinition, PaginationPosture, QueryDefaults, QueryDefinition, SchemaMetadata,
+};
 use rest::RestTomlConfig;
 pub use security::{
     ApiKeySecurityConfig, AuthorizationPolicy, AuthorizationRule, CodeChallengeMethod,

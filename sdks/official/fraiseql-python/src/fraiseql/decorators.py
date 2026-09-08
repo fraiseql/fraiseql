@@ -917,6 +917,12 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
               map to native (non-JSONB) columns. ``ID``- and ``UUID``-typed arguments
               are inferred automatically by the compiler; only declare this when the
               type inference does not match (e.g. a native ``TEXT`` column named ``id``).
+            - ``pagination_order``: the column that orders this query's ``LIMIT``/``OFFSET``
+              pages, or ``"none"`` to keep a self-ordering view's own ``ORDER BY``. Omit it
+              and the compiler derives the entity identity, which is what almost every
+              query wants — see ``docs/features/pagination.md``. Validated by the compiler
+              (it is interpolated into ``ORDER BY``) rather than here, so there is one
+              statement of the rule rather than two.
 
     Returns:
         The original function (unmodified)

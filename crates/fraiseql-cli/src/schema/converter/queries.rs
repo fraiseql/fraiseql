@@ -8,8 +8,11 @@ use fraiseql_core::schema::{
 use tracing::warn;
 
 use super::{DeclaredTypeNames, SchemaConverter};
-use crate::schema::intermediate::{
-    IntermediateArgument, IntermediateAutoParams, IntermediateQuery, IntermediateQueryDefaults,
+use crate::{
+    config::toml_schema::PaginationPosture,
+    schema::intermediate::{
+        IntermediateArgument, IntermediateAutoParams, IntermediateQuery, IntermediateQueryDefaults,
+    },
 };
 
 impl SchemaConverter {
@@ -130,12 +133,27 @@ impl SchemaConverter {
         let auto_params = if intermediate.relay {
             AutoParams::relay()
         } else if intermediate.returns_list {
-            let resolved = Self::resolve_auto_params(intermediate.auto_params.as_ref(), defaults);
-            Self::warn_auto_params(&intermediate.name, &resolved);
-            resolved
+            Self::resolve_auto_params(intermediate.auto_params.as_ref(), defaults)
         } else {
             AutoParams::default()
         };
+
+        // The order this query's offset pages are cut in (#1303), resolved here
+        // for the same reason `relay_cursor_column` is: the other pagination
+        // family already declares its ordering key in the compiled schema. Before
+        // the auto-param warnings, which are about what this answers.
+        let pagination_order = Self::resolve_pagination_order(
+            &intermediate.name,
+            intermediate.pagination_order.as_deref(),
+            &auto_params,
+            intermediate.returns_list,
+            intermediate.relay,
+            defaults.pagination_order,
+        )?;
+
+        if intermediate.returns_list && !intermediate.relay {
+            Self::warn_auto_params(&intermediate.name, &auto_params, pagination_order.as_ref());
+        }
 
         let deprecation = intermediate
             .deprecated
@@ -148,17 +166,6 @@ impl SchemaConverter {
         } else {
             None
         };
-
-        // The order this query's offset pages are cut in (#1303), resolved here
-        // for the same reason `relay_cursor_column` is: the other pagination
-        // family already declares its ordering key in the compiled schema.
-        let pagination_order = Self::resolve_pagination_order(
-            &intermediate.name,
-            intermediate.pagination_order.as_deref(),
-            &auto_params,
-            intermediate.returns_list,
-            intermediate.relay,
-        )?;
 
         // Validate additional_views entries as safe SQL identifiers.
         for view in &intermediate.additional_views {
@@ -294,26 +301,30 @@ impl SchemaConverter {
     /// the database URL optionally and a derivation that needed introspection
     /// would be a derivation that breaks offline compiles.
     ///
-    /// | authored | paginates | result |
-    /// |---|---|---|
-    /// | `"none"` | yes | `None` — the author owns the order |
-    /// | a column | yes | [`PaginationOrder::Column`] |
-    /// | absent | yes | [`PaginationOrder::JsonIdentity`] |
-    /// | anything | no | `None`, or an error if the author declared one |
+    /// | authored | paginates | posture | result |
+    /// |---|---|---|---|
+    /// | `"none"` | yes | `identity`/`allow` | `None` — the author owns the order |
+    /// | `"none"` | yes | `refuse` | a compile error |
+    /// | a column | yes | any | [`PaginationOrder::Column`] |
+    /// | absent | yes | `identity`/`refuse` | [`PaginationOrder::JsonIdentity`] |
+    /// | absent | yes | `allow` | `None` — the pre-#1303 behaviour |
+    /// | anything | no | any | `None`, or an error if the author declared one |
     ///
     /// # Errors
     ///
     /// Returns an error when the declared column is not a safe SQL identifier —
-    /// it is interpolated into `ORDER BY` — or when a query that cannot paginate
-    /// declares one at all. The second is refused rather than ignored because an
-    /// ordering that silently applies to nothing looks exactly like one that
-    /// works, and the author is the only one who can see the difference.
+    /// it is interpolated into `ORDER BY` — when a query that cannot paginate
+    /// declares one at all, or when a `"none"` opt-out meets the `refuse` posture.
+    /// The second is refused rather than ignored because an ordering that silently
+    /// applies to nothing looks exactly like one that works, and the author is the
+    /// only one who can see the difference.
     pub(super) fn resolve_pagination_order(
         name: &str,
         authored: Option<&str>,
         auto_params: &AutoParams,
         returns_list: bool,
         relay: bool,
+        posture: PaginationPosture,
     ) -> Result<Option<PaginationOrder>> {
         // Relay is keyset-paginated on `relay_cursor_column` and never reads
         // `limit`/`offset` (`AutoParams::relay` turns both off), so it is
@@ -322,7 +333,15 @@ impl SchemaConverter {
         let paginates = returns_list && !relay && (auto_params.has_limit || auto_params.has_offset);
 
         let Some(authored) = authored else {
-            return Ok(paginates.then_some(PaginationOrder::JsonIdentity));
+            // `allow` derives nothing — a query is ordered only where its author
+            // said so. `refuse` derives exactly what `identity` does; the two
+            // differ only on whether the opt-out below is permitted.
+            return Ok(match posture {
+                PaginationPosture::Identity | PaginationPosture::Refuse => {
+                    paginates.then_some(PaginationOrder::JsonIdentity)
+                },
+                PaginationPosture::Allow => None,
+            });
         };
 
         if !paginates {
@@ -341,6 +360,14 @@ impl SchemaConverter {
         }
 
         if authored.eq_ignore_ascii_case("none") {
+            if posture == PaginationPosture::Refuse {
+                bail!(
+                    "Query '{name}': pagination_order = \"none\" is refused — \
+                     [query_defaults] pagination_order = \"refuse\" says every paginated read \
+                     in this deployment has a total order, with no exceptions. Declare a \
+                     unique column instead, or change the posture."
+                );
+            }
             return Ok(None);
         }
 
@@ -357,9 +384,15 @@ impl SchemaConverter {
 
     /// Emit compile-time warnings for problematic auto-param combinations.
     ///
-    /// Called for non-relay list queries after resolving their final `AutoParams`.
-    pub(super) fn warn_auto_params(name: &str, params: &AutoParams) {
-        for message in Self::auto_param_warnings(name, params) {
+    /// Called for non-relay list queries after resolving their final `AutoParams`
+    /// and the order their pages are cut in — the second decides whether the
+    /// first has anything to say about page determinism (#1303).
+    pub(super) fn warn_auto_params(
+        name: &str,
+        params: &AutoParams,
+        pagination_order: Option<&PaginationOrder>,
+    ) {
+        for message in Self::auto_param_warnings(name, params, pagination_order) {
             warn!(query = name, "{message}");
         }
     }
@@ -371,7 +404,11 @@ impl SchemaConverter {
     /// side effect no test in this crate observes, and all three of these warnings are
     /// about a configuration that compiles cleanly and misbehaves at request time —
     /// exactly the kind that must not be able to go missing unnoticed.
-    pub(super) fn auto_param_warnings(name: &str, params: &AutoParams) -> Vec<String> {
+    pub(super) fn auto_param_warnings(
+        name: &str,
+        params: &AutoParams,
+        pagination_order: Option<&PaginationOrder>,
+    ) -> Vec<String> {
         let mut warnings = Vec::new();
         if !params.has_limit {
             warnings.push(format!(
@@ -380,11 +417,20 @@ impl SchemaConverter {
                  Consider a SQL-level LIMIT in the view, or use relay=true."
             ));
         }
-        if params.has_limit && !params.has_order_by {
+        // #1303: this used to fire on `limit && !order_by`, which was both too
+        // narrow and too wide. Too narrow because a query the client *can* sort is
+        // just as non-deterministic when the client does not; too wide because a
+        // query whose pages carry a total order is deterministic whatever
+        // `order_by` says. The condition is now the thing itself: this query
+        // paginates and nothing orders its pages. It is reachable in exactly two
+        // ways — the author declared `pagination_order = "none"`, or the
+        // deployment set `[query_defaults] pagination_order = "allow"` — and in
+        // both the answer is a SQL-level `ORDER BY`, which is the only remedy left.
+        if params.has_limit && pagination_order.is_none() {
             warnings.push(format!(
-                "List query '{name}' paginates (limit=true) without ordering \
-                 (order_by=false). Results may be non-deterministic across pages. \
-                 Enable order_by or add ORDER BY in the SQL view."
+                "List query '{name}' paginates and nothing orders its pages, so two pages of \
+                 the same relation can overlap and skip rows. The SQL view must carry its own \
+                 ORDER BY, or declare pagination_order to have the compiler apply one."
             ));
         }
         // #1283: the configuration is legal, and the REST surface it produces is a list

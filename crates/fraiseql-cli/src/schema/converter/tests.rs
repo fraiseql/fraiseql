@@ -3760,7 +3760,10 @@ fn a_type_declaring_no_relationships_compiles_to_an_empty_vector() {
 fn auto_param_warnings_state_each_rule_on_the_configuration_that_earns_it() {
     use fraiseql_core::schema::AutoParams;
 
-    let warn = |params| SchemaConverter::auto_param_warnings("things", &params);
+    // The ordering a paginating query resolves to under the default posture — so
+    // these cases read the same configuration the compiler produces for them.
+    let ordered = PaginationOrder::JsonIdentity;
+    let warn = |params| SchemaConverter::auto_param_warnings("things", &params, Some(&ordered));
 
     // Everything on: nothing to say.
     assert!(warn(AutoParams::all()).is_empty());
@@ -3787,11 +3790,33 @@ fn auto_param_warnings_state_each_rule_on_the_configuration_that_earns_it() {
     };
     assert!(warn(unbounded)[0].contains("unbounded"));
 
-    let unordered = AutoParams {
+    // #1303: `order_by = false` is no longer what earns the page-determinism
+    // warning. A query whose pages carry a total order is deterministic whatever
+    // its client-facing sort surface says, so this configuration is now silent.
+    let no_client_sort = AutoParams {
         has_order_by: false,
         ..AutoParams::all()
     };
-    assert!(warn(unordered)[0].contains("non-deterministic"));
+    let silent = warn(no_client_sort.clone());
+    assert!(
+        silent.is_empty(),
+        "a paginating query with a page order has nothing to warn about: {silent:?}"
+    );
+
+    // What earns it now is the thing itself: it paginates, and nothing orders its
+    // pages — reachable through a declared `none` or the `allow` posture. Both
+    // sort surfaces earn it, because a client that *can* sort and does not is in
+    // exactly the same position as one that cannot.
+    for params in [AutoParams::all(), no_client_sort] {
+        let messages = SchemaConverter::auto_param_warnings("things", &params, None);
+        assert_eq!(messages.len(), 1, "{messages:?}");
+        assert!(messages[0].contains("overlap and skip rows"), "{}", messages[0]);
+        assert!(
+            messages[0].contains("pagination_order"),
+            "the remedy must be named: {}",
+            messages[0]
+        );
+    }
 }
 
 // ── #1290 the fixture builder and the compiler agree on auto-params ──────────
@@ -4004,6 +4029,104 @@ fn paginating_query(tweak: impl FnOnce(&mut IntermediateQuery)) -> IntermediateQ
     };
     tweak(&mut q);
     q
+}
+
+/// The three postures, on the query shapes that tell them apart.
+///
+/// `refuse` and `identity` derive the same ordering and differ only on whether the
+/// opt-out is permitted, so a test that only checked the derived value would find
+/// them identical — which is why each case below reads the opt-out too.
+mod posture {
+    use fraiseql_core::schema::AutoParams;
+
+    use super::*;
+    use crate::config::toml_schema::PaginationPosture;
+
+    fn resolve(
+        authored: Option<&str>,
+        posture: PaginationPosture,
+    ) -> Result<Option<PaginationOrder>, anyhow::Error> {
+        SchemaConverter::resolve_pagination_order(
+            "users",
+            authored,
+            &AutoParams::all(),
+            true,
+            false,
+            posture,
+        )
+    }
+
+    #[test]
+    fn identity_derives_the_default_and_permits_the_opt_out() {
+        assert_eq!(
+            resolve(None, PaginationPosture::Identity).unwrap(),
+            Some(PaginationOrder::JsonIdentity)
+        );
+        assert_eq!(resolve(Some("none"), PaginationPosture::Identity).unwrap(), None);
+    }
+
+    #[test]
+    fn refuse_derives_the_same_ordering_but_forbids_the_opt_out() {
+        assert_eq!(
+            resolve(None, PaginationPosture::Refuse).unwrap(),
+            Some(PaginationOrder::JsonIdentity),
+            "refuse is stricter than identity, not different from it"
+        );
+        let err = resolve(Some("none"), PaginationPosture::Refuse)
+            .expect_err("the whole point of the posture");
+        assert!(err.to_string().contains("no exceptions"), "{err}");
+
+        // An authored *column* is still the way to satisfy a strict deployment.
+        assert_eq!(
+            resolve(Some("pk_user"), PaginationPosture::Refuse).unwrap(),
+            Some(PaginationOrder::Column("pk_user".to_string()))
+        );
+    }
+
+    #[test]
+    fn allow_derives_nothing_and_still_honours_an_authored_column() {
+        assert_eq!(
+            resolve(None, PaginationPosture::Allow).unwrap(),
+            None,
+            "the pre-#1303 behaviour is the point of this posture"
+        );
+        assert_eq!(resolve(Some("none"), PaginationPosture::Allow).unwrap(), None);
+        assert_eq!(
+            resolve(Some("pk_user"), PaginationPosture::Allow).unwrap(),
+            Some(PaginationOrder::Column("pk_user".to_string())),
+            "an author who declared a column meant it, whatever the deployment prefers"
+        );
+    }
+
+    #[test]
+    fn the_three_postures_do_not_collapse_to_one_answer() {
+        // Without this, a resolver that ignored the posture entirely would pass
+        // two of the three cases above.
+        let derived = |p| resolve(None, p).unwrap();
+        assert_ne!(derived(PaginationPosture::Identity), derived(PaginationPosture::Allow));
+        let opt_out = |p| resolve(Some("none"), p).is_ok();
+        assert!(opt_out(PaginationPosture::Identity));
+        assert!(!opt_out(PaginationPosture::Refuse));
+    }
+
+    /// The TOML spelling, because the posture is authored as a string and a
+    /// rename would be a silently accepted default.
+    #[test]
+    fn the_toml_spelling_of_each_posture_round_trips() {
+        for (text, expected) in [
+            ("identity", PaginationPosture::Identity),
+            ("refuse", PaginationPosture::Refuse),
+            ("allow", PaginationPosture::Allow),
+        ] {
+            let parsed: PaginationPosture =
+                serde_json::from_value(serde_json::json!(text)).expect(text);
+            assert_eq!(parsed, expected);
+        }
+        assert!(
+            serde_json::from_value::<PaginationPosture>(serde_json::json!("Identity")).is_err(),
+            "the spelling is snake_case and a near-miss must be refused, not defaulted"
+        );
+    }
 }
 
 #[test]

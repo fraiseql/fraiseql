@@ -12,6 +12,7 @@
 | Run the server in production | [`docs/runbooks/`](runbooks/) — 15 incident response runbooks |
 | Deploy on FreeBSD (Jails + ZFS + Caddy) | [`docs/guides/freebsd-deployment.md`](guides/freebsd-deployment.md) |
 | Understand the cache system | [`docs/modules/cache.md`](modules/cache.md) |
+| Understand how paginated reads are ordered | [`docs/features/pagination.md`](features/pagination.md) |
 | Understand window functions | [`docs/modules/window-functions.md`](modules/window-functions.md) |
 | Understand analytics fact tables | [`docs/modules/fact-table.md`](modules/fact-table.md) |
 | Check database feature compatibility | [`docs/database-compatibility.md`](database-compatibility.md) |
@@ -47,6 +48,7 @@ docs/
 │   ├── cache.md                 ← Cache sharding, TTL, cascade invalidation
 │   ├── window-functions.md      ← 3-stage pipeline, dialect table
 │   └── fact-table.md            ← tf_* pattern, introspection flow
+├── features/                    ← Feature guides (pagination, audit logging, CDC, …)
 ├── operations/                  ← Schema lifecycle, observer idempotency
 ├── runbooks/                    ← 15 incident response runbooks
 ├── security/                    ← Threat model, complexity limits

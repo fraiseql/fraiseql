@@ -18,6 +18,82 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A paginated read with no requested ordering is now ordered by the entity identity; declare
+  `pagination_order = "none"` to opt out (#1303).**
+
+  This changes what an unordered paginated read returns. A `LIMIT`/`OFFSET` page is a slice of
+  a *sequence*, and a relation is not a sequence: with no `ORDER BY`, PostgreSQL may return the
+  same rows in a different order for each page, so a client walking `?offset=` sees some rows
+  twice and never sees others — under `200`, with no error anywhere. #1287 closed the half of
+  that where the client ordered by something non-unique. This closes the half where it ordered
+  by nothing.
+
+  **The opt-out is one line**, and it exists because there is one case this makes worse. A view
+  may carry its own `ORDER BY` — FraiseQL's own documented remedy for a query with
+  `order_by = false` — and a default page ordering *replaces* that order rather than adding to
+  it:
+
+  ```python
+  @fraiseql.query(sql_source="v_feed_ranked", pagination_order="none")
+  def feed() -> list[FeedItem]: ...
+  ```
+
+  It is declared rather than inferred because the compiler cannot read a view's body. Compiling
+  with `--database` it *can*, and a view containing `ORDER BY` whose query declares neither way
+  now raises a compile warning naming this remedy.
+
+  **How wide the change is.** Over REST, wider than "routes a client paginates explicitly":
+  `resolve_pagination` fills an absent `?limit=` with `default_page_size`, so every REST list
+  route is a page and is ordered. Over GraphQL, a query passing neither `limit` nor `offset` is
+  not paged and is untouched — a read with no second page has nothing to overlap with, and
+  sorting it would be a cost with no beneficiary. Exports read the whole filtered relation
+  rather than a page and are unaffected, as are Relay connections, which page by cursor.
+
+  **The order is decided at compile time, not at request time.** A tie-breaker and a default
+  ordering are different things: a tie-breaker has no semantic content, so the SQL layer may
+  pick one unaided; a default ordering decides what "page 2" *means* when nobody said, which is
+  the author's call. Choosing well also needs the schema. Measured against PostgreSQL 16,
+  200 000 rows, a deep-offset page:
+
+  ```
+  ordering            planner cost   plan             vs unordered
+  none (before)              4 079   Seq Scan         —
+  data->>'id'               31 241   parallel sort    7.7x
+  native id column          16 959   Index Scan       4.2x
+  pk_<type>                  6 780   Index Scan       1.7x
+  ```
+
+  A 4.6× spread, and the only column a request-time rule can reach unaided is the worst one. So
+  a new `pagination_order` on `QueryDefinition` records the answer, sibling to
+  `relay_cursor_column`, which the other pagination family has always declared for the same
+  reason. Compiled without `--database` it is `data->>'id'` — correct for every type under
+  ADR-0017; compiled with one, the compiler introspects the relation and uses `pk_<type>`, else
+  a native `id`. Compiling with `--database` is what turns 7.7× into 1.7×.
+
+  ⚠ This corrects #1303's own headline. The issue reports a **143×** planner cost for ordering
+  an unordered read; that was measured on 2 000 rows with `LIMIT 10 OFFSET 20`, where the
+  unordered plan stops after 30 rows. At realistic scale it is 7.7× worst-case and 1.7× best.
+
+  **Deployment posture**, for a project that wants a different answer:
+
+  ```toml
+  [query_defaults]
+  pagination_order = "identity"   # default | "refuse" | "allow"
+  ```
+
+  `refuse` forbids the `"none"` opt-out — every paginated read has a total order, no
+  exceptions. `allow` restores the previous behaviour, and the defect with it, which is why the
+  compile then warns for every query it leaves unordered. All three resolve at compile time:
+  the compiled `pagination_order` is the answer, and a second switch at runtime could disagree
+  with it.
+
+  A client's own `orderBy`/`?sort=` is never replaced — the identity is appended, so it breaks
+  only the ties the client's keys left. The compile-time warning about non-deterministic pages
+  now fires on exactly the queries that still have them, rather than on `order_by = false`.
+
+  See [`docs/features/pagination.md`](docs/features/pagination.md).
+
+
 - **Offset pagination orders totally: the entity identity is appended when the requested
   ordering is not unique (#1287).**
 
@@ -72,12 +148,13 @@ disagreed, and the promise was the part that was wrong.
   a composite index removes even that (54.33). No sort is introduced that did not already
   exist — the ordering being tie-broken had already forced one.
 
-  **What this deliberately does not change:** a read requesting *no* ordering still emits no
-  `ORDER BY`. Manufacturing one turns every unordered list read into a full sort — 143× the
-  planner cost on the same fixture, growing with the table — and that case did not reproduce
-  even once, because an unordered read of a quiet table is a plain sequential scan. Imposing
-  a certain, unbounded cost to fix a defect that could not be demonstrated is the wrong trade
-  to make silently; it is #1303, with both measurements and four directions.
+  **What this left for #1303:** a read requesting *no* ordering. That case is closed in this
+  same release by the bullet below, which is where the cost argument is settled — and settled
+  against the figure quoted here. The 143× above was measured on 2 000 rows with
+  `LIMIT 10 OFFSET 20`, where the unordered plan stops after 30 rows and the denominator is
+  trivially small; at 200 000 rows with a deep offset it is 7.7× for the most expensive column
+  and 1.7× for the cheapest. The trade is real but an order of magnitude smaller than this
+  paragraph claimed.
 
 
 - **A `?rel.field=value` filter with no embed to apply it to is refused, and an embedded count

@@ -184,6 +184,11 @@ where = true                            # Auto-add where parameter to list queri
 order_by = true                         # Auto-add order_by parameter
 limit = true                            # Auto-add limit parameter
 offset = true                           # Auto-add offset parameter
+# What orders a LIMIT/OFFSET page, so two pages cannot overlap or skip rows (#1303).
+#   identity - order by the entity id; a query may declare pagination_order = "none"
+#   refuse   - as identity, and the "none" opt-out is a compile error
+#   allow    - derive nothing (pre-2.15.0 behaviour; the compile warns for each query)
+pagination_order = "identity"
 
 # =============================================================================
 # CACHING

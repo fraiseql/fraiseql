@@ -4,6 +4,51 @@ use serde::{Deserialize, Serialize};
 
 use super::types::ArgumentDefinition;
 
+/// What the compiler does about the order a paginated read's pages are cut in
+/// (#1303).
+///
+/// An offset page is a slice of a *sequence*, and a read with no `ORDER BY` is not
+/// a sequence — two pages of the same relation can overlap and skip rows, under a
+/// `200`. The deployment-wide answer is here; a query overrides it with its own
+/// `pagination_order`.
+///
+/// # Why all three are compile-time
+///
+/// #1303 framed the strict posture as a request-time `400`, because it framed the
+/// ordering as a request property. It is not one: since the order is recorded per
+/// query in the compiled schema, every posture resolves into what the compiler
+/// writes there, and a second switch at runtime would be a second place the answer
+/// lives — free to disagree with the artifact that is supposed to *be* the answer.
+/// Refusing at compile time is also strictly earlier than refusing at request time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, Serialize)]
+#[serde(rename_all = "snake_case", deny_unknown_fields)]
+pub enum PaginationPosture {
+    /// Every paginating query gets the entity identity, and an author may declare
+    /// `pagination_order = "none"` to keep a self-ordering view's own `ORDER BY`.
+    ///
+    /// The default, and the founder decision of 2026-09-08: the boilerplate of a
+    /// must-declare rule is a permanent tax on every paginated query written from
+    /// now on, while the identity default's cost is bounded, measured (1.7–7.7×
+    /// on unordered paginated reads) and recoverable by one declaration in the
+    /// minority of cases where it is wrong.
+    #[default]
+    Identity,
+    /// As [`Identity`](Self::Identity), and `pagination_order = "none"` is refused.
+    ///
+    /// #1303's option 1, kept as a posture rather than a default: in this
+    /// deployment every paginated read has a total order and there are no
+    /// exceptions, including the self-ordering-view one. The refusal is a compile
+    /// error naming the query, not a `400` a client discovers.
+    Refuse,
+    /// Derive nothing: a query is ordered only where its author declared a column.
+    ///
+    /// The pre-#1303 behaviour, kept because this release changes what an
+    /// unordered paginated read returns and an operator may need the old answer
+    /// while their clients catch up. It restores the defect with it — which is why
+    /// the compile warns for every query it leaves unordered.
+    Allow,
+}
+
 /// Global defaults for list-query auto-params.
 ///
 /// Applied when a per-query `auto_params` does not specify a given flag.
@@ -11,35 +56,45 @@ use super::types::ArgumentDefinition;
 ///
 /// ```toml
 /// [query_defaults]
-/// where    = true
-/// order_by = true
-/// limit    = false  # e.g. Relay-first project
-/// offset   = false
+/// where            = true
+/// order_by         = true
+/// limit            = false  # e.g. Relay-first project
+/// offset           = false
+/// pagination_order = "identity"
 /// ```
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct QueryDefaults {
     /// Enable automatic `where` filter parameter (default: true)
     #[serde(rename = "where", default = "default_true")]
-    pub where_clause: bool,
+    pub where_clause:     bool,
     /// Enable automatic `order_by` parameter (default: true)
     #[serde(default = "default_true")]
-    pub order_by:     bool,
+    pub order_by:         bool,
     /// Enable automatic `limit` parameter (default: true)
     #[serde(default = "default_true")]
-    pub limit:        bool,
+    pub limit:            bool,
     /// Enable automatic `offset` parameter (default: true)
     #[serde(default = "default_true")]
-    pub offset:       bool,
+    pub offset:           bool,
+    /// What the compiler does about the order paginated reads are cut in (#1303).
+    ///
+    /// ```toml
+    /// [query_defaults]
+    /// pagination_order = "identity"  # default | "refuse" | "allow"
+    /// ```
+    #[serde(default)]
+    pub pagination_order: PaginationPosture,
 }
 
 impl Default for QueryDefaults {
     fn default() -> Self {
         Self {
-            where_clause: true,
-            order_by:     true,
-            limit:        true,
-            offset:       true,
+            where_clause:     true,
+            order_by:         true,
+            limit:            true,
+            offset:           true,
+            pagination_order: PaginationPosture::Identity,
         }
     }
 }

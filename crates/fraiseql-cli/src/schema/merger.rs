@@ -909,10 +909,11 @@ impl SchemaMerger {
         // Inject TOML [query_defaults] into the schema so the converter can apply
         // them as project-wide fallbacks for list-query auto-params.
         schema.query_defaults = Some(IntermediateQueryDefaults {
-            where_clause: toml_schema.query_defaults.where_clause,
-            order_by:     toml_schema.query_defaults.order_by,
-            limit:        toml_schema.query_defaults.limit,
-            offset:       toml_schema.query_defaults.offset,
+            where_clause:     toml_schema.query_defaults.where_clause,
+            order_by:         toml_schema.query_defaults.order_by,
+            limit:            toml_schema.query_defaults.limit,
+            offset:           toml_schema.query_defaults.offset,
+            pagination_order: toml_schema.query_defaults.pagination_order,
         });
 
         Ok(schema)

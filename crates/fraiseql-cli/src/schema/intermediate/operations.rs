@@ -611,22 +611,25 @@ pub struct IntermediateAutoParams {
 #[serde(deny_unknown_fields)]
 pub struct IntermediateQueryDefaults {
     /// Default for `where` parameter
-    pub where_clause: bool,
+    pub where_clause:     bool,
     /// Default for `order_by` parameter
-    pub order_by:     bool,
+    pub order_by:         bool,
     /// Default for `limit` parameter
-    pub limit:        bool,
+    pub limit:            bool,
     /// Default for `offset` parameter
-    pub offset:       bool,
+    pub offset:           bool,
+    /// Deployment-wide posture on the order paginated pages are cut in (#1303).
+    pub pagination_order: crate::config::toml_schema::PaginationPosture,
 }
 
 impl Default for IntermediateQueryDefaults {
     fn default() -> Self {
         Self {
-            where_clause: true,
-            order_by:     true,
-            limit:        true,
-            offset:       true,
+            where_clause:     true,
+            order_by:         true,
+            limit:            true,
+            offset:           true,
+            pagination_order: crate::config::toml_schema::PaginationPosture::Identity,
         }
     }
 }
