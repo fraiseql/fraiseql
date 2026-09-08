@@ -82,6 +82,8 @@ mod cost_tests {
 }
 
 mod compile_tests {
+    use std::collections::HashMap;
+
     use fraiseql_core::schema::{
         ArgumentDefinition, AutoParams, CompiledSchema, FieldDefinition, FieldDenyPolicy,
         FieldType, InputFieldDefinition, InputObjectDefinition, InputStyle, MutationDefinition,
@@ -89,7 +91,7 @@ mod compile_tests {
     };
 
     use super::super::compile::{
-        WIDE_FANOUT_THRESHOLD, emit_ddl_to_dir, field_type_to_pg,
+        WIDE_FANOUT_THRESHOLD, apply_database_report, emit_ddl_to_dir, field_type_to_pg,
         infer_native_columns_from_arg_types, jsonb_preserve_mismatches, to_snake_case,
         wide_cascade_mutations,
     };
@@ -403,6 +405,67 @@ mod compile_tests {
             auto_params: AutoParams::default(),
             ..Default::default()
         }
+    }
+
+    // ── #1303 the --database fold ───────────────────────────────────────────
+
+    /// A sharpened page ordering reaches the compiled query.
+    ///
+    /// The patch site used to be a loop inside the pipeline, reachable only from a
+    /// live connection — so a discovery that stopped being applied would look
+    /// exactly like a database with nothing to discover.
+    #[test]
+    fn a_sharpened_pagination_order_is_folded_into_the_query() {
+        use fraiseql_core::schema::PaginationOrder;
+
+        let mut schema = CompiledSchema {
+            queries: vec![QueryDefinition {
+                pagination_order: Some(PaginationOrder::JsonIdentity),
+                ..make_query("users", Some("v_user"), "data", vec![], HashMap::new())
+            }],
+            ..Default::default()
+        };
+        let report = crate::schema::database_validator::DatabaseValidationReport {
+            warnings:          Vec::new(),
+            native_columns:    HashMap::new(),
+            pagination_orders: std::iter::once((
+                "users".to_string(),
+                PaginationOrder::Column("pk_user".into()),
+            ))
+            .collect(),
+        };
+
+        apply_database_report(&mut schema, &report);
+        assert_eq!(
+            schema.queries[0].pagination_order,
+            Some(PaginationOrder::Column("pk_user".into()))
+        );
+    }
+
+    /// A query the report says nothing about keeps the compiler's offline answer.
+    #[test]
+    fn a_query_absent_from_the_report_keeps_its_offline_order() {
+        use fraiseql_core::schema::PaginationOrder;
+
+        let mut schema = CompiledSchema {
+            queries: vec![QueryDefinition {
+                pagination_order: Some(PaginationOrder::JsonIdentity),
+                ..make_query("users", Some("v_user"), "data", vec![], HashMap::new())
+            }],
+            ..Default::default()
+        };
+        let report = crate::schema::database_validator::DatabaseValidationReport {
+            warnings:          Vec::new(),
+            native_columns:    HashMap::new(),
+            pagination_orders: HashMap::new(),
+        };
+
+        apply_database_report(&mut schema, &report);
+        assert_eq!(
+            schema.queries[0].pagination_order,
+            Some(PaginationOrder::JsonIdentity),
+            "the offline answer is correct; an empty report is not a reason to drop it"
+        );
     }
 
     #[test]

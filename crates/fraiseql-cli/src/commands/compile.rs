@@ -406,12 +406,7 @@ pub async fn compile_to_schema(
                 Severity::Warn => warn!("{w}"),
             }
         }
-        // Patch QueryDefinitions with DB-discovered native_columns, overriding inferred values.
-        for query in &mut schema.queries {
-            if let Some(cols) = db_report.native_columns.get(&query.name) {
-                query.native_columns = cols.clone();
-            }
-        }
+        apply_database_report(&mut schema, &db_report);
 
         // Mutation call/response contract (#384 item 3: inject_params resolve to real
         // function arguments). PostgreSQL-only — the catalog reads `pg_proc`.
@@ -480,6 +475,23 @@ pub async fn compile_to_schema(
                     query.name,
                     names,
                     query.sql_source.as_deref().unwrap_or("?"),
+                );
+            }
+
+            // #1303: the same trade, for the page ordering. The offline answer is
+            // correct — `data->>'id'` orders every type under ADR-0017 — and it is
+            // the most expensive of the three, which is exactly the shape of every
+            // other `--database` sharpening in this pipeline.
+            if query.pagination_order == Some(fraiseql_core::schema::PaginationOrder::JsonIdentity)
+            {
+                warn!(
+                    "query `{}`: offset pages will be ordered by `data->>'id'` — no --database \
+                     URL provided, so a cheaper unique column on `{}` could not be found. \
+                     Provide --database to use `pk_{}` or a native `id` column instead, or \
+                     declare pagination_order.",
+                    query.name,
+                    query.sql_source.as_deref().unwrap_or("?"),
+                    fraiseql_core::utils::to_snake_case(&query.return_type),
                 );
             }
         }
@@ -1260,6 +1272,31 @@ async fn validate_indexed_columns(schema: &CompiledSchema, db_url: &str) -> Resu
 const NATIVE_COLUMN_SKIP_ARGS: &[&str] = &[
     "where", "limit", "offset", "orderBy", "first", "last", "after", "before",
 ];
+
+/// Fold what introspection discovered back into the compiled schema.
+///
+/// Both halves are *sharpenings*: the schema is already correct without a
+/// database, and a `--database` compile makes it cheaper. Split out of the
+/// pipeline so the fold is testable without one — the patch loop it replaced was
+/// reachable only from a live connection, which is the shape a discovery that
+/// silently stops being applied hides in.
+///
+/// An authored `pagination_order` is protected upstream, in the validator, which
+/// only reports a sharpening for a query whose ordering the compiler derived. It
+/// is stated here too because this is where the overwrite happens.
+pub(crate) fn apply_database_report(
+    schema: &mut fraiseql_core::schema::CompiledSchema,
+    report: &crate::schema::database_validator::DatabaseValidationReport,
+) {
+    for query in &mut schema.queries {
+        if let Some(cols) = report.native_columns.get(&query.name) {
+            query.native_columns = cols.clone();
+        }
+        if let Some(order) = report.pagination_orders.get(&query.name) {
+            query.pagination_order = Some(order.clone());
+        }
+    }
+}
 
 /// Infer `native_columns` for `ID`/`UUID`-typed arguments on JSONB-backed queries.
 ///

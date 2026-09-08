@@ -352,6 +352,27 @@ impl DatabaseIntrospector for PostgresIntrospector {
 
         Ok(Some(row.get(0)))
     }
+
+    async fn get_view_definition(&self, relation: &str) -> Result<Option<String>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        // `to_regclass` resolves a bare name through `search_path` and a qualified
+        // one verbatim, exactly as `qualified_relation_exists` does, and yields NULL
+        // rather than raising when the relation is absent. `pg_get_viewdef` of a
+        // non-view is NULL too, so a table and a missing relation are the same
+        // answer here — which is correct, because neither has a body to read.
+        let row = client
+            .query_one("SELECT pg_get_viewdef(to_regclass($1), true)", &[&relation])
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to read view definition: {}", pg_detail(&e)),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+
+        Ok(row.get(0))
+    }
 }
 
 impl PostgresIntrospector {

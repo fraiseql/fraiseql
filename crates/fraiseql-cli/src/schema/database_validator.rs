@@ -20,7 +20,9 @@ use fraiseql_core::{
         DatabaseType,
         introspector::{DatabaseIntrospector, RelationInfo},
     },
-    schema::{CompiledSchema, FieldType, SourceKind, SourceProbe, sql_source_probes},
+    schema::{
+        CompiledSchema, FieldType, PaginationOrder, SourceKind, SourceProbe, sql_source_probes,
+    },
 };
 
 use super::mutation_contract::Severity;
@@ -28,7 +30,7 @@ use super::mutation_contract::Severity;
 /// Report containing all database validation warnings and discovered metadata.
 pub struct DatabaseValidationReport {
     /// All warnings emitted during validation.
-    pub warnings:       Vec<DatabaseWarning>,
+    pub warnings:          Vec<DatabaseWarning>,
     /// Native columns discovered per query during L2 validation.
     ///
     /// Key: query name. Value: map of argument name → `PostgreSQL` type string
@@ -36,7 +38,18 @@ pub struct DatabaseValidationReport {
     ///
     /// Only contains entries for queries that have at least one direct argument
     /// with a matching native column on their `sql_source`.
-    pub native_columns: HashMap<String, HashMap<String, String>>,
+    pub native_columns:    HashMap<String, HashMap<String, String>>,
+    /// Cheaper page orderings discovered per query during L2 validation (#1303).
+    ///
+    /// Key: query name. Value: the ordering to replace the compiler's offline
+    /// answer with.
+    ///
+    /// Only contains entries for queries whose `pagination_order` the compiler
+    /// *derived* — an authored one is never overridden, and a query that declared
+    /// `none` is never given one back. The offline derivation is already correct;
+    /// this makes it cheap, which is why introspection may sharpen the answer and
+    /// may never be required to produce one.
+    pub pagination_orders: HashMap<String, PaginationOrder>,
 }
 
 /// A single database validation warning.
@@ -100,6 +113,52 @@ pub enum DatabaseWarning {
         column_name: String,
         /// The actual SQL data type.
         actual_type: String,
+    },
+    /// L2: an authored `pagination_order` column does not exist on the relation (#1303).
+    ///
+    /// The same shape as [`MissingCursorColumn`](Self::MissingCursorColumn) and
+    /// error-grade for the same reason: the column is rendered into `ORDER BY`, so
+    /// a name the relation does not carry is a query that fails at request time,
+    /// on a route that compiled cleanly.
+    MissingPaginationColumn {
+        /// Name of the query.
+        query_name:  String,
+        /// The `sql_source` relation.
+        sql_source:  String,
+        /// The missing column name.
+        column_name: String,
+    },
+    /// L2: no cheaper unique column was found, so pages stay ordered by
+    /// `data->>'id'` (#1303).
+    ///
+    /// Advisory: the ordering is *correct*, and correct is the point — `id` is an
+    /// enforced invariant (ADR-0017), so the extraction orders every type. It is
+    /// simply the most expensive of the three known spellings, and the relation is
+    /// the only place a cheaper one could have come from.
+    PaginationIdentityFallback {
+        /// Name of the query.
+        query_name: String,
+        /// The `sql_source` relation.
+        sql_source: String,
+        /// The `pk_<type>` column that would have been used had it existed.
+        pk_column:  String,
+    },
+    /// L2: the view carries its own `ORDER BY` and the query did not declare
+    /// `pagination_order = "none"` (#1303).
+    ///
+    /// The one case where ordering pages by the entity identity is a *regression*:
+    /// a self-ordering view is the compiler's own documented remedy for
+    /// `order_by = false`, and a default ordering replaces the author's order
+    /// rather than adding to it. Advisory rather than error-grade because
+    /// `pg_get_viewdef` cannot tell a top-level `ORDER BY` from one inside a
+    /// subquery or window frame, where imposing a page order is entirely correct —
+    /// so this reports a suspicion, and the author resolves it by declaring either
+    /// way.
+    SelfOrderingView {
+        /// Name of the query.
+        query_name: String,
+        /// The `sql_source` view.
+        sql_source: String,
     },
     /// L2: `relay_cursor_column` does not exist on the relation.
     MissingCursorColumn {
@@ -184,6 +243,7 @@ impl DatabaseWarning {
             | Self::MissingJsonColumn { .. }
             | Self::WrongJsonColumnType { .. }
             | Self::MissingCursorColumn { .. }
+            | Self::MissingPaginationColumn { .. }
             | Self::TypeConvertibility { .. } => Severity::Error,
             Self::MissingJsonKey { field_required, .. } => {
                 if *field_required {
@@ -192,7 +252,10 @@ impl DatabaseWarning {
                     Severity::Warn
                 }
             },
-            Self::MissingTypeSource { .. } | Self::NativeColumnFallback { .. } => Severity::Warn,
+            Self::MissingTypeSource { .. }
+            | Self::NativeColumnFallback { .. }
+            | Self::PaginationIdentityFallback { .. }
+            | Self::SelfOrderingView { .. } => Severity::Warn,
         }
     }
 }
@@ -268,6 +331,45 @@ impl fmt::Display for DatabaseWarning {
                 write!(
                     f,
                     "query `{query_name}`: relay cursor column `{column_name}` not found on `{sql_source}`"
+                )
+            },
+            Self::MissingPaginationColumn {
+                query_name,
+                sql_source,
+                column_name,
+            } => {
+                write!(
+                    f,
+                    "query `{query_name}`: pagination_order column `{column_name}` not found on \
+                     `{sql_source}` — it is rendered into ORDER BY, so this query fails at \
+                     request time"
+                )
+            },
+            Self::PaginationIdentityFallback {
+                query_name,
+                sql_source,
+                pk_column,
+            } => {
+                write!(
+                    f,
+                    "query `{query_name}`: offset pages are ordered by `data->>'id'` because \
+                     `{sql_source}` exposes neither `{pk_column}` nor a native `id` column. \
+                     Correct, but the most expensive of the three orderings (measured 7.7x the \
+                     unordered plan at 200k rows and a deep offset, against 1.7x for \
+                     `{pk_column}`). Expose one of them, or declare pagination_order"
+                )
+            },
+            Self::SelfOrderingView {
+                query_name,
+                sql_source,
+            } => {
+                write!(
+                    f,
+                    "query `{query_name}`: view `{sql_source}` carries its own ORDER BY, and \
+                     this query does not declare pagination_order. An offset page will now be \
+                     ordered by the entity identity instead, replacing the view's order. \
+                     Declare pagination_order = \"none\" to keep it, or a column to confirm \
+                     the new one"
                 )
             },
             Self::MissingJsonKey {
@@ -478,6 +580,7 @@ pub async fn validate_schema_against_database(
 
     let mut warnings = Vec::new();
     let mut native_columns: HashMap<String, HashMap<String, String>> = HashMap::new();
+    let mut pagination_orders: HashMap<String, PaginationOrder> = HashMap::new();
     let db_type = introspector.database_type();
 
     // L1: Build relation lookup maps
@@ -537,6 +640,52 @@ pub async fn validate_schema_against_database(
                         });
                     }
                 }
+            }
+
+            // L2: pagination_order (#1303). Three questions, in the order the
+            // compiled value answers them: a declared column must exist; a derived
+            // JSONB identity may be sharpened to a cheaper native one; and either
+            // way, a view that orders itself is about to have that order replaced.
+            match &query.pagination_order {
+                Some(PaginationOrder::Column(col)) => {
+                    if !column_map.contains_key(col) {
+                        warnings.push(DatabaseWarning::MissingPaginationColumn {
+                            query_name:  query.name.clone(),
+                            sql_source:  source.clone(),
+                            column_name: col.clone(),
+                        });
+                    }
+                },
+                Some(PaginationOrder::JsonIdentity) => {
+                    let pk = pk_column_name(&query.return_type);
+                    if let Some(col) = cheapest_identity_column(&pk, &column_map) {
+                        pagination_orders.insert(query.name.clone(), PaginationOrder::Column(col));
+                    } else {
+                        warnings.push(DatabaseWarning::PaginationIdentityFallback {
+                            query_name: query.name.clone(),
+                            sql_source: source.clone(),
+                            pk_column:  pk,
+                        });
+                    }
+                },
+                None => {},
+            }
+
+            // A view that orders itself is the one shape a default page ordering
+            // makes worse, and the author is the only one who can adjudicate it —
+            // so it is reported wherever a default is about to apply, whether the
+            // ordering came from the author or from the compiler. A query that
+            // declared `none` has already answered and is silent.
+            if query.pagination_order.is_some()
+                && introspector
+                    .get_view_definition(source)
+                    .await?
+                    .is_some_and(|body| orders_itself(&body))
+            {
+                warnings.push(DatabaseWarning::SelfOrderingView {
+                    query_name: query.name.clone(),
+                    sql_source: source.clone(),
+                });
             }
 
             // L3: Sample JSON keys if jsonb_column is valid JSON type
@@ -663,7 +812,48 @@ pub async fn validate_schema_against_database(
     Ok(DatabaseValidationReport {
         warnings,
         native_columns,
+        pagination_orders,
     })
+}
+
+/// The Trinity primary-key column a type's relation is expected to expose.
+///
+/// The same derivation `relay_cursor_column` uses (`User` → `pk_user`), and
+/// deliberately so: when a relation carries it, both pagination families cut
+/// their pages on the same column, which is ADR-0017's "one identity, consumed
+/// uniformly, not re-derived per subsystem".
+fn pk_column_name(return_type: &str) -> String {
+    format!("pk_{}", fraiseql_core::utils::to_snake_case(return_type))
+}
+
+/// The cheapest native column that totally orders this relation, if it has one.
+///
+/// `pk_<type>` before `id`, which is the opposite of the order the two are
+/// usually reached in and is what the measurements say: against PostgreSQL 16
+/// over 200 000 rows at a deep offset, the `pk` BIGINT index scan costs 1.7x the
+/// unordered plan and the `id` UUID one 4.2x. Both beat the JSONB extraction's
+/// 7.7x, so either is worth taking.
+///
+/// Only the *name* is checked, never the type: a column that orders the rows is
+/// all a total order needs, and a `pk_`/`id` column that is not unique is a
+/// broken view rather than a case to code around.
+fn cheapest_identity_column(pk: &str, columns: &HashMap<String, String>) -> Option<String> {
+    if columns.contains_key(pk) {
+        return Some(pk.to_string());
+    }
+    columns.contains_key("id").then(|| "id".to_string())
+}
+
+/// Does this view body carry its own `ORDER BY`?
+///
+/// Deliberately lexical, and deliberately not exact. `pg_get_viewdef` returns
+/// normalised SQL, so `ORDER BY` appears upper-cased and space-separated when it
+/// appears at all — but it appears for a window frame and a subquery too, where a
+/// page ordering on the outer read is entirely correct. The finding this drives is
+/// therefore advisory and says what it saw; a stricter parser would trade a
+/// question the author can answer in a second for a dependency on parsing SQL.
+fn orders_itself(view_body: &str) -> bool {
+    view_body.contains("ORDER BY")
 }
 
 /// Build lookup maps from the list of relations.
@@ -874,6 +1064,12 @@ impl DatabaseIntrospector for AnyIntrospector {
     ) -> fraiseql_core::Result<Option<bool>> {
         match self {
             Self::Postgres(i) => i.qualified_relation_exists(schema, name).await,
+        }
+    }
+
+    async fn get_view_definition(&self, relation: &str) -> fraiseql_core::Result<Option<String>> {
+        match self {
+            Self::Postgres(i) => i.get_view_definition(relation).await,
         }
     }
 }

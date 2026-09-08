@@ -11,13 +11,13 @@ mod database_validator_tests {
         },
         schema::{
             ArgumentDefinition, AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldType,
-            MutationDefinition, QueryDefinition, TypeDefinition,
+            MutationDefinition, PaginationOrder, QueryDefinition, TypeDefinition,
         },
         validation::CustomTypeRegistry,
     };
     use indexmap::IndexMap;
 
-    use super::super::database_validator::*;
+    use super::super::{database_validator::*, mutation_contract::Severity};
 
     /// Mock introspector for unit tests.
     struct MockIntrospector {
@@ -25,6 +25,7 @@ mod database_validator_tests {
         columns:      HashMap<String, Vec<(String, String, bool)>>,
         json_samples: HashMap<(String, String), Vec<serde_json::Value>>,
         functions:    std::collections::HashSet<String>,
+        view_defs:    HashMap<String, String>,
         db_type:      DatabaseType,
     }
 
@@ -35,6 +36,7 @@ mod database_validator_tests {
                 columns: HashMap::new(),
                 json_samples: HashMap::new(),
                 functions: std::collections::HashSet::new(),
+                view_defs: HashMap::new(),
                 db_type,
             }
         }
@@ -67,6 +69,12 @@ mod database_validator_tests {
                     .map(|(n, t, nullable)| (n.to_string(), t.to_string(), nullable))
                     .collect(),
             );
+            self
+        }
+
+        /// Register a view body, as `pg_get_viewdef` would return it (#1303).
+        fn with_view_definition(mut self, view: &str, body: &str) -> Self {
+            self.view_defs.insert(view.to_string(), body.to_string());
             self
         }
 
@@ -134,6 +142,13 @@ mod database_validator_tests {
                 None => name.to_string(),
             };
             Ok(Some(self.functions.contains(&key)))
+        }
+
+        async fn get_view_definition(
+            &self,
+            relation: &str,
+        ) -> fraiseql_core::Result<Option<String>> {
+            Ok(self.view_defs.get(relation).cloned())
         }
     }
 
@@ -687,6 +702,288 @@ mod database_validator_tests {
         assert_eq!(
             warning.to_string(),
             "query `users`: sql_source `v_user` does not exist in database"
+        );
+    }
+
+    // ── #1303 the --database sharpening ─────────────────────────────────────
+
+    /// A `users` query over `v_user`, with the compiler's offline answer already on
+    /// it — which is the state every paginating query reaches the validator in.
+    fn paginating_query(order: Option<PaginationOrder>) -> QueryDefinition {
+        let mut q = make_query("users", "User", "v_user");
+        q.pagination_order = order;
+        q
+    }
+
+    fn paginating_schema(order: Option<PaginationOrder>) -> CompiledSchema {
+        make_schema(
+            vec![make_type("User", vec![("name", FieldType::String)])],
+            vec![paginating_query(order)],
+        )
+    }
+
+    /// A relation exposing both: `pk_user` wins, because it is the cheaper of the
+    /// two (1.7x against 4.2x) *and* the column relay already pages on.
+    #[tokio::test]
+    async fn a_derived_identity_is_sharpened_to_the_pk_column() {
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
+            .with_columns(
+                "v_user",
+                vec![
+                    ("data", "jsonb", false),
+                    ("id", "uuid", false),
+                    ("pk_user", "bigint", false),
+                ],
+            )
+            .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
+
+        let report = validate_schema_against_database(
+            &paginating_schema(Some(PaginationOrder::JsonIdentity)),
+            &introspector,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            report.pagination_orders.get("users"),
+            Some(&PaginationOrder::Column("pk_user".into()))
+        );
+    }
+
+    /// No `pk_user`, but a native `id`: still 4.2x against the extraction's 7.7x.
+    #[tokio::test]
+    async fn a_relation_with_only_a_native_id_is_sharpened_to_it() {
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
+            .with_columns("v_user", vec![("data", "jsonb", false), ("id", "uuid", false)])
+            .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
+
+        let report = validate_schema_against_database(
+            &paginating_schema(Some(PaginationOrder::JsonIdentity)),
+            &introspector,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(
+            report.pagination_orders.get("users"),
+            Some(&PaginationOrder::Column("id".into()))
+        );
+    }
+
+    /// Neither column: the offline answer stands, and the compile says why. The
+    /// JSONB extraction is *correct* — this is a cost report, not a defect report.
+    #[tokio::test]
+    async fn a_relation_with_neither_keeps_the_json_identity_and_says_so() {
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
+            .with_columns("v_user", vec![("data", "jsonb", false)])
+            .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
+
+        let report = validate_schema_against_database(
+            &paginating_schema(Some(PaginationOrder::JsonIdentity)),
+            &introspector,
+        )
+        .await
+        .unwrap();
+
+        assert!(report.pagination_orders.is_empty(), "{:?}", report.pagination_orders);
+        let finding = report
+            .warnings
+            .iter()
+            .find(|w| matches!(w, DatabaseWarning::PaginationIdentityFallback { .. }))
+            .unwrap_or_else(|| panic!("expected a fallback finding, got {:?}", report.warnings));
+        assert_eq!(finding.severity(), Severity::Warn, "a correct ordering is not a drift error");
+        assert!(finding.to_string().contains("pk_user"), "{finding}");
+    }
+
+    /// An authored column is never replaced — only its existence is checked.
+    #[tokio::test]
+    async fn an_authored_column_is_checked_but_never_overridden() {
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
+            .with_columns(
+                "v_user",
+                vec![
+                    ("data", "jsonb", false),
+                    ("pk_user", "bigint", false),
+                    ("email", "text", false),
+                ],
+            )
+            .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
+
+        let report = validate_schema_against_database(
+            &paginating_schema(Some(PaginationOrder::Column("email".into()))),
+            &introspector,
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            report.pagination_orders.is_empty(),
+            "a cheaper column exists on the relation, and the author's choice still stands: {:?}",
+            report.pagination_orders
+        );
+        assert!(report.warnings.is_empty(), "{:?}", report.warnings);
+    }
+
+    /// A declared column the relation does not carry fails the compile, exactly as
+    /// a missing relay cursor column does: it is rendered into ORDER BY.
+    #[tokio::test]
+    async fn a_declared_column_that_does_not_exist_is_a_drift_error() {
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
+            .with_columns("v_user", vec![("data", "jsonb", false)])
+            .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
+
+        let report = validate_schema_against_database(
+            &paginating_schema(Some(PaginationOrder::Column("pk_user".into()))),
+            &introspector,
+        )
+        .await
+        .unwrap();
+
+        let finding = report
+            .warnings
+            .iter()
+            .find(|w| matches!(w, DatabaseWarning::MissingPaginationColumn { .. }))
+            .unwrap_or_else(|| {
+                panic!("expected a missing-column finding, got {:?}", report.warnings)
+            });
+        assert_eq!(finding.severity(), Severity::Error);
+        assert!(finding.to_string().contains("pk_user"), "{finding}");
+    }
+
+    /// A query that declared `none` gets no ordering back, and no advice about one.
+    #[tokio::test]
+    async fn a_query_that_opted_out_is_left_alone() {
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
+            .with_columns("v_user", vec![("data", "jsonb", false), ("pk_user", "bigint", false)])
+            .with_view_definition("v_user", " SELECT data FROM tb_user ORDER BY data ->> 'name'")
+            .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
+
+        let report = validate_schema_against_database(&paginating_schema(None), &introspector)
+            .await
+            .unwrap();
+
+        assert!(report.pagination_orders.is_empty(), "{:?}", report.pagination_orders);
+        assert!(
+            report.warnings.is_empty(),
+            "the author already answered the question this view raises: {:?}",
+            report.warnings
+        );
+    }
+
+    /// The one case the default ordering makes worse, reported at compile time
+    /// rather than discovered as a reordered page.
+    #[tokio::test]
+    async fn a_self_ordering_view_asks_the_author_to_declare() {
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
+            .with_columns("v_user", vec![("data", "jsonb", false), ("pk_user", "bigint", false)])
+            .with_view_definition(
+                "v_user",
+                " SELECT data FROM tb_user ORDER BY (data ->> 'created_at'::text)",
+            )
+            .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
+
+        let report = validate_schema_against_database(
+            &paginating_schema(Some(PaginationOrder::JsonIdentity)),
+            &introspector,
+        )
+        .await
+        .unwrap();
+
+        let finding = report
+            .warnings
+            .iter()
+            .find(|w| matches!(w, DatabaseWarning::SelfOrderingView { .. }))
+            .unwrap_or_else(|| {
+                panic!("expected a self-ordering finding, got {:?}", report.warnings)
+            });
+        assert_eq!(finding.severity(), Severity::Warn);
+        assert!(finding.to_string().contains("none"), "the remedy must be named: {finding}");
+    }
+
+    /// Every `DatabaseIntrospector` method is delegated by `AnyIntrospector`.
+    ///
+    /// `AnyIntrospector` is the enum the real `compile --database` runs through, and
+    /// every method with a defaulted trait body it forgets to forward silently
+    /// becomes that default — `Ok(None)` — for the whole compiler. The check that
+    /// depends on it then reports nothing, forever, and looks exactly like a check
+    /// over a database that has nothing to report. It has happened once already:
+    /// `function_exists` carries a comment saying so.
+    ///
+    /// Read from source rather than exercised, because the alternative needs a live
+    /// pool: `AnyIntrospector`'s only variant wraps one.
+    #[test]
+    fn any_introspector_forwards_every_trait_method() {
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .parent()
+            .expect("crates/")
+            .join("fraiseql-db/src/introspector.rs");
+        let trait_src = std::fs::read_to_string(&root)
+            .unwrap_or_else(|e| panic!("cannot read {}: {e}", root.display()));
+
+        // The trait body is everything from its declaration to the file's last `}`.
+        let trait_body = trait_src
+            .split_once("pub trait DatabaseIntrospector")
+            .expect("the trait moved; this gate reads it by name")
+            .1;
+        let methods: Vec<&str> = trait_body
+            .lines()
+            .filter_map(|l| {
+                let l = l.trim_start();
+                let rest = l.strip_prefix("async fn ").or_else(|| l.strip_prefix("fn "))?;
+                rest.split(['(', '<']).next()
+            })
+            .collect();
+        assert!(methods.len() >= 8, "only found {methods:?} — the parse broke, not the impl");
+
+        let validator = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("src/schema/database_validator.rs");
+        let impl_src = std::fs::read_to_string(&validator).expect("read database_validator.rs");
+        let impl_body = impl_src
+            .split_once("impl DatabaseIntrospector for AnyIntrospector")
+            .expect("the impl moved; this gate reads it by name")
+            .1;
+
+        let missing: Vec<&&str> =
+            methods.iter().filter(|m| !impl_body.contains(&format!("fn {m}("))).collect();
+        assert!(
+            missing.is_empty(),
+            "AnyIntrospector does not forward {missing:?}. Each one silently inherits the \
+             trait default for every `compile --database` run, which reads as a database \
+             with nothing to report."
+        );
+    }
+
+    /// A view with no ORDER BY raises nothing — the finding above discriminates on
+    /// the body, not on the presence of a body.
+    #[tokio::test]
+    async fn a_plain_view_raises_no_self_ordering_finding() {
+        let introspector = MockIntrospector::new(DatabaseType::PostgreSQL)
+            .with_relation("public", "v_user", fraiseql_core::db::RelationKind::View)
+            .with_columns("v_user", vec![("data", "jsonb", false), ("pk_user", "bigint", false)])
+            .with_view_definition("v_user", " SELECT data FROM tb_user")
+            .with_json_samples("v_user", "data", vec![serde_json::json!({"name": "Alice"})]);
+
+        let report = validate_schema_against_database(
+            &paginating_schema(Some(PaginationOrder::JsonIdentity)),
+            &introspector,
+        )
+        .await
+        .unwrap();
+
+        assert!(
+            !report
+                .warnings
+                .iter()
+                .any(|w| matches!(w, DatabaseWarning::SelfOrderingView { .. })),
+            "{:?}",
+            report.warnings
         );
     }
 }

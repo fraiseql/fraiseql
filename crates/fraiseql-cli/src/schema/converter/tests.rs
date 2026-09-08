@@ -3825,10 +3825,7 @@ mod auto_params_parity_tests {
     ///
     /// `query_defaults: None` on purpose: the divergence is about what a project that
     /// configures *nothing* gets, which is the case every fixture stands in for.
-    fn compiled_query(
-        returns_list: bool,
-        relay: bool,
-    ) -> fraiseql_core::schema::QueryDefinition {
+    fn compiled_query(returns_list: bool, relay: bool) -> fraiseql_core::schema::QueryDefinition {
         let intermediate = IntermediateSchema {
             grpc_config:       None,
             security:          None,

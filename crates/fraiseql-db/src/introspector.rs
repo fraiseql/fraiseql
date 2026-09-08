@@ -112,4 +112,24 @@ pub trait DatabaseIntrospector: Send + Sync {
     async fn qualified_relation_exists(&self, _schema: &str, _name: &str) -> Result<Option<bool>> {
         Ok(None)
     }
+
+    /// The SQL body of `relation`, when it is a view (#1303).
+    ///
+    /// Read to answer one question the catalog cannot: does this view already
+    /// order itself? A view carrying its own `ORDER BY` is the compiler's *own*
+    /// documented remedy for `order_by = false`, and imposing a default page
+    /// ordering on top of it replaces the author's order with another one — the
+    /// single case in which #1303's fix is a regression. Seeing the body is what
+    /// turns that from a silent break into a compile-time diagnostic.
+    ///
+    /// `None` ⇒ this connector cannot read view bodies, or `relation` is a table
+    /// or does not exist. A caller must treat `None` as *unknown*, never as "does
+    /// not order itself".
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the catalog query fails.
+    async fn get_view_definition(&self, _relation: &str) -> Result<Option<String>> {
+        Ok(None)
+    }
 }
