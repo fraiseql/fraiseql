@@ -30,17 +30,17 @@
 # equally bad, and the order that used to be documented here picked the worse one
 # (#1302):
 #
-#   ruleset first → `dev` carries a failing REQUIRED check for as long as the
-#                   branch takes to validate and merge, which on this repository
-#                   is hours. It happened while landing #1299: 23 → 25 contexts in
-#                   the ruleset, the matching lines still on an unmerged branch,
-#                   and the next push to `dev` failed `required-checks mirror`
-#                   twelve seconds in. Nothing was broken; the trunk just read as
-#                   broken, and the next person had to diagnose that.
+# ruleset first → `dev` carries a failing REQUIRED check for as long as the
+# branch takes to validate and merge, which on this repository
+# is hours. It happened while landing #1299: 23 → 25 contexts in
+# the ruleset, the matching lines still on an unmerged branch,
+# and the next push to `dev` failed `required-checks mirror`
+# twelve seconds in. Nothing was broken; the trunk just read as
+# broken, and the next person had to diagnose that.
 #
-#   file first    → only YOUR branch goes red, on the branch you are already
-#                   working on, and it clears the moment you update the ruleset.
-#                   `dev` never carries a failure.
+# file first    → only YOUR branch goes red, on the branch you are already
+# working on, and it clears the moment you update the ruleset.
+# `dev` never carries a failure.
 #
 # ⚠ In between, `make lint-required-checks` / `tools/check-required-checks.sh` fail
 # LOCALLY too — they diff against the LIVE ruleset, which does not have the context
@@ -66,9 +66,7 @@
 # reading the workflow's own `on:` block, and rejects a `paths:`-filtered workflow
 # outright.
 
-ruleset = 18506494
 branch = "dev"
-
 required = [
   # dagger-preflight.yml:preflight — fmt, clippy, rustdoc, ~12 shell gates. Compiles
   # the tests; runs none of them.
@@ -124,8 +122,9 @@ required = [
   # round trip, plus "SDK examples compile". The sibling of the generated-clients
   # job above, in the same workflow and unfiltered since #1289, and required for
   # the same reason (#1299). GitHub-hosted.
-  "Author → export → compile → observe",
+  "Author → export → compile → observe"
 ]
+ruleset = 18506494
 
 # ⚠ A context is not required OR forgotten: `tools/check-suite-coverage.py` now
 # asks the complementary question too (#1299). Every check produced on a push to a

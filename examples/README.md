@@ -188,10 +188,10 @@ Run all three before changing anything here.
 
 ## Next steps
 
-- [Architecture](../docs/architecture/)
-- [Authoring guide](../docs/authoring.md)
-- [Performance](../docs/performance.md)
-- [Linting](../docs/linting.md)
+* [Architecture](../docs/architecture/)
+* [Authoring guide](../docs/authoring.md)
+* [Performance](../docs/performance.md)
+* [Linting](../docs/linting.md)
 
 ## Contributing an example
 

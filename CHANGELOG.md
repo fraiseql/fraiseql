@@ -117,11 +117,11 @@ disagreed, and the promise was the part that was wrong.
   `render_order_by_columns` and `append_order_by` now take a `Tiebreak`, and every call site
   states its answer rather than inheriting a default:
 
-  * the two offset builders — `build_where_select_sql_ordered` and
+  - the two offset builders — `build_where_select_sql_ordered` and
     `build_projection_select_sql` — pass `Tiebreak::Identity`;
-  * the relay builder passes `Tiebreak::None`, because keyset paging resumes from the last
+  - the relay builder passes `Tiebreak::None`, because keyset paging resumes from the last
     row's sort key and a term after the cursor column would sit between the two;
-  * the fraiseql-wire adapter passes `Tiebreak::Identity` — it slices `LIMIT`/`OFFSET` in
+  - the fraiseql-wire adapter passes `Tiebreak::Identity` — it slices `LIMIT`/`OFFSET` in
     memory, but each call re-runs the query, so consecutive pages are two orderings of the
     same tied rows exactly as on the SQL path.
 
@@ -416,11 +416,11 @@ disagreed, and the promise was the part that was wrong.
   now refuses — and `CompiledSchema::from_json` refuses again, so a hand-edited artifact
   cannot carry one either — a relationship whose
 
-  * `target_type` names a type the schema does not declare;
-  * join column names no field of the side it is read from;
-  * `target_type` is returned by no **list** query, which the embed sources its rows from;
-  * `foreign_key` or `referenced_key` is empty;
-  * name is declared twice on one type.
+  - `target_type` names a type the schema does not declare;
+  - join column names no field of the side it is read from;
+  - `target_type` is returned by no **list** query, which the embed sources its rows from;
+  - `foreign_key` or `referenced_key` is empty;
+  - name is declared twice on one type.
 
   **Migration.** Nothing authored through `fraiseql compile` can have been affected: until
   this release no authoring path could produce a relationship at all. A **hand-written**
@@ -554,6 +554,7 @@ disagreed, and the promise was the part that was wrong.
   retry cadence — only parked a hot-path task.
 
 ### Added
+
 - **A relay route's export can be bounded: `?first=` bounds the total (#1278).**
 
   It could not be bounded at all before. `?limit=` bounds an export's **total** on an offset
@@ -639,10 +640,10 @@ disagreed, and the promise was the part that was wrong.
   emitted `relationships: []`, and the entire REST embedding surface was reachable only
   from a hand-written `schema.compiled.json`:
 
-  * `?select=posts(id,title)`, `?select=posts.count`, `?posts.status=published` — every
+  - `?select=posts(id,title)`, `?select=posts.count`, `?posts.status=published` — every
     embed request against a compiled schema was a 400 reading `Available: none`;
-  * the OpenAPI relationship properties the served document advertises per type;
-  * the client generator's `relationships.{ts,rs,go,py}` modules, gated on
+  - the OpenAPI relationship properties the served document advertises per type;
+  - the client generator's `relationships.{ts,rs,go,py}` modules, gated on
     `has_relationships`, which was `false` for every CLI-produced schema — and documented
     as a generator output in `docs/guides/typed-clients.md`.
 
@@ -697,10 +698,10 @@ disagreed, and the promise was the part that was wrong.
 
   Both halves of that gate earned their place by catching a real mistake in this change:
 
-  * Narrowing for the root `Dockerfile` alone would have broken the **tutorial** image,
+  - Narrowing for the root `Dockerfile` alone would have broken the **tutorial** image,
     which builds from `tutorial/Dockerfile` and copies four paths the new filter dropped.
     The gate now discovers Dockerfiles from the variant table rather than assuming one.
-  * The first corrected narrowing still failed to build, because the context did not
+  - The first corrected narrowing still failed to build, because the context did not
     contain the root `Dockerfile` — `DockerBuild` reads it from there. A filter can admit
     every `COPY` source and still drop the file doing the copying, and the error Dagger
     gives is only "failed to build".
@@ -723,12 +724,12 @@ disagreed, and the promise was the part that was wrong.
   Four more citations are dropped rather than repointed, because their targets do not
   exist anywhere:
 
-  * `roadmap.md` pointed at two plan directories for "detailed plans".
-  * `examples/_TEMPLATE/README.md` told a reader to run
+  - `roadmap.md` pointed at two plan directories for "detailed plans".
+  - `examples/_TEMPLATE/README.md` told a reader to run
     `python .phases/verify-examples-compliance/verify.py`. It now names the two gates
     that do check an example, both of which are in `make preflight`.
-  * `docs/adr/0013` pointed at a 7-phase plan; the phase list it introduced is kept.
-  * `routes/rest/export_config.rs` deferred its layering rule to a sprint document; the
+  - `docs/adr/0013` pointed at a 7-phase plan; the phase list it introduced is kept.
+  - `routes/rest/export_config.rs` deferred its layering rule to a sprint document; the
     rule is now stated where the rule is enforced.
 
   `tools/check-phases-citations.sh` keeps it that way. It flags a path *into*
@@ -842,6 +843,7 @@ disagreed, and the promise was the part that was wrong.
   new keys are "**denied**" described the behaviour #1080 replaced and has been corrected.
 
 ### Removed
+
 - **`crates/fraiseql-wire` and `sdks/official/fraiseql-php` no longer carry their pre-merge
   repositories' unreachable CI (#1233).**
 
@@ -892,20 +894,20 @@ disagreed, and the promise was the part that was wrong.
 
   What they actually asserted:
 
-  * `security_audit_test.rs` checked that the literal `"' OR '1'='1"` contains a quote, left
+  - `security_audit_test.rs` checked that the literal `"' OR '1'='1"` contains a quote, left
     the comment *"In actual implementation, would verify: input is not concatenated into
     SQL"*, and printed `✅ SQL injection prevention test passed`. `test_authentication_required`
     built three cases whose token field was named `_token` — never read — each with
     `expected_status: 401` hardcoded, then asserted that constant equalled 401. Its
     `test_password_strength` asserted a minimum length of 8; the real policy
     (`fraiseql-auth/src/local_password.rs`) is 12.
-  * `mutation_nullability.rs` built `json!({"return_type": "User!"})` and asserted the field
+  - `mutation_nullability.rs` built `json!({"return_type": "User!"})` and asserted the field
     equalled `"User!"` and ended with `!`.
-  * `cost_command_tests.rs` defined `calculate_cost` under the comment *"This would call the
+  - `cost_command_tests.rs` defined `calculate_cost` under the comment *"This would call the
     actual cost command / For testing, we use a simple calculation"* and tested that.
-  * `federation_composition_validation.rs` — 1,035 lines — declared its own `SchemaComposer`,
+  - `federation_composition_validation.rs` — 1,035 lines — declared its own `SchemaComposer`,
     `QueryPlanner` and `TypeRegistry` in an inline `mod harness`.
-  * `integration_performance_validation_test.rs` timed `wrapping_add` loops against each
+  - `integration_performance_validation_test.rs` timed `wrapping_add` loops against each
     other: `simulate_optimized_query` looped to `size / 5`, `simulate_unoptimized_query` to
     `size`, and the test asserted the first was faster.
 
@@ -966,13 +968,13 @@ disagreed, and the promise was the part that was wrong.
 
   Three documents were corrected with the deletion:
 
-  * `deploy/deployment-security-guide.md` said `fraiseql-hardened.yaml` "is rendered and
+  - `deploy/deployment-security-guide.md` said `fraiseql-hardened.yaml` "is rendered and
     checked by `tools/chart-deploy-test.sh`". It never was — that script only ever
     touched `deploy/kubernetes/helm/fraiseql`.
-  * `crates/fraiseql-observers/deployment.md` documented nine `k8s/` manifests and a
+  - `crates/fraiseql-observers/deployment.md` documented nine `k8s/` manifests and a
     `kubectl apply` sequence over them. **None of those files has ever existed**; the
     directory held two, neither of them named there.
-  * `crates/fraiseql-observers/examples/README.md` listed four more of the same.
+  - `crates/fraiseql-observers/examples/README.md` listed four more of the same.
 
   `tools/check-deploy-security.sh` scanned `find k8s deploy/kubernetes` with stderr
   discarded, so it absorbed the directory's disappearance silently. It now scans
@@ -1068,6 +1070,7 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+
 - **The federation subgraph URL guard stops hand-rolling the hostname rule, and the SSRF
   corpus asserts a legitimate hostname survives at every entry point (#1280).**
 
@@ -1085,7 +1088,7 @@ disagreed, and the promise was the part that was wrong.
   The remaining two take an `IpAddr`, so no hostname can reach them, and #1280's rule for
   that case is that it is a finding rather than an exemption. It was, both times:
 
-  * **`fraiseql-federation` — a live gap.** `validate_subgraph_url` hand-rolled the hostname
+  - **`fraiseql-federation` — a live gap.** `validate_subgraph_url` hand-rolled the hostname
     half as `lower == "localhost" || lower.ends_with(".localhost")`. It was the only
     outbound URL guard in the workspace not calling `blocked_host_reason`; twelve call sites
     across nine crates do. The hand-rolled rule was a strict subset: it missed the
@@ -1096,7 +1099,7 @@ disagreed, and the promise was the part that was wrong.
     its whole SSRF control. It calls the shared rule now, and the corpus is pointed at
     `validate_subgraph_url` — both block tables and both allow tables — instead of only at
     the `IpAddr` predicate that no hostname can reach.
-  * **`fraiseql-functions`** — `validate_outbound_url` resolves a non-literal host, and a
+  - **`fraiseql-functions`** — `validate_outbound_url` resolves a non-literal host, and a
     unit test must not depend on the network, which is why its allow test targets
     `validate_ip`. It now also asserts the property that needs no network: for every
     `MUST_ALLOW_HOSTS` entry the refusal, if any, must not be the host rule.
@@ -1184,12 +1187,12 @@ disagreed, and the promise was the part that was wrong.
 
   Two defects surfaced while wiring it, both in the same class:
 
-  * `_tag_push_runs_workflow` read `on.get("push")` and treated `None` as "no push trigger",
+  - `_tag_push_runs_workflow` read `on.get("push")` and treated `None` as "no push trigger",
     conflating an **absent** `push:` with an **empty** one. A bare `push:` defines neither
     half, so every ref matches and a tag push does start it. Three live workflows have that
     shape — `changelog-check.yml`, `required-checks-mirror.yml`, `sdk-conformance.yml` — and
     all three read as tag-unreachable.
-  * `parse_yaml`'s `_parse_flow` documented itself as raising on anything beyond one level of
+  - `parse_yaml`'s `_parse_flow` documented itself as raising on anything beyond one level of
     nesting and instead returned the nested source as a **string**: `push: {branches: ['**']}`
     parsed to `{'branches': "['**']"}`, which every caller reads as "branches is not a list".
     It raises now, with the shape named.
@@ -2209,14 +2212,14 @@ disagreed, and the promise was the part that was wrong.
   the files themselves — and running the repaired files found two more that loading
   alone could not have.
 
-  * `schema.sql` now creates `jobs`, `accounts`/`transfers` and `categories`/`products`,
+  - `schema.sql` now creates `jobs`, `accounts`/`transfers` and `categories`/`products`,
     and provides the v2 cascade protocol the one v2-era pattern needs: the `app`
     and `graphql` schemas, the 13-column `app.mutation_response`, the shipped
     `fraiseql.*` builders (included directly, so no separate `fraiseql setup` step),
     and `v_category`/`v_product` declared `WITH (security_invoker = true)`.
-  * `06-advanced/bulk-operations.sql` had SQL `--` comments **inside** a JSON string
+  - `06-advanced/bulk-operations.sql` had SQL `--` comments **inside** a JSON string
     literal, so they became part of the JSON and the cast failed.
-  * `06-advanced/transaction-rollback.sql` used `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`
+  - `06-advanced/transaction-rollback.sql` used `SAVEPOINT` and `ROLLBACK TO SAVEPOINT`
     inside a PL/pgSQL function. A function body may not issue them; PostgreSQL rejects
     the file at `CREATE FUNCTION` with `syntax error at or near "TO"`. The writes now
     sit in a nested `BEGIN … EXCEPTION … END` block, which *is* PL/pgSQL's savepoint.
@@ -2225,12 +2228,12 @@ disagreed, and the promise was the part that was wrong.
 
   Found by executing the repaired patterns rather than only loading them:
 
-  * `format('… $%.2f', amount)` — PostgreSQL's `format()` takes `%s`, `%I`, `%L` and
+  - `format('… $%.2f', amount)` — PostgreSQL's `format()` takes `%s`, `%I`, `%L` and
     `%%` only, so `%.2f` raised `unrecognized format() type specifier "."`. The
     function fell into its `OTHERS` handler and returned `failed:error` for **every**
     transfer, successful ones included. Four occurrences across two files; the one in
     `03-business-logic/calculated-fields.sql` loads clean and is wrong the same way.
-  * The daily-limit check read `WHERE from_account_id = from_account_id`, comparing
+  - The daily-limit check read `WHERE from_account_id = from_account_id`, comparing
     the column with the identically-named variable — true for every row, so the limit
     was computed across all accounts rather than the source one.
 
@@ -2261,12 +2264,12 @@ disagreed, and the promise was the part that was wrong.
 
   Three further defects found by actually starting it:
 
-  * `ghcr.io/apollographql/router:latest` **does not exist** — that repository publishes
+  - `ghcr.io/apollographql/router:latest` **does not exist** — that repository publishes
     no `latest` tag. #1193 had recorded the image as unpullable but blamed the registry;
     ghcr.io resolves a known-good image fine. `saga-basic`, `saga-complex` and
     `saga-manual-compensation` all carried it; all three now pin `v1.59.0`, which is
     what the three working federation examples already used.
-  * **All three** saga examples shipped a `fixtures/supergraph.graphql` the Apollo
+  - **All three** saga examples shipped a `fixtures/supergraph.graphql` the Apollo
     Router rejects, so none of them had ever started its router. The shared cause: the
     `join__*` directives declared `graph: String` while `@join__type(graph: FLIGHT)`
     passes an enum *value*. All three now carry the canonical preamble — the join spec
@@ -2276,7 +2279,7 @@ disagreed, and the promise was the part that was wrong.
     directive block that nothing referenced and that named an undeclared type
     (`federation__enumValue`); it is gone. Each of the three is now verified accepted by
     `ghcr.io/apollographql/router:v1.59.0`.
-  * `fixtures/router.yaml` used the `server:` section, which the router reports as
+  - `fixtures/router.yaml` used the `server:` section, which the router reports as
     deprecated on every start and documents as a future error. It is `supergraph:` and
     `cors:` now.
 
@@ -2338,11 +2341,11 @@ disagreed, and the promise was the part that was wrong.
 
   Three defects found while rewriting, none of them in the issue:
 
-  * `setup.sql` created no `v_*` view at all, so the schema named a source that did not
+  - `setup.sql` created no `v_*` view at all, so the schema named a source that did not
     exist. Both now expose `pk_*`, `id` and a JSONB `data` column.
-  * Both called `uuid_generate_v4()` while creating only the `ltree` extension, so every
+  - Both called `uuid_generate_v4()` while creating only the `ltree` extension, so every
     INSERT would have failed on a clean database. Now `gen_random_uuid()`.
-  * `organization-chart`'s paths interleaved org units with people
+  - `organization-chart`'s paths interleaved org units with people
     (`acme.technology.engineering.backend.senior.frank_miller`), so no employee was ever
     another's ancestor: the `UPDATE … SET fk_manager` matched nothing, every manager read
     NULL, and the example's showcase `ancestorOf` query returned only the row itself. The

@@ -123,9 +123,9 @@ print(orders)
 
 ## Performance
 
-- **Zero-copy**: Arrow record batches are consumed directly, with no row-by-row
+* **Zero-copy**: Arrow record batches are consumed directly, with no row-by-row
   JSON deserialization
-- **Memory efficient**: results arrive as batches rather than one materialized
+* **Memory efficient**: results arrive as batches rather than one materialized
   document
 
 No speed figure is quoted here. This client has never been run against a server,
@@ -134,12 +134,12 @@ hardware.
 
 ## Requirements
 
-- R 4.0+
-- arrow package (CRAN: `install.packages("arrow")`)
-- jsonlite package (CRAN: `install.packages("jsonlite")`)
-- reticulate package (CRAN: `install.packages("reticulate")`)
-- pyarrow, importable from the Python reticulate binds to (`pip install pyarrow`)
-- FraiseQL server running on accessible host:port, with `FLIGHT_SESSION_SECRET`
+* R 4.0+
+* arrow package (CRAN: `install.packages("arrow")`)
+* jsonlite package (CRAN: `install.packages("jsonlite")`)
+* reticulate package (CRAN: `install.packages("reticulate")`)
+* pyarrow, importable from the Python reticulate binds to (`pip install pyarrow`)
+* FraiseQL server running on accessible host:port, with `FLIGHT_SESSION_SECRET`
   set and an OIDC validator configured — `do_get` is authenticated before the
   ticket is decoded, so an unconfigured server refuses every call
 
