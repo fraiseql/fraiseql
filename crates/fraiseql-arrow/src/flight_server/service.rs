@@ -1080,12 +1080,15 @@ impl FraiseQLFlightService {
     /// IPC message header, so an Arrow client either decodes nothing or fails at
     /// stream level — it never receives the advertised columns (#1038).
     ///
-    /// The advertised schema also disagreed with the payload in three places:
-    /// `observer_event_schema()` declares `event_id` where `HistoricalEvent`
-    /// serializes `id`, declares `org_id` where the JSON key is `tenant_id`, and
-    /// types `data` as `Utf8` where the payload carries a nested JSON object. So a
-    /// client hand-decoding the JSON against the advertised schema mis-mapped two
-    /// keys and one type.
+    /// The advertised schema also disagreed with the payload in three places: it
+    /// declared `event_id` where [`HistoricalEvent`] serializes `id`, `org_id` where
+    /// the JSON key is `tenant_id`, and typed `data` as `Utf8` where the payload
+    /// carries a nested JSON object. So a client hand-decoding the JSON against the
+    /// advertised schema mis-mapped two keys and one type. The builder that produced
+    /// it (`schema::observer_event_schema`) is deleted as of #1181 — it had no caller
+    /// and certified a shape nothing produces.
+    ///
+    /// [`HistoricalEvent`]: crate::HistoricalEvent
     ///
     /// Implementing it properly means choosing an event contract, and the shape
     /// above is not evidence of one that was ever agreed with a consumer. The

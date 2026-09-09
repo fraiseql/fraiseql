@@ -47,8 +47,9 @@ fn ticket_to_schema(
         // #1038: this advertised a concrete 8-field schema for a ticket the server
         // can never serve — `event_storage` is `None` at every constructor and
         // nothing calls the setter, so `do_get` short-circuits with
-        // `failed_precondition`. The schema also disagreed with what
-        // `HistoricalEvent` actually serializes in three places.
+        // `failed_precondition`. The schema it advertised also disagreed with what
+        // `HistoricalEvent` actually serializes in three places; the builder behind
+        // it was deleted in #1181 for having no caller and no producer.
         FlightTicket::ObserverEvents { .. } => Err(Status::unimplemented(
             "ObserverEvents is not implemented: no event storage is wired to the \
              Flight server, so no event stream can be produced.",

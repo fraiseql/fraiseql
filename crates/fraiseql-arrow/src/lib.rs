@@ -85,7 +85,6 @@ pub mod exchange_protocol;
 pub mod export;
 pub mod flight_server;
 pub mod metadata;
-pub mod schema;
 pub mod schema_gen;
 pub mod subscription;
 pub mod ticket;

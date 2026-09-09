@@ -18,6 +18,35 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_arrow::schema` is deleted — `graphql_result_schema()`,
+  `observer_event_schema()` and `bulk_export_schema()` are gone (#1181).**
+
+  Three public schema builders, none with a production caller, in a published crate — so
+  all three were API on docs.rs, and one of them was **wrong**.
+  `observer_event_schema()` declared `event_id` where `HistoricalEvent` serializes `id`,
+  `org_id` where the key is `tenant_id`, and typed `data` as `Utf8` where the payload is a
+  nested JSON object. An embedder implementing `ArrowEventStorage` who reached for it —
+  which is exactly what an authoritative-looking schema builder invites — mis-mapped two
+  keys and one type.
+
+  Their four tests asserted the builders' own field lists back at them
+  (`assert_eq!(schema.field(0).name(), "event_id")`), so they certified shapes nothing
+  produces and would have stayed green for as long as the module existed.
+
+  Nothing replaces them, because nothing needed them. The module's own doc said "schemas
+  will be generated dynamically from GraphQL types" — that work is done, in
+  `schema_gen::infer_schema_from_rows`, which has three production call sites; these
+  placeholders were what got left behind. The two tickets they used to describe already
+  refuse: `GetSchema`/`do_get` for `ObserverEvents` returned `unimplemented` as of #1038
+  (there is no event storage at any constructor), and `BulkExport` metadata has returned
+  `unimplemented` for longer than that. Reconciling `observer_event_schema()` against
+  `HistoricalEvent` instead would have produced a corrected schema that still had no
+  producer — the same defect, one field-name closer.
+
+  If a future Arrow event surface wants one, derive it from the encoder that actually
+  writes the batch and pin it with a round-trip of a serialized event, rather than
+  restating a field list.
+
 - **`EventFilter` has no `Default`, its tenant is a `TenantScope`, and `operation` is an
   `EventKind` (#1113).**
 
