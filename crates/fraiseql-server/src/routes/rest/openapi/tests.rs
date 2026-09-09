@@ -911,3 +911,115 @@ fn single_resource_endpoint_does_not_advertise_xlsx() {
         "XLSX MIME is a list-only response — single resource endpoints should not advertise it",
     );
 }
+
+// ---------------------------------------------------------------------------
+// #1113 — the stream endpoint's published contract
+//
+// #865/#873.4's rule applied to a header instead of a route: the document may not
+// describe behaviour the handler does not have. It advertised `Last-Event-ID` as
+// "Resume from a specific event ID on reconnection" while the handler read the
+// header into a discarded binding.
+// ---------------------------------------------------------------------------
+
+/// The `get` operation of the users stream path, or a panic naming what was found.
+fn stream_operation(spec: &serde_json::Value) -> &serde_json::Value {
+    let op = &spec["paths"]["/users/stream"]["get"];
+    assert!(op.is_object(), "the stream path must be documented; paths: {}", spec["paths"]);
+    op
+}
+
+fn last_event_id_param(spec: &serde_json::Value) -> &serde_json::Value {
+    stream_operation(spec)["parameters"]
+        .as_array()
+        .expect("the stream operation must declare parameters")
+        .iter()
+        .find(|p| p["name"] == "Last-Event-ID")
+        .expect("the stream operation must document Last-Event-ID")
+}
+
+#[test]
+fn the_document_does_not_promise_a_resumption_the_handler_refuses() {
+    let spec = generate(&rest_schema());
+    let description = last_event_id_param(&spec)["description"]
+        .as_str()
+        .expect("the parameter must carry a description");
+
+    assert!(
+        !description.to_lowercase().contains("resume from"),
+        "the document must not advertise resumption while the handler answers 501 to it: \
+         {description}"
+    );
+    assert!(
+        description.contains("501"),
+        "the document must say what a client sending this header actually gets: {description}"
+    );
+}
+
+#[test]
+fn the_document_states_that_the_wire_id_is_the_change_spine_sequence() {
+    let spec = generate(&rest_schema());
+    let ok = stream_operation(&spec)["responses"]["200"]["description"]
+        .as_str()
+        .expect("the 200 must carry a description");
+    assert!(
+        ok.contains("seq"),
+        "a client cannot use an id whose meaning is undocumented: {ok}"
+    );
+}
+
+fn multi_tenant_rest_schema(require_auth: bool) -> CompiledSchema {
+    let mut schema = rest_schema();
+    let mut security = fraiseql_core::schema::SecurityConfig::new();
+    security.multi_tenant = true;
+    schema.security = Some(security);
+    schema.rest_config = Some(RestConfig {
+        enabled: true,
+        require_auth,
+        ..RestConfig::default()
+    });
+    schema
+}
+
+fn stream_403_description(spec: &serde_json::Value) -> String {
+    stream_operation(spec)["responses"]["403"]["description"]
+        .as_str()
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// The refusal is documented where it can happen, and *only* there: a single-tenant
+/// deployment still carries the generic auth `403`, but it must not claim a tenancy
+/// refusal it cannot produce.
+#[test]
+fn the_tenant_refusal_is_documented_exactly_where_it_can_occur() {
+    let single = stream_403_description(&generate(&rest_schema()));
+    assert!(
+        !single.contains("tenant"),
+        "a single-tenant deployment cannot refuse for want of a tenant: {single}"
+    );
+
+    let multi = stream_403_description(&generate(&multi_tenant_rest_schema(true)));
+    assert!(
+        multi.contains("tenant"),
+        "a multi-tenant deployment refuses an untenanted caller and must say why: {multi}"
+    );
+}
+
+/// `require_auth = false` leaves no principal, and an absent principal carries no
+/// tenant — so a multi-tenant deployment refuses anonymous callers even with auth off.
+/// The generic `403` comes from the security posture, which is not applied here, so
+/// without the endpoint's own entry this response would be undocumented entirely.
+#[test]
+fn the_tenant_refusal_is_documented_even_with_auth_disabled() {
+    let spec = generate(&multi_tenant_rest_schema(false));
+    assert!(
+        spec["components"]["securitySchemes"]["BearerAuth"].is_null(),
+        "this case is only meaningful with the security posture off"
+    );
+    assert!(
+        stream_403_description(&spec).contains("tenant"),
+        "an anonymous request to a multi-tenant deployment is refused; the document \
+         must say so: {}",
+        stream_operation(&spec)["responses"]
+    );
+}

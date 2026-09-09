@@ -877,7 +877,7 @@ impl ObserverRuntime {
         self.entity_type_index.store(Arc::new(entity_type_index));
 
         // Subscribe to the event stream (a second connection-time failure point).
-        let mut stream = transport.subscribe(EventFilter::default()).await.map_err(|e| {
+        let mut stream = transport.subscribe(EventFilter::all_tenants()).await.map_err(|e| {
             ServerError::ConfigError(format!("failed to subscribe to observer transport: {e}"))
         })?;
 

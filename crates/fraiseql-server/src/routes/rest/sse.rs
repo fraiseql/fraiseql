@@ -121,5 +121,152 @@ pub fn event_kind_to_sse_type(kind: &str) -> &str {
 }
 
 // ---------------------------------------------------------------------------
+// Live-branch decisions (#1113)
+//
+// The three decisions the live-event branch of `rest_sse_handler` makes are here,
+// as functions over their inputs, because the branch itself is unreachable:
+// `RestState.event_transport` is `None` at its only construction site and there is
+// no setter (#1309). Nothing can drive that branch end to end, so what *can* be
+// tested is pulled out of it rather than left as untested lines inside it.
+// ---------------------------------------------------------------------------
+
+/// Which tenants' events a `/stream` subscription may receive, or the refusal to
+/// return in place of a stream.
+///
+/// #1113: the handler extracted the caller's `SecurityContext` and discarded it,
+/// building `EventFilter { entity_type, ..Default::default() }` — and `tenant_id:
+/// None` meant *every tenant*. An authenticated caller on any tenant would have
+/// received every tenant's change events, full `data` payload included, the moment
+/// the transport was populated. Authentication is not authorisation: the REST read
+/// surface's tenant scoping (#812/#739) lives in the query path, and a stream that
+/// subscribes with no tenant bypasses it by construction.
+///
+/// The rule is the one the GraphQL subscription gate already applies
+/// (`SubscriptionManager::event_matches`), keyed on the same
+/// `CompiledSchema::is_multi_tenant`, so the two streaming surfaces cannot drift:
+///
+/// - **multi-tenant**: the principal's tenant scopes the subscription. A principal carrying no
+///   tenant — including an absent principal, where `require_auth` is off — is **refused**.
+///   Fail-closed: there is no tenant to scope by, and a deployment that declared itself
+///   multi-tenant has said that matters.
+/// - **single-tenant**: unscoped. Tenant ids are typically absent throughout such a deployment, so
+///   scoping by an absent tenant would match nothing.
+///
+/// Refusing where `SubscriptionManager` merely delivers nothing is deliberate: an
+/// SSE connection that opens and stays silent is the "looks healthy, is stale"
+/// failure #873.4 removed from this very endpoint.
+///
+/// # Errors
+///
+/// Returns `403 TENANT_SCOPE_REQUIRED` when the deployment is multi-tenant and the
+/// request carries no tenant to scope by.
+#[cfg(feature = "observers")]
+pub fn stream_tenant_scope(
+    security_ctx: Option<&fraiseql_core::security::SecurityContext>,
+    multi_tenant: bool,
+) -> Result<fraiseql_observers::transport::TenantScope, RestError> {
+    use fraiseql_observers::transport::TenantScope;
+
+    if !multi_tenant {
+        return Ok(TenantScope::AllTenants);
+    }
+
+    security_ctx.and_then(|ctx| ctx.tenant_id.as_ref()).map_or_else(
+        || {
+            Err(RestError {
+                status:  StatusCode::FORBIDDEN,
+                code:    "TENANT_SCOPE_REQUIRED",
+                message: "This deployment is multi-tenant and the request carries no tenant, \
+                          so an event stream cannot be scoped to one. Present a credential \
+                          carrying a tenant."
+                    .to_string(),
+                details: None,
+            })
+        },
+        |tenant| Ok(TenantScope::Tenant(tenant.as_str().to_string())),
+    )
+}
+
+/// The refusal owed to a client that asked to resume, when resuming is not
+/// implemented.
+///
+/// #1113: the handler read the header into `let _last_event_id = …` and dropped it.
+/// A browser `EventSource` re-sends `Last-Event-ID` automatically on every
+/// reconnect, so a client reconnecting after a network blip silently lost every
+/// event in the gap while the transport reported a healthy stream.
+///
+/// Returns `Some(refusal)` when the client asked to resume. It is refused rather
+/// than ignored: honouring it needs a durable `seq`-ranged read of
+/// `core.tb_entity_change_log` (#1310), and the alternative — answering `200` and
+/// starting from now — is the silent data loss this is here to stop. A reconnect
+/// that fails loudly is diagnosable; one that succeeds while skipping a range is
+/// not.
+///
+/// An absent or empty header is a fresh delivery, not a resume, and returns `None`.
+#[cfg(feature = "observers")]
+#[must_use]
+pub fn stream_resume_refusal(headers: &HeaderMap) -> Option<RestError> {
+    let raw = extract_last_event_id(headers)?;
+    if raw.trim().is_empty() {
+        return None;
+    }
+
+    Some(RestError {
+        status:  StatusCode::NOT_IMPLEMENTED,
+        code:    "RESUMPTION_UNSUPPORTED",
+        message: format!(
+            "Last-Event-ID {raw:?} cannot be honoured: this stream has no replay path yet, \
+             and answering without one would skip every event since {raw:?} while looking \
+             healthy. Reconnect without the header to receive events from now on."
+        ),
+        details: None,
+    })
+}
+
+/// One entity event as it goes on the wire.
+///
+/// Borrows its payload: this is the shape of an SSE frame, not a copy of the event.
+#[cfg(feature = "observers")]
+#[derive(Debug, PartialEq, Eq)]
+pub struct StreamEvent<'a> {
+    /// The SSE `event:` field.
+    pub event_type: &'static str,
+    /// The SSE `id:` field, **absent** when the source row carried no sequence.
+    pub id:         Option<String>,
+    /// The SSE `data:` payload.
+    pub data:       &'a serde_json::Value,
+}
+
+#[cfg(feature = "observers")]
+impl<'a> StreamEvent<'a> {
+    /// Render an entity event as the SSE frame it becomes.
+    ///
+    /// The id is [`EntityEvent::seq`] — the monotonic Change-Spine sequence — and not
+    /// [`EntityEvent::id`], which is a UUID. #1113: a UUID cannot be resolved to a
+    /// resume point by ordering, so emitting one as the SSE id promises a client a
+    /// resumption that no implementation could ever provide. `seq` is what a replay
+    /// would read by (#1310), so a client's stored id is already the right one on the
+    /// day replay lands.
+    ///
+    /// `seq` is `Option<i64>` ("None when the source row carried no sequence"), and
+    /// such an event carries **no `id:` field at all**. Per the SSE specification an
+    /// absent `id` leaves the client's last-event-id buffer unchanged, so a reconnect
+    /// still names the last event that *had* a sequence: at-least-once, never a skip.
+    /// Emitting the UUID here instead would poison the buffer with a value no replay
+    /// can resolve.
+    ///
+    /// [`EntityEvent::seq`]: fraiseql_observers::event::EntityEvent::seq
+    /// [`EntityEvent::id`]: fraiseql_observers::event::EntityEvent::id
+    #[must_use]
+    pub fn from_entity_event(event: &'a fraiseql_observers::event::EntityEvent) -> Self {
+        Self {
+            event_type: event_kind_to_sse_type(event.event_type.as_str()),
+            id:         event.seq.map(|seq| seq.to_string()),
+            data:       &event.data,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------

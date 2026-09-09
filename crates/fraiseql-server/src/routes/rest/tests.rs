@@ -445,3 +445,192 @@ mod export_config {
         assert!(result.is_err(), "unknown export format should fail to deserialize");
     }
 }
+
+// ---------------------------------------------------------------------------
+// #1113 — the live-event branch's decisions
+//
+// The branch these serve is unreachable (`RestState.event_transport` is `None` at
+// its only construction site, #1309), which is exactly why its decisions live in
+// functions: an unreachable line cannot be tested, an extracted decision can.
+// ---------------------------------------------------------------------------
+
+#[cfg(feature = "observers")]
+mod stream_decisions {
+    use axum::http::{HeaderMap, HeaderValue, StatusCode};
+    use fraiseql_core::security::SecurityContext;
+    use fraiseql_observers::{
+        event::{EntityEvent, EventKind},
+        transport::TenantScope,
+    };
+
+    use crate::routes::rest::sse::{StreamEvent, stream_resume_refusal, stream_tenant_scope};
+
+    /// The context a REST request actually arrives with: `SecurityContext::from_user`
+    /// on the authenticated subject, optionally carrying a tenant — the shape
+    /// `crate::extractors` builds.
+    fn principal(tenant: Option<&str>) -> SecurityContext {
+        let user = fraiseql_core::security::auth_middleware::AuthenticatedUser {
+            user_id:      fraiseql_core::types::UserId::new("user-1"),
+            scopes:       vec!["user".to_string()],
+            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            email:        None,
+            display_name: None,
+            extra_claims: std::collections::HashMap::new(),
+        };
+        let ctx = SecurityContext::from_user(&user, "req-1113".to_string());
+        match tenant {
+            Some(t) => ctx.with_tenant(t.to_string()),
+            None => ctx,
+        }
+    }
+
+    // ── tenant scope ──────────────────────────────────────────────
+
+    /// The defect: the subscription carried no tenant, and `tenant_id: None` means
+    /// *every tenant*.
+    #[test]
+    fn a_multi_tenant_principal_scopes_the_subscription_to_its_own_tenant() {
+        let ctx = principal(Some("tenant-a"));
+        assert_eq!(
+            stream_tenant_scope(Some(&ctx), true).expect("a tenanted principal is servable"),
+            TenantScope::Tenant("tenant-a".to_string())
+        );
+    }
+
+    /// Fail-closed. There is no tenant to scope by, and the deployment has said that
+    /// matters.
+    #[test]
+    fn a_multi_tenant_deployment_refuses_a_principal_with_no_tenant() {
+        let ctx = principal(None);
+        let refusal =
+            stream_tenant_scope(Some(&ctx), true).expect_err("an untenanted principal is refused");
+        assert_eq!(refusal.status, StatusCode::FORBIDDEN);
+        assert_eq!(refusal.code, "TENANT_SCOPE_REQUIRED");
+    }
+
+    /// `require_auth = false` leaves no principal at all. An absent principal carries
+    /// no tenant, so it takes the same answer — not the unscoped stream that an
+    /// `Option`-shaped rule would fall through to.
+    #[test]
+    fn a_multi_tenant_deployment_refuses_a_request_with_no_principal() {
+        let refusal = stream_tenant_scope(None, true).expect_err("an anonymous request is refused");
+        assert_eq!(refusal.status, StatusCode::FORBIDDEN);
+        assert_eq!(refusal.code, "TENANT_SCOPE_REQUIRED");
+    }
+
+    /// Single-tenant stays permissive: tenant ids are typically absent throughout such
+    /// a deployment, so scoping by an absent tenant would match nothing and the stream
+    /// would open and stay silent. Same arm as `SubscriptionManager`'s tenant gate.
+    #[test]
+    fn a_single_tenant_deployment_subscribes_unscoped() {
+        assert_eq!(
+            stream_tenant_scope(Some(&principal(None)), false).expect("servable"),
+            TenantScope::AllTenants
+        );
+        assert_eq!(stream_tenant_scope(None, false).expect("servable"), TenantScope::AllTenants);
+    }
+
+    /// A tenanted principal in a single-tenant deployment is still unscoped — the
+    /// deployment's declaration decides, not the credential. Pins that the two inputs
+    /// are not silently the same input.
+    #[test]
+    fn the_deployments_declaration_decides_not_the_credential() {
+        assert_eq!(
+            stream_tenant_scope(Some(&principal(Some("tenant-a"))), false).expect("servable"),
+            TenantScope::AllTenants
+        );
+    }
+
+    // ── Last-Event-ID ─────────────────────────────────────────────
+
+    fn headers_with(last_event_id: &str) -> HeaderMap {
+        let mut headers = HeaderMap::new();
+        headers.insert("last-event-id", HeaderValue::from_str(last_event_id).unwrap());
+        headers
+    }
+
+    /// The defect: read into `_last_event_id` and dropped, so a reconnect silently
+    /// skipped the gap on a stream that reported itself healthy.
+    #[test]
+    fn a_resume_request_is_refused_rather_than_ignored() {
+        let refusal =
+            stream_resume_refusal(&headers_with("41")).expect("a resume request is refused");
+        assert_eq!(refusal.status, StatusCode::NOT_IMPLEMENTED);
+        assert_eq!(refusal.code, "RESUMPTION_UNSUPPORTED");
+        assert!(
+            refusal.message.contains("41"),
+            "the refusal must name the id it could not honour: {}",
+            refusal.message
+        );
+    }
+
+    #[test]
+    fn a_fresh_delivery_is_not_a_resume_request() {
+        assert!(stream_resume_refusal(&HeaderMap::new()).is_none());
+    }
+
+    /// `Last-Event-ID:` with an empty value is what a client sends before it has seen
+    /// an event. Nothing was missed, so there is nothing to refuse.
+    #[test]
+    fn an_empty_last_event_id_is_not_a_resume_request() {
+        assert!(stream_resume_refusal(&headers_with("")).is_none());
+        assert!(stream_resume_refusal(&headers_with("   ")).is_none());
+    }
+
+    // ── the wire frame ────────────────────────────────────────────
+
+    fn event(kind: EventKind, seq: Option<i64>) -> EntityEvent {
+        let mut e = EntityEvent::new(
+            kind,
+            "Order".to_string(),
+            uuid::Uuid::new_v4(),
+            serde_json::json!({"total": 100}),
+        );
+        e.seq = seq;
+        e
+    }
+
+    /// The defect: the id was `entity_event.id`, a UUID — an id no ordering can
+    /// resolve to a resume point, so the stream advertised a resumability nothing
+    /// could ever provide.
+    #[test]
+    fn the_wire_id_is_the_change_spine_sequence_not_the_event_uuid() {
+        let e = event(EventKind::Created, Some(4_120));
+        let wire = StreamEvent::from_entity_event(&e);
+        assert_eq!(wire.id.as_deref(), Some("4120"));
+        assert_ne!(
+            wire.id.as_deref(),
+            Some(e.id.to_string().as_str()),
+            "the event UUID must not be the resume id"
+        );
+    }
+
+    /// An event with no sequence carries **no `id:` field**. Per the SSE spec that
+    /// leaves the client's last-event-id buffer unchanged, so a reconnect still names
+    /// the last event that had one: at-least-once, never a skip. Emitting the UUID
+    /// here would poison the buffer with a value no replay can resolve.
+    #[test]
+    fn an_event_with_no_sequence_carries_no_wire_id() {
+        let e = event(EventKind::Created, None);
+        assert_eq!(StreamEvent::from_entity_event(&e).id, None);
+    }
+
+    #[test]
+    fn the_wire_event_type_follows_the_event_kind() {
+        for (kind, expected) in [
+            (EventKind::Created, "insert"),
+            (EventKind::Updated, "update"),
+            (EventKind::Deleted, "delete"),
+            (EventKind::Custom, "custom"),
+        ] {
+            let e = event(kind, Some(1));
+            assert_eq!(StreamEvent::from_entity_event(&e).event_type, expected, "{kind:?}");
+        }
+    }
+
+    #[test]
+    fn the_wire_payload_is_the_events_data() {
+        let e = event(EventKind::Updated, Some(7));
+        assert_eq!(StreamEvent::from_entity_event(&e).data, &serde_json::json!({"total": 100}));
+    }
+}

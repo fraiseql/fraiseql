@@ -987,20 +987,28 @@ async fn a_created_resource_reports_its_location() {
 ///
 /// # If you are here because this test went red
 ///
-/// You have populated `event_transport`, which is #428's work — and this assertion is
-/// the gate for **#1113**, deliberately. Two defects sit in the live-event branch you
-/// have just made reachable, and both ship the moment it is:
+/// You have populated `event_transport`. That is **#1309**'s work, not #428's — the
+/// attribution this comment used to carry was wrong, and it is why the wiring had no
+/// owner and the branch accumulated defects nobody could reach.
 ///
-/// 1. The subscription sets no `tenant_id`, and `in_memory` / `postgres_notify` drop `EventFilter`
-///    entirely (only NATS applies it) — so an authenticated caller on any tenant receives every
-///    tenant's events, full `data` payload included. Both halves need fixing: set the tenant from
-///    the resolved security context (and decide what an untenanted principal may see — refusing is
-///    the fail-closed answer), *and* make every transport honour the filter or refuse a filtered
-///    subscription.
-/// 2. `Last-Event-ID` is extracted and dropped, so a client reconnecting after a blip silently
-///    loses the gap while the stream reports healthy. Honouring it means changing the event id from
-///    a UUID to `EntityEvent.seq` and catching up from `core.tb_entity_change_log`; an in-process
-///    buffer will not do, being per-replica.
+/// The two defects #1113 named are fixed (the subscription is scoped to the caller's
+/// tenant and every transport honours `EventFilter`; `Last-Event-ID` is refused rather
+/// than dropped, and the wire id is `seq` rather than a UUID) — but they were fixed
+/// **without ever executing this branch**, so the plumbing between `RestState` and the
+/// stream has still never run. Read `routes::rest::sse`'s `stream_tenant_scope`,
+/// `stream_resume_refusal` and `StreamEvent` before assuming the branch is correct
+/// end to end; each is unit-tested, none is integration-tested.
+///
+/// Two things must hold before this assertion may be replaced by a live-stream one:
+///
+/// 1. **#1309** — `EventTransport::subscribe` is a *competing consumer* on all three transports
+///    (one MPSC receiver / one shared `ChangeLogListener` that also `record_dispatched`s / one
+///    durable NATS consumer name). A per-request subscription therefore steals events from the
+///    observer executor. Whatever populates this field must fan out, and must be covered by a test
+///    that opens a stream *and* asserts an observer still fired for the same event.
+/// 2. **#1310** — resumption is refused, not implemented. A client reconnecting with
+///    `Last-Event-ID` gets `501 RESUMPTION_UNSUPPORTED` until a durable `seq`-ranged read of
+///    `core.tb_entity_change_log` exists.
 ///
 /// Do not simply delete this assertion to make the wiring green.
 #[tokio::test]

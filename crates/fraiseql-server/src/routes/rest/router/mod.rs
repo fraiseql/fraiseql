@@ -787,13 +787,26 @@ where
 /// Returns `501 Not Implemented` when the `observers` feature is disabled.
 /// Otherwise, streams events for the given resource type via SSE.
 ///
-/// The extracted context is unused *in the body* but must still be extracted: running
+/// The context must be extracted whether or not the body reads it: running
 /// [`RestSecurityContext`]'s extractor **is** the `require_auth` enforcement. Do not
 /// replace it with a bare `_: RestSecurityContext` removal — that would restore the
 /// pre-#810 state where this was the only route honouring the flag, inverted.
+///
+/// The body reads it as well, since #1113: it scopes the event subscription to the
+/// caller's tenant. Before that it was bound as `_security_ctx` and discarded.
 async fn rest_sse_handler<A>(
     State(rest): State<RestState<A>>,
-    RestSecurityContext(_security_ctx): RestSecurityContext,
+    // Read only by the live-event branch below, which is `observers`-gated, so a
+    // `rest`-without-`observers` build warns that it is unused — a warning preflight
+    // cannot see, because it lints `--all-features` (the `server-rest` feature-matrix
+    // combo is clippy-enabled and does see it).
+    //
+    // Silenced rather than renamed to `_security_ctx`: that underscore *was* #1113 — the
+    // caller's context bound and discarded — and restoring the spelling would make the
+    // defect look like the intended state again. Same treatment, and the same reason, as
+    // `mount` in `derive_rest_context` (#1291).
+    #[cfg_attr(not(feature = "observers"), allow(unused_variables))]
+    RestSecurityContext(security_ctx): RestSecurityContext,
     request: Request<Body>,
 ) -> Response
 where
@@ -846,22 +859,37 @@ where
     // With observers feature: set up SSE stream with real event subscription.
     #[cfg(feature = "observers")]
     {
-        // #1113: `Last-Event-ID` is read and deliberately not honoured here. Resuming
-        // this stream is not the `@stream` transport's problem — that one's event id is
-        // a row offset into a re-executable query (#958), whereas this one's is an event
-        // UUID, which no ordering can resolve to a resume point. A durable replay would
-        // read `core.tb_entity_change_log` by `seq`; an in-process buffer would not do,
-        // being per-replica. Filed with the tenant-filter gap in the same branch, both
-        // of which land the moment #428 populates `event_transport`.
-        let _last_event_id = super::sse::extract_last_event_id(&parts.headers);
         let heartbeat_interval = std::time::Duration::from_secs(heartbeat_secs);
 
         // If we have an event transport, subscribe to real entity events.
         if let Some(ref transport) = rest.event_transport {
-            let filter = fraiseql_observers::transport::EventFilter {
-                entity_type: Some(resource_name.clone()),
-                ..Default::default()
+            // Both refusals precede `subscribe`: a request that cannot be served must
+            // not open a subscription first. They sit *inside* this arm because with no
+            // transport the whole truth about this endpoint is the 501 below — a 403
+            // there would imply that a tenant-bearing credential would get a stream.
+            //
+            // #1113: `Last-Event-ID` used to be read into `_last_event_id` and dropped,
+            // so a browser `EventSource` reconnecting after a blip silently lost the gap
+            // while the transport reported a healthy stream. Refused until #1310.
+            if let Some(refusal) = super::sse::stream_resume_refusal(&parts.headers) {
+                return rest_result_to_response(Err(refusal), &rest.error_sanitizer);
+            }
+
+            // #1113: the subscription used to carry no tenant at all, and `tenant_id:
+            // None` means *every tenant* — so one authenticated caller would have
+            // received every tenant's events, `data` payload included.
+            let tenant = match super::sse::stream_tenant_scope(
+                security_ctx.as_ref(),
+                schema.is_multi_tenant(),
+            ) {
+                Ok(scope) => scope,
+                Err(refusal) => {
+                    return rest_result_to_response(Err(refusal), &rest.error_sanitizer);
+                },
             };
+
+            let filter = fraiseql_observers::transport::EventFilter::scoped_to(tenant)
+                .with_entity_type(resource_name.clone());
 
             match transport.subscribe(filter).await {
                 Ok(event_stream) => {
@@ -877,15 +905,19 @@ where
                     let entity_events = event_stream.filter_map(|result| async move {
                         match result {
                             Ok(entity_event) => {
-                                let event_type = super::sse::event_kind_to_sse_type(
-                                    entity_event.event_type.as_str(),
-                                );
-                                let event = axum::response::sse::Event::default()
-                                    .event(event_type)
-                                    .id(entity_event.id.to_string())
-                                    .json_data(&entity_event.data)
-                                    .ok()?;
-                                Some(event)
+                                // #1113: the id was `entity_event.id`, a UUID — an id no
+                                // ordering can resolve to a resume point, promising a
+                                // resumption nothing could provide. `StreamEvent` decides
+                                // the frame; see it for why an event with no `seq`
+                                // carries no `id:` at all.
+                                let wire =
+                                    super::sse::StreamEvent::from_entity_event(&entity_event);
+                                let mut event =
+                                    axum::response::sse::Event::default().event(wire.event_type);
+                                if let Some(id) = wire.id {
+                                    event = event.id(id);
+                                }
+                                Some(event.json_data(wire.data).ok()?)
                             },
                             Err(e) => {
                                 tracing::warn!(error = %e, "SSE event stream error");
@@ -931,9 +963,20 @@ where
         // feature flag made the server *less* truthful.
         //
         // `event_transport` is `None` at every construction: `derive_rest_context` is the
-        // only place a `RestState` is built and `RestState` has no setter. Populating it
-        // from the observer runtime is #428's work; until then this must not look
-        // healthy. The branch above is kept, not deleted, because it is what #428 wires.
+        // only place a `RestState` is built and `RestState` has no setter, so this must
+        // not look healthy.
+        //
+        // This comment used to say that populating it "is #428's work". It is not — #428
+        // is entirely about observer *action* types (sms/push/search/cache) and says
+        // nothing about `RestState`. Nothing tracked the wiring at all, which is why the
+        // branch above accumulated two defects nobody could reach (#1113). The wiring now
+        // has an issue of its own, #1309, which also has to answer why the obvious form
+        // of it does not work: `EventTransport::subscribe` is a *competing consumer* on
+        // all three transports, so a per-request subscription would steal the observer
+        // executor's events rather than fan out beside them.
+        //
+        // The branch above is kept, not deleted, because #1309 is where keeping or
+        // deleting it gets decided.
         let _ = heartbeat_interval;
         rest_result_to_response(Err(super::sse::observers_not_available()), &rest.error_sanitizer)
     }

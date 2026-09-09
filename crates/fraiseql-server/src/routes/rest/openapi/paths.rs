@@ -192,13 +192,49 @@ impl OpenApiGenerator<'_> {
             return;
         }
 
+        // #1113: the document used to promise "Resume from a specific event ID on
+        // reconnection". Nothing implemented that — the header was read into a discarded
+        // binding — so the published contract advertised a resumption the code could
+        // never perform, the same class of lie #873.4 removed from the 200 itself. What
+        // the header actually gets is stated below, and the refusals the handler can
+        // return are listed rather than left to be discovered.
+        let mut responses = json!({
+            "200": {
+                "description": "SSE event stream. Each event's `id:` is the Change-Spine \
+                                sequence (`seq`) of the change, and is absent for a change \
+                                whose source row carried no sequence — per the SSE \
+                                specification an absent `id:` leaves the client's \
+                                last-event-id unchanged.",
+                "content": {
+                    "text/event-stream": {
+                        "schema": { "type": "string" }
+                    }
+                }
+            },
+            "501": {
+                "description": "Not Implemented — the `observers` feature is disabled, no \
+                                event transport is configured, or the request carried a \
+                                `Last-Event-ID` (resumption is not implemented)."
+            }
+        });
+
+        // Only a multi-tenant deployment can produce this refusal: in single-tenant mode
+        // the subscription is unscoped and there is no tenant to be missing.
+        if self.schema.is_multi_tenant() {
+            responses["403"] = json!({
+                "description": "Forbidden — this deployment is multi-tenant and the request \
+                                carries no tenant, so the stream cannot be scoped to one."
+            });
+        }
+
         let mut stream_get = json!({
                     "tags": [capitalize(&resource.name)],
                     "summary": format!("Stream {} changes (SSE)", resource.name),
                     "operationId": format!("stream_{}", resource.name),
                     "description": format!(
                         "Subscribe to real-time changes on {} via Server-Sent Events. \
-                         Requires the `observers` feature. Events: `insert`, `update`, `delete`, `ping` (heartbeat).",
+                         Requires the `observers` feature. Events: `insert`, `update`, `delete`, `ping` (heartbeat). \
+                         In a multi-tenant deployment the subscription is scoped to the caller's tenant.",
                         resource.name
                     ),
                     "parameters": [
@@ -214,22 +250,14 @@ impl OpenApiGenerator<'_> {
                             "in": "header",
                             "required": false,
                             "schema": { "type": "string" },
-                            "description": "Resume from a specific event ID on reconnection."
+                            "description": "Sent automatically by a browser EventSource on reconnect. \
+                                            Resumption is NOT implemented: a request carrying this header \
+                                            is refused with 501, rather than answered with a stream that \
+                                            silently skips everything since the given id. Reconnect \
+                                            without it to receive events from now on."
                         }
                     ],
-                    "responses": {
-                        "200": {
-                            "description": "SSE event stream",
-                            "content": {
-                                "text/event-stream": {
-                                    "schema": { "type": "string" }
-                                }
-                            }
-                        },
-                        "501": {
-                            "description": "Not Implemented (observers feature disabled)"
-                        }
-                    }
+                    "responses": responses
         });
         self.apply_security(&mut stream_get);
         paths.insert(stream_path, json!({ "get": stream_get }));

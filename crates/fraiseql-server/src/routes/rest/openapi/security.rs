@@ -30,8 +30,16 @@ impl OpenApiGenerator<'_> {
         operation["security"] = json!([{ "BearerAuth": [] }]);
 
         if let Some(responses) = operation.get_mut("responses") {
-            responses["401"] = json!({ "description": "Unauthorized" });
-            responses["403"] = json!({ "description": "Forbidden" });
+            // Fill in, do not overwrite: an operation that already documents *why* it
+            // returns one of these keeps its own wording. The stream endpoint's 403 says
+            // the request carries no tenant to scope by (#1113); replacing that with a
+            // bare "Forbidden" would lose the only part a client can act on. An
+            // operation that says nothing still gets the generic posture.
+            for (status, generic) in [("401", "Unauthorized"), ("403", "Forbidden")] {
+                if responses.get(status).is_none_or(Value::is_null) {
+                    responses[status] = json!({ "description": generic });
+                }
+            }
         }
     }
 }
