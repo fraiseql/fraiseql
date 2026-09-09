@@ -41,7 +41,10 @@ use defaults::{
     default_shutdown_timeout_secs, default_subscription_auth_recheck_secs,
     default_subscription_path,
 };
-use fraiseql_core::security::OidcConfig;
+use fraiseql_core::{
+    db::postgres::{HnswIterativeScan, IvfflatIterativeScan},
+    security::OidcConfig,
+};
 pub use hs256::Hs256Config;
 pub use observers::AdmissionConfig;
 #[cfg(feature = "observers")]
@@ -405,6 +408,46 @@ pub struct ServerConfig {
     /// requests their connections.
     #[serde(default)]
     pub pool_max_streaming_reads: Option<usize>,
+
+    /// `hnsw.iterative_scan` for every database connection (#1116).
+    ///
+    /// `strict_order` (the default) makes a filtered similarity search keep
+    /// scanning until `k` rows survive the filter, in exact distance order.
+    /// pgvector's own default is `off`, which hands the filter one bounded
+    /// candidate list: once the filter is selective, that list is exhausted
+    /// first and the query **succeeds with fewer rows than asked for** —
+    /// measured at 100 000 documents and a 1%-selective filter, two rows out of
+    /// ten and a recall of 0.20.
+    ///
+    /// `relaxed_order` skips the ordering guarantee for a cheaper scan; `off`
+    /// sets nothing at all, leaving whatever the server or `ALTER DATABASE`
+    /// established.
+    #[serde(default)]
+    pub vector_hnsw_iterative_scan: HnswIterativeScan,
+
+    /// `ivfflat.iterative_scan` for every database connection (#1116).
+    ///
+    /// The `IVFFlat` sibling of [`vector_hnsw_iterative_scan`](Self::vector_hnsw_iterative_scan),
+    /// with the same failure mode and the same default posture. pgvector defines
+    /// no `strict_order` for `IVFFlat`, so this setting has only `relaxed_order`
+    /// (the default) and `off`.
+    #[serde(default)]
+    pub vector_ivfflat_iterative_scan: IvfflatIterativeScan,
+
+    /// `hnsw.ef_search` for every database connection, or `None` to leave
+    /// pgvector's default of 40 (#1116).
+    ///
+    /// Reach for this when filtered similarity searches still return fewer than
+    /// `k` rows with `vector_hnsw_iterative_scan` on. Measured on 20 000 rows ×
+    /// 64 dimensions with a 1% filter, `k = 10`: `iterative_scan` alone returned
+    /// 10, 5 and 4 rows over three datasets; raising `ef_search` to 1000 returned
+    /// 10 every time; raising `max_scan_tuples` 100× instead changed nothing.
+    ///
+    /// Unset by default because it is a latency/recall trade paid by **every**
+    /// search on the deployment, and its right value is a property of the corpus
+    /// rather than something FraiseQL can pick.
+    #[serde(default)]
+    pub vector_hnsw_ef_search: Option<u32>,
 
     /// Enable incremental delivery on the GraphQL endpoint (#387, #958).
     /// Default `false`.
@@ -1275,11 +1318,14 @@ impl Default for ServerConfig {
             pool_max_size: default_pool_max_size(),
             pool_timeout_secs: default_pool_timeout(),
             pool_max_streaming_reads: None, // a quarter of pool_max_size (#958)
+            vector_hnsw_iterative_scan: HnswIterativeScan::default(),
+            vector_ivfflat_iterative_scan: IvfflatIterativeScan::default(),
+            vector_hnsw_ef_search: None,
             enable_graphql_incremental: false, // incremental delivery is opt-in (#387)
             graphql_incremental_batch_size: None, // 100 when incremental delivery is enabled
-            read_replica_urls: Vec::new(),  // Primary-only by default
+            read_replica_urls: Vec::new(),     // Primary-only by default
             read_replica_pin_after_write_ms: None, // 5000 ms when replicas are set
-            read_replica_max_lag_ms: None,  // No lag-based routing by default (#957)
+            read_replica_max_lag_ms: None,     // No lag-based routing by default (#957)
             read_replica_health_probe_interval_ms: None, // 1000 ms when replicas are set
 
             auth: None, // No auth by default

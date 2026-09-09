@@ -725,6 +725,7 @@ async fn pool_prewarms_to_min_size() {
             tls:                 PostgresTlsConfig::default(),
             read_replicas:       None,
             max_streaming_reads: None,
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await
@@ -750,6 +751,7 @@ async fn pool_prewarm_zero_min_size_creates_one_connection() {
             tls:                 PostgresTlsConfig::default(),
             read_replicas:       None,
             max_streaming_reads: None,
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await
@@ -774,6 +776,7 @@ async fn pool_prewarm_min_capped_at_max() {
             tls:                 PostgresTlsConfig::default(),
             read_replicas:       None,
             max_streaming_reads: None,
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await
@@ -799,6 +802,7 @@ async fn pool_timeout_causes_fast_failure_when_exhausted() {
             tls:                 PostgresTlsConfig::default(),
             read_replicas:       None,
             max_streaming_reads: None,
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await
@@ -833,6 +837,7 @@ async fn acquire_does_not_retry_on_timeout_error() {
             tls:                 PostgresTlsConfig::default(),
             read_replicas:       None,
             max_streaming_reads: None,
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await
@@ -1370,6 +1375,7 @@ async fn rr_adapter(
                 max_lag: None,
                 health_probe_interval: std::time::Duration::from_secs(1),
             }),
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await
@@ -1549,6 +1555,7 @@ async fn replica_pool_carries_the_tenant_search_path() {
                 max_lag:               None,
                 health_probe_interval: std::time::Duration::from_secs(1),
             }),
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await
@@ -1591,6 +1598,7 @@ async fn unreachable_replica_refuses_to_boot() {
                 max_lag:               None,
                 health_probe_interval: std::time::Duration::from_secs(1),
             }),
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await;
@@ -1629,6 +1637,7 @@ async fn empty_replica_url_list_is_refused() {
                 max_lag:               None,
                 health_probe_interval: std::time::Duration::from_secs(1),
             }),
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await;
@@ -1759,6 +1768,7 @@ async fn bs_adapter(
                 max_lag,
                 health_probe_interval: probe_interval,
             }),
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await
@@ -1906,6 +1916,7 @@ async fn a_replica_whose_lag_cannot_be_measured_is_never_eligible() {
                 max_lag:               Some(std::time::Duration::from_mins(1)),
                 health_probe_interval: std::time::Duration::from_millis(100),
             }),
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await
@@ -1993,6 +2004,7 @@ async fn a_query_routed_to_a_replica_ignores_the_read_your_writes_pin() {
                 max_lag:               None,
                 health_probe_interval: std::time::Duration::from_millis(100),
             }),
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await
@@ -2150,6 +2162,7 @@ async fn a_replica_promoted_by_a_failover_stops_serving_reads() {
                 max_lag:               None,
                 health_probe_interval: std::time::Duration::from_millis(100),
             }),
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await
@@ -2361,6 +2374,7 @@ async fn streaming_reads_are_bounded_by_their_own_slot_count() {
             tls:                 PostgresTlsConfig::default(),
             read_replicas:       None,
             max_streaming_reads: Some(1),
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await
@@ -2418,6 +2432,7 @@ async fn abandoned_stream_returns_its_connection() {
             tls:                 PostgresTlsConfig::default(),
             read_replicas:       None,
             max_streaming_reads: None,
+            vector_scan:         VectorScanConfig::default(),
         },
     )
     .await

@@ -50,14 +50,20 @@ pub type TenantExecutorFactory<A> = Arc<
 /// window, staleness budget or probe cadence those replicas are routed under: a
 /// registration that could send its own `max_lag` would be choosing how stale its
 /// reads may be, against a server whose operator already decided.
+///
+/// `vector_scan` is stamped for the third time in the same shape (#1116): whether a
+/// filtered similarity search may quietly return fewer rows than it was asked for
+/// is the operator's answer, not the registration payload's.
 #[must_use]
 pub fn make_executor_factory<A: FromPoolConfig + 'static>(
     database_tls: fraiseql_core::db::postgres::PostgresTlsConfig,
     read_replica_policy: fraiseql_core::db::postgres::ReadReplicaPolicy,
+    vector_scan: fraiseql_core::db::postgres::VectorScanConfig,
 ) -> TenantExecutorFactory<A> {
     Arc::new(move |tenant_key, schema_json, mut pool_config| {
         pool_config.tls = database_tls.clone();
         pool_config.read_replica_policy = read_replica_policy.clone();
+        pool_config.vector_scan = vector_scan;
         Box::pin(async move {
             create_tenant_executor::<A>(&tenant_key, &schema_json, &pool_config).await
         })

@@ -103,6 +103,8 @@ fn pool_config(url: &str) -> TenantPoolConfig {
         // Stamped by `make_executor_factory` in the binary; primary-only here.
         read_replica_urls:    Vec::new(),
         read_replica_policy:  ReadReplicaPolicy::default(),
+        // Also stamped by `make_executor_factory` in the binary (#1116).
+        vector_scan:          fraiseql_core::db::postgres::VectorScanConfig::default(),
     }
 }
 

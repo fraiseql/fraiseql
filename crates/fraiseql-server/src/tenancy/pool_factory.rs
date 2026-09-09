@@ -64,6 +64,18 @@ pub struct TenantPoolConfig {
     #[serde(skip)]
     pub tls:                  PostgresTlsConfig,
 
+    /// pgvector scan behaviour for this tenant's connections, inherited from the
+    /// server's settings — never supplied by the caller (#1116).
+    ///
+    /// `#[serde(skip)]` for the same reason as [`tls`](Self::tls): the struct is
+    /// deserialised straight from an admin-API request body, and a registration
+    /// that could send `{"vector_scan": {"hnsw": "off"}}` would be opting its own
+    /// tenant back into filtered searches that silently return fewer rows than
+    /// asked for. [`create_tenant_executor`] populates it from the server
+    /// configuration before the adapter is built.
+    #[serde(skip)]
+    pub vector_scan: fraiseql_core::db::postgres::VectorScanConfig,
+
     /// Read-replica URLs for this tenant, or empty for a primary-only tenant
     /// (#957).
     ///
@@ -149,6 +161,12 @@ impl FromPoolConfig for PostgresAdapter {
                 // tenant with four connections and a server with two hundred want
                 // different absolute numbers for the same reason.
                 max_streaming_reads: None,
+                // Inherited from the server, like `tls` and unlike `read_replica_urls`
+                // (#1116). A tenant that registered its own would be choosing how
+                // complete its own similarity searches are, and the value is not a
+                // property of the tenant's topology; it is the operator's answer to
+                // "may a filtered ANN search return fewer rows than asked for".
+                vector_scan: config.vector_scan,
             },
         )
         .await

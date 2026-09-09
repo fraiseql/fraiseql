@@ -8,7 +8,8 @@ mod tls;
 mod where_generator;
 
 pub use adapter::{
-    PoolPrewarmConfig, PostgresAdapter, ReadReplicaConfig, ReadReplicaPolicy, SearchPath,
+    HnswIterativeScan, IvfflatIterativeScan, PoolPrewarmConfig, PostgresAdapter, ReadReplicaConfig,
+    ReadReplicaPolicy, SearchPath, VectorScanConfig,
 };
 pub use introspector::PostgresIntrospector;
 pub use tls::{PostgresConnector, PostgresSslMode, PostgresTlsConfig};

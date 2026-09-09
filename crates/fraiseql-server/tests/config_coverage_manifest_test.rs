@@ -98,6 +98,21 @@ const MANIFEST: &[(&str, &str)] = &[
     ("pool_max_size", "DB pool max size"),
     ("pool_timeout_secs", "DB pool acquire timeout"),
     (
+        "vector_hnsw_iterative_scan",
+        "main.rs / fraiseql-cli run → ServerConfig::vector_scan() → \
+         PoolPrewarmConfig.vector_scan → the connection startup packet (#1116)",
+    ),
+    (
+        "vector_hnsw_ef_search",
+        "main.rs / fraiseql-cli run → ServerConfig::vector_scan() → \
+         PoolPrewarmConfig.vector_scan → the connection startup packet (#1116)",
+    ),
+    (
+        "vector_ivfflat_iterative_scan",
+        "main.rs / fraiseql-cli run → ServerConfig::vector_scan() → \
+         PoolPrewarmConfig.vector_scan → the connection startup packet (#1116)",
+    ),
+    (
         "pool_max_streaming_reads",
         "cap on pool connections a streaming read may hold (#958) — main.rs and \
          fraiseql-cli run → PoolConfig.max_streaming_reads; a quarter of pool_max_size \

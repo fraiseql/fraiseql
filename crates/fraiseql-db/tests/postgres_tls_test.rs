@@ -30,6 +30,7 @@ fn probe_config(tls: PostgresTlsConfig) -> PoolPrewarmConfig {
         tls,
         read_replicas: None,
         max_streaming_reads: None,
+        vector_scan: fraiseql_db::postgres::VectorScanConfig::default(),
     }
 }
 

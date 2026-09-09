@@ -5,8 +5,9 @@
 use fraiseql_error::FraiseQLError;
 
 use super::{
-    PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig, SearchPath, build_projection_select_sql,
-    build_where_select_sql, build_where_select_sql_ordered, compose_startup_options,
+    HnswIterativeScan, IvfflatIterativeScan, PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig,
+    SearchPath, VectorScanConfig, build_projection_select_sql, build_where_select_sql,
+    build_where_select_sql_ordered, compose_startup_options,
 };
 
 // ── build_where_select_sql ─────────────────────────────────────────────────
@@ -37,6 +38,7 @@ fn pool_prewarm_config_carries_all_fields() {
         tls:                 PostgresTlsConfig::default(),
         read_replicas:       None,
         max_streaming_reads: None,
+        vector_scan:         VectorScanConfig::default(),
     };
     assert_eq!(cfg.min_size, 5);
     assert_eq!(cfg.max_size, 20);
@@ -53,6 +55,7 @@ fn pool_prewarm_config_no_timeout_is_none() {
         tls:                 PostgresTlsConfig::default(),
         read_replicas:       None,
         max_streaming_reads: None,
+        vector_scan:         VectorScanConfig::default(),
     };
     assert!(cfg.timeout_secs.is_none());
 }
@@ -67,6 +70,7 @@ fn pool_prewarm_config_min_zero_is_valid() {
         tls:                 PostgresTlsConfig::default(),
         read_replicas:       None,
         max_streaming_reads: None,
+        vector_scan:         VectorScanConfig::default(),
     };
     assert_eq!(cfg.min_size, 0);
     assert_eq!(cfg.max_size, 5);
@@ -82,6 +86,7 @@ fn pool_prewarm_config_min_equals_max_is_valid() {
         tls:                 PostgresTlsConfig::default(),
         read_replicas:       None,
         max_streaming_reads: None,
+        vector_scan:         VectorScanConfig::default(),
     };
     assert_eq!(cfg.min_size, cfg.max_size);
 }
@@ -121,12 +126,20 @@ fn search_path_rejects_an_over_long_identifier() {
     assert!(SearchPath::new(["a".repeat(63)]).is_ok());
 }
 
+/// The vector settings that contribute nothing, so a test about the search path
+/// is about the search path.
+const NO_VECTOR_SCAN: VectorScanConfig = VectorScanConfig {
+    hnsw:      HnswIterativeScan::Off,
+    ivfflat:   IvfflatIterativeScan::Off,
+    ef_search: None,
+};
+
 #[test]
 fn startup_options_are_composed_when_the_url_carries_none() {
     let path = SearchPath::new(["tenant_acme", "public"]).unwrap();
     assert_eq!(
-        compose_startup_options("postgres://u:p@h:5432/db", &path),
-        "-c search_path=tenant_acme,public"
+        compose_startup_options("postgres://u:p@h:5432/db", Some(&path), NO_VECTOR_SCAN),
+        Some("-c search_path=tenant_acme,public".to_string())
     );
 }
 
@@ -137,9 +150,13 @@ fn startup_options_preserve_operator_supplied_options() {
     let path = SearchPath::new(["tenant_acme", "public"]).unwrap();
     let composed = compose_startup_options(
         "postgres://u:p@h:5432/db?options=-c%20statement_timeout%3D5000",
-        &path,
+        Some(&path),
+        NO_VECTOR_SCAN,
     );
-    assert_eq!(composed, "-c statement_timeout=5000 -c search_path=tenant_acme,public");
+    assert_eq!(
+        composed,
+        Some("-c statement_timeout=5000 -c search_path=tenant_acme,public".to_string())
+    );
 }
 
 /// An unparseable connection string must not panic here — the pool builder that
@@ -148,9 +165,138 @@ fn startup_options_preserve_operator_supplied_options() {
 fn startup_options_tolerate_an_unparseable_url() {
     let path = SearchPath::new(["tenant_acme"]).unwrap();
     assert_eq!(
-        compose_startup_options("not-a-postgres-url", &path),
-        "-c search_path=tenant_acme"
+        compose_startup_options("not-a-postgres-url", Some(&path), NO_VECTOR_SCAN),
+        Some("-c search_path=tenant_acme".to_string())
     );
+}
+
+// ── #1116: pgvector scan settings ride the same startup packet ──────────────
+
+/// The default settings reach the startup packet on a pool with no search path.
+///
+/// Before #1116 `cfg.options` was assigned **only** inside `if let Some(path) =
+/// search_path`, so a single-tenant server — which passes `search_path: None` —
+/// had no route to the startup packet at all. This is the case that had none.
+#[test]
+fn vector_scan_settings_ride_the_startup_packet_without_a_search_path() {
+    assert_eq!(
+        compose_startup_options("postgres://u:p@h:5432/db", None, VectorScanConfig::default()),
+        Some(
+            "-c hnsw.iterative_scan=strict_order -c ivfflat.iterative_scan=relaxed_order"
+                .to_string()
+        )
+    );
+}
+
+/// The default is `strict_order` for HNSW, and `relaxed_order` for `IVFFlat`
+/// **because pgvector defines no `strict_order` for `IVFFlat`** — measured against
+/// pgvector 0.8.6:
+///
+/// ```text
+/// WARNING:  invalid value for parameter "ivfflat.iterative_scan": "strict_order"
+/// HINT:  Available values: off, relaxed_order.
+/// ```
+///
+/// after which the setting falls back to `off`. The types are separate so that
+/// value is not expressible; this pins the defaults that follow from it.
+#[test]
+fn the_two_indexes_default_to_the_strongest_guarantee_each_defines() {
+    assert_eq!(HnswIterativeScan::default(), HnswIterativeScan::StrictOrder);
+    assert_eq!(IvfflatIterativeScan::default(), IvfflatIterativeScan::RelaxedOrder);
+}
+
+/// `Off` writes **nothing**, rather than `-c hnsw.iterative_scan=off`.
+///
+/// The difference is not cosmetic: an explicit `off` in the startup packet would
+/// override a database-level `ALTER DATABASE app SET hnsw.iterative_scan =
+/// relaxed_order`, which is the workaround operators were told to use before
+/// #1116. "Turn FraiseQL's setting off" must mean "leave whatever is there
+/// alone", not "force it off".
+#[test]
+fn turning_the_settings_off_writes_nothing_rather_than_forcing_off() {
+    assert_eq!(NO_VECTOR_SCAN.startup_fragments(), Vec::<String>::new());
+    assert_eq!(compose_startup_options("postgres://u:p@h/db", None, NO_VECTOR_SCAN), None);
+}
+
+/// Each setting is independent, and each renders the value pgvector spells.
+#[test]
+fn each_index_contributes_its_own_fragment() {
+    let hnsw_only = VectorScanConfig {
+        hnsw:      HnswIterativeScan::RelaxedOrder,
+        ivfflat:   IvfflatIterativeScan::Off,
+        ef_search: None,
+    };
+    assert_eq!(hnsw_only.startup_fragments(), vec!["-c hnsw.iterative_scan=relaxed_order"]);
+
+    let ivfflat_only = VectorScanConfig {
+        hnsw:      HnswIterativeScan::Off,
+        ivfflat:   IvfflatIterativeScan::RelaxedOrder,
+        ef_search: None,
+    };
+    assert_eq!(
+        ivfflat_only.startup_fragments(),
+        vec!["-c ivfflat.iterative_scan=relaxed_order"]
+    );
+
+    let ef_only = VectorScanConfig {
+        hnsw:      HnswIterativeScan::Off,
+        ivfflat:   IvfflatIterativeScan::Off,
+        ef_search: Some(200),
+    };
+    assert_eq!(ef_only.startup_fragments(), vec!["-c hnsw.ef_search=200"]);
+}
+
+/// `ef_search` is unset by default, and setting it does not disturb the others.
+///
+/// Unset rather than raised because it is a latency/recall trade paid by every
+/// search on the deployment — unlike `iterative_scan`, which the benchmark
+/// measured as free on an unfiltered one. It exists because `iterative_scan`
+/// alone does **not** guarantee `k` rows: measured over three independently
+/// generated 20 000-row / 64-dimension datasets with a 1% filter, it returned
+/// 10, 5 and 4 rows, while `ef_search = 1000` returned 10 every time and
+/// `max_scan_tuples` raised 100× changed nothing.
+#[test]
+fn ef_search_is_unset_by_default_and_composes_with_the_scan_modes() {
+    assert_eq!(VectorScanConfig::default().ef_search, None);
+    assert!(
+        !VectorScanConfig::default()
+            .startup_fragments()
+            .iter()
+            .any(|f| f.contains("ef_search")),
+        "the default must not choose an ef_search for the operator"
+    );
+
+    let all = VectorScanConfig {
+        ef_search: Some(400),
+        ..VectorScanConfig::default()
+    };
+    assert_eq!(
+        all.startup_fragments(),
+        vec![
+            "-c hnsw.iterative_scan=strict_order",
+            "-c ivfflat.iterative_scan=relaxed_order",
+            "-c hnsw.ef_search=400",
+        ]
+    );
+}
+
+/// All three fragment sources compose, in a stable order, without dropping any.
+///
+/// The operator's own `-c` first (it came from the URL), then the search path,
+/// then the vector settings — one packet carrying three independent decisions.
+#[test]
+fn the_search_path_the_operators_options_and_the_vector_settings_all_survive() {
+    let path = SearchPath::new(["tenant_acme"]).unwrap();
+    let composed = compose_startup_options(
+        "postgres://u:p@h:5432/db?options=-c%20statement_timeout%3D5000",
+        Some(&path),
+        VectorScanConfig::default(),
+    );
+    let expected = "-c statement_timeout=5000 \
+                    -c search_path=tenant_acme \
+                    -c hnsw.iterative_scan=strict_order \
+                    -c ivfflat.iterative_scan=relaxed_order";
+    assert_eq!(composed.as_deref(), Some(expected));
 }
 
 // ── EP-5: Connection pool failure paths ───────────────────────────────────

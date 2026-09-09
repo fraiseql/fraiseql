@@ -66,6 +66,7 @@ async fn test_postgres_adapter_with_pool_config() {
             tls: fraiseql_core::db::postgres::PostgresTlsConfig::default(),
             read_replicas: None,
             max_streaming_reads: None,
+            vector_scan: fraiseql_core::db::postgres::VectorScanConfig::default(),
         },
     )
     .await;

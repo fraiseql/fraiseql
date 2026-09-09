@@ -316,6 +316,10 @@ async fn build_postgres_adapter(config: &ServerConfig) -> anyhow::Result<Arc<Pos
             tls,
             read_replicas: config.read_replicas(),
             max_streaming_reads: config.pool_max_streaming_reads,
+            // `[server] vector_hnsw_iterative_scan` / `vector_ivfflat_iterative_scan`,
+            // read through the one accessor so this pool and every per-tenant pool
+            // agree (#1116).
+            vector_scan: config.vector_scan(),
         },
     )
     .await?;
@@ -738,8 +742,10 @@ async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> 
     // Captured before `config` is moved into the constructor, for the same reason.
     // Validated already by `build_postgres_adapter`, so this cannot be a new failure.
     let database_tls = config.postgres_tls().map_err(|e| anyhow::anyhow!(e))?;
-    // Likewise: the read-replica routing policy every tenant pool inherits (#957).
+    // Likewise: the vector-scan settings every tenant pool inherits (#1116), and
+    // the read-replica routing policy (#957).
     let tenant_read_replica_policy = config.read_replica_policy();
+    let tenant_vector_scan = config.vector_scan();
 
     // Arrow Flight path: only available with the `arrow` feature, only on PG.
     #[cfg(feature = "arrow")]
@@ -771,13 +777,16 @@ async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> 
         // Every constructor wraps the adapter in `CachedDatabaseAdapter` (#889), so the
         // tenant factory must produce cached executors to match the server's adapter
         // type — the same expression the non-arrow branch uses.
-        // Tenant pools inherit the server's `[database_tls]` and its read-replica
-        // routing policy; the registration request body cannot influence either
-        // (see `make_executor_factory`). It does supply its own replica URLs.
+        // Tenant pools inherit the server's `[database_tls]`, its read-replica
+        // routing policy and its vector-scan settings; the registration request body
+        // cannot influence any of them (see `make_executor_factory`). It does supply
+        // its own replica URLs.
         let tenant_factory = tenancy_runtime_enabled.then(|| {
             fraiseql_server::tenancy::make_executor_factory::<
                 fraiseql_core::cache::CachedDatabaseAdapter<PostgresAdapter>,
-            >(database_tls.clone(), tenant_read_replica_policy.clone())
+            >(
+                database_tls.clone(), tenant_read_replica_policy.clone(), tenant_vector_scan
+            )
         });
         let server = match storage_state {
             Some(state) => server.with_storage_state(state),
@@ -812,13 +821,16 @@ async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> 
         // Non-arrow path: `Server::new`/`with_relay_pagination` wrap the adapter in
         // `CachedDatabaseAdapter`, so the tenant factory must produce cached executors
         // to match the server's adapter type.
-        // Tenant pools inherit the server's `[database_tls]` and its read-replica
-        // routing policy; the registration request body cannot influence either
-        // (see `make_executor_factory`). It does supply its own replica URLs.
+        // Tenant pools inherit the server's `[database_tls]`, its read-replica
+        // routing policy and its vector-scan settings; the registration request body
+        // cannot influence any of them (see `make_executor_factory`). It does supply
+        // its own replica URLs.
         let tenant_factory = tenancy_runtime_enabled.then(|| {
             fraiseql_server::tenancy::make_executor_factory::<
                 fraiseql_core::cache::CachedDatabaseAdapter<PostgresAdapter>,
-            >(database_tls.clone(), tenant_read_replica_policy.clone())
+            >(
+                database_tls.clone(), tenant_read_replica_policy.clone(), tenant_vector_scan
+            )
         });
         let server = match storage_state {
             Some(state) => server.with_storage_state(state),

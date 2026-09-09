@@ -233,6 +233,8 @@ async fn serve_postgres(
                 tls:                 tls.clone(),
                 read_replicas:       config.read_replicas(),
                 max_streaming_reads: config.pool_max_streaming_reads,
+                // The same accessor the server binary reads (#1116).
+                vector_scan:         config.vector_scan(),
             },
         )
         .await

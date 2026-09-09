@@ -111,6 +111,7 @@ mod postgres_adapter_tests {
                 tls:                 fraiseql_core::db::postgres::PostgresTlsConfig::default(),
                 read_replicas:       None,
                 max_streaming_reads: None,
+                vector_scan:         fraiseql_core::db::postgres::VectorScanConfig::default(),
             },
         )
         .await;
@@ -210,6 +211,7 @@ async fn test_feature_gated_main_initialization_postgres() {
             tls:                 fraiseql_core::db::postgres::PostgresTlsConfig::default(),
             read_replicas:       None,
             max_streaming_reads: None,
+            vector_scan:         fraiseql_core::db::postgres::VectorScanConfig::default(),
         },
     )
     .await;

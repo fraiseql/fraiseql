@@ -241,6 +241,7 @@ mod pool_factory_tests {
             tls:                  PostgresTlsConfig::default(),
             read_replica_urls:    Vec::new(),
             read_replica_policy:  ReadReplicaPolicy::default(),
+            vector_scan:          fraiseql_core::db::postgres::VectorScanConfig::default(),
         }
     }
 

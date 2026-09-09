@@ -77,6 +77,7 @@ fn registration(url: &str) -> TenantRegistrationRequest {
             // what `read_replica_policy` being `#[serde(skip)]` enforces.
             read_replica_urls:    Vec::new(),
             read_replica_policy:  ReadReplicaPolicy::default(),
+            vector_scan:          fraiseql_core::db::postgres::VectorScanConfig::default(),
         },
         max_requests_per_sec:       None,
         max_concurrent:             None,
@@ -104,6 +105,7 @@ async fn setup() -> Option<(String, PostgresAdapter, AppState<PostgresAdapter>)>
             .with_tenant_executor_factory(make_executor_factory::<PostgresAdapter>(
                 PostgresTlsConfig::default(),
                 ReadReplicaPolicy::default(),
+                fraiseql_core::db::postgres::VectorScanConfig::default(),
             ));
 
     Some((url, admin, state))

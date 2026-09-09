@@ -119,7 +119,7 @@ const CONNECTION_RETRY_DELAY_MS: u64 = 50;
 /// # Example
 ///
 /// ```rust
-/// use fraiseql_db::postgres::{PoolPrewarmConfig, PostgresTlsConfig};
+/// use fraiseql_db::postgres::{PoolPrewarmConfig, PostgresTlsConfig, VectorScanConfig};
 ///
 /// let cfg = PoolPrewarmConfig {
 ///     min_size:      5,
@@ -132,6 +132,8 @@ const CONNECTION_RETRY_DELAY_MS: u64 = 50;
 ///     read_replicas: None,
 ///     // `None` derives a quarter of `max_size` (#958).
 ///     max_streaming_reads: None,
+///     // Continue a filtered ANN scan until `k` rows survive (#1116).
+///     vector_scan: VectorScanConfig::default(),
 /// };
 /// ```
 #[derive(Debug, Clone)]
@@ -185,6 +187,19 @@ pub struct PoolPrewarmConfig {
     /// The bound is *not* a queue-length limit. A streaming read past the bound
     /// waits for a slot, exactly as any read waits for a connection.
     pub max_streaming_reads: Option<usize>,
+
+    /// pgvector scan behaviour for every connection this pool opens (#1116).
+    ///
+    /// Defaults, via [`VectorScanConfig`], to continuing an index scan until `k`
+    /// rows survive a filter. pgvector's own default stops at one bounded
+    /// candidate list, which makes a filtered similarity search return fewer
+    /// rows than asked for **and report success** — the reason this is not left
+    /// to the server's setting.
+    ///
+    /// Like [`search_path`](Self::search_path) it is lowered into the startup
+    /// packet, so it reaches every connection the pool opens later, and it is
+    /// inert on a database without pgvector.
+    pub vector_scan: VectorScanConfig,
 
     /// Read replicas for this pool set, or `None` for a single-primary adapter.
     ///
@@ -415,13 +430,199 @@ impl std::fmt::Display for SearchPath {
 /// Maximum length of a PostgreSQL identifier.
 const MAX_PG_IDENTIFIER_LEN: usize = 63;
 
+/// How pgvector's HNSW index behaves when a filter eliminates the candidates it
+/// handed up (#1116).
+///
+/// With pgvector's own default — `off` — an HNSW scan produces one bounded
+/// candidate list and the filter is applied to it. Once the filter is selective
+/// the list is exhausted before `k` survivors exist, and the query **succeeds**
+/// with fewer rows: measured at 100 000 documents, `k = 10` and a 1%-selective
+/// filter, three rows and a recall of 0.20, with nothing to distinguish that
+/// from "only three matched". That is why FraiseQL names a value here instead
+/// of inheriting the server's.
+///
+/// ⚠ An invalid value is **not** an error. pgvector's GUC is defined when its
+/// library loads, after the startup packet has been accepted, so a bad value
+/// produces `WARNING: invalid value for parameter "hnsw.iterative_scan"` and
+/// silently falls back to `off` — the failure this setting exists to prevent.
+/// Being an enum is what keeps an unrepresentable value from reaching the wire.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum HnswIterativeScan {
+    /// pgvector's own default: one bounded candidate list, no continuation.
+    /// Filtered searches may silently return fewer than `k` rows.
+    Off,
+    /// Continue scanning until `k` rows survive the filter, without buffering
+    /// for exact ordering. Results may be slightly out of distance order.
+    RelaxedOrder,
+    /// Continue scanning until `k` rows survive, preserving exact distance
+    /// order.
+    ///
+    /// The default, and the reason is the contract rather than the benchmark:
+    /// `nearest` is documented to return rows most-similar-first, and a plan
+    /// whose ordering comes from the index scan can only honour that if the
+    /// scan is ordered. `relaxed_order` would trade #1116's silent
+    /// under-return for a quieter version of the same thing — a result that
+    /// looks right and is subtly not.
+    ///
+    /// The benchmark in `benches/vector_filtered_ann.sql` found the two
+    /// indistinguishable in both recall and latency, so the guarantee is the
+    /// only thing separating them there. An operator whose corpus disagrees can
+    /// say so.
+    #[default]
+    StrictOrder,
+}
+
+/// The same setting for pgvector's `IVFFlat` index (#1116).
+///
+/// A separate type from [`HnswIterativeScan`] because pgvector accepts a
+/// **different set of values** here — measured against pgvector 0.8.6:
+///
+/// ```text
+/// WARNING:  invalid value for parameter "ivfflat.iterative_scan": "strict_order"
+/// HINT:  Available values: off, relaxed_order.
+/// ```
+///
+/// and the setting then falls back to `off`. One shared enum with a clamp would
+/// turn the operator's choice into a value the server discards, which is the
+/// shape of the defect being fixed. Here it is simply not expressible.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum IvfflatIterativeScan {
+    /// pgvector's own default; see [`HnswIterativeScan::Off`].
+    Off,
+    /// Continue scanning until `k` rows survive the filter. The only
+    /// continuation mode `IVFFlat` defines.
+    #[default]
+    RelaxedOrder,
+}
+
+/// pgvector scan settings applied to every connection a pool opens (#1116).
+///
+/// Lowered into the PostgreSQL startup `options` packet for the same reason
+/// [`SearchPath`] is: a pooled `SET` configures one session out of N, and misses
+/// every connection the pool opens later. Riding the startup packet costs no
+/// round trip and survives `DISCARD ALL`.
+///
+/// ⚠ Safe on a database **without** pgvector. A two-part GUC name is accepted as
+/// a placeholder when no extension has claimed it, so the connection succeeds
+/// and the value simply never takes effect — verified against a database with
+/// the extension absent. The same mechanism covers a pgvector older than 0.8,
+/// which defines neither GUC.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
+pub struct VectorScanConfig {
+    /// `hnsw.iterative_scan`.
+    pub hnsw:      HnswIterativeScan,
+    /// `ivfflat.iterative_scan`.
+    pub ivfflat:   IvfflatIterativeScan,
+    /// `hnsw.ef_search`, or `None` to leave pgvector's default of 40.
+    ///
+    /// ⚠ **`iterative_scan` alone does not guarantee `k` rows, and on some
+    /// corpora it is not even the binding constraint.** Measured on this
+    /// repository's rig — 20 000 rows × 64 dimensions of uniform-random vectors,
+    /// a filter matching 1%, `k = 10`, three independently generated datasets:
+    ///
+    /// | configuration | rows returned |
+    /// |---|---|
+    /// | `iterative_scan=off` (pgvector's default) | 2, 3, 4 |
+    /// | `iterative_scan=strict_order`, other GUCs default | 10, 5, 4 |
+    /// | …plus `max_scan_tuples` raised 100× | 10, 5, 4 — **no change** |
+    /// | …plus `ef_search=1000` instead | **10, 10, 10** |
+    /// | `iterative_scan=off` **and** `ef_search=1000` | **10, 10, 10** |
+    ///
+    /// So `ef_search` — the size of the candidate list the graph search keeps —
+    /// is what decides whether ten members of a 1% subset are found at all, and
+    /// `max_scan_tuples` (which #1314 was filed against) changed nothing.
+    /// Uniform-random high-dimensional vectors are the adversarial case, and the
+    /// benchmark in `benches/vector_filtered_ann.sql` reports recall 1.00 from
+    /// `iterative_scan` alone on its own corpus — which is the point: **which
+    /// knob binds depends on the data**, so both have to be reachable.
+    ///
+    /// Left unset by default deliberately. `iterative_scan` costs nothing on an
+    /// unfiltered search (measured: recall already 1.000, timings tie), so
+    /// naming it is free. `ef_search` is a latency/recall trade paid by **every**
+    /// search on the deployment, filtered or not, and its right value is a
+    /// property of the corpus. FraiseQL will not choose it for an operator; it
+    /// makes it reachable and says, above, how to tell that it is the one to
+    /// reach for.
+    pub ef_search: Option<u32>,
+}
+
+impl HnswIterativeScan {
+    /// The value as pgvector spells it.
+    #[must_use]
+    pub const fn as_guc_value(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::RelaxedOrder => "relaxed_order",
+            Self::StrictOrder => "strict_order",
+        }
+    }
+}
+
+impl IvfflatIterativeScan {
+    /// The value as pgvector spells it.
+    #[must_use]
+    pub const fn as_guc_value(self) -> &'static str {
+        match self {
+            Self::Off => "off",
+            Self::RelaxedOrder => "relaxed_order",
+        }
+    }
+}
+
+impl VectorScanConfig {
+    /// The `-c` fragments these settings contribute to the startup packet.
+    ///
+    /// Empty when both are [`Off`](HnswIterativeScan::Off) — an operator who
+    /// turned the feature off gets pgvector's own default rather than an
+    /// explicit `off`, so the server's or the database's own `ALTER DATABASE`
+    /// setting still applies. Writing `-c hnsw.iterative_scan=off` would
+    /// *override* such a setting, which is not what "leave it alone" means.
+    #[must_use]
+    pub fn startup_fragments(self) -> Vec<String> {
+        let mut out = Vec::new();
+        if self.hnsw != HnswIterativeScan::Off {
+            out.push(format!("-c hnsw.iterative_scan={}", self.hnsw.as_guc_value()));
+        }
+        if self.ivfflat != IvfflatIterativeScan::Off {
+            out.push(format!("-c ivfflat.iterative_scan={}", self.ivfflat.as_guc_value()));
+        }
+        if let Some(ef) = self.ef_search {
+            out.push(format!("-c hnsw.ef_search={ef}"));
+        }
+        out
+    }
+}
+
 /// Compose the PostgreSQL startup `options` string for a pool.
 ///
-/// Appends `-c search_path=…` to whatever `options` the operator already put in the
-/// connection string, rather than replacing it: deadpool's struct-level `options`
-/// field overrides the URL-parsed value outright, so building this by assignment
-/// alone would silently discard an operator's own `-c` settings.
-fn compose_startup_options(connection_string: &str, search_path: &SearchPath) -> String {
+/// Appends this pool's `-c` settings to whatever `options` the operator already put
+/// in the connection string, rather than replacing them: deadpool's struct-level
+/// `options` field overrides the URL-parsed value outright, so building this by
+/// assignment alone would silently discard an operator's own `-c` settings.
+///
+/// Returns `None` when the pool contributes nothing, so the caller can leave
+/// `cfg.options` unset and let deadpool use the URL's own value — assigning the
+/// URL's options back to the struct field would be a no-op today and a trap the
+/// first time the two are read differently.
+fn compose_startup_options(
+    connection_string: &str,
+    search_path: Option<&SearchPath>,
+    vector_scan: VectorScanConfig,
+) -> Option<String> {
+    let mut fragments: Vec<String> = Vec::new();
+    if let Some(path) = search_path {
+        fragments.push(format!("-c search_path={path}"));
+    }
+    // Both settings ride the same packet as the search path. Vector scan
+    // behaviour is a property of connection establishment for exactly the reason
+    // schema isolation is (#1116, #809): a pooled `SET` reaches one session of N.
+    fragments.extend(vector_scan.startup_fragments());
+    if fragments.is_empty() {
+        return None;
+    }
+
     let existing = connection_string
         .parse::<tokio_postgres::Config>()
         .ok()
@@ -429,9 +630,9 @@ fn compose_startup_options(connection_string: &str, search_path: &SearchPath) ->
         .unwrap_or_default();
     let existing = existing.trim();
     if existing.is_empty() {
-        format!("-c search_path={search_path}")
+        Some(fragments.join(" "))
     } else {
-        format!("{existing} -c search_path={search_path}")
+        Some(format!("{existing} {}", fragments.join(" ")))
     }
 }
 
@@ -445,6 +646,7 @@ fn build_pool(
     max_size: usize,
     timeout_secs: Option<u64>,
     search_path: Option<&SearchPath>,
+    vector_scan: VectorScanConfig,
     tls: &PostgresTlsConfig,
 ) -> Result<Pool> {
     let mut cfg = Config::new();
@@ -455,10 +657,9 @@ fn build_pool(
 
     // Schema isolation is a property of connection *establishment*, so it rides the
     // startup packet and applies to every connection this pool ever opens — see
-    // `SearchPath` for why a pooled `SET` is unsound (#809).
-    if let Some(path) = search_path {
-        cfg.options = Some(compose_startup_options(connection_string, path));
-    }
+    // `SearchPath` for why a pooled `SET` is unsound (#809). `VectorScanConfig`
+    // rides the same packet for the same reason (#1116).
+    cfg.options = compose_startup_options(connection_string, search_path, vector_scan);
 
     let mut pool_cfg = deadpool_postgres::PoolConfig::new(max_size);
     if let Some(secs) = timeout_secs {
@@ -545,8 +746,17 @@ async fn build_read_replica_set(
     let mut pools = Vec::with_capacity(rc.urls.len());
     let mut health = Vec::with_capacity(rc.urls.len());
     for (index, url) in rc.urls.iter().enumerate() {
-        let pool =
-            build_pool(url, cfg.max_size, cfg.timeout_secs, cfg.search_path.as_ref(), &cfg.tls)?;
+        // The replica pools are built from the SAME config as the primary, so a
+        // schema-isolated tenant's search path, the server's TLS settings and its
+        // vector-scan settings all reach the replicas too (#809 generalised).
+        let pool = build_pool(
+            url,
+            cfg.max_size,
+            cfg.timeout_secs,
+            cfg.search_path.as_ref(),
+            cfg.vector_scan,
+            &cfg.tls,
+        )?;
 
         // Boot health check: a configured replica that cannot serve refuses to
         // boot — the alternative is a read fleet that silently collapsed onto
@@ -921,6 +1131,8 @@ impl PostgresAdapter {
                 timeout_secs:        None,
                 search_path:         None,
                 max_streaming_reads: None,
+                // The recall-preserving default; see `VectorScanConfig` (#1116).
+                vector_scan:         VectorScanConfig::default(),
                 // libpq's default: negotiate TLS when the server offers it. Callers
                 // that need a guarantee go through `with_pool_config`.
                 tls:                 PostgresTlsConfig::default(),
@@ -950,6 +1162,7 @@ impl PostgresAdapter {
             cfg.max_size,
             cfg.timeout_secs,
             cfg.search_path.as_ref(),
+            cfg.vector_scan,
             &cfg.tls,
         )?;
 
@@ -1027,6 +1240,7 @@ impl PostgresAdapter {
                 tls: PostgresTlsConfig::default(),
                 read_replicas: None,
                 max_streaming_reads: None,
+                vector_scan: VectorScanConfig::default(),
             },
         )
         .await

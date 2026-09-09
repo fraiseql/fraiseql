@@ -178,6 +178,21 @@ impl ServerConfig {
         self.read_replica_policy().with_urls(self.read_replica_urls.clone())
     }
 
+    /// pgvector scan behaviour for every pool this server builds (#1116).
+    ///
+    /// The single seam, like [`read_replicas`](Self::read_replicas) above it: the
+    /// server binary, `fraiseql run` and every per-tenant pool read this rather
+    /// than assembling the struct themselves, so a filtered similarity search
+    /// cannot silently under-return on one of them and not the others.
+    #[must_use]
+    pub const fn vector_scan(&self) -> fraiseql_core::db::postgres::VectorScanConfig {
+        fraiseql_core::db::postgres::VectorScanConfig {
+            hnsw:      self.vector_hnsw_iterative_scan,
+            ivfflat:   self.vector_ivfflat_iterative_scan,
+            ef_search: self.vector_hnsw_ef_search,
+        }
+    }
+
     /// Effective `@stream` continuation batch size (#387).
     ///
     /// The 100-row default lives here — the single seam — so every consumer
