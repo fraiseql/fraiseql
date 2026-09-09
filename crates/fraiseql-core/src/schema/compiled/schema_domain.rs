@@ -586,83 +586,6 @@ impl CompiledSchema {
             })
             .collect()
     }
-
-    /// Validate the schema for internal consistency.
-    ///
-    /// Checks:
-    /// - All type references resolve to defined types
-    /// - No duplicate type/operation names
-    /// - Required fields have valid types
-    ///
-    /// # Errors
-    ///
-    /// Returns list of validation errors if schema is invalid.
-    pub fn validate(&self) -> Result<(), Vec<String>> {
-        let mut errors = Vec::new();
-
-        // Check for duplicate type names
-        let mut type_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
-        for type_def in &self.types {
-            if !type_names.insert(type_def.name.as_str()) {
-                errors.push(format!("Duplicate type name: {}", type_def.name));
-            }
-
-            // Validate a declared subscription row-visibility policy (#596): a malformed
-            // `owner_path`/`identity_field` is a load-time error, not a silent
-            // deliver-all at subscribe time.
-            if let Some(policy) = &type_def.subscription_policy {
-                if let Err(e) = policy.validate() {
-                    errors.push(format!("Type '{}': {e}", type_def.name));
-                }
-            }
-        }
-
-        // Check for duplicate query names
-        let mut query_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
-        for query in &self.queries {
-            if !query_names.insert(&query.name) {
-                errors.push(format!("Duplicate query name: {}", query.name));
-            }
-        }
-
-        // Check for duplicate mutation names
-        let mut mutation_names: std::collections::HashSet<&str> = std::collections::HashSet::new();
-        for mutation in &self.mutations {
-            if !mutation_names.insert(&mutation.name) {
-                errors.push(format!("Duplicate mutation name: {}", mutation.name));
-            }
-        }
-
-        // Check type references in queries
-        for query in &self.queries {
-            if !type_names.contains(query.return_type.as_str())
-                && !is_builtin_type(&query.return_type)
-            {
-                errors.push(format!(
-                    "Query '{}' references undefined type '{}'",
-                    query.name, query.return_type
-                ));
-            }
-        }
-
-        // Check type references in mutations
-        for mutation in &self.mutations {
-            if !type_names.contains(mutation.return_type.as_str())
-                && !is_builtin_type(&mutation.return_type)
-            {
-                errors.push(format!(
-                    "Mutation '{}' references undefined type '{}'",
-                    mutation.name, mutation.return_type
-                ));
-            }
-        }
-
-        if errors.is_empty() {
-            Ok(())
-        } else {
-            Err(errors)
-        }
-    }
 }
 
 /// Render a root operation as a GraphQL SDL field: `name(arg: T!, …): Return`.
@@ -702,22 +625,4 @@ fn leaf_type_name(rendered: &str) -> String {
         .collect::<String>()
         .trim()
         .to_string()
-}
-
-/// Check if a type name is a built-in scalar type.
-fn is_builtin_type(name: &str) -> bool {
-    matches!(
-        name,
-        "String"
-            | "Int"
-            | "Float"
-            | "Boolean"
-            | "ID"
-            | "DateTime"
-            | "Date"
-            | "Time"
-            | "JSON"
-            | "UUID"
-            | "Decimal"
-    )
 }

@@ -133,7 +133,10 @@ proptest! {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(200))]
 
-    /// Property: Duplicate type names always produce validation errors.
+    /// Property: duplicate type names are always refused by the LOAD path.
+    ///
+    /// Asserted through `from_json` since #1265 deleted `CompiledSchema::validate()`,
+    /// which had no caller outside tests — a property of an unreachable function.
     #[test]
     fn prop_schema_duplicate_types_always_error(
         name in arb_type_name(),
@@ -144,10 +147,10 @@ proptest! {
         schema.types.push(TypeDefinition::new(name.clone(), source1));
         schema.types.push(TypeDefinition::new(name.clone(), source2));
 
-        let result = schema.validate();
+        let json = schema.to_json().expect("a schema serializes");
         prop_assert!(
-            result.is_err(),
-            "Schema with duplicate type '{}' should fail validation", name
+            CompiledSchema::from_json(&json, false).is_err(),
+            "Schema with duplicate type '{}' should not load", name
         );
     }
 
@@ -161,18 +164,16 @@ proptest! {
             schema.types.push(TypeDefinition::new(name, "v_table".to_string()));
         }
 
-        let result = schema.validate();
-        if let Err(errors) = &result {
-            for err in errors {
-                prop_assert!(
-                    !err.contains("Duplicate type name"),
-                    "Unique types should not produce duplicate error: {}", err
-                );
-            }
+        let json = schema.to_json().expect("a schema serializes");
+        if let Err(e) = CompiledSchema::from_json(&json, false) {
+            prop_assert!(
+                !e.to_string().contains("Duplicate type name"),
+                "Unique types should not produce duplicate error: {}", e
+            );
         }
     }
 
-    /// Property: Validation errors always contain the offending type name.
+    /// Property: the refusal always names the offending type.
     #[test]
     fn prop_schema_validation_error_mentions_name(
         name in arb_type_name(),
@@ -181,12 +182,13 @@ proptest! {
         schema.types.push(TypeDefinition::new(name.clone(), "v_a".to_string()));
         schema.types.push(TypeDefinition::new(name.clone(), "v_b".to_string()));
 
-        let result = schema.validate();
-        prop_assert!(result.is_err(), "schema with duplicate type '{}' should fail validation", name);
-        let errors = result.unwrap_err();
+        let json = schema.to_json().expect("a schema serializes");
+        let err = CompiledSchema::from_json(&json, false)
+            .expect_err("a schema with a duplicate type name must not load");
+        let message = err.to_string();
         prop_assert!(
-            errors.iter().any(|e| e.contains(&name)),
-            "Validation error should mention type name '{}', got: {:?}", name, errors
+            message.contains(&name),
+            "the refusal should mention type name '{}', got: {}", name, message
         );
     }
 }
@@ -329,6 +331,7 @@ proptest! {
         }
 
         // Must not panic on any configuration
-        let _ = schema.validate();
+        let json = schema.to_json().expect("a schema serializes");
+        let _ = CompiledSchema::from_json(&json, false);
     }
 }

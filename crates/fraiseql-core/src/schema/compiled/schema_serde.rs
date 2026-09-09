@@ -178,12 +178,13 @@ impl CompiledSchema {
     /// normalization step performed on one load path and not its sibling is the
     /// shape that produced #748 and #812 in other subsystems.
     ///
-    /// Today it lowers each type's `requires_role` onto the operations that return
-    /// it (#677) and refuses a schema whose role declarations the runtime cannot
-    /// honour, then refuses one whose type-level and query-level scoping declarations
-    /// contradict each other (#1142), one whose subscription filter names an argument
-    /// it does not declare (#1262), and one declaring a relationship no embed can
-    /// follow (#1266).
+    /// Today it refuses a schema that declares a name twice (#1265), lowers each
+    /// type's `requires_role` onto the operations that return it (#677) and refuses a
+    /// schema whose role declarations the runtime cannot honour, then refuses one whose
+    /// type-level and query-level scoping declarations contradict each other (#1142),
+    /// one whose subscription row-visibility policy the delivery path cannot honour
+    /// (#596/#1265), one whose subscription filter names an argument it does not
+    /// declare (#1262), and one declaring a relationship no embed can follow (#1266).
     ///
     /// # Errors
     ///
@@ -195,6 +196,19 @@ impl CompiledSchema {
     /// target, a join column or a list query the embed executor cannot resolve, see
     /// [`CompiledSchema::relationship_violations`].
     fn finish_load(&mut self) -> std::result::Result<(), FraiseQLError> {
+        // First: a name declared twice makes every later check ambiguous. `build_indexes`
+        // keys by name, so the second definition silently shadows the first and the
+        // schema behaves as something nobody wrote (#1265).
+        let violations = self.duplicate_name_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "schema declares a name twice:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("schema.names".to_string()),
+            });
+        }
         self.propagate_type_roles();
         let violations = self.type_role_violations();
         if !violations.is_empty() {
@@ -214,6 +228,16 @@ impl CompiledSchema {
                     violations.join("\n  - ")
                 ),
                 path:    Some("security.inject_params".to_string()),
+            });
+        }
+        let violations = self.subscription_policy_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "subscription policies cannot be applied as declared:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("types.subscription_policy".to_string()),
             });
         }
         let violations = self.subscription_filter_violations();
@@ -237,6 +261,68 @@ impl CompiledSchema {
             });
         }
         Ok(())
+    }
+
+    /// Types whose declared subscription row-visibility policy the delivery path cannot
+    /// honour (#596).
+    ///
+    /// This check lived in `CompiledSchema::validate()`, which had **no caller outside
+    /// tests** — so #596's own comment calling it "a load-time error, not a silent
+    /// deliver-all at subscribe time" described something that never ran, and
+    /// `SubscriptionPolicy::validate` had exactly one caller: the unreachable one
+    /// (#1265).
+    ///
+    /// It matters precisely here, because `subscription_policy` has no authoring
+    /// producer at all — the CLI hardcodes `None` at every construction site, the
+    /// intermediate schema has no field for it and no SDK emits one. The only way a
+    /// policy reaches a deployment is a hand-written compiled schema, which is exactly
+    /// the input this path accepts.
+    fn subscription_policy_violations(&self) -> Vec<String> {
+        self.types
+            .iter()
+            .filter_map(|type_def| {
+                type_def
+                    .subscription_policy
+                    .as_ref()
+                    .and_then(|policy| policy.validate().err())
+                    .map(|e| format!("Type '{}': {e}", type_def.name))
+            })
+            .collect()
+    }
+
+    /// Types, queries or mutations declared under a name already taken (#1265).
+    ///
+    /// `build_indexes` keys each collection by name, so a duplicate does not conflict —
+    /// it *shadows*, and the schema serves whichever definition indexed last while the
+    /// document plainly contains both. `fraiseql compile` refuses to emit one
+    /// (`SchemaValidator::validate` checks the intermediate schema), which leaves the
+    /// hand-edited artifact.
+    ///
+    /// ⚠ `CompiledSchema::validate()` also checked that every query and mutation return
+    /// type resolved, and that check is **not** carried over, because it was wrong: it
+    /// resolved against `self.types` plus ten builtin scalar names, while the schema
+    /// holds `enums`, `interfaces` and `unions` in separate collections. Measured before
+    /// its removal, it reported `Query 'orderStatus' references undefined type
+    /// 'OrderStatus'` for a valid enum-returning query — so moving it onto this path
+    /// would have refused, at boot, every schema with one. Nobody noticed in the years
+    /// it existed, because nothing ran it. `SchemaValidator::validate` covers return
+    /// types on the compile path, correctly. See
+    /// `a_query_returning_an_enum_or_union_still_loads`.
+    fn duplicate_name_violations(&self) -> Vec<String> {
+        fn duplicates<'a>(kind: &str, names: impl Iterator<Item = &'a str>, out: &mut Vec<String>) {
+            let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
+            for name in names {
+                if !seen.insert(name) {
+                    out.push(format!("Duplicate {kind} name: {name}"));
+                }
+            }
+        }
+
+        let mut violations = Vec::new();
+        duplicates("type", self.types.iter().map(|t| t.name.as_str()), &mut violations);
+        duplicates("query", self.queries.iter().map(|q| q.name.as_str()), &mut violations);
+        duplicates("mutation", self.mutations.iter().map(|m| m.name.as_str()), &mut violations);
+        violations
     }
 
     /// Subscriptions whose filter names an argument they do not declare (#1262).

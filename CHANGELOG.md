@@ -18,6 +18,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`CompiledSchema::validate()` is deleted (#1265).**
+
+  It had no caller outside tests, and its return-type check was **wrong**: it resolved
+  query and mutation return types against `self.types` plus ten builtin scalar names,
+  while `CompiledSchema` holds `enums`, `interfaces` and `unions` in *separate*
+  collections. Measured before deleting it, it reported
+
+  ```
+  Query 'orderStatus' references undefined type 'OrderStatus'
+  ```
+
+  for a perfectly valid enum-returning query. Nobody noticed in the years it existed,
+  because nothing ran it — which is the argument for having one reachable validation
+  surface rather than two, and the reason that check was **not** carried over to the
+  load path: moving it would have refused, at boot, every schema with an enum-returning
+  query. `SchemaValidator::validate` covers return types on the compile path, correctly.
+
+  What *was* carried over runs in `finish_load` for every load: the subscription-policy
+  validation and the duplicate type/query/mutation name checks. If you called
+  `validate()` on a schema you built in memory, load it through
+  `CompiledSchema::from_json` instead — that is the path a deployment takes.
+
 - **`fraiseql_arrow::schema` is deleted — `graphql_result_schema()`,
   `observer_event_schema()` and `bulk_export_schema()` are gone (#1181).**
 
@@ -1128,6 +1150,35 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+
+- **#596's subscription-policy refusal now actually runs, and a schema declaring a name
+  twice is refused at load (#1265).**
+
+  `CompiledSchema::validate()` had **no caller outside tests**. Every entry point that
+  loads a compiled schema — server boot, hot reload, the admin reload endpoint, the
+  per-tenant pool factory, `fraiseql compile`, `fraiseql validate` — calls `from_json`
+  and stops there. So every check inside it ran nowhere, including #596's
+  subscription-policy validation, whose own comment calls it "a load-time error, not a
+  silent deliver-all at subscribe time". `SubscriptionPolicy::validate`, documented
+  "Validate the policy at load time", had exactly one caller: the unreachable one.
+
+  That matters precisely for `subscription_policy`, because it has no authoring
+  producer at all — the CLI hardcodes `None` at all 11 construction sites, the
+  intermediate schema has no field for it, no TOML surface emits one and no SDK writes
+  one. The only way a policy reaches a deployment is a hand-written compiled schema,
+  which is exactly the input `from_json` was accepting unchecked.
+
+  The runtime is not fail-open here: a nested `owner_path` yields an RLS condition whose
+  pointer lookup misses, and the delivery loop returns `false` on a miss, so the
+  subscription goes silently **quiet** rather than leaking. The symptom is a
+  subscription that stops delivering, diagnosed at 3am instead of at boot — which is
+  what the refusal exists to prevent.
+
+  Both checks now run in `finish_load`, the chokepoint both `from_json` branches share
+  and where #677, #1142, #1262 and #1266 already refuse. The duplicate-name check comes
+  with it because a duplicate is not a style problem: `build_indexes` keys by name, so
+  the second definition silently shadows the first and the schema serves something
+  nobody wrote.
 
 - **The REST stream refuses `Last-Event-ID` instead of silently dropping it, and its wire id is
   the Change-Spine sequence rather than an event UUID (#1113).**

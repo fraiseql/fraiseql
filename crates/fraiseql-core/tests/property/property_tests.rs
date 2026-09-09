@@ -150,22 +150,28 @@ proptest! {
         }
     }
 
-    /// Property: Schema validation detects duplicate type names deterministically.
-    /// If we insert the same type name twice, validate() must always report an error.
+    /// Property: the LOAD path rejects duplicate type names deterministically, for any
+    /// name.
+    ///
+    /// Asserted through `from_json` rather than through the old
+    /// `CompiledSchema::validate()`, which had no caller outside tests and was deleted
+    /// in #1265. A property that held only inside an unreachable function was a property
+    /// of nothing.
     #[test]
     fn prop_schema_rejects_duplicate_type_names(
         name in "[A-Z][a-zA-Z]{1,20}",
     ) {
         let mut schema = CompiledSchema::new();
         schema.types.push(TypeDefinition::new(name.clone(), "v_table"));
-        schema.types.push(TypeDefinition::new(name, "v_other"));
+        schema.types.push(TypeDefinition::new(name.clone(), "v_other"));
 
-        let result = schema.validate();
-        prop_assert!(result.is_err(), "Schema with duplicate type names should fail validation");
-        let errors = result.unwrap_err();
+        let json = schema.to_json().expect("a schema serializes");
+        let err = CompiledSchema::from_json(&json, false)
+            .expect_err("a schema declaring a type name twice must not load");
+        let message = err.to_string();
         prop_assert!(
-            errors.iter().any(|e| e.contains("Duplicate type name")),
-            "Error should mention duplicate type name"
+            message.contains(&format!("Duplicate type name: {name}")),
+            "the refusal must name the duplicate: {message}"
         );
     }
 

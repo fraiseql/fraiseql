@@ -226,63 +226,6 @@ fn test_schema_to_json_roundtrip() {
 }
 
 #[test]
-fn test_schema_validation_duplicate_types() {
-    let schema = CompiledSchema {
-        types: vec![
-            TypeDefinition::new("User", "v_user"),
-            TypeDefinition::new("User", "v_user2"), // Duplicate!
-        ],
-        ..Default::default()
-    };
-
-    let result = schema.validate();
-    let errors = result.unwrap_err();
-    assert!(errors.iter().any(|e| e.contains("Duplicate type name: User")));
-}
-
-#[test]
-fn test_schema_validation_undefined_type_reference() {
-    let schema = CompiledSchema {
-        types: vec![TypeDefinition::new("User", "v_user")],
-        queries: vec![QueryDefinition::new("posts", "Post")], // Post not defined!
-        ..Default::default()
-    };
-
-    let result = schema.validate();
-    let errors = result.unwrap_err();
-    assert!(errors.iter().any(|e| e.contains("undefined type 'Post'")));
-}
-
-#[test]
-fn test_schema_validation_success() {
-    let schema = CompiledSchema {
-        types: vec![TypeDefinition::new("User", "v_user")],
-        queries: vec![QueryDefinition::new("users", "User")],
-        ..Default::default()
-    };
-
-    schema.validate().unwrap_or_else(|e| panic!("expected valid schema: {e:?}"));
-}
-
-#[test]
-fn test_schema_validation_builtin_types_ok() {
-    // Queries returning built-in types should pass validation
-    let schema = CompiledSchema {
-        types: vec![],
-        queries: vec![
-            QueryDefinition::new("version", "String"),
-            QueryDefinition::new("count", "Int"),
-            QueryDefinition::new("active", "Boolean"),
-        ],
-        ..Default::default()
-    };
-
-    schema
-        .validate()
-        .unwrap_or_else(|e| panic!("expected built-in types to pass validation: {e:?}"));
-}
-
-#[test]
 fn test_field_type_serialization() {
     // Test that field types serialize correctly for cross-language compat
 
@@ -543,11 +486,6 @@ fn test_python_generated_json_compat() {
 
     // Verify subscriptions (empty)
     assert!(schema.subscriptions.is_empty());
-
-    // Verify validation passes
-    schema
-        .validate()
-        .unwrap_or_else(|e| panic!("expected Python-generated schema to pass validation: {e:?}"));
 }
 
 // ============================================================================
@@ -1019,11 +957,6 @@ fn test_python_generated_vector_schema_compat() {
     assert_eq!(config.dimensions, 1536);
     assert_eq!(config.index_type, VectorIndexType::Hnsw);
     assert_eq!(config.distance_metric, DistanceMetric::Cosine);
-
-    // Verify validation passes
-    schema.validate().unwrap_or_else(|e| {
-        panic!("expected Python-generated vector schema to pass validation: {e:?}")
-    });
 }
 
 #[test]

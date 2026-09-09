@@ -1147,73 +1147,6 @@ fn tenancy_mode_implies_multi_tenant() {
 }
 
 // -------------------------------------------------------------------------
-// validate()
-// -------------------------------------------------------------------------
-
-#[test]
-fn validate_empty_schema_is_ok() {
-    assert!(CompiledSchema::new().validate().is_ok());
-}
-
-#[test]
-fn validate_detects_duplicate_type_names() {
-    let mut schema = CompiledSchema::new();
-    schema.types.push(make_type_def("User"));
-    schema.types.push(make_type_def("User")); // duplicate
-    let result = schema.validate();
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
-    assert!(errors.iter().any(|e| e.contains("Duplicate type name")));
-}
-
-#[test]
-fn validate_detects_duplicate_query_names() {
-    let mut schema = CompiledSchema::new();
-    schema.queries.push(make_query("getUser", "String"));
-    schema.queries.push(make_query("getUser", "String")); // duplicate
-    let result = schema.validate();
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
-    assert!(errors.iter().any(|e| e.contains("Duplicate query name")));
-}
-
-#[test]
-fn validate_detects_duplicate_mutation_names() {
-    let mut schema = CompiledSchema::new();
-    schema.mutations.push(make_mutation("createUser", "String"));
-    schema.mutations.push(make_mutation("createUser", "String")); // duplicate
-    let result = schema.validate();
-    assert!(result.is_err());
-}
-
-#[test]
-fn validate_undefined_return_type_in_query_is_error() {
-    let mut schema = CompiledSchema::new();
-    // No "Widget" type defined
-    schema.queries.push(make_query("getWidget", "Widget"));
-    let result = schema.validate();
-    assert!(result.is_err());
-    let errors = result.unwrap_err();
-    assert!(errors.iter().any(|e| e.contains("Widget")));
-}
-
-#[test]
-fn validate_builtin_scalar_return_type_is_ok() {
-    let mut schema = CompiledSchema::new();
-    schema.queries.push(make_query("ping", "String"));
-    schema.queries.push(make_query("count", "Int"));
-    assert!(schema.validate().is_ok());
-}
-
-#[test]
-fn validate_defined_type_as_return_type_is_ok() {
-    let mut schema = CompiledSchema::new();
-    schema.types.push(make_type_def("User"));
-    schema.queries.push(make_query("getUser", "User"));
-    assert!(schema.validate().is_ok());
-}
-
-// -------------------------------------------------------------------------
 // raw_schema
 // -------------------------------------------------------------------------
 
@@ -1453,26 +1386,6 @@ fn raw_schema_declares_scalars_under_the_name_fields_reference() {
 // -------------------------------------------------------------------------
 // is_builtin_type (private fn — tested via validate())
 // -------------------------------------------------------------------------
-
-#[test]
-fn builtin_scalar_types_pass_validation() {
-    let scalars = [
-        "String", "Int", "Float", "Boolean", "ID", "DateTime", "Date", "Time", "JSON", "UUID",
-        "Decimal",
-    ];
-    for scalar in scalars {
-        let mut schema = CompiledSchema::new();
-        schema.queries.push(make_query("q", scalar));
-        assert!(schema.validate().is_ok(), "{scalar} should be a recognised built-in");
-    }
-}
-
-#[test]
-fn unknown_scalar_fails_validation() {
-    let mut schema = CompiledSchema::new();
-    schema.queries.push(make_query("q", "Blob"));
-    assert!(schema.validate().is_err());
-}
 
 // ── Operation name normalization (issue #199) ────────────────────────
 
@@ -2218,4 +2131,160 @@ fn a_query_with_no_pagination_order_emits_no_key() {
 
     let back: QueryDefinition = serde_json::from_value(value).unwrap();
     assert_eq!(back.pagination_order, None);
+}
+
+// ---------------------------------------------------------------------------
+// The load-time half of #596's subscription policy, and the duplicate-name
+// checks that came with it (#1265).
+//
+// These lived in `CompiledSchema::validate()`, which had no caller outside tests:
+// every entry point that loads a compiled schema calls `from_json` and stops.
+// So #596's "load-time error, not a silent deliver-all at subscribe time" never
+// ran anywhere, and `SubscriptionPolicy::validate` had exactly one caller — the
+// unreachable one.
+//
+// They now run in `finish_load`, the chokepoint both `from_json` branches share.
+// Every case asserts the message it produces, not merely "load failed", so a check
+// that started refusing everything would still be caught.
+// ---------------------------------------------------------------------------
+
+/// The document each case below mutates: one type carrying a well-formed policy.
+fn policy_fixture() -> serde_json::Value {
+    serde_json::json!({
+      "types": [
+        {"name": "Order", "sql_source": "v_order",
+         "fields": [{"name": "id", "field_type": "Int", "nullable": false},
+                    {"name": "owner_id", "field_type": "String", "nullable": false}],
+         "subscription_policy": {"owner_path": "$.owner_id",
+                                 "identity_field": "user_id",
+                                 "bypass_roles": ["admin"]}}
+      ],
+      "queries": [
+        {"name": "orders", "return_type": "Order", "returns_list": true, "sql_source": "v_order"}
+      ],
+      "mutations": []
+    })
+}
+
+fn policy_refusal_for(mutate: impl FnOnce(&mut serde_json::Value)) -> String {
+    let mut doc = policy_fixture();
+    mutate(&mut doc);
+    CompiledSchema::from_json(&doc.to_string(), false)
+        .expect_err("a malformed subscription policy must not load")
+        .to_string()
+}
+
+/// The positive control. Without it every case below would pass against a check that
+/// refused every schema carrying a `subscription_policy` at all.
+#[test]
+fn a_well_formed_subscription_policy_loads_and_survives() {
+    let schema = CompiledSchema::from_json(&policy_fixture().to_string(), false)
+        .expect("a well-formed policy must load");
+    let policy = schema
+        .find_type("Order")
+        .expect("Order loads")
+        .subscription_policy
+        .as_ref()
+        .expect("the policy survives the load");
+    assert_eq!(policy.owner_field(), "owner_id");
+    assert_eq!(policy.identity_field, "user_id");
+}
+
+/// The case #596's comment names. A nested path yields an RLS condition whose pointer
+/// lookup misses, and the delivery loop returns `false` on a miss — so the subscription
+/// goes silently *quiet* rather than leaking. Diagnosed at 3am instead of at boot,
+/// which is what the refusal exists to prevent.
+#[test]
+fn a_nested_subscription_policy_owner_path_is_refused_at_load() {
+    let message =
+        policy_refusal_for(|d| d["types"][0]["subscription_policy"]["owner_path"] = "$.a.b".into());
+    assert!(
+        message.contains("must be a single-level"),
+        "the refusal diagnoses the nested path: {message}"
+    );
+    assert!(message.contains("Order"), "and names the declaring type: {message}");
+}
+
+#[test]
+fn an_empty_subscription_policy_identity_field_is_refused_at_load() {
+    let message = policy_refusal_for(|d| {
+        d["types"][0]["subscription_policy"]["identity_field"] = "".into();
+    });
+    assert!(
+        message.contains("identity_field must not be empty"),
+        "the refusal diagnoses the empty identity field: {message}"
+    );
+}
+
+#[test]
+fn a_subscription_policy_owner_path_naming_no_field_is_refused_at_load() {
+    let message =
+        policy_refusal_for(|d| d["types"][0]["subscription_policy"]["owner_path"] = "$.".into());
+    assert!(
+        message.contains("must name a field"),
+        "the refusal diagnoses the empty owner field: {message}"
+    );
+}
+
+/// A duplicate name is not a style problem: `build_indexes` keys by name, so one
+/// definition silently shadows the other and the schema behaves as something nobody
+/// wrote. `fraiseql compile` refuses to emit one; this is the hand-edited artifact.
+#[test]
+fn a_duplicate_type_name_is_refused_at_load() {
+    let message = policy_refusal_for(|d| {
+        let dup = d["types"][0].clone();
+        d["types"].as_array_mut().expect("types is an array").push(dup);
+    });
+    assert!(message.contains("Duplicate type name: Order"), "{message}");
+}
+
+#[test]
+fn a_duplicate_query_name_is_refused_at_load() {
+    let message = policy_refusal_for(|d| {
+        let dup = d["queries"][0].clone();
+        d["queries"].as_array_mut().expect("queries is an array").push(dup);
+    });
+    assert!(message.contains("Duplicate query name: orders"), "{message}");
+}
+
+#[test]
+fn a_duplicate_mutation_name_is_refused_at_load() {
+    let message = policy_refusal_for(|d| {
+        let m = serde_json::json!({"name": "createOrder", "return_type": "Order",
+                                   "operation": {"Insert": {"table": "tb_order"}}});
+        let arr = d["mutations"].as_array_mut().expect("mutations is an array");
+        arr.push(m.clone());
+        arr.push(m);
+    });
+    assert!(message.contains("Duplicate mutation name: createOrder"), "{message}");
+}
+
+/// **The check that must NOT move to the load path.** `CompiledSchema::validate()` also
+/// carried a "references undefined type" check, and that check was wrong: it resolved
+/// return types against `self.types` plus ten builtin scalar names, while the schema
+/// holds `enums`, `interfaces` and `unions` in *separate* collections. Measured before
+/// deleting it, it reported `Query 'orderStatus' references undefined type
+/// 'OrderStatus'` for the document below — so moving it here would have refused, at
+/// boot, every schema with an enum-returning query.
+///
+/// Nobody noticed in the years it existed, because nothing ran it. That is the argument
+/// for having one reachable validation surface rather than two, and this test is what
+/// stops the next person restoring the second one.
+#[test]
+fn a_query_returning_an_enum_or_union_still_loads() {
+    let doc = serde_json::json!({
+      "types": [
+        {"name": "Order", "sql_source": "v_order",
+         "fields": [{"name": "id", "field_type": "Int", "nullable": false}]}
+      ],
+      "enums": [{"name": "OrderStatus", "values": [{"name": "OPEN"}, {"name": "CLOSED"}]}],
+      "queries": [
+        {"name": "orderStatus", "return_type": "OrderStatus", "sql_source": "v_order"}
+      ],
+      "mutations": []
+    });
+    CompiledSchema::from_json(&doc.to_string(), false).expect(
+        "a query returning an enum must load: the load path resolves return types \
+         against types/enums/interfaces/unions or not at all, never against `types` alone",
+    );
 }
