@@ -31,6 +31,25 @@ use fraiseql_db::{
     },
 };
 
+/// Create the pgvector extension, as `graphql_vector_e2e_pg`'s seed does.
+///
+/// ⚠ The rig image **ships** pgvector but the database does not have the extension
+/// **created** — those are different things, and the difference is invisible on a
+/// developer machine where some earlier suite already ran `CREATE EXTENSION`. This
+/// suite passed locally for exactly that reason and then failed in
+/// `integration (postgres)` with `type "vector" does not exist` (SQLSTATE 42704).
+/// A test may not inherit state another suite happened to leave behind.
+///
+/// Fails loudly rather than self-skipping, matching the convention in the vector
+/// e2e suite: a silently skipped suite reads as passing.
+async fn ensure_pgvector(url: &str) {
+    let adapter = PostgresAdapter::new(url).await.expect("connect to the test database");
+    let _: Vec<std::collections::HashMap<String, serde_json::Value>> = adapter
+        .execute_raw_query("CREATE EXTENSION IF NOT EXISTS vector")
+        .await
+        .expect("CREATE EXTENSION vector (the rig image must ship pgvector)");
+}
+
 /// The two GUCs as the server sees them, read through a pool built with `scan`.
 ///
 /// The `::vector` cast and the two `current_setting` calls are one statement on
@@ -86,6 +105,7 @@ async fn the_default_settings_reach_the_server() {
         eprintln!("SKIP default_settings: DATABASE_URL not set");
         return;
     };
+    ensure_pgvector(&url).await;
     let (hnsw, ivfflat) = observed_settings(&url, VectorScanConfig::default()).await;
     assert_eq!(hnsw, "strict_order", "hnsw.iterative_scan, as the server resolved it");
     assert_eq!(ivfflat, "relaxed_order", "ivfflat.iterative_scan, as the server resolved it");
@@ -103,6 +123,7 @@ async fn a_different_configuration_is_observably_different() {
         eprintln!("SKIP different_configuration: DATABASE_URL not set");
         return;
     };
+    ensure_pgvector(&url).await;
     let (hnsw, ivfflat) = observed_settings(
         &url,
         VectorScanConfig {
@@ -132,6 +153,7 @@ async fn turning_both_off_leaves_pgvectors_own_defaults() {
         eprintln!("SKIP both_off: DATABASE_URL not set");
         return;
     };
+    ensure_pgvector(&url).await;
     let (hnsw, ivfflat) = observed_settings(
         &url,
         VectorScanConfig {
