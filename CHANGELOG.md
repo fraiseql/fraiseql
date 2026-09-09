@@ -18,6 +18,35 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`EventFilter` has no `Default`, its tenant is a `TenantScope`, and `operation` is an
+  `EventKind` (#1113).**
+
+  ```rust
+  // before
+  EventFilter { entity_type: Some("Order".into()), ..Default::default() }
+  EventFilter { operation: Some("UPDATE".to_string()), ..Default::default() }
+  EventFilter::default()
+
+  // after
+  EventFilter::for_tenant(tenant_id).with_entity_type("Order")
+  EventFilter::all_tenants().with_operation(EventKind::Updated)
+  EventFilter::all_tenants()
+  ```
+
+  The `Default` is removed rather than kept, because it is what the defect was made of: the
+  omitted tenant field filled itself in with *every tenant* and the call site read as complete.
+  A subscription's tenant scope now has to be written, and the permissive answer has a name —
+  so "who subscribes across every tenant?" is answerable by `grep AllTenants` rather than by
+  reading each construction for what it left out. Server-internal consumers that legitimately
+  want the whole deployment (the observer runtime, the retry loop, the PG→NATS bridge) say
+  `EventFilter::all_tenants()`.
+
+  `operation` moves from `Option<String>` to `Option<EventKind>` in the same pass: the
+  comparison was against `"INSERT"`/`"UPDATE"`/`"DELETE"`/`"CUSTOM"` spelled out at the
+  comparison site, so a caller writing `"insert"` got a filter that silently matched nothing —
+  the same shape of failure, one field over. Both changes land together rather than in two
+  releases, since every call site has to be visited either way.
+
 - **A paginated read with no requested ordering is now ordered by the entity identity; declare
   `pagination_order = "none"` to opt out (#1303).**
 
@@ -1070,6 +1099,27 @@ disagreed, and the promise was the part that was wrong.
   stack up, so it may have stopped working without anyone noticing."* It had.
 
 ### Fixed
+
+- **The REST stream refuses `Last-Event-ID` instead of silently dropping it, and its wire id is
+  the Change-Spine sequence rather than an event UUID (#1113).**
+
+  The handler read the header into `let _last_event_id = …` and went on as if it were a fresh
+  delivery. A browser `EventSource` re-sends `Last-Event-ID` automatically on every reconnect,
+  so a client reconnecting after a network blip lost every event in the gap while the stream
+  reported itself healthy. A request carrying the header now gets `501 RESUMPTION_UNSUPPORTED`
+  naming what is missing; implementing the durable replay it needs is #1310.
+
+  Relatedly, each event's SSE `id:` was `EntityEvent.id`, a UUID — an identifier no ordering can
+  resolve to a resume point, so the stream advertised a resumability nothing could ever provide.
+  It is now `EntityEvent.seq`, the monotonic Change-Spine sequence a replay would read by. An
+  event whose source row carried no sequence now carries **no `id:` field at all**: per the SSE
+  specification that leaves the client's last-event-id unchanged, so a reconnect still names the
+  last event that had one — at-least-once, never a skip.
+
+  The served `OpenAPI` document is corrected with it. It described `Last-Event-ID` as "Resume
+  from a specific event ID on reconnection", which was never true — the same class of mismatch
+  between the published contract and the handler that #865 and #873.4 closed elsewhere on this
+  endpoint.
 
 - **The federation subgraph URL guard stops hand-rolling the hostname rule, and the SSRF
   corpus asserts a legitimate hostname survives at every entry point (#1280).**
@@ -3047,6 +3097,41 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+
+- **`EventFilter` is now honoured by every event transport, and the REST stream scopes its
+  subscription to the caller's tenant (#1113).**
+
+  `EventTransport::subscribe` takes an `EventFilter` carrying an `entity_type`, an
+  `operation` and a tenant. Only the NATS transport applied it. `InMemoryTransport` and
+  `PostgresNotifyTransport` both took the argument as `_filter` and returned an **unfiltered**
+  stream — not even `entity_type` — so whether a subscription was filtered at all depended on
+  which transport the deployment happened to be running, and the two that ignored it are the
+  two a single-node deployment is most likely to have. All three now decide with the same
+  `EventFilter::matches`.
+
+  On top of that, `GET /rest/v1/{resource}/stream`'s live-event branch extracted the caller's
+  `SecurityContext` and discarded it, building its filter with `..Default::default()` — and an
+  absent tenant meant *every* tenant. An authenticated caller on any tenant would have received
+  every tenant's change events, full `data` payload included, on an endpoint sitting behind
+  `require_auth`. Authentication is not authorisation: the REST read surface's tenant scoping
+  (#812/#739) lives in the query path, and a stream that subscribes with no tenant bypasses it
+  by construction.
+
+  The subscription is now scoped by the rule the GraphQL subscription gate already applies,
+  keyed on the same `security.multi_tenant`: in multi-tenant mode the principal's tenant scopes
+  the stream and a principal carrying no tenant is **refused** (`403 TENANT_SCOPE_REQUIRED`);
+  single-tenant deployments stay unscoped, where tenant ids are typically absent throughout.
+  Refusing — rather than opening a stream that can never deliver, as the subscription gate
+  does — is deliberate: a silent SSE connection is the "looks healthy, is stale" failure #873.4
+  removed from this very endpoint.
+
+  **Neither half was exploitable.** `RestState.event_transport` is `None` at its only
+  construction site and has no setter, so the branch is unreachable and the endpoint answers an
+  honest `501`. Both defects would have shipped the moment it was wired. Which nothing tracked:
+  the code said wiring it was #428's work, and #428 is entirely about observer *action* types.
+  That is now #1309, which also has to answer why the obvious wiring does not work —
+  `subscribe` is a *competing consumer* on all three transports, so a per-request subscription
+  would steal the observer executor's events rather than fan out beside them.
 
 - **wasmtime 46.0.2 → 46.0.3, closing RUSTSEC-2026-0268 and RUSTSEC-2026-0269.**
 
