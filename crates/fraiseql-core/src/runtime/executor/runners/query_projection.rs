@@ -201,6 +201,20 @@ pub const fn field_type_to_where_type(ft: &crate::schema::FieldType) -> ScalarFi
         // comparison semantics, not a SQL type. The ORDER BY sibling keeps
         // `Text`, which is why the two were split before this landed.
         FT::Id | FT::Uuid => ScalarFieldType::Uuid,
+        // The four pgvector field types, spelled out rather than left to
+        // `scalar_cast_hint`'s `_ => Text` (#1117). Like `Uuid` above this emits
+        // no cast; it tells the distance predicates that the backing view is
+        // contractually required to expose a native column, so the operand is
+        // `"embedding"` and not `(data->>'embedding')::vector` — a 122×
+        // difference, measured, because the JSONB form re-parses every row's
+        // embedding out of text.
+        //
+        // ⚠ All four are named here, and the arm below is still a wildcard — so
+        // a *fifth* pgvector type added to `FieldType` would fall through to
+        // `Text` and silently keep the slow operand rather than failing to
+        // compile. `vector_field_types_are_not_absorbed_by_the_wildcard` is what
+        // catches that instead; it asserts over the list, not over one member.
+        FT::Vector | FT::BitVector | FT::HalfVector | FT::SparseVector => ScalarFieldType::Vector,
         _ => scalar_cast_hint(ft),
     }
 }

@@ -56,6 +56,11 @@ impl SqlDialect for PostgresDialect {
             // on the left-hand side is evaluated per row and would raise 22P02
             // on any row whose identity is not a UUID.
             ScalarFieldType::Uuid => None,
+            // Also deliberately uncast — see `ScalarFieldType::Vector`. The
+            // variant tells the distance predicates that a native column exists
+            // to read (#1117); it is not a cast, and naming one here would
+            // change what every OTHER operator on a vector field compares.
+            ScalarFieldType::Vector => None,
         }
     }
 

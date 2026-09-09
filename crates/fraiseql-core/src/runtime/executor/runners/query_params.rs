@@ -104,16 +104,10 @@ pub fn nearest_order_and_limit(
     let metric = resolve_metric(obj.get("metric"), field, type_def.name.as_str())?;
 
     // The storage contract: the view exposes the vector as a native snake_case
-    // column. Validated as a bare identifier, then quoted.
-    let column = crate::utils::to_snake_case(field.name.as_str());
-    let valid_ident = column.chars().next().is_some_and(|c| c.is_ascii_lowercase() || c == '_')
-        && column.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
-    if !valid_ident {
-        return Err(FraiseQLError::validation(format!(
-            "vector field name '{}' does not resolve to a bare SQL identifier",
-            field.name
-        )));
-    }
+    // column. Derived and validated by the one function the threshold WHERE
+    // predicates also call (#1117) — this ORDER BY and that WHERE must name the
+    // same column, and two copies of the rule is how they would stop doing so.
+    let column = crate::db::utils::vector_storage_column(field.name.as_str())?;
 
     let mut clause =
         crate::db::OrderByClause::new(field.name.to_string(), crate::db::OrderDirection::Asc);

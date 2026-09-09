@@ -100,6 +100,44 @@ async fn seed(adapter: &PostgresAdapter) {
              'compact', compact::text, 'terms', terms::text) AS data, \
              embedding, thumbnail, fingerprint, compact, terms FROM {SCHEMA}.tb_doc"
         ),
+        // ── The skew fixture (#1117) ─────────────────────────────────────────
+        //
+        // Every row above carries the SAME value in the native column and in the
+        // `data` payload, deliberately — which means no assertion over `v_doc`
+        // can tell which of the two a predicate read. A fixture that agrees
+        // hides this defect.
+        //
+        // `tb_skew` holds the two apart: `embedding` is the native column the
+        // storage contract requires, `payload` is what the view writes into
+        // `data->>'embedding'`, and on every row they are DIFFERENT vectors.
+        // A threshold filter therefore returns one set of ids if it reads the
+        // column and the complementary set if it reads the payload.
+        format!(
+            "CREATE TABLE {SCHEMA}.tb_skew (id bigint PRIMARY KEY, title text NOT NULL, \
+             embedding vector(3) NOT NULL, payload vector(3) NOT NULL, \
+             fingerprint bit(8) NOT NULL, fingerprint_payload bit(8) NOT NULL)"
+        ),
+        // Against the query vector [1,0,0] / the query bits 11110000:
+        //
+        // | id | column   | payload  | column dist | payload dist |
+        // |----|----------|----------|-------------|--------------|
+        // | 10 | [1,0,0]  | [0,1,0]  | 0           | 1            |
+        // | 11 | [0,1,0]  | [1,0,0]  | 1           | 0            |
+        //
+        // | id | fingerprint | fp payload | column hamming | payload hamming |
+        // |----|-------------|------------|----------------|-----------------|
+        // | 10 | 11110000    | 00001111   | 0              | 8               |
+        // | 11 | 00001111    | 11110000   | 8              | 0               |
+        format!(
+            "INSERT INTO {SCHEMA}.tb_skew VALUES \
+             (10, 'column-near',  '[1,0,0]', '[0,1,0]', '11110000', '00001111'), \
+             (11, 'payload-near', '[0,1,0]', '[1,0,0]', '00001111', '11110000')"
+        ),
+        format!(
+            "CREATE VIEW {SCHEMA}.v_skew AS SELECT id, jsonb_build_object('id', id, 'title', \
+             title, 'embedding', payload::text, 'fingerprint', fingerprint_payload::text) \
+             AS data, embedding, fingerprint FROM {SCHEMA}.tb_skew"
+        ),
     ];
     for stmt in stmts {
         let _: Vec<std::collections::HashMap<String, Value>> =
@@ -219,6 +257,35 @@ fn schema() -> CompiledSchema {
     compact_docs.auto_params.has_where = true;
     compact_docs.auto_params.has_limit = true;
     schema.queries.push(compact_docs);
+
+    // The skew types (#1117), over the view whose column and payload disagree.
+    // `SkewDoc` declares `embedding` as a `Vector` exactly as `Doc` does, so the
+    // only thing that differs between the two is which operand the generated
+    // predicate can read.
+    let mut skew = TypeDefinition::new("SkewDoc", format!("{SCHEMA}.v_skew"));
+    skew.fields = vec![
+        FieldDefinition::new("id", FieldType::Int),
+        FieldDefinition::new("title", FieldType::String),
+        FieldDefinition::new("embedding", FieldType::Vector)
+            .with_vector_config(VectorConfig::new(3)),
+    ];
+    schema.types.push(skew);
+
+    let mut skew_bit = TypeDefinition::new("SkewBitDoc", format!("{SCHEMA}.v_skew"));
+    skew_bit.fields = vec![
+        FieldDefinition::new("id", FieldType::Int),
+        FieldDefinition::bit_vector("fingerprint", VectorConfig::binary(8)),
+    ];
+    schema.types.push(skew_bit);
+
+    for (type_name, query_name) in [("SkewDoc", "skewDocs"), ("SkewBitDoc", "skewBitDocs")] {
+        let mut query = QueryDefinition::new(query_name, type_name)
+            .returning_list()
+            .with_sql_source(format!("{SCHEMA}.v_skew"));
+        query.auto_params.has_where = true;
+        query.auto_params.has_limit = true;
+        schema.queries.push(query);
+    }
 
     schema.build_indexes();
     schema
@@ -931,4 +998,81 @@ async fn a_sparse_threshold_filter_returns_the_rows_within_it() {
     let mut got = ids_under(&resp, "compactDocs");
     got.sort_unstable();
     assert_eq!(got, vec![1, 3], "rows within L2 distance 1 of the query: {resp}");
+}
+
+// ── #1117: WHICH operand a threshold predicate reads ─────────────────────────
+//
+// `v_skew` carries a different vector in the native column than in the `data`
+// payload on every row, so each of these assertions names one operand and
+// excludes the other. Over `v_doc` — where the two agree — the same queries
+// would pass either way, which is why the fixture exists.
+
+/// A dense threshold filter resolves against the native `vector(N)` column.
+///
+/// Reading the payload instead is not merely slower (122×, measured in #1117):
+/// on this fixture it returns the complementary row set. The equality is over
+/// the whole set on purpose — it fails for a predicate that is too loose
+/// (`[10, 11]`), too strict (`[]`), and for one that read the other operand
+/// (`[11]`), which are the three directions this can be wrong in.
+#[tokio::test]
+async fn a_dense_threshold_filter_reads_the_native_column_not_the_payload() {
+    if skip("skew_dense_threshold") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    // Column distances to [1,0,0]: id10 = 0, id11 = 1. Payload distances are
+    // the reverse. A threshold of 0.01 admits exactly one row either way.
+    let q = r"{ skewDocs(where: {embedding: {cosine_distance: {vector: [1, 0, 0], threshold: 0.01}}}) { id } }";
+    let (status, resp) = post_graphql(router, &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+    assert_eq!(
+        ids_under(&resp, "skewDocs"),
+        vec![10],
+        "id10 is near in the COLUMN and far in the payload; id11 is the reverse: {resp}"
+    );
+}
+
+/// The mirror of the case above, from the other side: a threshold wide enough
+/// to admit the payload-near row and nothing else must return **nothing**.
+///
+/// Without it, a predicate that read the payload could still pass the first
+/// test by being simultaneously wrong in two ways.
+#[tokio::test]
+async fn a_dense_threshold_filter_excludes_the_row_only_the_payload_makes_near() {
+    if skip("skew_dense_threshold_mirror") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    // Column distance for id11 is 1.0; its payload distance is 0. A threshold
+    // that admits only distance-0 rows must therefore drop it — and id10, whose
+    // column distance is 0, is excluded by asking for the OTHER query vector.
+    let q = r"{ skewDocs(where: {embedding: {cosine_distance: {vector: [0, 1, 0], threshold: 0.01}}}) { id } }";
+    let (status, resp) = post_graphql(router, &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+    assert_eq!(
+        ids_under(&resp, "skewDocs"),
+        vec![11],
+        "against [0,1,0] the column makes id11 the near row, and the payload id10: {resp}"
+    );
+}
+
+/// The binary metrics take the same route through a different function
+/// (`bit_threshold_sql`), so the bit column needs its own skew case: a fix
+/// applied to the dense path alone leaves `hamming_distance` reading the
+/// payload.
+#[tokio::test]
+async fn a_binary_threshold_filter_reads_the_native_bit_column_not_the_payload() {
+    if skip("skew_bit_threshold") {
+        return;
+    }
+    let router = setup().await.unwrap();
+    // Column hamming to 11110000: id10 = 0, id11 = 8. Payload is the reverse.
+    let q = r#"{ skewBitDocs(where: {fingerprint: {hamming_distance: {vector: "11110000", threshold: 1.0}}}) { id } }"#;
+    let (status, resp) = post_graphql(router, &json!({"query": q})).await;
+    assert_eq!(status, 200, "{resp}");
+    assert_eq!(
+        ids_under(&resp, "skewBitDocs"),
+        vec![10],
+        "the bit predicate reads the `fingerprint` column, not data->>'fingerprint': {resp}"
+    );
 }

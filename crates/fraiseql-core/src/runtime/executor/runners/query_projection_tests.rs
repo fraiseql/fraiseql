@@ -113,3 +113,40 @@ fn non_aliased_field_projects_its_own_column() {
     assert!(sql.contains("'fullName',"), "output key is the field name: {sql}");
     assert!(sql.contains("->>'full_name'"), "reads its own snake_case column: {sql}");
 }
+
+// ── #1117: the WHERE cast hint for pgvector fields ───────────────────────────
+
+/// Every pgvector field type maps to `ScalarFieldType::Vector`, which is what
+/// tells a threshold predicate that a native column exists to read.
+///
+/// ⚠ This asserts over the **list**, not over one member, on purpose.
+/// `field_type_to_where_type` ends in a wildcard arm, so a fifth pgvector type
+/// added to `FieldType` would fall through to `Text` and silently keep the
+/// 122×-slower JSONB operand rather than failing to compile. The list here is
+/// the thing a person has to extend, and the count assertion below is what makes
+/// forgetting it visible.
+#[test]
+fn vector_field_types_are_not_absorbed_by_the_wildcard() {
+    use super::field_type_to_where_type;
+    use crate::{db::ScalarFieldType, schema::FieldType as FT};
+
+    let vector_types = [FT::Vector, FT::BitVector, FT::HalfVector, FT::SparseVector];
+    for ft in &vector_types {
+        assert_eq!(
+            field_type_to_where_type(ft),
+            ScalarFieldType::Vector,
+            "{ft:?} must resolve to the native column, not to data->>"
+        );
+    }
+
+    // The count is pinned separately from the mapping: the loop above passes
+    // over an empty list too, and it would pass over a list that quietly lost a
+    // member. `FieldType` has exactly these four pgvector variants — grep it
+    // when this fails, then extend both the match arm and this list.
+    assert_eq!(vector_types.len(), 4, "FieldType's pgvector variants");
+
+    // The complement, so "everything maps to Vector" cannot pass this test.
+    assert_eq!(field_type_to_where_type(&FT::String), ScalarFieldType::Text);
+    assert_eq!(field_type_to_where_type(&FT::Int), ScalarFieldType::Integer);
+    assert_eq!(field_type_to_where_type(&FT::Id), ScalarFieldType::Uuid);
+}

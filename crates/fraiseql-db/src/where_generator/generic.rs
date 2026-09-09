@@ -32,6 +32,43 @@ fn uuid_case_variants(value: &serde_json::Value) -> Option<(String, String)> {
     Some((raw.to_string(), canonical))
 }
 
+/// The left-hand side of a pgvector distance predicate, and whether it already
+/// carries a pgvector type (#1117).
+///
+/// Which of the two a predicate gets is the whole of #1117: reading the JSONB
+/// text costs a per-row parse of every embedding in the relation — 2667 ms
+/// against the native column's 22 ms for the same 400 matching rows.
+enum VectorOperand<'a> {
+    /// A native `vector(N)` / `halfvec(N)` / `sparsevec(N)` / `bit(N)` column,
+    /// quoted. Rendered **bare**: the column already has its type, and casting
+    /// it to whichever pgvector type the literal happens to use would both lose
+    /// precision and make the ANN index ineligible.
+    ///
+    /// The reverse direction — casting the *literal* to `vector` against a
+    /// `halfvec` column — is safe and is what the ORDER BY path already does:
+    /// PostgreSQL resolves the literal to `halfvec` and picks the same
+    /// `halfvec_*_ops` index (see [`VectorOperandKind`]).
+    ///
+    /// [`VectorOperandKind`]: crate::types::sql_hints::VectorOperandKind
+    Native(&'a str),
+    /// A JSONB extraction, which is `text` and therefore has no pgvector
+    /// operator until it is cast to the operand's kind.
+    Json(&'a str),
+}
+
+impl VectorOperand<'_> {
+    /// This operand rendered for a comparison against a literal of pgvector type
+    /// `cast` (`vector`, `sparsevec`, `varbit`).
+    fn render(&self, cast: &str) -> String {
+        match *self {
+            Self::Native(column) => column.to_string(),
+            // Parenthesised before the cast: `data->>'f'::vector` parses as
+            // `data->>('f'::vector)`, because `::` binds tighter than `->>`.
+            Self::Json(expr) => format!("({expr})::{cast}"),
+        }
+    }
+}
+
 /// Escape LIKE metacharacters (`%`, `_`, `\`) in a user-supplied string so
 /// that it is treated as a literal substring inside a LIKE/ILIKE pattern.
 ///
@@ -312,6 +349,41 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
 
     // ── Field expression resolution ───────────────────────────────────────────
 
+    /// The native pgvector column `path` names, quoted — or `None` when this
+    /// path is not a declared vector field and the predicate must go through
+    /// JSONB (#1117).
+    ///
+    /// Three conditions, and each carries its own reason:
+    ///
+    /// * **The schema declares the path as a vector field.** That is the fact that makes the column
+    ///   *contractually present*: the storage contract requires the view to expose it, and
+    ///   `nearest` already refuses to lower without it. Nothing else here can tell whether a column
+    ///   exists.
+    /// * **The path is a single segment.** A vector field reached through a relation
+    ///   (`machine.embedding`) is a column of the *other* view; this relation's projection has no
+    ///   such column, and naming one would be a guess. Those keep the JSONB path.
+    /// * **The derived name is a bare identifier**, checked by the one shared derivation the ORDER
+    ///   BY lowering also uses.
+    ///
+    /// Note what the first condition also buys: the name is only used when it
+    /// **matched a key in the schema-derived cast map**, whose keys come from
+    /// the compiled type's own field list. So the identifier interpolated here
+    /// is one the schema published, not a string a client chose.
+    fn vector_native_column(
+        &self,
+        path: &[String],
+        types: Option<&FieldTypeMap>,
+    ) -> Option<String> {
+        if path.len() != 1 {
+            return None;
+        }
+        if types?.get(path)? != ScalarFieldType::Vector {
+            return None;
+        }
+        let column = crate::utils::vector_storage_column(path.first()?).ok()?;
+        Some(self.dialect.quote_identifier(&column))
+    }
+
     fn resolve_field_expr(&self, path: &[String]) -> String {
         // PostgreSQL indexed-column optimisation.
         if let Some(indexed) = &self.indexed_columns {
@@ -342,12 +414,12 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
     ///
     /// The query vector binds as a **text** parameter (`$n::vector` — jsonb has
     /// no cast to vector), built from the operand's numbers, so its dimension
-    /// and syntax are checked by pgvector itself. The field expression is
-    /// parenthesised before the cast: `data->>'f'::vector` would parse as
-    /// `data->>('f'::vector)` because `::` binds tighter than `->>`.
+    /// and syntax are checked by pgvector itself. How the left-hand side is
+    /// rendered — bare native column or parenthesised-and-cast JSONB extraction
+    /// — is [`VectorOperand`]'s decision (#1117).
     fn vector_threshold_sql(
         &self,
-        field_expr: &str,
+        field: &VectorOperand<'_>,
         op: &str,
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
@@ -373,7 +445,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         // binary operators (#959).
         if let Some(sparse) = operand.as_str() {
             return self.sparse_threshold_sql(
-                field_expr,
+                field,
                 op,
                 sparse,
                 threshold,
@@ -414,9 +486,9 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         // The threshold likewise goes through text (`::text::float8`): this
         // crate's parameter convention sends JSON numbers as text (see
         // `QueryParam::from`), so the placeholder must be inferred as text.
+        let lhs = field.render("vector");
         Ok(format!(
-            "(({field_expr})::vector {op} {vector_param}::text::vector) <= \
-             {threshold_param}::text::float8"
+            "({lhs} {op} {vector_param}::text::vector) <= {threshold_param}::text::float8"
         ))
     }
 
@@ -440,7 +512,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
     #[allow(clippy::too_many_arguments)] // Reason: mirrors `vector_threshold_sql`'s operands
     fn sparse_threshold_sql(
         &self,
-        field_expr: &str,
+        field: &VectorOperand<'_>,
         op: &str,
         sparse: &str,
         threshold: f64,
@@ -466,9 +538,9 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
             threshold
         };
         let threshold_param = self.push_param(params, serde_json::json!(bound));
+        let lhs = field.render("sparsevec");
         Ok(format!(
-            "(({field_expr})::sparsevec {op} {vector_param}::text::sparsevec) <= \
-             {threshold_param}::text::float8"
+            "({lhs} {op} {vector_param}::text::sparsevec) <= {threshold_param}::text::float8"
         ))
     }
 
@@ -490,7 +562,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
     /// `different bit lengths 8 and 4` instead of returning a plausible number.
     fn bit_threshold_sql(
         &self,
-        field_expr: &str,
+        field: &VectorOperand<'_>,
         op: &str,
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
@@ -520,9 +592,9 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         // float path: a bare `::varbit` cast makes the prepared-statement
         // protocol infer the parameter type as varbit while the driver binds
         // text.
+        let lhs = field.render("varbit");
         Ok(format!(
-            "(({field_expr})::varbit {op} {vector_param}::text::varbit) <= \
-             {threshold_param}::text::float8"
+            "({lhs} {op} {vector_param}::text::varbit) <= {threshold_param}::text::float8"
         ))
     }
 
@@ -824,25 +896,43 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
             // Operand: `{vector: [Float,…], threshold: Float}`; semantics and
             // the three repairs over the original never-executable emission are
             // documented on `vector_threshold_sql`.
-            WhereOperator::CosineDistance => {
-                self.vector_threshold_sql(&field_expr, "<=>", value, params, false)
-            },
-            WhereOperator::L2Distance => {
-                self.vector_threshold_sql(&field_expr, "<->", value, params, false)
-            },
-            WhereOperator::L1Distance => {
-                self.vector_threshold_sql(&field_expr, "<+>", value, params, false)
-            },
-            WhereOperator::InnerProduct => {
-                self.vector_threshold_sql(&field_expr, "<#>", value, params, true)
+            //
+            // These six are the only operators that read the native column when
+            // the schema declares one (#1117). Deliberately not the others: an
+            // `eq` against `"embedding"` would compare a `vector` to a text
+            // literal, where `data->>'embedding' = '[1,0,0]'` is the text
+            // comparison the caller asked for. Only the distance operators have
+            // a pgvector operator to resolve.
+            WhereOperator::CosineDistance
+            | WhereOperator::L2Distance
+            | WhereOperator::L1Distance
+            | WhereOperator::InnerProduct => {
+                let native = self.vector_native_column(path, types);
+                let field = native
+                    .as_deref()
+                    .map_or(VectorOperand::Json(field_expr.as_str()), VectorOperand::Native);
+                let (op, negate) = match operator {
+                    WhereOperator::CosineDistance => ("<=>", false),
+                    WhereOperator::L2Distance => ("<->", false),
+                    WhereOperator::L1Distance => ("<+>", false),
+                    // Reason: the outer arm admits exactly these four operators.
+                    _ => ("<#>", true),
+                };
+                self.vector_threshold_sql(&field, op, value, params, negate)
             },
             // Hamming and Jaccard operate on pgvector's *binary* (`bit`)
             // vectors, which a `BitVector` field declares (#959).
-            WhereOperator::HammingDistance => {
-                self.bit_threshold_sql(&field_expr, "<~>", value, params)
-            },
-            WhereOperator::JaccardDistance => {
-                self.bit_threshold_sql(&field_expr, "<%>", value, params)
+            WhereOperator::HammingDistance | WhereOperator::JaccardDistance => {
+                let native = self.vector_native_column(path, types);
+                let field = native
+                    .as_deref()
+                    .map_or(VectorOperand::Json(field_expr.as_str()), VectorOperand::Native);
+                let op = if matches!(operator, WhereOperator::HammingDistance) {
+                    "<~>"
+                } else {
+                    "<%>"
+                };
+                self.bit_threshold_sql(&field, op, value, params)
             },
 
             // ── Network (INET/CIDR) ───────────────────────────────────────────

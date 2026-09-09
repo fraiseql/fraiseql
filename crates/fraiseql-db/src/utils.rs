@@ -258,3 +258,39 @@ pub fn levenshtein(a: &str, b: &str) -> usize {
 
     prev[n]
 }
+
+/// The native column a declared vector field is stored in, as a bare
+/// `snake_case` SQL identifier.
+///
+/// The storage contract (`docs/operations/vector-search.md`) is that the backing
+/// view exposes a declared vector field as a native `vector(N)` / `halfvec(N)` /
+/// `sparsevec(N)` / `bit(N)` column named after the field in `snake_case`. Two
+/// paths need that name — `nearest`'s ORDER BY lowering (#386) and the threshold
+/// WHERE predicates (#1117) — and they derive it **here** rather than each
+/// spelling the rule out. Two derivations of one stored name is precisely how
+/// the two ends of a query come to disagree about where a value lives.
+///
+/// Returned unquoted: the ORDER BY path stores the quoted form in
+/// `OrderByClause::native_column`, the WHERE path quotes through its dialect.
+/// What must not diverge is the *name*, not the quoting.
+///
+/// # Errors
+///
+/// [`FraiseQLError::Validation`](fraiseql_error::FraiseQLError::Validation) when the
+/// derived name is not a bare lower-case
+/// identifier. This reaches SQL as an identifier rather than as a parameter, so
+/// it is **validated rather than escaped**: a field whose `snake_case` form is
+/// not `[a-z_][a-z0-9_]*` names no column this rule can construct, and guessing
+/// one would be an injection seam.
+pub fn vector_storage_column(field_name: &str) -> fraiseql_error::Result<String> {
+    let column = to_snake_case(field_name);
+    let valid = column.chars().next().is_some_and(|c| c.is_ascii_lowercase() || c == '_')
+        && column.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    if valid {
+        Ok(column)
+    } else {
+        Err(fraiseql_error::FraiseQLError::validation(format!(
+            "vector field name '{field_name}' does not resolve to a bare SQL identifier"
+        )))
+    }
+}

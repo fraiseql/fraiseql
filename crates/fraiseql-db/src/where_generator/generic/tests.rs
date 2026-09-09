@@ -569,3 +569,163 @@ fn not_ipv4_is_distinct_from_ipv4() {
         gen.generate(&field("ip_address", WhereOperator::IsIPv4, json!(false))).unwrap();
     assert_ne!(positive, negative, "is_ipv4:true and is_ipv4:false must differ");
 }
+
+// ── #1117: which operand a vector predicate reads ────────────────────────────
+//
+// The tests above assert the JSONB form and pass NO type information, which is
+// the fallback these tests are the other half of. Both halves matter: a change
+// that made every vector predicate read a column would break an embedder with
+// no schema, and one that made none of them do it is the defect.
+
+/// The cast map a compiled schema produces for a type with one vector field.
+fn vector_typed(clause: WhereClause) -> WhereClause {
+    use std::sync::Arc;
+
+    use crate::{types::sql_hints::ScalarFieldType, where_clause::FieldTypeMap};
+    clause.typed(Arc::new(FieldTypeMap::from_pairs([
+        ("embedding", ScalarFieldType::Vector),
+        ("fingerprint", ScalarFieldType::Vector),
+        ("terms", ScalarFieldType::Vector),
+        ("title", ScalarFieldType::Text),
+    ])))
+}
+
+#[test]
+fn a_declared_vector_field_reads_its_native_column_not_the_jsonb_text() {
+    // #1117: `(data->>'embedding')::vector` re-parses every row's embedding out
+    // of text — 2667 ms against the column's 22 ms on the same 400 rows. The
+    // column carries no cast: it already has its pgvector type, and casting it
+    // to whichever type the literal used would defeat the ANN index.
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = vector_typed(field(
+        "embedding",
+        WhereOperator::CosineDistance,
+        json!({"vector": [0.1, 0.2], "threshold": 0.5}),
+    ));
+    let (sql, params) = gen.generate(&clause).unwrap();
+    assert_eq!(sql, r#"("embedding" <=> $1::text::vector) <= $2::text::float8"#);
+    assert_eq!(params[0], json!("[0.1,0.2]"));
+    assert_eq!(params[1], json!(0.5));
+}
+
+#[test]
+fn every_dense_metric_reads_the_native_column() {
+    // One operator passing proves one `match` arm. All four share the arm, but
+    // the operator and the negation are picked inside it, so a mix-up there
+    // would be invisible to a single-operator test.
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    for (op, sql_op, bound) in [
+        (WhereOperator::CosineDistance, "<=>", json!(0.5)),
+        (WhereOperator::L2Distance, "<->", json!(0.5)),
+        (WhereOperator::L1Distance, "<+>", json!(0.5)),
+        // `<#>` returns the negated inner product, so the bound is negated.
+        (WhereOperator::InnerProduct, "<#>", json!(-0.5)),
+    ] {
+        let clause =
+            vector_typed(field("embedding", op, json!({"vector": [0.1, 0.2], "threshold": 0.5})));
+        let (sql, params) = gen.generate(&clause).unwrap();
+        assert_eq!(sql, format!(r#"("embedding" {sql_op} $1::text::vector) <= $2::text::float8"#));
+        assert_eq!(params[1], bound, "inner product negates its bound; the others do not");
+    }
+}
+
+#[test]
+fn the_binary_metrics_read_the_native_bit_column() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    for (op, sql_op) in [
+        (WhereOperator::HammingDistance, "<~>"),
+        (WhereOperator::JaccardDistance, "<%>"),
+    ] {
+        let clause =
+            vector_typed(field("fingerprint", op, json!({"vector": "1011", "threshold": 2.0})));
+        let (sql, _) = gen.generate(&clause).unwrap();
+        assert_eq!(
+            sql,
+            format!(r#"("fingerprint" {sql_op} $1::text::varbit) <= $2::text::float8"#)
+        );
+    }
+}
+
+#[test]
+fn a_sparse_operand_reads_the_native_column_too() {
+    // The sparse operand takes a different function (`sparse_threshold_sql`), so
+    // a fix applied to the dense path alone leaves it reading the payload.
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = vector_typed(field(
+        "terms",
+        WhereOperator::L2Distance,
+        json!({"vector": "{1:0.5,7:0.25}/1000", "threshold": 0.25}),
+    ));
+    let (sql, _) = gen.generate(&clause).unwrap();
+    assert_eq!(sql, r#"("terms" <-> $1::text::sparsevec) <= $2::text::float8"#);
+}
+
+#[test]
+fn an_undeclared_field_keeps_the_jsonb_operand() {
+    // The fallback, asserted with type information PRESENT: it is the absence of
+    // *this path* from the map that decides, not the absence of a map. An
+    // embedder that declares some fields and not others must not have the
+    // undeclared ones silently pointed at columns that may not exist.
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = vector_typed(field(
+        "not_declared",
+        WhereOperator::CosineDistance,
+        json!({"vector": [0.1, 0.2], "threshold": 0.5}),
+    ));
+    let (sql, _) = gen.generate(&clause).unwrap();
+    assert_eq!(
+        sql,
+        "((data->>'not_declared')::vector <=> $1::text::vector) <= $2::text::float8"
+    );
+}
+
+#[test]
+fn a_non_vector_field_keeps_the_jsonb_operand() {
+    // `title` is declared, as `Text`. A predicate on it must not be rerouted:
+    // only the vector variant means "a native column exists".
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = vector_typed(field(
+        "title",
+        WhereOperator::CosineDistance,
+        json!({"vector": [0.1, 0.2], "threshold": 0.5}),
+    ));
+    let (sql, _) = gen.generate(&clause).unwrap();
+    assert_eq!(sql, "((data->>'title')::vector <=> $1::text::vector) <= $2::text::float8");
+}
+
+#[test]
+fn a_nested_vector_path_keeps_the_jsonb_operand() {
+    // A vector field reached through a relation is a column of the OTHER view.
+    // This relation's projection has no `embedding` column, so naming one would
+    // turn a working filter into `column "embedding" does not exist`.
+    use std::sync::Arc;
+
+    use crate::{types::sql_hints::ScalarFieldType, where_clause::FieldTypeMap};
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = WhereClause::Field {
+        path:     vec!["machine".to_string(), "embedding".to_string()],
+        operator: WhereOperator::CosineDistance,
+        value:    json!({"vector": [0.1, 0.2], "threshold": 0.5}),
+    }
+    .typed(Arc::new(FieldTypeMap::from_pairs([(
+        "machine.embedding",
+        ScalarFieldType::Vector,
+    )])));
+    let (sql, _) = gen.generate(&clause).unwrap();
+    assert!(
+        sql.starts_with("((data->"),
+        "a nested vector path must stay on the JSONB operand: {sql}"
+    );
+}
+
+#[test]
+fn a_non_distance_operator_on_a_vector_field_keeps_the_jsonb_operand() {
+    // Only the six distance operators have a pgvector operator to resolve
+    // against a typed column. `"embedding" = $1::text` compares a vector to
+    // text; `data->>'embedding' = '[1,0,0]'` is the text comparison the caller
+    // actually wrote.
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = vector_typed(field("embedding", WhereOperator::Eq, json!("[1,0,0]")));
+    let (sql, _) = gen.generate(&clause).unwrap();
+    assert_eq!(sql, "data->>'embedding' = $1");
+}

@@ -53,6 +53,27 @@ pub enum ScalarFieldType {
     /// `'user-1'` and a BIGINT pk. Equality is instead made case-insensitive at
     /// the *literal*, which needs no knowledge of the column's type.
     Uuid,
+    /// A declared pgvector field — `vector(N)`, `halfvec(N)`, `sparsevec(N)` or
+    /// `bit(N)` (#1117).
+    ///
+    /// Like [`Self::Uuid`], this marks *which* fields are of a kind rather than
+    /// introducing a cast: `cast_type_name` returns `None` for it, so every
+    /// ordinary comparison against a vector field renders exactly as it did.
+    ///
+    /// What it decides is the **operand a distance predicate reads**. The
+    /// storage contract requires the backing view to expose a vector as a native
+    /// column, and `nearest` has always ordered by it; the threshold operators
+    /// could not tell a vector field from any other, so they resolved it through
+    /// `data->>` and re-parsed every row's embedding out of text — 2667 ms
+    /// against the column's 22 ms, on the same 400 rows.
+    ///
+    /// One variant covers all four pgvector types on purpose: which pgvector
+    /// type the *literal* is cast to is decided by the operand's own shape (an
+    /// array is `::vector`, `{1:0.5}/1000` is `::sparsevec`, the binary metrics
+    /// are `::varbit`), and that is unchanged by this. What the schema is being
+    /// asked here is only *"is there a native column to read instead of the
+    /// JSONB text?"*.
+    Vector,
 }
 
 /// ORDER BY clause with optional type and native column information.
