@@ -18,7 +18,9 @@ use fraiseql_observers::{
     config::{ActionConfig, FailurePolicy, ObserverDefinition, RetryConfig},
     event::{EntityEvent, EventKind},
     matcher::EventMatcher,
-    transport::{EventFilter, EventTransport, HealthStatus, InMemoryTransport, TransportType},
+    transport::{
+        EventFilter, EventTransport, HealthStatus, InMemoryTransport, TenantScope, TransportType,
+    },
 };
 use futures::StreamExt;
 use serde_json::json;
@@ -83,26 +85,25 @@ async fn transport_health_is_healthy() {
 
 // ── EventFilter construction ──────────────────────────────────────
 
-/// `EventFilter::default()` has all fields as `None`.
+/// `EventFilter::all_tenants()` narrows nothing — it is the whole-deployment view a
+/// server-internal consumer wants, and the only filter that says so by name.
 #[test]
-fn event_filter_default_fields_are_none() {
-    let f = EventFilter::default();
+fn event_filter_all_tenants_narrows_nothing() {
+    let f = EventFilter::all_tenants();
     assert!(f.entity_type.is_none());
     assert!(f.operation.is_none());
-    assert!(f.tenant_id.is_none());
+    assert_eq!(f.tenant, TenantScope::AllTenants);
 }
 
-/// `EventFilter` fields can be set individually.
+/// `EventFilter` narrows one dimension at a time.
 #[test]
 fn event_filter_fields_set_correctly() {
-    let f = EventFilter {
-        entity_type: Some("Order".to_string()),
-        operation:   Some("INSERT".to_string()),
-        tenant_id:   Some("tenant-abc".to_string()),
-    };
+    let f = EventFilter::for_tenant("tenant-abc")
+        .with_entity_type("Order")
+        .with_operation(EventKind::Created);
     assert_eq!(f.entity_type.as_deref(), Some("Order"));
-    assert_eq!(f.operation.as_deref(), Some("INSERT"));
-    assert_eq!(f.tenant_id.as_deref(), Some("tenant-abc"));
+    assert_eq!(f.operation, Some(EventKind::Created));
+    assert_eq!(f.tenant, TenantScope::Tenant("tenant-abc".to_string()));
 }
 
 // ── Publish/subscribe pipeline ────────────────────────────────────
@@ -111,7 +112,7 @@ fn event_filter_fields_set_correctly() {
 #[tokio::test]
 async fn single_event_round_trip() {
     let transport = Arc::new(InMemoryTransport::new());
-    let mut stream = transport.subscribe(EventFilter::default()).await.unwrap();
+    let mut stream = transport.subscribe(EventFilter::all_tenants()).await.unwrap();
 
     let event = order_created(200);
     let id = event.id;
@@ -127,7 +128,7 @@ async fn single_event_round_trip() {
 #[tokio::test]
 async fn multiple_events_preserve_order() {
     let transport = Arc::new(InMemoryTransport::new());
-    let mut stream = transport.subscribe(EventFilter::default()).await.unwrap();
+    let mut stream = transport.subscribe(EventFilter::all_tenants()).await.unwrap();
 
     let totals = [10u64, 20, 30, 40, 50];
     for total in totals {
@@ -144,7 +145,7 @@ async fn multiple_events_preserve_order() {
 #[tokio::test]
 async fn mixed_event_kinds_all_received() {
     let transport = Arc::new(InMemoryTransport::new());
-    let mut stream = transport.subscribe(EventFilter::default()).await.unwrap();
+    let mut stream = transport.subscribe(EventFilter::all_tenants()).await.unwrap();
 
     let events = vec![
         EntityEvent::new(EventKind::Created, "User".to_string(), Uuid::new_v4(), json!({})),
@@ -277,7 +278,7 @@ fn condition_logical_or_fails_when_neither_branch_matches() {
 #[tokio::test]
 async fn transport_matcher_condition_pipeline() {
     let transport = Arc::new(InMemoryTransport::new());
-    let mut stream = transport.subscribe(EventFilter::default()).await.unwrap();
+    let mut stream = transport.subscribe(EventFilter::all_tenants()).await.unwrap();
 
     // Set up matcher with a conditional observer
     let mut observers = HashMap::new();
@@ -313,7 +314,7 @@ async fn transport_matcher_condition_pipeline() {
 #[tokio::test]
 async fn transport_only_order_events_match_order_observer() {
     let transport = Arc::new(InMemoryTransport::new());
-    let mut stream = transport.subscribe(EventFilter::default()).await.unwrap();
+    let mut stream = transport.subscribe(EventFilter::all_tenants()).await.unwrap();
 
     let mut observers = HashMap::new();
     observers.insert("order_obs".to_string(), make_observer("INSERT", "Order", None));
@@ -342,7 +343,7 @@ async fn transport_only_order_events_match_order_observer() {
 #[tokio::test]
 async fn transport_update_event_does_not_match_insert_observer() {
     let transport = Arc::new(InMemoryTransport::new());
-    let mut stream = transport.subscribe(EventFilter::default()).await.unwrap();
+    let mut stream = transport.subscribe(EventFilter::all_tenants()).await.unwrap();
 
     let mut observers = HashMap::new();
     observers.insert("ins_obs".to_string(), make_observer("INSERT", "Order", None));

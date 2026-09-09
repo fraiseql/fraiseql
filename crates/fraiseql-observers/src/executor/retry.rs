@@ -161,7 +161,7 @@ impl ObserverExecutor {
     /// let executor = ObserverExecutor::new(matcher, dlq);
     ///
     /// let transport = Arc::new(InMemoryTransport::new());
-    /// executor.run_with_transport(transport, EventFilter::default()).await?;
+    /// executor.run_with_transport(transport, EventFilter::all_tenants()).await?;
     /// # Ok(())
     /// # }
     /// ```

@@ -156,7 +156,7 @@ mod nats_tests {
         );
 
         // Subscribe first
-        let filter = EventFilter::default();
+        let filter = EventFilter::all_tenants();
         let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
 
         // Publish event
@@ -193,11 +193,7 @@ mod nats_tests {
             .expect("Should connect to NATS server");
 
         // Subscribe with filter for "Product" only
-        let filter = EventFilter {
-            entity_type: Some("Product".to_string()),
-            operation:   None,
-            tenant_id:   None,
-        };
+        let filter = EventFilter::all_tenants().with_entity_type("Product");
         let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
 
         // Publish User event (should be filtered out by subject)
@@ -248,11 +244,7 @@ mod nats_tests {
             .expect("Should connect to NATS server");
 
         // Subscribe with filter for UPDATE operations only
-        let filter = EventFilter {
-            entity_type: None,
-            operation:   Some("UPDATE".to_string()),
-            tenant_id:   None,
-        };
+        let filter = EventFilter::all_tenants().with_operation(EventKind::Updated);
         let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
 
         // Publish CREATE event (should be filtered out)
@@ -324,7 +316,7 @@ mod nats_tests {
             .await
             .expect("Should connect to NATS server");
 
-        let filter = EventFilter::default();
+        let filter = EventFilter::all_tenants();
         let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
 
         // Publish multiple events
@@ -408,7 +400,7 @@ mod nats_tests {
                 .await
                 .expect("Should reconnect to NATS server");
 
-            let filter = EventFilter::default();
+            let filter = EventFilter::all_tenants();
             let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
 
             let received = tokio::time::timeout(Duration::from_secs(5), stream.next())
@@ -439,7 +431,7 @@ mod nats_tests {
             .await
             .expect("Should connect to NATS server");
 
-        let filter = EventFilter::default();
+        let filter = EventFilter::all_tenants();
         let mut stream = transport.subscribe(filter).await.expect("Subscribe should succeed");
 
         // Create event with user_id

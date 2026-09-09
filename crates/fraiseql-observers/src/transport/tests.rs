@@ -3,11 +3,11 @@ mod transport_mod_tests {
     use super::super::*;
 
     #[test]
-    fn test_event_filter_default() {
-        let filter = EventFilter::default();
+    fn test_event_filter_all_tenants_narrows_nothing() {
+        let filter = EventFilter::all_tenants();
         assert!(filter.entity_type.is_none());
         assert!(filter.operation.is_none());
-        assert!(filter.tenant_id.is_none());
+        assert_eq!(filter.tenant, TenantScope::AllTenants);
     }
 
     #[test]
@@ -240,7 +240,7 @@ mod in_memory_tests {
         let transport = Arc::new(InMemoryTransport::new());
 
         // Subscribe to events
-        let mut stream = transport.subscribe(EventFilter::default()).await.unwrap();
+        let mut stream = transport.subscribe(EventFilter::all_tenants()).await.unwrap();
 
         // Publish an event
         let event = crate::event::EntityEvent::new(
@@ -267,7 +267,7 @@ mod in_memory_tests {
         let transport = Arc::new(InMemoryTransport::new());
 
         // Subscribe
-        let mut stream = transport.subscribe(EventFilter::default()).await.unwrap();
+        let mut stream = transport.subscribe(EventFilter::all_tenants()).await.unwrap();
 
         // Publish multiple events and collect their IDs
         let mut event_ids: Vec<Uuid> = Vec::new();
@@ -296,7 +296,7 @@ mod in_memory_tests {
 
         let transport = Arc::new(InMemoryTransport::new());
 
-        let mut stream = transport.subscribe(EventFilter::default()).await.unwrap();
+        let mut stream = transport.subscribe(EventFilter::all_tenants()).await.unwrap();
 
         let kinds = vec![EventKind::Created, EventKind::Updated, EventKind::Deleted];
 
@@ -451,10 +451,96 @@ mod postgres_notify_tests {
 
         // Verify the stream can be created (won't produce events without data)
         let stream = transport
-            .subscribe(EventFilter::default())
+            .subscribe(EventFilter::all_tenants())
             .await
             .expect("subscribe should succeed");
         drop(stream);
+    }
+
+    /// #1113: this transport took `_filter` and returned an unfiltered stream — not
+    /// even `entity_type` applied. It is the transport a single-node deployment is
+    /// most likely to be running, so it is the one where an ignored tenant filter
+    /// hands one caller every tenant's change events, `data` payload included.
+    ///
+    /// Named `postgres_notify_*` on purpose: `integration (observers)` reaches these
+    /// by the name filter `--lib postgres_notify`, and a test outside that prefix
+    /// would never bind a database.
+    #[tokio::test]
+    async fn postgres_notify_delivers_only_the_subscribed_tenant_and_entity_type() {
+        use futures::StreamExt;
+
+        let Some(pool) = try_test_pool().await else {
+            eprintln!("Skipping: TEST_DATABASE_URL not set");
+            return;
+        };
+
+        // The one provisioner for this table (#942/#982) — a private CREATE would be
+        // an eleventh flavour of the contract.
+        sqlx::raw_sql(&fraiseql_test_support::changelog::entity_change_log_provision_sql())
+            .execute(&pool)
+            .await
+            .expect("provision core.tb_entity_change_log");
+
+        let mine = uuid::Uuid::new_v4();
+        let theirs = uuid::Uuid::new_v4();
+
+        // Published in an order where an unfiltered stream yields the wrong row first.
+        for (object_type, tenant) in [
+            ("Order", theirs),
+            ("Invoice", mine),
+            ("Order", mine),
+            ("Order", theirs),
+        ] {
+            sqlx::query(
+                "INSERT INTO core.tb_entity_change_log \
+                 (object_type, modification_type, object_id, object_data, tenant_id) \
+                 VALUES ($1, 'INSERT', gen_random_uuid(), $2, $3)",
+            )
+            .bind(object_type)
+            .bind(serde_json::json!({"payload": "present"}))
+            .bind(tenant)
+            .execute(&pool)
+            .await
+            .expect("seed change-log row");
+        }
+
+        // A listener id nothing else uses: the dispatch ledger is keyed by it, so a
+        // shared id would split these rows with whatever ran before.
+        let config = ChangeLogListenerConfig::new(pool)
+            .with_poll_interval(25)
+            .with_listener_id(format!("t1113-{}", uuid::Uuid::new_v4()));
+        let transport = PostgresNotifyTransport::from_config(config);
+
+        let mut stream = transport
+            .subscribe(EventFilter::for_tenant(mine.to_string()).with_entity_type("Order"))
+            .await
+            .expect("subscribe should succeed");
+
+        let received = tokio::time::timeout(std::time::Duration::from_secs(10), stream.next())
+            .await
+            .expect("the matching row must be delivered within the poll window")
+            .expect("stream must not end")
+            .expect("delivery must not error");
+
+        assert_eq!(received.entity_type, "Order", "entity_type filter must apply");
+        assert_eq!(
+            received.tenant_id.as_deref(),
+            Some(mine.to_string().as_str()),
+            "a tenant-scoped subscription must not receive another tenant's event"
+        );
+
+        // Only one seeded row matches both narrowings; anything further means the
+        // filter admitted a row it should not have.
+        let extra = tokio::time::timeout(std::time::Duration::from_secs(1), stream.next()).await;
+        assert!(
+            extra.is_err(),
+            "exactly one seeded row is inside the filter; got a second: {:?}",
+            extra
+                .ok()
+                .flatten()
+                .and_then(std::result::Result::ok)
+                .map(|e| (e.entity_type, e.tenant_id))
+        );
     }
 
     #[tokio::test]
@@ -469,5 +555,242 @@ mod postgres_notify_tests {
             .with_poll_interval(Duration::from_millis(200));
 
         assert_eq!(transport.poll_interval, Duration::from_millis(200));
+    }
+}
+
+// ---------------------------------------------------------------------------
+// #1113: `EventFilter` is a filter, in every transport
+// ---------------------------------------------------------------------------
+
+/// `subscribe` takes an `EventFilter`, and two of the three transports took it as
+/// `_filter` and returned an unfiltered stream. A filter that only one
+/// implementation applies is not a filter: the same subscription returned one
+/// tenant's events under NATS and every tenant's under the two transports a
+/// single-node deployment is most likely to be running.
+///
+/// These pin the *transport's* application of the filter. `EventFilter::matches`
+/// has its own tests; asserting only there would pass with the call site removed.
+#[allow(clippy::unwrap_used)] // Reason: test code
+mod filter_is_honoured_by_every_transport {
+    use futures::StreamExt;
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::super::{EventFilter, EventTransport, in_memory::InMemoryTransport};
+    use crate::event::{EntityEvent, EventKind};
+
+    /// How long a "nothing must arrive" assertion waits before concluding nothing did.
+    const QUIET_WINDOW: std::time::Duration = std::time::Duration::from_millis(250);
+
+    fn event(entity_type: &str, kind: EventKind, tenant: Option<&str>) -> EntityEvent {
+        let mut e = EntityEvent::new(
+            kind,
+            entity_type.to_string(),
+            Uuid::new_v4(),
+            json!({"payload": "present"}),
+        );
+        e.tenant_id = tenant.map(String::from);
+        e
+    }
+
+    #[tokio::test]
+    async fn in_memory_delivers_only_the_subscribed_tenant() {
+        let transport = std::sync::Arc::new(InMemoryTransport::new());
+        let mut stream = transport
+            .subscribe(EventFilter::for_tenant("tenant-a").with_entity_type("Order"))
+            .await
+            .unwrap();
+
+        // Another tenant's event is published FIRST, so a transport that ignores the
+        // filter yields it before the subscriber's own.
+        transport
+            .publish(event("Order", EventKind::Created, Some("tenant-b")))
+            .await
+            .unwrap();
+        let mine = event("Order", EventKind::Created, Some("tenant-a"));
+        let mine_id = mine.id;
+        transport.publish(mine).await.unwrap();
+
+        let received = stream.next().await.unwrap().unwrap();
+        assert_eq!(
+            received.id, mine_id,
+            "a tenant-scoped subscription must not receive another tenant's event \
+             (got tenant {:?})",
+            received.tenant_id
+        );
+    }
+
+    #[tokio::test]
+    async fn in_memory_does_not_treat_an_untenanted_event_as_the_subscribed_tenant() {
+        let transport = std::sync::Arc::new(InMemoryTransport::new());
+        let mut stream = transport.subscribe(EventFilter::for_tenant("tenant-a")).await.unwrap();
+
+        transport.publish(event("Order", EventKind::Created, None)).await.unwrap();
+
+        let quiet = tokio::time::timeout(QUIET_WINDOW, stream.next()).await;
+        assert!(
+            quiet.is_err(),
+            "an event carrying no tenant must not satisfy a tenant-scoped subscription; \
+             got {:?}",
+            quiet.ok().flatten().map(|r| r.map(|e| e.tenant_id))
+        );
+    }
+
+    #[tokio::test]
+    async fn in_memory_delivers_only_the_subscribed_entity_type() {
+        let transport = std::sync::Arc::new(InMemoryTransport::new());
+        let mut stream = transport
+            .subscribe(EventFilter::all_tenants().with_entity_type("Order"))
+            .await
+            .unwrap();
+
+        transport.publish(event("Invoice", EventKind::Created, None)).await.unwrap();
+        let mine = event("Order", EventKind::Created, None);
+        let mine_id = mine.id;
+        transport.publish(mine).await.unwrap();
+
+        let received = stream.next().await.unwrap().unwrap();
+        assert_eq!(
+            received.id, mine_id,
+            "subscribing to Order must not deliver an Invoice (got {})",
+            received.entity_type
+        );
+    }
+
+    #[tokio::test]
+    async fn in_memory_delivers_only_the_subscribed_operation() {
+        let transport = std::sync::Arc::new(InMemoryTransport::new());
+        let mut stream = transport
+            .subscribe(EventFilter::all_tenants().with_operation(EventKind::Deleted))
+            .await
+            .unwrap();
+
+        transport.publish(event("Order", EventKind::Created, None)).await.unwrap();
+        let mine = event("Order", EventKind::Deleted, None);
+        let mine_id = mine.id;
+        transport.publish(mine).await.unwrap();
+
+        let received = stream.next().await.unwrap().unwrap();
+        assert_eq!(
+            received.id, mine_id,
+            "subscribing to DELETE must not deliver an INSERT (got {:?})",
+            received.event_type
+        );
+    }
+
+    /// The server-internal consumers — the observer runtime and the retry loop —
+    /// subscribe across the whole deployment on purpose. Filtering must not have
+    /// narrowed them.
+    #[tokio::test]
+    async fn in_memory_all_tenants_still_delivers_every_tenant() {
+        let transport = std::sync::Arc::new(InMemoryTransport::new());
+        let mut stream = transport.subscribe(EventFilter::all_tenants()).await.unwrap();
+
+        for tenant in [Some("tenant-a"), Some("tenant-b"), None] {
+            let e = event("Order", EventKind::Created, tenant);
+            let id = e.id;
+            transport.publish(e).await.unwrap();
+            let received = stream.next().await.unwrap().unwrap();
+            assert_eq!(received.id, id, "AllTenants must deliver tenant {tenant:?}");
+        }
+    }
+}
+
+/// The one definition of "is this event inside this filter" (#1113). The transports
+/// delegate here; `filter_is_honoured_by_every_transport` pins that they do.
+#[allow(clippy::unwrap_used)] // Reason: test code
+mod event_filter_matches {
+    use serde_json::json;
+    use uuid::Uuid;
+
+    use super::super::{EventFilter, TenantScope};
+    use crate::event::{EntityEvent, EventKind};
+
+    fn event(entity_type: &str, kind: EventKind, tenant: Option<&str>) -> EntityEvent {
+        let mut e = EntityEvent::new(kind, entity_type.to_string(), Uuid::new_v4(), json!({}));
+        e.tenant_id = tenant.map(String::from);
+        e
+    }
+
+    #[test]
+    fn all_tenants_matches_every_tenant_and_the_untenanted() {
+        let filter = EventFilter::all_tenants();
+        assert!(filter.matches(&event("Order", EventKind::Created, Some("a"))));
+        assert!(filter.matches(&event("Order", EventKind::Created, Some("b"))));
+        assert!(filter.matches(&event("Order", EventKind::Created, None)));
+    }
+
+    #[test]
+    fn a_tenant_scope_matches_only_that_tenant() {
+        let filter = EventFilter::for_tenant("a");
+        assert!(filter.matches(&event("Order", EventKind::Created, Some("a"))));
+        assert!(!filter.matches(&event("Order", EventKind::Created, Some("b"))));
+    }
+
+    /// A missing stamp is not a wildcard. The same fail-closed rule the GraphQL
+    /// subscription gate applies in multi-tenant mode.
+    #[test]
+    fn a_tenant_scope_does_not_match_an_untenanted_event() {
+        assert!(!EventFilter::for_tenant("a").matches(&event("Order", EventKind::Created, None)));
+    }
+
+    /// A tenant id is compared whole: `"a"` must not admit `"ab"`, and vice versa.
+    #[test]
+    fn a_tenant_scope_compares_the_whole_id() {
+        assert!(!EventFilter::for_tenant("a").matches(&event(
+            "Order",
+            EventKind::Created,
+            Some("ab")
+        )));
+        assert!(!EventFilter::for_tenant("ab").matches(&event(
+            "Order",
+            EventKind::Created,
+            Some("a")
+        )));
+    }
+
+    #[test]
+    fn entity_type_is_matched_exactly() {
+        let filter = EventFilter::all_tenants().with_entity_type("Order");
+        assert!(filter.matches(&event("Order", EventKind::Created, None)));
+        assert!(!filter.matches(&event("Invoice", EventKind::Created, None)));
+        assert!(!filter.matches(&event("order", EventKind::Created, None)));
+    }
+
+    #[test]
+    fn operation_is_matched_exactly() {
+        let filter = EventFilter::all_tenants().with_operation(EventKind::Deleted);
+        assert!(filter.matches(&event("Order", EventKind::Deleted, None)));
+        assert!(!filter.matches(&event("Order", EventKind::Created, None)));
+        assert!(!filter.matches(&event("Order", EventKind::Updated, None)));
+        assert!(!filter.matches(&event("Order", EventKind::Custom, None)));
+    }
+
+    /// Every narrowing must hold at once: an event matching two of three is out.
+    /// A filter built by `&&`-ing the wrong way round would pass the single-dimension
+    /// tests above and let a foreign tenant through on an entity-type match.
+    #[test]
+    fn every_narrowing_must_hold_at_once() {
+        let filter = EventFilter::for_tenant("a")
+            .with_entity_type("Order")
+            .with_operation(EventKind::Created);
+
+        assert!(filter.matches(&event("Order", EventKind::Created, Some("a"))));
+        assert!(!filter.matches(&event("Order", EventKind::Created, Some("b"))), "wrong tenant");
+        assert!(!filter.matches(&event("Invoice", EventKind::Created, Some("a"))), "wrong type");
+        assert!(
+            !filter.matches(&event("Order", EventKind::Deleted, Some("a"))),
+            "wrong operation"
+        );
+    }
+
+    #[test]
+    fn narrowing_is_recorded_on_the_filter() {
+        let filter = EventFilter::for_tenant("a")
+            .with_entity_type("Order")
+            .with_operation(EventKind::Updated);
+        assert_eq!(filter.entity_type.as_deref(), Some("Order"));
+        assert_eq!(filter.operation, Some(EventKind::Updated));
+        assert_eq!(filter.tenant, TenantScope::Tenant("a".to_string()));
     }
 }

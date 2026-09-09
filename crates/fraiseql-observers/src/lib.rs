@@ -199,8 +199,8 @@ pub use traits::{
 #[cfg(feature = "postgres")]
 pub use transport::PostgresNotifyTransport;
 pub use transport::{
-    EventFilter, EventStream, EventTransport, HealthStatus, InMemoryTransport, TransportHealth,
-    TransportType,
+    EventFilter, EventStream, EventTransport, HealthStatus, InMemoryTransport, TenantScope,
+    TransportHealth, TransportType,
 };
 /// The `uuid` this crate's public API is built against (#1198).
 pub use uuid;

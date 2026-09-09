@@ -77,20 +77,37 @@ impl Default for InMemoryTransport {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl EventTransport for InMemoryTransport {
-    async fn subscribe(&self, _filter: EventFilter) -> Result<EventStream> {
+    async fn subscribe(&self, filter: EventFilter) -> Result<EventStream> {
         // Create a stream from the receiver
         // Note: Only one subscription is allowed (single receiver)
         // For multiple subscribers, we'd need to use tokio::sync::broadcast
         let receiver = Arc::clone(&self.receiver);
 
-        let stream = stream::unfold(receiver, |receiver| async move {
-            let mut receiver_guard = receiver.lock().await;
-            match receiver_guard.recv().await {
-                Some(event) => {
-                    drop(receiver_guard); // Release lock before returning
-                    Some((Ok(event), receiver))
-                },
-                None => None, // Channel closed
+        // #1113: this parameter was `_filter` and the stream was unfiltered, so a
+        // tenant-scoped subscription received every tenant's events — including each
+        // event's full `data` payload — while the same subscription over NATS was
+        // filtered. An event outside the filter is consumed and dropped rather than
+        // left in the channel: this transport is a single-consumer queue (one MPSC
+        // receiver), so leaving it would block every later event behind it.
+        let stream = stream::unfold((receiver, filter), |(receiver, filter)| async move {
+            loop {
+                let mut receiver_guard = receiver.lock().await;
+                let next = receiver_guard.recv().await;
+                drop(receiver_guard); // Release lock before matching/returning
+
+                match next {
+                    Some(event) if filter.matches(&event) => {
+                        return Some((Ok(event), (receiver, filter)));
+                    },
+                    Some(event) => {
+                        debug!(
+                            "InMemoryTransport: dropping event {} outside the subscription \
+                             filter",
+                            event.id
+                        );
+                    },
+                    None => return None, // Channel closed
+                }
             }
         });
 

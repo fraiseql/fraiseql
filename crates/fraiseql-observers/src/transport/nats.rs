@@ -113,7 +113,7 @@ impl Default for NatsConfig {
 ///     };
 ///
 ///     let transport = NatsTransport::new(config).await?;
-///     let mut stream = transport.subscribe(EventFilter::default()).await?;
+///     let mut stream = transport.subscribe(EventFilter::all_tenants()).await?;
 ///
 ///     while let Some(event_result) = stream.next().await {
 ///         match event_result {
@@ -277,17 +277,16 @@ impl EventTransport for NatsTransport {
                 reason: format!("Failed to get message stream: {e}"),
             })?;
 
-        // Clone filter fields for use in async closure (wrapped in Arc for sharing)
-        let filter_operation = Arc::new(filter.operation.clone());
-        let filter_tenant_id = Arc::new(filter.tenant_id.clone());
+        // Share the whole filter with the async closure rather than picking fields off
+        // it: a per-field clone is how a later-added field gets left behind (#1113).
+        let filter = Arc::new(filter);
         let undecodable_count = Arc::clone(&self.undecodable_count);
         let dead_letter_subject = Arc::new(self.config.dead_letter_subject.clone());
         let dlq_client = Arc::clone(&self.client);
 
         // Convert JetStream messages to Result<EntityEvent>
         let event_stream = messages.filter_map(move |msg_result| {
-            let filter_op = Arc::clone(&filter_operation);
-            let filter_tenant = Arc::clone(&filter_tenant_id);
+            let subscription_filter = Arc::clone(&filter);
             let dlq_subject = Arc::clone(&dead_letter_subject);
             let dlq_client = Arc::clone(&dlq_client);
             let undecodable_count = Arc::clone(&undecodable_count);
@@ -298,43 +297,28 @@ impl EventTransport for NatsTransport {
                         // Parse message into EntityEvent
                         match Self::parse_message(&msg) {
                             Ok(event) => {
-                                // Apply additional filters (operation, tenant_id)
-                                if let Some(ref op) = filter_op.as_ref() {
-                                    let event_op = match event.event_type {
-                                        crate::event::EventKind::Created => "INSERT",
-                                        crate::event::EventKind::Updated => "UPDATE",
-                                        crate::event::EventKind::Deleted => "DELETE",
-                                        crate::event::EventKind::Custom => "CUSTOM",
-                                    };
-                                    if event_op != op {
-                                        // Skip if operation doesn't match
-                                        if let Err(e) = msg.ack().await {
-                                            tracing::error!(
-                                                "Failed to ack filtered message: {}",
-                                                e
-                                            );
-                                        }
-                                        return None;
+                                // The subject filter above narrows by entity type at the
+                                // broker; everything else is decided here, by the same
+                                // `EventFilter::matches` the other two transports call
+                                // (#1113). `entity_type` is re-checked rather than trusted
+                                // to the subject: a producer that publishes to a subject
+                                // disagreeing with its own payload would otherwise be
+                                // delivered as the subject claimed.
+                                if !subscription_filter.matches(&event) {
+                                    tracing::trace!(
+                                        event_id = %event.id,
+                                        event_type = %event.entity_type,
+                                        event_operation = ?event.event_type,
+                                        event_tenant = ?event.tenant_id,
+                                        "Skipping event outside the subscription filter"
+                                    );
+                                    // ACK anyway: the message was delivered and decoded,
+                                    // it is simply not this subscriber's. Leaving it
+                                    // unACKed would redeliver it forever.
+                                    if let Err(e) = msg.ack().await {
+                                        tracing::error!("Failed to ack filtered message: {}", e);
                                     }
-                                }
-
-                                // Filter by tenant_id if specified
-                                if let Some(ref tenant) = filter_tenant.as_ref() {
-                                    if event.tenant_id.as_ref() != Some(tenant) {
-                                        tracing::trace!(
-                                            event_id = %event.id,
-                                            event_tenant = ?event.tenant_id,
-                                            filter_tenant = %tenant,
-                                            "Skipping event due to tenant_id mismatch"
-                                        );
-                                        if let Err(e) = msg.ack().await {
-                                            tracing::error!(
-                                                "Failed to acknowledge NATS message: {}",
-                                                e
-                                            );
-                                        }
-                                        return None;
-                                    }
+                                    return None;
                                 }
 
                                 // Acknowledge message after successful parsing

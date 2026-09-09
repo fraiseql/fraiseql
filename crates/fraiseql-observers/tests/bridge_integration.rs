@@ -476,7 +476,7 @@ mod bridge_tests {
         );
 
         // Subscribe to NATS to count received events
-        let filter = EventFilter::default();
+        let filter = EventFilter::all_tenants();
         let mut stream = nats_transport.subscribe(filter).await.expect("Subscribe should succeed");
 
         // Run bridge with shutdown signal

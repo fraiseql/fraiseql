@@ -74,24 +74,49 @@ impl PostgresNotifyTransport {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl EventTransport for PostgresNotifyTransport {
-    async fn subscribe(&self, _filter: EventFilter) -> Result<EventStream> {
+    async fn subscribe(&self, filter: EventFilter) -> Result<EventStream> {
         let listener = Arc::clone(&self.listener);
         let poll_interval = self.poll_interval;
 
         // Create a stream that polls the change log listener.
         // State carries a VecDeque buffer so every entry in a batch is yielded,
         // not just the first one (which was the previous behaviour).
+        //
+        // #1113: `filter` was `_filter` here and the stream was unfiltered — not even
+        // `entity_type` applied — so a tenant-scoped subscription over the transport a
+        // single-node deployment is most likely to be running received every tenant's
+        // events.
+        //
+        // ⚠ Filtering is applied to the *delivered* stream, not to the poll: the batch
+        // was already recorded in the dispatch ledger by `record_dispatched` below, so
+        // a row outside this subscription's filter is consumed and dropped, not left
+        // for another subscriber. That is correct for one consumer and wrong for two,
+        // which is the general shape of this transport — see the fan-out issue linked
+        // from `rest_sse_handler`. Filtering in SQL instead is not available: the
+        // predicate would have to live on the `ChangeLogListener`, which is shared by
+        // every `subscribe` call on this transport, and those calls may carry
+        // different filters.
         let stream = stream::unfold(
-            (listener, poll_interval, VecDeque::<ChangeLogEntry>::new()),
-            move |(listener, interval, mut buffer)| async move {
+            (listener, poll_interval, VecDeque::<ChangeLogEntry>::new(), filter),
+            move |(listener, interval, mut buffer, filter)| async move {
                 loop {
                     // Yield buffered entries before fetching a new batch.
                     if let Some(entry) = buffer.pop_front() {
                         match entry.to_entity_event() {
-                            Ok(event) => return Some((Ok(event), (listener, interval, buffer))),
+                            Ok(event) => {
+                                if filter.matches(&event) {
+                                    return Some((Ok(event), (listener, interval, buffer, filter)));
+                                }
+                                debug!(
+                                    "PostgresNotifyTransport: dropping event {} outside the \
+                                     subscription filter",
+                                    event.id
+                                );
+                                continue;
+                            },
                             Err(e) => {
                                 error!("Error converting change log entry to event: {}", e);
-                                return Some((Err(e), (listener, interval, buffer)));
+                                return Some((Err(e), (listener, interval, buffer, filter)));
                             },
                         }
                     }
@@ -115,7 +140,7 @@ impl EventTransport for PostgresNotifyTransport {
                             Err(e) => {
                                 error!("Error fetching batch from change log: {}", e);
                                 drop(listener_guard);
-                                return Some((Err(e), (listener, interval, buffer)));
+                                return Some((Err(e), (listener, interval, buffer, filter)));
                             },
                         }
                     };
