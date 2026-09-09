@@ -104,6 +104,26 @@ proptest! {
         type_names in prop::collection::vec("[A-Z][a-zA-Z]{0,20}", 0..5),
         query_names in prop::collection::vec("[a-z][a-zA-Z]{0,20}", 0..5),
     ) {
+        // Names must be UNIQUE, because since #1265 the load path refuses a schema
+        // that declares one twice — a check that used to live in the never-called
+        // `CompiledSchema::validate()`. The generators here draw from
+        // `[A-Z][a-zA-Z]{0,20}`, which produces collisions readily at length 1, so
+        // without this the property fails at random: `from_json` returns
+        // `Duplicate type name: G` and the round-trip never happens.
+        //
+        // Deduplicating is the right repair rather than widening the generator,
+        // because the property under test is round-trip *fidelity* — that a schema
+        // survives serialize/deserialize unchanged. A schema the loader refuses has
+        // no round trip to preserve, and the refusal itself is covered by its own
+        // test. `sort` before `dedup` because `dedup` only removes *adjacent*
+        // repeats.
+        let mut type_names = type_names;
+        type_names.sort();
+        type_names.dedup();
+        let mut query_names = query_names;
+        query_names.sort();
+        query_names.dedup();
+
         let mut schema = CompiledSchema::new();
         for name in &type_names {
             schema.types.push(TypeDefinition::new(name.clone(), format!("v_{}", name.to_lowercase())));

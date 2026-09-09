@@ -9,3 +9,4 @@ cc 52a5bbaf64915a315dea659aba13fe002b178669b02e33675ec425d6f5359003 # shrinks to
 cc c6b498fe5ccda993f364877843b83534eb129ad8f654b3bf1e3264683d274132 # shrinks to value = Array [Object {"A": Number(-2.7610257913662782e-267)}]
 cc 1e69c6113d663cd268477aff2750db6b59d1f67d71da3f927970c73faed22546 # shrinks to kvs = [("", 0), ("", -1)]
 cc 1653a9ea1fb3e14ab43fd2dca0251e860d2a01af2905316e76343202647c5592 # shrinks to kvs = [("", 0), ("", 1)]
+cc aac32b2ac05e4f4e89a804235f0350fedcd8ddcd99d19aa673a052c0678376fe # shrinks to type_names = [], query_names = ["t", "t"]
