@@ -18,6 +18,109 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **FraiseQL now names pgvector's scan settings on every database connection —
+  `hnsw.iterative_scan`, `ivfflat.iterative_scan` and (opt-in) `hnsw.ef_search` — and
+  `PoolPrewarmConfig` gains a `vector_scan` field (#1116).**
+
+  A filtered similarity search was silently returning fewer rows than `k`. With
+  pgvector's default `hnsw.iterative_scan = off`, an HNSW scan hands the filter one
+  bounded candidate list; once the filter is selective that list is exhausted before
+  `k` survivors exist, and the query **succeeds**. Measured on 100 000 documents ×
+  384 dimensions, `k = 10`, pgvector 0.8.6:
+
+  | rows matching the filter | `iterative_scan` | returned | recall |
+  |---|---|---|---|
+  | 5%  | `off` (pgvector's default) | 3 | 0.30 |
+  | 1%  | `off` (pgvector's default) | 2 | 0.20 |
+  | 5% / 1% | set | 10 | 1.00 |
+
+  A client that asked for the ten nearest received two, with nothing to distinguish
+  that from "only two matched". `grep -rn "iterative_scan" crates/` returned nothing:
+  every deployment was on the default.
+
+  The settings ride the **startup packet**, the seam per-tenant `search_path` already
+  uses — a property of how connections are made, so it reaches every connection a pool
+  opens later and survives `DISCARD ALL`, at no extra round trip. Not `SET LOCAL` (a
+  round trip per statement, and it needs a transaction) and not a pooled `SET` (which
+  configures one session out of N — #809).
+
+  Defaults are `strict_order` for HNSW and `relaxed_order` for IVFFlat, configurable as
+  `vector_hnsw_iterative_scan` / `vector_ivfflat_iterative_scan`, with
+  `vector_hnsw_ef_search` alongside them and unset (see the ⚠ below for when to reach
+  for it). `strict_order`
+  because `nearest` is documented to return rows most-similar-first and only an
+  ordered scan can honour that; the benchmark found the two modes indistinguishable in
+  both recall and latency, so the guarantee is what separates them. The two settings
+  have **different value sets** because pgvector does: `ivfflat.iterative_scan =
+  strict_order` is refused with `HINT: Available values: off, relaxed_order` and then
+  falls back to `off`, so the type makes it unrepresentable rather than clamping it.
+
+  `off` writes nothing into the packet rather than writing an explicit `off`, so a
+  database-level `ALTER DATABASE … SET hnsw.iterative_scan = …` — the workaround the
+  docs used to recommend — still applies.
+
+  **What breaks:** `PoolPrewarmConfig` is a public struct with no `Default`, so any
+  embedder constructing one must now name `vector_scan`. `Default::default()` is the
+  recall-preserving value. `make_executor_factory` also takes a third argument, for the
+  same reason it takes `database_tls`: whether a tenant's filtered searches may
+  under-return is the operator's decision, not the registration payload's.
+
+  Safe on a database without pgvector — a two-part GUC name is accepted as a
+  placeholder when no extension has claimed it, verified against a database with the
+  extension absent, which is the same mechanism that covers a pgvector older than 0.8.
+
+  ⚠ **This does not guarantee `k` rows, and on some corpora `iterative_scan` is not even
+  the binding constraint.** Measured on 20 000 rows × 64 dimensions of uniform-random
+  vectors with a 1% filter and `k = 10`, over three independently generated datasets:
+  `iterative_scan=off` returned 2/3/4 rows, `strict_order` returned 10/5/4, raising
+  `hnsw.max_scan_tuples` 100× changed nothing at all, and `hnsw.ef_search = 1000` returned
+  10 every time — even with `iterative_scan` off. `ef_search` (default 40) is the size of
+  the candidate list the graph search keeps, and a 40-candidate list rarely holds ten
+  members of a 1% subset however far the scan continues.
+
+  So `vector_hnsw_ef_search` is exposed too, and left **unset**. `iterative_scan` is on by
+  default because the benchmark measured it as free on an unfiltered search; `ef_search` is
+  a latency/recall trade paid by *every* search on the deployment and its right value is a
+  property of the corpus, which FraiseQL cannot pick. Which of the two binds depends on the
+  data — `benches/vector_filtered_ann.sql` reaches recall 1.00 from `iterative_scan` alone
+  on its own corpus — so both are reachable and the docs say how to tell them apart.
+
+  The remaining gap is the **signal**: with everything at its default a client that asked
+  for ten nearest still receives three, and the response is a success carrying three rows.
+  That is #1314, which this measurement also corrects — it had been filed against
+  `max_scan_tuples`.
+
+- **A vector threshold filter now reads the native column, so a view that carried the
+  embedding only as text inside `data` stops filtering (#1117).**
+
+  `WhereGenerator::vector_threshold_sql` resolved a vector field through
+  `dialect.json_extract_scalar("data", path)` like every other filter, emitting
+  `((data->>'embedding')::vector <=> $1::vector) <= $2`. That is a per-row text parse of
+  every embedding in the relation: **2667 ms against the native column's 22 ms** on the
+  same 400 matching rows, 100 000 documents of 384 dimensions, pgvector 0.8.6. It now
+  emits `("embedding" <=> $1::text::vector) <= $2`.
+
+  The operand is not new information. The storage contract has always required the
+  backing view to expose a declared vector field as a native column, and `nearest`
+  refuses to lower without it — so on every schema where similarity search works, the
+  cheap operand was already there and unread. Both paths now derive the column name
+  through one function (`fraiseql_db::utils::vector_storage_column`), because an ORDER BY
+  and a WHERE that name the same column from two copies of a rule are two copies that can
+  drift.
+
+  **What breaks:** a view whose `data` payload carries `'embedding', embedding::text` but
+  whose select list has no `embedding` column. Filtering it now fails with
+  `column "embedding" does not exist` where it previously scanned. Such a view could
+  never run a `nearest` query either, so it was already outside the contract; add the
+  column to the view. The reverse — dropping the now-unnecessary text copy from `data` —
+  is optional, worth several KB per row at 1536 dimensions, and only safe if clients do
+  not *select* the field.
+
+  Unchanged: the operand's shape still picks the literal's cast (`::vector`,
+  `::sparsevec`, `::varbit`), the JSONB path still serves undeclared fields, nested
+  relation paths and callers with no schema, and no other operator on a vector field
+  moved — `eq` on an embedding is still the text comparison it was.
+
 - **`CompiledSchema::validate()` is deleted (#1265).**
 
   It had no caller outside tests, and its return-type check was **wrong**: it resolved

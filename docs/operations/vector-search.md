@@ -60,19 +60,36 @@ that table in eleven places is a copy that drifts.
 ## Storage contract
 
 The backing view must expose the vector as a **native `vector(N)` column**
-named after the field (snake_case) — that is what `nearest` orders by and what
-makes ANN indexes usable. For threshold WHERE filtering, the vector is resolved
-from `data->>'field'` like every other filter, so carry its text form
-(`embedding::text`) in the `data` payload **or** register the field as an
-indexed native column. A view can serve both:
+named after the field (snake_case). That is the whole contract, and **both**
+paths read it: `nearest` orders by it, and since #1117 the threshold WHERE
+operators compare against it too.
 
 ```sql
 CREATE VIEW v_doc AS
   SELECT id,
-         jsonb_build_object('id', id, 'title', title, 'embedding', embedding::text) AS data,
+         jsonb_build_object('id', id, 'title', title) AS data,
          embedding
   FROM tb_doc;
 ```
+
+The vector no longer needs a text copy inside `data` for filtering. Carry one
+**only if you want to select the field**, which is a separate question:
+
+```sql
+-- Only if `{ docs { embedding } }` should return the vector.
+jsonb_build_object('id', id, 'title', title, 'embedding', embedding::text) AS data
+```
+
+At 1536 dimensions that copy is several KB per row, and before #1117 it was
+mandatory: a threshold predicate read `(data->>'embedding')::vector` and re-parsed
+every row's embedding out of text, at **122×** the cost of the column (measured
+below). Dropping it is the reason to.
+
+⚠ **Breaking, if your view carried only the text form.** A view with
+`'embedding', embedding::text` in `data` and no native `embedding` column stops
+filtering — the predicate now names a column that is not there. Such a view could
+never use `nearest` either (that path refuses without the column), so it was
+already outside this contract; add the column to the view's select list.
 
 Selection tip: don't select the `embedding` GraphQL field unless you want the
 payload — it is the type's declared field for configuration purposes.
@@ -161,32 +178,116 @@ before ten survivors exist, and the query returns two rows and succeeds. A clien
 asking for the ten nearest gets two, with nothing to distinguish that from "only
 two matched".
 
-FraiseQL does not set this GUC. An operator whose queries combine `nearest` with
-a selective `where` should:
+**FraiseQL sets this GUC** (#1116). Every connection its pools open carries
 
-```sql
-ALTER DATABASE app SET hnsw.iterative_scan = relaxed_order;
+```
+-c hnsw.iterative_scan=strict_order -c ivfflat.iterative_scan=relaxed_order
 ```
 
-`relaxed_order` and `strict_order` were indistinguishable here in both recall and
-latency; `relaxed_order` is the cheaper guarantee and the one to reach for unless
-the exact ordering of the returned k matters. The cost is real but bounded — 3.1 ms
-against 0.43 ms — and it buys a complete answer.
+in the PostgreSQL startup packet, the same place the per-tenant `search_path`
+rides — a property of how connections are *made*, so it reaches every connection
+the pool opens later and survives `DISCARD ALL`. It costs no extra round trip, and
+it is inert on a database without pgvector: a two-part GUC name is accepted as a
+placeholder when no extension has claimed it.
+
+The defaults, and why:
+
+| setting | default | values |
+|---|---|---|
+| `vector_hnsw_iterative_scan` | `strict_order` | `off`, `relaxed_order`, `strict_order` |
+| `vector_ivfflat_iterative_scan` | `relaxed_order` | `off`, `relaxed_order` |
+| `vector_hnsw_ef_search` | *unset* (pgvector's 40) | any positive integer |
+
+`strict_order` for HNSW because `nearest` is documented to return rows
+most-similar-first, and a plan whose ordering comes from the index scan can only
+honour that if the scan is ordered — `relaxed_order` would trade the silent
+under-return for a quieter version of the same problem. The benchmark above found
+the two indistinguishable in recall *and* latency, so the guarantee is the only
+thing separating them; an operator whose corpus disagrees can say so. IVFFlat has
+no `strict_order` — pgvector defines only `off` and `relaxed_order` there, which
+is why the two settings have different value sets rather than one shared one.
+
+All three are **server** configuration — the same flat-key file as
+`pool_max_size` and `read_replica_urls`, read by `ServerConfig`, not the
+authoring `fraiseql.toml`:
+
+```toml
+# Leave pgvector's own defaults in place.
+vector_hnsw_iterative_scan = "off"
+vector_ivfflat_iterative_scan = "off"
+
+# Or widen the candidate list, when the section below says that is the knob
+# your corpus needs.
+vector_hnsw_ef_search = 200
+```
+
+`off` writes **nothing** into the startup packet rather than writing
+`-c hnsw.iterative_scan=off`, so a database-level setting still applies:
+
+```sql
+ALTER DATABASE app SET hnsw.iterative_scan = relaxed_order;  -- still honoured
+```
+
+⚠ A bad value is not an error. pgvector defines these GUCs when its library loads,
+after the connection is already established, so an unrecognised value produces
+`WARNING: invalid value for parameter "hnsw.iterative_scan"` and falls back to
+`off` — the very failure the setting exists to prevent. That is why the
+configuration is an enum per index rather than a string.
+
+### ⚠ `iterative_scan` alone does not guarantee `k` rows
+
+Turning it on is a large improvement and it is not a complete fix. Measured on this
+repository's rig — 20 000 rows × 64 dimensions of uniform-random vectors, a filter
+matching 1%, `k = 10`, three **independently generated** datasets:
+
+| configuration | rows returned |
+|---|---|
+| `iterative_scan=off` (pgvector's default) | 2, 3, 4 |
+| `iterative_scan=strict_order` | 10, 5, 4 |
+| …plus `max_scan_tuples` raised 100× | 10, 5, 4 — **no effect** |
+| …plus `ef_search=1000` instead | **10, 10, 10** |
+| `iterative_scan=off` **and** `ef_search=1000` | **10, 10, 10** |
+
+`hnsw.ef_search` (default 40) is the size of the candidate list the graph search keeps.
+When a filter admits 1% of rows, a 40-candidate list rarely contains ten survivors, and
+continuing the scan does not help a search that is not looking *wider*. On that corpus
+`ef_search` is the binding constraint and `iterative_scan` is not needed at all; on the
+100 000 × 384 corpus in `benches/vector_filtered_ann.sql` the opposite holds and
+`iterative_scan` alone reaches recall 1.00.
+
+**Which knob binds is a property of your data.** Uniform-random high-dimensional vectors
+are the adversarial case — everything is nearly equidistant, so the graph is close to
+arbitrary — and real embeddings cluster. The practical procedure:
+
+1. Leave `vector_hnsw_iterative_scan` on. It is free on unfiltered searches.
+2. If filtered searches still return fewer than `k`, raise `vector_hnsw_ef_search`
+   (try 200, then 1000) and measure. Do **not** reach for `max_scan_tuples`; it changed
+   nothing in every case measured here.
+3. `ef_search` is left unset by default because it costs latency on *every* search,
+   filtered or not, and only you know your corpus.
+
+⚠ Whatever you set, there is still **no signal** when a search gives up early: a client
+that asked for ten nearest and received three sees a successful response carrying three
+rows, indistinguishable from "only three matched". That gap is #1314.
 
 Threshold predicates are a different story: a distance *range* is not what an ANN
 index answers, so no setting makes one index-eligible. Both forms read every row.
-What differs is where the vector comes from:
+What differed was where the vector came from:
 
 | threshold predicate | median |
 |---|---|
-| against the native `vector(N)` column | 22 ms |
-| through the JSONB payload (`(data->>'embedding')::vector`) | **2667 ms** |
+| against the native `vector(N)` column — what runs now | 22 ms |
+| through the JSONB payload (`(data->>'embedding')::vector`) — before #1117 | **2667 ms** |
 
-That 122× is the per-row text parse. The WHERE generator resolves vector fields
-from `data->>'field'` like every other filter, so today a threshold predicate pays
-it — on the same view that already exposes the native column `nearest` orders by.
-Until that changes, prefer `nearest` with a `k` over a threshold predicate on any
-table worth indexing.
+That 122× was the per-row text parse: every row's embedding rendered to text in
+the view, extracted from the JSONB and parsed back into a `vector(N)`. The WHERE
+generator used to resolve a vector field like every other filter, so a threshold
+predicate paid it on the same view that already exposed the column `nearest`
+orders by. It now reads the column, and the JSONB row above is kept only to say
+what the storage contract is protecting you from.
+
+A threshold predicate still reads every row, so on a large table prefer `nearest`
+with a `k` — that shape is the index-eligible one.
 
 ## The distance in the response
 
