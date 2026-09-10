@@ -8,7 +8,7 @@ namespace FraiseQL;
  * Represents a GraphQL field definition with metadata and type information.
  *
  * This class holds all information about a field including its GraphQL type,
- * nullability, description, and optional resolver function.
+ * nullability and description.
  */
 final readonly class FieldDefinition
 {
@@ -19,7 +19,6 @@ final readonly class FieldDefinition
      * @param bool $isList Whether the field is a list type
      * @param string|null $description Optional field description
      * @param string $phpType The original PHP type
-     * @param string|null $customResolver Optional custom resolver method name
      * @param string $parentType The parent GraphQL type name
      * @param string|null $scope Optional JWT scope required to access this field
      * @param array<string>|null $scopes Optional JWT scopes required to access this field
@@ -34,7 +33,6 @@ final readonly class FieldDefinition
         public bool $isList = false,
         public ?string $description = null,
         public string $phpType = 'mixed',
-        public ?string $customResolver = null,
         public string $parentType = 'Unknown',
         public ?string $scope = null,
         public ?array $scopes = null,
@@ -82,16 +80,6 @@ final readonly class FieldDefinition
     public function isScalar(): bool
     {
         return in_array($this->type, ['Int', 'String', 'Boolean', 'Float'], true);
-    }
-
-    /**
-     * Check if this field has a custom resolver.
-     *
-     * @return bool
-     */
-    public function hasCustomResolver(): bool
-    {
-        return $this->customResolver !== null;
     }
 
     /**

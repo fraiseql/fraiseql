@@ -34,7 +34,6 @@ final readonly class GraphQLField
      * @param string|null $type Optional explicit GraphQL type. Auto-detected from property type if not specified.
      * @param string|null $description Optional field description for schema documentation.
      * @param bool $nullable Whether the field is nullable in GraphQL.
-     * @param string|null $resolver Optional custom resolver method name.
      * @param string|null $scope Optional JWT scope required to access this field (single scope).
      * @param array<string>|null $scopes Optional JWT scopes required to access this field (multiple scopes).
      * @param bool $computed When true, this field is server-computed and excluded from CRUD input types.
@@ -54,7 +53,6 @@ final readonly class GraphQLField
         public ?string $type = null,
         public ?string $description = null,
         public bool $nullable = false,
-        public ?string $resolver = null,
         public ?string $scope = null,
         public ?array $scopes = null,
         public bool $computed = false,

@@ -86,16 +86,6 @@ final class TypeBuilderTest extends TestCase
         $this->assertSame('User full name', $field->description);
     }
 
-    public function testFieldWithResolver(): void
-    {
-        $builder = TypeBuilder::type('User')
-            ->field('fullName', 'String')
-            ->withResolver('fullName', 'getFullName');
-
-        $field = $builder->getField('fullName');
-        $this->assertSame('getFullName', $field->customResolver);
-    }
-
     public function testTypeDescription(): void
     {
         $builder = TypeBuilder::type('User')
@@ -149,8 +139,7 @@ final class TypeBuilderTest extends TestCase
             ->scalarField('hello', 'String', 'A simple hello')
             ->field('user', 'User')
             ->listField('users', 'User', 'All users')
-            ->optionalField('totalUsers', 'Int')
-            ->withResolver('totalUsers', 'getTotalUserCount');
+            ->optionalField('totalUsers', 'Int');
 
         $this->assertSame(4, $builder->getFieldCount());
 
@@ -160,7 +149,6 @@ final class TypeBuilderTest extends TestCase
 
         $totalUsers = $builder->getField('totalUsers');
         $this->assertTrue($totalUsers->nullable);
-        $this->assertSame('getTotalUserCount', $totalUsers->customResolver);
 
         $users = $builder->getField('users');
         $this->assertTrue($users->isList);

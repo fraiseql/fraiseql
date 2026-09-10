@@ -8,6 +8,7 @@ use PHPUnit\Framework\TestCase;
 use FraiseQL\SchemaExporter;
 use FraiseQL\SchemaRegistry;
 use FraiseQL\TypeBuilder;
+use FraiseQL\FieldDefinition;
 use FraiseQL\JsonSchema;
 use FraiseQL\Attributes\GraphQLType;
 use FraiseQL\Attributes\GraphQLField;
@@ -230,25 +231,50 @@ final class IntegrationTest extends TestCase
         $this->assertSame('Author', $feed['author']['type']);
     }
 
-    public function testACustomResolverDoesNotReachTheCompiledDocument(): void
+    public function testThePerFieldResolverAuthoringSurfaceIsGone(): void
     {
+        // This case has been re-pointed twice, and the history is the point. It first
+        // asserted that `resolver` WAS in the document — true only of the second
+        // exporter's document, which the compiler refuses, because `IntermediateField`
+        // has no `resolver` member and denies unknown fields (#1245). It was then
+        // re-pointed at `SchemaExporter`, which drops the key, and pinned that as the
+        // honest behaviour while #1263 decided what to do about an authoring surface no
+        // compile path reads. #1263 removed it: FraiseQL has no per-field resolver
+        // concept — a field is projected from its type's `sql_source` — so there was
+        // nothing for the surface to mean.
+        //
+        // So the subject is now the absence. Reflection, not a `->withResolver(...)`
+        // call, because a call to a removed method is a fatal error rather than a
+        // failing assertion, and a fatal error in one case says nothing about the others.
+        // `tools/check-sdk-dead-surface.sh` pins the same four names repo-wide; this is
+        // the half of the pin that runs inside the SDK's own suite.
+        $this->assertFalse(
+            method_exists(TypeBuilder::class, 'withResolver'),
+            'TypeBuilder::withResolver() was removed in #1263 — no compile path reads a '
+            . 'per-field resolver. Implement the consumer before reintroducing it.',
+        );
+        $this->assertFalse(
+            method_exists(FieldDefinition::class, 'hasCustomResolver'),
+            'FieldDefinition::hasCustomResolver() was removed in #1263.',
+        );
+        $this->assertFalse(
+            property_exists(FieldDefinition::class, 'customResolver'),
+            'The FieldDefinition customResolver property was removed in #1263.',
+        );
+        $this->assertFalse(
+            property_exists(GraphQLField::class, 'resolver'),
+            'The GraphQLField attribute\'s resolver: parameter was removed in #1263.',
+        );
+
+        // And the document stays free of the key either way: an exported field carries
+        // no `resolver`, which is what keeps it compilable.
         TypeBuilder::type('User')
             ->scalarField('id', 'Int')
             ->scalarField('firstName', 'String')
             ->field('fullName', 'String')
-            ->withResolver('fullName', 'getFullName')
             ->register();
 
         $fields = self::fields(self::type(self::exported(), 'User'));
-
-        // This case asserted the opposite: that `resolver` was IN the document. It was —
-        // in the formatter's document, which the compiler refuses, because
-        // `IntermediateField` has no `resolver` member and denies unknown fields (#1245).
-        //
-        // `SchemaExporter` drops it, which is what keeps the document compilable. But
-        // that makes `withResolver`/`customResolver` an authoring surface no compile path
-        // reads — the author declares a resolver and nothing anywhere says it will not
-        // run. Pinned as the current honest behaviour and filed as #1263.
         $this->assertArrayNotHasKey('resolver', $fields['fullName']);
         $this->assertArrayNotHasKey('resolver', $fields['firstName']);
     }

@@ -453,7 +453,6 @@ final class SchemaRegistry
             isList: $typeInfo->isList,
             description: $typeInfo->description,
             phpType: $typeInfo->phpType,
-            customResolver: $typeInfo->customResolver,
             parentType: $typeName,
             // `TypeConverter` parses and validates `scope`/`scopes` off the attribute and
             // carries them on `TypeInfo`, and `SchemaExporter::buildTypes` reads

@@ -117,15 +117,4 @@ final class TypeInfoTest extends TestCase
 
         $this->assertSame('User full name', $typeInfo->description);
     }
-
-    public function testConstructorWithCustomResolver(): void
-    {
-        $typeInfo = new TypeInfo(
-            phpType: 'int',
-            graphQLType: 'Int',
-            customResolver: 'getComputedAge',
-        );
-
-        $this->assertSame('getComputedAge', $typeInfo->customResolver);
-    }
 }

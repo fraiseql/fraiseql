@@ -62,7 +62,6 @@ final class TypeBuilder
      * @param bool $nullable Whether the field is nullable
      * @param bool $isList Whether the field is a list
      * @param string|null $description Optional field description
-     * @param string|null $customResolver Optional resolver method name
      * @param bool $computed When true, excluded from CRUD input types (Create/Update)
      * @return self Fluent interface
      */
@@ -72,7 +71,6 @@ final class TypeBuilder
         bool $nullable = false,
         bool $isList = false,
         ?string $description = null,
-        ?string $customResolver = null,
         bool $computed = false,
     ): self {
         $this->fields[$name] = new FieldDefinition(
@@ -82,7 +80,6 @@ final class TypeBuilder
             isList: $isList,
             description: $description,
             phpType: 'mixed',
-            customResolver: $customResolver,
             parentType: $this->name,
             computed: $computed,
         );
@@ -152,33 +149,6 @@ final class TypeBuilder
         ?string $description = null,
     ): self {
         return $this->field($name, $type, nullable: true, isList: true, description: $description);
-    }
-
-    /**
-     * Add a custom resolver to the last added field.
-     *
-     * @param string $fieldName The field to add resolver to
-     * @param string $methodName The resolver method name
-     * @return self Fluent interface
-     */
-    public function withResolver(string $fieldName, string $methodName): self
-    {
-        if (isset($this->fields[$fieldName])) {
-            $field = $this->fields[$fieldName];
-            $this->fields[$fieldName] = new FieldDefinition(
-                name: $field->name,
-                type: $field->type,
-                nullable: $field->nullable,
-                isList: $field->isList,
-                description: $field->description,
-                phpType: $field->phpType,
-                customResolver: $methodName,
-                parentType: $field->parentType,
-                computed: $field->computed,
-            );
-        }
-
-        return $this;
     }
 
     /**

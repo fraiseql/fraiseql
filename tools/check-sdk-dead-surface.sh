@@ -37,6 +37,14 @@
 #   - it is a BASIC regex — `grep` here has no `-E` — so `|`, `+`, `(` and `?` are literals.
 # Comment lines are stripped before matching (see below), so a bare name is usually the
 # right entry: prose explaining the removal does not trip it.
+#
+# What comment-stripping does NOT cover is a TEST that pins the absence. #1263's
+# IntegrationTest asserts method_exists(TypeBuilder::class, 'withResolver') is false, so
+# the pin necessarily names the surface in live code, and the three bare-name entries
+# added for it failed on their own pin. Anchor on the DECLARATION - function withResolver,
+# \$customResolver - which is what reintroduction actually looks like: a call or a named
+# argument cannot exist without it (PHP fatals, and every other SDK language likewise
+# refuses an undeclared member), so the declaration anchor loses no coverage.
 # Keep the regex
 # specific enough that a prose mention in a CHANGELOG or migration note does not trip it —
 # those files are excluded below rather than made unwritable.
@@ -58,6 +66,10 @@ REMOVED=(
     "FraiseQLType|^class FraiseQLType|#1241 — the Dart @FraiseQLType annotation; Dart has no runtime reflection over annotations and the package ships no build_runner generator, so nothing read it. Author with FraiseQLSchema.type(), which takes the same crud: and cascade: flags"
     "FraiseQLField|^class FraiseQLField|#1241 — the Dart @FraiseQLField annotation, same reason. Its computed: flag is now FieldType(computed: true)"
     "SchemaFormatter|new SchemaFormatter|#1245 — the PHP SDKs second exporter. Its document was uncompilable by construction: no name and no nullable on a field (both required, neither with a serde default), a resolver and a phpType key IntermediateField has no member for, fields as a map where the compiler reads a list, and schema_version 1.0 where the format is 2.0.0. Author with SchemaExporter, which is what bin/fraiseql export runs. Anchored on the instantiation because the JAVA SDK has a live, unrelated com.fraiseql.core.SchemaFormatter that a bare name matches - it is static-only and never instantiated, so new SchemaFormatter is PHP here"
+    "withResolver|function withResolver|#1263 — the PHP TypeBuilder::withResolver() setter. No compile path reads a per-field resolver: SchemaExporter never emits one, and IntermediateField has no resolver member and denies unknown fields, so it could not emit one without failing the compile. The author declared a resolver, bin/fraiseql export succeeded, and the engine never saw it. FraiseQL projects a field from its type sql_source; the adjacent authoring-time concept is computed:, which the CRUD generator does read"
+    "customResolver|\$customResolver|#1263 — the value that setter stored, on FieldDefinition, TypeInfo and every TypeConverter construction. Same reason: nothing downstream of the builder ever read it"
+    "hasCustomResolver|function hasCustomResolver|#1263 — the PHP FieldDefinition predicate over the removed field. Its only caller was SchemaFormatter::formatField(), deleted in #1245"
+    "GraphQLField resolver|public ?string \$resolver|#1263 — the resolver: parameter of the PHP GraphQLField attribute, the attribute half of the same surface. TypeConverter carried it as far as customResolver and no further. Anchored on the declaration because a bare resolver matches honest prose - fraiseql-python docstrings say subscriptions are not resolver-based, and a docstring line is not comment-prefixed so the comment strip below does not reach it"
 )
 
 # Only SDK authoring code is in scope. Docs are where the removal is *explained*, so a

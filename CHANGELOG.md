@@ -1027,6 +1027,40 @@ disagreed, and the promise was the part that was wrong.
 
 ### Removed
 
+- **The PHP SDK's per-field resolver authoring surface is gone: `TypeBuilder::withResolver()`,
+  `FieldDefinition::$customResolver` / `hasCustomResolver()`, `TypeInfo::$customResolver` and
+  the `resolver:` parameter of `#[GraphQLField]` (#1263).**
+
+  An author could attach a resolver method name to a field, and nothing read it.
+  `SchemaExporter` — the export path `bin/fraiseql export` runs, and the only one whose
+  document `fraiseql compile` accepts — never emitted it, and it could not have: the
+  compiler's `IntermediateField` has no `resolver` member and denies unknown fields, so a
+  document carrying one fails the compile. The declaration was accepted, the export
+  succeeded, and the engine never saw the resolver. Nothing anywhere said so.
+
+  FraiseQL has no per-field resolver concept — a field is projected from its type's
+  `sql_source` — so there was nothing short of building that concept for the surface to
+  mean. The adjacent authoring-time concept is `computed:`, which the CRUD generator does
+  read, to omit server-assigned fields from generated input objects.
+
+  **This is a PHP-only removal, measured rather than assumed.** The issue asked for a
+  cross-SDK check before removing, because a surface in one SDK and absent in ten is the
+  divergence #1246/#1247 were about, and a surface present in several would make it a
+  cross-SDK decision. Across all eleven `sdks/official/*` trees, for
+  `withResolver|customResolver|hasCustomResolver|with_resolver|custom_resolver`, excluding
+  build output: `fraiseql-php` 9 matches; csharp, dart, elixir, fsharp, go, java, python,
+  ruby, rust and typescript 0 each.
+
+  **Migration:** delete the call. A field's value comes from the type's `sql_source` view;
+  express a derived value as a column of that view. If the field is server-assigned and
+  should not appear in `Create`/`Update` inputs, mark it `computed: true`.
+
+  All four names are now pinned in `tools/check-sdk-dead-surface.sh`, and
+  `IntegrationTest::testACustomResolverDoesNotReachTheCompiledDocument` — which pinned the
+  surface's inertness — has been re-pointed rather than deleted: as
+  `testThePerFieldResolverAuthoringSurfaceIsGone`, it asserts by reflection that each name
+  is absent, so the removal is pinned inside the SDK's own suite as well as by the gate.
+
 - **`crates/fraiseql-wire` and `sdks/official/fraiseql-php` no longer carry their pre-merge
   repositories' unreachable CI (#1233).**
 

@@ -51,7 +51,6 @@ final class AttributesTest extends TestCase
         $this->assertSame('String', $attribute->type);
         $this->assertNull($attribute->description);
         $this->assertFalse($attribute->nullable);
-        $this->assertNull($attribute->resolver);
     }
 
     public function testGraphQLFieldAttributeWithAllProperties(): void
@@ -60,13 +59,11 @@ final class AttributesTest extends TestCase
             type: 'Int',
             description: 'User age',
             nullable: true,
-            resolver: 'calculateAge',
         );
 
         $this->assertSame('Int', $attribute->type);
         $this->assertSame('User age', $attribute->description);
         $this->assertTrue($attribute->nullable);
-        $this->assertSame('calculateAge', $attribute->resolver);
     }
 
     public function testAttributeOnReflectedClass(): void

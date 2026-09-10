@@ -123,7 +123,6 @@ Marks a property as a GraphQL field.
 | `type` | `?string` | GraphQL type (auto-detected from PHP type if omitted) |
 | `description` | `?string` | Field documentation |
 | `nullable` | `bool` | Whether the field is nullable (default: `false`) |
-| `resolver` | `?string` | Custom resolver method name |
 | `scope` | `?string` | JWT scope required to access this field |
 | `scopes` | `?array` | Multiple JWT scopes required |
 

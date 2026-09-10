@@ -153,31 +153,6 @@ final class FieldDefinitionTest extends TestCase
         $this->assertFalse((new FieldDefinition('user', 'User', parentType: 'Post'))->isScalar());
     }
 
-    public function testCustomResolver(): void
-    {
-        $field = new FieldDefinition(
-            name: 'fullName',
-            type: 'String',
-            customResolver: 'getFullName',
-            parentType: 'User',
-        );
-
-        $this->assertTrue($field->hasCustomResolver());
-        $this->assertSame('getFullName', $field->customResolver);
-    }
-
-    public function testNoCustomResolver(): void
-    {
-        $field = new FieldDefinition(
-            name: 'name',
-            type: 'String',
-            parentType: 'User',
-        );
-
-        $this->assertFalse($field->hasCustomResolver());
-        $this->assertNull($field->customResolver);
-    }
-
     public function testToString(): void
     {
         $field = new FieldDefinition(

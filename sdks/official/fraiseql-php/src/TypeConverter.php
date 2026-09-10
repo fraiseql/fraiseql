@@ -90,7 +90,6 @@ final class TypeConverter
                     graphQLType: $graphQLFieldAttribute->type,
                     isNullable: $graphQLFieldAttribute->nullable,
                     description: $graphQLFieldAttribute->description,
-                    customResolver: $graphQLFieldAttribute->resolver,
                     scope: $graphQLFieldAttribute->scope,
                     scopes: $graphQLFieldAttribute->scopes,
                 ),
@@ -113,7 +112,6 @@ final class TypeConverter
                 graphQLType: 'String',
                 isNullable: true,
                 description: $graphQLFieldAttribute?->description,
-                customResolver: $graphQLFieldAttribute?->resolver,
                 scope: $graphQLFieldAttribute?->scope,
                 scopes: $graphQLFieldAttribute?->scopes,
             ),
@@ -162,7 +160,6 @@ final class TypeConverter
             isNullable: $typeInfo->isNullable,
             isList: $typeInfo->isList,
             description: $typeInfo->description,
-            customResolver: $typeInfo->customResolver,
             scope: $typeInfo->scope,
             scopes: $typeInfo->scopes,
         );
@@ -202,7 +199,6 @@ final class TypeConverter
                     graphQLType: 'String',
                     isNullable: true,
                     description: $fieldAttribute?->description,
-                    customResolver: $fieldAttribute?->resolver,
                     scope: $fieldAttribute?->scope,
                     scopes: $fieldAttribute?->scopes,
                 );
@@ -220,7 +216,6 @@ final class TypeConverter
                     isNullable: $isNullable,
                     isList: true,
                     description: $fieldAttribute?->description,
-                    customResolver: $fieldAttribute?->resolver,
                     scope: $fieldAttribute?->scope,
                     scopes: $fieldAttribute?->scopes,
                 );
@@ -234,7 +229,6 @@ final class TypeConverter
                 graphQLType: $graphQLType,
                 isNullable: $isNullable,
                 description: $fieldAttribute?->description,
-                customResolver: $fieldAttribute?->resolver,
                 scope: $fieldAttribute?->scope,
                 scopes: $fieldAttribute?->scopes,
             );
@@ -246,7 +240,6 @@ final class TypeConverter
             graphQLType: 'String',
             isNullable: true,
             description: $fieldAttribute?->description,
-            customResolver: $fieldAttribute?->resolver,
             scope: $fieldAttribute?->scope,
             scopes: $fieldAttribute?->scopes,
         );
