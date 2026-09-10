@@ -24,7 +24,7 @@ use std::sync::Arc;
 use fraiseql_core::runtime::subscription::{
     ChangeSpineEnvelope, SubscriptionEvent, SubscriptionManager, SubscriptionOperation,
 };
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 use tracing::{debug, info};
 
 /// Configuration for the `EventBridge`
@@ -132,6 +132,80 @@ impl EntityEvent {
     }
 }
 
+/// How many entity events a [`EntityEventFanout`] holds for a subscriber that has
+/// fallen behind, before that subscriber is told it lagged.
+///
+/// Larger than the bridge's own mpsc capacity on purpose: the mpsc applies
+/// backpressure to the producer (#772), a broadcast cannot — it drops for the slow
+/// receiver — so the buffer here is the only slack a briefly-stalled SSE client gets.
+pub const DEFAULT_ENTITY_FANOUT_CAPACITY: usize = 256;
+
+/// A multi-consumer fan-out of the entity events the bridge forwards.
+///
+/// **Why this exists rather than a second `EventTransport::subscribe`.** Every
+/// `EventTransport` implementation is a *competing consumer*, not a broadcast:
+/// `InMemoryTransport` hands out one mpsc receiver behind a mutex,
+/// `PostgresNotifyTransport` polls the shared `ChangeLogListener` and calls
+/// `record_dispatched` on each batch it hands over, and `NatsTransport` builds every
+/// subscriber on the same durable `consumer_name`. So a per-request subscription does
+/// not fan out beside the observer executor — it takes events *from* it, and observers
+/// silently stop firing for whatever a browser tab happened to receive (#1309).
+///
+/// This sits at the other end of the pipeline, downstream of the executor. The observer
+/// runtime holds the single transport subscription, processes each event, and only then
+/// forwards it here, so a reader on this fan-out cannot starve the executor no matter
+/// how many readers there are: `broadcast::Sender::send` never waits on a receiver.
+///
+/// It is a separate channel from [`SubscriptionManager`]'s, and not the same one, for a
+/// reason that is easy to get wrong: `SubscriptionManager::receiver()` looks like the
+/// obvious seam, but `publish_event` only sends a `SubscriptionPayload` for events that
+/// **match a registered GraphQL subscription**. With no GraphQL subscriber for an
+/// entity — the normal case for a REST-only deployment — nothing is broadcast there at
+/// all, and a REST stream hung off it would be silent while looking healthy.
+#[derive(Clone, Debug)]
+pub struct EntityEventFanout {
+    sender: broadcast::Sender<EntityEvent>,
+}
+
+impl EntityEventFanout {
+    /// Create a fan-out with the given per-subscriber buffer.
+    #[must_use]
+    pub fn new(capacity: usize) -> Self {
+        let (sender, _) = broadcast::channel(capacity);
+        Self { sender }
+    }
+
+    /// A receiver that gets **every** event published from now on.
+    ///
+    /// Independent of every other receiver: taking one does not remove events from any
+    /// other, and does not reach the observer executor's own consumption at all.
+    #[must_use]
+    pub fn subscribe(&self) -> broadcast::Receiver<EntityEvent> {
+        self.sender.subscribe()
+    }
+
+    /// How many receivers are currently attached.
+    #[must_use]
+    pub fn receiver_count(&self) -> usize {
+        self.sender.receiver_count()
+    }
+
+    /// Publish one event to every receiver, returning how many were sent to.
+    ///
+    /// Zero receivers is the ordinary case — nobody has a `/stream` open — and is not
+    /// an error.
+    #[must_use]
+    pub fn publish(&self, event: &EntityEvent) -> usize {
+        self.sender.send(event.clone()).unwrap_or(0)
+    }
+}
+
+impl Default for EntityEventFanout {
+    fn default() -> Self {
+        Self::new(DEFAULT_ENTITY_FANOUT_CAPACITY)
+    }
+}
+
 /// `EventBridge` that connects `ChangeLogListener` with `SubscriptionManager`
 pub struct EventBridge {
     /// Subscription manager for broadcasting events
@@ -142,6 +216,12 @@ pub struct EventBridge {
 
     /// Sender for entity events (used to send events to bridge)
     sender: mpsc::Sender<EntityEvent>,
+
+    /// Optional multi-consumer fan-out of every forwarded event (#1309).
+    ///
+    /// `None` when nothing needs it, which keeps the clone-per-event out of the hot
+    /// path for a deployment with no REST stream mounted.
+    entity_fanout: Option<EntityEventFanout>,
 }
 
 impl EventBridge {
@@ -154,7 +234,19 @@ impl EventBridge {
             manager,
             receiver,
             sender,
+            entity_fanout: None,
         }
+    }
+
+    /// Attach a multi-consumer fan-out of every event this bridge forwards (#1309).
+    ///
+    /// The REST `/{resource}/stream` endpoint reads from it. See [`EntityEventFanout`]
+    /// for why it is a broadcast here rather than an `EventTransport::subscribe` at the
+    /// other end of the pipeline.
+    #[must_use]
+    pub fn with_entity_fanout(mut self, fanout: EntityEventFanout) -> Self {
+        self.entity_fanout = Some(fanout);
+        self
     }
 
     /// Get a sender for publishing entity events
@@ -203,6 +295,7 @@ impl EventBridge {
             manager,
             mut receiver,
             sender,
+            entity_fanout,
         } = self;
         drop(sender);
 
@@ -210,6 +303,22 @@ impl EventBridge {
 
         while let Some(entity_event) = receiver.recv().await {
             debug!("EventBridge received entity event: {}", entity_event.entity_type);
+
+            // Fan out FIRST, and unconditionally (#1309). Not after `publish_event` and
+            // not gated on its `matched` count: `publish_event` only broadcasts payloads
+            // for events matching a registered GraphQL subscription, so a REST-only
+            // deployment matches nothing and a fan-out driven by that count would never
+            // fire. These are two independent consumers of the same event.
+            if let Some(ref fanout) = entity_fanout {
+                let delivered = fanout.publish(&entity_event);
+                if delivered > 0 {
+                    debug!(
+                        entity_type = %entity_event.entity_type,
+                        receivers = delivered,
+                        "EventBridge fanned out entity event"
+                    );
+                }
+            }
 
             // Convert entity event to subscription event
             let subscription_event = Self::convert_event(entity_event);

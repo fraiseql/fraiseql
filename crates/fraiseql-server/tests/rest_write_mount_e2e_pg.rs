@@ -978,39 +978,32 @@ async fn a_created_resource_reports_its_location() {
 
 /// #873.4: the SSE endpoint must not look healthy while it can never deliver an event.
 ///
-/// `RestState::event_transport` is `None` at every construction — the struct is private
-/// and has no setter — so the stream emitted `event: ping` forever and nothing else,
-/// while the served document described it as carrying `insert`/`update`/`delete`. A
-/// dashboard saw a healthy connection, so its reconnect and error handling never fired
-/// and it showed stale data indefinitely. Enabling the `observers` feature turned an
-/// honest `501` into a silent no-op.
+/// The stream emitted `event: ping` forever and nothing else, while the served document
+/// described it as carrying `insert`/`update`/`delete`. A dashboard saw a healthy
+/// connection, so its reconnect and error handling never fired and it showed stale data
+/// indefinitely. Enabling the `observers` feature turned an honest `501` into a silent
+/// no-op — the feature flag made the server *less* truthful.
+///
+/// # What this pins now that the branch is wired
+///
+/// #1309 wired `/{resource}/stream` to the `EventBridge`'s broadcast fan-out, so the
+/// live branch is reachable and covered end to end by `rest_stream_fanout_e2e_pg`. This
+/// case pins the *other* arm, which did not go away: `RestState::event_fanout` is `Some`
+/// only when an observer runtime is configured, and this rig configures none. With no
+/// producer for the change log there is nothing to stream, and `501` is still the only
+/// honest answer — a `200` here would be the same lie in a new place.
 ///
 /// # If you are here because this test went red
 ///
-/// You have populated `event_transport`. That is **#1309**'s work, not #428's — the
-/// attribution this comment used to carry was wrong, and it is why the wiring had no
-/// owner and the branch accumulated defects nobody could reach.
+/// Either the rig gained an observer runtime — in which case assert on delivery, not on
+/// the refusal — or the handler stopped distinguishing "no producer" from "a producer
+/// with nothing to say yet". The second is the regression; do not delete the assertion
+/// to make it green.
 ///
-/// The two defects #1113 named are fixed (the subscription is scoped to the caller's
-/// tenant and every transport honours `EventFilter`; `Last-Event-ID` is refused rather
-/// than dropped, and the wire id is `seq` rather than a UUID) — but they were fixed
-/// **without ever executing this branch**, so the plumbing between `RestState` and the
-/// stream has still never run. Read `routes::rest::sse`'s `stream_tenant_scope`,
-/// `stream_resume_refusal` and `StreamEvent` before assuming the branch is correct
-/// end to end; each is unit-tested, none is integration-tested.
-///
-/// Two things must hold before this assertion may be replaced by a live-stream one:
-///
-/// 1. **#1309** — `EventTransport::subscribe` is a *competing consumer* on all three transports
-///    (one MPSC receiver / one shared `ChangeLogListener` that also `record_dispatched`s / one
-///    durable NATS consumer name). A per-request subscription therefore steals events from the
-///    observer executor. Whatever populates this field must fan out, and must be covered by a test
-///    that opens a stream *and* asserts an observer still fired for the same event.
-/// 2. **#1310** — resumption is refused, not implemented. A client reconnecting with
-///    `Last-Event-ID` gets `501 RESUMPTION_UNSUPPORTED` until a durable `seq`-ranged read of
-///    `core.tb_entity_change_log` exists.
-///
-/// Do not simply delete this assertion to make the wiring green.
+/// Still open, and still refused rather than answered: **#1310** — a client reconnecting
+/// with `Last-Event-ID` gets `501 RESUMPTION_UNSUPPORTED` until a durable `seq`-ranged
+/// read of `core.tb_entity_change_log` exists. That is now unblocked by #1309 rather
+/// than blocked on it.
 #[tokio::test]
 async fn the_sse_stream_refuses_rather_than_pretending_to_deliver_events() {
     let Some(rig) = rig_with_writes().await else {

@@ -549,6 +549,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         #[cfg(feature = "observers")]
         let observer_runtime = Self::init_observer_runtime(&config, db_pool.as_ref()).await?;
 
+        // The REST stream's fan-out (#1309), created iff there will be a producer for
+        // it. `serve` hands this exact handle to the `EventBridge`; `build_router` hands
+        // it to `AppState`. Deriving it from `observer_runtime` rather than from the REST
+        // config is what keeps `/{resource}/stream` honest: with no runtime there is
+        // nothing to stream, and the endpoint must say 501 rather than open a connection
+        // that only ever emits heartbeats.
+        #[cfg(feature = "observers")]
+        let entity_event_fanout = observer_runtime
+            .as_ref()
+            .map(|_| crate::subscriptions::EntityEventFanout::default());
+
         // Install the OIDC validator into the Flight service — the caller's when
         // one was supplied, otherwise a fresh one. The Flight handshake is
         // fail-closed on a missing validator, so skipping this leaves the whole
@@ -880,6 +891,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             trusted_docs,
             #[cfg(feature = "observers")]
             observer_runtime,
+            #[cfg(feature = "observers")]
+            entity_event_fanout,
             #[cfg(feature = "auth")]
             enrichment_pool: db_pool.clone(),
             #[cfg(feature = "observers")]

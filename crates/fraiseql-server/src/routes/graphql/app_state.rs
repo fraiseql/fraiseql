@@ -110,6 +110,12 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Observer runtime handle for health probes (optional, requires `observers` feature).
     #[cfg(feature = "observers")]
     pub observer_runtime: Option<Arc<tokio::sync::RwLock<crate::observers::ObserverRuntime>>>,
+    /// Multi-consumer fan-out of the entity events the observer runtime forwards
+    /// through the `EventBridge` (#1309). Read by the REST `/{resource}/stream` mount.
+    /// `Some` exactly when an observer runtime is configured, so a stream request can
+    /// tell "no producer" from "no events yet".
+    #[cfg(feature = "observers")]
+    pub entity_event_fanout: Option<crate::subscriptions::EntityEventFanout>,
     /// Schema file path for reload operations.
     pub schema_path: Option<PathBuf>,
     /// Database adapter reference for constructing new executors on reload.
@@ -245,6 +251,8 @@ impl<A: DatabaseAdapter> AppState<A> {
             pool_tuner: None,
             #[cfg(feature = "observers")]
             observer_runtime: None,
+            #[cfg(feature = "observers")]
+            entity_event_fanout: None,
             max_get_query_bytes: 100_000,
             graphql_incremental_enabled: false,
             graphql_incremental_batch_size: 100,
@@ -772,6 +780,17 @@ impl<A: DatabaseAdapter> AppState<A> {
         runtime: Arc<tokio::sync::RwLock<crate::observers::ObserverRuntime>>,
     ) -> Self {
         self.observer_runtime = Some(runtime);
+        self
+    }
+
+    /// Attach the entity-event fan-out the REST `/{resource}/stream` mount reads (#1309).
+    #[cfg(feature = "observers")]
+    #[must_use]
+    pub fn with_entity_event_fanout(
+        mut self,
+        fanout: crate::subscriptions::EntityEventFanout,
+    ) -> Self {
+        self.entity_event_fanout = Some(fanout);
         self
     }
 

@@ -183,6 +183,17 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "observers")]
     pub(super) observer_runtime: Option<Arc<RwLock<ObserverRuntime>>>,
 
+    /// Multi-consumer fan-out of the entity events the observer runtime forwards
+    /// (#1309). Created here, at the one place that knows whether the runtime will
+    /// exist, because two unrelated consumers must hold the SAME channel: `serve`
+    /// gives it to the `EventBridge` that publishes into it, and `build_router` gives
+    /// it to `AppState` so the REST `/{resource}/stream` mount can read from it.
+    /// `None` when no observer runtime is configured — there is then no producer, and
+    /// a fan-out nothing publishes to is exactly the silent-but-healthy stream #873.4
+    /// removed from that endpoint.
+    #[cfg(feature = "observers")]
+    pub(super) entity_event_fanout: Option<crate::subscriptions::EntityEventFanout>,
+
     #[cfg(feature = "observers")]
     pub(super) db_pool: Option<sqlx::PgPool>,
 

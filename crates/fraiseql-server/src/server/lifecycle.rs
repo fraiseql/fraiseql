@@ -710,9 +710,17 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             if let Some(ref runtime) = self.observer_runtime {
                 info!("Starting observer runtime...");
 
-                // Create EventBridge to forward CDC events to GraphQL subscriptions
-                let bridge =
+                // Create EventBridge to forward CDC events to GraphQL subscriptions,
+                // and — since #1309 — to the entity-event fan-out the REST
+                // `/{resource}/stream` mount reads. Both consumers are downstream of the
+                // observer executor, which is what keeps a browser tab from taking
+                // events away from it: `EventTransport::subscribe` is a competing
+                // consumer on every transport, so subscribing per request would have.
+                let mut bridge =
                     EventBridge::new(self.subscription_manager.clone(), EventBridgeConfig::new());
+                if let Some(ref fanout) = self.entity_event_fanout {
+                    bridge = bridge.with_entity_fanout(fanout.clone());
+                }
                 let sender = bridge.sender();
 
                 let mut guard = runtime.write().await;

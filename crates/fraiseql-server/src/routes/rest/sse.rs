@@ -121,13 +121,20 @@ pub fn event_kind_to_sse_type(kind: &str) -> &str {
 }
 
 // ---------------------------------------------------------------------------
-// Live-branch decisions (#1113)
+// Live-branch decisions (#1113, #1309)
 //
-// The three decisions the live-event branch of `rest_sse_handler` makes are here,
-// as functions over their inputs, because the branch itself is unreachable:
-// `RestState.event_transport` is `None` at its only construction site and there is
-// no setter (#1309). Nothing can drive that branch end to end, so what *can* be
-// tested is pulled out of it rather than left as untested lines inside it.
+// The decisions the live-event branch of `rest_sse_handler` makes are here, as
+// functions over their inputs. They were extracted because the branch was
+// unreachable — `RestState.event_transport` was `None` at its only construction site
+// and there was no setter — so what could be tested was pulled out of it rather than
+// left as untested lines inside it.
+//
+// #1309 wired the branch, so it is now reachable and covered end to end by
+// `rest_stream_fanout_e2e_pg`. These stay extracted anyway: an integration test can
+// show that a tenant-scoped stream delivers its own tenant's events, but enumerating
+// every arm of the tenant gate — including the fail-closed ones that deliver nothing —
+// is what these unit tests do, and a test that asserts nothing arrives is far weaker
+// over a socket than over a function.
 // ---------------------------------------------------------------------------
 
 /// Which tenants' events a `/stream` subscription may receive, or the refusal to
@@ -239,12 +246,11 @@ pub struct StreamEvent<'a> {
 
 #[cfg(feature = "observers")]
 impl<'a> StreamEvent<'a> {
-    /// Render an entity event as the SSE frame it becomes.
+    /// Render a fanned-out entity event as the SSE frame it becomes.
     ///
-    /// The id is [`EntityEvent::seq`] — the monotonic Change-Spine sequence — and not
-    /// [`EntityEvent::id`], which is a UUID. #1113: a UUID cannot be resolved to a
-    /// resume point by ordering, so emitting one as the SSE id promises a client a
-    /// resumption that no implementation could ever provide. `seq` is what a replay
+    /// The id is the monotonic Change-Spine sequence and not the event's UUID. #1113: a UUID cannot
+    /// be resolved to a resume point by ordering, so emitting one as the SSE id promises a
+    /// client a resumption that no implementation could ever provide. `seq` is what a replay
     /// would read by (#1310), so a client's stored id is already the right one on the
     /// day replay lands.
     ///
@@ -258,12 +264,120 @@ impl<'a> StreamEvent<'a> {
     /// [`EntityEvent::seq`]: fraiseql_observers::event::EntityEvent::seq
     /// [`EntityEvent::id`]: fraiseql_observers::event::EntityEvent::id
     #[must_use]
-    pub fn from_entity_event(event: &'a fraiseql_observers::event::EntityEvent) -> Self {
+    pub fn from_bridge_event(event: &'a crate::subscriptions::EntityEvent) -> Self {
         Self {
-            event_type: event_kind_to_sse_type(event.event_type.as_str()),
-            id:         event.seq.map(|seq| seq.to_string()),
+            event_type: event_kind_to_sse_type(operation_kind(event.operation)),
+            // `seq` rides the Change-Spine envelope on this side of the pipeline
+            // (`process_entity_event` copies it there); the observer event's own `seq`
+            // field does not survive the forward. An event whose producer stamped no
+            // envelope field at all carries `change_spine: None`, which is the same
+            // "no sequence" case as `seq: None` and takes the same answer: no `id:`.
+            id:         event.change_spine.as_ref().and_then(|env| env.seq).map(|s| s.to_string()),
             data:       &event.data,
         }
+    }
+}
+
+/// The change-log `event_type` spelling for a subscriber-visible operation.
+///
+/// Exists so [`event_kind_to_sse_type`] stays the one table mapping a kind to a wire
+/// name, rather than this conversion growing a second copy of it.
+///
+/// ⚠ [`SubscriptionOperation`] is `#[non_exhaustive]`, so this match needs a wildcard
+/// and a new variant added upstream will land in it rather than failing to compile.
+/// It returns a spelling [`event_kind_to_sse_type`] does not know, so the frame goes out
+/// as `event: unknown`, and it warns — rather than being silently folded into `insert`: a
+/// new CDC operation delivered under the wrong name is worse than one delivered under
+/// a name the client does not recognise. Grep here when adding a variant.
+///
+/// [`SubscriptionOperation`]: fraiseql_core::runtime::subscription::SubscriptionOperation
+#[cfg(feature = "observers")]
+#[must_use]
+pub fn operation_kind(
+    operation: fraiseql_core::runtime::subscription::SubscriptionOperation,
+) -> &'static str {
+    use fraiseql_core::runtime::subscription::SubscriptionOperation as Op;
+
+    match operation {
+        Op::Create => "INSERT",
+        Op::Update => "UPDATE",
+        Op::Delete => "DELETE",
+        other => {
+            tracing::warn!(
+                operation = %other,
+                "REST /{{resource}}/stream received a subscription operation it has no SSE \
+                 event name for; delivering it as `event: unknown`. Add it to \
+                 `routes::rest::sse::operation_kind`."
+            );
+            "UNRECOGNISED"
+        },
+    }
+}
+
+/// The SSE `event:` name for the one frame a lagging stream receives.
+///
+/// `error` rather than a name of its own: a browser `EventSource` fires its `error`
+/// handler for a named `error` event, so a client that handles nothing else still sees
+/// this one.
+#[cfg(feature = "observers")]
+pub const STREAM_LAGGED_EVENT: &str = "error";
+
+/// The payload of the one frame a lagging stream receives before it ends.
+///
+/// A `broadcast` receiver that falls the channel's whole capacity behind is told how
+/// many events it missed, and `recv` then **resumes from the oldest event still
+/// buffered**. Resuming is the wrong answer here and the reason this frame exists: the
+/// client cannot see the gap, so a stream that quietly carried on would look exactly
+/// like one that never missed anything — the "healthy connection, stale data" failure
+/// this endpoint has now been corrected for twice (#873.4, #1113).
+///
+/// So the stream emits this and **ends**. An ended stream makes `EventSource`
+/// reconnect, which is visible; and the count says how much was lost, which a bare
+/// disconnect would not.
+#[cfg(feature = "observers")]
+#[must_use]
+pub fn stream_lagged_payload(skipped: u64) -> serde_json::Value {
+    serde_json::json!({
+        "code": "STREAM_LAGGED",
+        "skipped": skipped,
+        "message": format!(
+            "This stream fell behind and {skipped} event(s) were dropped before they \
+             could be delivered. It is ending rather than resuming past the gap, which \
+             you could not have seen. Reconnect to receive events from now on."
+        ),
+    })
+}
+
+/// Whether one fanned-out entity event belongs on this resource's stream.
+///
+/// Two gates, and the tenant one is the security-relevant half (#1113):
+///
+/// - **entity type** — matched against the resource's `type_name` (`User`), never its route name
+///   (`users`). The change log stamps `object_type` with the GraphQL type, which is also what
+///   `SubscriptionManager` matches `definition.return_type` against, so the two streaming surfaces
+///   agree on what an entity is called.
+/// - **tenant** — [`TenantScope::Tenant`] matches only an event stamped with that exact tenant. An
+///   event carrying **no** tenant does not match: a missing stamp is not a wildcard. Same
+///   fail-closed rule as `SubscriptionManager`'s gate, so a multi-tenant deployment cannot leak an
+///   untagged event to a tenant-scoped caller.
+///
+/// [`TenantScope::Tenant`]: fraiseql_observers::transport::TenantScope::Tenant
+#[cfg(feature = "observers")]
+#[must_use]
+pub fn stream_event_matches(
+    event: &crate::subscriptions::EntityEvent,
+    entity_type: &str,
+    scope: &fraiseql_observers::transport::TenantScope,
+) -> bool {
+    use fraiseql_observers::transport::TenantScope;
+
+    if event.entity_type != entity_type {
+        return false;
+    }
+
+    match scope {
+        TenantScope::AllTenants => true,
+        TenantScope::Tenant(tenant) => event.tenant_id.as_deref() == Some(tenant.as_str()),
     }
 }
 

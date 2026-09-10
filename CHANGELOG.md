@@ -786,6 +786,56 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`GET /rest/v1/{resource}/stream` delivers real entity events (#1309).** It answered
+  `501` at every construction, because the only wiring available to it would have been
+  worse than the refusal.
+
+  The live branch subscribed to `RestState.event_transport`, an
+  `Option<Arc<dyn EventTransport>>` that nothing populated. Populating it would not have
+  produced a working stream: `EventTransport::subscribe` is a **competing consumer** on
+  all three transports — `InMemoryTransport` hands out one mpsc receiver behind a mutex,
+  `PostgresNotifyTransport` calls `record_dispatched` on every batch it hands over, and
+  `NatsTransport` builds every subscriber on the same durable consumer name. Each open
+  browser tab would therefore have taken events *away from the observer executor*, and
+  observers would have silently stopped firing for whatever a client received.
+
+  The stream now hangs off a broadcast fan-out on the `EventBridge`, which sits
+  **downstream** of the executor: the observer runtime holds the single transport
+  subscription, processes each event, and only then forwards. A reader cannot starve the
+  executor however many readers there are. `RestState.event_transport` is replaced by
+  `RestState.event_fanout` rather than populated — the old field's *type* is what invited
+  the defect, and a broadcast handle cannot express it.
+
+  Not `SubscriptionManager::receiver()`, which looks like the obvious seam:
+  `publish_event` sends a payload only for events matching a **registered GraphQL
+  subscription**, so a REST-only deployment matches nothing and a stream hung off it
+  would have been silent while looking healthy.
+
+  Two behaviours worth knowing before pointing a dashboard at it:
+
+  - The stream is downstream of the observer executor, so it carries what GraphQL subscribers
+    carry: no `CUSTOM` (Debezium `'r'` snapshot) rows, and nothing for an event whose observer
+    processing failed. The two streaming surfaces agree by construction.
+  - A client that falls far enough behind to be dropped by the fan-out receives one
+    `event: error` frame naming `STREAM_LAGGED` and how many events it lost, and the stream then
+    **ends**. It does not resume from the fan-out's new position: a silent resume is a gap the
+    client cannot see, which is the failure this endpoint has been corrected for twice. An ended
+    stream makes `EventSource` reconnect, which is visible.
+
+  `event_fanout` is `Some` exactly when an observer runtime is configured, so a build with
+  the `observers` feature and no `[observers]` configuration still answers `501` — there is
+  no producer, and a `200` would be the same lie in a new place.
+
+  A third defect surfaced on the way, one only reachability could show: the branch filtered
+  on the **route** name (`users`), while the change log stamps the **GraphQL type** (`User`).
+  The stream would have opened and delivered nothing even once the transport was populated.
+
+  Covered by `rest_stream_fanout_e2e_pg` in the required `integration (observers)` leg,
+  including the assertion the issue made mandatory — open a stream **and** assert the
+  observer's webhook still fires for the same change-log row. Unblocks #1310 (durable
+  replay behind `Last-Event-ID`), which is still refused with `RESUMPTION_UNSUPPORTED`.
+
+
 - **A relay route's export can be bounded: `?first=` bounds the total (#1278).**
 
   It could not be bounded at all before. `?limit=` bounds an export's **total** on an offset

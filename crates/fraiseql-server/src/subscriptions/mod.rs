@@ -13,7 +13,9 @@ pub mod webhook_lifecycle;
 #[cfg(test)]
 mod tests;
 
-pub use event_bridge::{EntityEvent, EventBridge, EventBridgeConfig};
+pub use event_bridge::{
+    DEFAULT_ENTITY_FANOUT_CAPACITY, EntityEvent, EntityEventFanout, EventBridge, EventBridgeConfig,
+};
 pub use lifecycle::{NoopLifecycle, SubscriptionLifecycle};
 pub use protocol::{ProtocolCodec, ProtocolError, WsProtocol};
 pub use webhook_lifecycle::WebhookLifecycle;

@@ -447,23 +447,32 @@ mod export_config {
 }
 
 // ---------------------------------------------------------------------------
-// #1113 — the live-event branch's decisions
+// #1113 / #1309 — the live-event branch's decisions
 //
-// The branch these serve is unreachable (`RestState.event_transport` is `None` at
-// its only construction site, #1309), which is exactly why its decisions live in
-// functions: an unreachable line cannot be tested, an extracted decision can.
+// The branch these serve used to be unreachable (`RestState.event_transport` was
+// `None` at its only construction site), which is why its decisions live in
+// functions: an unreachable line cannot be tested, an extracted decision can. #1309
+// wired it — `rest_stream_fanout_e2e_pg` now drives it against a real observer
+// runtime — and these stay, because the arms that deliver *nothing* (the fail-closed
+// tenant gate, an entity that does not match) are the ones an integration test can
+// only assert weakly, by waiting and seeing nothing arrive.
 // ---------------------------------------------------------------------------
 
 #[cfg(feature = "observers")]
 mod stream_decisions {
     use axum::http::{HeaderMap, HeaderValue, StatusCode};
-    use fraiseql_core::security::SecurityContext;
-    use fraiseql_observers::{
-        event::{EntityEvent, EventKind},
-        transport::TenantScope,
+    use fraiseql_core::{
+        runtime::subscription::{ChangeSpineEnvelope, SubscriptionOperation},
+        security::SecurityContext,
     };
+    use fraiseql_observers::transport::TenantScope;
 
-    use crate::routes::rest::sse::{StreamEvent, stream_resume_refusal, stream_tenant_scope};
+    use crate::{
+        routes::rest::sse::{
+            StreamEvent, stream_event_matches, stream_resume_refusal, stream_tenant_scope,
+        },
+        subscriptions::EntityEvent as BridgeEvent,
+    };
 
     /// The context a REST request actually arrives with: `SecurityContext::from_user`
     /// on the authenticated subject, optionally carrying a tenant — the shape
@@ -579,15 +588,25 @@ mod stream_decisions {
 
     // ── the wire frame ────────────────────────────────────────────
 
-    fn event(kind: EventKind, seq: Option<i64>) -> EntityEvent {
-        let mut e = EntityEvent::new(
-            kind,
-            "Order".to_string(),
-            uuid::Uuid::new_v4(),
+    /// A fanned-out event, in the shape the `EventBridge` publishes: the observer
+    /// event's `seq` has been copied onto the Change-Spine envelope by
+    /// `process_entity_event`, and the operation is the closed `SubscriptionOperation`
+    /// rather than the observer `EventKind` (#773 filters `Custom` at the forward seam,
+    /// so it never reaches here).
+    fn event(operation: SubscriptionOperation, seq: Option<i64>) -> BridgeEvent {
+        let e = BridgeEvent::new(
+            "Order",
+            uuid::Uuid::new_v4().to_string(),
+            operation,
             serde_json::json!({"total": 100}),
         );
-        e.seq = seq;
-        e
+        match seq {
+            Some(seq) => e.with_change_spine(ChangeSpineEnvelope {
+                seq: Some(seq),
+                ..ChangeSpineEnvelope::default()
+            }),
+            None => e,
+        }
     }
 
     /// The defect: the id was `entity_event.id`, a UUID — an id no ordering can
@@ -595,12 +614,12 @@ mod stream_decisions {
     /// could ever provide.
     #[test]
     fn the_wire_id_is_the_change_spine_sequence_not_the_event_uuid() {
-        let e = event(EventKind::Created, Some(4_120));
-        let wire = StreamEvent::from_entity_event(&e);
+        let e = event(SubscriptionOperation::Create, Some(4_120));
+        let wire = StreamEvent::from_bridge_event(&e);
         assert_eq!(wire.id.as_deref(), Some("4120"));
         assert_ne!(
             wire.id.as_deref(),
-            Some(e.id.to_string().as_str()),
+            Some(e.entity_id.as_str()),
             "the event UUID must not be the resume id"
         );
     }
@@ -609,28 +628,133 @@ mod stream_decisions {
     /// leaves the client's last-event-id buffer unchanged, so a reconnect still names
     /// the last event that had one: at-least-once, never a skip. Emitting the UUID
     /// here would poison the buffer with a value no replay can resolve.
+    ///
+    /// Two ways to have no sequence on this side of the bridge, and both must answer
+    /// the same: no envelope at all (the producer stamped nothing), and an envelope
+    /// whose `seq` is `None`.
     #[test]
     fn an_event_with_no_sequence_carries_no_wire_id() {
-        let e = event(EventKind::Created, None);
-        assert_eq!(StreamEvent::from_entity_event(&e).id, None);
+        assert_eq!(
+            StreamEvent::from_bridge_event(&event(SubscriptionOperation::Create, None)).id,
+            None
+        );
+
+        let with_empty_seq =
+            BridgeEvent::new("Order", "1", SubscriptionOperation::Create, serde_json::json!({}))
+                .with_change_spine(ChangeSpineEnvelope {
+                    actor_type: Some("human_user".to_string()),
+                    ..ChangeSpineEnvelope::default()
+                });
+        assert_eq!(StreamEvent::from_bridge_event(&with_empty_seq).id, None);
     }
 
     #[test]
-    fn the_wire_event_type_follows_the_event_kind() {
-        for (kind, expected) in [
-            (EventKind::Created, "insert"),
-            (EventKind::Updated, "update"),
-            (EventKind::Deleted, "delete"),
-            (EventKind::Custom, "custom"),
+    fn the_wire_event_type_follows_the_operation() {
+        for (operation, expected) in [
+            (SubscriptionOperation::Create, "insert"),
+            (SubscriptionOperation::Update, "update"),
+            (SubscriptionOperation::Delete, "delete"),
         ] {
-            let e = event(kind, Some(1));
-            assert_eq!(StreamEvent::from_entity_event(&e).event_type, expected, "{kind:?}");
+            let e = event(operation, Some(1));
+            assert_eq!(StreamEvent::from_bridge_event(&e).event_type, expected, "{operation:?}");
         }
     }
 
     #[test]
     fn the_wire_payload_is_the_events_data() {
-        let e = event(EventKind::Updated, Some(7));
-        assert_eq!(StreamEvent::from_entity_event(&e).data, &serde_json::json!({"total": 100}));
+        let e = event(SubscriptionOperation::Update, Some(7));
+        assert_eq!(StreamEvent::from_bridge_event(&e).data, &serde_json::json!({"total": 100}));
+    }
+
+    // ── which events belong on this stream (#1113 / #1309) ────────
+
+    fn tenanted(entity_type: &str, tenant: Option<&str>) -> BridgeEvent {
+        let e = BridgeEvent::new(
+            entity_type,
+            "1",
+            SubscriptionOperation::Create,
+            serde_json::json!({}),
+        );
+        match tenant {
+            Some(t) => e.with_tenant_id(t),
+            None => e,
+        }
+    }
+
+    /// The type name, not the route name. `/rest/v1/orders/stream` must match events
+    /// stamped `Order`: the change log stamps `object_type` with the GraphQL type, and
+    /// the pre-#1309 branch filtered on the resource name, which matches nothing that
+    /// is ever written.
+    #[test]
+    fn the_entity_gate_matches_the_graphql_type_name() {
+        let scope = TenantScope::AllTenants;
+        assert!(stream_event_matches(&tenanted("Order", None), "Order", &scope));
+        assert!(
+            !stream_event_matches(&tenanted("Order", None), "orders", &scope),
+            "the route name must not match — nothing stamps it"
+        );
+        assert!(!stream_event_matches(&tenanted("Invoice", None), "Order", &scope));
+    }
+
+    /// The #1113 rule, on the fan-out side: a tenant-scoped stream receives that
+    /// tenant's events and nothing else.
+    #[test]
+    fn a_tenant_scoped_stream_receives_only_its_own_tenants_events() {
+        let scope = TenantScope::Tenant("tenant-a".to_string());
+        assert!(stream_event_matches(&tenanted("Order", Some("tenant-a")), "Order", &scope));
+        assert!(!stream_event_matches(&tenanted("Order", Some("tenant-b")), "Order", &scope));
+    }
+
+    /// A missing stamp is not a wildcard. Same fail-closed arm as
+    /// `SubscriptionManager`'s tenant gate: an untagged event must not reach a
+    /// tenant-scoped caller, because nothing has established which tenant it belongs to.
+    #[test]
+    fn an_untagged_event_does_not_reach_a_tenant_scoped_stream() {
+        let scope = TenantScope::Tenant("tenant-a".to_string());
+        assert!(!stream_event_matches(&tenanted("Order", None), "Order", &scope));
+    }
+
+    // ── the lag frame (#1309) ─────────────────────────────────
+
+    /// A `broadcast` receiver that falls the channel's whole capacity behind resumes
+    /// from the oldest event still buffered. The stream refuses to do that silently:
+    /// it emits this frame and ends, so the client's `EventSource` reconnects visibly
+    /// rather than carrying on across a gap it cannot see.
+    ///
+    /// The count is in the payload because a bare disconnect does not say how much was
+    /// lost, and "some events were dropped" is not actionable.
+    #[test]
+    fn the_lag_frame_names_the_code_and_how_much_was_lost() {
+        let payload = crate::routes::rest::sse::stream_lagged_payload(17);
+
+        assert_eq!(payload["code"], "STREAM_LAGGED");
+        assert_eq!(payload["skipped"], 17);
+        assert!(
+            payload["message"].as_str().unwrap().contains("17"),
+            "the human-readable half must carry the count too: {payload}"
+        );
+    }
+
+    /// It rides the `error` event name so a browser `EventSource` that handles nothing
+    /// else still fires a handler for it. A frame typed `insert`/`update`/`delete`
+    /// would be parsed as an entity and shown to the user.
+    #[test]
+    fn the_lag_frame_is_typed_error_not_an_entity_event() {
+        use crate::routes::rest::sse::STREAM_LAGGED_EVENT;
+
+        assert_eq!(STREAM_LAGGED_EVENT, "error");
+        for entity_event in ["insert", "update", "delete", "unknown"] {
+            assert_ne!(STREAM_LAGGED_EVENT, entity_event);
+        }
+    }
+
+    /// Single-tenant deployments are unscoped, so every tenant stamp — including none
+    /// — passes the tenant gate. The entity gate still applies.
+    #[test]
+    fn an_unscoped_stream_receives_every_tenants_events() {
+        let scope = TenantScope::AllTenants;
+        assert!(stream_event_matches(&tenanted("Order", None), "Order", &scope));
+        assert!(stream_event_matches(&tenanted("Order", Some("tenant-a")), "Order", &scope));
+        assert!(stream_event_matches(&tenanted("Order", Some("tenant-b")), "Order", &scope));
     }
 }

@@ -160,7 +160,7 @@ where
         error_sanitizer: Arc::clone(&state.error_sanitizer),
         function_hooks: state.before_mutation_hooks.clone(),
         #[cfg(feature = "observers")]
-        event_transport: None,
+        event_fanout: state.entity_event_fanout.clone(),
         #[cfg(feature = "export-xlsx")]
         xlsx_semaphore: Arc::new(tokio::sync::Semaphore::new(mount.export.max_concurrent_xlsx)),
         #[cfg(any(feature = "export-csv", feature = "export-xlsx"))]
@@ -430,9 +430,20 @@ struct RestState<A: DatabaseAdapter> {
     /// negotiation path to configure, and an unconditional field would be dead code.
     #[cfg(any(feature = "export-csv", feature = "export-xlsx"))]
     export:            Arc<super::export_config::ExportConfig>,
-    /// Optional event transport for SSE streaming (requires `observers` feature).
+    /// The entity-event fan-out `/{resource}/stream` reads (#1309).
+    ///
+    /// This was `Option<Arc<dyn EventTransport>>`, which is the field whose *type*
+    /// invited the defect: `EventTransport::subscribe` is a competing consumer on all
+    /// three transports, so populating it would have made every open SSE connection
+    /// take events away from the observer executor rather than fan out beside it. A
+    /// broadcast handle cannot express that mistake — every receiver gets every event,
+    /// and the executor is upstream of the fan-out entirely.
+    ///
+    /// `Some` exactly when an observer runtime is configured (see
+    /// `Server::entity_event_fanout`), so the handler can tell "no producer" — answer
+    /// 501 — from "a producer with nothing to say yet".
     #[cfg(feature = "observers")]
-    event_transport:   Option<Arc<dyn fraiseql_observers::transport::EventTransport>>,
+    event_fanout:      Option<crate::subscriptions::EntityEventFanout>,
     /// Concurrency cap for in-flight XLSX workbook builds. Sized at startup
     /// from [`super::export_config::ExportConfig::max_concurrent_xlsx`].
     #[cfg(feature = "export-xlsx")]
@@ -861,11 +872,14 @@ where
     {
         let heartbeat_interval = std::time::Duration::from_secs(heartbeat_secs);
 
-        // If we have an event transport, subscribe to real entity events.
-        if let Some(ref transport) = rest.event_transport {
-            // Both refusals precede `subscribe`: a request that cannot be served must
-            // not open a subscription first. They sit *inside* this arm because with no
-            // transport the whole truth about this endpoint is the 501 below — a 403
+        // The fan-out is `Some` exactly when an observer runtime is configured, so this
+        // arm means "there is a producer", not merely "the field was populated".
+        if let Some(ref fanout) = rest.event_fanout {
+            use futures::StreamExt;
+
+            // Both refusals precede the subscription: a request that cannot be served
+            // must not attach a receiver first. They sit *inside* this arm because with
+            // no producer the whole truth about this endpoint is the 501 below — a 403
             // there would imply that a tenant-bearing credential would get a stream.
             //
             // #1113: `Last-Event-ID` used to be read into `_last_event_id` and dropped,
@@ -888,71 +902,107 @@ where
                 },
             };
 
-            let filter = fraiseql_observers::transport::EventFilter::scoped_to(tenant)
-                .with_entity_type(resource_name.clone());
+            // The GraphQL TYPE, not the route name. `/rest/v1/users/stream` streams
+            // `User` events: the change log stamps `object_type` with the type name, and
+            // so does everything downstream of it. The pre-#1309 code filtered on
+            // `resource_name` — `users` — which matches no event ever written, so the
+            // branch would have opened a connection and delivered nothing even once the
+            // transport was populated. Unreachable code cannot be wrong in a way anyone
+            // notices; this is what that looks like when it is finally reached.
+            let Some(entity_type) = rest
+                .route_table
+                .resources
+                .iter()
+                .find(|r| r.name == resource_name)
+                .map(|r| r.type_name.clone())
+            else {
+                return rest_result_to_response(
+                    Err(super::handler::RestError::not_found(format!(
+                        "Resource not found: {resource_name}"
+                    ))),
+                    &rest.error_sanitizer,
+                );
+            };
 
-            match transport.subscribe(filter).await {
-                Ok(event_stream) => {
-                    use futures::StreamExt;
+            // A broadcast receiver, so this stream is a fan-out consumer and not a
+            // competing one: it takes nothing from the observer executor, which sits
+            // upstream of the bridge that publishes here (#1309).
+            let receiver = fanout.subscribe();
 
-                    // Merge entity events with heartbeat ticks.
-                    let heartbeat = futures::stream::unfold((), move |()| async move {
-                        tokio::time::sleep(heartbeat_interval).await;
-                        let event = axum::response::sse::Event::default().event("ping").data("");
-                        Some((event, ()))
-                    });
-
-                    let entity_events = event_stream.filter_map(|result| async move {
-                        match result {
-                            Ok(entity_event) => {
-                                // #1113: the id was `entity_event.id`, a UUID — an id no
-                                // ordering can resolve to a resume point, promising a
-                                // resumption nothing could provide. `StreamEvent` decides
-                                // the frame; see it for why an event with no `seq`
-                                // carries no `id:` at all.
-                                let wire =
-                                    super::sse::StreamEvent::from_entity_event(&entity_event);
-                                let mut event =
+            // `Option<Receiver>` rather than `Receiver`: the lag arm below replaces it
+            // with `None`, which is how the stream ENDS after emitting its final frame.
+            // Yielding that frame and keeping the receiver would resume from the oldest
+            // buffered event — the silent gap the frame exists to refuse.
+            let entity_events = futures::stream::unfold(
+                (Some(receiver), entity_type, tenant),
+                move |(rx, entity_type, tenant)| async move {
+                    let mut rx = rx?;
+                    loop {
+                        match rx.recv().await {
+                            Ok(event) => {
+                                if !super::sse::stream_event_matches(&event, &entity_type, &tenant)
+                                {
+                                    continue;
+                                }
+                                let wire = super::sse::StreamEvent::from_bridge_event(&event);
+                                let mut frame =
                                     axum::response::sse::Event::default().event(wire.event_type);
                                 if let Some(id) = wire.id {
-                                    event = event.id(id);
+                                    frame = frame.id(id);
                                 }
-                                Some(event.json_data(wire.data).ok()?)
+                                let Ok(frame) = frame.json_data(wire.data) else {
+                                    continue;
+                                };
+                                return Some((frame, (Some(rx), entity_type, tenant)));
                             },
-                            Err(e) => {
-                                tracing::warn!(error = %e, "SSE event stream error");
-                                None
+                            // The client fell far enough behind that the fan-out
+                            // overwrote events it had not read. Say so and end the
+                            // stream, rather than resuming quietly from the new
+                            // position: a silent resume is a gap the client cannot
+                            // see, which is the failure mode this whole endpoint has
+                            // been corrected for twice (#873.4, #1113). A closed
+                            // stream at least makes `EventSource` reconnect visibly.
+                            Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
+                                tracing::warn!(
+                                    entity_type = %entity_type,
+                                    skipped,
+                                    "REST stream client lagged; ending the stream rather \
+                                     than resuming with a gap it cannot see"
+                                );
+                                let frame = axum::response::sse::Event::default()
+                                    .event(super::sse::STREAM_LAGGED_EVENT)
+                                    .json_data(super::sse::stream_lagged_payload(skipped))
+                                    .ok()?;
+                                // `None` for the receiver: this frame is the last one.
+                                return Some((frame, (None, entity_type, tenant)));
                             },
+                            // Every sender is gone — the bridge stopped. Nothing more
+                            // will arrive on this receiver, so end the stream.
+                            Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
                         }
-                    });
-
-                    // Select between entity events and heartbeat pings.
-                    let merged = futures::stream::select(entity_events, heartbeat)
-                        .map(Ok::<_, std::convert::Infallible>);
-
-                    let sse = axum::response::sse::Sse::new(merged).keep_alive(
-                        axum::response::sse::KeepAlive::new().interval(heartbeat_interval).text(""),
-                    );
-
-                    return axum::response::IntoResponse::into_response(sse);
+                    }
                 },
-                Err(e) => {
-                    tracing::warn!(error = %e, resource = %resource_name, "Failed to subscribe to event stream");
-                    return rest_result_to_response(
-                        Err(super::handler::RestError {
-                            status:  StatusCode::SERVICE_UNAVAILABLE,
-                            code:    "EVENT_STREAM_UNAVAILABLE",
-                            message: "Could not connect to event stream".to_string(),
-                            details: None,
-                        }),
-                        &rest.error_sanitizer,
-                    );
-                },
-            }
+            );
+
+            // Merge entity events with heartbeat ticks.
+            let heartbeat = futures::stream::unfold((), move |()| async move {
+                tokio::time::sleep(heartbeat_interval).await;
+                let event = axum::response::sse::Event::default().event("ping").data("");
+                Some((event, ()))
+            });
+
+            let merged = futures::stream::select(entity_events, heartbeat)
+                .map(Ok::<_, std::convert::Infallible>);
+
+            let sse = axum::response::sse::Sse::new(merged).keep_alive(
+                axum::response::sse::KeepAlive::new().interval(heartbeat_interval).text(""),
+            );
+
+            return axum::response::IntoResponse::into_response(sse);
         }
 
-        // #873.4: no event transport, so this endpoint cannot deliver an entity event.
-        // Say so, with the same 501 the `#[cfg(not(feature = "observers"))]` arm returns.
+        // #873.4: no producer, so this endpoint cannot deliver an entity event. Say so,
+        // with the same 501 the `#[cfg(not(feature = "observers"))]` arm returns.
         //
         // It used to answer 200 with a stream that emitted `event: ping` every
         // `sse_heartbeat_seconds` and nothing else — while the served OpenAPI described
@@ -962,21 +1012,17 @@ where
         // `observers` feature therefore turned an honest 501 into a silent no-op — the
         // feature flag made the server *less* truthful.
         //
-        // `event_transport` is `None` at every construction: `derive_rest_context` is the
-        // only place a `RestState` is built and `RestState` has no setter, so this must
-        // not look healthy.
+        // Still reachable, and still the right answer: `event_fanout` is `Some` exactly
+        // when an observer runtime is configured (`Server::entity_event_fanout`). A build
+        // with the `observers` feature but no `[observers]` configuration has no producer
+        // for the change log at all, so there is nothing to stream and a 200 here would
+        // be the same lie in a new place.
         //
-        // This comment used to say that populating it "is #428's work". It is not — #428
-        // is entirely about observer *action* types (sms/push/search/cache) and says
-        // nothing about `RestState`. Nothing tracked the wiring at all, which is why the
-        // branch above accumulated two defects nobody could reach (#1113). The wiring now
-        // has an issue of its own, #1309, which also has to answer why the obvious form
-        // of it does not work: `EventTransport::subscribe` is a *competing consumer* on
-        // all three transports, so a per-request subscription would steal the observer
-        // executor's events rather than fan out beside them.
-        //
-        // The branch above is kept, not deleted, because #1309 is where keeping or
-        // deleting it gets decided.
+        // The branch above is no longer unreachable: #1309 wired it to the
+        // `EventBridge`'s fan-out, which is a broadcast, rather than to
+        // `EventTransport::subscribe`, which is a competing consumer on all three
+        // transports and would have made an open browser tab take events away from the
+        // observer executor.
         let _ = heartbeat_interval;
         rest_result_to_response(Err(super::sse::observers_not_available()), &rest.error_sanitizer)
     }

@@ -2574,6 +2574,17 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// send. Repaired in P17 (each test drives a real ObserverRuntime); gated
 		// here so it can never silently die again.
 		"cargo test -p fraiseql-server --features observers --test observer_e2e_test -- --ignored --test-threads=1",
+		// #1309: the REST /{resource}/stream fan-out, and the one assertion the issue
+		// made mandatory — open a stream AND assert the observer still fires for the
+		// same event. It lives in THIS leg rather than `integration (server)` because
+		// it needs both halves: PostgreSQL for the change log, and the outbound bypass
+		// (FRAISEQL_ALLOW_PRIVATE_WEBHOOKS / FRAISEQL_OBSERVERS_ALLOW_INSECURE, set
+		// above) for the observer's webhook to reach the wiremock server. The server
+		// leg has the database and not the bypass, so the observer half would have had
+		// to assert on a log row written by a REFUSED dispatch — an assertion about the
+		// SSRF guard rather than about the fan-out.
+		"echo '### #1309: REST /{resource}/stream fan-out (stream delivers AND observers still fire)'",
+		"cargo test -p fraiseql-server --features 'observers,rest' --test rest_stream_fanout_e2e_pg -- --include-ignored --test-threads=1",
 		// #349 email happy-path: send through lettre to the bound MailHog sink and
 		// assert the message arrived (real SMTP wire format, not a stub).
 		"cargo test -p fraiseql-observers --test smtp_integration -- --ignored --test-threads=1",

@@ -27,7 +27,8 @@
 //!    ```
 
 #![allow(unused_imports)]
-#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: integration test file
+#![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)]
+// Reason: integration test file
 // Both features, matching the subject: `transport::bridge` — and every one of
 // `PostgresNatsBridge`, `PostgresCheckpointStore`, `BridgeConfig`, `CheckpointStore`
 // this file imports — is `#[cfg(all(feature = "postgres", feature = "nats"))]`. Gated on

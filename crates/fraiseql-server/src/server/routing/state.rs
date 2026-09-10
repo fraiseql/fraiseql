@@ -65,6 +65,16 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             info!("Observer runtime attached to AppState for health probes");
         }
 
+        // The REST stream's fan-out (#1309). The same handle `serve` gives the
+        // `EventBridge`, so what the bridge publishes is what `/{resource}/stream`
+        // reads. Attached here rather than inside the REST mount because `RestState` is
+        // built from `AppState` and has no other route to the server's own fields.
+        #[cfg(feature = "observers")]
+        if let Some(ref fanout) = self.entity_event_fanout {
+            state = state.with_entity_event_fanout(fanout.clone());
+            info!("Entity-event fan-out attached to AppState for REST /{{resource}}/stream");
+        }
+
         // Thread adapter-level cache state through to admin handlers.
         state = state.with_adapter_cache_enabled(self.adapter_cache_enabled);
 

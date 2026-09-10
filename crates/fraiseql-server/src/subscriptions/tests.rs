@@ -293,6 +293,86 @@ mod event_bridge_tests {
     }
 }
 
+mod entity_fanout_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::panic)] // Reason: test code, panics are the failure mechanism
+
+    use fraiseql_core::runtime::subscription::SubscriptionOperation;
+
+    use super::super::event_bridge::*;
+
+    fn event(entity_id: &str) -> EntityEvent {
+        EntityEvent::new("Order", entity_id, SubscriptionOperation::Create, serde_json::json!({}))
+    }
+
+    /// The property the whole of #1309 rests on, and the one no `EventTransport` has:
+    /// two subscribers each receive **every** event, rather than splitting the stream
+    /// between them. `InMemoryTransport` hands out one mpsc receiver,
+    /// `PostgresNotifyTransport` marks each batch dispatched, and `NatsTransport` shares
+    /// one durable consumer name — so on all three, a second reader takes events away
+    /// from the first, and from the observer executor.
+    #[test]
+    fn every_receiver_gets_every_event() {
+        let fanout = EntityEventFanout::new(16);
+        let mut first = fanout.subscribe();
+        let mut second = fanout.subscribe();
+
+        assert_eq!(fanout.publish(&event("a")), 2, "both receivers must be delivered to");
+        assert_eq!(fanout.publish(&event("b")), 2);
+
+        for rx in [&mut first, &mut second] {
+            assert_eq!(rx.try_recv().unwrap().entity_id, "a");
+            assert_eq!(rx.try_recv().unwrap().entity_id, "b");
+        }
+    }
+
+    /// Nobody has a `/stream` open. That is the ordinary case — the bridge publishes on
+    /// every forwarded event regardless — and it must not read as a failure.
+    #[test]
+    fn publishing_with_no_receivers_is_not_an_error() {
+        let fanout = EntityEventFanout::new(16);
+        assert_eq!(fanout.receiver_count(), 0);
+        assert_eq!(fanout.publish(&event("a")), 0);
+    }
+
+    /// A receiver that never reads is told it lagged rather than served stale events.
+    ///
+    /// This is what makes the handler's lag arm reachable: without it, the `Lagged`
+    /// branch would be a thing the code handles and reality never produces, which is
+    /// indistinguishable from dead code.
+    #[test]
+    fn a_receiver_that_falls_a_whole_capacity_behind_is_told_it_lagged() {
+        let fanout = EntityEventFanout::new(2);
+        let mut rx = fanout.subscribe();
+
+        for i in 0..5 {
+            let _ = fanout.publish(&event(&i.to_string()));
+        }
+
+        match rx.try_recv() {
+            Err(tokio::sync::broadcast::error::TryRecvError::Lagged(skipped)) => {
+                assert_eq!(skipped, 3, "5 published, 2 buffered — 3 dropped");
+            },
+            other => panic!("a receiver that read nothing must be told it lagged, got {other:?}"),
+        }
+    }
+
+    /// A late subscriber gets what is published *from now on*, not the buffer's
+    /// contents. So opening a `/stream` never replays — which is why `Last-Event-ID`
+    /// is refused rather than answered from here (#1310).
+    #[test]
+    fn a_late_subscriber_does_not_receive_earlier_events() {
+        let fanout = EntityEventFanout::new(16);
+        let _ = fanout.publish(&event("before"));
+
+        let mut rx = fanout.subscribe();
+        assert_eq!(fanout.publish(&event("after")), 1);
+
+        assert_eq!(rx.try_recv().unwrap().entity_id, "after");
+        assert!(rx.try_recv().is_err(), "nothing published before the subscription");
+    }
+}
+
 mod lifecycle_tests {
     use super::super::lifecycle::*;
 
