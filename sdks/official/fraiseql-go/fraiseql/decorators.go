@@ -87,6 +87,7 @@ type QueryBuilder struct {
 	additionalViews   []string
 	requiresRole      string
 	requiresActor     []string
+	paginationOrder   string
 	deprecation       *DeprecationInfo
 }
 
@@ -203,6 +204,22 @@ func (qb *QueryBuilder) RequiresActor(actors ...string) *QueryBuilder {
 	return qb
 }
 
+// PaginationOrder names the column that orders this query's LIMIT/OFFSET pages (#1303).
+//
+// Pass "none" to keep a self-ordering view's own ORDER BY. Omit the call entirely and the
+// compiler derives the entity identity, which is what almost every query wants. Dropping
+// a declared order does not empty a result or fail a compile — it produces a different
+// total order over the same rows, which reads as a working schema until someone compares
+// two pages.
+//
+// The value is interpolated into ORDER BY and is validated by the compiler, which is also
+// where "declared on a query that does not paginate" is refused: this builder cannot see
+// the resolved auto_params that decide it.
+func (qb *QueryBuilder) PaginationOrder(column string) *QueryBuilder {
+	qb.paginationOrder = column
+	return qb
+}
+
 // RestPath sets the REST endpoint path for this query.
 func (qb *QueryBuilder) RestPath(path string) *QueryBuilder {
 	qb.restPath = path
@@ -260,6 +277,7 @@ func (qb *QueryBuilder) Register() error {
 		AdditionalViews:   qb.additionalViews,
 		RequiresRole:      qb.requiresRole,
 		RequiresActor:     qb.requiresActor,
+		PaginationOrder:   qb.paginationOrder,
 		Deprecation:       qb.deprecation,
 	}
 

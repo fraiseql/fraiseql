@@ -315,6 +315,32 @@
       ]
     },
     {
+      "name": "pagedByColumn",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_user",
+      "arguments": [],
+      "pagination_order": "created_at"
+    },
+    {
+      "name": "pagedSelfOrdered",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_user",
+      "arguments": [],
+      "pagination_order": "none"
+    },
+    {
+      "name": "pagedDerived",
+      "return_type": "User",
+      "returns_list": true,
+      "nullable": false,
+      "sql_source": "v_user",
+      "arguments": []
+    },
+    {
       "name": "supportTicket",
       "return_type": "SupportTicket",
       "returns_list": false,

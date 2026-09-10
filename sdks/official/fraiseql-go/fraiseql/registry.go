@@ -96,6 +96,12 @@ type QueryDefinition struct {
 	RequiresActor     []string               `json:"requires_actor,omitempty"`
 	Deprecation       *DeprecationInfo       `json:"deprecation,omitempty"`
 	Rest              *RestAnnotation        `json:"rest,omitempty"`
+	// PaginationOrder names the column that orders this query's LIMIT/OFFSET pages, or
+	// "none" to keep a self-ordering view's own ORDER BY (#1303). Omitted and the compiler
+	// derives the entity identity, which is what almost every query wants. The value is a
+	// SQL identifier interpolated into ORDER BY and is validated by the compiler rather
+	// than here, so the rule is stated once.
+	PaginationOrder string `json:"pagination_order,omitempty"`
 	// Config is an SDK-internal bag of builder settings and is never serialized: the
 	// compiler has no `config` key and, denying unknown fields, rejects the whole
 	// schema when it sees one. The only setting that ever reached it was

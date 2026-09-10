@@ -31,6 +31,7 @@ public sealed class QueryBuilder
     private readonly Dictionary<string, string> _injectParams = new();
     private string? _requiresRole;
     private IReadOnlyList<string>? _requiresActor;
+    private string? _paginationOrder;
 
     private QueryBuilder(string name) => _name = name;
 
@@ -111,6 +112,23 @@ public sealed class QueryBuilder
         return this;
     }
 
+    /// <summary>Names the column that orders this query's LIMIT/OFFSET pages (#1303).</summary>
+    /// <remarks>
+    /// Pass <c>"none"</c> to keep a self-ordering view's own <c>ORDER BY</c>. Omit the call
+    /// entirely and the compiler derives the entity identity, which is what almost every query
+    /// wants. Dropping a declared order does not empty a result or fail a compile — it produces
+    /// a different total order over the same rows, which reads as a working schema until
+    /// someone compares two pages.
+    /// <para>
+    /// The value is interpolated into <c>ORDER BY</c> and is validated by the compiler, which is
+    /// also where "declared on a query that does not paginate" is refused: this builder cannot
+    /// see the resolved auto_params that decide it.
+    /// </para>
+    /// </remarks>
+    /// <param name="column">The ordering column, or <c>"none"</c>.</param>
+    /// <returns>This builder for chaining.</returns>
+    public QueryBuilder PaginationOrder(string column) { _paginationOrder = column; return this; }
+
     /// <summary>Sets the REST endpoint path for this query.</summary>
     /// <param name="path">The REST path (e.g. <c>"/api/users"</c>).</param>
     /// <returns>This builder for chaining.</returns>
@@ -153,7 +171,8 @@ public sealed class QueryBuilder
             Rest: rest,
             InjectParams: _injectParams.Count > 0 ? _injectParams : null,
             RequiresRole: _requiresRole,
-            RequiresActor: _requiresActor);
+            RequiresActor: _requiresActor,
+            PaginationOrder: _paginationOrder);
     }
 
     /// <summary>

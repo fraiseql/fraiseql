@@ -56,6 +56,7 @@ let private singleQuery: QueryDefinition =
         inject_params = None
         requires_role = None
         requires_actor = None
+        pagination_order = None
         description = None
         rest = None
     }

@@ -180,6 +180,13 @@ class FraiseQLSchema {
   ///
   /// `inject` maps a SQL parameter to a `"jwt:<claim>"` source and is emitted under
   /// `inject_params` — the key the compiler reads.
+  ///
+  /// `paginationOrder` names the column that orders this query's `LIMIT`/`OFFSET` pages,
+  /// or `"none"` to keep a self-ordering view's own `ORDER BY` (#1303). Omit it and the
+  /// compiler derives the entity identity, which is what almost every query wants.
+  /// Dropping a declared order does not empty a result or fail a compile — it produces a
+  /// different total order over the same rows. The value is interpolated into `ORDER BY`
+  /// and is validated by the compiler, so the rule is stated once.
   Map<String, Object?> query(
     String name, {
     required String returnType,
@@ -192,6 +199,7 @@ class FraiseQLSchema {
     String? requiresRole,
     List<String> requiresActor = const [],
     Map<String, String> inject = const {},
+    String? paginationOrder,
   }) {
     final definition = <String, Object?>{
       'name': name,
@@ -212,6 +220,9 @@ class FraiseQLSchema {
       definition['requires_actor'] = requiresActor;
     }
     if (inject.isNotEmpty) definition['inject_params'] = _injectParams(inject);
+    if (paginationOrder != null) {
+      definition['pagination_order'] = paginationOrder;
+    }
 
     _queries.add(definition);
     return definition;

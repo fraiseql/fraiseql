@@ -812,6 +812,47 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`pagination_order` is now a cross-SDK conformance construct, and ten of the eleven
+  official SDKs author it (#1305).** It was authorable from `schema.json` and reached the
+  compiled schema through every compile path, with nothing holding an SDK to it. Exactly
+  one SDK carried it — `fraiseql-python`, and only because `@fraiseql.query(**kwargs)`
+  passes unknown keys through verbatim. Coverage by accident, not by contract.
+
+  It matters more than most keys because losing it is invisible. A dropped
+  `pagination_order` does not empty a result or fail a compile: it produces a *different
+  total order over the same rows*, which reads as a working schema until someone compares
+  two pages. `"none"` is the sharper case — losing it silently re-orders a view that was
+  ordering itself.
+
+  New authoring surface, one per SDK: `paginationOrder` (TypeScript config key,
+  Dart named argument), `PaginationOrder` (Go, C#), `paginationOrder` (PHP, Java, F#),
+  `pagination_order:` (Elixir option, Ruby keyword). Python already carried it.
+  `fraiseql-rust` declares the gap: it is field-level-RBAC focused and ships no query
+  builder at all.
+
+  The construct owns three fixture queries rather than growing `AUTHORED_QUERIES`, because
+  one query can demonstrate only one authored state — and because a declared gap drops a
+  construct wholesale, so an SDK declaring this gap inside `AUTHORED_QUERIES` would also
+  fail `queries` and `query_arguments` and read as "this SDK's queries are broken":
+
+  | owned query | authors | compiled observation |
+  |---|---|---|
+  | `pagedByColumn` | `pagination_order = "created_at"` | `{"column": "created_at"}` |
+  | `pagedSelfOrdered` | `pagination_order = "none"` | absent |
+  | `pagedDerived` | nothing | `"json_identity"` |
+
+  The observation reads the **value**, never truthiness: `"absent"` compiles to
+  `"json_identity"`, which is neither empty nor falsey, so a truthiness filter would show
+  a present, non-empty value for a query whose override was dropped. Proven by mutation —
+  dropping the `"none"` reports `"json_identity"` where `null` was expected, and a builder
+  inventing `"id"` where the author declared nothing reports `{"column": "id"}` where
+  `"json_identity"` was expected. Neither is visible without the third query.
+
+  `fraiseql-elixir` builds its `QueryDefinition` in two places, one per macro form, so a
+  key added to one form and dropped by the other would be carried by half its authoring
+  surface. `schema_dsl_test.exs` now exercises both; each was proven to fail on its own
+  when the other is intact.
+
 - **`GET /rest/v1/{resource}/stream` delivers real entity events (#1309).** It answered
   `501` at every construction, because the only wiring available to it would have been
   worse than the refusal.

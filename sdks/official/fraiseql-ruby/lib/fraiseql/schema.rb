@@ -211,9 +211,16 @@ module FraiseQL
     #
     # `inject` maps a SQL parameter to a `"jwt:<claim>"` source and is emitted under
     # `inject_params` — the key the compiler reads.
+    #
+    # `pagination_order` names the column that orders this query's `LIMIT`/`OFFSET` pages,
+    # or `"none"` to keep a self-ordering view's own `ORDER BY` (#1303). Omit it and the
+    # compiler derives the entity identity, which is what almost every query wants. Dropping
+    # a declared order does not empty a result or fail a compile — it produces a different
+    # total order over the same rows. The value is interpolated into `ORDER BY` and is
+    # validated by the compiler, so the rule is stated once.
     def query(name, return_type:, sql_source: nil, returns_list: false, nullable: false,
               description: nil, cache_ttl_seconds: nil, requires_role: nil, requires_actor: nil,
-              inject: nil)
+              inject: nil, pagination_order: nil)
       builder = ArgumentListBuilder.new
       yield builder if block_given?
 
@@ -235,6 +242,7 @@ module FraiseQL
       definition["requires_role"] = requires_role.to_s if requires_role
       definition["requires_actor"] = validated_actors(name, requires_actor) if requires_actor
       definition["inject_params"] = self.class.inject_params(inject) if inject && !inject.empty?
+      definition["pagination_order"] = pagination_order.to_s if pagination_order
 
       @queries << definition
       definition

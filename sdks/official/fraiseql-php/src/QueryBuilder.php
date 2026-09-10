@@ -39,6 +39,8 @@ final class QueryBuilder
 
     private ?string $requiresRoleValue = null;
 
+    private ?string $paginationOrderValue = null;
+
     /** @var list<string> */
     private array $requiresActorList = [];
     private ?string $deprecationReason = null;
@@ -152,6 +154,25 @@ final class QueryBuilder
         return $this;
     }
 
+    /**
+     * Name the column that orders this query's LIMIT/OFFSET pages (#1303).
+     *
+     * Pass `"none"` to keep a self-ordering view's own ORDER BY. Omit the call entirely
+     * and the compiler derives the entity identity, which is what almost every query
+     * wants. Dropping a declared order does not empty a result or fail a compile — it
+     * produces a different total order over the same rows, which reads as a working
+     * schema until someone compares two pages.
+     *
+     * The value is interpolated into ORDER BY and is validated by the compiler, which is
+     * also where "declared on a query that does not paginate" is refused: this builder
+     * cannot see the resolved auto_params that decide it.
+     */
+    public function paginationOrder(string $column): self
+    {
+        $this->paginationOrderValue = $column;
+        return $this;
+    }
+
     public function deprecated(string $reason): self
     {
         $this->deprecationReason = $reason;
@@ -234,6 +255,10 @@ final class QueryBuilder
 
         if ($this->requiresActorList !== []) {
             $result['requires_actor'] = $this->requiresActorList;
+        }
+
+        if ($this->paginationOrderValue !== null) {
+            $result['pagination_order'] = $this->paginationOrderValue;
         }
 
         // `auto_params` is an object of per-parameter booleans (`IntermediateAutoParams`),

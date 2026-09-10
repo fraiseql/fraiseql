@@ -211,6 +211,7 @@ let ``reset clears all queries`` () =
             inject_params = None
             requires_role = None
             requires_actor = None
+            pagination_order = None
             description = None
             rest = None
         }
@@ -279,6 +280,7 @@ let ``registerQuery adds to getAllQueries`` () =
             inject_params = None
             requires_role = None
             requires_actor = None
+            pagination_order = None
             description = None
             rest = None
         }
@@ -331,6 +333,7 @@ let ``toIntermediateSchema includes all registered items`` () =
             inject_params = None
             requires_role = None
             requires_actor = None
+            pagination_order = None
             description = None
             rest = None
         }

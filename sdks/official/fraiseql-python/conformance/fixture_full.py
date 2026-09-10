@@ -205,6 +205,39 @@ def tenant_orders(include_archived: bool | None = None) -> list[Order]:
     pass
 
 
+# #1305: the three authored states of `pagination_order`, one query each, because one
+# query can demonstrate only one. The key decides the total order a `LIMIT`/`OFFSET` page
+# falls back to; losing it does not empty a result or fail a compile, it produces a
+# different total order over the same rows.
+#
+# In this SDK the key reaches `schema.json` through `@fraiseql.query(**config_kwargs)`,
+# which passes unknown keys verbatim. That is what made Python the only SDK carrying it
+# before #1305 — coverage by accident. Authoring it here is what turns the passthrough
+# into a contract: the compiled value is now compared, so a passthrough that stopped
+# working would fail this gate instead of silently re-ordering someone's pages.
+
+
+@fraiseql.query(sql_source="v_user", pagination_order="created_at")
+def paged_by_column() -> list[User]:
+    pass
+
+
+# `"none"` keeps a self-ordering view's own ORDER BY. It compiles to *no* key at all,
+# which is the sharp case: an SDK that drops it emits the derived `"json_identity"`
+# instead, and the view's own ordering is silently replaced.
+@fraiseql.query(sql_source="v_user", pagination_order="none")
+def paged_self_ordered() -> list[User]:
+    pass
+
+
+# Authors nothing, so the compiler derives `"json_identity"`. This is the state that
+# catches a builder inventing a value where the author declared none — defaulting the
+# field to `""` or `"id"` — which no query that authors something can see.
+@fraiseql.query(sql_source="v_user")
+def paged_derived() -> list[User]:
+    pass
+
+
 @fraiseql.mutation(
     sql_source="fn_create_user",
     operation="insert",

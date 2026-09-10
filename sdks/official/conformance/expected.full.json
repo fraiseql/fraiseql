@@ -143,6 +143,13 @@
       }
     }
   },
+  "query_pagination_order": {
+    "pagedByColumn": {
+      "column": "created_at"
+    },
+    "pagedDerived": "json_identity",
+    "pagedSelfOrdered": null
+  },
   "query_requires_actor": {
     "tenantOrders": [
       "human_user",

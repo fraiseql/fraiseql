@@ -47,6 +47,33 @@ defmodule FraiseQL.SchemaDslTest do
     end
   end
 
+  # `fraiseql_query` builds its QueryDefinition in two places — one for the `do`-block
+  # form and one for the form without — so a key added to one form and not the other is
+  # carried by half the SDK's authoring surface and dropped by the other half, silently.
+  # Both forms are exercised here for `pagination_order` (#1305).
+  defmodule PaginationOrderSchema do
+    use FraiseQL.Schema
+
+    fraiseql_query :paged_no_block,
+      return_type: "Author",
+      returns_list: true,
+      sql_source: "v_author",
+      pagination_order: "created_at"
+
+    fraiseql_query :paged_with_block,
+      return_type: "Author",
+      returns_list: true,
+      sql_source: "v_author",
+      pagination_order: "none" do
+      argument :since, :string, nullable: true
+    end
+
+    fraiseql_query :paged_unset,
+      return_type: "Author",
+      returns_list: true,
+      sql_source: "v_author"
+  end
+
   defmodule MutationSchema do
     use FraiseQL.Schema
 
@@ -175,6 +202,19 @@ defmodule FraiseQL.SchemaDslTest do
     assert arg.name == "id"
     assert arg.type == "ID"
     assert arg.nullable == false
+  end
+
+  test "fraiseql_query carries pagination_order in both the block and no-block forms" do
+    by_name =
+      PaginationOrderSchema.__fraiseql_queries__()
+      |> Map.new(&{&1.name, &1.pagination_order})
+
+    assert by_name["pagedNoBlock"] == "created_at"
+    assert by_name["pagedWithBlock"] == "none"
+    # Unset stays nil rather than becoming "" or a guessed column: the compiler derives
+    # the entity identity from an absent key, and a value invented here would override a
+    # decision the author deliberately left to it.
+    assert by_name["pagedUnset"] == nil
   end
 
   test "fraiseql_query query name atom is converted to string" do

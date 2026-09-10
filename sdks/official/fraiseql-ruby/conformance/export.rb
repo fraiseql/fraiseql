@@ -133,6 +133,26 @@ def author_full
     q.argument :include_archived, :boolean, nullable: true
   end
 
+  # #1305: the three authored states of pagination_order, one query each, because one
+  # query can demonstrate only one. The key decides the total order a LIMIT/OFFSET page
+  # falls back to; losing it does not empty a result or fail a compile, it produces a
+  # different total order over the same rows.
+  schema.query :paged_by_column, return_type: "User", returns_list: true, nullable: false,
+                                 sql_source: "v_user",
+                                 pagination_order: "created_at"
+
+  # "none" keeps a self-ordering view's own ORDER BY, and compiles to no key at all. The
+  # sharp case: an SDK that drops it emits the derived "json_identity" instead and the
+  # view's own ordering is silently replaced.
+  schema.query :paged_self_ordered, return_type: "User", returns_list: true, nullable: false,
+                                    sql_source: "v_user",
+                                    pagination_order: "none"
+
+  # Authors nothing, so the compiler derives "json_identity". This is the state that
+  # catches a builder inventing a value where the author declared none.
+  schema.query :paged_derived, return_type: "User", returns_list: true, nullable: false,
+                               sql_source: "v_user"
+
   schema.mutation :create_user, return_type: "User", sql_source: "fn_create_user",
                                 operation: "insert",
                                 invalidates_views: %w[v_user v_user_summary],

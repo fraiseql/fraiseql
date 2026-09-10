@@ -31,9 +31,14 @@
 # Six of eleven, which is exactly the count `sdks/official/conformance/manifest.json`
 # already records — that comment is why the conformance suite exists. All six remain
 # fully covered by `sdk-conformance.yml`, the stronger gate: it authors through each
-# SDK's real API, runs the actual compiler, and asserts sixteen constructs against a
-# declared-gap manifest. The five below are the generators that genuinely drive their
-# SDK, so their comparison means something.
+# SDK's real API, runs the actual compiler, and asserts every construct in
+# `project.CONSTRUCTS` against a declared-gap manifest. The five below are the generators
+# that genuinely drive their SDK, so their comparison means something.
+#
+# This said "sixteen constructs" while the list carried 24, and would have been wrong
+# again the moment #1305 made it 25. A count restated in prose decays every time a
+# construct is added, which is the same defect `selftest.py` was written to stop the
+# support matrix having — so it now names the list instead of counting it.
 #
 # Usage:
 #   sdks/official/tests/run_parity.sh                  # every SDK required

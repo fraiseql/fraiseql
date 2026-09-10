@@ -466,6 +466,26 @@ public class SchemaRegistry {
     }
 
     /**
+     * Set a query's pagination order after registration (#1303, #1305).
+     *
+     * <p>Its own method rather than a third {@code setQueryMetadata} overload: that
+     * overload set already carries the warning that bundling one more unrelated value
+     * makes the next addition worse, and this is the next addition. A method that names
+     * what it sets stays readable however many more arrive.
+     *
+     * @param queryName the query name
+     * @param paginationOrder the ordering column, {@code "none"}, or null to derive
+     * @throws IllegalStateException if the query is not registered
+     */
+    public void setQueryPaginationOrder(String queryName, String paginationOrder) {
+        QueryInfo info = queries.get(queryName);
+        if (info == null) {
+            throw new IllegalStateException("Query '" + queryName + "' is not registered.");
+        }
+        info.paginationOrder = paginationOrder;
+    }
+
+    /**
      * Set the operation metadata the {@code registerMutation} overloads do not carry.
      *
      * @param mutationName the mutation name
@@ -806,6 +826,13 @@ public class SchemaRegistry {
         public java.util.List<String> requiresActor = java.util.List.of();
         /** Role required to execute this query. Mirrors {@code IntermediateQuery.requires_role}. */
         public String requiresRole = null;
+        /**
+         * The column that orders this query's LIMIT/OFFSET pages, or {@code "none"} to keep
+         * a self-ordering view's own ORDER BY (#1303). Mirrors
+         * {@code IntermediateQuery.pagination_order}; null means the compiler derives the
+         * entity identity, which is what almost every query wants.
+         */
+        public String paginationOrder = null;
         public final String sqlSource;
         public final Long cacheTtlSeconds;
         public final Map<String, String> injectParams;

@@ -220,6 +220,13 @@ type QueryDefinition =
         /// same — and emitting `[]` would put a declared-looking gate in the document that
         /// gates nothing.
         requires_actor: string list option
+        /// The column that orders this query's LIMIT/OFFSET pages, or `"none"` to keep a
+        /// self-ordering view's own ORDER BY (#1303).
+        ///
+        /// `None` means the compiler derives the entity identity, which is what almost
+        /// every query wants. Dropping a declared value does not empty a result or fail a
+        /// compile — it produces a different total order over the same rows.
+        pagination_order: string option
     }
 
 /// Represents a GraphQL mutation (write operation).

@@ -27,6 +27,7 @@ module QueryBuilder =
             injectParams: Map<string, string>
             requiresRole: string option
             requiresActor: string list option
+            paginationOrder: string option
         }
 
     /// Creates a new <see cref="QueryState"/> for the given query name.
@@ -44,6 +45,7 @@ module QueryBuilder =
             injectParams = Map.empty
             requiresRole = None
             requiresActor = None
+            paginationOrder = None
         }
 
     /// Sets the GraphQL return type for this query.
@@ -89,6 +91,20 @@ module QueryBuilder =
         ActorType.validate (sprintf "query '%s'" s.name) actors
         { s with requiresActor = Some actors }
 
+    /// Names the column that orders this query's LIMIT/OFFSET pages (#1303).
+    ///
+    /// Pass `"none"` to keep a self-ordering view's own ORDER BY. Omit the call entirely and
+    /// the compiler derives the entity identity, which is what almost every query wants.
+    /// Dropping a declared order does not empty a result or fail a compile — it produces a
+    /// different total order over the same rows, which reads as a working schema until
+    /// someone compares two pages.
+    ///
+    /// The value is interpolated into ORDER BY and is validated by the compiler, which is also
+    /// where "declared on a query that does not paginate" is refused: this builder cannot see
+    /// the resolved auto_params that decide it.
+    let paginationOrder (column: string) (s: QueryState) : QueryState =
+        { s with paginationOrder = Some column }
+
     /// Converts the accumulated state into a <see cref="QueryDefinition"/>.
     /// Raises <see cref="System.InvalidOperationException"/> when required fields are missing.
     let toDefinition (s: QueryState) : QueryDefinition =
@@ -111,6 +127,7 @@ module QueryBuilder =
             inject_params = (if Map.isEmpty s.injectParams then None else Some s.injectParams)
             requires_role = s.requiresRole
             requires_actor = s.requiresActor
+            pagination_order = s.paginationOrder
         }
 
     /// Converts the state to a <see cref="QueryDefinition"/> and registers it in <see cref="SchemaRegistry"/>.

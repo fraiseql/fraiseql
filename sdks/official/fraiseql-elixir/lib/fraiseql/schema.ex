@@ -257,7 +257,8 @@ defmodule FraiseQL.Schema do
             FraiseQL.Schema.__validate_requires_actor__!(
               unquote(query_name),
               unquote(query_opts[:requires_actor])
-            )
+            ),
+          pagination_order: unquote(query_opts[:pagination_order])
         }
 
         Module.delete_attribute(__MODULE__, :__fraiseql_arg_buffer)
@@ -282,7 +283,8 @@ defmodule FraiseQL.Schema do
             FraiseQL.Schema.__validate_requires_actor__!(
               unquote(query_name),
               unquote(query_opts[:requires_actor])
-            )
+            ),
+          pagination_order: unquote(query_opts[:pagination_order])
         }
       end
     end

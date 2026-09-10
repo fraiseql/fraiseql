@@ -468,6 +468,7 @@ function normaliseConfig(
     cacheTtlSeconds: "cache_ttl_seconds",
     invalidatesViews: "invalidates_views",
     invalidatesFactTables: "invalidates_fact_tables",
+    paginationOrder: "pagination_order",
     relayCursorColumn: "relay_cursor_column",
     relayCursorType: "relay_cursor_type",
     requiresRole: "requires_role",

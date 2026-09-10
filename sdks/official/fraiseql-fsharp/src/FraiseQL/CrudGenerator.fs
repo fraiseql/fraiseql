@@ -137,6 +137,9 @@ module CrudGenerator =
                     inject_params = None
                     requires_role = None
                     requires_actor = None
+                    // A generated CRUD read authors no ordering, so the compiler derives
+                    // the entity identity for its pages (#1303).
+                    pagination_order = None
                     description = Some(sprintf "Get %s by ID." typeName)
                     rest = None
                 }
@@ -152,6 +155,7 @@ module CrudGenerator =
                     inject_params = None
                     requires_role = None
                     requires_actor = None
+                    pagination_order = None
                     description = Some(sprintf "List %s records." typeName)
                     rest = None
                 }

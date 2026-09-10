@@ -258,6 +258,9 @@ module Dsl =
                 inject_params = None
                 requires_role = None
                 requires_actor = None
+                // As with the three above: this computation expression exposes no keyword
+                // for it, so a query authored here derives its page order (#1303).
+                pagination_order = None
             }
 
         /// Sets the GraphQL return type.

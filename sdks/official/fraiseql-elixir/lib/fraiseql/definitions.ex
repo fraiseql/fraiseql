@@ -272,6 +272,9 @@ defmodule FraiseQL.QueryDefinition do
     * `:cache_ttl_seconds` — optional cache TTL in seconds
     * `:description` — optional human-readable description
     * `:auto_params` — optional map of auto-generated parameter flags (e.g. `%{where: true, order_by: true}`)
+    * `:pagination_order` — the column that orders this query's `LIMIT`/`OFFSET` pages, or
+      `"none"` to keep a self-ordering view's own `ORDER BY` (#1303). `nil` means the
+      compiler derives the entity identity, which is what almost every query wants.
   """
 
   @enforce_keys [:name, :return_type, :sql_source]
@@ -289,7 +292,8 @@ defmodule FraiseQL.QueryDefinition do
     auto_params: nil,
     inject_params: nil,
     requires_role: nil,
-    requires_actor: []
+    requires_actor: [],
+    pagination_order: nil
   ]
 
   @type t :: %__MODULE__{
@@ -306,7 +310,8 @@ defmodule FraiseQL.QueryDefinition do
           auto_params: map() | nil,
           inject_params: map() | nil,
           requires_role: String.t() | nil,
-          requires_actor: [String.t()]
+          requires_actor: [String.t()],
+          pagination_order: String.t() | nil
         }
 end
 

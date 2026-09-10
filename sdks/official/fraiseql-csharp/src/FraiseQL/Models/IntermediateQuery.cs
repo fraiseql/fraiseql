@@ -23,6 +23,11 @@ namespace FraiseQL.Models;
 /// </param>
 /// <param name="RequiresRole">Role required to execute this query and to see it in introspection.</param>
 /// <param name="RequiresActor">Actor types allowed to execute this query (#966).</param>
+/// <param name="PaginationOrder">
+/// The column that orders this query's <c>LIMIT</c>/<c>OFFSET</c> pages, or <c>"none"</c> to
+/// keep a self-ordering view's own <c>ORDER BY</c> (#1303). Omitted from JSON when
+/// <see langword="null"/>, in which case the compiler derives the entity identity.
+/// </param>
 public record IntermediateQuery(
     [property: JsonPropertyName("name")]              string Name,
     [property: JsonPropertyName("return_type")]       string ReturnType,
@@ -38,4 +43,5 @@ public record IntermediateQuery(
     // Omitted when null: `IntermediateQuery.requires_actor` is a `Vec<String>` with a
     // serde default, so an absent key and `[]` compile the same — and emitting `[]`
     // would put a declared-looking gate in the document that gates nothing.
-    [property: JsonPropertyName("requires_actor")]    IReadOnlyList<string>? RequiresActor = null);
+    [property: JsonPropertyName("requires_actor")]    IReadOnlyList<string>? RequiresActor = null,
+    [property: JsonPropertyName("pagination_order")]  string? PaginationOrder = null);

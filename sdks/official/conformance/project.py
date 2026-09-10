@@ -71,6 +71,35 @@ CRUD_INPUT_TYPES = ("CreateSupportTicketInput", "UpdateSupportTicketInput")
 CRUD_QUERIES = ("supportTicket", "supportTickets")
 CRUD_MUTATIONS = ("createSupportTicket", "updateSupportTicket", "deleteSupportTicket")
 
+# The `pagination_order` construct owns its three queries, the way `type_crud` owns
+# `SupportTicket` and `vector_fields` owns `Document` — one query per authored state,
+# because one query can demonstrate only one.
+#
+# The key is authorable per query (#1303) and decides the total order a `LIMIT`/`OFFSET`
+# page falls back to. Losing it does not empty a result or fail a compile: it produces a
+# *different total order over the same rows*, which reads as a working schema until
+# someone compares two pages. Before this construct existed the key reached the compiled
+# schema through every compile path with nothing holding an SDK to it, and exactly one
+# SDK carried it — `fraiseql-python`, and only because `@fraiseql.query(**config_kwargs)`
+# passes unknown keys through verbatim. That is coverage by accident (#1305).
+#
+# Owned rather than added to `AUTHORED_QUERIES` for the reason `type_crud` gives above:
+# `run.py` drops a declared gap construct whole, so an SDK declaring this gap inside
+# `AUTHORED_QUERIES` would also fail `queries` and `query_arguments` and read as "this
+# SDK's queries are broken" rather than "this SDK cannot express this one thing".
+#
+# Three states, and the third is not decoration. `pagedByColumn` and `pagedSelfOrdered`
+# between them catch a dropped override. `pagedDerived` catches the opposite defect — a
+# builder that *invents* a value where the author declared none, defaulting the field to
+# `""` or `"id"` — which only a query authoring nothing can see. `user` cannot stand in
+# for it: declaring `pagination_order` on a non-paginating query is a hard compile error,
+# and its absent key means "does not paginate", not "derived identity".
+#
+# `created_at` is deliberately two words. It is a SQL column name that must survive
+# verbatim, so an SDK that case-translates config *values* as well as keys emits
+# `createdAt` — and only an exact-value assertion over a multi-word value sees it (#1247).
+PAGINATION_QUERIES = ("pagedByColumn", "pagedSelfOrdered", "pagedDerived")
+
 # Every construct the canonical fixture exercises. An SDK must satisfy each one or
 # declare it unsupported in `manifest.json` with a reason.
 #
@@ -102,6 +131,7 @@ CONSTRUCTS = (
     "query_cache_ttl",
     "query_requires_role",
     "query_requires_actor",
+    "query_pagination_order",
     "mutations",
     "mutation_arguments",
     "mutation_invalidates_views",
@@ -390,6 +420,27 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         name: queries[name]["requires_actor"]
         for name in AUTHORED_QUERIES
         if queries.get(name, {}).get("requires_actor")
+    }
+
+    # #1305. Read as a **value**, never filtered on truthiness like the four query
+    # constructs above, because this key has three meaningful states and one of them is
+    # a non-empty string that means "the author declared nothing":
+    #
+    #   authored a column  → {"column": "created_at"}
+    #   authored "none"    → key absent, so `.get` yields None
+    #   authored nothing   → "json_identity", the identity the compiler derives
+    #
+    # `"json_identity"` is neither empty nor falsey, so a truthiness filter would show a
+    # present, non-empty value for a query whose override was dropped — the one defect
+    # this construct exists to see.
+    #
+    # An SDK that omits the queries entirely produces a short dict, which the per-construct
+    # diff shows as missing keys. So "did not author the query" and "authored it but
+    # dropped the value" are both visible, and distinguishable from each other.
+    observations["query_pagination_order"] = {
+        name: queries[name].get("pagination_order")
+        for name in PAGINATION_QUERIES
+        if name in queries
     }
 
     observations["mutations"] = {

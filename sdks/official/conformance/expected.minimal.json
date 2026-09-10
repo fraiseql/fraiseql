@@ -23,6 +23,7 @@
   },
   "query_cache_ttl": {},
   "query_inject_params": {},
+  "query_pagination_order": {},
   "query_requires_actor": {},
   "query_requires_role": {},
   "subscriptions": {},

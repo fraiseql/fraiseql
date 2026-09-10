@@ -146,6 +146,38 @@ func authorFull() error {
 		return err
 	}
 
+	// #1305: the three authored states of pagination_order, one query each, because one
+	// query can demonstrate only one. The key decides the total order a LIMIT/OFFSET page
+	// falls back to; losing it does not empty a result or fail a compile, it produces a
+	// different total order over the same rows.
+	if err := fraiseql.NewQuery("pagedByColumn").
+		ReturnType("User").ReturnsArray(true).Nullable(false).
+		SqlSource("v_user").
+		PaginationOrder("created_at").
+		Register(); err != nil {
+		return err
+	}
+
+	// "none" keeps a self-ordering view's own ORDER BY, and compiles to no key at all.
+	// The sharp case: an SDK that drops it emits the derived "json_identity" instead and
+	// the view's own ordering is silently replaced.
+	if err := fraiseql.NewQuery("pagedSelfOrdered").
+		ReturnType("User").ReturnsArray(true).Nullable(false).
+		SqlSource("v_user").
+		PaginationOrder("none").
+		Register(); err != nil {
+		return err
+	}
+
+	// Authors nothing, so the compiler derives "json_identity". This is the state that
+	// catches a builder inventing a value where the author declared none.
+	if err := fraiseql.NewQuery("pagedDerived").
+		ReturnType("User").ReturnsArray(true).Nullable(false).
+		SqlSource("v_user").
+		Register(); err != nil {
+		return err
+	}
+
 	if err := fraiseql.NewMutation("createUser").
 		ReturnType("User").Nullable(false).
 		SqlSource("fn_create_user").

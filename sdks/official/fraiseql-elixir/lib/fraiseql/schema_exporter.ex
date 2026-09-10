@@ -238,6 +238,7 @@ defmodule FraiseQL.SchemaExporter do
     |> maybe_put_inject_params(q.inject_params)
     |> maybe_put("requires_role", q.requires_role)
     |> maybe_put_list("requires_actor", q.requires_actor)
+    |> maybe_put("pagination_order", q.pagination_order)
     |> maybe_put_rest(q.rest_path, q.rest_method, "GET")
   end
 

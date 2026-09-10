@@ -73,6 +73,33 @@ Two spellings, and absence is the third:
 `"none"` is therefore not usable as a column name. A relation column actually
 called `none` must be ordered by inside the view.
 
+### Authoring it from an SDK
+
+`pagination_order` is a **conformance construct** (`query_pagination_order`), so every
+official SDK is held to it: the fixture authors all three states, the real compiler
+compiles the result, and the compiled value is compared. Before that it reached the
+compiled schema through every compile path with nothing holding an SDK to it, and exactly
+one SDK carried it — by passing unknown keys through verbatim (#1305).
+
+| SDK | spelling |
+|---|---|
+| Python | `@fraiseql.query(pagination_order="created_at")` |
+| TypeScript | `registerQuery(…, { paginationOrder: "created_at" })` |
+| Go | `.PaginationOrder("created_at")` |
+| PHP | `->paginationOrder('created_at')` |
+| Java | `.paginationOrder("created_at")` |
+| C# | `.PaginationOrder("created_at")` |
+| F# | `\|> QueryBuilder.paginationOrder "created_at"` |
+| Elixir | `fraiseql_query :invoices, pagination_order: "created_at"` |
+| Ruby | `schema.query :invoices, pagination_order: "created_at"` |
+| Dart | `schema.query('invoices', paginationOrder: 'created_at')` |
+| Rust | not authorable — the SDK is field-level-RBAC focused and ships no query builder at all, a gap declared in `conformance/manifest.json` |
+
+Omitting the call is the third state, and it is not the same as passing an empty string:
+an SDK that defaults the key to `""` or to a guessed column is overriding a decision the
+author deliberately left to the compiler. That is what the fixture's third query exists to
+catch.
+
 ### The opt-out, and when you need it
 
 A view may carry its own `ORDER BY` — and that is FraiseQL's own documented

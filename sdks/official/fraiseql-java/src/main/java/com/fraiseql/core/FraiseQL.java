@@ -194,6 +194,7 @@ public class FraiseQL {
         private List<String> additionalViews = null;
         private String restPath = null;
         private String restMethod = null;
+        private String paginationOrder = null;
 
         private QueryBuilder(String name) {
             this.name = name;
@@ -347,6 +348,27 @@ public class FraiseQL {
         }
 
         /**
+         * Name the column that orders this query's LIMIT/OFFSET pages (#1303).
+         *
+         * <p>Pass {@code "none"} to keep a self-ordering view's own ORDER BY. Omit the
+         * call entirely and the compiler derives the entity identity, which is what
+         * almost every query wants. Dropping a declared order does not empty a result or
+         * fail a compile — it produces a different total order over the same rows, which
+         * reads as a working schema until someone compares two pages.
+         *
+         * <p>The value is interpolated into ORDER BY and is validated by the compiler,
+         * which is also where "declared on a query that does not paginate" is refused:
+         * this builder cannot see the resolved auto_params that decide it.
+         *
+         * @param column the ordering column, or {@code "none"}
+         * @return this builder for chaining
+         */
+        public QueryBuilder paginationOrder(String column) {
+            this.paginationOrder = column;
+            return this;
+        }
+
+        /**
          * Inject server-side parameters derived from the JWT.
          * Map keys are parameter names; values are {@code "jwt:<claim>"} expressions.
          *
@@ -419,6 +441,9 @@ public class FraiseQL {
                 registry.registerQuery(name, finalReturnType, arguments, description, relay);
             }
             registry.setQueryMetadata(name, nullable, requiresRole, requiresActor);
+            if (paginationOrder != null) {
+                registry.setQueryPaginationOrder(name, paginationOrder);
+            }
         }
     }
 

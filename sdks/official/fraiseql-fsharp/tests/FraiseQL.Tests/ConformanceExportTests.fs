@@ -203,6 +203,35 @@ let private authorFull () =
     |> QueryBuilder.requiresActor [ ActorType.humanUser; ActorType.serviceAccount ]
     |> QueryBuilder.register
 
+    // #1305: the three authored states of pagination_order, one query each, because one
+    // query can demonstrate only one. The key decides the total order a LIMIT/OFFSET page
+    // falls back to; losing it does not empty a result or fail a compile, it produces a
+    // different total order over the same rows.
+    QueryBuilder.query "pagedByColumn"
+    |> QueryBuilder.returnType "User"
+    |> QueryBuilder.returnsList true
+    |> QueryBuilder.sqlSource "v_user"
+    |> QueryBuilder.paginationOrder "created_at"
+    |> QueryBuilder.register
+
+    // "none" keeps a self-ordering view's own ORDER BY, and compiles to no key at all. The
+    // sharp case: an SDK that drops it emits the derived "json_identity" instead and the
+    // view's own ordering is silently replaced.
+    QueryBuilder.query "pagedSelfOrdered"
+    |> QueryBuilder.returnType "User"
+    |> QueryBuilder.returnsList true
+    |> QueryBuilder.sqlSource "v_user"
+    |> QueryBuilder.paginationOrder "none"
+    |> QueryBuilder.register
+
+    // Authors nothing, so the compiler derives "json_identity". This is the state that
+    // catches a builder inventing a value where the author declared none.
+    QueryBuilder.query "pagedDerived"
+    |> QueryBuilder.returnType "User"
+    |> QueryBuilder.returnsList true
+    |> QueryBuilder.sqlSource "v_user"
+    |> QueryBuilder.register
+
     MutationBuilder.mutation "createUser"
     |> MutationBuilder.returnType "User"
     |> MutationBuilder.sqlSource "fn_create_user"
