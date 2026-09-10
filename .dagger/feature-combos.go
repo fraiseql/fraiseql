@@ -233,6 +233,35 @@ var featureCombos = []featureCombo{
 	// KinesisSink itself, its PutRecord-error classification and its aws-sdk-bound
 	// tests under -D warnings on MSRV.
 	{name: "cdc-kinesis", crate: "fraiseql-cdc-sinks", clippy: true, features: []string{"cdc-kinesis"}},
+
+	// ── observers: the narrow builds nothing else compiles (#1311) ────────────
+	// The crate had NO entry here at all, and every other leg builds it with
+	// `postgres` on: the test leg passes ten features including `postgres`,
+	// preflight is `--all-features`, and `integration (observers)` names `postgres`.
+	// So `default = ["postgres"]` being off — a configuration the crate declares by
+	// making `postgres` optional — was compiled by nothing, and three separate
+	// mis-gatings had accumulated behind that, each found by the combo below it.
+	//
+	// clippy `--all-targets` rather than `cargo check`: two of the three defects were
+	// in TEST targets (`check` alone never compiles them) and the third was an unused
+	// import, which is a warning rather than an error and needs `-D warnings` to bite.
+	// There is no pre-existing lint debt to take on — measured clean at all three.
+	//
+	// `observers-no-default` is the shape from the issue: `executor/tests.rs` called
+	// `ObserverExecutor::run_listener_loop` and imported `crate::listener`, both
+	// `#[cfg(feature = "postgres")]`, with no gate of its own.
+	{name: "observers-no-default", crate: "fraiseql-observers", noDefaultFeatures: true, clippy: true},
+	// `nats` without `postgres`. `tests/bridge_integration.rs` was gated on `nats`
+	// alone while every symbol it imports lives in `transport::bridge`, which is
+	// `cfg(all(postgres, nats))`. The combo above does not reach it — the file is
+	// cfg'd out entirely with `nats` off — so this is a second combo, not a wider one.
+	{name: "observers-nats-no-postgres", crate: "fraiseql-observers", noDefaultFeatures: true, clippy: true, features: []string{"nats"}},
+	// `dedup` without `caching`. `factory.rs` imported `RedisConfig` and
+	// `RedisDeduplicationStore` under `cfg(dedup)` while their only use,
+	// `build_dedup_store`, is `cfg(all(dedup, caching))` — so they were unused imports
+	// in exactly this one configuration. `enterprise` turns both on and hides it, which
+	// is why the bundle passes and the single feature did not.
+	{name: "observers-dedup-no-caching", crate: "fraiseql-observers", noDefaultFeatures: true, clippy: true, features: []string{"dedup"}},
 }
 
 // cargoArgs builds the `cargo check|clippy` invocation for this combo, mirroring the

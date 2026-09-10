@@ -1336,6 +1336,40 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`fraiseql-observers` compiles with `--no-default-features` again, and the feature
+  matrix now builds it narrowly so it stays that way (#1311).**
+
+  `cargo clippy -p fraiseql-observers --no-default-features --all-targets` failed to
+  compile: `executor/tests.rs`'s `test_run_listener_loop_zero_iterations` imported
+  `crate::listener` and called `ObserverExecutor::run_listener_loop`, both
+  `#[cfg(feature = "postgres")]`, with no gate of its own. `default = ["postgres"]`, so
+  it only bites where the default is off.
+
+  The reason it stood is that the crate had **no entry at all** in
+  `.dagger/feature-combos.go`, while every other leg builds it with `postgres` on: the
+  test leg names ten features including `postgres`, preflight is `--all-features`, and
+  `integration (observers)` names `postgres`. Three combos now build it narrowly —
+  `observers-no-default`, `observers-nats-no-postgres`, `observers-dedup-no-caching` —
+  under `clippy --all-targets -- -D warnings`, because two of the three defects below
+  live in test targets that `cargo check` never compiles and the third is a warning.
+
+  Adding them surfaced two more of the same shape, in configurations the crate declares
+  and nothing had ever built:
+
+  - `tests/bridge_integration.rs` was gated `#![cfg(feature = "nats")]`, while every
+    symbol it imports lives in `transport::bridge`, which is
+    `cfg(all(postgres, nats))`. Now gated on both.
+  - `factory.rs` imported `RedisConfig` and `RedisDeduplicationStore` under
+    `cfg(dedup)`, while their only use — `build_dedup_store` — is
+    `cfg(all(dedup, caching))`, so they were unused imports in a `dedup`-without-
+    `caching` build. The `enterprise` bundle turns both on, which is why the bundle
+    passed and the single feature did not.
+
+  Each of the three combos was proven red-capable by reverting its own fix and requiring
+  that combo to fail. All fifteen of the crate's features now build individually with
+  `--no-default-features`.
+
+
 - **#596's subscription-policy refusal now actually runs, and a schema declaring a name
   twice is refused at load (#1265).**
 

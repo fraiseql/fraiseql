@@ -306,6 +306,11 @@ fn test_exponential_backoff_cap() {
     );
 }
 
+// Gated to match what it calls: `crate::listener` and `ObserverExecutor::run_listener_loop`
+// are both `#[cfg(feature = "postgres")]`, and this test was not, so
+// `--no-default-features` failed to compile the lib test (#1311). `default = ["postgres"]`
+// is why nothing noticed for as long as it did.
+#[cfg(feature = "postgres")]
 #[tokio::test]
 async fn test_run_listener_loop_zero_iterations() {
     use sqlx::postgres::PgPool;

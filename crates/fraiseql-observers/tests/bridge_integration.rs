@@ -28,7 +28,12 @@
 
 #![allow(unused_imports)]
 #![allow(clippy::unwrap_used, clippy::print_stdout, clippy::print_stderr)] // Reason: integration test file
-#![cfg(feature = "nats")]
+// Both features, matching the subject: `transport::bridge` — and every one of
+// `PostgresNatsBridge`, `PostgresCheckpointStore`, `BridgeConfig`, `CheckpointStore`
+// this file imports — is `#[cfg(all(feature = "postgres", feature = "nats"))]`. Gated on
+// `nats` alone, this file failed to compile under `--no-default-features --features nats`,
+// a configuration the crate declares and no leg built (#1311).
+#![cfg(all(feature = "nats", feature = "postgres"))]
 
 use std::{sync::Arc, time::Duration};
 

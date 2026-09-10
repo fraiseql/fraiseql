@@ -46,9 +46,12 @@
 
 use std::sync::Arc;
 
-#[cfg(feature = "dedup")]
+// `all(dedup, caching)`, matching `build_dedup_store` below — their only use. Gated on
+// `dedup` alone they were unused imports in a `dedup`-without-`caching` build, which is a
+// configuration the crate declares and nothing compiled until #1311 added a combo for it.
+#[cfg(all(feature = "dedup", feature = "caching"))]
 use crate::config::RedisConfig;
-#[cfg(feature = "dedup")]
+#[cfg(all(feature = "dedup", feature = "caching"))]
 use crate::dedup::redis::RedisDeduplicationStore;
 #[cfg(feature = "dedup")]
 use crate::deduped_executor::DedupedObserverExecutor;
