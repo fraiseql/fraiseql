@@ -47,15 +47,44 @@ final class CacheKey
      */
     public static function forJsonSchema(JsonSchema $schema): string
     {
+        // Keyed on the document, not on counts of it. Counting was a collision by
+        // construction: two schemas of the same version with the same number of types
+        // hashed identically, so `SchemaCache::getJson()` returned another schema's JSON
+        // on a hit (#1264). Verified by the `testTwoSchemasOfEqualSizeDoNotShareAKey`
+        // case, which the previous implementation fails.
         $data = [
-            'version' => $schema->version,
+            'version' => self::VERSION,
             'type' => 'jsonschema',
-            'typeCount' => $schema->getTypeCount(),
-            'scalarCount' => count($schema->getScalarNames()),
-            'description' => $schema->description ?? '',
+            'document' => self::canonicalize($schema->toArray()),
         ];
 
         return self::hash($data);
+    }
+
+    /**
+     * Order-independent form of a decoded document.
+     *
+     * Object key order carries no meaning, so two documents differing only in it must key
+     * the same. Lists are left in place: their order is part of the document, and sorting
+     * a list of objects is not well defined anyway. The cost is that a reordered list keys
+     * as a different schema — a cache miss, which is the safe direction to be wrong in.
+     *
+     * @param array<array-key, mixed> $value
+     * @return array<array-key, mixed>
+     */
+    private static function canonicalize(array $value): array
+    {
+        foreach ($value as $key => $item) {
+            if (is_array($item)) {
+                $value[$key] = self::canonicalize($item);
+            }
+        }
+
+        if (!array_is_list($value)) {
+            ksort($value);
+        }
+
+        return $value;
     }
 
     /**

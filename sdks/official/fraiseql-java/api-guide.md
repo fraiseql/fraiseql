@@ -237,6 +237,12 @@ Map<String, SchemaRegistry.MutationInfo> allMutations =
 
 Validates schema correctness and completeness.
 
+**You call this; the SDK does not.** Nothing in the export path invokes `SchemaValidator` —
+`FraiseQL.exportSchema()` formats whatever is registered. It is an author-side pre-flight,
+for catching an undefined return type or an untyped field before you shell out to
+`fraiseql compile`, which remains the authority on whether a document is valid. Wire it
+into your build step yourself; see *Validation Before Export* below.
+
 ```java
 SchemaRegistry registry = SchemaRegistry.getInstance();
 
@@ -318,6 +324,17 @@ TypeConverter.TypeInfo typeInfo =
 ### SchemaCache
 
 High-performance caching for schema operations.
+
+**You call this; the SDK does not.** `TypeConverter` does not consult `SchemaCache` — it
+re-derives field information by reflection on every call. So the cache does nothing unless
+your own code reads it before calling `TypeConverter.extractFields()` and writes the result
+back, as the example below does. It is worth that wiring in a long-running process that
+converts the same classes repeatedly, and not worth it in a one-shot export.
+
+⚠ `getFieldCacheHits()` counts `putFieldCache()` calls, not reads that found something —
+unlike the other two counters, which record on the read. `getTotalHits()` therefore sums
+two read counts and one write count. Tracked as #1316; treat the field-cache number as an
+entry count until it is fixed.
 
 ```java
 SchemaCache cache = SchemaCache.getInstance();

@@ -31,20 +31,24 @@ final class OptimizationTest extends TestCase
     /**
      * A `JsonSchema` for the cache tests below.
      *
-     * These cases test `SchemaCache`, not the thing that produced its argument — they
-     * used to reach for `SchemaFormatter` only because it was the shortest way to obtain
-     * a `JsonSchema`. That class emitted a document `fraiseql compile` refuses and was
-     * removed (#1245); `JsonSchema` is a plain value type, so it is constructed here
-     * directly and the cases keep asserting exactly what they always did.
+     * These cases test `SchemaCache`, not the thing that produced its argument. The
+     * document is in the exporter's shape; `$discriminator` varies the *content* rather
+     * than a `description` key the format does not have, which is also what makes two
+     * fixtures here key differently (#1264).
      */
-    private static function jsonSchema(string $description = 'cache fixture'): JsonSchema
+    private static function jsonSchema(string $discriminator = 'cache fixture'): JsonSchema
     {
-        return new JsonSchema(
-            version: '2.0.0',
-            types: ['User' => ['name' => 'User', 'fields' => ['id' => ['type' => 'ID!']]]],
-            scalars: ['String' => 'String scalar type'],
-            description: $description,
-        );
+        return JsonSchema::fromArray([
+            'version' => '2.0.0',
+            'types' => [
+                [
+                    'name' => 'User',
+                    'fields' => [['name' => 'id', 'type' => 'ID', 'nullable' => false]],
+                    'sql_source' => 'v_user',
+                    'description' => $discriminator,
+                ],
+            ],
+        ]);
     }
 
     // ============ SchemaCache Tests ============

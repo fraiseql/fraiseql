@@ -161,15 +161,16 @@ final class AdvancedFeaturesTest extends TestCase
 
     public function testValidatorJsonSchema(): void
     {
-        // `SchemaFormatter` was the only producer of a `JsonSchema` and emitted a
-        // document `fraiseql compile` refuses, so it was removed (#1245). `JsonSchema` is
-        // a plain value type; this case is about `Validator`, so it builds one directly
-        // and asserts exactly what it always did.
-        $schema = new JsonSchema(
-            version: '2.0.0',
-            types: ['Test' => ['name' => 'Test', 'fields' => ['id' => ['type' => 'Int!']]]],
-            scalars: ['Int' => 'Int scalar type'],
-        );
+        // The fixture is in the exporter's shape — a list of types, each carrying its
+        // own `name`, and fields likewise. It used to be a map keyed by name, which is
+        // the document #1245 deleted the producer of, so this case passed while
+        // `validateJsonSchema` threw a TypeError on anything real (#1264).
+        $schema = JsonSchema::fromArray([
+            'version' => '2.0.0',
+            'types' => [
+                ['name' => 'Test', 'fields' => [['name' => 'id', 'type' => 'Int', 'nullable' => false]]],
+            ],
+        ]);
 
         $validator = new Validator();
         $result = $validator->validateJsonSchema($schema);
@@ -211,10 +212,10 @@ final class AdvancedFeaturesTest extends TestCase
         $validator = new Validator();
 
         // Valid versions
-        $schema1 = new JsonSchema('1.0', [], []);
+        $schema1 = JsonSchema::fromArray(['version' => '1.0', 'types' => []]);
         $this->assertTrue($validator->validateJsonSchema($schema1));
 
-        $schema2 = new JsonSchema('2.1.3', [], []);
+        $schema2 = JsonSchema::fromArray(['version' => '2.1.3', 'types' => []]);
         $this->assertTrue($validator->validateJsonSchema($schema2));
     }
 
@@ -317,11 +318,42 @@ final class AdvancedFeaturesTest extends TestCase
 
     public function testCacheKeyForJsonSchema(): void
     {
-        $schema = new JsonSchema('1.0', ['Test' => []], []);
+        $schema = JsonSchema::fromArray([
+            'version' => '2.0.0',
+            'types' => [['name' => 'Test', 'fields' => []]],
+        ]);
         $key = CacheKey::forJsonSchema($schema);
 
         $this->assertIsString($key);
         $this->assertStringStartsWith('fraiseql_', $key);
+        $this->assertSame($key, CacheKey::forJsonSchema($schema), 'keys must be deterministic');
+    }
+
+    public function testTwoSchemasOfEqualSizeDoNotShareAKey(): void
+    {
+        // `forJsonSchema` used to hash version + type count + scalar count + description,
+        // so ANY two schemas of the same version with the same number of types keyed
+        // identically. `SchemaCache::getJson()` keys on this, so a hit returned another
+        // schema's JSON (#1264). These two differ in every way that matters and in
+        // nothing the old implementation looked at.
+        $users = JsonSchema::fromArray([
+            'version' => '2.0.0',
+            'types' => [['name' => 'User', 'fields' => [['name' => 'id', 'type' => 'ID']]]],
+        ]);
+        $invoices = JsonSchema::fromArray([
+            'version' => '2.0.0',
+            'types' => [['name' => 'Invoice', 'fields' => [['name' => 'total', 'type' => 'Float']]]],
+        ]);
+
+        $this->assertNotSame(CacheKey::forJsonSchema($users), CacheKey::forJsonSchema($invoices));
+    }
+
+    public function testKeyIsIndependentOfObjectKeyOrder(): void
+    {
+        $a = JsonSchema::fromArray(['version' => '2.0.0', 'types' => [['name' => 'User', 'fields' => []]]]);
+        $b = JsonSchema::fromArray(['types' => [['fields' => [], 'name' => 'User']], 'version' => '2.0.0']);
+
+        $this->assertSame(CacheKey::forJsonSchema($a), CacheKey::forJsonSchema($b));
     }
 
     public function testCacheKeyForBuilder(): void
@@ -404,14 +436,14 @@ final class AdvancedFeaturesTest extends TestCase
         SchemaRegistry::getInstance()->register(ValidUserType::class);
         SchemaRegistry::getInstance()->register(ValidPostType::class);
 
-        $schema = new JsonSchema(
-            version: '2.0.0',
-            types: [
-                'ValidUser' => ['name' => 'ValidUser', 'fields' => ['id' => ['type' => 'ID!']]],
-                'ValidPost' => ['name' => 'ValidPost', 'fields' => ['id' => ['type' => 'ID!']]],
+        $schema = JsonSchema::fromArray([
+            'version' => '2.0.0',
+            'types' => [
+                ['name' => 'ValidUser', 'fields' => [['name' => 'id', 'type' => 'ID', 'nullable' => false]]],
+                ['name' => 'ValidPost', 'fields' => [['name' => 'id', 'type' => 'ID', 'nullable' => false]]],
             ],
-            scalars: ['String' => 'String scalar type'],
-        );
+            'queries' => [['name' => 'validUsers', 'return_type' => 'ValidUser']],
+        ]);
 
         $validator = new Validator();
         $result = $validator->validateJsonSchema($schema);

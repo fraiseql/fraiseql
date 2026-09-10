@@ -123,20 +123,19 @@ final class IntegrationTest extends TestCase
 
     public function testSchemaWithMetadata(): void
     {
-        // `JsonSchema` is a value type and stays; it simply has no producer in the SDK
-        // now that the formatter is gone. This case is about its metadata handling.
-        $schema = new JsonSchema(
-            version: '2.0.0',
-            types: ['Product' => ['name' => 'Product', 'fields' => []]],
-            scalars: ['Float' => 'Float scalar type'],
-            description: 'Product catalog',
-            metadata: ['author' => 'Test User', 'version' => '1.0.0'],
-        );
+        // This case used to assert that `JsonSchema` handled `description` and `metadata`
+        // keys. `IntermediateSchema` has neither, and denies unknown fields, so a document
+        // carrying them does not compile — the assertion was pinning a shape the compiler
+        // refuses. What replaces it is the property that makes the class safe to hand a
+        // real document: whatever comes in comes back out, key for key, including keys
+        // the class knows nothing about (#1264).
+        $document = SchemaExporter::toArray();
+        $document['security'] = ['rate_limiting' => ['enabled' => true]];
 
-        $array = $schema->toArray();
-        $this->assertArrayHasKey('metadata', $array);
-        $this->assertSame('Test User', $array['metadata']['author']);
-        $this->assertSame('1.0.0', $array['metadata']['version']);
+        $array = JsonSchema::fromArray($document)->toArray();
+
+        $this->assertSame($document, $array);
+        $this->assertSame(['rate_limiting' => ['enabled' => true]], $array['security']);
     }
 
     public function testSchemaExportAndReimport(): void

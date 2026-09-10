@@ -18,6 +18,54 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The PHP SDK's `JsonSchema` now models the document the SDK actually produces, and
+  carries it verbatim (#1264).** Its constructor is private; obtain one from
+  `JsonSchema::fromJson()`, `::fromArray()` or `::loadFromFile()`. The `scalars`,
+  `description` and `metadata` constructor parameters and `getScalarNames()` are gone.
+
+  `JsonSchema` modelled `SchemaFormatter`'s document — types as a map keyed by name, a
+  `scalars` map, `version` 1.0. #1245 deleted `SchemaFormatter` because `fraiseql compile`
+  refuses that document. Against the document `SchemaExporter` produces, measured:
+
+  | call | before | after |
+  |---|---|---|
+  | `getTypeNames()` | `[0, 1]` — list indices | `['User', 'Post']` |
+  | `getType('User')` | `null` | the type |
+  | `Validator::validateJsonSchema()` | throws `TypeError` | validates |
+  | `saveToFile()` then `fraiseql compile` | `unknown field 'scalars'`, exit 1 | exit 0 |
+
+  The round trip was the serious one: `toJson()` / `saveToFile()` emitted only `version`,
+  `types` and an invented empty `scalars`, **dropping `queries` and `mutations`
+  entirely**. `IntermediateSchema` declares `#[serde(deny_unknown_fields)]`, so the result
+  did not compile — and had `scalars` not been there to fail loudly, it would have
+  compiled as a schema with no queries and no mutations.
+
+  The whole `JsonSchemaTest` suite was green throughout, because every fixture in it was
+  hand-written in the map shape no producer emits. A suite that agrees with the code and
+  not with the producer measures nothing; the fixtures now come from `SchemaExporter`.
+
+  `JsonSchema` now holds the document as it arrived — `toArray()`, `toJson()` and
+  `saveToFile()` return the same keys, in the same order, including keys the class does
+  not model — and refuses a `types` / `queries` / `mutations` / `input_types` /
+  `subscriptions` value that is a map rather than a list, naming the pre-2.0.0 shape,
+  rather than carrying it to the compiler. `getQueryNames()` and `getMutationNames()` are
+  new.
+
+  **`CacheKey::forJsonSchema()` returns different values**, because it now keys on the
+  document rather than on its version, type count, scalar count and description. Two
+  schemas of the same version with the same number of types used to key **identically**,
+  so `SchemaCache::getJson()` returned another schema's JSON on a hit. Key order within a
+  JSON object does not affect the key; list order does.
+
+  `Validator::validateJsonSchema()` validates the real shape — a type carries a `name` and
+  a `fields` list, each field and each root query and mutation carries a `name` — instead
+  of throwing `TypeError` on the first type it reads.
+
+  The four classes are declared as author-side utilities, with a worked example that
+  starts where the input comes from, in the PHP SDK's README. `fraiseql-java` ships the
+  same no-consumer `SchemaValidator` / `SchemaCache` shape and is declared the same way in
+  its `api-guide.md`; no Java behaviour changed.
+
 - **FraiseQL now names pgvector's scan settings on every database connection —
   `hnsw.iterative_scan`, `ivfflat.iterative_scan` and (opt-in) `hnsw.ef_search` — and
   `PoolPrewarmConfig` gains a `vector_scan` field (#1116).**

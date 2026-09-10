@@ -113,54 +113,71 @@ final class Validator
     }
 
     /**
-     * Validate a JSON schema.
+     * Validate a schema document.
+     *
+     * Checks the shape `fraiseql compile` reads: an object type carries a `name` and a
+     * `fields` list, each field carries a `name`, and each root query and mutation
+     * carries a `name`. It is a cheap author-side pre-flight, not a second compiler —
+     * `fraiseql compile` remains the authority on whether a document is valid.
      *
      * @param JsonSchema $schema Schema to validate
-     * @return bool True if schema is valid
+     * @return bool True if validation passes (no errors)
      */
     public function validateJsonSchema(JsonSchema $schema): bool
     {
         $this->errors = [];
         $this->warnings = [];
 
-        // Validate version format
         if (!$this->isValidVersion($schema->version)) {
             $this->errors[] = "Invalid schema version: {$schema->version}";
             return false;
         }
 
-        // Validate types
-        if (empty($schema->getTypeNames())) {
+        $typeNames = $schema->getTypeNames();
+
+        if (empty($typeNames) && $schema->getTypeCount() > 0) {
+            $this->errors[] = 'Schema declares types with no name';
+            return false;
+        }
+
+        if (empty($typeNames)) {
             $this->warnings[] = 'Schema has no types';
         }
 
-        foreach ($schema->getTypeNames() as $typeName) {
-            $type = $schema->getType($typeName);
-
+        foreach ($typeNames as $typeName) {
             if (!$this->isValidTypeName($typeName)) {
                 $this->errors[] = "Invalid type name in schema: {$typeName}";
                 return false;
             }
+
+            $type = $schema->getType($typeName);
 
             if (!isset($type['fields']) || !is_array($type['fields'])) {
                 $this->errors[] = "Type {$typeName} missing fields array";
                 return false;
             }
 
-            // Validate field names
-            foreach (array_keys($type['fields']) as $fieldName) {
-                if (!$this->isValidFieldName($fieldName)) {
-                    $this->errors[] = "Invalid field name in type {$typeName}: {$fieldName}";
+            // Fields are a list of objects, each carrying its own `name` — the same
+            // shape as `types` one level up, and not a map keyed by field name.
+            foreach ($type['fields'] as $field) {
+                if (!is_array($field) || !isset($field['name']) || !is_string($field['name'])) {
+                    $this->errors[] = "Type {$typeName} has a field with no name";
+                    return false;
+                }
+
+                if (!$this->isValidFieldName($field['name'])) {
+                    $this->errors[] = "Invalid field name in type {$typeName}: {$field['name']}";
                     return false;
                 }
             }
         }
 
-        // Validate scalars
-        foreach ($schema->getScalarNames() as $scalarName) {
-            if (!$this->isValidTypeName($scalarName)) {
-                $this->errors[] = "Invalid scalar name: {$scalarName}";
-                return false;
+        foreach (['query' => $schema->getQueryNames(), 'mutation' => $schema->getMutationNames()] as $kind => $names) {
+            foreach ($names as $name) {
+                if (!$this->isValidFieldName($name)) {
+                    $this->errors[] = "Invalid {$kind} name in schema: {$name}";
+                    return false;
+                }
             }
         }
 
