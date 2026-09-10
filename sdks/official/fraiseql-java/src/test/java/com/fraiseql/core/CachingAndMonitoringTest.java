@@ -95,6 +95,43 @@ public class CachingAndMonitoringTest {
     }
 
     /**
+     * The field cache counts READS that found something, not writes.
+     *
+     * <p>#1316: `putFieldCache` called `recordFieldCacheHit()` and `getFieldCache`
+     * recorded nothing, so `getFieldCacheHits()` reported entries written. The suite did
+     * not notice because {@link #testCacheStats()} exercises the type-conversion and
+     * validation caches only — the two counters that were already correct — so the one
+     * broken counter was the one nothing touched.
+     *
+     * <p>Each assertion below fails against the old implementation: it reported 1 after
+     * the write, and stayed at 1 across every read.
+     */
+    @Test
+    public void testFieldCacheCountsReadsNotWrites() {
+        SchemaCache cache = SchemaCache.getInstance();
+        cache.clear();
+
+        var fields = TypeConverter.extractFields(TestType.class);
+
+        cache.putFieldCache(TestType.class, fields);
+        assertEquals(0, cache.getStats().getFieldCacheHits(),
+            "a write is not a hit — nothing has read the cache yet");
+
+        assertNotNull(cache.getFieldCache(TestType.class));
+        assertEquals(1, cache.getStats().getFieldCacheHits(),
+            "a read that found something is a hit");
+
+        assertNotNull(cache.getFieldCache(TestType.class));
+        assertEquals(2, cache.getStats().getFieldCacheHits(), "and so is the next one");
+
+        assertNull(cache.getFieldCache(String.class));
+        assertEquals(2, cache.getStats().getFieldCacheHits(),
+            "a read that found nothing is not a hit");
+
+        cache.clear();
+    }
+
+    /**
      * Test cache size info
      */
     @Test

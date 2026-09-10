@@ -15,6 +15,13 @@ import java.util.concurrent.ConcurrentHashMap;
 public class SchemaCache {
     private static final SchemaCache INSTANCE = new SchemaCache();
 
+    // Every counter records on the READ that found something, never on the write.
+    // `putFieldCache` used to call `recordFieldCacheHit()` while `getFieldCache` recorded
+    // nothing, so `getFieldCacheHits()` reported the number of entries written and
+    // `getTotalHits()` summed one write count with two read counts. A caller that
+    // populated the cache for N types and never read it was told it had N hits (#1316).
+
+
     private final Map<Class<?>, Map<String, TypeConverter.GraphQLFieldInfo>> fieldCache =
         new ConcurrentHashMap<>();
 
@@ -46,7 +53,11 @@ public class SchemaCache {
      * @return cached field map or null
      */
     public Map<String, TypeConverter.GraphQLFieldInfo> getFieldCache(Class<?> typeClass) {
-        return fieldCache.get(typeClass);
+        Map<String, TypeConverter.GraphQLFieldInfo> result = fieldCache.get(typeClass);
+        if (result != null) {
+            stats.recordFieldCacheHit();
+        }
+        return result;
     }
 
     /**
@@ -57,7 +68,6 @@ public class SchemaCache {
      */
     public void putFieldCache(Class<?> typeClass, Map<String, TypeConverter.GraphQLFieldInfo> fields) {
         fieldCache.put(typeClass, fields);
-        stats.recordFieldCacheHit();
     }
 
     /**
@@ -181,6 +191,10 @@ public class SchemaCache {
 
         /**
          * Get total cache hits.
+         *
+         * <p>The sum of the three counters below. All three count <em>reads that found
+         * something</em>; a miss is not counted at all, so this is a hit count and not a
+         * hit rate — there is no denominator here to divide by.
          *
          * @return total hits
          */

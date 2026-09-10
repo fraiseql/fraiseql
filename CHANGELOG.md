@@ -18,6 +18,32 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql-java`'s `SchemaCache.getFieldCacheHits()` now counts reads that found
+  something, not writes (#1316).** The number a caller reads changes for the same
+  program, which is why this is here rather than under `### Fixed`.
+
+  `putFieldCache()` called `recordFieldCacheHit()` and `getFieldCache()` recorded
+  nothing, while the two sibling counters (`getTypeConversion`, `getTypeValidation`)
+  both record on the read. So `getFieldCacheHits()` reported the number of entries
+  **written**, and `getTotalHits()` summed one write count with two read counts. A caller
+  that populated the cache for N types and never read it was told it had N hits.
+  Measured, before and after, on one `put` followed by two successful reads and one miss:
+
+  | | before | after |
+  |---|---|---|
+  | after 1 write, 0 reads | 1 | 0 |
+  | after 2 hits and 1 miss | 1 | 2 |
+
+  The suite did not catch it because `testCacheStats` exercises the type-conversion and
+  validation caches only — the two counters that were already correct — so the one broken
+  counter was the one nothing touched. `testFieldCacheCountsReadsNotWrites` now covers it,
+  and fails against the old implementation on its first assertion.
+
+  A miss is still not counted, on any of the three, so these are hit counts and not hit
+  rates — there is no denominator. That is now stated on `getTotalHits()` rather than left
+  to be inferred; adding miss counters would be new public surface and is left to a
+  decision rather than taken here.
+
 - **The PHP SDK's `JsonSchema` now models the document the SDK actually produces, and
   carries it verbatim (#1264).** Its constructor is private; obtain one from
   `JsonSchema::fromJson()`, `::fromArray()` or `::loadFromFile()`. The `scalars`,
