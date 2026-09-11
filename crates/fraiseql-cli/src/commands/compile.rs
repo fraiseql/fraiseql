@@ -1173,7 +1173,7 @@ fn warn_jsonb_preserve_mismatch(schema: &CompiledSchema) {
 /// # Errors
 ///
 /// Returns error if the pool cannot be created or the connection URL is invalid.
-fn build_postgres_introspector(
+pub(crate) fn build_postgres_introspector(
     db_url: &str,
 ) -> Result<fraiseql_core::db::postgres::PostgresIntrospector> {
     use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};

@@ -14,6 +14,34 @@ pub struct PostgresIntrospector {
     pool: Pool,
 }
 
+/// Split `schema.relation` into its parts; an unqualified name yields `None` for
+/// the schema, which the catalog queries resolve against the search path.
+fn split_relation(relation: &str) -> (Option<&str>, &str) {
+    relation
+        .find('.')
+        .map_or((None, relation), |dot| (Some(&relation[..dot]), &relation[dot + 1..]))
+}
+
+/// One index on a relation, with its key list in **declared order** (#1307).
+///
+/// Order is the whole point: an index on `(status, pk_invoice)` serves
+/// `ORDER BY status, pk_invoice` without a sort, while separate indexes on
+/// `status` and on `pk_invoice` leave an incremental sort on every page. The flat
+/// column set `get_indexed_columns` returns cannot tell those two apart — it
+/// reports `{pk_invoice, status}` for both, which is why #1307 could not be built
+/// on it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndexInfo {
+    /// The index's own relation name.
+    pub name:   String,
+    /// Whether the index is unique.
+    pub unique: bool,
+    /// Key definitions in declared order. A key is a bare column name (`status`)
+    /// or an expression as Postgres renders it (`(data ->> 'id'::text)`), so an
+    /// expression index is visible rather than silently dropped.
+    pub keys:   Vec<String>,
+}
+
 impl PostgresIntrospector {
     /// Create new PostgreSQL introspector from connection pool.
     #[must_use]
@@ -374,8 +402,112 @@ impl DatabaseIntrospector for PostgresIntrospector {
         Ok(row.get(0))
     }
 }
-
 impl PostgresIntrospector {
+    /// Every index on `relation`, keys in declared order (#1307).
+    ///
+    /// Keys come from `pg_get_indexdef(indexrelid, n, true)` rather than from
+    /// `pg_attribute`, because an expression key has no `attnum`: the JSONB
+    /// identity a page is tie-broken on (`data->>'id'`) is indexed as an
+    /// expression, and reading `indkey` alone would report that index as having
+    /// fewer keys than it has.
+    ///
+    /// Returns an empty vector for a view — a view carries no indexes, so a
+    /// caller holding a `sql_source` must resolve it with
+    /// [`resolve_base_relations`](Self::resolve_base_relations) first.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Database`] if the catalog query fails.
+    pub async fn get_index_definitions(&self, relation: &str) -> Result<Vec<IndexInfo>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        let (schema, name) = split_relation(relation);
+        let query = r"
+            SELECT i.relname                       AS index_name,
+                   ix.indisunique                  AS is_unique,
+                   array_agg(pg_get_indexdef(ix.indexrelid, k.ord::int, true)
+                             ORDER BY k.ord)       AS keys
+            FROM pg_index ix
+            JOIN pg_class i ON i.oid = ix.indexrelid
+            JOIN pg_class t ON t.oid = ix.indrelid
+            JOIN pg_namespace n ON n.oid = t.relnamespace
+            JOIN LATERAL generate_series(1, ix.indnkeyatts) AS k(ord) ON true
+            WHERE t.relname = $1
+              AND ($2::text IS NULL OR n.nspname = $2)
+              AND ($2::text IS NOT NULL OR n.nspname = ANY(current_schemas(false)))
+            GROUP BY i.relname, ix.indisunique
+            ORDER BY i.relname
+        ";
+
+        let rows: Vec<Row> =
+            client
+                .query(query, &[&name, &schema])
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("Failed to query index definitions: {}", pg_detail(&e)),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| IndexInfo {
+                name:   row.get(0),
+                unique: row.get(1),
+                keys:   row.get::<_, Vec<String>>(2),
+            })
+            .collect())
+    }
+
+    /// The tables and materialized views a view reads from (#1307).
+    ///
+    /// A query binds to `v_invoice`, and `v_invoice` has no indexes — the indexes
+    /// that decide whether a page needs a sort live on `tb_invoice`. Resolved
+    /// through `pg_rewrite`/`pg_depend` rather than by assuming a `v_`/`tb_`
+    /// naming convention, which is a project convention and not a guarantee about
+    /// any particular database.
+    ///
+    /// Returns every base relation the view depends on. More than one means the
+    /// view is a join, and a caller cannot attribute an ordering to a single
+    /// table without reading the view body.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Database`] if the catalog query fails.
+    pub async fn resolve_base_relations(&self, view: &str) -> Result<Vec<String>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+
+        let (schema, name) = split_relation(view);
+        let query = r"
+            SELECT DISTINCT base.relname
+            FROM pg_class v
+            JOIN pg_namespace vn ON vn.oid = v.relnamespace
+            JOIN pg_rewrite r ON r.ev_class = v.oid
+            JOIN pg_depend d ON d.objid = r.oid
+            JOIN pg_class base ON base.oid = d.refobjid
+            WHERE v.relname = $1
+              AND ($2::text IS NULL OR vn.nspname = $2)
+              AND ($2::text IS NOT NULL OR vn.nspname = ANY(current_schemas(false)))
+              AND base.relkind IN ('r', 'm', 'p')
+              AND base.oid <> v.oid
+            ORDER BY base.relname
+        ";
+
+        let rows: Vec<Row> =
+            client
+                .query(query, &[&name, &schema])
+                .await
+                .map_err(|e| FraiseQLError::Database {
+                    message:   format!("Failed to resolve view base relations: {}", pg_detail(&e)),
+                    sql_state: e.code().map(|c| c.code().to_string()),
+                })?;
+
+        Ok(rows.into_iter().map(|row| row.get(0)).collect())
+    }
+
     /// Get indexed columns for a view/table that match the nested path naming convention.
     ///
     /// This method introspects the database to find columns that follow the FraiseQL

@@ -18,6 +18,7 @@ pub mod init;
 pub mod introspect_facts;
 pub mod lint;
 pub mod migrate;
+pub mod pagination_index_advice;
 pub mod perf;
 pub mod query;
 #[cfg(feature = "run-server")]

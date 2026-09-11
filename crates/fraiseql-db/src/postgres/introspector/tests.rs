@@ -82,6 +82,119 @@ mod integration_tests {
         assert!(column_names.contains(&"customer_id".to_string()));
     }
 
+    // ── Index definitions and view resolution (#1307) ────────────────────────
+    //
+    // These seed their own relations rather than reading a fixture another suite
+    // prepared: the property under test is about *which index a column sits in*,
+    // which a shared fixture could satisfy by accident and which a later edit to
+    // that fixture could silently remove.
+
+    /// Run DDL on the test database. Its own connection: the introspector holds a
+    /// read-only view of the catalog and its pool is private.
+    async fn exec(sql: &str) {
+        let (client, connection) =
+            tokio_postgres::connect(&test_db_url(), NoTls).await.expect("connect for DDL");
+        tokio::spawn(async move {
+            let _ = connection.await;
+        });
+        client.batch_execute(sql).await.expect("DDL");
+    }
+
+    #[tokio::test]
+    async fn index_definitions_distinguish_a_composite_from_separate_indexes() {
+        let introspector = create_test_introspector().await;
+        exec(
+            "DROP TABLE IF EXISTS tb_idxdef_1307 CASCADE;
+             CREATE TABLE tb_idxdef_1307 (pk integer PRIMARY KEY, status text, data jsonb);
+             CREATE INDEX ix_1307_status ON tb_idxdef_1307 (status);
+             CREATE INDEX ix_1307_pair ON tb_idxdef_1307 (status, pk);",
+        )
+        .await;
+
+        let indexes = introspector
+            .get_index_definitions("tb_idxdef_1307")
+            .await
+            .expect("index definitions");
+
+        let single = indexes.iter().find(|i| i.name == "ix_1307_status").expect("single");
+        let pair = indexes.iter().find(|i| i.name == "ix_1307_pair").expect("pair");
+
+        // The distinction `get_indexed_columns` cannot make: it returns
+        // {data?, pk, status} for this table either way.
+        assert_eq!(single.keys, vec!["status".to_string()]);
+        assert_eq!(pair.keys, vec!["status".to_string(), "pk".to_string()]);
+
+        let pkey = indexes.iter().find(|i| i.unique).expect("the primary key is unique");
+        assert_eq!(pkey.keys, vec!["pk".to_string()]);
+
+        exec("DROP TABLE tb_idxdef_1307 CASCADE;").await;
+    }
+
+    /// An expression key has no `attnum`, so reading `indkey` alone would report
+    /// this index as having one key instead of two.
+    #[tokio::test]
+    async fn index_definitions_include_expression_keys() {
+        let introspector = create_test_introspector().await;
+        exec(
+            "DROP TABLE IF EXISTS tb_idxexpr_1307 CASCADE;
+             CREATE TABLE tb_idxexpr_1307 (pk integer PRIMARY KEY, status text, data jsonb);
+             CREATE INDEX ix_1307_expr ON tb_idxexpr_1307 (status, ((data ->> 'id')));",
+        )
+        .await;
+
+        let indexes = introspector
+            .get_index_definitions("tb_idxexpr_1307")
+            .await
+            .expect("index definitions");
+        let expr = indexes.iter().find(|i| i.name == "ix_1307_expr").expect("expression index");
+
+        assert_eq!(expr.keys.len(), 2, "both keys are visible: {:?}", expr.keys);
+        assert_eq!(expr.keys[0], "status");
+        assert!(
+            expr.keys[1].contains("->>"),
+            "the expression key is rendered, not dropped: {:?}",
+            expr.keys
+        );
+
+        exec("DROP TABLE tb_idxexpr_1307 CASCADE;").await;
+    }
+
+    #[tokio::test]
+    async fn a_view_resolves_to_the_table_that_carries_its_indexes() {
+        let introspector = create_test_introspector().await;
+        exec(
+            "DROP VIEW IF EXISTS v_idxbase_1307;
+             DROP TABLE IF EXISTS tb_idxbase_1307 CASCADE;
+             CREATE TABLE tb_idxbase_1307 (pk integer PRIMARY KEY, status text);
+             CREATE VIEW v_idxbase_1307 AS SELECT pk, status FROM tb_idxbase_1307;",
+        )
+        .await;
+
+        // The premise: the view itself has none.
+        assert!(
+            introspector
+                .get_index_definitions("v_idxbase_1307")
+                .await
+                .expect("view")
+                .is_empty(),
+            "a view carries no indexes, which is why resolution is needed"
+        );
+        assert_eq!(
+            introspector.resolve_base_relations("v_idxbase_1307").await.expect("resolve"),
+            vec!["tb_idxbase_1307".to_string()]
+        );
+        // A table is not a view and depends on nothing.
+        assert!(
+            introspector
+                .resolve_base_relations("tb_idxbase_1307")
+                .await
+                .expect("table")
+                .is_empty()
+        );
+
+        exec("DROP VIEW v_idxbase_1307; DROP TABLE tb_idxbase_1307 CASCADE;").await;
+    }
+
     #[tokio::test]
     async fn test_get_indexed_columns_tf_sales() {
         let introspector = create_test_introspector().await;

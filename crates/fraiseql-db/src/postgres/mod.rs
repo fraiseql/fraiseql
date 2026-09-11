@@ -11,7 +11,7 @@ pub use adapter::{
     HnswIterativeScan, IvfflatIterativeScan, PoolPrewarmConfig, PostgresAdapter, ReadReplicaConfig,
     ReadReplicaPolicy, SearchPath, VectorScanConfig,
 };
-pub use introspector::PostgresIntrospector;
+pub use introspector::{IndexInfo, PostgresIntrospector};
 pub use tls::{PostgresConnector, PostgresSslMode, PostgresTlsConfig};
 pub use where_generator::{IndexedColumnsCache, PostgresWhereGenerator};
 

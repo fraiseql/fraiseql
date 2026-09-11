@@ -16,6 +16,32 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Added
+
+- **`doctor --against-db` now reports the index that would remove a sort from every
+  paginated read (#1307).** Since #1287 a client sort over a non-unique key is
+  tie-broken by the entity identity; where the sort key is indexed and the tie-break
+  does not follow it, the plan degrades to an incremental sort. Measured on 200 000
+  rows, `ORDER BY status, pk_invoice`: separate indexes on `status` and `pk_invoice`
+  give `Incremental Sort`, the composite `(status, pk_invoice)` gives `Index Scan`.
+
+  Two findings, both warnings — the query is correct either way and `doctor` exits
+  non-zero only on a failed check. A `pagination_order` column that leads no index at
+  all is reported separately from a sortable column whose index omits it; the first is
+  the larger cost. Each carries the `CREATE INDEX` statement, verified end to end:
+  applying exactly what is printed removes the sort, and the index reads back through
+  the catalog in a form the next run recognises, so the advice does not repeat itself.
+
+  Indexes are read from the view's base relation, resolved through `pg_rewrite`
+  rather than from a `v_`/`tb_` naming convention — a view carries no indexes of its
+  own. A view over several relations is reported as unattributable rather than
+  guessed at. New on `PostgresIntrospector`: `get_index_definitions` (keys in
+  declared order, expression keys included via `pg_get_indexdef`, which `indkey`
+  alone cannot express) and `resolve_base_relations`. The pre-existing
+  `get_indexed_columns` could not support this — it returns a flat `DISTINCT` set and
+  reports `{pk_invoice, status}` both for one composite index and for two separate
+  single-column ones.
+
 ### Breaking
 
 - **A compiled schema is now refused by any fraiseql build that did not produce it

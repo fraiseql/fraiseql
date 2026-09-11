@@ -702,6 +702,7 @@ pub async fn run_with_db_checks(
         checks.extend(mutation_contract_checks(url, schema).await);
         checks.extend(view_drift_checks(url, schema).await);
         checks.extend(rls_security_invoker_checks(url, schema).await);
+        checks.extend(pagination_index_checks(url, schema).await);
     }
 
     // Runtime smoke (#501): actually execute each probeable root operation. Prefers
@@ -717,6 +718,138 @@ pub async fn run_with_db_checks(
     }
 
     checks.iter().all(|c| c.status != CheckStatus::Fail)
+}
+
+// ─── Pagination index advice (#1307) ────────────────────────────────────────────
+
+const PAGINATION_INDEX_NAME: &str = "Pagination index";
+
+/// Report the indexes that would remove a sort from every paginated read.
+///
+/// Since #1287 a client sort over a non-unique key is tie-broken by the entity
+/// identity, and where the sort key is indexed without the tie-break the plan
+/// degrades to an incremental sort. The author is the only one who can create the
+/// index, and nothing told them. Measured on 200k rows, `ORDER BY status, pk`:
+/// separate indexes give `Incremental Sort`, the composite gives `Index Scan`.
+///
+/// Warnings, never failures: the query is correct either way, and `doctor` exits
+/// non-zero only on a failed check — performance advice must not break a pipeline.
+///
+/// Indexes are read from the view's **base** relation, resolved through
+/// `pg_rewrite`: a view carries no indexes of its own, so introspecting the
+/// `sql_source` directly could only ever report "no index".
+async fn pagination_index_checks(db_url: &str, schema_path: &Path) -> Vec<DoctorCheck> {
+    use crate::commands::pagination_index_advice::{Advice, advise};
+
+    let schema = match std::fs::read_to_string(schema_path)
+        .map_err(|e| format!("cannot read schema: {e}"))
+        .and_then(|c| {
+            serde_json::from_str::<CompiledSchema>(&c)
+                .map_err(|e| format!("schema parse error: {e}"))
+        }) {
+        Ok(s) => s,
+        Err(detail) => {
+            return vec![DoctorCheck::warn(
+                PAGINATION_INDEX_NAME,
+                format!("skipped — {detail}"),
+                "Run `fraiseql compile` to produce a valid schema.compiled.json",
+            )];
+        },
+    };
+
+    let introspector = match crate::commands::compile::build_postgres_introspector(db_url) {
+        Ok(i) => i,
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                PAGINATION_INDEX_NAME,
+                format!("cannot connect: {e}"),
+                "Pass a reachable postgres:// URL to --against-db",
+            )];
+        },
+    };
+
+    let mut checks = Vec::new();
+    let mut examined = 0_usize;
+
+    for query in &schema.queries {
+        let (Some(view), true) = (query.sql_source.as_deref(), query.pagination_order.is_some())
+        else {
+            continue;
+        };
+
+        let bases = match introspector.resolve_base_relations(view).await {
+            Ok(b) => b,
+            Err(e) => {
+                checks.push(DoctorCheck::warn(
+                    PAGINATION_INDEX_NAME,
+                    format!("{}: could not resolve '{view}' — {e}", query.name),
+                    "Check that the view exists and the role can read the catalog",
+                ));
+                continue;
+            },
+        };
+
+        // A join has no single relation to index, and guessing one would produce a
+        // `CREATE INDEX` against a table that may not carry the sort key at all.
+        let [base] = bases.as_slice() else {
+            if bases.len() > 1 {
+                checks.push(DoctorCheck::warn(
+                    PAGINATION_INDEX_NAME,
+                    format!(
+                        "{}: '{view}' reads {} relations — cannot attribute the page order to one",
+                        query.name,
+                        bases.len()
+                    ),
+                    "Index the relation the ORDER BY resolves against, by hand",
+                ));
+            }
+            continue;
+        };
+
+        let indexes = match introspector.get_index_definitions(base).await {
+            Ok(i) => i,
+            Err(e) => {
+                checks.push(DoctorCheck::warn(
+                    PAGINATION_INDEX_NAME,
+                    format!("{}: could not read indexes on '{base}' — {e}", query.name),
+                    "Check that the role can read the catalog",
+                ));
+                continue;
+            },
+        };
+
+        examined += 1;
+        for found in advise(query, base, &indexes) {
+            let detail = match &found.advice {
+                Advice::TieBreakUnindexed { tie_break } => format!(
+                    "{}: nothing on '{base}' leads with {tie_break}, so every page sorts the whole relation",
+                    query.name
+                ),
+                Advice::MissingComposite {
+                    sort_keys,
+                    tie_break,
+                } => format!(
+                    "{}: {} indexed on '{base}' without {tie_break} following — an incremental sort per page",
+                    query.name,
+                    sort_keys.join(", ")
+                ),
+            };
+            checks.push(DoctorCheck::warn(PAGINATION_INDEX_NAME, detail, found.ddl.join(" ")));
+        }
+    }
+
+    if checks.is_empty() {
+        let subject = if examined == 1 {
+            "query is"
+        } else {
+            "queries are"
+        };
+        checks.push(DoctorCheck::pass(
+            PAGINATION_INDEX_NAME,
+            format!("{examined} paginated {subject} ordered by an index"),
+        ));
+    }
+    checks
 }
 
 // ─── Runtime smoke (#501) ───────────────────────────────────────────────────────

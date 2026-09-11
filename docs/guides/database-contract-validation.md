@@ -73,6 +73,40 @@ extension. When it is **not installed** (the common case on managed Postgres),
 the pass is **skipped with a warning** and an install hint rather than failing —
 so `doctor` stays usable everywhere. `--schemas` defaults to `public`.
 
+## `doctor --against-db` — the index a page is ordered by (#1307)
+
+The same run reports the indexes that would remove a sort from every paginated
+read. Since #1287 a client sort over a non-unique key is tie-broken by the entity
+identity, which is what makes a page a slice of a sequence; the order is correct
+either way, but what it costs depends on indexes only the schema author can create.
+Measured on 200 000 rows, `ORDER BY status, pk_invoice`:
+
+| indexes on the base table | plan |
+|---|---|
+| `(status)` and `(pk_invoice)` separately | `Incremental Sort`, presorted key `status` |
+| `(status, pk_invoice)` | `Index Scan`, no sort |
+
+Two findings, both warnings — the query is correct, so this never fails a run:
+
+```
+[!] Pagination index   invoices: status indexed on 'tb_invoice' without pk_invoice
+                       following — an incremental sort per page
+     → CREATE INDEX ON tb_invoice (status, pk_invoice);
+
+[!] Pagination index   invoices: nothing on 'tb_invoice' leads with pk_invoice, so
+                       every page sorts the whole relation
+     → CREATE INDEX ON tb_invoice (pk_invoice);
+```
+
+The second is the larger cost and the more common case. Apply the statement and the
+check goes quiet on the next run.
+
+Indexes are read from the view's **base** relation, resolved through `pg_rewrite`
+rather than from a `v_`/`tb_` naming convention — a view carries no indexes of its
+own, so introspecting the `sql_source` directly could only ever report "no index".
+A view that reads more than one relation is reported as such rather than guessed at:
+there is no single table to index without reading the view body.
+
 ## Suggested CI usage
 
 ```bash
