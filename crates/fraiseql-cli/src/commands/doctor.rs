@@ -135,36 +135,58 @@ pub fn check_schema_parses(path: &Path) -> DoctorCheck {
     }
 }
 
-/// Check the schema format version field.
+/// Check that the compiled schema was produced by *this* build (#1304).
+///
+/// Since #1304 the server refuses any compiled schema its own build did not
+/// produce, so this answers the question an operator actually has — would this
+/// file boot here? — and a schema that cannot boot is reported as an error, not
+/// as advice: `doctor` exits 1 on a failed check and 0 on a warning.
+///
+/// It read a top-level `version` key until #1320, and nothing has ever written
+/// one — the compiled field was `schema_format_version` and is now
+/// `fraiseql_version`. So every schema reported "no version field (older
+/// schema)" and the remedy named the command that had just produced the file.
+/// The three arms were pinned against a hand-written `{"version":1}` fixture no
+/// compiler emits, which is how the suite stayed green over a check that never
+/// once read a real artifact; the tests now serialize a `CompiledSchema`.
 pub fn check_schema_version(path: &Path) -> DoctorCheck {
+    const LABEL: &str = "Compiled schema build";
+
     let Ok(content) = std::fs::read_to_string(path) else {
         return DoctorCheck::warn(
-            "Schema format version",
+            LABEL,
             "could not read schema file",
             "Ensure schema.compiled.json is readable",
         );
     };
     let Ok(schema) = serde_json::from_str::<serde_json::Value>(&content) else {
         return DoctorCheck::warn(
-            "Schema format version",
-            "schema is not valid JSON — version check skipped",
+            LABEL,
+            "schema is not valid JSON — build check skipped",
             "Run `fraiseql compile` to regenerate",
         );
     };
 
-    match schema.get("version").and_then(serde_json::Value::as_u64) {
-        None => DoctorCheck::warn(
-            "Schema format version",
-            "no version field (older schema)",
-            "Run `fraiseql compile fraiseql.toml` to get a versioned schema",
-        ),
-        Some(v) if v == 1 => {
-            DoctorCheck::pass("Schema format version", format!("version={v} (current)"))
+    let current = fraiseql_core::schema::CURRENT_FRAISEQL_VERSION;
+    let recompile = format!("Recompile it with fraiseql-cli {current}");
+
+    match schema.get("fraiseql_version").and_then(serde_json::Value::as_str) {
+        Some(v) if v == current => {
+            DoctorCheck::pass(LABEL, format!("fraiseql_version={v} (this build)"))
         },
-        Some(v) => DoctorCheck::warn(
-            "Schema format version",
-            format!("version={v} (expected 1)"),
-            "Run `fraiseql compile fraiseql.toml` to recompile with the current compiler",
+        Some(v) => DoctorCheck::fail(
+            LABEL,
+            format!(
+                "produced by fraiseql {v}, but this is fraiseql {current} — the server refuses it"
+            ),
+            recompile,
+        ),
+        None => DoctorCheck::fail(
+            LABEL,
+            format!(
+                "no fraiseql_version stamp — the server refuses it (this is fraiseql {current})"
+            ),
+            recompile,
         ),
     }
 }

@@ -1327,26 +1327,59 @@ mod doctor_tests {
         assert!(result.hint.is_some());
     }
 
+    /// The artifact the compiler actually writes, serialized from the type the
+    /// compiler serializes — not a hand-written shape.
+    ///
+    /// #1320: the three arms below were pinned against `{"version":1}`, a key no
+    /// compiler has ever emitted, so they agreed with each other while the check
+    /// reported "older schema" on every real artifact this project produces.
+    fn compiled_artifact_json() -> String {
+        serde_json::to_string(&fraiseql_core::schema::CompiledSchema::default())
+            .expect("a compiled schema serializes")
+    }
+
     #[test]
-    fn test_schema_version_missing() {
+    fn test_schema_version_this_build_passes() {
+        let f = temp_file_with(&compiled_artifact_json());
+        let result = check_schema_version(f.path());
+        assert_eq!(
+            result.status,
+            CheckStatus::Pass,
+            "a schema this build compiled must not be reported as a problem: {result:?}"
+        );
+        assert!(
+            result.detail.contains(fraiseql_core::schema::CURRENT_FRAISEQL_VERSION),
+            "the detail names the build: {}",
+            result.detail
+        );
+    }
+
+    /// No stamp: the pre-2.15.0 shape. The server refuses it, so this is an error
+    /// rather than a warning — `doctor` exits 1 on Fail and 0 on Warn, and a schema
+    /// that cannot boot is not advice.
+    #[test]
+    fn test_schema_version_unstamped_fails() {
         let f = temp_file_with(r#"{"types":[]}"#);
         let result = check_schema_version(f.path());
-        assert_eq!(result.status, CheckStatus::Warn);
+        assert_eq!(result.status, CheckStatus::Fail);
+        assert!(result.hint.is_some());
     }
 
     #[test]
-    fn test_schema_version_current() {
-        let f = temp_file_with(r#"{"version":1,"types":[]}"#);
+    fn test_schema_version_other_build_fails() {
+        let f = temp_file_with(r#"{"fraiseql_version":"2.14.0","types":[]}"#);
         let result = check_schema_version(f.path());
-        assert_eq!(result.status, CheckStatus::Pass);
-        assert!(result.detail.contains("version=1"));
-    }
-
-    #[test]
-    fn test_schema_version_mismatch() {
-        let f = temp_file_with(r#"{"version":99,"types":[]}"#);
-        let result = check_schema_version(f.path());
-        assert_eq!(result.status, CheckStatus::Warn);
+        assert_eq!(result.status, CheckStatus::Fail);
+        assert!(
+            result.detail.contains("2.14.0"),
+            "the detail names the producing build: {}",
+            result.detail
+        );
+        assert!(
+            result.detail.contains(fraiseql_core::schema::CURRENT_FRAISEQL_VERSION),
+            "and this one: {}",
+            result.detail
+        );
     }
 
     #[test]
