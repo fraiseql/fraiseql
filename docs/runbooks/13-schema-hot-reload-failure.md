@@ -95,8 +95,9 @@ ls -la /etc/fraiseql/schema.compiled.json
 # Validate JSON syntax
 jq . /etc/fraiseql/schema.compiled.json > /dev/null && echo "JSON valid" || echo "JSON invalid"
 
-# Check schema format version
-jq '.schema_format_version' /etc/fraiseql/schema.compiled.json
+# Check which fraiseql build compiled it — must equal the running server's version,
+# or the reload is refused (ADR-0020)
+jq '.fraiseql_version' /etc/fraiseql/schema.compiled.json
 
 # Count types, queries, mutations
 jq '{types: (.types | length), queries: (.queries | length), mutations: (.mutations | length)}' \

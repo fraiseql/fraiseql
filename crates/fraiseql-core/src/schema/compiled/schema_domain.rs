@@ -7,7 +7,7 @@
 use std::collections::HashMap;
 use std::fmt::Write as _;
 
-use super::schema::{CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema};
+use super::schema::{CURRENT_FRAISEQL_VERSION, CompiledSchema};
 use crate::{
     compiler::fact_table::FactTableMetadata,
     schema::{
@@ -17,26 +17,40 @@ use crate::{
 };
 
 impl CompiledSchema {
-    /// Verify that the compiled schema was produced by a compatible compiler version.
+    /// Refuse a compiled schema this build did not produce (#1304).
     ///
-    /// Schemas without a `schema_format_version` field (produced before v2.1) are
-    /// accepted with a warning. Schemas with a mismatched version are rejected to
-    /// prevent silent data corruption from structural changes.
+    /// The compiled schema is a build artifact of the fraiseql release that
+    /// wrote it, so the only artifact whose meaning this runtime can vouch for
+    /// is its own build's. The check is an equality, deliberately: a runtime
+    /// that decided whether another build's artifact were close enough would be
+    /// making the judgement #1303 got wrong, silently, on the operator's behalf.
+    ///
+    /// An artifact carrying no stamp is refused too. It is the *older* case —
+    /// nothing this project has shipped since v2.1 omits the field — and
+    /// accepting it, as the format-version check it replaces did, left the
+    /// guard admitting the stalest artifacts while refusing merely-stale ones.
     ///
     /// # Errors
     ///
-    /// Returns an error string if the version is present and incompatible.
-    pub fn validate_format_version(&self) -> Result<(), String> {
-        match self.schema_format_version {
-            None => {
-                // Pre-versioning schema — accept but callers may want to warn.
-                Ok(())
-            },
-            Some(v) if v == CURRENT_SCHEMA_FORMAT_VERSION => Ok(()),
+    /// Returns an operator-facing message naming both builds and the recompile,
+    /// unless the artifact was produced by this one.
+    pub fn validate_producer_version(&self) -> Result<(), String> {
+        match self.fraiseql_version.get() {
+            Some(v) if v == CURRENT_FRAISEQL_VERSION => Ok(()),
             Some(v) => Err(format!(
-                "Schema format version mismatch: compiled schema has version {v}, \
-                 but this runtime expects version {CURRENT_SCHEMA_FORMAT_VERSION}. \
-                 Please recompile your schema with the matching fraiseql-cli version."
+                "Compiled schema was produced by fraiseql {v}, but this runtime is fraiseql \
+                 {CURRENT_FRAISEQL_VERSION}. A compiled schema is a build artifact of the \
+                 release that produced it: this runtime reads fields {v} never wrote, and \
+                 reads their absence as a setting rather than as a gap. Recompile the schema \
+                 with fraiseql-cli {CURRENT_FRAISEQL_VERSION}."
+            )),
+            None => Err(format!(
+                "Compiled schema carries no `fraiseql_version` stamp, so the build that \
+                 produced it cannot be established; this runtime is fraiseql \
+                 {CURRENT_FRAISEQL_VERSION}. The stamp was introduced in fraiseql 2.15.0, so \
+                 an unstamped artifact was written by an earlier release or by hand — either \
+                 way this runtime cannot vouch for what its fields, and its missing fields, \
+                 mean here. Recompile it with fraiseql-cli {CURRENT_FRAISEQL_VERSION}."
             )),
         }
     }

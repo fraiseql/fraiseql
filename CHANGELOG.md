@@ -18,6 +18,55 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A compiled schema is now refused by any fraiseql build that did not produce it
+  (#1304).** `fraiseql compile` stamps its own version into `schema.compiled.json` as
+  `fraiseql_version`, and the server compares that stamp against its own build at boot, on
+  every hot reload, and for every tenant executor. Anything else is a fatal refusal naming
+  both versions and the recompile. **Every fraiseql upgrade now requires recompiling the
+  schema, patch releases included** — a pipeline that carries `schema.compiled.json` across
+  an upgrade will not boot.
+
+  The replaced mechanism was an integer `schema_format_version`, compared against a
+  `CURRENT_SCHEMA_FORMAT_VERSION` constant that was `1` and had never moved, with nothing
+  written down about what would move it. It had two holes, both measured:
+
+  1. **An absent field is a value, not a gap.** #1303 added `pagination_order`, and the
+     runtime reads its absence as *the author declared no page order* — a real, supported
+     declaration. A 2.14 artifact has no `pagination_order` on any query, so on a 2.15
+     runtime every offset-paginated read silently returned to the overlapping,
+     row-skipping pages that 2.15 shipped to remove, under a `200`.
+  2. **The guard admitted the stalest artifacts.** A schema with *no* version field
+     (pre-2.1) was accepted unconditionally, so bumping the integer would have refused the
+     2.14 artifact while still running the 2.0 one.
+
+  A format integer that bumps when meaning changes was the near-miss alternative. It was
+  rejected because it needs a human to notice, mid-feature, that adding a field changed
+  what existing artifacts mean — the judgement that had already failed once. A build stamp
+  needs nobody to notice anything. It over-refuses on releases that changed nothing about
+  the format; that is the intended bias, because a false refusal costs one recompile and
+  says what to do, while a false acceptance costs silently wrong answers. There is no
+  override flag, because one would be reached for in exactly the incident it prevents.
+  See [ADR-0020](docs/adr/0020-compiled-schema-build-identity.md).
+
+  For embedders: `schema_format_version`, `CURRENT_SCHEMA_FORMAT_VERSION` and
+  `validate_format_version()` are gone, replaced by `fraiseql_version`,
+  `CURRENT_FRAISEQL_VERSION`, `ProducerVersion` and `validate_producer_version()`. A
+  `CompiledSchema` built in process is this build by construction
+  (`ProducerVersion::default()`), so programmatic construction is unaffected; only
+  deserialized artifacts carry a stamp that can disagree. The producing build is part of
+  `content_hash()`, so a cache keyed on it will not carry a previous build's entries into
+  this one. The backward-compatibility guarantee previously asserted by
+  `schema_migration_test.rs` is withdrawn: that file now pins that an older artifact still
+  *parses*, so the operator meets the build-identity refusal rather than a serde error.
+
+  The two compiled schemas CI boots (`docker/e2e/schema.compiled.json` and
+  `schema.with-source.compiled.json`, used by `release-smoke.yml` and `load-test.yml`)
+  carry the stamp, `tools/release.sh` restamps them on every version bump, and
+  `tools/check-compiled-schema-stamp.sh` fails the branch if either drifts. Without that
+  gate the first witness to a stale artifact would be the tag, because release-smoke runs
+  only on `release/*` and `v*` — the server would refuse to boot in the workflow whose job
+  is to prove it boots.
+
 - **`fraiseql-java`'s `SchemaCache.getFieldCacheHits()` now counts reads that found
   something, not writes (#1316).** The number a caller reads changes for the same
   program, which is why this is here rather than under `### Fixed`.

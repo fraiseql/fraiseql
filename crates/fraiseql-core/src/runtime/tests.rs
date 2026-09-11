@@ -4935,29 +4935,34 @@ mod runtime_config_from_schema_tests {
     use crate::{
         runtime::{RuntimeConfig, page_size_precedence},
         schema::{
-            CURRENT_SCHEMA_FORMAT_VERSION, ChangelogConfig, CompiledSchema, SecurityConfig,
-            ValidationConfig,
+            ChangelogConfig, CompiledSchema, ProducerVersion, SecurityConfig, ValidationConfig,
         },
     };
 
     #[test]
-    fn rejects_incompatible_format_version() {
+    fn rejects_an_artifact_from_another_build() {
         let mut schema = CompiledSchema::new();
-        schema.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION + 1);
-        let result = RuntimeConfig::from_compiled_schema(&schema);
-        assert!(result.is_err(), "an incompatible schema version must refuse to build a config");
-        assert!(result.unwrap_err().contains("mismatch"));
+        schema.fraiseql_version = serde_json::from_value(serde_json::json!("2.14.0")).unwrap();
+        let err = RuntimeConfig::from_compiled_schema(&schema)
+            .expect_err("another build's artifact must refuse to build a config");
+        assert!(err.contains("2.14.0"), "{err}");
+    }
+
+    /// The case #1304 turns from silent to loud: an artifact carrying no stamp
+    /// used to build a config, and every field this build reads that the
+    /// producing one never wrote was then read as a setting the author chose.
+    #[test]
+    fn rejects_an_unstamped_artifact() {
+        let mut schema = CompiledSchema::new();
+        schema.fraiseql_version = ProducerVersion::unstamped();
+        let err = RuntimeConfig::from_compiled_schema(&schema)
+            .expect_err("an unstamped artifact must refuse to build a config");
+        assert!(err.contains("fraiseql_version"), "{err}");
     }
 
     #[test]
-    fn accepts_legacy_and_current_versions() {
-        // No version (pre-v2.1): warns but builds.
-        let legacy = CompiledSchema::new();
-        assert!(RuntimeConfig::from_compiled_schema(&legacy).is_ok());
-
-        let mut current = CompiledSchema::new();
-        current.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION);
-        assert!(RuntimeConfig::from_compiled_schema(&current).is_ok());
+    fn accepts_this_build() {
+        assert!(RuntimeConfig::from_compiled_schema(&CompiledSchema::new()).is_ok());
     }
 
     #[test]

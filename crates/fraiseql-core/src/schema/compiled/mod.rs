@@ -24,9 +24,9 @@ pub use directive::{DirectiveDefinition, DirectiveLocationKind};
 pub use mutation::{InputStyle, MutationDefinition, MutationOperation};
 pub use query::{CursorType, PaginationOrder, QueryDefinition};
 pub use schema::{
-    AppleSocialConfig, AuthClientConfig, CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema,
+    AppleSocialConfig, AuthClientConfig, CURRENT_FRAISEQL_VERSION, CompiledSchema,
     DiscordSocialConfig, FacebookSocialConfig, GitHubSocialConfig, GoogleSocialConfig,
-    LocalAuthConfig, PkceClientConfig, SocialAuthConfig, SubscribableEntity,
+    LocalAuthConfig, PkceClientConfig, ProducerVersion, SocialAuthConfig, SubscribableEntity,
 };
 pub use schema_serde::{canonicalize_json, content_hash_of};
 pub use validation::is_safe_sql_identifier;

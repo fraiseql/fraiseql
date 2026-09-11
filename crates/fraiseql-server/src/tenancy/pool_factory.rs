@@ -237,7 +237,7 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
         })?;
 
     schema
-        .validate_format_version()
+        .validate_producer_version()
         .map_err(|msg| FraiseQLError::validation(format!("Incompatible compiled schema: {msg}")))?;
 
     let tenancy_mode = schema.tenancy_mode();

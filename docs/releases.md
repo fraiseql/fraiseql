@@ -36,6 +36,15 @@ come from a single build of a single revision, so `fraiseql compile` and
 `fraiseql-server --config server.toml` taken from the same archive are revision-matched by
 construction.
 
+Since 2.15.0 the contract is **enforced, not advised** (#1304): `fraiseql compile` stamps
+its own version into `schema.compiled.json` as `fraiseql_version`, and the server refuses to
+boot on any artifact its own build did not produce — another release's, or one carrying no
+stamp. This holds for patch releases too, so **every fraiseql upgrade requires recompiling
+the schema**, and a pipeline that caches `schema.compiled.json` across upgrades will meet a
+fatal boot refusal naming both versions. That is the intended failure: the alternative is a
+runtime reading fields the producing compiler never wrote, and reading their absence as a
+setting the author chose. See [ADR-0020](adr/0020-compiled-schema-build-identity.md).
+
 ## Platform matrix
 
 The `-full` variant is built for every target whose toolchain can link V8, which

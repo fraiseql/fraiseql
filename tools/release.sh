@@ -112,6 +112,16 @@ bump_deploy_artifacts "$VERSION" \
     deploy/kubernetes/helm/fraiseql/values.yaml
 echo "      Bumped Dockerfile label + Helm chart/values."
 
+# Restamp the compiled schemas release-smoke.yml boots. Since #1304 the server refuses an
+# artifact produced by another build, so a release commit that leaves these naming the
+# previous version ships a smoke test that cannot start the server it is smoke-testing.
+# tools/check-compiled-schema-stamp.sh (ShellGates → the REQUIRED preflight check) fails
+# on the release branch if this call is ever removed.
+bump_compiled_schema_stamps "$VERSION" \
+    docker/e2e/schema.compiled.json \
+    docker/e2e/schema.with-source.compiled.json
+echo "      Restamped the CI-booted compiled schemas."
+
 # Rewrite the docs' `vX.Y.Z released` status lines. tools/check-docs-version.sh enforces
 # them and runs in ShellGates → the REQUIRED preflight check, so without this the release
 # commit turns that gate red and the release branch cannot pass CI (#1134).

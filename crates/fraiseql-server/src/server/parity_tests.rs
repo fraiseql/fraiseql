@@ -27,8 +27,8 @@ use fraiseql_core::{
     },
     error::Result as FraiseQLResult,
     schema::{
-        CURRENT_SCHEMA_FORMAT_VERSION, ChangelogConfig, CompiledSchema, SecurityConfig,
-        SqlProjectionHint, SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
+        ChangelogConfig, CompiledSchema, SecurityConfig, SqlProjectionHint,
+        SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
     },
 };
 
@@ -139,7 +139,6 @@ fn fully_configured_schema() -> CompiledSchema {
     };
 
     CompiledSchema {
-        schema_format_version: Some(CURRENT_SCHEMA_FORMAT_VERSION),
         security: Some(security),
         validation_config: Some(ValidationConfig {
             max_page_size: Some(FIXTURE_MAX_PAGE_SIZE),

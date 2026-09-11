@@ -133,7 +133,6 @@ fn create_schema_with_scoped_fields() -> CompiledSchema {
         validation_config: None,
         debug_config: None,
         mcp_config: None,
-        schema_format_version: None,
         schema_sdl: None,
         custom_scalars: Default::default(),
         ..CompiledSchema::default()

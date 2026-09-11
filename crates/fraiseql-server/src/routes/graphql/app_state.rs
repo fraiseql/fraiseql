@@ -542,7 +542,7 @@ impl<A: DatabaseAdapter> AppState<A> {
         };
 
         schema
-            .validate_format_version()
+            .validate_producer_version()
             .map_err(|msg| format!("Incompatible compiled schema: {msg}"))?;
 
         let current = self.executor.load();

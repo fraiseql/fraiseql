@@ -136,14 +136,25 @@ the reload trigger commands and failure diagnosis.
 
 ## Schema Versioning
 
-`schema.compiled.json` carries an integer `schema_format_version` describing the compiled-schema
-binary format. At startup the server checks it against the version it expects:
+`schema.compiled.json` carries a `fraiseql_version` string: the fraiseql build that compiled
+it. **A compiled schema is a build artifact of the release that produced it**, and the server
+runs its own build's artifacts and nothing else. At startup — and on every reload, and for
+every tenant executor — it compares the stamp against its own version:
 
-- **Version mismatch**: Server refuses to start and logs a fatal error.
-- **Field absent**: Server starts and emits a `WARN` log (legacy schema, format assumed current).
+- **Produced by another build**: server refuses to start, naming both versions and the recompile.
+- **No stamp at all**: same refusal. An unstamped artifact predates fraiseql 2.15.0 or was
+  written by hand, and either way its meaning here cannot be established.
 
-Always compile with a `fraiseql-cli` whose `schema_format_version` matches the server you are
-deploying — in practice, keep the CLI and server versions in lockstep.
+The comparison is exact, patch releases included. That over-refuses on releases that changed
+nothing about the format, deliberately: a false refusal costs one recompile and says what to
+do, while a false acceptance costs silently wrong answers. The worked example is #1303 — a
+2.14 artifact carries no `pagination_order`, a 2.15 runtime reads that absence as "this query
+declared no page order", and every offset-paginated read quietly goes back to returning
+overlapping pages under a `200`.
+
+So keeping the CLI and server in lockstep is no longer advice: recompile the schema with the
+`fraiseql-cli` matching the server you are deploying, on every upgrade. See
+[ADR-0020](../adr/0020-compiled-schema-build-identity.md) for the decision and what it costs.
 
 ---
 

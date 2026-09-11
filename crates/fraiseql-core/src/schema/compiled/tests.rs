@@ -7,7 +7,7 @@ use super::{
 #[cfg(feature = "federation")]
 use crate::schema::config_types::FederationEntity;
 use crate::schema::{
-    CURRENT_SCHEMA_FORMAT_VERSION, MutationDefinition,
+    CURRENT_FRAISEQL_VERSION, MutationDefinition, ProducerVersion,
     config_types::{FederationConfig, NamingConvention},
     graphql_type_defs::TypeDefinition,
     observer_types::{ObserverDefinition, RetryConfig},
@@ -553,8 +553,7 @@ fn from_json_builds_mutation_index() {
 
 #[test]
 fn to_json_and_back_is_identity() {
-    let mut schema = CompiledSchema::new();
-    schema.schema_format_version = Some(1);
+    let schema = CompiledSchema::new();
     let json = schema.to_json().unwrap();
     let schema2 = CompiledSchema::from_json(&json, false).unwrap();
     assert_eq!(schema, schema2);
@@ -569,30 +568,94 @@ fn to_json_pretty_is_valid_json() {
 }
 
 // -------------------------------------------------------------------------
-// Format version
+// Producer version (#1304): a compiled schema is a build artifact of the
+// release that wrote it, so a runtime accepts its own build's artifact and
+// nothing else. The two producers of a `CompiledSchema` — the compiler, which
+// stamps what it writes, and in-process construction, which *is* this build —
+// must stay distinguishable from the third case, an artifact carrying no stamp.
 // -------------------------------------------------------------------------
 
 #[test]
-fn validate_format_version_none_is_ok() {
-    let schema = CompiledSchema::new(); // schema_format_version = None
-    assert!(schema.validate_format_version().is_ok());
+fn a_schema_built_in_process_is_this_build() {
+    let schema = CompiledSchema::new();
+    assert_eq!(schema.fraiseql_version.get(), Some(CURRENT_FRAISEQL_VERSION));
+    assert!(schema.validate_producer_version().is_ok());
 }
 
 #[test]
-fn validate_format_version_current_is_ok() {
+fn an_artifact_from_another_build_is_refused() {
     let mut schema = CompiledSchema::new();
-    schema.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION);
-    assert!(schema.validate_format_version().is_ok());
+    schema.fraiseql_version = serde_json::from_value(serde_json::json!("2.14.0")).unwrap();
+
+    let msg = schema.validate_producer_version().expect_err("another build must be refused");
+    assert!(msg.contains("2.14.0"), "the message must name the producing build: {msg}");
+    assert!(
+        msg.contains(CURRENT_FRAISEQL_VERSION),
+        "the message must name this runtime's build: {msg}"
+    );
+    assert!(msg.contains("Recompile"), "the message must tell an operator what to do: {msg}");
 }
 
+/// The hole the format-version check left open, closed: an artifact carrying no
+/// stamp is the *older* case, and accepting it admitted the stalest artifacts
+/// while refusing merely-stale ones.
 #[test]
-fn validate_format_version_mismatch_is_err() {
+fn an_unstamped_artifact_is_refused() {
     let mut schema = CompiledSchema::new();
-    schema.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION + 1);
-    let result = schema.validate_format_version();
-    assert!(result.is_err());
-    let msg = result.unwrap_err();
-    assert!(msg.contains("mismatch"));
+    schema.fraiseql_version = ProducerVersion::unstamped();
+
+    let msg = schema
+        .validate_producer_version()
+        .expect_err("an unstamped artifact is refused");
+    assert!(
+        msg.contains("fraiseql_version"),
+        "the message must name the missing stamp: {msg}"
+    );
+    assert!(msg.contains("Recompile"), "and the remedy: {msg}");
+}
+
+/// The discrimination the `Option<u32>` format version could not express. A
+/// missing JSON key must not deserialize to whatever this build constructs in
+/// process, or an artifact from any release would pass by looking freshly built.
+#[test]
+fn a_missing_key_does_not_deserialize_to_this_build() {
+    let deserialized: CompiledSchema = serde_json::from_str(
+        r#"{"types": [], "queries": [], "mutations": [], "subscriptions": []}"#,
+    )
+    .unwrap();
+
+    assert!(deserialized.fraiseql_version.is_unstamped());
+    assert_ne!(
+        deserialized.fraiseql_version,
+        ProducerVersion::default(),
+        "an artifact that names no build must not equal one this build constructed"
+    );
+    assert!(deserialized.validate_producer_version().is_err());
+}
+
+/// A stamped schema writes the stamp, so an artifact this build compiles is
+/// accepted by this build after a round trip — the compiler's whole contract.
+#[test]
+fn a_stamped_schema_round_trips_through_json() {
+    let json = serde_json::to_string(&CompiledSchema::new()).unwrap();
+    assert!(json.contains(CURRENT_FRAISEQL_VERSION), "the stamp must reach the artifact");
+
+    let reloaded = CompiledSchema::from_json(&json, false).unwrap();
+    assert!(reloaded.validate_producer_version().is_ok());
+}
+
+/// And an unstamped one writes no key, rather than a `null` a reader would have
+/// to interpret.
+#[test]
+fn an_unstamped_schema_serializes_no_key() {
+    let mut schema = CompiledSchema::new();
+    schema.fraiseql_version = ProducerVersion::unstamped();
+
+    let value = serde_json::to_value(&schema).unwrap();
+    assert!(
+        value.get("fraiseql_version").is_none(),
+        "an absent stamp is an absent key: {value:?}"
+    );
 }
 
 // -------------------------------------------------------------------------
@@ -904,7 +967,6 @@ fn tenancy_round_trip_through_json() {
         tenant_claim: "org_id".to_string(),
     };
     schema.security = Some(sec);
-    schema.schema_format_version = Some(1);
 
     let json = schema.to_json().unwrap();
     let restored = CompiledSchema::from_json(&json, false).unwrap();
@@ -1092,8 +1154,19 @@ fn content_hash_is_stable() {
 fn content_hash_differs_for_different_schemas() {
     let s1 = CompiledSchema::new();
     let mut s2 = CompiledSchema::new();
-    s2.schema_format_version = Some(1);
+    s2.queries.push(QueryDefinition::new("users", "User"));
     assert_ne!(s1.content_hash(), s2.content_hash());
+}
+
+/// The producing build is part of what a schema *is*, so two artifacts that
+/// differ only in which release wrote them do not share a hash — a cache keyed
+/// on it cannot carry a previous build's entries into this one.
+#[test]
+fn content_hash_covers_the_producing_build() {
+    let stamped = CompiledSchema::new();
+    let mut unstamped = CompiledSchema::new();
+    unstamped.fraiseql_version = ProducerVersion::unstamped();
+    assert_ne!(stamped.content_hash(), unstamped.content_hash());
 }
 
 // -------------------------------------------------------------------------

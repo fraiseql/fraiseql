@@ -269,9 +269,9 @@ mod pool_factory_tests {
     }
 
     #[tokio::test]
-    async fn test_create_tenant_executor_bad_format_version() {
+    async fn test_create_tenant_executor_from_another_build() {
         let schema = CompiledSchema {
-            schema_format_version: Some(999),
+            fraiseql_version: serde_json::from_value(serde_json::json!("2.14.0")).unwrap(),
             ..CompiledSchema::default()
         };
         let schema_json = serde_json::to_string(&schema).unwrap();
@@ -280,7 +280,7 @@ mod pool_factory_tests {
         let Err(err) =
             create_tenant_executor::<StubPoolAdapter>("acme", &schema_json, &config).await
         else {
-            panic!("expected Err for bad format version");
+            panic!("expected Err for an artifact produced by another build");
         };
         assert!(
             matches!(err, FraiseQLError::Validation { .. }),

@@ -6,8 +6,7 @@ use std::{fs, path::Path, process::Command};
 
 use anyhow::{Context, Result};
 use fraiseql_core::schema::{
-    CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, FieldType, InputStyle, MutationOperation,
-    NamingConvention, content_hash_of,
+    CompiledSchema, FieldType, InputStyle, MutationOperation, NamingConvention, content_hash_of,
 };
 use tracing::{info, warn};
 
@@ -376,9 +375,6 @@ pub async fn compile_to_schema(
     // 5. Optimize schema and generate SQL hints (mutates schema in place, report for display)
     info!("Analyzing schema for optimization opportunities...");
     let report = SchemaOptimizer::optimize(&mut schema).context("Failed to optimize schema")?;
-
-    // 5a. Stamp schema format version for runtime compatibility checks.
-    schema.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION);
 
     // 5b-pre. Infer native_columns for ID/UUID-typed arguments on JSONB-backed queries.
     // DB introspection (step 5b) overrides these inferred values when `--database` is provided.

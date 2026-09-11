@@ -513,8 +513,8 @@ impl RuntimeConfig {
     ///
     /// # Errors
     ///
-    /// Returns the validation message when the schema's `schema_format_version`
-    /// is incompatible with this runtime.
+    /// Returns the validation message when the compiled schema was produced by
+    /// a different fraiseql build (#1304).
     pub fn from_compiled_schema(schema: &crate::schema::CompiledSchema) -> Result<Self, String> {
         Self::default().with_compiled_schema(schema)
     }
@@ -531,19 +531,13 @@ impl RuntimeConfig {
     ///
     /// # Errors
     ///
-    /// Returns the validation message when the schema's `schema_format_version`
-    /// is incompatible with this runtime.
+    /// Returns the validation message when the compiled schema was produced by
+    /// a different fraiseql build (#1304).
     pub fn with_compiled_schema(
         self,
         schema: &crate::schema::CompiledSchema,
     ) -> Result<Self, String> {
-        if schema.schema_format_version.is_none() {
-            tracing::warn!(
-                "Loaded schema has no schema_format_version (pre-v2.1 format). \
-                 Re-compile with the current fraiseql-cli for version compatibility checking."
-            );
-        }
-        schema.validate_format_version()?;
+        schema.validate_producer_version()?;
 
         // Audit logging: security.enterprise.audit_logging_enabled.
         let audit_mutations = schema

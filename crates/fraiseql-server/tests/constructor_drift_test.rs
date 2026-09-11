@@ -28,10 +28,7 @@ use fraiseql_core::{
         types::{JsonbValue, OrderByClause, PoolMetrics},
     },
     error::Result as FraiseQLResult,
-    schema::{
-        CURRENT_SCHEMA_FORMAT_VERSION, CompiledSchema, SecurityConfig, SqlProjectionHint,
-        TenancyConfig, TenancyMode,
-    },
+    schema::{CompiledSchema, SecurityConfig, SqlProjectionHint, TenancyConfig, TenancyMode},
 };
 use fraiseql_server::{Server, server_config::ServerConfig};
 
@@ -115,16 +112,18 @@ impl RelayDatabaseAdapter for NoopRelayAdapter {
     }
 }
 
+/// An artifact produced by another fraiseql build (#1304). Every constructor
+/// must refuse it, because this runtime reads fields that build never wrote and
+/// reads their absence as a setting.
 fn incompatible_schema() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
-    schema.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION + 1);
+    schema.fraiseql_version = serde_json::from_value(serde_json::json!("2.14.0")).unwrap();
     schema
 }
 
+/// This build's own — what `CompiledSchema::new()` is by construction.
 fn current_schema() -> CompiledSchema {
-    let mut schema = CompiledSchema::new();
-    schema.schema_format_version = Some(CURRENT_SCHEMA_FORMAT_VERSION);
-    schema
+    CompiledSchema::new()
 }
 
 /// A schema that declares row-level tenancy and nothing else. With caching on,

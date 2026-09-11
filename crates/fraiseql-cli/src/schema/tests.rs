@@ -226,7 +226,6 @@ mod database_validator_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            schema_format_version: None,
             custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         }
@@ -2042,7 +2041,6 @@ mod optimizer_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            schema_format_version: None,
             custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
@@ -2106,7 +2104,6 @@ mod optimizer_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            schema_format_version: None,
             custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
@@ -2170,7 +2167,6 @@ mod optimizer_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            schema_format_version: None,
             custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
@@ -2234,7 +2230,6 @@ mod optimizer_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            schema_format_version: None,
             custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
@@ -2298,7 +2293,6 @@ mod optimizer_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            schema_format_version: None,
             custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };
@@ -2372,7 +2366,6 @@ mod optimizer_tests {
             debug_config: None,
             mcp_config: None,
             schema_sdl: None,
-            schema_format_version: None,
             custom_scalars: CustomTypeRegistry::default(),
             ..Default::default()
         };

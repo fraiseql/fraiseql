@@ -736,3 +736,45 @@ enabled = true
         "enabled-without-queries does nothing and must be refused: {err}"
     );
 }
+
+/// #1304: the artifact the compiler writes names the build that wrote it, and this
+/// runtime accepts it *because* of that — not incidentally.
+///
+/// The second half is what makes the first mean something. Every other test here
+/// asserts the seam accepts compiler output, which would stay green if the stamp
+/// were never written and the check never ran; stripping the key and requiring the
+/// same artifact to be refused pins that the acceptance was the check passing.
+#[test]
+fn the_compiler_stamps_its_own_build_and_the_seam_requires_it() {
+    let toml = r#"
+[schema]
+name = "contract_producer_version"
+version = "1.0.0"
+database_target = "postgresql"
+
+[database]
+url = "postgresql://localhost/test"
+"#;
+    let compiled_json = compile(TYPES_JSON, toml);
+
+    let emitted: serde_json::Value = serde_json::from_str(&compiled_json).unwrap();
+    assert_eq!(
+        emitted.get("fraiseql_version").and_then(serde_json::Value::as_str),
+        Some(env!("CARGO_PKG_VERSION")),
+        "the compiler must stamp the build it is part of into the artifact it writes"
+    );
+
+    let schema = CompiledSchema::from_json(&compiled_json, false).unwrap();
+    RuntimeConfig::from_compiled_schema(&schema)
+        .expect("this build must accept the artifact this build compiled");
+
+    // The same artifact with the stamp removed — what an earlier release wrote.
+    let mut stripped = emitted;
+    stripped.as_object_mut().unwrap().remove("fraiseql_version");
+    let stripped = CompiledSchema::from_json(&stripped.to_string(), false)
+        .expect("it must still parse, so the operator meets the build refusal");
+
+    let err = RuntimeConfig::from_compiled_schema(&stripped)
+        .expect_err("an artifact naming no build must be refused");
+    assert!(err.contains("Recompile"), "{err}");
+}

@@ -77,7 +77,9 @@ pub fn boot_frozen_drift(current: &CompiledSchema, next: &CompiledSchema) -> Vec
         custom_scalars: _,
         changelog: _, // `write_enabled` is re-derived into RuntimeConfig on reload
         schema_sdl: _,
-        schema_format_version: _,
+        // Neither hot nor boot-frozen: the reload path validates it before
+        // reaching this gate, so both sides are this build by then (#1304).
+        fraiseql_version: _,
         query_index: _,
         mutation_index: _,
         subscription_index: _,

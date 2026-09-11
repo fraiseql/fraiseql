@@ -747,6 +747,21 @@ lint-deploy-security:
 lint-deploy-versions:
 	@bash tools/check-deploy-versions.sh
 
+# Gate: every compiled schema a workflow BOOTS must name the version this tree
+# builds. Since #1304 the server refuses an artifact its own build did not
+# produce, and `release-smoke.yml` is `release/*`/`v*`-triggered — so a stale
+# `docker/e2e/*.compiled.json` is invisible on dev and fails at the tag.
+.PHONY: lint-compiled-schema-stamp
+lint-compiled-schema-stamp:
+	@bash tools/check-compiled-schema-stamp.sh
+
+# Unit tests for the gate above. It discovers its own subjects from the workflows,
+# so "found nothing" must be exit 2 (cannot run) rather than success — a vacuous
+# pass here would read as "the artifacts are current" over a tree never examined.
+.PHONY: test-compiled-schema-stamp-gate
+test-compiled-schema-stamp-gate:
+	@bash tools/tests/compiled_schema_stamp_test.sh
+
 # Gate: fuzz.yml's matrix may only name targets that exist in the crate it names.
 # `{crate: fraiseql-core, target: toml_config}` named a target that had MOVED to
 # fraiseql-server, so `cargo fuzz build` failed and every scheduled run was red from at
@@ -1285,7 +1300,7 @@ lint-required-checks:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

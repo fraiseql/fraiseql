@@ -39,11 +39,70 @@ use crate::{
     validation::CustomTypeRegistry,
 };
 
-/// Current schema format version.
+/// The fraiseql build this binary is part of (#1304).
 ///
-/// Increment this constant when the compiled schema JSON format changes in a
-/// backward-incompatible way so that startup rejects stale compiled schemas.
-pub const CURRENT_SCHEMA_FORMAT_VERSION: u32 = 1;
+/// Every crate in the workspace takes `version.workspace`, so a compiler and a
+/// runtime that link the same `fraiseql-core` read the same value here — which
+/// is the invariant [`ProducerVersion`] compares, and a sharper one than the
+/// two binaries' own version strings.
+pub const CURRENT_FRAISEQL_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The fraiseql build that produced a compiled schema (#1304).
+///
+/// A compiled schema is a build artifact of the release that produced it, and
+/// its meaning is not stable across releases — an *absent* field is a value the
+/// runtime reads, not a gap it ignores. `pagination_order` is the worked
+/// example: 2.14 wrote none, 2.15 reads its absence as "this query has no page
+/// order", so a 2.14 artifact paginates a 2.15 runtime into overlapping pages
+/// under a `200`, which is the defect 2.15 shipped to remove. Nothing about
+/// that is visible to an operator.
+///
+/// The stamp is therefore *compared*, never interpreted: a runtime does not
+/// decide whether some other build's artifact is close enough, because deciding
+/// that is the judgement #1303 got wrong. What the type buys over the
+/// `Option<u32>` format version it replaces is that the two producers of a
+/// `CompiledSchema` can no longer collapse into one value:
+///
+/// * the compiler stamps the build it is part of into the artifact it writes;
+/// * a `CompiledSchema` built in process **is** this build, so [`Default`] yields it;
+/// * an artifact carrying no stamp is [`unstamped`](Self::unstamped), a third value — where `None`
+///   previously meant both "compiled before versioning existed" and "freshly constructed", and was
+///   accepted on the strength of the second reading.
+///
+/// See `docs/adr/0020-compiled-schema-build-identity.md`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(transparent)]
+pub struct ProducerVersion(Option<String>);
+
+impl Default for ProducerVersion {
+    /// This build — the honest answer for a schema this binary just constructed.
+    fn default() -> Self {
+        Self(Some(CURRENT_FRAISEQL_VERSION.to_string()))
+    }
+}
+
+impl ProducerVersion {
+    /// The value an artifact carrying no `fraiseql_version` deserializes to.
+    ///
+    /// Reachable only through deserialization: [`Default`] is this build, so a
+    /// missing JSON key is the one way to obtain it.
+    #[must_use]
+    pub const fn unstamped() -> Self {
+        Self(None)
+    }
+
+    /// The build named by the stamp, or `None` when the artifact carries none.
+    #[must_use]
+    pub fn get(&self) -> Option<&str> {
+        self.0.as_deref()
+    }
+
+    /// Whether the artifact carries no stamp.
+    #[must_use]
+    pub const fn is_unstamped(&self) -> bool {
+        self.0.is_none()
+    }
+}
 
 /// A `@subscribable` declaration in the compiled schema (#366).
 ///
@@ -283,12 +342,17 @@ pub struct CompiledSchema {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub naming_acronyms: Vec<String>,
 
-    /// Schema format version emitted by the compiler.
+    /// The fraiseql build that produced this compiled schema (#1304).
     ///
-    /// Used to detect runtime/compiler skew. If present and ≠ `CURRENT_SCHEMA_FORMAT_VERSION`,
-    /// `validate_format_version()` returns an error.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub schema_format_version: Option<u32>,
+    /// Checked by [`validate_producer_version`](Self::validate_producer_version)
+    /// at every seam that turns an artifact into a running executor. Anything
+    /// this build did not produce is refused, including an artifact that names
+    /// no build at all.
+    #[serde(
+        default = "ProducerVersion::unstamped",
+        skip_serializing_if = "ProducerVersion::is_unstamped"
+    )]
+    pub fraiseql_version: ProducerVersion,
 
     /// Raw GraphQL schema as string (for SDL generation).
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -336,7 +400,7 @@ pub struct CompiledSchema {
 impl PartialEq for CompiledSchema {
     fn eq(&self, other: &Self) -> bool {
         // Compare all fields except custom_scalars (runtime state)
-        self.schema_format_version == other.schema_format_version
+        self.fraiseql_version == other.fraiseql_version
             && self.types == other.types
             && self.enums == other.enums
             && self.input_types == other.input_types

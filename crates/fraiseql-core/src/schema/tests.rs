@@ -213,7 +213,6 @@ fn test_schema_to_json_roundtrip() {
         validation_config: None,
         debug_config: None,
         mcp_config: None,
-        schema_format_version: None,
         schema_sdl: None,
         custom_scalars: CustomTypeRegistry::default(),
         ..CompiledSchema::default()
@@ -353,7 +352,6 @@ fn test_operation_count() {
         validation_config: None,
         debug_config: None,
         mcp_config: None,
-        schema_format_version: None,
         schema_sdl: None,
         custom_scalars: CustomTypeRegistry::default(),
         ..CompiledSchema::default()
@@ -884,7 +882,6 @@ fn test_vector_field_roundtrip() {
         validation_config: None,
         debug_config: None,
         mcp_config: None,
-        schema_format_version: None,
         schema_sdl: None,
         custom_scalars: CustomTypeRegistry::default(),
         ..CompiledSchema::default()
@@ -957,40 +954,6 @@ fn test_python_generated_vector_schema_compat() {
     assert_eq!(config.dimensions, 1536);
     assert_eq!(config.index_type, VectorIndexType::Hnsw);
     assert_eq!(config.distance_metric, DistanceMetric::Cosine);
-}
-
-#[test]
-fn test_compiled_schema_has_version_after_stamp() {
-    let schema = CompiledSchema {
-        schema_format_version: Some(CURRENT_SCHEMA_FORMAT_VERSION),
-        ..Default::default()
-    };
-    let json = serde_json::to_string(&schema).unwrap();
-    let reloaded: CompiledSchema = serde_json::from_str(&json).unwrap();
-    assert_eq!(reloaded.schema_format_version, Some(CURRENT_SCHEMA_FORMAT_VERSION));
-    reloaded
-        .validate_format_version()
-        .unwrap_or_else(|e| panic!("expected current version to pass format validation: {e:?}"));
-}
-
-#[test]
-fn test_future_schema_version_is_rejected() {
-    let schema = CompiledSchema {
-        schema_format_version: Some(999),
-        ..Default::default()
-    };
-    let result = schema.validate_format_version();
-    assert!(result.is_err(), "expected future version 999 to be rejected, got: {result:?}");
-}
-
-#[test]
-fn test_legacy_schema_without_version_warns_but_loads() {
-    // schema_format_version = None simulates a pre-v2.1 compiled schema
-    let schema = CompiledSchema::default();
-    // Should return Ok (callers log a warning, but do not reject)
-    schema
-        .validate_format_version()
-        .unwrap_or_else(|e| panic!("expected legacy schema (no version) to be accepted: {e:?}"));
 }
 
 // ---------------------------------------------------------------------------

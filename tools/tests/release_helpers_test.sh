@@ -310,6 +310,41 @@ check "bump-docs: no stale released-version claim remains" \
 bump_doc_status_lines 2.16.0 "$WORK/does-not-exist.md"
 check "bump-docs: a missing file is skipped, not fatal" "$?" "0"
 
+# ── bump_compiled_schema_stamps (#1304) ────────────────────────────────────────
+#
+# The fixture carries a SECOND version-shaped string on the next line. A helper anchored
+# on a bare version shape rather than on the key would rewrite `api_version` too — a
+# compiled-schema field with an unrelated meaning, and one nothing downstream checks.
+
+cat > "$WORK/schema.compiled.json" <<'EOF'
+{
+  "fraiseql_version": "2.15.0",
+  "api_version": "1.0.0",
+  "types": [],
+  "queries": []
+}
+EOF
+
+bump_compiled_schema_stamps 2.16.0 "$WORK/schema.compiled.json"
+
+check "bump-stamp: the producing build is rewritten" \
+    "$(grep -c '"fraiseql_version": "2.16.0"' "$WORK/schema.compiled.json")" "1"
+# The one that matters: a different version-shaped field is not a build stamp.
+check "bump-stamp: api_version untouched" \
+    "$(grep -c '"api_version": "1.0.0"' "$WORK/schema.compiled.json")" "1"
+check "bump-stamp: no stale stamp remains" \
+    "$(grep -c '"fraiseql_version": "2.15.0"' "$WORK/schema.compiled.json")" "0"
+
+# An artifact carrying no stamp at all is left alone rather than half-edited: the gate
+# reports it, and a release script inventing a key is how a malformed artifact ships.
+printf '{\n  "types": []\n}\n' > "$WORK/unstamped.compiled.json"
+bump_compiled_schema_stamps 2.16.0 "$WORK/unstamped.compiled.json"
+check "bump-stamp: an unstamped artifact is not invented into" \
+    "$(grep -c 'fraiseql_version' "$WORK/unstamped.compiled.json")" "0"
+
+bump_compiled_schema_stamps 2.16.0 "$WORK/no-such-schema.compiled.json"
+check "bump-stamp: a missing file is skipped, not fatal" "$?" "0"
+
 # ── bump_readme_install_snippet ────────────────────────────────────────────────
 #
 # The step this replaces was either a no-op or a corruption of the release record, and

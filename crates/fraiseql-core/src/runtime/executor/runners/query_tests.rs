@@ -1778,4 +1778,29 @@ mod pagination_order {
         assert_eq!(captured.len(), 1);
         assert!(captured[0].identity);
     }
+
+    /// #1304: the artifact this whole module can be defeated by. A 2.14 compile
+    /// wrote no `pagination_order` on any query, and the runtime above reads a
+    /// missing one as "this query declared no page order" — the deliberate
+    /// opt-out. So the artifact boots, and every paged read silently goes back
+    /// to the overlapping pages #1303 shipped to remove.
+    ///
+    /// It is refused before it can, because it was not produced by this build.
+    #[tokio::test]
+    async fn an_artifact_from_before_this_field_existed_is_refused_not_run() {
+        let mut value = serde_json::to_value(test_schema()).unwrap();
+        for q in value["queries"].as_array_mut().unwrap() {
+            q.as_object_mut().unwrap().remove("pagination_order");
+        }
+        value.as_object_mut().unwrap().remove("fraiseql_version");
+        let stale: CompiledSchema = serde_json::from_value(value).unwrap();
+
+        // The shape is exactly the one that would be misread: nothing on any
+        // query says how to order a page.
+        assert!(stale.queries.iter().all(|q| q.pagination_order.is_none()));
+
+        let err = RuntimeConfig::from_compiled_schema(&stale)
+            .expect_err("an artifact this build did not produce must not reach the executor");
+        assert!(err.contains("Recompile"), "{err}");
+    }
 }

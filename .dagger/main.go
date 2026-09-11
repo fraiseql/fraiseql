@@ -474,6 +474,11 @@ func (m *FraiseqlCi) ShellGates(
 		// Deploy artifacts must name the version being released, and the chart's
 		// default image must be one this project publishes (#1129).
 		"bash tools/check-deploy-versions.sh",
+		// A compiled schema a workflow boots must name the build this tree makes:
+		// the server refuses any other since #1304, and release-smoke.yml only runs
+		// on release/* and v*, so a stale one first shows up at the tag.
+		"bash tools/check-compiled-schema-stamp.sh",
+		"bash tools/tests/compiled_schema_stamp_test.sh",
 		// Every fuzz.yml matrix row must name a target that exists in the crate it
 		// names. One-directional: targets on disk need not be in the matrix (#1128).
 		"bash tools/check-fuzz-targets.sh",

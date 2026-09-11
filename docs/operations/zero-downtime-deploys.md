@@ -49,7 +49,7 @@ balancer, which already has to exist for a fleet — not by cramming two schemas
 |------------|-------|--------------|
 | **In-place atomic schema reload** | `SIGUSR1` / `POST /api/v1/admin/reload-schema` | Re-reads and validates the schema file, then atomically swaps the executor (`ArcSwap`). In-flight requests finish on the old schema; new requests get the new one. Failed validation keeps the previous schema. Auto-installed at boot when a schema path is configured. |
 | **Graceful shutdown drain** | `server.shutdown_timeout_secs` (default **30s**) | On `SIGTERM`/Ctrl-C the HTTP server stops accepting new connections, lets in-flight requests finish (`axum::serve(...).with_graceful_shutdown`), then the observer runtime is stopped cleanly and remaining lifecycle tasks are drained. Past the timeout, the process logs a warning and exits. |
-| **Compiled-schema format guard** | startup | The binary checks the compiled schema's integer `schema_format_version` against the version it expects. A **mismatch is fatal** (refuses to boot); a schema with **no** version field boots with a `WARN`. See [compiled-schema-lifecycle.md](compiled-schema-lifecycle.md#schema-versioning). |
+| **Compiled-schema build guard** | startup, reload, per-tenant executor | The binary compares the compiled schema's `fraiseql_version` stamp against its own build. Anything it did not produce is **fatal** — another build's artifact and an unstamped one alike. A compiled schema is a build artifact of its release, so this must be recompiled on every upgrade, patch releases included. See [compiled-schema-lifecycle.md](compiled-schema-lifecycle.md#schema-versioning) and [ADR-0020](../adr/0020-compiled-schema-build-identity.md). |
 | **Schema-decoupled DLQ retry** | observer DLQ | A dead-lettered action stores the already-**resolved** action payload, so a retry replays that frozen work and never re-resolves against the retrying binary's schema. A v1-produced DLQ entry retried by a v2 binary cannot silently corrupt. See [Observer state across versions](#observer-state-across-versions). |
 | **Health / readiness endpoints** | `/health`, `/readiness` (both configurable) | Give the load balancer something to gate on before sending traffic to a new instance. |
 
@@ -242,8 +242,9 @@ unnecessary:
       contract deploy.
 - [ ] Orchestrator termination grace period ≥ `server.shutdown_timeout_secs`.
 - [ ] Readiness probe gates traffic on schema load completion.
-- [ ] Compiled-schema `schema_format_version` matches the binary's expected version (a
-      mismatch is a fatal boot refusal); see
+- [ ] Schema recompiled by the `fraiseql-cli` of the release being deployed — the binary
+      refuses any artifact its own build did not produce, so a carried-over
+      `schema.compiled.json` is a fatal boot refusal; see
       [compiled-schema-lifecycle.md](compiled-schema-lifecycle.md#schema-versioning).
 - [ ] Rollback path verified: because the DB was only expanded, the previous fleet still runs.
 - [ ] Subscription clients reconnect-and-resubscribe on disconnect.

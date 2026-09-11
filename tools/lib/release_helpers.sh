@@ -170,6 +170,30 @@ bump_deploy_artifacts() {
     sed -i -E "s/^( *)tag: \"[^\"]*\"/\1tag: \"${version}\"/" "$values"
 }
 
+# Restamp the compiled schemas CI boots with the version being released.
+#
+# Since #1304 the server refuses any compiled schema its own build did not produce, and
+# `release-smoke.yml` boots `docker/e2e/*.compiled.json`. Without this, the release commit
+# leaves those artifacts naming the PREVIOUS release, and the first witness is the tag —
+# where the smoke server refuses to start. tools/check-compiled-schema-stamp.sh is the
+# gate that fails on the release branch if this call is ever removed.
+#
+# ⚠ Anchored on the `"fraiseql_version"` key, never on a bare version shape: these files
+# are compiled schemas and may legitimately carry other version-shaped strings (an
+# `api_version`, a semver in a description). A missing file is skipped rather than fatal,
+# as with the doc status lines — a rename must not abort a release mid-bump.
+#
+# Usage: bump_compiled_schema_stamps <version> <file...>
+bump_compiled_schema_stamps() {
+    local version="$1"
+    shift
+    local f
+    for f in "$@"; do
+        [ -f "$f" ] || continue
+        sed -i -E "s/(\"fraiseql_version\"[[:space:]]*:[[:space:]]*)\"[^\"]*\"/\1\"${version}\"/" "$f"
+    done
+}
+
 # Rewrite the `vX.Y.Z released` status lines in docs/ that tools/check-docs-version.sh
 # enforces.
 #

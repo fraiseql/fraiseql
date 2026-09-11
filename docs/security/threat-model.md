@@ -19,7 +19,7 @@
 | **Network perimeter** | TLS termination at ingress | `rustls 0.23` + `tokio-rustls 0.25`; panics on misconfigured cert (graceful Err since A30) |
 | **Authentication boundary** | JWT/PKCE validation in `fraiseql-auth` | `jsonwebtoken` RS256/HS256; constant-time comparison (`subtle`) |
 | **Tenant isolation boundary** | Row-Level Security WHERE clause composition | RLS always AND-ed with app WHERE; SecurityContext required by type system |
-| **Compiled schema artifact** | Compiler → runtime handoff | `schema_format_version` check; planned `_content_hash` verification |
+| **Compiled schema artifact** | Compiler → runtime handoff | `fraiseql_version` build-identity check — the runtime refuses any artifact it did not produce (ADR-0020); planned `_content_hash` verification |
 | **Secrets management boundary** | Vault token scope + credential rotation | `fraiseql-secrets`; token renewal on expiry |
 
 ---
