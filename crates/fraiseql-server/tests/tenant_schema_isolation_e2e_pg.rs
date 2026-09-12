@@ -65,7 +65,7 @@ const APP_NAME: &str = "p04_iso_replace";
 
 fn schema_json_for(mode: &str) -> String {
     serde_json::to_string(&serde_json::json!({
-        "version": "2.0.0",
+        "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
         "types": [],
         "queries": [],
         "mutations": [],

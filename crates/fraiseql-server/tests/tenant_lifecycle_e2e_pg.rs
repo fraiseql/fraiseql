@@ -53,7 +53,7 @@ const SECRET_ROW: &str = "customer-A-row";
 
 fn tenancy_schema_json() -> Value {
     json!({
-        "version": "2.0.0",
+        "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
         "types": [],
         "queries": [],
         "mutations": [],

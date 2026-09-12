@@ -64,7 +64,7 @@ fn marker(key: &str) -> String {
 /// The compiled schema, in schema-per-tenant mode with one MCP-exposed query.
 fn schema_json() -> String {
     serde_json::to_string(&serde_json::json!({
-        "version": "2.0.0",
+        "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
         "types": [{
             "name": "Widget",
             "sql_source": VIEW,

@@ -54,6 +54,26 @@ boots() {
     } >"$dir/.github/workflows/smoke.yml"
 }
 
+# mounts_file <dir> <path> — a .dagger Go source naming the path as a FILE literal, the
+# shape `source.File("docker/e2e/schema.compiled.json")` takes.
+mounts_file() {
+    local dir="$1" path="$2"
+    mkdir -p "$dir/.dagger"
+    printf 'package main\n\nfunc svc() { schema := source.File("%s") }\n' "$path" \
+        >>"$dir/.dagger/main.go"
+}
+
+# mounts_dir <dir> <dirpath> — the shape the federation call site actually uses:
+# `source.File("crates/.../federation/" + schemaFile)`. Only the DIRECTORY survives as a
+# literal, so a file-only sweep sees nothing here — which is how the two federation
+# fixtures went unstamped past a green gate.
+mounts_dir() {
+    local dir="$1" dirpath="$2"
+    mkdir -p "$dir/.dagger"
+    printf 'package main\n\nfunc svc() { schema := source.File("%s" + schemaFile) }\n' "$dirpath" \
+        >>"$dir/.dagger/main.go"
+}
+
 # assert_gate <name> <expected-exit> <dir>
 assert_gate() {
     local name="$1" want_exit="$2" dir="$3"
@@ -123,6 +143,41 @@ d="$WORK/dedup"; new_tree "$d" 2.15.0
 artifact "$d" docker/e2e/schema.compiled.json 2.15.0
 boots "$d" docker/e2e/schema.compiled.json docker/e2e/schema.compiled.json
 assert_gate "a-repeated-reference-is-one-subject" 0 "$d"
+
+# ── The Dagger legs boot compiled schemas too, and set FRAISEQL_SCHEMA_PATH from Go to
+#    a CONTAINER path — so the workflow rule above cannot reach the host file ──────────
+d="$WORK/dagger-file-stale"; new_tree "$d" 2.15.0
+artifact "$d" docker/e2e/schema.compiled.json 2.15.0
+boots "$d" docker/e2e/schema.compiled.json
+artifact "$d" docker/e2e/other.compiled.json 2.14.0
+mounts_file "$d" docker/e2e/other.compiled.json
+assert_gate "a-dagger-file-literal-is-a-subject" 1 "$d"
+
+# The regression this whole branch exists for: the path is built by concatenation, so only
+# the directory is a literal. Unstamped fixtures inside it must still be found.
+d="$WORK/dagger-dir-unstamped"; new_tree "$d" 2.15.0
+artifact "$d" docker/e2e/schema.compiled.json 2.15.0
+boots "$d" docker/e2e/schema.compiled.json
+artifact "$d" crates/srv/tests/fixtures/federation/schema_users.json
+mounts_dir "$d" crates/srv/tests/fixtures/federation/
+assert_gate "a-dagger-directory-literal-is-a-subject" 1 "$d"
+
+# ...and passes once they name this build, so the case above fails for the stamp and not
+# merely for existing.
+d="$WORK/dagger-dir-ok"; new_tree "$d" 2.15.0
+artifact "$d" docker/e2e/schema.compiled.json 2.15.0
+boots "$d" docker/e2e/schema.compiled.json
+artifact "$d" crates/srv/tests/fixtures/federation/schema_users.json 2.15.0
+mounts_dir "$d" crates/srv/tests/fixtures/federation/
+assert_gate "a-stamped-dagger-directory-subject-passes" 0 "$d"
+
+# A container path in Go is absolute and is not ours to check; it must not be mistaken for
+# a subject, nor make the run vacuous when a real workflow subject exists.
+d="$WORK/dagger-container-path"; new_tree "$d" 2.15.0
+artifact "$d" docker/e2e/schema.compiled.json 2.15.0
+boots "$d" docker/e2e/schema.compiled.json
+mounts_file "$d" /schema.compiled.json
+assert_gate "an-absolute-dagger-path-is-not-a-subject" 0 "$d"
 
 echo ""
 echo "ran $TESTS_RUN, failed $TESTS_FAILED"

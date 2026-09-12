@@ -361,7 +361,7 @@ async fn stub_idp() -> String {
 
 fn empty_schema() -> CompiledSchema {
     serde_json::from_value(serde_json::json!({
-        "version": "2.0.0",
+        "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
         "types": [],
         "queries": [],
         "mutations": [],

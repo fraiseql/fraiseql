@@ -226,7 +226,7 @@ fn schema_json(token_revocation: Option<Value>) -> Value {
         security["token_revocation"] = cfg;
     }
     json!({
-        "version": "2.0.0",
+        "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
         "types": [{
             "name": "Widget",
             "sql_source": "v_widget",

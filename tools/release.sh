@@ -112,14 +112,20 @@ bump_deploy_artifacts "$VERSION" \
     deploy/kubernetes/helm/fraiseql/values.yaml
 echo "      Bumped Dockerfile label + Helm chart/values."
 
-# Restamp the compiled schemas release-smoke.yml boots. Since #1304 the server refuses an
-# artifact produced by another build, so a release commit that leaves these naming the
-# previous version ships a smoke test that cannot start the server it is smoke-testing.
+# Restamp the compiled schemas CI boots. Since #1304 the server refuses an artifact
+# produced by another build, so a release commit that leaves these naming the previous
+# version ships a smoke test that cannot start the server it is smoke-testing.
 # tools/check-compiled-schema-stamp.sh (ShellGates → the REQUIRED preflight check) fails
-# on the release branch if this call is ever removed.
+# on the release branch if this call is ever removed, and it now discovers all four.
+#
+# The federation pair is booted by `integration (federation)`, not by a workflow: the
+# Dagger leg mounts them and starts a subgraph server on each. They were unstamped when
+# #1304 landed and took that leg down; a bump that skipped them would do it again.
 bump_compiled_schema_stamps "$VERSION" \
     docker/e2e/schema.compiled.json \
-    docker/e2e/schema.with-source.compiled.json
+    docker/e2e/schema.with-source.compiled.json \
+    crates/fraiseql-server/tests/fixtures/federation/schema_users.json \
+    crates/fraiseql-server/tests/fixtures/federation/schema_reviews.json
 echo "      Restamped the CI-booted compiled schemas."
 
 # Rewrite the docs' `vX.Y.Z released` status lines. tools/check-docs-version.sh enforces

@@ -86,7 +86,7 @@ async fn third_party_scim_client_finds_the_surface_conformant() {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
     let port = listener.local_addr().expect("local addr").port();
     let schema: CompiledSchema = serde_json::from_value(json!({
-        "version": "2.0.0", "types": [], "queries": [], "mutations": [],
+        "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION, "types": [], "queries": [], "mutations": [],
     }))
     .expect("compiled schema");
 

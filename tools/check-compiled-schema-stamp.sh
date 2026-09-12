@@ -70,6 +70,50 @@ if [ "${#referenced[@]}" -eq 0 ]; then
   echo "       compiled schema; a gate that checks nothing must not report success." >&2
   exit 2
 fi
+workflow_subjects="${#referenced[@]}"
+
+# The Dagger legs boot compiled schemas too, and none of them is reachable by the rule
+# above: `.dagger` sets FRAISEQL_SCHEMA_PATH from Go, to the *container* path the file is
+# mounted at (`/schema.compiled.json`). The host path — the file this repository owns and
+# the only one a gate can check — appears only as the argument to `source.File`.
+#
+# That gap shipped: `integration (federation)` boots
+# crates/fraiseql-server/tests/fixtures/federation/schema_{users,reviews}.json, both
+# unstamped, and this gate passed on the same tree whose federation leg could not start a
+# subgraph.
+#
+# Discovery stays by reference, and reads BOTH shapes a Go literal takes, because the
+# federation call site uses the second and a file-only sweep silently misses it:
+#
+#   source.File("docker/e2e/schema.compiled.json")                 → a file literal
+#   source.File("crates/.../fixtures/federation/" + schemaFile)    → a DIRECTORY literal
+#
+# A directory literal contributes every `.json` directly inside it. Measured on this tree
+# that is one directory holding exactly the two federation fixtures; the only other
+# directory literal is "/", which holds none.
+dagger_dir=".dagger"
+if [ -d "$dagger_dir" ]; then
+  while IFS= read -r lit; do
+    case "$lit" in
+      /*) continue ;;                 # absolute = a container path, not ours
+    esac
+    if [ -f "$lit" ]; then
+      referenced+=("$lit")
+    elif [ -d "$lit" ]; then
+      for j in "$lit"*.json; do
+        [ -f "$j" ] && referenced+=("$j")
+      done
+    fi
+  done < <(
+    grep -rhoE '"[^"]*(\.json|/)"' "$dagger_dir" --include='*.go' \
+      | sed 's/^"//; s/"$//' \
+      | sort -u
+  )
+fi
+
+# Deduplicate: docker/e2e/schema.compiled.json is named by both a workflow and .dagger.
+mapfile -t referenced < <(printf '%s\n' "${referenced[@]}" | sort -u)
+dagger_subjects=$(( ${#referenced[@]} - workflow_subjects ))
 
 checked=0
 failed=0
@@ -97,4 +141,5 @@ fi
 
 [ "$failed" -eq 0 ] || exit 1
 
-echo "OK: all $checked CI-booted compiled schema(s) name v${version}."
+echo "OK: all $checked CI-booted compiled schema(s) name v${version}" \
+     "(${workflow_subjects} workflow reference(s), ${dagger_subjects} more from ${dagger_dir})."

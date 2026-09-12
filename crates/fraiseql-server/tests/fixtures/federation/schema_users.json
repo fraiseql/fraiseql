@@ -1,4 +1,5 @@
 {
+    "fraiseql_version": "2.15.0",
     "types": [
         {
             "name": "User",
