@@ -116,6 +116,11 @@ pub struct AppState<A: DatabaseAdapter> {
     /// tell "no producer" from "no events yet".
     #[cfg(feature = "observers")]
     pub entity_event_fanout: Option<crate::subscriptions::EntityEventFanout>,
+    /// Reads back what the REST `/{resource}/stream` mount already delivered, for a
+    /// client reconnecting with `Last-Event-ID` (#1310). `Some` exactly when an observer
+    /// runtime polls the local change log — the ledger whose recorded order it replays.
+    #[cfg(feature = "observers")]
+    pub stream_replay: Option<std::sync::Arc<fraiseql_observers::listener::ChangeLogReplayReader>>,
     /// Schema file path for reload operations.
     pub schema_path: Option<PathBuf>,
     /// Database adapter reference for constructing new executors on reload.
@@ -253,6 +258,8 @@ impl<A: DatabaseAdapter> AppState<A> {
             observer_runtime: None,
             #[cfg(feature = "observers")]
             entity_event_fanout: None,
+            #[cfg(feature = "observers")]
+            stream_replay: None,
             max_get_query_bytes: 100_000,
             graphql_incremental_enabled: false,
             graphql_incremental_batch_size: 100,
@@ -791,6 +798,23 @@ impl<A: DatabaseAdapter> AppState<A> {
         fanout: crate::subscriptions::EntityEventFanout,
     ) -> Self {
         self.entity_event_fanout = Some(fanout);
+        self
+    }
+
+    /// Attach the reader a resumed REST stream reads its catch-up from (#1310).
+    ///
+    /// Separate from [`with_entity_event_fanout`](Self::with_entity_event_fanout)
+    /// because the two answer different questions: the fan-out says whether there is a
+    /// producer at all, this says whether what it produced was recorded anywhere. A
+    /// deployment can have the first without the second, and then a stream is live-only
+    /// and says so.
+    #[cfg(feature = "observers")]
+    #[must_use]
+    pub fn with_stream_replay(
+        mut self,
+        reader: std::sync::Arc<fraiseql_observers::listener::ChangeLogReplayReader>,
+    ) -> Self {
+        self.stream_replay = Some(reader);
         self
     }
 

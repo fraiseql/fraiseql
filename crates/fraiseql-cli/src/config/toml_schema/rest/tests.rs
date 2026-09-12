@@ -9,6 +9,7 @@ fn test_rest_toml_defaults_match_core() {
     assert_eq!(toml_defaults.max_page_size, 1_000);
     assert_eq!(toml_defaults.default_page_size, 100);
     assert_eq!(toml_defaults.sse_heartbeat_seconds, 30);
+    assert_eq!(toml_defaults.sse_max_replay_events, 10_000);
     assert!(toml_defaults.etag);
     assert_eq!(toml_defaults.idempotency_ttl_seconds, 300);
     assert!(!toml_defaults.require_auth);
@@ -39,6 +40,22 @@ fn test_rest_toml_deserialize_full() {
     assert_eq!(config.delete_response, DeleteResponseToml::Entity);
     assert!(config.require_auth);
     assert!(!config.etag);
+}
+
+/// A `[rest]` key reaches the compiled schema only if the TOML type declares it *and*
+/// the conversion carries it. A field added to one of the two is silently the default
+/// everywhere (#1265's shape), and no defaults-comparison test can see it — this sets a
+/// value no default equals and reads it out the far end.
+#[test]
+fn the_replay_bound_reaches_the_compiled_schema() {
+    let config: RestTomlConfig = toml::from_str("sse_max_replay_events = 42").unwrap();
+    assert_eq!(config.sse_max_replay_events, 42);
+
+    let compiled: RestConfig = config.into();
+    assert_eq!(
+        compiled.sse_max_replay_events, 42,
+        "the operator's bound must survive the conversion the compiler performs"
+    );
 }
 
 #[test]

@@ -408,3 +408,91 @@ async fn a_role_without_ddl_rights_still_polls_an_already_migrated_ledger() {
         sqlx::query(&cleanup).execute(&admin).await.unwrap();
     }
 }
+
+/// #1310: the same divergence, read from the other end.
+///
+/// A streaming client's `Last-Event-ID` is the `seq` of the last event it *received*,
+/// and the two tests above establish that the late-committing row is received **after**
+/// a higher `seq`. So resuming with `WHERE seq > last` is not merely imprecise — it
+/// excludes the straggler by construction, which is the silent gap the poller's own
+/// ledger was introduced to close.
+///
+/// This drives the real listener over two real concurrent transactions, so the state the
+/// resume reader is asked about is the one the scheduler produces rather than one a
+/// fixture asserts into being.
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn a_resume_from_the_last_received_event_recovers_the_straggler() {
+    use fraiseql_observers::listener::{ChangeLogReplayReader, ReplayScope, ResumeAnchor};
+
+    let pool = pool().await;
+    fresh_contract(&pool).await;
+
+    let listener_id = format!("resume-{}", uuid::Uuid::new_v4());
+    let object_type = format!("Resume_{}", uuid::Uuid::new_v4().simple());
+
+    // A allocates the lower pk (and the lower seq) inside a transaction that stays open.
+    let mut session_a = pool.begin().await.unwrap();
+    let pk_a: i64 = sqlx::query_scalar(INSERT_RETURNING_PK)
+        .bind(&object_type)
+        .bind(serde_json::json!({ "n": "A_slow" }))
+        .fetch_one(&mut *session_a)
+        .await
+        .unwrap();
+    let pk_b: i64 = sqlx::query_scalar(INSERT_RETURNING_PK)
+        .bind(&object_type)
+        .bind(serde_json::json!({ "n": "B_fast" }))
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert!(pk_b > pk_a, "test setup: B must hold the higher pk (a={pk_a}, b={pk_b})");
+
+    let mut listener = ChangeLogListener::new(
+        ChangeLogListenerConfig::new(pool.clone()).with_listener_id(&listener_id),
+    );
+
+    // The poller delivers B — all it can see — and records the batch. This is the
+    // moment the client stores B's seq and the connection drops.
+    let first = listener.next_batch().await.unwrap();
+    assert_eq!(first.iter().map(|e| e.id).collect::<Vec<_>>(), vec![pk_b]);
+    let anchor_seq = first[0].seq.expect("the contract defaults seq from its sequence");
+    listener.record_dispatched(&first).await.unwrap();
+
+    // A commits late and is delivered in a later batch — after the higher seq.
+    session_a.commit().await.unwrap();
+    let second = listener.next_batch().await.unwrap();
+    assert!(second.iter().any(|e| e.id == pk_a), "the straggler must be dispatched at all");
+    let straggler_seq = second
+        .iter()
+        .find(|e| e.id == pk_a)
+        .and_then(|e| e.seq)
+        .expect("the straggler carries a sequence");
+    assert!(
+        straggler_seq < anchor_seq,
+        "the straggler must carry the LOWER sequence ({straggler_seq} vs {anchor_seq}) —          otherwise this test proves nothing about resuming"
+    );
+    listener.record_dispatched(&second).await.unwrap();
+
+    // The client reconnects with the id it holds.
+    let reader = ChangeLogReplayReader::new(pool.clone(), listener_id);
+    let scope = ReplayScope {
+        object_type: object_type.clone(),
+        tenant:      None,
+    };
+    let ResumeAnchor::Found(position) = reader.anchor(&scope, anchor_seq).await.unwrap() else {
+        panic!("the anchor is a row this poller just dispatched");
+    };
+    let replayed: Vec<i64> = reader
+        .page(&scope, &position, 100)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter_map(|r| r.event.seq)
+        .collect();
+
+    assert_eq!(
+        replayed,
+        vec![straggler_seq],
+        "resuming from seq {anchor_seq} must return the straggler (seq {straggler_seq});          `WHERE seq > {anchor_seq}` returns nothing and loses it silently"
+    );
+}

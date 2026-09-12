@@ -275,8 +275,12 @@ knowing:
 The terminal payload of a delivery that ended early (revoked token, batch error)
 carries an id too, so a client that fixes the cause resumes rather than restarts.
 
-## Not (yet) supported
+## The other SSE surface
 
-`Last-Event-ID` on the REST observer stream (`/rest/v1/{resource}/stream`) is #1113, and
-separate: that transport's event id is an event UUID over a live feed, not an offset
-into a re-executable query.
+`Last-Event-ID` on the REST observer stream (`/rest/v1/{resource}/stream`) resumes too,
+by an unrelated mechanism, and the two must not be confused. This page's stream is a
+**re-executable query**: it resumes by offset, because re-running the document from row
+N produces row N. The REST observer stream is a **live feed of changes**: there is no
+query to re-run, so it resumes from a durable record of what was delivered — see
+[rest-stream-resumption.md](rest-stream-resumption.md). Its ids are Change-Spine
+sequences rather than offsets, and they are not interchangeable with these.

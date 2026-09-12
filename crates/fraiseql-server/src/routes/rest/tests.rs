@@ -469,7 +469,9 @@ mod stream_decisions {
 
     use crate::{
         routes::rest::sse::{
-            StreamEvent, stream_event_matches, stream_resume_refusal, stream_tenant_scope,
+            ResumeRequest, StreamEvent, replay_scope, resume_point_unknown, resume_too_far_behind,
+            resumption_unsupported, stream_event_matches, stream_resume_request,
+            stream_tenant_scope,
         },
         subscriptions::EntityEvent as BridgeEvent,
     };
@@ -558,32 +560,106 @@ mod stream_decisions {
         headers
     }
 
-    /// The defect: read into `_last_event_id` and dropped, so a reconnect silently
-    /// skipped the gap on a stream that reported itself healthy.
+    /// The defect #1113 found: the header was read into `_last_event_id` and dropped, so
+    /// a reconnect silently skipped the gap on a stream that reported itself healthy.
+    /// It is now a resume point, read as the Change-Spine sequence the stream emits.
     #[test]
-    fn a_resume_request_is_refused_rather_than_ignored() {
-        let refusal =
-            stream_resume_refusal(&headers_with("41")).expect("a resume request is refused");
-        assert_eq!(refusal.status, StatusCode::NOT_IMPLEMENTED);
-        assert_eq!(refusal.code, "RESUMPTION_UNSUPPORTED");
-        assert!(
-            refusal.message.contains("41"),
-            "the refusal must name the id it could not honour: {}",
-            refusal.message
+    fn a_resume_request_names_the_sequence_to_resume_after() {
+        assert_eq!(
+            stream_resume_request(&headers_with("41")).expect("41 is an id this stream issues"),
+            ResumeRequest::From(41)
         );
     }
 
     #[test]
     fn a_fresh_delivery_is_not_a_resume_request() {
-        assert!(stream_resume_refusal(&HeaderMap::new()).is_none());
+        assert_eq!(
+            stream_resume_request(&HeaderMap::new()).expect("no header is no resume"),
+            ResumeRequest::Fresh
+        );
     }
 
     /// `Last-Event-ID:` with an empty value is what a client sends before it has seen
-    /// an event. Nothing was missed, so there is nothing to refuse.
+    /// an event. Nothing was missed, so there is nothing to resume.
     #[test]
     fn an_empty_last_event_id_is_not_a_resume_request() {
-        assert!(stream_resume_refusal(&headers_with("")).is_none());
-        assert!(stream_resume_refusal(&headers_with("   ")).is_none());
+        assert_eq!(stream_resume_request(&headers_with("")).unwrap(), ResumeRequest::Fresh);
+        assert_eq!(stream_resume_request(&headers_with("   ")).unwrap(), ResumeRequest::Fresh);
+    }
+
+    /// An id this stream never issued. Refused rather than treated as a fresh delivery:
+    /// the client believes it is resuming, and answering `200` from now on would hand it
+    /// exactly the unseen gap this endpoint keeps being corrected for.
+    #[test]
+    fn an_id_this_stream_never_issues_is_refused() {
+        for value in ["not-a-number", "3f2a1b", "12.5", "9999999999999999999999"] {
+            let refusal = stream_resume_request(&headers_with(value))
+                .expect_err("a non-integer id is not a Change-Spine sequence");
+            assert_eq!(refusal.status, StatusCode::BAD_REQUEST);
+            assert_eq!(refusal.code, "RESUME_POINT_INVALID");
+            assert!(
+                refusal.message.contains(value),
+                "the refusal must name the id it could not read: {}",
+                refusal.message
+            );
+        }
+    }
+
+    /// Each refusal says which of the three unresumable situations the client is in, and
+    /// names the id, because "cannot resume" alone leaves an operator to guess between a
+    /// pruned change log, a deployment that records nothing, and a client too far behind.
+    #[test]
+    fn each_refusal_names_its_own_reason_and_the_id() {
+        let unsupported = resumption_unsupported(41);
+        assert_eq!(unsupported.status, StatusCode::NOT_IMPLEMENTED);
+        assert_eq!(unsupported.code, "RESUMPTION_UNSUPPORTED");
+
+        let unknown = resume_point_unknown(41);
+        assert_eq!(unknown.status, StatusCode::GONE);
+        assert_eq!(unknown.code, "RESUME_POINT_UNKNOWN");
+
+        let too_far = resume_too_far_behind(41, 10_000);
+        assert_eq!(too_far.status, StatusCode::PAYLOAD_TOO_LARGE);
+        assert_eq!(too_far.code, "RESUME_TOO_FAR_BEHIND");
+        assert!(
+            too_far.message.contains("10000"),
+            "the bound a client exceeded must be named so it can be raised: {}",
+            too_far.message
+        );
+
+        for refusal in [&unsupported, &unknown, &too_far] {
+            assert!(
+                refusal.message.contains("41"),
+                "every refusal names the id it could not honour: {}",
+                refusal.message
+            );
+            assert!(
+                refusal.message.contains("without the header"),
+                "every refusal states the way forward: {}",
+                refusal.message
+            );
+        }
+    }
+
+    /// The replay reads back through the same two gates the live stream applies. A scope
+    /// derived from anything else — the route name, a re-parsed tenant — would replay
+    /// events the live stream filters, which is a tenant leak on reconnect.
+    #[test]
+    fn a_replay_is_scoped_by_the_live_gates() {
+        assert_eq!(
+            replay_scope("Order", &TenantScope::Tenant("tenant-a".to_string())),
+            fraiseql_observers::listener::ReplayScope {
+                object_type: "Order".to_string(),
+                tenant:      Some("tenant-a".to_string()),
+            }
+        );
+        assert_eq!(
+            replay_scope("Order", &TenantScope::AllTenants),
+            fraiseql_observers::listener::ReplayScope {
+                object_type: "Order".to_string(),
+                tenant:      None,
+            }
+        );
     }
 
     // ── the wire frame ────────────────────────────────────────────

@@ -937,22 +937,48 @@ fn last_event_id_param(spec: &serde_json::Value) -> &serde_json::Value {
         .expect("the stream operation must document Last-Event-ID")
 }
 
+/// The document and the handler must describe the same endpoint.
+///
+/// This test was written the other way round (#1113): it asserted the document did NOT
+/// promise a resumption, because the handler refused one. #1310 built it, so the
+/// assertion is inverted — but the property being pinned is unchanged, and it is the one
+/// that matters: what the document says a client gets is what the handler does.
+///
+/// Both halves are load-bearing. "Replays" alone would let the document promise
+/// exactly-once delivery the handler does not provide; the refusal codes alone would
+/// describe a feature no one can tell is there.
 #[test]
-fn the_document_does_not_promise_a_resumption_the_handler_refuses() {
+fn the_document_describes_the_resumption_the_handler_performs() {
     let spec = generate(&rest_schema());
     let description = last_event_id_param(&spec)["description"]
         .as_str()
         .expect("the parameter must carry a description");
 
     assert!(
-        !description.to_lowercase().contains("resume from"),
-        "the document must not advertise resumption while the handler answers 501 to it: \
-         {description}"
+        description.contains("replays"),
+        "the document must say the header resumes the stream: {description}"
     );
     assert!(
-        description.contains("501"),
-        "the document must say what a client sending this header actually gets: {description}"
+        description.contains("at-least-once") && description.contains("dedup"),
+        "a client must learn from the document that an event can repeat across a \
+         reconnect, and what to dedup on: {description}"
     );
+
+    let responses = &stream_operation(&spec)["responses"];
+    for (status, code) in [
+        ("400", "RESUME_POINT_INVALID"),
+        ("410", "RESUME_POINT_UNKNOWN"),
+        ("413", "RESUME_TOO_FAR_BEHIND"),
+        ("501", "RESUMPTION_UNSUPPORTED"),
+    ] {
+        let described = responses[status]["description"]
+            .as_str()
+            .expect("the stream operation must document this response");
+        assert!(
+            described.contains(code),
+            "the {status} response must name the code a client branches on: {described}"
+        );
+    }
 }
 
 #[test]

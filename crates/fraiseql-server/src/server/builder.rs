@@ -560,6 +560,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .as_ref()
             .map(|_| crate::subscriptions::EntityEventFanout::default());
 
+        // What a resumed stream reads its catch-up from (#1310). Derived from the
+        // runtime rather than from the pool: only the runtime knows whether its events
+        // reach the fan-out through the local change-log poller, whose dispatch ledger
+        // is the record of what was delivered and in what order. A broker-backed
+        // runtime returns `None` here and the endpoint keeps refusing resumption, which
+        // is then the truth about that deployment rather than a missing feature.
+        #[cfg(feature = "observers")]
+        let stream_replay = match observer_runtime.as_ref() {
+            Some(runtime) => runtime.read().await.stream_replay_reader(),
+            None => None,
+        };
+
         // Install the OIDC validator into the Flight service — the caller's when
         // one was supplied, otherwise a fresh one. The Flight handshake is
         // fail-closed on a missing validator, so skipping this leaves the whole
@@ -893,6 +905,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             observer_runtime,
             #[cfg(feature = "observers")]
             entity_event_fanout,
+            #[cfg(feature = "observers")]
+            stream_replay,
             #[cfg(feature = "auth")]
             enrichment_pool: db_pool.clone(),
             #[cfg(feature = "observers")]

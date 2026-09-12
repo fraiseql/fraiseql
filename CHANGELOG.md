@@ -18,6 +18,62 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`GET /rest/v1/{resource}/stream` resumes from `Last-Event-ID` instead of refusing it
+  (#1310).** A browser `EventSource` re-sends the id of the last event it received on
+  every reconnect. That header was answered `501 RESUMPTION_UNSUPPORTED` (#1113, which was
+  the honest answer while nothing could replay) and before that was read into a discarded
+  binding, so a reconnect after a network blip silently lost the gap. A reconnecting
+  client is now replayed every event delivered after the one it names, in the order they
+  were delivered, and then continues live. See
+  [docs/operations/rest-stream-resumption.md](docs/operations/rest-stream-resumption.md).
+
+  **The obvious implementation is wrong, and the issue specified it.** Reading back
+  `WHERE seq > <Last-Event-ID>` loses data, measured on a real database before anything
+  was built: `seq` is allocated when a writing transaction inserts and becomes visible
+  when it commits, so a row whose transaction commits late is delivered *after* a higher
+  sequence. The client's stored id is the **last** event it received, never the highest,
+  so reading forward by sequence skips the straggler for ever, under a `200`. That is the
+  #935 / #797 defect family — the poller and the CDC enqueue cursor were each corrected
+  for exactly it — and migration 14 already wrote down the remedy: answer with a recorded
+  fact, not with an ordering assumption.
+
+  So the replay reads the observer runtime's dispatch ledger, whose
+  `(dispatched_at, pk_entity_change_log)` order **is** the order events were fanned out,
+  and returns precisely what the client missed — no commit-lag window, and nothing
+  re-sent that it already had. Pinned by `change_log_commit_order_pg`, driving the real
+  poller over two real concurrent transactions: resuming from the last received event
+  returns the straggler that `seq > last` returns nothing for.
+
+  The contract, in full:
+
+  - **At-least-once.** Dedup on `(object_type, seq)`. Duplicates come from the in-flight tail
+    (the poller publishes a batch and records it afterwards, so a resume also reads rows
+    the ledger has not placed yet — including ones the live stream then repeats) and from
+    a crash between dispatch and record.
+  - **Four refusals, never a partial replay**: `400 RESUME_POINT_INVALID` (not an id this
+    stream issues), `410 RESUME_POINT_UNKNOWN` (pruned, or from another stream — what
+    followed it cannot be established), `413 RESUME_TOO_FAR_BEHIND` (beyond the bound,
+    refused before the first frame), `501 RESUMPTION_UNSUPPORTED` (this deployment records
+    no delivery order — a NATS or in-memory transport never touches the ledger).
+  - **A new bound**, `[rest].sse_max_replay_events`, default `10000`, `0` = unbounded (the
+    permissive setting: on a credential-free stream it is an unbounded read).
+  - **A `seq`-less event** is replayed like any other and still emits no `id:`, so a client's
+    resume point stays the last event that had one — it simply cannot itself be an anchor.
+  - **`STREAM_LAGGED` is now a recoverable end**: the reconnect that follows it resumes, which
+    is what #1309 asked this issue to make the supported path. A catch-up read that fails
+    part way ends the stream with `REPLAY_FAILED` rather than continuing live with a hole.
+
+  Two additive indexes come with it — `idx_entity_log_id` (migration 08) and
+  `idx_observer_dispatch_dispatched` (migration 14). Without them the resume query
+  hash-joins the whole ledger against every row of the entity type: measured at 13 ms on a
+  60 000-row log, and linear from there.
+
+  The acceptance bar #1309 set for this issue holds end to end: a replaying client does
+  not consume rows the observer runtime has not dispatched yet. The reader writes nothing
+  — no lease, no dispatch record — and `rest_stream_fanout_e2e_pg` proves it by stopping
+  the runtime, replaying rows from the in-flight tail, restarting it, and requiring the
+  observer to fire for those same rows.
+
 - **`doctor --against-db` now reports the index that would remove a sort from every
   paginated read (#1307).** Since #1287 a client sort over a non-unique key is
   tie-broken by the entity identity; where the sort key is indexed and the tie-break

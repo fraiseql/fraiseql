@@ -17,6 +17,8 @@ pub mod openapi;
 pub mod params;
 pub mod resource;
 pub mod response;
+#[cfg(feature = "observers")]
+pub mod resumable_stream;
 mod router;
 pub mod sse;
 pub mod streaming;

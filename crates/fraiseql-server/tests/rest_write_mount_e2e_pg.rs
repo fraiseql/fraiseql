@@ -1000,10 +1000,10 @@ async fn a_created_resource_reports_its_location() {
 /// with nothing to say yet". The second is the regression; do not delete the assertion
 /// to make it green.
 ///
-/// Still open, and still refused rather than answered: **#1310** — a client reconnecting
-/// with `Last-Event-ID` gets `501 RESUMPTION_UNSUPPORTED` until a durable `seq`-ranged
-/// read of `core.tb_entity_change_log` exists. That is now unblocked by #1309 rather
-/// than blocked on it.
+/// #1310 shipped resumption for the deployments that can offer it — a client
+/// reconnecting with `Last-Event-ID` is replayed from the observer runtime's dispatch
+/// ledger. It changes nothing here: with no runtime there is no ledger and no producer,
+/// so every request to this endpoint, resuming or not, still gets the `501` below.
 #[tokio::test]
 async fn the_sse_stream_refuses_rather_than_pretending_to_deliver_events() {
     let Some(rig) = rig_with_writes().await else {

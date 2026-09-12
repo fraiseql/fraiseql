@@ -33,6 +33,13 @@ pub const SSE_CONTENT_TYPE: &str = "text/event-stream";
 /// Default heartbeat interval in seconds.
 pub const DEFAULT_SSE_HEARTBEAT_SECONDS: u64 = 30;
 
+/// Default bound on how far back a `Last-Event-ID` resume may reach, used when no
+/// compiled `[rest]` config is present.
+///
+/// Mirrors `RestConfig::default().sse_max_replay_events`; a schema that carries a
+/// `rest_config` supplies its own.
+pub const DEFAULT_SSE_MAX_REPLAY_EVENTS: u64 = 10_000;
+
 /// Check whether an `Accept` header value requests SSE.
 #[must_use]
 pub fn accepts_sse(headers: &HeaderMap) -> bool {
@@ -194,40 +201,145 @@ pub fn stream_tenant_scope(
     )
 }
 
-/// The refusal owed to a client that asked to resume, when resuming is not
-/// implemented.
+/// What a request's `Last-Event-ID` asks for.
 ///
-/// #1113: the handler read the header into `let _last_event_id = …` and dropped it.
-/// A browser `EventSource` re-sends `Last-Event-ID` automatically on every
-/// reconnect, so a client reconnecting after a network blip silently lost every
-/// event in the gap while the transport reported a healthy stream.
-///
-/// Returns `Some(refusal)` when the client asked to resume. It is refused rather
-/// than ignored: honouring it needs a durable `seq`-ranged read of
-/// `core.tb_entity_change_log` (#1310), and the alternative — answering `200` and
-/// starting from now — is the silent data loss this is here to stop. A reconnect
-/// that fails loudly is diagnosable; one that succeeds while skipping a range is
-/// not.
-///
-/// An absent or empty header is a fresh delivery, not a resume, and returns `None`.
+/// #1113 read this header into `let _last_event_id = …` and dropped it, so a browser
+/// `EventSource` reconnecting after a blip silently lost every event in the gap while
+/// the transport reported a healthy stream. #1310 makes it a resume.
 #[cfg(feature = "observers")]
-#[must_use]
-pub fn stream_resume_refusal(headers: &HeaderMap) -> Option<RestError> {
-    let raw = extract_last_event_id(headers)?;
-    if raw.trim().is_empty() {
-        return None;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ResumeRequest {
+    /// No usable header: deliver from now on.
+    Fresh,
+    /// Resume after the event carrying this Change-Spine sequence.
+    From(i64),
+}
+
+/// Read the `Last-Event-ID` header as a resume point.
+///
+/// The id a stream emits is the Change-Spine `seq` and nothing else (#1113 chose it over
+/// the event UUID precisely so that this day could come), so a value that is not one is
+/// not a resume point this stream ever issued. It is refused rather than ignored: a
+/// client sending an id from another system, or a hand-typed one, is asking for
+/// something the server cannot give, and starting from now instead would hand it the
+/// silent gap in a new wrapper.
+///
+/// An absent or blank header is a fresh delivery, not a resume.
+///
+/// # Errors
+///
+/// Returns `400 RESUME_POINT_INVALID` when the header is present and not an integer.
+#[cfg(feature = "observers")]
+pub fn stream_resume_request(headers: &HeaderMap) -> Result<ResumeRequest, RestError> {
+    let Some(raw) = extract_last_event_id(headers) else {
+        return Ok(ResumeRequest::Fresh);
+    };
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Ok(ResumeRequest::Fresh);
     }
 
-    Some(RestError {
-        status:  StatusCode::NOT_IMPLEMENTED,
-        code:    "RESUMPTION_UNSUPPORTED",
+    trimmed.parse::<i64>().map(ResumeRequest::From).map_err(|_| RestError {
+        status:  StatusCode::BAD_REQUEST,
+        code:    "RESUME_POINT_INVALID",
         message: format!(
-            "Last-Event-ID {raw:?} cannot be honoured: this stream has no replay path yet, \
-             and answering without one would skip every event since {raw:?} while looking \
-             healthy. Reconnect without the header to receive events from now on."
+            "Last-Event-ID {raw:?} is not an event id this stream issues. Every event \
+             carries `id: <seq>`, the Change-Spine sequence of the change, so a resume \
+             point is an integer. Reconnect without the header to receive events from \
+             now on."
         ),
         details: None,
     })
+}
+
+/// The refusal owed to a client that asked to resume where nothing records what was
+/// delivered.
+///
+/// Resuming reads back the observer runtime's dispatch ledger, which is written by the
+/// PostgreSQL change-log poller. A deployment whose events reach the runtime by another
+/// route has no such record — so there is no delivery order to resume from, and
+/// answering `200` from the change log would serve rows this stream may never have
+/// carried.
+#[cfg(feature = "observers")]
+#[must_use]
+pub fn resumption_unsupported(seq: i64) -> RestError {
+    RestError {
+        status:  StatusCode::NOT_IMPLEMENTED,
+        code:    "RESUMPTION_UNSUPPORTED",
+        message: format!(
+            "Last-Event-ID {seq} cannot be honoured: this deployment keeps no record of \
+             what this stream delivered, so the events since {seq} cannot be \
+             established. Reconnect without the header to receive events from now on."
+        ),
+        details: None,
+    }
+}
+
+/// The refusal owed to a client whose resume point is no longer in the change log.
+///
+/// The named event has been pruned by retention, or was never on this stream at all (an
+/// id picked up from another resource, tenant or deployment). Both are refused for one
+/// reason: with the anchor gone, nothing can establish what came after it, and a `200`
+/// carrying a partial replay would be the same silent gap in a new place.
+#[cfg(feature = "observers")]
+#[must_use]
+pub fn resume_point_unknown(seq: i64) -> RestError {
+    RestError {
+        status:  StatusCode::GONE,
+        code:    "RESUME_POINT_UNKNOWN",
+        message: format!(
+            "Last-Event-ID {seq} names no event on this stream: it has aged out of the \
+             change log, or it was issued by a different stream. What followed it \
+             cannot be established, so it is refused rather than answered with a replay \
+             that might skip. Reconnect without the header to receive events from now on."
+        ),
+        details: None,
+    }
+}
+
+/// The refusal owed to a client that is further behind than the deployment will replay.
+///
+/// Refused **before** the first frame rather than truncated after several thousand: a
+/// client that receives part of its replay and then a live stream cannot tell that from
+/// a complete one, which is the failure this endpoint exists to stop. The bound is
+/// `[rest].sse_max_replay_events`.
+#[cfg(feature = "observers")]
+#[must_use]
+pub fn resume_too_far_behind(seq: i64, cap: u64) -> RestError {
+    RestError {
+        status:  StatusCode::PAYLOAD_TOO_LARGE,
+        code:    "RESUME_TOO_FAR_BEHIND",
+        message: format!(
+            "Last-Event-ID {seq} is more than {cap} delivered events behind, which is \
+             this deployment's replay bound (`[rest].sse_max_replay_events`). Refusing \
+             rather than replaying part of the gap. Reconnect without the header to \
+             receive events from now on, or raise the bound."
+        ),
+        details: None,
+    }
+}
+
+/// The change-log scope a resumed stream reads back, from the gates the live stream
+/// applies.
+///
+/// Built from the live decisions rather than re-derived, so a replay cannot carry what
+/// the live stream would have filtered: the entity type is the same GraphQL type name,
+/// and the tenant is the same string [`stream_event_matches`] compares.
+#[cfg(feature = "observers")]
+#[must_use]
+pub fn replay_scope(
+    entity_type: &str,
+    scope: &fraiseql_observers::transport::TenantScope,
+) -> fraiseql_observers::listener::ReplayScope {
+    use fraiseql_observers::transport::TenantScope;
+
+    fraiseql_observers::listener::ReplayScope {
+        object_type: entity_type.to_string(),
+        tenant:      match scope {
+            TenantScope::AllTenants => None,
+            TenantScope::Tenant(tenant) => Some(tenant.clone()),
+        },
+    }
 }
 
 /// One entity event as it goes on the wire.
@@ -248,11 +360,17 @@ pub struct StreamEvent<'a> {
 impl<'a> StreamEvent<'a> {
     /// Render a fanned-out entity event as the SSE frame it becomes.
     ///
-    /// The id is the monotonic Change-Spine sequence and not the event's UUID. #1113: a UUID cannot
-    /// be resolved to a resume point by ordering, so emitting one as the SSE id promises a
-    /// client a resumption that no implementation could ever provide. `seq` is what a replay
-    /// would read by (#1310), so a client's stored id is already the right one on the
-    /// day replay lands.
+    /// The id is the Change-Spine sequence and not the event's UUID. #1113: a UUID cannot be
+    /// resolved to a resume point at all, so emitting one as the SSE id promises a client a
+    /// resumption no implementation could ever provide. `seq` identifies the row a resume
+    /// anchors on (#1310), so a client's stored id is the one a replay can resolve.
+    ///
+    /// ⚠ It is an **identifier**, not a watermark. `seq` is allocated when the writing
+    /// transaction inserts and becomes visible when it commits, so a row that commits late is
+    /// delivered *after* a higher sequence: the id a client holds is the last event it
+    /// received, never the highest. Reading a resume back as `seq > <id>` therefore skips the
+    /// straggler for ever — see [`fraiseql_observers::listener::replay`], which resumes from
+    /// the recorded delivery order instead.
     ///
     /// `seq` is `Option<i64>` ("None when the source row carried no sequence"), and
     /// such an event carries **no `id:` field at all**. Per the SSE specification an

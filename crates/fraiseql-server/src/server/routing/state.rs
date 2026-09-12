@@ -75,6 +75,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             info!("Entity-event fan-out attached to AppState for REST /{{resource}}/stream");
         }
 
+        // What that stream replays for a client reconnecting with `Last-Event-ID`
+        // (#1310). Asked of the runtime rather than derived from the pool, because only
+        // the runtime knows whether its events pass through the local dispatch ledger:
+        // a broker-backed runtime forwards events that ledger never saw, and a resume
+        // served from the change log would then answer for a delivery order this
+        // deployment never had.
+        #[cfg(feature = "observers")]
+        if let Some(ref reader) = self.stream_replay {
+            state = state.with_stream_replay(reader.clone());
+            info!("Change-log replay reader attached for REST /{{resource}}/stream resumption");
+        }
+
         // Thread adapter-level cache state through to admin handlers.
         state = state.with_adapter_cache_enabled(self.adapter_cache_enabled);
 

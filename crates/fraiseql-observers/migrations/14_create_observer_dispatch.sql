@@ -84,3 +84,17 @@ CREATE TABLE IF NOT EXISTS core.tb_observer_dispatch (
 -- Retention sweeps and lag monitoring walk the ledger by age, per listener.
 CREATE INDEX IF NOT EXISTS idx_observer_dispatch_created
     ON core.tb_observer_dispatch (listener_id, created_at);
+
+-- Delivery order (#1310). `dispatched_at` is stamped once per recorded batch and the
+-- fan-out is fed from inside that same batch loop, so (dispatched_at,
+-- pk_entity_change_log) is the order a streaming client received events in — and a
+-- resumed stream reads forward from its own position in it. Without this index the
+-- resume query hash-joins the whole ledger (measured: 13 ms at 60 000 rows, linear from
+-- there); with it the ledger side is an index range over just the rows since the anchor.
+--
+-- Distinct from idx_observer_dispatch_created above, which keys on the change-log row's
+-- OWN created_at (insert time) — the column retention reasons about. Insert order and
+-- dispatch order are exactly what diverge here, so neither index can serve the other's
+-- query.
+CREATE INDEX IF NOT EXISTS idx_observer_dispatch_dispatched
+    ON core.tb_observer_dispatch (listener_id, dispatched_at);

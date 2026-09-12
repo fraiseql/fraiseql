@@ -34,6 +34,9 @@ pub struct RestTomlConfig {
     pub require_auth:            bool,
     /// SSE heartbeat interval in seconds.
     pub sse_heartbeat_seconds:   u64,
+    /// How many delivered events a `Last-Event-ID` resume may reach back over
+    /// (0 = no bound; see `RestConfig::sse_max_replay_events`).
+    pub sse_max_replay_events:   u64,
     /// Maximum depth for resource embedding (`?select=posts(comments)`).
     pub max_embedding_depth:     u32,
     /// Allowlist of type names to expose as REST resources (empty = all).
@@ -74,6 +77,7 @@ impl Default for RestTomlConfig {
             cdn_max_age:             None,
             require_auth:            false,
             sse_heartbeat_seconds:   30,
+            sse_max_replay_events:   10_000,
             max_embedding_depth:     3,
             include:                 Vec::new(),
             exclude:                 Vec::new(),
@@ -107,6 +111,7 @@ impl From<RestTomlConfig> for RestConfig {
             cdn_max_age:             toml.cdn_max_age,
             require_auth:            toml.require_auth,
             sse_heartbeat_seconds:   toml.sse_heartbeat_seconds,
+            sse_max_replay_events:   toml.sse_max_replay_events,
             max_embedding_depth:     toml.max_embedding_depth,
             include:                 toml.include,
             exclude:                 toml.exclude,

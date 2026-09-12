@@ -194,6 +194,14 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "observers")]
     pub(super) entity_event_fanout: Option<crate::subscriptions::EntityEventFanout>,
 
+    /// Reads back what `/{resource}/stream` delivered, for a client reconnecting with
+    /// `Last-Event-ID` (#1310). Derived at construction from the observer runtime,
+    /// which is the only thing that knows whether its events passed through the local
+    /// dispatch ledger; `None` leaves the endpoint refusing resumption, honestly.
+    #[cfg(feature = "observers")]
+    pub(super) stream_replay:
+        Option<std::sync::Arc<fraiseql_observers::listener::ChangeLogReplayReader>>,
+
     #[cfg(feature = "observers")]
     pub(super) db_pool: Option<sqlx::PgPool>,
 

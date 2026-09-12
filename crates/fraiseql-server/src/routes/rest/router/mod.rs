@@ -161,6 +161,8 @@ where
         function_hooks: state.before_mutation_hooks.clone(),
         #[cfg(feature = "observers")]
         event_fanout: state.entity_event_fanout.clone(),
+        #[cfg(feature = "observers")]
+        stream_replay: state.stream_replay.clone(),
         #[cfg(feature = "export-xlsx")]
         xlsx_semaphore: Arc::new(tokio::sync::Semaphore::new(mount.export.max_concurrent_xlsx)),
         #[cfg(any(feature = "export-csv", feature = "export-xlsx"))]
@@ -444,6 +446,16 @@ struct RestState<A: DatabaseAdapter> {
     /// 501 — from "a producer with nothing to say yet".
     #[cfg(feature = "observers")]
     event_fanout:      Option<crate::subscriptions::EntityEventFanout>,
+    /// Reads back what `/{resource}/stream` already delivered, for a client that
+    /// reconnects with `Last-Event-ID` (#1310).
+    ///
+    /// `Some` exactly when an observer runtime polls the local change log, because the
+    /// order it replays is the one that runtime's dispatch ledger recorded. `None` — no
+    /// runtime, or one fed from elsewhere — keeps the `501 RESUMPTION_UNSUPPORTED` this
+    /// endpoint answered for every resume before, which is then the truth rather than a
+    /// placeholder: nothing here knows what that stream delivered.
+    #[cfg(feature = "observers")]
+    stream_replay:     Option<std::sync::Arc<fraiseql_observers::listener::ChangeLogReplayReader>>,
     /// Concurrency cap for in-flight XLSX workbook builds. Sized at startup
     /// from [`super::export_config::ExportConfig::max_concurrent_xlsx`].
     #[cfg(feature = "export-xlsx")]
@@ -793,6 +805,84 @@ where
     rest_result_to_response(result, &rest.error_sanitizer)
 }
 
+/// Resolve a client's `Last-Event-ID` into the state a resumed stream reads from, or
+/// the refusal owed instead (#1310).
+///
+/// The ladder, in the order a request meets it:
+///
+/// 1. **Not a resume** — a fresh connection, `Ok(None)`, and no read at all.
+/// 2. **No reader** — this deployment keeps no record of what was delivered (its events do not come
+///    from the local change log), so `501 RESUMPTION_UNSUPPORTED`, which is what this endpoint
+///    answered for every resume before this issue.
+/// 3. **Anchor unknown** — pruned, or an id from another stream: `410 RESUME_POINT_UNKNOWN`.
+///    Refused rather than answered from the top of the log, which would skip silently.
+/// 4. **Too far behind** — more delivered events since the anchor than
+///    `[rest].sse_max_replay_events`: `413 RESUME_TOO_FAR_BEHIND`, before a single frame, because a
+///    truncated replay is indistinguishable from a complete one.
+/// 5. Otherwise the position to read forward from.
+///
+/// A database error resolving any of this is a refusal too, not a fresh stream: falling
+/// back to "events from now on" is precisely the silent gap being refused.
+#[cfg(feature = "observers")]
+async fn resume_state<A>(
+    rest: &RestState<A>,
+    entity_type: &str,
+    tenant: &fraiseql_observers::transport::TenantScope,
+    resume: super::sse::ResumeRequest,
+) -> Result<Option<super::resumable_stream::ResumeState>, super::handler::RestError>
+where
+    A: DatabaseAdapter + Clone + Send + Sync + 'static,
+{
+    use fraiseql_observers::listener::ResumeAnchor;
+
+    let super::sse::ResumeRequest::From(seq) = resume else {
+        return Ok(None);
+    };
+
+    let Some(reader) = rest.stream_replay.clone() else {
+        return Err(super::sse::resumption_unsupported(seq));
+    };
+
+    let scope = super::sse::replay_scope(entity_type, tenant);
+
+    let anchor = reader.anchor(&scope, seq).await.map_err(|error| {
+        tracing::error!(%error, seq, "failed to resolve a stream resume point");
+        super::handler::RestError::internal("Could not resolve the resume point")
+    })?;
+    let ResumeAnchor::Found(origin) = anchor else {
+        return Err(super::sse::resume_point_unknown(seq));
+    };
+
+    // `0` is "no bound", and is the permissive setting: every resume is served however
+    // far back it reaches.
+    let cap = rest
+        .executor
+        .schema()
+        .rest_config
+        .as_ref()
+        .map_or(super::sse::DEFAULT_SSE_MAX_REPLAY_EVENTS, |c| c.sse_max_replay_events);
+    if cap > 0 {
+        let backlog = reader.count_since(&origin, cap + 1).await.map_err(|error| {
+            tracing::error!(%error, seq, "failed to measure a stream resume backlog");
+            super::handler::RestError::internal("Could not measure the resume backlog")
+        })?;
+        let in_flight =
+            reader.count_in_flight(&scope, &origin, cap + 1).await.map_err(|error| {
+                tracing::error!(%error, seq, "failed to measure a stream in-flight tail");
+                super::handler::RestError::internal("Could not measure the resume backlog")
+            })?;
+        if backlog > cap || in_flight > cap {
+            return Err(super::sse::resume_too_far_behind(seq, cap));
+        }
+    }
+
+    Ok(Some(super::resumable_stream::ResumeState {
+        reader,
+        scope,
+        origin,
+    }))
+}
+
 /// SSE handler — stream entity change events in real-time.
 ///
 /// Returns `501 Not Implemented` when the `observers` feature is disabled.
@@ -877,18 +967,29 @@ where
         if let Some(ref fanout) = rest.event_fanout {
             use futures::StreamExt;
 
-            // Both refusals precede the subscription: a request that cannot be served
-            // must not attach a receiver first. They sit *inside* this arm because with
-            // no producer the whole truth about this endpoint is the 501 below — a 403
-            // there would imply that a tenant-bearing credential would get a stream.
+            // The refusals that need nothing from the database come first — a request
+            // that cannot be served must not attach a receiver first. They sit *inside*
+            // this arm because with no producer the whole truth about this endpoint is
+            // the 501 below — a 403 there would imply that a tenant-bearing credential
+            // would get a stream.
             //
             // #1113: `Last-Event-ID` used to be read into `_last_event_id` and dropped,
             // so a browser `EventSource` reconnecting after a blip silently lost the gap
-            // while the transport reported a healthy stream. Refused until #1310.
-            if let Some(refusal) = super::sse::stream_resume_refusal(&parts.headers) {
-                return rest_result_to_response(Err(refusal), &rest.error_sanitizer);
-            }
+            // while the transport reported a healthy stream. #1310 resumes it; a header
+            // that is not an id this stream issues is still refused here.
+            let resume = match super::sse::stream_resume_request(&parts.headers) {
+                Ok(resume) => resume,
+                Err(refusal) => {
+                    return rest_result_to_response(Err(refusal), &rest.error_sanitizer);
+                },
+            };
 
+            // Reading the header above is free; *resolving* it against the change log is
+            // not, so the tenant gate sits between the two. An unauthorised caller is
+            // turned away before anything is read on its behalf — and its anchor is
+            // resolved within its own tenant or not at all, which is why the 410 for "no
+            // such event here" cannot be used to probe another tenant's sequences.
+            //
             // #1113: the subscription used to carry no tenant at all, and `tenant_id:
             // None` means *every tenant* — so one authenticated caller would have
             // received every tenant's events, `data` payload included.
@@ -927,61 +1028,30 @@ where
             // A broadcast receiver, so this stream is a fan-out consumer and not a
             // competing one: it takes nothing from the observer executor, which sits
             // upstream of the bridge that publishes here (#1309).
+            //
+            // Taken BEFORE the resume reads below, and that order is load-bearing: every
+            // event published from this instant reaches this receiver, so the reads only
+            // have to account for what came before it. Resolving the anchor first would
+            // leave a window in which an event is published (missed by a receiver that
+            // does not exist yet) and recorded (missed by a read that already ran) —
+            // carried by neither path, on a stream that looks healthy.
             let receiver = fanout.subscribe();
 
-            // `Option<Receiver>` rather than `Receiver`: the lag arm below replaces it
-            // with `None`, which is how the stream ENDS after emitting its final frame.
-            // Yielding that frame and keeping the receiver would resume from the oldest
-            // buffered event — the silent gap the frame exists to refuse.
-            let entity_events = futures::stream::unfold(
-                (Some(receiver), entity_type, tenant),
-                move |(rx, entity_type, tenant)| async move {
-                    let mut rx = rx?;
-                    loop {
-                        match rx.recv().await {
-                            Ok(event) => {
-                                if !super::sse::stream_event_matches(&event, &entity_type, &tenant)
-                                {
-                                    continue;
-                                }
-                                let wire = super::sse::StreamEvent::from_bridge_event(&event);
-                                let mut frame =
-                                    axum::response::sse::Event::default().event(wire.event_type);
-                                if let Some(id) = wire.id {
-                                    frame = frame.id(id);
-                                }
-                                let Ok(frame) = frame.json_data(wire.data) else {
-                                    continue;
-                                };
-                                return Some((frame, (Some(rx), entity_type, tenant)));
-                            },
-                            // The client fell far enough behind that the fan-out
-                            // overwrote events it had not read. Say so and end the
-                            // stream, rather than resuming quietly from the new
-                            // position: a silent resume is a gap the client cannot
-                            // see, which is the failure mode this whole endpoint has
-                            // been corrected for twice (#873.4, #1113). A closed
-                            // stream at least makes `EventSource` reconnect visibly.
-                            Err(tokio::sync::broadcast::error::RecvError::Lagged(skipped)) => {
-                                tracing::warn!(
-                                    entity_type = %entity_type,
-                                    skipped,
-                                    "REST stream client lagged; ending the stream rather \
-                                     than resuming with a gap it cannot see"
-                                );
-                                let frame = axum::response::sse::Event::default()
-                                    .event(super::sse::STREAM_LAGGED_EVENT)
-                                    .json_data(super::sse::stream_lagged_payload(skipped))
-                                    .ok()?;
-                                // `None` for the receiver: this frame is the last one.
-                                return Some((frame, (None, entity_type, tenant)));
-                            },
-                            // Every sender is gone — the bridge stopped. Nothing more
-                            // will arrive on this receiver, so end the stream.
-                            Err(tokio::sync::broadcast::error::RecvError::Closed) => return None,
-                        }
-                    }
+            // #1310: resolve the client's resume point against the recorded delivery
+            // order. Each refusal drops the receiver taken above, which costs nothing —
+            // a broadcast sender does not wait on receivers.
+            let resume = match resume_state(&rest, &entity_type, &tenant, resume).await {
+                Ok(resume) => resume,
+                Err(refusal) => {
+                    return rest_result_to_response(Err(refusal), &rest.error_sanitizer);
                 },
+            };
+
+            let entity_events = super::resumable_stream::resumable_event_stream(
+                receiver,
+                entity_type,
+                tenant,
+                resume,
             );
 
             // Merge entity events with heartbeat ticks.

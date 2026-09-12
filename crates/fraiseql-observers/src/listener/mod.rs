@@ -25,6 +25,8 @@ pub mod change_log;
 pub mod coordinator;
 pub mod failover;
 pub mod lease;
+#[cfg(feature = "postgres")]
+pub mod replay;
 pub mod state;
 
 #[cfg(feature = "postgres")]
@@ -32,6 +34,8 @@ pub use change_log::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig}
 pub use coordinator::{ListenerHandle, ListenerHealth, MultiListenerCoordinator};
 pub use failover::{FailoverEvent, FailoverManager};
 pub use lease::CheckpointLease;
+#[cfg(feature = "postgres")]
+pub use replay::{ChangeLogReplayReader, ReplayScope, ReplayedEvent, ResumeAnchor, ResumePosition};
 pub use state::{ListenerState, ListenerStateMachine};
 
 #[cfg(test)]

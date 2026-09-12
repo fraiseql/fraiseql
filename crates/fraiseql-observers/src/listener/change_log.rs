@@ -78,26 +78,116 @@ use crate::{
 /// immaterial and the projection can grow past sqlx's 16-element tuple `FromRow`
 /// ceiling (it reached exactly 16 at #390).
 #[derive(sqlx::FromRow)]
-struct ChangeLogRow {
-    pk_entity_change_log: i64,
-    id:                   Uuid,
-    fk_customer_org:      Option<i64>, // BIGINT join FK
-    fk_contact:           Option<i64>, // BIGINT
-    object_type:          String,
-    object_id:            Uuid, // public-facing UUID
-    modification_type:    String,
-    change_status:        Option<String>,
-    object_data:          Option<Value>, // nullable on the contract (the after-image)
-    object_data_before:   Option<Value>, /* the pre-image (changelog_pre_image); NULL unless
-                                          * opted in */
-    extra_metadata:       Option<Value>,
-    created_at:           Option<DateTime<Utc>>,
-    tenant_id:            Option<Uuid>, // public-facing UUID partition stamp
-    duration_ms:          Option<i32>,  // perf column, int4
-    seq:                  Option<i64>,  // Change-Spine ordering / dedup, int8
-    actor_type:           Option<String>, // #390 actor classification, TEXT
-    acting_for:           Option<Uuid>, // #390 delegated-human public UUID
-    schema_version:       Option<String>, // #377 producer schema version, TEXT
+pub(crate) struct ChangeLogRow {
+    pub(crate) pk_entity_change_log: i64,
+    pub(crate) id:                   Uuid,
+    pub(crate) fk_customer_org:      Option<i64>, // BIGINT join FK
+    pub(crate) fk_contact:           Option<i64>, // BIGINT
+    pub(crate) object_type:          String,
+    pub(crate) object_id:            Uuid, // public-facing UUID
+    pub(crate) modification_type:    String,
+    pub(crate) change_status:        Option<String>,
+    pub(crate) object_data:          Option<Value>, /* nullable on the contract (the
+                                                     * after-image) */
+    pub(crate) object_data_before:   Option<Value>, /* the pre-image (changelog_pre_image);
+                                                     * NULL unless opted in */
+    pub(crate) extra_metadata:       Option<Value>,
+    pub(crate) created_at:           Option<DateTime<Utc>>,
+    pub(crate) tenant_id:            Option<Uuid>, // public-facing UUID partition stamp
+    pub(crate) duration_ms:          Option<i32>,  // perf column, int4
+    pub(crate) seq:                  Option<i64>,  // Change-Spine ordering / dedup, int8
+    pub(crate) actor_type:           Option<String>, // #390 actor classification, TEXT
+    pub(crate) acting_for:           Option<Uuid>, // #390 delegated-human public UUID
+    pub(crate) schema_version:       Option<String>, // #377 producer schema version, TEXT
+}
+
+/// The contract columns every reader of `core.tb_entity_change_log` selects, as one
+/// list.
+///
+/// Shared by the poller ([`ChangeLogListener::next_batch`]) and the resume reader
+/// ([`super::replay::ChangeLogReplayReader`]) so the two cannot drift into projecting
+/// different rows for the same event: a column added here reaches both, and a column
+/// added to only one of two copies is how a replayed frame comes to differ from the
+/// live frame for the same change (#1271's failure, one layer down).
+///
+/// Qualified with the `e` alias both readers bind the table to.
+pub(crate) const CHANGE_LOG_PROJECTION: &str = "
+                    e.pk_entity_change_log,
+                    e.id,
+                    e.fk_customer_org,
+                    e.fk_contact,
+                    e.object_type,
+                    e.object_id,
+                    e.modification_type,
+                    e.change_status,
+                    e.object_data,
+                    e.object_data_before,
+                    e.extra_metadata,
+                    e.created_at,
+                    e.tenant_id,
+                    e.duration_ms,
+                    e.seq,
+                    e.actor_type,
+                    e.acting_for,
+                    e.schema_version";
+
+impl From<ChangeLogRow> for ChangeLogEntry {
+    /// The one projection from a contract row to the entry every consumer sees.
+    ///
+    /// Extracted from `next_batch` when the resume reader (#1310) became a second
+    /// reader of the same table: a replayed event and the live event for the same row
+    /// must be the same value, and the only way to guarantee that is for one function
+    /// to produce both.
+    fn from(row: ChangeLogRow) -> Self {
+        let ChangeLogRow {
+            pk_entity_change_log,
+            id,
+            fk_customer_org,
+            fk_contact,
+            object_type,
+            object_id,
+            modification_type,
+            change_status,
+            object_data,
+            object_data_before,
+            extra_metadata,
+            created_at,
+            tenant_id,
+            duration_ms,
+            seq,
+            actor_type,
+            acting_for,
+            schema_version,
+        } = row;
+
+        Self {
+            id: pk_entity_change_log,
+            pk_entity_change_log: id.to_string(),
+            // BIGINT/UUID contract values projected into the string-typed
+            // public fields (reconcile without breaking downstream readers).
+            fk_customer_org: fk_customer_org.map(|n| n.to_string()).unwrap_or_default(),
+            fk_contact: fk_contact.map(|n| n.to_string()),
+            object_type,
+            object_id: object_id.to_string(),
+            modification_type,
+            change_status: change_status.unwrap_or_default(),
+            object_data: object_data.unwrap_or(Value::Null),
+            object_data_before,
+            extra_metadata,
+            created_at: created_at.map_or_else(|| Utc::now().to_rfc3339(), |dt| dt.to_rfc3339()),
+            // Trinity: tenant_id is the public-facing UUID partition stamp,
+            // kept distinct from fk_customer_org above.
+            tenant_id: tenant_id.map(|t| t.to_string()),
+            duration_ms,
+            seq,
+            // #390 actor envelope. acting_for is a UUID column; project it to
+            // a string like tenant_id so downstream readers stay string-typed.
+            actor_type,
+            acting_for: acting_for.map(|u| u.to_string()),
+            // #377 producer schema version (TEXT) — already string-typed.
+            schema_version,
+        }
+    }
 }
 
 /// Configuration for the change log listener
@@ -701,27 +791,9 @@ impl ChangeLogListener {
         #[allow(clippy::cast_precision_loss)]
         // Reason: the window is an operator-set duration; sub-microsecond precision is irrelevant
         let window_secs = self.config.commit_lag_window.as_secs_f64();
-        let rows: Vec<ChangeLogRow> = sqlx::query_as(
+        let rows: Vec<ChangeLogRow> = sqlx::query_as(&format!(
             r"
-                SELECT
-                    pk_entity_change_log,
-                    id,
-                    fk_customer_org,
-                    fk_contact,
-                    object_type,
-                    object_id,
-                    modification_type,
-                    change_status,
-                    object_data,
-                    object_data_before,
-                    extra_metadata,
-                    created_at,
-                    tenant_id,
-                    duration_ms,
-                    seq,
-                    actor_type,
-                    acting_for,
-                    schema_version
+                SELECT {CHANGE_LOG_PROJECTION}
                 FROM core.tb_entity_change_log e
                 WHERE NOT EXISTS (
                         SELECT 1
@@ -737,7 +809,7 @@ impl ChangeLogListener {
                 ORDER BY e.pk_entity_change_log ASC
                 LIMIT $2
                 ",
-        )
+        ))
         .bind(pk_bound)
         .bind(batch_size_i64)
         .bind(&self.config.listener_id)
@@ -759,29 +831,9 @@ impl ChangeLogListener {
             - chrono::Duration::from_std(self.config.commit_lag_window)
                 .unwrap_or_else(|_| chrono::Duration::zero());
 
-        for ChangeLogRow {
-            pk_entity_change_log: pk,
-            id,
-            fk_customer_org: org,
-            fk_contact: contact,
-            object_type: obj_type,
-            object_id: obj_id,
-            modification_type: mod_type,
-            change_status: status,
-            object_data: data,
-            object_data_before: data_before,
-            extra_metadata: meta,
-            created_at: created,
-            tenant_id: tenant,
-            duration_ms,
-            seq,
-            actor_type,
-            acting_for,
-            schema_version,
-        } in rows
-        {
-            let created_at_str =
-                created.map_or_else(|| Utc::now().to_rfc3339(), |dt| dt.to_rfc3339());
+        for row in rows {
+            let pk = row.pk_entity_change_log;
+            let created = row.created_at;
 
             // Below the scan floor AND older than the window: nothing but the
             // full sweep could have surfaced this row.
@@ -789,33 +841,7 @@ impl ChangeLogListener {
                 late_recovered += 1;
             }
 
-            entries.push(ChangeLogEntry {
-                id: pk,
-                pk_entity_change_log: id.to_string(),
-                // BIGINT/UUID contract values projected into the string-typed
-                // public fields (reconcile without breaking downstream readers).
-                fk_customer_org: org.map(|n| n.to_string()).unwrap_or_default(),
-                fk_contact: contact.map(|n| n.to_string()),
-                object_type: obj_type,
-                object_id: obj_id.to_string(),
-                modification_type: mod_type,
-                change_status: status.unwrap_or_default(),
-                object_data: data.unwrap_or(Value::Null),
-                object_data_before: data_before,
-                extra_metadata: meta,
-                created_at: created_at_str,
-                // Trinity: tenant_id is the public-facing UUID partition stamp,
-                // kept distinct from fk_customer_org above.
-                tenant_id: tenant.map(|t| t.to_string()),
-                duration_ms,
-                seq,
-                // #390 actor envelope. acting_for is a UUID column; project it to
-                // a string like tenant_id so downstream readers stay string-typed.
-                actor_type,
-                acting_for: acting_for.map(|u| u.to_string()),
-                // #377 producer schema version (TEXT) — already string-typed.
-                schema_version,
-            });
+            entries.push(ChangeLogEntry::from(row));
 
             // Advance the scan bound and suppress in-process re-delivery until
             // the driver records the dispatch (or the window lapses).

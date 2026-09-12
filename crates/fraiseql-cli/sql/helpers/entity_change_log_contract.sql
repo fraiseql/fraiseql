@@ -168,6 +168,14 @@ CREATE INDEX IF NOT EXISTS idx_entity_log_tenant_seq
 -- Per-object-type dedup on (object_type, seq).
 CREATE INDEX IF NOT EXISTS idx_entity_log_type_seq
     ON core.tb_entity_change_log (object_type, seq);
+-- The dispatch ledger's referenced side (#1310). `core.tb_observer_dispatch` keys on
+-- this row's stable UUID rather than its pk (migration 14 explains why), so every join
+-- from the ledger back to the row it records lands here. Nothing needed it while the
+-- ledger was only ever read as a NOT EXISTS anti-join on its own primary key; a resumed
+-- stream reads the other direction, and without this index that join degrades to a hash
+-- of the entire ledger against every row of the entity type.
+CREATE INDEX IF NOT EXISTS idx_entity_log_id
+    ON core.tb_entity_change_log (id);
 
 -- ----------------------------------------------------------------------------
 -- Read-path view (#392 consumes duration_ms; #149 consumes the `data` JSONB).

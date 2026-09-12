@@ -757,6 +757,24 @@ pub struct RestConfig {
     pub require_auth:            bool,
     /// SSE heartbeat interval in seconds.
     pub sse_heartbeat_seconds:   u64,
+    /// How many delivered events a `Last-Event-ID` resume may reach back over
+    /// (#1310).
+    ///
+    /// A reconnecting client names the last event it received, and the stream replays
+    /// everything delivered since. A resume point far behind the head is therefore a
+    /// read proportional to how far behind it is, on the busiest table in the
+    /// deployment — so a request that would reach back further than this is refused
+    /// (`413 RESUME_TOO_FAR_BEHIND`) before a single frame is emitted, rather than
+    /// served in part. The client can then reconnect without the header and knowingly
+    /// start from now.
+    ///
+    /// Counted across every entity type, because that is what the walk through the
+    /// dispatch ledger costs, whatever share of it one resource turns out to be.
+    ///
+    /// `0` means **no bound** — every resume is served however far back it reaches.
+    /// That is the permissive setting, and worth naming as such: on a stream reachable
+    /// without a credential it hands an anonymous client an unbounded read.
+    pub sse_max_replay_events:   u64,
     /// Maximum depth for resource embedding (`?select=posts(comments)`).
     pub max_embedding_depth:     u32,
     /// Whitelist of type names to expose as REST resources (empty = all).
@@ -784,6 +802,7 @@ impl Default for RestConfig {
             cdn_max_age:             None,
             require_auth:            false,
             sse_heartbeat_seconds:   30,
+            sse_max_replay_events:   10_000,
             max_embedding_depth:     3,
             include:                 Vec::new(),
             exclude:                 Vec::new(),

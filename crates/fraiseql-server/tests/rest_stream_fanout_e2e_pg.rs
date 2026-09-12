@@ -62,6 +62,10 @@ use uuid::Uuid;
 /// every 50 ms and the webhook round-trips through wiremock.
 const FRAME_TIMEOUT: Duration = Duration::from_secs(15);
 
+/// The listener identity `ObserverRuntimeConfig::new` polls under, and therefore the
+/// ledger a resumed stream reads its delivery order from.
+const DEFAULT_LISTENER_ID: &str = "change_log";
+
 /// The full production wiring, assembled the way `server/lifecycle.rs` and
 /// `server/routing/state.rs` do it between them: one fan-out handle, given to the
 /// `EventBridge` that publishes into it and to the `AppState` the REST mount reads it
@@ -141,7 +145,17 @@ impl Rig {
         let url = try_database_url().expect("DATABASE_URL");
         let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
         let executor = Arc::new(Executor::new(schema, adapter));
-        let state = AppState::new(executor).with_entity_event_fanout(fanout);
+        // The reader a resumed stream catches up from (#1310), keyed on the listener id
+        // this runtime polls under — `Server` derives exactly this from the runtime, and
+        // a reader keyed on any other id would answer for a delivery order this
+        // deployment never had.
+        let replay = std::sync::Arc::new(fraiseql_observers::listener::ChangeLogReplayReader::new(
+            pool.clone(),
+            DEFAULT_LISTENER_ID.to_string(),
+        ));
+        let state = AppState::new(executor)
+            .with_entity_event_fanout(fanout)
+            .with_stream_replay(replay);
         let router =
             rest_query_router(&state, &RestMountConfig::default()).expect("REST query router");
 
@@ -165,12 +179,7 @@ impl Rig {
     /// silent stream otherwise, and every test below would fail as a timeout naming
     /// the wrong cause.
     async fn open_stream(&self) -> StreamReader {
-        let response = reqwest::Client::new()
-            .get(format!("{}/{}/stream", self.base_url, self.resource))
-            .header("accept", "text/event-stream")
-            .send()
-            .await
-            .expect("stream request");
+        let response = self.stream_response(None).await;
         assert_eq!(
             response.status(),
             200,
@@ -180,6 +189,32 @@ impl Rig {
             response,
             buffer: String::new(),
         }
+    }
+
+    /// Reconnect the way a browser `EventSource` does: same URL, plus the id of the last
+    /// event it received (#1310).
+    async fn resume_stream(&self, last_event_id: &str) -> StreamReader {
+        let response = self.stream_response(Some(last_event_id)).await;
+        assert_eq!(
+            response.status(),
+            200,
+            "a resume must open the stream; a 501/410/413 here is a refusal, not a replay"
+        );
+        StreamReader {
+            response,
+            buffer: String::new(),
+        }
+    }
+
+    /// The raw response, so a test can assert on a refusal status as well as on frames.
+    async fn stream_response(&self, last_event_id: Option<&str>) -> reqwest::Response {
+        let mut request = reqwest::Client::new()
+            .get(format!("{}/{}/stream", self.base_url, self.resource))
+            .header("accept", "text/event-stream");
+        if let Some(id) = last_event_id {
+            request = request.header("last-event-id", id);
+        }
+        request.send().await.expect("stream request")
     }
 
     async fn stop(mut self) {
@@ -223,6 +258,25 @@ impl StreamReader {
         }
         self.buffer.clone()
     }
+}
+
+/// The SSE `id:` of the frame carrying `needle` — what a browser stores and re-sends as
+/// `Last-Event-ID`.
+///
+/// Read out of the wire bytes rather than out of the database, because the resume is
+/// only honest if the value the client *received* is the one it can come back with.
+fn wire_id_of(frames: &str, needle: &str) -> String {
+    let (before, _) = frames.split_once(needle).unwrap_or_else(|| {
+        panic!("no frame carrying {needle} in:\n{frames}");
+    });
+    before
+        .rsplit("id: ")
+        .next()
+        .and_then(|tail| tail.split('\n').next())
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .unwrap_or_else(|| panic!("the frame carrying {needle} has no id: field:\n{frames}"))
+        .to_string()
 }
 
 // ---------------------------------------------------------------------------
@@ -378,6 +432,200 @@ async fn a_stream_does_not_carry_another_entitys_events() {
         !received.contains(&invoice_id),
         "a stream for {entity_type} must not carry {other_type} events; received:\n{received}"
     );
+
+    rig.stop().await;
+    cleanup_test_data(&pool, &test_id).await.ok();
+}
+
+// ---------------------------------------------------------------------------
+// #1310 — resumption
+// ---------------------------------------------------------------------------
+
+/// **The acceptance test for #1310.** A client that reconnects with the id of the last
+/// event it received is given what it missed, and nothing it already had.
+///
+/// Before this issue the same request was answered `501 RESUMPTION_UNSUPPORTED`. Before
+/// #1113 it was answered `200` with the gap silently skipped, which is what made the
+/// refusal the better of the two.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_reconnecting_client_receives_exactly_what_it_missed() {
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+
+    let entity_type = format!("Order_{test_id}");
+    let rig = Rig::start(&pool, &entity_type).await;
+
+    // One event on the first connection; the client stores its id.
+    let mut first = rig.open_stream().await;
+    let seen_id = Uuid::new_v4().to_string();
+    insert_change_log_entry(
+        &pool,
+        "INSERT",
+        &entity_type,
+        &seen_id,
+        serde_json::json!({"id": seen_id, "status": "seen"}),
+        None,
+    )
+    .await
+    .expect("insert the event the client receives");
+    let frames = first.read_until(&seen_id, FRAME_TIMEOUT).await;
+    let last_event_id = wire_id_of(&frames, &seen_id);
+    drop(first);
+
+    // Two more while it is away.
+    let mut missed = Vec::new();
+    for n in 0..2 {
+        let id = Uuid::new_v4().to_string();
+        insert_change_log_entry(
+            &pool,
+            "INSERT",
+            &entity_type,
+            &id,
+            serde_json::json!({"id": id, "status": format!("missed-{n}")}),
+            None,
+        )
+        .await
+        .expect("insert a missed event");
+        missed.push(id);
+    }
+
+    // It comes back with the id it holds.
+    let mut resumed = rig.resume_stream(&last_event_id).await;
+    let replayed = resumed.read_until(&missed[1], FRAME_TIMEOUT).await;
+
+    for id in &missed {
+        assert!(
+            replayed.contains(id.as_str()),
+            "the resume must carry {id}, which was written while the client was away; \
+             received:\n{replayed}"
+        );
+    }
+    assert!(
+        !replayed.contains(&seen_id),
+        "the resume must not re-send the event the client named as its last; \
+         received:\n{replayed}"
+    );
+
+    rig.stop().await;
+    cleanup_test_data(&pool, &test_id).await.ok();
+}
+
+/// **The acceptance bar #1309's comment set for this issue**: a replaying client must not
+/// consume rows the observer runtime has not dispatched yet.
+///
+/// The runtime is stopped before the missed rows are written, so the replay serves them
+/// from the in-flight tail — the path where a reader that marked rows dispatched, or
+/// took them from a queue, would silently deprive the observers. Restarting the runtime
+/// then has to dispatch every one of them.
+///
+/// Asserting only that the replay delivered would pass on a reader that consumed.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_replaying_client_does_not_consume_rows_the_observer_has_not_dispatched() {
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+
+    let entity_type = format!("Order_{test_id}");
+
+    let mock_server = MockWebhookServer::start().await;
+    mock_server.mock_success().await;
+    create_test_observer(
+        &pool,
+        &format!("stream-replay-{test_id}"),
+        Some(&entity_type),
+        Some("INSERT"),
+        None,
+        &mock_server.webhook_url(),
+    )
+    .await
+    .expect("create observer");
+
+    let mut rig = Rig::start(&pool, &entity_type).await;
+
+    let seen_id = Uuid::new_v4().to_string();
+    insert_change_log_entry(
+        &pool,
+        "INSERT",
+        &entity_type,
+        &seen_id,
+        serde_json::json!({"id": seen_id, "status": "seen"}),
+        None,
+    )
+    .await
+    .expect("insert the anchor event");
+    let mut first = rig.open_stream().await;
+    let frames = first.read_until(&seen_id, FRAME_TIMEOUT).await;
+    let last_event_id = wire_id_of(&frames, &seen_id);
+    drop(first);
+    wait_for_webhook(&mock_server, 1, Duration::from_secs(15)).await;
+
+    // Nothing dispatches from here on: the rows below stay in flight.
+    rig.runtime.stop().await.expect("stop the runtime");
+
+    let undispatched = Uuid::new_v4().to_string();
+    insert_change_log_entry(
+        &pool,
+        "INSERT",
+        &entity_type,
+        &undispatched,
+        serde_json::json!({"id": undispatched, "status": "not-yet-dispatched"}),
+        None,
+    )
+    .await
+    .expect("insert an undispatched event");
+
+    // The replay serves it from the in-flight tail.
+    let mut resumed = rig.resume_stream(&last_event_id).await;
+    resumed.read_until(&undispatched, FRAME_TIMEOUT).await;
+
+    // And the observer still fires for it once the runtime resumes — which it cannot do
+    // if the replay consumed the row.
+    rig.runtime.start().await.expect("restart the runtime");
+    wait_for_webhook(&mock_server, 2, Duration::from_secs(15)).await;
+    let requests = mock_server.received_requests().await;
+    assert_eq!(
+        requests.len(),
+        2,
+        "the observer must fire for the row a replaying client read; a reader that \
+         consumed it would leave this at 1"
+    );
+
+    rig.stop().await;
+    cleanup_test_data(&pool, &test_id).await.ok();
+}
+
+/// An id from no event on this stream is refused, not answered from the top of the log.
+///
+/// This is the retention answer: once the anchor has aged out, what followed it cannot be
+/// established, and a `200` carrying a partial replay would be the same silent gap in a
+/// new place.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn an_unresumable_id_is_refused_rather_than_answered() {
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+
+    let entity_type = format!("Order_{test_id}");
+    let rig = Rig::start(&pool, &entity_type).await;
+
+    let gone = rig.stream_response(Some("1")).await;
+    assert_eq!(
+        gone.status(),
+        410,
+        "an id no event on this stream carries must be refused as unresumable"
+    );
+    let body = gone.text().await.unwrap_or_default();
+    assert!(
+        body.contains("RESUME_POINT_UNKNOWN"),
+        "the refusal must name the code a client branches on: {body}"
+    );
+
+    let invalid = rig.stream_response(Some("not-an-id")).await;
+    assert_eq!(invalid.status(), 400, "an id this stream never issues is a bad request");
 
     rig.stop().await;
     cleanup_test_data(&pool, &test_id).await.ok();

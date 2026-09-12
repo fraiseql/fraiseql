@@ -1022,6 +1022,34 @@ impl ObserverRuntime {
         self.config.transport.transport != TransportKind::Postgres
     }
 
+    /// The reader a resumed REST stream reads its catch-up from, when this runtime is
+    /// the thing that recorded what was delivered (#1310).
+    ///
+    /// `Some` only on the PostgreSQL change-log path: that loop is what calls
+    /// `record_dispatched`, so its dispatch ledger is the record of what
+    /// `/{resource}/stream` delivered and in what order. A broker-backed runtime
+    /// (NATS, in-memory) forwards events that never passed through that ledger — the
+    /// local change log may not even be their source — so there is nothing here to
+    /// resume from and the endpoint says so with `501 RESUMPTION_UNSUPPORTED`.
+    ///
+    /// Keyed on the same `listener_id` the poller writes under, because a ledger is
+    /// per-listener and the wrong one would answer for a delivery order this deployment
+    /// never had.
+    #[must_use]
+    pub fn stream_replay_reader(
+        &self,
+    ) -> Option<Arc<fraiseql_observers::listener::ChangeLogReplayReader>> {
+        match listener_selection(self.config.transport.transport) {
+            ListenerSelection::PostgresChangeLog => {
+                Some(Arc::new(fraiseql_observers::listener::ChangeLogReplayReader::new(
+                    self.config.pool.clone(),
+                    self.config.listener_id.clone(),
+                )))
+            },
+            ListenerSelection::TransportStream => None,
+        }
+    }
+
     /// Get a reference to the in-memory DLQ for use by HTTP handlers.
     #[must_use]
     pub(crate) const fn dlq(&self) -> &Arc<InMemoryDlq> {
@@ -1214,33 +1242,7 @@ async fn process_entity_event(
             // Only real entity changes are subscriber-visible (#773): `Custom` — the
             // Debezium `'r'` snapshot/read/no-op row — maps to `None` and is never
             // forwarded, so it cannot be fabricated into a phantom `Create`.
-            if let (Some(sender), Some(operation)) =
-                (bridge_sender, subscription_operation_for(event.event_type))
-            {
-                let mut bridge_event = BridgeEntityEvent::new(
-                    &event.entity_type,
-                    event.entity_id.to_string(),
-                    operation,
-                    event.data.clone(),
-                );
-                // Propagate tenant_id for multi-tenant filtering.
-                if let Some(ref tid) = event.tenant_id {
-                    bridge_event = bridge_event.with_tenant_id(tid);
-                }
-                // Propagate the Change-Spine envelope (actor / provenance) for
-                // client delivery (#425). Built from the observer event's stamped
-                // fields; omitted entirely when the producer stamped none.
-                let envelope = ChangeSpineEnvelope {
-                    actor_type:     event.actor_type.clone(),
-                    acting_for:     event.acting_for.clone(),
-                    schema_version: event.schema_version.clone(),
-                    tenant_id:      event.tenant_id.clone(),
-                    duration_ms:    event.duration_ms,
-                    seq:            event.seq,
-                };
-                if !envelope.is_empty() {
-                    bridge_event = bridge_event.with_change_spine(envelope);
-                }
+            if let (Some(sender), Some(bridge_event)) = (bridge_sender, bridge_event_for(event)) {
                 forward_to_bridge(sender, bridge_event, &event.id.to_string()).await;
             }
         },
@@ -1292,6 +1294,51 @@ pub(crate) const fn subscription_operation_for(
         EventKind::Deleted => Some(SubscriptionOperation::Delete),
         EventKind::Custom => None,
     }
+}
+
+/// The bridge event one observer event becomes, or `None` when it is not
+/// subscriber-visible.
+///
+/// The **one** projection from an observer event to the shape a subscriber receives.
+/// It was inline in `process_entity_event` until a REST stream could be resumed
+/// (#1310): a replayed event is read back from the change log and has to become the
+/// same value the live path produces, and the only way to keep that true is for one
+/// function to produce both. Two copies of this conversion would drift a field at a
+/// time, and the drift would be invisible — a client would simply stop seeing the
+/// tenant, or the envelope, on exactly the events it had to reconnect for (#1271, one
+/// layer up).
+pub(crate) fn bridge_event_for(event: &ObserverEntityEvent) -> Option<BridgeEntityEvent> {
+    let operation = subscription_operation_for(event.event_type)?;
+
+    let mut bridge_event = BridgeEntityEvent::new(
+        &event.entity_type,
+        event.entity_id.to_string(),
+        operation,
+        event.data.clone(),
+    );
+
+    // Propagate tenant_id for multi-tenant filtering.
+    if let Some(ref tid) = event.tenant_id {
+        bridge_event = bridge_event.with_tenant_id(tid);
+    }
+
+    // Propagate the Change-Spine envelope (actor / provenance) for client delivery
+    // (#425). Built from the observer event's stamped fields; omitted entirely when the
+    // producer stamped none. `seq` rides here, and is what a stream emits as its SSE
+    // `id:` — so this is also where a resumable id comes from.
+    let envelope = ChangeSpineEnvelope {
+        actor_type:     event.actor_type.clone(),
+        acting_for:     event.acting_for.clone(),
+        schema_version: event.schema_version.clone(),
+        tenant_id:      event.tenant_id.clone(),
+        duration_ms:    event.duration_ms,
+        seq:            event.seq,
+    };
+    if !envelope.is_empty() {
+        bridge_event = bridge_event.with_change_spine(envelope);
+    }
+
+    Some(bridge_event)
 }
 
 /// Forward one subscriber-visible event into the `EventBridge` channel.

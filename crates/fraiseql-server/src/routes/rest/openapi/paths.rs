@@ -195,9 +195,10 @@ impl OpenApiGenerator<'_> {
         // #1113: the document used to promise "Resume from a specific event ID on
         // reconnection". Nothing implemented that — the header was read into a discarded
         // binding — so the published contract advertised a resumption the code could
-        // never perform, the same class of lie #873.4 removed from the 200 itself. What
-        // the header actually gets is stated below, and the refusals the handler can
-        // return are listed rather than left to be discovered.
+        // never perform, the same class of lie #873.4 removed from the 200 itself. #1310
+        // implements it, and the document now describes what it does and does not do:
+        // every refusal the handler can return is listed rather than left to be
+        // discovered, including the three distinct ways a resume can be declined.
         let mut responses = json!({
             "200": {
                 "description": "SSE event stream. Each event's `id:` is the Change-Spine \
@@ -211,10 +212,30 @@ impl OpenApiGenerator<'_> {
                     }
                 }
             },
+            "400": {
+                "description": "Bad Request — `Last-Event-ID` is not an id this stream \
+                                issues. Every event carries `id: <seq>`, the Change-Spine \
+                                sequence, so a resume point is an integer \
+                                (`RESUME_POINT_INVALID`)."
+            },
+            "410": {
+                "description": "Gone — the event named by `Last-Event-ID` is no longer in \
+                                the change log, or was issued by another stream, so what \
+                                followed it cannot be established \
+                                (`RESUME_POINT_UNKNOWN`)."
+            },
+            "413": {
+                "description": "Content Too Large — the resume point is further behind \
+                                than `[rest].sse_max_replay_events` allows replaying. \
+                                Refused before the first frame rather than served in part \
+                                (`RESUME_TOO_FAR_BEHIND`)."
+            },
             "501": {
                 "description": "Not Implemented — the `observers` feature is disabled, no \
                                 event transport is configured, or the request carried a \
-                                `Last-Event-ID` (resumption is not implemented)."
+                                `Last-Event-ID` in a deployment that keeps no record of \
+                                what this stream delivered, so there is no delivery order \
+                                to resume from (`RESUMPTION_UNSUPPORTED`)."
             }
         });
 
@@ -234,7 +255,8 @@ impl OpenApiGenerator<'_> {
                     "description": format!(
                         "Subscribe to real-time changes on {} via Server-Sent Events. \
                          Requires the `observers` feature. Events: `insert`, `update`, `delete`, `ping` (heartbeat). \
-                         In a multi-tenant deployment the subscription is scoped to the caller's tenant.",
+                         In a multi-tenant deployment the subscription is scoped to the caller's tenant. \
+                         Reconnecting with `Last-Event-ID` resumes from where the previous connection stopped.",
                         resource.name
                     ),
                     "parameters": [
@@ -251,10 +273,13 @@ impl OpenApiGenerator<'_> {
                             "required": false,
                             "schema": { "type": "string" },
                             "description": "Sent automatically by a browser EventSource on reconnect. \
-                                            Resumption is NOT implemented: a request carrying this header \
-                                            is refused with 501, rather than answered with a stream that \
-                                            silently skips everything since the given id. Reconnect \
-                                            without it to receive events from now on."
+                                            The stream replays every event delivered after the one this \
+                                            id names, in the order they were delivered, and then continues \
+                                            live. Delivery is at-least-once: an event may be repeated \
+                                            across a reconnect, and `(object_type, seq)` is the dedup key. \
+                                            A resume that cannot be honoured is refused (400, 410, 413 or \
+                                            501) rather than answered with a stream that silently skips \
+                                            everything since the given id."
                         }
                     ],
                     "responses": responses
