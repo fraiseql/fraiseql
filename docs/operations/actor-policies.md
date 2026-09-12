@@ -81,12 +81,36 @@ whole argument for gating at the read rather than at the mount.
 
 ### Authoring
 
-Today `requires_actor` is expressible from `schema.json` and compiled by
-`fraiseql compile`. **No official SDK authors it yet** — tracked as
-[#1123](https://github.com/fraiseql/fraiseql/issues/1123). An unrecognised token
-is a compile error naming the offender, never a silently-dropped restriction: an
-allow-list that fails to parse is an *open* operation, so silence is the wrong
-failure mode.
+`requires_actor` is expressible from `schema.json`, compiled by `fraiseql compile`, and
+authorable from **ten of the eleven official SDKs**. It is a gated construct in both
+directions: `project.CONSTRUCTS` carries `query_requires_actor` and
+`mutation_requires_actor`, so an SDK that stopped authoring it fails `sdk-conformance.yml`
+— and a declared gap that stopped being true fails there too, which is what keeps this
+table from going stale.
+
+| SDK | spelling |
+|---|---|
+| Python | `@fraiseql.query(requires_actor=["human_user"])` |
+| TypeScript | `registerQuery(…, { requires_actor: ["human_user"] })` |
+| Go | `.RequiresActor(fraiseql.ActorHumanUser)` |
+| PHP | `->requiresActor([ActorType::HUMAN_USER])` |
+| Java | `.requiresActor(ActorType.HUMAN_USER)` |
+| C# | `.RequiresActor(ActorType.HumanUser)` |
+| F# | `\|> QueryBuilder.requiresActor [ ActorType.humanUser ]` |
+| Elixir | `fraiseql_query :orders, requires_actor: ["human_user"]` |
+| Ruby | `schema.query :orders, requires_actor: %w[human_user]` |
+| Dart | `schema.query('orders', requiresActor: const ['human_user'])` |
+| Rust | not authorable — the SDK is field-level-RBAC focused, registering types and their field scopes, and ships no builder for this construct; the gap is declared in `conformance/manifest.json` |
+
+The write side carries the same key under the SDK's mutation entry point
+(`@fraiseql.mutation`, `registerMutation`, `fraiseql_mutation`,
+`MutationBuilder.requiresActor`, …) and is enforced by the identical gate. It is the more
+consequential half: an allow-list on the read and none on the write restricts who may
+*look* at a tenant while leaving open who may delete it.
+
+An unrecognised token is a compile error naming the offender, never a silently-dropped
+restriction: an allow-list that fails to parse is an *open* operation, so silence is the
+wrong failure mode.
 
 ### What makes the classification trustworthy
 
