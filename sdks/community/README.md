@@ -1,6 +1,6 @@
 # Community SDKs
 
-This directory contains **nine community-contributed SDKs** for FraiseQL. These SDKs are
+This directory contains **seven community-contributed SDKs** for FraiseQL. These SDKs are
 **experimental and unmaintained** — they are provided as reference implementations only.
 
 ## Status: Experimental / Unmaintained
@@ -23,8 +23,6 @@ open an issue in the main repository.
 | SDK | Language | Notes |
 |-----|----------|-------|
 | `fraiseql-clojure` | Clojure | Experimental |
-| `fraiseql-dart` | Dart | Duplicated in `official/` — community version is older |
-| `fraiseql-elixir` | Elixir | Duplicated in `official/` — community version is older |
 | `fraiseql-groovy` | Groovy | Experimental |
 | `fraiseql-kotlin` | Kotlin | Experimental |
 | `fraiseql-nodejs` | Node.js / JavaScript | Experimental |
@@ -34,24 +32,30 @@ open an issue in the main repository.
 
 ## Deduplication Note (AB2)
 
-Three SDKs in this directory (`fraiseql-dart`, `fraiseql-elixir`, `fraiseql-ruby`) also
-exist under `../official/`. The official variants are actively maintained and should be
-preferred. The community copies here are retained only until the removal deadline above, at
-which point they will be deleted to avoid confusion.
+One SDK in this directory (`fraiseql-ruby`) also exists under `../official/`. The official
+variant is actively maintained and should be preferred. The community copy here is retained
+only until the removal deadline above, at which point it will be deleted to avoid confusion.
+
+The Dart and Elixir community copies were deduplicated the same way and are already gone;
+this note named all three long after two of them stopped existing (#1318), which is why
+the count and the table are now checked mechanically by
+`sdks/official/conformance/selftest.py`.
 
 ## Using an Official SDK
 
 ```
 sdks/official/
+├── fraiseql-csharp/
 ├── fraiseql-dart/
 ├── fraiseql-elixir/
+├── fraiseql-fsharp/
 ├── fraiseql-go/
 ├── fraiseql-java/
+├── fraiseql-php/
 ├── fraiseql-python/
 ├── fraiseql-ruby/
 ├── fraiseql-rust/
-├── fraiseql-typescript/
-└── ...
+└── fraiseql-typescript/
 ```
 
 Use the official SDK for your language if it is available. The official SDKs follow semantic

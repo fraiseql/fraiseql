@@ -267,5 +267,84 @@ class SupportMatrixMatchesTheManifest(unittest.TestCase):
             )
 
 
+NUMBER_WORDS = {
+    1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six",
+    7: "seven", 8: "eight", 9: "nine", 10: "ten", 11: "eleven", 12: "twelve",
+}
+
+
+class CommunityReadmeMatchesTheDirectory(unittest.TestCase):
+    """`sdks/community/README.md`'s count, table and dedup note agree with the tree.
+
+    The community tier is unmaintained and untested, so nothing there fails when a
+    directory is deleted — and two were. The README went on claiming **nine** SDKs and
+    listing `fraiseql-dart` and `fraiseql-elixir` in its table, while its "Deduplication
+    Note (AB2)" named three SDKs as duplicated in `official/` when only one was: three
+    disagreements with the tree in one file (#1318).
+
+    That is the same rot `SupportMatrixMatchesTheManifest` was written for one directory
+    over, and the same fix: the arithmetic is checked, the prose stays a human's job.
+    The tier is scheduled for removal in v3.0.0 and this check is deleted with it.
+    """
+
+    COMMUNITY = HERE.parent.parent / "community"
+    OFFICIAL = HERE.parent
+    ROW = re.compile(r"^\|\s*`(?P<sdk>fraiseql-[a-z0-9]+)`\s*\|", re.M)
+    COUNT = re.compile(r"contains \*\*(?P<word>[a-z]+) community-contributed SDKs\*\*")
+    DEDUP = re.compile(
+        r"^(?P<word>\w+) SDKs? in this directory \((?P<names>[^)]*)\) also\s*\n?exists?",
+        re.M,
+    )
+
+    @staticmethod
+    def _dirs(root: Path) -> set[str]:
+        return {d.name for d in root.iterdir() if d.is_dir() and d.name.startswith("fraiseql-")}
+
+    def setUp(self) -> None:
+        if not self.COMMUNITY.is_dir():
+            # The v3.0.0 removal happened. This check has no subject left; delete it
+            # rather than letting it raise a FileNotFoundError nobody can read.
+            self.fail(
+                "sdks/community/ is gone — the tier was removed. Delete "
+                "CommunityReadmeMatchesTheDirectory; it exists only to keep that "
+                "directory's README honest while it lives."
+            )
+        self.readme = (self.COMMUNITY / "README.md").read_text()
+        self.community = self._dirs(self.COMMUNITY)
+
+    def test_table_lists_exactly_the_directories(self) -> None:
+        listed = {m["sdk"] for m in self.ROW.finditer(self.readme)}
+        self.assertEqual(
+            listed, self.community,
+            "the SDK List table and sdks/community/ disagree: "
+            f"table-only={sorted(listed - self.community)} "
+            f"tree-only={sorted(self.community - listed)}",
+        )
+
+    def test_headline_count_matches(self) -> None:
+        m = self.COUNT.search(self.readme)
+        self.assertIsNotNone(m, "README no longer states a community SDK count")
+        expected = NUMBER_WORDS[len(self.community)]
+        self.assertEqual(
+            m["word"], expected,
+            f"README says {m['word']} community SDKs, the tree has {expected} "
+            f"({len(self.community)})",
+        )
+
+    def test_dedup_note_names_the_actual_overlap(self) -> None:
+        overlap = self.community & self._dirs(self.OFFICIAL)
+        m = self.DEDUP.search(self.readme)
+        self.assertIsNotNone(m, "README no longer carries a deduplication note")
+        named = set(re.findall(r"`(fraiseql-[a-z0-9]+)`", m["names"]))
+        self.assertEqual(
+            named, overlap,
+            f"the dedup note names {sorted(named)}, the tree overlaps on {sorted(overlap)}",
+        )
+        self.assertEqual(
+            m["word"].lower(), NUMBER_WORDS[len(overlap)],
+            f"the dedup note counts '{m['word']}', the tree overlaps on {len(overlap)}",
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
