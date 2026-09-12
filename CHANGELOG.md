@@ -3659,6 +3659,41 @@ disagreed, and the promise was the part that was wrong.
   engine about what a row count is. The REST transport already parsed and rejected these
   (`Invalid \`limit\` value`) and is unchanged.
 
+- **`requires_actor` is documented as authorable, because ten of the eleven official SDKs
+  author it (#1317).** `docs/operations/actor-policies.md` told the reader **no official SDK
+  authors it yet**, tracked as #1123 — an issue closed some time ago. A reader was being told
+  a security gate was unwritable in their language, whose remedies are hand-writing
+  `schema.json` (the thing every SDK exists to avoid) or leaving the gate off. The paragraph is
+  replaced with the per-SDK spelling, transcribed from each SDK's own conformance exporter, in
+  the shape `docs/features/pagination.md` uses for `pagination_order`. The one real gap —
+  `fraiseql-rust`, which ships no query or mutation builder — is named with the reason it
+  declares in `conformance/manifest.json` rather than left to silence.
+
+- **`sdks/community/README.md` counts its SDKs from the directory, and the arithmetic is now
+  checked (#1318).** The file disagreed with its own tree in three places: it claimed **nine**
+  SDKs where seven exist, its table listed `fraiseql-dart` and `fraiseql-elixir` after both
+  directories were deleted, and its deduplication note named three SDKs as duplicated under
+  `official/` when only `fraiseql-ruby` is. Nothing there fails when a directory disappears —
+  the tier is unmaintained and untested by design — so the file rotted unobserved. The counts
+  are corrected, the "Using an Official SDK" layout lists all eleven official SDKs instead of
+  eight and an ellipsis (C#, F# and PHP were invisible to a reader scanning for their
+  language), and `sdks/official/conformance/selftest.py` now pins the count, the table and the
+  dedup note against `iterdir()`. The check fails with an instruction to delete it if the tier
+  is removed in v3.0.0.
+
+- **The Elixir SDK builds each definition struct once, so a new authorable key cannot reach
+  one macro form only (#1319).** `fraiseql_query_ast/2` wrote its `%QueryDefinition{}` literal
+  twice — once per macro form — differing in exactly one field: `arguments:` carried the
+  argument buffer in the `do`-block branch and `[]` in the branch without. Every new key had to
+  be added in two places, and adding it in one left half the authoring surface dropping it: a
+  query with arguments kept the key, a query without lost it. Nothing about that is loud, since
+  the compiler derives a default and the schema still compiles. `fraiseql_mutation_ast/2` and
+  `fraiseql_type_ast/2` had the identical duplication and are collapsed with it. The export is
+  byte-identical across the change for both conformance fixtures; what is new is the
+  protection — each macro's two forms are now asserted to differ *only* in the argument or
+  field buffer, and a key added to any of the three definition structs fails a test naming the
+  fixture to extend.
+
 ### Security
 
 
