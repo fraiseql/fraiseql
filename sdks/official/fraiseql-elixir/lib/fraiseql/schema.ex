@@ -129,6 +129,11 @@ defmodule FraiseQL.Schema do
   defp fraiseql_type_ast(name, opts) do
     {block, type_opts} = Keyword.pop(opts, :do)
 
+    fields_ast =
+      if block, do: quote(do: Enum.reverse(@__fraiseql_field_buffer)), else: quote(do: [])
+
+    definition = type_definition_ast(name, type_opts, fields_ast)
+
     if block do
       quote do
         FraiseQL.Schema.__validate_type_opts__!(unquote(name), unquote(type_opts))
@@ -137,22 +142,7 @@ defmodule FraiseQL.Schema do
 
         unquote(block)
 
-        @fraiseql_types %FraiseQL.TypeDefinition{
-          name: unquote(name),
-          sql_source: unquote(type_opts[:sql_source]),
-          description: unquote(type_opts[:description]),
-          fields: Enum.reverse(@__fraiseql_field_buffer),
-          is_input: unquote(Keyword.get(type_opts, :is_input, false)),
-          relay: unquote(Keyword.get(type_opts, :relay, false)),
-          is_error: unquote(Keyword.get(type_opts, :is_error, false)),
-          crud: unquote(Keyword.get(type_opts, :crud, false)),
-          cascade: unquote(Keyword.get(type_opts, :cascade, false)),
-          relationships:
-            FraiseQL.Schema.__build_relationships__!(
-              unquote(name),
-              unquote(Keyword.get(type_opts, :relationships, []))
-            )
-        }
+        @fraiseql_types unquote(definition)
 
         Module.delete_attribute(__MODULE__, :__fraiseql_field_buffer)
         Module.register_attribute(__MODULE__, :__fraiseql_field_buffer, accumulate: true)
@@ -161,23 +151,33 @@ defmodule FraiseQL.Schema do
       quote do
         FraiseQL.Schema.__validate_type_opts__!(unquote(name), unquote(type_opts))
 
-        @fraiseql_types %FraiseQL.TypeDefinition{
-          name: unquote(name),
-          sql_source: unquote(type_opts[:sql_source]),
-          description: unquote(type_opts[:description]),
-          fields: [],
-          is_input: unquote(Keyword.get(type_opts, :is_input, false)),
-          relay: unquote(Keyword.get(type_opts, :relay, false)),
-          is_error: unquote(Keyword.get(type_opts, :is_error, false)),
-          crud: unquote(Keyword.get(type_opts, :crud, false)),
-          cascade: unquote(Keyword.get(type_opts, :cascade, false)),
-          relationships:
-            FraiseQL.Schema.__build_relationships__!(
-              unquote(name),
-              unquote(Keyword.get(type_opts, :relationships, []))
-            )
-        }
+        @fraiseql_types unquote(definition)
       end
+    end
+  end
+
+  # The struct is built here and spliced into both macro forms, so a new authorable key is
+  # added in one place. Writing it once per form — identical but for the buffer field —
+  # meant a key added to one branch was dropped by the other, and nothing about that loss
+  # is loud: the compiler derives a default and the schema still compiles (#1319).
+  defp type_definition_ast(name, type_opts, fields_ast) do
+    quote do
+      %FraiseQL.TypeDefinition{
+        name: unquote(name),
+        sql_source: unquote(type_opts[:sql_source]),
+        description: unquote(type_opts[:description]),
+        fields: unquote(fields_ast),
+        is_input: unquote(Keyword.get(type_opts, :is_input, false)),
+        relay: unquote(Keyword.get(type_opts, :relay, false)),
+        is_error: unquote(Keyword.get(type_opts, :is_error, false)),
+        crud: unquote(Keyword.get(type_opts, :crud, false)),
+        cascade: unquote(Keyword.get(type_opts, :cascade, false)),
+        relationships:
+          FraiseQL.Schema.__build_relationships__!(
+            unquote(name),
+            unquote(Keyword.get(type_opts, :relationships, []))
+          )
+      }
     end
   end
 
@@ -234,59 +234,52 @@ defmodule FraiseQL.Schema do
     # atom, which is not how an Elixir author writes one (#1255).
     query_name = FraiseQL.TypeMapper.to_camel_case(name)
 
+    arguments_ast =
+      if block, do: quote(do: Enum.reverse(@__fraiseql_arg_buffer)), else: quote(do: [])
+
+    definition = query_definition_ast(query_name, query_opts, arguments_ast)
+
     if block do
       quote do
         Module.register_attribute(__MODULE__, :__fraiseql_arg_buffer, accumulate: true)
 
         unquote(block)
 
-        @fraiseql_queries %FraiseQL.QueryDefinition{
-          name: unquote(query_name),
-          return_type: unquote(query_opts[:return_type]),
-          sql_source: unquote(query_opts[:sql_source]),
-          returns_list: unquote(Keyword.get(query_opts, :returns_list, false)),
-          nullable: unquote(Keyword.get(query_opts, :nullable, false)),
-          arguments: Enum.reverse(@__fraiseql_arg_buffer),
-          cache_ttl_seconds: unquote(query_opts[:cache_ttl_seconds]),
-          description: unquote(query_opts[:description]),
-          rest_path: unquote(query_opts[:rest_path]),
-          rest_method: unquote(query_opts[:rest_method]),
-          inject_params: unquote(query_opts[:inject_params]),
-          requires_role: unquote(query_opts[:requires_role]),
-          requires_actor:
-            FraiseQL.Schema.__validate_requires_actor__!(
-              unquote(query_name),
-              unquote(query_opts[:requires_actor])
-            ),
-          pagination_order: unquote(query_opts[:pagination_order])
-        }
+        @fraiseql_queries unquote(definition)
 
         Module.delete_attribute(__MODULE__, :__fraiseql_arg_buffer)
         Module.register_attribute(__MODULE__, :__fraiseql_arg_buffer, accumulate: true)
       end
     else
       quote do
-        @fraiseql_queries %FraiseQL.QueryDefinition{
-          name: unquote(query_name),
-          return_type: unquote(query_opts[:return_type]),
-          sql_source: unquote(query_opts[:sql_source]),
-          returns_list: unquote(Keyword.get(query_opts, :returns_list, false)),
-          nullable: unquote(Keyword.get(query_opts, :nullable, false)),
-          arguments: [],
-          cache_ttl_seconds: unquote(query_opts[:cache_ttl_seconds]),
-          description: unquote(query_opts[:description]),
-          rest_path: unquote(query_opts[:rest_path]),
-          rest_method: unquote(query_opts[:rest_method]),
-          inject_params: unquote(query_opts[:inject_params]),
-          requires_role: unquote(query_opts[:requires_role]),
-          requires_actor:
-            FraiseQL.Schema.__validate_requires_actor__!(
-              unquote(query_name),
-              unquote(query_opts[:requires_actor])
-            ),
-          pagination_order: unquote(query_opts[:pagination_order])
-        }
+        @fraiseql_queries unquote(definition)
       end
+    end
+  end
+
+  # One struct, spliced into both macro forms (#1319). See `type_definition_ast`.
+  defp query_definition_ast(query_name, query_opts, arguments_ast) do
+    quote do
+      %FraiseQL.QueryDefinition{
+        name: unquote(query_name),
+        return_type: unquote(query_opts[:return_type]),
+        sql_source: unquote(query_opts[:sql_source]),
+        returns_list: unquote(Keyword.get(query_opts, :returns_list, false)),
+        nullable: unquote(Keyword.get(query_opts, :nullable, false)),
+        arguments: unquote(arguments_ast),
+        cache_ttl_seconds: unquote(query_opts[:cache_ttl_seconds]),
+        description: unquote(query_opts[:description]),
+        rest_path: unquote(query_opts[:rest_path]),
+        rest_method: unquote(query_opts[:rest_method]),
+        inject_params: unquote(query_opts[:inject_params]),
+        requires_role: unquote(query_opts[:requires_role]),
+        requires_actor:
+          FraiseQL.Schema.__validate_requires_actor__!(
+            unquote(query_name),
+            unquote(query_opts[:requires_actor])
+          ),
+        pagination_order: unquote(query_opts[:pagination_order])
+      }
     end
   end
 
@@ -339,57 +332,51 @@ defmodule FraiseQL.Schema do
     {block, mutation_opts} = Keyword.pop(opts, :do)
     mutation_name = FraiseQL.TypeMapper.to_camel_case(name)
 
+    arguments_ast =
+      if block, do: quote(do: Enum.reverse(@__fraiseql_arg_buffer)), else: quote(do: [])
+
+    definition = mutation_definition_ast(mutation_name, mutation_opts, arguments_ast)
+
     if block do
       quote do
         Module.register_attribute(__MODULE__, :__fraiseql_arg_buffer, accumulate: true)
 
         unquote(block)
 
-        @fraiseql_mutations %FraiseQL.MutationDefinition{
-          name: unquote(mutation_name),
-          return_type: unquote(mutation_opts[:return_type]),
-          sql_source: unquote(mutation_opts[:sql_source]),
-          operation: unquote(mutation_opts[:operation]),
-          arguments: Enum.reverse(@__fraiseql_arg_buffer),
-          description: unquote(mutation_opts[:description]),
-          rest_path: unquote(mutation_opts[:rest_path]),
-          rest_method: unquote(mutation_opts[:rest_method]),
-          inject_params: unquote(mutation_opts[:inject_params]),
-          requires_role: unquote(mutation_opts[:requires_role]),
-          requires_actor:
-            FraiseQL.Schema.__validate_requires_actor__!(
-              unquote(mutation_name),
-              unquote(mutation_opts[:requires_actor])
-            ),
-          invalidates_views: unquote(mutation_opts[:invalidates_views]),
-          invalidates_fact_tables: unquote(mutation_opts[:invalidates_fact_tables])
-        }
+        @fraiseql_mutations unquote(definition)
 
         Module.delete_attribute(__MODULE__, :__fraiseql_arg_buffer)
         Module.register_attribute(__MODULE__, :__fraiseql_arg_buffer, accumulate: true)
       end
     else
       quote do
-        @fraiseql_mutations %FraiseQL.MutationDefinition{
-          name: unquote(mutation_name),
-          return_type: unquote(mutation_opts[:return_type]),
-          sql_source: unquote(mutation_opts[:sql_source]),
-          operation: unquote(mutation_opts[:operation]),
-          arguments: [],
-          description: unquote(mutation_opts[:description]),
-          rest_path: unquote(mutation_opts[:rest_path]),
-          rest_method: unquote(mutation_opts[:rest_method]),
-          inject_params: unquote(mutation_opts[:inject_params]),
-          requires_role: unquote(mutation_opts[:requires_role]),
-          requires_actor:
-            FraiseQL.Schema.__validate_requires_actor__!(
-              unquote(mutation_name),
-              unquote(mutation_opts[:requires_actor])
-            ),
-          invalidates_views: unquote(mutation_opts[:invalidates_views]),
-          invalidates_fact_tables: unquote(mutation_opts[:invalidates_fact_tables])
-        }
+        @fraiseql_mutations unquote(definition)
       end
+    end
+  end
+
+  # One struct, spliced into both macro forms (#1319). See `type_definition_ast`.
+  defp mutation_definition_ast(mutation_name, mutation_opts, arguments_ast) do
+    quote do
+      %FraiseQL.MutationDefinition{
+        name: unquote(mutation_name),
+        return_type: unquote(mutation_opts[:return_type]),
+        sql_source: unquote(mutation_opts[:sql_source]),
+        operation: unquote(mutation_opts[:operation]),
+        arguments: unquote(arguments_ast),
+        description: unquote(mutation_opts[:description]),
+        rest_path: unquote(mutation_opts[:rest_path]),
+        rest_method: unquote(mutation_opts[:rest_method]),
+        inject_params: unquote(mutation_opts[:inject_params]),
+        requires_role: unquote(mutation_opts[:requires_role]),
+        requires_actor:
+          FraiseQL.Schema.__validate_requires_actor__!(
+            unquote(mutation_name),
+            unquote(mutation_opts[:requires_actor])
+          ),
+        invalidates_views: unquote(mutation_opts[:invalidates_views]),
+        invalidates_fact_tables: unquote(mutation_opts[:invalidates_fact_tables])
+      }
     end
   end
 
