@@ -503,7 +503,18 @@ lint-expect:
 # module it covers — that module was an empty `mod worker_tests {}`, which is how a pool
 # whose `stop()` hung forever shipped. This is +1, not +4: one idle queue drives all four
 # lifecycle tests, since shutdown is observable on the no-work path.
-ASYNC_TRAIT_LIMIT := 199
+# 199 → 202: three test doubles for the `before:mutation` enforcement tests (#1327) —
+# a `DatabaseAdapter` that logs which SQL function each write called (the existing
+# capturing adapter overwrites its capture and drops the function name, so it cannot
+# answer "did `guarded` write?" for a document that also ran `harmless`), and two
+# `BeforeMutationGate` doubles. All three implement traits that are themselves declared
+# with the macro, so the impls have no choice, and they live in `src/` because the suite
+# sits in `runners/mutation/tests.rs` beside the chokepoint it covers.
+#
+# Note the grep sees only the bare `#[async_trait]` spelling; the tree also carries ~62
+# `#[async_trait::async_trait]` sites this ratchet has never counted, so the number is a
+# trend line for one spelling rather than a census.
+ASYNC_TRAIT_LIMIT := 202
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \
@@ -897,6 +908,15 @@ lint-internal-flag:
 .PHONY: lint-graphql-parse
 lint-graphql-parse:
 	@bash tools/check-graphql-parse-sites.sh
+
+# Gate: a mutation reaches the database only from the engine chokepoint (#1327). Every
+# gate on a write — the Authorizer, requires_role, requires_actor, argument and
+# selection validation, the change-log write and the before:mutation chain — is enforced
+# in `execute_mutation_impl`; a route that calls the adapter itself skips all of them,
+# which is what the gRPC arm does today (#1330). See tools/check-mutation-dispatch-sites.sh.
+.PHONY: lint-mutation-dispatch
+lint-mutation-dispatch:
+	@bash tools/check-mutation-dispatch-sites.sh
 
 # Gate: the `value_json` seam has one owner (#719). Hand-rolled JSON escaping, in-band
 # `$`-prefix variable detection and silent `.ok()` fallbacks on an argument parse are all
@@ -1300,7 +1320,7 @@ lint-required-checks:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

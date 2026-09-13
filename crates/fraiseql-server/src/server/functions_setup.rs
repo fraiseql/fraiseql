@@ -74,9 +74,32 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         }
 
         let function_count = hooks.module_registry.len();
-        self.functions_hooks = Some(Arc::new(hooks));
+        let hooks = Arc::new(hooks);
+        self.install_before_mutation_gate(Arc::clone(&hooks));
+        self.functions_hooks = Some(hooks);
         tracing::info!(functions = function_count, "functions-runtime dispatch enabled");
         Ok(())
+    }
+
+    /// Install the `before:mutation` chain as the executor's enforcement gate (#1327).
+    ///
+    /// The chain is enforcement, so it has to run wherever a mutation runs — which
+    /// is the engine's write chokepoint, not one HTTP handler. The gate therefore
+    /// lives on the executor's `RuntimeConfig`, and the executor is rebuilt here
+    /// through the constructor's own `executor_rebuilder` (#750) rather than a
+    /// fourth construction path. Nothing has been served at this point in the serve
+    /// path, so the rebuild discards no warm state; `with_compiled_schema` carries
+    /// caller-owned config through, so the gate also survives every later hot
+    /// reload.
+    fn install_before_mutation_gate(&mut self, hooks: Arc<crate::subsystems::BeforeMutationHooks>) {
+        let gate = Arc::new(crate::routes::before_mutation::FunctionChainGate::new(hooks));
+        let config = self.executor.config().clone().with_before_mutation_gate(gate);
+        let schema = self.executor.schema().clone();
+        let adapter = Arc::clone(self.executor.adapter());
+        self.executor = Arc::new((self.executor_rebuilder)(schema, adapter, config));
+        tracing::info!(
+            "before:mutation enforcement installed at the mutation chokepoint (every transport)"
+        );
     }
 
     /// Swap in the Postgres-backed function DLQ when selected and a pool exists (#598).

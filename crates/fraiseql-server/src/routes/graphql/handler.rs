@@ -520,8 +520,13 @@ async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'sta
         }
     }
 
-    let variables =
-        Box::pin(stages::run_before_mutation_hooks(&state, &query, request.variables)).await?;
+    // The `before:mutation` chain used to run here, once per request, keyed on the
+    // first root field and handed this `variables` map. That shape was bypassable
+    // three ways (#1327), so enforcement moved into the engine: the chain now runs
+    // from `execute_mutation_impl` — per executed root, in document order, with the
+    // arguments the write binds from — on every transport. It is installed on the
+    // executor's `RuntimeConfig` at serve time by `prepare_functions_runtime`.
+    let variables = request.variables;
 
     // ── Execution ────────────────────────────────────────────────────────────
     // Dispatch, the suspended-tenant gate and the per-tenant quotas all live in

@@ -3697,6 +3697,66 @@ disagreed, and the promise was the part that was wrong.
 ### Security
 
 
+- **`before:mutation` is now unbypassable: it is enforced in the engine, at the one point
+  every mutation entry path converges on (#1327).**
+
+  `before:mutation` is the synchronous hook that can rewrite a mutation's input or abort it,
+  so it is where a validation or business rule goes — which makes it enforcement. It ran in
+  the GraphQL handler, once per HTTP request, keyed on `parse_query(…).root_field` and handed
+  `request.variables`. Three request shapes executed a mutation without running its chain:
+
+  1. **A second root field.** The handler keyed on the *first* root. Since #759 the executor
+     runs **every** root serially, so `mutation { harmless(…) { id } guarded(…) { id } }`
+     wrote `guarded` after only `harmless`'s chain had run.
+  2. **Inline arguments.** `guarded(input: { … })` with no variables was invisible to the
+     chain, because the chain was handed the request's `variables` map rather than the
+     arguments the write would bind from — and `Proceed(modified)` could only rewrite
+     variables.
+  3. **The REST write route.** `routes/rest/handler/mutation.rs` dispatched `after:mutation`
+     only. No before-chain existed on that path at all.
+
+  The fix is not a fourth place that runs the chain. The chain is now consulted from
+  `execute_mutation_impl` — the single point every mutation entry path converges on, where
+  `requires_role`, `requires_actor` (#966) and the operation `Authorizer` (#422) are already
+  enforced — so it runs **once per executed root, in document order, immediately before that
+  root writes, on every transport**. A hook stage that derives its own root list is how (1)
+  happened; at the chokepoint there is no second root list to derive, and a new mutation route
+  needs no wiring and cannot forget any.
+
+  What the chain is handed changed with it: the **resolved** arguments — request variables
+  merged with the root field's inline literals, nested `$var` references substituted — which
+  is the same view the engine binds the SQL function's arguments from. A `{"input": …}` rewrite
+  therefore reaches the executed arguments and the field-authorizer view, not just the
+  variables.
+
+  Fail-closed throughout. An abort refuses the write carrying the rule's own message. A chain
+  that *fails* — missing module, runtime error, or a decision this build does not recognise —
+  also refuses it. The replaced handler code had a `Ok(_) => Ok(variables)` arm over a
+  `#[non_exhaustive]` enum, which proceeded with the original input: the one thing an
+  enforcement hook must never do. A `Proceed(null)` no longer silently drops the write's
+  arguments either — it reaches the required-argument check and fails loudly.
+
+  **Exposure.** Builds with `functions-runtime` that declare a `before:mutation` function.
+  The published image carries no function runtime (#1326), so released artifacts are not
+  affected; bypass (1) is unreleased (#759), bypass (3) has been the REST handler's behaviour
+  since #460 and #865 mounts those routes in the stock binary, and bypass (2) is in v2.14.1
+  and earlier. #1326 and #1325 each turn all three from theoretical into live, which is why
+  this landed before them.
+
+  **Breaking for embedders.** `RuntimeConfig` gains `before_mutation_gate:
+  Option<Arc<dyn BeforeMutationGate>>` (caller-owned, so it survives a hot reload) with
+  `RuntimeConfig::with_before_mutation_gate`. The new `fraiseql_core::security` seam —
+  `BeforeMutationGate`, `BeforeMutationRequest`, `BeforeMutationOutcome` — lets an embedder
+  install its own rule engine there with or without functions compiled in.
+  `fraiseql-server`'s `FunctionChainGate` is the implementation that runs the compiled
+  schema's chain. An abort's client-facing message now carries the engine's
+  `Validation error: ` prefix, like every other validation refusal, where the handler
+  previously emitted the bare message.
+
+  Each bypass is pinned by a test that asserts the **write** — whether the mutation's SQL
+  function was called — rather than the response envelope, because a repaired outer guard can
+  make the response say "refused" while the row lands anyway.
+
 - **`EventFilter` is now honoured by every event transport, and the REST stream scopes its
   subscription to the caller's tenant (#1113).**
 

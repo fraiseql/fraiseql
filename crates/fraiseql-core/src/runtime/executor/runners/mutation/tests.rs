@@ -3636,3 +3636,624 @@ mod cascade {
         );
     }
 }
+
+// ── mod before_mutation_enforcement: #1327, the three bypasses ────────────
+
+/// `before:mutation` is enforcement, so it must run for every executed mutation on
+/// every transport. It used to run once per HTTP request in the GraphQL handler,
+/// keyed on the *first* root field and handed `request.variables`, which left three
+/// shapes that executed a mutation without running its chain: a second root field,
+/// inline arguments, and the REST write route.
+///
+/// Every test here asserts the **write** — whether the mutation's SQL function was
+/// called — and not only the response envelope: a repaired outer guard can make the
+/// response say "refused" while the row lands anyway.
+mod before_mutation_enforcement {
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
+
+    use async_trait::async_trait;
+    use chrono::Utc;
+
+    use super::*;
+    use crate::{
+        schema::{
+            ArgumentDefinition, FieldType, InputFieldDefinition, InputObjectDefinition,
+            MutationDefinition, MutationOperation,
+        },
+        security::{
+            BeforeMutationGate, BeforeMutationOutcome, BeforeMutationRequest, SecurityContext,
+        },
+    };
+
+    /// Adapter that **appends** every SQL function call it is handed, with its name.
+    ///
+    /// The existing `CapturingFunctionCallAdapter` overwrites its capture and drops
+    /// the function name, so it cannot answer "did `guarded` run?" for a document
+    /// that also ran `harmless`. Here the call log *is* the durable-row assertion:
+    /// no call, no row.
+    struct MutationCallLog {
+        calls: Mutex<Vec<(String, Vec<serde_json::Value>)>>,
+    }
+
+    impl MutationCallLog {
+        fn new() -> Self {
+            Self {
+                calls: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn functions(&self) -> Vec<String> {
+            self.calls.lock().unwrap().iter().map(|(name, _)| name.clone()).collect()
+        }
+
+        fn args_for(&self, function: &str) -> Vec<serde_json::Value> {
+            self.calls
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|(name, _)| name == function)
+                .map(|(_, args)| args.clone())
+                .unwrap_or_default()
+        }
+    }
+
+    #[async_trait]
+    impl DatabaseAdapter for MutationCallLog {
+        async fn execute_function_call(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            self.calls.lock().unwrap().push((function_name.to_string(), args.to_vec()));
+            let mut row = std::collections::HashMap::new();
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
+            row.insert("entity".to_string(), json!({ "id": "1" }));
+            row.insert("entity_type".to_string(), json!("User"));
+            row.insert("message".to_string(), json!(""));
+            Ok(vec![row])
+        }
+
+        async fn execute_function_call_with_changelog(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&ChangeLogWrite<'_>>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            self.execute_function_call(function_name, args).await
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    impl SupportsMutations for MutationCallLog {}
+
+    /// A gate that refuses exactly one mutation by name, records every mutation it
+    /// was asked about in order, and records the arguments it was handed.
+    struct AbortsOne {
+        refuse:   &'static str,
+        asked:    Mutex<Vec<String>>,
+        observed: Mutex<Vec<serde_json::Value>>,
+        rewrite:  Option<serde_json::Value>,
+    }
+
+    impl AbortsOne {
+        fn new(refuse: &'static str) -> Arc<Self> {
+            Arc::new(Self {
+                refuse,
+                asked: Mutex::new(Vec::new()),
+                observed: Mutex::new(Vec::new()),
+                rewrite: None,
+            })
+        }
+
+        /// A gate that refuses nothing and rewrites every write's arguments.
+        fn rewriting(rewrite: serde_json::Value) -> Arc<Self> {
+            Arc::new(Self {
+                refuse:   "",
+                asked:    Mutex::new(Vec::new()),
+                observed: Mutex::new(Vec::new()),
+                rewrite:  Some(rewrite),
+            })
+        }
+
+        fn asked(&self) -> Vec<String> {
+            self.asked.lock().unwrap().clone()
+        }
+
+        fn observed(&self) -> Vec<serde_json::Value> {
+            self.observed.lock().unwrap().clone()
+        }
+    }
+
+    #[async_trait]
+    impl BeforeMutationGate for AbortsOne {
+        async fn before_mutation(
+            &self,
+            request: &BeforeMutationRequest<'_>,
+        ) -> Result<BeforeMutationOutcome> {
+            self.asked.lock().unwrap().push(request.mutation.to_string());
+            self.observed.lock().unwrap().push(request.arguments.clone());
+            if request.mutation == self.refuse {
+                return Ok(BeforeMutationOutcome::Abort {
+                    reason: format!("{} is not permitted", request.mutation),
+                });
+            }
+            match &self.rewrite {
+                Some(arguments) => Ok(BeforeMutationOutcome::ProceedWith {
+                    arguments: arguments.clone(),
+                }),
+                None => Ok(BeforeMutationOutcome::Proceed),
+            }
+        }
+    }
+
+    /// Two Insert mutations, `harmless` and `guarded`, each flattening a
+    /// `CreateUserInput` to positional `[name, email]` through its own SQL function —
+    /// so the call log names which one ran.
+    fn two_mutations() -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateUserInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("name", "String!"),
+                InputFieldDefinition::new("email", "String!"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+        for name in ["harmless", "guarded"] {
+            schema.mutations.push(MutationDefinition {
+                sql_source: Some(format!("fn_{name}")),
+                operation: MutationOperation::Insert {
+                    table: format!("fn_{name}"),
+                },
+                arguments: vec![ArgumentDefinition {
+                    name:          "input".to_string(),
+                    arg_type:      FieldType::Input("CreateUserInput".to_string()),
+                    nullable:      false,
+                    default_value: None,
+                    description:   None,
+                    deprecation:   None,
+                }],
+                ..MutationDefinition::new(name, "User")
+            });
+        }
+        schema.build_indexes();
+        schema
+    }
+
+    /// `guarded(name: String!)` — one flat scalar argument, the shape the REST write
+    /// surface produces (`build_mutation_variables` spreads the body's keys at the top
+    /// level rather than wrapping them in an `input` object).
+    fn flat_argument_mutation() -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_guarded".to_string()),
+            operation: MutationOperation::Insert {
+                table: "fn_guarded".to_string(),
+            },
+            arguments: vec![ArgumentDefinition {
+                name:          "name".to_string(),
+                arg_type:      FieldType::String,
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("guarded", "User")
+        });
+        schema.build_indexes();
+        schema
+    }
+
+    fn gated(gate: Arc<AbortsOne>) -> (Executor<MutationCallLog>, Arc<MutationCallLog>) {
+        let adapter = Arc::new(MutationCallLog::new());
+        let gate: Arc<dyn BeforeMutationGate> = gate;
+        let executor = Executor::with_config(
+            two_mutations(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default().with_before_mutation_gate(gate),
+        );
+        (executor, adapter)
+    }
+
+    fn principal() -> SecurityContext {
+        SecurityContext {
+            user_id:          "u1".into(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-1327".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    const HARMLESS_AND_GUARDED: &str = r#"mutation {
+        harmless(input: { name: "H", email: "h@x.tld" }) { id }
+        guarded(input: { name: "G", email: "g@x.tld" }) { id }
+    }"#;
+
+    // ── bypass (a): a second root field ──────────────────────────────────
+
+    /// The handler keyed the chain on `parse_query(…).root_field` — the *first* root
+    /// — and since #759 the executor runs every root serially, so `guarded` executed
+    /// after only `harmless`'s chain had run.
+    #[tokio::test]
+    async fn a_second_root_field_cannot_escape_its_chain() {
+        let gate = AbortsOne::new("guarded");
+        let (executor, adapter) = gated(Arc::clone(&gate));
+
+        let response = executor
+            .execute(HARMLESS_AND_GUARDED, None)
+            .await
+            .expect("the multi-root path reports per-root outcomes, it does not fail the request");
+
+        assert_eq!(
+            adapter.functions(),
+            vec!["fn_harmless".to_string()],
+            "`guarded` must not have written: only the approved root's function may be called"
+        );
+        let errors = response["errors"].as_array().expect("the refused root must be reported");
+        assert_eq!(errors.len(), 1, "exactly the refused root errors: {errors:?}");
+        assert_eq!(errors[0]["path"][0], "guarded");
+        assert!(
+            errors[0]["message"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("guarded is not permitted"),
+            "the rule's own message must reach the client: {errors:?}"
+        );
+        assert_eq!(response["data"]["guarded"], serde_json::Value::Null);
+    }
+
+    /// The chain runs once per executed root, in document order — not once per
+    /// request. Both roots are adjudicated, `harmless` first.
+    #[tokio::test]
+    async fn every_root_is_adjudicated_in_document_order() {
+        let gate = AbortsOne::new("nothing");
+        let (executor, adapter) = gated(Arc::clone(&gate));
+
+        executor
+            .execute(HARMLESS_AND_GUARDED, None)
+            .await
+            .expect("both roots are approved");
+
+        assert_eq!(
+            gate.asked(),
+            vec!["harmless".to_string(), "guarded".to_string()],
+            "the chain must run per root, in document order"
+        );
+        assert_eq!(
+            adapter.functions(),
+            vec!["fn_harmless".to_string(), "fn_guarded".to_string()],
+            "both approved roots must write"
+        );
+    }
+
+    /// Keyed on the field name, never the response alias: two roots calling the same
+    /// mutation differ only by alias, so keying on the alias would run one chain
+    /// twice and skip the other.
+    #[tokio::test]
+    async fn an_alias_does_not_hide_the_mutation_from_its_chain() {
+        let gate = AbortsOne::new("guarded");
+        let (executor, adapter) = gated(Arc::clone(&gate));
+
+        let response = executor
+            .execute(r#"mutation { somethingElse: guarded(input: { name: "G", email: "g@x.tld" }) { id } }"#, None)
+            .await;
+
+        assert!(adapter.functions().is_empty(), "an aliased guarded write must not run");
+        let err = response.expect_err("a single refused root fails the request");
+        assert!(
+            err.to_string().contains("guarded is not permitted"),
+            "the chain must be looked up by field name, not by `somethingElse`: {err}"
+        );
+        assert_eq!(gate.asked(), vec!["guarded".to_string()], "the gate is asked about the field");
+    }
+
+    // ── bypass (b): inline arguments ─────────────────────────────────────
+
+    /// The chain was handed `request.variables`, so a write whose input is an inline
+    /// literal was invisible to it: `guarded(input: { … })` with no variables ran
+    /// with the chain seeing `null`.
+    #[tokio::test]
+    async fn an_inline_literal_input_is_visible_to_the_chain() {
+        let gate = AbortsOne::new("guarded");
+        let (executor, adapter) = gated(Arc::clone(&gate));
+
+        let err = executor
+            .execute(r#"mutation { guarded(input: { name: "G", email: "g@x.tld" }) { id } }"#, None)
+            .await
+            .expect_err("an inline-argument write must still be refused");
+
+        assert!(adapter.functions().is_empty(), "the refused write must not run");
+        assert!(err.to_string().contains("guarded is not permitted"), "{err}");
+        assert_eq!(
+            gate.observed()[0]["input"]["name"],
+            "G",
+            "the chain must see the inline literal, not only the variables map: {:?}",
+            gate.observed()
+        );
+    }
+
+    /// `Proceed(modified)` must reach the **executed** arguments, not just the
+    /// request variables.
+    ///
+    /// The fixture makes the three spellings differ on purpose: the inline literal
+    /// says `INLINE`, the request variables say `FROM_VARIABLES`, and the rewrite
+    /// says `REWRITTEN`. Only the rewrite may reach the SQL function — a test whose
+    /// fixtures agreed would pass with the wrong one plumbed through.
+    #[tokio::test]
+    async fn a_rewrite_reaches_the_executed_arguments() {
+        let gate = AbortsOne::rewriting(serde_json::json!({
+            "input": { "name": "REWRITTEN", "email": "r@x.tld" }
+        }));
+        let (executor, adapter) = gated(Arc::clone(&gate));
+
+        let variables = serde_json::json!({ "name": "FROM_VARIABLES" });
+        executor
+            .execute(
+                r#"mutation { guarded(input: { name: "INLINE", email: "i@x.tld" }) { id } }"#,
+                Some(&variables),
+            )
+            .await
+            .expect("the rewriting gate approves the write");
+
+        let args = adapter.args_for("fn_guarded");
+        assert_eq!(
+            args,
+            vec![serde_json::json!("REWRITTEN"), serde_json::json!("r@x.tld")],
+            "the rewrite must be what the SQL function binds, not INLINE or FROM_VARIABLES"
+        );
+        assert_eq!(
+            gate.observed()[0]["input"]["name"],
+            "INLINE",
+            "and the gate must have been shown the resolved inline literal: {:?}",
+            gate.observed()
+        );
+    }
+
+    // ── bypass (c): the REST write route ─────────────────────────────────
+
+    /// `routes/rest/handler/mutation.rs` dispatched `after:mutation` only, so no
+    /// before-chain ran on a REST write at all. The anonymous REST write reaches the
+    /// engine through the direct `SupportsMutations` API, which is why the gate lives
+    /// at the chokepoint both that API and the GraphQL branches converge on.
+    #[tokio::test]
+    async fn the_anonymous_rest_write_path_cannot_escape_its_chain() {
+        let gate = AbortsOne::new("guarded");
+        let (executor, adapter) = gated(Arc::clone(&gate));
+
+        let variables = serde_json::json!({ "input": { "name": "G", "email": "g@x.tld" } });
+        let err = executor
+            .execute_mutation("guarded", Some(&variables), &[])
+            .await
+            .expect_err("the direct write API must run the chain too");
+
+        assert!(adapter.functions().is_empty(), "the refused write must not run");
+        assert!(err.to_string().contains("guarded is not permitted"), "{err}");
+    }
+
+    /// The authenticated REST write builds a synthetic document and goes through
+    /// `execute_with_security`; it converges on the same chokepoint.
+    ///
+    /// The arguments are flat scalars because that is what the REST surface produces:
+    /// `build_mutation_variables` spreads the request body's keys at the top level.
+    /// (A body carrying a *nested* object cannot reach the engine on this path at all —
+    /// `execute_mutation_with_security` renders each argument with `format!("{k}: {v}")`,
+    /// which emits JSON object syntax with quoted keys and fails to parse. Filed
+    /// separately, not widened into this phase.)
+    #[tokio::test]
+    async fn the_authenticated_rest_write_path_cannot_escape_its_chain() {
+        let gate = AbortsOne::new("guarded");
+        let adapter = Arc::new(MutationCallLog::new());
+        let gate_dyn: Arc<dyn BeforeMutationGate> = Arc::clone(&gate) as _;
+        let executor = Executor::with_config(
+            flat_argument_mutation(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default().with_before_mutation_gate(gate_dyn),
+        );
+
+        let arguments = serde_json::json!({ "name": "G" });
+        let err = executor
+            .execute_mutation_with_security("guarded", &arguments, Some(&principal()))
+            .await
+            .expect_err("the authenticated REST write must run the chain too");
+
+        assert!(adapter.functions().is_empty(), "the refused write must not run");
+        assert!(err.to_string().contains("guarded is not permitted"), "{err}");
+        assert_eq!(
+            gate.observed()[0]["name"],
+            "G",
+            "the gate must see the REST body's argument: {:?}",
+            gate.observed()
+        );
+    }
+
+    /// The authenticated GraphQL branch is gated too — the fourth entry path.
+    #[tokio::test]
+    async fn the_authenticated_graphql_path_cannot_escape_its_chain() {
+        let gate = AbortsOne::new("guarded");
+        let (executor, adapter) = gated(Arc::clone(&gate));
+
+        let err = executor
+            .execute_with_security(
+                r#"mutation { guarded(input: { name: "G", email: "g@x.tld" }) { id } }"#,
+                None,
+                &principal(),
+            )
+            .await
+            .expect_err("the authenticated GraphQL write must run the chain");
+
+        assert!(adapter.functions().is_empty(), "the refused write must not run");
+        assert!(err.to_string().contains("guarded is not permitted"), "{err}");
+    }
+
+    // ── the gate is optional and the approving path is unaffected ─────────
+
+    /// With no gate configured the write runs with the arguments the engine
+    /// resolved — the zero-overhead default for a schema that declares no
+    /// `before:mutation` function.
+    #[tokio::test]
+    async fn no_gate_configured_leaves_the_write_alone() {
+        let adapter = Arc::new(MutationCallLog::new());
+        let executor = Executor::new(two_mutations(), Arc::clone(&adapter));
+
+        executor
+            .execute(r#"mutation { guarded(input: { name: "G", email: "g@x.tld" }) { id } }"#, None)
+            .await
+            .expect("an ungated write runs");
+
+        assert_eq!(
+            adapter.args_for("fn_guarded"),
+            vec![serde_json::json!("G"), serde_json::json!("g@x.tld")],
+            "the resolved inline literal must still bind"
+        );
+    }
+
+    /// An approving gate does not disturb the arguments: `Proceed` keeps what the
+    /// engine resolved, including the inline literal.
+    #[tokio::test]
+    async fn an_approving_gate_leaves_the_arguments_alone() {
+        let gate = AbortsOne::new("nothing");
+        let (executor, adapter) = gated(Arc::clone(&gate));
+
+        executor
+            .execute(r#"mutation { guarded(input: { name: "G", email: "g@x.tld" }) { id } }"#, None)
+            .await
+            .expect("an approved write runs");
+
+        assert_eq!(
+            adapter.args_for("fn_guarded"),
+            vec![serde_json::json!("G"), serde_json::json!("g@x.tld")],
+            "Proceed must not rewrite anything"
+        );
+    }
+
+    /// Fail-closed: a gate that cannot decide refuses the write rather than falling
+    /// through to the original input.
+    #[tokio::test]
+    async fn a_gate_that_errors_refuses_the_write() {
+        struct Broken;
+
+        #[async_trait]
+        impl BeforeMutationGate for Broken {
+            async fn before_mutation(
+                &self,
+                _request: &BeforeMutationRequest<'_>,
+            ) -> Result<BeforeMutationOutcome> {
+                Err(FraiseQLError::Internal {
+                    message: "before:mutation hook execution failed".to_string(),
+                    source:  None,
+                })
+            }
+        }
+
+        let adapter = Arc::new(MutationCallLog::new());
+        let executor = Executor::with_config(
+            two_mutations(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default().with_before_mutation_gate(Arc::new(Broken)),
+        );
+
+        let err = executor
+            .execute(r#"mutation { guarded(input: { name: "G", email: "g@x.tld" }) { id } }"#, None)
+            .await
+            .expect_err("a gate that cannot decide must refuse");
+
+        assert!(adapter.functions().is_empty(), "nothing may be written: {err}");
+    }
+
+    /// The gate is consulted for a write with no arguments at all, and is handed
+    /// `Null` — the payload shape the chain has always received.
+    #[tokio::test]
+    async fn an_argumentless_write_is_still_adjudicated() {
+        let gate = AbortsOne::new("reindex");
+        let adapter = Arc::new(MutationCallLog::new());
+        let mut schema = CompiledSchema::new();
+        let mut def = MutationDefinition::new("reindex", "User");
+        def.sql_source = Some("fn_reindex".to_string());
+        def.operation = MutationOperation::Custom;
+        schema.mutations.push(def);
+        schema.build_indexes();
+        let executor = Executor::with_config(
+            schema,
+            Arc::clone(&adapter),
+            RuntimeConfig::default().with_before_mutation_gate(Arc::clone(&gate) as _),
+        );
+
+        let err = executor
+            .execute("mutation { reindex { id } }", None)
+            .await
+            .expect_err("an argument-less write is adjudicated like any other");
+
+        assert!(adapter.functions().is_empty(), "the refused write must not run: {err}");
+        assert_eq!(gate.observed()[0], serde_json::Value::Null);
+    }
+}

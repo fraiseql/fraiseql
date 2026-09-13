@@ -24,11 +24,82 @@ completes, the observer pipeline checks the registry for matching triggers and
 dispatches execution.
 
 - Supports `before_mutation` and `after_mutation` hooks
-- `BeforeMutationChain` allows ordered execution of pre-mutation logic
+- `BeforeMutationChain` allows ordered execution of pre-mutation logic; it is run by the engine at
+  the mutation chokepoint, not by a transport — see [Before-Mutation
+  Enforcement](#before-mutation-enforcement-1327)
 - Triggers are registered at server startup from the compiled schema
 - `after:capture` triggers (#366) fire on **externally-captured** writes (a
   third-party daemon / `psql` INSERT) via the change-log reader — the ingress dual
   of `after:mutation`; see [external-write-capture.md](./external-write-capture.md).
+
+### Before-Mutation Enforcement (#1327)
+
+`before:mutation` is the synchronous hook that can rewrite a mutation's input or
+abort it, so it is where a validation or business rule goes. That makes it
+**enforcement**, and the contract follows from that one word:
+
+> Every route that executes a mutation runs its `before:mutation` chain, once per
+> executed root field, in document order, immediately before that root writes, with
+> the arguments the write will actually run with.
+
+It is enforced in the engine, not in a transport: the chain is consulted from
+`execute_mutation_impl` (`fraiseql-core`), the single point every mutation entry path
+converges on — both GraphQL branches, the direct `SupportsMutations` API the
+anonymous REST write uses, and `execute_mutation_with_security` — next to
+`requires_role`, `requires_actor` (#966) and the operation `Authorizer` (#422), for
+the same reason those live there. A transport cannot reach a write without passing
+it, so a *new* route needs no wiring and cannot forget any.
+
+The seam is [`BeforeMutationGate`](../../crates/fraiseql-core/src/security/mutation_gate.rs),
+installed on the executor's `RuntimeConfig`. `fraiseql-server` implements it with
+`FunctionChainGate`, which runs the compiled schema's chain; an embedder can install
+its own rule engine instead, with or without functions compiled in.
+
+**Why it moved.** Until #1327 the chain ran in the GraphQL handler, once per HTTP
+request, keyed on `parse_query(…).root_field` and handed `request.variables`. Three
+request shapes executed a mutation without running its chain:
+
+| Bypass | Why it worked |
+|---|---|
+| `mutation { harmless(…) { id } guarded(…) { id } }` | the handler keyed on the **first** root; since #759 the executor runs every root serially, so `guarded` wrote after only `harmless`'s chain had run |
+| `guarded(input: { … })` with no variables | the chain was handed `request.variables`, so an inline literal was invisible to it, and `Proceed(modified)` rewrote only variables |
+| the REST write route | it dispatched `after:mutation` only; no before-chain existed on that path |
+
+Each of the three is pinned by a test in
+`runners/mutation/tests.rs::before_mutation_enforcement`, asserting the **write**
+(whether the mutation's SQL function was called), not the response envelope.
+
+**Semantics.**
+
+- **Keyed on the field name, never the response alias.** Two roots calling the same mutation differ
+  only by alias, so keying on the alias would run one chain twice and skip the other.
+- **Resolved arguments.** The chain sees request variables merged with the root field's inline
+  literals, nested `$var` references already substituted — the same view the engine binds the SQL
+  function's arguments from.
+- **A rewrite reaches the write.** `{"input": {…}}` returned by a function replaces the argument
+  view the engine binds from, and the view the field authorizer resolves against — not just the
+  request variables.
+- **Fail-closed.** An abort refuses the write with the rule's own message
+  (`FraiseQLError::Validation`). A chain that *fails* — a missing module, a runtime error, a
+  decision this build does not recognise — also refuses it; it never falls through to "proceed with
+  the original input", which would run a mutation the chain declined to approve.
+- **Zero overhead when unused.** A mutation with no registered trigger costs one `HashMap::get`,
+  and a build with no gate installed costs an `Option` check.
+- **Ordering against the static gates.** The chain runs *after* authorization, `requires_role`,
+  `requires_actor`, selection-set validation (#1005) and argument-name validation (#1154), so an
+  unauthorized or malformed request never reaches app-authored rule code.
+
+In a multi-root document an aborted root is reported in `errors` under its own
+response key with `data.<key>: null`, and the remaining roots still execute — the
+#759 partial-outcome contract, unchanged.
+
+**One deployment mode where the contract does not hold yet.** A per-tenant executor is
+built by `create_tenant_executor` with `RuntimeConfig::default()`, so a tenant-keyed
+request in a `[tenancy.runtime] enabled = true` deployment carries no gate — along with
+no operation `Authorizer`, RLS policy or field filter, which is the same defect and is
+why it is tracked on its own: **#1333**. Single-tenant deployments dispatch to the
+server's own executor and are unaffected.
+
 
 ### Durable After-Mutation Dispatch
 
@@ -206,9 +277,9 @@ the structured logs. Emitted per background dispatch:
 | `fraiseql_function_dlq_size` | gauge | — | Current function-dispatch DLQ depth (this replica's store view). |
 | `fraiseql_function_dlq_evictions_total` | counter | — | Function dead-letters dropped because the DLQ was at capacity (drop-newest). |
 
-**Trigger kinds not metered here.** `before:mutation` runs synchronously in the
-request (its outcome is the mutation's own success/failure, already on the GraphQL/HTTP
-metrics); `http` triggers are **rejected at load** (no route mounting exists yet, so a
+**Trigger kinds not metered here.** `before:mutation` runs synchronously at the write
+chokepoint (its outcome is the mutation's own success/failure, already on the
+GraphQL/HTTP metrics); `http` triggers are **rejected at load** (no route mounting exists yet, so a
 declared `http:` function would silently never serve — #871); `after:storage` has no
 runtime dispatch path yet and is likewise rejected at load. None is a background
 dispatch, so none is a `fraiseql_function_dispatches_total` row.

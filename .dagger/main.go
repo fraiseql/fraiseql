@@ -536,6 +536,11 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/check-internal-flag-sites.sh",
 		"bash tools/check-value-json-seam.sh",
 		"bash tools/check-graphql-parse-sites.sh",
+		// The mutation chokepoint is only a chokepoint while nothing reaches the
+		// adapter's write methods on its own (#1327). A route that does skips every
+		// gate on a write at once, and is invisible to the tests the known bypasses
+		// have — which is how the gRPC arm (#1330) has been doing it.
+		"bash tools/check-mutation-dispatch-sites.sh",
 		"bash tools/check-audit-lockstep.sh",
 		// The no-orphan-suites gate: every test target × feature combo maps to a
 		// leg that executes it (it parses THIS file, so legs and gate cannot

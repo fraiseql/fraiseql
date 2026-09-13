@@ -990,6 +990,34 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     };
     let variables = merged_variables.as_ref().or(variables);
 
+    // 3a. `before:mutation` enforcement (#1327). Here, and not in the HTTP handler,
+    //     because `before:mutation` is enforcement and the handler could only run it
+    //     once per request: it keyed the chain on `parse_query(…).root_field` — the
+    //     *first* root — against `request.variables`, and never ran on the REST write
+    //     route at all. Those were the three bypasses. At this chokepoint the chain
+    //     runs once per executed root, in document order (the caller iterates
+    //     `Mutation { roots }`), on every transport, immediately before the write.
+    //
+    //     Placed after every static gate so an unauthorized caller never reaches
+    //     app-authored rule code, and after the inline-argument merge above so the
+    //     gate sees the arguments the write will bind from — literals included —
+    //     rather than only the request's `variables` map. Keyed on `mutation_name`,
+    //     never `response_key`: two roots calling the same mutation differ only by
+    //     alias, so keying on the alias would run one chain twice and skip the other.
+    //
+    //     A rewrite replaces the whole argument view, so it reaches the bound args and
+    //     the field-authorizer view below, not just the request variables.
+    //     `gated_variables` owns what the shadowed `variables` borrows from here on.
+    let gated_variables = crate::security::mutation_gate::enforce_before_mutation(
+        ctx.config.before_mutation_gate.as_deref(),
+        security_ctx,
+        mutation_name,
+        response_key,
+        variables,
+    )
+    .await?;
+    let variables = gated_variables.as_ref().or(variables);
+
     // The same map, in the shape the field authorizer resolves against: a policy
     // that matches on a gated field's argument must see the value the client sent,
     // not the `{"$var": …}` reference marker (#903).

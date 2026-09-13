@@ -133,7 +133,8 @@ pub use window_parser::WindowQueryParser;
 pub use window_projector::WindowProjector;
 
 use crate::security::{
-    Authorizer, FieldAuthorizer, FieldFilter, FieldFilterConfig, QueryValidatorConfig, RLSPolicy,
+    Authorizer, BeforeMutationGate, FieldAuthorizer, FieldFilter, FieldFilterConfig,
+    QueryValidatorConfig, RLSPolicy,
 };
 
 /// Runtime configuration for the FraiseQL query executor.
@@ -152,6 +153,7 @@ use crate::security::{
 /// | `field_filter` | `None` | No field-level access control |
 /// | `rls_policy` | `None` | No row-level security |
 /// | `authorizer` | `None` | No operation-level authorization |
+/// | `before_mutation_gate` | `None` | No `before:mutation` enforcement |
 ///
 /// # Example
 ///
@@ -300,6 +302,19 @@ pub struct RuntimeConfig {
     /// metadata; one exceeding [`CascadeLimits::max_response_size_mb`] is
     /// rejected. Same DoS-guard family as [`max_page_size`](Self::max_page_size).
     pub cascade_limits: CascadeLimits,
+
+    /// Optional `before:mutation` enforcement point (#1327).
+    ///
+    /// When set, every mutation the engine is about to execute is passed to this
+    /// gate first — per root field, in document order, with the arguments the
+    /// write will bind from (request variables merged with inline literals).
+    /// The gate may let the write proceed, rewrite its arguments, or refuse it.
+    /// Fail-closed: any error refuses the write.
+    ///
+    /// Enforced at `execute_mutation_impl`, the single point every mutation entry
+    /// path converges on, so a transport cannot reach a write without passing it.
+    /// See [`BeforeMutationGate`].
+    pub before_mutation_gate: Option<Arc<dyn BeforeMutationGate>>,
 }
 
 /// Response-size limits for the typed cascade surface, per the graphql-cascade
@@ -349,6 +364,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("changelog_enabled", &self.changelog_enabled)
             .field("dry_run_mutations", &self.dry_run_mutations)
             .field("cascade_limits", &self.cascade_limits)
+            .field("before_mutation_gate", &self.before_mutation_gate.is_some())
             .finish()
     }
 }
@@ -356,21 +372,22 @@ impl std::fmt::Debug for RuntimeConfig {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
-            cache_query_plans:  true,
-            max_page_size:      Some(1000),
-            enable_tracing:     false,
-            field_filter:       None,
-            rls_policy:         None,
-            field_authorizer:   None,
-            authorizer:         None,
-            query_timeout_ms:   30_000, // 30 second default timeout
-            jsonb_optimization: JsonbOptimizationOptions::default(),
-            query_validation:   None,
-            max_operation_cost: None,
-            audit_mutations:    false,
-            changelog_enabled:  true,
-            dry_run_mutations:  false,
-            cascade_limits:     CascadeLimits::default(),
+            cache_query_plans:    true,
+            max_page_size:        Some(1000),
+            enable_tracing:       false,
+            field_filter:         None,
+            rls_policy:           None,
+            field_authorizer:     None,
+            authorizer:           None,
+            query_timeout_ms:     30_000, // 30 second default timeout
+            jsonb_optimization:   JsonbOptimizationOptions::default(),
+            query_validation:     None,
+            max_operation_cost:   None,
+            audit_mutations:      false,
+            changelog_enabled:    true,
+            dry_run_mutations:    false,
+            cascade_limits:       CascadeLimits::default(),
+            before_mutation_gate: None,
         }
     }
 }
@@ -490,6 +507,45 @@ impl RuntimeConfig {
         self
     }
 
+    /// Configure the `before:mutation` enforcement point (#1327).
+    ///
+    /// When set, every mutation the engine executes is adjudicated by this gate
+    /// first — per root field, in document order, with the arguments the write
+    /// will bind from. It may proceed, rewrite the arguments, or refuse. Installed
+    /// at `execute_mutation_impl`, the chokepoint every transport converges on, so
+    /// no route can execute a write without running it. Fail-closed: any error
+    /// refuses the write.
+    ///
+    /// # Example
+    ///
+    /// ```rust
+    /// use fraiseql_core::runtime::RuntimeConfig;
+    /// use fraiseql_core::security::{
+    ///     BeforeMutationGate, BeforeMutationOutcome, BeforeMutationRequest,
+    /// };
+    /// use fraiseql_core::error::Result;
+    /// use std::sync::Arc;
+    ///
+    /// struct AllowAll;
+    ///
+    /// #[async_trait::async_trait]
+    /// impl BeforeMutationGate for AllowAll {
+    ///     async fn before_mutation(
+    ///         &self,
+    ///         _req: &BeforeMutationRequest<'_>,
+    ///     ) -> Result<BeforeMutationOutcome> {
+    ///         Ok(BeforeMutationOutcome::Proceed)
+    ///     }
+    /// }
+    ///
+    /// let config = RuntimeConfig::default().with_before_mutation_gate(Arc::new(AllowAll));
+    /// ```
+    #[must_use = "builder method returns modified builder"]
+    pub fn with_before_mutation_gate(mut self, gate: Arc<dyn BeforeMutationGate>) -> Self {
+        self.before_mutation_gate = Some(gate);
+        self
+    }
+
     /// Build a [`RuntimeConfig`] from a compiled schema, applying every
     /// schema-derived runtime setting that an executor must honor.
     ///
@@ -604,6 +660,7 @@ impl RuntimeConfig {
             changelog_enabled: _,  // schema-derived
             dry_run_mutations,
             cascade_limits,
+            before_mutation_gate,
         } = self;
 
         Ok(Self {
@@ -622,6 +679,7 @@ impl RuntimeConfig {
             changelog_enabled,
             dry_run_mutations,
             cascade_limits,
+            before_mutation_gate,
         })
     }
 }

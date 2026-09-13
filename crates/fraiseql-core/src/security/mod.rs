@@ -5,6 +5,7 @@
 //! - Security headers configuration
 //! - Sensitive field masking for PII/regulated data
 //! - Field selection filtering for access control
+//! - `before:mutation` enforcement at the write chokepoint
 //! - Security error types
 //! - Authentication middleware (JWT, Auth0, Clerk)
 //! - OIDC/JWKS support for any OIDC-compliant provider
@@ -30,6 +31,7 @@ pub mod field_masking;
 pub mod headers;
 pub mod introspection_enforcer;
 pub mod kms;
+pub mod mutation_gate;
 pub mod oidc;
 pub mod profiles;
 pub mod query_validator;
@@ -72,6 +74,7 @@ pub use kms::{
     BaseKmsProvider, DataKeyPair, EncryptedData, KeyPurpose, KeyReference, KeyState, KmsError,
     KmsResult, RotationPolicy, VaultConfig, VaultKmsProvider,
 };
+pub use mutation_gate::{BeforeMutationGate, BeforeMutationOutcome, BeforeMutationRequest};
 pub use oidc::{OidcConfig, OidcValidator};
 pub use profiles::SecurityProfile;
 pub use query_validator::{QueryValidator, QueryValidatorConfig};

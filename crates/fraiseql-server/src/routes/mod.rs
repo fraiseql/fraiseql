@@ -9,6 +9,16 @@ pub mod api;
 pub mod async_operations;
 #[cfg(feature = "auth")]
 pub mod auth;
+// `before:mutation` chain dispatch (#1327). Public, and always compiled, for two
+// reasons: the gate is the engine's enforcement point, so an embedder installing
+// `FunctionChainGate` — or reading it as the reference implementation of
+// `BeforeMutationGate` before writing its own rule engine — needs to name it; and a
+// `pub` item is never dead code, so the module needs no
+// `cfg_attr(not(functions-runtime), allow(dead_code))`. That attribute would also
+// have told `check-suite-coverage.py` the module is feature-gated, which it is not:
+// its tests run under the plain `--lib` invocations, and claiming otherwise would
+// move them to a filter line on a leg that does not need to carry them.
+pub mod before_mutation;
 #[cfg(feature = "functions")]
 pub mod functions;
 pub mod graphql;
