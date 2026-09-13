@@ -56,7 +56,8 @@ if [ -z "$version" ]; then
 fi
 
 # Images this repository actually publishes (.github/workflows/docker-build.yml:
-# ghcr.io/<owner>/{server,server-full,tutorial} plus the Docker Hub mirrors). The chart
+# ghcr.io/<owner>/{server,server-full,server-platform,tutorial} plus the Docker Hub
+# mirrors). The chart
 # deploys the server, so those are the only two acceptable defaults; the runbooks
 # (docs/runbooks/01-deployment.md) use the ghcr form.
 PUBLISHED_IMAGES="ghcr.io/fraiseql/server fraiseql/server"

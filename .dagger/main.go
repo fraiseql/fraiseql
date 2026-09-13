@@ -541,6 +541,11 @@ func (m *FraiseqlCi) ShellGates(
 		// gate on a write at once, and is invisible to the tests the known bypasses
 		// have — which is how the gRPC arm (#1330) has been doing it.
 		"bash tools/check-mutation-dispatch-sites.sh",
+		// A refusal list is only worth having while nothing can be added outside it
+		// (#1326): a new top-level section whose only consumer sits behind a Cargo
+		// feature would go straight back to being dropped in silence by every lean
+		// build, and the silent drop is the ABSENCE of code, so review cannot see it.
+		"python3 tools/check-gated-sections.py",
 		"bash tools/check-audit-lockstep.sh",
 		// The no-orphan-suites gate: every test target × feature combo maps to a
 		// leg that executes it (it parses THIS file, so legs and gate cannot
@@ -1413,6 +1418,11 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// deliberately omits — so before this line NO leg executed them.
 		// (The #804 watchdog test is runtime-deno and stays local-only:
 		// embedded V8 SIGSEGVs in the exec sandbox, see docs/contributing/dagger-parity-notes.md.)
+		// `schema::tests::` (#1326): the loader's feature-ON arm — a `functions`
+		// section LOADS in a build that can serve one, where a lean build refuses it.
+		// Both arms have to run somewhere, and this filtered line is the only
+		// functions-runtime `--lib` invocation, so without the filter entry the ON
+		// arm compiles nowhere and reads as passing. check-suite-coverage.py caught it.
 		// #992: widened beyond the original P16 cron/after_mutation filters —
 		// query_bridge, subsystems::loader, function_metrics and the
 		// pg_function_dlq observers module are functions-runtime-gated too and
@@ -1422,7 +1432,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// (`fraiseql_test_support::postgres()`, `try_database_url()`) and the only
 		// leg compiling them was the service-less workspace run, where every
 		// DB-backed case returned early and read exactly like a pass.
-		"cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1",
+		"cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1",
 		// #1297: saga_store's Postgres orchestration proof, same shape — skip-clean
 		// on `try_database_url()`, compiled only by the DB-less `Test` leg.
 		"cargo test -p fraiseql-federation --features saga --lib saga_store::tests -- --test-threads=1",

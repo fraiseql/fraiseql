@@ -95,7 +95,7 @@ make chart-deploy                      # deploy the Helm chart on it and query i
 ```
 
 Publishing is `\.github/workflows/docker-build.yml`, on `v*` tags only. It pushes
-`ghcr.io/fraiseql/{server,server-full,tutorial}` and the `fraiseql/*` Docker Hub
+`ghcr.io/fraiseql/{server,server-full,server-platform,tutorial}` and the `fraiseql/*` Docker Hub
 mirrors. Nothing else in CI pushes an image.
 
 ## Elsewhere

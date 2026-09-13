@@ -224,7 +224,7 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend' --lib server::routing::storage_policy_admin_tests -- --test-threads=1
 	@cargo test -p fraiseql-server --features inbound-email --test inbound_email_dedup_scope_pg -- --test-threads=1
 	@cargo test -p fraiseql-server --features sources --lib sources:: -- --test-threads=1
-	@cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1
+	@cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1
 	@cargo test -p fraiseql-federation --features saga --lib saga_store::tests -- --test-threads=1
 	@cargo test -p fraiseql-server --features functions-runtime --test functions_schema_seam_test
 	@cargo test -p fraiseql-server --features functions-runtime --test functions_query_bridge_pin_test
@@ -909,6 +909,14 @@ lint-internal-flag:
 lint-graphql-parse:
 	@bash tools/check-graphql-parse-sites.sh
 
+# Gate: every compiled-schema section is classified as servable-in-every-build or
+# feature-gated-and-refused (#1326). `functions` was loaded, validated and silently
+# dropped by every published image; the refusal list that fixes it is only worth having
+# while nothing can be added outside it. See tools/check-gated-sections.py.
+.PHONY: lint-gated-sections
+lint-gated-sections:
+	@python3 tools/check-gated-sections.py
+
 # Gate: a mutation reaches the database only from the engine chokepoint (#1327). Every
 # gate on a write — the Authorizer, requires_role, requires_actor, argument and
 # selection validation, the change-log write and the before:mutation chain — is enforced
@@ -1320,7 +1328,7 @@ lint-required-checks:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-gated-sections lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="

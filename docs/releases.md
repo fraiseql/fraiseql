@@ -103,6 +103,7 @@ issue that owns the gap.
 |---|---|
 | `fraiseql-server` image | Boots on its own `CMD` against a real Postgres, answers a GraphQL query resolved through SQL, then returns a row inserted *after* it was already serving. Its linkage, uid, labels, `EXPOSE` and version are read off the built image, and its `HEALTHCHECK` is executed in three states. |
 | `fraiseql-server-full` image | Same boot and property tiers as above. |
+| `fraiseql-server-platform` image | Same boot and property tiers as above. The only tag that can serve a schema declaring `functions` or `sources` — since #1326 the other two refuse such a schema rather than dropping the section. |
 | Helm chart | Deployed into a throwaway k3s cluster on that image, queried through its Service, then re-queried after a row is inserted behind it. |
 | Compose stack (root `docker-compose.yml`) | Brought up on that image, becomes healthy on the image's *own* healthcheck, answers through its published port, then returns a row inserted after it was serving. |
 | `fraiseql-full-x86_64-unknown-linux-gnu.tar.gz` | Downloaded from the release, extracted, and the shipped `fraiseql-server` booted via `--config` against a real Postgres, asserting `/health` and a token-gated `/metrics`. |

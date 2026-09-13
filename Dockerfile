@@ -19,11 +19,30 @@ RUN case "${TARGETARCH:-amd64}" in \
     echo "$TARGET" > /tmp/rust_target.txt && \
     rustup target add "$TARGET"
 
-# No apt build dependencies: the PostgreSQL driver is the pure-Rust tokio-postgres
-# + rustls stack, so nothing here links libpq (pq-sys / libpq-sys / diesel appear
-# nowhere in Cargo.lock) and no -sys crate in the default feature set needs
-# pkg-config. If a feature is ever added that DOES link a system library, its
-# build dependency belongs here — see #1133.
+# The PostgreSQL driver is the pure-Rust tokio-postgres + rustls stack, so nothing
+# here links libpq (pq-sys / libpq-sys / diesel appear nowhere in Cargo.lock) and no
+# -sys crate in the DEFAULT feature set needs pkg-config. The two packages below are
+# the case #1133's note anticipated — "if a feature is ever added that DOES link a
+# system library, its build dependency belongs here":
+#
+#   curl + ca-certificates  the `v8` crate's build.rs downloads a prebuilt
+#                           `librusty_v8` static archive and shells out to python3 or
+#                           curl to do it. `rust:slim` has neither, so it panics at
+#                           build.rs:508 with a bare `NotFound` — which reads as a
+#                           corrupt toolchain rather than a missing downloader. This
+#                           is why the Dockerfile could not build ANY function-capable
+#                           image before #1326, and why release-smoke.yml — which
+#                           builds the full stack on a GitHub runner, where curl is
+#                           already present — never noticed.
+#   g++                     `librusty_v8.a` is a C++ archive; linking it needs the
+#                           C++ standard library.
+#
+# BUILDER STAGE ONLY. The runtime stage below copies just the binary, so none of this
+# reaches a shipped image; what the binary is allowed to LINK is a separate property,
+# pinned per variant by `imagePropsAllowedSonames` in .dagger/image_props.go.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl ca-certificates g++ && \
+    rm -rf /var/lib/apt/lists/*
 
 ARG CARGO_FEATURES=""
 

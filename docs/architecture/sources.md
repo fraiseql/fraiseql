@@ -113,8 +113,13 @@ run_as = { roles: [...], scopes: [...], tenant?: "..." }
 ## Configuration & feature surface
 
 - **Cargo feature `sources`** (opt-in, mirrors `inbound`) on `fraiseql-server`; the
-  default binary stays lean. A compiled schema that declares sources while the feature
-  is off boots with a loud warning and no scheduler.
+  default binary stays lean. A compiled schema that declares an **enabled** source while
+  the feature is off is **refused at boot**, naming the feature and the image tag that
+  carries it (#1326) — it used to warn and start no scheduler, which meant a server that
+  looked healthy while every declared connector silently never fired. Sources that are
+  all `enabled = false` start nothing either way, so they are not refused.
+- **Image**: `ghcr.io/fraiseql/server-platform` is the published tag built with this
+  feature. `server` and `server-full` are not, so they refuse such a schema.
 - **`[sources]` TOML** — operator-facing runtime tuning, overridable by environment
   (env > TOML > default):
 

@@ -95,6 +95,13 @@ const (
 // The loader and the vdso are not in this list; they are recognised structurally
 // below (an absolute path, and the vdso's fixed name) because their names are
 // architecture-dependent and carry no information about what the build linked.
+//
+// The set is still exactly these three after #1326 added the platform variant, which
+// carries the Deno/V8 function runtime. That was worth measuring rather than assuming:
+// `librusty_v8` is a C++ archive, so a libstdc++ dependency looked likely. Measured
+// `ldd` on the built platform image: linux-vdso, libgcc_s, libm, libc, and the loader —
+// V8's archive links what it needs statically. So the set stays global; if a future
+// variant does add one, make this per-variant rather than widening it for every image.
 var imagePropsAllowedSonames = map[string]bool{
 	"libc.so.6":     true,
 	"libm.so.6":     true,
@@ -130,6 +137,21 @@ var imagePropsRequiredSonames = []string{"libc.so.6"}
 var imagePropsSizeBudgets = map[string]int64{
 	"fraiseql-server":      116_951_552, // 111.5 MiB, measured 2026-08-27
 	"fraiseql-server-full": 122_482_688, // 116.8 MiB, measured 2026-08-27 (rest,arrow)
+	// 192.0 MiB, measured 2026-09-13 (#1326). +74 MiB over `-full`, which is the whole
+	// platform feature set — the Deno/V8 runtime plus sources, mcp, inbound,
+	// inbound-email, metrics, observers and federation — not V8 alone.
+	//
+	// Measured with `docker build --output type=oci,compression=uncompressed,
+	// force-compression=true`, and CALIBRATED before being trusted: the same method on
+	// `fraiseql-server-full` gives 123_350_016 against the 122_482_688 recorded above,
+	// +0.71%, which is base-image drift over two weeks. That calibration was not
+	// ceremony. `docker save | wc -c` and `docker image inspect .Size` both report
+	// COMPRESSED content — they agree with each other at ~47 MB for `-full` and are
+	// 2.6x under the real figure, and `compression=uncompressed` without
+	// `force-compression` re-exports cached layers in the form it already has them.
+	// Any of those three would have written a budget far too low into the gate whose
+	// job is to notice an image changing size.
+	"fraiseql-server-platform": 201_312_768,
 }
 
 // ImagePropertiesAll asserts every bootable variant's properties and is what the
@@ -259,7 +281,7 @@ func (m *FraiseqlCi) ImageProperties(
 	}
 	sections := imagePropsSections(probe)
 	assertRuntimeUID(r, sections["UID"], sections["USERNAME"])
-	assertLinkage(r, binary, sections["LDD"])
+	assertLinkage(r, v.name, binary, sections["LDD"])
 	assertBinaryVersion(r, binary, sections["VERSION"], version)
 
 	// Run the filesystem scan as root rather than as the image's own user. The
@@ -558,8 +580,9 @@ func assertRuntimeUID(r *imagePropsReport, uid, username string) {
 }
 
 // assertLinkage holds the built binary to #1133: libc, libm and libgcc_s, plus
-// the loader and the vdso, and nothing else.
-func assertLinkage(r *imagePropsReport, binary, ldd string) {
+// whatever this variant's own features legitimately add, plus the loader and the
+// vdso, and nothing else.
+func assertLinkage(r *imagePropsReport, variant, binary, ldd string) {
 	found := map[string]bool{}
 	var extras []string
 	var structural []string

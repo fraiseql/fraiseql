@@ -505,25 +505,6 @@ fn warn_files_not_wired(config: &ServerConfig) {
 // the config at parse time and `ServerConfig::from_file` names the missing build
 // feature in the error.
 
-/// Warn at startup when the compiled schema declares scheduled `sources` but this
-/// binary was built without the `sources` feature (#573).
-///
-/// The source *definitions* live in the compiled schema (unlike `[observers]`, which
-/// is TOML), so we can inspect the loaded [`CompiledSchema`] directly: a non-empty
-/// `sources` array with the feature compiled out means the source scheduler never
-/// starts and the declared connectors never fire — with no other signal as to why.
-#[cfg(not(feature = "sources"))]
-fn warn_sources_feature_missing(schema: &CompiledSchema) {
-    if !schema.sources.is_empty() {
-        tracing::warn!(
-            count = schema.sources.len(),
-            "the compiled schema declares scheduled sources but this binary was built without \
-             the `sources` feature; they are ignored — no source scheduler will start. Rebuild \
-             with `--features sources`."
-        );
-    }
-}
-
 /// Warn at startup when `[storage.<name>]` is configured for a database the
 /// binary cannot mount storage on. Object storage is PostgreSQL-only because the
 /// object-metadata repository requires a `sqlx::PgPool`.
@@ -621,8 +602,13 @@ async fn main() -> anyhow::Result<()> {
     init_security(&loaded.schema)?;
 
     warn_files_not_wired(&config);
-    #[cfg(not(feature = "sources"))]
-    warn_sources_feature_missing(&loaded.schema);
+    // `warn_sources_feature_missing` used to live here (#573): a lean build logged a
+    // warning and started no scheduler. Superseded by #1326 — `load_extended` now
+    // REFUSES a schema declaring an enabled source this build cannot run, which happens
+    // before this point, so the warning could only ever fire for an all-disabled
+    // `sources` array. For that case its advice was wrong: the operator turned the
+    // sources off, and "rebuild with `--features sources`" answers a question nobody
+    // asked.
 
     // Box::pin: the per-scheme dispatch holds adapter init futures for all
     // enabled adapters, which combined exceeds clippy's `large_futures`

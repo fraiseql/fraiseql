@@ -53,6 +53,17 @@ jobs:
             build-args: "CARGO_FEATURES=rest,arrow"
             optional: true
 
+          # The platform image (#1326). A build now REFUSES a compiled schema declaring
+          # a section it cannot serve, so there has to be a published tag that serves
+          # the whole product — otherwise the refusal only tells adopters to build from
+          # source. A strict superset of `server-full`.
+          - name: fraiseql-server-platform
+            dockerfile: Dockerfile
+            build-context: .
+            image-suffix: "server-platform"
+            build-args: "CARGO_FEATURES=rest,arrow,functions-runtime-deno,sources,mcp,inbound,inbound-email,metrics,observers,federation"
+            optional: true
+
           - name: tutorial
             dockerfile: tutorial/Dockerfile
             build-context: .
@@ -131,6 +142,13 @@ jobs:
             docker-hub-image: fraiseql/server-full
             build-args: "CARGO_FEATURES=rest,arrow"
 
+          - name: fraiseql-server-platform
+            dockerfile: Dockerfile
+            build-context: .
+            image-suffix: "server-platform"
+            docker-hub-image: fraiseql/server-platform
+            build-args: "CARGO_FEATURES=rest,arrow,functions-runtime-deno,sources,mcp,inbound,inbound-email,metrics,observers,federation"
+
           - name: tutorial
             dockerfile: tutorial/Dockerfile
             build-context: .
@@ -190,6 +208,7 @@ jobs:
             echo "**Images**:"
             echo "- \`ghcr.io/${{ github.repository_owner }}/server\`"
             echo "- \`ghcr.io/${{ github.repository_owner }}/server-full\` (rest-transport, arrow)"
+            echo "- \`ghcr.io/${{ github.repository_owner }}/server-platform\` (the above plus functions, sources, mcp, inbound, observers, federation)"
             echo "- \`ghcr.io/${{ github.repository_owner }}/tutorial\`"
             echo ""
             echo "**Branch**: ${{ github.ref }}"

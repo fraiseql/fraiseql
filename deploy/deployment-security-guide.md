@@ -30,12 +30,22 @@
 ### What is actually shipped
 
 **Runtime image**: `debian:bookworm-slim`, carrying one statically-configured Rust binary.
-The builder stage is `rust:1.94.1-slim`; nothing from it reaches the runtime image.
+The builder stage is `rust:1.94.1-slim`; nothing from it reaches the runtime image. The
+builder installs `curl`, `ca-certificates` and `g++` — build-only prerequisites for the
+`v8` crate, which downloads a prebuilt static archive — and the runtime stage copies only
+the binary, so none of them ships.
 
 **Published as** (`.github/workflows/docker-build.yml`, on `v*` tags):
 
 - `ghcr.io/fraiseql/server` — the default feature set
 - `ghcr.io/fraiseql/server-full` — plus `rest-transport` and `arrow`
+- `ghcr.io/fraiseql/server-platform` — the above plus every platform feature: `rest`,
+  `arrow`, `functions-runtime-deno`, `sources`, `mcp`, `inbound`, `inbound-email`,
+  `metrics`, `observers`, `federation`. This is the only tag that can serve a compiled
+  schema declaring `functions` or `sources`: since #1326 a build refuses a section it
+  cannot run rather than dropping it silently, so such a schema will not boot on the
+  other two. It is **192 MiB** against `server-full`'s 117 MiB (measured 2026-09-13,
+  uncompressed) — the Deno/V8 isolate plus the rest of the platform feature set.
 - `fraiseql/server` on Docker Hub
 
 **Compliance**: NIST 800-53, NIS2, ISO 27001, FedRAMP Moderate — see [Compliance](#compliance).

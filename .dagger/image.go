@@ -49,6 +49,18 @@ type imageVariant struct {
 var imageVariants = []imageVariant{
 	{name: "fraiseql-server", dockerfile: "Dockerfile", buildContext: ".", buildArgs: "", optional: false},
 	{name: "fraiseql-server-full", dockerfile: "Dockerfile", buildContext: ".", buildArgs: "CARGO_FEATURES=rest,arrow", optional: true},
+	// The platform image (#1326). Since a build now REFUSES a compiled schema
+	// declaring a section it cannot serve, rather than dropping it silently, there
+	// has to be a published tag that can serve the whole product — otherwise the
+	// refusal just tells adopters to build from source.
+	//
+	// A strict superset of `-full` (rest, arrow) plus every platform feature, so it
+	// is the one tag that boots any schema. That is a deliberate departure from the
+	// `fraiseql` crate's `release-full` bundle, which excludes arrow on the grounds
+	// that it is "a separate concern": for a BINARY that reasoning holds, but for an
+	// image the job is "the tag that runs what my schema declares", and a schema
+	// carrying both `rest_config` and `functions` would otherwise boot on nothing.
+	{name: "fraiseql-server-platform", dockerfile: "Dockerfile", buildContext: ".", buildArgs: "CARGO_FEATURES=rest,arrow,functions-runtime-deno,sources,mcp,inbound,inbound-email,metrics,observers,federation", optional: true},
 	{name: "tutorial", dockerfile: "tutorial/Dockerfile", buildContext: ".", buildArgs: "", optional: true},
 }
 

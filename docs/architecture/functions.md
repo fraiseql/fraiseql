@@ -305,6 +305,18 @@ Functions are enabled via feature flags on `fraiseql-server`:
   (Deno/V8). Additive to `functions-runtime`; a separate opt-in because V8 adds
   ~30 MB and compile time.
 
+**Which published image.** `ghcr.io/fraiseql/server-platform` is the tag built with
+`functions-runtime-deno`; `server` and `server-full` are not built with any function
+runtime. Since #1326 that is a refusal rather than a silent drop: a compiled schema
+declaring a non-empty `functions` section does not boot on a build that cannot run it,
+and the error names the feature and the tag. Before #1326 such a server booted clean,
+logged nothing, and every declared function never fired — which is what the published
+image did, because it is built `rest,arrow`.
+
+A build without the `v8` prerequisites cannot produce this image at all: the `v8` crate
+downloads a prebuilt static archive via `curl`, which the Dockerfile's builder stage now
+installs for exactly this reason.
+
 The embedder assembles the `FunctionsSubsystem` and registers the runtime(s) it
 built with on the observer, e.g.:
 

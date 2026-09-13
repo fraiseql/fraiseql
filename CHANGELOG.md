@@ -18,6 +18,38 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A build that cannot run a declared compiled-schema section now refuses to boot,
+  instead of loading it and dropping it (#1326).**
+
+  `LoadedSchema.functions` is `#[cfg(feature = "functions-runtime")]` and the published
+  image is built `rest,arrow`, so `load_extended` parsed the `functions` section,
+  validated it, and then discarded it. The server booted clean, logged nothing, and every
+  declared function never fired. `subsystems/loader.rs` already forbade exactly this in
+  prose — "a declared function that can never run is a misconfiguration, not something to
+  skip silently" — and #871 applied it to `http:` triggers, #1008 to a `storage` section.
+  The lean build was simply outside the rule.
+
+  The check lives where the section is **read**, not where it is used. That is the whole
+  point: the use site is compiled out, so a guard beside it disappears in exactly the
+  build that needs one.
+
+  Sweeping for the same shape found six more sections whose only consumers sit behind a
+  Cargo feature — `sources`, `mcp_config`, `rest_config`, `grpc_config`, `federation`,
+  `observers_config`. All are now refused on the same terms, with the error naming the
+  section, the missing feature and the image tag that carries it.
+
+  **A section that is switched off is not refused.** All six carry `enabled: bool`, and an
+  operator who turned one off has not misconfigured anything — refusing there would break
+  a working deployment that merely carries a fuller schema than its binary serves. Each
+  section's activity test mirrors the one its own subsystem makes: `enabled == true`, a
+  non-empty `definitions` list, or at least one enabled entry in the `sources` array.
+
+  For operators: a deployment carrying an **enabled** section its binary cannot serve must
+  switch it off, remove it, or move to a tag that carries the feature. No compiled schema
+  in this repository declares one. `warn_sources_feature_missing` (#573) is gone —
+  superseded, and for the only case it could still have fired (every source disabled) its
+  advice to rebuild was wrong.
+
 - **A compiled schema is now refused by any fraiseql build that did not produce it
   (#1304).** `fraiseql compile` stamps its own version into `schema.compiled.json` as
   `fraiseql_version`, and the server compares that stamp against its own build at boot, on
@@ -860,6 +892,29 @@ disagreed, and the promise was the part that was wrong.
   retry cadence — only parked a hot-path task.
 
 ### Added
+
+- **`server-platform`, a published image that can actually run the platform (#1326).**
+
+  A third tag alongside `server` (default features) and `server-full` (`rest`, `arrow`),
+  and a strict superset of both: `rest`, `arrow`, `functions-runtime-deno`, `sources`,
+  `mcp`, `inbound`, `inbound-email`, `metrics`, `observers`, `federation`. Additive —
+  neither existing tag changes.
+
+  It is the counterpart to the refusal above. Once a build refuses a section it cannot
+  serve, there has to be a published artifact that serves the whole product, or the
+  refusal only tells adopters to build from source — and a schema declaring both
+  `rest_config` and `functions` would have booted on no published image at all.
+
+  **The Dockerfile could not build a function-capable image before this.** `rust:slim`
+  carries neither `python3` nor `curl`, and the `v8` crate's build script shells out to
+  one of them to fetch a prebuilt `librusty_v8` archive; it panicked with a bare
+  `NotFound` that reads as a broken toolchain. `release-smoke.yml` builds the same feature
+  set successfully on a GitHub runner, where curl already exists, which is why nothing
+  noticed. The prerequisites are installed in the builder stage only, so none of them
+  reaches a shipped image.
+
+  192 MiB against `server-full`'s 117 MiB — the Deno/V8 isolate plus the rest of the
+  platform feature set, not V8 alone.
 
 - **`GET /rest/v1/{resource}/stream` resumes from `Last-Event-ID` instead of refusing it
   (#1310).** A browser `EventSource` re-sends the id of the last event it received on

@@ -97,6 +97,14 @@ builds = ["dagger:Images"]
 executes = ["dagger:ImageBoots", "dagger:ImagePropertiesAll"]
 
 [[artifact]]
+id = "image:fraiseql-server-platform"
+kind = "container-image"
+consumed_as = "ghcr.io/<owner>/server-platform:<version> · docker.io/fraiseql/server-platform:<version>"
+publishes = ["workflow:docker-build.yml:build-and-push", "workflow:docker-build.yml:publish-to-docker-hub"]
+builds = ["dagger:Images"]
+executes = ["dagger:ImageBoots", "dagger:ImagePropertiesAll"]
+
+[[artifact]]
 id = "image:tutorial"
 kind = "container-image"
 consumed_as = "ghcr.io/<owner>/tutorial:<version> · docker.io/fraiseql/tutorial:<version>"
