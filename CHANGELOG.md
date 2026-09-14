@@ -1470,6 +1470,25 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **A function invocation no longer spends ~9 ms waiting for its own watchdog (#1342).**
+  Every Deno invocation arms a watchdog thread that terminates the isolate if the guest
+  is still running at the deadline. It polled a done-flag on a `sleep(10ms)`, and the
+  invocation then **joined** it — so every invocation blocked until that thread woke up
+  and noticed work that had already finished.
+
+  Measured in a release build against a trivial guest: `watchdog.join()` was 8.9–9.5 ms of
+  a 21.9–26.0 ms total, roughly 40 %, while the guest's own event loop was 0.6 ms. The
+  watchdog now blocks on a condvar until the deadline *or* until the invocation signals
+  completion, whichever comes first. Same deadline, same termination behaviour — it still
+  has to be a real OS thread, because it exists for the one case tokio cannot see, a guest
+  spinning synchronously inside `run_event_loop` (#804) — only its exit path is signalled
+  rather than discovered.
+
+  End to end: **23.6 ms → 8.2 ms p50** per invocation. This is on every dispatch path
+  (`after:mutation`, `after:capture`, `after:ingest`, `cron`, scheduled sources), and since
+  #1328 it was also inside the `before:mutation` chain budget on the synchronous write path,
+  where a three-hook chain spent ~27 ms of its 500 ms waiting for nothing.
+
 - **The `before:mutation` chain's documented 500 ms budget is now enforced (#1328).**
   `fraiseql-functions`'s trigger docs have claimed a "500 ms default, shorter than the
   general 5 s function timeout because before-hooks are on the critical mutation path"

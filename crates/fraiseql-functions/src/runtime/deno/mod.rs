@@ -21,6 +21,7 @@ pub mod executor;
 pub mod ops;
 pub mod tests;
 pub mod transpile;
+pub mod watchdog;
 
 #[cfg(test)]
 mod follow_up_tests;

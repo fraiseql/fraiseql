@@ -20,7 +20,7 @@ use std::{
 use deno_core::{Extension, JsRuntime, OpState, RuntimeOptions, op2, v8};
 use serde_json::Value;
 
-use super::ops::DenoHostContext;
+use super::{ops::DenoHostContext, watchdog};
 use crate::{
     host::dyn_context::DynHostContext,
     types::{LogEntry, LogLevel, ResourceLimits},
@@ -270,20 +270,18 @@ pub fn run_in_dedicated_thread(
         // thread can terminate the isolate.
         let invocation_deadline = std::time::Instant::now() + max_duration;
         let isolate_handle = js_runtime.v8_isolate().thread_safe_handle();
-        let watchdog_done = Arc::new(AtomicBool::new(false));
+        // Signalled, not polled (#1342). The watchdog blocks until the deadline or
+        // until the invocation says it is done — whichever comes first — so the
+        // `join` below costs nothing. It used to poll a flag on a 10 ms sleep, and
+        // the join waited out the rest of that sleep on *every* invocation: ~9 ms,
+        // about 40 % of the total, against a guest whose own work was under 1 ms.
+        let watchdog_done = Arc::new(watchdog::WatchdogSignal::new());
         let watchdog_done_thread = Arc::clone(&watchdog_done);
         let timed_out_watchdog = Arc::clone(&timed_out_run);
         let watchdog = std::thread::spawn(move || {
-            // Poll so we can exit promptly once the invocation finishes, without
-            // waiting out the full deadline.
-            let poll = std::time::Duration::from_millis(10);
-            while std::time::Instant::now() < invocation_deadline {
-                if watchdog_done_thread.load(Ordering::Acquire) {
-                    return;
-                }
-                std::thread::sleep(poll);
-            }
-            if !watchdog_done_thread.load(Ordering::Acquire) {
+            if watchdog_done_thread.wait_until(invocation_deadline)
+                == watchdog::WatchdogOutcome::DeadlineReached
+            {
                 timed_out_watchdog.store(true, Ordering::Release);
                 isolate_handle.terminate_execution();
             }
@@ -325,7 +323,7 @@ pub fn run_in_dedicated_thread(
 
         if let Err(e) = exec_outcome {
             // Stop and reap the watchdog before returning.
-            watchdog_done.store(true, Ordering::Release);
+            watchdog_done.finish();
             let _ = watchdog.join();
             return Err(classify(&e.to_string(), &mem_exceeded_run, &timed_out_run));
         }
@@ -342,7 +340,7 @@ pub fn run_in_dedicated_thread(
         .await;
 
         // The event loop is done (or timed out): stop and reap the watchdog.
-        watchdog_done.store(true, Ordering::Release);
+        watchdog_done.finish();
         let _ = watchdog.join();
 
         match loop_outcome {
