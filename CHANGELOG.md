@@ -18,6 +18,20 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`DatabaseAdapter` now requires `'static`, and `BeforeMutationRequest` carries a read
+  bridge (#1328).** Two signature changes an embedder can see.
+
+  `fraiseql_db::DatabaseAdapter`'s supertrait bounds become `Send + Sync + 'static`. The
+  engine hands the `before:mutation` read bridge to guest code that the Deno runtime runs
+  on its own OS thread, so the bridge — and therefore the adapter behind it — has to
+  outlive the call. `'static` was already the de-facto requirement: several call sites
+  spelled `A: DatabaseAdapter + 'static` explicitly, and nothing in this repository needed
+  a change. An adapter that borrows would now fail to compile.
+
+  `BeforeMutationRequest` gains a `reader: Option<Arc<dyn MutationHookReader>>` field.
+  `BeforeMutationRequest::new` is unchanged and leaves it `None`; `with_reader` sets it.
+  An embedder implementing `BeforeMutationGate` needs no change unless it wants to read.
+
 - **A build that cannot run a declared compiled-schema section now refuses to boot,
   instead of loading it and dropping it (#1326).**
 
@@ -893,6 +907,55 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A `before:mutation` hook can read (#1328).** A rule that depends on data — a credit
+  limit, a price, a quota, the target row's current state — could not be written as a
+  before-hook at all: the chain ran on a `NoopHostContext`, *and* it dispatched through
+  `FunctionObserver::invoke`, the sync path whose Deno backend drops the host argument
+  outright. Every `fraiseql_query` from a before-hook failed, whichever host it was
+  handed. Those rules had to go into the SQL mutation function or an `after:mutation`
+  compensation.
+
+  A hook now gets `fraiseql_query` as a **read-only bridge executed as the requesting
+  principal**. Read-only: a document the engine would execute as a write is refused by
+  name, so a hook cannot become a second write path — and, since a hook reaches the
+  bridge from inside `execute_mutation_impl`, that refusal is also what stops the
+  recursion. As the caller: not a `run_as` ceiling, so a hook can never surface a row its
+  caller could not read. An anonymous write reads anonymously, which under an RLS policy
+  means the read fails closed rather than being promoted to a standing identity.
+
+  The bridge is built by the **engine**, from the executor adjudicating the write and the
+  principal it is being adjudicated for, and handed to the gate on
+  `BeforeMutationRequest::reader`. Both halves of the contract are then structural rather
+  than conventional: the executor cannot be a stale one, and there is no widening step to
+  get wrong.
+
+  **The read is outside the mutation's transaction**, deliberately — holding a
+  transaction, its row locks and a pooled connection open across a V8 isolate running
+  user-supplied JavaScript would make function latency into database lock time, reachable
+  by anyone who can author a function. So the contract is: for anything derivable from its
+  **input**, `before:mutation` is authoritative; for anything requiring a **read**, it is
+  a fast, friendly rejection, and the authoritative rule must still be a constraint or the
+  SQL function. A hook author who believes a read-backed check is authoritative has
+  written a check-then-act race and does not know it.
+
+  The surface a hook gets is a type, `BeforeMutationHost`, not a wiring convention:
+  `query`, `log`, the event payload and the caller's `auth_context`. Every side-effecting
+  op — `http_request`, `storage_get`/`_put`, `send_email`, `env_var`, `sql_query` —
+  refuses **by name**, because a before-hook runs synchronously on the write path and its
+  side effects are not rolled back when a later hook aborts the write it was deciding on.
+  `docs/architecture/functions.md` now carries the host call × trigger kind table the
+  issue asked for, and it is checked against the code rather than maintained by hand.
+
+- **`before:mutation` in `fraiseql functions invoke`, with the decision (#1328).** The
+  fixture is the mutation's resolved arguments object (`{"input": {…}}`) — there are no
+  row images; the write has not happened — and `--mock-query` stands in for the read. The
+  harness prints the decision the chain would reach (`ABORT … — reason`, `PROCEED
+  (arguments unchanged)`, `PROCEED with rewritten arguments: …`), resolved through
+  `interpret_guest_decision`, the same function `BeforeMutationChain::execute` decides
+  with — so the harness cannot tell an author one thing while the server does another.
+  Under `--json` it is a `{mutation, decision, arguments_or_reason, rewritten}` object, so
+  a CI check can assert that a rule refuses a given input.
+
 - **A function is authorable (#1325).** `@fraiseql.function(...)` in Python,
   `@FraiseFunction({...})` in TypeScript, and a builder or macro in eight more SDKs;
   `[functions]` in `fraiseql.toml`; a `functions` key in `schema.json`. All three reach
@@ -1406,6 +1469,21 @@ disagreed, and the promise was the part that was wrong.
   new keys are "**denied**" described the behaviour #1080 replaced and has been corrected.
 
 ### Changed
+
+- **The `before:mutation` chain's documented 500 ms budget is now enforced (#1328).**
+  `fraiseql-functions`'s trigger docs have claimed a "500 ms default, shorter than the
+  general 5 s function timeout because before-hooks are on the critical mutation path"
+  since the chain was written. Nothing enforced it: the gate passed
+  `ResourceLimits::default()`, so each hook got the general 5 s and a chain of *n* hooks
+  got 5*n* seconds — on the synchronous write path, with the client waiting.
+
+  The whole chain for one mutation now runs inside a wall-clock ceiling, 500 ms by
+  default, overridable with `FRAISEQL_FUNCTIONS_BEFORE_MUTATION_BUDGET_MS` (`0` disables
+  it, and the server warns loudly at startup when it is disabled). The same ceiling is
+  passed down as each hook's isolate watchdog, so a runaway guest is stopped by its own
+  runtime rather than only waited out. An overrun **refuses the write** — fail-closed like
+  every other way the chain can fail to decide — with a diagnosis naming the budget and
+  the mutation rather than the generic hook-failure message.
 
 - **A bad function declaration now fails `fraiseql compile`, not server boot (#1325).**
 

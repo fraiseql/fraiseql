@@ -407,7 +407,7 @@ impl<'a> ChangeLogWrite<'a> {
 // Effort: Medium (mostly mechanical — remove macro from impls, adjust trait defs)
 // dynosaur was evaluated and rejected: does not propagate + Send (incompatible with Tokio)
 #[async_trait]
-pub trait DatabaseAdapter: Send + Sync {
+pub trait DatabaseAdapter: Send + Sync + 'static {
     /// Execute a WHERE query against a view and return JSONB rows.
     ///
     /// # Arguments

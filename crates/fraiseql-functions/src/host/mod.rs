@@ -7,13 +7,49 @@ use fraiseql_error::Result;
 use crate::types::{EventPayload, LogEntry, LogLevel};
 
 #[cfg(feature = "host-live")]
+pub mod before_mutation;
+
+#[cfg(feature = "host-live")]
 pub mod live;
 
-#[cfg(any(feature = "runtime-wasm", feature = "runtime-deno"))]
+// Not feature-gated: the object-safe host contract is what a *caller* needs to
+// hand a live host to `FunctionObserver::invoke_with_context`, and the
+// `before:mutation` chain (#1328) does that from `fraiseql-server`'s ungated
+// `routes::before_mutation`. Compiling a trait definition and a blanket impl
+// costs a build with no runtime nothing; making the caller feature-gated would
+// have cost it a second, drifting host shape.
 pub mod dyn_context;
 
 #[cfg(any(feature = "runtime-wasm", feature = "runtime-deno"))]
 pub mod runtime_pinned;
+
+/// The guest-facing projection of an authenticated identity, shared by every host
+/// that answers `fraiseql_auth_context`.
+///
+/// One function, not one per host: the set of claims a guest may see is a
+/// security decision, and a second copy of it is a second place to forget
+/// `ip_address` is not in it. Deliberately excludes everything sensitive — the IP
+/// address, the raw token, the issuer/audience.
+///
+/// `email` / `display_name` are the connected user's verified identity — the
+/// per-user sending address a paired outbound email must use (see
+/// [`crate::outbound::resolve_sender_identity`]). They are `null` when the
+/// authenticated identity carries none.
+#[cfg(feature = "host-live")]
+#[must_use]
+pub fn auth_context_json(context: &fraiseql_core::security::SecurityContext) -> serde_json::Value {
+    serde_json::json!({
+        "sub": context.user_id,
+        "user_id": context.user_id, // Alias for convenience
+        "roles": context.roles,
+        "scopes": context.scopes,
+        "tenant_id": context.tenant_id,
+        "email": context.email,
+        "display_name": context.display_name,
+        "expires_at": context.expires_at.to_rfc3339(),
+        "authenticated_at": context.authenticated_at.to_rfc3339(),
+    })
+}
 
 /// Response from an HTTP request.
 #[derive(Debug, Clone)]

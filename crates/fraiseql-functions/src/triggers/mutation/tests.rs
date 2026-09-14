@@ -217,7 +217,7 @@ async fn test_before_mutation_chain_execute_empty_chain_proceeds() {
             input.clone(),
             &modules,
             &observer,
-            &NoopHostContext::new(event),
+            std::sync::Arc::new(NoopHostContext::new(event)),
             ResourceLimits::default(),
         )
         .await
@@ -272,7 +272,7 @@ async fn test_before_mutation_chain_execute_passthrough_proceeds() {
             input.clone(),
             &modules,
             &observer,
-            &NoopHostContext::new(event),
+            std::sync::Arc::new(NoopHostContext::new(event)),
             ResourceLimits::default(),
         )
         .await
@@ -328,7 +328,7 @@ async fn test_before_mutation_chain_execute_abort() {
             input,
             &modules,
             &observer,
-            &NoopHostContext::new(event),
+            std::sync::Arc::new(NoopHostContext::new(event)),
             ResourceLimits::default(),
         )
         .await
@@ -389,7 +389,7 @@ export default async (event) => ({
             input,
             &modules,
             &observer,
-            &NoopHostContext::new(event),
+            std::sync::Arc::new(NoopHostContext::new(event)),
             ResourceLimits::default(),
         )
         .await
@@ -459,7 +459,7 @@ async fn test_before_mutation_chain_execute_missing_module_returns_error() {
             input,
             &modules,
             &observer,
-            &NoopHostContext::new(event),
+            std::sync::Arc::new(NoopHostContext::new(event)),
             ResourceLimits::default(),
         )
         .await;
@@ -614,5 +614,151 @@ mod trigger_predicates {
         };
         assert!(trigger.predicates_hold(&fires), "fires on the pending→approved transition");
         assert!(!trigger.predicates_hold(&noop), "does not fire on approved→approved");
+    }
+}
+
+// ── The read bridge, end to end through a real guest (#1328) ─────────────
+
+/// A `before:mutation` guest calling `fraiseql_query` must reach the host, and the
+/// host must reach the read bridge.
+///
+/// Every other pin in this change is one link of that chain in isolation: core
+/// proves the bridge reads as the caller and refuses a write, `host::before_mutation`
+/// proves the surface forwards `query` and refuses everything else, the server
+/// proves the budget and the outcome mapping. None of them runs a **guest**, and
+/// the link none of them covers is the one that was broken: the chain dispatched
+/// through `FunctionObserver::invoke` — the *sync* path, whose Deno backend drops
+/// the host argument outright (`_host`) — so before this change a before-hook's
+/// `fraiseql_query` failed no matter which host it was handed. A suite that did not
+/// run a guest would not have moved when that was fixed.
+#[cfg(all(feature = "runtime-deno", feature = "host-live"))]
+mod read_bridge {
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
+
+    use fraiseql_core::security::MutationHookReader;
+
+    use super::*;
+    use crate::{
+        FunctionModule, FunctionObserver, ResourceLimits, RuntimeType,
+        host::before_mutation::BeforeMutationHost,
+        runtime::deno::{DenoConfig, DenoRuntime},
+    };
+
+    /// Answers one canned read and records what it was asked.
+    struct SpyReader {
+        asked:  Mutex<Vec<String>>,
+        answer: serde_json::Value,
+    }
+
+    impl MutationHookReader for SpyReader {
+        fn query<'a>(
+            &'a self,
+            graphql: &'a str,
+            _variables: Option<&'a serde_json::Value>,
+        ) -> std::pin::Pin<
+            Box<
+                dyn std::future::Future<Output = fraiseql_error::Result<serde_json::Value>>
+                    + Send
+                    + 'a,
+            >,
+        > {
+            self.asked.lock().unwrap().push(graphql.to_string());
+            let answer = self.answer.clone();
+            Box::pin(async move { Ok(answer) })
+        }
+    }
+
+    /// A guest that reads, then decides from what it read.
+    const GUEST: &str = r#"
+        export default async (args) => {
+          const raw = await Deno.core.ops.fraiseql_query(
+            "query { customer { remaining } }", "{}");
+          const remaining = JSON.parse(raw).data.customer.remaining;
+          if (args.input.amount > remaining) {
+            return { abort: `amount ${args.input.amount} exceeds ${remaining}` };
+          }
+          return { input: { ...args.input, credit_checked: true } };
+        };
+    "#;
+
+    async fn run(amount: i64, remaining: i64) -> (BeforeMutationResult, Vec<String>) {
+        let reader = Arc::new(SpyReader {
+            asked:  Mutex::new(Vec::new()),
+            answer: serde_json::json!({ "data": { "customer": { "remaining": remaining } } }),
+        });
+        let mut observer = FunctionObserver::new();
+        observer.register_runtime(
+            RuntimeType::Deno,
+            DenoRuntime::new(&DenoConfig::default()).expect("deno runtime"),
+        );
+        let mut modules = HashMap::new();
+        modules.insert(
+            "credit_limit".to_string(),
+            FunctionModule::from_source(
+                "credit_limit".to_string(),
+                GUEST.to_string(),
+                RuntimeType::Deno,
+            ),
+        );
+        let chain = BeforeMutationChain {
+            triggers: vec![BeforeMutationTrigger {
+                function_name: "credit_limit".to_string(),
+                mutation_name: "placeOrder".to_string(),
+            }],
+        };
+        let input = serde_json::json!({ "input": { "amount": amount } });
+        let host = BeforeMutationHost::new(
+            crate::types::EventPayload {
+                trigger_type: "before:mutation:placeOrder".to_string(),
+                entity:       "placeOrder".to_string(),
+                event_kind:   "before".to_string(),
+                data:         input.clone(),
+                timestamp:    chrono::Utc::now(),
+            },
+            Some(Arc::clone(&reader) as Arc<dyn MutationHookReader>),
+            None,
+        );
+
+        let outcome = chain
+            .execute(input, &modules, &observer, Arc::new(host), ResourceLimits::default())
+            .await
+            .expect("the chain runs");
+        let asked = reader.asked.lock().unwrap().clone();
+        (outcome, asked)
+    }
+
+    /// Both sides of the rule in one isolate-spinning test, so the whole thing is
+    /// one V8 lifecycle: the read reaches the bridge, and the decision follows the
+    /// value it returned rather than the input alone.
+    #[tokio::test]
+    async fn a_guest_reads_through_the_bridge_and_decides_on_what_it_read() {
+        let (refused, asked) = run(900, 600).await;
+        assert_eq!(
+            asked,
+            vec!["query { customer { remaining } }".to_string()],
+            "the guest's document must reach the read bridge verbatim"
+        );
+        match refused {
+            BeforeMutationResult::Abort(reason) => {
+                assert_eq!(reason, "amount 900 exceeds 600");
+            },
+            other => panic!("the read said 600 < 900, so the rule must abort: {other:?}"),
+        }
+
+        // The counterweight: the same guest, the same bridge, a read that allows it.
+        // A fixture that only ever aborts would pass on a bridge returning garbage.
+        let (allowed, _) = run(100, 600).await;
+        match allowed {
+            BeforeMutationResult::Proceed(arguments) => {
+                assert_eq!(
+                    arguments["credit_checked"], true,
+                    "the hook's rewrite must be what the chain returns: {arguments}"
+                );
+            },
+            other => panic!("the read said 600 > 100, so the rule must proceed: {other:?}"),
+        }
     }
 }

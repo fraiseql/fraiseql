@@ -522,24 +522,7 @@ impl HostContext for LiveHostContext {
                     .to_string(),
             }
         })?;
-        // Build auth context JSON from security context
-        // Excludes sensitive fields like ip_address, raw tokens, etc.
-        //
-        // `email` / `display_name` are the connected user's verified identity —
-        // the per-user sending address a paired outbound email must use (see
-        // `crate::outbound::resolve_sender_identity`). They are `null` when the
-        // authenticated identity carries none.
-        Ok(serde_json::json!({
-            "sub": context.user_id,
-            "user_id": context.user_id, // Alias for convenience
-            "roles": context.roles,
-            "scopes": context.scopes,
-            "tenant_id": context.tenant_id,
-            "email": context.email,
-            "display_name": context.display_name,
-            "expires_at": context.expires_at.to_rfc3339(),
-            "authenticated_at": context.authenticated_at.to_rfc3339(),
-        }))
+        Ok(crate::host::auth_context_json(context))
     }
 
     fn env_var(&self, name: &str) -> Result<Option<String>> {

@@ -93,6 +93,44 @@ In a multi-root document an aborted root is reported in `errors` under its own
 response key with `data.<key>: null`, and the remaining roots still execute — the
 #759 partial-outcome contract, unchanged.
 
+**What a hook may read, and what that makes it (#1328).** A rule that depends on
+data — a credit limit, a price, a quota, the target row's current state — needs to
+read. It can: `fraiseql_query` is available to a before-hook as a **read-only
+bridge executed as the requesting principal**. Two words, two properties:
+
+- **read-only** — a document the engine would execute as a write is refused by name, so the hook
+  cannot become a second write path and an abort cannot leave a half-applied change behind;
+- **as the caller** — not under a `run_as` ceiling, so a hook can never surface a row the caller
+  could not have read itself. An anonymous write reads anonymously, which under an RLS policy means
+  the read fails closed rather than being promoted.
+
+The read runs **outside the mutation's transaction**. That is deliberate: holding a
+Postgres transaction, its row locks and a pooled connection open across a V8 isolate
+running user-supplied JavaScript would turn function latency into database lock
+time, reachable by anyone who can author a function. It has a consequence, and the
+consequence is the contract:
+
+> `before:mutation` is **unbypassable** — every route that executes a mutation runs it
+> (#1327). For anything derivable from its **input**, it is authoritative. For anything
+> requiring a **read**, it is a fast, friendly rejection: the read is not in the
+> mutation's transaction, so the authoritative rule must still be a constraint or the
+> SQL function.
+
+**A hook author who believes a read-backed check is authoritative has written a
+check-then-act race and does not know it.** Two concurrent orders can each read a
+credit limit with room left and each be approved. Use the hook for the fast, clear
+error message; keep the unique index, the check constraint or the
+`fraiseql.mutation_err` in the SQL function as the thing that is actually true.
+
+**Latency budget.** The whole chain for one mutation runs inside a wall-clock
+ceiling — **500 ms** by default, overridable with
+`FRAISEQL_FUNCTIONS_BEFORE_MUTATION_BUDGET_MS` (`0` disables it, and the server logs
+a warning at startup when it is disabled). The same ceiling is passed down as each
+hook's isolate watchdog, so a runaway guest is stopped by its own runtime rather
+than only waited out. An overrun **refuses the write**, with a diagnosis naming the
+budget and the mutation rather than the generic hook-failure message — the one cause
+an operator can act on by raising a limit.
+
 **One deployment mode where the contract does not hold yet.** A per-tenant executor is
 built by `create_tenant_executor` with `RuntimeConfig::default()`, so a tenant-keyed
 request in a `[tenancy.runtime] enabled = true` deployment carries no gate — along with
@@ -185,7 +223,9 @@ The host surface (`HostContext`) exposes:
   engine, under the function's **`run_as`** ceiling (see below). Wired for
   `after:mutation` and scheduled sources; `after:ingest` is a tracked follow-up.
   A function with no `run_as` can *read* only what an anonymous principal can and
-  can *write* nothing (fail-closed).
+  can *write* nothing (fail-closed). **`before:mutation` is the exception**: its
+  bridge is read-only and runs as the *requesting principal*, not a `run_as`
+  ceiling (#1328) — see the per-trigger table below.
 - `storage_get` / `storage_put` — object storage.
 - `env_var` — read allowlisted secrets/config (granted via
   `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS`, or `[sources] allowed_env_vars` /
@@ -195,6 +235,35 @@ The host surface (`HostContext`) exposes:
   executed; every call fails loud. Use `query` instead.
 - `auth_context` — the caller's authenticated context (RLS-aware execution).
 - `log` — structured logging captured into the function result.
+
+#### Which host calls each trigger kind gets (#1328)
+
+The list above is the *union*. No trigger kind has all of it, and until #1328 the
+docs never said which had what — `before:mutation` in particular had **none**, and
+nothing wrote that down.
+
+| host call | `before:mutation` | `after:mutation` / `after:capture` | `after:ingest` | `cron` / scheduled source |
+|---|---|---|---|---|
+| `fraiseql_query` | **read-only, as the caller** | yes, under `run_as` | yes, under `run_as` | yes, under `run_as` |
+| `fraiseql_auth_context` | the caller's; refused on an anonymous write | the dispatch identity | the dispatch identity | the `run_as` identity |
+| `fraiseql_log` | yes | yes | yes | yes |
+| the event payload | the mutation's resolved **arguments** | `{event_kind, old, new}` | the inbound message | the schedule/source context |
+| `fraiseql_http_request` | **refused** | yes (SSRF allowlist) | yes | yes |
+| `fraiseql_storage_get` / `_put` | **refused** | yes | yes | yes |
+| `fraiseql_send_email` | **refused** | yes (when wired) | yes | yes |
+| `fraiseql_env_var` | **refused** | allowlisted | allowlisted | allowlisted |
+| `fraiseql_sql_query` | refused | not implemented (fails loud) | not implemented | not implemented |
+| `fraiseql_idempotency_token` | none (not a durable dispatch) | yes | yes | yes |
+| `fraiseql_cursor_*` | no binding: `get` answers `null`, `advance` refuses | same | same | scheduled sources only |
+
+`before:mutation`'s column is narrow on purpose, and the reason is one sentence: it
+is the only kind that runs **synchronously on the write path**, and its side effects
+are **not rolled back** when a later hook aborts the write it was deciding on. An
+outbound call, an upload or an email from a hook that then refuses the write has
+already happened. Those belong in `after:mutation`, which is durable, retried and
+dead-lettered. The narrow surface is a type — `BeforeMutationHost` — not a wiring
+convention: every op is written out, and the refused ones name themselves, so the
+table above is checked against code rather than maintained by hand.
 
 ### Declarative `when` predicates (#597)
 
@@ -447,6 +516,12 @@ fraiseql functions invoke notifyApproved --payload event.json --explain
 # Mock the host ops the function calls (a request matching no mock fails loud).
 fraiseql functions invoke syncDeal --payload deal.json \
     --mock-http http.json --mock-query query.json --idempotency-token abc123
+
+# A data-dependent before:mutation rule: the payload IS the mutation's arguments,
+# and --mock-query stands in for the read (#1328). The harness prints the decision
+# the chain would reach, not just the guest's raw return value.
+fraiseql functions invoke creditLimit --payload args.json --mock-query credit.json
+#   decision: ABORT `placeOrder` — amount 900 exceeds the remaining credit of 600
 ```
 
 The module is loaded exactly as the server loads it (from the compiled schema's
@@ -459,8 +534,17 @@ the guest reads via the host op.
 
 **Payload fixtures** are validated against the trigger kind — an `after:mutation` /
 `after:capture` fixture is `{ "event_kind": "update", "old": {…}, "new": {…} }` (a
-bare object is treated as an insert's `new` image). The `when` predicates (#597) are
+bare object is treated as an insert's `new` image); a **`before:mutation`** fixture
+is the mutation's resolved *arguments* object (`{ "input": {…} }`), because the write
+has not happened and there are no row images. The `when` predicates (#597) are
 evaluated *before* any isolate spins, so a non-matching payload costs nothing.
+
+For a `before:mutation` function the harness also prints the **decision** —
+`ABORT <mutation> — <reason>`, `PROCEED (arguments unchanged)`, or `PROCEED with
+rewritten arguments: …` — resolved through the same function the server's chain
+decides with, so the harness cannot tell an author one thing while the server does
+another. Under `--json` it is a `{"mutation", "decision", "arguments_or_reason",
+"rewritten"}` object, so a CI check can assert that a rule refuses a given input.
 
 **Exit codes** are scriptable in CI: `0` = ran; `3` = the `when` predicate did not
 match (nothing would fire); `4` = the guest errored; `1` = a config/harness error.

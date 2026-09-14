@@ -152,22 +152,27 @@ impl FunctionObserver {
     /// reach the network.
     ///
     /// Dispatches by the module's [`runtime`](FunctionModule::runtime) field:
-    /// WASM modules route to
-    /// [`WasmRuntime::invoke_with_context`](crate::runtime::wasm::WasmRuntime::invoke_with_context),
-    /// Deno (`JavaScript`/`TypeScript`) modules to
-    /// [`DenoRuntime::invoke_with_context`](crate::runtime::deno::DenoRuntime::invoke_with_context).
+    /// WASM modules route to `WasmRuntime::invoke_with_context`, Deno
+    /// (`JavaScript`/`TypeScript`) modules to `DenoRuntime::invoke_with_context`.
     /// An event whose module targets a runtime that is not compiled in returns
     /// `Unsupported`.
+    ///
+    /// Those two are named in prose rather than linked: this method is not
+    /// feature-gated (the `before:mutation` chain calls it from an ungated caller,
+    /// #1328), so its docs are rendered in a build where neither runtime module
+    /// exists — and an intra-doc link to an item that is compiled out is a
+    /// `-D warnings` rustdoc failure, not a dead link.
     ///
     /// # Errors
     ///
     /// Returns `Err` if no runtime is registered for the module's runtime type,
     /// the registered runtime is of the wrong concrete type, or guest execution
     /// fails.
-    #[cfg(any(feature = "runtime-wasm", feature = "runtime-deno"))]
     pub async fn invoke_with_context(
         &self,
         module: &FunctionModule,
+        #[allow(unused_variables)]
+        // Reason: used only when the matching runtime feature is enabled
         event: EventPayload,
         #[allow(unused_variables)]
         // Reason: used only when the matching runtime feature is enabled

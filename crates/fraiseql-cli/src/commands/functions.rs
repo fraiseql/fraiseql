@@ -116,6 +116,12 @@ pub async fn invoke(
     match result {
         Ok(function_result) => {
             print_success(name, &function_result, &calls, json);
+            // A before:mutation guest's return value *is* a decision, so the harness
+            // reports the decision the server would reach rather than leaving the
+            // author to read the convention out of the raw JSON.
+            if let ParsedTrigger::BeforeMutation { mutation_name } = &trigger {
+                print_before_mutation_decision(mutation_name, &function_result, &fixture, json);
+            }
             Ok(exit::OK)
         },
         Err(error) => {
@@ -185,13 +191,43 @@ struct Synthesized {
 /// - **after:mutation / after:capture** — the fixture is `{ "event_kind": "insert|update|delete",
 ///   "old": {…}|null, "new": {…}|null }` (or a bare object, treated as an insert's `new`).
 ///   Synthesized via the same `{event_kind, old, new}` payload the dispatcher builds.
+/// - **before:mutation** (#1328) — the fixture *is* the mutation's resolved arguments, the object
+///   the engine hands the chain: `{ "input": { … } }` for the usual single-input mutation, or
+///   whatever the mutation's argument shape is. There are no row images: the write has not
+///   happened.
 /// - other kinds are not yet supported by the harness (see the follow-up note).
+///
+/// Each payload is built the way its **dispatcher** builds it, and they do not
+/// agree: `AfterMutationTrigger::build_payload` puts the *function* name in
+/// `trigger_type`, while `BeforeMutationChain::execute` puts the *mutation* name
+/// and sets `entity` to it. Deriving one from the other would hand the guest a
+/// payload no server produces.
 fn synthesize_payload(
     name: &str,
     trigger: &ParsedTrigger,
     fixture: &serde_json::Value,
 ) -> Result<Synthesized> {
     match trigger {
+        ParsedTrigger::BeforeMutation { mutation_name } => {
+            if !fixture.is_object() {
+                bail!(
+                    "a before:mutation fixture is the mutation's arguments object — e.g. \
+                     {{\"input\": {{…}}}} — not {}",
+                    fixture_kind(fixture)
+                );
+            }
+            Ok(Synthesized {
+                payload: EventPayload {
+                    trigger_type: format!("before:mutation:{mutation_name}"),
+                    entity:       mutation_name.clone(),
+                    event_kind:   "before".to_string(),
+                    data:         fixture.clone(),
+                    timestamp:    chrono::Utc::now(),
+                },
+                old:     None,
+                new:     None,
+            })
+        },
         ParsedTrigger::AfterMutation { entity_type, .. }
         | ParsedTrigger::AfterCapture { entity_type, .. } => {
             let (kind_prefix, entity) = match trigger {
@@ -218,8 +254,21 @@ fn synthesize_payload(
         },
         other => bail!(
             "the invoke harness does not yet synthesize a payload for {other:?} — supported \
-             kinds: after:mutation, after:capture. (cron / after:ingest are a tracked follow-up.)"
+             kinds: after:mutation, after:capture, before:mutation. (cron / after:ingest are a \
+             tracked follow-up.)"
         ),
+    }
+}
+
+/// The JSON kind of a fixture, for a diagnostic that says what was found.
+fn fixture_kind(fixture: &serde_json::Value) -> &'static str {
+    match fixture {
+        serde_json::Value::Null => "null",
+        serde_json::Value::Bool(_) => "a boolean",
+        serde_json::Value::Number(_) => "a number",
+        serde_json::Value::String(_) => "a string",
+        serde_json::Value::Array(_) => "an array",
+        serde_json::Value::Object(_) => "an object",
     }
 }
 
@@ -557,6 +606,52 @@ fn print_success(
         println!("result: {value}");
     }
     print_logs_and_ops(&result.logs, calls);
+}
+
+/// Report what the `before:mutation` chain would decide from this guest's return
+/// value (#1328).
+///
+/// The verdict comes from [`interpret_guest_decision`] — the same function
+/// `BeforeMutationChain::execute` decides with — so the harness cannot tell an
+/// author one thing while the server does another.
+fn print_before_mutation_decision(
+    mutation: &str,
+    result: &fraiseql_functions::FunctionResult,
+    fixture: &serde_json::Value,
+    json: bool,
+) {
+    let decision =
+        fraiseql_functions::interpret_guest_decision(result.value.as_ref(), fixture.clone());
+    let (verdict, detail) = match &decision {
+        fraiseql_functions::BeforeMutationResult::Abort(reason) => {
+            ("abort", serde_json::Value::String(reason.clone()))
+        },
+        fraiseql_functions::BeforeMutationResult::Proceed(arguments) => {
+            ("proceed", arguments.clone())
+        },
+        // Reason: `BeforeMutationResult` is `#[non_exhaustive]`, so this arm is
+        // required from outside its crate. The harness reports what it cannot
+        // interpret rather than guessing a verdict — the server's own gate refuses
+        // the write on an unrecognised decision.
+        unknown => ("unrecognised", serde_json::json!(format!("{unknown:?}"))),
+    };
+    if json {
+        println!(
+            "{}",
+            serde_json::json!({
+                "mutation": mutation,
+                "decision": verdict,
+                "arguments_or_reason": detail,
+                "rewritten": verdict == "proceed" && &detail != fixture,
+            })
+        );
+        return;
+    }
+    match verdict {
+        "abort" => println!("decision: ABORT `{mutation}` — {detail}"),
+        _ if &detail == fixture => println!("decision: PROCEED `{mutation}` (arguments unchanged)"),
+        _ => println!("decision: PROCEED `{mutation}` with rewritten arguments: {detail}"),
+    }
 }
 
 fn print_guest_error(

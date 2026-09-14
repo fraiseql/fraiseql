@@ -4257,3 +4257,406 @@ mod before_mutation_enforcement {
         assert_eq!(gate.observed()[0], serde_json::Value::Null);
     }
 }
+
+// ── mod before_mutation_read_bridge: #1328, the caller-scoped read ────────
+
+/// A `before:mutation` rule that depends on data — a credit limit, a price, a
+/// quota, the target row's current state — cannot be written unless the hook can
+/// read. #1328 decided **A**: a read-only `fraiseql_query` bridge, executed as the
+/// requesting principal.
+///
+/// Both halves of that sentence are load-bearing and both are pinned here, against
+/// a real executor rather than the helper:
+///
+/// - **read-only** — a document the engine would execute as a write is refused, by its own
+///   diagnosis, and nothing is written by it;
+/// - **as the caller** — two principals running the *same* hook must not see the same rows. The
+///   fixture is built so that a bridge running under any single fixed identity (a `run_as` ceiling,
+///   the anonymous path, the first caller's context reused) fails it.
+mod before_mutation_read_bridge {
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
+
+    use async_trait::async_trait;
+    use chrono::Utc;
+
+    use super::*;
+    use crate::{
+        db::WhereClause,
+        schema::{
+            ArgumentDefinition, AutoParams, CursorType, FieldType, InputFieldDefinition,
+            InputObjectDefinition, MutationDefinition, MutationOperation, QueryDefinition,
+        },
+        security::{
+            BeforeMutationGate, BeforeMutationOutcome, BeforeMutationRequest, DefaultRLSPolicy,
+            SecurityContext,
+        },
+    };
+
+    /// An adapter whose **reads answer with the filter they were given**.
+    ///
+    /// `execute_with_projection` returns one row echoing the `author_id` the RLS
+    /// policy put in the WHERE clause, so "what did this hook see?" is a fact about
+    /// the identity the read ran under, not about the fixture. Writes are logged by
+    /// function name, so a refused write is provable by absence.
+    struct ReadEchoAdapter {
+        writes: Mutex<Vec<String>>,
+    }
+
+    impl ReadEchoAdapter {
+        fn new() -> Self {
+            Self {
+                writes: Mutex::new(Vec::new()),
+            }
+        }
+
+        fn writes(&self) -> Vec<String> {
+            self.writes.lock().unwrap().clone()
+        }
+    }
+
+    /// The `author_id` value the RLS policy AND-ed into this read's WHERE clause.
+    ///
+    /// `None` when the read carried no owner filter at all — which is what an
+    /// anonymous read looks like, and is therefore a distinguishable answer rather
+    /// than an indistinguishable empty one.
+    fn owner_filter(clause: Option<&WhereClause>) -> Option<String> {
+        match clause? {
+            WhereClause::Field { path, value, .. }
+                if path.last().map(String::as_str) == Some("author_id") =>
+            {
+                value.as_str().map(ToString::to_string)
+            },
+            WhereClause::And(parts) | WhereClause::Or(parts) => {
+                parts.iter().find_map(|part| owner_filter(Some(part)))
+            },
+            _ => None,
+        }
+    }
+
+    #[async_trait]
+    impl DatabaseAdapter for ReadEchoAdapter {
+        async fn execute_function_call(
+            &self,
+            function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            self.writes.lock().unwrap().push(function_name.to_string());
+            let mut row = std::collections::HashMap::new();
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
+            row.insert("entity".to_string(), json!({ "id": "1" }));
+            row.insert("entity_type".to_string(), json!("User"));
+            row.insert("message".to_string(), json!(""));
+            Ok(vec![row])
+        }
+
+        async fn execute_function_call_with_changelog(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&ChangeLogWrite<'_>>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            self.execute_function_call(function_name, args).await
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![JsonbValue::new(serde_json::json!({
+                "id": owner_filter(where_clause).unwrap_or_else(|| "anonymous".to_string()),
+            }))])
+        }
+
+        async fn execute_where_query(
+            &self,
+            view: &str,
+            where_clause: Option<&WhereClause>,
+            limit: Option<u32>,
+            offset: Option<u32>,
+            order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            self.execute_with_projection(view, None, where_clause, limit, offset, order_by)
+                .await
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    impl SupportsMutations for ReadEchoAdapter {}
+
+    /// `guarded(input: CreateUserInput!)` to write, `users` to read.
+    fn schema_with_a_readable_query() -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.input_types.push(InputObjectDefinition {
+            name:        "CreateUserInput".to_string(),
+            fields:      vec![InputFieldDefinition::new("name", "String!")],
+            description: None,
+            metadata:    None,
+        });
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_guarded".to_string()),
+            operation: MutationOperation::Insert {
+                table: "fn_guarded".to_string(),
+            },
+            arguments: vec![ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Input("CreateUserInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("guarded", "User")
+        });
+        schema.queries.push(QueryDefinition {
+            requires_actor:      Vec::new(),
+            returns_count:       false,
+            name:                "users".to_string(),
+            return_type:         "User".to_string(),
+            returns_list:        true,
+            nullable:            false,
+            arguments:           Vec::new(),
+            sql_source:          Some("v_user".to_string()),
+            description:         None,
+            auto_params:         AutoParams::all(),
+            deprecation:         None,
+            jsonb_column:        "data".to_string(),
+            relay:               false,
+            relay_cursor_column: None,
+            relay_cursor_type:   CursorType::default(),
+            inject_params:       indexmap::IndexMap::default(),
+            read_routing:        crate::db::types::ReadRouting::default(),
+            cache_ttl_seconds:   None,
+            additional_views:    vec![],
+            requires_role:       None,
+            rest_path:           None,
+            rest_method:         None,
+            rest_stream:         false,
+            native_columns:      HashMap::new(),
+            pagination_order:    Some(crate::schema::PaginationOrder::JsonIdentity),
+        });
+        schema.build_indexes();
+        schema
+    }
+
+    /// A gate that issues one document through the request's read bridge and
+    /// aborts with what came back, so the read's outcome reaches the assertion
+    /// through the engine's own refusal path.
+    struct ReadsThroughTheBridge {
+        document: &'static str,
+    }
+
+    #[async_trait]
+    impl BeforeMutationGate for ReadsThroughTheBridge {
+        async fn before_mutation(
+            &self,
+            request: &BeforeMutationRequest<'_>,
+        ) -> Result<BeforeMutationOutcome> {
+            let reader = request.reader.as_ref().ok_or_else(|| FraiseQLError::Internal {
+                message: "the engine must hand every adjudicated write a read bridge".to_string(),
+                source:  None,
+            })?;
+            match reader.query(self.document, None).await {
+                Ok(value) => Ok(BeforeMutationOutcome::Abort {
+                    reason: format!("read: {value}"),
+                }),
+                Err(error) => Err(error),
+            }
+        }
+    }
+
+    fn executor_reading(
+        document: &'static str,
+    ) -> (Executor<ReadEchoAdapter>, Arc<ReadEchoAdapter>) {
+        let adapter = Arc::new(ReadEchoAdapter::new());
+        let gate: Arc<dyn BeforeMutationGate> = Arc::new(ReadsThroughTheBridge { document });
+        let executor = Executor::with_config(
+            schema_with_a_readable_query(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default()
+                .with_before_mutation_gate(gate)
+                .with_rls_policy(Arc::new(DefaultRLSPolicy::new().with_single_tenant())),
+        );
+        (executor, adapter)
+    }
+
+    fn principal(user: &str) -> SecurityContext {
+        SecurityContext {
+            user_id:          user.into(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       format!("req-1328-{user}"),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    const WRITE: &str = r#"mutation { guarded(input: { name: "G" }) { id } }"#;
+
+    // ── Cycle 1: the bridge is read-only ─────────────────────────────────
+
+    /// A hook that issues a **mutation** through the bridge is refused, by name.
+    ///
+    /// Asserted on the refusal's own diagnosis — the `Authorization` variant and
+    /// its `before_mutation_read` action — and not merely on "the request failed".
+    /// Every other way this document could die (the gate aborting, the mutation
+    /// being unknown, the write erroring) produces a *different* error, so a pass
+    /// here cannot come from a downstream check.
+    #[tokio::test]
+    async fn a_hook_may_not_write_through_the_read_bridge() {
+        let (executor, adapter) =
+            executor_reading(r#"mutation { guarded(input: { name: "SNEAK" }) { id } }"#);
+
+        let err = executor
+            .execute_with_security(WRITE, None, &principal("u1"))
+            .await
+            .expect_err("a hook that writes through the read bridge must be refused");
+
+        match &err {
+            FraiseQLError::Authorization {
+                message, action, ..
+            } => {
+                assert_eq!(
+                    action.as_deref(),
+                    Some("before_mutation_read"),
+                    "the refusal must name itself: {err:?}"
+                );
+                assert!(message.contains("read-only"), "the refusal must say why: {message}");
+            },
+            other => panic!("expected the read bridge's own refusal, got {other:?}"),
+        }
+        assert!(
+            adapter.writes().is_empty(),
+            "neither the adjudicated write nor the hook's may run: {:?}",
+            adapter.writes()
+        );
+    }
+
+    /// The counterweight: the same bridge, the same fixture, a **query** document —
+    /// it must succeed. Without this, the refusal above would also pass on a bridge
+    /// that refuses everything.
+    #[tokio::test]
+    async fn a_hook_may_read_through_the_bridge() {
+        let (executor, _adapter) = executor_reading("{ users { id } }");
+
+        let err = executor
+            .execute_with_security(WRITE, None, &principal("u1"))
+            .await
+            .expect_err("the fixture's gate always aborts, carrying what it read");
+
+        assert!(
+            err.to_string().contains("read: "),
+            "a read document must reach the executor and answer: {err}"
+        );
+    }
+
+    // ── Cycle 2: the read runs as the caller ─────────────────────────────
+
+    /// Two principals, the same hook, the same document — each must see only what
+    /// its own identity can.
+    ///
+    /// The adapter echoes the RLS owner filter the read carried, so the two answers
+    /// differ **only** if the bridge ran under each caller's own context. A bridge
+    /// pinned to one identity — a `run_as` ceiling, the anonymous path, or the
+    /// context captured when the gate was installed — returns the same string twice
+    /// and fails.
+    #[tokio::test]
+    async fn each_caller_reads_as_itself() {
+        let (executor, _adapter) = executor_reading("{ users { id } }");
+
+        let first = executor
+            .execute_with_security(WRITE, None, &principal("alice"))
+            .await
+            .expect_err("the gate aborts with what it read")
+            .to_string();
+        let second = executor
+            .execute_with_security(WRITE, None, &principal("bob"))
+            .await
+            .expect_err("the gate aborts with what it read")
+            .to_string();
+
+        assert!(
+            first.contains("alice"),
+            "alice's hook must read under alice's identity: {first}"
+        );
+        assert!(second.contains("bob"), "bob's hook must read under bob's identity: {second}");
+        assert_ne!(first, second, "two principals must not read the same rows");
+    }
+
+    /// An anonymous write's hook reads anonymously — it is not promoted to a
+    /// standing identity to make the read work.
+    ///
+    /// Under this fixture's RLS policy that means the read **fails closed**, which
+    /// is exactly what an anonymous `/graphql` read of the same field does (#784).
+    /// The assertion is on which failure it is: not the bridge's own read-only
+    /// refusal (that would mean the bridge refuses everything, and
+    /// `a_hook_may_read_through_the_bridge` would be passing for the wrong reason),
+    /// and above all **not** an abort carrying rows — a hook that gets data here
+    /// has been handed an identity its caller does not have.
+    #[tokio::test]
+    async fn an_anonymous_write_is_not_promoted_to_read() {
+        let (executor, _adapter) = executor_reading("{ users { id } }");
+
+        let err = executor.execute(WRITE, None).await.expect_err("the read cannot succeed");
+
+        assert!(
+            !err.to_string().contains("read: "),
+            "an anonymous hook must not read rows its caller could not: {err}"
+        );
+        match &err {
+            FraiseQLError::Validation { message, .. } => assert!(
+                message.contains("users"),
+                "the read must fail closed on the field it asked for: {message}"
+            ),
+            other => panic!("expected the anonymous read to fail closed, got {other:?}"),
+        }
+    }
+}

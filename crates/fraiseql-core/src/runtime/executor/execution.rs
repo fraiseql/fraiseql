@@ -194,6 +194,79 @@ impl<A: DatabaseAdapter> Executor<A> {
         projected.as_ref().clone()
     }
 
+    /// Classify a document, memoising the verdict in the parse cache.
+    ///
+    /// The one place a document is turned into a [`QueryType`]. Both
+    /// [`execute_dispatch`](Self::execute_dispatch) — which routes on the verdict —
+    /// and [`execute_read_only`](Self::execute_read_only) — which refuses a write
+    /// on it — go through here, so the refusal cannot answer a different question
+    /// than the dispatch it is guarding.
+    ///
+    /// Only the `Ok` pair is cached, so a document rejected by GraphQL § 5.8.3 is
+    /// re-checked rather than serving a cached verdict; and because validity of a
+    /// *definition* is a property of the document alone — never of this request's
+    /// variable *values* — caching the accepted verdict is sound.
+    fn classify_cached(
+        &self,
+        query: &str,
+        operation_name: Option<&str>,
+    ) -> Result<(QueryType, Option<crate::graphql::ParsedQuery>)> {
+        let cache_key = parse_cache_key(query, operation_name);
+        if let Some(arc) = self.ctx.parse_cache.get(&cache_key) {
+            return Ok(arc.as_ref().clone());
+        }
+        let pair = self.classify_query_with_parse(query, operation_name)?;
+        self.ctx.parse_cache.insert(cache_key, Arc::new(pair.clone()));
+        Ok(pair)
+    }
+
+    /// Execute a document that the engine would **not** execute as a write, as
+    /// `security_context` (#1328).
+    ///
+    /// The engine half of the `before:mutation` read bridge. It is
+    /// [`execute_with_timeout`](Self::execute_with_timeout) with one thing in
+    /// front: a document the classifier calls a mutation is refused by name,
+    /// before dispatch, so the bridge cannot become a second write path.
+    ///
+    /// The refusal is decided on
+    /// [`classify_cached`](Self::classify_cached) — the same verdict, from the same
+    /// memoised classification, that `execute_dispatch` would have routed on. A
+    /// second, independent parse here could disagree with the dispatch it is meant
+    /// to guard; this cannot.
+    ///
+    /// No operation name: the guest bridge (`fraiseql_query`) has no field to carry
+    /// one, so a multi-operation document is already refused as ambiguous by
+    /// GraphQL § 6.1.
+    ///
+    /// The refusal is also what terminates the recursion. A hook reaches this
+    /// through `execute_mutation_impl`, so a bridge that executed a mutation would
+    /// run that mutation's own `before:mutation` chain, which would issue the same
+    /// document again: with the check removed, the pin in
+    /// `runners::mutation::tests::before_mutation_read_bridge` does not fail an
+    /// assertion, it overflows the stack.
+    ///
+    /// # Errors
+    ///
+    /// - [`FraiseQLError::Authorization`] — the document's operation is a mutation.
+    /// - Any error returned by [`execute_with_timeout`](Self::execute_with_timeout).
+    pub(super) async fn execute_read_only(
+        &self,
+        query: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<serde_json::Value> {
+        if matches!(self.classify_cached(query, None)?, (QueryType::Mutation { .. }, _)) {
+            return Err(FraiseQLError::Authorization {
+                message:  "the before:mutation read bridge is read-only: this document is a \
+                           mutation, and a before-hook may not write"
+                    .to_string(),
+                action:   Some("before_mutation_read".to_string()),
+                resource: None,
+            });
+        }
+        self.execute_with_timeout(query, variables, security_context, None).await
+    }
+
     /// Unified query dispatch for both the anonymous and authenticated entry
     /// points (H19). `security_context` is `None` for anonymous requests and
     /// `Some` for authenticated ones; it threads through GATE-1, the parse
@@ -238,14 +311,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         // GATE-1 itself parses with (`validate_with_variables`, and
         // `parse_graphql_document` again for `max_operation_cost`), so the
         // parser sees nothing it was not already going to see.
-        let cache_key = parse_cache_key(query, operation_name);
-        let (query_type, maybe_parsed) = if let Some(arc) = self.ctx.parse_cache.get(&cache_key) {
-            arc.as_ref().clone()
-        } else {
-            let pair = self.classify_query_with_parse(query, operation_name)?;
-            self.ctx.parse_cache.insert(cache_key, Arc::new(pair.clone()));
-            pair
-        };
+        let (query_type, maybe_parsed) = self.classify_cached(query, operation_name)?;
 
         // GATE 1: query-structure validation (DoS protection for direct embedders).
         // Runs on BOTH the anonymous and authenticated paths (L-gate1-skip).

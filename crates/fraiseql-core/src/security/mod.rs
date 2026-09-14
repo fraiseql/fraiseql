@@ -74,7 +74,9 @@ pub use kms::{
     BaseKmsProvider, DataKeyPair, EncryptedData, KeyPurpose, KeyReference, KeyState, KmsError,
     KmsResult, RotationPolicy, VaultConfig, VaultKmsProvider,
 };
-pub use mutation_gate::{BeforeMutationGate, BeforeMutationOutcome, BeforeMutationRequest};
+pub use mutation_gate::{
+    BeforeMutationGate, BeforeMutationOutcome, BeforeMutationRequest, MutationHookReader,
+};
 pub use oidc::{OidcConfig, OidcValidator};
 pub use profiles::SecurityProfile;
 pub use query_validator::{QueryValidator, QueryValidatorConfig};

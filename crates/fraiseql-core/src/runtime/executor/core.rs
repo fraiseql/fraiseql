@@ -291,6 +291,17 @@ impl<A: DatabaseAdapter> Executor<A> {
         self.ctx.response_cache.as_ref()
     }
 
+    /// Rebuild an executor view over an already-shared context.
+    ///
+    /// `Executor` *is* its `Arc<ExecutorContext<A>>`, so this is one atomic
+    /// increment — the same zero-cost move the runner accessors make. It exists so
+    /// a component holding only the context (the `before:mutation` read bridge,
+    /// which is built inside `execute_mutation_impl`) can reach the read entry
+    /// points, which are `impl Executor<A>`.
+    pub(super) const fn from_ctx(ctx: Arc<ExecutorContext<A>>) -> Self {
+        Self { ctx }
+    }
+
     /// Construct a query runner on demand.
     ///
     /// Zero-cost: `Arc::clone` is one atomic increment, no allocation.

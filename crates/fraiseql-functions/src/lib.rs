@@ -47,7 +47,7 @@ pub use triggers::{
     },
     mutation::{
         AfterMutationTrigger, BeforeMutationChain, BeforeMutationResult, BeforeMutationTrigger,
-        EntityEvent, EventKind, TriggerMatcher,
+        EntityEvent, EventKind, TriggerMatcher, interpret_guest_decision,
     },
     registry::TriggerRegistry,
     source::{IngestSink, SourceOutcome, run_source_once},

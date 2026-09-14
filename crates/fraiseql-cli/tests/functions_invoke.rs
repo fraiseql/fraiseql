@@ -245,3 +245,185 @@ fn unknown_function_is_a_config_error() {
         "the error names the missing function:\n{stderr}"
     );
 }
+
+// ── before:mutation — a data-dependent rule (#1328) ──────────────────────────
+
+/// Author a project declaring `credit_limit` (`before:mutation:placeOrder`), compile
+/// it with the real compiler, and return the compiled artifact's path.
+fn write_before_mutation_schema(dir: &TempDir) -> PathBuf {
+    let module_dir = fixture_module_dir();
+    let types = serde_json::json!({
+        "version": "2.0.0",
+        "types": [{
+            "name": "Order",
+            "sql_source": "v_order",
+            "is_input": false,
+            "fields": [
+                {"name": "id", "type": "ID", "nullable": false},
+                {"name": "amount", "type": "Int", "nullable": false}
+            ]
+        }],
+        "mutations": [{
+            "name": "placeOrder",
+            "return_type": "Order",
+            "sql_source": "fn_place_order",
+            "operation": "insert",
+            "invalidates_views": ["v_order"],
+            "arguments": []
+        }],
+        "functions": [{
+            "name": "credit_limit",
+            "trigger": "before:mutation:placeOrder",
+            "runtime": "Deno"
+        }]
+    });
+    let types_path = dir.path().join("types.json");
+    std::fs::write(&types_path, serde_json::to_string_pretty(&types).unwrap()).unwrap();
+
+    let toml_path = dir.path().join("fraiseql.toml");
+    std::fs::write(
+        &toml_path,
+        format!(
+            "[schema]\nname = \"invoke\"\nversion = \"1.0.0\"\n\
+             database_target = \"postgresql\"\n\n\
+             [functions]\nmodule_dir = \"{}\"\n",
+            module_dir.display()
+        ),
+    )
+    .unwrap();
+
+    let path = dir.path().join("schema.compiled.json");
+    let output = cli()
+        .arg("compile")
+        .arg(&toml_path)
+        .arg("--types")
+        .arg(&types_path)
+        .arg("--output")
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "the fixture project must compile:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    path
+}
+
+/// The read is mocked with a customer whose remaining credit is `limit - outstanding`.
+fn credit_mock(dir: &TempDir, limit: i64, outstanding: i64) -> PathBuf {
+    write_json(
+        dir,
+        "query.json",
+        &serde_json::json!([{
+            "query_contains": "customer",
+            "response": { "data": { "customer": {
+                "creditLimit": limit, "outstanding": outstanding,
+            } } }
+        }]),
+    )
+}
+
+/// A rule that *needs* a read runs in the harness, and the harness reports the
+/// decision the server would reach — not just the guest's raw JSON.
+///
+/// This is the fixture #1328 asks for: without the read bridge the guest's
+/// `fraiseql_query` fails loud and this function cannot decide anything.
+#[test]
+fn a_data_dependent_rule_aborts_when_the_read_says_so() {
+    let dir = TempDir::new().unwrap();
+    let schema = write_before_mutation_schema(&dir);
+    // The fixture is the mutation's resolved arguments — there are no row images.
+    let payload = write_json(
+        &dir,
+        "payload.json",
+        &serde_json::json!({ "input": { "customer_id": "c-1", "amount": 900 } }),
+    );
+    let mock_query = credit_mock(&dir, 1000, 400); // 600 remaining < 900
+
+    let out = cli()
+        .args(["functions", "invoke", "credit_limit"])
+        .arg("--payload")
+        .arg(&payload)
+        .arg("--schema")
+        .arg(&schema)
+        .arg("--mock-query")
+        .arg(&mock_query)
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code().unwrap_or(-1), 0, "the guest ran; stdout:\n{stdout}");
+    assert!(
+        stdout.contains("decision: ABORT `placeOrder`"),
+        "the harness must report the decision the chain would reach:\n{stdout}"
+    );
+    assert!(
+        stdout.contains("exceeds the remaining credit of 600"),
+        "the rule's own message must be shown:\n{stdout}"
+    );
+}
+
+/// The other side of the same rule: the counterweight that proves the abort above
+/// is a verdict about the data and not a fixture that refuses everything. It also
+/// pins the rewrite path — a hook that returns `{input}` replaces the arguments the
+/// write binds from.
+#[test]
+fn the_same_rule_proceeds_and_rewrites_when_the_read_allows_it() {
+    let dir = TempDir::new().unwrap();
+    let schema = write_before_mutation_schema(&dir);
+    let payload = write_json(
+        &dir,
+        "payload.json",
+        &serde_json::json!({ "input": { "customer_id": "c-1", "amount": 100 } }),
+    );
+    let mock_query = credit_mock(&dir, 1000, 400); // 600 remaining > 100
+
+    let out = cli()
+        .args(["functions", "invoke", "credit_limit"])
+        .arg("--payload")
+        .arg(&payload)
+        .arg("--schema")
+        .arg(&schema)
+        .arg("--mock-query")
+        .arg(&mock_query)
+        .arg("--json")
+        .output()
+        .unwrap();
+
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert_eq!(out.status.code().unwrap_or(-1), 0, "the guest ran; stdout:\n{stdout}");
+    let decision: serde_json::Value = stdout
+        .lines()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .find(|value| value.get("decision").is_some())
+        .expect("--json must emit the decision object");
+    assert_eq!(decision["decision"], "proceed");
+    assert_eq!(decision["rewritten"], true, "the hook stamped the input: {decision}");
+    assert_eq!(decision["arguments_or_reason"]["credit_checked"], true);
+}
+
+/// A `before:mutation` fixture is the arguments object. A bare array or scalar is a
+/// config error naming what the shape should be, not a payload the guest is handed.
+#[test]
+fn a_non_object_before_mutation_fixture_is_a_config_error() {
+    let dir = TempDir::new().unwrap();
+    let schema = write_before_mutation_schema(&dir);
+    let payload = write_json(&dir, "payload.json", &serde_json::json!([1, 2, 3]));
+
+    let out = cli()
+        .args(["functions", "invoke", "credit_limit"])
+        .arg("--payload")
+        .arg(&payload)
+        .arg("--schema")
+        .arg(&schema)
+        .output()
+        .unwrap();
+
+    assert_eq!(out.status.code().unwrap_or(-1), 1, "a bad fixture is a config error");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("arguments object") && stderr.contains("an array"),
+        "the error must say what was expected and what was found:\n{stderr}"
+    );
+}

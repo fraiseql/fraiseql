@@ -67,6 +67,7 @@ runtime override is:
 | `FRAISEQL_FUNCTIONS_DLQ_STORE` | The compiled `[functions] dlq_store` backend |
 | `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE` | The compiled functions DLQ size cap |
 | `FRAISEQL_FUNCTIONS_RETRY_MAX_ATTEMPTS` / `_INITIAL_DELAY_MS` / `_MAX_DELAY_MS` | The compiled functions retry policy |
+| `FRAISEQL_FUNCTIONS_BEFORE_MUTATION_BUDGET_MS` | The `before:mutation` chain's wall-clock ceiling (default 500 ms; `0` disables it, logged loudly at startup) |
 | `FRAISEQL_SOURCES_ENABLED` | Whether the source scheduler runs at all |
 | `FRAISEQL_SOURCES_ALLOWED_DOMAINS` / `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` | The sources egress/env allowlists |
 

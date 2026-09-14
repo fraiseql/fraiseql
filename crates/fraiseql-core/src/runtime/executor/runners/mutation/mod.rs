@@ -819,7 +819,7 @@ fn nested_input_type_name(field_type: &str, schema: &CompiledSchema) -> Option<S
 /// alias when it has one, otherwise `mutation_name`. Two roots calling the same
 /// mutation are told apart only by it.
 pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
-    ctx: &ExecutorContext<A>,
+    ctx: &Arc<ExecutorContext<A>>,
     mutation_name: &str,
     response_key: &str,
     variables: Option<&serde_json::Value>,
@@ -1008,12 +1008,24 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     //     A rewrite replaces the whole argument view, so it reaches the bound args and
     //     the field-authorizer view below, not just the request variables.
     //     `gated_variables` owns what the shadowed `variables` borrows from here on.
+    //     The chain reads through a caller-scoped, read-only bridge (#1328) built
+    //     from *this* context and *this* principal — see
+    //     `support::hook_reader::CallerScopedReader`. It is passed as a closure so a
+    //     build with no gate installed still pays only the `Option` check.
     let gated_variables = crate::security::mutation_gate::enforce_before_mutation(
         ctx.config.before_mutation_gate.as_deref(),
         security_ctx,
         mutation_name,
         response_key,
         variables,
+        || {
+            std::sync::Arc::new(
+                crate::runtime::executor::support::hook_reader::CallerScopedReader::new(
+                    std::sync::Arc::clone(ctx),
+                    security_ctx,
+                ),
+            )
+        },
     )
     .await?;
     let variables = gated_variables.as_ref().or(variables);

@@ -512,10 +512,16 @@ lint-expect:
 # with the macro, so the impls have no choice, and they live in `src/` because the suite
 # sits in `runners/mutation/tests.rs` beside the chokepoint it covers.
 #
+# 202 → 204: two more test doubles for the `before:mutation` read bridge (#1328), in the
+# same suite and for the same reason — a `DatabaseAdapter` whose reads answer with the
+# RLS filter they were handed (so "what did this hook see?" is a fact about the identity
+# the read ran under), and a `BeforeMutationGate` that reads through the request's bridge.
+# Both implement traits declared with the macro, so the impls have no choice.
+#
 # Note the grep sees only the bare `#[async_trait]` spelling; the tree also carries ~62
 # `#[async_trait::async_trait]` sites this ratchet has never counted, so the number is a
 # trend line for one spelling rather than a census.
-ASYNC_TRAIT_LIMIT := 202
+ASYNC_TRAIT_LIMIT := 204
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \

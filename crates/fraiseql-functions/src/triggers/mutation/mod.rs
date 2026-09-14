@@ -14,10 +14,23 @@
 //! Multiple before-hooks execute in declaration order. The first abort short-circuits remaining
 //! hooks.
 //!
-//! **Timeout**: Defaults to 500ms (shorter than general function timeout of 5s)
-//! because before-hooks are on the critical mutation path.
+//! **Timeout**: the *whole chain* runs inside a wall-clock ceiling, 500 ms by
+//! default — shorter than the general 5 s function timeout because before-hooks
+//! are on the critical mutation path. It is enforced by the caller, not here:
+//! `fraiseql-server`'s `BeforeMutationBudget` wraps this method and also passes
+//! the same ceiling down as each hook's [`ResourceLimits::max_duration`]. Until
+//! #1328 this paragraph said 500 ms and nothing enforced anything — the gate
+//! passed `ResourceLimits::default()`, so each hook got 5 s and a chain of *n*
+//! hooks got 5*n*.
+//!
+//! **Host surface**: a before-hook runs on `BeforeMutationHost` — a read-only
+//! `fraiseql_query` bridge executed as the requesting principal, plus logging and
+//! the caller's auth context. Every side-effecting op refuses by name; see
+//! `docs/architecture/functions.md`.
+//!
+//! [`ResourceLimits::max_duration`]: crate::types::ResourceLimits::max_duration
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
 use serde::{Deserialize, Serialize};
 
@@ -303,7 +316,8 @@ impl BeforeMutationTrigger {
 /// - Sequential: triggers execute in declaration order
 /// - Propagating: each trigger receives the modified input from previous trigger
 /// - Short-circuit: first abort stops the chain immediately
-/// - Default timeout: 500ms per trigger (shorter than general 5s default)
+/// - Budget: 500 ms by default for the **whole chain**, enforced by the caller (`fraiseql-server`'s
+///   `BeforeMutationBudget`), not per trigger
 /// - Side-effects: any side-effects from aborted triggers are NOT rolled back
 ///
 /// # Example
@@ -347,17 +361,14 @@ impl BeforeMutationChain {
     ///
     /// Returns `Err` if a trigger's function name is not found in `modules`, or if
     /// function execution itself returns an error.
-    pub async fn execute<H>(
+    pub async fn execute(
         &self,
         input: serde_json::Value,
         modules: &std::collections::HashMap<String, crate::types::FunctionModule>,
         observer: &crate::observer::FunctionObserver,
-        host: &H,
+        host: std::sync::Arc<dyn crate::host::dyn_context::DynHostContext>,
         limits: crate::types::ResourceLimits,
-    ) -> fraiseql_error::Result<BeforeMutationResult>
-    where
-        H: crate::HostContext + ?Sized,
-    {
+    ) -> fraiseql_error::Result<BeforeMutationResult> {
         let mut current = input;
         for trigger in &self.triggers {
             let module = modules.get(&trigger.function_name).ok_or_else(|| {
@@ -378,23 +389,52 @@ impl BeforeMutationChain {
                 timestamp:    chrono::Utc::now(),
             };
 
-            let result = observer.invoke(module, payload, host, limits.clone()).await?;
+            // `invoke_with_context`, not `invoke` (#1328). The sync path snapshots
+            // the host into a view whose every I/O op answers `Unsupported` — the
+            // Deno backend drops the host argument outright — so a before-hook
+            // could not read no matter what host it was handed. The read bridge
+            // exists to be reachable; this is the call that makes it so.
+            let result = observer
+                .invoke_with_context(module, payload, Arc::clone(&host), limits.clone())
+                .await?;
 
-            match result.value {
-                Some(ref v) if v.get("abort").is_some() => {
-                    let msg = v["abort"]
-                        .as_str()
-                        .unwrap_or("Aborted by before:mutation trigger")
-                        .to_string();
-                    return Ok(BeforeMutationResult::Abort(msg));
-                },
-                Some(ref v) if v.get("input").is_some() => {
-                    current = v["input"].clone();
-                },
-                _ => {},
+            match interpret_guest_decision(result.value.as_ref(), current) {
+                abort @ BeforeMutationResult::Abort(_) => return Ok(abort),
+                BeforeMutationResult::Proceed(next) => current = next,
             }
         }
         Ok(BeforeMutationResult::Proceed(current))
+    }
+}
+
+/// Map one guest's return value onto the decision the chain acts on.
+///
+/// The convention a function author writes against:
+///
+/// - `{"abort": "message"}` → abort the mutation with `message`;
+/// - `{"input": {…}}` → proceed with that input, replacing what was threaded in;
+/// - anything else, including `null` and a function that returns nothing → proceed unchanged.
+///
+/// Public and separate from [`BeforeMutationChain::execute`] because the authoring
+/// harness (`fraiseql functions invoke`) has to report the same verdict the server
+/// would reach. A harness that re-implemented the three cases would be a second
+/// copy of the convention, free to drift from the one that decides.
+#[must_use]
+pub fn interpret_guest_decision(
+    value: Option<&serde_json::Value>,
+    input: serde_json::Value,
+) -> BeforeMutationResult {
+    match value {
+        Some(value) if value.get("abort").is_some() => BeforeMutationResult::Abort(
+            value["abort"]
+                .as_str()
+                .unwrap_or("Aborted by before:mutation trigger")
+                .to_string(),
+        ),
+        Some(value) if value.get("input").is_some() => {
+            BeforeMutationResult::Proceed(value["input"].clone())
+        },
+        _ => BeforeMutationResult::Proceed(input),
     }
 }
 

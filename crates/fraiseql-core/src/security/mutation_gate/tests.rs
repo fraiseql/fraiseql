@@ -46,6 +46,42 @@ impl BeforeMutationGate for Spy {
     }
 }
 
+/// A reader double: answers every read with a fixed value and counts the reads.
+///
+/// The helper's contract is that a gate *receives* one, not what it returns —
+/// what the engine's real reader does (refuse a write, scope to the caller) is
+/// pinned against a real executor in
+/// `runtime::executor::runners::mutation::tests::before_mutation_read_bridge`.
+struct StubReader {
+    reads: std::sync::Mutex<Vec<String>>,
+}
+
+impl crate::security::MutationHookReader for StubReader {
+    fn query<'a>(
+        &'a self,
+        graphql: &'a str,
+        _variables: Option<&'a serde_json::Value>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<serde_json::Value>> + Send + 'a>>
+    {
+        self.reads.lock().unwrap().push(graphql.to_string());
+        Box::pin(async { Ok(serde_json::json!({ "data": {} })) })
+    }
+}
+
+/// A reader factory that panics when called — the mutation that proves
+/// `enforce_before_mutation` builds the reader **after** the no-gate early
+/// return, and not on every write.
+fn reader_must_not_be_built() -> std::sync::Arc<dyn crate::security::MutationHookReader> {
+    panic!("the read bridge must not be built when no gate is configured");
+}
+
+/// A reader factory for the paths that do reach a gate.
+fn stub_reader() -> std::sync::Arc<dyn crate::security::MutationHookReader> {
+    std::sync::Arc::new(StubReader {
+        reads: std::sync::Mutex::new(Vec::new()),
+    })
+}
+
 /// A gate that panics if consulted — proves the no-gate path never calls one.
 struct PanicIfCalled;
 
@@ -62,9 +98,16 @@ impl BeforeMutationGate for PanicIfCalled {
 #[tokio::test]
 async fn no_gate_configured_is_a_no_op() {
     let args = serde_json::json!({ "input": { "name": "Bob" } });
-    let out = enforce_before_mutation(None, None, "createUser", "createUser", Some(&args))
-        .await
-        .expect("no gate cannot fail");
+    let out = enforce_before_mutation(
+        None,
+        None,
+        "createUser",
+        "createUser",
+        Some(&args),
+        reader_must_not_be_built,
+    )
+    .await
+    .expect("no gate cannot fail");
     assert!(out.is_none(), "no gate must leave the arguments alone");
 }
 
@@ -74,16 +117,25 @@ async fn no_gate_configured_is_a_no_op() {
 #[should_panic(expected = "gate must not be consulted")]
 async fn a_configured_gate_is_consulted() {
     let gate = PanicIfCalled;
-    let _ = enforce_before_mutation(Some(&gate), None, "createUser", "createUser", None).await;
+    let _ =
+        enforce_before_mutation(Some(&gate), None, "createUser", "createUser", None, stub_reader)
+            .await;
 }
 
 #[tokio::test]
 async fn proceed_leaves_the_arguments_unchanged() {
     let gate = Spy::new(|| Ok(BeforeMutationOutcome::Proceed));
     let args = serde_json::json!({ "input": { "name": "Bob" } });
-    let out = enforce_before_mutation(Some(&gate), None, "createUser", "created", Some(&args))
-        .await
-        .unwrap();
+    let out = enforce_before_mutation(
+        Some(&gate),
+        None,
+        "createUser",
+        "created",
+        Some(&args),
+        stub_reader,
+    )
+    .await
+    .unwrap();
     assert!(out.is_none(), "Proceed must not replace the arguments");
 }
 
@@ -95,10 +147,17 @@ async fn proceed_with_replaces_the_arguments() {
         })
     });
     let args = serde_json::json!({ "input": { "name": "Bob" } });
-    let out = enforce_before_mutation(Some(&gate), None, "createUser", "created", Some(&args))
-        .await
-        .unwrap()
-        .expect("ProceedWith must return the replacement");
+    let out = enforce_before_mutation(
+        Some(&gate),
+        None,
+        "createUser",
+        "created",
+        Some(&args),
+        stub_reader,
+    )
+    .await
+    .unwrap()
+    .expect("ProceedWith must return the replacement");
     assert_eq!(
         out["input"]["name"], "REWRITTEN",
         "the rewrite must be what the write binds from"
@@ -112,7 +171,7 @@ async fn abort_refuses_the_write_with_the_rules_own_message() {
             reason: "amount exceeds the approval ceiling".to_string(),
         })
     });
-    let err = enforce_before_mutation(Some(&gate), None, "pay", "pay", None)
+    let err = enforce_before_mutation(Some(&gate), None, "pay", "pay", None, stub_reader)
         .await
         .expect_err("Abort must refuse the write");
     assert!(
@@ -132,7 +191,7 @@ async fn a_gate_error_refuses_the_write() {
             source:  None,
         })
     });
-    let err = enforce_before_mutation(Some(&gate), None, "pay", "pay", None)
+    let err = enforce_before_mutation(Some(&gate), None, "pay", "pay", None, stub_reader)
         .await
         .expect_err("a gate error must refuse the write, not proceed");
     assert!(
@@ -147,7 +206,7 @@ async fn a_gate_error_refuses_the_write() {
 async fn the_gate_sees_the_field_name_and_the_alias_separately() {
     let gate = Spy::new(|| Ok(BeforeMutationOutcome::Proceed));
     let args = serde_json::json!({ "id": 1 });
-    enforce_before_mutation(Some(&gate), None, "archiveUser", "archived", Some(&args))
+    enforce_before_mutation(Some(&gate), None, "archiveUser", "archived", Some(&args), stub_reader)
         .await
         .unwrap();
     assert_eq!(
@@ -162,7 +221,7 @@ async fn the_gate_sees_the_field_name_and_the_alias_separately() {
 #[tokio::test]
 async fn an_argumentless_write_is_handed_null() {
     let gate = Spy::new(|| Ok(BeforeMutationOutcome::Proceed));
-    enforce_before_mutation(Some(&gate), None, "reindex", "reindex", None)
+    enforce_before_mutation(Some(&gate), None, "reindex", "reindex", None, stub_reader)
         .await
         .unwrap();
     assert_eq!(gate.observed()[0].2, serde_json::Value::Null);

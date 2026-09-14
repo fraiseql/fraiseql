@@ -92,14 +92,27 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// caller-owned config through, so the gate also survives every later hot
     /// reload.
     fn install_before_mutation_gate(&mut self, hooks: Arc<crate::subsystems::BeforeMutationHooks>) {
-        let gate = Arc::new(crate::routes::before_mutation::FunctionChainGate::new(hooks));
+        use crate::routes::before_mutation::{BeforeMutationBudget, FunctionChainGate};
+
+        let budget = BeforeMutationBudget::from_env();
+        let gate = Arc::new(FunctionChainGate::new(hooks).with_budget(budget));
         let config = self.executor.config().clone().with_before_mutation_gate(gate);
         let schema = self.executor.schema().clone();
         let adapter = Arc::clone(self.executor.adapter());
         self.executor = Arc::new((self.executor_rebuilder)(schema, adapter, config));
-        tracing::info!(
-            "before:mutation enforcement installed at the mutation chokepoint (every transport)"
-        );
+        if budget.is_enforced() {
+            tracing::info!(
+                budget_ms = u64::try_from(budget.duration().as_millis()).unwrap_or(u64::MAX),
+                "before:mutation enforcement installed at the mutation chokepoint (every \
+                 transport), with a read-only caller-scoped query bridge"
+            );
+        } else {
+            tracing::warn!(
+                env = BeforeMutationBudget::ENV,
+                "before:mutation chains run with NO latency ceiling — a slow or hanging hook \
+                 holds its write's request open indefinitely"
+            );
+        }
     }
 
     /// Swap in the Postgres-backed function DLQ when selected and a pool exists (#598).
