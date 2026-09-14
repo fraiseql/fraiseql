@@ -64,6 +64,7 @@ pub(crate) mod native_columns;
 pub mod partial_period;
 mod planner;
 pub(crate) mod projection;
+pub mod query_function;
 pub mod query_tracing;
 pub mod relay;
 pub mod sql_logger;
@@ -104,6 +105,7 @@ pub use projection::{
     FieldMapping, ProjectionMapper, ResultProjector, project_entity, project_nested_lists,
     stamp_nested_typenames,
 };
+pub use query_function::{QueryFunctionRequest, QueryFunctionResolver};
 pub use query_tracing::{
     QueryExecutionTrace, QueryPhaseSpan, QueryTraceBuilder, create_phase_span, create_query_span,
 };
@@ -154,6 +156,7 @@ use crate::security::{
 /// | `rls_policy` | `None` | No row-level security |
 /// | `authorizer` | `None` | No operation-level authorization |
 /// | `before_mutation_gate` | `None` | No `before:mutation` enforcement |
+/// | `query_function_resolver` | `None` | A function-backed root field refuses, by name |
 ///
 /// # Example
 ///
@@ -315,6 +318,21 @@ pub struct RuntimeConfig {
     /// path converges on, so a transport cannot reach a write without passing it.
     /// See [`BeforeMutationGate`].
     pub before_mutation_gate: Option<Arc<dyn BeforeMutationGate>>,
+
+    /// Optional resolver for function-backed root query fields (#1329).
+    ///
+    /// When a compiled query declares `function = "<name>"`, the engine asks this
+    /// resolver for the field's data instead of reading a relation, then projects,
+    /// field-filters and caches the answer exactly as it would a SQL-backed one.
+    ///
+    /// `None` means a function-backed field is **refused by name** rather than
+    /// answered — an embedder who loaded a schema declaring one and wired no
+    /// resolver has a field that cannot work, and the refusal says so. The stock
+    /// binary wires one whenever the compiled schema carries a `functions` section,
+    /// and #1326 already refuses to boot a build that cannot serve one.
+    ///
+    /// See [`QueryFunctionResolver`].
+    pub query_function_resolver: Option<Arc<dyn QueryFunctionResolver>>,
 }
 
 /// Response-size limits for the typed cascade surface, per the graphql-cascade
@@ -365,6 +383,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("dry_run_mutations", &self.dry_run_mutations)
             .field("cascade_limits", &self.cascade_limits)
             .field("before_mutation_gate", &self.before_mutation_gate.is_some())
+            .field("query_function_resolver", &self.query_function_resolver.is_some())
             .finish()
     }
 }
@@ -372,22 +391,23 @@ impl std::fmt::Debug for RuntimeConfig {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
-            cache_query_plans:    true,
-            max_page_size:        Some(1000),
-            enable_tracing:       false,
-            field_filter:         None,
-            rls_policy:           None,
-            field_authorizer:     None,
-            authorizer:           None,
-            query_timeout_ms:     30_000, // 30 second default timeout
-            jsonb_optimization:   JsonbOptimizationOptions::default(),
-            query_validation:     None,
-            max_operation_cost:   None,
-            audit_mutations:      false,
-            changelog_enabled:    true,
-            dry_run_mutations:    false,
-            cascade_limits:       CascadeLimits::default(),
-            before_mutation_gate: None,
+            cache_query_plans:       true,
+            max_page_size:           Some(1000),
+            enable_tracing:          false,
+            field_filter:            None,
+            rls_policy:              None,
+            field_authorizer:        None,
+            authorizer:              None,
+            query_timeout_ms:        30_000, // 30 second default timeout
+            jsonb_optimization:      JsonbOptimizationOptions::default(),
+            query_validation:        None,
+            max_operation_cost:      None,
+            audit_mutations:         false,
+            changelog_enabled:       true,
+            dry_run_mutations:       false,
+            cascade_limits:          CascadeLimits::default(),
+            before_mutation_gate:    None,
+            query_function_resolver: None,
         }
     }
 }
@@ -546,6 +566,20 @@ impl RuntimeConfig {
         self
     }
 
+    /// Register the resolver for function-backed root query fields (#1329).
+    ///
+    /// Parallel to [`with_before_mutation_gate`](Self::with_before_mutation_gate).
+    /// Without one, a query declaring `function = "<name>"` is refused by name
+    /// rather than answered.
+    #[must_use]
+    pub fn with_query_function_resolver(
+        mut self,
+        resolver: Arc<dyn QueryFunctionResolver>,
+    ) -> Self {
+        self.query_function_resolver = Some(resolver);
+        self
+    }
+
     /// Build a [`RuntimeConfig`] from a compiled schema, applying every
     /// schema-derived runtime setting that an executor must honor.
     ///
@@ -661,6 +695,7 @@ impl RuntimeConfig {
             dry_run_mutations,
             cascade_limits,
             before_mutation_gate,
+            query_function_resolver,
         } = self;
 
         Ok(Self {
@@ -680,6 +715,7 @@ impl RuntimeConfig {
             dry_run_mutations,
             cascade_limits,
             before_mutation_gate,
+            query_function_resolver,
         })
     }
 }

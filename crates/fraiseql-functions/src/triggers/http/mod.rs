@@ -2,14 +2,21 @@
 //!
 //! **NOT MOUNTED (#871):** no server code consumes this matcher today, so a
 //! declared `http:` trigger is **rejected at registry load** (a declared route
-//! that would silently never serve is a misconfiguration). Functions remain
-//! invocable by name via `POST /functions/v1/{name}`. The types below are the
-//! building blocks for a future mounted surface (which will also need an
-//! auth story per ADR-0018 and ambiguous-route rejection).
+//! that would silently never serve is a misconfiguration).
 //!
-//! ## Routing (design, not yet served)
+//! **And the alternative changed (#1329).** A function that answers a request now
+//! does it as a `request:query` function behind a typed root query field, where it is
+//! introspectable, has checked arguments, participates in the existing auth, RLS and
+//! cache machinery, and cannot invent a route. The name-dispatched
+//! `POST /functions/v1/{name}` route this module used to point at was library-only —
+//! the stock binary never mounted it — and was retired with that decision. The types
+//! below are the building blocks for a future mounted surface, should evidence appear
+//! of a case a typed root field cannot serve; it would still need an auth story per
+//! ADR-0018 and ambiguous-route rejection.
 //!
-//! Routes would mount under the `/functions/v1/` prefix:
+//! ## Routing (design, not served)
+//!
+//! Routes would mount under a `/functions/v1/` prefix:
 //! - `GET /functions/v1/users/:id` → `http:GET:/users/:id`
 //! - `POST /functions/v1/process` → `http:POST:/process`
 //!

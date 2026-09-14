@@ -236,8 +236,6 @@ gcs = ["fraiseql-storage/gcs"]
 # gRPC transport
 grpc = ["dep:tonic", "dep:prost", "dep:prost-reflect", "dep:http-body", "dep:http-body-util"]
 federation = ["fraiseql-core/federation", "dep:fraiseql-federation"]
-# Edge functions HTTP endpoint (POST /functions/v1/{name})
-functions = []
 # After-mutation function-trigger dispatch with a full I/O-capable host context
 # (outbound HTTP with an SSRF allowlist, secrets). Stable and semver-covered; kept
 # opt-in (not a default feature) so the stock binary stays lean — it pulls in the
@@ -245,7 +243,6 @@ functions = []
 # functions after a committed mutation (the stock binary mounts the dispatch hooks
 # at serve time when enabled); without it the dispatch step is compiled out.
 functions-runtime = [
-    "functions",
     # Durable dispatch (retry + dead-letter) reuses the fraiseql-observers DLQ
     # trait + the server's InMemoryDlq store, so running after:mutation functions
     # pulls the observer subsystem in. fraiseql-functions already depends on

@@ -294,12 +294,25 @@ function authorFull(): void
     // #1325: the function authoring path. The name is two words in snake_case on
     // purpose — it is the module file stem (functions/notify_approved.ts), not a
     // GraphQL name, so it must survive verbatim.
+    StaticAPI::query('quotePreview')
+        ->returnType('Order')
+        ->returnsList(false)
+        ->nullable(true)
+        ->argument('sku', 'String', nullable: false)
+        ->function_('preview_quote')
+        ->register();
+
     StaticAPI::function_(
         'notify_approved',
         'after:mutation:Order:update',
         timeoutMs: 2000,
         when: [['field' => 'status', 'changed_to' => 'approved']],
     );
+
+    // #1329: the function half of `quotePreview`. `request:query` is the one trigger that
+    // names a capability rather than an event, and it names no query — the binding lives
+    // on the query, so there is one copy of it.
+    StaticAPI::function_('preview_quote', 'request:query');
 }
 
 $fixture = getenv('FRAISEQL_CONFORMANCE_FIXTURE');

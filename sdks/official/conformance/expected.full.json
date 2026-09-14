@@ -17,6 +17,22 @@
   "field_scope": {
     "User.salary": "read:User.salary"
   },
+  "function_backed_query": {
+    "function": {
+      "trigger": "request:query"
+    },
+    "query": {
+      "arguments": [
+        {
+          "name": "sku",
+          "nullable": false,
+          "type": "String"
+        }
+      ],
+      "function": "preview_quote",
+      "sql_source": null
+    }
+  },
   "function_definition": {
     "notify_approved": {
       "re_runnable": false,
@@ -29,6 +45,13 @@
           "field": "status"
         }
       ]
+    },
+    "preview_quote": {
+      "re_runnable": false,
+      "runtime": "Deno",
+      "timeout_ms": null,
+      "trigger": "request:query",
+      "when": null
     }
   },
   "input_types": {

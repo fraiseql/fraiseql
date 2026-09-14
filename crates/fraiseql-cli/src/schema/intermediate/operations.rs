@@ -300,6 +300,27 @@ pub struct IntermediateQuery {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sql_source: Option<String>,
 
+    /// Back this root field with a declared function instead of a relation (#1329).
+    ///
+    /// Names an entry in the `functions` section whose trigger is `request:query`.
+    /// Mutually exclusive with [`sql_source`](Self::sql_source) — a field resolves
+    /// one way, and a precedence rule would be one more thing to remember wrong.
+    ///
+    /// Everything that lowers into SQL is refused beside it rather than ignored:
+    /// `relay`, `count`, `pagination_order`, `inject_params`, `rest_stream`,
+    /// `jsonb_column`, a non-default `read_routing`, and an explicitly declared
+    /// `auto_params` flag. Each of those is a setting the compiler would otherwise
+    /// carry into an artifact where nothing reads it, and one of them
+    /// (`inject_params`) is a tenant-scoping control — a silently dropped security
+    /// setting is the failure this seam exists to refuse.
+    ///
+    /// Project-wide `[query_defaults]` are **not** refused, only defaulted away: an
+    /// author who set `limit = true` for the project did not declare it for this
+    /// query, and failing their compile over a default they never wrote here would
+    /// be refusing the wrong statement.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub function: Option<String>,
+
     /// Auto-generated parameters config
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto_params: Option<IntermediateAutoParams>,

@@ -93,6 +93,16 @@ pub struct BeforeMutationHooks {
     #[cfg(feature = "functions-runtime")]
     pub idempotency_key: Option<std::sync::Arc<[u8]>>,
 
+    /// Per-function declared `timeout_ms` for `request:query` functions (#1329),
+    /// keyed by function name.
+    ///
+    /// Present for every request-serving function and `None` inside when the
+    /// author declared no ceiling, so "this function is request-serving" and "this
+    /// function declares a timeout" stay two separate facts: the resolver needs the
+    /// first to decide whether it may be invoked at all, and a flattened map that
+    /// omitted the timeout-less ones would answer both questions with one absence.
+    pub request_query_timeouts: std::collections::HashMap<String, Option<u64>>,
+
     /// Per-function `run_as` authority ceilings (#594), keyed by function name.
     /// A function absent from the map has no ceiling ⇒ its `fraiseql_query` bridge
     /// runs fail-closed (anonymous `system_job`; RLS/field-authz deny writes).
@@ -123,6 +133,9 @@ impl BeforeMutationHooks {
             trigger_registry,
             module_registry,
             observer,
+            // Empty: this constructor is the embedder's, and an embedder assembling
+            // hooks by hand has declared no schema for a ceiling to come from.
+            request_query_timeouts: std::collections::HashMap::new(),
             #[cfg(feature = "functions-runtime")]
             dlq: Arc::new(crate::observers::runtime::InMemoryDlq::new_with_max(None)),
             #[cfg(feature = "functions-runtime")]
@@ -215,8 +228,24 @@ impl FunctionsSubsystem {
             .filter_map(|def| def.run_as.clone().map(|ceiling| (def.name.clone(), ceiling)))
             .collect();
 
+        // #1329: the declared ceilings for request-serving functions. Collected here
+        // rather than looked up from the trigger registry at invocation time because
+        // the registry records names, not definitions, and re-parsing every trigger
+        // string per request to find a number is work the boot already did.
+        let request_query_timeouts = self
+            .config
+            .definitions
+            .iter()
+            .filter(|def| {
+                fraiseql_functions::triggers::registry::ParsedTrigger::parse(&def.trigger)
+                    .is_ok_and(|trigger| trigger.is_request_query())
+            })
+            .map(|def| (def.name.clone(), def.timeout_ms))
+            .collect();
+
         BeforeMutationHooks {
             trigger_registry: self.trigger_registry,
+            request_query_timeouts,
             module_registry: self.module_registry,
             observer: self.observer,
             dlq,

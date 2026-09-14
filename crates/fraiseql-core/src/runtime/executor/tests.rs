@@ -62,6 +62,8 @@ mod query {
         let schema = test_schema();
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let config = RuntimeConfig {
+            query_function_resolver: None,
+
             cache_query_plans:    false,
             max_page_size:        Some(1000),
             enable_tracing:       true,
@@ -527,6 +529,8 @@ mod entities_authz {
             ..Default::default()
         });
         schema.queries.push(QueryDefinition {
+            function: None,
+
             requires_actor: Vec::new(),
             returns_count: false,
             name: "users".to_string(),
@@ -866,6 +870,8 @@ mod entities_authz {
         });
         if with_query {
             schema.queries.push(QueryDefinition {
+                function: None,
+
                 requires_actor:      Vec::new(),
                 returns_count:       false,
                 name:                "employees".to_string(),
@@ -1228,6 +1234,8 @@ mod config {
     #[test]
     fn test_jsonb_strategy_in_runtime_config() {
         let config = RuntimeConfig {
+            query_function_resolver: None,
+
             cache_query_plans:    false,
             max_page_size:        Some(1000),
             enable_tracing:       true,
@@ -1258,6 +1266,8 @@ mod config {
         };
 
         let config = RuntimeConfig {
+            query_function_resolver: None,
+
             cache_query_plans:    false,
             max_page_size:        Some(1000),
             enable_tracing:       true,
@@ -1398,6 +1408,8 @@ mod inject {
         let mut inject_params = IndexMap::new();
         inject_params.insert("org_id".to_string(), InjectedParamSource::Jwt("org_id".to_string()));
         schema.queries.push(QueryDefinition {
+            function: None,
+
             requires_actor: Vec::new(),
             returns_count: false,
             name: "org_items".to_string(),
@@ -1782,6 +1794,8 @@ mod field_rbac {
     fn schema_with_rbac_fields() -> CompiledSchema {
         let mut schema = CompiledSchema::new();
         schema.queries.push(QueryDefinition {
+            function: None,
+
             requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "users".to_string(),
@@ -2409,6 +2423,8 @@ mod field_authz {
 
     fn users_query() -> QueryDefinition {
         QueryDefinition {
+            function: None,
+
             requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "users".to_string(),

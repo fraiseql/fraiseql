@@ -80,6 +80,8 @@ fn base_schema_with_query(
 
 fn list_query(name: &str, auto_params: Option<IntermediateAutoParams>) -> IntermediateQuery {
     IntermediateQuery {
+        function: None,
+
         requires_actor: Vec::new(),
         read_routing: fraiseql_core::db::types::ReadRouting::default(),
         count: false,
@@ -107,6 +109,8 @@ fn list_query(name: &str, auto_params: Option<IntermediateAutoParams>) -> Interm
 
 fn single_query(name: &str) -> IntermediateQuery {
     IntermediateQuery {
+        function: None,
+
         requires_actor:    Vec::new(),
         read_routing:      fraiseql_core::db::types::ReadRouting::default(),
         count:             false,
@@ -134,6 +138,8 @@ fn single_query(name: &str) -> IntermediateQuery {
 
 fn relay_query(name: &str) -> IntermediateQuery {
     IntermediateQuery {
+        function: None,
+
         requires_actor:    Vec::new(),
         read_routing:      fraiseql_core::db::types::ReadRouting::default(),
         count:             false,

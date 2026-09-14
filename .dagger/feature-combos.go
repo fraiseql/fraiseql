@@ -119,7 +119,14 @@ var featureCombos = []featureCombo{
 	// TLS transport, so clippy it in isolation to catch feature-gating regressions.
 	{name: "server-inbound-email", crate: "fraiseql-server", clippy: true, features: []string{"inbound-email"}},
 	{name: "server-otel", crate: "fraiseql-server", features: []string{"tracing-opentelemetry"}},
-	{name: "server-functions-rest-testing", crate: "fraiseql-server", features: []string{"functions", "rest", "testing"}},
+	// #1329: was `functions, rest, testing`. That feature gated only the retired
+	// `POST /functions/v1/{name}` route and became a ghost when the route went, so it
+	// is now `functions-runtime` — which is the feature that actually runs functions,
+	// and which no *server* combo named before. That matters: the function-backed
+	// query resolver is `#[cfg(feature = "functions-runtime")]`, and preflight lints
+	// `--all-features`, where a mis-gated item compiles either way. This is the only
+	// build where the feature is ON and its siblings are OFF.
+	{name: "server-functions-runtime-rest-testing", crate: "fraiseql-server", features: []string{"functions-runtime", "rest", "testing"}},
 	{name: "server-kitchen-sink", crate: "fraiseql-server", features: []string{"auth", "observers", "secrets", "federation"}},
 	// server-default-nonwire covers the runtime URL-scheme dispatch (the real
 	// `dispatch_server` arm), which is gated `not(wire-backend)` and compiled by NO
@@ -133,7 +140,7 @@ var featureCombos = []featureCombo{
 	// server-rest-arrow is the ONE binary feature combo no other leg builds: preflight
 	// clippy is `--all-features` (wire-backend ON ⇒ run_postgres is cfg'd out, so the
 	// arrow path never compiles), server-arrow-wire pairs arrow WITH wire-backend (same
-	// cfg-out), and server-functions-rest-testing has rest but not arrow. The
+	// cfg-out), and server-functions-runtime-rest-testing has rest but not arrow. The
 	// fraiseql-server-full Docker image is the only artifact that builds rest+arrow, and
 	// it broke on the #330 tenancy wiring (the arrow path keeps a raw PostgresAdapter
 	// while the tenant factory was typed for the cached adapter). check-only on purpose:
@@ -159,7 +166,7 @@ var featureCombos = []featureCombo{
 	// a warning that stood because nothing denied warnings here. preflight lints
 	// `--all-features`, where those cfgs ARE compiled and the parameter IS read; the two
 	// combos above are `--no-default-features`, where it does not warn either; and the two
-	// combos that do build this shape (`server-functions-rest-testing`, `server-rest-arrow`)
+	// combos that do build this shape (`server-functions-runtime-rest-testing`, `server-rest-arrow`)
 	// run `cargo check`, which emits no clippy lints and is not run under `-D warnings`.
 	// Default features stay ON deliberately: that is the configuration that reproduces.
 	{name: "server-rest", crate: "fraiseql-server", clippy: true, features: []string{"rest"}},

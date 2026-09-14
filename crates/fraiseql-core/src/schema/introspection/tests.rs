@@ -25,6 +25,8 @@ fn test_schema() -> crate::schema::CompiledSchema {
 
     // Add a users query
     schema.queries.push(QueryDefinition {
+        function: None,
+
         requires_actor:      Vec::new(),
         returns_count:       false,
         name:                "users".to_string(),
@@ -54,6 +56,8 @@ fn test_schema() -> crate::schema::CompiledSchema {
 
     // Add a user query with argument
     schema.queries.push(QueryDefinition {
+        function: None,
+
         requires_actor:      Vec::new(),
         returns_count:       false,
         name:                "user".to_string(),
@@ -790,6 +794,8 @@ fn test_deprecated_query_introspection() {
 
     // Add a deprecated query
     schema.queries.push(QueryDefinition {
+        function: None,
+
         requires_actor:      Vec::new(),
         returns_count:       false,
         name:                "oldUsers".to_string(),
@@ -821,6 +827,8 @@ fn test_deprecated_query_introspection() {
 
     // Add a non-deprecated query with a deprecated argument
     schema.queries.push(QueryDefinition {
+        function: None,
+
         requires_actor:      Vec::new(),
         returns_count:       false,
         name:                "users".to_string(),

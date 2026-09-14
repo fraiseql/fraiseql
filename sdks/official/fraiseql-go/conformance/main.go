@@ -178,6 +178,17 @@ func authorFull() error {
 		return err
 	}
 
+	// #1329: a function-backed root query field. The query and the function it names are
+	// one declaration in two sections — the compiler refuses either alone — so the
+	// `preview_quote` function is registered below beside `notify_approved`.
+	if err := fraiseql.NewQuery("quotePreview").
+		ReturnType("Order").ReturnsArray(false).Nullable(true).
+		Arg("sku", "String", nil, false).
+		Function("preview_quote").
+		Register(); err != nil {
+		return err
+	}
+
 	if err := fraiseql.NewMutation("createUser").
 		ReturnType("User").Nullable(false).
 		SqlSource("fn_create_user").
@@ -223,10 +234,19 @@ func authorFull() error {
 	// #1325: the function authoring path. The name is two words in snake_case on
 	// purpose — it is the module file stem (functions/notify_approved.ts), not a
 	// GraphQL name, so it must survive verbatim.
-	return fraiseql.NewFunction("notify_approved").
+	if err := fraiseql.NewFunction("notify_approved").
 		Trigger("after:mutation:Order:update").
 		TimeoutMs(2000).
 		When(fraiseql.FunctionPredicate{Field: "status", ChangedTo: "approved"}).
+		Register(); err != nil {
+		return err
+	}
+
+	// #1329: the function half of `quotePreview`. `request:query` is the one trigger
+	// that names a capability rather than an event, and it names no query — the binding
+	// lives on the query, so there is one copy of it.
+	return fraiseql.NewFunction("preview_quote").
+		Trigger("request:query").
 		Register()
 }
 

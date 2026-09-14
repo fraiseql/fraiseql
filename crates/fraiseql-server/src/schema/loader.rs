@@ -225,6 +225,13 @@ impl CompiledSchemaLoader {
             );
         }
 
+        // #1329: the query ↔ `request:query` pairing, in both directions, from the
+        // same implementation the compiler calls. Outside the `map` above on
+        // purpose: a query declaring `function = "<name>"` in an artifact with **no**
+        // functions section is one of the two failures this checks, and inside the
+        // `Option` it would never be asked.
+        validate_query_bindings(&schema, functions.as_ref())?;
+
         // #1326: a build that cannot RUN a declared section refuses to boot, rather
         // than loading it and dropping it. See `refuse_unservable_sections`.
         refuse_unservable_sections(&raw, &gated_sections())?;
@@ -450,6 +457,47 @@ pub(crate) fn refuse_unservable_sections(
 fn validate_functions_config(config: &FunctionsConfig) -> Result<(), SchemaLoadError> {
     fraiseql_functions::triggers::registry::TriggerRegistry::validate_definitions(
         &config.definitions,
+    )
+    .map_err(|error| SchemaLoadError::ValidationError(error.message))
+}
+
+/// Validate that every function-backed query pairs with a `request:query` function,
+/// and every `request:query` function with a query (#1329).
+///
+/// The second call site of
+/// [`TriggerRegistry::validate_query_bindings`](fraiseql_functions::triggers::registry::TriggerRegistry::validate_query_bindings),
+/// for the reason [`validate_functions_config`] is the second call site of the
+/// grammar: a compiled schema is an input the server does not produce. A
+/// hand-written or stale artifact whose query names a function that was deleted
+/// would otherwise boot clean and answer that field with "Query has no SQL source"
+/// — an error about the wrong thing, at the first request rather than at boot.
+///
+/// Takes the whole schema rather than the bindings so the caller cannot build the
+/// slice differently than the compiler does.
+///
+/// # Errors
+///
+/// Returns `ValidationError` naming each query or function that does not pair.
+fn validate_query_bindings(
+    schema: &CompiledSchema,
+    functions: Option<&FunctionsConfig>,
+) -> Result<(), SchemaLoadError> {
+    use fraiseql_functions::triggers::registry::{QueryFunctionBinding, TriggerRegistry};
+
+    let bindings: Vec<QueryFunctionBinding<'_>> = schema
+        .queries
+        .iter()
+        .filter_map(|query| {
+            query.function.as_deref().map(|function| QueryFunctionBinding {
+                query: query.name.as_str(),
+                function,
+            })
+        })
+        .collect();
+
+    TriggerRegistry::validate_query_bindings(
+        &bindings,
+        functions.map_or(&[], |f| f.definitions.as_slice()),
     )
     .map_err(|error| SchemaLoadError::ValidationError(error.message))
 }

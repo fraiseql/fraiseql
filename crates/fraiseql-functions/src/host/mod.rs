@@ -11,6 +11,13 @@ pub mod before_mutation;
 
 #[cfg(feature = "host-live")]
 pub mod live;
+// Gated with `live` because both read `HostContextConfig` (the SSRF allowlist and
+// the timeouts) out of it, and `request_query` additionally names `fraiseql-core`'s
+// `GuestQueryBridge` — which is exactly what `host-live` pulls in.
+#[cfg(feature = "host-live")]
+pub mod outbound_http;
+#[cfg(feature = "host-live")]
+pub mod request_query;
 
 // Not feature-gated: the object-safe host contract is what a *caller* needs to
 // hand a live host to `FunctionObserver::invoke_with_context`, and the

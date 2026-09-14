@@ -31,6 +31,10 @@ dispatches execution.
 - `after:capture` triggers (#366) fire on **externally-captured** writes (a
   third-party daemon / `psql` INSERT) via the change-log reader — the ingress dual
   of `after:mutation`; see [external-write-capture.md](./external-write-capture.md).
+- `request:query` (#1329) is the one trigger that is **not an event**: it names a
+  capability, and the binding lives on the query that declares
+  `function = "<name>"`. See [Answering a request from a
+  function](#answering-a-request-from-a-function-1329).
 
 ### Before-Mutation Enforcement (#1327)
 
@@ -242,28 +246,40 @@ The list above is the *union*. No trigger kind has all of it, and until #1328 th
 docs never said which had what — `before:mutation` in particular had **none**, and
 nothing wrote that down.
 
-| host call | `before:mutation` | `after:mutation` / `after:capture` | `after:ingest` | `cron` / scheduled source |
-|---|---|---|---|---|
-| `fraiseql_query` | **read-only, as the caller** | yes, under `run_as` | yes, under `run_as` | yes, under `run_as` |
-| `fraiseql_auth_context` | the caller's; refused on an anonymous write | the dispatch identity | the dispatch identity | the `run_as` identity |
-| `fraiseql_log` | yes | yes | yes | yes |
-| the event payload | the mutation's resolved **arguments** | `{event_kind, old, new}` | the inbound message | the schedule/source context |
-| `fraiseql_http_request` | **refused** | yes (SSRF allowlist) | yes | yes |
-| `fraiseql_storage_get` / `_put` | **refused** | yes | yes | yes |
-| `fraiseql_send_email` | **refused** | yes (when wired) | yes | yes |
-| `fraiseql_env_var` | **refused** | allowlisted | allowlisted | allowlisted |
-| `fraiseql_sql_query` | refused | not implemented (fails loud) | not implemented | not implemented |
-| `fraiseql_idempotency_token` | none (not a durable dispatch) | yes | yes | yes |
-| `fraiseql_cursor_*` | no binding: `get` answers `null`, `advance` refuses | same | same | scheduled sources only |
+| host call | `before:mutation` | `request:query` | `after:mutation` / `after:capture` | `after:ingest` | `cron` / scheduled source |
+|---|---|---|---|---|---|
+| `fraiseql_query` | **read-only, as the caller** | **read-only, as the caller** | yes, under `run_as` | yes, under `run_as` | yes, under `run_as` |
+| `fraiseql_auth_context` | the caller's; refused on an anonymous write | the caller's; refused on an anonymous request | the dispatch identity | the dispatch identity | the `run_as` identity |
+| `fraiseql_log` | yes | yes | yes | yes | yes |
+| the event payload | the mutation's resolved **arguments** | the field's resolved **arguments** | `{event_kind, old, new}` | the inbound message | the schedule/source context |
+| `fraiseql_http_request` | **refused** | yes (SSRF allowlist) | yes (SSRF allowlist) | yes | yes |
+| `fraiseql_storage_get` / `_put` | **refused** | **refused** | yes | yes | yes |
+| `fraiseql_send_email` | **refused** | **refused** | yes (when wired) | yes | yes |
+| `fraiseql_env_var` | **refused** | **refused** | allowlisted | allowlisted | allowlisted |
+| `fraiseql_sql_query` | refused | refused | not implemented (fails loud) | not implemented | not implemented |
+| `fraiseql_idempotency_token` | none (not a durable dispatch) | none (not a durable dispatch) | yes | yes | yes |
+| `fraiseql_cursor_*` | no binding: `get` answers `null`, `advance` refuses | same | same | same | scheduled sources only |
 
 `before:mutation`'s column is narrow on purpose, and the reason is one sentence: it
 is the only kind that runs **synchronously on the write path**, and its side effects
 are **not rolled back** when a later hook aborts the write it was deciding on. An
 outbound call, an upload or an email from a hook that then refuses the write has
 already happened. Those belong in `after:mutation`, which is durable, retried and
-dead-lettered. The narrow surface is a type — `BeforeMutationHost` — not a wiring
-convention: every op is written out, and the refused ones name themselves, so the
-table above is checked against code rather than maintained by hand.
+dead-lettered.
+
+`request:query` is narrow for a *different* reason, which is why its column differs
+(#1329). It decides nothing and rolls nothing back, so the write-path argument does
+not apply — it gets the outbound call, and #1329's own examples (an LLM-backed
+answer, a BFF-style aggregation) are outbound calls. What it must not do is **cause**
+anything: it answers a read, on a path that is cached, that clients retry freely, and
+that anyone who can issue the query can reach. So no store, no mail, no env.
+
+Both narrow surfaces are types — `BeforeMutationHost` and `RequestQueryHost` — not
+wiring conventions: every op is written out, and the refused ones name themselves, so
+the table above is checked against code rather than maintained by hand. The outbound
+op itself is one implementation (`host::outbound_http::perform`) shared by every
+surface that has one, so "the SSRF allowlist, unchanged" is a fact about the binary
+rather than a promise.
 
 ### Declarative `when` predicates (#597)
 
@@ -461,6 +477,12 @@ A bad declaration fails `fraiseql compile`, not server boot:
 | `after:mutation:` names a **returned type** | `after:mutation:updateOrder` — it matches the mutation's *return type*, not its name |
 | `when` fields exist on that type | `{"field": "statuss"}` on an `Order` with `status` |
 | the module is on disk, with an extension the runtime loads | `runtime: "Wasm"` beside a `notify.ts` |
+| a query's `function` names a **declared** function | `function = "preview_qoute"` |
+| …whose trigger is `request:query` | a query bound to an `after:mutation` handler |
+| every `request:query` function is named by a query | a declared function no field points at — it would load, the server would boot, and nothing would ever call it |
+| no dispatch setting on a `request:query` function | `run_as`, `when`, `re_runnable`, `retry` — see below |
+| nothing that lowers into SQL beside a `function` | `relay`, `count`, `inject_params`, `pagination_order`, `auto_params`, `rest_stream`, `jsonb_column`, `read_routing`, `cache_ttl_seconds`, a `rest` override |
+| `function` on a **nested** field | root fields only — see below |
 
 The last one runs only when `module_dir` exists at compile time. The compiler is then
 looking at the real project layout and a missing module is a typo it can name; when the
@@ -476,6 +498,158 @@ hand-written or stale artifact must still fail at boot. It used to keep its own
 `VALID_TRIGGER_PREFIXES` list instead, and that list had already fallen two trigger
 kinds behind — `after:capture:` (#366) and `after:ingest:` were parsed and dispatched by
 the registry and refused by the loader, so a valid schema could not boot.
+
+The query ↔ function pairing is the same shape: `validate_query_bindings`, called by
+the compiler and again by the loader.
+
+## Answering a request from a function (#1329)
+
+Every trigger above is a **side effect**: something happened, and a function ran
+because of it. None of them can compute and *return* a result without persisting
+something first — which rules out a quote preview, a recommendation, an LLM-backed
+answer, a BFF-style aggregation.
+
+A `request:query` function can. A root query field declares the function that answers
+it, in place of a `sql_source`:
+
+```python
+# schema.py
+@fraiseql.function(trigger="request:query")
+def preview_quote() -> None:
+    """Runs from functions/preview_quote.ts."""
+
+@fraiseql.query(function="preview_quote")
+def quote_preview(sku: str) -> Quote | None: ...
+```
+
+```ts
+// functions/preview_quote.ts
+export default async function (event) {
+  const { sku } = event.data;                 // the field's resolved arguments
+  const rows = await Deno.core.ops.fraiseql_query(
+    `{ price(sku: "${sku}") { amount } }`, "{}",   // read-only, as the caller
+  );
+  return { id: sku, total: computeTotal(JSON.parse(rows)) };  // the field's data
+}
+```
+
+### What the engine keeps
+
+Everything except the value. The function is asked for the field's **data**; the
+engine still enforces `requires_role` and `requires_actor` before asking, applies
+field-level RBAC — both the static `requires_scope` gate and the per-row dynamic
+authorizer (#423) — to what comes back, projects the selection set, stamps
+`__typename`, and consults and populates the response cache. That is the whole
+argument for resolving inside the engine: a field resolved beside it would have to
+re-implement each of those and would be wrong about one within a release.
+
+The dynamic gate is the sharpest of them. A function-backed field returns documents
+of the **same declared type** a SQL-backed one would, so a policy-gated field on that
+type is gated here too — and an anonymous caller selecting one is refused before the
+invocation, which also means an unauthorized request spends no isolate.
+
+It also means a guest cannot invent a field the schema does not declare, or return
+one the caller's scopes deny — the projector sees to both.
+
+### Root fields only
+
+There is no nested-field equivalent and there will not be one. A nested resolver runs
+once per row, so a function there is an N+1 measured in V8 isolates. The compiler
+refuses the nested spelling rather than documenting against it, and the read bridge
+refuses a *guest* read of a function-backed field for the same reason — otherwise a
+field that read itself would recurse, one isolate per level, until the query timed out.
+
+### What it costs, in milliseconds
+
+**~5–8 ms per invocation**, before the function does any work. Measured on a release
+build with a trivial guest; ~2.65 ms of it is deno_core's own bootstrap.
+
+Put beside this repository's own documented read latencies — ~5–15 ms cold, well
+under 1 ms cached — that is the same order as a cold read and roughly 5× a cache hit.
+It is a defensible price for computation SQL cannot express and a poor one for
+anything a view could answer. Three consequences worth acting on:
+
+* **Declare what it reads.** With no `sql_source` there is nothing for the invalidator to infer a
+  read set from, so `additional_views` is how a function-backed field says which writes must evict
+  it. A field that reads nothing declares nothing and is invalidated by nothing — correct, because
+  nothing it returns depends on a row.
+* **`cache_ttl_seconds` is refused beside it.** A per-query TTL is applied to the **row** cache,
+  keyed by the query's view; this field reads none, so the number would be accepted and never
+  applied.
+* **Today it is not cached at all in the stock binary**, and that is worth saying plainly. The
+  engine's whole-response cache is the only facility that could cover a field with no view, and
+  `fraiseql-server` installs none (#1344) — so an invocation happens on every request. The read
+  path here consults and populates that cache exactly as the SQL path does, so the field becomes
+  cacheable the day it is wired rather than needing this decision re-made then.
+
+### Which transports carry it
+
+`/graphql` and **MCP**, because both go through the executor — MCP builds a GraphQL
+document and hands it to `execute_with_security`, so it needed no change at all. That
+is the practical payoff of resolving inside the engine rather than beside it.
+
+**REST and gRPC do not carry it**, and they were each skipped for a different reason:
+
+| surface | why it is skipped |
+|---|---|
+| REST route table | the surface is *derived* — it invents list/detail routes, filters and pagination from the type, and a function-backed field accepts none of them. The table reports the omission rather than mounting routes that would answer every request with "Query has no SQL source" |
+| REST resource **embedding** | it resolves its target list query out of `schema.queries` directly, not from the route table, so it is the one REST path that could still have reached one. A type with both kinds embeds from its SQL-backed list query; a type whose only list query is function-backed embeds nothing |
+| gRPC dispatch table | it answers a method by reading `vr_<type.sql_source>` directly and never consults a resolver. Registering one would have served the **type's rows in place of the function's answer** — a wrong result that looks like a right one, which is worse than an absent method |
+| `EXPLAIN` | it reports a database plan and there is none. The refusal says so, and points at the reads the function makes through the bridge, each of which has its own plan under its own query name |
+
+The gRPC row is the one worth remembering. Every other gap in this list fails loudly;
+that one would have failed silently, and only enumerating the query-selection sites
+found it — not review of the paths anyone was thinking about.
+
+### Identity, and the reads it makes
+
+The function runs **as its caller**. Its `fraiseql_query` bridge is the read-only,
+caller-scoped one from #1328 — the same object, not a second one — so it can never
+surface a row the caller could not have read itself, and an anonymous request reads
+anonymously.
+
+That last part is load-bearing on an RLS deployment. The engine's anonymous-read
+refusal governs *this query's own read*, and a function-backed field issues none: what
+the function reads goes through the bridge, where the same refusal applies to *that*
+read. So a function that reads fails closed on its own read, and one that only
+computes still answers an unauthenticated visitor — which is the case the field is
+for.
+
+### Timeouts
+
+An invocation that overruns yields a GraphQL error naming the field, not a dropped
+connection. Two knobs, each doing one thing:
+
+| | Who sets it | Default |
+|---|---|---|
+| the function's `timeout_ms` | the **author**, about their own function | none |
+| `FRAISEQL_FUNCTIONS_REQUEST_QUERY_BUDGET_MS` | the **operator**, for functions that declare none | 5 000 ms (`0` disables, logged loudly) |
+
+The declaration wins over the default rather than being capped by it: a cap would
+silently overrule a number the author wrote down, and the request is bounded either
+way by the executor's own `query_timeout_ms`.
+
+### What may not be declared beside it
+
+A `request:query` function is not a dispatch, so `run_as`, `when`, `re_runnable` and
+`retry` are compile errors on one. `run_as` is the one that matters: it is an
+authority ceiling, and a security setting accepted and never applied reads as a
+granted authority.
+
+On the query side, everything that lowers into SQL is refused likewise — `relay`,
+`count`, `pagination_order`, `auto_params`, `rest_stream`, `jsonb_column`,
+`read_routing`, `cache_ttl_seconds`, a `rest` route override, and `inject_params`.
+`inject_params` is the sharp one: it is how a query is scoped to the caller's tenant,
+and dropping it does not break a field, it **widens** one.
+
+### The retired name-dispatched route
+
+`POST /functions/v1/{name}` was a library-only route — mounted by
+`Server::with_functions`, which the stock binary never called — that dispatched by
+function name and ignored the trigger. It was retired with this decision, so there is
+one path from a request to a function rather than two that drift. `http:` triggers
+stay refused (#871); they can be revisited on evidence of a case a typed root field
+cannot serve.
 
 ## Crate Dependencies
 
@@ -536,8 +710,16 @@ the guest reads via the host op.
 `after:capture` fixture is `{ "event_kind": "update", "old": {…}, "new": {…} }` (a
 bare object is treated as an insert's `new` image); a **`before:mutation`** fixture
 is the mutation's resolved *arguments* object (`{ "input": {…} }`), because the write
-has not happened and there are no row images. The `when` predicates (#597) are
-evaluated *before* any isolate spins, so a non-matching payload costs nothing.
+has not happened and there are no row images; a **`request:query`** fixture (#1329)
+is the query field's resolved arguments object (`{ "sku": "ABC-1" }`), for the same
+reason. The `when` predicates (#597) are evaluated *before* any isolate spins, so a
+non-matching payload costs nothing.
+
+The `request:query` payload is built by the same routine the server calls
+(`request_query_payload`), not by a second copy of the shape. One difference is
+unavoidable and is stated rather than hidden: a real invocation carries the name of
+the *query field* that named the function, and the harness has no schema to find it
+in, so it stands in the function's own name.
 
 For a `before:mutation` function the harness also prints the **decision** —
 `ABORT <mutation> — <reason>`, `PROCEED (arguments unchanged)`, or `PROCEED with
@@ -562,7 +744,11 @@ type-checking for both halves of a function:
   `{ event_kind, old: E | null, new: E | null }` (with `E` imported from the generated
   `./types`); `cron` gets its schedule context; `after:ingest` gets the inbound-message
   shape. An entity the schema does not define falls back to `unknown` rather than a
-  dangling reference.
+  dangling reference. A `request:query` function (#1329) gets a **discriminated union**
+  over the root fields that name it — `{ field: "quotePreview"; arguments: { sku: string } }`
+  — so a guest answering two fields can tell which one it was invoked for. It is a union
+  even when only one field names the function, so the shape a guest destructures does not
+  change the day a second one does.
 
 ```typescript
 import type { NotifyUserEvent } from "./functions";

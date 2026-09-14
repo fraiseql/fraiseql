@@ -41,6 +41,8 @@ final class QueryBuilder
 
     private ?string $paginationOrderValue = null;
 
+    private ?string $functionValue = null;
+
     /** @var list<string> */
     private array $requiresActorList = [];
     private ?string $deprecationReason = null;
@@ -173,6 +175,26 @@ final class QueryBuilder
         return $this;
     }
 
+    /**
+     * Back this root query field with a declared `request:query` function (#1329).
+     *
+     * The name is the function's, and it is the module file stem the server loads
+     * (`<module_dir>/<name>.<ext>`), so it is carried verbatim rather than recased.
+     *
+     * Mutually exclusive with `sqlSource()`, and everything that lowers into SQL —
+     * relay, count, inject, paginationOrder, auto-params — is refused beside it. Those
+     * refusals live in the compiler, which is the only place both the query and the
+     * function declaration are visible.
+     *
+     * An invocation costs ~5–8 ms on top of whatever the function itself does, so this
+     * is for computation SQL cannot express, not for anything a view could answer.
+     */
+    public function function_(string $name): self
+    {
+        $this->functionValue = $name;
+        return $this;
+    }
+
     public function deprecated(string $reason): self
     {
         $this->deprecationReason = $reason;
@@ -259,6 +281,10 @@ final class QueryBuilder
 
         if ($this->paginationOrderValue !== null) {
             $result['pagination_order'] = $this->paginationOrderValue;
+        }
+
+        if ($this->functionValue !== null) {
+            $result['function'] = $this->functionValue;
         }
 
         // `auto_params` is an object of per-parameter booleans (`IntermediateAutoParams`),

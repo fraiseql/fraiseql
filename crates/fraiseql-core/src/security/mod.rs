@@ -28,6 +28,7 @@ pub mod errors;
 pub mod field_authorizer;
 pub mod field_filter;
 pub mod field_masking;
+pub mod guest_query_bridge;
 pub mod headers;
 pub mod introspection_enforcer;
 pub mod kms;
@@ -68,15 +69,14 @@ pub use errors::SecurityError;
 pub use field_authorizer::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest};
 pub use field_filter::{FieldAccessError, FieldFilter, FieldFilterBuilder, FieldFilterConfig};
 pub use field_masking::{FieldMasker, FieldSensitivity};
+pub use guest_query_bridge::GuestQueryBridge;
 pub use headers::SecurityHeaders;
 pub use introspection_enforcer::{IntrospectionEnforcer, IntrospectionPolicy};
 pub use kms::{
     BaseKmsProvider, DataKeyPair, EncryptedData, KeyPurpose, KeyReference, KeyState, KmsError,
     KmsResult, RotationPolicy, VaultConfig, VaultKmsProvider,
 };
-pub use mutation_gate::{
-    BeforeMutationGate, BeforeMutationOutcome, BeforeMutationRequest, MutationHookReader,
-};
+pub use mutation_gate::{BeforeMutationGate, BeforeMutationOutcome, BeforeMutationRequest};
 pub use oidc::{OidcConfig, OidcValidator};
 pub use profiles::SecurityProfile;
 pub use query_validator::{QueryValidator, QueryValidatorConfig};

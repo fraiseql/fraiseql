@@ -102,6 +102,12 @@ type QueryDefinition struct {
 	// SQL identifier interpolated into ORDER BY and is validated by the compiler rather
 	// than here, so the rule is stated once.
 	PaginationOrder string `json:"pagination_order,omitempty"`
+	// Function names the declared `request:query` function that answers this root field,
+	// in place of SqlSource (#1329). The value is the function's name and the module file
+	// stem the server loads, so it is carried verbatim — never recased. The compiler is
+	// the one place both this and the function declaration are visible, so it owns the
+	// pairing check and the refusal of everything that lowers into SQL beside it.
+	Function string `json:"function,omitempty"`
 	// Config is an SDK-internal bag of builder settings and is never serialized: the
 	// compiler has no `config` key and, denying unknown fields, rejects the whole
 	// schema when it sees one. The only setting that ever reached it was

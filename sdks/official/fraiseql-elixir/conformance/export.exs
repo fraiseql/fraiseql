@@ -224,6 +224,17 @@ defmodule Conformance.FullSchema do
     invalidates_fact_tables: ["tf_sale"]
   )
 
+  # #1329: a function-backed root query field. The query and the function it names are one
+  # declaration in two sections — the compiler refuses either alone — so the
+  # `preview_quote` function is registered below beside `notify_approved`.
+  fraiseql_query :quote_preview,
+    return_type: "Order",
+    returns_list: false,
+    nullable: true,
+    function: "preview_quote" do
+    argument(:sku, :string, nullable: false)
+  end
+
   # #1325: the function authoring path. The name is two words in snake_case on
   # purpose — it is the module file stem (functions/notify_approved.ts), not a
   # GraphQL name, so it must survive verbatim.
@@ -232,6 +243,11 @@ defmodule Conformance.FullSchema do
     timeout_ms: 2000,
     when: [[field: "status", changed_to: "approved"]]
   )
+
+  # #1329: the function half of `quotePreview`. `request:query` is the one trigger that
+  # names a capability rather than an event, and it names no query — the binding lives on
+  # the query, so there is one copy of it.
+  fraiseql_function("preview_quote", trigger: "request:query")
 end
 
 fixture = System.get_env("FRAISEQL_CONFORMANCE_FIXTURE")

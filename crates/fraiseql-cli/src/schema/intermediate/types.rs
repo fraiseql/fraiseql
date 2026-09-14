@@ -223,6 +223,25 @@ pub struct IntermediateField {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub directives: Option<Vec<IntermediateAppliedDirective>>,
 
+    /// Declarable **only to be refused**, with a reason (#1329).
+    ///
+    /// A root query field can be backed by a function; a nested field cannot, and
+    /// this key exists so that saying so is a sentence rather than
+    /// `unknown field \`function\``. It is the natural next thing to try after
+    /// declaring one on a query, and the difference between the two messages is the
+    /// difference between an author who learns the rule and one who concludes the
+    /// feature is broken.
+    ///
+    /// The refusal is not a limitation to be lifted later. A nested resolver runs
+    /// once per row, so a function there is an N+1 measured in V8 isolates — at
+    /// ~5–8 ms each, a hundred-row page costs most of a second before the function
+    /// does any work. Root-only makes "one invocation per query" a property of the
+    /// shape; see [`QueryDefinition::function`] for the rest of the reasoning.
+    ///
+    /// [`QueryDefinition::function`]: fraiseql_core::schema::QueryDefinition::function
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub function: Option<String>,
+
     /// Deprecation information for this field.
     ///
     /// The first-class spelling, matching `IntermediateQuery`,

@@ -122,6 +122,31 @@ PAGINATION_QUERIES = ("pagedByColumn", "pagedSelfOrdered", "pagedDerived")
 # fires the function on every update.
 AUTHORED_FUNCTIONS = ("notify_approved",)
 
+# The `function_backed_query` construct owns a query AND the function it names
+# (#1329), because the compiler refuses each without the other: a query whose
+# `function` names nothing fails the compile, and so does a `request:query`
+# function no query names. They are one declaration in two sections, so they are
+# one construct — splitting them would leave an SDK that declared either gap
+# emitting a corpus that does not compile at all, which fails every construct at
+# once and reads as "this SDK is broken".
+#
+# `preview_quote` is two words in snake_case for the reason `notify_approved` is:
+# it is the module *file* stem the server loads, the one name an SDK must not
+# recase. The query beside it is `quotePreview` — camelCase, like every other
+# query — and the pair is deliberately not a rename of each other, so an SDK that
+# derived one from the other would be visible here.
+#
+# ⚠ `preview_quote` also appears in the `function_definition` observation, which
+# is deliberately unfiltered (see its projection below). An SDK declaring
+# `function_backed_query` unsupported must therefore declare `function_definition`
+# unsupported too — which is not a burden anyone will notice, since an SDK that can
+# author a function has no reason to be unable to name one from a query. It is
+# stated here because the alternative reading (a `function_definition` failure that
+# is really this construct's absence) is the kind of misdirection this file exists
+# to prevent.
+FUNCTION_BACKED_QUERY = "quotePreview"
+FUNCTION_BACKED_FUNCTION = "preview_quote"
+
 # Every construct the canonical fixture exercises. An SDK must satisfy each one or
 # declare it unsupported in `manifest.json` with a reason.
 #
@@ -163,6 +188,7 @@ CONSTRUCTS = (
     "subscriptions",
     "vector_fields",
     "function_definition",
+    "function_backed_query",
 )
 
 
@@ -586,6 +612,44 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         }
         for definition in (function_section.get("definitions") or [])
         if isinstance(definition, dict) and "name" in definition
+    }
+
+    # The binding a function-backed root field declares (#1329), plus the function
+    # it names, projected together because the compiler refuses either alone.
+    #
+    # The `function` key is asserted by exact value, not by presence: it is the
+    # module file stem, so an SDK that applies its usual camelCasing to config
+    # *values* publishes `previewQuote` and the author's `preview_quote.ts` is never
+    # found. The argument list rides along because it is what the function is
+    # invoked with — an SDK that carries the binding and drops the arguments
+    # produces a field that compiles, resolves, and is handed nothing.
+    #
+    # `sql_source` is asserted to be absent rather than left unmentioned. A builder
+    # that defaults it (from the return type, say) produces a query that reads as
+    # SQL-backed to every consumer that checks `sql_source.is_some()`, and the
+    # compile still succeeds — so the absence is the observation, not a non-fact.
+    function_backed = queries.get(FUNCTION_BACKED_QUERY) or {}
+    backing = next(
+        (
+            d
+            for d in (function_section.get("definitions") or [])
+            if isinstance(d, dict) and d.get("name") == FUNCTION_BACKED_FUNCTION
+        ),
+        None,
+    )
+    observations["function_backed_query"] = {
+        "query": {
+            "function": function_backed.get("function"),
+            "sql_source": function_backed.get("sql_source"),
+            "arguments": [
+                {"name": a.get("name"), "type": a.get("arg_type"), "nullable": a.get("nullable")}
+                for a in function_backed.get("arguments", [])
+                if isinstance(a, dict)
+            ],
+        }
+        if function_backed
+        else {},
+        "function": {"trigger": backing.get("trigger")} if backing else {},
     }
 
     missing = set(CONSTRUCTS) - set(observations)

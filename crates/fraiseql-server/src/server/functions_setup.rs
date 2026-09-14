@@ -75,13 +75,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         let function_count = hooks.module_registry.len();
         let hooks = Arc::new(hooks);
-        self.install_before_mutation_gate(Arc::clone(&hooks));
+        self.install_function_seams(Arc::clone(&hooks));
         self.functions_hooks = Some(hooks);
         tracing::info!(functions = function_count, "functions-runtime dispatch enabled");
         Ok(())
     }
 
-    /// Install the `before:mutation` chain as the executor's enforcement gate (#1327).
+    /// Install both function seams on the executor: the `before:mutation`
+    /// enforcement gate (#1327) and the function-backed query resolver (#1329).
     ///
     /// The chain is enforcement, so it has to run wherever a mutation runs — which
     /// is the engine's write chokepoint, not one HTTP handler. The gate therefore
@@ -91,15 +92,40 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// path, so the rebuild discards no warm state; `with_compiled_schema` carries
     /// caller-owned config through, so the gate also survives every later hot
     /// reload.
-    fn install_before_mutation_gate(&mut self, hooks: Arc<crate::subsystems::BeforeMutationHooks>) {
-        use crate::routes::before_mutation::{BeforeMutationBudget, FunctionChainGate};
+    fn install_function_seams(&mut self, hooks: Arc<crate::subsystems::BeforeMutationHooks>) {
+        use crate::routes::{
+            before_mutation::{BeforeMutationBudget, FunctionChainGate},
+            query_function::{FunctionQueryResolver, QueryFunctionBudget},
+        };
 
         let budget = BeforeMutationBudget::from_env();
-        let gate = Arc::new(FunctionChainGate::new(hooks).with_budget(budget));
-        let config = self.executor.config().clone().with_before_mutation_gate(gate);
+        let gate = Arc::new(FunctionChainGate::new(Arc::clone(&hooks)).with_budget(budget));
+        // #1329: the read-side seam, installed in the **same** executor rebuild as
+        // the write-side gate. Two rebuilds would discard the first one's config the
+        // way `with_compiled_schema` carries caller-owned config forward only once.
+        let query_budget = QueryFunctionBudget::from_env();
+        let resolver = Arc::new(FunctionQueryResolver::new(hooks).with_budget(query_budget));
+        let config = self
+            .executor
+            .config()
+            .clone()
+            .with_before_mutation_gate(gate)
+            .with_query_function_resolver(resolver);
         let schema = self.executor.schema().clone();
         let adapter = Arc::clone(self.executor.adapter());
         self.executor = Arc::new((self.executor_rebuilder)(schema, adapter, config));
+        if query_budget.is_enforced() {
+            tracing::info!(
+                budget_ms = u64::try_from(query_budget.duration().as_millis()).unwrap_or(u64::MAX),
+                "function-backed root query fields enabled (#1329), read-only and as the caller"
+            );
+        } else {
+            tracing::warn!(
+                env = QueryFunctionBudget::ENV,
+                "function-backed root query fields run with NO default latency ceiling — a \
+                 function declaring no timeout_ms holds its request until the query timeout"
+            );
+        }
         if budget.is_enforced() {
             tracing::info!(
                 budget_ms = u64::try_from(budget.duration().as_millis()).unwrap_or(u64::MAX),

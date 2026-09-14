@@ -1,7 +1,7 @@
 //! The engine's `before:mutation` read bridge (#1328).
 //!
 //! [`CallerScopedReader`] is the one production implementation of
-//! [`MutationHookReader`]: it answers a hook's `fraiseql_query` from the executor
+//! [`GuestQueryBridge`]: it answers a hook's `fraiseql_query` from the executor
 //! that is running the write, as the principal that issued it.
 //!
 //! # Why the engine builds it, and not the server
@@ -28,7 +28,7 @@ use super::super::{Executor, context::ExecutorContext};
 use crate::{
     db::traits::DatabaseAdapter,
     error::Result,
-    security::{MutationHookReader, SecurityContext},
+    security::{GuestQueryBridge, SecurityContext},
 };
 
 /// A read-only GraphQL bridge bound to one executor and one principal.
@@ -55,7 +55,7 @@ impl<A: DatabaseAdapter> CallerScopedReader<A> {
     }
 }
 
-impl<A: DatabaseAdapter> MutationHookReader for CallerScopedReader<A> {
+impl<A: DatabaseAdapter> GuestQueryBridge for CallerScopedReader<A> {
     fn query<'a>(
         &'a self,
         graphql: &'a str,

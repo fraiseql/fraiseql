@@ -195,6 +195,7 @@ public class FraiseQL {
         private String restPath = null;
         private String restMethod = null;
         private String paginationOrder = null;
+        private String function = null;
 
         private QueryBuilder(String name) {
             this.name = name;
@@ -369,6 +370,31 @@ public class FraiseQL {
         }
 
         /**
+         * Back this root query field with a declared {@code request:query} function
+         * instead of a SQL source (#1329).
+         *
+         * <p>The name is the function's, and it is the module file stem the server loads
+         * ({@code <module_dir>/<name>.<ext>}), so it is carried verbatim rather than
+         * recased.
+         *
+         * <p>Mutually exclusive with {@link #sqlSource}, and everything that lowers into
+         * SQL — relay, count, inject, pagination order, auto-params — is refused beside
+         * it. Those refusals live in the compiler, which is the only place both the query
+         * and the function declaration are visible.
+         *
+         * <p>An invocation costs ~5–8 ms on top of whatever the function itself does, so
+         * this is for computation SQL cannot express, not for anything a view could
+         * answer.
+         *
+         * @param name the declared function's name
+         * @return this builder for chaining
+         */
+        public QueryBuilder function(String name) {
+            this.function = name;
+            return this;
+        }
+
+        /**
          * Inject server-side parameters derived from the JWT.
          * Map keys are parameter names; values are {@code "jwt:<claim>"} expressions.
          *
@@ -443,6 +469,9 @@ public class FraiseQL {
             registry.setQueryMetadata(name, nullable, requiresRole, requiresActor);
             if (paginationOrder != null) {
                 registry.setQueryPaginationOrder(name, paginationOrder);
+            }
+            if (function != null) {
+                registry.setQueryFunction(name, function);
             }
         }
     }

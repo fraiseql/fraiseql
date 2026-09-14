@@ -56,7 +56,7 @@ struct StubReader {
     reads: std::sync::Mutex<Vec<String>>,
 }
 
-impl crate::security::MutationHookReader for StubReader {
+impl crate::security::GuestQueryBridge for StubReader {
     fn query<'a>(
         &'a self,
         graphql: &'a str,
@@ -71,12 +71,12 @@ impl crate::security::MutationHookReader for StubReader {
 /// A reader factory that panics when called — the mutation that proves
 /// `enforce_before_mutation` builds the reader **after** the no-gate early
 /// return, and not on every write.
-fn reader_must_not_be_built() -> std::sync::Arc<dyn crate::security::MutationHookReader> {
+fn reader_must_not_be_built() -> std::sync::Arc<dyn crate::security::GuestQueryBridge> {
     panic!("the read bridge must not be built when no gate is configured");
 }
 
 /// A reader factory for the paths that do reach a gate.
-fn stub_reader() -> std::sync::Arc<dyn crate::security::MutationHookReader> {
+fn stub_reader() -> std::sync::Arc<dyn crate::security::GuestQueryBridge> {
     std::sync::Arc::new(StubReader {
         reads: std::sync::Mutex::new(Vec::new()),
     })

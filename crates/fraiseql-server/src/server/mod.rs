@@ -304,18 +304,6 @@ pub struct Server<A: DatabaseAdapter> {
     /// Defaults to 100 `MiB`. Applied as a per-request body limit on upload routes.
     pub(super) storage_max_upload_bytes: usize,
 
-    /// Function deployment store for the `/functions/v1/` routes.
-    ///
-    /// Set via [`Server::with_functions`]. When `None`, function routes are not mounted.
-    #[cfg(feature = "functions")]
-    pub(super) function_store: Option<Arc<dyn fraiseql_functions::FunctionStore>>,
-
-    /// Function execution runtime for the `/functions/v1/` routes.
-    ///
-    /// Set via [`Server::with_functions`]. When `None`, function routes are not mounted.
-    #[cfg(feature = "functions")]
-    pub(super) function_runtime: Option<Arc<dyn fraiseql_functions::runtime::SendFunctionRuntime>>,
-
     /// Shared usage aggregator — written by [`MutationAuditLayer`] and read by
     /// the `GET /api/v1/admin/usage` endpoint via [`AppState::usage`].
     ///

@@ -369,6 +369,20 @@
         "limit": true,
         "offset": true
       }
+    },
+    {
+      "name": "quotePreview",
+      "return_type": "Order",
+      "returns_list": false,
+      "nullable": true,
+      "function": "preview_quote",
+      "arguments": [
+        {
+          "name": "sku",
+          "type": "String",
+          "nullable": false
+        }
+      ]
     }
   ],
   "mutations": [
@@ -514,6 +528,11 @@
           "changed_to": "approved"
         }
       ]
+    },
+    {
+      "name": "preview_quote",
+      "trigger": "request:query",
+      "runtime": "Deno"
     }
   ]
 }

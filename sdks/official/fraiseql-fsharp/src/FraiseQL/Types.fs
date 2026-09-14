@@ -195,8 +195,14 @@ type QueryDefinition =
         returns_list: bool
         /// True if the query result may be null.
         nullable: bool
-        /// The SQL view or function backing this query.
-        sql_source: string
+        /// The SQL view backing this query, or `None` when
+        /// <see cref="QueryDefinition.function"/> backs it instead (#1329).
+        ///
+        /// Optional since #1329 for a reason `WhenWritingNull` makes concrete: a
+        /// non-optional field serialises `""`, which the compiler reads as a *declared*
+        /// empty source and refuses beside a `function` — a true refusal about a source
+        /// the author never wrote.
+        sql_source: string option
         /// Arguments accepted by this query.
         arguments: ArgumentDefinition list
         /// Optional cache TTL in seconds; None means no caching.
@@ -227,6 +233,17 @@ type QueryDefinition =
         /// every query wants. Dropping a declared value does not empty a result or fail a
         /// compile — it produces a different total order over the same rows.
         pagination_order: string option
+        /// The declared `request:query` function that answers this root field, in place
+        /// of <see cref="QueryDefinition.sql_source"/> (#1329).
+        ///
+        /// The value is the function's name and the module file stem the server loads, so
+        /// it travels verbatim — never recased the way a GraphQL name is.
+        ///
+        /// Spelled with a trailing underscore because `function` is an F# keyword, and
+        /// mapped back to the wire name by the attribute — the same trade
+        /// <see cref="ArgumentDefinition.type_"/> makes.
+        [<JsonPropertyName("function")>]
+        function_: string option
     }
 
 /// Represents a GraphQL mutation (write operation).

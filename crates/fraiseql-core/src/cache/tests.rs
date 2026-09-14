@@ -1641,6 +1641,8 @@ mod key_tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
+            function: None,
+
             requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "users".to_string(),
@@ -1682,6 +1684,8 @@ mod key_tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
+            function: None,
+
             requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "customQuery".to_string(),
@@ -1723,6 +1727,8 @@ mod key_tests {
         use crate::schema::AutoParams;
 
         let query_def = QueryDefinition {
+            function: None,
+
             requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "usersWithPosts".to_string(),

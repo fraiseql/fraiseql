@@ -51,57 +51,12 @@
 //! [`with_before_mutation_gate`](crate::runtime::RuntimeConfig::with_before_mutation_gate),
 //! parallel to [`with_authorizer`](crate::runtime::RuntimeConfig::with_authorizer).
 
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::sync::Arc;
 
 use crate::{
     error::{FraiseQLError, Result},
-    security::SecurityContext,
+    security::{GuestQueryBridge, SecurityContext},
 };
-
-/// A **read-only** GraphQL bridge scoped to the principal that issued the write
-/// (#1328).
-///
-/// A `before:mutation` rule that depends on data — a credit limit, a price, a
-/// quota, the target row's current state — needs to read. This is the only way it
-/// can, and the two words in the name are the whole contract:
-///
-/// - **read-only**: a document whose operation the engine would execute as a *write* is refused by
-///   name. The hook cannot become a second write path, so an abort cannot leave a half-applied
-///   change behind.
-/// - **scoped to the caller**: the read runs as the requesting principal, not under a `run_as`
-///   ceiling, so a hook can never surface a row the caller could not have read itself. An anonymous
-///   write reads anonymously.
-///
-/// # The read is outside the mutation's transaction
-///
-/// Deliberately: holding a Postgres transaction (and its row locks, and a pooled
-/// connection) open across a V8 isolate running user-supplied `JavaScript` would make
-/// function latency into database lock time, reachable by anyone who can author a
-/// function. The consequence is stated in `docs/architecture/functions.md` and is
-/// load-bearing for anyone writing a rule:
-///
-/// > For anything derivable from its **input**, `before:mutation` is authoritative. For
-/// > anything requiring a **read**, it is a fast, friendly rejection — the read is not in
-/// > the mutation's transaction, so the authoritative rule must still be a constraint or
-/// > the SQL function.
-///
-/// A hook author who believes a read-backed check is authoritative has written a
-/// check-then-act race and does not know it.
-pub trait MutationHookReader: Send + Sync {
-    /// Execute a read-only GraphQL document as the requesting principal.
-    ///
-    /// # Errors
-    ///
-    /// - [`FraiseQLError::Authorization`] when the document's operation is one the engine would
-    ///   execute as a write. This is the read-only refusal and names itself.
-    /// - Anything the read itself returns — an unknown field, a validation failure, a database
-    ///   error, the executor's query timeout.
-    fn query<'a>(
-        &'a self,
-        graphql: &'a str,
-        variables: Option<&'a serde_json::Value>,
-    ) -> Pin<Box<dyn Future<Output = Result<serde_json::Value>> + Send + 'a>>;
-}
 
 /// The write a [`BeforeMutationGate`] is being asked to adjudicate.
 #[non_exhaustive]
@@ -125,7 +80,7 @@ pub struct BeforeMutationRequest<'a> {
     /// on another thread — the Deno runtime spawns an OS thread per invocation — so
     /// it has to outlive this call. The engine builds one per adjudicated write; a
     /// gate that never reads simply drops it.
-    pub reader:       Option<Arc<dyn MutationHookReader>>,
+    pub reader:       Option<Arc<dyn GuestQueryBridge>>,
 }
 
 impl<'a> BeforeMutationRequest<'a> {
@@ -150,7 +105,7 @@ impl<'a> BeforeMutationRequest<'a> {
 
     /// Attach the caller-scoped read bridge (#1328).
     #[must_use]
-    pub fn with_reader(mut self, reader: Arc<dyn MutationHookReader>) -> Self {
+    pub fn with_reader(mut self, reader: Arc<dyn GuestQueryBridge>) -> Self {
         self.reader = Some(reader);
         self
     }
@@ -249,7 +204,7 @@ pub(crate) async fn enforce_before_mutation(
     mutation: &str,
     response_key: &str,
     arguments: Option<&serde_json::Value>,
-    reader: impl FnOnce() -> Arc<dyn MutationHookReader>,
+    reader: impl FnOnce() -> Arc<dyn GuestQueryBridge>,
 ) -> Result<Option<serde_json::Value>> {
     // A write with no arguments is `Null`, not `{}`: that is the payload shape the
     // `before:mutation` chain has always been handed for an argument-less mutation,

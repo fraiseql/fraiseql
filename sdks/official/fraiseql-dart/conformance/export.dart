@@ -262,6 +262,17 @@ FraiseQLSchema authorFull() {
     invalidatesFactTables: ['tf_sale'],
   );
 
+  // #1329: a function-backed root query field. The query and the function it names are
+  // one declaration in two sections — the compiler refuses either alone — so the
+  // `preview_quote` function is registered below beside `notify_approved`.
+  schema.query(
+    'quotePreview',
+    returnType: 'Order',
+    nullable: true,
+    function: 'preview_quote',
+    arguments: {'sku': const FieldType.string(nullable: false)},
+  );
+
   // #1325: the function authoring path. The name is two words in snake_case on
   // purpose — it is the module file stem (functions/notify_approved.ts), not a
   // GraphQL name, so it must survive verbatim.
@@ -273,6 +284,11 @@ FraiseQLSchema authorFull() {
       {'field': 'status', 'changed_to': 'approved'},
     ],
   );
+
+  // #1329: the function half of `quotePreview`. `request:query` is the one trigger that
+  // names a capability rather than an event, and it names no query — the binding lives on
+  // the query, so there is one copy of it.
+  schema.function('preview_quote', trigger: 'request:query');
 
   return schema;
 }

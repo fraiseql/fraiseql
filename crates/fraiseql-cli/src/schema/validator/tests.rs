@@ -18,6 +18,8 @@ fn test_validate_empty_schema() {
 fn test_detect_unknown_return_type() {
     let schema = IntermediateSchema {
         queries: vec![IntermediateQuery {
+            function: None,
+
             requires_actor:    Vec::new(),
             count:             false,
             name:              "users".to_string(),
@@ -71,6 +73,8 @@ fn test_detect_duplicate_query_names() {
         }],
         queries: vec![
             IntermediateQuery {
+                function: None,
+
                 requires_actor:    Vec::new(),
                 count:             false,
                 name:              "users".to_string(),
@@ -95,6 +99,8 @@ fn test_detect_duplicate_query_names() {
                 pagination_order:  None,
             },
             IntermediateQuery {
+                function: None,
+
                 requires_actor:    Vec::new(),
                 count:             false,
                 name:              "users".to_string(), // Duplicate!
@@ -147,6 +153,8 @@ fn test_warning_for_query_without_sql_source() {
             relationships:          Vec::new(),
         }],
         queries: vec![IntermediateQuery {
+            function: None,
+
             requires_actor:    Vec::new(),
             count:             false,
             name:              "users".to_string(),
@@ -406,6 +414,8 @@ fn test_query_injection_in_sql_source_rejected() {
             relationships:          Vec::new(),
         }],
         queries: vec![IntermediateQuery {
+            function: None,
+
             requires_actor:    Vec::new(),
             count:             false,
             name:              "users".to_string(),
@@ -457,6 +467,8 @@ fn test_query_schema_qualified_sql_source_passes() {
             relationships:          Vec::new(),
         }],
         queries: vec![IntermediateQuery {
+            function: None,
+
             requires_actor:    Vec::new(),
             count:             false,
             name:              "users".to_string(),
@@ -505,6 +517,8 @@ mod schema_validator_tests {
 
     fn field(name: &str, ty: &str) -> IntermediateField {
         IntermediateField {
+            function: None,
+
             deprecated:      None,
             vector_config:   None,
             vector_distance: None,

@@ -286,9 +286,23 @@ impl RestRouteTable {
         let mut query_groups: HashMap<&str, Vec<&QueryDefinition>> = HashMap::new();
         let mut mutation_groups: HashMap<&str, Vec<&MutationDefinition>> = HashMap::new();
 
+        let mut skipped_function_backed: Vec<&str> = Vec::new();
         for q in &schema.queries {
             if should_skip_query(q) {
                 debug!(query = %q.name, "skipping query (aggregate/window/scalar)");
+                continue;
+            }
+            // #1329: a function-backed field is a **GraphQL** root field. The REST
+            // surface is derived — it invents list/detail routes, filters and
+            // pagination from the type — and a function-backed query accepts none of
+            // those: they are compile errors beside a `function` declaration. Deriving
+            // a resource for one would mount routes that answer every request with
+            // "Query has no SQL source", which is the shape this whole change removes.
+            //
+            // Skipped loudly rather than silently: a REST-first project that declares
+            // one and finds no route needs to be told which surface carries it.
+            if q.function.is_some() {
+                skipped_function_backed.push(q.name.as_str());
                 continue;
             }
             if is_filtered_out(&q.name, &config) {
@@ -326,6 +340,19 @@ impl RestRouteTable {
 
         let mut resources = Vec::new();
         let mut diagnostics = Vec::new();
+
+        if !skipped_function_backed.is_empty() {
+            diagnostics.push(Diagnostic {
+                level:   DiagnosticLevel::Info,
+                message: format!(
+                    "Function-backed queries are not exposed over REST (#1329): {}. They are \
+                     GraphQL root fields — the derived REST surface invents filters and \
+                     pagination from the type, and a function-backed field accepts neither. \
+                     Query them at /graphql.",
+                    skipped_function_backed.join(", ")
+                ),
+            });
+        }
 
         for type_name in all_types {
             let Some(type_def) = schema.find_type(type_name) else {

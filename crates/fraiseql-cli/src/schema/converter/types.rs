@@ -400,6 +400,23 @@ impl SchemaConverter {
         intermediate: IntermediateField,
         declared: &DeclaredTypeNames,
     ) -> Result<FieldDefinition> {
+        // #1329: root fields only. The key exists on `IntermediateField` purely so
+        // this refusal can be a sentence — `deny_unknown_fields` would already stop
+        // the document, with `unknown field \`function\``, which tells an author who
+        // has just declared one on a query that they misspelled something rather
+        // than that they are asking for the one shape this deliberately refuses.
+        if let Some(function) = intermediate.function.as_deref() {
+            anyhow::bail!(
+                "Field '{}': function = '{function}' is not allowed on a nested field — only a \
+                 root query field can be backed by a function. A nested resolver runs once per \
+                 row, so a function there costs one V8 isolate per row (~5-8 ms each) instead of \
+                 one per query. Declare a root query that returns this shape and back that with \
+                 the function, or compute the field inside the function that already produces \
+                 the row.",
+                intermediate.name
+            );
+        }
+
         let field_type = Self::parse_field_type(&intermediate.field_type, declared)?;
 
         // #386: vector_config is required on Vector fields (DDL and request-time

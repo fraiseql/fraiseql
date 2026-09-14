@@ -7,7 +7,9 @@
 //! `after:mutation`/`after:capture` function on entity `E` gets
 //! `{ event_kind, old: E | null, new: E | null }` (the `E` imported from the
 //! generated `./types`), a `cron` function gets its schedule context, an
-//! `after:ingest` function gets the normalized inbound-message shape.
+//! `after:ingest` function gets the normalized inbound-message shape, and a
+//! `request:query` function gets the arguments of the root query field(s) that name
+//! it (#1329).
 //!
 //! The caller (the CLI) resolves each [`FunctionTypeSpec`] from the compiled schema's
 //! `functions` section; this module owns only the rendering, mirroring how
@@ -31,6 +33,27 @@ pub enum FunctionPayloadShape {
     Cron,
     /// `after:ingest` — a normalized inbound message.
     Ingest,
+    /// `request:query` — the resolved arguments of the root query field being
+    /// answered (#1329).
+    ///
+    /// Carries **every** query that names this function, because the binding runs
+    /// query → function and nothing stops two from naming one aggregator. The guest
+    /// is handed the field name alongside the arguments, so the emitted type is a
+    /// discriminated union rather than a merged argument bag — a merge would type
+    /// each field as present-or-absent and lose exactly the fact that tells the
+    /// guest which shape it received.
+    Request {
+        /// The queries that declare `function = "<name>"`, in schema order.
+        fields: Vec<RequestQueryField>,
+    },
+}
+
+/// One root query field a `request:query` function answers, with its arguments.
+pub struct RequestQueryField {
+    /// The query field name, as it appears in the document.
+    pub name:      String,
+    /// The field's declared arguments, in declared order.
+    pub arguments: Vec<fraiseql_core::schema::ArgumentDefinition>,
 }
 
 /// One function's name + resolved payload shape, from the compiled schema's
@@ -159,6 +182,32 @@ pub fn generate_functions_dts(
                 let _ = writeln!(body, "  subject: string | null;");
                 let _ = writeln!(body, "  payload: unknown;");
                 let _ = writeln!(body, "}}");
+            },
+            // A union with one member on the usual single-query case, deliberately:
+            // one code path renders one and many, so the shape a guest destructures
+            // does not change the day a second query names the same function.
+            FunctionPayloadShape::Request { fields } => {
+                let _ = writeln!(body, "export type {ty} =");
+                for field in fields {
+                    let args = field
+                        .arguments
+                        .iter()
+                        .map(|a| {
+                            format!(
+                                "{}: {}",
+                                a.name,
+                                super::render::field_type_ts_nullable(&a.arg_type, a.nullable)
+                            )
+                        })
+                        .collect::<Vec<_>>()
+                        .join("; ");
+                    let _ = writeln!(
+                        body,
+                        "  | {{ field: \"{}\"; arguments: {{ {args} }} }}",
+                        field.name
+                    );
+                }
+                let _ = writeln!(body, "  ;");
             },
         }
     }

@@ -124,7 +124,7 @@ module CrudGenerator =
                     return_type = typeName
                     returns_list = false
                     nullable = true
-                    sql_source = view
+                    sql_source = Some view
                     arguments =
                         [
                             {
@@ -140,6 +140,7 @@ module CrudGenerator =
                     // A generated CRUD read authors no ordering, so the compiler derives
                     // the entity identity for its pages (#1303).
                     pagination_order = None
+                    function_ = None
                     description = Some(sprintf "Get %s by ID." typeName)
                     rest = None
                 }
@@ -149,13 +150,14 @@ module CrudGenerator =
                     return_type = typeName
                     returns_list = true
                     nullable = false
-                    sql_source = view
+                    sql_source = Some view
                     arguments = []
                     cache_ttl_seconds = None
                     inject_params = None
                     requires_role = None
                     requires_actor = None
                     pagination_order = None
+                    function_ = None
                     description = Some(sprintf "List %s records." typeName)
                     rest = None
                 }

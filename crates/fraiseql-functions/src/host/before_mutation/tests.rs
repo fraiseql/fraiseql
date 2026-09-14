@@ -11,7 +11,7 @@
 use std::sync::{Arc, Mutex};
 
 use chrono::Utc;
-use fraiseql_core::security::{MutationHookReader, SecurityContext};
+use fraiseql_core::security::{GuestQueryBridge, SecurityContext};
 
 use super::BeforeMutationHost;
 use crate::{
@@ -24,7 +24,7 @@ struct RecordingReader {
     asked: Mutex<Vec<(String, Option<serde_json::Value>)>>,
 }
 
-impl MutationHookReader for RecordingReader {
+impl GuestQueryBridge for RecordingReader {
     fn query<'a>(
         &'a self,
         graphql: &'a str,
@@ -73,7 +73,7 @@ fn host_with_reader() -> (BeforeMutationHost, Arc<RecordingReader>) {
     });
     let host = BeforeMutationHost::new(
         payload(),
-        Some(Arc::clone(&reader) as Arc<dyn MutationHookReader>),
+        Some(Arc::clone(&reader) as Arc<dyn GuestQueryBridge>),
         Some(&principal()),
     );
     (host, reader)

@@ -22,7 +22,11 @@ public sealed class QueryBuilder
     private string _returnType = string.Empty;
     private bool _returnsList;
     private bool _nullable;
-    private string _sqlSource = string.Empty;
+    // `null`, not `string.Empty`: since #1329 the absence has to reach the JSON, where
+    // `WhenWritingNull` drops the key. An empty string is a *declared* source to the
+    // compiler, so a function-backed query built from a `string.Empty` default was refused
+    // for declaring both — a true refusal about a source the author never wrote.
+    private string? _sqlSource;
     private int? _cacheTtlSeconds;
     private string? _description;
     private string? _restPath;
@@ -32,6 +36,7 @@ public sealed class QueryBuilder
     private string? _requiresRole;
     private IReadOnlyList<string>? _requiresActor;
     private string? _paginationOrder;
+    private string? _function;
 
     private QueryBuilder(string name) => _name = name;
 
@@ -129,6 +134,25 @@ public sealed class QueryBuilder
     /// <returns>This builder for chaining.</returns>
     public QueryBuilder PaginationOrder(string column) { _paginationOrder = column; return this; }
 
+    /// <summary>
+    /// Backs this root query field with a declared <c>request:query</c> function instead of a
+    /// SQL source (#1329).
+    /// </summary>
+    /// <remarks>
+    /// The name is the function's, and it is the module file stem the server loads
+    /// (<c>&lt;module_dir&gt;/&lt;name&gt;.&lt;ext&gt;</c>), so it is carried verbatim rather
+    /// than recased.
+    /// <para>
+    /// Mutually exclusive with <see cref="SqlSource"/>, and everything that lowers into SQL —
+    /// relay, count, inject, pagination order, auto-params — is refused beside it by the
+    /// compiler, which is the only place both the query and the function declaration are
+    /// visible. An invocation costs ~5–8 ms on top of whatever the function itself does.
+    /// </para>
+    /// </remarks>
+    /// <param name="name">The declared function's name.</param>
+    /// <returns>This builder for chaining.</returns>
+    public QueryBuilder Function(string name) { _function = name; return this; }
+
     /// <summary>Sets the REST endpoint path for this query.</summary>
     /// <param name="path">The REST path (e.g. <c>"/api/users"</c>).</param>
     /// <returns>This builder for chaining.</returns>
@@ -151,9 +175,17 @@ public sealed class QueryBuilder
         if (string.IsNullOrEmpty(_returnType))
             throw new InvalidOperationException(
                 $"QueryBuilder: ReturnType must be set before Build() (query: '{_name}')");
-        if (string.IsNullOrEmpty(_sqlSource))
+        // Exactly one resolution path (#1329). Before it, `SqlSource` was simply required;
+        // now "neither" and "both" are distinct mistakes and each says which it is, because
+        // an author who set `Function` and got "SqlSource must be set" would reasonably add
+        // one and reach a second refusal from the compiler.
+        if (string.IsNullOrEmpty(_sqlSource) && string.IsNullOrEmpty(_function))
             throw new InvalidOperationException(
-                $"QueryBuilder: SqlSource must be set before Build() (query: '{_name}')");
+                $"QueryBuilder: SqlSource or Function must be set before Build() (query: '{_name}')");
+        if (!string.IsNullOrEmpty(_sqlSource) && !string.IsNullOrEmpty(_function))
+            throw new InvalidOperationException(
+                $"QueryBuilder: SqlSource and Function are mutually exclusive — a root field "
+                + $"resolves from a relation or from a function, not both (query: '{_name}')");
 
         RestAnnotation? rest = _restPath is not null
             ? new RestAnnotation(_restPath, _restMethod ?? "GET")
@@ -172,7 +204,8 @@ public sealed class QueryBuilder
             InjectParams: _injectParams.Count > 0 ? _injectParams : null,
             RequiresRole: _requiresRole,
             RequiresActor: _requiresActor,
-            PaginationOrder: _paginationOrder);
+            PaginationOrder: _paginationOrder,
+            Function: _function);
     }
 
     /// <summary>

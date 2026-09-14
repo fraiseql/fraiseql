@@ -188,7 +188,8 @@
         "query_pagination_order": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
         "mutation_requires_role": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
         "mutation_requires_actor": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
-        "function_definition": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct"
+        "function_definition": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
+        "function_backed_query": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct. Declared alongside `function_definition` of necessity: a function-backed query and the function it names are one declaration the compiler refuses either half of, so an SDK that cannot author a function cannot author the query either"
       }
     }
   }

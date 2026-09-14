@@ -488,6 +488,24 @@ public class SchemaRegistry {
     }
 
     /**
+     * Back a query with a declared {@code request:query} function (#1329).
+     *
+     * <p>Its own method for the reason {@link #setQueryPaginationOrder} is: a method that
+     * names what it sets stays readable however many more arrive.
+     *
+     * @param queryName the query name
+     * @param function the function name, carried verbatim — it is the module file stem
+     * @throws IllegalStateException if the query is not registered
+     */
+    public void setQueryFunction(String queryName, String function) {
+        QueryInfo info = queries.get(queryName);
+        if (info == null) {
+            throw new IllegalStateException("Query '" + queryName + "' is not registered.");
+        }
+        info.function = function;
+    }
+
+    /**
      * Set the operation metadata the {@code registerMutation} overloads do not carry.
      *
      * @param mutationName the mutation name
@@ -858,6 +876,14 @@ public class SchemaRegistry {
          * entity identity, which is what almost every query wants.
          */
         public String paginationOrder = null;
+        /**
+         * The declared {@code request:query} function that answers this root field, in
+         * place of a SQL source (#1329). Mirrors {@code IntermediateQuery.function}.
+         *
+         * <p>The value is the function's name and the module file stem the server loads,
+         * so it travels verbatim — never recased the way a GraphQL name is.
+         */
+        public String function = null;
         public final String sqlSource;
         public final Long cacheTtlSeconds;
         public final Map<String, String> injectParams;

@@ -51,13 +51,14 @@ let private singleQuery: QueryDefinition =
         return_type = "Author"
         returns_list = true
         nullable = false
-        sql_source = "v_author"
+        sql_source = Some "v_author"
         arguments = []
         cache_ttl_seconds = None
         inject_params = None
         requires_role = None
         requires_actor = None
         pagination_order = None
+        function_ = None
         description = None
         rest = None
     }

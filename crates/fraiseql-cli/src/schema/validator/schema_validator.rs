@@ -181,8 +181,12 @@ impl SchemaValidator {
                 }
             }
 
-            // Warning for queries without SQL source
-            if query.sql_source.is_none() && query.returns_list {
+            // Warning for queries without SQL source.
+            //
+            // A function-backed query (#1329) has none by construction and is not
+            // missing anything — warning there would train authors to ignore the
+            // warning that still matters for the SQL-backed case.
+            if query.sql_source.is_none() && query.function.is_none() && query.returns_list {
                 report.errors.push(ValidationError {
                     message:    format!(
                         "Query '{}' returns a list but has no sql_source",

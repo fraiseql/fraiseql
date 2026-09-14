@@ -55,7 +55,8 @@ class SchemaTest < Minitest::Test
     schema = FraiseQL::Schema.new
 
     error = assert_raises(ArgumentError) do
-      schema.query "orders", return_type: "Order", inject: { "tenant_id" => "tenant_id" }
+      schema.query "orders", return_type: "Order", sql_source: "v_order",
+                   inject: { "tenant_id" => "tenant_id" }
     end
     assert_match(/<source>:<claim>/, error.message)
   end

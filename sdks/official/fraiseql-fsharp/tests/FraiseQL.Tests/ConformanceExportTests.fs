@@ -232,6 +232,16 @@ let private authorFull () =
     |> QueryBuilder.sqlSource "v_user"
     |> QueryBuilder.register
 
+    // #1329: a function-backed root query field. The query and the function it names are
+    // one declaration in two sections — the compiler refuses either alone — so the
+    // `preview_quote` function is registered below beside `notify_approved`.
+    QueryBuilder.query "quotePreview"
+    |> QueryBuilder.returnType "Order"
+    |> QueryBuilder.nullable true
+    |> QueryBuilder.withArgument "sku" "String" false
+    |> QueryBuilder.function_ "preview_quote"
+    |> QueryBuilder.register
+
     MutationBuilder.mutation "createUser"
     |> MutationBuilder.returnType "User"
     |> MutationBuilder.sqlSource "fn_create_user"
@@ -266,6 +276,19 @@ let private authorFull () =
             runtime = "Deno"
             timeout_ms = Some 2000
             ``when`` = [ { field = "status"; eq = None; changed_to = Some "approved" } ]
+            re_runnable = false
+        }
+
+    // #1329: the function half of `quotePreview`. `request:query` is the one trigger that
+    // names a capability rather than an event, and it names no query — the binding lives
+    // on the query, so there is one copy of it.
+    SchemaRegistry.registerFunction
+        {
+            name = "preview_quote"
+            trigger = "request:query"
+            runtime = "Deno"
+            timeout_ms = None
+            ``when`` = []
             re_runnable = false
         }
 

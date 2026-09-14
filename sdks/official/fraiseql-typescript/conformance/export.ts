@@ -230,6 +230,16 @@ function authorFull(): void {
     sqlSource: "v_user",
   });
 
+  // #1329: a function-backed root query field. `function` is the one config key whose
+  // VALUE must survive verbatim — it is the module file stem the server loads — so an
+  // SDK that recases config values as well as keys publishes `previewQuote` and the
+  // author's `preview_quote.ts` is never found. Spelled in this SDK's camelCase style
+  // for the key (it has none to translate) and snake_case for the value, deliberately.
+  registerQuery("quotePreview", "Order", false, true,
+    [{ name: "sku", type: "String", nullable: false }], undefined, {
+    function: "preview_quote",
+  });
+
   registerMutation(
     "createUser",
     "User",
@@ -288,6 +298,13 @@ function authorFull(): void {
     })
     // eslint-disable-next-line @typescript-eslint/naming-convention -- module file stem, not a GraphQL name
     notify_approved(): void {}
+
+    // #1329: the function half of a function-backed root query field. The query
+    // half is `quotePreview` above — the compiler refuses either alone, so they
+    // are one declaration in two sections.
+    @FraiseFunction({ trigger: "request:query" })
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- module file stem, not a GraphQL name
+    preview_quote(): void {}
   }
   // Reference the class so the decorator is not elided as dead code.
   void ConformanceFunctions;

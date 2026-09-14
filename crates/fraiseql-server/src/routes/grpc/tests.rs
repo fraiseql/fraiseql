@@ -230,6 +230,120 @@ fn test_descriptor_pool() -> prost_reflect::DescriptorPool {
     prost_reflect::DescriptorPool::decode(bytes.as_slice()).unwrap()
 }
 
+/// Helper: a `DescriptorPool` carrying a service with one `ListUsers` method.
+///
+/// The message-only pool above cannot exercise `build_dispatch_table`, which walks a
+/// **service**'s methods.
+fn test_service_pool() -> prost_reflect::DescriptorPool {
+    use prost::Message;
+    use prost_reflect::prost_types::{
+        DescriptorProto, FieldDescriptorProto, FileDescriptorProto, FileDescriptorSet,
+        MethodDescriptorProto, ServiceDescriptorProto, field_descriptor_proto,
+    };
+
+    let user_msg = DescriptorProto {
+        name: Some("User".into()),
+        field: vec![FieldDescriptorProto {
+            name: Some("id".into()),
+            number: Some(1),
+            r#type: Some(field_descriptor_proto::Type::String.into()),
+            label: Some(field_descriptor_proto::Label::Optional.into()),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let service = ServiceDescriptorProto {
+        name: Some("TestService".into()),
+        method: vec![MethodDescriptorProto {
+            name: Some("ListUsers".into()),
+            input_type: Some(".test.User".into()),
+            output_type: Some(".test.User".into()),
+            ..Default::default()
+        }],
+        ..Default::default()
+    };
+
+    let file = FileDescriptorProto {
+        name: Some("service.proto".into()),
+        package: Some("test".into()),
+        syntax: Some("proto3".into()),
+        message_type: vec![user_msg],
+        service: vec![service],
+        ..Default::default()
+    };
+
+    let fds = FileDescriptorSet { file: vec![file] };
+    prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap()
+}
+
+/// A schema with one `User` type and the named list query.
+fn grpc_schema(
+    query: fraiseql_core::schema::QueryDefinition,
+) -> fraiseql_core::schema::CompiledSchema {
+    use fraiseql_core::schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition};
+
+    let mut schema = CompiledSchema::new();
+    schema.types.push(TypeDefinition {
+        fields: vec![FieldDefinition::new("id", FieldType::Id)],
+        ..TypeDefinition::new("User", "v_user")
+    });
+    schema.queries.push(query);
+    schema.build_indexes();
+    schema
+}
+
+/// #1329: a function-backed query registers **no** gRPC method.
+///
+/// This table answers a method by reading `vr_<type.sql_source>` directly — the
+/// resolver is never consulted. Registering a function-backed query would therefore
+/// serve the type's rows in place of the function's computed answer: a wrong result
+/// that looks like a right one, which is the worst shape a transport gap can take.
+/// An absent method is the honest alternative.
+#[test]
+fn a_function_backed_query_registers_no_grpc_method() {
+    use fraiseql_core::schema::QueryDefinition;
+
+    let schema = grpc_schema(
+        QueryDefinition::new("users", "User")
+            .returning_list()
+            .with_function("preview_users"),
+    );
+    let table =
+        super::handler::build_dispatch_table(&schema, "test.TestService", &test_service_pool())
+            .expect("the table builds");
+
+    assert!(
+        table.is_empty(),
+        "a function-backed query must not become a gRPC method: {:?}",
+        table.keys().collect::<Vec<_>>()
+    );
+}
+
+/// The counterweight: the same shape, SQL-backed, **does** register.
+///
+/// Without it the test above would pass for a descriptor pool whose method never
+/// matched a query at all — which is the way a skip-test most easily becomes
+/// decorative.
+#[test]
+fn a_sql_backed_query_registers_a_grpc_method() {
+    use fraiseql_core::schema::QueryDefinition;
+
+    let schema = grpc_schema(
+        QueryDefinition::new("users", "User").returning_list().with_sql_source("v_user"),
+    );
+    let table =
+        super::handler::build_dispatch_table(&schema, "test.TestService", &test_service_pool())
+            .expect("the table builds");
+
+    assert_eq!(
+        table.len(),
+        1,
+        "the SQL-backed sibling must still register: {:?}",
+        table.keys().collect::<Vec<_>>()
+    );
+}
+
 #[test]
 fn encode_row_sets_fields() {
     let pool = test_descriptor_pool();

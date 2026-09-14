@@ -383,6 +383,8 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
 pub fn test_schema() -> CompiledSchema {
     let mut schema = CompiledSchema::new();
     schema.queries.push(QueryDefinition {
+        function: None,
+
         requires_actor:      Vec::new(),
         returns_count:       false,
         name:                "users".to_string(),

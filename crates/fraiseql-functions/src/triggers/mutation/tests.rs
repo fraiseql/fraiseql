@@ -638,7 +638,7 @@ mod read_bridge {
         sync::{Arc, Mutex},
     };
 
-    use fraiseql_core::security::MutationHookReader;
+    use fraiseql_core::security::GuestQueryBridge;
 
     use super::*;
     use crate::{
@@ -653,7 +653,7 @@ mod read_bridge {
         answer: serde_json::Value,
     }
 
-    impl MutationHookReader for SpyReader {
+    impl GuestQueryBridge for SpyReader {
         fn query<'a>(
             &'a self,
             graphql: &'a str,
@@ -718,7 +718,7 @@ mod read_bridge {
                 data:         input.clone(),
                 timestamp:    chrono::Utc::now(),
             },
-            Some(Arc::clone(&reader) as Arc<dyn MutationHookReader>),
+            Some(Arc::clone(&reader) as Arc<dyn GuestQueryBridge>),
             None,
         );
 

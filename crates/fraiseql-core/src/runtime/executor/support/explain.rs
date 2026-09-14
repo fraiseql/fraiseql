@@ -69,10 +69,21 @@ impl<A: DatabaseAdapter> Executor<A> {
                 }
             })?;
 
-        // Get the view name.
+        // Get the view name. A function-backed query (#1329) has none by construction
+        // and never will: EXPLAIN reports a database plan, and that field's cost is a
+        // V8 invocation plus whatever the function itself reads through the bridge —
+        // each of which has its own plan, under its own query name. Saying so beats
+        // "has no SQL source", which reads as a misconfiguration.
         let sql_source =
             query_def.sql_source.as_ref().ok_or_else(|| FraiseQLError::Validation {
-                message: format!("Query '{query_name}' has no SQL source"),
+                message: query_def.function.as_deref().map_or_else(
+                    || format!("Query '{query_name}' has no SQL source"),
+                    |function| {
+                        format!(
+                            "Query '{query_name}' is backed by the function '{function}', so                              there is no SQL plan to explain. Its cost is one invocation plus                              whatever the function reads through the read bridge — EXPLAIN                              those reads by their own query names."
+                        )
+                    },
+                ),
                 path:    None,
             })?;
 

@@ -275,9 +275,17 @@ defmodule FraiseQL.QueryDefinition do
     * `:pagination_order` — the column that orders this query's `LIMIT`/`OFFSET` pages, or
       `"none"` to keep a self-ordering view's own `ORDER BY` (#1303). `nil` means the
       compiler derives the entity identity, which is what almost every query wants.
+    * `:function` — the declared `request:query` function that answers this root field, in
+      place of `:sql_source` (#1329). The value is the function's name and the module file
+      stem the server loads, so it travels verbatim — never recased.
+
+  Exactly one of `:sql_source` and `:function` backs a query. `:sql_source` is therefore
+  no longer an enforced key: `fraiseql_query` refuses "neither" and "both" by name, which
+  says which mistake was made, where `@enforce_keys` could only say the struct was
+  incomplete.
   """
 
-  @enforce_keys [:name, :return_type, :sql_source]
+  @enforce_keys [:name, :return_type]
   defstruct [
     :name,
     :return_type,
@@ -293,13 +301,14 @@ defmodule FraiseQL.QueryDefinition do
     inject_params: nil,
     requires_role: nil,
     requires_actor: [],
-    pagination_order: nil
+    pagination_order: nil,
+    function: nil
   ]
 
   @type t :: %__MODULE__{
           name: String.t(),
           return_type: String.t(),
-          sql_source: String.t(),
+          sql_source: String.t() | nil,
           returns_list: boolean(),
           nullable: boolean(),
           arguments: [FraiseQL.ArgumentDefinition.t()],
@@ -311,7 +320,8 @@ defmodule FraiseQL.QueryDefinition do
           inject_params: map() | nil,
           requires_role: String.t() | nil,
           requires_actor: [String.t()],
-          pagination_order: String.t() | nil
+          pagination_order: String.t() | nil,
+          function: String.t() | nil
         }
 end
 

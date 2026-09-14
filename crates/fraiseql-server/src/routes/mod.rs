@@ -19,10 +19,9 @@ pub mod auth;
 // its tests run under the plain `--lib` invocations, and claiming otherwise would
 // move them to a filter line on a leg that does not need to carry them.
 pub mod before_mutation;
-#[cfg(feature = "functions")]
-pub mod functions;
 pub mod graphql;
 pub mod health;
+pub mod query_function;
 // Shared Idempotency-Key store: used by the REST write surface and by the
 // GraphQL mutation path (saga peers deduplicate at-least-once dispatch on the
 // key their coordinator sends, #747), so it lives above both transports.

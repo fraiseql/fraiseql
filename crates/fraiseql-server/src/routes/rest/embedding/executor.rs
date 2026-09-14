@@ -236,12 +236,26 @@ pub(super) fn set_empty_embedding(
     }
 }
 
-/// Find a list query that returns the given type.
+/// Find a SQL-backed list query that returns the given type.
+///
+/// Reads `schema.queries` directly rather than the derived route table, so it is the
+/// one place a REST request can reach a query the route table excluded. Since #1329
+/// that matters: a **function-backed** query has no relation, and this resolver feeds
+/// `execute_query_direct`, which would answer "Query has no SQL source" — a 500 on an
+/// embedding request, for a query the REST surface deliberately does not carry.
+///
+/// Skipped rather than refused at compile time, because a type may legitimately have
+/// both a function-backed list field and a SQL-backed one; this picks the one that can
+/// actually be embedded. A type whose *only* list query is function-backed embeds
+/// nothing, which is what the route table already says about it.
 pub(super) fn find_list_query_for_type<'a>(
     schema: &'a CompiledSchema,
     type_name: &str,
 ) -> Option<&'a fraiseql_core::schema::QueryDefinition> {
-    schema.queries.iter().find(|q| q.return_type == type_name && q.returns_list)
+    schema
+        .queries
+        .iter()
+        .find(|q| q.return_type == type_name && q.returns_list && q.function.is_none())
 }
 
 /// Extract data from executor query result envelope.

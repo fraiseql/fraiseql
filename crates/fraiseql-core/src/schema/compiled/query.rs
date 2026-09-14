@@ -148,6 +148,50 @@ pub struct QueryDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sql_source: Option<String>,
 
+    /// The declared function that answers this root field, in place of reading a
+    /// relation (#1329).
+    ///
+    /// Names an entry in the compiled `functions` section whose trigger is
+    /// `request:query`. The engine invokes it with this field's arguments, as the
+    /// requesting principal, and projects its result through this query's
+    /// `return_type` — so a function-backed field is introspectable, typed, and
+    /// governed by the same `requires_role` / `requires_actor` / field-RBAC rules
+    /// as any other root field.
+    ///
+    /// # Root fields only
+    ///
+    /// There is no nested-field equivalent, deliberately. A function attached to a
+    /// field *inside* a type would be invoked once per row, which is an N+1 in
+    /// isolates rather than in queries — measurably worse. Bounding it to root
+    /// fields makes "one invocation per query" a property of the shape rather than
+    /// a guideline, and the compiler refuses the nested spelling rather than
+    /// documenting against it.
+    ///
+    /// # Mutually exclusive with [`sql_source`](Self::sql_source)
+    ///
+    /// A field resolves one way. The compiler refuses a query declaring both, and
+    /// refuses one declaring neither where the SQL path needs a relation — there is
+    /// no precedence rule to remember and no silent winner.
+    ///
+    /// # Cost
+    ///
+    /// An invocation costs ~5–8 ms on top of the work the function itself does,
+    /// which is the same order as this repository's documented cold read and
+    /// roughly 5× a cache hit. That is a defensible price for computation SQL
+    /// cannot express and a poor one for anything a view could answer; it is
+    /// stated here, and in `docs/architecture/functions.md`, so the choice is made
+    /// knowingly.
+    ///
+    /// The **response** cache covers a function-backed field on the same terms as any
+    /// other read, at the server's global TTL, and
+    /// [`additional_views`](Self::additional_views) is how the field declares which
+    /// writes must evict it — there is no `sql_source` for the invalidator to infer
+    /// one from. [`cache_ttl_seconds`](Self::cache_ttl_seconds) is a *row*-cache TTL,
+    /// keyed by view, so it has nothing to apply to here and is a compile error beside
+    /// a `function` rather than a number that is accepted and ignored.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub function: Option<String>,
+
     /// Description.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
@@ -374,6 +418,7 @@ impl QueryDefinition {
             nullable:            false,
             arguments:           Vec::new(),
             sql_source:          None,
+            function:            None,
             description:         None,
             auto_params:         AutoParams::default(),
             deprecation:         None,
@@ -409,6 +454,16 @@ impl QueryDefinition {
         self
     }
 
+    /// Back this root field with a declared function instead of a relation (#1329).
+    ///
+    /// See [`function`](Self::function) for what the engine does with the name and
+    /// what it costs.
+    #[must_use]
+    pub fn with_function(mut self, function: impl Into<String>) -> Self {
+        self.function = Some(function.into());
+        self
+    }
+
     /// Derive the `<name>Count` sibling of this list query (#938).
     ///
     /// This is the **only** way a count query is built. A sibling query that
@@ -432,10 +487,18 @@ impl QueryDefinition {
     /// with them, since a scalar total has no rows to order; `relay`, which has
     /// its own `totalCount`; and the REST overrides, since the REST surface
     /// already counts through `Prefer: count=exact`.
+    ///
+    /// `function` is dropped for a different reason than the rest: a count is
+    /// `SELECT COUNT(*)` over a relation, and a function-backed field has none —
+    /// which is why `count = true` beside `function` is a compile error (#1329).
+    /// Dropping it here means a sibling hand-built through this constructor fails
+    /// as "no SQL source" rather than invoking the function and projecting its
+    /// object as a scalar total.
     #[must_use]
     pub fn count_sibling(&self) -> Self {
         Self {
             name: format!("{}Count", self.name),
+            function: None,
             returns_list: false,
             returns_count: true,
             nullable: false,

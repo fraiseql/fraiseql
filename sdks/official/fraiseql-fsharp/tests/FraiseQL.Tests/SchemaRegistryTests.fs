@@ -205,13 +205,14 @@ let ``reset clears all queries`` () =
             return_type = "Post"
             returns_list = true
             nullable = false
-            sql_source = "v_post"
+            sql_source = Some "v_post"
             arguments = []
             cache_ttl_seconds = None
             inject_params = None
             requires_role = None
             requires_actor = None
             pagination_order = None
+            function_ = None
             description = None
             rest = None
         }
@@ -274,13 +275,14 @@ let ``registerQuery adds to getAllQueries`` () =
             return_type = "Post"
             returns_list = true
             nullable = false
-            sql_source = "v_post"
+            sql_source = Some "v_post"
             arguments = []
             cache_ttl_seconds = None
             inject_params = None
             requires_role = None
             requires_actor = None
             pagination_order = None
+            function_ = None
             description = None
             rest = None
         }
@@ -327,13 +329,14 @@ let ``toIntermediateSchema includes all registered items`` () =
             return_type = "Post"
             returns_list = true
             nullable = false
-            sql_source = "v_post"
+            sql_source = Some "v_post"
             arguments = []
             cache_ttl_seconds = None
             inject_params = None
             requires_role = None
             requires_actor = None
             pagination_order = None
+            function_ = None
             description = None
             rest = None
         }
@@ -360,7 +363,7 @@ let ``QueryBuilder pipeline produces correct definition`` () =
     qs.[0].name |> should equal "authors"
     qs.[0].return_type |> should equal "Author"
     qs.[0].returns_list |> should equal true
-    qs.[0].sql_source |> should equal "v_author"
+    qs.[0].sql_source |> should equal (Some "v_author")
 
 [<Fact>]
 let ``MutationBuilder pipeline produces correct definition`` () =

@@ -660,6 +660,23 @@ pub fn build_dispatch_table(
             let query_name = grpc_method_to_query_name(&method_name);
 
             if let Some(query_def) = schema.find_query(&query_name) {
+                // #1329: a function-backed query is answered by a function, and this
+                // table answers a method by reading `vr_<type.sql_source>` directly —
+                // the resolver is never consulted. Registering one would serve the
+                // type's rows in place of the function's computed answer: a wrong
+                // result that looks like a right one, which is worse than the absent
+                // method skipping it produces. gRPC carries the SQL-backed surface, as
+                // REST does.
+                if query_def.function.is_some() {
+                    warn!(
+                        method = %method_name,
+                        query = %query_name,
+                        "gRPC does not carry function-backed queries (#1329) — the method \
+                         would read the type's view instead of invoking the function; \
+                         skipping"
+                    );
+                    continue;
+                }
                 let type_name = &query_def.return_type;
                 let Some(type_def) = schema.find_type(type_name) else {
                     warn!(

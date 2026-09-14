@@ -78,6 +78,25 @@ pub enum ParsedTrigger {
         /// URL path pattern.
         path:   String,
     },
+    /// Request-serving: `request:query` (#1329).
+    ///
+    /// The one trigger that is not an event. Every other kind names something that
+    /// *happened* — a write committed, a schedule fired, a message arrived — and the
+    /// dispatcher decides from the event which functions to run. This one names a
+    /// capability: the function answers a GraphQL root query field, and the binding
+    /// lives on the query, which declares `function = "<name>"` in place of
+    /// `sql_source`.
+    ///
+    /// # Why the trigger does not name the query
+    ///
+    /// It would be the second copy of one fact. The engine reads the binding off the
+    /// compiled `QueryDefinition` — it has to, since `fraiseql-core` knows nothing
+    /// about functions — so a query named here as well could disagree with the query
+    /// that actually resolves to this function, and one of the two spellings would
+    /// silently win. Naming the kind and leaving the binding to the query keeps one
+    /// fact in one place, and the pair is still checked in both directions by
+    /// [`validate_query_bindings`](TriggerRegistry::validate_query_bindings).
+    RequestQuery,
 }
 
 impl ParsedTrigger {
@@ -144,6 +163,14 @@ impl ParsedTrigger {
                 let path = parts[2..].join(":");
                 Ok(ParsedTrigger::Http { method, path })
             },
+            // Exactly two parts, deliberately. `request:query:quotePreview` is the
+            // natural mistake — every other trigger takes a selector — and it must
+            // fail here rather than parse to a bare `RequestQuery` that ignores the
+            // name the author wrote, which would leave the query bound to whatever
+            // the `function` key says while the declaration reads otherwise.
+            Some("request") if parts.len() == 2 && parts[1] == "query" => {
+                Ok(ParsedTrigger::RequestQuery)
+            },
             _ => Err(RegistryError {
                 message: format!("Invalid trigger format: {}", trigger),
             }),
@@ -161,6 +188,7 @@ impl ParsedTrigger {
             ParsedTrigger::AfterIngest { .. } => "after:ingest",
             ParsedTrigger::Cron { .. } => "cron",
             ParsedTrigger::Http { .. } => "http",
+            ParsedTrigger::RequestQuery => "request:query",
         }
     }
 
@@ -199,6 +227,36 @@ impl ParsedTrigger {
     pub const fn is_after_ingest(&self) -> bool {
         matches!(self, ParsedTrigger::AfterIngest { .. })
     }
+
+    /// Check if this is a `request:query` trigger (#1329).
+    #[must_use]
+    pub const fn is_request_query(&self) -> bool {
+        matches!(self, ParsedTrigger::RequestQuery)
+    }
+}
+
+/// One query's declared binding to a request-serving function (#1329).
+///
+/// Borrowed rather than owned so both call sites can build the slice straight from
+/// the compiled schema they already hold, without cloning names to check them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QueryFunctionBinding<'a> {
+    /// The root query field that declares `function = "<name>"`.
+    pub query:    &'a str,
+    /// The function name it declares.
+    pub function: &'a str,
+}
+
+/// Render a de-duplicated, sorted name list for a diagnostic, or say there are none.
+fn name_list<'a>(names: impl Iterator<Item = &'a str>) -> String {
+    let mut names: Vec<&str> = names.collect();
+    names.sort_unstable();
+    names.dedup();
+    if names.is_empty() {
+        "(none declared)".to_string()
+    } else {
+        names.join(", ")
+    }
 }
 
 /// Central registry for all triggers in the system.
@@ -217,6 +275,13 @@ pub struct TriggerRegistry {
     pub cron_triggers:            Vec<crate::triggers::cron::CronTrigger>,
     /// `after:ingest` triggers for inbound-message ingestion.
     pub ingest_triggers:          Vec<IngestTrigger>,
+    /// Names of the `request:query` functions (#1329), in declaration order.
+    ///
+    /// Not a matcher, because nothing matches on them: a request-serving function
+    /// is reached from the compiled query that names it, never from an event. The
+    /// list exists so a dispatcher can answer "may this name be invoked to serve a
+    /// read?" without re-parsing every trigger string.
+    pub request_query_functions:  Vec<String>,
     /// Total function definitions loaded.
     pub function_count:           usize,
 }
@@ -276,6 +341,98 @@ impl TriggerRegistry {
     /// function.
     pub fn validate_definitions(functions: &[FunctionDefinition]) -> Result<(), RegistryError> {
         Self::load_from_definitions(functions).map(|_| ())
+    }
+
+    /// Validate the pairing between function-backed queries and `request:query`
+    /// functions — in **both** directions (#1329).
+    ///
+    /// The **one** definition of "does this schema's function-backed surface hold
+    /// together". Two call sites, as with
+    /// [`validate_definitions`](Self::validate_definitions): the compiler, so a bad
+    /// declaration fails `fraiseql compile`; and the server's schema loader, because
+    /// a compiled schema is an input the server does not produce and a hand-written
+    /// or stale artifact must still fail at boot.
+    ///
+    /// Three rules, and the third is the one that is easy to leave out:
+    ///
+    /// 1. a query's `function` names a **declared** function;
+    /// 2. that function's trigger is `request:query` — an `after:mutation` handler bound to a read
+    ///    would be invoked with the wrong contract and would never fire for the reason it was
+    ///    written;
+    /// 3. every `request:query` function is named by **at least one** query. This is #871's rule
+    ///    applied to the new kind: a declared function that can never serve is a misconfiguration,
+    ///    and this one fails silently in the worst way — the function loads, the server boots, and
+    ///    nothing ever calls it.
+    ///
+    /// Reports every failing pair rather than the first, so one compile names the
+    /// whole list.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`RegistryError`] naming each query or function that does not pair.
+    pub fn validate_query_bindings(
+        bindings: &[QueryFunctionBinding<'_>],
+        functions: &[FunctionDefinition],
+    ) -> Result<(), RegistryError> {
+        let mut failures: Vec<String> = Vec::new();
+
+        for binding in bindings {
+            match functions.iter().find(|f| f.name == binding.function) {
+                None => failures.push(format!(
+                    "  query `{}`: function = `{}` names no declared function. Declared \
+                     request-serving functions are: {}",
+                    binding.query,
+                    binding.function,
+                    name_list(Self::request_query_names(functions)),
+                )),
+                Some(declared) if !Self::serves_requests(declared) => failures.push(format!(
+                    "  query `{}`: function = `{}` names a function whose trigger is `{}`. A \
+                     query may only be backed by a function declared `request:query` — an \
+                     event-triggered function is invoked with an event payload, not with \
+                     this query's arguments, so it would never answer the read it is bound \
+                     to",
+                    binding.query, binding.function, declared.trigger,
+                )),
+                Some(_) => {},
+            }
+        }
+
+        for definition in functions.iter().filter(|f| Self::serves_requests(f)) {
+            if !bindings.iter().any(|b| b.function == definition.name) {
+                failures.push(format!(
+                    "  function `{}`: trigger `request:query` is served by the query that \
+                     declares `function = \"{}\"`, and no query does. Declare it on a \
+                     root query field, or remove the function — as declared it loads, the \
+                     server boots, and nothing ever invokes it",
+                    definition.name, definition.name,
+                ));
+            }
+        }
+
+        if failures.is_empty() {
+            return Ok(());
+        }
+        Err(RegistryError {
+            message: format!(
+                "{} function-backed query binding(s) do not pair:\n{}",
+                failures.len(),
+                failures.join("\n")
+            ),
+        })
+    }
+
+    /// Whether this definition declares the request-serving trigger.
+    ///
+    /// A trigger that does not parse is not one: it is refused by
+    /// [`validate_definitions`](Self::validate_definitions), whose diagnosis is the
+    /// useful one, so treating it as "not request-serving" here cannot mask it.
+    fn serves_requests(definition: &FunctionDefinition) -> bool {
+        ParsedTrigger::parse(&definition.trigger).is_ok_and(|t| t.is_request_query())
+    }
+
+    /// The names of the `request:query` functions, for a diagnostic.
+    fn request_query_names(functions: &[FunctionDefinition]) -> impl Iterator<Item = &str> {
+        functions.iter().filter(|f| Self::serves_requests(f)).map(|f| f.name.as_str())
     }
 
     /// Load triggers from function definitions.
@@ -366,17 +523,22 @@ impl TriggerRegistry {
                     registry.before_mutation_triggers.push(trigger);
                 },
                 ParsedTrigger::Http { .. } => {
-                    // #871 item 2: `http_routes` has no consumer — no server
-                    // code mounts the matcher, and `POST /functions/v1/{name}`
-                    // dispatches by function name, ignoring the trigger. A
-                    // declared function that can never serve is a
-                    // misconfiguration; fail loud like `after:storage` until
-                    // routes are actually mounted.
+                    // #871 item 2: `http_routes` has no consumer — no server code
+                    // mounts the matcher. A declared function that can never serve is
+                    // a misconfiguration; fail loud like `after:storage`.
+                    //
+                    // The remedy changed in #1329. It used to be "invoke it via
+                    // POST /functions/v1/<name>", which was library-only — the stock
+                    // binary never mounted that route — so the advice named a door
+                    // almost nobody had. That route is retired; a function that
+                    // answers a request now does it as a typed root query field, where
+                    // it is introspectable, argument-checked and cache-governed.
                     return Err(RegistryError {
                         message: format!(
                             "function `{}` trigger `{}`: http triggers are not mounted by the \
-                             server (the declared route would never serve); invoke the function \
-                             via POST /functions/v1/{} instead",
+                             server (the declared route would never serve). To answer a request \
+                             from a function, declare it `request:query` and point a root query \
+                             field at it with `function = \"{}\"` (#1329)",
                             func.name, func.trigger, func.name
                         ),
                     });
@@ -409,6 +571,50 @@ impl TriggerRegistry {
                         function_name: func.name.clone(),
                         source,
                     });
+                },
+                ParsedTrigger::RequestQuery => {
+                    // The settings that describe a *dispatch* are refused here, where
+                    // both call sites see them. None of them is inert decoration:
+                    // `run_as` is an authority ceiling, and a security setting that is
+                    // accepted and never applied is the failure this seam exists to
+                    // remove (#1329). A request-serving function reads as its caller
+                    // through the bridge, so there is no background identity to grant.
+                    for (setting, declared, why) in [
+                        (
+                            "run_as",
+                            func.run_as.is_some(),
+                            "a request:query function reads as its caller, through the read                              bridge — there is no background identity for a ceiling to bound,                              and a ceiling that bounds nothing reads as a granted authority",
+                        ),
+                        (
+                            "when",
+                            !func.when.is_empty(),
+                            "a `when` predicate is evaluated against a row image, and a                              request-serving invocation has none: it is handed the query's                              arguments",
+                        ),
+                        (
+                            "re_runnable",
+                            func.re_runnable,
+                            "it opts out of durable dispatch, and a request-serving invocation                              is not dispatched — it answers a client that is waiting",
+                        ),
+                        (
+                            "retry",
+                            func.retry.is_some(),
+                            "a retry policy governs durable dispatch; a failed read is reported                              to the caller, who decides whether to ask again",
+                        ),
+                    ] {
+                        if declared {
+                            return Err(RegistryError {
+                                message: format!(
+                                    "function `{}` trigger `request:query`: `{setting}` cannot be                                      declared on a request-serving function — {why}",
+                                    func.name
+                                ),
+                            });
+                        }
+                    }
+                    // No matcher and no schedule: the compiled query that declares
+                    // `function = "<name>"` is what reaches this function, and that
+                    // pairing is checked by `validate_query_bindings`, which needs
+                    // the schema this call does not have.
+                    registry.request_query_functions.push(func.name.clone());
                 },
                 ParsedTrigger::Cron { expression } => {
                     let trigger = crate::triggers::cron::CronTrigger {

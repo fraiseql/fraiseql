@@ -31,11 +31,13 @@
 //!
 //! **Scope note — trigger kinds not covered here.** `before:mutation` runs
 //! synchronously in the request path (its outcome is the mutation's own
-//! success/failure, already visible on the GraphQL/HTTP metrics), and `http` edge
-//! functions (`POST /functions/v1/{name}`) return their result to the caller and are
-//! metered by the HTTP layer — neither is a background dispatch, so neither is a
-//! `fraiseql_function_dispatches_total` row. `after:storage` has no runtime dispatch
-//! path yet (parsed/validated only), so there is nothing to meter — no silent gap.
+//! success/failure, already visible on the GraphQL/HTTP metrics), and a
+//! `request:query` function (#1329) answers a root query field, so its latency and
+//! failures are already the GraphQL metrics for that field — neither is a background
+//! dispatch, so neither is a `fraiseql_function_dispatches_total` row. `http:`
+//! triggers are refused at load (#871) and the name-dispatched invoke route was
+//! retired with #1329, so there is no third request-path kind. `after:storage` has no runtime
+//! dispatch path yet (parsed/validated only), so there is nothing to meter — no silent gap.
 
 use metrics::counter;
 

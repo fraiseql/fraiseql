@@ -30,7 +30,7 @@
 
 use std::sync::Arc;
 
-use fraiseql_core::security::{MutationHookReader, SecurityContext};
+use fraiseql_core::security::{GuestQueryBridge, SecurityContext};
 use fraiseql_error::{FraiseQLError, Result};
 
 use crate::{
@@ -46,7 +46,7 @@ pub struct BeforeMutationHost {
     /// The caller-scoped, read-only GraphQL bridge (#1328). `None` leaves `query`
     /// refusing loudly rather than answering from nowhere — the engine always
     /// supplies one, so `None` means a caller built this host by hand.
-    reader:        Option<Arc<dyn MutationHookReader>>,
+    reader:        Option<Arc<dyn GuestQueryBridge>>,
     /// The principal that issued the write, or `None` when it was anonymous.
     principal:     Option<SecurityContext>,
 }
@@ -56,7 +56,7 @@ impl BeforeMutationHost {
     #[must_use]
     pub fn new(
         event_payload: EventPayload,
-        reader: Option<Arc<dyn MutationHookReader>>,
+        reader: Option<Arc<dyn GuestQueryBridge>>,
         principal: Option<&SecurityContext>,
     ) -> Self {
         Self {

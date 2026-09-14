@@ -29,6 +29,8 @@ fn relay_intermediate_schema() -> IntermediateSchema {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    function: None,
+
                     vector_config:   None,
                     vector_distance: None,
                     name:            "id".to_string(),
@@ -43,6 +45,8 @@ fn relay_intermediate_schema() -> IntermediateSchema {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    function: None,
+
                     vector_config:   None,
                     vector_distance: None,
                     name:            "name".to_string(),
@@ -74,6 +78,8 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            function: None,
+
             requires_actor:    Vec::new(),
             count:             false,
             name:              "users".to_string(),

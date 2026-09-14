@@ -190,6 +190,127 @@ async fn a_capture_or_ingest_trigger_is_not_rejected_by_the_loader() {
     }
 }
 
+// ── #1329: the query ↔ `request:query` pairing, at boot ──────────────────────
+//
+// The compiler refuses both halves of a broken pairing, so a schema this server
+// produced can never carry one. That is exactly why the check runs here too: a
+// compiled schema is an input the server does not produce, and a hand-edited or
+// stale artifact would otherwise boot clean and answer the field with "Query has
+// no SQL source" at the first request — an error about the wrong thing, at the
+// wrong time, to the wrong person.
+//
+// Ungated: `validate_query_bindings` reads names, not runtimes, so it binds on a
+// build with no function runtime as well — which is the build where a
+// silently-unanswerable field would be hardest to diagnose.
+
+/// A schema whose query names `preview_quote`, with `functions` spliced in verbatim.
+fn function_backed_schema(functions: &str) -> String {
+    format!(
+        r#"{{
+        "types": [{{"name": "Quote", "sql_source": "v_quote",
+                   "fields": [{{"name": "id", "field_type": "ID", "nullable": false}}]}}],
+        "queries": [{{"name": "quotePreview", "return_type": "Quote",
+                     "function": "preview_quote"}}],
+        "mutations": []{functions}
+    }}"#
+    )
+}
+
+/// A query bound to a function the artifact does not declare refuses to boot.
+#[tokio::test]
+async fn a_query_bound_to_a_missing_function_refuses_to_boot() {
+    let file = write_schema(&function_backed_schema(""));
+    let loader = CompiledSchemaLoader::new(file.path());
+
+    let error = loader
+        .load_extended()
+        .await
+        .expect_err("a query bound to nothing must refuse to boot (#1329)");
+    let message = error.to_string();
+    assert!(
+        message.contains("quotePreview") && message.contains("preview_quote"),
+        "the refusal must name the query and the function it could not resolve; got: {message}"
+    );
+}
+
+/// A query bound to an **event**-triggered function refuses to boot.
+///
+/// The name resolves, so a presence check passes. The function would be handed an
+/// event payload it never receives and would answer no read.
+#[cfg(feature = "functions-runtime")]
+#[tokio::test]
+async fn a_query_bound_to_an_event_triggered_function_refuses_to_boot() {
+    let functions = r#",
+        "functions": {"module_dir": "/opt/fraiseql/functions",
+                      "definitions": [{"name": "preview_quote",
+                                       "trigger": "after:mutation:Quote:update",
+                                       "runtime": "Wasm"}]}"#;
+    let file = write_schema(&function_backed_schema(functions));
+    let loader = CompiledSchemaLoader::new(file.path());
+
+    let message = loader
+        .load_extended()
+        .await
+        .expect_err("an event-triggered function may not back a query (#1329)")
+        .to_string();
+    assert!(
+        message.contains("after:mutation:Quote:update") && message.contains("request:query"),
+        "the refusal must name the trigger it found and the one it needs; got: {message}"
+    );
+}
+
+/// A `request:query` function no query names refuses to boot — it would load, the
+/// server would start, and nothing would ever invoke it.
+#[cfg(feature = "functions-runtime")]
+#[tokio::test]
+async fn a_request_query_function_no_query_names_refuses_to_boot() {
+    let json = r#"{
+        "types": [],
+        "functions": {"module_dir": "/opt/fraiseql/functions",
+                      "definitions": [{"name": "preview_quote",
+                                       "trigger": "request:query",
+                                       "runtime": "Wasm"}]}
+    }"#;
+    let file = write_schema(json);
+    let loader = CompiledSchemaLoader::new(file.path());
+
+    let message = loader
+        .load_extended()
+        .await
+        .expect_err("a function nothing can invoke must refuse to boot (#1329)")
+        .to_string();
+    assert!(
+        message.contains("preview_quote"),
+        "the refusal must name the function; got: {message}"
+    );
+}
+
+/// The paired declaration boots, and the binding survives to the loaded schema.
+#[cfg(feature = "functions-runtime")]
+#[tokio::test]
+async fn a_paired_function_backed_query_boots() {
+    let functions = r#",
+        "functions": {"module_dir": "/opt/fraiseql/functions",
+                      "definitions": [{"name": "preview_quote",
+                                       "trigger": "request:query",
+                                       "runtime": "Wasm"}]}"#;
+    let file = write_schema(&function_backed_schema(functions));
+    let loader = CompiledSchemaLoader::new(file.path());
+
+    let extended = loader.load_extended().await.expect("a paired function-backed query must boot");
+    assert_eq!(
+        extended
+            .schema
+            .queries
+            .iter()
+            .find(|q| q.name == "quotePreview")
+            .expect("the query must load")
+            .function
+            .as_deref(),
+        Some("preview_quote")
+    );
+}
+
 #[tokio::test]
 async fn test_schema_without_functions_returns_none() {
     let file = write_schema(minimal_schema());

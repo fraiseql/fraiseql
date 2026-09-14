@@ -17,7 +17,9 @@ use std::{
 };
 
 use fraiseql_core::schema::CompiledSchema;
-pub use functions_dts::{FunctionPayloadShape, FunctionTypeSpec, generate_functions_dts};
+pub use functions_dts::{
+    FunctionPayloadShape, FunctionTypeSpec, RequestQueryField, generate_functions_dts,
+};
 
 // Re-exported for the emitters: the language-independent machinery lives in
 // `client::common` so the Python generator shares the exact same documents.

@@ -18,6 +18,41 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`POST /functions/v1/{name}` and `Server::with_functions` are removed (#1329).**
+
+  The route dispatched a function by name, ignoring its declared trigger, and it was
+  mounted only by `Server::with_functions` — which the stock binary never called. So it
+  was reachable by embedders and by nobody who runs `fraiseql-server`. A function that
+  answers a request now does it as a **typed root query field**, where it is
+  introspectable, its arguments and result are checked against the schema, and it
+  participates in the existing auth, RLS, field-RBAC and cache machinery. One path from a
+  request to a function instead of two that drift.
+
+  An embedder calling `with_functions` should declare the function `request:query` and
+  point a root query field at it with `function = "<name>"`. `http:` triggers stay refused
+  (#871), and their refusal message now names that surface instead of the retired route.
+
+  `fraiseql-server`'s **`functions` Cargo feature is removed** with it: it gated that route
+  and nothing else, so with the route gone it was a feature with no `cfg` behind it — which
+  is what `make lint-feature-chains` refuses. `functions-runtime` no longer pulls it. A
+  build that enabled `functions` alone got no function dispatch anyway; `functions-runtime`
+  is the feature that runs functions, and it is unchanged.
+
+  The feature-matrix combo that named it is **retargeted, not dropped**:
+  `server-functions-rest-testing` becomes `server-functions-runtime-rest-testing`. No server
+  combo had ever named `functions-runtime`, and it is the feature the function-backed query
+  resolver is gated on — preflight lints `--all-features`, where a mis-gated item compiles
+  either way, so this is the only build that has the feature ON with its siblings OFF.
+
+- **`MutationHookReader` is renamed `GuestQueryBridge` and moved to
+  `fraiseql_core::security::guest_query_bridge` (#1329).**
+
+  The trait is the read-only, caller-scoped GraphQL bridge a sandboxed guest reads
+  through. It had one consumer when it was named, and now it has two — a `before:mutation`
+  hook and a `request:query` function — so a name saying "mutation hook" was describing
+  one of its callers rather than what it is. The re-export from
+  `fraiseql_core::security` is unchanged in shape; only the name differs.
+
 - **`DatabaseAdapter` now requires `'static`, and `BeforeMutationRequest` carries a read
   bridge (#1328).** Two signature changes an embedder can see.
 
@@ -28,7 +63,7 @@ disagreed, and the promise was the part that was wrong.
   spelled `A: DatabaseAdapter + 'static` explicitly, and nothing in this repository needed
   a change. An adapter that borrows would now fail to compile.
 
-  `BeforeMutationRequest` gains a `reader: Option<Arc<dyn MutationHookReader>>` field.
+  `BeforeMutationRequest` gains a `reader: Option<Arc<dyn GuestQueryBridge>>` field.
   `BeforeMutationRequest::new` is unchanged and leaves it `None`; `with_reader` sets it.
   An embedder implementing `BeforeMutationGate` needs no change unless it wants to read.
 
@@ -906,6 +941,87 @@ disagreed, and the promise was the part that was wrong.
   retry cadence — only parked a hot-path task.
 
 ### Added
+
+- **A function can answer a request: function-backed root query fields (#1329).** Every
+  trigger the stock binary ran was a side effect. No function could compute and *return* a
+  result without persisting something first — which ruled out a quote preview, a
+  recommendation, an LLM-backed answer, a BFF-style aggregation. Three partial pieces
+  existed and none of them connected: a library-only invoke route, `http:` triggers refused
+  since #871, and queries that resolved only to SQL.
+
+  A root query field now declares the function that answers it, in place of a
+  `sql_source`:
+
+  ```python
+  @fraiseql.function(trigger="request:query")
+  def preview_quote() -> None: ...
+
+  @fraiseql.query(function="preview_quote")
+  def quote_preview(sku: str) -> Quote | None: ...
+  ```
+
+  **The engine keeps everything except the value.** `requires_role` and `requires_actor`
+  are enforced before the function is asked; field-level RBAC is applied to what comes
+  back — both the static `requires_scope` gate and the per-row dynamic authorizer (#423),
+  which now shares one implementation with the SQL path rather than a second copy; the
+  selection set is projected and `__typename` stamped by the same projector the SQL path
+  uses; the response cache is consulted and populated on the same terms as any other read.
+  So a guest cannot invent a field the schema does not declare or return one the caller's
+  scopes deny.
+
+  On caching, one thing is worth stating plainly rather than implying: `fraiseql-server`
+  installs no whole-response cache at all (#1344, found here and filed), and the row cache
+  it does run is keyed by view — which a function-backed field has not got. So in the stock
+  binary the function runs on every request. This read path consults the response cache
+  exactly as the SQL path does, so the field becomes cacheable the day that is wired rather
+  than needing the decision re-made then. `cache_ttl_seconds` is refused beside a `function`
+  for the same reason: it is a row-cache TTL with nothing here to apply to.
+
+  **It runs as its caller**, on the read-only bridge from #1328 — the same object, not a
+  second one — so it can never surface a row the caller could not have read itself. On an
+  RLS deployment an anonymous request still reaches a computation-only field, and fails
+  closed on any read the function attempts, because the refusal governs that read rather
+  than this field.
+
+  **Root fields only.** A nested resolver runs once per row, so a function there would be
+  an N+1 measured in V8 isolates. The compiler refuses the nested spelling with a message
+  saying why, and the read bridge refuses a *guest* read of a function-backed field for the
+  same reason — without it, a field that read itself would recurse one isolate per level
+  until the query timed out.
+
+  **It costs ~5–8 ms per invocation** before the function does any work (release build,
+  trivial guest; ~2.65 ms of it is deno_core's bootstrap). That is the same order as this
+  repository's documented cold read and roughly 5× a cache hit — a defensible price for
+  computation SQL cannot express and a poor one for anything a view could answer. The
+  number is in the docs next to the declaration so the choice is made knowingly, and it is
+  what #1342 bought: the same invocation was 23.6 ms before it.
+
+  **Timeouts name the field.** A function's declared `timeout_ms` is the author's ceiling
+  and wins over `FRAISEQL_FUNCTIONS_REQUEST_QUERY_BUDGET_MS` (default 5 000 ms, `0`
+  disables), which is the operator's default for functions that declare none. An overrun
+  is a GraphQL error naming the field, not a dropped connection.
+
+  **Everything that cannot apply is refused, not carried.** On the function:
+  `run_as`, `when`, `re_runnable`, `retry`. On the query: `relay`, `count`,
+  `pagination_order`, `auto_params`, `rest_stream`, `jsonb_column`, `read_routing`,
+  `cache_ttl_seconds`, a `rest` route override — and `inject_params`, which is the one that
+  matters, because dropping a tenant-scoping control does not break a field, it widens one.
+
+  **`/graphql` and MCP carry it; REST and gRPC do not.** MCP needed no change — it builds a
+  GraphQL document and hands it to the executor, which is the payoff of resolving inside the
+  engine. REST's derived route table excludes function-backed queries (it invents filters and
+  pagination the field cannot take), and so does REST resource *embedding*, which is the one
+  REST path that resolves a target out of the schema rather than the route table. The gRPC
+  dispatch table excludes them too, and that one mattered most: it answers a method by reading
+  `vr_<type.sql_source>` directly and never consults a resolver, so registering one would have
+  served **the type's rows in place of the function's answer** — a wrong result that looks
+  right. `EXPLAIN` refuses with a message naming the function instead of "no SQL source". The query ↔ function pairing is checked
+  in both directions, by the compiler and again by the server's schema loader: a query
+  bound to nothing, a query bound to an event-triggered function, and a `request:query`
+  function no query names are all refusals.
+
+  `function = "<name>"` is the 27th cross-SDK conformance construct; ten of the eleven
+  official SDKs author it and `fraiseql-rust` declares the gap.
 
 - **A `before:mutation` hook can read (#1328).** A rule that depends on data — a credit
   limit, a price, a quota, the target row's current state — could not be written as a
@@ -2318,7 +2434,7 @@ disagreed, and the promise was the part that was wrong.
   blocks, so any build with `rest` and neither export feature warned `unused variable: mount`.
   The warning is benign; that nothing turned it red is not. `preflight` lints
   `--all-features`, where the export cfgs are compiled in and the parameter *is* read; the two
-  combos that build this shape (`server-functions-rest-testing`, `server-rest-arrow`) run
+  combos that build this shape (`server-functions-runtime-rest-testing`, `server-rest-arrow`) run
   `cargo check`, which emits no clippy lints — so this is a configuration no gate read, which
   is the state a real defect would hide in.
 

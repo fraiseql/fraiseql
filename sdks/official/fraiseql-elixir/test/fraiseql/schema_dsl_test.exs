@@ -120,6 +120,44 @@ defmodule FraiseQL.SchemaDslTest do
       requires_role: "admin",
       requires_actor: ["human_user"],
       pagination_order: "created_at"
+
+    # A second pair, because `sql_source` and `function` are mutually exclusive
+    # (`__validate_query_source__!`) and one query cannot author both. Without this pair
+    # `function` has no authoring path in the fixture, so the splice could carry it in
+    # the block form alone and the comparison above would never look (#1329).
+    #
+    # Written without a trailing colon on purpose: `assert_covered` greps this module
+    # source for `<key>:`, so a comment spelling the key the authored way would satisfy
+    # the guard on its own, and deleting the pair below would leave it green.
+    #
+    # Only the keys the compiler accepts beside `function` are set: `inject_params` and
+    # `pagination_order` lower into SQL and are refused beside it, so a fixture carrying
+    # them would be one no schema could compile.
+    fraiseql_query :two_form_fn_with_block,
+      return_type: "Quote",
+      function: "preview_quote",
+      returns_list: true,
+      nullable: true,
+      cache_ttl_seconds: 300,
+      description: "authored with a block",
+      rest_path: "/quotes",
+      rest_method: "GET",
+      requires_role: "admin",
+      requires_actor: ["human_user"] do
+      argument :id, :id, nullable: false
+    end
+
+    fraiseql_query :two_form_fn_no_block,
+      return_type: "Quote",
+      function: "preview_quote",
+      returns_list: true,
+      nullable: true,
+      cache_ttl_seconds: 300,
+      description: "authored with a block",
+      rest_path: "/quotes",
+      rest_method: "GET",
+      requires_role: "admin",
+      requires_actor: ["human_user"]
   end
 
   defmodule TwoFormMutationSchema do
@@ -436,10 +474,10 @@ defmodule FraiseQL.SchemaDslTest do
   @query_generator_only [:auto_params]
   @mutation_generator_only [:cascade]
 
-  defp both_forms(definitions, buffer_key, generator_only) do
+  defp both_forms(definitions, buffer_key, generator_only, prefix \\ "twoForm") do
     by_name = Map.new(definitions, &{&1.name, &1})
-    with_block = Map.fetch!(by_name, "twoFormWithBlock")
-    no_block = Map.fetch!(by_name, "twoFormNoBlock")
+    with_block = Map.fetch!(by_name, prefix <> "WithBlock")
+    no_block = Map.fetch!(by_name, prefix <> "NoBlock")
 
     drop = [:name, buffer_key | generator_only]
     {with_block, no_block, Map.drop(Map.from_struct(with_block), drop),
@@ -458,6 +496,33 @@ defmodule FraiseQL.SchemaDslTest do
     assert a == b, """
     the block and no-block forms of fraiseql_query disagree on a key both should carry.
     A key added to one branch of the splice and not the other produces exactly this.
+    block form: #{inspect(a)}
+    no-block:   #{inspect(b)}
+    """
+  end
+
+  test "fraiseql_query's two function-backed forms differ only in arguments" do
+    {with_block, no_block, a, b} =
+      both_forms(
+        TwoFormQuerySchema.__fraiseql_queries__(),
+        :arguments,
+        @query_generator_only,
+        "twoFormFn"
+      )
+
+    assert length(with_block.arguments) == 1
+    assert no_block.arguments == []
+
+    # The key this pair exists for. Asserted directly as well as compared: two forms that
+    # both dropped `function` would agree, and agreement is what the comparison reads as
+    # success.
+    assert with_block.function == "preview_quote"
+    assert no_block.function == "preview_quote"
+    assert with_block.sql_source == nil
+
+    assert a == b, """
+    the block and no-block forms of a function-backed fraiseql_query disagree on a key
+    both should carry.
     block form: #{inspect(a)}
     no-block:   #{inspect(b)}
     """

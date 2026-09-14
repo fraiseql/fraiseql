@@ -164,9 +164,11 @@ impl SchemaConverter {
     ) -> Result<CompiledArtifact> {
         let functions = Self::take_functions_section(&mut intermediate)?;
         let schema = Self::convert_with_options(intermediate, options)?;
-        if let Some(functions) = &functions {
-            functions::validate_against_schema(functions, &schema)?;
-        }
+        // Unconditional, including when the project declares no function at all:
+        // a query whose `function = "<name>"` names nothing is exactly the case an
+        // `if let Some(functions)` here would wave through, and it is the one an
+        // author hits by deleting a function and forgetting the query (#1329).
+        functions::validate_against_schema(functions.as_ref(), &schema)?;
         Ok(CompiledArtifact { schema, functions })
     }
 

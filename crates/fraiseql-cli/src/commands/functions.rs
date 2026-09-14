@@ -252,10 +252,32 @@ fn synthesize_payload(
                 new,
             })
         },
+        ParsedTrigger::RequestQuery => {
+            if !fixture.is_object() {
+                bail!(
+                    "a request:query fixture is the query field's arguments object — e.g. \
+                     {{\"sku\": \"ABC-1\"}} — not {}",
+                    fixture_kind(fixture)
+                );
+            }
+            // Built by the same routine the server calls, not by a second copy of
+            // the shape. The field name a real invocation carries comes from the
+            // query that named the function, and the harness has no schema to find
+            // it in — so it stands in the function's own name and says so, rather
+            // than inventing a plausible field a guest might then key on.
+            Ok(Synthesized {
+                payload: fraiseql_functions::host::request_query::request_query_payload(
+                    name,
+                    fixture.clone(),
+                ),
+                old:     None,
+                new:     None,
+            })
+        },
         other => bail!(
             "the invoke harness does not yet synthesize a payload for {other:?} — supported \
-             kinds: after:mutation, after:capture, before:mutation. (cron / after:ingest are a \
-             tracked follow-up.)"
+             kinds: after:mutation, after:capture, before:mutation, request:query. (cron / \
+             after:ingest are a tracked follow-up.)"
         ),
     }
 }

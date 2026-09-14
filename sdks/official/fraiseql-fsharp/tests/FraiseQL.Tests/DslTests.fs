@@ -138,7 +138,7 @@ let ``QueryCEBuilder produces correct QueryDefinition`` () =
     qd.name |> should equal "authors"
     qd.return_type |> should equal "Author"
     qd.returns_list |> should equal true
-    qd.sql_source |> should equal "v_author"
+    qd.sql_source |> should equal (Some "v_author")
 
 [<Fact>]
 let ``QueryCEBuilder nullable via custom operation`` () =

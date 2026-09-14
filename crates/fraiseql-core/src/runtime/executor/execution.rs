@@ -245,9 +245,23 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// `runners::mutation::tests::before_mutation_read_bridge` does not fail an
     /// assertion, it overflows the stack.
     ///
+    /// # Re-entry into a function is refused (#1329)
+    ///
+    /// A document whose root field is **function-backed** is refused here too, and
+    /// for a reason of the same kind: the bridge is what a guest reads through, so a
+    /// guest reading a function-backed field spins a second isolate inside the first,
+    /// and a field that reads itself recurses until the query timeout, one isolate
+    /// per level. Root fields are the only place a function can be bound, so
+    /// checking the roots checks the document.
+    ///
+    /// This is the guest-side half of the "one invocation per query" property the
+    /// root-only rule gives the client-side half of. Composition belongs inside the
+    /// function, where it costs no isolate.
+    ///
     /// # Errors
     ///
     /// - [`FraiseQLError::Authorization`] — the document's operation is a mutation.
+    /// - [`FraiseQLError::Validation`] — a root field is function-backed (#1329).
     /// - Any error returned by [`execute_with_timeout`](Self::execute_with_timeout).
     pub(super) async fn execute_read_only(
         &self,
@@ -255,7 +269,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
-        if matches!(self.classify_cached(query, None)?, (QueryType::Mutation { .. }, _)) {
+        let (query_type, parsed) = self.classify_cached(query, None)?;
+        if matches!(query_type, QueryType::Mutation { .. }) {
             return Err(FraiseQLError::Authorization {
                 message:  "the before:mutation read bridge is read-only: this document is a \
                            mutation, and a before-hook may not write"
@@ -264,7 +279,38 @@ impl<A: DatabaseAdapter> Executor<A> {
                 resource: None,
             });
         }
+        if let Some(parsed) = parsed.as_ref() {
+            self.refuse_function_backed_roots(parsed)?;
+        }
         self.execute_with_timeout(query, variables, security_context, None).await
+    }
+
+    /// Refuse a guest read whose root field is answered by a function (#1329).
+    ///
+    /// Keyed on the field **name**, never the alias, for the same reason the
+    /// `before:mutation` chain is: an alias changes only the response key, and
+    /// keying on it would let `alias: quotePreview` through the check that
+    /// `quotePreview` fails.
+    fn refuse_function_backed_roots(&self, parsed: &crate::graphql::ParsedQuery) -> Result<()> {
+        for root in &parsed.selections {
+            let Some(query_def) = self.ctx.schema.find_query(&root.name) else {
+                continue;
+            };
+            if let Some(function) = query_def.function.as_deref() {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "`{}` is backed by the function `{function}`, and a function may not be \
+                         invoked from inside another one: the read bridge would spin a second \
+                         isolate inside the first, and a field reading itself would recurse \
+                         until the query timed out. Call what that function calls, or move the \
+                         shared work into a module both import.",
+                        root.name
+                    ),
+                    path:    Some(root.name.clone()),
+                });
+            }
+        }
+        Ok(())
     }
 
     /// Unified query dispatch for both the anonymous and authenticated entry

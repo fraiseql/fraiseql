@@ -934,10 +934,10 @@ func (m *FraiseqlCi) Test(
 		// passing (the #981 class).
 		"echo '### cargo test -p fraiseql-server --lib feature-gated modules with no service needs (#992)'",
 		"cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --lib -- routes::rest::streaming:: routes::rest::openapi::",
-		"cargo test -p fraiseql-server --features functions --lib routes::functions::",
 		// The function-runtime subsystem wiring: `functions = []` does not imply
 		// `functions-runtime`, so the line above compiles none of it. deno implies the
 		// base runtime, so one invocation covers both gates.
+		"cargo test -p fraiseql-server --features functions-runtime --lib routes::query_function::",
 		"cargo test -p fraiseql-server --features functions-runtime-deno --lib subsystems::",
 		// #1325: the authoring round trip — the real compiler writes a `functions`
 		// section and the real loader reads it back, with the integrity hash
@@ -947,7 +947,7 @@ func (m *FraiseqlCi) Test(
 		// `#![cfg(feature = "functions-runtime")]`, which cargo cannot see — naming
 		// it on any line without the feature builds an empty binary that reports
 		// "0 passed" and reads as covered (#1082).
-		"cargo test -p fraiseql-server --features functions-runtime --test functions_authoring_round_trip_test",
+		"cargo test -p fraiseql-server --features functions-runtime --test functions_authoring_round_trip_test --test function_backed_query_seam_test",
 		"cargo test -p fraiseql-server --features cdc-outbound --lib cdc_outbound::",
 		// #975: the same module again with the Kafka sink compiled in. Both runs
 		// are needed and neither substitutes for the other — validate_kind's

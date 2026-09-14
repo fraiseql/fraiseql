@@ -290,3 +290,22 @@ def order_updated(order_id: ID | None = None) -> Order:
 )
 def notify_approved() -> None:
     pass
+
+
+# #1329: a function-backed root query field. The query and the function are one
+# declaration in two sections — the compiler refuses a query naming no function and a
+# `request:query` function no query names — so they are authored together here.
+#
+# In this SDK `function=` reaches `schema.json` through `@fraiseql.query(**config_kwargs)`,
+# the same verbatim passthrough that carried `pagination_order` before #1305 made it a
+# contract. Authoring it here is what turns the passthrough into one again: the compiled
+# value is compared, so a passthrough that stopped working fails this gate instead of
+# silently producing a field that resolves to nothing.
+@fraiseql.function(trigger="request:query")
+def preview_quote() -> None:
+    pass
+
+
+@fraiseql.query(function="preview_quote")
+def quote_preview(sku: str) -> Order | None:
+    pass

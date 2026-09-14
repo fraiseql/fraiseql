@@ -249,9 +249,16 @@ module FraiseQL
     # a declared order does not empty a result or fail a compile — it produces a different
     # total order over the same rows. The value is interpolated into `ORDER BY` and is
     # validated by the compiler, so the rule is stated once.
+    #
+    # `function` backs this root field with a declared `request:query` function instead of
+    # a `sql_source` (#1329). The value is the function's name and the module file stem the
+    # server loads, so it is emitted verbatim rather than camelCased like an operation
+    # name. Exactly one of the two backs a query; everything that lowers into SQL — relay,
+    # count, inject, pagination_order, auto-params — is refused beside it by the compiler,
+    # which is the only place both the query and the function declaration are visible.
     def query(name, return_type:, sql_source: nil, returns_list: false, nullable: false,
               description: nil, cache_ttl_seconds: nil, requires_role: nil, requires_actor: nil,
-              inject: nil, pagination_order: nil)
+              inject: nil, pagination_order: nil, function: nil)
       builder = ArgumentListBuilder.new
       yield builder if block_given?
 
@@ -267,7 +274,24 @@ module FraiseQL
         "nullable" => nullable,
         "arguments" => builder.arguments
       }
+      # Exactly one resolution path (#1329). Refused here rather than left to the compiler
+      # because "neither" and "both" are distinct mistakes and each says which it is: an
+      # author told only that `sql_source` was missing would reasonably add one and reach
+      # a second refusal from the compiler.
+      if sql_source && function
+        raise ArgumentError,
+              "query #{name}: declares both sql_source: and function:. A root field " \
+              "resolves from a relation or from a function, not both."
+      end
+
+      unless sql_source || function
+        raise ArgumentError,
+              "query #{name}: needs either sql_source: (a view) or function: (a declared " \
+              "request:query function). It has neither."
+      end
+
       definition["sql_source"] = sql_source.to_s if sql_source
+      definition["function"] = function.to_s if function
       definition["description"] = description if description
       definition["cache_ttl_seconds"] = cache_ttl_seconds if cache_ttl_seconds
       definition["requires_role"] = requires_role.to_s if requires_role

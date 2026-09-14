@@ -3,6 +3,10 @@
   "field_deprecated": {},
   "field_description": {},
   "field_scope": {},
+  "function_backed_query": {
+    "function": {},
+    "query": {}
+  },
   "function_definition": {},
   "input_types": {},
   "mutation_arguments": {},

@@ -314,6 +314,15 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             Some(security_context),
         )?;
 
+        // #1329: a function-backed field, on the same terms as the anonymous path —
+        // after the role and actor gates, before anything that composes a statement.
+        // Both entry points branch here rather than in
+        // `execute_regular_query_maybe_security`, which would have to match the query
+        // a second time to see the binding; one function, two call sites.
+        if query_match.query_def.function.is_some() {
+            return self.execute_function_backed_query(&query_match, Some(security_context)).await;
+        }
+
         // Resolve session variables once. They are applied transaction-locally
         // on the same connection as the read (fixes #329) by passing them into
         // the connection-affine adapter call below, so PostgreSQL RLS policies
@@ -636,57 +645,12 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         //      10) ran first — AND-composition: a field shown only if both allow. Fail-closed:
         //      a Reject decision or any policy error returns 403; the value is never served.
         if gated_present {
-            use crate::security::field_authorizer as authz;
-
-            let return_type = &query_match.query_def.return_type;
-            // A gated field is selected but no authorizer is configured → fail closed.
-            let Some(authorizer) = self.ctx.config.field_authorizer.as_ref() else {
-                return Err(FraiseQLError::Authorization {
-                    message:  format!(
-                        "Field-level authorization is required for a selected field on type \
-                         '{return_type}' but no field authorizer is configured"
-                    ),
-                    action:   Some("read".to_string()),
-                    resource: Some(return_type.clone()),
-                });
-            };
-            // This version enforces only top-level entity-row fields; a gated field nested
-            // inside a sub-selection is fail-closed (tracked follow-up: extend to nesting).
-            if authz::selection_set_has_nested_gated_field(
-                &self.ctx.schema,
-                return_type,
-                root_fields,
-            ) {
-                return Err(FraiseQLError::Authorization {
-                    message:  format!(
-                        "Field-level authorization of nested fields on type '{return_type}' is \
-                         not supported in this version"
-                    ),
-                    action:   Some("read".to_string()),
-                    resource: Some(return_type.clone()),
-                });
-            }
-            // `query_match.arguments` is the request's variables, already merged
-            // with whole-argument inline values — the same map every other
-            // consumer resolves against (#903).
-            let gated = authz::collect_top_level_gated_fields(
-                &self.ctx.schema,
-                return_type,
-                root_fields,
-                &query_match.arguments,
-            )?;
-            let pass = authz::FieldAuthzPass {
-                authorizer:        authorizer.as_ref(),
-                principal:         security_context,
-                type_name:         return_type,
-                gated:             &gated,
-                statically_masked: &access.masked,
-            };
-            authz::apply_field_authorizer(
-                &pass,
+            self.apply_dynamic_field_authorizer(
+                &query_match,
+                security_context,
+                &access,
                 &results,
                 &mut projected,
-                query_match.query_def.returns_list,
             )?;
         }
 
@@ -723,13 +687,90 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
     /// every cache-key derivation in the workspace, so a new dimension added there
     /// reaches this cache too. Combined with the security-context hash, this forms
     /// the full response cache key.
-    fn compute_response_cache_key(query_match: &crate::runtime::matcher::QueryMatch) -> u64 {
+    pub(super) fn compute_response_cache_key(
+        query_match: &crate::runtime::matcher::QueryMatch,
+    ) -> u64 {
         crate::cache::generate_response_cache_key(
             &query_match.query_def.name,
             query_match.operation_name.as_deref(),
             &query_match.selections,
             &query_match.arguments,
         )
+    }
+
+    /// Apply the dynamic field authorizer (#423) to a projected result.
+    ///
+    /// Composes with the **static** scope gate (`requires_scope`) rather than
+    /// replacing it: a field is shown only if both allow. Fail-closed throughout — a
+    /// `Reject`, a policy error, a missing authorizer, or a gated field nested inside
+    /// a sub-selection all refuse rather than serve.
+    ///
+    /// One method with two call sites since #1329, not two copies. A function-backed
+    /// root field returns documents of the same declared type, so a gated field on that
+    /// type is gated there too; a read path that skipped this would be a hole in #423
+    /// that no test of the SQL path could see.
+    ///
+    /// Takes a principal by value rather than as an `Option`: a per-row policy
+    /// decision needs one. The anonymous path cannot call this at all, which is why it
+    /// refuses a selected gated field outright (`deny_if_gated_field_selected`) instead.
+    ///
+    /// # Errors
+    ///
+    /// [`FraiseQLError::Authorization`] on any of the four refusals above.
+    pub(super) fn apply_dynamic_field_authorizer(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        security_context: &SecurityContext,
+        access: &crate::runtime::field_filter::FieldAccessResult,
+        rows: &[crate::db::types::JsonbValue],
+        projected: &mut serde_json::Value,
+    ) -> Result<()> {
+        use crate::security::field_authorizer as authz;
+
+        let return_type = &query_match.query_def.return_type;
+        let root_fields: &[crate::graphql::FieldSelection] =
+            query_match.selections.first().map_or(&[], |r| r.nested_fields.as_slice());
+
+        // A gated field is selected but no authorizer is configured → fail closed.
+        let Some(authorizer) = self.ctx.config.field_authorizer.as_ref() else {
+            return Err(FraiseQLError::Authorization {
+                message:  format!(
+                    "Field-level authorization is required for a selected field on type \
+                     '{return_type}' but no field authorizer is configured"
+                ),
+                action:   Some("read".to_string()),
+                resource: Some(return_type.clone()),
+            });
+        };
+        // This version enforces only top-level entity-row fields; a gated field nested
+        // inside a sub-selection is fail-closed (tracked follow-up: extend to nesting).
+        if authz::selection_set_has_nested_gated_field(&self.ctx.schema, return_type, root_fields) {
+            return Err(FraiseQLError::Authorization {
+                message:  format!(
+                    "Field-level authorization of nested fields on type '{return_type}' is not \
+                     supported in this version"
+                ),
+                action:   Some("read".to_string()),
+                resource: Some(return_type.clone()),
+            });
+        }
+        // `query_match.arguments` is the request's variables, already merged with
+        // whole-argument inline values — the same map every other consumer resolves
+        // against (#903).
+        let gated = authz::collect_top_level_gated_fields(
+            &self.ctx.schema,
+            return_type,
+            root_fields,
+            &query_match.arguments,
+        )?;
+        let pass = authz::FieldAuthzPass {
+            authorizer:        authorizer.as_ref(),
+            principal:         security_context,
+            type_name:         return_type,
+            gated:             &gated,
+            statically_masked: &access.masked,
+        };
+        authz::apply_field_authorizer(&pass, rows, projected, query_match.query_def.returns_list)
     }
 
     /// Execute a regular query, applying RLS/role/inject enforcement when a
@@ -807,6 +848,16 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
                 ),
                 path:    None,
             });
+        }
+
+        // #1329: a function-backed field, after the role and actor gates — which
+        // decide who may reach a function at all — and **before** the RLS guard
+        // below, which governs this query's own read. This one issues none: what the
+        // function reads goes through the caller-scoped bridge, where that same guard
+        // applies to that read, anonymously. See `query_function` for why that is the
+        // honest behaviour rather than an exemption.
+        if query_match.query_def.function.is_some() {
+            return self.execute_function_backed_query(&query_match, None).await;
         }
 
         // Guard (#784): an RLS-protected deployment must not serve unauthenticated

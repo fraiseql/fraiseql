@@ -270,11 +270,15 @@ defmodule FraiseQL.SchemaExporter do
       "return_type" => q.return_type,
       "returns_list" => q.returns_list,
       "nullable" => q.nullable,
-      "sql_source" => q.sql_source,
       "arguments" => Enum.map(q.arguments, &argument_to_map/1)
     }
 
     base
+    # `maybe_put` since #1329: a function-backed query has no relation, and emitting
+    # `"sql_source" => nil` declares an empty source the compiler refuses beside the
+    # function — the right refusal for a source the author never wrote.
+    |> maybe_put("sql_source", q.sql_source)
+    |> maybe_put("function", q.function)
     |> maybe_put("description", q.description)
     |> maybe_put("cache_ttl_seconds", q.cache_ttl_seconds)
     |> maybe_put_auto_params(q.auto_params)

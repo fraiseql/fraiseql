@@ -4450,6 +4450,8 @@ mod before_mutation_read_bridge {
             ..MutationDefinition::new("guarded", "User")
         });
         schema.queries.push(QueryDefinition {
+            function: None,
+
             requires_actor:      Vec::new(),
             returns_count:       false,
             name:                "users".to_string(),

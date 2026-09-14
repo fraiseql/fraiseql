@@ -923,6 +923,14 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
               query wants — see ``docs/features/pagination.md``. Validated by the compiler
               (it is interpolated into ``ORDER BY``) rather than here, so there is one
               statement of the rule rather than two.
+            - ``function``: back this root field with a declared ``@fraiseql.function``
+              whose trigger is ``"request:query"``, instead of a ``sql_source`` (#1329).
+              The name is the function's, carried verbatim — it is the module file stem.
+              Mutually exclusive with ``sql_source``, and everything that lowers into SQL
+              (``relay``, ``count``, ``inject``, ``pagination_order``, ``auto_params``…)
+              is refused beside it by the compiler, which is the one place both the query
+              and the function declaration are visible. An invocation costs ~5-8 ms on top
+              of whatever the function does, so it is for computation SQL cannot express.
 
     Returns:
         The original function (unmodified)
@@ -1687,7 +1695,10 @@ def function(  # noqa: PLR0913 — public API; all parameters are meaningful
     Args:
         trigger: e.g. ``"after:mutation:Order:update"``,
             ``"before:mutation:placeOrder"``, ``"cron:0 * * * *"``. ``after:mutation``
-            matches the mutation's **return type**, not its name.
+            matches the mutation's **return type**, not its name. ``"request:query"``
+            (#1329) is the one trigger that is not an event: the function answers a root
+            query field, and the binding is declared on the query
+            (``@fraiseql.query(function=...)``), not repeated here.
         runtime: ``"Deno"`` (JavaScript/TypeScript) or ``"Wasm"``.
         timeout_ms: Optional timeout override; defaults to 500ms for
             ``before:mutation`` and 5s otherwise.

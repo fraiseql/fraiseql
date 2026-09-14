@@ -635,3 +635,59 @@ fn test_insert_mutation_returns_201() {
     let create = table.resources[0].routes.iter().find(|r| r.method == HttpMethod::Post).unwrap();
     assert_eq!(create.success_status, 201);
 }
+
+// ── #1329: a function-backed query carries no REST resource ──────────────────
+
+/// A function-backed root query field is not exposed over REST, and the omission is
+/// reported rather than silent.
+///
+/// The derived REST surface invents list/detail routes, filters and pagination from
+/// the type, and a function-backed field accepts none of them — every one is a
+/// compile error beside a `function` declaration. Deriving a resource anyway would
+/// mount routes that answer every request with "Query has no SQL source".
+#[test]
+fn a_function_backed_query_is_skipped_and_reported() {
+    let mut schema = schema_with_rest_config(Some(RestConfig::default()));
+    schema.types.push(user_type_def());
+    schema.queries.push(list_query("users", "User").with_sql_source("v_user"));
+    schema
+        .queries
+        .push(QueryDefinition::new("quotePreview", "User").with_function("preview_quote"));
+
+    let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
+
+    assert!(
+        table.resources.iter().all(|r| r.name != "quote-previews"),
+        "a function-backed query must not derive a REST resource: {:?}",
+        table.resources.iter().map(|r| r.name.as_str()).collect::<Vec<_>>()
+    );
+    assert!(
+        table
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("quotePreview") && d.message.contains("/graphql")),
+        "the omission must be reported, naming the query and where it IS served: {:?}",
+        table.diagnostics.iter().map(|d| d.message.as_str()).collect::<Vec<_>>()
+    );
+}
+
+/// The counterweight: the SQL-backed query beside it still derives its resource.
+///
+/// Without this, the test above would pass for a derivation that produced nothing
+/// at all.
+#[test]
+fn a_sql_backed_query_beside_a_function_backed_one_still_derives() {
+    let mut schema = schema_with_rest_config(Some(RestConfig::default()));
+    schema.types.push(user_type_def());
+    schema.queries.push(list_query("users", "User").with_sql_source("v_user"));
+    schema
+        .queries
+        .push(QueryDefinition::new("quotePreview", "User").with_function("preview_quote"));
+
+    let table = RestRouteTable::from_compiled_schema(&schema).unwrap();
+    assert!(
+        table.resources.iter().any(|r| r.name == "users"),
+        "the SQL-backed query must still derive: {:?}",
+        table.resources.iter().map(|r| r.name.as_str()).collect::<Vec<_>>()
+    );
+}

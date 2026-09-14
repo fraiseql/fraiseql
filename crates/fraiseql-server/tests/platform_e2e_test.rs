@@ -290,35 +290,6 @@ async fn test_e2e_cron_fires_and_persists_state() {
     todo!("requires running PostgreSQL with _fraiseql_cron_state table")
 }
 
-/// E2E: HTTP trigger function responds to GET request.
-///
-/// Flow:
-/// 1. Register a function at `http:GET:/functions/v1/user-count`
-/// 2. Send `GET /functions/v1/user-count`
-/// 3. Assert the function executes and returns a JSON response
-///
-/// Run with: `FRAISEQL_PLATFORM_E2E=1 FRAISEQL_TEST_URL=http://localhost:8000 cargo test ...`
-#[tokio::test]
-#[ignore = "requires full platform stack with Deno runtime (FRAISEQL_PLATFORM_E2E=1)"]
-async fn test_e2e_http_trigger_calls_graphql() {
-    if !platform_e2e_available() {
-        eprintln!("skipped: FRAISEQL_PLATFORM_E2E not set");
-        return;
-    }
-
-    let base_url =
-        std::env::var("FRAISEQL_TEST_URL").unwrap_or_else(|_| "http://localhost:8000".to_string());
-    let client = reqwest::Client::new();
-
-    let response = client
-        .get(format!("{base_url}/functions/v1/user-count"))
-        .send()
-        .await
-        .expect("request failed");
-
-    assert!(response.status().is_success(), "HTTP trigger should return 2xx");
-}
-
 /// E2E: `after:mutation` function receives entity event after DB insert.
 ///
 /// Flow:

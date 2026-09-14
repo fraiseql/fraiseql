@@ -341,6 +341,58 @@ fn find_list_query_for_type_returns_list_query() {
     assert_eq!(found.unwrap().name, "posts");
 }
 
+/// #1329: a function-backed list query is not an embeddable target.
+///
+/// This resolver reads `schema.queries` directly, so it is the one REST path that can
+/// reach a query the derived route table excluded. Feeding one to
+/// `execute_query_direct` would answer "Query has no SQL source" — a 500 on an
+/// embedding request. The SQL-backed sibling is picked instead, and it is declared
+/// **second** on purpose: a resolver that took the first match would pass this test
+/// with the filter deleted.
+#[test]
+fn find_list_query_for_type_skips_a_function_backed_query() {
+    use fraiseql_core::schema::{CompiledSchema, QueryDefinition};
+
+    let mut schema = CompiledSchema::default();
+    schema.queries.push(
+        QueryDefinition::new("postPreviews", "Post")
+            .returning_list()
+            .with_function("preview_posts"),
+    );
+    schema
+        .queries
+        .push(QueryDefinition::new("posts", "Post").returning_list().with_sql_source("v_post"));
+
+    let found = find_list_query_for_type(&schema, "Post").expect("the SQL-backed sibling");
+    assert_eq!(
+        found.name, "posts",
+        "a function-backed query has no relation to embed from; got: {}",
+        found.name
+    );
+}
+
+/// A type whose **only** list query is function-backed embeds nothing.
+///
+/// The counterweight: without it the test above would pass for a resolver that simply
+/// preferred the last query, and this is the case that must return `None` rather than
+/// fall back to something unembeddable.
+#[test]
+fn find_list_query_for_type_returns_none_when_only_a_function_backed_query_exists() {
+    use fraiseql_core::schema::{CompiledSchema, QueryDefinition};
+
+    let mut schema = CompiledSchema::default();
+    schema.queries.push(
+        QueryDefinition::new("postPreviews", "Post")
+            .returning_list()
+            .with_function("preview_posts"),
+    );
+
+    assert!(
+        find_list_query_for_type(&schema, "Post").is_none(),
+        "a function-backed query is not an embeddable target"
+    );
+}
+
 #[test]
 fn find_list_query_for_type_no_match() {
     let schema = fraiseql_core::schema::CompiledSchema::default();

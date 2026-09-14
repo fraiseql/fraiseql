@@ -154,6 +154,15 @@ public class ConformanceExportTest
             .InvalidatesFactTables("tf_sale")
             .Register();
 
+        // #1329: a function-backed root query field. The query and the function it names
+        // are one declaration in two sections — the compiler refuses either alone.
+        QueryBuilder.Query("quotePreview")
+            .ReturnType("Order")
+            .Nullable()
+            .Argument("sku", "String")
+            .Function("preview_quote")
+            .Register();
+
         // #1325: the function authoring path. The name is two words in snake_case on
         // purpose — it is the module file stem (functions/notify_approved.ts), not a
         // GraphQL name, so it must survive verbatim.
@@ -161,6 +170,13 @@ public class ConformanceExportTest
             .Trigger("after:mutation:Order:update")
             .TimeoutMs(2000)
             .WhenChangedTo("status", "approved")
+            .Register();
+
+        // #1329: the function half of `quotePreview`. `request:query` is the one trigger
+        // that names a capability rather than an event, and it names no query — the
+        // binding lives on the query, so there is one copy of it.
+        FunctionBuilder.Function("preview_quote")
+            .Trigger("request:query")
             .Register();
     }
 

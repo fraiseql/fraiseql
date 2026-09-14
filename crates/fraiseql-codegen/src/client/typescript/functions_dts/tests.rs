@@ -91,3 +91,87 @@ fn pascal_case_handles_snake_and_camel() {
     assert_eq!(pascal_case("on-webhook"), "OnWebhook");
     assert_eq!(pascal_case("X"), "X");
 }
+
+/// A `request:query` function's payload is a discriminated union over the fields it
+/// answers, with each field's arguments typed from the schema.
+///
+/// A union even for one field, deliberately: one code path renders one and many, so
+/// the shape a guest destructures does not change the day a second query names the
+/// same function.
+#[test]
+fn a_request_query_payload_is_a_discriminated_union_of_its_fields() {
+    use fraiseql_core::schema::{ArgumentDefinition, FieldType};
+
+    let argument = |name: &str, arg_type: FieldType, nullable: bool| ArgumentDefinition {
+        name: name.to_string(),
+        arg_type,
+        nullable,
+        default_value: None,
+        description: None,
+        deprecation: None,
+    };
+
+    let specs = vec![FunctionTypeSpec {
+        name:  "preview_quote".to_string(),
+        shape: FunctionPayloadShape::Request {
+            fields: vec![
+                super::RequestQueryField {
+                    name:      "quotePreview".to_string(),
+                    arguments: vec![
+                        argument("sku", FieldType::String, false),
+                        argument("quantity", FieldType::Int, true),
+                    ],
+                },
+                super::RequestQueryField {
+                    name:      "bulkQuotePreview".to_string(),
+                    arguments: vec![argument(
+                        "skus",
+                        FieldType::List(Box::new(FieldType::String)),
+                        false,
+                    )],
+                },
+            ],
+        },
+    }];
+
+    let dts = generate_functions_dts(&CompiledSchema::default(), &specs).unwrap();
+
+    assert!(
+        dts.contains("export type PreviewQuoteEvent ="),
+        "a request payload is a type alias, not an interface: {dts}"
+    );
+    assert!(
+        dts.contains(
+            r#"| { field: "quotePreview"; arguments: { sku: string; quantity: number | null } }"#
+        ),
+        "each member names its field and types its arguments: {dts}"
+    );
+    assert!(
+        dts.contains(r#"| { field: "bulkQuotePreview"; arguments: { skus: string[] } }"#),
+        "including the second field the same function answers: {dts}"
+    );
+}
+
+/// A field with no arguments still gets a member, with an empty argument object.
+///
+/// The empty object is the point: a guest destructuring `event.arguments` must not
+/// have to check whether the key exists, and the compiler's payload builder always
+/// emits one.
+#[test]
+fn a_request_query_field_with_no_arguments_still_gets_a_member() {
+    let specs = vec![FunctionTypeSpec {
+        name:  "server_time".to_string(),
+        shape: FunctionPayloadShape::Request {
+            fields: vec![super::RequestQueryField {
+                name:      "serverTime".to_string(),
+                arguments: vec![],
+            }],
+        },
+    }];
+
+    let dts = generate_functions_dts(&CompiledSchema::default(), &specs).unwrap();
+    assert!(
+        dts.contains(r#"| { field: "serverTime"; arguments: {  } }"#),
+        "an argument-less field still carries the key: {dts}"
+    );
+}

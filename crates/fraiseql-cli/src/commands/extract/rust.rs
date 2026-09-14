@@ -50,6 +50,8 @@ impl SchemaExtractor for RustExtractor {
                         nullable,
                         description: None,
                         directives: None,
+                        // #1329: refusal-only on a field; `extract` never authors one.
+                        function: None,
                         deprecated: None,
                         requires_scope: None,
                         on_deny: None,
@@ -102,6 +104,10 @@ impl SchemaExtractor for RustExtractor {
                 arguments,
                 description: None,
                 sql_source,
+                // `extract` scrapes source text and produces no `functions` section, so it
+                // cannot produce the declaration a `function = "<name>"` binding must pair
+                // with (#1329). Authoring a function-backed field goes through the SDK.
+                function: None,
                 auto_params: None,
                 deprecated: None,
                 jsonb_column: None,

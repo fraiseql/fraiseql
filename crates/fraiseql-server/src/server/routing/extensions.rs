@@ -225,12 +225,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         // Object storage routes (legacy backend)
 
-        // Edge-function routes
-        #[cfg(feature = "functions")]
-        {
-            app = self.mount_functions(app);
-        }
-
         // Inbound webhook receiver (POST /webhooks/{provider})
         #[cfg(feature = "inbound")]
         {
@@ -470,22 +464,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 "RBAC Management API disabled — admin_token is not set. \
                  Set admin_token in server configuration to enable RBAC management endpoints."
             );
-        }
-        app
-    }
-
-    #[cfg(feature = "functions")]
-    fn mount_functions(&self, mut app: Router) -> Router {
-        use crate::routes::functions::{FunctionsRouteState, functions_router};
-
-        if let (Some(ref store), Some(ref runtime)) = (&self.function_store, &self.function_runtime)
-        {
-            let functions_state = FunctionsRouteState {
-                store:   store.clone(),
-                runtime: runtime.clone(),
-            };
-            app = app.merge(functions_router(functions_state));
-            info!("Functions endpoint enabled: POST /functions/v1/{{name}}");
         }
         app
     }

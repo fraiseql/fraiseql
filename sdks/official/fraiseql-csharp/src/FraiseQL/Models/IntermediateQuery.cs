@@ -28,12 +28,22 @@ namespace FraiseQL.Models;
 /// keep a self-ordering view's own <c>ORDER BY</c> (#1303). Omitted from JSON when
 /// <see langword="null"/>, in which case the compiler derives the entity identity.
 /// </param>
+/// <param name="Function">
+/// The declared <c>request:query</c> function that answers this root field, in place of
+/// <paramref name="SqlSource"/> (#1329). The value is the function's name and the module file
+/// stem the server loads, so it travels verbatim — never recased the way a GraphQL name is.
+/// Omitted from JSON when <see langword="null"/>.
+/// </param>
 public record IntermediateQuery(
     [property: JsonPropertyName("name")]              string Name,
     [property: JsonPropertyName("return_type")]       string ReturnType,
     [property: JsonPropertyName("returns_list")]      bool ReturnsList,
     [property: JsonPropertyName("nullable")]          bool Nullable,
-    [property: JsonPropertyName("sql_source")]        string SqlSource,
+    // Nullable since #1329: a function-backed query has no relation, and `SqlSource` was
+    // the one positional parameter that could not be omitted. `WhenWritingNull` drops the
+    // key rather than emitting `""`, which the compiler would read as a declared source
+    // beside the function and refuse — the right refusal for the wrong reason.
+    [property: JsonPropertyName("sql_source")]        string? SqlSource,
     [property: JsonPropertyName("arguments")]         IReadOnlyList<IntermediateArgument> Arguments,
     [property: JsonPropertyName("cache_ttl_seconds")] int? CacheTtlSeconds = null,
     [property: JsonPropertyName("description")]       string? Description = null,
@@ -44,4 +54,5 @@ public record IntermediateQuery(
     // serde default, so an absent key and `[]` compile the same — and emitting `[]`
     // would put a declared-looking gate in the document that gates nothing.
     [property: JsonPropertyName("requires_actor")]    IReadOnlyList<string>? RequiresActor = null,
-    [property: JsonPropertyName("pagination_order")]  string? PaginationOrder = null);
+    [property: JsonPropertyName("pagination_order")]  string? PaginationOrder = null,
+    [property: JsonPropertyName("function")]          string? Function = null);

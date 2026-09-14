@@ -284,6 +284,8 @@ fn test_convert_minimal_schema() {
 #[test]
 fn convert_field_maps_authorize_true() {
     let intermediate = IntermediateField {
+        function: None,
+
         deprecated:      None,
         vector_config:   None,
         vector_distance: None,
@@ -308,6 +310,8 @@ fn convert_field_maps_authorize_true() {
 #[test]
 fn convert_field_authorize_absent_defaults_false() {
     let intermediate = IntermediateField {
+        function: None,
+
         deprecated:      None,
         vector_config:   None,
         vector_distance: None,
@@ -427,6 +431,8 @@ fn parse_field_type_plain_scalar_and_object_unchanged() {
 #[test]
 fn convert_field_list_type_compiles_to_list() {
     let intermediate = IntermediateField {
+        function: None,
+
         deprecated:      None,
         vector_config:   None,
         vector_distance: None,
@@ -464,6 +470,8 @@ fn test_convert_type_with_fields() {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -478,6 +486,8 @@ fn test_convert_type_with_fields() {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -557,6 +567,8 @@ fn test_validate_unknown_type_reference() {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            function: None,
+
             requires_actor:    Vec::new(),
             count:             false,
             name:              "users".to_string(),
@@ -640,6 +652,8 @@ fn test_convert_query_with_arguments() {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            function: None,
+
             requires_actor:    Vec::new(),
             count:             false,
             name:              "users".to_string(),
@@ -737,6 +751,8 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            function: None,
+
             requires_actor:    Vec::new(),
             count:             false,
             name:              "items".to_string(),
@@ -823,6 +839,8 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         interfaces:        vec![],
         unions:            vec![],
         queries:           vec![IntermediateQuery {
+            function: None,
+
             requires_actor:    Vec::new(),
             count:             false,
             name:              "item".to_string(),
@@ -895,6 +913,8 @@ fn test_convert_field_with_deprecated_directive() {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -912,6 +932,8 @@ fn test_convert_field_with_deprecated_directive() {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -1279,6 +1301,8 @@ fn test_convert_interface() {
         interfaces:        vec![IntermediateInterface {
             name:        "Node".to_string(),
             fields:      vec![IntermediateField {
+                function: None,
+
                 deprecated:      None,
                 vector_config:   None,
                 vector_distance: None,
@@ -1348,6 +1372,8 @@ fn test_convert_type_implements_interface() {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -1362,6 +1388,8 @@ fn test_convert_type_implements_interface() {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -1393,6 +1421,8 @@ fn test_convert_type_implements_interface() {
         interfaces:        vec![IntermediateInterface {
             name:        "Node".to_string(),
             fields:      vec![IntermediateField {
+                function: None,
+
                 deprecated:      None,
                 vector_config:   None,
                 vector_distance: None,
@@ -1461,6 +1491,8 @@ fn test_validate_unknown_interface() {
             name:                   "User".to_string(),
             sql_source:             None,
             fields:                 vec![IntermediateField {
+                function: None,
+
                 deprecated:      None,
                 vector_config:   None,
                 vector_distance: None,
@@ -1538,6 +1570,8 @@ fn test_validate_missing_interface_field() {
             fields:                 vec![
                 // Missing the required 'id' field from Node interface!
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -1569,6 +1603,8 @@ fn test_validate_missing_interface_field() {
         interfaces:        vec![IntermediateInterface {
             name:        "Node".to_string(),
             fields:      vec![IntermediateField {
+                function: None,
+
                 deprecated:      None,
                 vector_config:   None,
                 vector_distance: None,
@@ -1632,6 +1668,8 @@ fn test_convert_union() {
                 name:                   "User".to_string(),
                 sql_source:             None,
                 fields:                 vec![IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -1661,6 +1699,8 @@ fn test_convert_union() {
                 name:                   "Post".to_string(),
                 sql_source:             None,
                 fields:                 vec![IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -1747,6 +1787,8 @@ fn test_convert_field_requires_scope() {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -1761,6 +1803,8 @@ fn test_convert_field_requires_scope() {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -1775,6 +1819,8 @@ fn test_convert_field_requires_scope() {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -1789,6 +1835,8 @@ fn test_convert_field_requires_scope() {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -1961,6 +2009,8 @@ mod tenancy_tests {
 
     fn make_field(name: &str, field_type: &str) -> IntermediateField {
         IntermediateField {
+            function: None,
+
             deprecated:      None,
             vector_config:   None,
             vector_distance: None,
@@ -1978,6 +2028,8 @@ mod tenancy_tests {
 
     fn make_tenant_id_field(name: &str) -> IntermediateField {
         IntermediateField {
+            function: None,
+
             deprecated:      None,
             vector_config:   None,
             vector_distance: None,
@@ -2979,6 +3031,8 @@ mod changelog_cascade_conformance_tests {
 
     fn field(name: &str, field_type: &str) -> IntermediateField {
         IntermediateField {
+            function: None,
+
             deprecated:      None,
             vector_config:   None,
             vector_distance: None,
@@ -3561,6 +3615,8 @@ fn custom_scalar_without_rules_still_compiles() {
 /// A list query carrying `count = true`, with everything else at its default.
 fn count_query(name: &str, tweak: impl FnOnce(&mut IntermediateQuery)) -> IntermediateQuery {
     let mut q = IntermediateQuery {
+        function: None,
+
         requires_actor:    Vec::new(),
         count:             true,
         name:              name.to_string(),
@@ -3909,6 +3965,8 @@ mod auto_params_parity_tests {
             interfaces:        vec![],
             unions:            vec![],
             queries:           vec![IntermediateQuery {
+                function: None,
+
                 requires_actor: Vec::new(),
                 count: false,
                 name: "items".to_string(),

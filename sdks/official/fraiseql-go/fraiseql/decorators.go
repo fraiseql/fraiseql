@@ -88,6 +88,7 @@ type QueryBuilder struct {
 	requiresRole      string
 	requiresActor     []string
 	paginationOrder   string
+	function          string
 	deprecation       *DeprecationInfo
 }
 
@@ -220,6 +221,24 @@ func (qb *QueryBuilder) PaginationOrder(column string) *QueryBuilder {
 	return qb
 }
 
+// Function backs this root query field with a declared `request:query` function
+// instead of a SQL source (#1329).
+//
+// The name is the function's, and it is the module file stem the server loads
+// (<module_dir>/<name>.<ext>), so it is carried verbatim rather than recased.
+//
+// Mutually exclusive with SqlSource, and everything that lowers into SQL — Relay,
+// Count, InjectParams, PaginationOrder, auto-params — is refused beside it. Those
+// refusals live in the compiler rather than here for the reason PaginationOrder's do:
+// it is the only place the query and the function declaration are both visible.
+//
+// An invocation costs ~5-8 ms on top of whatever the function itself does, so this is
+// for computation SQL cannot express, not for anything a view could answer.
+func (qb *QueryBuilder) Function(name string) *QueryBuilder {
+	qb.function = name
+	return qb
+}
+
 // RestPath sets the REST endpoint path for this query.
 func (qb *QueryBuilder) RestPath(path string) *QueryBuilder {
 	qb.restPath = path
@@ -278,6 +297,7 @@ func (qb *QueryBuilder) Register() error {
 		RequiresRole:      qb.requiresRole,
 		RequiresActor:     qb.requiresActor,
 		PaginationOrder:   qb.paginationOrder,
+		Function:          qb.function,
 		Deprecation:       qb.deprecation,
 	}
 

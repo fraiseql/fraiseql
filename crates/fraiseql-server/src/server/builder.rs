@@ -926,10 +926,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             pool_tuning_config: None,
             adapter_cache_enabled: false,
             storage_max_upload_bytes: 100 * 1024 * 1024, // 100 MiB default
-            #[cfg(feature = "functions")]
-            function_store: None,
-            #[cfg(feature = "functions")]
-            function_runtime: None,
             usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
             // The default construction path. `with_relay_pagination` overrides it
             // with the relay-capable one; nothing else may set it, so a reload
@@ -1627,23 +1623,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         manager: Arc<crate::token_revocation::TokenRevocationManager>,
     ) -> Self {
         self.revocation_manager = Some(manager);
-        self
-    }
-
-    /// Attach a function deployment store and runtime, mounting `/functions/v1/` routes.
-    ///
-    /// When set, the server mounts `POST /functions/v1/{name}` which loads the
-    /// function bytecode from `store`, executes it via `runtime`, and returns the
-    /// JSON-encoded [`FunctionResult`](fraiseql_functions::FunctionResult).
-    #[cfg(feature = "functions")]
-    #[must_use]
-    pub fn with_functions(
-        mut self,
-        store: Arc<dyn fraiseql_functions::FunctionStore>,
-        runtime: Arc<dyn fraiseql_functions::runtime::SendFunctionRuntime>,
-    ) -> Self {
-        self.function_store = Some(store);
-        self.function_runtime = Some(runtime);
         self
     }
 

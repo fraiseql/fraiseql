@@ -362,6 +362,9 @@ public class SchemaFormatter {
             if (queryInfo.paginationOrder != null) {
                 queryNode.put("pagination_order", queryInfo.paginationOrder);
             }
+            if (queryInfo.function != null) {
+                queryNode.put("function", queryInfo.function);
+            }
             // Emitted only when non-empty: `IntermediateQuery.requires_actor` is a
             // `Vec<String>` with a serde default, so `[]` and an absent key compile the
             // same — and emitting `[]` puts a declared-looking gate in the document that

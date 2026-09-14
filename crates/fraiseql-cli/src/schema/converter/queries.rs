@@ -62,6 +62,14 @@ impl SchemaConverter {
         defaults: &IntermediateQueryDefaults,
         declared: &DeclaredTypeNames,
     ) -> Result<QueryDefinition> {
+        // A function-backed root field resolves nothing through SQL (#1329), so
+        // every setting that lowers into a statement is refused beside it rather
+        // than compiled into an artifact where nothing reads it. Before the relay
+        // and count checks, which would otherwise answer "requires sql_source" to a
+        // query that deliberately has none — a true statement about the wrong
+        // mistake.
+        Self::refuse_sql_settings_on_a_function_backed_query(&intermediate)?;
+
         // Validate relay constraints before conversion.
         if intermediate.relay {
             if !intermediate.returns_list {
@@ -130,7 +138,14 @@ impl SchemaConverter {
         //   1. Relay:       always {where:T, order_by:T, limit:F, offset:F} (spec-mandated)
         //   2. Single-item: always all-false (no auto-params)
         //   3. List:        resolve per-query override on top of TOML defaults
-        let auto_params = if intermediate.relay {
+        let auto_params = if intermediate.function.is_some() {
+            // Not `resolve_auto_params`: the project-wide `[query_defaults]` are a
+            // statement about SQL-backed list queries, and inheriting them here
+            // would put `limit`/`offset`/`where` arguments on a field whose
+            // resolution ignores them. A per-query flag is a different matter and is
+            // refused above.
+            AutoParams::default()
+        } else if intermediate.relay {
             AutoParams::relay()
         } else if intermediate.returns_list {
             Self::resolve_auto_params(intermediate.auto_params.as_ref(), defaults)
@@ -211,6 +226,7 @@ impl SchemaConverter {
             nullable: intermediate.nullable,
             arguments,
             sql_source: intermediate.sql_source,
+            function: intermediate.function,
             description: intermediate.description,
             auto_params,
             deprecation,
@@ -233,6 +249,125 @@ impl SchemaConverter {
             rest_stream: intermediate.rest_stream,
             native_columns: HashMap::new(),
         })
+    }
+
+    /// Refuse the SQL-lowering settings beside a `function` declaration (#1329).
+    ///
+    /// A function-backed root field is answered by a declared function, not by
+    /// reading a relation, so none of these has anything to act on. Carrying them
+    /// silently is the failure mode this compiler keeps removing: the artifact
+    /// would declare a setting the server reads and cannot apply, and the author
+    /// would learn it from production rather than from the compile.
+    ///
+    /// `inject_params` is the one that matters most. It is how a query is scoped to
+    /// the caller's tenant, and dropping it does not break a query — it widens one.
+    ///
+    /// Each refusal names the setting and says what to do instead, because "not
+    /// supported" is the message that sends an author looking for a flag.
+    fn refuse_sql_settings_on_a_function_backed_query(query: &IntermediateQuery) -> Result<()> {
+        let Some(function) = query.function.as_deref() else {
+            return Ok(());
+        };
+        let name = &query.name;
+
+        if query.sql_source.is_some() {
+            bail!(
+                "Query '{name}': declares both sql_source and function = '{function}'. A root \
+                 field resolves one way — from a relation or from a function — and there is no \
+                 precedence rule between them. Drop whichever one this field does not use."
+            );
+        }
+        if query.relay {
+            bail!(
+                "Query '{name}': relay = true cannot be combined with function = '{function}'. A \
+                 Relay connection pages by keyset over a view's cursor column, which a \
+                 function-backed field has not got. Return the page from the function itself, as \
+                 a list."
+            );
+        }
+        if query.count {
+            bail!(
+                "Query '{name}': count = true cannot be combined with function = '{function}'. \
+                 The sibling is issued as SELECT COUNT(*) over the query's view, and this field \
+                 has none. Return the total from the function, in its own field."
+            );
+        }
+        if !query.inject.is_empty() {
+            bail!(
+                "Query '{name}': inject_params cannot be combined with function = '{function}'. \
+                 An injected param becomes a WHERE condition on the query's view, so on a \
+                 function-backed field it would be accepted and never applied — and it is a \
+                 scoping control, so dropping it widens the field rather than breaking it. The \
+                 function runs as the caller and reads through the read bridge, where RLS and the \
+                 caller's own claims already apply."
+            );
+        }
+        if let Some(order) = query.pagination_order.as_deref() {
+            bail!(
+                "Query '{name}': pagination_order = '{order}' cannot be combined with function = \
+                 '{function}'. It names the total order a LIMIT/OFFSET page over a relation falls \
+                 back to, and this field reads none. The function decides the order of what it \
+                 returns."
+            );
+        }
+        if let Some(rest) = query.rest.as_ref() {
+            bail!(
+                "Query '{name}': a rest block (path '{}') cannot be combined with function = \
+                 '{function}'. A function-backed field is a GraphQL root field and is not \
+                 exposed over REST at all: that surface is derived — it invents list/detail \
+                 routes, filters and pagination from the type — and this field accepts none of \
+                 them. Overriding a route it does not have would be accepted and never applied.",
+                rest.path
+            );
+        }
+        if query.rest_stream {
+            bail!(
+                "Query '{name}': rest_stream = true cannot be combined with function = \
+                 '{function}'. A streamed export reads the whole filtered relation and hands the \
+                 rows over as they arrive; a function returns one value, whole."
+            );
+        }
+        if let Some(column) = query.jsonb_column.as_deref() {
+            bail!(
+                "Query '{name}': jsonb_column = '{column}' cannot be combined with function = \
+                 '{function}'. It names the column a row's document is extracted from, and this \
+                 field reads no row — the function returns the document itself."
+            );
+        }
+        if let Some(ttl) = query.cache_ttl_seconds {
+            bail!(
+                "Query '{name}': cache_ttl_seconds = {ttl} cannot be combined with function = \
+                 '{function}'. A per-query TTL is applied to the row cache, keyed by the query's \
+                 view, and this field reads none — so the number would be accepted and never \
+                 applied. Declare `additional_views` instead: it is what tells the invalidator \
+                 which writes must evict this field's cached answers."
+            );
+        }
+        if !query.read_routing.is_default() {
+            bail!(
+                "Query '{name}': read_routing cannot be combined with function = '{function}'. It \
+                 places this query's own reads on a primary or a replica, and a function-backed \
+                 field issues none: the reads are the ones the function makes through the read \
+                 bridge, which are routed by their own queries."
+            );
+        }
+        if let Some(declared) = query.auto_params.as_ref() {
+            let flags = [
+                ("where", declared.where_clause),
+                ("order_by", declared.order_by),
+                ("limit", declared.limit),
+                ("offset", declared.offset),
+            ];
+            if let Some((flag, _)) = flags.into_iter().find(|(_, v)| *v == Some(true)) {
+                bail!(
+                    "Query '{name}': auto_params.{flag} = true cannot be combined with function = \
+                     '{function}'. Auto-params are lowered into the statement this field would \
+                     have run. Declare the argument explicitly instead, and let the function act \
+                     on it."
+                );
+            }
+        }
+        Ok(())
     }
 
     /// Convert `IntermediateArgument` to `ArgumentDefinition`

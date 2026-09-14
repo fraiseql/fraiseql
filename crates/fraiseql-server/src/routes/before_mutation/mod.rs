@@ -165,7 +165,7 @@ impl FunctionChainGate {
     ///
     /// Feature-gated because the host surface it runs on lives behind
     /// `fraiseql-functions/host-live` (it reads through the engine's bridge, so it
-    /// names `fraiseql-core`'s `MutationHookReader`). Everything around it — the
+    /// names `fraiseql-core`'s `GuestQueryBridge`). Everything around it — the
     /// chain lookup, the budget, and the outcome mapping — stays ungated, and so
     /// stays covered by the plain `--lib` test invocations.
     #[cfg(feature = "functions-runtime")]

@@ -141,7 +141,9 @@ fn functions_type_specs(
     raw: &str,
     schema: &CompiledSchema,
 ) -> Vec<fraiseql_codegen::client::typescript::FunctionTypeSpec> {
-    use fraiseql_codegen::client::typescript::{FunctionPayloadShape, FunctionTypeSpec};
+    use fraiseql_codegen::client::typescript::{
+        FunctionPayloadShape, FunctionTypeSpec, RequestQueryField,
+    };
     use fraiseql_functions::{FunctionsConfig, triggers::registry::ParsedTrigger};
 
     let Some(functions) = serde_json::from_str::<serde_json::Value>(raw)
@@ -170,6 +172,28 @@ fn functions_type_specs(
                 | ParsedTrigger::AfterCapture { entity_type, .. } => entity_shape(entity_type),
                 ParsedTrigger::Cron { .. } => FunctionPayloadShape::Cron,
                 ParsedTrigger::AfterIngest { .. } => FunctionPayloadShape::Ingest,
+                // #1329: the payload is the arguments of whichever root query field
+                // named this function. The binding is one-way — the query names the
+                // function — so the queries are found by scanning them, and finding
+                // none is impossible in a compiled artifact: `validate_query_bindings`
+                // refuses a `request:query` function no query names. An empty union
+                // would still be valid TypeScript and would silently type every guest
+                // payload as `never`, so it is skipped rather than emitted.
+                ParsedTrigger::RequestQuery => {
+                    let fields: Vec<RequestQueryField> = schema
+                        .queries
+                        .iter()
+                        .filter(|q| q.function.as_deref() == Some(def.name.as_str()))
+                        .map(|q| RequestQueryField {
+                            name:      q.name.clone(),
+                            arguments: q.arguments.clone(),
+                        })
+                        .collect();
+                    if fields.is_empty() {
+                        return None;
+                    }
+                    FunctionPayloadShape::Request { fields }
+                },
                 // http / before:mutation / after:storage: no author-facing payload yet.
                 ParsedTrigger::Http { .. }
                 | ParsedTrigger::BeforeMutation { .. }

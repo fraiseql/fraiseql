@@ -80,6 +80,8 @@ fn test_wrap_nullable() {
 #[test]
 fn test_derive_class_name() {
     let list_query = IntermediateQuery {
+        function: None,
+
         requires_actor:    Vec::new(),
         count:             false,
         name:              "authors".to_string(),
@@ -106,6 +108,8 @@ fn test_derive_class_name() {
     assert_eq!(derive_class_name(&list_query), "Authors");
 
     let single_query = IntermediateQuery {
+        function: None,
+
         requires_actor:    Vec::new(),
         count:             false,
         name:              "author".to_string(),
@@ -154,6 +158,8 @@ fn sample_schema() -> IntermediateSchema {
             sql_source:             None,
             fields:                 vec![
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -168,6 +174,8 @@ fn sample_schema() -> IntermediateSchema {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -182,6 +190,8 @@ fn sample_schema() -> IntermediateSchema {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -196,6 +206,8 @@ fn sample_schema() -> IntermediateSchema {
                     hierarchy:       None,
                 },
                 IntermediateField {
+                    function: None,
+
                     deprecated:      None,
                     vector_config:   None,
                     vector_distance: None,
@@ -224,6 +236,8 @@ fn sample_schema() -> IntermediateSchema {
         }],
         queries: vec![
             IntermediateQuery {
+                function: None,
+
                 requires_actor:    Vec::new(),
                 count:             false,
                 name:              "authors".to_string(),
@@ -248,6 +262,8 @@ fn sample_schema() -> IntermediateSchema {
                 pagination_order:  None,
             },
             IntermediateQuery {
+                function: None,
+
                 requires_actor:    Vec::new(),
                 count:             false,
                 name:              "author".to_string(),

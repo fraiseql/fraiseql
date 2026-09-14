@@ -26,7 +26,7 @@ use anyhow::{Result, bail};
 use fraiseql_core::schema::CompiledSchema;
 use fraiseql_functions::{
     FunctionsConfig,
-    triggers::registry::{ParsedTrigger, TriggerRegistry},
+    triggers::registry::{ParsedTrigger, QueryFunctionBinding, TriggerRegistry},
 };
 
 /// Validate the compiled `functions` section against the schema it ships with.
@@ -35,19 +35,39 @@ use fraiseql_functions::{
 /// the full list — a project adding five functions at once should not need five
 /// round trips.
 ///
+/// `functions` is an `Option` because one of the checks is about the schema's side
+/// of the pairing: a query declaring `function = "<name>"` in a project with **no**
+/// functions section is precisely the case a `Some`-only call site waves through,
+/// and it is the one an author reaches by deleting a function and forgetting the
+/// query (#1329).
+///
 /// # Errors
 ///
-/// Returns an error naming each function that cannot fire as declared.
-pub fn validate_against_schema(functions: &FunctionsConfig, schema: &CompiledSchema) -> Result<()> {
+/// Returns an error naming each function that cannot fire as declared, and each
+/// query that does not pair with one.
+pub fn validate_against_schema(
+    functions: Option<&FunctionsConfig>,
+    schema: &CompiledSchema,
+) -> Result<()> {
+    let definitions: &[fraiseql_functions::FunctionDefinition] =
+        functions.map_or(&[], |f| f.definitions.as_slice());
+
     // The shared rule first: a trigger that does not parse cannot be cross-referenced,
     // and its diagnosis is more useful than a follow-on "names no mutation".
-    if let Err(error) = TriggerRegistry::validate_definitions(&functions.definitions) {
+    if let Err(error) = TriggerRegistry::validate_definitions(definitions) {
+        bail!("{}", error.message);
+    }
+
+    // The query ↔ `request:query` pairing, in both directions (#1329). The same
+    // rule the server's loader applies at boot, from its one implementation.
+    let bindings: Vec<QueryFunctionBinding<'_>> = query_function_bindings(schema);
+    if let Err(error) = TriggerRegistry::validate_query_bindings(&bindings, definitions) {
         bail!("{}", error.message);
     }
 
     let mut failures: Vec<String> = Vec::new();
 
-    for definition in &functions.definitions {
+    for definition in definitions {
         // `validate_definitions` above already proved every trigger parses.
         let Ok(parsed) = ParsedTrigger::parse(&definition.trigger) else {
             continue;
@@ -87,12 +107,17 @@ pub fn validate_against_schema(functions: &FunctionsConfig, schema: &CompiledSch
             // FraiseQL, `cron` names no schema object, and `after:ingest` names an
             // inbound source — none of them cross-reference the schema. `http:` and
             // `after:storage` never reach here: `validate_definitions` refuses them.
+            // `request:query` does cross-reference the schema, and is checked above
+            // by `validate_query_bindings` — in the other direction as well, which
+            // this loop's shape (one pass over the definitions) cannot express.
             _ => {},
         }
     }
 
-    if let Err(module_failures) = modules_are_present(functions) {
-        failures.extend(module_failures);
+    if let Some(functions) = functions {
+        if let Err(module_failures) = modules_are_present(functions) {
+            failures.extend(module_failures);
+        }
     }
 
     if !failures.is_empty() {
@@ -184,6 +209,24 @@ fn modules_are_present(functions: &FunctionsConfig) -> Result<(), Vec<String>> {
     } else {
         Err(failures)
     }
+}
+
+/// The function-backed queries in a compiled schema, as bindings to check (#1329).
+///
+/// Built from the **compiled** schema rather than the intermediate one, so it sees
+/// the same `function` value the server will read at boot — the two call sites of
+/// `validate_query_bindings` are then answering a question about the same bytes.
+fn query_function_bindings(schema: &CompiledSchema) -> Vec<QueryFunctionBinding<'_>> {
+    schema
+        .queries
+        .iter()
+        .filter_map(|query| {
+            query.function.as_deref().map(|function| QueryFunctionBinding {
+                query: query.name.as_str(),
+                function,
+            })
+        })
+        .collect()
 }
 
 /// Render a de-duplicated, sorted name list for a diagnostic, or say there are none.

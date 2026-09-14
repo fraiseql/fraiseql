@@ -250,7 +250,7 @@ module Dsl =
                 return_type = s.returnType
                 returns_list = s.returnsList
                 nullable = s.nullable
-                sql_source = s.sqlSource
+                sql_source = Some s.sqlSource
                 arguments = s.arguments
                 cache_ttl_seconds = s.cacheTtlSeconds
                 description = s.description
@@ -261,6 +261,9 @@ module Dsl =
                 // As with the three above: this computation expression exposes no keyword
                 // for it, so a query authored here derives its page order (#1303).
                 pagination_order = None
+                // Likewise (#1329): a query authored through this computation expression
+                // is SQL-backed. `QueryBuilder.function_` is the surface that binds one.
+                function_ = None
             }
 
         /// Sets the GraphQL return type.

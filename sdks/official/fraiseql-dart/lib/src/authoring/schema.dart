@@ -188,10 +188,18 @@ class FraiseQLSchema {
   /// Dropping a declared order does not empty a result or fail a compile — it produces a
   /// different total order over the same rows. The value is interpolated into `ORDER BY`
   /// and is validated by the compiler, so the rule is stated once.
+  ///
+  /// `function` backs this root field with a declared `request:query` function instead of
+  /// a `sqlSource` (#1329). The value is the function's name and the module file stem the
+  /// server loads, so it travels verbatim. Exactly one of the two backs a query, and
+  /// everything that lowers into SQL — relay, count, inject, paginationOrder, auto-params
+  /// — is refused beside it by the compiler, the only place both the query and the
+  /// function declaration are visible.
   Map<String, Object?> query(
     String name, {
     required String returnType,
     String? sqlSource,
+    String? function,
     bool returnsList = false,
     bool nullable = false,
     Map<String, FieldType> arguments = const {},
@@ -211,7 +219,22 @@ class FraiseQLSchema {
         for (final entry in arguments.entries) entry.value._toJson(entry.key),
       ],
     };
+    // Exactly one resolution path (#1329). Refused here rather than left to the compiler
+    // because "neither" and "both" are distinct mistakes and each says which it is.
+    if (sqlSource != null && function != null) {
+      throw ArgumentError(
+        'query $name: declares both sqlSource and function. A root field resolves from a '
+        'relation or from a function, not both.',
+      );
+    }
+    if (sqlSource == null && function == null) {
+      throw ArgumentError(
+        'query $name: needs either sqlSource (a view) or function (a declared '
+        'request:query function). It has neither.',
+      );
+    }
     if (sqlSource != null) definition['sql_source'] = sqlSource;
+    if (function != null) definition['function'] = function;
     if (description != null) definition['description'] = description;
     if (cacheTtlSeconds != null)
       definition['cache_ttl_seconds'] = cacheTtlSeconds;

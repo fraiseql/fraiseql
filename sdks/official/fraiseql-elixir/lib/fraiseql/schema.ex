@@ -261,11 +261,14 @@ defmodule FraiseQL.Schema do
 
   # One struct, spliced into both macro forms (#1319). See `type_definition_ast`.
   defp query_definition_ast(query_name, query_opts, arguments_ast) do
+    FraiseQL.Schema.__validate_query_source__!(query_name, query_opts)
+
     quote do
       %FraiseQL.QueryDefinition{
         name: unquote(query_name),
         return_type: unquote(query_opts[:return_type]),
         sql_source: unquote(query_opts[:sql_source]),
+        function: unquote(query_opts[:function]),
         returns_list: unquote(Keyword.get(query_opts, :returns_list, false)),
         nullable: unquote(Keyword.get(query_opts, :nullable, false)),
         arguments: unquote(arguments_ast),
@@ -562,6 +565,34 @@ defmodule FraiseQL.Schema do
         raise ArgumentError,
               "#{name}: requires_actor: names unknown actor type(s) " <>
                 "#{Enum.join(unknown, ", ")}. Valid: #{Enum.join(@actor_types, ", ")}."
+    end
+  end
+
+  @doc false
+  @spec __validate_query_source__!(String.t(), keyword()) :: :ok
+  def __validate_query_source__!(name, opts) do
+    # Exactly one resolution path (#1329). Refused here rather than left to
+    # `@enforce_keys`, which could only say the struct was incomplete: "neither" and
+    # "both" are distinct mistakes, and an author who set `function:` and was told
+    # `sql_source` was missing would reasonably add one and reach a second refusal from
+    # the compiler.
+    case {opts[:sql_source], opts[:function]} do
+      {nil, nil} ->
+        raise ArgumentError,
+              "#{name}: a query needs either sql_source: (a view) or function: (a declared " <>
+                "request:query function). It has neither."
+
+      {_source, nil} ->
+        :ok
+
+      {nil, _function} ->
+        :ok
+
+      {_source, _function} ->
+        raise ArgumentError,
+              "#{name}: declares both sql_source: and function:. A root field resolves from " <>
+                "a relation or from a function, not both, and there is no precedence rule " <>
+                "between them."
     end
   end
 
