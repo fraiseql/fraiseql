@@ -39,7 +39,10 @@
 
 use std::{fs, path::Path};
 
-use fraiseql_cli::schema::{SchemaConverter, SchemaMerger, intermediate::IntermediateSchema};
+use fraiseql_cli::schema::{
+    CompiledArtifact, ConvertOptions, SchemaConverter, SchemaMerger,
+    intermediate::IntermediateSchema,
+};
 use fraiseql_core::schema::{CompiledSchema, InjectedParamSource};
 use serde_json::{Value, json};
 use tempfile::TempDir;
@@ -142,6 +145,13 @@ fn sdk_corpus() -> Value {
                 "schedule": "*/5 * * * *",
                 "function": "fn_ingest_user_feed"
             }
+        ],
+        "functions": [
+            {
+                "name": "notify_approved",
+                "trigger": "after:mutation:User:update",
+                "runtime": "Deno"
+            }
         ]
     })
 }
@@ -161,8 +171,11 @@ database_target = "postgresql"
 // The probes — one per authorable construct
 // ===========================================================================
 
-/// A construct probe: a human name and a check against the **compiled** schema.
-type Probe = (&'static str, fn(&CompiledSchema) -> Result<(), String>);
+/// A construct probe: a human name and a check against the **compiled artifact** —
+/// the whole of what `schema.compiled.json` carries, not only the `CompiledSchema`
+/// half of it. A section that is a *sibling* of the schema in that file (`functions`)
+/// is as droppable as one of its fields, and is probed the same way.
+type Probe = (&'static str, fn(&CompiledArtifact) -> Result<(), String>);
 
 /// Every construct the corpus authors, and the question each one asks of the compiled
 /// schema. A probe asserts *identity*, not just non-emptiness — `#755` would have
@@ -170,16 +183,22 @@ type Probe = (&'static str, fn(&CompiledSchema) -> Result<(), String>);
 /// `*WhereInput` entries.
 const PROBES: &[Probe] = &[
     ("types", |c| {
-        want(c.types.iter().any(|t| t.name == "User"), "type User absent from compiled.types")
+        want(
+            c.schema.types.iter().any(|t| t.name == "User"),
+            "type User absent from compiled.types",
+        )
     }),
     ("queries", |c| {
-        want(c.queries.iter().any(|q| q.name == "users"), "query users absent")
+        want(c.schema.queries.iter().any(|q| q.name == "users"), "query users absent")
     }),
     ("mutations", |c| {
-        want(c.mutations.iter().any(|m| m.name == "createUser"), "mutation createUser absent")
+        want(
+            c.schema.mutations.iter().any(|m| m.name == "createUser"),
+            "mutation createUser absent",
+        )
     }),
     ("enums", |c| {
-        let e = c.enums.iter().find(|e| e.name == "UserStatus");
+        let e = c.schema.enums.iter().find(|e| e.name == "UserStatus");
         let Some(e) = e else {
             return Err("enum UserStatus absent from compiled.enums".into());
         };
@@ -190,34 +209,52 @@ const PROBES: &[Probe] = &[
     }),
     ("input_types", |c| {
         want(
-            c.input_types.iter().any(|i| i.name == "UserFilter"),
+            c.schema.input_types.iter().any(|i| i.name == "UserFilter"),
             "input type UserFilter absent (note: input_types is pre-seeded with built-in \
              *WhereInput entries, so a length check would not have caught this)",
         )
     }),
     ("interfaces", |c| {
-        want(c.interfaces.iter().any(|i| i.name == "Node"), "interface Node absent")
+        want(c.schema.interfaces.iter().any(|i| i.name == "Node"), "interface Node absent")
     }),
     ("unions", |c| {
-        want(c.unions.iter().any(|u| u.name == "SearchResult"), "union SearchResult absent")
+        want(
+            c.schema.unions.iter().any(|u| u.name == "SearchResult"),
+            "union SearchResult absent",
+        )
     }),
     ("subscriptions", |c| {
         want(
-            c.subscriptions.iter().any(|s| s.name == "userUpdated"),
+            c.schema.subscriptions.iter().any(|s| s.name == "userUpdated"),
             "subscription userUpdated absent",
         )
     }),
     ("custom_scalars", |c| {
         want(
-            c.custom_scalars.get("Email").is_some(),
+            c.schema.custom_scalars.get("Email").is_some(),
             "custom scalar Email absent from the compiled CustomTypeRegistry — its \
              validation_rules would silently never run",
         )
     }),
     ("sources", |c| {
         want(
-            c.sources.iter().any(|s| s.name == "user_feed"),
+            c.schema.sources.iter().any(|s| s.name == "user_feed"),
             "ingress source user_feed absent",
+        )
+    }),
+    // A sibling section rather than a `CompiledSchema` field, and droppable for
+    // exactly the reason the fields were: until #1325 `IntermediateSchema` had no
+    // `functions` key at all, so an authored declaration could not even be parsed —
+    // and the *reading* side had been consuming this section since #896.
+    ("functions", |c| {
+        let Some(functions) = &c.functions else {
+            return Err("no `functions` section in the compiled artifact — an authored function \
+                 declaration reached nothing"
+                .into());
+        };
+        want(
+            functions.definitions.iter().any(|f| f.name == "notify_approved"),
+            "function notify_approved absent from the compiled functions section",
         )
     }),
     // Not a section but a field, and probed here for the same reason the sections
@@ -225,7 +262,7 @@ const PROBES: &[Probe] = &[
     // (#1303), so a dropped *authored* override does not look empty — it looks
     // like the default, which is a different total order over the same rows.
     ("query.pagination_order", |c| {
-        let Some(q) = c.queries.iter().find(|q| q.name == "users") else {
+        let Some(q) = c.schema.queries.iter().find(|q| q.name == "users") else {
             return Err("query users absent".into());
         };
         if q.pagination_order
@@ -247,7 +284,7 @@ fn want(ok: bool, msg: &str) -> Result<(), String> {
 }
 
 /// Run every probe and report **all** failures, so one run names the full inventory.
-fn assert_all_constructs_survive(path_name: &str, compiled: &CompiledSchema) {
+fn assert_all_constructs_survive(path_name: &str, compiled: &CompiledArtifact) {
     let failures: Vec<String> = PROBES
         .iter()
         .filter_map(|(name, probe)| probe(compiled).err().map(|e| format!("  [{name}] {e}")))
@@ -283,15 +320,23 @@ fn compile(intermediate: IntermediateSchema) -> CompiledSchema {
     SchemaConverter::convert(intermediate).expect("conversion of a valid corpus must succeed")
 }
 
+/// The whole artifact — schema plus the sections written beside it.
+fn compile_artifact(intermediate: IntermediateSchema) -> CompiledArtifact {
+    SchemaConverter::convert_artifact(intermediate, &ConvertOptions::default())
+        .expect("conversion of a valid corpus must succeed")
+}
+
 /// `fraiseql compile schema.json` — the legacy JSON workflow.
-fn via_legacy_json(dir: &TempDir) -> CompiledSchema {
+fn via_legacy_json(dir: &TempDir) -> CompiledArtifact {
     let raw = fs::read_to_string(dir.path().join("types.json")).unwrap();
-    compile(serde_json::from_str::<IntermediateSchema>(&raw).expect("corpus must deserialize"))
+    compile_artifact(
+        serde_json::from_str::<IntermediateSchema>(&raw).expect("corpus must deserialize"),
+    )
 }
 
 /// `fraiseql compile fraiseql.toml --types types.json`
-fn via_toml_plus_types(dir: &TempDir) -> CompiledSchema {
-    compile(
+fn via_toml_plus_types(dir: &TempDir) -> CompiledArtifact {
+    compile_artifact(
         SchemaMerger::merge_files(
             &as_str(&dir.path().join("types.json")),
             &as_str(&dir.path().join("fraiseql.toml")),
@@ -301,11 +346,11 @@ fn via_toml_plus_types(dir: &TempDir) -> CompiledSchema {
 }
 
 /// `fraiseql compile fraiseql.toml --schema-dir <dir>`
-fn via_schema_dir(dir: &TempDir) -> CompiledSchema {
+fn via_schema_dir(dir: &TempDir) -> CompiledArtifact {
     let sub = dir.path().join("schemas");
     fs::create_dir_all(&sub).unwrap();
     fs::copy(dir.path().join("types.json"), sub.join("types.json")).unwrap();
-    compile(
+    compile_artifact(
         SchemaMerger::merge_from_directory(
             &as_str(&dir.path().join("fraiseql.toml")),
             &as_str(&sub),
@@ -315,8 +360,8 @@ fn via_schema_dir(dir: &TempDir) -> CompiledSchema {
 }
 
 /// `fraiseql compile fraiseql.toml --type-files types.json`
-fn via_explicit_files(dir: &TempDir) -> CompiledSchema {
-    compile(
+fn via_explicit_files(dir: &TempDir) -> CompiledArtifact {
+    compile_artifact(
         SchemaMerger::merge_explicit_files(
             &as_str(&dir.path().join("fraiseql.toml")),
             &[as_str(&dir.path().join("types.json"))],
@@ -888,6 +933,202 @@ include_types = ["User"]
     assert_eq!(grpc.include_types, ["User"], "include_types must survive");
 }
 
+// ===========================================================================
+// #1325 — the `[functions]` settings half, and its one-owner-per-key split
+// ===========================================================================
+
+/// A `fraiseql.toml` declaring `[functions]` settings, plus one function in a
+/// sibling `types.json`.
+fn functions_project(module_dir: &str, dlq_store: &str) -> TempDir {
+    let dir = TempDir::new().unwrap();
+    fs::write(
+        dir.path().join("types.json"),
+        serde_json::to_string_pretty(&json!({
+            "types": [{
+                "name": "Order",
+                "sql_source": "v_order",
+                "is_input": false,
+                "fields": [{"name": "id", "type": "ID", "nullable": false}]
+            }],
+            // The trigger below names `Order` because that is what the mutation
+            // RETURNS — the dispatcher keys on the return type. Without this
+            // mutation the declaration is a trigger that can never fire, and the
+            // compiler now says so.
+            "mutations": [{
+                "name": "updateOrder",
+                "return_type": "Order",
+                "sql_source": "fn_update_order",
+                "operation": "update",
+                "invalidates_views": ["v_order"],
+                "arguments": []
+            }],
+            "functions": [{
+                "name": "notify_approved",
+                "trigger": "after:mutation:Order:update",
+                "runtime": "Deno"
+            }]
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        dir.path().join("fraiseql.toml"),
+        format!(
+            r#"
+[schema]
+name = "f"
+version = "1.0.0"
+database_target = "postgresql"
+
+[functions]
+module_dir = "{module_dir}"
+dlq_store = "{dlq_store}"
+"#
+        ),
+    )
+    .unwrap();
+    dir
+}
+
+/// `[functions] module_dir` / `dlq_store` reach the compiled functions section.
+///
+/// They are the *deployment* half of the surface, and the only half a decorator must
+/// not be able to set. Dropping them is invisible in the way that matters: the
+/// compiler's `functions/` convention and the memory DLQ are both plausible, so a
+/// lost `dlq_store = "postgres"` looks exactly like a project that never asked for
+/// durability — until a restart eats its dead-letters.
+#[test]
+fn functions_toml_settings_reach_the_compiled_section() {
+    let dir = functions_project("build/functions", "postgres");
+
+    let artifact = compile_artifact(
+        SchemaMerger::merge_files(
+            &as_str(&dir.path().join("types.json")),
+            &as_str(&dir.path().join("fraiseql.toml")),
+        )
+        .expect("merge_files must succeed"),
+    );
+
+    let functions = artifact
+        .functions
+        .expect("the declared function must produce a compiled functions section");
+    assert_eq!(
+        functions.module_dir,
+        std::path::PathBuf::from("build/functions"),
+        "[functions] module_dir must override the compiler's `functions/` convention"
+    );
+    assert_eq!(
+        functions.dlq_store.as_deref(),
+        Some("postgres"),
+        "[functions] dlq_store must survive — losing it silently downgrades durable \
+         dead-lettering to the in-memory store"
+    );
+    assert_eq!(functions.definitions.len(), 1, "the authored definition must survive too");
+}
+
+/// A project that declares no function compiles to **no** `functions` section.
+///
+/// The TOML workflow cannot express "absent": `seam::empty_accumulator` seeds every array
+/// section with `[]`, so the converter is handed an empty `functions` list on every compile
+/// through this path. Without the empty-is-absence rule, every TOML-authored artifact in the
+/// world grows a `"functions": {"module_dir": "functions", "definitions": []}` section — a
+/// declaration the author never made, on the one surface where a declared section a build
+/// cannot serve is a refusal (#1326).
+#[test]
+fn a_project_declaring_no_function_compiles_to_no_section() {
+    let dir = TempDir::new().unwrap();
+    fs::write(
+        dir.path().join("fraiseql.toml"),
+        r#"
+[schema]
+name = "n"
+version = "1.0.0"
+database_target = "postgresql"
+
+[types.Order]
+sql_source = "v_order"
+[types.Order.fields.id]
+type = "ID"
+nullable = false
+"#,
+    )
+    .unwrap();
+
+    let artifact = compile_artifact(
+        SchemaMerger::merge_toml_only(&as_str(&dir.path().join("fraiseql.toml"))).unwrap(),
+    );
+
+    assert!(
+        artifact.functions.is_none(),
+        "a project that declares no function must produce no section; got {:?}",
+        artifact.functions
+    );
+}
+
+/// A `[functions]` table with no function declared fails the compile.
+///
+/// There is nothing for the settings to apply to. Carrying them writes a section the
+/// server reads and cannot act on; dropping them is the silent default this seam
+/// exists to remove. #1008 refuses a `storage` section on exactly these grounds.
+#[test]
+fn functions_settings_without_a_declared_function_fail_the_compile() {
+    let dir = TempDir::new().unwrap();
+    fs::write(
+        dir.path().join("fraiseql.toml"),
+        r#"
+[schema]
+name = "f"
+version = "1.0.0"
+database_target = "postgresql"
+
+[types.Order]
+sql_source = "v_order"
+[types.Order.fields.id]
+type = "ID"
+nullable = false
+
+[functions]
+dlq_store = "postgres"
+"#,
+    )
+    .unwrap();
+
+    let merged = SchemaMerger::merge_toml_only(&as_str(&dir.path().join("fraiseql.toml"))).unwrap();
+    let err = SchemaConverter::convert_artifact(merged, &ConvertOptions::default())
+        .expect_err("settings with nothing to configure must not compile silently");
+
+    assert!(
+        err.to_string().contains("declares no function"),
+        "the error must say what is missing; got: {err}"
+    );
+}
+
+/// A setting the TOML owns cannot be written in the schema half, and vice versa.
+///
+/// This is the one-owner rule from `docs/architecture/config-vs-settings.md`, and it
+/// holds structurally rather than by a check that could be forgotten: a
+/// `FunctionDefinition` is `deny_unknown_fields` and has no `module_dir` key, and the
+/// authorable `functions` section is a list of definitions with nowhere to put one.
+#[test]
+fn a_function_definition_cannot_carry_a_toml_owned_setting() {
+    let corpus = json!({
+        "functions": [{
+            "name": "notify_approved",
+            "trigger": "after:mutation:Order:update",
+            "runtime": "Deno",
+            "module_dir": "somewhere/else"
+        }]
+    });
+
+    let err = serde_json::from_value::<IntermediateSchema>(corpus)
+        .expect_err("a schema must not be able to set a deployment setting");
+
+    assert!(
+        err.to_string().contains("module_dir"),
+        "the error must name the offending key; got: {err}"
+    );
+}
+
 /// `[grpc] enabled = true` without a `descriptor_path` must fail the compile.
 ///
 /// `build_grpc_service` reads the `FileDescriptorSet` from that path, so an empty one
@@ -1009,6 +1250,35 @@ fn an_unknown_key_inside_a_type_fails_the_compile() {
 
     assert!(
         err.to_string().contains("is_imput"),
+        "the error must name the offending key; got: {err}"
+    );
+}
+
+/// A misspelled key inside a **function definition** fails the compile too (#1325).
+///
+/// The top-level `functions` key is denied by `IntermediateSchema`; the keys *inside* a
+/// definition are denied by `FunctionDefinition` itself. Without the second half, an
+/// author who wrote `timeout_msec` would get `✓ Schema compiled successfully` and a
+/// function running on the trigger default timeout — the `#847` shape, on a key whose
+/// whole purpose is to bound how long a before-hook may block a mutation.
+#[test]
+fn an_unknown_key_inside_a_function_definition_fails_the_compile() {
+    let corpus = json!({
+        "functions": [
+            {
+                "name": "notify_approved",
+                "trigger": "after:mutation:User:update",
+                "runtime": "Deno",
+                "timeout_msec": 2000
+            }
+        ]
+    });
+
+    let err = serde_json::from_value::<IntermediateSchema>(corpus)
+        .expect_err("a misspelled key inside a function definition must not deserialize");
+
+    assert!(
+        err.to_string().contains("timeout_msec"),
         "the error must name the offending key; got: {err}"
     );
 }

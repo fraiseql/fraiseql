@@ -3,8 +3,6 @@
 use std::path::{Path, PathBuf};
 
 use fraiseql_core::schema::CompiledSchema;
-use fraiseql_functions::FunctionDefinition;
-use serde::Deserialize;
 use tracing::{debug, info, warn};
 
 /// Error loading schema.
@@ -28,33 +26,13 @@ pub enum SchemaLoadError {
     ValidationError(String),
 }
 
-/// Functions configuration extracted from the `"functions"` section of a compiled schema.
+/// The compiled schema's `"functions"` section.
 ///
-/// ```json
-/// {
-///   "functions": {
-///     "module_dir": "/opt/fraiseql/functions",
-///     "definitions": [
-///       { "name": "on_create_user", "trigger": "after:mutation:createUser", "runtime": "Wasm" }
-///     ]
-///   }
-/// }
-/// ```
-#[derive(Debug, Clone, Deserialize)]
-pub struct FunctionsConfig {
-    /// Directory containing compiled function modules (`.wasm`, `.js`, etc.).
-    pub module_dir: PathBuf,
-
-    /// Function definitions loaded from the compiled schema.
-    pub definitions: Vec<FunctionDefinition>,
-
-    /// Which dead-letter store backs function dispatch (#598): `"memory"` (the
-    /// default — dead-letters vanish on restart) or `"postgres"` (durable, survives
-    /// a restart; requires a database pool). Overridable by the
-    /// `FRAISEQL_FUNCTIONS_DLQ_STORE` env var. Absent ⇒ memory.
-    #[serde(default)]
-    pub dlq_store: Option<String>,
-}
+/// Re-exported from [`fraiseql_functions`], which owns the shape: the compiler
+/// writes it, this loader reads it, and `fraiseql functions invoke` reads it back.
+/// It was defined here until #1325, when the authoring path would have made it the
+/// third hand-maintained copy.
+pub use fraiseql_functions::FunctionsConfig;
 
 /// A compiled schema with all optional platform extensions parsed out.
 ///
@@ -452,31 +430,26 @@ pub(crate) fn refuse_unservable_sections(
     Ok(())
 }
 
-/// Valid trigger prefixes recognised by the trigger system.
-const VALID_TRIGGER_PREFIXES: &[&str] = &[
-    "after:mutation:",
-    "before:mutation:",
-    "after:storage:",
-    "cron:",
-    "http:",
-];
-
-/// Validate function definitions.
+/// Validate the compiled function definitions.
+///
+/// Delegates to [`TriggerRegistry::validate_definitions`] — the same rule the
+/// compiler applies at `fraiseql compile` time and the same one
+/// `build_functions_subsystem` applies when it actually builds the registry. It runs
+/// here as well because a compiled schema is an input the server does not produce:
+/// a hand-written or stale artifact must still fail at boot rather than reach the
+/// dispatcher unvalidated.
+///
+/// Until #1325 this carried its own `VALID_TRIGGER_PREFIXES` list — a second copy of
+/// a grammar it did not own, and one that had already fallen two trigger kinds
+/// behind: `after:capture:` (#366) and `after:ingest:` are parsed and dispatched by
+/// the registry and were refused here, so a valid schema could not boot.
 ///
 /// # Errors
 ///
-/// Returns `ValidationError` if any function definition has an unrecognised trigger format.
+/// Returns `ValidationError` naming the function and what is wrong with it.
 fn validate_functions_config(config: &FunctionsConfig) -> Result<(), SchemaLoadError> {
-    for def in &config.definitions {
-        let known = VALID_TRIGGER_PREFIXES.iter().any(|prefix| def.trigger.starts_with(prefix));
-        if !known {
-            return Err(SchemaLoadError::ValidationError(format!(
-                "function {:?} has unrecognised trigger format {:?}; \
-                 expected one of: after:mutation:<name>, before:mutation:<name>, \
-                 after:storage:<bucket>:<op>, cron:<expr>, http:<method>:<path>",
-                def.name, def.trigger
-            )));
-        }
-    }
-    Ok(())
+    fraiseql_functions::triggers::registry::TriggerRegistry::validate_definitions(
+        &config.definitions,
+    )
+    .map_err(|error| SchemaLoadError::ValidationError(error.message))
 }

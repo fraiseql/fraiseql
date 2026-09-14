@@ -324,19 +324,89 @@ built with on the observer, e.g.:
 observer.register_runtime(RuntimeType::Deno, DenoRuntime::new(&DenoConfig::default())?);
 ```
 
-Trigger definitions are part of the compiled schema and configured through
-Python/TypeScript decorators:
+## Authoring a function (#1325)
+
+A function has two halves, with one owner each
+([config-vs-settings.md](./config-vs-settings.md)):
+
+* the **definitions** — what fires, on which trigger, under what authority — are schema, authored
+  through an SDK and carried in `schema.json`;
+* the **settings** — where the modules live and which dead-letter store backs dispatch — are
+  deployment facts, declared in `[functions]` in `fraiseql.toml`.
+
+Neither half can reach into the other. A `FunctionDefinition` has no `module_dir` key
+and rejects unknown keys, so a schema cannot set a setting; and `[functions]` has no way
+to declare a function. Configuring the table with no function declared is a compile
+error: there would be nothing for the settings to apply to.
 
 ```python
-@fraiseql.mutation(
-    sql_source="create_user",
-    operation="create",
-    invalidates=["users"]
+# schema.py
+@fraiseql.function(
+    trigger="after:mutation:Order:update",
+    timeout_ms=2000,
+    when=[{"field": "status", "changed_to": "approved"}],
 )
-class CreateUser:
-    name: str
-    email: str
+def notify_approved() -> None:
+    """Runs functions/notify_approved.ts when an order is approved."""
 ```
+
+```typescript
+// schema.ts
+class Functions {
+  @FraiseFunction({
+    trigger: "after:mutation:Order:update",
+    timeoutMs: 2000,
+    when: [{ field: "status", changed_to: "approved" }],
+  })
+  notify_approved() {}
+}
+```
+
+```toml
+# fraiseql.toml
+[functions]
+module_dir = "functions"                # default; where the .ts / .wasm modules live
+dlq_store = "postgres"                  # memory (default) | postgres
+```
+
+**The function name is the module file stem.** The server loads
+`<module_dir>/<name>.<ext>`, so `notify_approved` must be `functions/notify_approved.ts`.
+It is the one name an SDK carries **verbatim** — every other name is camelCased on the
+way out, and recasing this one would send the compiler looking for a file the author
+never wrote. The cross-SDK conformance suite asserts the exact spelling for that reason.
+
+Ten of the eleven official SDKs author functions; `fraiseql-rust` declares the gap in
+`sdks/official/conformance/manifest.json` (it is field-level-RBAC focused and ships no
+builder). See `sdks/official/README.md` for the support matrix.
+
+### What the compiler checks (#1325)
+
+A bad declaration fails `fraiseql compile`, not server boot:
+
+| Check | Example refusal |
+|---|---|
+| trigger grammar | `whenever:something:happens` |
+| `changed_to` on a non-`update` trigger | `after:mutation:Order:insert` + `changed_to` |
+| `http:` / `after:storage:` | nothing mounts them (#871) |
+| `before:mutation:` names a declared mutation | `before:mutation:deleteOrder` with no such mutation |
+| `after:mutation:` names a **returned type** | `after:mutation:updateOrder` — it matches the mutation's *return type*, not its name |
+| `when` fields exist on that type | `{"field": "statuss"}` on an `Order` with `status` |
+| the module is on disk, with an extension the runtime loads | `runtime: "Wasm"` beside a `notify.ts` |
+
+The last one runs only when `module_dir` exists at compile time. The compiler is then
+looking at the real project layout and a missing module is a typo it can name; when the
+directory is absent it is plainly not looking at the deployment layout — a CI job
+compiling before the `.wasm` artifacts are fetched — and refusing would block a
+legitimate workflow over a fact it cannot observe. The server still checks at boot. It
+is the same trade `--database` makes for column validation.
+
+The trigger-grammar half of that list is **one rule with two call sites**
+(`TriggerRegistry::validate_definitions`), not two copies: the server's schema loader
+calls it too, because a compiled schema is an input it does not produce and a
+hand-written or stale artifact must still fail at boot. It used to keep its own
+`VALID_TRIGGER_PREFIXES` list instead, and that list had already fallen two trigger
+kinds behind — `after:capture:` (#366) and `after:ingest:` were parsed and dispatched by
+the registry and refused by the loader, so a valid schema could not boot.
 
 ## Crate Dependencies
 

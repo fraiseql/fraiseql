@@ -64,6 +64,7 @@ defmodule FraiseQL.Schema do
           fraiseql_mutation: 2,
           fraiseql_mutation: 3,
           fraiseql_enum: 2,
+          fraiseql_function: 2,
           # `field`/`argument` are used inside the type/query/mutation blocks. Import
           # them here (module-wide) rather than per-block: a per-block
           # `import …, only: [field: …]` *replaces* this module's import set for the
@@ -80,6 +81,7 @@ defmodule FraiseQL.Schema do
       Module.register_attribute(__MODULE__, :fraiseql_queries, accumulate: true)
       Module.register_attribute(__MODULE__, :fraiseql_mutations, accumulate: true)
       Module.register_attribute(__MODULE__, :fraiseql_enums, accumulate: true)
+      Module.register_attribute(__MODULE__, :fraiseql_functions, accumulate: true)
       Module.put_attribute(__MODULE__, :fraiseql_schema, true)
       @before_compile FraiseQL.Schema
     end
@@ -636,6 +638,53 @@ defmodule FraiseQL.Schema do
     end
   end
 
+  @doc """
+  Declares a serverless function (#1325).
+
+      fraiseql_function "notify_approved",
+        trigger: "after:mutation:Order:update",
+        timeout_ms: 2000,
+        when: [[field: "status", changed_to: "approved"]]
+
+  The name is also the module *file stem*: the server loads
+  `<module_dir>/<name>.<ext>`, so pass it exactly as the file is named. It is never
+  recased. `module_dir` and `dlq_store` are not options here — they are deployment
+  settings owned by `[functions]` in `fraiseql.toml`.
+
+  Options:
+
+    * `:trigger` — required; `after:mutation` matches the mutation's RETURN TYPE
+    * `:runtime` — `"Deno"` (default) or `"Wasm"`
+    * `:timeout_ms` — optional timeout override
+    * `:when` — optional list of predicates, each a keyword list with `:field` and one
+      of `:eq` / `:changed_to`
+    * `:re_runnable` — opt out of durable dispatch (default `false`)
+  """
+  defmacro fraiseql_function(name, opts) do
+    predicates =
+      (opts[:when] || [])
+      |> Enum.map(fn predicate ->
+        quote do
+          %FraiseQL.FunctionPredicate{
+            field: unquote(predicate[:field]),
+            eq: unquote(predicate[:eq]),
+            changed_to: unquote(predicate[:changed_to])
+          }
+        end
+      end)
+
+    quote do
+      @fraiseql_functions %FraiseQL.FunctionDefinition{
+        name: unquote(name),
+        trigger: unquote(Keyword.fetch!(opts, :trigger)),
+        runtime: unquote(opts[:runtime] || "Deno"),
+        timeout_ms: unquote(opts[:timeout_ms]),
+        when: unquote(predicates),
+        re_runnable: unquote(opts[:re_runnable] || false)
+      }
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # @before_compile — inject accessor functions
   # ---------------------------------------------------------------------------
@@ -646,6 +695,7 @@ defmodule FraiseQL.Schema do
     queries = Module.get_attribute(env.module, :fraiseql_queries) |> Enum.reverse()
     mutations = Module.get_attribute(env.module, :fraiseql_mutations) |> Enum.reverse()
     enums = Module.get_attribute(env.module, :fraiseql_enums) |> Enum.reverse()
+    functions = Module.get_attribute(env.module, :fraiseql_functions) |> Enum.reverse()
 
     # Expand CRUD operations for types that have crud enabled.
     #
@@ -675,6 +725,12 @@ defmodule FraiseQL.Schema do
 
       @spec __fraiseql_enums__() :: [FraiseQL.EnumDefinition.t()]
       def __fraiseql_enums__, do: unquote(Macro.escape(enums))
+
+      @doc """
+      Returns all serverless function definitions declared in this schema module (#1325).
+      """
+      @spec __fraiseql_functions__() :: [FraiseQL.FunctionDefinition.t()]
+      def __fraiseql_functions__, do: unquote(Macro.escape(functions))
 
       @doc """
       Returns all query definitions declared in this schema module, in declaration order.

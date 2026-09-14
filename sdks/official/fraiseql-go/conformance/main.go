@@ -206,7 +206,7 @@ func authorFull() error {
 		return err
 	}
 
-	return fraiseql.RegisterSubscription(fraiseql.SubscriptionDefinition{
+	if err := fraiseql.RegisterSubscription(fraiseql.SubscriptionDefinition{
 		Name:        "orderUpdated",
 		ReturnType:  "Order",
 		Arguments:   []fraiseql.ArgumentDefinition{{Name: "orderId", Type: "ID", Nullable: true}},
@@ -216,7 +216,18 @@ func authorFull() error {
 			Conditions: []fraiseql.SubscriptionFilterCondition{{Argument: "orderId", Path: "$.id"}},
 		},
 		Fields: []string{"id", "total"},
-	})
+	}); err != nil {
+		return err
+	}
+
+	// #1325: the function authoring path. The name is two words in snake_case on
+	// purpose — it is the module file stem (functions/notify_approved.ts), not a
+	// GraphQL name, so it must survive verbatim.
+	return fraiseql.NewFunction("notify_approved").
+		Trigger("after:mutation:Order:update").
+		TimeoutMs(2000).
+		When(fraiseql.FunctionPredicate{Field: "status", ChangedTo: "approved"}).
+		Register()
 }
 
 func author(fixture string) error {

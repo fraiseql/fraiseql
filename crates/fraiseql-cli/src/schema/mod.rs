@@ -4,6 +4,7 @@
 //! and converts it to `CompiledSchema` (Rust-specific).
 
 pub mod advanced_types;
+pub mod artifact;
 pub mod converter;
 pub mod database_validator;
 pub mod intermediate;
@@ -15,6 +16,7 @@ pub mod pg_catalog;
 pub mod seam;
 pub mod validator;
 
+pub use artifact::CompiledArtifact;
 pub use converter::{ConvertOptions, SchemaConverter};
 pub use intermediate::{IntermediateScalar, IntermediateSchema};
 pub use merger::SchemaMerger;

@@ -100,6 +100,28 @@ CRUD_MUTATIONS = ("createSupportTicket", "updateSupportTicket", "deleteSupportTi
 # `createdAt` — and only an exact-value assertion over a multi-word value sees it (#1247).
 PAGINATION_QUERIES = ("pagedByColumn", "pagedSelfOrdered", "pagedDerived")
 
+# The `function_definition` construct owns its one function (#1325). A function is not
+# a GraphQL surface at all — it is an out-of-band handler the server dispatches from the
+# compiled `functions` section, a *sibling* of the compiled schema rather than a field
+# of it. Until #1325 no SDK could author one and no compile path could emit one, so the
+# only way to ship a function was to hand-edit `schema.compiled.json` and watch the next
+# compile erase it.
+#
+# `notify_approved` is deliberately two words in snake_case, and the assertion is on the
+# exact name. Every other name an SDK emits is camelCased on the way out — that is the
+# house convention — and a function name must NOT be: it is the module *file* stem, and
+# the server loads `<module_dir>/<name>.<ext>`. An SDK that applies its usual recasing
+# here emits `notifyApproved` and the author's `notify_approved.ts` is never found. A
+# one-word name would spell the same either way and the suite would be blind to it, which
+# is the `created_at` lesson from `PAGINATION_QUERIES` one construct up.
+#
+# `when` and `timeout_ms` ride along rather than becoming their own constructs: an SDK
+# that can author a function at all has no reason to be able to author one and not the
+# other, and splitting them would let a partial implementation read as three-quarters
+# passing. `when` is the half that matters most — a dropped predicate does not fail, it
+# fires the function on every update.
+AUTHORED_FUNCTIONS = ("notify_approved",)
+
 # Every construct the canonical fixture exercises. An SDK must satisfy each one or
 # declare it unsupported in `manifest.json` with a reason.
 #
@@ -140,6 +162,7 @@ CONSTRUCTS = (
     "mutation_requires_actor",
     "subscriptions",
     "vector_fields",
+    "function_definition",
 )
 
 
@@ -541,6 +564,28 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         }
         for name in AUTHORED_VECTOR_TYPES
         if name in types
+    }
+
+    # The compiled `functions` section is a SIBLING of the compiled schema, not one of
+    # its fields — `fraiseql-core` knows nothing about functions — so it is read off the
+    # top-level object rather than out of a `_by_name` index.
+    #
+    # Deliberately NOT filtered to `AUTHORED_FUNCTIONS`. Filtering would make an SDK that
+    # camelCases the name project to `{}`, which reads as "authored no function"; keeping
+    # every definition makes it project to `{"notifyApproved": …}`, which says what
+    # actually happened and which `casing_hint` can then explain. The name is the module
+    # file stem, so getting it wrong is not cosmetic.
+    function_section = compiled.get("functions") or {}
+    observations["function_definition"] = {
+        definition["name"]: {
+            "trigger": definition.get("trigger"),
+            "runtime": definition.get("runtime"),
+            "timeout_ms": definition.get("timeout_ms"),
+            "when": definition.get("when"),
+            "re_runnable": definition.get("re_runnable"),
+        }
+        for definition in (function_section.get("definitions") or [])
+        if isinstance(definition, dict) and "name" in definition
     }
 
     missing = set(CONSTRUCTS) - set(observations)

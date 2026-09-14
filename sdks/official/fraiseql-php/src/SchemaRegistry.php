@@ -38,6 +38,9 @@ final class SchemaRegistry
     /** @var array<string, SubscriptionDefinition> Registered subscriptions */
     private array $subscriptions = [];
 
+    /** @var array<string, FunctionDefinition> Registered serverless functions (#1325) */
+    private array $functions = [];
+
     /** @var array<string, QueryBuilder> Registered queries */
     private array $queries = [];
 
@@ -224,6 +227,31 @@ final class SchemaRegistry
     public function hasSubscription(string $name): bool
     {
         return isset($this->subscriptions[$name]);
+    }
+
+    /**
+     * Register a serverless function (#1325).
+     *
+     * The name is stored verbatim: it is the module file stem the server loads
+     * from `<module_dir>/<name>.<ext>`.
+     *
+     * @param FunctionDefinition $function The function to register
+     * @return self Fluent interface
+     */
+    public function registerFunction(FunctionDefinition $function): self
+    {
+        $this->functions[$function->name] = $function;
+        return $this;
+    }
+
+    /**
+     * Get all registered serverless functions.
+     *
+     * @return array<string, FunctionDefinition>
+     */
+    public function getAllFunctions(): array
+    {
+        return $this->functions;
     }
 
 
@@ -419,6 +447,7 @@ final class SchemaRegistry
         $this->classToTypeName = [];
         $this->typeFields = [];
         $this->subscriptions = [];
+        $this->functions = [];
         $this->queries = [];
         $this->mutations = [];
         $this->inputTypes = [];

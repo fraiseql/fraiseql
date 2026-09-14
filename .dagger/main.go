@@ -939,6 +939,15 @@ func (m *FraiseqlCi) Test(
 		// `functions-runtime`, so the line above compiles none of it. deno implies the
 		// base runtime, so one invocation covers both gates.
 		"cargo test -p fraiseql-server --features functions-runtime-deno --lib subsystems::",
+		// #1325: the authoring round trip — the real compiler writes a `functions`
+		// section and the real loader reads it back, with the integrity hash
+		// covering it. `functions-runtime` because #1326's `refuse_unservable_sections`
+		// makes a lean build refuse the artifact, so the ON build is the only one
+		// that can prove the section ARRIVES. Its own binary and file-level
+		// `#![cfg(feature = "functions-runtime")]`, which cargo cannot see — naming
+		// it on any line without the feature builds an empty binary that reports
+		// "0 passed" and reads as covered (#1082).
+		"cargo test -p fraiseql-server --features functions-runtime --test functions_authoring_round_trip_test",
 		"cargo test -p fraiseql-server --features cdc-outbound --lib cdc_outbound::",
 		// #975: the same module again with the Kafka sink compiled in. Both runs
 		// are needed and neither substitutes for the other — validate_kind's

@@ -25,8 +25,8 @@ use std::{
 
 use anyhow::{Context, Result, anyhow, bail};
 use fraiseql_functions::{
-    EventPayload, FunctionDefinition, FunctionModule, FunctionObserver, LogLevel, ResourceLimits,
-    RuntimeType,
+    EventPayload, FunctionDefinition, FunctionModule, FunctionObserver, FunctionsConfig, LogLevel,
+    ResourceLimits, RuntimeType,
     host::{HostContext, HttpResponse, dyn_context::DynHostContext},
     runtime::deno::{DenoConfig, DenoRuntime},
     triggers::{
@@ -47,17 +47,6 @@ pub mod exit {
     pub const PREDICATE_NO_MATCH: i32 = 3;
     /// The guest ran but errored (threw, or the runtime rejected it).
     pub const GUEST_ERROR: i32 = 4;
-}
-
-/// The `functions` section of a compiled schema (the subset the harness needs).
-///
-/// A local mirror of `fraiseql-server`'s `FunctionsConfig` so the harness does not
-/// pull the whole server crate in; the JSON shape is identical (it is the same
-/// compiled-schema `"functions"` object).
-#[derive(Debug, Deserialize)]
-struct FunctionsSection {
-    module_dir:  std::path::PathBuf,
-    definitions: Vec<FunctionDefinition>,
 }
 
 /// Run `fraiseql functions invoke`.
@@ -144,7 +133,7 @@ fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Result<T> {
 }
 
 /// Parse the compiled schema and extract its `functions` section.
-fn load_functions_section(schema_path: &Path) -> Result<FunctionsSection> {
+fn load_functions_section(schema_path: &Path) -> Result<FunctionsConfig> {
     let schema: serde_json::Value = read_json(schema_path).context("reading --schema")?;
     let functions = schema
         .get("functions")
@@ -158,31 +147,28 @@ fn load_functions_section(schema_path: &Path) -> Result<FunctionsSection> {
 /// (`build_functions_subsystem` → `load_one_module`): try each supported extension,
 /// first existing file wins, fail loud otherwise.
 fn load_module(module_dir: &Path, definition: &FunctionDefinition) -> Result<FunctionModule> {
-    for extension in definition.runtime.supported_extensions() {
-        let path = module_dir.join(format!("{}{extension}", definition.name));
-        if !path.exists() {
-            continue;
-        }
-        return match definition.runtime {
-            RuntimeType::Deno => {
-                let source = std::fs::read_to_string(&path)
-                    .with_context(|| format!("reading module {}", path.display()))?;
-                Ok(FunctionModule::from_source(definition.name.clone(), source, RuntimeType::Deno))
-            },
-            RuntimeType::Wasm => {
-                let bytes = std::fs::read(&path)
-                    .with_context(|| format!("reading module {}", path.display()))?;
-                Ok(FunctionModule::from_bytecode(definition.name.clone(), bytes.into()))
-            },
-            other => bail!("unsupported function runtime {other:?}"),
-        };
+    // One definition of where a function's code lives, shared with the server's
+    // loader and the compiler's compile-time check (#1325).
+    let Some(path) = definition.resolve_module_path(module_dir) else {
+        bail!(
+            "no module file for {:?} at {}",
+            definition.name,
+            definition.module_path_pattern(module_dir)
+        );
+    };
+    match definition.runtime {
+        RuntimeType::Deno => {
+            let source = std::fs::read_to_string(&path)
+                .with_context(|| format!("reading module {}", path.display()))?;
+            Ok(FunctionModule::from_source(definition.name.clone(), source, RuntimeType::Deno))
+        },
+        RuntimeType::Wasm => {
+            let bytes = std::fs::read(&path)
+                .with_context(|| format!("reading module {}", path.display()))?;
+            Ok(FunctionModule::from_bytecode(definition.name.clone(), bytes.into()))
+        },
+        other => bail!("unsupported function runtime {other:?}"),
     }
-    bail!(
-        "no module file for {:?} in {} (looked for {:?})",
-        definition.name,
-        module_dir.display(),
-        definition.runtime.supported_extensions(),
-    )
 }
 
 /// A synthesized dispatch payload plus the row images the predicates evaluate on.

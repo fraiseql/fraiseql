@@ -3,6 +3,7 @@
   "field_deprecated": {},
   "field_description": {},
   "field_scope": {},
+  "function_definition": {},
   "input_types": {},
   "mutation_arguments": {},
   "mutation_invalidates_fact_tables": {},

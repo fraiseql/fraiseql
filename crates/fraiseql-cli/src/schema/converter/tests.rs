@@ -257,6 +257,8 @@ fn test_convert_minimal_schema() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -516,6 +518,8 @@ fn test_convert_type_with_fields() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -585,6 +589,8 @@ fn test_validate_unknown_type_reference() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -678,6 +684,8 @@ fn test_convert_query_with_arguments() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -761,6 +769,8 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -845,6 +855,8 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -940,6 +952,8 @@ fn test_convert_field_with_deprecated_directive() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1021,6 +1035,8 @@ fn test_convert_enum() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1115,6 +1131,8 @@ fn test_convert_input_object() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1200,6 +1218,8 @@ fn compiled_schema_advertises_no_unservable_where_operators() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1285,6 +1305,8 @@ fn test_convert_interface() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1397,6 +1419,8 @@ fn test_convert_type_implements_interface() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1476,6 +1500,8 @@ fn test_validate_unknown_interface() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1569,6 +1595,8 @@ fn test_validate_missing_interface_field() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1677,6 +1705,8 @@ fn test_convert_union() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -1799,6 +1829,8 @@ fn test_convert_field_requires_scope() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         observers_config:     None,
         subscriptions_config: None,
@@ -3909,6 +3941,8 @@ mod auto_params_parity_tests {
             observers:         None,
 
             sources:              None,
+            functions:            None,
+            functions_config:     None,
             custom_scalars:       None,
             observers_config:     None,
             subscriptions_config: None,

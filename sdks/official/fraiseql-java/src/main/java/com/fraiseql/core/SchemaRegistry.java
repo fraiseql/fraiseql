@@ -23,6 +23,7 @@ public class SchemaRegistry {
     private final Map<String, QueryInfo> queries;
     private final Map<String, MutationInfo> mutations;
     private final Map<String, SubscriptionInfo> subscriptions;
+    private final Map<String, FunctionInfo> functions;
     private final Map<String, EnumInfo> enums;
     private final Map<String, InterfaceInfo> interfaces;
     private final Map<String, UnionInfo> unions;
@@ -38,6 +39,7 @@ public class SchemaRegistry {
         this.queries = new ConcurrentHashMap<>();
         this.mutations = new ConcurrentHashMap<>();
         this.subscriptions = new ConcurrentHashMap<>();
+        this.functions = new ConcurrentHashMap<>();
         this.enums = new ConcurrentHashMap<>();
         this.interfaces = new ConcurrentHashMap<>();
         this.unions = new ConcurrentHashMap<>();
@@ -592,6 +594,28 @@ public class SchemaRegistry {
     }
 
     /**
+     * Register a serverless function (#1325).
+     *
+     * <p>The name is stored verbatim: it is the module <em>file stem</em> the server
+     * loads from {@code <module_dir>/<name>.<ext>}, not a GraphQL name, so it is never
+     * recased.
+     *
+     * @param function the function definition to register
+     */
+    public void registerFunction(FunctionInfo function) {
+        functions.put(function.name, function);
+    }
+
+    /**
+     * Get all registered serverless functions.
+     *
+     * @return unmodifiable map of function name to FunctionInfo
+     */
+    public Map<String, FunctionInfo> getAllFunctions() {
+        return Collections.unmodifiableMap(functions);
+    }
+
+    /**
      * Get an enum type by name.
      *
      * @param enumName the enum name
@@ -737,6 +761,7 @@ public class SchemaRegistry {
         queries.clear();
         mutations.clear();
         subscriptions.clear();
+        functions.clear();
         enums.clear();
         interfaces.clear();
         unions.clear();
@@ -1035,6 +1060,47 @@ public class SchemaRegistry {
                 + (topic != null ? ", topic='" + topic + '\'' : "")
                 + (filterConditions.isEmpty() ? "" : ", filter=" + filterConditions.size())
                 + '}';
+        }
+    }
+
+    /**
+     * A serverless function definition (#1325) — an out-of-band handler the server
+     * dispatches on a trigger and runs in a WASM or Deno sandbox.
+     *
+     * <p>{@code name} is also the module <em>file stem</em>: the server loads
+     * {@code <module_dir>/<name>.<ext>}. {@code moduleDir} and {@code dlqStore} are
+     * deliberately absent — they are deployment settings owned by {@code [functions]}
+     * in {@code fraiseql.toml}.
+     */
+    public static class FunctionInfo {
+        public final String name;
+        public final String trigger;
+        public final String runtime;
+        /** Timeout override in milliseconds, or null for the trigger's default. */
+        public final Integer timeoutMs;
+        /** {@code when} predicates (#597); each maps a key to its value. */
+        public final List<Map<String, Object>> when;
+        /** Opt out of durable dispatch for work that is safe to re-run. */
+        public final boolean reRunnable;
+
+        /**
+         * Creates a FunctionInfo with the values given.
+         */
+        public FunctionInfo(String name, String trigger, String runtime, Integer timeoutMs,
+                            List<Map<String, Object>> when, boolean reRunnable) {
+            this.name = name;
+            this.trigger = trigger;
+            this.runtime = runtime == null ? "Deno" : runtime;
+            this.timeoutMs = timeoutMs;
+            this.when = when == null
+                ? Collections.emptyList()
+                : Collections.unmodifiableList(new ArrayList<>(when));
+            this.reRunnable = reRunnable;
+        }
+
+        @Override
+        public String toString() {
+            return "FunctionInfo{name='" + name + "', trigger='" + trigger + "'}";
         }
     }
 

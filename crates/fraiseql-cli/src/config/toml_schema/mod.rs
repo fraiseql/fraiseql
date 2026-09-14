@@ -6,6 +6,7 @@
 pub mod caching;
 pub mod domain;
 pub mod federation;
+pub mod functions;
 pub mod observability;
 pub mod observers;
 pub mod operations;
@@ -34,6 +35,7 @@ pub use federation::{
     PerDatabaseCircuitBreakerOverride,
 };
 use fraiseql_core::schema::{ChangelogConfig, CrudNamingConfig, NamingConvention};
+pub use functions::FunctionsSettings;
 pub use observability::ObservabilityConfig;
 pub use observers::{EventHandler, ObserversConfig};
 pub use operations::{
@@ -126,6 +128,14 @@ pub struct TomlSchema {
     /// Observers/event system configuration
     #[serde(rename = "observers")]
     pub observers: ObserversConfig,
+
+    /// Serverless-function settings (`[functions]`, #1325).
+    ///
+    /// The operational half of the functions surface — where the modules live and
+    /// which dead-letter store backs dispatch. The definitions themselves are
+    /// schema, authored by an SDK; see [`FunctionsSettings`].
+    #[serde(default)]
+    pub functions: FunctionsSettings,
 
     /// Result caching configuration
     #[serde(rename = "caching")]

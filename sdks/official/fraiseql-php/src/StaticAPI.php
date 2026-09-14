@@ -318,4 +318,43 @@ final class StaticAPI
     {
         SchemaRegistry::getInstance()->clear();
     }
+
+    /**
+     * Register a serverless function (#1325).
+     *
+     * The name is also the module file stem: the server loads
+     * `<module_dir>/<name>.<ext>`, so pass it exactly as the file is named.
+     * `module_dir` and `dlq_store` are settings owned by `[functions]` in
+     * `fraiseql.toml`, not authoring parameters.
+     *
+     * @param string $name Function name and module file stem.
+     * @param string $trigger e.g. `after:mutation:Order:update`.
+     * @param string $runtime `Deno` or `Wasm`.
+     * @param int|null $timeoutMs Timeout override in milliseconds.
+     * @param array<string, mixed>|null $runAs Authority ceiling (#594).
+     * @param array<int, array<string, mixed>> $when `when` predicates (#597).
+     * @param bool $reRunnable Opt out of durable dispatch.
+     * @param array<string, mixed>|null $retry Per-function retry policy.
+     */
+    public static function function_(
+        string $name,
+        string $trigger,
+        string $runtime = 'Deno',
+        ?int $timeoutMs = null,
+        ?array $runAs = null,
+        array $when = [],
+        bool $reRunnable = false,
+        ?array $retry = null,
+    ): void {
+        SchemaRegistry::getInstance()->registerFunction(new FunctionDefinition(
+            $name,
+            $trigger,
+            $runtime,
+            $timeoutMs,
+            $runAs,
+            $when,
+            $reRunnable,
+            $retry,
+        ));
+    }
 }

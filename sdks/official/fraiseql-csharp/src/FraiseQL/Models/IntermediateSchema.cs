@@ -12,10 +12,12 @@ namespace FraiseQL.Models;
 /// <param name="Mutations">Registered GraphQL mutations.</param>
 /// <param name="InputTypes">Registered GraphQL input types, omitted when empty.</param>
 /// <param name="Enums">Registered GraphQL enum types, omitted when empty.</param>
+/// <param name="Functions">Registered serverless functions (#1325), omitted when empty.</param>
 public record IntermediateSchema(
     [property: JsonPropertyName("version")]     string Version,
     [property: JsonPropertyName("types")]       IReadOnlyList<IntermediateType> Types,
     [property: JsonPropertyName("queries")]     IReadOnlyList<IntermediateQuery> Queries,
     [property: JsonPropertyName("mutations")]   IReadOnlyList<IntermediateMutation> Mutations,
     [property: JsonPropertyName("input_types")] IReadOnlyList<IntermediateInputType>? InputTypes = null,
-    [property: JsonPropertyName("enums")]       IReadOnlyList<IntermediateEnum>? Enums = null);
+    [property: JsonPropertyName("enums")]       IReadOnlyList<IntermediateEnum>? Enums = null,
+    [property: JsonPropertyName("functions")]   IReadOnlyList<IntermediateFunction>? Functions = null);

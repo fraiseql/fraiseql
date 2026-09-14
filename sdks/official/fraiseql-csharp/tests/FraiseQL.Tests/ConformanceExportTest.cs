@@ -153,6 +153,15 @@ public class ConformanceExportTest
             .InvalidatesViews("v_order_summary")
             .InvalidatesFactTables("tf_sale")
             .Register();
+
+        // #1325: the function authoring path. The name is two words in snake_case on
+        // purpose — it is the module file stem (functions/notify_approved.ts), not a
+        // GraphQL name, so it must survive verbatim.
+        FunctionBuilder.Function("notify_approved")
+            .Trigger("after:mutation:Order:update")
+            .TimeoutMs(2000)
+            .WhenChangedTo("status", "approved")
+            .Register();
     }
 
     [GraphQLType(Name = "User", SqlSource = "v_user")]

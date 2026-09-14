@@ -192,7 +192,7 @@ async fn rig() -> Option<Rig> {
     .expect("the authored relationships must compile");
 
     let mut schema = CompiledSchema::from_json(
-        &compiled.to_json().expect("serialize the compiled artifact"),
+        &compiled.schema.to_json().expect("serialize the compiled artifact"),
         false,
     )
     .expect("the compiler's own output must survive the load-time relationship check");

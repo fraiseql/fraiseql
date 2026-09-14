@@ -104,6 +104,8 @@ class SchemaRegistry:
     _subscriptions: ClassVar[dict[str, SchemaElement]] = {}
     # Scheduled ingress sources (#573) — the dual of observers.
     _sources: ClassVar[dict[str, SchemaElement]] = {}
+    # Serverless function definitions (#1325).
+    _functions: ClassVar[dict[str, SchemaElement]] = {}
     # Maps scalar name -> (CustomScalar class, optional description)
     _custom_scalars: ClassVar[dict[str, tuple[type, str | None]]] = {}
     # Inject defaults: base applies to all operations; queries/mutations are per-operation-type
@@ -557,6 +559,62 @@ class SchemaRegistry:
         cls._sources[camel_name] = definition
 
     @classmethod
+    def register_function(  # noqa: PLR0913 — public API; all parameters are meaningful
+        cls,
+        name: str,
+        trigger: str,
+        runtime: str = "Deno",
+        timeout_ms: int | None = None,
+        run_as: dict[str, Any] | None = None,
+        when: list[dict[str, Any]] | None = None,
+        re_runnable: bool = False,
+        retry: dict[str, Any] | None = None,
+    ) -> None:
+        """Register a serverless function definition (#1325).
+
+        Metadata only; the runtime is Rust. Emits a ``functions`` entry matching the
+        compiled ``FunctionDefinition``.
+
+        **The name is NOT recased**, unlike every other registration here. It is the
+        module *file* name — the server loads ``<module_dir>/<name>.<ext>`` — so
+        camelCasing ``notify_approved`` would make the compiler look for
+        ``notifyApproved.ts`` and fail on a file the author wrote correctly.
+
+        Args:
+            name: Function name; also the module file stem. Verbatim.
+            trigger: Trigger string, e.g. ``"after:mutation:Order:update"``.
+            runtime: ``"Deno"`` or ``"Wasm"``.
+            timeout_ms: Optional timeout override in milliseconds.
+            run_as: Optional least-privilege authority ceiling (#594):
+                ``{"roles": [...], "scopes": [...], "tenant": "..."}``. Absent ⇒
+                fail-closed.
+            when: Optional ``when`` predicates (#597), each ``{"field": ..., <op>: ...}``.
+            re_runnable: Fire-and-forget opt-out of durable dispatch (ADR 0015).
+            retry: Optional per-function retry policy.
+        """
+        if name in cls._functions:
+            raise ValueError(
+                f"Function {name!r} is already registered. "
+                "Each name must be unique within a schema."
+            )
+        definition: dict[str, Any] = {
+            "name": name,
+            "trigger": trigger,
+            "runtime": runtime,
+        }
+        if timeout_ms is not None:
+            definition["timeout_ms"] = timeout_ms
+        if run_as is not None:
+            definition["run_as"] = run_as
+        if when:
+            definition["when"] = when
+        if re_runnable:
+            definition["re_runnable"] = re_runnable
+        if retry is not None:
+            definition["retry"] = retry
+        cls._functions[name] = definition
+
+    @classmethod
     def register_scalar(
         cls,
         name: str,
@@ -635,6 +693,11 @@ class SchemaRegistry:
         if cls._sources:
             schema["sources"] = list(cls._sources.values())
 
+        # Include function definitions only when present (#1325). The compiler pairs
+        # them with the `[functions]` TOML table to emit the compiled section.
+        if cls._functions:
+            schema["functions"] = list(cls._functions.values())
+
         # Include inject_defaults if any are set
         if cls._inject_defaults:
             schema["inject_defaults"] = cls._inject_defaults
@@ -681,6 +744,7 @@ class SchemaRegistry:
         cls._mutations.clear()
         cls._subscriptions.clear()
         cls._sources.clear()
+        cls._functions.clear()
         cls._custom_scalars.clear()
         cls._inject_defaults.clear()
 

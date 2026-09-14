@@ -345,6 +345,7 @@ test-leg:
 	cargo test -p fraiseql-server --features rest,export-csv,export-xlsx --lib -- routes::rest::streaming:: routes::rest::openapi::
 	cargo test -p fraiseql-server --features functions --lib routes::functions::
 	cargo test -p fraiseql-server --features functions-runtime-deno --lib subsystems::
+	cargo test -p fraiseql-server --features functions-runtime --test functions_authoring_round_trip_test
 	cargo test -p fraiseql-server --features cdc-outbound --lib cdc_outbound::
 	cargo test -p fraiseql-server --features cdc-kafka --lib cdc_outbound::
 	cargo test -p fraiseql-server --features cdc-kinesis --lib cdc_outbound::

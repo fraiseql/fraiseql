@@ -493,9 +493,14 @@ async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema::CompiledSc
 
     println!("Compiling schema...");
 
-    let (schema, _report) = compile_to_schema(CompileOptions::new(input))
+    // `fraiseql run` serves the core schema only: it has no function runtime compiled
+    // in, so `artifact.functions` is dropped here rather than mounted (tracked
+    // separately — the server binary refuses such a schema at boot since #1326, and
+    // this path has no equivalent gate yet).
+    let (artifact, _report) = compile_to_schema(CompileOptions::new(input))
         .await
         .context("Schema compilation failed")?;
+    let schema = artifact.schema;
 
     println!(
         "   Schema compiled ({} types, {} queries, {} mutations)",

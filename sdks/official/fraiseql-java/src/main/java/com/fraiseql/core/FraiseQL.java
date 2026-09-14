@@ -822,4 +822,123 @@ public class FraiseQL {
         }
     }
 
+    /**
+     * Start building a serverless function definition (#1325).
+     *
+     * <p>The name is the module <em>file stem</em> as well as the function's identity —
+     * the server loads {@code <module_dir>/<name>.<ext>} — so pass it exactly as the
+     * file is named ({@code notify_approved} → {@code notify_approved.ts}). It is never
+     * recased, unlike every GraphQL name this SDK emits.
+     *
+     * <p>{@code module_dir} and {@code dlq_store} are not builder options: they are
+     * deployment settings owned by {@code [functions]} in {@code fraiseql.toml}.
+     *
+     * @param functionName the function name and module file stem
+     * @return a builder for the function
+     */
+    public static FunctionBuilder function(String functionName) {
+        return new FunctionBuilder(functionName);
+    }
+
+    /**
+     * Fluent builder for a serverless function definition (#1325).
+     */
+    public static class FunctionBuilder {
+        private final String name;
+        private String trigger;
+        private String runtime = "Deno";
+        private Integer timeoutMs = null;
+        private final List<Map<String, Object>> when = new ArrayList<>();
+        private boolean reRunnable = false;
+
+        private FunctionBuilder(String name) {
+            this.name = name;
+        }
+
+        /**
+         * Set the trigger, e.g. {@code "after:mutation:Order:update"}.
+         *
+         * <p>{@code after:mutation} matches the mutation's <em>return type</em>, not
+         * its name.
+         *
+         * @param triggerString the trigger
+         * @return this builder for chaining
+         */
+        public FunctionBuilder trigger(String triggerString) {
+            this.trigger = triggerString;
+            return this;
+        }
+
+        /**
+         * Set the sandbox that runs the module: {@code "Deno"} (default) or {@code "Wasm"}.
+         *
+         * @param runtimeName the runtime
+         * @return this builder for chaining
+         */
+        public FunctionBuilder runtime(String runtimeName) {
+            this.runtime = runtimeName;
+            return this;
+        }
+
+        /**
+         * Override the trigger's default timeout.
+         *
+         * @param milliseconds the timeout
+         * @return this builder for chaining
+         */
+        public FunctionBuilder timeoutMs(int milliseconds) {
+            this.timeoutMs = Integer.valueOf(milliseconds);
+            return this;
+        }
+
+        /**
+         * Add a {@code when} predicate (#597) testing that a field currently equals a value.
+         *
+         * @param field the field in the row image
+         * @param value the value it must equal
+         * @return this builder for chaining
+         */
+        public FunctionBuilder whenEquals(String field, Object value) {
+            Map<String, Object> predicate = new LinkedHashMap<>();
+            predicate.put("field", field);
+            predicate.put("eq", value);
+            when.add(predicate);
+            return this;
+        }
+
+        /**
+         * Add a {@code when} predicate (#597) testing that a field <em>changed to</em> a
+         * value. UPDATE-only.
+         *
+         * @param field the field in the row image
+         * @param value the value it changed to
+         * @return this builder for chaining
+         */
+        public FunctionBuilder whenChangedTo(String field, Object value) {
+            Map<String, Object> predicate = new LinkedHashMap<>();
+            predicate.put("field", field);
+            predicate.put("changed_to", value);
+            when.add(predicate);
+            return this;
+        }
+
+        /**
+         * Opt out of durable dispatch for work that is safe to re-run.
+         *
+         * @return this builder for chaining
+         */
+        public FunctionBuilder reRunnable() {
+            this.reRunnable = true;
+            return this;
+        }
+
+        /**
+         * Register this function in the schema.
+         */
+        public void register() {
+            registry.registerFunction(new SchemaRegistry.FunctionInfo(
+                name, trigger, runtime, timeoutMs, when, reRunnable));
+        }
+    }
+
 }

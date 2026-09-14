@@ -168,7 +168,7 @@ impl ObserverDefinition {
 /// dropped and every observer defaulted to exponential backoff — now fails loud
 /// at reload rather than being silently ignored. Rows written before the #612
 /// rename (carrying `backoff`) must be updated to `backoff_strategy`.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct RetryConfig {
     /// Maximum number of retry attempts (default: 3)
@@ -257,7 +257,7 @@ const fn default_max_delay() -> u64 {
 }
 
 /// Backoff strategy for retries
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum BackoffStrategy {

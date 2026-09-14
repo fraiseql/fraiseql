@@ -501,5 +501,19 @@
         "total"
       ]
     }
+  ],
+  "functions": [
+    {
+      "name": "notify_approved",
+      "trigger": "after:mutation:Order:update",
+      "runtime": "Deno",
+      "timeout_ms": 2000,
+      "when": [
+        {
+          "field": "status",
+          "changed_to": "approved"
+        }
+      ]
+    }
   ]
 }

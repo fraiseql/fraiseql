@@ -421,6 +421,36 @@ export interface SourceDefinition {
 }
 
 /**
+ * A serverless function definition (#1325) — an out-of-band handler the server
+ * dispatches on a trigger, run in a WASM or Deno sandbox.
+ *
+ * `name` is also the module **file stem**: the server loads
+ * `<module_dir>/<name>.<ext>`, so unlike every other name in this registry it is
+ * carried verbatim and never recased. `module_dir` and `dlq_store` are deliberately
+ * absent — they are deployment settings owned by `[functions]` in `fraiseql.toml`.
+ */
+export interface FunctionDefinition {
+  name: string;
+  trigger: string;
+  runtime: "Deno" | "Wasm";
+  timeout_ms?: number;
+  run_as?: SourceRunAs;
+  when?: FunctionPredicate[];
+  re_runnable?: boolean;
+  retry?: Record<string, unknown>;
+}
+
+/**
+ * A `when` predicate (#597): a conjunct the dispatcher evaluates on the row images
+ * before firing. `changed_to` is UPDATE-only.
+ */
+export interface FunctionPredicate {
+  field: string;
+  eq?: unknown;
+  changed_to?: unknown;
+}
+
+/**
  * Complete schema definition.
  */
 export interface Schema {
@@ -435,6 +465,7 @@ export interface Schema {
   fact_tables?: FactTableDefinition[];
   observers?: ObserverDefinition[];
   sources?: SourceDefinition[];
+  functions?: FunctionDefinition[];
   /** Apollo Federation v2 metadata, included when generateSchemaJson() is used. */
   federation?: { enabled: boolean; version: string; [key: string]: unknown };
   /** Custom scalar definitions, included when scalars are registered. */
@@ -634,6 +665,7 @@ export class SchemaRegistry {
   private static factTables: Map<string, FactTableDefinition> = new Map();
   private static observers: Map<string, ObserverDefinition> = new Map();
   private static sources: Map<string, SourceDefinition> = new Map();
+  private static functions: Map<string, FunctionDefinition> = new Map();
   private static customScalars: Map<string, { class: typeof CustomScalar; description?: string }> = new Map();
 
   /**
@@ -1140,6 +1172,19 @@ export class SchemaRegistry {
   }
 
   /**
+   * Register a serverless function definition (#1325).
+   *
+   * The name is stored **verbatim**. It is the module file stem — the server loads
+   * `<module_dir>/<name>.<ext>` — so the camelCase recasing this registry applies to
+   * GraphQL names would make the compiler look for a file the author never wrote.
+   *
+   * @param definition - The function definition, already in compiled shape.
+   */
+  static registerFunction(definition: FunctionDefinition): void {
+    this.functions.set(definition.name, definition);
+  }
+
+  /**
    * Register a GraphQL enum type.
    *
    * @param name - Enum name (e.g., "OrderStatus")
@@ -1300,6 +1345,9 @@ export class SchemaRegistry {
     if (this.sources.size > 0) {
       schema.sources = Array.from(this.sources.values());
     }
+    if (this.functions.size > 0) {
+      schema.functions = Array.from(this.functions.values());
+    }
 
     if (this.customScalars.size > 0) {
       const customScalars: Record<string, { name: string; description: string; validate: boolean }> = {};
@@ -1333,6 +1381,7 @@ export class SchemaRegistry {
     this.factTables.clear();
     this.observers.clear();
     this.sources.clear();
+    this.functions.clear();
     this.customScalars.clear();
   }
 }

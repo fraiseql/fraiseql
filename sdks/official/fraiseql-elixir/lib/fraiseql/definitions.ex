@@ -387,6 +387,60 @@ defmodule FraiseQL.EnumDefinition do
         }
 end
 
+defmodule FraiseQL.FunctionPredicate do
+  @moduledoc """
+  One `when` conjunct (#597) the dispatcher evaluates on the row images before firing
+  a function. Exactly one operator is set; `:changed_to` is UPDATE-only.
+
+  ## Fields
+
+    * `:field` — the field in the row image to test
+    * `:eq` — the value the field must currently equal
+    * `:changed_to` — the value the field must have changed to
+  """
+
+  defstruct [:field, :eq, :changed_to]
+
+  @type t :: %__MODULE__{
+          field: String.t(),
+          eq: term() | nil,
+          changed_to: term() | nil
+        }
+end
+
+defmodule FraiseQL.FunctionDefinition do
+  @moduledoc """
+  A serverless function definition (#1325) — an out-of-band handler the server
+  dispatches on a trigger and runs in a WASM or Deno sandbox.
+
+  `:name` is also the module *file stem*: the server loads
+  `<module_dir>/<name>.<ext>`, so it is carried verbatim and never recased.
+  `module_dir` and `dlq_store` are deliberately absent — they are deployment
+  settings owned by `[functions]` in `fraiseql.toml`.
+
+  ## Fields
+
+    * `:name` — function name, and the module file stem
+    * `:trigger` — e.g. `"after:mutation:Order:update"`; `after:mutation` matches the
+      mutation's return type, not its name
+    * `:runtime` — `"Deno"` (default) or `"Wasm"`
+    * `:timeout_ms` — optional timeout override
+    * `:when` — list of `FraiseQL.FunctionPredicate` structs
+    * `:re_runnable` — opt out of durable dispatch
+  """
+
+  defstruct [:name, :trigger, :timeout_ms, runtime: "Deno", when: [], re_runnable: false]
+
+  @type t :: %__MODULE__{
+          name: String.t(),
+          trigger: String.t(),
+          runtime: String.t(),
+          timeout_ms: pos_integer() | nil,
+          when: [FraiseQL.FunctionPredicate.t()],
+          re_runnable: boolean()
+        }
+end
+
 defmodule FraiseQL.IntermediateSchema do
   @moduledoc """
   The top-level intermediate schema structure produced by `FraiseQL.SchemaExporter`.
@@ -399,15 +453,17 @@ defmodule FraiseQL.IntermediateSchema do
     * `:types` — list of `FraiseQL.TypeDefinition` structs
     * `:queries` — list of `FraiseQL.QueryDefinition` structs
     * `:mutations` — list of `FraiseQL.MutationDefinition` structs
+    * `:functions` — list of `FraiseQL.FunctionDefinition` structs (#1325)
   """
 
-  defstruct version: "2.0.0", types: [], queries: [], mutations: [], enums: []
+  defstruct version: "2.0.0", types: [], queries: [], mutations: [], enums: [], functions: []
 
   @type t :: %__MODULE__{
           version: String.t(),
           types: [FraiseQL.TypeDefinition.t()],
           enums: [FraiseQL.EnumDefinition.t()],
           queries: [FraiseQL.QueryDefinition.t()],
-          mutations: [FraiseQL.MutationDefinition.t()]
+          mutations: [FraiseQL.MutationDefinition.t()],
+          functions: [FraiseQL.FunctionDefinition.t()]
         }
 end

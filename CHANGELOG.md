@@ -893,6 +893,37 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A function is authorable (#1325).** `@fraiseql.function(...)` in Python,
+  `@FraiseFunction({...})` in TypeScript, and a builder or macro in eight more SDKs;
+  `[functions]` in `fraiseql.toml`; a `functions` key in `schema.json`. All three reach
+  the compiled `functions` section, which the server, `fraiseql functions invoke` and
+  `generate-client`'s `functions.d.ts` all read.
+
+  Before this, that section had a reader and no writer. `fraiseql-server` has parsed it
+  since #896 and the CLI harness has read it back since the harness shipped, but
+  `IntermediateSchema` had no `functions` field — and since 2.15 it rejects unknown keys,
+  so a `functions` key in `schema.json` *failed the compile*. `fraiseql.toml` had no
+  `[functions]` table while `config-vs-settings.md` documented "the compiled
+  `[functions] dlq_store`". No SDK had a decorator, while `functions.md` said trigger
+  definitions are "configured through Python/TypeScript decorators" and then showed a
+  `@fraiseql.mutation`. The only writer of a compiled `functions` section in the whole
+  tree was a test that hand-built the JSON. Shipping a function meant hand-editing
+  `schema.compiled.json`, and the next `fraiseql compile` erased it.
+
+  **One owner per key.** The definitions are schema; `module_dir` and `dlq_store` are
+  deployment settings in `[functions]`. Neither half can reach into the other:
+  `FunctionDefinition` denies unknown fields and has no `module_dir` key, and the table
+  has no way to declare a function. A `[functions]` table with no function declared is a
+  compile error — there is nothing for the settings to apply to.
+
+  **The function name is carried verbatim.** It is the module *file stem* — the server
+  loads `<module_dir>/<name>.<ext>` — so it is the one name an SDK must not camelCase.
+  The conformance fixture's `notify_approved` is two words for exactly that reason: a
+  one-word name spells the same either way and the suite would be blind to the recasing.
+
+  Ten of the eleven official SDKs author functions. `fraiseql-rust` declares the gap in
+  `conformance/manifest.json`, as it already does for nineteen other constructs.
+
 - **`server-platform`, a published image that can actually run the platform (#1326).**
 
   A third tag alongside `server` (default features) and `server-full` (`rest`, `arrow`),
@@ -1373,6 +1404,38 @@ disagreed, and the promise was the part that was wrong.
   it evicts the least-recently-used bucket rather than refusing the newcomer, so a low
   value costs accuracy and never availability. The `RateLimitConfig` doc comment saying
   new keys are "**denied**" described the behaviour #1080 replaced and has been corrected.
+
+### Changed
+
+- **A bad function declaration now fails `fraiseql compile`, not server boot (#1325).**
+
+  The trigger grammar, the `when` predicates, and the `http:` / `after:storage` refusals
+  (#871) are checked at compile time, and three checks that ran nowhere at all are new:
+  `before:mutation:` must name a declared mutation; `after:mutation:` must name a type
+  some mutation *returns* (it matches the return type, not the mutation name — naming the
+  mutation is the natural mistake and produces a function that silently never fires); and
+  a `when` predicate's field must exist on that type. When `module_dir` exists at compile
+  time, each declared function must also have a module there whose extension its runtime
+  can load.
+
+  The grammar half is **one rule with two call sites**, not two copies:
+  `TriggerRegistry::validate_definitions` is called by the compiler and by the server's
+  schema loader, which keeps checking because a compiled schema is an input it does not
+  produce. That collapse fixed a live defect — the loader had kept its own
+  `VALID_TRIGGER_PREFIXES` list, and it had fallen two trigger kinds behind:
+  `after:capture:` (#366) and `after:ingest:` are parsed and dispatched by the registry
+  and were *refused* by the loader, so a schema declaring either could not boot.
+
+  Three more copies of one rule were collapsed the same way: the module-path resolution
+  that the server's loader, the `functions invoke` harness and the new compile-time check
+  each had (`FunctionDefinition::resolve_module_path`); the `FunctionsConfig` shape that
+  the server and the CLI harness each mirrored (now `fraiseql_functions::FunctionsConfig`);
+  and `generate-client`'s hand-rolled trigger splitter (now `ParsedTrigger::parse`).
+
+- **An empty `functions` list compiles to no section at all (#1325).** SDKs disagree about
+  how to say "nothing here" — some omit the key, some always emit it with an empty array —
+  and without this the same project authored through two SDKs produced two different
+  artifacts.
 
 ### Removed
 

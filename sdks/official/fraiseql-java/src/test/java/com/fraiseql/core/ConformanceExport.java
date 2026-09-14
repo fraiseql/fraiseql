@@ -161,6 +161,15 @@ public class ConformanceExport {
             .filterCondition("orderId", "$.id")
             .fields("id", "total")
             .register();
+
+        // #1325: the function authoring path. The name is two words in snake_case on
+        // purpose — it is the module file stem (functions/notify_approved.ts), not a
+        // GraphQL name, so it must survive verbatim.
+        FraiseQL.function("notify_approved")
+            .trigger("after:mutation:Order:update")
+            .timeoutMs(2000)
+            .whenChangedTo("status", "approved")
+            .register();
     }
 
     private static Map<String, String> enumValues() {

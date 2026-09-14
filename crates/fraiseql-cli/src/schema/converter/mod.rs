@@ -4,6 +4,7 @@
 
 mod cascade_types;
 mod directives;
+pub mod functions;
 mod identity;
 mod interface_conformance;
 mod mutation_error_union;
@@ -27,9 +28,21 @@ use fraiseql_core::{
     schema::{CompiledSchema, FieldType},
     validation::CustomTypeRegistry,
 };
+use fraiseql_functions::FunctionsConfig;
 use tracing::{info, warn};
 
-use super::intermediate::{IntermediateFactTable, IntermediateInjectDefaults, IntermediateSchema};
+use super::{
+    artifact::CompiledArtifact,
+    intermediate::{IntermediateFactTable, IntermediateInjectDefaults, IntermediateSchema},
+};
+
+/// The directory a project's function modules live in when nothing says otherwise.
+///
+/// The default lives here, in the compiler, rather than on the wire type: every
+/// compiled artifact carries an explicit `module_dir`, so a *hand-written*
+/// `schema.compiled.json` that omits it still fails loudly instead of quietly
+/// resolving somewhere its author did not choose.
+const DEFAULT_FUNCTION_MODULE_DIR: &str = "functions";
 
 /// Converts intermediate format to compiled format
 pub struct SchemaConverter;
@@ -128,6 +141,76 @@ impl SchemaConverter {
     /// See [`SchemaConverter::convert_with_options`].
     pub fn convert(intermediate: IntermediateSchema) -> Result<CompiledSchema> {
         Self::convert_with_options(intermediate, &ConvertOptions::default())
+    }
+
+    /// Convert `IntermediateSchema` into the whole compiled **artifact** — the
+    /// schema plus the platform sections written beside it (#1325).
+    ///
+    /// [`convert_with_options`](Self::convert_with_options) produces only the
+    /// `CompiledSchema`, which is what almost every caller wants. The sections that
+    /// are *siblings* of it in `schema.compiled.json` — currently `functions` — are
+    /// assembled here, so there is exactly one place where an authored section
+    /// becomes a compiled one and exactly one place a probe has to look.
+    ///
+    /// The `[functions]` TOML settings (`module_dir`, `dlq_store`) are paired with
+    /// the authored definitions here; the two halves have one owner each.
+    ///
+    /// # Errors
+    ///
+    /// See [`convert_with_options`](Self::convert_with_options).
+    pub fn convert_artifact(
+        mut intermediate: IntermediateSchema,
+        options: &ConvertOptions,
+    ) -> Result<CompiledArtifact> {
+        let functions = Self::take_functions_section(&mut intermediate)?;
+        let schema = Self::convert_with_options(intermediate, options)?;
+        if let Some(functions) = &functions {
+            functions::validate_against_schema(functions, &schema)?;
+        }
+        Ok(CompiledArtifact { schema, functions })
+    }
+
+    /// Pair the authored function declarations with their `[functions]` settings.
+    ///
+    /// Returns `None` when the project declares no functions, so a schema that has
+    /// never heard of them serialises exactly as it did before.
+    ///
+    /// # Errors
+    ///
+    /// Refuses a `[functions]` table configured for functions that are not declared.
+    /// There is nothing to apply the settings to, so carrying them would write a
+    /// section the server reads and cannot act on, and dropping them would be the
+    /// silent-default failure this whole seam exists to remove (#1008 refuses a
+    /// `storage` section on the same grounds).
+    fn take_functions_section(
+        intermediate: &mut IntermediateSchema,
+    ) -> Result<Option<FunctionsConfig>> {
+        let settings = intermediate.functions_config.take().unwrap_or_default();
+        // An empty list is absence, not an empty section, and two producers reach this.
+        // Some SDKs always emit the key and some omit it, so without this rule the same
+        // project compiled through two of them yields different artifacts. More
+        // importantly `seam::empty_accumulator` seeds EVERY array section with `[]`, so
+        // every TOML-workflow compile arrives here with an empty list whether or not the
+        // project has ever heard of functions — and an emitted section is one #1326
+        // refuses to boot on a build that cannot serve it.
+        let definitions = intermediate.functions.take().unwrap_or_default();
+        if definitions.is_empty() {
+            anyhow::ensure!(
+                settings.module_dir.is_none() && settings.dlq_store.is_none(),
+                "the `[functions]` table configures the functions subsystem but the schema \
+                 declares no function, so nothing would use it. Declare a function, or remove \
+                 the table."
+            );
+            return Ok(None);
+        }
+
+        Ok(Some(FunctionsConfig {
+            module_dir: settings
+                .module_dir
+                .unwrap_or_else(|| std::path::PathBuf::from(DEFAULT_FUNCTION_MODULE_DIR)),
+            definitions,
+            dlq_store: settings.dlq_store,
+        }))
     }
 
     /// Convert `IntermediateSchema` to `CompiledSchema`.

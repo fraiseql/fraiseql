@@ -49,7 +49,9 @@ public static class SchemaExporter
             Queries: registry.GetAllQueries(),
             Mutations: registry.GetAllMutations(),
             InputTypes: inputTypes.Count > 0 ? inputTypes : null,
-            Enums: registry.GetAllEnums() is { Count: > 0 } enums ? enums : null);
+            Enums: registry.GetAllEnums() is { Count: > 0 } enums ? enums : null,
+            // #1325: serverless function definitions, omitted when none are declared.
+            Functions: registry.GetAllFunctions() is { Count: > 0 } functions ? functions : null);
     }
 
     /// <summary>

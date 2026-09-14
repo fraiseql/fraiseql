@@ -26,6 +26,7 @@ public sealed class SchemaRegistry
     private readonly List<IntermediateEnum> _enums = new();
     private readonly List<IntermediateQuery> _queries = new();
     private readonly List<IntermediateMutation> _mutations = new();
+    private readonly List<IntermediateFunction> _functions = new();
     private Dictionary<string, string>? _injectDefaultsBase;
     private Dictionary<string, string>? _injectDefaultsQueries;
     private Dictionary<string, string>? _injectDefaultsMutations;
@@ -269,6 +270,30 @@ public sealed class SchemaRegistry
         }
     }
 
+    /// <summary>Registers a serverless function (#1325).</summary>
+    /// <remarks>
+    /// The name is stored verbatim: it is the module file stem the server loads from
+    /// <c>&lt;module_dir&gt;/&lt;name&gt;.&lt;ext&gt;</c>, not a GraphQL name.
+    /// </remarks>
+    /// <param name="function">The function definition to register.</param>
+    public void RegisterFunction(IntermediateFunction function)
+    {
+        lock (_lock)
+        {
+            _functions.Add(function);
+        }
+    }
+
+    /// <summary>Returns every registered serverless function.</summary>
+    /// <returns>A snapshot of the registered functions.</returns>
+    public IReadOnlyList<IntermediateFunction> GetAllFunctions()
+    {
+        lock (_lock)
+        {
+            return _functions.ToList().AsReadOnly();
+        }
+    }
+
     /// <summary>
     /// Returns a snapshot of all registered input types.
     /// </summary>
@@ -331,6 +356,7 @@ public sealed class SchemaRegistry
             _enums.Clear();
             _queries.Clear();
             _mutations.Clear();
+            _functions.Clear();
             _injectDefaultsBase = null;
             _injectDefaultsQueries = null;
             _injectDefaultsMutations = null;

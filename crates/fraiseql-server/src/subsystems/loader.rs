@@ -100,28 +100,18 @@ fn load_one_module(module_dir: &Path, definition: &FunctionDefinition) -> Result
         });
     }
 
-    for extension in definition.runtime.supported_extensions() {
-        let path = module_dir.join(format!("{}{extension}", definition.name));
-        if !path.exists() {
-            continue;
-        }
+    // One definition of where a function's code lives, shared with the compiler's
+    // compile-time check and the `functions invoke` harness (#1325).
+    if let Some(path) = definition.resolve_module_path(module_dir) {
         return build_module(definition, &path);
     }
 
     Err(FraiseQLError::Configuration {
         message: format!(
-            "function {:?} declares the {:?} runtime but no module file was found at {}/{}.{{{}}}",
+            "function {:?} declares the {:?} runtime but no module file was found at {}",
             definition.name,
             definition.runtime,
-            module_dir.display(),
-            definition.name,
-            definition
-                .runtime
-                .supported_extensions()
-                .iter()
-                .map(|ext| ext.trim_start_matches('.'))
-                .collect::<Vec<_>>()
-                .join(","),
+            definition.module_path_pattern(module_dir),
         ),
     })
 }

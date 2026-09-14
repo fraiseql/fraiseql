@@ -191,6 +191,21 @@ offset = true                           # Auto-add offset parameter
 pagination_order = "identity"
 
 # =============================================================================
+# SERVERLESS FUNCTIONS
+# =============================================================================
+
+# The operational half of the functions surface. The definitions themselves —
+# what fires, on which trigger, under what authority — are schema, authored with
+# `@fraiseql.function(...)` in your SDK and carried in schema.json.
+#
+# Configuring this table without declaring a function is a compile error: there
+# would be nothing for the settings to apply to.
+
+# [functions]
+# module_dir = "functions"              # Where the .wasm / .js / .ts modules live
+# dlq_store = "memory"                  # memory | postgres (durable dead-letters, #598)
+
+# =============================================================================
 # CACHING
 # =============================================================================
 

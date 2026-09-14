@@ -82,6 +82,7 @@ SDK authors should pin to a minor version and test against the current compiler.
 | `debug_config` | `DebugConfig?` | no | Debug/dev configuration |
 | `mcp_config` | `McpConfig?` | no | Model Context Protocol config |
 | `sources` | `SourceDefinition[]?` | no | Scheduled ingress sources (#573) |
+| `functions` | `FunctionDefinition[]?` | no | Serverless function definitions (#1325) |
 | `inject_defaults` | `IntermediateInjectDefaults?` | no | Project-wide default injected params |
 | `naming_convention` | `string` | no | `camelCase` (default) or `snake_case` |
 | `session_variables` | `SessionVariablesConfig?` | no | Per-request `set_config()` injection |
@@ -419,6 +420,50 @@ An instance of a directive applied to a field or type.
 |-------|------|-------------|
 | `name` | `string` | Directive name |
 | `arguments` | `{[name]: value}?` | Argument values |
+
+---
+
+## Functions
+
+### `FunctionDefinition`
+
+A serverless function (#1325) — an out-of-band handler the server dispatches on a
+trigger and runs in a WASM or Deno sandbox.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | `string` | **yes** | Function name, **and the module file stem** |
+| `trigger` | `string` | **yes** | e.g. `after:mutation:Order:update` |
+| `runtime` | `"Deno" \| "Wasm"` | **yes** | Which sandbox runs the module |
+| `timeout_ms` | `number?` | no | Overrides the trigger default (500ms for `before:mutation`, 5s otherwise) |
+| `run_as` | `object?` | no | `{roles, scopes, tenant}` authority ceiling (#594); absent ⇒ fail-closed |
+| `when` | `FunctionPredicate[]?` | no | Conjunction evaluated before firing (#597) |
+| `re_runnable` | `boolean?` | no | Opt out of durable dispatch (ADR 0015) |
+| `retry` | `object?` | no | Per-function retry policy |
+
+Unknown keys are **refused**: `FunctionDefinition` denies them, so `timeout_msec` fails
+the compile naming the key rather than compiling to the trigger default.
+
+`name` is the one name an SDK must carry **verbatim** — it is the module file stem the
+server loads from `<module_dir>/<name>.<ext>`, not a GraphQL name, so the camelCase
+recasing every other name gets would send the compiler looking for a file the author
+never wrote.
+
+`module_dir` and `dlq_store` are **not** fields here. They are deployment settings owned
+by `[functions]` in `fraiseql.toml`; the compiler pairs the two halves into the compiled
+`functions` section. See [config-vs-settings.md](./config-vs-settings.md).
+
+### `FunctionPredicate`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `field` | `string` | **yes** | A field of the triggering entity type |
+| `eq` | `any?` | no | The field currently equals this value |
+| `changed_to` | `any?` | no | `old.field != v && new.field == v`; UPDATE-only |
+
+Exactly one operator per predicate. A `field` the entity type does not have fails the
+compile — a predicate that can never match is a function that never fires, which reads
+exactly like a condition that held false.
 
 ---
 

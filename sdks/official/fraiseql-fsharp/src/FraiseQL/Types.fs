@@ -296,6 +296,43 @@ type EnumDefinition =
         description: string option
     }
 
+/// One `when` conjunct (#597) the dispatcher evaluates on the row images before
+/// firing a function. Exactly one operator is set; `changed_to` is UPDATE-only.
+[<CLIMutable>]
+type FunctionPredicate =
+    {
+        /// The field in the row image to test.
+        field: string
+        /// The value the field must currently equal.
+        eq: string option
+        /// The value the field must have changed to.
+        changed_to: string option
+    }
+
+/// A serverless function definition (#1325) — an out-of-band handler the server
+/// dispatches on a trigger and runs in a WASM or Deno sandbox.
+///
+/// `name` is also the module *file stem*: the server loads
+/// `&lt;module_dir&gt;/&lt;name&gt;.&lt;ext&gt;`, so it is carried verbatim and never
+/// recased. `module_dir` and `dlq_store` are deliberately absent — they are deployment
+/// settings owned by `[functions]` in `fraiseql.toml`.
+[<CLIMutable>]
+type FunctionDefinition =
+    {
+        /// Function name, and the module file stem.
+        name: string
+        /// e.g. "after:mutation:Order:update"; after:mutation matches the return type.
+        trigger: string
+        /// "Deno" or "Wasm".
+        runtime: string
+        /// Timeout override in milliseconds.
+        timeout_ms: int option
+        /// `when` predicates (#597).
+        ``when``: FunctionPredicate list
+        /// Opt out of durable dispatch for work that is safe to re-run.
+        re_runnable: bool
+    }
+
 /// The root schema record serialized to schema.json.
 [<CLIMutable>]
 type IntermediateSchema =
@@ -312,6 +349,8 @@ type IntermediateSchema =
         queries: QueryDefinition list
         /// All GraphQL mutations defined in this schema.
         mutations: MutationDefinition list
+        /// All serverless functions defined in this schema (#1325).
+        functions: FunctionDefinition list
     }
 
 /// Discriminated union of all GraphQL scalar types.

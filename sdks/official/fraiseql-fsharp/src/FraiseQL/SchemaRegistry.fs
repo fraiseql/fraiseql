@@ -20,6 +20,7 @@ module SchemaRegistry =
     let private queries = System.Collections.Generic.List<QueryDefinition>()
     let private mutations = System.Collections.Generic.List<MutationDefinition>()
     let private enums = System.Collections.Generic.List<EnumDefinition>()
+    let private functions = System.Collections.Generic.List<FunctionDefinition>()
     let private lockObj = obj ()
 
     /// Clears all registered types, input types, queries, and mutations. Required between test runs.
@@ -30,7 +31,8 @@ module SchemaRegistry =
         lock lockObj (fun () ->
             queries.Clear()
             mutations.Clear()
-            enums.Clear())
+            enums.Clear()
+            functions.Clear())
 
     /// Reflects the fields of a type that carries <see cref="GraphQLFieldAttribute"/>.
     let private reflectFields (t: Type) : FieldDefinition list =
@@ -338,6 +340,17 @@ module SchemaRegistry =
     let getAllMutations () : MutationDefinition list =
         lock lockObj (fun () -> mutations |> Seq.toList)
 
+    /// Registers a serverless function (#1325).
+    ///
+    /// The name is stored verbatim: it is the module file stem the server loads from
+    /// `&lt;module_dir&gt;/&lt;name&gt;.&lt;ext&gt;`, not a GraphQL name, so it is never recased.
+    let registerFunction (f: FunctionDefinition) : unit =
+        lock lockObj (fun () -> functions.Add(f))
+
+    /// Returns all registered serverless functions in registration order.
+    let getAllFunctions () : FunctionDefinition list =
+        lock lockObj (fun () -> functions |> Seq.toList)
+
     /// Assembles all registered definitions into an <see cref="IntermediateSchema"/> value.
     let toIntermediateSchema () : IntermediateSchema =
         {
@@ -347,4 +360,5 @@ module SchemaRegistry =
             enums = getAllEnums ()
             queries = getAllQueries ()
             mutations = getAllMutations ()
+            functions = getAllFunctions ()
         }

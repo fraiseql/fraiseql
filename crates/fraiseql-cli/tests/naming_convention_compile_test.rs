@@ -58,7 +58,7 @@ async fn compile_in_dir(fraiseql_toml: Option<&str>) -> (NamingConvention, Strin
     let result = compile_to_schema(CompileOptions::new("schema.json")).await;
     std::env::set_current_dir(original).expect("restore cwd");
 
-    let (schema, _report) = result.expect("compile must succeed");
+    let schema = result.expect("compile must succeed").0.schema;
     let json = serde_json::to_string(&schema).expect("serialize compiled schema");
     (schema.naming_convention, json, schema.display_name("list_widgets"))
 }

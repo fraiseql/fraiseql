@@ -262,6 +262,18 @@ FraiseQLSchema authorFull() {
     invalidatesFactTables: ['tf_sale'],
   );
 
+  // #1325: the function authoring path. The name is two words in snake_case on
+  // purpose — it is the module file stem (functions/notify_approved.ts), not a
+  // GraphQL name, so it must survive verbatim.
+  schema.function(
+    'notify_approved',
+    trigger: 'after:mutation:Order:update',
+    timeoutMs: 2000,
+    when: [
+      {'field': 'status', 'changed_to': 'approved'},
+    ],
+  );
+
   return schema;
 }
 

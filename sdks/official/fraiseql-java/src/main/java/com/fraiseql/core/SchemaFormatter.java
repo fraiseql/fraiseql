@@ -79,8 +79,47 @@ public class SchemaFormatter {
         if (!registry.getAllSubscriptions().isEmpty()) {
             root.set("subscriptions", formatSubscriptionsArray(registry.getAllSubscriptions()));
         }
+        // #1325: serverless function definitions. Emitted only when present, so a
+        // schema declaring none serialises exactly as it did before.
+        if (!registry.getAllFunctions().isEmpty()) {
+            root.set("functions", formatFunctionsArray(registry.getAllFunctions()));
+        }
 
         return root;
+    }
+
+    /**
+     * Format the {@code functions} array (#1325).
+     *
+     * <p>Names are emitted verbatim — a function name is the module file stem, not a
+     * GraphQL name — and only keys the author set are included.
+     *
+     * @param functions registered functions by name
+     * @return the JSON array
+     */
+    private static ArrayNode formatFunctionsArray(Map<String, SchemaRegistry.FunctionInfo> functions) {
+        ArrayNode array = mapper.createArrayNode();
+        for (SchemaRegistry.FunctionInfo function : functions.values()) {
+            ObjectNode node = mapper.createObjectNode();
+            node.put("name", function.name);
+            node.put("trigger", function.trigger);
+            node.put("runtime", function.runtime);
+            if (function.timeoutMs != null) {
+                node.put("timeout_ms", function.timeoutMs.intValue());
+            }
+            if (!function.when.isEmpty()) {
+                ArrayNode predicates = mapper.createArrayNode();
+                for (Map<String, Object> predicate : function.when) {
+                    predicates.add(mapper.valueToTree(predicate));
+                }
+                node.set("when", predicates);
+            }
+            if (function.reRunnable) {
+                node.put("re_runnable", true);
+            }
+            array.add(node);
+        }
+        return array;
     }
 
     /**

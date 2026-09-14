@@ -256,6 +256,19 @@ let private authorFull () =
     |> MutationBuilder.invalidatesFactTables [ "tf_sale" ]
     |> MutationBuilder.register
 
+    // #1325: the function authoring path. The name is two words in snake_case on
+    // purpose — it is the module file stem (functions/notify_approved.ts), not a
+    // GraphQL name, so it must survive verbatim.
+    SchemaRegistry.registerFunction
+        {
+            name = "notify_approved"
+            trigger = "after:mutation:Order:update"
+            runtime = "Deno"
+            timeout_ms = Some 2000
+            ``when`` = [ { field = "status"; eq = None; changed_to = Some "approved" } ]
+            re_runnable = false
+        }
+
 [<Fact>]
 let ConformanceExport () =
     let fixture = Environment.GetEnvironmentVariable("FRAISEQL_CONFORMANCE_FIXTURE")

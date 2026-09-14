@@ -39,7 +39,8 @@ defmodule FraiseQL.SchemaExporter do
       types: module.__fraiseql_types__(),
       enums: enums_of(module),
       queries: module.__fraiseql_queries__(),
-      mutations: module.__fraiseql_mutations__()
+      mutations: module.__fraiseql_mutations__(),
+      functions: functions_of(module)
     }
   end
 
@@ -109,6 +110,14 @@ defmodule FraiseQL.SchemaExporter do
     if function_exported?(module, :__fraiseql_enums__, 0), do: module.__fraiseql_enums__(), else: []
   end
 
+  # Same shape as `enums_of/1`: a schema module compiled before `fraiseql_function`
+  # existed has no accessor, which is "no functions", not a crash.
+  defp functions_of(module) do
+    if function_exported?(module, :__fraiseql_functions__, 0),
+      do: module.__fraiseql_functions__(),
+      else: []
+  end
+
   defp schema_to_map(%FraiseQL.IntermediateSchema{} = s) do
     base = %{
       "version" => s.version,
@@ -117,11 +126,45 @@ defmodule FraiseQL.SchemaExporter do
       "mutations" => Enum.map(s.mutations, &mutation_to_map/1)
     }
 
-    if s.enums == [] do
+    base =
+      if s.enums == [] do
+        base
+      else
+        Map.put(base, "enums", Enum.map(s.enums, &enum_to_map/1))
+      end
+
+    # #1325: omitted entirely when none are declared, so a schema that has never heard
+    # of functions serialises exactly as it did before.
+    if s.functions == [] do
       base
     else
-      Map.put(base, "enums", Enum.map(s.enums, &enum_to_map/1))
+      Map.put(base, "functions", Enum.map(s.functions, &function_to_map/1))
     end
+  end
+
+  defp function_to_map(%FraiseQL.FunctionDefinition{} = f) do
+    base = %{
+      "name" => f.name,
+      "trigger" => f.trigger,
+      "runtime" => f.runtime
+    }
+
+    base = maybe_put(base, "timeout_ms", f.timeout_ms)
+
+    base =
+      if f.when == [] do
+        base
+      else
+        Map.put(base, "when", Enum.map(f.when, &function_predicate_to_map/1))
+      end
+
+    if f.re_runnable, do: Map.put(base, "re_runnable", true), else: base
+  end
+
+  defp function_predicate_to_map(%FraiseQL.FunctionPredicate{} = p) do
+    %{"field" => p.field}
+    |> maybe_put("eq", p.eq)
+    |> maybe_put("changed_to", p.changed_to)
   end
 
   defp enum_to_map(%FraiseQL.EnumDefinition{} = e) do

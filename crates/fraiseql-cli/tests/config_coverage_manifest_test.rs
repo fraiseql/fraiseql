@@ -69,6 +69,17 @@ const MANIFEST: &[(&str, &str)] = &[
         "fraiseql-server `grpc` feature (GrpcConfig → build_grpc_service); producer added in \
          #780, which this section had documented but no compile path could emit",
     ),
+    // ── Functions: the operational half of the functions surface (#1325) ─────
+    (
+        "functions.module_dir",
+        "compiled functions section → fraiseql-server subsystems::loader (module load) and \
+         `fraiseql functions invoke`; the definitions half is authored in the schema",
+    ),
+    (
+        "functions.dlq_store",
+        "compiled functions section → server function dead-letter store (#598), overridable \
+         by FRAISEQL_FUNCTIONS_DLQ_STORE",
+    ),
     // ── Observers: mixed. Backend/enabled consumed; handlers REJECTED (#8) ───
     (
         "observers.enabled",

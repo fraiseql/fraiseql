@@ -31,6 +31,7 @@ class FraiseQLSchema {
   final List<Map<String, Object?>> _enums = [];
   final List<Map<String, Object?>> _queries = [];
   final List<Map<String, Object?>> _mutations = [];
+  final List<Map<String, Object?>> _functions = [];
 
   /// Declares a GraphQL object type backed by a SQL view.
   ///
@@ -277,6 +278,41 @@ class FraiseQLSchema {
     return definition;
   }
 
+  /// Declares a serverless function (#1325).
+  ///
+  /// A function is an out-of-band handler the server dispatches on a trigger and runs
+  /// in a WASM or Deno sandbox. [name] is also the module **file stem**: the server
+  /// loads `<module_dir>/<name>.<ext>`, so pass it exactly as the file is named — it is
+  /// carried verbatim and never recased.
+  ///
+  /// `module_dir` and `dlq_store` are deliberately not parameters: they are deployment
+  /// settings owned by `[functions]` in `fraiseql.toml`.
+  ///
+  /// [when] is a list of predicate maps (#597), e.g.
+  /// `[{'field': 'status', 'changed_to': 'approved'}]`. `changed_to` is UPDATE-only.
+  ///
+  /// [trigger]'s `after:mutation` form matches the mutation's RETURN TYPE, not its name.
+  Map<String, Object?> function(
+    String name, {
+    required String trigger,
+    String runtime = 'Deno',
+    int? timeoutMs,
+    List<Map<String, Object?>> when = const [],
+    bool reRunnable = false,
+  }) {
+    final definition = <String, Object?>{
+      'name': name,
+      'trigger': trigger,
+      'runtime': runtime,
+    };
+    if (timeoutMs != null) definition['timeout_ms'] = timeoutMs;
+    if (when.isNotEmpty) definition['when'] = when;
+    if (reRunnable) definition['re_runnable'] = true;
+
+    _functions.add(definition);
+    return definition;
+  }
+
   /// The schema as a JSON-encodable map, in the intermediate format.
   ///
   /// Empty sections are omitted rather than emitted as `null`: a `null` array is
@@ -287,6 +323,7 @@ class FraiseQLSchema {
     if (_enums.isNotEmpty) document['enums'] = _enums;
     if (_queries.isNotEmpty) document['queries'] = _queries;
     if (_mutations.isNotEmpty) document['mutations'] = _mutations;
+    if (_functions.isNotEmpty) document['functions'] = _functions;
     return document;
   }
 

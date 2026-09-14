@@ -253,6 +253,7 @@ type Schema struct {
 	Subscriptions  []SubscriptionDefinition `json:"subscriptions,omitempty"`
 	FactTables     []FactTableDefinition    `json:"fact_tables,omitempty"`
 	Observers      []ObserverDefinition     `json:"observers,omitempty"`
+	Functions      []FunctionDefinition     `json:"functions,omitempty"`
 	CustomScalars  []map[string]interface{} `json:"custom_scalars,omitempty"`
 	InjectDefaults *InjectDefaults          `json:"inject_defaults,omitempty"`
 }
@@ -277,6 +278,7 @@ type SchemaRegistry struct {
 	subscriptions  map[string]SubscriptionDefinition
 	factTables     map[string]FactTableDefinition
 	observers      map[string]ObserverDefinition
+	functions      map[string]FunctionDefinition
 	injectDefaults *InjectDefaults
 }
 
@@ -295,6 +297,7 @@ func getInstance() *SchemaRegistry {
 			subscriptions: make(map[string]SubscriptionDefinition),
 			factTables:    make(map[string]FactTableDefinition),
 			observers:     make(map[string]ObserverDefinition),
+			functions:     make(map[string]FunctionDefinition),
 		}
 	})
 	return registry
@@ -569,6 +572,10 @@ func GetSchema() Schema {
 		schema.Observers = append(schema.Observers, reg.observers[name])
 	}
 
+	for _, name := range sortedKeys(reg.functions) {
+		schema.Functions = append(schema.Functions, reg.functions[name])
+	}
+
 	if reg.injectDefaults != nil {
 		schema.InjectDefaults = reg.injectDefaults
 	}
@@ -619,6 +626,7 @@ func Reset() {
 	reg.subscriptions = make(map[string]SubscriptionDefinition)
 	reg.factTables = make(map[string]FactTableDefinition)
 	reg.observers = make(map[string]ObserverDefinition)
+	reg.functions = make(map[string]FunctionDefinition)
 	reg.injectDefaults = nil
 
 	// Also clear custom scalars

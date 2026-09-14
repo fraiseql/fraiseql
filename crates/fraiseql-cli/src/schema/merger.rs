@@ -749,6 +749,17 @@ impl SchemaMerger {
             });
         }
 
+        // Embed the `[functions]` settings when the project configures any (#1325).
+        // A table left at its defaults produces no section: an empty one would read
+        // as a deliberate choice, and the compiler's own `functions/` convention is
+        // the honest answer to "the author said nothing".
+        if toml_schema.functions.is_configured() {
+            merged["functions_config"] = json!({
+                "module_dir": toml_schema.functions.module_dir,
+                "dlq_store": toml_schema.functions.dlq_store,
+            });
+        }
+
         // Embed federation configuration if enabled. Lower the TOML config into the
         // compiled (`fraiseql_core`) shape explicitly so the merged JSON matches what
         // the converter/runtime deserialize — a raw passthrough silently dropped

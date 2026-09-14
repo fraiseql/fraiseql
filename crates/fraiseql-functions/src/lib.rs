@@ -53,8 +53,8 @@ pub use triggers::{
     source::{IngestSink, SourceOutcome, run_source_once},
 };
 pub use types::{
-    EventPayload, FunctionDefinition, FunctionModule, FunctionResult, LogEntry, LogLevel,
-    ResourceLimits, RunAs, RuntimeType,
+    EventPayload, FunctionDefinition, FunctionModule, FunctionResult, FunctionsConfig, LogEntry,
+    LogLevel, ResourceLimits, RunAs, RuntimeType,
 };
 /// The `wasmtime` this crate's public API is built against (#1198).
 #[cfg(feature = "runtime-wasm")]

@@ -433,6 +433,10 @@ module Dsl =
                 enums = []
                 queries = items |> List.choose (function QueryItem q -> Some q | _ -> None)
                 mutations = items |> List.choose (function MutationItem m -> Some m | _ -> None)
+                // Functions are registered through `SchemaRegistry.registerFunction`, not
+                // through this computation expression, which yields only GraphQL surface
+                // items (#1325).
+                functions = []
             }
 
         /// Adds a <see cref="TypeDefinition"/> to the schema.

@@ -189,6 +189,7 @@ export { validateCustomScalar, getAllCustomScalars, ScalarValidationError } from
 // Export observer authoring API
 export { Observer, webhook, slack, email, DEFAULT_RETRY_CONFIG } from "./observers";
 export type { RetryConfig } from "./observers";
+export { FraiseFunction } from "./functions";
 export { Source } from "./sources";
 
 // Export HTTP client

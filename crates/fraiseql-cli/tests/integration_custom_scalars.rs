@@ -43,6 +43,8 @@ fn test_compile_schema_with_single_custom_scalar() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       Some(vec![IntermediateScalar {
             name:             "Email".to_string(),
             description:      Some("Valid email address".to_string()),
@@ -102,6 +104,8 @@ fn test_compile_schema_with_multiple_custom_scalars() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       Some(vec![
             IntermediateScalar {
                 name:             "Email".to_string(),
@@ -170,6 +174,8 @@ fn test_custom_scalar_with_multiple_validation_rules() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       Some(vec![IntermediateScalar {
             name:             "Username".to_string(),
             description:      Some("Valid username".to_string()),
@@ -234,6 +240,8 @@ fn test_custom_scalar_preserves_all_metadata() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       Some(vec![IntermediateScalar {
             name:             "CustomType".to_string(),
             description:      Some("A custom type".to_string()),
@@ -287,6 +295,8 @@ fn test_empty_custom_scalars_list() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None, // No custom scalars
         security:             None,
         auth:                 None,
@@ -332,6 +342,8 @@ fn test_custom_scalar_with_no_validation_rules() {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       Some(vec![IntermediateScalar {
             name:             "SimpleScalar".to_string(),
             description:      None,

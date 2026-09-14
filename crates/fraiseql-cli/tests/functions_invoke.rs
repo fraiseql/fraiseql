@@ -24,31 +24,76 @@ fn cli() -> Command {
     Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
 }
 
-/// Write a compiled-schema JSON whose `functions` section declares `notify_approved`
-/// (`after:mutation:Order:update`, gated `status` → `approved`) pointing at the
-/// fixture module dir. Returns the schema path.
+/// Author a project declaring `notify_approved`
+/// (`after:mutation:Order:update`, gated `status` → `approved`), **compile it with the
+/// real compiler**, and return the path to the compiled artifact.
+///
+/// This used to hand-build the compiled JSON, because until #1325 nothing could produce
+/// one — `IntermediateSchema` had no `functions` field, so the only writer of a compiled
+/// `functions` section in the tree was this function. A harness fixture that constructs
+/// its own input proves only that it agrees with itself; every question about whether
+/// the compiler and the harness read the same section was invisible to it. Now the
+/// producer is the producer.
 fn write_schema(dir: &TempDir) -> PathBuf {
     let module_dir = fixture_module_dir();
-    let schema = serde_json::json!({
-        "types": [],
-        "queries": [],
-        "mutations": [],
-        "functions": {
-            "module_dir": module_dir,
-            "definitions": [
-                {
-                    "name": "notify_approved",
-                    "trigger": "after:mutation:Order:update",
-                    "runtime": "Deno",
-                    "timeout_ms": null,
-                    "when": [ { "field": "status", "changed_to": "approved" } ],
-                    "re_runnable": false
-                }
+    let types = serde_json::json!({
+        "version": "2.0.0",
+        "types": [{
+            "name": "Order",
+            "sql_source": "v_order",
+            "is_input": false,
+            "fields": [
+                {"name": "id", "type": "ID", "nullable": false},
+                {"name": "status", "type": "String", "nullable": false}
             ]
-        }
+        }],
+        "mutations": [{
+            "name": "updateOrder",
+            "return_type": "Order",
+            "sql_source": "fn_update_order",
+            "operation": "update",
+            "invalidates_views": ["v_order"],
+            "arguments": []
+        }],
+        "functions": [{
+            "name": "notify_approved",
+            "trigger": "after:mutation:Order:update",
+            "runtime": "Deno",
+            "when": [{"field": "status", "changed_to": "approved"}]
+        }]
     });
+    let types_path = dir.path().join("types.json");
+    std::fs::write(&types_path, serde_json::to_string_pretty(&types).unwrap()).unwrap();
+
+    // `module_dir` is the deployment half of the surface, owned by `[functions]` — it
+    // is not something the schema can set, which is what the split is for.
+    let toml_path = dir.path().join("fraiseql.toml");
+    std::fs::write(
+        &toml_path,
+        format!(
+            "[schema]\nname = \"invoke\"\nversion = \"1.0.0\"\n\
+             database_target = \"postgresql\"\n\n\
+             [functions]\nmodule_dir = \"{}\"\n",
+            module_dir.display()
+        ),
+    )
+    .unwrap();
+
     let path = dir.path().join("schema.compiled.json");
-    std::fs::write(&path, serde_json::to_string_pretty(&schema).unwrap()).unwrap();
+    let output = cli()
+        .arg("compile")
+        .arg(&toml_path)
+        .arg("--types")
+        .arg(&types_path)
+        .arg("--output")
+        .arg(&path)
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "the fixture project must compile:\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     path
 }
 

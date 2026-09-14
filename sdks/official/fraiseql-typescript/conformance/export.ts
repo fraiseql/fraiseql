@@ -13,6 +13,7 @@
  */
 
 import {
+  FraiseFunction,
   SchemaRegistry,
   registerTypeFields,
   registerQuery,
@@ -271,6 +272,25 @@ function authorFull(): void {
       fields: ["id", "total"],
     }
   );
+
+  // #1325: the function authoring path, through the decorator — the documented
+  // surface. It is declared INSIDE this function on purpose: a class at module scope
+  // would run its decorators at import time, before `SchemaRegistry.clear()` below,
+  // and the registration would be wiped before the export.
+  //
+  // The member name is two words in snake_case because it is the module file stem
+  // (`functions/notify_approved.ts`), not a GraphQL name — it must survive verbatim.
+  class ConformanceFunctions {
+    @FraiseFunction({
+      trigger: "after:mutation:Order:update",
+      timeoutMs: 2000,
+      when: [{ field: "status", changed_to: "approved" }],
+    })
+    // eslint-disable-next-line @typescript-eslint/naming-convention -- module file stem, not a GraphQL name
+    notify_approved(): void {}
+  }
+  // Reference the class so the decorator is not elided as dead code.
+  void ConformanceFunctions;
 }
 
 const fixture = process.env.FRAISEQL_CONFORMANCE_FIXTURE;

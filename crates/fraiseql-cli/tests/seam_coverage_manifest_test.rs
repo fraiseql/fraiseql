@@ -28,8 +28,8 @@ use std::{collections::BTreeSet, fs, path::Path};
 
 use fraiseql_cli::schema::{
     intermediate::{
-        IntermediateInjectDefaults, IntermediateQueryDefaults, IntermediateScalar,
-        IntermediateSchema,
+        IntermediateFunctionsConfig, IntermediateInjectDefaults, IntermediateQueryDefaults,
+        IntermediateScalar, IntermediateSchema,
     },
     seam::{AUTHORABLE_ARRAY_SECTIONS, AUTHORABLE_SINGLETON_SECTIONS},
 };
@@ -43,11 +43,20 @@ use fraiseql_core::schema::{
 /// A field belongs here only when an SDK cannot emit it — it is populated by the compiler
 /// itself. Anything an SDK *can* write must be a carried section instead, or it is the `#755`
 /// silent drop by another name.
-const KNOWN_UNAUTHORED: &[(&str, &str)] = &[(
-    "query_defaults",
-    "injected by the merger from the TOML [query_defaults] section; never present in \
+const KNOWN_UNAUTHORED: &[(&str, &str)] = &[
+    (
+        "query_defaults",
+        "injected by the merger from the TOML [query_defaults] section; never present in \
          schema.json (documented on the field)",
-)];
+    ),
+    (
+        "functions_config",
+        "injected by the merger from the TOML [functions] table (#1325); the definitions \
+         half — `functions` — is the authorable one, and a FunctionDefinition is \
+         deny_unknown_fields with no module_dir/dlq_store key, so a schema cannot set a \
+         setting",
+    ),
+];
 
 /// The path to the round-trip suite whose probes this gate cross-checks.
 const ROUND_TRIP_SUITE: &str = "tests/compiled_schema_seam_test.rs";
@@ -108,6 +117,8 @@ fn every_field_is_classified() {
         aggregate_queries:    Some(Vec::new()),
         observers:            Some(Vec::new()),
         sources:              Some(Vec::new()),
+        functions:            Some(Vec::new()),
+        functions_config:     Some(IntermediateFunctionsConfig::default()),
         custom_scalars:       Some(Vec::new()),
         security:             Some(serde_json::json!({})),
         auth:                 Some(serde_json::json!({})),
@@ -266,6 +277,8 @@ fn fully_populated() -> IntermediateSchema {
         aggregate_queries: Some(Vec::new()),
         observers: Some(Vec::new()),
         sources: Some(Vec::new()),
+        functions: Some(Vec::new()),
+        functions_config: Some(IntermediateFunctionsConfig::default()),
         custom_scalars: Some(vec![IntermediateScalar {
             name:             "Probe".to_string(),
             description:      None,

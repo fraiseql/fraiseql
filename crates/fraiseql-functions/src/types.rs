@@ -1,6 +1,6 @@
 //! Core types for function execution.
 
-use std::time::Duration;
+use std::{path::PathBuf, time::Duration};
 
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -157,7 +157,8 @@ impl RunAs {
 }
 
 /// Definition of a serverless function for deployment and execution.
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FunctionDefinition {
     /// Unique name for this function.
     pub name:       String,
@@ -169,6 +170,7 @@ pub struct FunctionDefinition {
     /// Optional timeout in milliseconds (overrides defaults).
     /// - For `before:mutation` triggers: defaults to 500ms
     /// - For other triggers: defaults to 5s
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub timeout_ms: Option<u64>,
 
     /// The authority ceiling this function's `fraiseql_query` bridge writes run
@@ -204,7 +206,7 @@ pub struct FunctionDefinition {
     /// are identical across both subsystems.
     ///
     /// [`RetryConfig`]: fraiseql_observers::RetryConfig
-    #[serde(default)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub retry: Option<fraiseql_observers::RetryConfig>,
 }
 
@@ -285,6 +287,44 @@ impl FunctionDefinition {
         }
     }
 
+    /// The module file this definition resolves to under `module_dir`, if one is
+    /// there: `<module_dir>/<name>.<ext>` for each extension the declared runtime
+    /// supports, first existing file wins.
+    ///
+    /// The **one** definition of where a function's code lives. The server's
+    /// `build_functions_subsystem` loads through it, `fraiseql functions invoke`
+    /// resolves through it, and the compiler checks through it (#1325) — three sites
+    /// that each carried their own copy of this loop, which is three chances for the
+    /// compiler to approve a layout the server cannot load.
+    ///
+    /// Returns `None` when no module is present, which the caller reports in its own
+    /// terms: a compile error, a boot failure, or a harness error.
+    #[must_use]
+    pub fn resolve_module_path(&self, module_dir: &std::path::Path) -> Option<PathBuf> {
+        self.runtime
+            .supported_extensions()
+            .iter()
+            .map(|extension| module_dir.join(format!("{}{extension}", self.name)))
+            .find(|path| path.exists())
+    }
+
+    /// The module-file candidates this definition names, rendered for a diagnostic:
+    /// `<module_dir>/<name>.{ext,ext}`.
+    #[must_use]
+    pub fn module_path_pattern(&self, module_dir: &std::path::Path) -> String {
+        format!(
+            "{}/{}.{{{}}}",
+            module_dir.display(),
+            self.name,
+            self.runtime
+                .supported_extensions()
+                .iter()
+                .map(|ext| ext.trim_start_matches('.'))
+                .collect::<Vec<_>>()
+                .join(","),
+        )
+    }
+
     /// Check if this function is a before:mutation trigger.
     #[must_use]
     pub fn is_before_mutation(&self) -> bool {
@@ -320,6 +360,58 @@ impl FunctionDefinition {
     pub fn is_http(&self) -> bool {
         self.trigger.starts_with("http:")
     }
+}
+
+/// The compiled schema's `"functions"` section — the whole of what an author
+/// declares about functions, and the single definition of that shape.
+///
+/// It is a **sibling** of the core `CompiledSchema` in `schema.compiled.json`, not a
+/// field of it: `fraiseql-core` knows nothing about functions, and the dependency
+/// runs the other way (`fraiseql-functions` optionally uses core, never the
+/// reverse). The server reads it through `ExtendedCompiledSchema`; the CLI writes it
+/// there and reads it back in `fraiseql functions invoke`.
+///
+/// ```json
+/// {
+///   "functions": {
+///     "module_dir": "functions",
+///     "definitions": [
+///       { "name": "on_create_user", "trigger": "after:mutation:createUser", "runtime": "Wasm" }
+///     ]
+///   }
+/// }
+/// ```
+///
+/// # One definition, deliberately
+///
+/// This shape used to exist three times: `fraiseql-server`'s `FunctionsConfig`, the
+/// CLI harness's private `FunctionsSection` ("a local mirror … so the harness does
+/// not pull the whole server crate in"), and — had #1325 followed the same instinct —
+/// an authoring mirror in `IntermediateSchema`. Three copies of a rule lose the
+/// fourth. It lives here, in the crate that owns [`FunctionDefinition`], so the
+/// producer and both consumers deserialize the same struct.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct FunctionsConfig {
+    /// Directory containing the function modules (`.wasm`, `.js`, `.ts`), resolved
+    /// relative to the server's working directory.
+    ///
+    /// Required on the wire. The *authoring* default (`functions/`) lives in the
+    /// compiler, which always emits an explicit value — so a hand-written compiled
+    /// schema that omits it still fails loudly rather than silently resolving
+    /// somewhere the author did not choose.
+    pub module_dir: PathBuf,
+
+    /// The declared functions.
+    #[serde(default)]
+    pub definitions: Vec<FunctionDefinition>,
+
+    /// Which dead-letter store backs function dispatch (#598): `"memory"` (the
+    /// default — dead-letters vanish on restart) or `"postgres"` (durable, survives
+    /// a restart; requires a database pool). Overridable by the
+    /// `FRAISEQL_FUNCTIONS_DLQ_STORE` env var. Absent ⇒ memory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dlq_store: Option<String>,
 }
 
 /// Log level for structured logging.

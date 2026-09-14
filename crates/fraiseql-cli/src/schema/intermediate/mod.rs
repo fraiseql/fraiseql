@@ -41,6 +41,23 @@ pub use types::{
     IntermediateRelationship, IntermediateScalar, IntermediateType,
 };
 
+/// The `[functions]` settings lowered into the intermediate schema (#1325).
+///
+/// Typed rather than a raw `serde_json::Value` so a misspelled key is a compile
+/// error naming it, not an empty default — the `#847` lesson applied to the newest
+/// section rather than only to the ones that had already gone wrong.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IntermediateFunctionsConfig {
+    /// Where the function modules live. Unset ⇒ the compiler's `functions/`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub module_dir: Option<std::path::PathBuf>,
+
+    /// Which dead-letter store backs function dispatch (#598).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub dlq_store: Option<String>,
+}
+
 /// Intermediate schema - universal format from all language libraries
 ///
 /// # `deny_unknown_fields` is the load-bearing attribute on this struct
@@ -133,6 +150,32 @@ pub struct IntermediateSchema {
     /// into the compiled schema.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub sources: Option<Vec<fraiseql_core::schema::SourceDefinition>>,
+
+    /// Serverless function definitions (#1325) — the authoring dual of the compiled
+    /// `functions` section.
+    ///
+    /// Reuses the runtime shape
+    /// ([`FunctionDefinition`](fraiseql_functions::FunctionDefinition)) directly, as
+    /// `sources` does, so an authored declaration and the one the server dispatches
+    /// are the same struct. The compiler pairs this list with the `[functions]` TOML
+    /// group (`module_dir`, `dlq_store`) to emit the compiled section; the two halves
+    /// have one owner each and neither may set the other's keys.
+    ///
+    /// Before #1325 nothing could write this section: `IntermediateSchema` had no
+    /// field for it, so the only way to ship a function was to hand-edit
+    /// `schema.compiled.json` — which the next `fraiseql compile` overwrote.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub functions: Option<Vec<fraiseql_functions::FunctionDefinition>>,
+
+    /// Functions settings from the `[functions]` TOML table (#1325).
+    ///
+    /// **Injected by the merger, never present in `schema.json`** — the same
+    /// arrangement `query_defaults` has. The compiler pairs it with
+    /// [`functions`](Self::functions) to emit the compiled section: the definitions
+    /// are schema and these are deployment settings, one owner each
+    /// (`docs/architecture/config-vs-settings.md`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub functions_config: Option<IntermediateFunctionsConfig>,
 
     /// Custom scalar type definitions
     ///

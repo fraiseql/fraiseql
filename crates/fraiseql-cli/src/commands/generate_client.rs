@@ -142,46 +142,38 @@ fn functions_type_specs(
     schema: &CompiledSchema,
 ) -> Vec<fraiseql_codegen::client::typescript::FunctionTypeSpec> {
     use fraiseql_codegen::client::typescript::{FunctionPayloadShape, FunctionTypeSpec};
-
-    /// The subset of the `functions` section we need.
-    #[derive(serde::Deserialize)]
-    struct FunctionsLite {
-        #[serde(default)]
-        definitions: Vec<FunctionDefLite>,
-    }
-    #[derive(serde::Deserialize)]
-    struct FunctionDefLite {
-        name:    String,
-        trigger: String,
-    }
+    use fraiseql_functions::{FunctionsConfig, triggers::registry::ParsedTrigger};
 
     let Some(functions) = serde_json::from_str::<serde_json::Value>(raw)
         .ok()
         .and_then(|value| value.get("functions").cloned())
         .filter(|value| !value.is_null())
-        .and_then(|value| serde_json::from_value::<FunctionsLite>(value).ok())
+        .and_then(|value| serde_json::from_value::<FunctionsConfig>(value).ok())
     else {
         return Vec::new();
     };
 
     let is_type = |name: &str| schema.types.iter().any(|ty| ty.name == name);
-    let entity_shape = |parts: &[&str]| {
-        // `after:{mutation,capture}:<Entity>[:op]` — the 3rd segment is the entity type.
-        let entity = parts.get(2).filter(|name| is_type(name)).map(|name| (*name).to_string());
-        FunctionPayloadShape::Entity { entity }
+    let entity_shape = |entity_type: String| FunctionPayloadShape::Entity {
+        entity: Some(entity_type).filter(|name| is_type(name)),
     };
 
     functions
         .definitions
         .into_iter()
         .filter_map(|def| {
-            let parts: Vec<&str> = def.trigger.split(':').collect();
-            let shape = match (parts.first().copied(), parts.get(1).copied()) {
-                (Some("after"), Some("mutation" | "capture")) => entity_shape(&parts),
-                (Some("cron"), _) => FunctionPayloadShape::Cron,
-                (Some("after"), Some("ingest")) => FunctionPayloadShape::Ingest,
+            // The trigger grammar has one implementation (`ParsedTrigger::parse`), and
+            // this used to be a fourth hand-rolled `split(':')` beside it — the shape
+            // that had already cost the server loader two whole trigger kinds (#1325).
+            let shape = match ParsedTrigger::parse(&def.trigger).ok()? {
+                ParsedTrigger::AfterMutation { entity_type, .. }
+                | ParsedTrigger::AfterCapture { entity_type, .. } => entity_shape(entity_type),
+                ParsedTrigger::Cron { .. } => FunctionPayloadShape::Cron,
+                ParsedTrigger::AfterIngest { .. } => FunctionPayloadShape::Ingest,
                 // http / before:mutation / after:storage: no author-facing payload yet.
-                _ => return None,
+                ParsedTrigger::Http { .. }
+                | ParsedTrigger::BeforeMutation { .. }
+                | ParsedTrigger::AfterStorage { .. } => return None,
             };
             Some(FunctionTypeSpec {
                 name: def.name,

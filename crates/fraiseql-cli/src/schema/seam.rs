@@ -42,6 +42,7 @@ pub const AUTHORABLE_ARRAY_SECTIONS: &[&str] = &[
     "aggregate_queries",
     "observers",
     "sources",
+    "functions",
     "custom_scalars",
 ];
 

@@ -151,6 +151,45 @@ async fn test_schema_loads_functions_config() {
     assert_eq!(functions.module_dir, std::path::PathBuf::from("/opt/fraiseql/functions"));
 }
 
+/// #1325 RED: the loader's own grammar copy and the trigger registry's disagree.
+///
+/// `validate_functions_config` kept a private `VALID_TRIGGER_PREFIXES` list that
+/// `ParsedTrigger::parse` — the grammar the dispatcher actually uses — has since
+/// outgrown. `after:capture:` (#366) and `after:ingest:` are valid triggers the
+/// registry loads and dispatches, and the loader rejected both before the schema
+/// reached `build_functions_subsystem`. Two copies of one rule, and this is the
+/// fourth case one of them lost.
+#[cfg(feature = "functions-runtime")]
+#[tokio::test]
+async fn a_capture_or_ingest_trigger_is_not_rejected_by_the_loader() {
+    for trigger in ["after:capture:User:update", "after:ingest:email"] {
+        let json = format!(
+            r#"{{
+            "types": [],
+            "functions": {{
+                "module_dir": "/opt/fraiseql/functions",
+                "definitions": [
+                    {{"name": "fn_under_test", "trigger": "{trigger}", "runtime": "Wasm"}}
+                ]
+            }}
+        }}"#
+        );
+        let file = write_schema(&json);
+        let loader = CompiledSchemaLoader::new(file.path());
+
+        let extended = loader.load_extended().await.unwrap_or_else(|e| {
+            panic!(
+                "`{trigger}` is a trigger the registry parses and dispatches, but the loader \
+                 refused the schema: {e}"
+            )
+        });
+        assert_eq!(
+            extended.functions.expect("the section must load").definitions[0].trigger,
+            trigger
+        );
+    }
+}
+
 #[tokio::test]
 async fn test_schema_without_functions_returns_none() {
     let file = write_schema(minimal_schema());

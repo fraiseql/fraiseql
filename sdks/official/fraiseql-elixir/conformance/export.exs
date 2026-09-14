@@ -223,6 +223,15 @@ defmodule Conformance.FullSchema do
     invalidates_views: ["v_order_summary"],
     invalidates_fact_tables: ["tf_sale"]
   )
+
+  # #1325: the function authoring path. The name is two words in snake_case on
+  # purpose — it is the module file stem (functions/notify_approved.ts), not a
+  # GraphQL name, so it must survive verbatim.
+  fraiseql_function("notify_approved",
+    trigger: "after:mutation:Order:update",
+    timeout_ms: 2000,
+    when: [[field: "status", changed_to: "approved"]]
+  )
 end
 
 fixture = System.get_env("FRAISEQL_CONFORMANCE_FIXTURE")

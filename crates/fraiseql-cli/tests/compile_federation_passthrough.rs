@@ -297,7 +297,7 @@ async fn compile_to_schema_legacy_json_carries_federation_end_to_end() {
     let result = compile_to_schema(CompileOptions::new("schema.json")).await;
     std::env::set_current_dir(original).expect("restore cwd");
 
-    let (schema, _report) = result.expect("compile must succeed");
+    let schema = result.expect("compile must succeed").0.schema;
     let fed = schema.federation.as_ref().expect("compiled schema must carry federation");
     assert!(fed.enabled);
     assert_eq!(fed.service_name.as_deref(), Some("orders"));

@@ -107,6 +107,16 @@ final class SchemaExporter
             );
         }
 
+        // #1325: serverless function definitions. Emitted only when present, so a
+        // schema that declares none serialises exactly as it did before.
+        $functions = $registry->getAllFunctions();
+        if (!empty($functions)) {
+            $schema['functions'] = array_map(
+                fn (FunctionDefinition $function) => $function->toArray(),
+                array_values($functions),
+            );
+        }
+
         return $schema;
     }
 

@@ -135,8 +135,10 @@ impl TestPipeline {
     async fn start(fixtures: TempDir, toml_path: &str, db_url: &str) -> Self {
         // ── 1. Compile schema ──────────────────────────────────────────────
         let opts = CompileOptions::new(toml_path);
-        let (schema, _report) =
-            compile_to_schema(opts).await.expect("compile_to_schema must succeed");
+        // No intermediate binding: one holds the whole `CompiledArtifact` alive across the
+        // await below and pushes this future past clippy's `large_futures` threshold.
+        let schema =
+            compile_to_schema(opts).await.expect("compile_to_schema must succeed").0.schema;
 
         // ── 2. Build PostgresAdapter ───────────────────────────────────────
         let adapter = Arc::new(

@@ -255,6 +255,29 @@ impl TriggerRegistry {
         }
     }
 
+    /// Validate a set of function definitions without keeping the registry.
+    ///
+    /// The **one** definition of "is this set of declarations loadable" — trigger
+    /// grammar, `when` predicates against the trigger's operation (#597), event-kind
+    /// tokens (#842), the `after:ingest` source selector, and the `http:` /
+    /// `after:storage` refusals (#871). The compiler calls it so a bad declaration
+    /// fails `fraiseql compile`; the server's schema loader calls it so a
+    /// hand-written or stale artifact still fails at boot rather than dispatching
+    /// something nobody validated.
+    ///
+    /// Two *call sites*, one rule. The loader used to carry its own
+    /// `VALID_TRIGGER_PREFIXES` list instead, and it had already fallen behind by two
+    /// trigger kinds: `after:capture:` (#366) and `after:ingest:` parse and dispatch
+    /// here, and were refused there (#1325).
+    ///
+    /// # Errors
+    ///
+    /// Returns the first [`RegistryError`] any definition produces, naming the
+    /// function.
+    pub fn validate_definitions(functions: &[FunctionDefinition]) -> Result<(), RegistryError> {
+        Self::load_from_definitions(functions).map(|_| ())
+    }
+
     /// Load triggers from function definitions.
     ///
     /// # Errors
@@ -266,7 +289,12 @@ impl TriggerRegistry {
         registry.function_count = functions.len();
 
         for func in functions {
-            let parsed = ParsedTrigger::parse(&func.trigger)?;
+            // Name the function in every trigger diagnosis. The parse error knows
+            // only the string; a compiled schema with twenty functions needs to say
+            // which one.
+            let parsed = ParsedTrigger::parse(&func.trigger).map_err(|error| RegistryError {
+                message: format!("function `{}`: {}", func.name, error.message),
+            })?;
 
             match parsed {
                 ParsedTrigger::AfterMutation {

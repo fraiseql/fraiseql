@@ -17,6 +17,20 @@
   "field_scope": {
     "User.salary": "read:User.salary"
   },
+  "function_definition": {
+    "notify_approved": {
+      "re_runnable": false,
+      "runtime": "Deno",
+      "timeout_ms": 2000,
+      "trigger": "after:mutation:Order:update",
+      "when": [
+        {
+          "changed_to": "approved",
+          "field": "status"
+        }
+      ]
+    }
+  },
   "input_types": {
     "CreateUserInput": {
       "fields": [

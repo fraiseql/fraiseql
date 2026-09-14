@@ -234,3 +234,89 @@ fn generate_client_errors_clearly_when_schema_missing() {
         .assert()
         .failure();
 }
+
+/// #1325 — `functions.d.ts` is generated from an artifact the **compiler** produced.
+///
+/// `functions_type_specs` is the bridge between the compiled `functions` section and
+/// the `functions.d.ts` renderer, and until this test nothing exercised it end to end:
+/// the renderer's own tests build their specs by hand, so they could only prove the
+/// renderer agrees with itself. Meanwhile nothing in the tree could *produce* a
+/// compiled `functions` section at all, which is why the bridge had never been run
+/// against real compiler output.
+///
+/// The fixture is authored and compiled rather than embedded for that reason.
+#[test]
+fn functions_dts_is_generated_from_a_compiled_schema() {
+    let tmp = tempfile::tempdir().unwrap();
+
+    std::fs::write(
+        tmp.path().join("types.json"),
+        r#"{
+          "version": "2.0.0",
+          "types": [{
+            "name": "Order",
+            "sql_source": "v_order",
+            "is_input": false,
+            "fields": [
+              {"name": "id", "type": "ID", "nullable": false},
+              {"name": "status", "type": "String", "nullable": false}
+            ]
+          }],
+          "mutations": [{
+            "name": "updateOrder",
+            "return_type": "Order",
+            "sql_source": "fn_update_order",
+            "operation": "update",
+            "invalidates_views": ["v_order"],
+            "arguments": []
+          }],
+          "functions": [{
+            "name": "notify_approved",
+            "trigger": "after:mutation:Order:update",
+            "runtime": "Deno"
+          }]
+        }"#,
+    )
+    .unwrap();
+    std::fs::write(
+        tmp.path().join("fraiseql.toml"),
+        "[schema]\nname = \"dts\"\nversion = \"1.0.0\"\ndatabase_target = \"postgresql\"\n",
+    )
+    .unwrap();
+
+    let compiled = tmp.path().join("schema.compiled.json");
+    Command::cargo_bin("fraiseql-cli")
+        .unwrap()
+        .arg("compile")
+        .arg(tmp.path().join("fraiseql.toml"))
+        .arg("--types")
+        .arg(tmp.path().join("types.json"))
+        .arg("--output")
+        .arg(&compiled)
+        .assert()
+        .success();
+
+    let out = tmp.path().join("generated");
+    Command::cargo_bin("fraiseql-cli")
+        .unwrap()
+        .args(["generate-client", "typescript"])
+        .arg("--schema")
+        .arg(&compiled)
+        .arg("--out")
+        .arg(&out)
+        .assert()
+        .success();
+
+    let dts = std::fs::read_to_string(out.join("functions.d.ts")).expect(
+        "an authored function must produce functions.d.ts — the compiled section reached \
+         the generator",
+    );
+    assert!(
+        dts.contains("notify_approved"),
+        "the declaration must name the function; got:\n{dts}"
+    );
+    assert!(
+        dts.contains("Order"),
+        "the payload must be typed to the trigger's entity, not `unknown`; got:\n{dts}"
+    );
+}

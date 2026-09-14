@@ -1661,6 +1661,71 @@ def source(
     return decorator
 
 
+def function(  # noqa: PLR0913 — public API; all parameters are meaningful
+    *,
+    trigger: str,
+    runtime: str = "Deno",
+    timeout_ms: int | None = None,
+    run_as: dict[str, Any] | None = None,
+    when: list[dict[str, Any]] | None = None,
+    re_runnable: bool = False,
+    retry: dict[str, Any] | None = None,
+) -> Callable[[F], F]:
+    """Decorator to register a serverless function (#1325).
+
+    A function runs out of band on a trigger — after a committed mutation, before
+    one, on a cron schedule, or on an inbound event — in a WASM or Deno sandbox.
+    NO runtime behavior here; the runtime is Rust. The decorated function's name is
+    the function name **and the module file stem**: the server loads
+    ``<module_dir>/<name>.<ext>``, so it is carried verbatim rather than camelCased
+    like the rest of the SDK's names.
+
+    ``module_dir`` and ``dlq_store`` are deliberately not parameters — they are
+    deployment settings, owned by ``[functions]`` in ``fraiseql.toml``
+    (``docs/architecture/config-vs-settings.md``).
+
+    Args:
+        trigger: e.g. ``"after:mutation:Order:update"``,
+            ``"before:mutation:placeOrder"``, ``"cron:0 * * * *"``. ``after:mutation``
+            matches the mutation's **return type**, not its name.
+        runtime: ``"Deno"`` (JavaScript/TypeScript) or ``"Wasm"``.
+        timeout_ms: Optional timeout override; defaults to 500ms for
+            ``before:mutation`` and 5s otherwise.
+        run_as: Optional authority ceiling for the function's ``fraiseql_query``
+            writes (#594). Absent ⇒ fail-closed.
+        when: Optional predicates (#597) evaluated on the row images before firing,
+            e.g. ``[{"field": "status", "changed_to": "approved"}]``.
+        re_runnable: Opt out of durable dispatch for work that is safe to re-run.
+        retry: Optional per-function retry policy.
+
+    Returns:
+        The original function (unmodified).
+
+    Examples:
+        >>> @fraiseql.function(
+        ...     trigger="after:mutation:Order:update",
+        ...     when=[{"field": "status", "changed_to": "approved"}],
+        ... )
+        ... def notify_approved() -> None:
+        ...     "Runs from functions/notify_approved.ts when an order is approved."
+    """
+
+    def decorator(f: F) -> F:
+        SchemaRegistry.register_function(
+            name=f.__name__,
+            trigger=trigger,
+            runtime=runtime,
+            timeout_ms=timeout_ms,
+            run_as=run_as,
+            when=when,
+            re_runnable=re_runnable,
+            retry=retry,
+        )
+        return f
+
+    return decorator
+
+
 def union(
     name: str | None = None,
     members: list[type] | None = None,

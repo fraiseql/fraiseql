@@ -106,6 +106,8 @@ fn relay_intermediate_schema() -> IntermediateSchema {
         observers:         None,
 
         sources:              None,
+        functions:            None,
+        functions_config:     None,
         custom_scalars:       None,
         security:             None,
         auth:                 None,

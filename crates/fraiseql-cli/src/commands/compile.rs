@@ -13,8 +13,8 @@ use tracing::{info, warn};
 use crate::{
     config::TomlProjectConfig,
     schema::{
-        ConvertOptions, IntermediateSchema, OptimizationReport, SchemaConverter, SchemaOptimizer,
-        SchemaValidator,
+        CompiledArtifact, ConvertOptions, IntermediateSchema, OptimizationReport, SchemaConverter,
+        SchemaOptimizer, SchemaValidator,
         database_validator::validate_schema_against_database,
         mutation_contract::{Severity, validate_mutation_contract},
         pg_catalog::PgCatalog,
@@ -154,7 +154,7 @@ pub fn load_intermediate_schema(
         .context("Failed to load schema from TOML")
 }
 
-/// Compile a schema to `CompiledSchema` without writing to disk.
+/// Compile a schema to the whole `schema.compiled.json` artifact, without writing it.
 ///
 /// This is the core compilation logic, shared between `compile` (which writes to disk)
 /// and `run` (which serves in-memory without any file artifacts).
@@ -170,7 +170,7 @@ pub fn load_intermediate_schema(
 #[allow(clippy::cognitive_complexity)] // Reason: end-to-end compilation pipeline with validation, introspection, and output stages
 pub async fn compile_to_schema(
     opts: CompileOptions<'_>,
-) -> Result<(CompiledSchema, OptimizationReport)> {
+) -> Result<(CompiledArtifact, OptimizationReport)> {
     info!("Compiling schema: {}", opts.input);
 
     // 1. Determine workflow based on input file and options
@@ -355,11 +355,15 @@ pub async fn compile_to_schema(
         validation_report.print();
     }
 
-    // 4. Convert to CompiledSchema (validates and normalizes)
+    // 4. Convert to the compiled artifact (validates and normalizes). `functions` is
+    // a sibling section of the compiled schema, not a field of it, so the converter
+    // hands both halves back and the rest of this pipeline sharpens the schema half.
     info!("Converting to compiled format...");
-    let mut schema =
-        SchemaConverter::convert_with_options(intermediate, &ConvertOptions { auto_error_union })
-            .context("Failed to convert schema to compiled format")?;
+    let CompiledArtifact {
+        mut schema,
+        functions,
+    } = SchemaConverter::convert_artifact(intermediate, &ConvertOptions { auto_error_union })
+        .context("Failed to convert schema to compiled format")?;
 
     // Carry the project's casing acronyms into the compiled schema so the runtime
     // installs them at boot (see `fraiseql_db::utils::set_runtime_acronyms`).
@@ -509,7 +513,7 @@ pub async fn compile_to_schema(
     // 5g. Refuse authorization declarations no enforcer reads (#983).
     refuse_unenforced_authz_declarations(&schema)?;
 
-    Ok((schema, report))
+    Ok((CompiledArtifact { schema, functions }, report))
 }
 
 /// Refuse `security.rules`, `security.field_auth` and `security.default_policy` (#983).
@@ -683,7 +687,8 @@ pub async fn run(
         skip_hash,
         allow_drift,
     };
-    let (schema, optimization_report) = compile_to_schema(opts).await?;
+    let (artifact, optimization_report) = compile_to_schema(opts).await?;
+    let schema = &artifact.schema;
 
     // If check-only mode, stop here
     if check {
@@ -697,12 +702,13 @@ pub async fn run(
 
     // Write compiled schema
     info!("Writing compiled schema to: {output}");
+    // One routine assembles the file — schema plus every sibling section — so the
+    // `_content_hash` below covers all of it (#899/#1325).
+    let value = artifact.to_json_value()?;
+
     let output_json = if skip_hash {
-        serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?
+        serde_json::to_string_pretty(&value).context("Failed to serialize compiled schema")?
     } else {
-        let body =
-            serde_json::to_string_pretty(&schema).context("Failed to serialize compiled schema")?;
-        let value: serde_json::Value = serde_json::from_str(&body)?;
         // One routine, shared with the `from_json` verifier, so writer and reader
         // cannot drift (#899).
         let hash_hex = content_hash_of(&value);
@@ -731,12 +737,12 @@ pub async fn run(
 
     // Emit DDL to directory if requested
     if let Some(ddl_dir) = emit_ddl {
-        emit_ddl_to_dir(&schema, ddl_dir)?;
+        emit_ddl_to_dir(schema, ddl_dir)?;
     }
 
     // Check for migration drift if requested
     if check_migrations {
-        run_check_migrations(&schema)?;
+        run_check_migrations(schema)?;
     }
 
     Ok(())

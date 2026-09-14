@@ -278,3 +278,15 @@ def order_updated(order_id: ID | None = None) -> Order:
     # No trailing period: the description travels from this docstring, and the canonical
     # fixture's string is what every other SDK passes explicitly.
     """Stream of order update events"""
+
+
+# #1325: the function authoring path. The name is two words in snake_case on purpose —
+# it is the module file stem (`functions/notify_approved.ts`), so it must survive the
+# camelCase recasing this SDK applies to every other name it emits.
+@fraiseql.function(
+    trigger="after:mutation:Order:update",
+    timeout_ms=2000,
+    when=[{"field": "status", "changed_to": "approved"}],
+)
+def notify_approved() -> None:
+    pass

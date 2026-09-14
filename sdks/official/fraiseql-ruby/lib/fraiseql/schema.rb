@@ -75,6 +75,7 @@ module FraiseQL
       @enums = []
       @queries = []
       @mutations = []
+      @functions = []
     end
 
     # Declares a GraphQL object type backed by a SQL view.
@@ -207,6 +208,36 @@ module FraiseQL
       definition
     end
 
+    # Declares a serverless function (#1325).
+    #
+    # A function is an out-of-band handler the server dispatches on a trigger and runs
+    # in a WASM or Deno sandbox. The name is also the module **file stem**: the server
+    # loads `<module_dir>/<name>.<ext>`, so pass it exactly as the file is named — it
+    # is carried verbatim and never recased.
+    #
+    # `module_dir` and `dlq_store` are deliberately not parameters: they are deployment
+    # settings owned by `[functions]` in `fraiseql.toml`.
+    #
+    # `when_` takes an array of predicate hashes (#597), e.g.
+    # `[{ field: "status", changed_to: "approved" }]`. `changed_to` is UPDATE-only.
+    def function(name, trigger:, runtime: "Deno", timeout_ms: nil, when_: [], re_runnable: false)
+      definition = {
+        "name" => name.to_s,
+        "trigger" => trigger.to_s,
+        "runtime" => runtime.to_s
+      }
+      definition["timeout_ms"] = timeout_ms if timeout_ms
+      unless when_.empty?
+        definition["when"] = when_.map do |predicate|
+          predicate.each_with_object({}) { |(key, value), out| out[key.to_s] = value }
+        end
+      end
+      definition["re_runnable"] = true if re_runnable
+
+      @functions << definition
+      definition
+    end
+
     # Declares a GraphQL query.
     #
     # `inject` maps a SQL parameter to a `"jwt:<claim>"` source and is emitted under
@@ -315,6 +346,7 @@ module FraiseQL
       document["enums"] = @enums unless @enums.empty?
       document["queries"] = @queries unless @queries.empty?
       document["mutations"] = @mutations unless @mutations.empty?
+      document["functions"] = @functions unless @functions.empty?
       document
     end
 
