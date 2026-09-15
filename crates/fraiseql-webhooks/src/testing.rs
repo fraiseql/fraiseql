@@ -12,7 +12,7 @@ pub mod mocks {
     };
 
     use crate::{
-        Clock, Result, SecretProvider, SignatureVerifier, WebhookError,
+        Clock, InboundRequest, Result, SecretProvider, SignatureVerifier, WebhookError,
         signature::{SignatureError, Verified, verified_if},
     };
 
@@ -73,21 +73,14 @@ pub mod mocks {
             "mock"
         }
 
-        fn signature_header(&self) -> &'static str {
-            "X-Mock-Signature"
-        }
-
         fn verify(
             &self,
-            payload: &[u8],
-            signature: &str,
+            request: &InboundRequest<'_>,
             _secret: &str,
-            _timestamp: Option<&str>,
-            _url: Option<&str>,
         ) -> std::result::Result<Verified, SignatureError> {
             self.calls.lock().unwrap().push(MockVerifyCall {
-                payload:   payload.to_vec(),
-                signature: signature.to_string(),
+                payload:   request.body().to_vec(),
+                signature: request.header("X-Mock-Signature").unwrap_or_default().to_string(),
             });
             verified_if(self.should_succeed)
         }

@@ -3,6 +3,7 @@
 //! Format: Plain token in X-Gitlab-Token header
 
 use crate::{
+    request::InboundRequest,
     signature::{SignatureError, Verified, constant_time_eq, verified_if},
     traits::SignatureVerifier,
 };
@@ -14,23 +15,20 @@ use crate::{
 /// using constant-time equality to prevent timing attacks.
 pub struct GitLabVerifier;
 
+/// The header this scheme reads its credential from.
+const TOKEN_HEADER: &str = "X-Gitlab-Token";
+
 impl SignatureVerifier for GitLabVerifier {
     fn name(&self) -> &'static str {
         "gitlab"
     }
 
-    fn signature_header(&self) -> &'static str {
-        "X-Gitlab-Token"
-    }
-
     fn verify(
         &self,
-        _payload: &[u8],
-        signature: &str,
+        request: &InboundRequest<'_>,
         secret: &str,
-        _timestamp: Option<&str>,
-        _url: Option<&str>,
     ) -> Result<Verified, SignatureError> {
+        let signature = request.require_header(TOKEN_HEADER)?;
         if secret.is_empty() {
             return Err(SignatureError::KeyMaterial(
                 "GitLab webhook token must not be empty".to_string(),

@@ -99,6 +99,7 @@
 
 pub mod idempotency;
 pub mod pipeline;
+pub mod request;
 pub mod scheme;
 pub mod secret;
 pub mod signature;
@@ -113,6 +114,7 @@ pub use idempotency::PostgresIdempotencyStore;
 pub use pipeline::{
     Authenticated, Delivery, Disposition, VerifiedEvent, WebhookPipeline, verify_signature,
 };
+pub use request::InboundRequest;
 pub use scheme::{CredentialLocation, SchemeConfig, SchemeError, SignatureEncoding, build_scheme};
 pub use secret::StaticSecretProvider;
 /// The `serde_json` this crate's public API is built against (#1198).

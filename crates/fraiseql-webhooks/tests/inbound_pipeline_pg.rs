@@ -21,9 +21,9 @@ use std::str::FromStr;
 
 use fraiseql_test_support::try_database_url;
 use fraiseql_webhooks::{
-    Authenticated, Delivery, Disposition, EventHandler, Handled, PostgresIdempotencyStore, Result,
-    SignatureError, SignatureVerifier, StaticSecretProvider, Verified, VerifiedEvent, WebhookError,
-    WebhookPipeline,
+    Authenticated, Delivery, Disposition, EventHandler, Handled, InboundRequest,
+    PostgresIdempotencyStore, Result, SignatureError, SignatureVerifier, StaticSecretProvider,
+    Verified, VerifiedEvent, WebhookError, WebhookPipeline,
 };
 use serde_json::{Value, json};
 use sqlx::{
@@ -44,17 +44,10 @@ impl SignatureVerifier for AcceptingVerifier {
         "accepting"
     }
 
-    fn signature_header(&self) -> &'static str {
-        "X-Test-Signature"
-    }
-
     fn verify(
         &self,
-        _payload: &[u8],
-        _signature: &str,
+        _request: &InboundRequest<'_>,
         _secret: &str,
-        _timestamp: Option<&str>,
-        _url: Option<&str>,
     ) -> std::result::Result<Verified, SignatureError> {
         Ok(Verified::Body)
     }
@@ -66,17 +59,10 @@ impl SignatureVerifier for RejectingVerifier {
         "rejecting"
     }
 
-    fn signature_header(&self) -> &'static str {
-        "X-Test-Signature"
-    }
-
     fn verify(
         &self,
-        _payload: &[u8],
-        _signature: &str,
+        _request: &InboundRequest<'_>,
         _secret: &str,
-        _timestamp: Option<&str>,
-        _url: Option<&str>,
     ) -> std::result::Result<Verified, SignatureError> {
         Err(SignatureError::Mismatch)
     }
@@ -175,14 +161,16 @@ macro_rules! skip_if_no_db {
     };
 }
 
+/// The headers a delivery arrives with. Borrowed by `InboundRequest`, so it has to
+/// outlive it — these doubles read nothing out of it, but the type still does.
+static NO_HEADERS: std::sync::LazyLock<std::collections::BTreeMap<String, String>> =
+    std::sync::LazyLock::new(std::collections::BTreeMap::new);
+
 fn delivery() -> Delivery<'static> {
     Delivery {
         route:         "stripe",
         function_name: "process_payment",
-        body:          b"{}",
-        signature:     "sig",
-        timestamp:     None,
-        url:           None,
+        request:       InboundRequest::new(&NO_HEADERS, b"{}", None),
     }
 }
 

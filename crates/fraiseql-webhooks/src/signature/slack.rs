@@ -9,6 +9,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::{
+    request::InboundRequest,
     signature::{
         SignatureError, Verified, check_timestamp_freshness, constant_time_eq, system_now_secs,
         verified_if,
@@ -52,27 +53,28 @@ impl Default for SlackVerifier {
     }
 }
 
+/// The header this scheme reads its credential from.
+const SIGNATURE_HEADER: &str = "X-Slack-Signature";
+
+/// The header carrying the timestamp this scheme signs.
+const TIMESTAMP_HEADER: &str = "X-Slack-Request-Timestamp";
+
 impl SignatureVerifier for SlackVerifier {
     fn name(&self) -> &'static str {
         "slack"
     }
 
-    fn signature_header(&self) -> &'static str {
-        "X-Slack-Signature"
-    }
-
-    fn timestamp_header(&self) -> Option<&'static str> {
-        Some("X-Slack-Request-Timestamp")
-    }
-
     fn verify(
         &self,
-        payload: &[u8],
-        signature: &str,
+        request: &InboundRequest<'_>,
         secret: &str,
-        timestamp: Option<&str>,
-        _url: Option<&str>,
     ) -> Result<Verified, SignatureError> {
+        let signature = request.require_header(SIGNATURE_HEADER)?;
+        // Optional here, not required: the scheme's own `MissingTimestamp` is the
+        // established answer for a delivery without one, and it is more specific than
+        // "the credential is missing".
+        let timestamp = request.header(TIMESTAMP_HEADER);
+        let payload = request.body();
         if secret.is_empty() {
             return Err(SignatureError::KeyMaterial(
                 "Slack signing secret must not be empty".to_string(),

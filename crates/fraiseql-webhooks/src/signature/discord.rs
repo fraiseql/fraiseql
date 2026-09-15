@@ -9,6 +9,7 @@
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
 use crate::{
+    request::InboundRequest,
     signature::{
         SignatureError, Verified, check_timestamp_freshness, system_now_secs, verified_if,
     },
@@ -56,27 +57,28 @@ impl Default for DiscordVerifier {
     }
 }
 
+/// The header this scheme reads its credential from.
+const SIGNATURE_HEADER: &str = "X-Signature-Ed25519";
+
+/// The header carrying the timestamp this scheme signs.
+const TIMESTAMP_HEADER: &str = "X-Signature-Timestamp";
+
 impl SignatureVerifier for DiscordVerifier {
     fn name(&self) -> &'static str {
         "discord"
     }
 
-    fn signature_header(&self) -> &'static str {
-        "X-Signature-Ed25519"
-    }
-
-    fn timestamp_header(&self) -> Option<&'static str> {
-        Some("X-Signature-Timestamp")
-    }
-
     fn verify(
         &self,
-        payload: &[u8],
-        signature: &str,
+        request: &InboundRequest<'_>,
         secret: &str,
-        timestamp: Option<&str>,
-        _url: Option<&str>,
     ) -> Result<Verified, SignatureError> {
+        let signature = request.require_header(SIGNATURE_HEADER)?;
+        // Optional here, not required: the scheme's own `MissingTimestamp` is the
+        // established answer for a delivery without one, and it is more specific than
+        // "the credential is missing".
+        let timestamp = request.header(TIMESTAMP_HEADER);
+        let payload = request.body();
         if secret.is_empty() {
             return Err(SignatureError::KeyMaterial(
                 "Discord public key must not be empty".to_string(),

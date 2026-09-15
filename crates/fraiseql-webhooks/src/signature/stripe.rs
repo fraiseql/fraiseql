@@ -10,6 +10,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::{
+    request::InboundRequest,
     signature::{
         SignatureError, Verified, check_timestamp_freshness, constant_time_eq, verified_if,
     },
@@ -27,6 +28,19 @@ pub struct StripeVerifier {
 }
 
 impl StripeVerifier {
+    /// The `t=` value inside a Stripe signature header, as Unix seconds.
+    ///
+    /// Inherent since #1321: it was a `SignatureVerifier` method no scheme but this
+    /// one implemented and nothing outside this crate's tests called.
+    #[must_use]
+    pub fn extract_timestamp(&self, signature: &str) -> Option<i64> {
+        signature
+            .split(',')
+            .find(|p| p.starts_with("t="))
+            .and_then(|p| p.strip_prefix("t="))
+            .and_then(|t| t.parse().ok())
+    }
+
     /// Create a new verifier using the system clock and a 5-minute timestamp tolerance.
     #[must_use]
     pub fn new() -> Self {
@@ -59,23 +73,21 @@ impl Default for StripeVerifier {
     }
 }
 
+/// The header this scheme reads its credential from.
+const SIGNATURE_HEADER: &str = "Stripe-Signature";
+
 impl SignatureVerifier for StripeVerifier {
     fn name(&self) -> &'static str {
         "stripe"
     }
 
-    fn signature_header(&self) -> &'static str {
-        "Stripe-Signature"
-    }
-
     fn verify(
         &self,
-        payload: &[u8],
-        signature: &str,
+        request: &InboundRequest<'_>,
         secret: &str,
-        _timestamp: Option<&str>,
-        _url: Option<&str>,
     ) -> Result<Verified, SignatureError> {
+        let signature = request.require_header(SIGNATURE_HEADER)?;
+        let payload = request.body();
         if secret.is_empty() {
             return Err(SignatureError::KeyMaterial(
                 "Stripe webhook secret must not be empty".to_string(),
@@ -126,14 +138,6 @@ impl SignatureVerifier for StripeVerifier {
                 acc | constant_time_eq(sig.as_bytes(), expected.as_bytes())
             }),
         )
-    }
-
-    fn extract_timestamp(&self, signature: &str) -> Option<i64> {
-        signature
-            .split(',')
-            .find(|p| p.starts_with("t="))
-            .and_then(|p| p.strip_prefix("t="))
-            .and_then(|t| t.parse().ok())
     }
 }
 

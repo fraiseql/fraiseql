@@ -195,10 +195,11 @@ pub enum SchemeError {
         key:      &'static str,
     },
 
-    /// The scheme can only read its credential from a header today.
+    /// The scheme's credential cannot live where the route says it does.
     #[error(
-        "credential = {location:?} is not supported by the {provider:?} scheme yet: it reads its \
-         credential from a request header. Use `header:<Name>`."
+        "credential = {location:?} is not something the {provider:?} scheme can read: its \
+         credential is a MAC over the request body, so it cannot also be part of that body. \
+         Use `header:<Name>`."
     )]
     UnsupportedCredential {
         /// The scheme that cannot honour the location.
@@ -292,20 +293,27 @@ fn preset<V: SignatureVerifier + 'static>(
     Ok(Arc::new(verifier))
 }
 
-/// The header a generic scheme reads, from its configured credential location.
+/// The credential location a generic HMAC scheme accepts, from its configuration.
 ///
-/// `None` is `X-Signature`: the pre-#1321 default, kept so that every route
+/// `None` is `header:X-Signature`: the pre-#1321 default, kept so that every route
 /// configured before this seam existed keeps working unchanged.
-pub(crate) fn header_from(
+///
+/// Header-only, and not because the seam cannot read a body credential — it can,
+/// through [`InboundRequest::credential`](crate::InboundRequest::credential). It is
+/// because a *MAC in the body it covers* is not a scheme: the credential would be
+/// part of its own signed material. Token schemes, whose credential is the body,
+/// are #1322's.
+pub(crate) fn header_only(
     provider: &str,
     credential: Option<&CredentialLocation>,
-) -> Result<String, SchemeError> {
+) -> Result<CredentialLocation, SchemeError> {
     match credential {
-        None => Ok("X-Signature".to_string()),
-        Some(CredentialLocation::Header(name)) => Ok(name.clone()),
+        None => Ok(CredentialLocation::Header("X-Signature".to_string())),
+        Some(CredentialLocation::Header(name)) => Ok(CredentialLocation::Header(name.clone())),
         // `body` and `body:<field>` are part of the grammar because #1322's token
-        // schemes need them; the HMAC families cannot read them yet, and saying so
-        // at boot beats mounting a route that refuses every delivery.
+        // schemes need them. For an HMAC family they are not "not yet supported"
+        // but meaningless, so this is a permanent refusal, at boot rather than on
+        // every delivery.
         //
         // Named rather than caught by `_`, so the next location this grammar grows
         // is a compile error here instead of being absorbed into "unsupported".

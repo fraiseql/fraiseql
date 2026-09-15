@@ -11,13 +11,44 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::doc_markdown)] // Reason: doc comments use type names without backticks for readability
 
+use std::collections::BTreeMap;
+
 use base64::{Engine as _, engine::general_purpose};
-use fraiseql_webhooks::{signature::sendgrid::SendGridVerifier, traits::SignatureVerifier as _};
+use fraiseql_webhooks::{
+    InboundRequest, SignatureError, SignatureVerifier, Verified,
+    signature::sendgrid::SendGridVerifier,
+};
 use p256::{
     ecdsa::{DerSignature, SigningKey, signature::Signer as _},
     pkcs8::{EncodePublicKey as _, LineEnding},
 };
 use rand_core::OsRng;
+
+/// Drive the scheme the way the route does: put the credential under the header
+/// the scheme reads, and hand it the whole request.
+///
+/// The argument order is the one `verify` had before #1321, so the rewrite of
+/// these call sites carried no judgement about which value is which.
+fn check(
+    verifier: &impl SignatureVerifier,
+    payload: &[u8],
+    signature: &str,
+    secret: &str,
+    timestamp: Option<&str>,
+) -> Result<Verified, SignatureError> {
+    let mut headers = BTreeMap::new();
+    headers.insert(
+        "X-Twilio-Email-Event-Webhook-Signature".to_ascii_lowercase(),
+        signature.to_string(),
+    );
+    if let Some(timestamp) = timestamp {
+        headers.insert(
+            "X-Twilio-Email-Event-Webhook-Timestamp".to_ascii_lowercase(),
+            timestamp.to_string(),
+        );
+    }
+    verifier.verify(&InboundRequest::new(&headers, payload, None), secret)
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -69,7 +100,7 @@ fn valid_ecdsa_p256_signature_over_timestamp_and_payload_verifies() {
     let sig_b64 = sendgrid_sign(&signing_key, payload, &timestamp);
     let verifier = SendGridVerifier::new();
 
-    let result = verifier.verify(payload, &sig_b64, &pem_public_key, Some(&timestamp), None);
+    let result = check(&verifier, payload, &sig_b64, &pem_public_key, Some(&timestamp));
 
     assert!(
         result.is_ok(),
@@ -97,7 +128,7 @@ fn hmac_sha256_forged_signature_is_rejected_by_ecdsa_verifier() {
     let forged_sig = general_purpose::STANDARD.encode(mac.finalize().into_bytes());
 
     let verifier = SendGridVerifier::new();
-    let result = verifier.verify(payload, &forged_sig, &pem_public_key, Some(&timestamp), None);
+    let result = check(&verifier, payload, &forged_sig, &pem_public_key, Some(&timestamp));
 
     assert!(
         result.is_err(),
@@ -123,7 +154,7 @@ fn signature_over_wrong_timestamp_is_rejected() {
 
     let verifier = SendGridVerifier::new();
     // Verify claiming a different timestamp — signed message does not match
-    let result = verifier.verify(payload, &sig_b64, &pem_public_key, Some(&verify_ts), None);
+    let result = check(&verifier, payload, &sig_b64, &pem_public_key, Some(&verify_ts));
 
     assert!(result.is_err(), "O2 regression: signature over wrong timestamp was accepted");
 }
@@ -143,7 +174,7 @@ fn signature_from_different_key_is_rejected() {
 
     // Verify against key B — must fail
     let verifier = SendGridVerifier::new();
-    let result = verifier.verify(payload, &sig_b64, &pem_b, Some(&timestamp), None);
+    let result = check(&verifier, payload, &sig_b64, &pem_b, Some(&timestamp));
 
     assert!(result.is_err(), "O2 regression: signature from key A verified against key B");
 }
@@ -154,7 +185,6 @@ fn invalid_base64_signature_returns_error() {
     let (_signing_key, pem_public_key) = generate_p256_key();
     let verifier = SendGridVerifier::new();
     let ts = fresh_timestamp();
-    let result =
-        verifier.verify(b"payload", "not-valid-base64!!!", &pem_public_key, Some(&ts), None);
+    let result = check(&verifier, b"payload", "not-valid-base64!!!", &pem_public_key, Some(&ts));
     assert!(result.is_err(), "O2 regression: invalid base64 signature must return Err");
 }

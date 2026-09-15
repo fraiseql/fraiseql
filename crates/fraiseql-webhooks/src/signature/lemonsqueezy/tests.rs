@@ -1,9 +1,27 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+use std::collections::BTreeMap;
+
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use super::*;
+
+/// Drive the scheme the way the route does: put the credential under the header
+/// the scheme reads, and hand it the whole request.
+///
+/// The argument order is the one `verify` had before #1321, so the rewrite of
+/// these call sites carried no judgement about which value is which.
+fn check(
+    verifier: &impl SignatureVerifier,
+    payload: &[u8],
+    signature: &str,
+    secret: &str,
+) -> Result<Verified, SignatureError> {
+    let mut headers = BTreeMap::new();
+    headers.insert("X-Signature".to_ascii_lowercase(), signature.to_string());
+    verifier.verify(&InboundRequest::new(&headers, payload, None), secret)
+}
 
 /// The signature exactly as Lemon Squeezy produces it: PHP
 /// `hash_hmac('sha256', $payload, $secret)` — **hex** output.
@@ -25,10 +43,7 @@ fn test_valid_signature() {
     let secret = "secret";
     let signature = provider_signature(payload, secret);
 
-    assert_eq!(
-        verifier.verify(payload, &signature, secret, None, None).unwrap(),
-        Verified::Body
-    );
+    assert_eq!(check(&verifier, payload, &signature, secret).unwrap(), Verified::Body);
 }
 
 #[test]
@@ -44,7 +59,7 @@ fn a_base64_signature_is_rejected() {
     let base64_signature = general_purpose::STANDARD.encode(mac.finalize().into_bytes());
 
     assert!(matches!(
-        verifier.verify(payload, &base64_signature, secret, None, None),
+        check(&verifier, payload, &base64_signature, secret),
         Err(SignatureError::Mismatch)
     ));
 }
@@ -53,7 +68,7 @@ fn a_base64_signature_is_rejected() {
 fn test_invalid_signature() {
     let verifier = LemonSqueezyVerifier;
     assert!(matches!(
-        verifier.verify(b"test", "invalid", "secret", None, None),
+        check(&verifier, b"test", "invalid", "secret"),
         Err(SignatureError::Mismatch)
     ));
 }
@@ -62,7 +77,7 @@ fn test_invalid_signature() {
 fn test_empty_secret_errors() {
     let verifier = LemonSqueezyVerifier;
     assert!(matches!(
-        verifier.verify(b"test", "anything", "", None, None),
+        check(&verifier, b"test", "anything", ""),
         Err(SignatureError::KeyMaterial(_))
     ));
 }

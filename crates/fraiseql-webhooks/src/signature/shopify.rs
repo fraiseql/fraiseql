@@ -7,6 +7,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::{
+    request::InboundRequest,
     signature::{SignatureError, Verified, constant_time_eq, verified_if},
     traits::SignatureVerifier,
 };
@@ -17,23 +18,21 @@ use crate::{
 /// sends it in the `X-Shopify-Hmac-Sha256` header.
 pub struct ShopifyVerifier;
 
+/// The header this scheme reads its credential from.
+const SIGNATURE_HEADER: &str = "X-Shopify-Hmac-Sha256";
+
 impl SignatureVerifier for ShopifyVerifier {
     fn name(&self) -> &'static str {
         "shopify"
     }
 
-    fn signature_header(&self) -> &'static str {
-        "X-Shopify-Hmac-Sha256"
-    }
-
     fn verify(
         &self,
-        payload: &[u8],
-        signature: &str,
+        request: &InboundRequest<'_>,
         secret: &str,
-        _timestamp: Option<&str>,
-        _url: Option<&str>,
     ) -> Result<Verified, SignatureError> {
+        let signature = request.require_header(SIGNATURE_HEADER)?;
+        let payload = request.body();
         if secret.is_empty() {
             return Err(SignatureError::KeyMaterial(
                 "Shopify webhook secret must not be empty".to_string(),

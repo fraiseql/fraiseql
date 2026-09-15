@@ -1,9 +1,31 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+use std::collections::BTreeMap;
+
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use super::*;
+
+/// Drive the scheme the way the route does: put the credential under the header
+/// the scheme reads, and hand it the whole request.
+///
+/// The argument order is the one `verify` had before #1321, so the rewrite of
+/// these call sites carried no judgement about which value is which.
+fn check(
+    verifier: &impl SignatureVerifier,
+    payload: &[u8],
+    signature: &str,
+    secret: &str,
+    timestamp: Option<&str>,
+) -> Result<Verified, SignatureError> {
+    let mut headers = BTreeMap::new();
+    headers.insert("X-Slack-Signature".to_ascii_lowercase(), signature.to_string());
+    if let Some(timestamp) = timestamp {
+        headers.insert("X-Slack-Request-Timestamp".to_ascii_lowercase(), timestamp.to_string());
+    }
+    verifier.verify(&InboundRequest::new(&headers, payload, None), secret)
+}
 
 fn make_signature(timestamp: &str, payload: &[u8], secret: &str) -> String {
     let signed = format!("v0:{}:{}", timestamp, String::from_utf8_lossy(payload));
@@ -28,14 +50,14 @@ fn test_valid_signature() {
     let ts = fresh_timestamp();
     let sig = make_signature(&ts, payload, secret);
 
-    assert_eq!(verifier.verify(payload, &sig, secret, Some(&ts), None).unwrap(), Verified::Body);
+    assert_eq!(check(&verifier, payload, &sig, secret, Some(&ts)).unwrap(), Verified::Body);
 }
 
 #[test]
 fn test_invalid_signature() {
     let verifier = SlackVerifier::new();
     let ts = fresh_timestamp();
-    let result = verifier.verify(b"test", "v0=invalidsig", "secret", Some(&ts), None);
+    let result = check(&verifier, b"test", "v0=invalidsig", "secret", Some(&ts));
     assert!(matches!(result, Err(SignatureError::Mismatch)));
 }
 
@@ -43,14 +65,14 @@ fn test_invalid_signature() {
 fn test_missing_prefix() {
     let verifier = SlackVerifier::new();
     let ts = fresh_timestamp();
-    let result = verifier.verify(b"test", "invalidsig", "secret", Some(&ts), None);
+    let result = check(&verifier, b"test", "invalidsig", "secret", Some(&ts));
     assert!(matches!(result, Err(SignatureError::InvalidFormat)));
 }
 
 #[test]
 fn test_missing_timestamp() {
     let verifier = SlackVerifier::new();
-    let result = verifier.verify(b"test", "v0=abc", "secret", None, None);
+    let result = check(&verifier, b"test", "v0=abc", "secret", None);
     assert!(matches!(result, Err(SignatureError::MissingTimestamp)));
 }
 
@@ -68,6 +90,6 @@ fn test_expired_timestamp_rejected() {
     let secret = "secret";
     let sig = make_signature(&old_ts, payload, secret);
 
-    let result = verifier.verify(payload, &sig, secret, Some(&old_ts), None);
+    let result = check(&verifier, payload, &sig, secret, Some(&old_ts));
     assert!(matches!(result, Err(SignatureError::TimestampExpired)));
 }

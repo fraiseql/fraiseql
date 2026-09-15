@@ -73,19 +73,41 @@ fn a_generic_scheme_reads_every_scheme_key() {
         prefix:     Some("sha256=".to_string()),
     };
     for provider in ["hmac-sha256", "hmac-sha1"] {
-        let built = build_scheme(provider, &config, 300).expect("a generic scheme reads them");
-        assert_eq!(built.signature_header(), "X-Lago-Signature");
+        build_scheme(provider, &config, 300).expect("a generic scheme reads them");
     }
+    // That the keys are *honoured* — not merely accepted — is
+    // `signature::generic::tests`, which drives a real request through each one.
 }
 
+/// The permissive default: absent keys mean `header:X-Signature`, hex, no prefix.
+///
+/// Asserted where it is observable — a credential under `X-Signature` verifies and
+/// one under another name is not found. Since #1321 the scheme locates its own
+/// credential, so there is no accessor to read the answer back from, and adding one
+/// would give the answer a second place to be right.
 #[test]
 fn a_generic_scheme_with_no_keys_keeps_the_pre_1321_default() {
-    for provider in ["hmac-sha256", "hmac-sha1"] {
-        let built = build_scheme(provider, &NO_KEYS, 300).unwrap();
+    use std::collections::BTreeMap;
+
+    use hmac::{Hmac, KeyInit as _, Mac as _};
+    use sha2::Sha256;
+
+    use crate::InboundRequest;
+
+    let payload = b"test";
+    let secret = "secret";
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
+    mac.update(payload);
+    let signature = hex::encode(mac.finalize().into_bytes());
+
+    let built = build_scheme("hmac-sha256", &NO_KEYS, 300).unwrap();
+    for (header, expected_hit) in [("x-signature", true), ("x-lago-signature", false)] {
+        let headers = BTreeMap::from([(header.to_string(), signature.clone())]);
+        let result = built.verify(&InboundRequest::new(&headers, payload, None), secret);
         assert_eq!(
-            built.signature_header(),
-            "X-Signature",
-            "the permissive default is the pre-#1321 behaviour every existing route relies on"
+            result.is_ok(),
+            expected_hit,
+            "{header}: the pre-#1321 default is `X-Signature` and nothing else; got {result:?}"
         );
     }
 }

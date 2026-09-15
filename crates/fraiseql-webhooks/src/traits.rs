@@ -7,6 +7,7 @@ use sqlx::{Postgres, Transaction};
 
 use super::{
     Result,
+    request::InboundRequest,
     signature::{SignatureError, Verified},
 };
 
@@ -14,28 +15,6 @@ use super::{
 pub trait SignatureVerifier: Send + Sync {
     /// Provider name (e.g., "stripe", "github")
     fn name(&self) -> &'static str;
-
-    /// Name of the request header this scheme reads its credential from.
-    ///
-    /// Borrowed from `self` rather than `&'static str` (#1321): a generic HMAC
-    /// scheme's header is its route's configuration, not a constant, so a sender
-    /// that puts its MAC in `X-Lago-Signature` is a configuration of the scheme
-    /// rather than a new implementation of this trait. Matched case-insensitively
-    /// against the request — the configured spelling is the operator's and the wire
-    /// spelling is the sender's, and they need not agree.
-    fn signature_header(&self) -> &str;
-
-    /// Header name carrying the provider's request timestamp, if its signing
-    /// scheme uses one (Slack, Discord, SendGrid).
-    ///
-    /// The receiving route reads this header and threads the value into
-    /// [`verify`](Self::verify)'s `timestamp` argument. Before #781 no route did,
-    /// so every verifier that `.ok_or(MissingTimestamp)?`'d rejected 100% of
-    /// genuine deliveries. Default `None`: the scheme needs no timestamp header
-    /// (Stripe and Paddle carry theirs inside the signature header itself).
-    fn timestamp_header(&self) -> Option<&'static str> {
-        None
-    }
 
     /// Whether the signing scheme covers the request URL (Twilio).
     ///
@@ -47,16 +26,13 @@ pub trait SignatureVerifier: Send + Sync {
         false
     }
 
-    /// Verify the delivery and report **what was authenticated** (#1321).
+    /// Verify the request and report **what was authenticated** (#1321).
     ///
-    /// # Arguments
-    ///
-    /// * `payload` - Raw request body bytes
-    /// * `signature` - The credential, from wherever [`signature_header`](Self::signature_header)
-    ///   said it is
-    /// * `secret` - Webhook signing secret
-    /// * `timestamp` - Optional timestamp from headers (for replay protection)
-    /// * `url` - Full request URL (required by Twilio; ignored by most providers)
+    /// The scheme is handed the whole request and locates what it needs: its
+    /// credential may be in a header, in the body, or be the body. The route does
+    /// not look first — a route that refused a request with no signature header
+    /// before verifying could not serve a scheme whose credential is elsewhere,
+    /// and told an unauthenticated caller which header the endpoint expects.
     ///
     /// # Returns
     ///
@@ -66,23 +42,16 @@ pub trait SignatureVerifier: Send + Sync {
     ///
     /// # Errors
     ///
-    /// [`SignatureError::Mismatch`] when the credential does not match — a
-    /// mismatch is an error rather than an `Ok(false)` a caller can forget to
-    /// inspect — and the other [`SignatureError`] variants for a credential that
-    /// cannot be parsed, a stale timestamp, or unusable key material.
+    /// [`SignatureError::MissingCredential`] when the credential is not in the
+    /// request; [`SignatureError::Mismatch`] when it does not match — a mismatch is
+    /// an error rather than an `Ok(false)` a caller can forget to inspect — and the
+    /// other [`SignatureError`] variants for a credential that cannot be parsed, a
+    /// stale timestamp, or unusable key material.
     fn verify(
         &self,
-        payload: &[u8],
-        signature: &str,
+        request: &InboundRequest<'_>,
         secret: &str,
-        timestamp: Option<&str>,
-        url: Option<&str>,
     ) -> std::result::Result<Verified, SignatureError>;
-
-    /// Optional: Extract timestamp from signature or headers
-    fn extract_timestamp(&self, _signature: &str) -> Option<i64> {
-        None
-    }
 }
 
 /// Atomic, transaction-scoped deduplication of inbound webhook deliveries.

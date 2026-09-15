@@ -13,7 +13,8 @@ use sha1::Sha1;
 use sha2::Sha256;
 
 use crate::{
-    scheme::{SchemeConfig, SchemeError, SignatureEncoding, header_from},
+    request::InboundRequest,
+    scheme::{CredentialLocation, SchemeConfig, SchemeError, SignatureEncoding, header_only},
     signature::{SignatureError, Verified, constant_time_eq, verified_if},
     traits::SignatureVerifier,
 };
@@ -26,7 +27,7 @@ use crate::{
 /// silently rather than loudly.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct GenericCredential {
-    header:   String,
+    location: CredentialLocation,
     encoding: SignatureEncoding,
     prefix:   Option<String>,
 }
@@ -34,7 +35,7 @@ pub struct GenericCredential {
 impl Default for GenericCredential {
     fn default() -> Self {
         Self {
-            header:   "X-Signature".to_string(),
+            location: CredentialLocation::Header("X-Signature".to_string()),
             encoding: SignatureEncoding::Hex,
             prefix:   None,
         }
@@ -50,7 +51,7 @@ impl GenericCredential {
     /// somewhere these schemes cannot read.
     fn from_config(provider: &str, config: &SchemeConfig) -> Result<Self, SchemeError> {
         Ok(Self {
-            header:   header_from(provider, config.credential.as_ref())?,
+            location: header_only(provider, config.credential.as_ref())?,
             encoding: config.encoding.unwrap_or(SignatureEncoding::Hex),
             prefix:   config.prefix.clone(),
         })
@@ -79,8 +80,7 @@ impl GenericCredential {
 /// so a correct hex MAC written in upper case did not verify.
 fn verify_hmac<M>(
     credential: &GenericCredential,
-    payload: &[u8],
-    signature: &str,
+    request: &InboundRequest<'_>,
     secret: &str,
     empty_secret: &str,
 ) -> Result<Verified, SignatureError>
@@ -90,11 +90,12 @@ where
     if secret.is_empty() {
         return Err(SignatureError::KeyMaterial(empty_secret.to_string()));
     }
-    let presented = credential.decode(signature)?;
+    let signature = request.credential(&credential.location)?;
+    let presented = credential.decode(&signature)?;
 
     let mut mac = M::new_from_slice(secret.as_bytes())
         .map_err(|e| SignatureError::KeyMaterial(e.to_string()))?;
-    mac.update(payload);
+    mac.update(request.body());
     let expected = mac.finalize().into_bytes();
 
     verified_if(constant_time_eq(&presented, expected.as_slice()))
@@ -124,22 +125,14 @@ impl SignatureVerifier for HmacSha256Verifier {
         "hmac-sha256"
     }
 
-    fn signature_header(&self) -> &str {
-        &self.credential.header
-    }
-
     fn verify(
         &self,
-        payload: &[u8],
-        signature: &str,
+        request: &InboundRequest<'_>,
         secret: &str,
-        _timestamp: Option<&str>,
-        _url: Option<&str>,
     ) -> Result<Verified, SignatureError> {
         verify_hmac::<Hmac<Sha256>>(
             &self.credential,
-            payload,
-            signature,
+            request,
             secret,
             "HMAC-SHA256 secret must not be empty",
         )
@@ -170,22 +163,14 @@ impl SignatureVerifier for HmacSha1Verifier {
         "hmac-sha1"
     }
 
-    fn signature_header(&self) -> &str {
-        &self.credential.header
-    }
-
     fn verify(
         &self,
-        payload: &[u8],
-        signature: &str,
+        request: &InboundRequest<'_>,
         secret: &str,
-        _timestamp: Option<&str>,
-        _url: Option<&str>,
     ) -> Result<Verified, SignatureError> {
         verify_hmac::<Hmac<Sha1>>(
             &self.credential,
-            payload,
-            signature,
+            request,
             secret,
             "HMAC-SHA1 secret must not be empty",
         )

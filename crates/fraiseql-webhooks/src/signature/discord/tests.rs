@@ -1,9 +1,31 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::panic)] // Reason: test module — a `let ... else` that cannot bind the expected error variant must fail loudly and say what it got (#1174)
 
+use std::collections::BTreeMap;
+
 use ed25519_dalek::{Signer, SigningKey};
 
 use super::*;
+
+/// Drive the scheme the way the route does: put the credential under the header
+/// the scheme reads, and hand it the whole request.
+///
+/// The argument order is the one `verify` had before #1321, so the rewrite of
+/// these call sites carried no judgement about which value is which.
+fn check(
+    verifier: &impl SignatureVerifier,
+    payload: &[u8],
+    signature: &str,
+    secret: &str,
+    timestamp: Option<&str>,
+) -> Result<Verified, SignatureError> {
+    let mut headers = BTreeMap::new();
+    headers.insert("X-Signature-Ed25519".to_ascii_lowercase(), signature.to_string());
+    if let Some(timestamp) = timestamp {
+        headers.insert("X-Signature-Timestamp".to_ascii_lowercase(), timestamp.to_string());
+    }
+    verifier.verify(&InboundRequest::new(&headers, payload, None), secret)
+}
 
 /// Deterministic test seed — avoids `OsRng` in unit tests for reproducibility.
 const TEST_KEY_SEED: [u8; 32] = [
@@ -39,7 +61,7 @@ fn test_valid_signature_accepted() {
     let payload = br#"{"type":1}"#;
     let (public_key_hex, sig_hex) = make_valid_discord_signature(&ts, payload);
 
-    let result = verifier.verify(payload, &sig_hex, &public_key_hex, Some(&ts), None);
+    let result = check(&verifier, payload, &sig_hex, &public_key_hex, Some(&ts));
     assert!(
         matches!(result, Ok(Verified::Body)),
         "valid Ed25519 signature should be accepted; got: {result:?}"
@@ -53,7 +75,7 @@ fn test_tampered_payload_rejected() {
     let (public_key_hex, sig_hex) = make_valid_discord_signature(&ts, br#"{"type":1}"#);
 
     // Different payload — signature is no longer valid.
-    let result = verifier.verify(b"tampered", &sig_hex, &public_key_hex, Some(&ts), None);
+    let result = check(&verifier, b"tampered", &sig_hex, &public_key_hex, Some(&ts));
     assert!(
         matches!(result, Err(SignatureError::Mismatch)),
         "tampered payload should be rejected; got: {result:?}"
@@ -63,7 +85,7 @@ fn test_tampered_payload_rejected() {
 #[test]
 fn test_missing_timestamp() {
     let verifier = DiscordVerifier::new();
-    let result = verifier.verify(b"test", "abc", "deadbeef", None, None);
+    let result = check(&verifier, b"test", "abc", "deadbeef", None);
     assert!(matches!(result, Err(SignatureError::MissingTimestamp)));
 }
 
@@ -77,7 +99,7 @@ fn test_expired_timestamp_rejected() {
         - 600)
         .to_string();
     // Even with a valid signature format, an old timestamp should be rejected.
-    let result = verifier.verify(b"payload", "deadbeef", "deadbeef", Some(&old_ts), None);
+    let result = check(&verifier, b"payload", "deadbeef", "deadbeef", Some(&old_ts));
     assert!(matches!(result, Err(SignatureError::TimestampExpired)));
 }
 
@@ -85,7 +107,7 @@ fn test_expired_timestamp_rejected() {
 fn test_invalid_public_key_hex() {
     let verifier = DiscordVerifier::new();
     let ts = fresh_timestamp();
-    let result = verifier.verify(b"test", "abc123", "not-hex!", Some(&ts), None);
+    let result = check(&verifier, b"test", "abc123", "not-hex!", Some(&ts));
 
     // #1174: assert the message, not just the family — the key and the signature are
     // both hex here, and `KeyMaterial(_)` alone cannot say which one failed to decode.
@@ -113,7 +135,7 @@ fn an_unparseable_signature_is_the_senders_fault_not_key_material() {
     // stopping at the key — the failure mode that made the SendGrid twin vacuous.
     let (public_key_hex, _) = make_valid_discord_signature(&ts, br#"{"type":1}"#);
 
-    let result = verifier.verify(b"{\"type\":1}", "zz", &public_key_hex, Some(&ts), None);
+    let result = check(&verifier, b"{\"type\":1}", "zz", &public_key_hex, Some(&ts));
 
     assert!(
         matches!(result, Err(SignatureError::InvalidFormat)),

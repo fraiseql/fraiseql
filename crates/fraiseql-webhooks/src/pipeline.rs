@@ -25,6 +25,7 @@ use serde_json::Value;
 use crate::{
     EventHandler, Handled, IdempotencyStore, Result, SecretProvider, SignatureVerifier,
     WebhookError, WebhookIsolation,
+    request::InboundRequest,
     signature::{SignatureError, Verified},
 };
 
@@ -54,14 +55,10 @@ pub struct Delivery<'a> {
     pub route:         &'a str,
     /// Name of the database function the handler invokes for this event.
     pub function_name: &'a str,
-    /// Raw request body bytes, verified against the signature.
-    pub body:          &'a [u8],
-    /// The credential, from wherever the scheme said it is.
-    pub signature:     &'a str,
-    /// Optional timestamp (for providers with replay-protected signing schemes).
-    pub timestamp:     Option<&'a str>,
-    /// Full request URL (required by Twilio; ignored by most providers).
-    pub url:           Option<&'a str>,
+    /// The request itself. The scheme locates its own credential in it (#1321):
+    /// the receiver does not read a header first, so it does not have to know
+    /// where any particular scheme keeps one.
+    pub request:       InboundRequest<'a>,
 }
 
 /// What verification established, as [`WebhookPipeline::process`] hands it to the
@@ -135,13 +132,7 @@ pub fn verify_signature(
     secret: &str,
     delivery: &Delivery<'_>,
 ) -> Result<Verified> {
-    match verifier.verify(
-        delivery.body,
-        delivery.signature,
-        secret,
-        delivery.timestamp,
-        delivery.url,
-    ) {
+    match verifier.verify(&delivery.request, secret) {
         Ok(verified) => Ok(verified),
         // #1045: route by *who is at fault*. Unusable key material is the operator's
         // misconfiguration and must not be reported to the sender as a 401 — providers
@@ -237,7 +228,7 @@ where
         // 3. Read the event out of what was authenticated. The body reaches the caller only on the
         //    arm where the scheme signed it, and only now.
         let event = event_of(match verified {
-            Verified::Body => Authenticated::Body(delivery.body),
+            Verified::Body => Authenticated::Body(delivery.request.body()),
             Verified::Event {
                 ref id,
                 ref event_type,

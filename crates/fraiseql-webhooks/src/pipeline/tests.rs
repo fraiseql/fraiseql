@@ -25,14 +25,15 @@ impl EventHandler for NeverHandler {
     }
 }
 
+/// Borrowed by `InboundRequest`, so it outlives every delivery built below.
+static NO_HEADERS: std::sync::LazyLock<std::collections::BTreeMap<String, String>> =
+    std::sync::LazyLock::new(std::collections::BTreeMap::new);
+
 fn delivery() -> Delivery<'static> {
     Delivery {
         route:         "stripe",
         function_name: "process_payment",
-        body:          b"{}",
-        signature:     "sig",
-        timestamp:     None,
-        url:           None,
+        request:       InboundRequest::new(&NO_HEADERS, b"{}", None),
     }
 }
 

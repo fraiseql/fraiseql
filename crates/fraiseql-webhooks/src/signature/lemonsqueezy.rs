@@ -9,6 +9,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::{
+    request::InboundRequest,
     signature::{SignatureError, Verified, constant_time_eq, verified_if},
     traits::SignatureVerifier,
 };
@@ -19,23 +20,21 @@ use crate::{
 /// sends it in the `X-Signature` header.
 pub struct LemonSqueezyVerifier;
 
+/// The header this scheme reads its credential from.
+const SIGNATURE_HEADER: &str = "X-Signature";
+
 impl SignatureVerifier for LemonSqueezyVerifier {
     fn name(&self) -> &'static str {
         "lemonsqueezy"
     }
 
-    fn signature_header(&self) -> &'static str {
-        "X-Signature"
-    }
-
     fn verify(
         &self,
-        payload: &[u8],
-        signature: &str,
+        request: &InboundRequest<'_>,
         secret: &str,
-        _timestamp: Option<&str>,
-        _url: Option<&str>,
     ) -> Result<Verified, SignatureError> {
+        let signature = request.require_header(SIGNATURE_HEADER)?;
+        let payload = request.body();
         if secret.is_empty() {
             return Err(SignatureError::KeyMaterial(
                 "Lemon Squeezy signing secret must not be empty".to_string(),

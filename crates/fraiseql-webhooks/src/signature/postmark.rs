@@ -7,6 +7,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::{
+    request::InboundRequest,
     signature::{SignatureError, Verified, constant_time_eq, verified_if},
     traits::SignatureVerifier,
 };
@@ -17,23 +18,21 @@ use crate::{
 /// sends it in the `X-Postmark-Signature` header.
 pub struct PostmarkVerifier;
 
+/// The header this scheme reads its credential from.
+const SIGNATURE_HEADER: &str = "X-Postmark-Signature";
+
 impl SignatureVerifier for PostmarkVerifier {
     fn name(&self) -> &'static str {
         "postmark"
     }
 
-    fn signature_header(&self) -> &'static str {
-        "X-Postmark-Signature"
-    }
-
     fn verify(
         &self,
-        payload: &[u8],
-        signature: &str,
+        request: &InboundRequest<'_>,
         secret: &str,
-        _timestamp: Option<&str>,
-        _url: Option<&str>,
     ) -> Result<Verified, SignatureError> {
+        let signature = request.require_header(SIGNATURE_HEADER)?;
+        let payload = request.body();
         if secret.is_empty() {
             return Err(SignatureError::KeyMaterial(
                 "Postmark webhook secret must not be empty".to_string(),

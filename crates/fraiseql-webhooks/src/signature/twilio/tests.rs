@@ -1,11 +1,30 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::panic)] // Reason: test module — a `let ... else` that cannot bind the expected error variant must fail loudly and say what it got (#1174)
 
+use std::collections::BTreeMap;
+
 use base64::engine::general_purpose;
 use hmac::{Hmac, KeyInit, Mac};
 use sha1::Sha1;
 
 use super::*;
+
+/// Drive the scheme the way the route does: put the credential under the header
+/// the scheme reads, and hand it the whole request.
+///
+/// The argument order is the one `verify` had before #1321, so the rewrite of
+/// these call sites carried no judgement about which value is which.
+fn check(
+    verifier: &impl SignatureVerifier,
+    payload: &[u8],
+    signature: &str,
+    secret: &str,
+    url: Option<&str>,
+) -> Result<Verified, SignatureError> {
+    let mut headers = BTreeMap::new();
+    headers.insert("X-Twilio-Signature".to_ascii_lowercase(), signature.to_string());
+    verifier.verify(&InboundRequest::new(&headers, payload, url), secret)
+}
 
 #[test]
 fn test_invalid_signature() {
@@ -13,7 +32,7 @@ fn test_invalid_signature() {
     let url = "https://example.com/webhook";
     let payload = b"some body";
     assert!(matches!(
-        verifier.verify(payload, "invalidsig==", "secret", None, Some(url)),
+        check(&verifier, payload, "invalidsig==", "secret", Some(url)),
         Err(SignatureError::Mismatch)
     ));
 }
@@ -21,7 +40,7 @@ fn test_invalid_signature() {
 #[test]
 fn test_missing_url_returns_error() {
     let verifier = TwilioVerifier;
-    let result = verifier.verify(b"payload", "sig", "secret", None, None);
+    let result = check(&verifier, b"payload", "sig", "secret", None);
 
     // #1174: `KeyMaterial(_)` alone does NOT discriminate here. Measured: an empty
     // SECRET produces the byte-identical error, because the missing-URL check runs
@@ -30,6 +49,7 @@ fn test_missing_url_returns_error() {
     let Err(SignatureError::KeyMaterial(message)) = result else {
         panic!("a missing request URL must be KeyMaterial; got {result:?}")
     };
+
     assert!(
         message.contains("requires the request URL"),
         "the error must name the missing URL, not some other key-material fault; got {message:?}"
@@ -71,7 +91,7 @@ fn verifies_form_payload_with_space_and_utf8() {
     let signature = twilio_sign(expected_signing, secret);
 
     assert_eq!(
-        verifier.verify(payload, &signature, secret, None, Some(url)).unwrap(),
+        check(&verifier, payload, &signature, secret, Some(url)).unwrap(),
         Verified::Body,
         "a signature computed per Twilio's published algorithm must verify"
     );
@@ -100,7 +120,7 @@ fn verifies_json_payload_against_url_and_body_hash() {
     let signature = twilio_sign(&url, secret);
 
     assert_eq!(
-        verifier.verify(payload, &signature, secret, None, Some(&url)).unwrap(),
+        check(&verifier, payload, &signature, secret, Some(&url)).unwrap(),
         Verified::Body,
         "a signature computed per Twilio's published body-hash algorithm must verify"
     );
@@ -119,7 +139,7 @@ fn a_json_signature_does_not_carry_over_to_a_different_body() {
     let forged = br#"{"event":"call","amount":999999}"#;
     assert!(
         matches!(
-            verifier.verify(forged, &signature, secret, None, Some(&url)),
+            check(&verifier, forged, &signature, secret, Some(&url)),
             Err(SignatureError::Mismatch)
         ),
         "a signature genuine for one body must not verify another"
@@ -142,7 +162,7 @@ fn a_tampered_json_body_is_rejected() {
     tampered[last] ^= 1;
 
     assert!(matches!(
-        verifier.verify(&tampered, &signature, secret, None, Some(&url)),
+        check(&verifier, &tampered, &signature, secret, Some(&url)),
         Err(SignatureError::Mismatch)
     ));
 }
@@ -160,7 +180,7 @@ fn the_body_free_url_only_signature_no_longer_verifies_a_json_body() {
 
     assert!(
         matches!(
-            verifier.verify(payload, &legacy_signature, secret, None, Some(base)),
+            check(&verifier, payload, &legacy_signature, secret, Some(base)),
             Err(SignatureError::Mismatch)
         ),
         "the constant HMAC(public_url) must not authorise a JSON body"
@@ -180,7 +200,7 @@ fn verifies_form_payload_with_encoded_plus_sign() {
     let signature = twilio_sign(expected_signing, secret);
 
     assert_eq!(
-        verifier.verify(payload, &signature, secret, None, Some(url)).unwrap(),
+        check(&verifier, payload, &signature, secret, Some(url)).unwrap(),
         Verified::Body
     );
 }

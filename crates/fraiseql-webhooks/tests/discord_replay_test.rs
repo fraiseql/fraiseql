@@ -8,10 +8,33 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+use std::collections::BTreeMap;
+
 use ed25519_dalek::{Signature, Signer, SigningKey};
 use fraiseql_webhooks::{
-    SignatureError, signature::discord::DiscordVerifier, traits::SignatureVerifier as _,
+    InboundRequest, SignatureError, SignatureVerifier, Verified,
+    signature::discord::DiscordVerifier,
 };
+
+/// Drive the scheme the way the route does: put the credential under the header
+/// the scheme reads, and hand it the whole request.
+///
+/// The argument order is the one `verify` had before #1321, so the rewrite of
+/// these call sites carried no judgement about which value is which.
+fn check(
+    verifier: &impl SignatureVerifier,
+    payload: &[u8],
+    signature: &str,
+    secret: &str,
+    timestamp: Option<&str>,
+) -> Result<Verified, SignatureError> {
+    let mut headers = BTreeMap::new();
+    headers.insert("X-Signature-Ed25519".to_ascii_lowercase(), signature.to_string());
+    if let Some(timestamp) = timestamp {
+        headers.insert("X-Signature-Timestamp".to_ascii_lowercase(), timestamp.to_string());
+    }
+    verifier.verify(&InboundRequest::new(&headers, payload, None), secret)
+}
 
 // ---------------------------------------------------------------------------
 // Test key seeds (deterministic — avoids OsRng dependency)
@@ -66,7 +89,7 @@ fn fresh_discord_ed25519_signature_verifies() {
     let ts_str = now.to_string();
 
     let verifier = DiscordVerifier::new();
-    let result = verifier.verify(body, &hex_sig, &hex_pub_key, Some(&ts_str), None);
+    let result = check(&verifier, body, &hex_sig, &hex_pub_key, Some(&ts_str));
 
     assert!(
         result.is_ok(),
@@ -87,7 +110,7 @@ fn stale_discord_signature_is_rejected_as_replay() {
     let ts_str = past_secs.to_string();
 
     let verifier = DiscordVerifier::new();
-    let result = verifier.verify(body, &hex_sig, &hex_pub_key, Some(&ts_str), None);
+    let result = check(&verifier, body, &hex_sig, &hex_pub_key, Some(&ts_str));
 
     assert!(
         result.is_err(),
@@ -117,7 +140,7 @@ fn discord_signature_from_different_key_is_rejected() {
 
     // Verify against key B — must fail
     let verifier = DiscordVerifier::new();
-    let result = verifier.verify(body, &hex_sig, &hex_pub_key_b, Some(&ts_str), None);
+    let result = check(&verifier, body, &hex_sig, &hex_pub_key_b, Some(&ts_str));
 
     assert!(
         result.is_err(),
@@ -130,7 +153,7 @@ fn discord_signature_from_different_key_is_rejected() {
 fn discord_verification_without_timestamp_returns_error() {
     let (hex_pub_key, _signing_key) = ed25519_key_from_seed(KEY_SEED_A);
     let verifier = DiscordVerifier::new();
-    let result = verifier.verify(b"payload", "deaddead", &hex_pub_key, None, None);
+    let result = check(&verifier, b"payload", "deaddead", &hex_pub_key, None);
 
     assert!(
         matches!(result, Err(SignatureError::MissingTimestamp)),
@@ -153,7 +176,7 @@ fn discord_signature_over_wrong_body_is_rejected() {
 
     // Verify against tampered body — must fail
     let verifier = DiscordVerifier::new();
-    let result = verifier.verify(tampered_body, &hex_sig, &hex_pub_key, Some(&ts_str), None);
+    let result = check(&verifier, tampered_body, &hex_sig, &hex_pub_key, Some(&ts_str));
 
     assert!(
         result.is_err(),

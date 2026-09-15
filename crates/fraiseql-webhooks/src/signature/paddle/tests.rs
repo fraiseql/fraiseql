@@ -1,10 +1,28 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::panic)] // Reason: test module — a `let ... else` that cannot bind the expected error variant must fail loudly and say what it got (#1174)
 
+use std::collections::BTreeMap;
+
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use super::*;
+
+/// Drive the scheme the way the route does: put the credential under the header
+/// the scheme reads, and hand it the whole request.
+///
+/// The argument order is the one `verify` had before #1321, so the rewrite of
+/// these call sites carried no judgement about which value is which.
+fn check(
+    verifier: &impl SignatureVerifier,
+    payload: &[u8],
+    signature: &str,
+    secret: &str,
+) -> Result<Verified, SignatureError> {
+    let mut headers = BTreeMap::new();
+    headers.insert("Paddle-Signature".to_ascii_lowercase(), signature.to_string());
+    verifier.verify(&InboundRequest::new(&headers, payload, None), secret)
+}
 
 fn fresh_timestamp() -> String {
     std::time::SystemTime::now()
@@ -33,7 +51,7 @@ fn test_valid_signature() {
     let timestamp = fresh_timestamp();
     let sig = make_signature(&timestamp, payload, secret);
 
-    assert_eq!(verifier.verify(payload, &sig, secret, None, None).unwrap(), Verified::Body);
+    assert_eq!(check(&verifier, payload, &sig, secret).unwrap(), Verified::Body);
 }
 
 #[test]
@@ -42,7 +60,7 @@ fn test_invalid_hmac() {
     let ts = fresh_timestamp();
     let sig = format!("ts={ts};h1=deadbeefdeadbeefdeadbeefdeadbeef");
     assert!(matches!(
-        verifier.verify(b"payload", &sig, "secret", None, None),
+        check(&verifier, b"payload", &sig, "secret"),
         Err(SignatureError::Mismatch)
     ));
 }
@@ -50,7 +68,7 @@ fn test_invalid_hmac() {
 #[test]
 fn test_invalid_format_missing_ts() {
     let verifier = PaddleVerifier::new();
-    let result = verifier.verify(b"payload", "h1=abc123", "secret", None, None);
+    let result = check(&verifier, b"payload", "h1=abc123", "secret");
     assert!(matches!(result, Err(SignatureError::InvalidFormat)));
 }
 
@@ -59,7 +77,7 @@ fn test_invalid_format_missing_h1() {
     let verifier = PaddleVerifier::new();
     let ts = fresh_timestamp();
     let sig = format!("ts={ts}");
-    let result = verifier.verify(b"payload", &sig, "secret", None, None);
+    let result = check(&verifier, b"payload", &sig, "secret");
     assert!(matches!(result, Err(SignatureError::InvalidFormat)));
 }
 
@@ -75,7 +93,7 @@ fn test_expired_timestamp_rejected() {
     let payload = b"payload";
     let secret = "secret";
     let sig = make_signature(&old_ts, payload, secret);
-    let result = verifier.verify(payload, &sig, secret, None, None);
+    let result = check(&verifier, payload, &sig, secret);
     assert!(matches!(result, Err(SignatureError::TimestampExpired)));
 }
 
@@ -84,7 +102,7 @@ fn test_empty_secret_rejected() {
     let verifier = PaddleVerifier::new();
     let ts = fresh_timestamp();
     let sig = format!("ts={ts};h1=abc123");
-    let result = verifier.verify(b"payload", &sig, "", None, None);
+    let result = check(&verifier, b"payload", &sig, "");
 
     // #1174: the signature here is also unverifiable, so the family alone would be
     // satisfied by failing at the wrong stage.
@@ -123,7 +141,7 @@ fn test_with_tolerance_u64_max_clamps_not_wraps() {
     let sig = make_signature(&timestamp, payload, secret);
 
     // A fresh timestamp with an effectively-infinite tolerance must be accepted.
-    assert_eq!(verifier.verify(payload, &sig, secret, None, None).unwrap(), Verified::Body);
+    assert_eq!(check(&verifier, payload, &sig, secret).unwrap(), Verified::Body);
 }
 
 #[test]
@@ -135,5 +153,5 @@ fn test_with_tolerance_large_value_clamps() {
     let secret = "sec";
     let timestamp = fresh_timestamp();
     let sig = make_signature(&timestamp, payload, secret);
-    assert_eq!(verifier.verify(payload, &sig, secret, None, None).unwrap(), Verified::Body);
+    assert_eq!(check(&verifier, payload, &sig, secret).unwrap(), Verified::Body);
 }

@@ -11,11 +11,33 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
+use std::collections::BTreeMap;
+
 use fraiseql_webhooks::{
-    SignatureError, signature::slack::SlackVerifier, traits::SignatureVerifier as _,
+    InboundRequest, SignatureError, SignatureVerifier, Verified, signature::slack::SlackVerifier,
 };
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
+
+/// Drive the scheme the way the route does: put the credential under the header
+/// the scheme reads, and hand it the whole request.
+///
+/// The argument order is the one `verify` had before #1321, so the rewrite of
+/// these call sites carried no judgement about which value is which.
+fn check(
+    verifier: &impl SignatureVerifier,
+    payload: &[u8],
+    signature: &str,
+    secret: &str,
+    timestamp: Option<&str>,
+) -> Result<Verified, SignatureError> {
+    let mut headers = BTreeMap::new();
+    headers.insert("X-Slack-Signature".to_ascii_lowercase(), signature.to_string());
+    if let Some(timestamp) = timestamp {
+        headers.insert("X-Slack-Request-Timestamp".to_ascii_lowercase(), timestamp.to_string());
+    }
+    verifier.verify(&InboundRequest::new(&headers, payload, None), secret)
+}
 
 const SIGNING_SECRET: &str = "8f742231b10e8888abcd99yyyzzz85a5";
 
@@ -54,7 +76,7 @@ fn fresh_slack_signature_verifies() {
     let ts_str = now.to_string();
 
     let verifier = SlackVerifier::new();
-    let result = verifier.verify(body, &sig, SIGNING_SECRET, Some(&ts_str), None);
+    let result = check(&verifier, body, &sig, SIGNING_SECRET, Some(&ts_str));
 
     assert!(result.is_ok(), "SR-5 regression: valid fresh Slack signature rejected");
 }
@@ -71,7 +93,7 @@ fn stale_slack_signature_is_rejected_as_replay() {
     let ts_str = past_secs.to_string();
 
     let verifier = SlackVerifier::new();
-    let result = verifier.verify(body, &sig, SIGNING_SECRET, Some(&ts_str), None);
+    let result = check(&verifier, body, &sig, SIGNING_SECRET, Some(&ts_str));
 
     assert!(
         result.is_err(),
@@ -91,7 +113,7 @@ fn stale_slack_signature_is_rejected_as_replay() {
 fn slack_signature_without_timestamp_returns_missing_timestamp_error() {
     let body = b"payload=test_body";
     let verifier = SlackVerifier::new();
-    let result = verifier.verify(body, "v0=invalidsig", SIGNING_SECRET, None, None);
+    let result = check(&verifier, body, "v0=invalidsig", SIGNING_SECRET, None);
 
     assert!(
         matches!(result, Err(SignatureError::MissingTimestamp)),
@@ -110,7 +132,7 @@ fn slack_signature_with_wrong_secret_is_rejected() {
     let ts_str = now.to_string();
 
     let verifier = SlackVerifier::new();
-    let result = verifier.verify(body, &sig, "wrong_secret", Some(&ts_str), None);
+    let result = check(&verifier, body, &sig, "wrong_secret", Some(&ts_str));
 
     assert!(result.is_err(), "SR-5 regression: Slack signature verified with wrong secret");
 }
@@ -125,7 +147,7 @@ fn slack_verifier_custom_tolerance_accepts_older_signatures() {
     let ts_str = past_secs.to_string();
 
     let verifier = SlackVerifier::new().with_tolerance(600); // 10-minute window
-    let result = verifier.verify(body, &sig, SIGNING_SECRET, Some(&ts_str), None);
+    let result = check(&verifier, body, &sig, SIGNING_SECRET, Some(&ts_str));
 
     assert!(
         result.is_ok(),

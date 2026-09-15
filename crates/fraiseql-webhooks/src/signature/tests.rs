@@ -138,7 +138,17 @@ mod extreme_timestamps {
 // under test) and green while every genuine hex-signed delivery bounced 401.
 
 mod genuine_delivery_fixtures {
-    #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code.
+    // Reason: test code — a fixture that cannot be built must stop the run, and the
+    // per-scheme header table below deliberately keeps one arm per scheme even where
+    // two schemes happen to read the same header name.
+    #![allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::panic,
+        clippy::match_same_arms
+    )]
+
+    use std::collections::BTreeMap;
 
     use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
     use hmac::{Hmac, KeyInit as _, Mac as _};
@@ -146,6 +156,7 @@ mod genuine_delivery_fixtures {
     use sha2::Sha256;
 
     use crate::{
+        request::InboundRequest,
         scheme::{KNOWN_SCHEMES, SchemeConfig, build_scheme},
         signature::Verified,
     };
@@ -168,6 +179,49 @@ mod genuine_delivery_fixtures {
             .unwrap()
             .as_secs()
             .to_string()
+    }
+
+    /// Where each scheme reads its credential and its timestamp.
+    ///
+    /// The fixtures below build a real request, so they have to put the credential
+    /// where the scheme looks — and a wrong entry here fails loudly rather than
+    /// quietly weakening a case, because the genuine delivery stops verifying.
+    fn header_names(provider: &str) -> (&'static str, Option<&'static str>) {
+        match provider {
+            "stripe" => ("Stripe-Signature", None),
+            "github" => ("X-Hub-Signature-256", None),
+            "shopify" => ("X-Shopify-Hmac-Sha256", None),
+            "postmark" => ("X-Postmark-Signature", None),
+            "gitlab" => ("X-Gitlab-Token", None),
+            "slack" => ("X-Slack-Signature", Some("X-Slack-Request-Timestamp")),
+            "paddle" => ("Paddle-Signature", None),
+            // `X-Signature` is also the generic schemes' default, below — separate
+            // arms because the two answers are the same by coincidence, not by rule.
+            "lemonsqueezy" => ("X-Signature", None),
+            "twilio" => ("X-Twilio-Signature", None),
+            "discord" => ("X-Signature-Ed25519", Some("X-Signature-Timestamp")),
+            "sendgrid" => (
+                "X-Twilio-Email-Event-Webhook-Signature",
+                Some("X-Twilio-Email-Event-Webhook-Timestamp"),
+            ),
+            "hmac-sha256" | "hmac-sha1" => ("X-Signature", None),
+            // A scheme with no entry here has no fixture either, which
+            // `every_registered_provider_has_genuine_and_tampered_fixtures` is the
+            // gate for; answering with the generic default would let it through.
+            other => panic!("{other} has no header names here; add them with its fixture"),
+        }
+    }
+
+    /// Assemble the request a fixture describes, with `signature` under the header
+    /// its scheme reads.
+    fn request_of(f: &Fixture, signature: &str) -> BTreeMap<String, String> {
+        let (signature_header, timestamp_header) = header_names(f.provider);
+        let mut headers = BTreeMap::new();
+        headers.insert(signature_header.to_ascii_lowercase(), signature.to_string());
+        if let (Some(name), Some(value)) = (timestamp_header, f.timestamp.as_deref()) {
+            headers.insert(name.to_ascii_lowercase(), value.to_string());
+        }
+        headers
     }
 
     /// One genuine delivery as the provider would send it.
@@ -390,13 +444,9 @@ mod genuine_delivery_fixtures {
         for f in fixtures() {
             let verifier =
                 build_scheme(f.provider, &SchemeConfig::default(), 300).expect(f.provider);
-            let result = verifier.verify(
-                &f.body,
-                &f.signature,
-                &f.secret,
-                f.timestamp.as_deref(),
-                f.url.as_deref(),
-            );
+            let headers = request_of(&f, &f.signature);
+            let result = verifier
+                .verify(&InboundRequest::new(&headers, &f.body, f.url.as_deref()), &f.secret);
             assert!(
                 matches!(result, Ok(Verified::Body)),
                 "{}: a genuine, provider-signed delivery must verify; got {result:?}",
@@ -420,13 +470,9 @@ mod genuine_delivery_fixtures {
                 body[last] ^= 1;
                 (body, f.signature.clone())
             };
-            let result = verifier.verify(
-                &body,
-                &signature,
-                &f.secret,
-                f.timestamp.as_deref(),
-                f.url.as_deref(),
-            );
+            let headers = request_of(&f, &signature);
+            let result =
+                verifier.verify(&InboundRequest::new(&headers, &body, f.url.as_deref()), &f.secret);
             assert!(
                 !matches!(result, Ok(Verified::Body)),
                 "{}: a tampered delivery must not verify; got {result:?}",

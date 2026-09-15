@@ -891,8 +891,8 @@ mod the_event_is_what_the_scheme_authenticated {
         http::{Request, StatusCode},
     };
     use fraiseql_webhooks::{
-        PostgresIdempotencyStore, SignatureError, SignatureVerifier, StaticSecretProvider,
-        Verified, WebhookPipeline,
+        InboundRequest, PostgresIdempotencyStore, SignatureError, SignatureVerifier,
+        StaticSecretProvider, Verified, WebhookPipeline,
     };
     use hmac::{Hmac, KeyInit, Mac as _};
     use serde_json::{Value, json};
@@ -907,6 +907,9 @@ mod the_event_is_what_the_scheme_authenticated {
     const SECRET_ENV: &str = "FRAISEQL_TEST_ENVELOPE_SECRET";
     const SEGMENT: &str = "envelope";
 
+    /// The header this double reads its credential from.
+    const SIGNATURE_HEADER: &str = "X-Envelope-Signature";
+
     /// A scheme whose signed material is an envelope: what it authenticates is the
     /// envelope's `event`, not the envelope. The MAC covers the raw body, so the
     /// verification itself is ordinary — the point is only *what it reports*.
@@ -917,18 +920,13 @@ mod the_event_is_what_the_scheme_authenticated {
             "test-envelope"
         }
 
-        fn signature_header(&self) -> &'static str {
-            "X-Envelope-Signature"
-        }
-
         fn verify(
             &self,
-            payload: &[u8],
-            signature: &str,
+            request: &InboundRequest<'_>,
             secret: &str,
-            _timestamp: Option<&str>,
-            _url: Option<&str>,
         ) -> Result<Verified, SignatureError> {
+            let signature = request.require_header(SIGNATURE_HEADER)?;
+            let payload = request.body();
             let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).map_err(
                 |error: hmac::digest::InvalidLength| SignatureError::KeyMaterial(error.to_string()),
             )?;
@@ -1098,6 +1096,276 @@ mod the_event_is_what_the_scheme_authenticated {
             })),
             "the durable payload is what the scheme authenticated — the envelope's \
              own `note` field must not be in it; got: {stored}"
+        );
+    }
+}
+
+mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
+    //! #1321 cycle 3: the route hands the request to the scheme and reads nothing
+    //! out of it first.
+    //!
+    //! Two refusals used to run **before** verification: a request without the
+    //! scheme's one fixed header was `400 missing signature header 'X-Signature'`,
+    //! and a body that is not JSON (or form) was `400 webhook body is not valid
+    //! JSON`. Between them they made two whole scheme families unreachable — one
+    //! whose credential is in the body, and one whose body *is* the credential
+    //! (#1322's `application/jwt`) — and they told an unauthenticated caller what
+    //! the endpoint expects before it had authenticated anything.
+    //!
+    //! Both schemes below are test doubles, because no scheme this crate ships has
+    //! either shape yet; that is precisely why the seam is being built now.
+    //!
+    //! Needs a real database; self-skips without `DATABASE_URL`. Runs in
+    //! `integration (postgres)`.
+    use std::sync::Arc;
+
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use fraiseql_webhooks::{
+        CredentialLocation, InboundRequest, PostgresIdempotencyStore, SignatureError,
+        SignatureVerifier, StaticSecretProvider, Verified, WebhookPipeline,
+    };
+    use serde_json::{Value, json};
+    use sqlx::{PgPool, postgres::PgPoolOptions};
+    use tower::ServiceExt as _;
+
+    use super::{BTreeMap, WebhookInboundState, webhook_router};
+    use crate::inbound::webhook::{BuiltRoute, SpineEventHandler};
+
+    const SECRET: &str = "tok_1321_body";
+    const SECRET_ENV: &str = "FRAISEQL_TEST_BODY_CREDENTIAL_SECRET";
+
+    /// A shared-token scheme whose token is a **field of the body** — `GitLab`'s
+    /// shape (the token signs nothing), moved from a header into the payload. The
+    /// body is still the event.
+    struct BodyFieldToken;
+
+    impl SignatureVerifier for BodyFieldToken {
+        fn name(&self) -> &'static str {
+            "test-body-field-token"
+        }
+
+        fn verify(
+            &self,
+            request: &InboundRequest<'_>,
+            secret: &str,
+        ) -> Result<Verified, SignatureError> {
+            let presented =
+                request.credential(&CredentialLocation::BodyField("token".to_string()))?;
+            if presented == secret {
+                Ok(Verified::Body)
+            } else {
+                Err(SignatureError::Mismatch)
+            }
+        }
+    }
+
+    /// A scheme whose **whole body** is the credential: `<event-json-as-hex>.<token>`,
+    /// posted as `application/jwt`. A miniature of #1322 — the body is not JSON, and
+    /// the event lives inside the authenticated material.
+    struct WholeBodyToken;
+
+    impl SignatureVerifier for WholeBodyToken {
+        fn name(&self) -> &'static str {
+            "test-whole-body-token"
+        }
+
+        fn verify(
+            &self,
+            request: &InboundRequest<'_>,
+            secret: &str,
+        ) -> Result<Verified, SignatureError> {
+            let token = request.credential(&CredentialLocation::Body)?;
+            let (claims_hex, presented) =
+                token.split_once('.').ok_or(SignatureError::InvalidFormat)?;
+            if presented != secret {
+                return Err(SignatureError::Mismatch);
+            }
+            let claims: Value = serde_json::from_slice(
+                &hex::decode(claims_hex).map_err(|_| SignatureError::InvalidFormat)?,
+            )
+            .map_err(|_| SignatureError::InvalidFormat)?;
+            let field = |name: &str| {
+                claims
+                    .get(name)
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                    .ok_or(SignatureError::InvalidFormat)
+            };
+            Ok(Verified::Event {
+                id:         field("id")?,
+                event_type: field("type")?,
+                payload:    claims.clone(),
+            })
+        }
+    }
+
+    fn state(
+        pool: PgPool,
+        segment: &str,
+        scheme: Arc<dyn SignatureVerifier>,
+    ) -> WebhookInboundState {
+        let mut routes = BTreeMap::new();
+        routes.insert(
+            segment.to_string(),
+            BuiltRoute {
+                name: segment.to_string(),
+                provider: scheme.name().to_string(),
+                scheme,
+                secret_name: SECRET_ENV.to_string(),
+                public_url: None,
+            },
+        );
+        let secrets =
+            StaticSecretProvider::new().with_secret(SECRET_ENV.to_string(), SECRET.to_string());
+        let store = PostgresIdempotencyStore::new(pool.clone());
+        WebhookInboundState {
+            pipeline:               Arc::new(WebhookPipeline::new(
+                pool,
+                secrets,
+                store,
+                SpineEventHandler,
+            )),
+            routes:                 Arc::new(routes),
+            hooks:                  None,
+            query_executor_factory: None,
+        }
+    }
+
+    async fn setup() -> Option<PgPool> {
+        let url = fraiseql_test_support::try_database_url()?;
+        let pool = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
+        PostgresIdempotencyStore::new(pool.clone()).init().await.unwrap();
+        WebhookInboundState::init_spine(&pool).await.unwrap();
+        Some(pool)
+    }
+
+    fn unique() -> String {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+            .to_string()
+    }
+
+    async fn ledger_event_id(pool: &PgPool, route: &str) -> Option<String> {
+        sqlx::query_scalar(
+            "SELECT event_id FROM webhooks.tb_inbound_delivery WHERE route = $1 \
+             ORDER BY pk_inbound_delivery DESC LIMIT 1",
+        )
+        .bind(route)
+        .fetch_optional(pool)
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn a_credential_in_the_body_reaches_verification() {
+        let Some(pool) = setup().await else {
+            eprintln!("skipping a_credential_in_the_body_reaches_verification: DATABASE_URL unset");
+            return;
+        };
+        let segment = "body-field";
+        let router = webhook_router(state(pool.clone(), segment, Arc::new(BodyFieldToken)));
+
+        let id = format!("body-field-{}", unique());
+        let body = json!({ "token": SECRET, "id": id, "type": "invoice.created" });
+
+        let request = Request::builder()
+            .method("POST")
+            .uri(format!("/webhooks/{segment}"))
+            // No signature header at all. Today the route refuses here, before the
+            // scheme runs, because it looked for one fixed header of its own.
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+        let status = response.status();
+        let bytes = axum::body::to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+        let text = String::from_utf8_lossy(&bytes).into_owned();
+
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "#1321: a scheme whose credential is a body field must reach verification; \
+             body: {text}"
+        );
+        assert!(text.contains("processed"), "expected processed, got: {text}");
+        assert_eq!(
+            ledger_event_id(&pool, segment).await.as_deref(),
+            Some(id.as_str()),
+            "the body is still the event for this scheme, so the claim is keyed on its id"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_body_that_is_not_json_reaches_verification() {
+        let Some(pool) = setup().await else {
+            eprintln!("skipping a_body_that_is_not_json_reaches_verification: DATABASE_URL unset");
+            return;
+        };
+        let segment = "whole-body";
+        let router = webhook_router(state(pool.clone(), segment, Arc::new(WholeBodyToken)));
+
+        let id = format!("whole-body-{}", unique());
+        let claims = json!({ "id": id, "type": "session.created", "sub": "usr_42" });
+        let token = format!("{}.{SECRET}", hex::encode(serde_json::to_vec(&claims).unwrap()));
+
+        let request = Request::builder()
+            .method("POST")
+            .uri(format!("/webhooks/{segment}"))
+            // Not JSON, not form. Today the route refuses here, before the scheme
+            // runs, with `webhook body is not valid JSON`.
+            .header("content-type", "application/jwt")
+            .body(Body::from(token))
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+        let status = response.status();
+        let bytes = axum::body::to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+        let text = String::from_utf8_lossy(&bytes).into_owned();
+
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "#1321: a scheme whose body IS its credential must reach verification — the \
+             body-must-be-JSON refusal ran before the scheme and made the family \
+             unreachable; body: {text}"
+        );
+        assert!(text.contains("processed"), "expected processed, got: {text}");
+        assert_eq!(
+            ledger_event_id(&pool, segment).await.as_deref(),
+            Some(id.as_str()),
+            "the event comes out of the authenticated token, not out of the body bytes"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_wrong_body_credential_is_still_refused() {
+        let Some(pool) = setup().await else {
+            eprintln!("skipping a_wrong_body_credential_is_still_refused: DATABASE_URL unset");
+            return;
+        };
+        let segment = "body-field-forged";
+        let router = webhook_router(state(pool.clone(), segment, Arc::new(BodyFieldToken)));
+
+        // Reaching verification must not mean passing it: the same shape with the
+        // wrong token is refused, and nothing is claimed.
+        let body = json!({ "token": "not-the-secret", "id": unique(), "type": "invoice.created" });
+        let request = Request::builder()
+            .method("POST")
+            .uri(format!("/webhooks/{segment}"))
+            .header("content-type", "application/json")
+            .body(Body::from(serde_json::to_vec(&body).unwrap()))
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+
+        assert_eq!(response.status(), StatusCode::UNAUTHORIZED, "a wrong token must 401");
+        assert_eq!(
+            ledger_event_id(&pool, segment).await,
+            None,
+            "a delivery that failed verification must claim nothing"
         );
     }
 }

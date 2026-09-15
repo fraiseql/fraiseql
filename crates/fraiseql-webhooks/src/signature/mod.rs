@@ -74,6 +74,17 @@ pub fn verified_if(matched: bool) -> Result<Verified, SignatureError> {
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum SignatureError {
+    /// The credential the scheme needs is not in the request at all — the header
+    /// it lives in is absent, or the body field is. The inner string names what
+    /// was looked for, for the operator's log.
+    ///
+    /// Raised **by the scheme**, during verification (#1321). The route used to
+    /// refuse a request with no signature header before verifying, which let an
+    /// unauthenticated caller probe the endpoint's shape; a scheme that locates
+    /// its own credential is the only one that knows where to look.
+    #[error("Missing credential: {0}")]
+    MissingCredential(String),
+
     /// The signature header value could not be parsed according to the provider's expected format.
     /// For example, a GitHub signature missing the `sha256=` prefix triggers this variant.
     #[error("Invalid signature format")]

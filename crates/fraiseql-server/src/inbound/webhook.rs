@@ -30,9 +30,9 @@ use fraiseql_functions::{
     InboundMessage, IngestError, IngestSource, PushSource, RawDelivery, Source, Transport,
 };
 use fraiseql_webhooks::{
-    Authenticated, Delivery, Disposition, EventHandler, Handled, PostgresIdempotencyStore,
-    Result as WebhookResult, SignatureVerifier, StaticSecretProvider, VerifiedEvent, WebhookError,
-    WebhookPipeline, build_scheme,
+    Authenticated, Delivery, Disposition, EventHandler, Handled, InboundRequest,
+    PostgresIdempotencyStore, Result as WebhookResult, SignatureVerifier, StaticSecretProvider,
+    VerifiedEvent, WebhookError, WebhookPipeline, build_scheme,
 };
 use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Transaction};
@@ -594,6 +594,33 @@ fn form_to_json(body: &[u8]) -> Value {
     Value::Object(object)
 }
 
+/// Read a **verified** body as the event it is, dispatching on the declared media
+/// type (#1044, #1321).
+///
+/// Twilio posts SMS/voice callbacks as `application/x-www-form-urlencoded` — that
+/// is what the form arm of its signing scheme is for — so refusing any non-JSON
+/// body meant a correctly configured Twilio route answered 400 to 100% of genuine
+/// deliveries and the form arm was unreachable. The sender's declaration decides,
+/// rather than sniffing the bytes: guessing is how a body that is valid JSON *and*
+/// valid form-encoding would be read two different ways on two deployments.
+///
+/// Called only from the `Authenticated::Body` arm, so it runs **after** the
+/// signature holds. A body that does not parse is still the sender's fault and
+/// still a 400 — but an unauthenticated caller can no longer learn anything by
+/// sending one, and a scheme whose body is not JSON at all is no longer refused
+/// before it runs.
+///
+/// # Errors
+///
+/// [`WebhookError::InvalidPayload`] when the body declares JSON and is not.
+fn parse_body(body: &[u8], headers: &HeaderMap) -> WebhookResult<Value> {
+    if is_form_encoded(headers) {
+        return Ok(form_to_json(body));
+    }
+    serde_json::from_slice::<Value>(body)
+        .map_err(|_| WebhookError::InvalidPayload("webhook body is not valid JSON".to_string()))
+}
+
 /// `POST /webhooks/{segment}` — verify, normalize, and persist an inbound delivery.
 ///
 /// On success returns `200` with `{"status":"processed"|"duplicate"}`. A forged
@@ -622,52 +649,19 @@ pub async fn webhook_handler(
     // held here. There is no second lookup by provider name — which could not serve
     // two `hmac-sha256` routes reading different headers anyway — and so no
     // "unknown webhook provider" 500 on a configuration that already booted.
+    //
+    // The route reads **nothing** out of the request before handing it over. It used
+    // to refuse a request with no `X-Signature` header, and a body that is not JSON,
+    // before the scheme ever ran: the first could not serve a scheme whose credential
+    // is elsewhere, and the second could not serve one whose body is a bare token.
+    // Both also told an unauthenticated caller what the endpoint expects.
     let verifier = route.scheme.as_ref();
 
-    // `HeaderMap::get` matches header names case-insensitively, which is what the
-    // wire says: the configured spelling is the operator's (`X-Lago-Signature`) and
-    // the sent one is the sender's (`x-lago-signature`), and they need not agree.
-    let Some(signature) = headers.get(verifier.signature_header()).and_then(|v| v.to_str().ok())
-    else {
-        return json_status(
-            StatusCode::BAD_REQUEST,
-            &json!({ "error": format!("missing signature header '{}'", verifier.signature_header()) }),
-        );
-    };
-    let signature = signature.to_string();
-
-    // #1044: not every supported provider posts JSON. Twilio sends SMS/voice
-    // callbacks as `application/x-www-form-urlencoded` — that is what the form arm
-    // of its signing scheme is for — so rejecting any non-JSON body meant a
-    // correctly configured Twilio route answered 400 to 100% of genuine deliveries,
-    // before verification, and the form arm was unreachable through this route.
-    //
-    // Dispatch on the declared media type. Verification is unaffected either way:
-    // it reads `Delivery.body`, the raw bytes, never this parsed value.
-    let payload = if is_form_encoded(&headers) {
-        form_to_json(&body)
-    } else {
-        let Ok(payload) = serde_json::from_slice::<Value>(&body) else {
-            return json_status(
-                StatusCode::BAD_REQUEST,
-                &json!({ "error": "webhook body is not valid JSON" }),
-            );
-        };
-        payload
-    };
-
-    // #781: thread the provider's timestamp header and the configured public URL
-    // into verification. `Delivery { timestamp: None, url: None }` made every
-    // timestamp-requiring verifier (Slack, Discord, SendGrid) and the URL-signing
-    // one (Twilio) reject 100% of genuine deliveries with a 401 blaming the sender.
-    let timestamp = verifier
-        .timestamp_header()
-        .and_then(|h| headers.get(h))
-        .and_then(|v| v.to_str().ok())
-        .map(str::to_string);
+    // #781: a URL-signing scheme (Twilio) needs the URL the provider signed.
+    // `build_routes` refuses such a route without `public_url` at boot; guard the
+    // request path too, so a bypassed construction cannot silently verify against
+    // no URL.
     if verifier.requires_url() && route.public_url.is_none() {
-        // webhook_routes_check refuses this at boot; guard the request path too so
-        // a bypassed construction cannot silently verify against no URL.
         return json_status(
             StatusCode::INTERNAL_SERVER_ERROR,
             &json!({ "error": "server configuration error" }),
@@ -692,16 +686,19 @@ pub async fn webhook_handler(
     let source = WebhookSource::new(route.provider.clone(), segment.clone());
 
     // #1321: the event is read out of what verification **authenticated**, inside
-    // the pipeline, after the signature holds and before any database work. The
-    // `payload` parsed above is used only on the arm where the scheme signed the
-    // body — on the other arm the body is an envelope and nothing in it is trusted,
-    // which is the #751 class the `Authenticated` view removes.
+    // the pipeline, after the signature holds and before any database work. The body
+    // is parsed only on the arm where the scheme signed it — on the other arm the
+    // body is an envelope and nothing in it is trusted, which is the #751 class the
+    // `Authenticated` view removes.
     let event_of = |authenticated: Authenticated<'_>| -> WebhookResult<VerifiedEvent> {
         let (event_id, event_type, event_payload) = match authenticated {
-            Authenticated::Body(_) => {
-                let event_id = extract_event_id(&payload, &body);
+            Authenticated::Body(verified_body) => {
+                // The body is parsed **here**, after the signature holds, and only
+                // on the arm where the body is the event.
+                let payload = parse_body(verified_body, &headers)?;
+                let event_id = extract_event_id(&payload, verified_body);
                 let event_type = extract_event_type(&payload, &header_map);
-                (event_id, event_type, payload.clone())
+                (event_id, event_type, payload)
             },
             Authenticated::Event {
                 id,
@@ -735,10 +732,7 @@ pub async fn webhook_handler(
         // to one segment (#1048), so a segment names exactly one config.
         route:         &segment,
         function_name: &segment,
-        body:          &body,
-        signature:     &signature,
-        timestamp:     timestamp.as_deref(),
-        url:           signing_url.as_deref(),
+        request:       InboundRequest::new(&header_map, &body, signing_url.as_deref()),
     };
 
     match state.pipeline.process(verifier, &route.secret_name, &delivery, event_of).await {

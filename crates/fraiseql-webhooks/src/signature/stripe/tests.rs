@@ -1,12 +1,28 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::sync::Arc;
+use std::{collections::BTreeMap, sync::Arc};
 
 use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use super::*;
 use crate::testing::mocks::MockClock;
+
+/// Drive the scheme the way the route does: put the credential under the header
+/// the scheme reads, and hand it the whole request.
+///
+/// The argument order is the one `verify` had before #1321, so the rewrite of
+/// these call sites carried no judgement about which value is which.
+fn check(
+    verifier: &impl SignatureVerifier,
+    payload: &[u8],
+    signature: &str,
+    secret: &str,
+) -> Result<Verified, SignatureError> {
+    let mut headers = BTreeMap::new();
+    headers.insert("Stripe-Signature".to_ascii_lowercase(), signature.to_string());
+    verifier.verify(&InboundRequest::new(&headers, payload, None), secret)
+}
 
 fn generate_signature(payload: &str, secret: &str, timestamp: i64) -> String {
     let signed_payload = format!("{}.{}", timestamp, payload);
@@ -24,10 +40,7 @@ fn test_valid_signature() {
     let secret = "whsec_test";
     let signature = generate_signature(&String::from_utf8_lossy(payload), secret, 1_679_076_299);
 
-    assert_eq!(
-        verifier.verify(payload, &signature, secret, None, None).unwrap(),
-        Verified::Body
-    );
+    assert_eq!(check(&verifier, payload, &signature, secret).unwrap(), Verified::Body);
 }
 
 #[test]
@@ -37,7 +50,7 @@ fn test_invalid_signature() {
     let signature = "t=1679076299,v1=invalid";
 
     assert!(matches!(
-        verifier.verify(b"test", signature, "secret", None, None),
+        check(&verifier, b"test", signature, "secret"),
         Err(SignatureError::Mismatch)
     ));
 }
@@ -48,7 +61,7 @@ fn test_expired_timestamp() {
     let verifier = StripeVerifier::with_clock(clock);
     let signature = generate_signature("test", "secret", 1_679_076_299);
 
-    let result = verifier.verify(b"test", &signature, "secret", None, None);
+    let result = check(&verifier, b"test", &signature, "secret");
     assert!(matches!(result, Err(SignatureError::TimestampExpired)));
 }
 

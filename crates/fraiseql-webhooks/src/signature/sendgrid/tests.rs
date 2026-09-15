@@ -1,9 +1,37 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::panic)] // Reason: test module — a `let ... else` that cannot bind the expected error variant must fail loudly and say what it got (#1174)
 
+use std::collections::BTreeMap;
+
 use base64::engine::general_purpose;
 
 use super::*;
+
+/// Drive the scheme the way the route does: put the credential under the header
+/// the scheme reads, and hand it the whole request.
+///
+/// The argument order is the one `verify` had before #1321, so the rewrite of
+/// these call sites carried no judgement about which value is which.
+fn check(
+    verifier: &impl SignatureVerifier,
+    payload: &[u8],
+    signature: &str,
+    secret: &str,
+    timestamp: Option<&str>,
+) -> Result<Verified, SignatureError> {
+    let mut headers = BTreeMap::new();
+    headers.insert(
+        "X-Twilio-Email-Event-Webhook-Signature".to_ascii_lowercase(),
+        signature.to_string(),
+    );
+    if let Some(timestamp) = timestamp {
+        headers.insert(
+            "X-Twilio-Email-Event-Webhook-Timestamp".to_ascii_lowercase(),
+            timestamp.to_string(),
+        );
+    }
+    verifier.verify(&InboundRequest::new(&headers, payload, None), secret)
+}
 
 fn fresh_timestamp() -> String {
     std::time::SystemTime::now()
@@ -17,7 +45,7 @@ fn fresh_timestamp() -> String {
 fn test_missing_timestamp_returns_error() {
     let verifier = SendGridVerifier::new();
     // Timestamp is now required; passing None must fail.
-    let result = verifier.verify(b"body", "sig", "not-a-pem-key", None, None);
+    let result = check(&verifier, b"body", "sig", "not-a-pem-key", None);
     assert!(matches!(result, Err(SignatureError::MissingTimestamp)));
 }
 
@@ -25,7 +53,7 @@ fn test_missing_timestamp_returns_error() {
 fn test_invalid_public_key_returns_error() {
     let verifier = SendGridVerifier::new();
     let ts = fresh_timestamp();
-    let result = verifier.verify(b"body", "sig", "not-a-pem-key", Some(&ts), None);
+    let result = check(&verifier, b"body", "sig", "not-a-pem-key", Some(&ts));
 
     // #1174: `"sig"` is not valid Base64 either, so `KeyMaterial(_)` alone would be
     // satisfied by a run that never reached the key at all — the exact shape #1174
@@ -33,6 +61,7 @@ fn test_invalid_public_key_returns_error() {
     let Err(SignatureError::KeyMaterial(message)) = result else {
         panic!("an unparseable PEM key must be KeyMaterial; got {result:?}")
     };
+
     assert!(
         message.contains("P-256 public key"),
         "the error must name the KEY parse as the fault; got {message:?}"
@@ -49,7 +78,7 @@ fn test_expired_timestamp_rejected() {
         - 600)
         .to_string();
     // Even before key parsing, an expired timestamp must be rejected.
-    let result = verifier.verify(b"body", "sig", "not-a-pem-key", Some(&old_ts), None);
+    let result = check(&verifier, b"body", "sig", "not-a-pem-key", Some(&old_ts));
     assert!(matches!(result, Err(SignatureError::TimestampExpired)));
 }
 
@@ -74,8 +103,7 @@ fn test_invalid_signature_base64() {
     let verifier = SendGridVerifier::new();
     let ts = fresh_timestamp();
 
-    let result =
-        verifier.verify(b"body", "not-base64!!!", &valid_public_key_pem(), Some(&ts), None);
+    let result = check(&verifier, b"body", "not-base64!!!", &valid_public_key_pem(), Some(&ts));
 
     // #1045: the signature is the *sender's* input, so an unparseable one is
     // `InvalidFormat` (401) — never `KeyMaterial`, which is reserved for the server's
@@ -90,7 +118,7 @@ fn test_invalid_signature_base64() {
 fn test_empty_secret_rejected() {
     let verifier = SendGridVerifier::new();
     let ts = fresh_timestamp();
-    let result = verifier.verify(b"body", "sig", "", Some(&ts), None);
+    let result = check(&verifier, b"body", "sig", "", Some(&ts));
 
     // #1174: an empty key and an unparseable one are different faults with the same
     // variant; only the message separates them.
@@ -137,7 +165,7 @@ fn test_valid_signature_round_trip() {
     let sig_b64 = general_purpose::STANDARD.encode(sig_der.as_ref());
 
     let verifier = SendGridVerifier::new();
-    let result = verifier.verify(body, &sig_b64, &public_key_pem, Some(&ts), None);
+    let result = check(&verifier, body, &sig_b64, &public_key_pem, Some(&ts));
     assert!(
         matches!(result, Ok(Verified::Body)),
         "valid ECDSA P-256 signature must verify successfully"

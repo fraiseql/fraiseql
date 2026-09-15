@@ -38,6 +38,7 @@ use sha1::Sha1;
 use sha2::{Digest as _, Sha256};
 
 use crate::{
+    request::InboundRequest,
     signature::{SignatureError, Verified, constant_time_eq, verified_if},
     traits::SignatureVerifier,
 };
@@ -168,13 +169,12 @@ pub(crate) fn build_signing_string(url: &str, payload: &[u8]) -> Option<String> 
     Some(signing)
 }
 
+/// The header this scheme reads its credential from.
+const SIGNATURE_HEADER: &str = "X-Twilio-Signature";
+
 impl SignatureVerifier for TwilioVerifier {
     fn name(&self) -> &'static str {
         "twilio"
-    }
-
-    fn signature_header(&self) -> &'static str {
-        "X-Twilio-Signature"
     }
 
     fn requires_url(&self) -> bool {
@@ -183,17 +183,17 @@ impl SignatureVerifier for TwilioVerifier {
 
     fn verify(
         &self,
-        payload: &[u8],
-        signature: &str,
+        request: &InboundRequest<'_>,
         secret: &str,
-        _timestamp: Option<&str>,
-        url: Option<&str>,
     ) -> Result<Verified, SignatureError> {
+        let signature = request.require_header(SIGNATURE_HEADER)?;
+        let payload = request.body();
+        let url = request.url();
         // Twilio signatures are computed over the URL, not just the body.
         let url = url.ok_or_else(|| {
             SignatureError::KeyMaterial(
-                "Twilio signature verification requires the request URL. \
-                 Pass the full request URL as the `url` parameter."
+                "Twilio signature verification requires the request URL. The route must \
+                 carry `public_url`, which boot validation refuses to do without."
                     .to_string(),
             )
         })?;

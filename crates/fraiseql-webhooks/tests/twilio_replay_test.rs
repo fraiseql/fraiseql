@@ -12,14 +12,33 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::doc_markdown)] // Reason: doc comments use type names without backticks for readability
 
+use std::collections::BTreeMap;
+
 use base64::{Engine as _, engine::general_purpose};
 use fraiseql_webhooks::{
+    InboundRequest, SignatureError, SignatureVerifier,
     signature::{Verified, twilio::TwilioVerifier},
-    traits::SignatureVerifier as _,
 };
 use hmac::{Hmac, KeyInit, Mac};
 use sha1::Sha1;
 use sha2::{Digest as _, Sha256};
+
+/// Drive the scheme the way the route does: put the credential under the header
+/// the scheme reads, and hand it the whole request.
+///
+/// The argument order is the one `verify` had before #1321, so the rewrite of
+/// these call sites carried no judgement about which value is which.
+fn check(
+    verifier: &impl SignatureVerifier,
+    payload: &[u8],
+    signature: &str,
+    secret: &str,
+    url: Option<&str>,
+) -> Result<Verified, SignatureError> {
+    let mut headers = BTreeMap::new();
+    headers.insert("X-Twilio-Signature".to_ascii_lowercase(), signature.to_string());
+    verifier.verify(&InboundRequest::new(&headers, payload, url), secret)
+}
 
 // ---------------------------------------------------------------------------
 // Reference implementation (mirrors build_signing_string in twilio.rs)
@@ -101,7 +120,7 @@ fn known_twilio_form_signature_verifies_correctly() {
     let signature = make_twilio_signature(URL, BODY, SECRET);
     let verifier = TwilioVerifier;
 
-    let result = verifier.verify(BODY, &signature, SECRET, None, Some(URL));
+    let result = check(&verifier, BODY, &signature, SECRET, Some(URL));
 
     assert!(
         result.is_ok(),
@@ -125,7 +144,7 @@ fn known_twilio_json_signature_verifies_correctly() {
     let signature = make_twilio_signature(&url, BODY, SECRET);
     let verifier = TwilioVerifier;
 
-    let result = verifier.verify(BODY, &signature, SECRET, None, Some(&url));
+    let result = check(&verifier, BODY, &signature, SECRET, Some(&url));
 
     assert!(result.is_ok(), "O1 regression: known-good Twilio JSON signature was rejected");
 }
@@ -143,7 +162,7 @@ fn a_captured_json_signature_does_not_authorise_another_body() {
     let signature = make_twilio_signature(&url, GENUINE, SECRET);
 
     assert!(
-        TwilioVerifier.verify(FORGED, &signature, SECRET, None, Some(&url)).is_err(),
+        check(&TwilioVerifier, FORGED, &signature, SECRET, Some(&url)).is_err(),
         "a signature captured from a genuine delivery must not authorise a forged body"
     );
 }
@@ -162,7 +181,7 @@ fn forged_twilio_signature_computed_over_body_only_is_rejected() {
     let forged_sig = general_purpose::STANDARD.encode(mac.finalize().into_bytes());
 
     let verifier = TwilioVerifier;
-    let result = verifier.verify(BODY, &forged_sig, SECRET, None, Some(URL));
+    let result = check(&verifier, BODY, &forged_sig, SECRET, Some(URL));
 
     assert!(
         result.is_err(),
@@ -180,7 +199,7 @@ fn twilio_verification_without_url_returns_error() {
     const BODY: &[u8] = b"CallSid=CA123&From=%2B14158675309";
 
     let verifier = TwilioVerifier;
-    let result = verifier.verify(BODY, "AAAAAAAAAAAAAAAAAAAAAAAAAAAA=", SECRET, None, None);
+    let result = check(&verifier, BODY, "AAAAAAAAAAAAAAAAAAAAAAAAAAAA=", SECRET, None);
 
     assert!(
         result.is_err(),
@@ -202,7 +221,7 @@ fn twilio_form_params_sorted_alphabetically_before_signing() {
 
     // Verification must succeed because the verifier also sorts the params.
     assert_eq!(
-        verifier.verify(BODY_REVERSED, &signature, SECRET, None, Some(URL)).unwrap(),
+        check(&verifier, BODY_REVERSED, &signature, SECRET, Some(URL)).unwrap(),
         Verified::Body,
         "O1 regression: Twilio verifier must sort params alphabetically"
     );

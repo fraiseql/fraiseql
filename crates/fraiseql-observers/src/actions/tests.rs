@@ -7,14 +7,28 @@
 //! received and verify against that.
 #![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code; panics surface failures.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
-use fraiseql_webhooks::{SignatureVerifier, Verified, signature::stripe::StripeVerifier};
+use fraiseql_webhooks::{
+    InboundRequest, SignatureError, SignatureVerifier, Verified, signature::stripe::StripeVerifier,
+};
 use uuid::Uuid;
 use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 
 use super::{WEBHOOK_SIGNATURE_HEADER, WebhookAction, webhook_signature};
 use crate::event::{EntityEvent, EventKind};
+
+/// Drive `StripeVerifier` the way a receiving route does: the signature goes under
+/// the header Stripe's scheme reads, and the scheme is handed the whole request.
+fn check(
+    verifier: &StripeVerifier,
+    payload: &[u8],
+    signature: &str,
+    secret: &str,
+) -> Result<Verified, SignatureError> {
+    let headers = BTreeMap::from([("stripe-signature".to_string(), signature.to_string())]);
+    verifier.verify(&InboundRequest::new(&headers, payload, None), secret)
+}
 
 fn test_event() -> EntityEvent {
     EntityEvent::new(
@@ -39,7 +53,7 @@ fn signature_round_trips_with_stripe_verifier() {
 
     let verifier = StripeVerifier::new();
     assert_eq!(
-        verifier.verify(body, &header, secret, None, None).unwrap(),
+        check(&verifier, body, &header, secret).unwrap(),
         Verified::Body,
         "the signature must verify with StripeVerifier"
     );
@@ -53,7 +67,7 @@ fn tampered_body_fails_verification() {
 
     let verifier = StripeVerifier::new();
     assert!(
-        verifier.verify(br#"{"amount":2}"#, &header, secret, None, None).is_err(),
+        check(&verifier, br#"{"amount":2}"#, &header, secret).is_err(),
         "a tampered body must NOT verify"
     );
 }
@@ -107,7 +121,7 @@ async fn execute_signs_the_exact_transmitted_bytes() {
     // fresh re-serialization of the struct.
     let verifier = StripeVerifier::new();
     assert_eq!(
-        verifier.verify(&req.body, sig, secret, None, None).unwrap(),
+        check(&verifier, &req.body, sig, secret).unwrap(),
         Verified::Body,
         "signature must verify over the exact transmitted body bytes"
     );
