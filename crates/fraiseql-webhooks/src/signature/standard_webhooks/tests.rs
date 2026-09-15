@@ -128,3 +128,208 @@ fn a_configured_header_prefix_is_the_one_the_scheme_reads() {
          one endpoint be replayed at another that spells its headers differently"
     );
 }
+
+// ── Cycle 2: the negatives, each on both sides of its threshold ───────────────
+//
+// GREEN landed with cycle 1, so none of these could be written red. Each is
+// recovered by mutation instead — reverting the behaviour it pins and reading the
+// diagnosis — which is the stronger form: it shows the case fails for the stated
+// reason rather than merely that it fails.
+
+/// Sign `body` under `id` at `timestamp`, and verify it with the clock at `now`.
+fn verify_at(now: u64, id: &str, timestamp: u64, body: &[u8]) -> Result<Verified, SignatureError> {
+    let timestamp = timestamp.to_string();
+    let signature = sign(SECRET, id, &timestamp, body);
+    let headers = headers(id, &timestamp, &signature);
+    at(now).verify(&InboundRequest::new(&headers, body, None), SECRET)
+}
+
+/// The window the registry hands every timestamped scheme, and this scheme's
+/// default: the 300 s Stripe and Slack use.
+const TOLERANCE: u64 = 300;
+
+#[test]
+fn a_timestamp_exactly_at_the_tolerance_verifies() {
+    // Both sides of the threshold, in both directions. A guard written `>=` instead
+    // of `>` refuses a delivery that is exactly at the edge of a window the operator
+    // was told is 300 seconds wide, and a size-dependent defect that hides below its
+    // threshold is invisible to a test that only ever probes one side.
+    for (label, now) in [
+        ("as old as the window allows", SIGNED_AT + TOLERANCE),
+        ("as far ahead", SIGNED_AT - TOLERANCE),
+    ] {
+        assert!(
+            verify_at(now, MSG_ID, SIGNED_AT, PAYLOAD).is_ok(),
+            "a delivery {label} must verify: the window is inclusive at {TOLERANCE}s"
+        );
+    }
+}
+
+#[test]
+fn a_timestamp_one_second_beyond_the_tolerance_is_refused() {
+    for (label, now) in [
+        ("one second too old", SIGNED_AT + TOLERANCE + 1),
+        ("one second too far ahead", SIGNED_AT - TOLERANCE - 1),
+    ] {
+        assert!(
+            matches!(
+                verify_at(now, MSG_ID, SIGNED_AT, PAYLOAD),
+                Err(SignatureError::TimestampExpired)
+            ),
+            "a delivery {label} must be refused as expired — a captured delivery has to \
+             stop being replayable, and the refusal has to say so rather than read as a \
+             mismatch"
+        );
+    }
+}
+
+#[test]
+fn a_genuine_delivery_whose_id_header_was_changed_is_refused() {
+    // The #751 attack, closed by the signature rather than by ignoring the header:
+    // the delivery below is genuine in every byte except the id, and the id is
+    // inside the signed content. Before this scheme the receiver keyed the ledger on
+    // exactly this header before anything signed it, so one captured delivery
+    // replayed under a fresh id claimed a fresh key and re-fired every `after:ingest`
+    // function.
+    let timestamp = SIGNED_AT.to_string();
+    let signature = sign(SECRET, MSG_ID, &timestamp, PAYLOAD);
+    let tampered = headers("msg_a_fresh_id_the_attacker_chose", &timestamp, &signature);
+
+    assert!(
+        matches!(
+            at(SIGNED_AT).verify(&InboundRequest::new(&tampered, PAYLOAD, None), SECRET),
+            Err(SignatureError::Mismatch)
+        ),
+        "the signature covers the id, so replacing it must be a MISMATCH — not a \
+         missing credential, and certainly not an acceptance"
+    );
+}
+
+#[test]
+fn a_rotating_sender_verifies_on_either_of_its_signatures() {
+    // A sender mid-rotation sends one entry per active secret, space-separated, in no
+    // guaranteed order. Taking only the first was #787's shape for Stripe: a genuine
+    // delivery whose matching signature was not first answered 401 for the whole
+    // rotation window. Both positions are tested, because a scheme that only ever
+    // reads one of them passes whichever case matches that position.
+    let timestamp = SIGNED_AT.to_string();
+    let genuine = sign(SECRET, MSG_ID, &timestamp, PAYLOAD);
+    let rotated_out = sign("whsec_cm90YXRlZC1vdXQta2V5", MSG_ID, &timestamp, PAYLOAD);
+    assert_ne!(genuine, rotated_out, "the premise: the two secrets give different MACs");
+
+    for (position, header) in [
+        ("first", format!("{genuine} {rotated_out}")),
+        ("second", format!("{rotated_out} {genuine}")),
+    ] {
+        let headers = headers(MSG_ID, &timestamp, &header);
+        assert_eq!(
+            at(SIGNED_AT)
+                .verify(&InboundRequest::new(&headers, PAYLOAD, None), SECRET)
+                .unwrap(),
+            Verified::BodyWithId {
+                id: MSG_ID.to_string(),
+            },
+            "the matching signature is {position} in the header, and the delivery is \
+             genuine when ANY entry matches"
+        );
+    }
+}
+
+#[test]
+fn an_unrecognised_version_tag_is_skipped_rather_than_refused() {
+    // `v1a` is the spec's Ed25519 signature, which this scheme does not implement,
+    // and `v2` is whatever comes next. A sender adding a version during a migration
+    // sends both — so an unknown tag alongside a good `v1` must be ignored, not turn
+    // the whole delivery into a 401.
+    //
+    // Nothing in the spec text states this rule. It is the only behaviour compatible
+    // with a sender growing a version, so it is pinned here as behaviour rather than
+    // claimed as a citation.
+    let timestamp = SIGNED_AT.to_string();
+    let genuine = sign(SECRET, MSG_ID, &timestamp, PAYLOAD);
+    let v1_value = genuine.strip_prefix("v1,").unwrap();
+    let header = format!("v1a,{v1_value} v2,{v1_value} {genuine}");
+    let headers = headers(MSG_ID, &timestamp, &header);
+
+    assert_eq!(
+        at(SIGNED_AT)
+            .verify(&InboundRequest::new(&headers, PAYLOAD, None), SECRET)
+            .unwrap(),
+        Verified::BodyWithId {
+            id: MSG_ID.to_string(),
+        },
+        "a `v1a,` or `v2,` entry beside a good `v1,` one must be skipped"
+    );
+}
+
+#[test]
+fn a_header_with_no_usable_v1_entry_is_the_senders_fault_not_the_servers() {
+    // #1045: sender-supplied bytes in a shape the scheme cannot read are
+    // `InvalidFormat`, which maps to 401. They must NEVER map to `KeyMaterial`,
+    // which maps to a 5xx — that would let any unauthenticated caller produce one on
+    // demand.
+    let timestamp = SIGNED_AT.to_string();
+    let value = sign(SECRET, MSG_ID, &timestamp, PAYLOAD)
+        .strip_prefix("v1,")
+        .unwrap()
+        .to_string();
+    for (label, header) in [
+        ("only an unimplemented version", format!("v1a,{value}")),
+        ("only a future version", format!("v2,{value}")),
+        ("no version tag at all", value.clone()),
+        ("nothing", String::new()),
+    ] {
+        let headers = headers(MSG_ID, &timestamp, &header);
+        let result = at(SIGNED_AT).verify(&InboundRequest::new(&headers, PAYLOAD, None), SECRET);
+        assert!(
+            matches!(result, Err(SignatureError::InvalidFormat)),
+            "a signature header carrying {label} is unreadable, not unusable key \
+             material: it must be InvalidFormat (401), never KeyMaterial (5xx); got \
+             {result:?}"
+        );
+    }
+}
+
+#[test]
+fn each_header_the_scheme_needs_is_refused_by_name_when_absent() {
+    let timestamp = SIGNED_AT.to_string();
+    let signature = sign(SECRET, MSG_ID, &timestamp, PAYLOAD);
+    let full = headers(MSG_ID, &timestamp, &signature);
+
+    for name in ["webhook-signature", "webhook-id"] {
+        let mut headers = full.clone();
+        headers.remove(name);
+        let result = at(SIGNED_AT).verify(&InboundRequest::new(&headers, PAYLOAD, None), SECRET);
+        assert!(
+            matches!(result, Err(SignatureError::MissingCredential(ref missing)) if missing == name),
+            "without `{name}` there is nothing to verify, and the refusal must name what \
+             was looked for so the operator can see which header the sender omitted; \
+             got {result:?}"
+        );
+    }
+
+    // The timestamp is `MissingTimestamp`, matching the three other schemes that read
+    // one — a more specific answer than "a credential is missing", and the one their
+    // existing tests assert.
+    let mut headers = full.clone();
+    headers.remove("webhook-timestamp");
+    assert!(matches!(
+        at(SIGNED_AT).verify(&InboundRequest::new(&headers, PAYLOAD, None), SECRET),
+        Err(SignatureError::MissingTimestamp)
+    ));
+}
+
+#[test]
+fn a_tampered_body_is_refused_even_with_a_genuine_id_and_timestamp() {
+    let timestamp = SIGNED_AT.to_string();
+    let signature = sign(SECRET, MSG_ID, &timestamp, PAYLOAD);
+    let mut body = PAYLOAD.to_vec();
+    let last = body.len() - 1;
+    body[last] ^= 1;
+    let headers = headers(MSG_ID, &timestamp, &signature);
+
+    assert!(matches!(
+        at(SIGNED_AT).verify(&InboundRequest::new(&headers, &body, None), SECRET),
+        Err(SignatureError::Mismatch)
+    ));
+}
