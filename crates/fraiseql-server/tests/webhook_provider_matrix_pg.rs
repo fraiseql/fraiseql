@@ -29,7 +29,7 @@ use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use fraiseql_server::{
     ServerConfig,
     config::WebhookRouteConfig,
-    inbound::{WebhookInboundState, webhook_router, webhook_routes_check},
+    inbound::{WebhookInboundState, WebhookRoutes, webhook_router, webhook_routes_check},
 };
 use fraiseql_test_support::try_database_url;
 use fraiseql_webhooks::PostgresIdempotencyStore;
@@ -39,6 +39,14 @@ use sha2::{Digest as _, Sha256};
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use tempfile::NamedTempFile;
 use tower::ServiceExt as _;
+
+/// The validated route set the mount takes. `webhook_routes_check` is the only way
+/// to one (#1321) — which is the point: the router serves what boot accepted, not a
+/// second set built from the same configuration.
+fn built(routes: &HashMap<String, WebhookRouteConfig>) -> WebhookRoutes {
+    webhook_routes_check(routes, |_| Some("configured".to_string()), false)
+        .expect("these fixtures are valid configurations")
+}
 
 const SLACK_SECRET_ENV: &str = "FRAISEQL_TEST_SLACK_SIGNING_SECRET";
 const TWILIO_SECRET_ENV: &str = "FRAISEQL_TEST_TWILIO_AUTH_TOKEN";
@@ -94,7 +102,7 @@ fn routes() -> HashMap<String, WebhookRouteConfig> {
 }
 
 fn router(pool: PgPool) -> Router {
-    let state = WebhookInboundState::new(pool, &routes(), |_| Some(SECRET.to_string())).unwrap();
+    let state = WebhookInboundState::new(pool, &built(&routes()), |_| Some(SECRET.to_string()));
     webhook_router(state)
 }
 
@@ -444,6 +452,29 @@ fn a_url_signing_provider_without_public_url_refuses_to_boot() {
     }
 }
 
+/// #1321: the boot check hands back **what it built**, and that is what the router
+/// is mounted from.
+///
+/// Worth its own case because the failure is silent: a check that validated
+/// correctly and returned an empty set would boot clean and then answer 404 to
+/// every configured route — the #787 shape, one level up. The stronger half of this
+/// invariant (that the *configured* scheme is the one that serves, not a default
+/// rebuilt by provider name) is carried by the two generic-HMAC cases below, which
+/// redden when a second construction is reinstated at mount time.
+#[test]
+fn boot_validation_hands_back_every_route_it_built() {
+    let validated = webhook_routes_check(&routes(), |_| Some(SECRET.to_string()), true)
+        .expect("a fully configured route set boots");
+
+    assert_eq!(
+        validated.len(),
+        routes().len(),
+        "every configured route must come back from validation; the mount has no other \
+         source for them"
+    );
+    assert!(!validated.is_empty());
+}
+
 #[test]
 fn a_fully_configured_route_set_boots() {
     assert!(webhook_routes_check(&routes(), |_| Some(SECRET.to_string()), true).is_ok());
@@ -532,7 +563,7 @@ fn boot(config_toml: &str) -> Result<HashMap<String, WebhookRouteConfig>, String
 }
 
 fn router_for(pool: PgPool, routes: &HashMap<String, WebhookRouteConfig>) -> Router {
-    webhook_router(WebhookInboundState::new(pool, routes, |_| Some(SECRET.to_string())).unwrap())
+    webhook_router(WebhookInboundState::new(pool, &built(routes), |_| Some(SECRET.to_string())))
 }
 
 #[tokio::test]

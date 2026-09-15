@@ -139,6 +139,10 @@ pub(super) struct SchemaSubsystems {
     #[cfg(feature = "auth")]
     pub oidc_server_client: Option<Arc<crate::auth::OidcServerClient>>,
     pub rate_limiter: Option<Arc<RateLimiter>>,
+    /// The `[webhooks.*]` routes, built and validated here so the mount serves
+    /// exactly what boot accepted (#1321).
+    #[cfg(feature = "inbound")]
+    pub webhook_routes: crate::inbound::WebhookRoutes,
     /// Parsed `[security.api_keys]` config. The authenticator is built in
     /// `from_executor`, where the database pool is in scope — `storage =
     /// "postgres"` needs it, and a config that demands it without one refuses
@@ -295,7 +299,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         // provider signs the request URL — or the server refuses to boot instead
         // of mounting routes that 404/500 every genuine delivery.
         #[cfg(feature = "inbound")]
-        crate::inbound::webhook_routes_check(
+        let webhook_routes = crate::inbound::webhook_routes_check(
             &config.webhooks,
             |name| std::env::var(name).ok(),
             crate::ServerConfig::is_production_mode(),
@@ -327,6 +331,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "auth")]
             oidc_server_client,
             rate_limiter,
+            #[cfg(feature = "inbound")]
+            webhook_routes,
             api_key_config,
             service_account_authenticator,
             revocation_manager,
@@ -442,6 +448,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             #[cfg(feature = "auth")]
             oidc_server_client,
             rate_limiter,
+            #[cfg(feature = "inbound")]
+            webhook_routes,
             api_key_config,
             service_account_authenticator,
             revocation_manager,
@@ -856,6 +864,8 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 
         Ok(Self {
             config,
+            #[cfg(feature = "inbound")]
+            webhook_routes,
             executor,
             subscription_manager,
             subscription_lifecycle: Arc::new(crate::subscriptions::NoopLifecycle),

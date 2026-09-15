@@ -189,6 +189,50 @@ struct BuiltRoute {
     public_url:  Option<String>,
 }
 
+impl std::fmt::Debug for BuiltRoute {
+    /// Names the scheme rather than the verifier, which is a `dyn` value with no
+    /// `Debug`. `secret_name` is the **environment variable's** name, never its
+    /// value — nothing here may print key material.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BuiltRoute")
+            .field("name", &self.name)
+            .field("provider", &self.provider)
+            .field("scheme", &self.scheme.name())
+            .field("secret_env", &self.secret_name)
+            .field("public_url", &self.public_url)
+            .finish()
+    }
+}
+
+/// Every configured webhook route, **built and validated**.
+///
+/// The only way to obtain one is [`webhook_routes_check`], so a
+/// [`WebhookInboundState`] cannot be assembled from a configuration nothing
+/// validated — and the route that boot accepted is, by construction, the route
+/// that serves. Before this the boot check and the mount each built their own set
+/// from the same config: pure, so they agreed, but agreement by derivation is a
+/// property of how two copies happen to be written, not one anything enforces.
+/// That is the shape #1046 and #1048 both had.
+#[derive(Clone, Debug, Default)]
+pub struct WebhookRoutes {
+    /// Path segment (`/webhooks/{segment}`) → the route built for it.
+    by_segment: BTreeMap<String, BuiltRoute>,
+}
+
+impl WebhookRoutes {
+    /// Whether any route is configured.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.by_segment.is_empty()
+    }
+
+    /// How many routes were configured.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.by_segment.len()
+    }
+}
+
 /// The replay window handed to the schemes that sign a timestamp.
 ///
 /// The value `ProviderRegistry::new()` used before the registry was deleted, kept
@@ -208,7 +252,7 @@ const TIMESTAMP_TOLERANCE_SECS: u64 = 300;
 /// `ServerError::ConfigError` naming the route and what is wrong with it.
 fn build_routes<S: std::hash::BuildHasher>(
     routes: &std::collections::HashMap<String, WebhookRouteConfig, S>,
-) -> crate::Result<BTreeMap<String, BuiltRoute>> {
+) -> crate::Result<WebhookRoutes> {
     // #1048: two routes resolving to the same `/webhooks/{segment}` silently shadowed
     // each other. The map below is keyed by the segment, so a repeat is
     // last-write-wins — and because this iterates a `HashMap` whose `RandomState`
@@ -265,7 +309,7 @@ fn build_routes<S: std::hash::BuildHasher>(
             },
         );
     }
-    Ok(built)
+    Ok(WebhookRoutes { by_segment: built })
 }
 
 /// The concrete pipeline used by the inbound webhook adapter.
@@ -301,26 +345,21 @@ impl WebhookInboundState {
     /// before this point, so the skip is reachable only in development. The path
     /// segment is the route's `path` override or, failing that, its config key.
     ///
-    /// Fallible since #1321: a route's verification scheme is built from its
-    /// configuration, and building it can fail. It is built **here**, once, and
-    /// what comes out is what serves the route — an unbuildable configuration must
-    /// refuse to mount rather than be skipped like a missing secret, because the
-    /// two are different mistakes and only one of them is an operator's deliberate
-    /// "not in this environment".
-    ///
-    /// # Errors
-    ///
-    /// `ServerError::ConfigError` naming the route and what is wrong with it — the
-    /// same refusals [`webhook_routes_check`] reports, from the same call.
+    /// Takes the routes [`webhook_routes_check`] **already built** (#1321). This is
+    /// infallible because everything that can be refused about a route was refused
+    /// there: the scheme is a value that exists, so there is nothing left to
+    /// construct here and no second construction that could disagree with the one
+    /// boot validated.
+    #[must_use]
     pub fn new(
         pool: PgPool,
-        routes: &std::collections::HashMap<String, WebhookRouteConfig>,
+        routes: &WebhookRoutes,
         get_env: impl Fn(&str) -> Option<String>,
-    ) -> crate::Result<Self> {
+    ) -> Self {
         let mut secrets = StaticSecretProvider::new();
         let mut mounted = BTreeMap::new();
 
-        for (segment, route) in build_routes(routes)? {
+        for (segment, route) in routes.by_segment.clone() {
             // #1045: `SECRET_ENV=""` is unset for every purpose that matters — it cannot
             // verify anything — so it takes the same skip path rather than mounting a
             // route that answers 401 to every genuine delivery.
@@ -341,12 +380,12 @@ impl WebhookInboundState {
         let store = PostgresIdempotencyStore::new(pool.clone());
         let pipeline = WebhookPipeline::new(pool, secrets, store, SpineEventHandler);
 
-        Ok(Self {
+        Self {
             pipeline:               Arc::new(pipeline),
             routes:                 Arc::new(mounted),
             hooks:                  None,
             query_executor_factory: None,
-        })
+        }
     }
 
     /// Attach the function-dispatch hooks so a persisted message fires its
@@ -414,6 +453,9 @@ impl WebhookInboundState {
 /// Pure and race-free like the other boot guards: the caller supplies the env
 /// reader and the deployment mode.
 ///
+/// Returns the built routes, so the caller mounts **what was validated** rather
+/// than building a second set from the same configuration (#1321).
+///
 /// # Errors
 ///
 /// `ServerError::ConfigError` naming the route and what is missing.
@@ -421,8 +463,9 @@ pub fn webhook_routes_check<S: std::hash::BuildHasher>(
     routes: &std::collections::HashMap<String, WebhookRouteConfig, S>,
     get_env: impl Fn(&str) -> Option<String>,
     is_production: bool,
-) -> crate::Result<()> {
-    for route in build_routes(routes)?.values() {
+) -> crate::Result<WebhookRoutes> {
+    let built = build_routes(routes)?;
+    for route in built.by_segment.values() {
         // #1045: an env var that is set but empty verifies nothing, so it is treated as
         // unset here too. Checking only `is_none()` let `SECRET_ENV=""` boot clean and
         // then fail every delivery with a 401 that blamed the sender.
@@ -445,7 +488,7 @@ pub fn webhook_routes_check<S: std::hash::BuildHasher>(
             );
         }
     }
-    Ok(())
+    Ok(built)
 }
 
 /// The query parameter Twilio appends for non-form bodies, carrying the hex SHA-256

@@ -212,6 +212,17 @@ pub struct Server<A: DatabaseAdapter> {
     #[cfg(feature = "cdc-outbound")]
     pub(super) cdc_drains: Vec<crate::cdc_outbound::SinkDrain>,
 
+    /// The `[webhooks.*]` routes, **built and validated at boot** (#1321).
+    ///
+    /// Built in the builder, where a refused configuration can still stop the boot,
+    /// and carried here so the mount serves exactly what was validated. The mount
+    /// used to build its own set from the same `config.webhooks`: pure, so the two
+    /// agreed, but only because they were written to — and a construction that can
+    /// fail at mount time has nowhere to report it, since the router is assembled
+    /// infallibly.
+    #[cfg(feature = "inbound")]
+    pub(super) webhook_routes: crate::inbound::WebhookRoutes,
+
     /// The `[subscription_kafka]` mirror, built at boot and started with the task set.
     ///
     /// Built early — where a refused endpoint can still stop the boot — rather than at

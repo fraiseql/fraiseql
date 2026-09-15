@@ -5,7 +5,17 @@ use std::collections::{BTreeMap, HashMap};
 use fraiseql_functions::{IngestSource, PushSource, RawDelivery, Source, Transport};
 use sqlx::PgPool;
 
-use super::{WebhookInboundState, WebhookSource, webhook_router};
+use super::{
+    WebhookInboundState, WebhookRoutes, WebhookSource, webhook_router, webhook_routes_check,
+};
+use crate::config::WebhookRouteConfig;
+/// The validated route set the mount takes. `webhook_routes_check` is the only way
+/// to one (#1321) — which is the point: what the router serves is what boot
+/// accepted, not a second set built from the same configuration.
+fn built(routes: &HashMap<String, WebhookRouteConfig>) -> WebhookRoutes {
+    webhook_routes_check(routes, |_| Some("configured".to_string()), false)
+        .expect("these fixtures are valid configurations")
+}
 
 fn lazy_pool() -> PgPool {
     PgPool::connect_lazy("postgres://test:test@localhost/test").unwrap()
@@ -22,12 +32,11 @@ mod router_construction {
     //! `Router::route`, so a stale `:param` literal panics here at build time
     //! rather than at first server boot (issue #316 class).
 
-    use super::{HashMap, WebhookInboundState, lazy_pool, webhook_router};
+    use super::{WebhookInboundState, WebhookRoutes, lazy_pool, webhook_router};
 
     #[tokio::test]
     async fn webhook_router_constructs() {
-        let state = WebhookInboundState::new(lazy_pool(), &HashMap::new(), |_| None)
-            .expect("an empty route set builds");
+        let state = WebhookInboundState::new(lazy_pool(), &WebhookRoutes::default(), |_| None);
         let _ = webhook_router(state);
     }
 }
@@ -44,7 +53,7 @@ mod after_ingest_bridge {
     use fraiseql_functions::host::live::QueryExecutor;
     use serde_json::Value;
 
-    use super::{HashMap, WebhookInboundState, lazy_pool};
+    use super::{WebhookInboundState, WebhookRoutes, lazy_pool};
     use crate::routes::after_mutation::QueryExecutorFactory;
 
     struct MockExec;
@@ -64,15 +73,13 @@ mod after_ingest_bridge {
 
     #[tokio::test] // `connect_lazy` needs a Tokio context (it spawns the pool's keeper).
     async fn without_a_factory_the_bridge_is_unwired() {
-        let state = WebhookInboundState::new(lazy_pool(), &HashMap::new(), |_| None)
-            .expect("an empty route set builds");
+        let state = WebhookInboundState::new(lazy_pool(), &WebhookRoutes::default(), |_| None);
         assert!(state.query_executor_factory().is_none());
     }
 
     #[tokio::test]
     async fn with_a_factory_the_state_carries_the_after_ingest_bridge() {
-        let state = WebhookInboundState::new(lazy_pool(), &HashMap::new(), |_| None)
-            .expect("an empty route set builds")
+        let state = WebhookInboundState::new(lazy_pool(), &WebhookRoutes::default(), |_| None)
             .with_query_executor_factory(factory());
         assert!(
             state.query_executor_factory().is_some(),
@@ -308,7 +315,7 @@ mod error_body_sanitization {
     };
     use tower::ServiceExt as _;
 
-    use super::{HashMap, WebhookInboundState, lazy_pool, webhook_router};
+    use super::{HashMap, WebhookInboundState, built, lazy_pool, webhook_router};
     use crate::config::WebhookRouteConfig;
 
     /// A router with one generic HMAC route whose signing secret resolves.
@@ -330,9 +337,9 @@ mod error_body_sanitization {
                 prefix:     None,
             },
         );
-        let state =
-            WebhookInboundState::new(lazy_pool(), &routes, |_| Some("s3cret-value".to_string()))
-                .expect("a generic HMAC route builds");
+        let state = WebhookInboundState::new(lazy_pool(), &built(&routes), |_| {
+            Some("s3cret-value".to_string())
+        });
         webhook_router(state)
     }
 
@@ -398,7 +405,7 @@ mod key_material_is_not_the_senders_fault {
     };
     use tower::ServiceExt as _;
 
-    use super::{HashMap, WebhookInboundState, lazy_pool, webhook_router};
+    use super::{HashMap, WebhookInboundState, built, lazy_pool, webhook_router};
     use crate::config::WebhookRouteConfig;
 
     /// RFC 8032 test vector 1's public key — a genuinely valid Ed25519 point, so a
@@ -420,9 +427,9 @@ mod key_material_is_not_the_senders_fault {
                 prefix:     None,
             },
         );
-        let state =
-            WebhookInboundState::new(lazy_pool(), &routes, |_| Some(configured_key.to_string()))
-                .expect("a discord route builds");
+        let state = WebhookInboundState::new(lazy_pool(), &built(&routes), |_| {
+            Some(configured_key.to_string())
+        });
         webhook_router(state)
     }
 
@@ -486,7 +493,7 @@ mod empty_secret_is_not_configured {
     //! it in production, and the mount path skips the route rather than serving one
     //! that cannot verify anything.
 
-    use super::{super::webhook_routes_check, HashMap, WebhookInboundState, lazy_pool};
+    use super::{super::webhook_routes_check, HashMap, WebhookInboundState, built, lazy_pool};
     use crate::config::WebhookRouteConfig;
 
     fn one_route() -> HashMap<String, WebhookRouteConfig> {
@@ -531,8 +538,8 @@ mod empty_secret_is_not_configured {
     async fn a_route_with_an_empty_secret_is_not_mounted() {
         // Same disposition as an unset variable (#787): unmounted, so it 404s rather
         // than mounting a route that 401s every genuine delivery.
-        let state = WebhookInboundState::new(lazy_pool(), &one_route(), |_| Some(String::new()))
-            .expect("the route builds; its secret is what is missing");
+        let state =
+            WebhookInboundState::new(lazy_pool(), &built(&one_route()), |_| Some(String::new()));
         assert!(
             state.routes.is_empty(),
             "a route whose secret is empty must be skipped, not mounted"
@@ -553,7 +560,7 @@ mod colliding_path_segments {
     //! segments, so nothing refused, warned, or documented the constraint. The fix
     //! mirrors the duplicate-sink-name guard in `server_config/cdc_outbound.rs`.
 
-    use super::{super::webhook_routes_check, HashMap, WebhookInboundState, lazy_pool};
+    use super::{super::webhook_routes_check, HashMap, WebhookInboundState, built, lazy_pool};
     use crate::config::WebhookRouteConfig;
 
     fn route(provider: &str, secret_env: &str, path: Option<&str>) -> WebhookRouteConfig {
@@ -645,8 +652,8 @@ mod colliding_path_segments {
             "distinct segments are not a collision, even on a shared provider"
         );
 
-        let state = WebhookInboundState::new(lazy_pool(), &routes, |_| Some("s".to_string()))
-            .expect("distinct segments build");
+        let state =
+            WebhookInboundState::new(lazy_pool(), &built(&routes), |_| Some("s".to_string()));
         assert_eq!(state.routes.len(), 2, "both routes must mount");
     }
 }

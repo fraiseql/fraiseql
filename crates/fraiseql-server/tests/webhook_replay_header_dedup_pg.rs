@@ -31,7 +31,7 @@ use axum::{
 };
 use fraiseql_server::{
     config::WebhookRouteConfig,
-    inbound::{WebhookInboundState, webhook_router},
+    inbound::{WebhookInboundState, WebhookRoutes, webhook_router, webhook_routes_check},
 };
 use fraiseql_test_support::try_database_url;
 use fraiseql_webhooks::PostgresIdempotencyStore;
@@ -39,6 +39,14 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 use sqlx::{PgPool, postgres::PgPoolOptions};
 use tower::ServiceExt as _;
+
+/// The validated route set the mount takes. `webhook_routes_check` is the only way
+/// to one (#1321) — which is the point: the router serves what boot accepted, not a
+/// second set built from the same configuration.
+fn built(routes: &HashMap<String, WebhookRouteConfig>) -> WebhookRoutes {
+    webhook_routes_check(routes, |_| Some("configured".to_string()), false)
+        .expect("these fixtures are valid configurations")
+}
 
 const SECRET_ENV: &str = "FRAISEQL_TEST_GITHUB_WEBHOOK_SECRET";
 const SECRET: &str = "whsec_751";
@@ -72,10 +80,9 @@ fn router(pool: PgPool) -> Router {
             prefix:     None,
         },
     );
-    let state = WebhookInboundState::new(pool, &routes, |name| {
+    let state = WebhookInboundState::new(pool, &built(&routes), |name| {
         (name == SECRET_ENV).then(|| SECRET.to_string())
-    })
-    .unwrap();
+    });
     webhook_router(state)
 }
 
