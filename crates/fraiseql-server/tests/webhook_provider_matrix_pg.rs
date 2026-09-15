@@ -1109,4 +1109,70 @@ header_prefix = "svix"
         webhook_routes_check(&routes, |_| Some(SW_SECRET.to_string()), true)
             .expect("a real whsec_ secret must boot");
     }
+
+    /// Both asymmetric prefixes, not just the one that happened to get written
+    /// first. `whpk_` is the public verifying key and `whsk_` the private signing
+    /// key; an operator reaching for `v1a` may paste either, and a refusal that
+    /// covered one would send the other down the 401-every-delivery path.
+    #[test]
+    fn both_asymmetric_key_prefixes_are_refused_by_name() {
+        let file = NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), CLERK_ROUTES).unwrap();
+        let routes = ServerConfig::from_file(file.path()).unwrap().webhooks;
+
+        for prefix in ["whpk_", "whsk_"] {
+            let secret = format!("{prefix}C2FVsBQIhrscChlQIMV+b5sSYspob7oD");
+            let error = webhook_routes_check(&routes, |_| Some(secret.clone()), true)
+                .map(|_| ())
+                .expect_err("asymmetric v1a material is not verifiable here")
+                .to_string();
+            assert!(
+                error.contains(prefix),
+                "the refusal must name the prefix the operator pasted; got: {error}"
+            );
+            assert!(
+                error.contains("v1a"),
+                "and the signature version it belongs to, so the gap is legible rather \
+                 than looking like a typo; got: {error}"
+            );
+        }
+    }
+
+    /// Phase 31's secret policy is unchanged for this scheme: an unset secret is a
+    /// production boot refusal and a development skip. It must reach *that* answer
+    /// and not the key-material one — "the shape of your key is wrong" about a key
+    /// that is not there would send the operator to the wrong fix.
+    #[test]
+    fn an_unset_secret_still_follows_the_phase_31_policy_rather_than_the_key_check() {
+        let file = NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), CLERK_ROUTES).unwrap();
+        let routes = ServerConfig::from_file(file.path()).unwrap().webhooks;
+
+        for (label, reader) in [
+            ("unset", (|_: &str| None) as fn(&str) -> Option<String>),
+            // #1045: set but empty is unset for every purpose that matters.
+            ("empty", |_: &str| Some(String::new())),
+        ] {
+            let error = webhook_routes_check(&routes, reader, true)
+                .map(|_| ())
+                .expect_err("production refuses a route that cannot verify anything")
+                .to_string();
+            assert!(
+                error.contains("is not set"),
+                "{label}: the answer must be the missing-secret one; got: {error}"
+            );
+            assert!(
+                !error.contains("cannot use the key material"),
+                "{label}: and NOT the key-material one — a secret that is not there has \
+                 no shape to be wrong, and the two answers have different fixes; got: \
+                 {error}"
+            );
+
+            // Development downgrades it to a warning and skips the route, exactly as it
+            // does for every secret-bearing scheme.
+            webhook_routes_check(&routes, reader, false).unwrap_or_else(|error| {
+                panic!("{label}: development must warn, not refuse: {error}")
+            });
+        }
+    }
 }
