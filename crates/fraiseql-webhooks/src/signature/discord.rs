@@ -9,7 +9,9 @@
 use ed25519_dalek::{Signature, Verifier, VerifyingKey};
 
 use crate::{
-    signature::{SignatureError, check_timestamp_freshness, system_now_secs},
+    signature::{
+        SignatureError, Verified, check_timestamp_freshness, system_now_secs, verified_if,
+    },
     traits::SignatureVerifier,
 };
 
@@ -74,7 +76,7 @@ impl SignatureVerifier for DiscordVerifier {
         secret: &str,
         timestamp: Option<&str>,
         _url: Option<&str>,
-    ) -> Result<bool, SignatureError> {
+    ) -> Result<Verified, SignatureError> {
         if secret.is_empty() {
             return Err(SignatureError::KeyMaterial(
                 "Discord public key must not be empty".to_string(),
@@ -107,7 +109,7 @@ impl SignatureVerifier for DiscordVerifier {
         let mut message = timestamp.as_bytes().to_vec();
         message.extend_from_slice(payload);
 
-        Ok(public_key.verify(&message, &sig).is_ok())
+        verified_if(public_key.verify(&message, &sig).is_ok())
     }
 }
 

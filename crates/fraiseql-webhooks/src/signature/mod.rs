@@ -17,6 +17,59 @@ pub mod sendgrid;
 pub mod slack;
 pub mod twilio;
 
+/// What a scheme authenticated (#1321).
+///
+/// Verification does not answer "was the signature good?" — it answers **what it
+/// established**. The two are different for any scheme whose signed material is
+/// not the request body: a Standard Webhooks sender signs `{id}.{timestamp}.{body}`
+/// and a JWT-signing IdP puts the event inside the token, and in both cases the
+/// event's identity comes out of verification rather than out of the bytes that
+/// happened to arrive.
+///
+/// Deriving the delivery's id and type from the *unverified* body is the #751
+/// class: it put the entire replay defence under the control of whoever sent the
+/// request. The pipeline therefore builds the ledger claim, the spine row and the
+/// `after:ingest` dispatch from this value and nothing else.
+///
+/// Deliberately **not** `#[non_exhaustive]`: implementors outside this crate have
+/// to be able to *construct* it, and a third kind of verification result must be a
+/// compile error at every match site rather than a wildcard arm's silent default.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Verified {
+    /// The signature covers the request body, and the body **is** the event. Its
+    /// id and type are derived from the verified bytes by the caller's rules —
+    /// every scheme in this crate today.
+    Body,
+    /// The scheme authenticated an event carried in signed material. The body it
+    /// arrived in is an envelope, and nothing in it is trusted.
+    Event {
+        /// The event's id, as signed. This is what the replay defence keys on.
+        id:         String,
+        /// The event's type, as signed.
+        event_type: String,
+        /// The event itself, as signed.
+        payload:    serde_json::Value,
+    },
+}
+
+/// `Ok(Verified::Body)` when a body-signing scheme's comparison held, and
+/// [`SignatureError::Mismatch`] when it did not.
+///
+/// A mismatch is an **error**, not an `Ok(false)`: a caller that forgot to inspect
+/// a boolean verified nothing while reading as if it had, and the success type now
+/// carries the event, so there is no boolean left to forget.
+///
+/// # Errors
+///
+/// [`SignatureError::Mismatch`] when `matched` is false.
+pub fn verified_if(matched: bool) -> Result<Verified, SignatureError> {
+    if matched {
+        Ok(Verified::Body)
+    } else {
+        Err(SignatureError::Mismatch)
+    }
+}
+
 /// Errors produced by low-level signature verification routines.
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]

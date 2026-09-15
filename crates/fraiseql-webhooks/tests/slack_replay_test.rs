@@ -56,7 +56,7 @@ fn fresh_slack_signature_verifies() {
     let verifier = SlackVerifier::new();
     let result = verifier.verify(body, &sig, SIGNING_SECRET, Some(&ts_str), None);
 
-    assert!(result.unwrap_or(false), "SR-5 regression: valid fresh Slack signature rejected");
+    assert!(result.is_ok(), "SR-5 regression: valid fresh Slack signature rejected");
 }
 
 /// A replayed Slack signature with a timestamp 10 minutes in the past must be rejected.
@@ -112,10 +112,7 @@ fn slack_signature_with_wrong_secret_is_rejected() {
     let verifier = SlackVerifier::new();
     let result = verifier.verify(body, &sig, "wrong_secret", Some(&ts_str), None);
 
-    assert!(
-        result.is_err() || !result.unwrap_or(true),
-        "SR-5 regression: Slack signature verified with wrong secret"
-    );
+    assert!(result.is_err(), "SR-5 regression: Slack signature verified with wrong secret");
 }
 
 /// Custom tolerance: a signature that would be rejected by the 300-second default
@@ -131,7 +128,7 @@ fn slack_verifier_custom_tolerance_accepts_older_signatures() {
     let result = verifier.verify(body, &sig, SIGNING_SECRET, Some(&ts_str), None);
 
     assert!(
-        result.unwrap_or(false),
+        result.is_ok(),
         "Custom tolerance: signature 400 s old should be accepted within 600 s window"
     );
 }

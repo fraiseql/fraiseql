@@ -13,7 +13,10 @@
 #![allow(clippy::doc_markdown)] // Reason: doc comments use type names without backticks for readability
 
 use base64::{Engine as _, engine::general_purpose};
-use fraiseql_webhooks::{signature::twilio::TwilioVerifier, traits::SignatureVerifier as _};
+use fraiseql_webhooks::{
+    signature::{Verified, twilio::TwilioVerifier},
+    traits::SignatureVerifier as _,
+};
 use hmac::{Hmac, KeyInit, Mac};
 use sha1::Sha1;
 use sha2::{Digest as _, Sha256};
@@ -101,7 +104,7 @@ fn known_twilio_form_signature_verifies_correctly() {
     let result = verifier.verify(BODY, &signature, SECRET, None, Some(URL));
 
     assert!(
-        result.unwrap_or(false),
+        result.is_ok(),
         "O1 regression: known-good Twilio form-encoded signature was rejected"
     );
 }
@@ -124,10 +127,7 @@ fn known_twilio_json_signature_verifies_correctly() {
 
     let result = verifier.verify(BODY, &signature, SECRET, None, Some(&url));
 
-    assert!(
-        result.unwrap_or(false),
-        "O1 regression: known-good Twilio JSON signature was rejected"
-    );
+    assert!(result.is_ok(), "O1 regression: known-good Twilio JSON signature was rejected");
 }
 
 /// The captured-signature replay this suite exists to rule out, in its JSON form: the
@@ -143,9 +143,7 @@ fn a_captured_json_signature_does_not_authorise_another_body() {
     let signature = make_twilio_signature(&url, GENUINE, SECRET);
 
     assert!(
-        !TwilioVerifier
-            .verify(FORGED, &signature, SECRET, None, Some(&url))
-            .unwrap_or(true),
+        TwilioVerifier.verify(FORGED, &signature, SECRET, None, Some(&url)).is_err(),
         "a signature captured from a genuine delivery must not authorise a forged body"
     );
 }
@@ -167,7 +165,7 @@ fn forged_twilio_signature_computed_over_body_only_is_rejected() {
     let result = verifier.verify(BODY, &forged_sig, SECRET, None, Some(URL));
 
     assert!(
-        !result.unwrap_or(true),
+        result.is_err(),
         "O1 regression: forged Twilio signature (body-only HMAC) was accepted"
     );
 }
@@ -203,8 +201,9 @@ fn twilio_form_params_sorted_alphabetically_before_signing() {
     let verifier = TwilioVerifier;
 
     // Verification must succeed because the verifier also sorts the params.
-    assert!(
+    assert_eq!(
         verifier.verify(BODY_REVERSED, &signature, SECRET, None, Some(URL)).unwrap(),
+        Verified::Body,
         "O1 regression: Twilio verifier must sort params alphabetically"
     );
 }

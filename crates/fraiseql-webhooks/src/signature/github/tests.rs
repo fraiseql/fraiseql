@@ -18,7 +18,10 @@ fn test_valid_signature() {
     let secret = "secret";
     let signature = generate_signature(payload, secret);
 
-    assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
+    assert_eq!(
+        verifier.verify(payload, &signature, secret, None, None).unwrap(),
+        Verified::Body
+    );
 }
 
 #[test]
@@ -26,7 +29,10 @@ fn test_invalid_signature() {
     let verifier = GitHubVerifier;
     let signature = "sha256=invalid";
 
-    assert!(!verifier.verify(b"test", signature, "secret", None, None).unwrap());
+    assert!(matches!(
+        verifier.verify(b"test", signature, "secret", None, None),
+        Err(SignatureError::Mismatch)
+    ));
 }
 
 #[test]

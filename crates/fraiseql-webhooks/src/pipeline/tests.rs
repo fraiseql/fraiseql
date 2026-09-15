@@ -1,7 +1,7 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::panic)] // Reason: NeverHandler panics loudly if the pipeline wrongly reaches it
 
-use serde_json::{Value, json};
+use serde_json::Value;
 use sqlx::{Postgres, Transaction, postgres::PgPoolOptions};
 
 use super::*;
@@ -28,15 +28,19 @@ impl EventHandler for NeverHandler {
 fn delivery() -> Delivery<'static> {
     Delivery {
         route:         "stripe",
-        event_id:      "evt_1",
-        event_type:    "payment_intent.succeeded",
         function_name: "process_payment",
         body:          b"{}",
         signature:     "sig",
         timestamp:     None,
         url:           None,
-        params:        json!({}),
     }
+}
+
+/// The `event_of` for tests that must not reach it: every case below
+/// short-circuits before verification succeeds, so reaching this is the failure
+/// it is written to catch.
+fn never_read(_authenticated: Authenticated<'_>) -> Result<VerifiedEvent> {
+    panic!("the event must not be read when the pipeline short-circuits before verifying")
 }
 
 #[test]
@@ -76,7 +80,10 @@ async fn forged_signature_is_rejected_before_any_database_work() {
     );
 
     let verifier = MockSignatureVerifier::failing();
-    let err = pipeline.process(&verifier, "stripe", &delivery()).await.unwrap_err();
+    let err = pipeline
+        .process(&verifier, "stripe", &delivery(), never_read)
+        .await
+        .unwrap_err();
 
     assert!(
         matches!(err, WebhookError::SignatureInvalid(_)),
@@ -97,7 +104,10 @@ async fn missing_secret_is_rejected_before_any_database_work() {
     // A succeeding verifier proves the rejection is the missing secret, resolved
     // before verification — not a signature failure.
     let verifier = MockSignatureVerifier::succeeding();
-    let err = pipeline.process(&verifier, "stripe", &delivery()).await.unwrap_err();
+    let err = pipeline
+        .process(&verifier, "stripe", &delivery(), never_read)
+        .await
+        .unwrap_err();
 
     assert!(
         matches!(&err, WebhookError::MissingSecret(name) if name == "stripe"),

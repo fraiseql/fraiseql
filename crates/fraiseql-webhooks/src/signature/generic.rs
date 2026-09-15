@@ -14,7 +14,7 @@ use sha2::Sha256;
 
 use crate::{
     scheme::{SchemeConfig, SchemeError, SignatureEncoding, header_from},
-    signature::{SignatureError, constant_time_eq},
+    signature::{SignatureError, Verified, constant_time_eq, verified_if},
     traits::SignatureVerifier,
 };
 
@@ -83,7 +83,7 @@ fn verify_hmac<M>(
     signature: &str,
     secret: &str,
     empty_secret: &str,
-) -> Result<bool, SignatureError>
+) -> Result<Verified, SignatureError>
 where
     M: Mac + KeyInit,
 {
@@ -97,7 +97,7 @@ where
     mac.update(payload);
     let expected = mac.finalize().into_bytes();
 
-    Ok(constant_time_eq(&presented, expected.as_slice()))
+    verified_if(constant_time_eq(&presented, expected.as_slice()))
 }
 
 /// `HMAC-SHA256` over the raw request body, with a configurable credential.
@@ -135,7 +135,7 @@ impl SignatureVerifier for HmacSha256Verifier {
         secret: &str,
         _timestamp: Option<&str>,
         _url: Option<&str>,
-    ) -> Result<bool, SignatureError> {
+    ) -> Result<Verified, SignatureError> {
         verify_hmac::<Hmac<Sha256>>(
             &self.credential,
             payload,
@@ -181,7 +181,7 @@ impl SignatureVerifier for HmacSha1Verifier {
         secret: &str,
         _timestamp: Option<&str>,
         _url: Option<&str>,
-    ) -> Result<bool, SignatureError> {
+    ) -> Result<Verified, SignatureError> {
         verify_hmac::<Hmac<Sha1>>(
             &self.credential,
             payload,

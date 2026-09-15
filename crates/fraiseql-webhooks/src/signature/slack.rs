@@ -9,7 +9,10 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::{
-    signature::{SignatureError, check_timestamp_freshness, constant_time_eq, system_now_secs},
+    signature::{
+        SignatureError, Verified, check_timestamp_freshness, constant_time_eq, system_now_secs,
+        verified_if,
+    },
     traits::SignatureVerifier,
 };
 
@@ -69,7 +72,7 @@ impl SignatureVerifier for SlackVerifier {
         secret: &str,
         timestamp: Option<&str>,
         _url: Option<&str>,
-    ) -> Result<bool, SignatureError> {
+    ) -> Result<Verified, SignatureError> {
         if secret.is_empty() {
             return Err(SignatureError::KeyMaterial(
                 "Slack signing secret must not be empty".to_string(),
@@ -92,7 +95,7 @@ impl SignatureVerifier for SlackVerifier {
 
         let expected = hex::encode(mac.finalize().into_bytes());
 
-        Ok(constant_time_eq(sig_hex.as_bytes(), expected.as_bytes()))
+        verified_if(constant_time_eq(sig_hex.as_bytes(), expected.as_bytes()))
     }
 }
 

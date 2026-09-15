@@ -19,13 +19,19 @@ fn test_valid_signature() {
     let secret = "secret";
     let signature = generate_signature(payload, secret);
 
-    assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
+    assert_eq!(
+        verifier.verify(payload, &signature, secret, None, None).unwrap(),
+        Verified::Body
+    );
 }
 
 #[test]
 fn test_invalid_signature() {
     let verifier = PostmarkVerifier;
-    assert!(!verifier.verify(b"test", "invalid", "secret", None, None).unwrap());
+    assert!(matches!(
+        verifier.verify(b"test", "invalid", "secret", None, None),
+        Err(SignatureError::Mismatch)
+    ));
 }
 
 #[test]

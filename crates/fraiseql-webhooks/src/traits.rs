@@ -5,7 +5,10 @@
 use serde_json::Value;
 use sqlx::{Postgres, Transaction};
 
-use super::{Result, signature::SignatureError};
+use super::{
+    Result,
+    signature::{SignatureError, Verified},
+};
 
 /// Signature verification abstraction for testing
 pub trait SignatureVerifier: Send + Sync {
@@ -44,23 +47,29 @@ pub trait SignatureVerifier: Send + Sync {
         false
     }
 
-    /// Verify the signature
+    /// Verify the delivery and report **what was authenticated** (#1321).
     ///
     /// # Arguments
     ///
     /// * `payload` - Raw request body bytes
-    /// * `signature` - Signature from header
+    /// * `signature` - The credential, from wherever [`signature_header`](Self::signature_header)
+    ///   said it is
     /// * `secret` - Webhook signing secret
     /// * `timestamp` - Optional timestamp from headers (for replay protection)
     /// * `url` - Full request URL (required by Twilio; ignored by most providers)
     ///
-    /// # Errors
-    ///
-    /// Returns `SignatureError` if the signature format is invalid or cannot be parsed.
-    ///
     /// # Returns
     ///
-    /// `Ok(true)` if signature is valid, `Ok(false)` if invalid, `Err` for format errors
+    /// [`Verified::Body`] for a scheme that signs the request body, so the body is
+    /// the event; [`Verified::Event`] for a scheme that authenticates an event out
+    /// of signed material, in which case nothing in the request body is trusted.
+    ///
+    /// # Errors
+    ///
+    /// [`SignatureError::Mismatch`] when the credential does not match — a
+    /// mismatch is an error rather than an `Ok(false)` a caller can forget to
+    /// inspect — and the other [`SignatureError`] variants for a credential that
+    /// cannot be parsed, a stale timestamp, or unusable key material.
     fn verify(
         &self,
         payload: &[u8],
@@ -68,7 +77,7 @@ pub trait SignatureVerifier: Send + Sync {
         secret: &str,
         timestamp: Option<&str>,
         url: Option<&str>,
-    ) -> std::result::Result<bool, SignatureError>;
+    ) -> std::result::Result<Verified, SignatureError>;
 
     /// Optional: Extract timestamp from signature or headers
     fn extract_timestamp(&self, _signature: &str) -> Option<i64> {

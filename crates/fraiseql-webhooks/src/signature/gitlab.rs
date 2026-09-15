@@ -3,7 +3,7 @@
 //! Format: Plain token in X-Gitlab-Token header
 
 use crate::{
-    signature::{SignatureError, constant_time_eq},
+    signature::{SignatureError, Verified, constant_time_eq, verified_if},
     traits::SignatureVerifier,
 };
 
@@ -30,14 +30,14 @@ impl SignatureVerifier for GitLabVerifier {
         secret: &str,
         _timestamp: Option<&str>,
         _url: Option<&str>,
-    ) -> Result<bool, SignatureError> {
+    ) -> Result<Verified, SignatureError> {
         if secret.is_empty() {
             return Err(SignatureError::KeyMaterial(
                 "GitLab webhook token must not be empty".to_string(),
             ));
         }
         // GitLab uses a simple token comparison
-        Ok(constant_time_eq(signature.as_bytes(), secret.as_bytes()))
+        verified_if(constant_time_eq(signature.as_bytes(), secret.as_bytes()))
     }
 }
 

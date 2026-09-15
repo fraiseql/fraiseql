@@ -10,7 +10,9 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::{
-    signature::{SignatureError, check_timestamp_freshness, constant_time_eq},
+    signature::{
+        SignatureError, Verified, check_timestamp_freshness, constant_time_eq, verified_if,
+    },
     traits::{Clock, SignatureVerifier, SystemClock},
 };
 
@@ -73,7 +75,7 @@ impl SignatureVerifier for StripeVerifier {
         secret: &str,
         _timestamp: Option<&str>,
         _url: Option<&str>,
-    ) -> Result<bool, SignatureError> {
+    ) -> Result<Verified, SignatureError> {
         if secret.is_empty() {
             return Err(SignatureError::KeyMaterial(
                 "Stripe webhook secret must not be empty".to_string(),
@@ -119,9 +121,11 @@ impl SignatureVerifier for StripeVerifier {
 
         // Constant-time comparison per candidate; `|` (not `||`) so every
         // candidate is compared regardless of earlier matches.
-        Ok(v1_candidates
-            .iter()
-            .fold(false, |acc, sig| acc | constant_time_eq(sig.as_bytes(), expected.as_bytes())))
+        verified_if(
+            v1_candidates.iter().fold(false, |acc, sig| {
+                acc | constant_time_eq(sig.as_bytes(), expected.as_bytes())
+            }),
+        )
     }
 
     fn extract_timestamp(&self, signature: &str) -> Option<i64> {

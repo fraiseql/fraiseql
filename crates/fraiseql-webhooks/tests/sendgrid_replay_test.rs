@@ -72,7 +72,7 @@ fn valid_ecdsa_p256_signature_over_timestamp_and_payload_verifies() {
     let result = verifier.verify(payload, &sig_b64, &pem_public_key, Some(&timestamp), None);
 
     assert!(
-        result.as_ref().is_ok_and(|&v| v),
+        result.is_ok(),
         "O2 regression: valid ECDSA P-256 signature was rejected: {result:?}"
     );
 }
@@ -100,7 +100,7 @@ fn hmac_sha256_forged_signature_is_rejected_by_ecdsa_verifier() {
     let result = verifier.verify(payload, &forged_sig, &pem_public_key, Some(&timestamp), None);
 
     assert!(
-        result.is_err() || !result.unwrap_or(true),
+        result.is_err(),
         "O2 regression: HMAC-SHA256 forged signature was accepted by ECDSA verifier"
     );
 }
@@ -125,10 +125,7 @@ fn signature_over_wrong_timestamp_is_rejected() {
     // Verify claiming a different timestamp — signed message does not match
     let result = verifier.verify(payload, &sig_b64, &pem_public_key, Some(&verify_ts), None);
 
-    assert!(
-        result.is_err() || !result.unwrap_or(true),
-        "O2 regression: signature over wrong timestamp was accepted"
-    );
+    assert!(result.is_err(), "O2 regression: signature over wrong timestamp was accepted");
 }
 
 /// A signature computed by one key must be rejected when verified against a
@@ -148,10 +145,7 @@ fn signature_from_different_key_is_rejected() {
     let verifier = SendGridVerifier::new();
     let result = verifier.verify(payload, &sig_b64, &pem_b, Some(&timestamp), None);
 
-    assert!(
-        result.is_err() || !result.unwrap_or(true),
-        "O2 regression: signature from key A verified against key B"
-    );
+    assert!(result.is_err(), "O2 regression: signature from key A verified against key B");
 }
 
 /// A completely invalid signature string must return an error, not Ok(false).

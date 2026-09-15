@@ -38,7 +38,7 @@ use sha1::Sha1;
 use sha2::{Digest as _, Sha256};
 
 use crate::{
-    signature::{SignatureError, constant_time_eq},
+    signature::{SignatureError, Verified, constant_time_eq, verified_if},
     traits::SignatureVerifier,
 };
 
@@ -188,7 +188,7 @@ impl SignatureVerifier for TwilioVerifier {
         secret: &str,
         _timestamp: Option<&str>,
         url: Option<&str>,
-    ) -> Result<bool, SignatureError> {
+    ) -> Result<Verified, SignatureError> {
         // Twilio signatures are computed over the URL, not just the body.
         let url = url.ok_or_else(|| {
             SignatureError::KeyMaterial(
@@ -209,7 +209,7 @@ impl SignatureVerifier for TwilioVerifier {
         // string, which would let a sender opt out of body binding by supplying a hash
         // it knows is wrong.
         let Some(signing_string) = build_signing_string(url, payload) else {
-            return Ok(false);
+            return Err(SignatureError::Mismatch);
         };
 
         let mut mac = Hmac::<Sha1>::new_from_slice(secret.as_bytes())
@@ -218,7 +218,7 @@ impl SignatureVerifier for TwilioVerifier {
 
         let expected = general_purpose::STANDARD.encode(mac.finalize().into_bytes());
 
-        Ok(constant_time_eq(signature.as_bytes(), expected.as_bytes()))
+        verified_if(constant_time_eq(signature.as_bytes(), expected.as_bytes()))
     }
 }
 

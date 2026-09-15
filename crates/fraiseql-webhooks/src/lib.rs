@@ -110,12 +110,14 @@ pub mod transaction;
 /// The `futures` this crate's public API is built against (#1198).
 pub use futures;
 pub use idempotency::PostgresIdempotencyStore;
-pub use pipeline::{Delivery, Disposition, WebhookPipeline, verify_signature};
+pub use pipeline::{
+    Authenticated, Delivery, Disposition, VerifiedEvent, WebhookPipeline, verify_signature,
+};
 pub use scheme::{CredentialLocation, SchemeConfig, SchemeError, SignatureEncoding, build_scheme};
 pub use secret::StaticSecretProvider;
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
-pub use signature::SignatureError;
+pub use signature::{SignatureError, Verified, verified_if};
 /// The `sqlx` this crate's public API is built against (#1198).
 pub use sqlx;
 // Re-export testing mocks for unit tests and integration tests with `testing` feature

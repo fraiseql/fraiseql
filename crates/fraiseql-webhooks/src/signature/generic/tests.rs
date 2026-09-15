@@ -21,7 +21,10 @@ fn test_hmac_sha256() {
     mac.update(payload);
     let signature = hex::encode(mac.finalize().into_bytes());
 
-    assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
+    assert_eq!(
+        verifier.verify(payload, &signature, secret, None, None).unwrap(),
+        Verified::Body
+    );
 }
 
 #[test]
@@ -34,7 +37,10 @@ fn test_hmac_sha1() {
     mac.update(payload);
     let signature = hex::encode(mac.finalize().into_bytes());
 
-    assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
+    assert_eq!(
+        verifier.verify(payload, &signature, secret, None, None).unwrap(),
+        Verified::Body
+    );
 }
 
 /// The three keys, one at a time against the same delivery, so that a scheme which
@@ -62,8 +68,9 @@ fn a_configured_credential_is_decoded_as_configured() {
         ),
     ] {
         let verifier = HmacSha256Verifier::from_config("hmac-sha256", &scheme).unwrap();
-        assert!(
+        assert_eq!(
             verifier.verify(payload, &signature, secret, None, None).unwrap(),
+            Verified::Body,
             "{name}: a credential written as the route describes it must verify"
         );
     }
@@ -110,7 +117,10 @@ fn a_forged_credential_in_the_configured_shape_still_fails() {
     mac.update(b"a different body entirely");
     let forged = BASE64.encode(mac.finalize().into_bytes());
 
-    assert!(!verifier.verify(b"test", &forged, "secret", None, None).unwrap());
+    assert!(matches!(
+        verifier.verify(b"test", &forged, "secret", None, None),
+        Err(SignatureError::Mismatch)
+    ));
 }
 
 /// Hex is case-insensitive and the comparison is on bytes, so a correct MAC written
@@ -123,9 +133,10 @@ fn an_upper_case_hex_credential_verifies() {
     mac.update(payload);
     let signature = hex::encode(mac.finalize().into_bytes()).to_uppercase();
 
-    assert!(
+    assert_eq!(
         HmacSha256Verifier::default()
             .verify(payload, &signature, secret, None, None)
-            .unwrap()
+            .unwrap(),
+        Verified::Body
     );
 }

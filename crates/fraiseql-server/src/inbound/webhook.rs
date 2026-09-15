@@ -30,8 +30,8 @@ use fraiseql_functions::{
     InboundMessage, IngestError, IngestSource, PushSource, RawDelivery, Source, Transport,
 };
 use fraiseql_webhooks::{
-    Delivery, Disposition, EventHandler, Handled, PostgresIdempotencyStore,
-    Result as WebhookResult, SignatureVerifier, StaticSecretProvider, WebhookError,
+    Authenticated, Delivery, Disposition, EventHandler, Handled, PostgresIdempotencyStore,
+    Result as WebhookResult, SignatureVerifier, StaticSecretProvider, VerifiedEvent, WebhookError,
     WebhookPipeline, build_scheme,
 };
 use serde_json::{Value, json};
@@ -688,46 +688,74 @@ pub async fn webhook_handler(
     });
 
     let header_map = collect_headers(&headers);
-    let event_id = extract_event_id(&payload, &body);
-    let event_type = extract_event_type(&payload, &header_map);
-
-    // Normalize before the pipeline so the durable payload is the normalized
-    // message; the pipeline persists it (as delivery params) inside its transaction.
+    let received_at = chrono::Utc::now();
     let source = WebhookSource::new(route.provider.clone(), segment.clone());
-    let raw = RawDelivery {
-        event_id:    &event_id,
-        event_type:  &event_type,
-        payload:     &payload,
-        headers:     &header_map,
-        received_at: chrono::Utc::now(),
+
+    // #1321: the event is read out of what verification **authenticated**, inside
+    // the pipeline, after the signature holds and before any database work. The
+    // `payload` parsed above is used only on the arm where the scheme signed the
+    // body — on the other arm the body is an envelope and nothing in it is trusted,
+    // which is the #751 class the `Authenticated` view removes.
+    let event_of = |authenticated: Authenticated<'_>| -> WebhookResult<VerifiedEvent> {
+        let (event_id, event_type, event_payload) = match authenticated {
+            Authenticated::Body(_) => {
+                let event_id = extract_event_id(&payload, &body);
+                let event_type = extract_event_type(&payload, &header_map);
+                (event_id, event_type, payload.clone())
+            },
+            Authenticated::Event {
+                id,
+                event_type,
+                payload,
+            } => (id.to_string(), event_type.to_string(), payload.clone()),
+        };
+        let raw = RawDelivery {
+            event_id: &event_id,
+            event_type: &event_type,
+            payload: &event_payload,
+            headers: &header_map,
+            received_at,
+        };
+        // A verified delivery that cannot be read as an event is a 400: it is the
+        // sender's payload that is malformed, and it is refused before any database
+        // work like every other sender-caused refusal on this path.
+        let message = source
+            .normalize(&raw)
+            .map_err(|error| WebhookError::InvalidPayload(error.to_string()))?;
+        Ok(VerifiedEvent {
+            id: event_id,
+            event_type,
+            params: serde_json::to_value(&message)?,
+        })
     };
-    let message = match source.normalize(&raw) {
-        Ok(message) => message,
-        Err(error) => {
-            return json_status(StatusCode::BAD_REQUEST, &json!({ "error": error.to_string() }));
-        },
-    };
-    let params = serde_json::to_value(&message).unwrap_or(Value::Null);
 
     let delivery = Delivery {
         // #1046: the dedup namespace is this route, not the provider it serves.
-        // Sound as a namespace because `webhook_routes_check` refuses two routes
-        // resolving to one segment (#1048), so a segment names exactly one config.
-        route: &segment,
-        event_id: &event_id,
-        event_type: &event_type,
+        // Sound as a namespace because `build_routes` refuses two routes resolving
+        // to one segment (#1048), so a segment names exactly one config.
+        route:         &segment,
         function_name: &segment,
-        body: &body,
-        signature: &signature,
-        timestamp: timestamp.as_deref(),
-        url: signing_url.as_deref(),
-        params,
+        body:          &body,
+        signature:     &signature,
+        timestamp:     timestamp.as_deref(),
+        url:           signing_url.as_deref(),
     };
 
-    match state.pipeline.process(verifier, &route.secret_name, &delivery).await {
-        Ok(Disposition::Processed(_)) => {
+    match state.pipeline.process(verifier, &route.secret_name, &delivery, event_of).await {
+        Ok(Disposition::Processed(recorded)) => {
             // Committed durably: now fire `after:ingest` on the persisted message.
-            dispatch_after_ingest(&state, &message);
+            // It comes back from the handler's own return value, so what is
+            // dispatched is the row that was written rather than a copy built
+            // beside it — the two could only differ by being derived twice.
+            match serde_json::from_value::<InboundMessage>(recorded) {
+                Ok(message) => dispatch_after_ingest(&state, &message),
+                Err(error) => tracing::error!(
+                    route = %segment,
+                    %error,
+                    "inbound webhook delivery committed but its persisted message could \
+                     not be read back; after:ingest not dispatched"
+                ),
+            }
             json_status(StatusCode::OK, &json!({ "status": "processed" }))
         },
         Ok(Disposition::Duplicate) => {

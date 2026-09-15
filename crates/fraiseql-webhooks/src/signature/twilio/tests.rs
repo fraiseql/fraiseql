@@ -12,7 +12,10 @@ fn test_invalid_signature() {
     let verifier = TwilioVerifier;
     let url = "https://example.com/webhook";
     let payload = b"some body";
-    assert!(!verifier.verify(payload, "invalidsig==", "secret", None, Some(url)).unwrap());
+    assert!(matches!(
+        verifier.verify(payload, "invalidsig==", "secret", None, Some(url)),
+        Err(SignatureError::Mismatch)
+    ));
 }
 
 #[test]
@@ -67,8 +70,9 @@ fn verifies_form_payload_with_space_and_utf8() {
     let expected_signing = "https://example.com/webhookBodyhello worldNameJosé";
     let signature = twilio_sign(expected_signing, secret);
 
-    assert!(
+    assert_eq!(
         verifier.verify(payload, &signature, secret, None, Some(url)).unwrap(),
+        Verified::Body,
         "a signature computed per Twilio's published algorithm must verify"
     );
 }
@@ -95,8 +99,9 @@ fn verifies_json_payload_against_url_and_body_hash() {
 
     let signature = twilio_sign(&url, secret);
 
-    assert!(
+    assert_eq!(
         verifier.verify(payload, &signature, secret, None, Some(&url)).unwrap(),
+        Verified::Body,
         "a signature computed per Twilio's published body-hash algorithm must verify"
     );
 }
@@ -113,7 +118,10 @@ fn a_json_signature_does_not_carry_over_to_a_different_body() {
     // Same URL, same header, attacker-chosen body — the shape the finding describes.
     let forged = br#"{"event":"call","amount":999999}"#;
     assert!(
-        !verifier.verify(forged, &signature, secret, None, Some(&url)).unwrap(),
+        matches!(
+            verifier.verify(forged, &signature, secret, None, Some(&url)),
+            Err(SignatureError::Mismatch)
+        ),
         "a signature genuine for one body must not verify another"
     );
 }
@@ -133,7 +141,10 @@ fn a_tampered_json_body_is_rejected() {
     let last = tampered.len() - 1;
     tampered[last] ^= 1;
 
-    assert!(!verifier.verify(&tampered, &signature, secret, None, Some(&url)).unwrap());
+    assert!(matches!(
+        verifier.verify(&tampered, &signature, secret, None, Some(&url)),
+        Err(SignatureError::Mismatch)
+    ));
 }
 
 /// The pre-#1069 signature — `HMAC(public_url)` with no body material — must no longer
@@ -148,7 +159,10 @@ fn the_body_free_url_only_signature_no_longer_verifies_a_json_body() {
     let legacy_signature = twilio_sign(base, secret);
 
     assert!(
-        !verifier.verify(payload, &legacy_signature, secret, None, Some(base)).unwrap(),
+        matches!(
+            verifier.verify(payload, &legacy_signature, secret, None, Some(base)),
+            Err(SignatureError::Mismatch)
+        ),
         "the constant HMAC(public_url) must not authorise a JSON body"
     );
 }
@@ -165,5 +179,8 @@ fn verifies_form_payload_with_encoded_plus_sign() {
     let expected_signing = "https://example.com/webhookCallSidCA123From+15557654321To+15551234567";
     let signature = twilio_sign(expected_signing, secret);
 
-    assert!(verifier.verify(payload, &signature, secret, None, Some(url)).unwrap());
+    assert_eq!(
+        verifier.verify(payload, &signature, secret, None, Some(url)).unwrap(),
+        Verified::Body
+    );
 }

@@ -51,7 +51,6 @@ use crate::{
 /// body:<field>      a top-level field of the request body
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
 pub enum CredentialLocation {
     /// The named request header. HTTP header names are case-insensitive, and so is
     /// this: the configured spelling is the operator's, the wire spelling is the
@@ -105,7 +104,6 @@ impl<'de> serde::Deserialize<'de> for CredentialLocation {
 /// How a credential's bytes are written on the wire.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
-#[non_exhaustive]
 pub enum SignatureEncoding {
     /// Base-16, either case. This is the pre-#1321 behaviour of the generic HMAC
     /// schemes and stays their default.
@@ -308,10 +306,15 @@ pub(crate) fn header_from(
         // `body` and `body:<field>` are part of the grammar because #1322's token
         // schemes need them; the HMAC families cannot read them yet, and saying so
         // at boot beats mounting a route that refuses every delivery.
-        Some(other) => Err(SchemeError::UnsupportedCredential {
-            provider: provider.to_string(),
-            location: other.to_string(),
-        }),
+        //
+        // Named rather than caught by `_`, so the next location this grammar grows
+        // is a compile error here instead of being absorbed into "unsupported".
+        Some(location @ (CredentialLocation::Body | CredentialLocation::BodyField(_))) => {
+            Err(SchemeError::UnsupportedCredential {
+                provider: provider.to_string(),
+                location: location.to_string(),
+            })
+        },
     }
 }
 

@@ -12,7 +12,8 @@ pub mod mocks {
     };
 
     use crate::{
-        Clock, Result, SecretProvider, SignatureVerifier, WebhookError, signature::SignatureError,
+        Clock, Result, SecretProvider, SignatureVerifier, WebhookError,
+        signature::{SignatureError, Verified, verified_if},
     };
 
     /// Mock signature verifier that always succeeds or fails based on configuration.
@@ -21,7 +22,7 @@ pub mod mocks {
     /// [`MockSignatureVerifier::failing`]. All calls to `verify` are recorded and can be
     /// retrieved with [`MockSignatureVerifier::get_calls`].
     pub struct MockSignatureVerifier {
-        /// Whether `verify` should return `Ok(true)` or `Ok(false)`.
+        /// Whether `verify` authenticates the body or reports a mismatch.
         pub should_succeed: bool,
         /// Ordered record of every `verify` invocation made against this mock.
         pub calls:          Mutex<Vec<MockVerifyCall>>,
@@ -37,7 +38,7 @@ pub mod mocks {
     }
 
     impl MockSignatureVerifier {
-        /// Create a verifier that returns `Ok(true)` for every call to `verify`.
+        /// Create a verifier that authenticates the body on every call to `verify`.
         #[must_use]
         pub fn succeeding() -> Self {
             Self {
@@ -46,7 +47,7 @@ pub mod mocks {
             }
         }
 
-        /// Create a verifier that returns `Ok(false)` for every call to `verify`.
+        /// Create a verifier that reports `SignatureError::Mismatch` on every call.
         #[must_use]
         pub fn failing() -> Self {
             Self {
@@ -83,12 +84,12 @@ pub mod mocks {
             _secret: &str,
             _timestamp: Option<&str>,
             _url: Option<&str>,
-        ) -> std::result::Result<bool, SignatureError> {
+        ) -> std::result::Result<Verified, SignatureError> {
             self.calls.lock().unwrap().push(MockVerifyCall {
                 payload:   payload.to_vec(),
                 signature: signature.to_string(),
             });
-            Ok(self.should_succeed)
+            verified_if(self.should_succeed)
         }
     }
 

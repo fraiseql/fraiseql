@@ -24,7 +24,10 @@ fn test_valid_signature() {
     let secret = "whsec_test";
     let signature = generate_signature(&String::from_utf8_lossy(payload), secret, 1_679_076_299);
 
-    assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
+    assert_eq!(
+        verifier.verify(payload, &signature, secret, None, None).unwrap(),
+        Verified::Body
+    );
 }
 
 #[test]
@@ -33,7 +36,10 @@ fn test_invalid_signature() {
     let verifier = StripeVerifier::with_clock(clock);
     let signature = "t=1679076299,v1=invalid";
 
-    assert!(!verifier.verify(b"test", signature, "secret", None, None).unwrap());
+    assert!(matches!(
+        verifier.verify(b"test", signature, "secret", None, None),
+        Err(SignatureError::Mismatch)
+    ));
 }
 
 #[test]

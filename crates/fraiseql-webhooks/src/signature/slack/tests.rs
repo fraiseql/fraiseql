@@ -28,7 +28,7 @@ fn test_valid_signature() {
     let ts = fresh_timestamp();
     let sig = make_signature(&ts, payload, secret);
 
-    assert!(verifier.verify(payload, &sig, secret, Some(&ts), None).unwrap());
+    assert_eq!(verifier.verify(payload, &sig, secret, Some(&ts), None).unwrap(), Verified::Body);
 }
 
 #[test]
@@ -36,7 +36,7 @@ fn test_invalid_signature() {
     let verifier = SlackVerifier::new();
     let ts = fresh_timestamp();
     let result = verifier.verify(b"test", "v0=invalidsig", "secret", Some(&ts), None);
-    assert!(matches!(result, Ok(false)));
+    assert!(matches!(result, Err(SignatureError::Mismatch)));
 }
 
 #[test]

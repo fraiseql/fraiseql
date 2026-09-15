@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
 use std::collections::{BTreeMap, HashMap};
 
@@ -857,6 +857,247 @@ mod spine_handler_disposition {
             value.get("idempotency_key").and_then(serde_json::Value::as_str),
             Some(msg.idempotency_key.as_str()),
             "the normalized message is what the route dispatches on: {value}"
+        );
+    }
+}
+
+mod the_event_is_what_the_scheme_authenticated {
+    //! #1321 cycle 2: the ledger claim, the spine row and its payload are built
+    //! from what the **scheme authenticated**, not from the body it arrived in.
+    //!
+    //! Today `webhook_handler` derives `event_id` and `event_type` from the parsed
+    //! body *before* verification (`extract_event_id` / `extract_event_type`) and
+    //! hands them to the pipeline, which verifies afterwards. That is sound only
+    //! while every scheme signs the whole body and the body *is* the event — the
+    //! #751 note says so and names the case it breaks on. #1323's sender signs
+    //! `{id}.{timestamp}.{body}` and #1322's carries the event inside a token, so
+    //! both need the event to come out of verification.
+    //!
+    //! The scheme here is the smallest thing with that shape: it authenticates an
+    //! **envelope** and the delivery it reports is the envelope's `event` field.
+    //! Every field of that event differs from the envelope's own — a fixture that
+    //! agreed on any of them would pass with the outer body still plumbed through.
+    //!
+    //! The assertions are on **durable rows**, not on `{"status":"processed"}`:
+    //! the response is built before the spine is ever read back, so it cannot
+    //! distinguish these two worlds.
+    //!
+    //! Needs a real database; self-skips without `DATABASE_URL`. Runs in
+    //! `integration (postgres)`, which runs the whole `inbound::` lib tree.
+    use std::sync::Arc;
+
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+    };
+    use fraiseql_webhooks::{
+        PostgresIdempotencyStore, SignatureError, SignatureVerifier, StaticSecretProvider,
+        Verified, WebhookPipeline,
+    };
+    use hmac::{Hmac, KeyInit, Mac as _};
+    use serde_json::{Value, json};
+    use sha2::Sha256;
+    use sqlx::{PgPool, postgres::PgPoolOptions};
+    use tower::ServiceExt as _;
+
+    use super::{BTreeMap, WebhookInboundState, webhook_router};
+    use crate::inbound::webhook::{BuiltRoute, SpineEventHandler};
+
+    const SECRET: &str = "whsec_1321_envelope";
+    const SECRET_ENV: &str = "FRAISEQL_TEST_ENVELOPE_SECRET";
+    const SEGMENT: &str = "envelope";
+
+    /// A scheme whose signed material is an envelope: what it authenticates is the
+    /// envelope's `event`, not the envelope. The MAC covers the raw body, so the
+    /// verification itself is ordinary — the point is only *what it reports*.
+    struct EnvelopeScheme;
+
+    impl SignatureVerifier for EnvelopeScheme {
+        fn name(&self) -> &'static str {
+            "test-envelope"
+        }
+
+        fn signature_header(&self) -> &'static str {
+            "X-Envelope-Signature"
+        }
+
+        fn verify(
+            &self,
+            payload: &[u8],
+            signature: &str,
+            secret: &str,
+            _timestamp: Option<&str>,
+            _url: Option<&str>,
+        ) -> Result<Verified, SignatureError> {
+            let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).map_err(
+                |error: hmac::digest::InvalidLength| SignatureError::KeyMaterial(error.to_string()),
+            )?;
+            mac.update(payload);
+            let expected = hex::encode(mac.finalize().into_bytes());
+            if signature != expected {
+                return Err(SignatureError::Mismatch);
+            }
+
+            // The envelope is authentic; what this scheme authenticates is the
+            // event inside it. Everything outside `event` is the envelope's own
+            // and is not reported.
+            let envelope: Value =
+                serde_json::from_slice(payload).map_err(|_| SignatureError::InvalidFormat)?;
+            let event = envelope.get("event").ok_or(SignatureError::InvalidFormat)?;
+            let field = |name: &str| {
+                event
+                    .get(name)
+                    .and_then(Value::as_str)
+                    .map(str::to_string)
+                    .ok_or(SignatureError::InvalidFormat)
+            };
+            Ok(Verified::Event {
+                id:         field("id")?,
+                event_type: field("type")?,
+                payload:    event.clone(),
+            })
+        }
+    }
+
+    /// Mount the scheme directly onto a built route: it is a test double, so it is
+    /// not a name `build_scheme` knows, and going through the configuration path
+    /// would prove nothing this test is about.
+    fn state(pool: PgPool) -> WebhookInboundState {
+        let mut routes = BTreeMap::new();
+        routes.insert(
+            SEGMENT.to_string(),
+            BuiltRoute {
+                name:        SEGMENT.to_string(),
+                provider:    "test-envelope".to_string(),
+                scheme:      Arc::new(EnvelopeScheme),
+                secret_name: SECRET_ENV.to_string(),
+                public_url:  None,
+            },
+        );
+        let secrets =
+            StaticSecretProvider::new().with_secret(SECRET_ENV.to_string(), SECRET.to_string());
+        let store = PostgresIdempotencyStore::new(pool.clone());
+        WebhookInboundState {
+            pipeline:               Arc::new(WebhookPipeline::new(
+                pool,
+                secrets,
+                store,
+                SpineEventHandler,
+            )),
+            routes:                 Arc::new(routes),
+            hooks:                  None,
+            query_executor_factory: None,
+        }
+    }
+
+    async fn setup() -> Option<PgPool> {
+        let url = fraiseql_test_support::try_database_url()?;
+        let pool = PgPoolOptions::new().max_connections(4).connect(&url).await.unwrap();
+        PostgresIdempotencyStore::new(pool.clone()).init().await.unwrap();
+        WebhookInboundState::init_spine(&pool).await.unwrap();
+        Some(pool)
+    }
+
+    /// Distinct per run: `setup` does not truncate (the tables are shared with
+    /// other suites in this leg), so a re-run inside the same second would present
+    /// a key the spine already holds and read back as a duplicate.
+    fn unique() -> String {
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_nanos()
+            .to_string()
+    }
+
+    #[tokio::test]
+    async fn the_ledger_and_the_spine_record_the_authenticated_event() {
+        let Some(pool) = setup().await else {
+            eprintln!(
+                "skipping the_ledger_and_the_spine_record_the_authenticated_event: \
+                 DATABASE_URL unset"
+            );
+            return;
+        };
+        let router = webhook_router(state(pool.clone()));
+
+        let run = unique();
+        let authenticated_id = format!("authenticated-{run}");
+        // Every field conflicts with the envelope's own: id, type, and the payload
+        // body. An envelope that agreed on any one of them would still pass with
+        // the raw body plumbed through, which is the defect.
+        let envelope = json!({
+            "id":    format!("envelope-{run}"),
+            "type":  "envelope.received",
+            "note":  "this field belongs to the envelope and to nothing else",
+            "event": {
+                "id":     authenticated_id,
+                "type":   "authenticated.event",
+                "amount": 4242,
+            },
+        });
+        let body = serde_json::to_vec(&envelope).unwrap();
+
+        let mut mac = Hmac::<Sha256>::new_from_slice(SECRET.as_bytes()).unwrap();
+        mac.update(&body);
+        let signature = hex::encode(mac.finalize().into_bytes());
+
+        let request = Request::builder()
+            .method("POST")
+            .uri(format!("/webhooks/{SEGMENT}"))
+            .header("X-Envelope-Signature", signature)
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "the delivery is genuine and must be taken");
+
+        // ── the delivery ledger ────────────────────────────────────────────────
+        let (ledger_event_id, ledger_event_type): (String, String) = sqlx::query_as(
+            "SELECT event_id, event_type FROM webhooks.tb_inbound_delivery WHERE route = $1 \
+             ORDER BY pk_inbound_delivery DESC LIMIT 1",
+        )
+        .bind(SEGMENT)
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(
+            ledger_event_id, authenticated_id,
+            "#1321: the replay defence must be keyed on the id the scheme \
+             authenticated. Keyed on the envelope's own id, a sender that controls \
+             the envelope controls the dedup key of an event it did not sign (#751)."
+        );
+        assert_eq!(
+            ledger_event_type, "authenticated.event",
+            "the claim records the authenticated event's type, not the envelope's"
+        );
+
+        // ── the durable spine row ──────────────────────────────────────────────
+        let stored: Value = sqlx::query_scalar(
+            "SELECT payload FROM _fraiseql_inbound_message WHERE idempotency_key = $1",
+        )
+        .bind(format!("{}:{SEGMENT}:{authenticated_id}", SEGMENT.len()))
+        .fetch_one(&pool)
+        .await
+        .unwrap_or_else(|error| {
+            panic!(
+                "#1321: the spine row must be keyed on the authenticated id \
+                 ({authenticated_id}); none found: {error}"
+            )
+        });
+        assert_eq!(
+            stored.get("subject").and_then(Value::as_str),
+            Some("authenticated.event"),
+            "the message subject is the authenticated event's type; got: {stored}"
+        );
+        assert_eq!(
+            stored.get("payload"),
+            Some(&json!({
+                "id":     authenticated_id,
+                "type":   "authenticated.event",
+                "amount": 4242,
+            })),
+            "the durable payload is what the scheme authenticated — the envelope's \
+             own `note` field must not be in it; got: {stored}"
         );
     }
 }

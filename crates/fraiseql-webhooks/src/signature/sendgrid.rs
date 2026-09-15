@@ -15,7 +15,9 @@ use p256::{
 };
 
 use crate::{
-    signature::{SignatureError, check_timestamp_freshness, system_now_secs},
+    signature::{
+        SignatureError, Verified, check_timestamp_freshness, system_now_secs, verified_if,
+    },
     traits::SignatureVerifier,
 };
 
@@ -78,7 +80,7 @@ impl SignatureVerifier for SendGridVerifier {
         secret: &str,
         timestamp: Option<&str>,
         _url: Option<&str>,
-    ) -> Result<bool, SignatureError> {
+    ) -> Result<Verified, SignatureError> {
         if secret.is_empty() {
             return Err(SignatureError::KeyMaterial(
                 "SendGrid public key must not be empty".to_string(),
@@ -112,7 +114,7 @@ impl SignatureVerifier for SendGridVerifier {
         message.extend_from_slice(payload);
 
         // ECDSA P-256 with SHA-256 (p256 crate uses SHA-256 by default)
-        Ok(public_key.verify(&message, &sig).is_ok())
+        verified_if(public_key.verify(&message, &sig).is_ok())
     }
 }
 

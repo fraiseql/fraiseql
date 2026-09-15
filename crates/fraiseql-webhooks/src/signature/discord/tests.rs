@@ -41,7 +41,7 @@ fn test_valid_signature_accepted() {
 
     let result = verifier.verify(payload, &sig_hex, &public_key_hex, Some(&ts), None);
     assert!(
-        matches!(result, Ok(true)),
+        matches!(result, Ok(Verified::Body)),
         "valid Ed25519 signature should be accepted; got: {result:?}"
     );
 }
@@ -55,7 +55,7 @@ fn test_tampered_payload_rejected() {
     // Different payload — signature is no longer valid.
     let result = verifier.verify(b"tampered", &sig_hex, &public_key_hex, Some(&ts), None);
     assert!(
-        matches!(result, Ok(false)),
+        matches!(result, Err(SignatureError::Mismatch)),
         "tampered payload should be rejected; got: {result:?}"
     );
 }

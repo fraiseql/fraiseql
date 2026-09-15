@@ -33,7 +33,7 @@ fn test_valid_signature() {
     let timestamp = fresh_timestamp();
     let sig = make_signature(&timestamp, payload, secret);
 
-    assert!(verifier.verify(payload, &sig, secret, None, None).unwrap());
+    assert_eq!(verifier.verify(payload, &sig, secret, None, None).unwrap(), Verified::Body);
 }
 
 #[test]
@@ -41,7 +41,10 @@ fn test_invalid_hmac() {
     let verifier = PaddleVerifier::new();
     let ts = fresh_timestamp();
     let sig = format!("ts={ts};h1=deadbeefdeadbeefdeadbeefdeadbeef");
-    assert!(!verifier.verify(b"payload", &sig, "secret", None, None).unwrap());
+    assert!(matches!(
+        verifier.verify(b"payload", &sig, "secret", None, None),
+        Err(SignatureError::Mismatch)
+    ));
 }
 
 #[test]
@@ -120,7 +123,7 @@ fn test_with_tolerance_u64_max_clamps_not_wraps() {
     let sig = make_signature(&timestamp, payload, secret);
 
     // A fresh timestamp with an effectively-infinite tolerance must be accepted.
-    assert!(verifier.verify(payload, &sig, secret, None, None).unwrap());
+    assert_eq!(verifier.verify(payload, &sig, secret, None, None).unwrap(), Verified::Body);
 }
 
 #[test]
@@ -132,5 +135,5 @@ fn test_with_tolerance_large_value_clamps() {
     let secret = "sec";
     let timestamp = fresh_timestamp();
     let sig = make_signature(&timestamp, payload, secret);
-    assert!(verifier.verify(payload, &sig, secret, None, None).unwrap());
+    assert_eq!(verifier.verify(payload, &sig, secret, None, None).unwrap(), Verified::Body);
 }

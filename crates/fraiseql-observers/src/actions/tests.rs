@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 
-use fraiseql_webhooks::{SignatureVerifier, signature::stripe::StripeVerifier};
+use fraiseql_webhooks::{SignatureVerifier, Verified, signature::stripe::StripeVerifier};
 use uuid::Uuid;
 use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 
@@ -38,8 +38,9 @@ fn signature_round_trips_with_stripe_verifier() {
     assert!(header.contains(",v1="), "header carries the v1 hex signature: {header}");
 
     let verifier = StripeVerifier::new();
-    assert!(
+    assert_eq!(
         verifier.verify(body, &header, secret, None, None).unwrap(),
+        Verified::Body,
         "the signature must verify with StripeVerifier"
     );
 }
@@ -52,7 +53,7 @@ fn tampered_body_fails_verification() {
 
     let verifier = StripeVerifier::new();
     assert!(
-        !verifier.verify(br#"{"amount":2}"#, &header, secret, None, None).unwrap(),
+        verifier.verify(br#"{"amount":2}"#, &header, secret, None, None).is_err(),
         "a tampered body must NOT verify"
     );
 }
@@ -105,8 +106,9 @@ async fn execute_signs_the_exact_transmitted_bytes() {
     // The gate: verify over the bytes the server ACTUALLY received, not a
     // fresh re-serialization of the struct.
     let verifier = StripeVerifier::new();
-    assert!(
+    assert_eq!(
         verifier.verify(&req.body, sig, secret, None, None).unwrap(),
+        Verified::Body,
         "signature must verify over the exact transmitted body bytes"
     );
 }

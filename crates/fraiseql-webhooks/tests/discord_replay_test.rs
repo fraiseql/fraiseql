@@ -69,7 +69,7 @@ fn fresh_discord_ed25519_signature_verifies() {
     let result = verifier.verify(body, &hex_sig, &hex_pub_key, Some(&ts_str), None);
 
     assert!(
-        result.unwrap_or(false),
+        result.is_ok(),
         "SR-6 regression: valid fresh Discord Ed25519 signature rejected"
     );
 }
@@ -120,7 +120,7 @@ fn discord_signature_from_different_key_is_rejected() {
     let result = verifier.verify(body, &hex_sig, &hex_pub_key_b, Some(&ts_str), None);
 
     assert!(
-        result.is_err() || !result.unwrap_or(true),
+        result.is_err(),
         "SR-6 regression: Discord signature from key A verified against key B"
     );
 }
@@ -156,7 +156,7 @@ fn discord_signature_over_wrong_body_is_rejected() {
     let result = verifier.verify(tampered_body, &hex_sig, &hex_pub_key, Some(&ts_str), None);
 
     assert!(
-        result.is_err() || !result.unwrap_or(true),
+        result.is_err(),
         "SR-6 regression: Discord signature over original body accepted for tampered body"
     );
 }

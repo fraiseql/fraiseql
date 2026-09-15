@@ -25,7 +25,10 @@ fn test_valid_signature() {
     let secret = "secret";
     let signature = provider_signature(payload, secret);
 
-    assert!(verifier.verify(payload, &signature, secret, None, None).unwrap());
+    assert_eq!(
+        verifier.verify(payload, &signature, secret, None, None).unwrap(),
+        Verified::Body
+    );
 }
 
 #[test]
@@ -40,13 +43,19 @@ fn a_base64_signature_is_rejected() {
     mac.update(payload);
     let base64_signature = general_purpose::STANDARD.encode(mac.finalize().into_bytes());
 
-    assert!(!verifier.verify(payload, &base64_signature, secret, None, None).unwrap());
+    assert!(matches!(
+        verifier.verify(payload, &base64_signature, secret, None, None),
+        Err(SignatureError::Mismatch)
+    ));
 }
 
 #[test]
 fn test_invalid_signature() {
     let verifier = LemonSqueezyVerifier;
-    assert!(!verifier.verify(b"test", "invalid", "secret", None, None).unwrap());
+    assert!(matches!(
+        verifier.verify(b"test", "invalid", "secret", None, None),
+        Err(SignatureError::Mismatch)
+    ));
 }
 
 #[test]

@@ -145,7 +145,10 @@ mod genuine_delivery_fixtures {
     use sha1::Sha1;
     use sha2::Sha256;
 
-    use crate::scheme::{KNOWN_SCHEMES, SchemeConfig, build_scheme};
+    use crate::{
+        scheme::{KNOWN_SCHEMES, SchemeConfig, build_scheme},
+        signature::Verified,
+    };
 
     fn hmac_sha256(secret: &str, message: &[u8]) -> Vec<u8> {
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
@@ -395,7 +398,7 @@ mod genuine_delivery_fixtures {
                 f.url.as_deref(),
             );
             assert!(
-                matches!(result, Ok(true)),
+                matches!(result, Ok(Verified::Body)),
                 "{}: a genuine, provider-signed delivery must verify; got {result:?}",
                 f.provider
             );
@@ -425,7 +428,7 @@ mod genuine_delivery_fixtures {
                 f.url.as_deref(),
             );
             assert!(
-                !matches!(result, Ok(true)),
+                !matches!(result, Ok(Verified::Body)),
                 "{}: a tampered delivery must not verify; got {result:?}",
                 f.provider
             );

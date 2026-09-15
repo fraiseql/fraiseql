@@ -139,7 +139,7 @@ fn test_valid_signature_round_trip() {
     let verifier = SendGridVerifier::new();
     let result = verifier.verify(body, &sig_b64, &public_key_pem, Some(&ts), None);
     assert!(
-        matches!(result, Ok(true)),
+        matches!(result, Ok(Verified::Body)),
         "valid ECDSA P-256 signature must verify successfully"
     );
 }

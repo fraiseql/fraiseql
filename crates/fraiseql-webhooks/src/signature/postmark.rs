@@ -7,7 +7,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha2::Sha256;
 
 use crate::{
-    signature::{SignatureError, constant_time_eq},
+    signature::{SignatureError, Verified, constant_time_eq, verified_if},
     traits::SignatureVerifier,
 };
 
@@ -33,7 +33,7 @@ impl SignatureVerifier for PostmarkVerifier {
         secret: &str,
         _timestamp: Option<&str>,
         _url: Option<&str>,
-    ) -> Result<bool, SignatureError> {
+    ) -> Result<Verified, SignatureError> {
         if secret.is_empty() {
             return Err(SignatureError::KeyMaterial(
                 "Postmark webhook secret must not be empty".to_string(),
@@ -45,7 +45,7 @@ impl SignatureVerifier for PostmarkVerifier {
 
         let expected = general_purpose::STANDARD.encode(mac.finalize().into_bytes());
 
-        Ok(constant_time_eq(signature.as_bytes(), expected.as_bytes()))
+        verified_if(constant_time_eq(signature.as_bytes(), expected.as_bytes()))
     }
 }
 
