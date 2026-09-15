@@ -26,6 +26,37 @@ pub trait SignatureVerifier: Send + Sync {
         false
     }
 
+    /// Refuse key material this scheme cannot use, at **boot** rather than on
+    /// every delivery.
+    ///
+    /// # The default accepts anything, and that is named here on purpose
+    ///
+    /// For the twelve schemes that predate this, key material is whatever the
+    /// provider issued and its only shape check is the one inside
+    /// [`verify`](Self::verify) — a Discord public key that is not hex is a 5xx per
+    /// delivery, and moving those to boot is not this method's job. So the default
+    /// is permissive, which is a security answer and not an absence of one: it
+    /// says "this scheme cannot tell a usable key from an unusable one before it
+    /// tries".
+    ///
+    /// A scheme that *can* tell should override it, because the alternative to a
+    /// boot refusal is a mounted route answering every genuine delivery with an
+    /// error the operator has to read the logs to explain. `standard-webhooks`
+    /// overrides it for exactly that reason: it can see that a `whpk_` key is
+    /// asymmetric `v1a` material this crate does not verify (#1323).
+    ///
+    /// Called with the resolved secret, so an unset one never reaches here.
+    ///
+    /// # Errors
+    ///
+    /// [`SignatureError::KeyMaterial`] describing what is wrong with the key. It is
+    /// the operator's error by construction — nothing a sender controls reaches
+    /// this method.
+    fn check_key_material(&self, key_material: &str) -> std::result::Result<(), SignatureError> {
+        let _ = key_material;
+        Ok(())
+    }
+
     /// Verify the request and report **what was authenticated** (#1321).
     ///
     /// The scheme is handed the whole request and locates what it needs: its

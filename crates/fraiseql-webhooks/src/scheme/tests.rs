@@ -3,9 +3,10 @@
 use super::*;
 
 const NO_KEYS: SchemeConfig = SchemeConfig {
-    credential: None,
-    encoding:   None,
-    prefix:     None,
+    credential:    None,
+    encoding:      None,
+    prefix:        None,
+    header_prefix: None,
 };
 
 #[test]
@@ -68,15 +69,122 @@ fn a_preset_refuses_every_scheme_key_by_name() {
 #[test]
 fn a_generic_scheme_reads_every_scheme_key() {
     let config = SchemeConfig {
-        credential: Some(CredentialLocation::Header("X-Lago-Signature".to_string())),
-        encoding:   Some(SignatureEncoding::Base64),
-        prefix:     Some("sha256=".to_string()),
+        credential:    Some(CredentialLocation::Header("X-Lago-Signature".to_string())),
+        encoding:      Some(SignatureEncoding::Base64),
+        prefix:        Some("sha256=".to_string()),
+        header_prefix: None,
     };
     for provider in ["hmac-sha256", "hmac-sha1"] {
         build_scheme(provider, &config, 300).expect("a generic scheme reads them");
     }
     // That the keys are *honoured* — not merely accepted — is
     // `signature::generic::tests`, which drives a real request through each one.
+}
+
+/// `header_prefix` is the key that broke the old two-way split (#1323).
+///
+/// Before it, "scheme-relevant" was binary — a preset read nothing, a generic HMAC
+/// family read all three keys — so a fourth key read by exactly one *other* scheme
+/// had nowhere to be refused, and would have been accepted here and ignored. That
+/// is the silent drop #1321 removed, one key later.
+#[test]
+fn a_generic_scheme_refuses_the_header_prefix_it_does_not_read() {
+    let config = SchemeConfig {
+        header_prefix: Some("svix".to_string()),
+        ..NO_KEYS
+    };
+    for provider in ["hmac-sha256", "hmac-sha1"] {
+        let error = build_scheme(provider, &config, 300)
+            .map(|_| ())
+            .expect_err("the generic HMAC families read one header, not a triple");
+        let message = error.to_string();
+        assert!(message.contains("header_prefix"), "must name the key; got: {message}");
+        assert!(message.contains(provider), "must name the scheme; got: {message}");
+        assert!(
+            message.contains("credential"),
+            "must say what the scheme DOES read, or the operator is left guessing which \
+             of the four keys belongs here; got: {message}"
+        );
+    }
+}
+
+#[test]
+fn the_standard_webhooks_scheme_reads_its_header_prefix_and_nothing_else() {
+    let with_prefix = SchemeConfig {
+        header_prefix: Some("svix".to_string()),
+        ..NO_KEYS
+    };
+    build_scheme("standard-webhooks", &with_prefix, 300)
+        .expect("`header_prefix` is the one key this scheme reads");
+
+    for (key, config) in [
+        (
+            "credential",
+            SchemeConfig {
+                credential: Some(CredentialLocation::Header("X-Anything".to_string())),
+                ..NO_KEYS
+            },
+        ),
+        (
+            "encoding",
+            SchemeConfig {
+                encoding: Some(SignatureEncoding::Base64),
+                ..NO_KEYS
+            },
+        ),
+        (
+            "prefix",
+            SchemeConfig {
+                prefix: Some("sha256=".to_string()),
+                ..NO_KEYS
+            },
+        ),
+    ] {
+        let error = build_scheme("standard-webhooks", &config, 300)
+            .map(|_| ())
+            .expect_err("the spec fixes the credential, its encoding and its version tag");
+        assert!(error.to_string().contains(key), "must name the key; got: {error}");
+    }
+}
+
+/// `clerk` IS the `svix` prefix, so configuring one on a `clerk` route is a
+/// contradiction rather than a refinement — and refusing it keeps the two spellings
+/// of one scheme from disagreeing.
+#[test]
+fn the_clerk_preset_refuses_a_header_prefix() {
+    let config = SchemeConfig {
+        header_prefix: Some("webhook".to_string()),
+        ..NO_KEYS
+    };
+    let error = build_scheme("clerk", &config, 300)
+        .map(|_| ())
+        .expect_err("clerk is the svix prefix");
+    let message = error.to_string();
+    assert!(message.contains("header_prefix"), "must name the key; got: {message}");
+    assert!(message.contains("clerk"), "must name the scheme; got: {message}");
+}
+
+#[test]
+fn a_header_prefix_that_cannot_form_a_header_name_is_refused_naming_the_value() {
+    // Spelling is deliberately NOT checked — restricting the value to `webhook` and
+    // `svix` would foreclose a third Standard Webhooks sender, which is the
+    // compiled-in-provider-detail defect #1321 removed. What is checked is that the
+    // value can form `{prefix}-id` at all.
+    for bad in ["", "webhook-", "svix header", "x_hub"] {
+        let config = SchemeConfig {
+            header_prefix: Some(bad.to_string()),
+            ..NO_KEYS
+        };
+        let error = build_scheme("standard-webhooks", &config, 300)
+            .map(|_| ())
+            .expect_err("cannot form a header name");
+        let message = error.to_string();
+        assert!(
+            message.contains(bad) || bad.is_empty(),
+            "must name the value it cannot use; got: {message}"
+        );
+        assert!(message.contains("-id"), "must show what it is joined to; got: {message}");
+    }
 }
 
 /// The permissive default: absent keys mean `header:X-Signature`, hex, no prefix.

@@ -181,30 +181,69 @@ mod genuine_delivery_fixtures {
             .to_string()
     }
 
-    /// Where each scheme reads its credential and its timestamp.
+    /// Where each scheme reads the values a delivery carries in headers.
     ///
-    /// The fixtures below build a real request, so they have to put the credential
-    /// where the scheme looks — and a wrong entry here fails loudly rather than
-    /// quietly weakening a case, because the genuine delivery stops verifying.
-    fn header_names(provider: &str) -> (&'static str, Option<&'static str>) {
+    /// The fixtures below build a real request, so they have to put each value where
+    /// the scheme looks — and a wrong entry here fails loudly rather than quietly
+    /// weakening a case, because the genuine delivery stops verifying.
+    struct HeaderNames {
+        signature: &'static str,
+        timestamp: Option<&'static str>,
+        /// The event-id header, for a scheme whose signed content covers one
+        /// (#1323). `None` for every scheme that signs the body alone.
+        id:        Option<&'static str>,
+    }
+
+    /// A scheme that reads a signature header and nothing else.
+    const fn signature_only(signature: &'static str) -> HeaderNames {
+        HeaderNames {
+            signature,
+            timestamp: None,
+            id: None,
+        }
+    }
+
+    /// A scheme that reads a signature and a timestamp header.
+    const fn timestamped(signature: &'static str, timestamp: &'static str) -> HeaderNames {
+        HeaderNames {
+            signature,
+            timestamp: Some(timestamp),
+            id: None,
+        }
+    }
+
+    fn header_names(provider: &str) -> HeaderNames {
         match provider {
-            "stripe" => ("Stripe-Signature", None),
-            "github" => ("X-Hub-Signature-256", None),
-            "shopify" => ("X-Shopify-Hmac-Sha256", None),
-            "postmark" => ("X-Postmark-Signature", None),
-            "gitlab" => ("X-Gitlab-Token", None),
-            "slack" => ("X-Slack-Signature", Some("X-Slack-Request-Timestamp")),
-            "paddle" => ("Paddle-Signature", None),
+            "stripe" => signature_only("Stripe-Signature"),
+            "github" => signature_only("X-Hub-Signature-256"),
+            "shopify" => signature_only("X-Shopify-Hmac-Sha256"),
+            "postmark" => signature_only("X-Postmark-Signature"),
+            "gitlab" => signature_only("X-Gitlab-Token"),
+            "slack" => timestamped("X-Slack-Signature", "X-Slack-Request-Timestamp"),
+            "paddle" => signature_only("Paddle-Signature"),
             // `X-Signature` is also the generic schemes' default, below — separate
             // arms because the two answers are the same by coincidence, not by rule.
-            "lemonsqueezy" => ("X-Signature", None),
-            "twilio" => ("X-Twilio-Signature", None),
-            "discord" => ("X-Signature-Ed25519", Some("X-Signature-Timestamp")),
-            "sendgrid" => (
+            "lemonsqueezy" => signature_only("X-Signature"),
+            "twilio" => signature_only("X-Twilio-Signature"),
+            "discord" => timestamped("X-Signature-Ed25519", "X-Signature-Timestamp"),
+            "sendgrid" => timestamped(
                 "X-Twilio-Email-Event-Webhook-Signature",
-                Some("X-Twilio-Email-Event-Webhook-Timestamp"),
+                "X-Twilio-Email-Event-Webhook-Timestamp",
             ),
-            "hmac-sha256" | "hmac-sha1" => ("X-Signature", None),
+            // The Standard Webhooks triple (#1323). `clerk` is the same scheme under
+            // Svix's header spelling, which is the whole of what the preset fixes —
+            // so two arms, and a fixture under the wrong spelling stops verifying.
+            "standard-webhooks" => HeaderNames {
+                signature: "webhook-signature",
+                timestamp: Some("webhook-timestamp"),
+                id:        Some("webhook-id"),
+            },
+            "clerk" => HeaderNames {
+                signature: "svix-signature",
+                timestamp: Some("svix-timestamp"),
+                id:        Some("svix-id"),
+            },
+            "hmac-sha256" | "hmac-sha1" => signature_only("X-Signature"),
             // A scheme with no entry here has no fixture either, which
             // `every_registered_provider_has_genuine_and_tampered_fixtures` is the
             // gate for; answering with the generic default would let it through.
@@ -212,26 +251,41 @@ mod genuine_delivery_fixtures {
         }
     }
 
-    /// Assemble the request a fixture describes, with `signature` under the header
+    /// Assemble the request a fixture describes, with each value under the header
     /// its scheme reads.
     fn request_of(f: &Fixture, signature: &str) -> BTreeMap<String, String> {
-        let (signature_header, timestamp_header) = header_names(f.provider);
+        let names = header_names(f.provider);
         let mut headers = BTreeMap::new();
-        headers.insert(signature_header.to_ascii_lowercase(), signature.to_string());
-        if let (Some(name), Some(value)) = (timestamp_header, f.timestamp.as_deref()) {
+        headers.insert(names.signature.to_ascii_lowercase(), signature.to_string());
+        if let (Some(name), Some(value)) = (names.timestamp, f.timestamp.as_deref()) {
+            headers.insert(name.to_ascii_lowercase(), value.to_string());
+        }
+        if let (Some(name), Some(value)) = (names.id, f.id.as_deref()) {
             headers.insert(name.to_ascii_lowercase(), value.to_string());
         }
         headers
     }
 
-    /// One genuine delivery as the provider would send it.
+    /// One genuine delivery as the provider would send it, and **what verifying it
+    /// must establish**.
+    ///
+    /// `verified` is the expected [`Verified`] value rather than a boolean, because
+    /// since #1321 verification answers *what it authenticated* and the answer
+    /// differs by scheme: `Verified::Body` for the twelve that sign the body alone,
+    /// and `Verified::BodyWithId` carrying the signed id for Standard Webhooks
+    /// (#1323). Asserting the variant is what keeps a scheme from reporting the
+    /// weaker answer and still passing — `Verified::Body` from a Standard Webhooks
+    /// scheme would drop the id the replay defence keys on.
     struct Fixture {
         provider:  &'static str,
         body:      Vec<u8>,
         signature: String,
         secret:    String,
         timestamp: Option<String>,
+        /// The event id, for a scheme whose signed content covers one.
+        id:        Option<String>,
         url:       Option<String>,
+        verified:  Verified,
     }
 
     const BODY: &[u8] = br#"{"id":"evt_1","type":"order_created","total":1900}"#;
@@ -265,7 +319,9 @@ mod genuine_delivery_fixtures {
             ),
             secret:    SECRET.into(),
             timestamp: None,
+            id:        None,
             url:       None,
+            verified:  Verified::Body,
         });
 
         // GitHub: `sha256=<hex HMAC-SHA256(body)>`.
@@ -275,7 +331,9 @@ mod genuine_delivery_fixtures {
             signature: format!("sha256={}", hex::encode(hmac_sha256(SECRET, BODY))),
             secret:    SECRET.into(),
             timestamp: None,
+            id:        None,
             url:       None,
+            verified:  Verified::Body,
         });
 
         // Shopify: Base64 HMAC-SHA256(body).
@@ -285,7 +343,9 @@ mod genuine_delivery_fixtures {
             signature: BASE64.encode(hmac_sha256(SECRET, BODY)),
             secret:    SECRET.into(),
             timestamp: None,
+            id:        None,
             url:       None,
+            verified:  Verified::Body,
         });
 
         // Postmark: Base64 HMAC-SHA256(body).
@@ -295,7 +355,9 @@ mod genuine_delivery_fixtures {
             signature: BASE64.encode(hmac_sha256(SECRET, BODY)),
             secret:    SECRET.into(),
             timestamp: None,
+            id:        None,
             url:       None,
+            verified:  Verified::Body,
         });
 
         // GitLab: static token equality.
@@ -305,7 +367,9 @@ mod genuine_delivery_fixtures {
             signature: SECRET.into(),
             secret:    SECRET.into(),
             timestamp: None,
+            id:        None,
             url:       None,
+            verified:  Verified::Body,
         });
 
         // Slack: `v0=<hex HMAC-SHA256("v0:{ts}:{body}")>` + timestamp header.
@@ -316,7 +380,9 @@ mod genuine_delivery_fixtures {
             signature: format!("v0={}", hex::encode(hmac_sha256(SECRET, slack_base.as_bytes()))),
             secret:    SECRET.into(),
             timestamp: Some(ts.clone()),
+            id:        None,
             url:       None,
+            verified:  Verified::Body,
         });
 
         // Paddle: `ts=<ts>;h1=<hex HMAC-SHA256("{ts}:{body}")>`.
@@ -328,7 +394,9 @@ mod genuine_delivery_fixtures {
             signature: format!("ts={ts};h1={}", hex::encode(hmac_sha256(SECRET, &paddle_signed))),
             secret:    SECRET.into(),
             timestamp: None,
+            id:        None,
             url:       None,
+            verified:  Verified::Body,
         });
 
         // Lemon Squeezy: hex HMAC-SHA256(body) — `hash_hmac('sha256', body, secret)`
@@ -339,7 +407,9 @@ mod genuine_delivery_fixtures {
             signature: hex::encode(hmac_sha256(SECRET, BODY)),
             secret:    SECRET.into(),
             timestamp: None,
+            id:        None,
             url:       None,
+            verified:  Verified::Body,
         });
 
         // Twilio: Base64 HMAC-SHA1(url + sorted form params), form-encoded body.
@@ -353,7 +423,9 @@ mod genuine_delivery_fixtures {
             signature: BASE64.encode(hmac_sha1(SECRET, twilio_signing.as_bytes())),
             secret:    SECRET.into(),
             timestamp: None,
+            id:        None,
             url:       Some(twilio_url.into()),
+            verified:  Verified::Body,
         });
 
         // Twilio, JSON body (#1069): Twilio appends `bodySHA256=<hex>` to the request URI
@@ -373,7 +445,9 @@ mod genuine_delivery_fixtures {
                 body,
                 secret: SECRET.into(),
                 timestamp: None,
+                id: None,
                 url: Some(url),
+                verified: Verified::Body,
             });
         }
 
@@ -389,7 +463,9 @@ mod genuine_delivery_fixtures {
                 signature: hex::encode(sig.to_bytes()),
                 secret:    hex::encode(signing_key.verifying_key().to_bytes()),
                 timestamp: Some(ts.clone()),
+                id:        None,
                 url:       None,
+                verified:  Verified::Body,
             });
         }
 
@@ -414,8 +490,51 @@ mod genuine_delivery_fixtures {
                 signature: BASE64.encode(sig.to_bytes()),
                 secret:    pem,
                 timestamp: Some(ts.clone()),
+                id:        None,
                 url:       None,
+                verified:  Verified::Body,
             });
+        }
+
+        // Standard Webhooks (#1323), and `clerk` which is the same scheme under
+        // Svix's header spelling. Signed content is `{id}.{timestamp}.{body}`, the
+        // key is base64 behind `whsec_`, and the credential is a space-separated list
+        // of `v1,<base64>` entries — so the fixture carries an id, and verification
+        // must report it.
+        //
+        // The secret is the spec reference library's published one (24 bytes) rather
+        // than this file's `SECRET`, which is not base64 at all. The *published*
+        // vectors, including Svix's 18-byte key, live in
+        // `tests/standard_webhooks_test.rs`.
+        {
+            const SW_SECRET: &str = "whsec_C2FVsBQIhrscChlQIMV+b5sSYspob7oD";
+            let key = BASE64.decode(SW_SECRET.strip_prefix("whsec_").unwrap()).unwrap();
+            for (provider, id) in [
+                ("standard-webhooks", "msg_sw_fixture"),
+                ("clerk", "msg_clerk_fixture"),
+            ] {
+                let mut signed = format!("{id}.{ts}.").into_bytes();
+                signed.extend_from_slice(BODY);
+                let mut mac = Hmac::<Sha256>::new_from_slice(&key).unwrap();
+                mac.update(&signed);
+                all.push(Fixture {
+                    provider,
+                    body: BODY.to_vec(),
+                    // Two entries, the matching one SECOND: a sender mid-rotation
+                    // sends one per active secret in no guaranteed order, and taking
+                    // only the first was #787's shape for Stripe.
+                    signature: format!(
+                        "v1,{} v1,{}",
+                        BASE64.encode(hmac_sha256("whsec_rotated_out", &signed)),
+                        BASE64.encode(mac.finalize().into_bytes())
+                    ),
+                    secret: SW_SECRET.into(),
+                    timestamp: Some(ts.clone()),
+                    id: Some(id.to_string()),
+                    url: None,
+                    verified: Verified::BodyWithId { id: id.to_string() },
+                });
+            }
         }
 
         // Generic HMAC verifiers: hex output.
@@ -425,7 +544,9 @@ mod genuine_delivery_fixtures {
             signature: hex::encode(hmac_sha256(SECRET, BODY)),
             secret:    SECRET.into(),
             timestamp: None,
+            id:        None,
             url:       None,
+            verified:  Verified::Body,
         });
         all.push(Fixture {
             provider:  "hmac-sha1",
@@ -433,7 +554,9 @@ mod genuine_delivery_fixtures {
             signature: hex::encode(hmac_sha1(SECRET, BODY)),
             secret:    SECRET.into(),
             timestamp: None,
+            id:        None,
             url:       None,
+            verified:  Verified::Body,
         });
 
         all
@@ -447,9 +570,13 @@ mod genuine_delivery_fixtures {
             let headers = request_of(&f, &f.signature);
             let result = verifier
                 .verify(&InboundRequest::new(&headers, &f.body, f.url.as_deref()), &f.secret);
-            assert!(
-                matches!(result, Ok(Verified::Body)),
-                "{}: a genuine, provider-signed delivery must verify; got {result:?}",
+            assert_eq!(
+                result.as_ref().ok(),
+                Some(&f.verified),
+                "{}: a genuine, provider-signed delivery must verify AND report what it \
+                 authenticated. A scheme whose signed content covers an id must hand that \
+                 id back — answering `Verified::Body` instead drops the value the replay \
+                 defence keys on, and would pass a weaker assertion. Got {result:?}",
                 f.provider
             );
         }
@@ -474,8 +601,10 @@ mod genuine_delivery_fixtures {
             let result =
                 verifier.verify(&InboundRequest::new(&headers, &body, f.url.as_deref()), &f.secret);
             assert!(
-                !matches!(result, Ok(Verified::Body)),
-                "{}: a tampered delivery must not verify; got {result:?}",
+                result.is_err(),
+                "{}: a tampered delivery must not verify — and must say so as an error, \
+                 not as some other `Ok` variant a caller could mistake for success; got \
+                 {result:?}",
                 f.provider
             );
         }

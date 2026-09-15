@@ -106,6 +106,16 @@ pub struct WebhookRouteConfig {
     /// as `credential`.
     #[serde(default)]
     pub prefix: Option<String>,
+
+    /// The prefix this sender spells the Standard Webhooks header triple with:
+    /// `{prefix}-id`, `{prefix}-timestamp`, `{prefix}-signature`. Absent means
+    /// `webhook`, the spec's own spelling; Svix and Clerk send `svix` (#1323).
+    ///
+    /// Read by `standard-webhooks` alone. The `clerk` preset *is* the `svix`
+    /// spelling and refuses the key, as does every other scheme — including the
+    /// generic HMAC families, which read one header rather than a triple.
+    #[serde(default)]
+    pub header_prefix: Option<String>,
 }
 
 #[cfg(feature = "webhooks")]
@@ -114,9 +124,10 @@ impl WebhookRouteConfig {
     #[must_use]
     pub fn scheme_config(&self) -> SchemeConfig {
         SchemeConfig {
-            credential: self.credential.clone(),
-            encoding:   self.encoding,
-            prefix:     self.prefix.clone(),
+            credential:    self.credential.clone(),
+            encoding:      self.encoding,
+            prefix:        self.prefix.clone(),
+            header_prefix: self.header_prefix.clone(),
         }
     }
 }

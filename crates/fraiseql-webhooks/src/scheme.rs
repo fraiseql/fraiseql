@@ -33,6 +33,7 @@ use crate::{
         sendgrid::SendGridVerifier,
         shopify::ShopifyVerifier,
         slack::SlackVerifier,
+        standard_webhooks::{SVIX_HEADER_PREFIX, StandardWebhooksVerifier},
         stripe::StripeVerifier,
         twilio::TwilioVerifier,
     },
@@ -148,6 +149,14 @@ pub struct SchemeConfig {
     /// A literal stripped from the front of the credential before decoding
     /// (GitHub-style `sha256=`). `None` → nothing is stripped.
     pub prefix:     Option<String>,
+
+    /// The prefix the Standard Webhooks header triple is spelled with:
+    /// `{prefix}-id`, `{prefix}-timestamp`, `{prefix}-signature`. `None` →
+    /// `webhook`, the spec's own spelling. Svix and Clerk send `svix`.
+    ///
+    /// Read only by `standard-webhooks`; the `clerk` preset fixes it to `svix`, and
+    /// every other scheme refuses the key.
+    pub header_prefix: Option<String>,
 }
 
 impl SchemeConfig {
@@ -158,9 +167,40 @@ impl SchemeConfig {
             ("credential", self.credential.is_some()),
             ("encoding", self.encoding.is_some()),
             ("prefix", self.prefix.is_some()),
+            ("header_prefix", self.header_prefix.is_some()),
         ]
         .into_iter()
         .filter_map(|(key, present)| present.then_some(key))
+    }
+
+    /// Refuse every present key that is not in `reads`.
+    ///
+    /// Each scheme declares what it reads, so a key that reaches a scheme which
+    /// does not consult it is a boot refusal rather than a knob the operator
+    /// believes is in force. That has to be per scheme and not per *family*: before
+    /// #1323 the rule was binary — a preset read nothing and the generic HMAC
+    /// families read all three keys — and `header_prefix` is the key that makes the
+    /// binary wrong, since `standard-webhooks` reads it and the generic families do
+    /// not. A two-way split would have silently accepted `header_prefix` on an
+    /// `hmac-sha256` route.
+    ///
+    /// # Errors
+    ///
+    /// [`SchemeError::IrrelevantKey`] naming the key, the scheme, and what the
+    /// scheme does read.
+    fn reads_only(&self, provider: &str, reads: &[&'static str]) -> Result<(), SchemeError> {
+        let Some(key) = self.present_keys().find(|key| !reads.contains(key)) else {
+            return Ok(());
+        };
+        Err(SchemeError::IrrelevantKey {
+            provider: provider.to_string(),
+            key,
+            reads: if reads.is_empty() {
+                "no scheme keys at all — it fixes its own signing details".to_string()
+            } else {
+                format!("only: {}", reads.join(", "))
+            },
+        })
     }
 }
 
@@ -184,15 +224,29 @@ pub enum SchemeError {
 
     /// The route carries a scheme key the selected scheme does not read.
     #[error(
-        "`{key}` is not a key the {provider:?} scheme reads: {provider} fixes its own signing \
-         details, so this is configuration nothing consults. Remove it, or describe the scheme \
-         yourself on an `hmac-sha256` / `hmac-sha1` route."
+        "`{key}` is not a key the {provider:?} scheme reads, so it is configuration nothing \
+         consults. Remove it. The {provider:?} scheme reads {reads}."
     )]
     IrrelevantKey {
         /// The scheme that does not read the key.
         provider: String,
         /// The key that would have been ignored.
         key:      &'static str,
+        /// What the scheme does read, rendered for the operator.
+        reads:    String,
+    },
+
+    /// `header_prefix` cannot form the header names the scheme reads.
+    #[error(
+        "header_prefix = {value:?} cannot form a header name for the {provider:?} scheme, which \
+         joins it to `-id`, `-timestamp` and `-signature`. Expected a token such as `webhook` \
+         (the Standard Webhooks default) or `svix` (what Svix and Clerk send)."
+    )]
+    InvalidHeaderPrefix {
+        /// The scheme that could not use it.
+        provider: String,
+        /// The value the route configured.
+        value:    String,
     },
 
     /// The scheme's credential cannot live where the route says it does.
@@ -209,6 +263,11 @@ pub enum SchemeError {
     },
 }
 
+/// The scheme keys the generic HMAC families read: the operator owns their signing
+/// details, so all three describe the credential and none of them is a header
+/// *prefix* (these schemes read one header, not a triple).
+const GENERIC_HMAC_KEYS: &[&str] = &["credential", "encoding", "prefix"];
+
 /// Every scheme [`build_scheme`] can build.
 ///
 /// Sorted, and the single list the refusal message and the fixture-coverage test
@@ -216,6 +275,7 @@ pub enum SchemeError {
 /// `every_known_scheme_builds` proves this list is not *wider* than that match, and
 /// `signature::tests` requires a genuine + tampered fixture for every name in it.
 pub const KNOWN_SCHEMES: &[&str] = &[
+    "clerk",
     "discord",
     "github",
     "gitlab",
@@ -227,6 +287,7 @@ pub const KNOWN_SCHEMES: &[&str] = &[
     "sendgrid",
     "shopify",
     "slack",
+    "standard-webhooks",
     "stripe",
     "twilio",
 ];
@@ -250,9 +311,35 @@ pub fn build_scheme(
 ) -> Result<Arc<dyn SignatureVerifier>, SchemeError> {
     let built: Arc<dyn SignatureVerifier> = match provider {
         // The two families no provider owns: the operator describes the scheme.
-        "hmac-sha256" => Arc::new(HmacSha256Verifier::from_config(provider, config)?),
-        "hmac-sha1" => Arc::new(HmacSha1Verifier::from_config(provider, config)?),
+        "hmac-sha256" => {
+            config.reads_only(provider, GENERIC_HMAC_KEYS)?;
+            Arc::new(HmacSha256Verifier::from_config(provider, config)?)
+        },
+        "hmac-sha1" => {
+            config.reads_only(provider, GENERIC_HMAC_KEYS)?;
+            Arc::new(HmacSha1Verifier::from_config(provider, config)?)
+        },
+        // The spec's own scheme (#1323): the sender's header spelling is the one
+        // detail it leaves open, so `header_prefix` is the one key it reads.
+        "standard-webhooks" => {
+            config.reads_only(provider, &["header_prefix"])?;
+            Arc::new(
+                StandardWebhooksVerifier::from_config(provider, config)?
+                    .with_tolerance(tolerance_secs),
+            )
+        },
         // Presets. `preset` refuses any scheme key before constructing.
+        //
+        // `clerk` is Standard Webhooks under `svix-*` header names and nothing else,
+        // so it is a preset over that scheme rather than a second implementation of
+        // it — and `header_prefix` is refused here precisely because the preset IS
+        // the prefix.
+        "clerk" => preset(
+            provider,
+            config,
+            StandardWebhooksVerifier::with_header_prefix(SVIX_HEADER_PREFIX)
+                .with_tolerance(tolerance_secs),
+        )?,
         "stripe" => preset(provider, config, StripeVerifier::new().with_tolerance(tolerance_secs))?,
         "github" => preset(provider, config, GitHubVerifier)?,
         "shopify" => preset(provider, config, ShopifyVerifier)?,
@@ -278,18 +365,14 @@ pub fn build_scheme(
     Ok(built)
 }
 
-/// Wrap a preset, refusing any scheme key it does not read.
+/// Wrap a preset — a scheme whose signing details belong to the provider, so it
+/// reads no scheme keys at all.
 fn preset<V: SignatureVerifier + 'static>(
     provider: &str,
     config: &SchemeConfig,
     verifier: V,
 ) -> Result<Arc<dyn SignatureVerifier>, SchemeError> {
-    if let Some(key) = config.present_keys().next() {
-        return Err(SchemeError::IrrelevantKey {
-            provider: provider.to_string(),
-            key,
-        });
-    }
+    config.reads_only(provider, &[])?;
     Ok(Arc::new(verifier))
 }
 

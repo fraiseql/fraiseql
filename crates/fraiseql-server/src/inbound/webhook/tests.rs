@@ -328,13 +328,14 @@ mod error_body_sanitization {
         routes.insert(
             "hooks".to_string(),
             WebhookRouteConfig {
-                secret_env: "TEST_WEBHOOK_SECRET".to_string(),
-                provider:   "hmac-sha256".to_string(),
-                path:       None,
-                public_url: None,
-                credential: None,
-                encoding:   None,
-                prefix:     None,
+                secret_env:    "TEST_WEBHOOK_SECRET".to_string(),
+                provider:      "hmac-sha256".to_string(),
+                path:          None,
+                public_url:    None,
+                credential:    None,
+                encoding:      None,
+                prefix:        None,
+                header_prefix: None,
             },
         );
         let state = WebhookInboundState::new(lazy_pool(), &built(&routes), |_| {
@@ -418,13 +419,14 @@ mod key_material_is_not_the_senders_fault {
         routes.insert(
             "discord".to_string(),
             WebhookRouteConfig {
-                secret_env: "TEST_DISCORD_KEY".to_string(),
-                provider:   "discord".to_string(),
-                path:       None,
-                public_url: None,
-                credential: None,
-                encoding:   None,
-                prefix:     None,
+                secret_env:    "TEST_DISCORD_KEY".to_string(),
+                provider:      "discord".to_string(),
+                path:          None,
+                public_url:    None,
+                credential:    None,
+                encoding:      None,
+                prefix:        None,
+                header_prefix: None,
             },
         );
         let state = WebhookInboundState::new(lazy_pool(), &built(&routes), |_| {
@@ -501,13 +503,14 @@ mod empty_secret_is_not_configured {
         routes.insert(
             "hooks".to_string(),
             WebhookRouteConfig {
-                secret_env: "TEST_WEBHOOK_SECRET".to_string(),
-                provider:   "hmac-sha256".to_string(),
-                path:       None,
-                public_url: None,
-                credential: None,
-                encoding:   None,
-                prefix:     None,
+                secret_env:    "TEST_WEBHOOK_SECRET".to_string(),
+                provider:      "hmac-sha256".to_string(),
+                path:          None,
+                public_url:    None,
+                credential:    None,
+                encoding:      None,
+                prefix:        None,
+                header_prefix: None,
             },
         );
         routes
@@ -565,13 +568,14 @@ mod colliding_path_segments {
 
     fn route(provider: &str, secret_env: &str, path: Option<&str>) -> WebhookRouteConfig {
         WebhookRouteConfig {
-            secret_env: secret_env.to_string(),
-            provider:   provider.to_string(),
-            path:       path.map(str::to_string),
-            public_url: None,
-            credential: None,
-            encoding:   None,
-            prefix:     None,
+            secret_env:    secret_env.to_string(),
+            provider:      provider.to_string(),
+            path:          path.map(str::to_string),
+            public_url:    None,
+            credential:    None,
+            encoding:      None,
+            prefix:        None,
+            header_prefix: None,
         }
     }
 

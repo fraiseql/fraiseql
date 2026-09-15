@@ -35,9 +35,10 @@ fn check(
 
 fn config(credential: &str, encoding: SignatureEncoding, prefix: Option<&str>) -> SchemeConfig {
     SchemeConfig {
-        credential: Some(credential.parse::<CredentialLocation>().unwrap()),
-        encoding:   Some(encoding),
-        prefix:     prefix.map(str::to_string),
+        credential:    Some(credential.parse::<CredentialLocation>().unwrap()),
+        encoding:      Some(encoding),
+        prefix:        prefix.map(str::to_string),
+        header_prefix: None,
     }
 }
 

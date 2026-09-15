@@ -76,6 +76,17 @@ pub enum Authenticated<'a> {
     /// The scheme authenticated **these bytes**, and the body is the event. The
     /// caller derives the id and type from them by its own rules.
     Body(&'a [u8]),
+    /// The scheme authenticated **these bytes** and, separately, the event's id.
+    /// The body is still the event — the caller's payload and event-type rules
+    /// apply to it unchanged — but its identity comes out of the signature rather
+    /// than out of the bytes the sender chose (#1323).
+    BodyWithId {
+        /// The verified request body.
+        body: &'a [u8],
+        /// The event's id, as signed. The caller must key the ledger on this and
+        /// not on anything it can read out of `body`.
+        id:   &'a str,
+    },
     /// The scheme authenticated this event out of signed material. The request
     /// body is an envelope and nothing in it is trusted.
     Event {
@@ -229,6 +240,10 @@ where
         //    arm where the scheme signed it, and only now.
         let event = event_of(match verified {
             Verified::Body => Authenticated::Body(delivery.request.body()),
+            Verified::BodyWithId { ref id } => Authenticated::BodyWithId {
+                body: delivery.request.body(),
+                id,
+            },
             Verified::Event {
                 ref id,
                 ref event_type,

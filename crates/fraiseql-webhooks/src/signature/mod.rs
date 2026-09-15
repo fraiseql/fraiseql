@@ -15,6 +15,7 @@ pub mod paddle;
 pub mod postmark;
 pub mod sendgrid;
 pub mod slack;
+pub mod standard_webhooks;
 pub mod twilio;
 
 /// What a scheme authenticated (#1321).
@@ -40,6 +41,23 @@ pub enum Verified {
     /// id and type are derived from the verified bytes by the caller's rules —
     /// every scheme in this crate today.
     Body,
+    /// The signature covers the request body **and** an id carried outside it, so
+    /// the body is the event and its identity is authenticated rather than read out
+    /// of the bytes the sender chose.
+    ///
+    /// This is the Standard Webhooks shape (#1323): the signed content is
+    /// `{id}.{timestamp}.{body}`, with the id in its own header. Neither of the
+    /// other two variants expresses it — [`Verified::Body`] drops the id, which is
+    /// precisely the replay defence the scheme exists to provide, and
+    /// [`Verified::Event`] says the body is an untrusted envelope, which here it is
+    /// not: it is signed, and the caller's own payload and event-type rules apply to
+    /// it unchanged.
+    BodyWithId {
+        /// The event's id, as signed. This is what the replay defence keys on, and
+        /// it is trustworthy **only** because it is inside the signed content — the
+        /// #751 defect was keying on the same header before anything signed it.
+        id: String,
+    },
     /// The scheme authenticated an event carried in signed material. The body it
     /// arrived in is an envelope, and nothing in it is trusted.
     Event {

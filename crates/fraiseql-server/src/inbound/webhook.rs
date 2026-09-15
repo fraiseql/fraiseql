@@ -469,7 +469,7 @@ pub fn webhook_routes_check<S: std::hash::BuildHasher>(
         // #1045: an env var that is set but empty verifies nothing, so it is treated as
         // unset here too. Checking only `is_none()` let `SECRET_ENV=""` boot clean and
         // then fail every delivery with a 401 that blamed the sender.
-        if get_env(&route.secret_name).filter(|s| !s.is_empty()).is_none() {
+        let Some(secret) = get_env(&route.secret_name).filter(|s| !s.is_empty()) else {
             if is_production {
                 return Err(crate::ServerError::ConfigError(format!(
                     "[webhooks.{}] secret_env = {:?} is not set (or is empty) in the \
@@ -486,6 +486,26 @@ pub fn webhook_routes_check<S: std::hash::BuildHasher>(
                 "inbound webhook route will be skipped: signing secret env is unset. \
                  Allowed only because FRAISEQL_ENV=development."
             );
+            continue;
+        };
+        // #1323: a scheme that can tell usable key material from unusable gets to
+        // say so here, while the operator is still watching a boot log, rather than
+        // on every genuine delivery. Most schemes cannot and accept anything — see
+        // `SignatureVerifier::check_key_material`, where that permissive default is
+        // named. `standard-webhooks` can: `whpk_`/`whsk_` is asymmetric `v1a`
+        // material this crate does not verify, and a secret that does not
+        // base64-decode is not a key at all.
+        //
+        // Reached only with a secret actually present — the `else` arm above returns
+        // or skips — so the shape of a secret that is not there is never judged: in
+        // development an unset secret skips the route, and refusing the boot for it
+        // would undo that.
+        if let Err(error) = route.scheme.check_key_material(&secret) {
+            return Err(crate::ServerError::ConfigError(format!(
+                "[webhooks.{}] the {} scheme cannot use the key material in \
+                 secret_env = {:?}: {error}",
+                route.name, route.provider, route.secret_name
+            )));
         }
     }
     Ok(built)
@@ -742,6 +762,19 @@ pub async fn webhook_handler(
                 let event_id = extract_event_id(&payload, verified_body);
                 let event_type = extract_event_type(&payload, &header_map);
                 (event_id, event_type, payload)
+            },
+            // #1323: the body is the event and it is signed, so the caller's own
+            // payload and event-type rules apply to it unchanged — but the id comes
+            // out of the signature, never out of the body. `extract_event_id` is
+            // deliberately NOT consulted here: its whole purpose is to find an id in
+            // bytes nothing authenticated, and this arm has an authenticated one.
+            Authenticated::BodyWithId {
+                body: verified_body,
+                id,
+            } => {
+                let payload = parse_body(verified_body, &headers)?;
+                let event_type = extract_event_type(&payload, &header_map);
+                (id.to_string(), event_type, payload)
             },
             Authenticated::Event {
                 id,
