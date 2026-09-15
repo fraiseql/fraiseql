@@ -53,6 +53,16 @@ disagreed, and the promise was the part that was wrong.
   the route then quietly served the default scheme. (The other 17 config sections with the
   same hole are #1337.)
 
+  `[webhooks.<name>]` also gains `header_prefix`, read by `standard-webhooks` alone
+  (#1323). Each scheme now declares the keys it reads, rather than the rule being per
+  *family*: before this the split was binary — a preset read nothing, the two HMAC families
+  read all three credential keys — so a fourth key read by exactly one other scheme had
+  nowhere to be refused and would have been accepted on an `hmac-sha256` route and ignored.
+
+  `Verified` and `Authenticated` each gain a third variant, `BodyWithId` (#1323). Neither
+  is `#[non_exhaustive]`, deliberately, so an external implementor's `match` on them is a
+  compile error rather than a wildcard arm silently absorbing the new kind.
+
   Two HTTP answers change. A **missing credential** is now `401` where the route used to
   answer `400` — it always was an authentication failure. A **body that does not parse** is
   still `400`, but now only *after* verification, so an unauthenticated caller can no longer
@@ -990,6 +1000,42 @@ disagreed, and the promise was the part that was wrong.
   retry cadence — only parked a hot-path task.
 
 ### Added
+
+- **Standard Webhooks, and a `clerk` preset over it (#1323).** `provider =
+  "standard-webhooks"` receives every sender of the
+  [Standard Webhooks](https://www.standardwebhooks.com/) spec — which is every Svix sender,
+  Clerk included. `provider = "clerk"` is the same scheme under Svix's `svix-*` header
+  spelling; a third spelling is `standard-webhooks` plus the new `header_prefix` key.
+
+  Nothing could receive these senders before. The scheme signs
+  `"{id}.{timestamp}.{body}"` across three headers with a base64 `whsec_` secret, and
+  `hmac-sha256` cannot be configured into it: it signs the body alone and its credential is
+  one value in one header. Both are verified against the vectors their publishers ship —
+  Svix's manual-verification example and the spec's Rust reference library.
+
+  **The dedup key is the signed `{prefix}-id`.** This is the first scheme whose delivery
+  identity comes out of a header, and it is trustworthy only because the signature covers
+  it: #751 was this same header keyed *before* anything signed it, which let one captured
+  delivery be replayed under a fresh id indefinitely. The event type still comes out of the
+  signed body. `Verified::BodyWithId` and `Authenticated::BodyWithId` are the new
+  verification results that carry it — neither existing variant fits, since
+  `Verified::Body` drops the id and `Verified::Event` declares the body an untrusted
+  envelope, which this body is not.
+
+  Several `v1,` signatures verify on any match, for a sender mid-rotation; an unrecognised
+  `v1a,` or `v2,` tag beside a good `v1,` one is skipped rather than refused, so a sender
+  adding a version does not break every delivery.
+
+  Two boot refusals. Asymmetric `v1a` (Ed25519) is **not implemented**, so `whpk_…` /
+  `whsk_…` key material is refused when the server starts, naming the prefix and the
+  version — a mounted route 401ing every genuine delivery is a gap an operator has to read
+  the logs to find. A `whsec_` secret that does not base64-decode is refused the same way,
+  through the new `SignatureVerifier::check_key_material`, whose default accepts anything
+  (the twelve older schemes cannot judge their key material before trying to use it).
+
+  ⚠ The secret's **decoded length is deliberately not validated**. The spec states 24–64
+  bytes; Svix's own documented example decodes to 18, so a decoder enforcing the range
+  refuses the provider's published key.
 
 - **A function can answer a request: function-backed root query fields (#1329).** Every
   trigger the stock binary ran was a side effect. No function could compute and *return* a

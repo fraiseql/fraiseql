@@ -83,11 +83,14 @@ have (#1338).
 | `paddle` | `HMAC-SHA256("{ts}:{body}")`, hex | `Paddle-Signature` (`ts=`,`h1=`) | inside the header | shared secret |
 | `lemonsqueezy` | `HMAC-SHA256(body)`, hex | `X-Signature` | — | shared secret |
 | `discord` | Ed25519 over `timestamp + body`, hex | `X-Signature-Ed25519` | `X-Signature-Timestamp` | hex **public** key |
+| `standard-webhooks` | `HMAC-SHA256("{id}.{timestamp}.{body}")`, base64 behind `v1,` | `webhook-signature` (space-separated list; several during rotation) | `webhook-timestamp` | base64 secret behind `whsec_` |
+| `clerk` | the same, under Svix's header spelling | `svix-signature` | `svix-timestamp` | base64 secret behind `whsec_` |
 | `hmac-sha256` | `HMAC-SHA256(body)` | configurable — see below | — | shared secret |
 | `hmac-sha1` | `HMAC-SHA1(body)` | configurable — see below | — | shared secret |
 
 Paddle is **HMAC-SHA256**, not RSA; this table said otherwise, and listed 5 of the 13
-schemes plus a `WebhookProvider` trait that has never existed. The extension point is
+schemes that existed when #1338 was filed, plus a `WebhookProvider` trait that has never
+existed. The extension point is
 [`SignatureVerifier`](https://docs.rs/fraiseql-webhooks), which since #1321 is handed the
 whole request and returns **what it authenticated** rather than a boolean.
 
@@ -96,18 +99,76 @@ secret, is `hmac-sha256` (or `hmac-sha1`) plus configuration — see
 [Describing a scheme yourself](#describing-a-scheme-yourself) below. That is how Lago,
 a self-hosted sender, or a bespoke integration is received without a code change.
 
+### Standard Webhooks (Svix, Clerk) — `standard-webhooks` / `clerk`
+
+Every [Standard Webhooks](https://www.standardwebhooks.com/) sender signs
+`"{id}.{timestamp}.{body}"` and puts the three values in three headers. `clerk` is that
+scheme under Svix's `svix-*` spelling and is otherwise identical, so it is a preset rather
+than a second implementation; a sender using some third spelling is `standard-webhooks`
+plus `header_prefix`.
+
+```toml
+[webhooks.clerk]
+provider   = "clerk"
+secret_env = "CLERK_WEBHOOK_SECRET"       # the whsec_… from Clerk's dashboard
+
+[webhooks.partner]
+provider      = "standard-webhooks"
+secret_env    = "PARTNER_WEBHOOK_SECRET"
+header_prefix = "svix"                    # webhook (default) | svix | any token
+```
+
+**The dedup key is the signed `{prefix}-id`.** This is the one scheme where the delivery's
+identity comes out of a header, and it is trustworthy only because the signature covers
+it. #751 was the same header keyed *before* anything signed it: one captured delivery
+replayed under a fresh id claimed a fresh idempotency key and re-fired every
+`after:ingest` function. The event **type** still comes out of the signed body, because
+here the body is signed too.
+
+**The event type comes from the signed body's `type` field.** Clerk sends `type`, so a
+`clerk` route records the type you expect. The spec says nothing about body shape, though,
+and Svix's own example payload uses `event_type` — a sender spelling it that way records an
+empty event type and no message `subject`. The **dedup key is unaffected**: it comes from
+the signed header. If you hit this, say so on #1323 rather than renaming the field at the
+sender; the fix is a per-scheme extraction rule, not a second field name tried for all
+fifteen schemes.
+
+**Several `v1,` signatures are accepted, and any match is enough.** A sender rotating its
+signing secret emits one entry per active secret, space-separated, in no guaranteed order.
+Each candidate is compared in constant time whether or not an earlier one matched.
+
+**An unrecognised version tag is skipped, not refused.** A `v1a,` or future `v2,` entry
+beside a good `v1,` one is ignored, so a sender adding a version mid-migration does not
+break every delivery. Nothing in the spec text states this rule; it is the only behaviour
+compatible with a sender growing a version, and it is pinned by test rather than by
+citation.
+
+**The secret's decoded length is not validated.** The spec states that secrets are 24–64
+bytes. Svix's own manual-verification documentation publishes
+`whsec_plJ3nmyCDGBKInavdOK15jsl`, which decodes to **18** — so a decoder enforcing the
+spec's range refuses the provider's documented key. What is validated is that the secret
+decodes at all.
+
+**Asymmetric `v1a` (Ed25519) is not implemented, and says so at boot.** A route whose
+`secret_env` holds `whpk_…` or `whsk_…` key material is refused when the server starts,
+naming the prefix and the version. The alternative — mounting the route and answering 401
+to every genuine delivery — is a gap an operator has to read the logs to discover.
+
 ### Security Properties
 
 - **Constant-time comparison** — all HMAC/signature comparisons use `subtle::ConstantTimeEq`
   to prevent timing attacks.
-- **Replay protection** — the five timestamped schemes (Stripe, Paddle, Slack, Discord,
-  SendGrid) reject a delivery outside a 5-minute window, through one shared freshness
-  check so the rule cannot drift between them.
+- **Replay protection** — the six timestamped schemes (Stripe, Paddle, Slack, Discord,
+  SendGrid, Standard Webhooks) reject a delivery outside a 5-minute window, through one
+  shared freshness check so the rule cannot drift between them. The window is inclusive at
+  its edge: exactly 300 s old verifies, 301 s does not.
 - **Idempotency** — a delivery is deduplicated on `(route, event id)`, and the id comes out of
   **verification**, never out of the unverified request (#751/#1321). For every scheme above the
-  body is the event, so the id is read from the verified body; a scheme that authenticates an
-  event carried in signed material reports that event's id instead. A dedup key taken from an
-  unverified header or envelope would put the whole replay defence under the sender's control.
+  body is the event, so the id is read from the verified body — except
+  `standard-webhooks` / `clerk`, whose signed content covers an id carried in its own
+  header, and which report that id. A scheme that authenticates an event carried entirely
+  in signed material reports that event's id instead. A dedup key taken from an unverified
+  header or envelope would put the whole replay defence under the sender's control.
 - **Nothing is read out of the request before the scheme runs** — not the credential, not the
   body. A route that refused a request with no signature header, or an unparseable body, before
   verifying could not serve a scheme whose credential is elsewhere, and answered an
@@ -220,12 +281,18 @@ Optional keys:
 | `credential` | `hmac-sha256`, `hmac-sha1` | where the credential is: `header:<Name>`. Defaults to `header:X-Signature`. |
 | `encoding` | `hmac-sha256`, `hmac-sha1` | `hex` (default) or `base64`. |
 | `prefix` | `hmac-sha256`, `hmac-sha1` | a literal stripped before decoding, e.g. `sha256=`. |
+| `header_prefix` | `standard-webhooks` | the spelling of the Standard Webhooks header triple — `{prefix}-id`, `{prefix}-timestamp`, `{prefix}-signature`. Defaults to `webhook`, the spec's own; Svix and Clerk send `svix`. The `clerk` preset **is** that spelling and refuses the key. |
 
 **An unknown key refuses to boot, and so does a key the chosen scheme does not read**
 (#1321). `encoding = "base64"` on a `stripe` route is not ignored — Stripe fixes its own
 signing details, so the key would be configuration nothing consults, which is the same
 silent drop one level down. Before this, a mistyped `encodng = "base64"` parsed exactly
 like the correct spelling and the route quietly served the default scheme.
+
+Each scheme declares the keys it reads, rather than the rule being per *family*. Before
+`header_prefix` the split was binary — a preset read nothing, the two HMAC families read
+all three credential keys — and a fourth key read by exactly one other scheme had nowhere
+to be refused: it would have been accepted on an `hmac-sha256` route and ignored.
 
 ### Describing a scheme yourself
 

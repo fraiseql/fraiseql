@@ -1,6 +1,8 @@
 //! Webhook signature verification.
 //!
-//! Supports 15+ webhook providers with constant-time comparison for security.
+//! One module per scheme, and [`crate::scheme::KNOWN_SCHEMES`] is the list of what
+//! `build_scheme` can construct — deliberately not a count repeated here, which was
+//! "15+" while there were thirteen. Every comparison is constant-time.
 
 pub mod generic;
 pub mod github;
