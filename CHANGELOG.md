@@ -4028,6 +4028,31 @@ disagreed, and the promise was the part that was wrong.
 ### Security
 
 
+- **rustls 0.23.42 → 0.23.45 clears RUSTSEC-2026-0285 (TLS 1.3 handshake messages
+  accepted across encryption-level boundaries).**
+
+  rustls accepted a TLS 1.3 handshake message sent at the wrong encryption level when it
+  followed a key-changing message in the same record — a plaintext
+  `EncryptedExtensions` packed into the `ServerHello`'s record, for example. RFC 8446
+  §5.1 requires terminating such a connection with `unexpected_message`. The transcript
+  stays authenticated, so this is not handshake forgery; the effect is that a peer could
+  send in plaintext handshake messages that should have been encrypted, and rustls would
+  not reject the connection.
+
+  It is in the **default** build, reached through `fraiseql-db`, so it is the TLS the
+  shipped binary speaks rather than a test-only edge.
+
+  `cargo update -p rustls` alone stops at 0.23.43: 0.23.45 requires a newer `aws-lc-rs`,
+  which only `--precise` pulls in. The lockfile therefore also moves `aws-lc-rs`
+  1.16.3 → 1.18.1, `aws-lc-sys` 0.40.0 → 0.45.0 and `rustls-webpki`
+  0.103.13 → 0.103.15.
+
+  No `deny.toml` acceptance and no `check-default-build-minimums.sh` floor were added.
+  The h2 floor exists because an advisory was *accepted* for a second, non-default
+  instance and cargo-deny cannot scope an ignore to one version; nothing is ignored here,
+  so `cargo deny check advisories` catches a rustls downgrade directly and a floor would
+  be a second gate saying the same thing.
+
 - **`before:mutation` is now unbypassable: it is enforced in the engine, at the one point
   every mutation entry path converges on (#1327).**
 
