@@ -18,6 +18,55 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A webhook route's verification scheme is its configuration, and verification reports what
+  it authenticated (#1321).** Five changes an embedder or an operator can see.
+
+  `SignatureVerifier` is `fraiseql-webhooks`' advertised extension point, and it changes
+  shape. `verify` takes an `InboundRequest` and returns `Result<Verified, SignatureError>`
+  instead of taking five loose arguments and returning `Result<bool, _>`; a mismatch is
+  `SignatureError::Mismatch`, not an `Ok(false)` a caller can forget to inspect.
+  `signature_header`, `timestamp_header` and `extract_timestamp` are no longer trait
+  methods — the scheme is handed the request and locates what it needs, because a receiver
+  that reads one fixed header first cannot serve a scheme whose credential is elsewhere.
+  `signature::ProviderRegistry` is removed; `scheme::build_scheme` builds a route's scheme
+  from its configuration, and a lookup by provider name could not have served two
+  `hmac-sha256` routes reading different headers anyway.
+
+  `Verified::Body` means the scheme signed the body, so the body is the event;
+  `Verified::Event` carries an id, type and payload out of signed material. The delivery
+  ledger, the durable spine row and the `after:ingest` dispatch are built from that value
+  and nothing else. `Delivery` therefore loses `event_id`, `event_type` and `params`, and
+  `WebhookPipeline::process` takes an `event_of` closure called after verification — so a
+  `Delivery` **cannot be constructed** with an id that did not come out of verification.
+  Deriving it from the unverified body was sound only while every scheme signs the body
+  verbatim (#751); it is not sound for a sender that signs `{id}.{timestamp}.{body}` or
+  carries its event inside a token.
+
+  `[webhooks.<name>]` gains `credential` (`header:<Name>`, defaulting to
+  `header:X-Signature`), `encoding` (`hex` | `base64`) and `prefix` — read by the
+  `hmac-sha256` / `hmac-sha1` schemes, so a sender like Lago that signs the raw body and
+  puts a base64 MAC in its own header is now received by configuration rather than by a
+  code change. **An unknown key now refuses to boot**, and so does a key the chosen scheme
+  does not read: `encoding` on a `stripe` route is refused rather than ignored. A mistyped
+  `encodng = "base64"` used to parse exactly like the correct spelling, because
+  `WebhookRouteConfig` had no `deny_unknown_fields` and the parent's does not propagate —
+  the route then quietly served the default scheme. (The other 17 config sections with the
+  same hole are #1337.)
+
+  Two HTTP answers change. A **missing credential** is now `401` where the route used to
+  answer `400` — it always was an authentication failure. A **body that does not parse** is
+  still `400`, but now only *after* verification, so an unauthenticated caller can no longer
+  tell a mounted route from an unmounted one by posting rubbish.
+
+  `WebhookInboundState::new` takes the `WebhookRoutes` that `webhook_routes_check` returns,
+  and is infallible. The routes are built and validated once, in the boot path where a bad
+  configuration can still stop the server, and the mount serves what was built — there is no
+  second construction that could disagree with the one boot accepted.
+
+  Also fixes `docs/architecture/webhooks.md`'s provider table (#1338), which listed 5 of the
+  13 schemes, called Paddle RSA when it is HMAC-SHA256, and named a `WebhookProvider` trait
+  that has never existed. It is now written from the constructed set.
+
 - **`POST /functions/v1/{name}` and `Server::with_functions` are removed (#1329).**
 
   The route dispatched a function by name, ignoring its declared trigger, and it was

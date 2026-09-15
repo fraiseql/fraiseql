@@ -63,25 +63,55 @@ plus-tag (`support+ticket-42@…` → `Ticket`/`42`); an `after:ingest` handler 
 whole message and can route it itself. See `docs/architecture/inbound-email.md` for the
 poll-IMAP adapter and `docs/architecture/functions.md` for the `after:ingest` host surface.
 
-### Supported Providers
+### Supported schemes
 
-| Provider | Signature Algorithm | Header |
-|----------|---------------------|--------|
-| Stripe | HMAC-SHA256 | `Stripe-Signature` |
-| GitHub | HMAC-SHA256 | `X-Hub-Signature-256` |
-| Shopify | HMAC-SHA256 | `X-Shopify-Hmac-Sha256` |
-| SendGrid | ECDSA | `X-Twilio-Email-Event-Webhook-Signature` |
-| Paddle | RSA-SHA256 | `Paddle-Signature` |
-| Custom | Pluggable | Implement `WebhookProvider` trait |
+Every value `provider` accepts, read off the schemes `scheme::build_scheme`
+constructs — which is the one construction the boot check and the mounted router
+are both served from, so this table cannot describe a scheme the server does not
+have (#1338).
+
+| `provider` | What is signed | Credential | Timestamp | Key material in `secret_env` |
+|---|---|---|---|---|
+| `stripe` | `HMAC-SHA256("{t}.{body}")`, hex | `Stripe-Signature` (`t=`,`v1=`; several `v1` during rotation) | inside the header | shared secret |
+| `github` | `HMAC-SHA256(body)`, hex behind `sha256=` | `X-Hub-Signature-256` | — | shared secret |
+| `shopify` | `HMAC-SHA256(body)`, base64 | `X-Shopify-Hmac-Sha256` | — | shared secret |
+| `gitlab` | nothing — a static token compared in constant time | `X-Gitlab-Token` | — | the token |
+| `slack` | `HMAC-SHA256("v0:{ts}:{body}")`, hex behind `v0=` | `X-Slack-Signature` | `X-Slack-Request-Timestamp` | signing secret |
+| `twilio` | `HMAC-SHA1(url + sorted form params)`, base64; JSON bodies sign the URI including `bodySHA256` | `X-Twilio-Signature` | — | auth token |
+| `sendgrid` | ECDSA P-256 over `timestamp + body`, DER in base64 | `X-Twilio-Email-Event-Webhook-Signature` | `X-Twilio-Email-Event-Webhook-Timestamp` | PEM **public** key |
+| `postmark` | `HMAC-SHA256(body)`, base64 | `X-Postmark-Signature` | — | shared secret |
+| `paddle` | `HMAC-SHA256("{ts}:{body}")`, hex | `Paddle-Signature` (`ts=`,`h1=`) | inside the header | shared secret |
+| `lemonsqueezy` | `HMAC-SHA256(body)`, hex | `X-Signature` | — | shared secret |
+| `discord` | Ed25519 over `timestamp + body`, hex | `X-Signature-Ed25519` | `X-Signature-Timestamp` | hex **public** key |
+| `hmac-sha256` | `HMAC-SHA256(body)` | configurable — see below | — | shared secret |
+| `hmac-sha1` | `HMAC-SHA1(body)` | configurable — see below | — | shared secret |
+
+Paddle is **HMAC-SHA256**, not RSA; this table said otherwise, and listed 5 of the 13
+schemes plus a `WebhookProvider` trait that has never existed. The extension point is
+[`SignatureVerifier`](https://docs.rs/fraiseql-webhooks), which since #1321 is handed the
+whole request and returns **what it authenticated** rather than a boolean.
+
+A scheme whose sender is not on this list, but which signs the raw body with a shared
+secret, is `hmac-sha256` (or `hmac-sha1`) plus configuration — see
+[Describing a scheme yourself](#describing-a-scheme-yourself) below. That is how Lago,
+a self-hosted sender, or a bespoke integration is received without a code change.
 
 ### Security Properties
 
 - **Constant-time comparison** — all HMAC/signature comparisons use `subtle::ConstantTimeEq`
   to prevent timing attacks.
-- **Replay protection** — Stripe and Paddle webhook signatures include a timestamp;
-  requests older than 5 minutes are rejected.
-- **Idempotency** — each webhook carries a provider-issued event ID. If the same ID
-  arrives twice, the second delivery is silently discarded without running the handler.
+- **Replay protection** — the five timestamped schemes (Stripe, Paddle, Slack, Discord,
+  SendGrid) reject a delivery outside a 5-minute window, through one shared freshness
+  check so the rule cannot drift between them.
+- **Idempotency** — a delivery is deduplicated on `(route, event id)`, and the id comes out of
+  **verification**, never out of the unverified request (#751/#1321). For every scheme above the
+  body is the event, so the id is read from the verified body; a scheme that authenticates an
+  event carried in signed material reports that event's id instead. A dedup key taken from an
+  unverified header or envelope would put the whole replay defence under the sender's control.
+- **Nothing is read out of the request before the scheme runs** — not the credential, not the
+  body. A route that refused a request with no signature header, or an unparseable body, before
+  verifying could not serve a scheme whose credential is elsewhere, and answered an
+  unauthenticated caller about the endpoint's shape.
 - **Transaction boundaries** — each webhook handler runs inside a database transaction.
   If the handler function raises an error, the transaction is rolled back and the HTTP
   response is 500 so the provider retries.
@@ -181,12 +211,46 @@ either fails to deserialize, and the server does not boot.
 `secret_env` is the *name of an environment variable*, not the secret. The signing
 secret never appears in `fraiseql.toml`, which is a file that gets committed.
 
-Two optional keys:
+Optional keys:
 
-| Key | Meaning |
-|---|---|
-| `path` | the path **segment** this route mounts under, overriding the route name. The route is served at `/webhooks/{segment}` — so `path = "stripe-eu"`, not `path = "/webhooks/stripe-eu"`. |
-| `public_url` | the exact public URL the provider knows this route by. **Required** for providers whose signature covers the request URL (Twilio signs scheme + host + path + query). Reconstructing it from `Host` / `X-Forwarded-*` would put the signed material under the sender's control, so the server refuses to boot instead (#781). |
+| Key | Read by | Meaning |
+|---|---|---|
+| `path` | every scheme | the path **segment** this route mounts under, overriding the route name. The route is served at `/webhooks/{segment}` — so `path = "stripe-eu"`, not `path = "/webhooks/stripe-eu"`. |
+| `public_url` | URL-signing schemes | the exact public URL the provider knows this route by. **Required** for a scheme whose signature covers the request URL (Twilio signs scheme + host + path + query). Reconstructing it from `Host` / `X-Forwarded-*` would put the signed material under the sender's control, so the server refuses to boot instead (#781). |
+| `credential` | `hmac-sha256`, `hmac-sha1` | where the credential is: `header:<Name>`. Defaults to `header:X-Signature`. |
+| `encoding` | `hmac-sha256`, `hmac-sha1` | `hex` (default) or `base64`. |
+| `prefix` | `hmac-sha256`, `hmac-sha1` | a literal stripped before decoding, e.g. `sha256=`. |
+
+**An unknown key refuses to boot, and so does a key the chosen scheme does not read**
+(#1321). `encoding = "base64"` on a `stripe` route is not ignored — Stripe fixes its own
+signing details, so the key would be configuration nothing consults, which is the same
+silent drop one level down. Before this, a mistyped `encodng = "base64"` parsed exactly
+like the correct spelling and the route quietly served the default scheme.
+
+### Describing a scheme yourself
+
+```toml
+[webhooks.lago]
+provider   = "hmac-sha256"
+secret_env = "LAGO_WEBHOOK_SECRET"
+credential = "header:X-Lago-Signature"   # where the MAC is
+encoding   = "base64"                    # how it is written
+
+[webhooks.selfhosted]
+provider   = "hmac-sha256"
+secret_env = "SELFHOSTED_WEBHOOK_SECRET"
+credential = "header:X-Hub-Signature-256"
+encoding   = "hex"
+prefix     = "sha256="                   # stripped before decoding
+```
+
+Header names are matched case-insensitively, so the spelling here is the operator's and
+the one on the wire is the sender's.
+
+The `credential` grammar is `header:<Name>` | `body` | `body:<field>`, shared by every
+scheme family so the next one does not introduce a second key meaning the same thing. The
+two HMAC families accept `header:` only, and refuse the body forms **at boot**: their
+credential is a MAC over the request body, so it cannot also be part of that body.
 
 ---
 
