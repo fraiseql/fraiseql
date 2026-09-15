@@ -31,8 +31,8 @@ use fraiseql_functions::{
 };
 use fraiseql_webhooks::{
     Delivery, Disposition, EventHandler, Handled, PostgresIdempotencyStore,
-    Result as WebhookResult, StaticSecretProvider, WebhookError, WebhookPipeline,
-    signature::ProviderRegistry,
+    Result as WebhookResult, SignatureVerifier, StaticSecretProvider, WebhookError,
+    WebhookPipeline, build_scheme,
 };
 use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Transaction};
@@ -167,17 +167,105 @@ impl EventHandler for SpineEventHandler {
     }
 }
 
-/// A configured inbound webhook route: which provider verifier to use and which
-/// named secret resolves its signing key.
-#[derive(Debug, Clone)]
-struct ResolvedRoute {
-    /// Provider key selecting the signature verifier (e.g. `stripe`).
+/// A configured inbound webhook route, with its verification scheme already built.
+///
+/// The scheme is a **value**, not a name to be looked up again (#1321). Two routes
+/// may both be `hmac-sha256` and read different headers with different encodings,
+/// so a per-request lookup by provider name could not serve them — and, more to the
+/// point, a second construction is a second chance to disagree with what boot
+/// validated.
+#[derive(Clone)]
+struct BuiltRoute {
+    /// The config key this route was declared under, for boot diagnostics.
+    name:        String,
+    /// Provider key — the `after:ingest:webhook:<provider>` routing discriminant.
     provider:    String,
+    /// The verification scheme built from this route's configuration.
+    scheme:      Arc<dyn SignatureVerifier>,
     /// Secret name resolved by the pipeline's secret provider.
     secret_name: String,
     /// The exact public URL the provider signed, for URL-signing schemes
     /// (Twilio). `None` for providers that sign the body only.
     public_url:  Option<String>,
+}
+
+/// The replay window handed to the schemes that sign a timestamp.
+///
+/// The value `ProviderRegistry::new()` used before the registry was deleted, kept
+/// so this change moves no provider's freshness behaviour.
+const TIMESTAMP_TOLERANCE_SECS: u64 = 300;
+
+/// Build every configured route, or refuse.
+///
+/// The **one** construction (#1321): boot validation and the mounted router are
+/// both served from this, so a configuration the server accepted at boot cannot
+/// meet a different scheme — or none — at request time.
+///
+/// Keyed by path segment, which is the route's `path` override or its config key.
+///
+/// # Errors
+///
+/// `ServerError::ConfigError` naming the route and what is wrong with it.
+fn build_routes<S: std::hash::BuildHasher>(
+    routes: &std::collections::HashMap<String, WebhookRouteConfig, S>,
+) -> crate::Result<BTreeMap<String, BuiltRoute>> {
+    // #1048: two routes resolving to the same `/webhooks/{segment}` silently shadowed
+    // each other. The map below is keyed by the segment, so a repeat is
+    // last-write-wins — and because this iterates a `HashMap` whose `RandomState`
+    // differs per process, *which* route survived changed between boots of an
+    // identical config. The loser's deliveries then met the winner's verifier and
+    // failed. Mirrors the duplicate-sink-name guard in
+    // `server_config/cdc_outbound.rs`.
+    //
+    // Sorted first, so the refusal names the same pair on every boot; diagnosing a
+    // non-deterministic config error with a non-deterministic message would be no
+    // better than the defect.
+    let mut sorted: Vec<(&String, &WebhookRouteConfig)> = routes.iter().collect();
+    sorted.sort_by(|(a, _), (b, _)| a.cmp(b));
+
+    let mut built: BTreeMap<String, BuiltRoute> = BTreeMap::new();
+    for (name, config) in sorted {
+        let segment = config.path.clone().unwrap_or_else(|| name.clone());
+        if let Some(previous) = built.get(&segment) {
+            return Err(crate::ServerError::ConfigError(format!(
+                "[webhooks.{}] and [webhooks.{name}] both resolve to the path \
+                 segment {segment:?}, so only one of them could ever be mounted and which \
+                 one would change between restarts. Give one of them a distinct `path`, or \
+                 remove it. (A route's segment is its `path` override, or its config key \
+                 when `path` is absent — so an override may collide with another route's \
+                 name.)",
+                previous.name
+            )));
+        }
+
+        let scheme =
+            build_scheme(&config.provider, &config.scheme_config(), TIMESTAMP_TOLERANCE_SECS)
+                .map_err(|error| {
+                    crate::ServerError::ConfigError(format!("[webhooks.{name}] {error}"))
+                })?;
+
+        if scheme.requires_url() && config.public_url.is_none() {
+            return Err(crate::ServerError::ConfigError(format!(
+                "[webhooks.{name}] provider = {:?} signs the request URL, so the route \
+                 needs `public_url` set to the exact URL registered at the provider. \
+                 Reconstructing it from request headers would let the sender choose the \
+                 signed material, so the server refuses to guess.",
+                config.provider
+            )));
+        }
+
+        built.insert(
+            segment,
+            BuiltRoute {
+                name: name.clone(),
+                provider: config.provider.clone(),
+                scheme,
+                secret_name: config.secret_env.clone(),
+                public_url: config.public_url.clone(),
+            },
+        );
+    }
+    Ok(built)
 }
 
 /// The concrete pipeline used by the inbound webhook adapter.
@@ -188,9 +276,8 @@ type InboundPipeline =
 #[derive(Clone)]
 pub struct WebhookInboundState {
     pipeline:               Arc<InboundPipeline>,
-    registry:               Arc<ProviderRegistry>,
-    /// Path segment (`/webhooks/{segment}`) → resolved route.
-    routes:                 Arc<BTreeMap<String, ResolvedRoute>>,
+    /// Path segment (`/webhooks/{segment}`) → the route built at boot.
+    routes:                 Arc<BTreeMap<String, BuiltRoute>>,
     /// Function-dispatch hooks used to fire `after:ingest` on a persisted
     /// message. `None` (no function runtime configured) persists the message but
     /// dispatches nothing.
@@ -213,51 +300,53 @@ impl WebhookInboundState {
     /// the body (#787). In production [`webhook_routes_check`] refuses to boot
     /// before this point, so the skip is reachable only in development. The path
     /// segment is the route's `path` override or, failing that, its config key.
-    #[must_use]
+    ///
+    /// Fallible since #1321: a route's verification scheme is built from its
+    /// configuration, and building it can fail. It is built **here**, once, and
+    /// what comes out is what serves the route — an unbuildable configuration must
+    /// refuse to mount rather than be skipped like a missing secret, because the
+    /// two are different mistakes and only one of them is an operator's deliberate
+    /// "not in this environment".
+    ///
+    /// # Errors
+    ///
+    /// `ServerError::ConfigError` naming the route and what is wrong with it — the
+    /// same refusals [`webhook_routes_check`] reports, from the same call.
     pub fn new(
         pool: PgPool,
         routes: &std::collections::HashMap<String, WebhookRouteConfig>,
         get_env: impl Fn(&str) -> Option<String>,
-    ) -> Self {
+    ) -> crate::Result<Self> {
         let mut secrets = StaticSecretProvider::new();
-        let mut resolved = BTreeMap::new();
+        let mut mounted = BTreeMap::new();
 
-        for (name, config) in routes {
-            let segment = config.path.clone().unwrap_or_else(|| name.clone());
+        for (segment, route) in build_routes(routes)? {
             // #1045: `SECRET_ENV=""` is unset for every purpose that matters — it cannot
             // verify anything — so it takes the same skip path rather than mounting a
             // route that answers 401 to every genuine delivery.
-            let Some(secret) = get_env(&config.secret_env).filter(|s| !s.is_empty()) else {
+            let Some(secret) = get_env(&route.secret_name).filter(|s| !s.is_empty()) else {
                 tracing::warn!(
-                    route = %name,
-                    secret_env = %config.secret_env,
+                    route = %route.name,
+                    secret_env = %route.secret_name,
                     "inbound webhook route SKIPPED: signing secret env is unset, so the \
                      route is not mounted (deliveries answer 404). Set the variable and \
                      restart to serve it."
                 );
                 continue;
             };
-            secrets = secrets.with_secret(config.secret_env.clone(), secret);
-            resolved.insert(
-                segment,
-                ResolvedRoute {
-                    provider:    config.provider.clone(),
-                    secret_name: config.secret_env.clone(),
-                    public_url:  config.public_url.clone(),
-                },
-            );
+            secrets = secrets.with_secret(route.secret_name.clone(), secret);
+            mounted.insert(segment, route);
         }
 
         let store = PostgresIdempotencyStore::new(pool.clone());
         let pipeline = WebhookPipeline::new(pool, secrets, store, SpineEventHandler);
 
-        Self {
+        Ok(Self {
             pipeline:               Arc::new(pipeline),
-            registry:               Arc::new(ProviderRegistry::new()),
-            routes:                 Arc::new(resolved),
+            routes:                 Arc::new(mounted),
             hooks:                  None,
             query_executor_factory: None,
-        }
+        })
     }
 
     /// Attach the function-dispatch hooks so a persisted message fires its
@@ -303,99 +392,54 @@ impl WebhookInboundState {
     }
 }
 
-/// Validate the configured inbound webhook routes at boot (#787/#781).
+/// Validate the configured inbound webhook routes at boot (#787/#781/#1321).
 ///
-/// Refuses, in every environment:
+/// Runs `build_routes` — the same construction that serves the mounted router —
+/// and then applies the one policy that depends on the environment. Everything
+/// `build_routes` refuses is refused here in every environment:
 ///
-/// * a `provider` the verifier registry does not know — the route could never verify anything, and
-///   the first genuine delivery would 500;
-/// * a provider whose signing scheme covers the request URL (Twilio) without a `public_url` — the
-///   URL cannot be reconstructed from request headers without trusting the sender.
+/// * two routes resolving to one `/webhooks/{segment}`, which would shadow each other
+///   non-deterministically (#1048);
+/// * a `provider` that names no known scheme — the route could never verify anything;
+/// * a scheme key the selected scheme does not read, or a credential location it cannot honour
+///   (#1321);
+/// * a scheme that covers the request URL (Twilio) without a `public_url` — the URL cannot be
+///   reconstructed from request headers without trusting the sender.
 ///
 /// Refuses in production (warns in development):
 ///
 /// * a route whose `secret_env` is unset — the route the operator configured would silently answer
-///   404 (`WebhookInboundState::new` skips it).
+///   404 ([`WebhookInboundState::new`] skips it).
 ///
 /// Pure and race-free like the other boot guards: the caller supplies the env
 /// reader and the deployment mode.
 ///
 /// # Errors
 ///
-/// Returns `ServerError::ConfigError` naming the route and what is missing.
+/// `ServerError::ConfigError` naming the route and what is missing.
 pub fn webhook_routes_check<S: std::hash::BuildHasher>(
     routes: &std::collections::HashMap<String, WebhookRouteConfig, S>,
     get_env: impl Fn(&str) -> Option<String>,
     is_production: bool,
 ) -> crate::Result<()> {
-    // #1048: two routes resolving to the same `/webhooks/{segment}` silently shadowed
-    // each other. `WebhookInboundState::new` inserts into a `BTreeMap` keyed by the
-    // segment, so a repeat is last-write-wins — and because it iterates a `HashMap`
-    // whose `RandomState` differs per process, *which* route survived changed between
-    // boots of an identical config. The loser's deliveries then met the winner's
-    // verifier and failed. Mirrors the duplicate-sink-name guard in
-    // `server_config/cdc_outbound.rs`.
-    //
-    // Checked in sorted order so the refusal names the same pair on every boot;
-    // diagnosing a non-deterministic config error with a non-deterministic message
-    // would be no better than the defect.
-    let mut sorted: Vec<(&String, &WebhookRouteConfig)> = routes.iter().collect();
-    sorted.sort_by(|(a, _), (b, _)| a.cmp(b));
-    let mut segments: std::collections::BTreeMap<&str, &str> = std::collections::BTreeMap::new();
-    for (name, config) in &sorted {
-        let segment = config.path.as_deref().unwrap_or(name.as_str());
-        if let Some(previous) = segments.insert(segment, name.as_str()) {
-            return Err(crate::ServerError::ConfigError(format!(
-                "[webhooks.{previous}] and [webhooks.{name}] both resolve to the path \
-                 segment {segment:?}, so only one of them could ever be mounted and which \
-                 one would change between restarts. Give one of them a distinct `path`, or \
-                 remove it. (A route's segment is its `path` override, or its config key \
-                 when `path` is absent — so an override may collide with another route's \
-                 name.)"
-            )));
-        }
-    }
-
-    let registry = ProviderRegistry::new();
-    for (name, config) in sorted {
-        let Some(verifier) = registry.get(&config.provider) else {
-            return Err(crate::ServerError::ConfigError(format!(
-                "[webhooks.{name}] provider = {:?} is not a known webhook provider; \
-                 known providers: {}",
-                config.provider,
-                {
-                    let mut names = registry.providers();
-                    names.sort();
-                    names.join(", ")
-                }
-            )));
-        };
-        if verifier.requires_url() && config.public_url.is_none() {
-            return Err(crate::ServerError::ConfigError(format!(
-                "[webhooks.{name}] provider = {:?} signs the request URL, so the route \
-                 needs `public_url` set to the exact URL registered at the provider. \
-                 Reconstructing it from request headers would let the sender choose the \
-                 signed material, so the server refuses to guess.",
-                config.provider
-            )));
-        }
+    for route in build_routes(routes)?.values() {
         // #1045: an env var that is set but empty verifies nothing, so it is treated as
         // unset here too. Checking only `is_none()` let `SECRET_ENV=""` boot clean and
         // then fail every delivery with a 401 that blamed the sender.
-        if get_env(&config.secret_env).filter(|s| !s.is_empty()).is_none() {
+        if get_env(&route.secret_name).filter(|s| !s.is_empty()).is_none() {
             if is_production {
                 return Err(crate::ServerError::ConfigError(format!(
-                    "[webhooks.{name}] secret_env = {:?} is not set (or is empty) in the \
+                    "[webhooks.{}] secret_env = {:?} is not set (or is empty) in the \
                      environment, so the configured route cannot verify any delivery. Set \
                      the variable, or remove the route. (For local development only, \
                      FRAISEQL_ENV=development downgrades this to a warning and skips the \
                      route.)",
-                    config.secret_env
+                    route.name, route.secret_name
                 )));
             }
             tracing::warn!(
-                route = %name,
-                secret_env = %config.secret_env,
+                route = %route.name,
+                secret_env = %route.secret_name,
                 "inbound webhook route will be skipped: signing secret env is unset. \
                  Allowed only because FRAISEQL_ENV=development."
             );
@@ -574,13 +618,15 @@ pub async fn webhook_handler(
         );
     };
 
-    let Some(verifier) = state.registry.get(&route.provider) else {
-        return json_status(
-            StatusCode::INTERNAL_SERVER_ERROR,
-            &json!({ "error": format!("unknown webhook provider '{}'", route.provider) }),
-        );
-    };
+    // #1321: the scheme was built at boot from this route's configuration and is
+    // held here. There is no second lookup by provider name — which could not serve
+    // two `hmac-sha256` routes reading different headers anyway — and so no
+    // "unknown webhook provider" 500 on a configuration that already booted.
+    let verifier = route.scheme.as_ref();
 
+    // `HeaderMap::get` matches header names case-insensitively, which is what the
+    // wire says: the configured spelling is the operator's (`X-Lago-Signature`) and
+    // the sent one is the sender's (`x-lago-signature`), and they need not agree.
     let Some(signature) = headers.get(verifier.signature_header()).and_then(|v| v.to_str().ok())
     else {
         return json_status(
@@ -678,7 +724,7 @@ pub async fn webhook_handler(
         params,
     };
 
-    match state.pipeline.process(verifier.as_ref(), &route.secret_name, &delivery).await {
+    match state.pipeline.process(verifier, &route.secret_name, &delivery).await {
         Ok(Disposition::Processed(_)) => {
             // Committed durably: now fire `after:ingest` on the persisted message.
             dispatch_after_ingest(&state, &message);

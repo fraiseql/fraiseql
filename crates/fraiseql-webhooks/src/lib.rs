@@ -10,8 +10,9 @@
 //! ## What this crate provides
 //!
 //! - Per-provider signature verifiers ([`signature`]) returning `Ok(bool)` /
-//!   [`signature::SignatureError`], registrable via [`traits::SignatureVerifier`] and resolved
-//!   through a [`signature::ProviderRegistry`].
+//!   [`signature::SignatureError`], implementing [`traits::SignatureVerifier`] and built from a
+//!   route's configuration by [`scheme::build_scheme`] — the one construction, so boot validation
+//!   and the mounted route are served from the same value (#1321).
 //! - A constant-time comparison helper ([`signature::constant_time_eq`]).
 //! - [`WebhookPipeline`] — composes secret resolution → signature verification → atomic idempotency
 //!   claim → transactional handler into one [`process`](WebhookPipeline::process) call (see
@@ -98,6 +99,7 @@
 
 pub mod idempotency;
 pub mod pipeline;
+pub mod scheme;
 pub mod secret;
 pub mod signature;
 pub mod testing;
@@ -109,6 +111,7 @@ pub mod transaction;
 pub use futures;
 pub use idempotency::PostgresIdempotencyStore;
 pub use pipeline::{Delivery, Disposition, WebhookPipeline, verify_signature};
+pub use scheme::{CredentialLocation, SchemeConfig, SchemeError, SignatureEncoding, build_scheme};
 pub use secret::StaticSecretProvider;
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;

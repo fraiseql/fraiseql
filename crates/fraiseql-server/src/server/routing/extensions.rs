@@ -328,11 +328,27 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             return app;
         }
 
-        let mut inbound_state = crate::inbound::WebhookInboundState::new(
+        // #1321: building a route's verification scheme can fail, so this is
+        // fallible now. `webhook_routes_check` ran the *same* construction on the
+        // *same* `config.webhooks` in the boot path and refused there, exactly as
+        // the async-operations mount above trusts its own boot guard — so an error
+        // here means that guard was bypassed by an embedder driving the router
+        // directly. Log it and mount nothing, like the missing-pool branch above:
+        // serving a scheme the operator did not configure would be worse than a 404.
+        let mut inbound_state = match crate::inbound::WebhookInboundState::new(
             db_pool.clone(),
             &self.config.webhooks,
             |name| std::env::var(name).ok(),
-        );
+        ) {
+            Ok(inbound_state) => inbound_state,
+            Err(error) => {
+                tracing::error!(
+                    %error,
+                    "Inbound webhook routes NOT mounted — the configuration could not be                      built. This is refused at boot by webhook_routes_check; reaching it                      means the boot guard was bypassed."
+                );
+                return app;
+            },
+        };
         if let Some(ref hooks) = state.before_mutation_hooks {
             inbound_state = inbound_state.with_hooks(std::sync::Arc::clone(hooks));
             // #594: thread the request-path executor factory so after:ingest

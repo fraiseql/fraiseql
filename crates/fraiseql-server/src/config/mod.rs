@@ -11,7 +11,8 @@
 //! architecture docs described it as the binary's config path (#839). It was
 //! deleted rather than wired in.
 
-use serde::Deserialize;
+#[cfg(feature = "webhooks")]
+use fraiseql_webhooks::{CredentialLocation, SchemeConfig, SignatureEncoding};
 
 pub mod error_sanitization;
 pub mod pool_tuning;
@@ -50,7 +51,24 @@ const fn default_flush_interval_secs() -> u64 {
 }
 
 /// Configuration for a single incoming webhook route.
-#[derive(Debug, Clone, serde::Serialize, Deserialize)]
+///
+/// Gated on `webhooks` — the feature that brings `fraiseql-webhooks` in — because
+/// the scheme keys below are that crate's types. `ServerConfig::webhooks` is gated
+/// on `inbound`, which implies `webhooks`, so the two cannot come apart.
+///
+/// `deny_unknown_fields` (#1321): the parent `ServerConfig`'s attribute does **not**
+/// propagate into a nested struct, so before this a mistyped `encodng = "base64"`
+/// parsed exactly like the correct spelling and the route silently served the
+/// default scheme. A key this struct does not know is now a boot refusal that names
+/// it. (The other 17 sections with the same hole are #1337.)
+///
+/// Knowing a key is not the same as *reading* it: `credential`, `encoding` and
+/// `prefix` describe a signing scheme, and a preset like `stripe` fixes its own.
+/// Carrying one there is refused too, by `scheme::build_scheme` — see
+/// [`SchemeError::IrrelevantKey`](fraiseql_webhooks::SchemeError::IrrelevantKey).
+#[cfg(feature = "webhooks")]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebhookRouteConfig {
     /// Name of the environment variable that holds the webhook signing secret.
     pub secret_env: String,
@@ -68,4 +86,37 @@ pub struct WebhookRouteConfig {
     /// refuses to boot instead when a URL-signing provider lacks this (#781).
     #[serde(default)]
     pub public_url: Option<String>,
+
+    /// Where this sender puts the credential the scheme authenticates:
+    /// `header:<Name>`, `body`, or `body:<field>`.
+    ///
+    /// Read by the `hmac-sha256` / `hmac-sha1` schemes, whose signing details belong
+    /// to the operator rather than to a provider. Absent means `header:X-Signature`,
+    /// the pre-#1321 default. A preset (`stripe`, `github`, …) refuses the key.
+    #[serde(default)]
+    pub credential: Option<CredentialLocation>,
+
+    /// How the credential is written on the wire: `hex` or `base64`. Absent means
+    /// `hex`. Same readership as `credential`.
+    #[serde(default)]
+    pub encoding: Option<SignatureEncoding>,
+
+    /// A literal stripped from the front of the credential before it is decoded
+    /// (GitHub-style `sha256=`). Absent means nothing is stripped. Same readership
+    /// as `credential`.
+    #[serde(default)]
+    pub prefix: Option<String>,
+}
+
+#[cfg(feature = "webhooks")]
+impl WebhookRouteConfig {
+    /// This route's scheme keys, as `fraiseql-webhooks` takes them.
+    #[must_use]
+    pub fn scheme_config(&self) -> SchemeConfig {
+        SchemeConfig {
+            credential: self.credential.clone(),
+            encoding:   self.encoding,
+            prefix:     self.prefix.clone(),
+        }
+    }
 }

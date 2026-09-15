@@ -12,8 +12,15 @@ pub trait SignatureVerifier: Send + Sync {
     /// Provider name (e.g., "stripe", "github")
     fn name(&self) -> &'static str;
 
-    /// Header name containing the signature
-    fn signature_header(&self) -> &'static str;
+    /// Name of the request header this scheme reads its credential from.
+    ///
+    /// Borrowed from `self` rather than `&'static str` (#1321): a generic HMAC
+    /// scheme's header is its route's configuration, not a constant, so a sender
+    /// that puts its MAC in `X-Lago-Signature` is a configuration of the scheme
+    /// rather than a new implementation of this trait. Matched case-insensitively
+    /// against the request — the configured spelling is the operator's and the wire
+    /// spelling is the sender's, and they need not agree.
+    fn signature_header(&self) -> &str;
 
     /// Header name carrying the provider's request timestamp, if its signing
     /// scheme uses one (Slack, Discord, SendGrid).

@@ -27,6 +27,7 @@ use axum::{
 };
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use fraiseql_server::{
+    ServerConfig,
     config::WebhookRouteConfig,
     inbound::{WebhookInboundState, webhook_router, webhook_routes_check},
 };
@@ -36,6 +37,7 @@ use hmac::{Hmac, KeyInit, Mac};
 use sha1::Sha1;
 use sha2::{Digest as _, Sha256};
 use sqlx::{PgPool, postgres::PgPoolOptions};
+use tempfile::NamedTempFile;
 use tower::ServiceExt as _;
 
 const SLACK_SECRET_ENV: &str = "FRAISEQL_TEST_SLACK_SIGNING_SECRET";
@@ -59,6 +61,9 @@ fn routes() -> HashMap<String, WebhookRouteConfig> {
             provider:   "slack".to_string(),
             path:       None,
             public_url: None,
+            credential: None,
+            encoding:   None,
+            prefix:     None,
         },
     );
     routes.insert(
@@ -68,6 +73,9 @@ fn routes() -> HashMap<String, WebhookRouteConfig> {
             provider:   "twilio".to_string(),
             path:       None,
             public_url: Some(TWILIO_PUBLIC_URL.to_string()),
+            credential: None,
+            encoding:   None,
+            prefix:     None,
         },
     );
     routes.insert(
@@ -77,13 +85,16 @@ fn routes() -> HashMap<String, WebhookRouteConfig> {
             provider:   "lemonsqueezy".to_string(),
             path:       None,
             public_url: None,
+            credential: None,
+            encoding:   None,
+            prefix:     None,
         },
     );
     routes
 }
 
 fn router(pool: PgPool) -> Router {
-    let state = WebhookInboundState::new(pool, &routes(), |_| Some(SECRET.to_string()));
+    let state = WebhookInboundState::new(pool, &routes(), |_| Some(SECRET.to_string())).unwrap();
     webhook_router(state)
 }
 
@@ -436,4 +447,228 @@ fn a_url_signing_provider_without_public_url_refuses_to_boot() {
 #[test]
 fn a_fully_configured_route_set_boots() {
     assert!(webhook_routes_check(&routes(), |_| Some(SECRET.to_string()), true).is_ok());
+}
+
+// ── #1321: a route's verification scheme is its configuration ────────────────
+//
+// The four cases below each discriminate on one axis, so that reverting one fix
+// alone reddens one case and no other:
+//
+//   1. the credential's **location** (a header that is not `X-Signature`) and its **encoding**
+//      (base64, not hex). Both are wrong today, so this case must stay red under either mutation on
+//      its own;
+//   2. the **prefix** a GitHub-style sender puts in front of the hex;
+//   3. a mistyped scheme key, which today parses identically to the correct spelling;
+//   4. a key the **selected scheme does not read**, which `deny_unknown_fields` alone would still
+//      accept and ignore.
+//
+// Configuration is parsed through `ServerConfig::from_file` — the producer an
+// operator actually drives — and not through a `WebhookRouteConfig` struct literal.
+// The literal cannot express the defect: a key the struct has no field for is
+// discarded *at parse*, so only the parser can answer whether the key reached the
+// route at all (`WebhookRouteConfig` carries no `deny_unknown_fields`, and
+// `ServerConfig`'s own attribute does not propagate into a nested struct).
+
+/// Lago's documented scheme: `HMAC-SHA256` over the raw body, **base64**, carried in
+/// the provider's own `X-Lago-Signature` header.
+///
+/// ⚠ Synthesized, not captured. The issue's gate names a captured Lago delivery;
+/// Lago is self-hostable so one is obtainable, and until it exists this fixture is
+/// built from the provider's documentation, exactly like every other delivery in
+/// this file (see the module docs).
+const LAGO_CONFIG: &str = r#"
+[webhooks.lago]
+provider   = "hmac-sha256"
+secret_env = "FRAISEQL_TEST_LAGO_WEBHOOK_SECRET"
+credential = "header:X-Lago-Signature"
+encoding   = "base64"
+"#;
+
+/// A self-hosted sender that signs like `GitHub`: hex, behind a `sha256=` prefix,
+/// in `X-Hub-Signature-256` — expressed as configuration over the generic scheme
+/// rather than as one more Rust type.
+const SELFHOSTED_CONFIG: &str = r#"
+[webhooks.selfhosted]
+provider   = "hmac-sha256"
+secret_env = "FRAISEQL_TEST_SELFHOSTED_WEBHOOK_SECRET"
+credential = "header:X-Hub-Signature-256"
+encoding   = "hex"
+prefix     = "sha256="
+"#;
+
+/// Stripe's scheme has no configurable encoding — it is `t=…,v1=…`, hex, by
+/// definition. The route is named `billing` on purpose: `stripe` can then only have
+/// reached a refusal message from `provider`.
+const STRIPE_WITH_ENCODING: &str = r#"
+[webhooks.billing]
+provider   = "stripe"
+secret_env = "FRAISEQL_TEST_LAGO_WEBHOOK_SECRET"
+encoding   = "base64"
+"#;
+
+/// [`LAGO_CONFIG`] with `encoding` mistyped, and nothing else changed. Spelled out
+/// rather than derived by string surgery so that what the parser is handed is
+/// visible here, byte for byte.
+const LAGO_CONFIG_MISTYPED: &str = r#"
+[webhooks.lago]
+provider   = "hmac-sha256"
+secret_env = "FRAISEQL_TEST_LAGO_WEBHOOK_SECRET"
+credential = "header:X-Lago-Signature"
+encodng    = "base64"
+"#;
+
+/// Boot the server's view of a `[webhooks.*]` config: parse the file, then run the
+/// boot-time route validation over what parsed. Returns the refusal message from
+/// whichever of the two refused, because "refused at boot" is one answer to the
+/// operator regardless of which half produced it.
+fn boot(config_toml: &str) -> Result<HashMap<String, WebhookRouteConfig>, String> {
+    let file = NamedTempFile::new().unwrap();
+    std::fs::write(file.path(), config_toml).unwrap();
+    let config = ServerConfig::from_file(file.path())?;
+    let routes = config.webhooks;
+    webhook_routes_check(&routes, |_| Some(SECRET.to_string()), true)
+        .map_err(|error| error.to_string())?;
+    Ok(routes)
+}
+
+fn router_for(pool: PgPool, routes: &HashMap<String, WebhookRouteConfig>) -> Router {
+    webhook_router(WebhookInboundState::new(pool, routes, |_| Some(SECRET.to_string())).unwrap())
+}
+
+#[tokio::test]
+async fn a_generic_hmac_route_honours_its_configured_header_and_encoding() {
+    let Some(pool) = setup().await else {
+        eprintln!(
+            "skipping a_generic_hmac_route_honours_its_configured_header_and_encoding: \
+             DATABASE_URL unset"
+        );
+        return;
+    };
+    let routes = boot(LAGO_CONFIG).expect("a configured generic HMAC route must boot");
+    let router = router_for(pool, &routes);
+
+    let body = format!(r#"{{"id":"lago-{}","type":"invoice.created"}}"#, unique());
+    let signature = BASE64.encode(hmac_sha256(body.as_bytes()));
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/webhooks/lago")
+        // Lower-cased deliberately. HTTP header names are case-insensitive and
+        // `collect_headers` stores the lower-cased name, so a scheme that looked the
+        // configured `X-Lago-Signature` up case-sensitively would refuse every
+        // genuine delivery while passing a fixture that happened to match the case.
+        .header("x-lago-signature", &signature)
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let (status, response) = send(&router, request).await;
+
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "#1321: the route must take the credential from the header the config names \
+         and decode it with the encoding the config names. Today both keys are \
+         dropped at parse and the generic scheme reads `X-Signature` as hex, so a \
+         genuine Lago delivery answers 400. Red on either axis alone: honouring the \
+         header but not the encoding gives 401, honouring the encoding but not the \
+         header gives 400; body: {response}"
+    );
+    assert!(response.contains("processed"), "expected processed, got: {response}");
+}
+
+#[tokio::test]
+async fn a_generic_hmac_route_strips_its_configured_prefix() {
+    let Some(pool) = setup().await else {
+        eprintln!("skipping a_generic_hmac_route_strips_its_configured_prefix: DATABASE_URL unset");
+        return;
+    };
+    let routes = boot(SELFHOSTED_CONFIG).expect("a configured generic HMAC route must boot");
+    let router = router_for(pool, &routes);
+
+    let body = format!(r#"{{"id":"selfhosted-{}","type":"push"}}"#, unique());
+    let signature = format!("sha256={}", hex::encode(hmac_sha256(body.as_bytes())));
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/webhooks/selfhosted")
+        .header("X-Hub-Signature-256", &signature)
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let (status, response) = send(&router, request).await;
+
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "#1321: a configured `prefix` must be stripped before the credential is \
+         decoded. This case is hex, so it is red only for the prefix and the header — \
+         leaving the prefix on makes the comparison fail with 401; body: {response}"
+    );
+    assert!(response.contains("processed"), "expected processed, got: {response}");
+}
+
+#[test]
+fn a_mistyped_scheme_key_refuses_to_boot_naming_the_key() {
+    let error = boot(LAGO_CONFIG_MISTYPED).expect_err(
+        "a mistyped scheme key must refuse to boot. Today it parses exactly like the \
+         correct spelling — `WebhookRouteConfig` has no `deny_unknown_fields`, so the \
+         key is discarded and the route silently serves the default scheme",
+    );
+
+    assert!(
+        error.contains("encodng"),
+        "the refusal must name the key the operator mistyped, or it cannot be acted \
+         on; got: {error}"
+    );
+}
+
+#[test]
+fn a_key_the_selected_scheme_does_not_read_refuses_to_boot_naming_the_scheme() {
+    let error = boot(STRIPE_WITH_ENCODING).expect_err(
+        "`encoding` on a stripe route is a knob the operator believes is in force and \
+         that nothing reads. `deny_unknown_fields` alone does not catch it: the key is \
+         known to the *config*, just not to the *scheme* — the silent drop one level \
+         down",
+    );
+
+    assert!(
+        error.contains("encoding"),
+        "the refusal must name the key that would have been ignored; got: {error}"
+    );
+    assert!(
+        error.contains("stripe"),
+        "the refusal must name the scheme that does not read it — the route is named \
+         `billing`, so `stripe` can only have come from `provider`; got: {error}"
+    );
+}
+
+#[tokio::test]
+async fn a_forged_delivery_to_a_configured_route_is_still_refused() {
+    let Some(pool) = setup().await else {
+        eprintln!(
+            "skipping a_forged_delivery_to_a_configured_route_is_still_refused: DATABASE_URL unset"
+        );
+        return;
+    };
+    let routes = boot(LAGO_CONFIG).expect("a configured generic HMAC route must boot");
+    let router = router_for(pool, &routes);
+
+    // Well-formed base64 in the configured header, over a *different* body: the
+    // location and the encoding are right and only the MAC is wrong. Without this
+    // case, "honour the configured header and encoding" is satisfiable by a scheme
+    // that stopped comparing anything at all, and the two cases above would both
+    // pass it.
+    let body = format!(r#"{{"id":"lago-forged-{}","type":"invoice.created"}}"#, unique());
+    let signature = BASE64.encode(hmac_sha256(b"a different body entirely"));
+
+    let request = Request::builder()
+        .method("POST")
+        .uri("/webhooks/lago")
+        .header("x-lago-signature", &signature)
+        .header("content-type", "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let (status, _) = send(&router, request).await;
+
+    assert_eq!(status, StatusCode::UNAUTHORIZED, "a forged Lago delivery must 401");
 }

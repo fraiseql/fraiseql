@@ -145,7 +145,7 @@ mod genuine_delivery_fixtures {
     use sha1::Sha1;
     use sha2::Sha256;
 
-    use crate::signature::ProviderRegistry;
+    use crate::scheme::{KNOWN_SCHEMES, SchemeConfig, build_scheme};
 
     fn hmac_sha256(secret: &str, message: &[u8]) -> Vec<u8> {
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes()).unwrap();
@@ -384,9 +384,9 @@ mod genuine_delivery_fixtures {
 
     #[test]
     fn every_genuine_delivery_verifies() {
-        let registry = ProviderRegistry::new();
         for f in fixtures() {
-            let verifier = registry.get(f.provider).expect(f.provider);
+            let verifier =
+                build_scheme(f.provider, &SchemeConfig::default(), 300).expect(f.provider);
             let result = verifier.verify(
                 &f.body,
                 &f.signature,
@@ -404,9 +404,9 @@ mod genuine_delivery_fixtures {
 
     #[test]
     fn every_tampered_delivery_is_rejected() {
-        let registry = ProviderRegistry::new();
         for f in fixtures() {
-            let verifier = registry.get(f.provider).expect(f.provider);
+            let verifier =
+                build_scheme(f.provider, &SchemeConfig::default(), 300).expect(f.provider);
             // GitLab's scheme signs nothing (static token), so tamper the token;
             // for everyone else, tamper the body the signature covers.
             let (body, signature) = if f.provider == "gitlab" {
@@ -432,20 +432,20 @@ mod genuine_delivery_fixtures {
         }
     }
 
-    /// A provider cannot be added to the registry without fixtures here: this is
+    /// A scheme cannot be added to `KNOWN_SCHEMES` without fixtures here: this is
     /// the harness the phase demanded, so instance N+1 of "self-consistent tests,
     /// broken against the real provider" cannot land silently.
     #[test]
     fn every_registered_provider_has_genuine_and_tampered_fixtures() {
-        let registry = ProviderRegistry::new();
-        let mut registered = registry.providers();
+        let mut registered: Vec<String> =
+            KNOWN_SCHEMES.iter().map(|name| (*name).to_string()).collect();
         registered.sort();
         let mut covered: Vec<String> = fixtures().iter().map(|f| f.provider.to_string()).collect();
         covered.sort();
         covered.dedup();
         assert_eq!(
             registered, covered,
-            "every registered provider needs a genuine + tampered fixture in this file"
+            "every scheme in KNOWN_SCHEMES needs a genuine + tampered fixture in this file"
         );
     }
 }

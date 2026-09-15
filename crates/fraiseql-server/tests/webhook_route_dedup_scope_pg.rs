@@ -78,6 +78,9 @@ fn router(pool: PgPool) -> Router {
         provider:   PROVIDER.to_string(),
         path:       None,
         public_url: None,
+        credential: None,
+        encoding:   None,
+        prefix:     None,
     };
     let mut routes = HashMap::new();
     routes.insert("partner-a".to_string(), route(A_SECRET_ENV));
@@ -87,7 +90,8 @@ fn router(pool: PgPool) -> Router {
         A_SECRET_ENV => Some(A_SECRET.to_string()),
         B_SECRET_ENV => Some(B_SECRET.to_string()),
         _ => None,
-    });
+    })
+    .unwrap();
     webhook_router(state)
 }
 

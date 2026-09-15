@@ -4,7 +4,6 @@
 
 pub mod generic;
 pub mod github;
-pub mod registry;
 pub mod shopify;
 pub mod stripe;
 
@@ -17,8 +16,6 @@ pub mod postmark;
 pub mod sendgrid;
 pub mod slack;
 pub mod twilio;
-
-pub use registry::ProviderRegistry;
 
 /// Errors produced by low-level signature verification routines.
 #[derive(Debug, thiserror::Error)]

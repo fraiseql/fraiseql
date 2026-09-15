@@ -26,7 +26,8 @@ mod router_construction {
 
     #[tokio::test]
     async fn webhook_router_constructs() {
-        let state = WebhookInboundState::new(lazy_pool(), &HashMap::new(), |_| None);
+        let state = WebhookInboundState::new(lazy_pool(), &HashMap::new(), |_| None)
+            .expect("an empty route set builds");
         let _ = webhook_router(state);
     }
 }
@@ -63,13 +64,15 @@ mod after_ingest_bridge {
 
     #[tokio::test] // `connect_lazy` needs a Tokio context (it spawns the pool's keeper).
     async fn without_a_factory_the_bridge_is_unwired() {
-        let state = WebhookInboundState::new(lazy_pool(), &HashMap::new(), |_| None);
+        let state = WebhookInboundState::new(lazy_pool(), &HashMap::new(), |_| None)
+            .expect("an empty route set builds");
         assert!(state.query_executor_factory().is_none());
     }
 
     #[tokio::test]
     async fn with_a_factory_the_state_carries_the_after_ingest_bridge() {
         let state = WebhookInboundState::new(lazy_pool(), &HashMap::new(), |_| None)
+            .expect("an empty route set builds")
             .with_query_executor_factory(factory());
         assert!(
             state.query_executor_factory().is_some(),
@@ -322,10 +325,14 @@ mod error_body_sanitization {
                 provider:   "hmac-sha256".to_string(),
                 path:       None,
                 public_url: None,
+                credential: None,
+                encoding:   None,
+                prefix:     None,
             },
         );
         let state =
-            WebhookInboundState::new(lazy_pool(), &routes, |_| Some("s3cret-value".to_string()));
+            WebhookInboundState::new(lazy_pool(), &routes, |_| Some("s3cret-value".to_string()))
+                .expect("a generic HMAC route builds");
         webhook_router(state)
     }
 
@@ -408,10 +415,14 @@ mod key_material_is_not_the_senders_fault {
                 provider:   "discord".to_string(),
                 path:       None,
                 public_url: None,
+                credential: None,
+                encoding:   None,
+                prefix:     None,
             },
         );
         let state =
-            WebhookInboundState::new(lazy_pool(), &routes, |_| Some(configured_key.to_string()));
+            WebhookInboundState::new(lazy_pool(), &routes, |_| Some(configured_key.to_string()))
+                .expect("a discord route builds");
         webhook_router(state)
     }
 
@@ -487,6 +498,9 @@ mod empty_secret_is_not_configured {
                 provider:   "hmac-sha256".to_string(),
                 path:       None,
                 public_url: None,
+                credential: None,
+                encoding:   None,
+                prefix:     None,
             },
         );
         routes
@@ -517,7 +531,8 @@ mod empty_secret_is_not_configured {
     async fn a_route_with_an_empty_secret_is_not_mounted() {
         // Same disposition as an unset variable (#787): unmounted, so it 404s rather
         // than mounting a route that 401s every genuine delivery.
-        let state = WebhookInboundState::new(lazy_pool(), &one_route(), |_| Some(String::new()));
+        let state = WebhookInboundState::new(lazy_pool(), &one_route(), |_| Some(String::new()))
+            .expect("the route builds; its secret is what is missing");
         assert!(
             state.routes.is_empty(),
             "a route whose secret is empty must be skipped, not mounted"
@@ -547,6 +562,9 @@ mod colliding_path_segments {
             provider:   provider.to_string(),
             path:       path.map(str::to_string),
             public_url: None,
+            credential: None,
+            encoding:   None,
+            prefix:     None,
         }
     }
 
@@ -627,7 +645,8 @@ mod colliding_path_segments {
             "distinct segments are not a collision, even on a shared provider"
         );
 
-        let state = WebhookInboundState::new(lazy_pool(), &routes, |_| Some("s".to_string()));
+        let state = WebhookInboundState::new(lazy_pool(), &routes, |_| Some("s".to_string()))
+            .expect("distinct segments build");
         assert_eq!(state.routes.len(), 2, "both routes must mount");
     }
 }
