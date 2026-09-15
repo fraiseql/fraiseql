@@ -706,3 +706,407 @@ async fn a_forged_delivery_to_a_configured_route_is_still_refused() {
 
     assert_eq!(status, StatusCode::UNAUTHORIZED, "a forged Lago delivery must 401");
 }
+
+/// #1323 cycle 3: the delivery ledger and the durable spine key on the **signed**
+/// id, through the mounted route and a real claim.
+///
+/// The unit fixtures pin the scheme; these pin what the *route* does with what the
+/// scheme authenticated. Every assertion counts durable rows — never the response
+/// body, which is built before the spine is read back and so cannot tell the two
+/// worlds apart.
+///
+/// GREEN landed with cycles 1–2, so these were not written red; each is recovered
+/// by mutation, recorded in the phase file.
+mod standard_webhooks {
+    use super::*;
+
+    /// A real `whsec_` secret: the spec reference library's, whose key is 24 bytes.
+    /// This suite's `SECRET` (`whsec_781`) is not base64 at all, so a
+    /// `standard-webhooks` route configured with it is refused at boot — which is
+    /// `check_key_material` doing its job, not an obstacle to work around.
+    const SW_SECRET: &str = "whsec_C2FVsBQIhrscChlQIMV+b5sSYspob7oD";
+
+    /// Two routes serving Clerk under one secret. Two endpoints on one provider is
+    /// #1046's shape: each sender numbers its own events, so the dedup namespace has
+    /// to be the route.
+    const CLERK_ROUTES: &str = r#"
+[webhooks.clerk-live]
+provider   = "clerk"
+secret_env = "FRAISEQL_TEST_CLERK_WEBHOOK_SECRET"
+
+[webhooks.clerk-test]
+provider   = "clerk"
+secret_env = "FRAISEQL_TEST_CLERK_WEBHOOK_SECRET"
+"#;
+
+    /// The spec's own scheme under a configured header spelling — the `header_prefix`
+    /// key, driven through `ServerConfig::from_file` rather than a struct literal, so
+    /// a key discarded at parse would show up here.
+    const SPEC_ROUTE_UNDER_SVIX_HEADERS: &str = r#"
+[webhooks.partner]
+provider      = "standard-webhooks"
+secret_env    = "FRAISEQL_TEST_CLERK_WEBHOOK_SECRET"
+header_prefix = "svix"
+"#;
+
+    fn boot_sw(config_toml: &str) -> Result<HashMap<String, WebhookRouteConfig>, String> {
+        let file = NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), config_toml).unwrap();
+        let config = ServerConfig::from_file(file.path())?;
+        let routes = config.webhooks;
+        webhook_routes_check(&routes, |_| Some(SW_SECRET.to_string()), true)
+            .map_err(|error| error.to_string())?;
+        Ok(routes)
+    }
+
+    fn sw_router(pool: PgPool, routes: &HashMap<String, WebhookRouteConfig>) -> Router {
+        let built = webhook_routes_check(routes, |_| Some(SW_SECRET.to_string()), false)
+            .expect("these fixtures are valid configurations");
+        webhook_router(WebhookInboundState::new(pool, &built, |_| Some(SW_SECRET.to_string())))
+    }
+
+    /// The documented algorithm, implemented here rather than by calling the scheme.
+    fn sw_sign(id: &str, timestamp: &str, body: &[u8]) -> String {
+        let key = BASE64.decode(SW_SECRET.strip_prefix("whsec_").unwrap()).unwrap();
+        let mut signed = format!("{id}.{timestamp}.").into_bytes();
+        signed.extend_from_slice(body);
+        let mut mac = Hmac::<Sha256>::new_from_slice(&key).unwrap();
+        mac.update(signed.as_slice());
+        format!("v1,{}", BASE64.encode(mac.finalize().into_bytes()))
+    }
+
+    /// One delivery, kept as parts so a replay can change exactly one of them.
+    struct Delivery {
+        id:        String,
+        timestamp: String,
+        signature: String,
+        body:      String,
+    }
+
+    impl Delivery {
+        /// A genuine delivery whose body carries an `id` field that is **not** the
+        /// signed id, and a `type` that is.
+        ///
+        /// The disagreement is the point: a route that took the id from the body
+        /// would pass every assertion below if the two agreed.
+        fn genuine(id: &str) -> Self {
+            let body = format!(
+                r#"{{"id":"the-body-said-{}","type":"user.created","object":"event"}}"#,
+                unique()
+            );
+            let timestamp = now();
+            Self {
+                signature: sw_sign(id, &timestamp, body.as_bytes()),
+                id: id.to_string(),
+                timestamp,
+                body,
+            }
+        }
+
+        /// The same signed bytes, presented under a different id — the #751 attack.
+        fn under_a_fresh_id(&self, id: &str) -> Self {
+            Self {
+                id:        id.to_string(),
+                timestamp: self.timestamp.clone(),
+                signature: self.signature.clone(),
+                body:      self.body.clone(),
+            }
+        }
+
+        fn request(&self, segment: &str, header_prefix: &str) -> Request<Body> {
+            Request::builder()
+                .method("POST")
+                .uri(format!("/webhooks/{segment}"))
+                // Lower-cased deliberately: HTTP header names are case-insensitive and
+                // `collect_headers` stores the lower-cased name.
+                .header(format!("{header_prefix}-id"), &self.id)
+                .header(format!("{header_prefix}-timestamp"), &self.timestamp)
+                .header(format!("{header_prefix}-signature"), &self.signature)
+                .header("content-type", "application/json")
+                .body(Body::from(self.body.clone()))
+                .unwrap()
+        }
+
+        /// The spine key the route derives: `<route length>:<route>:<signed id>`
+        /// (#1046, length-prefixed so the join is injective).
+        fn spine_key(&self, segment: &str) -> String {
+            format!("{}:{}:{}", segment.len(), segment, self.id)
+        }
+    }
+
+    /// Ledger rows for one `(route, event_id)` — the durable claim.
+    async fn ledger_rows(pool: &PgPool, route: &str, event_id: &str) -> i64 {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM webhooks.tb_inbound_delivery WHERE route = $1 AND \
+             event_id = $2",
+        )
+        .bind(route)
+        .bind(event_id)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+
+    /// The `event_type` the claim recorded, if any.
+    async fn ledger_event_type(pool: &PgPool, route: &str, event_id: &str) -> Option<String> {
+        sqlx::query_scalar::<_, String>(
+            "SELECT event_type FROM webhooks.tb_inbound_delivery WHERE route = $1 AND \
+             event_id = $2",
+        )
+        .bind(route)
+        .bind(event_id)
+        .fetch_optional(pool)
+        .await
+        .unwrap()
+    }
+
+    /// Spine rows for one idempotency key — the durable message.
+    async fn spine_rows(pool: &PgPool, key: &str) -> i64 {
+        sqlx::query_scalar::<_, i64>(
+            "SELECT count(*) FROM _fraiseql_inbound_message WHERE idempotency_key = $1",
+        )
+        .bind(key)
+        .fetch_one(pool)
+        .await
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn the_ledger_keys_on_the_signed_id_and_not_on_the_body() {
+        let Some(pool) = setup().await else {
+            eprintln!(
+                "skipping the_ledger_keys_on_the_signed_id_and_not_on_the_body: \
+                       DATABASE_URL unset"
+            );
+            return;
+        };
+        let routes = boot_sw(CLERK_ROUTES).expect("a clerk route must boot");
+        let router = sw_router(pool.clone(), &routes);
+
+        let id = format!("msg_{}", unique());
+        let delivery = Delivery::genuine(&id);
+        let (status, response) = send(&router, delivery.request("clerk-live", "svix")).await;
+        assert_eq!(
+            status,
+            StatusCode::OK,
+            "a genuine Clerk delivery must be processed: {response}"
+        );
+        assert!(response.contains("processed"), "expected processed, got: {response}");
+
+        assert_eq!(
+            ledger_rows(&pool, "clerk-live", &id).await,
+            1,
+            "the claim must be recorded under the SIGNED id. The body carries a \
+             different `id` field, so a route keying on the body would have claimed \
+             that one and this count would be 0."
+        );
+        assert_eq!(
+            ledger_event_type(&pool, "clerk-live", &id).await.as_deref(),
+            Some("user.created"),
+            "the event TYPE still comes out of the signed body — the body is signed \
+             here, unlike the envelope arm where nothing in it is trusted"
+        );
+        assert_eq!(
+            spine_rows(&pool, &delivery.spine_key("clerk-live")).await,
+            1,
+            "the durable spine row is keyed on the signed id too"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_same_signed_id_delivered_twice_is_claimed_once() {
+        let Some(pool) = setup().await else {
+            eprintln!(
+                "skipping the_same_signed_id_delivered_twice_is_claimed_once: \
+                       DATABASE_URL unset"
+            );
+            return;
+        };
+        let routes = boot_sw(CLERK_ROUTES).expect("a clerk route must boot");
+        let router = sw_router(pool.clone(), &routes);
+
+        let id = format!("msg_{}", unique());
+        let delivery = Delivery::genuine(&id);
+
+        let (first, first_body) = send(&router, delivery.request("clerk-live", "svix")).await;
+        assert_eq!(first, StatusCode::OK, "{first_body}");
+        assert!(first_body.contains("processed"), "expected processed, got: {first_body}");
+
+        // Byte-identical redelivery — what a sender does when it did not see the 200.
+        let (second, second_body) = send(&router, delivery.request("clerk-live", "svix")).await;
+        assert_eq!(second, StatusCode::OK, "{second_body}");
+        assert!(
+            second_body.contains("duplicate"),
+            "the second delivery of one signed id is a duplicate, got: {second_body}"
+        );
+
+        // Durable rows, not the response: the response is built before the spine is
+        // read back, so it cannot distinguish "deduped" from "written twice".
+        assert_eq!(
+            ledger_rows(&pool, "clerk-live", &id).await,
+            1,
+            "exactly one claim for one signed id"
+        );
+        assert_eq!(
+            spine_rows(&pool, &delivery.spine_key("clerk-live")).await,
+            1,
+            "exactly one durable spine row for one signed id"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_captured_delivery_replayed_under_a_fresh_id_is_refused_at_verification() {
+        let Some(pool) = setup().await else {
+            eprintln!(
+                "skipping a_captured_delivery_replayed_under_a_fresh_id_is_refused_at_\
+                       verification: DATABASE_URL unset"
+            );
+            return;
+        };
+        let routes = boot_sw(CLERK_ROUTES).expect("a clerk route must boot");
+        let router = sw_router(pool.clone(), &routes);
+
+        let id = format!("msg_{}", unique());
+        let captured = Delivery::genuine(&id);
+        let (status, body) = send(&router, captured.request("clerk-live", "svix")).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+
+        // #751, from the other end. Until this scheme existed the only defence was to
+        // IGNORE the id header, because nothing signed it: a captured signed body
+        // replayed under a fresh id claimed a fresh key and re-fired every
+        // `after:ingest` function. Now the id is inside the signed content, so the
+        // replay does not reach the ledger at all — it fails the signature.
+        let forged_id = format!("msg_attacker_{}", unique());
+        let replay = captured.under_a_fresh_id(&forged_id);
+        let (status, _) = send(&router, replay.request("clerk-live", "svix")).await;
+        assert_eq!(
+            status,
+            StatusCode::UNAUTHORIZED,
+            "the signature covers the id, so a replay under a fresh one must 401"
+        );
+
+        assert_eq!(
+            ledger_rows(&pool, "clerk-live", &forged_id).await,
+            0,
+            "the forged id must reach no claim — verification runs before any database \
+             work, so a refused delivery takes no connection"
+        );
+        assert_eq!(
+            spine_rows(&pool, &replay.spine_key("clerk-live")).await,
+            0,
+            "and no durable spine row"
+        );
+    }
+
+    #[tokio::test]
+    async fn two_routes_receiving_one_signed_id_both_process_it() {
+        let Some(pool) = setup().await else {
+            eprintln!(
+                "skipping two_routes_receiving_one_signed_id_both_process_it: \
+                       DATABASE_URL unset"
+            );
+            return;
+        };
+        let routes = boot_sw(CLERK_ROUTES).expect("two clerk routes must boot");
+        let router = sw_router(pool.clone(), &routes);
+
+        // #1046: each Clerk instance numbers its own messages, so `msg_1` from the
+        // live endpoint and `msg_1` from the test endpoint are different events. A
+        // provider-wide namespace discards the second as a redelivery and answers 200,
+        // so the loss is silent and permanent.
+        let id = format!("msg_{}", unique());
+        let delivery = Delivery::genuine(&id);
+
+        for segment in ["clerk-live", "clerk-test"] {
+            let (status, body) = send(&router, delivery.request(segment, "svix")).await;
+            assert_eq!(status, StatusCode::OK, "{segment}: {body}");
+            assert!(
+                body.contains("processed"),
+                "{segment}: one signed id arriving on a second route is a NEW event, \
+                 not a duplicate; got: {body}"
+            );
+            assert_eq!(ledger_rows(&pool, segment, &id).await, 1, "{segment}: one claim");
+            assert_eq!(
+                spine_rows(&pool, &delivery.spine_key(segment)).await,
+                1,
+                "{segment}: one spine row under its own namespaced key"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn a_configured_header_prefix_reaches_the_mounted_route() {
+        let Some(pool) = setup().await else {
+            eprintln!(
+                "skipping a_configured_header_prefix_reaches_the_mounted_route: \
+                       DATABASE_URL unset"
+            );
+            return;
+        };
+        // `header_prefix = "svix"` on a `standard-webhooks` route, parsed by
+        // `ServerConfig::from_file` — the producer an operator actually uses. A key
+        // discarded at parse, or read at boot and then ignored, shows up here: the
+        // scheme would go on reading `webhook-*` and answer 401.
+        let routes =
+            boot_sw(SPEC_ROUTE_UNDER_SVIX_HEADERS).expect("a configured header_prefix must boot");
+        let router = sw_router(pool.clone(), &routes);
+
+        let id = format!("msg_{}", unique());
+        let delivery = Delivery::genuine(&id);
+        let (status, body) = send(&router, delivery.request("partner", "svix")).await;
+        assert_eq!(status, StatusCode::OK, "a delivery under the configured spelling: {body}");
+        assert_eq!(ledger_rows(&pool, "partner", &id).await, 1);
+
+        // The same delivery under the spec's default spelling must 401: a scheme
+        // reading both prefixes would pass the assertion above.
+        let (status, _) = send(&router, delivery.request("partner", "webhook")).await;
+        assert_eq!(
+            status,
+            StatusCode::UNAUTHORIZED,
+            "a route configured for `svix-*` must not also accept `webhook-*`"
+        );
+    }
+
+    #[test]
+    fn key_material_the_scheme_cannot_use_refuses_to_boot_naming_the_route() {
+        // A `whpk_` secret is Svix's asymmetric (`v1a`, Ed25519) public key, which this
+        // crate does not verify. The alternative to refusing here is a mounted route
+        // answering 401 to every genuine delivery with nothing in the log to explain it
+        // — so the gap is loud, at boot, by name.
+        let file = NamedTempFile::new().unwrap();
+        std::fs::write(file.path(), CLERK_ROUTES).unwrap();
+        let routes = ServerConfig::from_file(file.path()).unwrap().webhooks;
+
+        for (label, secret, must_say) in [
+            ("asymmetric v1a key material", "whpk_C2FVsBQIhrscChlQIMV+b5sSYspob7oD", "v1a"),
+            ("a secret that is not base64", "whsec_not base64 at all", "decode"),
+        ] {
+            let error = webhook_routes_check(&routes, |_| Some(secret.to_string()), true)
+                .map(|_| ())
+                .expect_err(label)
+                .to_string();
+            assert!(
+                error.contains(must_say),
+                "{label}: the refusal must say what is wrong with the key, not just that \
+                 something is; got: {error}"
+            );
+            assert!(
+                error.contains("clerk-live") || error.contains("clerk-test"),
+                "{label}: and it must name the route, or an operator with several cannot \
+                 act on it; got: {error}"
+            );
+            assert!(
+                error.contains("FRAISEQL_TEST_CLERK_WEBHOOK_SECRET"),
+                "{label}: and the env var to fix — never its value; got: {error}"
+            );
+            assert!(
+                !error.contains(secret),
+                "{label}: the refusal must NOT echo the key material itself; got: {error}"
+            );
+        }
+
+        // The guard against over-reach: a usable secret still boots.
+        webhook_routes_check(&routes, |_| Some(SW_SECRET.to_string()), true)
+            .expect("a real whsec_ secret must boot");
+    }
+}
