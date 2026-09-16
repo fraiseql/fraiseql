@@ -28,7 +28,7 @@ use serde::{Deserialize, Serialize};
 use super::{
     cache::{CachedOutcome, IdentityCache},
     failure::{DenyReason, IdentityResolution, ResolveError},
-    query::{MissingParam, prepare_enrichment_query},
+    query::{BoundQuery, MissingParam, prepare_enrichment_query},
 };
 
 /// An owned, `Send` boxed future — the object-safe async return used instead of a
@@ -146,6 +146,18 @@ pub(super) trait IdentityStore: Send + Sync {
         sql: &'a str,
         binds: &'a [serde_json::Value],
     ) -> BoxFuture<'a, Result<Vec<serde_json::Map<String, serde_json::Value>>, ResolveError>>;
+
+    /// Run a statement for its effect, discarding any result (#1324).
+    ///
+    /// Separate from [`fetch_rows`](Self::fetch_rows) because that one wraps its
+    /// SQL as a `FROM` sub-query, and a data-modifying statement cannot be one:
+    /// the issue's documented `INSERT … ON CONFLICT DO NOTHING` contract has no
+    /// path through it. Binding is identical.
+    fn execute<'a>(
+        &'a self,
+        sql: &'a str,
+        binds: &'a [serde_json::Value],
+    ) -> BoxFuture<'a, Result<(), ResolveError>>;
 }
 
 /// The Postgres [`IdentityStore`], running on the unscoped enrichment pool.
@@ -160,6 +172,42 @@ impl PgIdentityStore {
     }
 }
 
+/// Bind the claim values positionally, each as the Postgres type its JSON shape
+/// already is. One builder, so the `query` and the `provision` statement cannot
+/// drift on what a claim binds as.
+///
+/// An object or an array binds as `jsonb` — that is what makes `$claims` usable
+/// as the `jsonb` parameter of a provisioning function without the operator
+/// spelling a cast (#1324).
+fn bind_claims(binds: &[serde_json::Value]) -> Result<sqlx::postgres::PgArguments, ResolveError> {
+    use sqlx::Arguments as _;
+
+    let mut args = sqlx::postgres::PgArguments::default();
+    let failed = |e: sqlx::error::BoxDynError| {
+        ResolveError::new(format!("identity query could not bind a claim value: {e}"))
+    };
+    for value in binds {
+        match value {
+            serde_json::Value::Number(n) => {
+                if let Some(i) = n.as_i64() {
+                    args.add(i).map_err(failed)?;
+                } else if let Some(f) = n.as_f64() {
+                    args.add(f).map_err(failed)?;
+                } else {
+                    args.add(n.to_string()).map_err(failed)?;
+                }
+            },
+            serde_json::Value::Bool(b) => args.add(*b).map_err(failed)?,
+            serde_json::Value::Null => args.add(Option::<String>::None).map_err(failed)?,
+            serde_json::Value::String(s) => args.add(s.as_str()).map_err(failed)?,
+            composite @ (serde_json::Value::Array(_) | serde_json::Value::Object(_)) => {
+                args.add(sqlx::types::Json(composite)).map_err(failed)?;
+            },
+        }
+    }
+    Ok(args)
+}
+
 impl IdentityStore for PgIdentityStore {
     fn fetch_rows<'a>(
         &'a self,
@@ -167,39 +215,11 @@ impl IdentityStore for PgIdentityStore {
         binds: &'a [serde_json::Value],
     ) -> BoxFuture<'a, Result<Vec<serde_json::Map<String, serde_json::Value>>, ResolveError>> {
         Box::pin(async move {
-            // `::text` sidesteps needing sqlx's json Decode feature; `LIMIT 2`
-            // lets the resolver detect ambiguity (DESIGN §5, >1 row → Denied).
+            // `::text` keeps the decode one shape whatever the row holds (the
+            // `json` feature is on for the *encode* side, `bind_claims`); `LIMIT
+            // 2` lets the resolver detect ambiguity (DESIGN §5, >1 row → Denied).
             let wrapped = format!("SELECT row_to_json(t)::text FROM ({sql}) t LIMIT 2");
-            let mut query = sqlx::query_as::<_, (String,)>(&wrapped);
-
-            // Stringify upfront so the &str binds outlive the query builder.
-            let string_binds: Vec<String> = binds
-                .iter()
-                .map(|v| match v {
-                    serde_json::Value::String(s) => s.clone(),
-                    other => other.to_string(),
-                })
-                .collect();
-
-            for (bind_value, string_val) in binds.iter().zip(&string_binds) {
-                query = match bind_value {
-                    serde_json::Value::Number(n) => {
-                        if let Some(i) = n.as_i64() {
-                            query.bind(i)
-                        } else if let Some(f) = n.as_f64() {
-                            query.bind(f)
-                        } else {
-                            query.bind(string_val.as_str())
-                        }
-                    },
-                    serde_json::Value::Bool(b) => query.bind(*b),
-                    serde_json::Value::Null => query.bind(Option::<String>::None),
-                    // String, Array, Object bind as their string representation.
-                    _ => query.bind(string_val.as_str()),
-                };
-            }
-
-            let rows = query
+            let rows = sqlx::query_as_with::<_, (String,), _>(&wrapped, bind_claims(binds)?)
                 .fetch_all(&self.pool)
                 .await
                 .map_err(|e| ResolveError::new(format!("identity query failed: {e}")))?;
@@ -219,6 +239,20 @@ impl IdentityStore for PgIdentityStore {
                 }
             }
             Ok(out)
+        })
+    }
+
+    fn execute<'a>(
+        &'a self,
+        sql: &'a str,
+        binds: &'a [serde_json::Value],
+    ) -> BoxFuture<'a, Result<(), ResolveError>> {
+        Box::pin(async move {
+            sqlx::query_with(sql, bind_claims(binds)?)
+                .execute(&self.pool)
+                .await
+                .map_err(|e| ResolveError::new(format!("identity provision failed: {e}")))?;
+            Ok(())
         })
     }
 }
@@ -266,17 +300,37 @@ impl IdentityResolver {
         };
 
         let key = cache_key(&bound.binds);
+        // A hit is final — including a `Denied(ZeroRows)` a provision statement
+        // already declined to fix. Re-provisioning a refused subject on every
+        // request is one write per request; `negative_ttl_secs` bounds it.
         if let Some(cached) = self.cache.get(&key) {
             return self.finalize(sub, into_resolution(cached));
         }
 
-        let rows = match self.store.fetch_rows(&bound.sql, &bound.binds).await {
-            Ok(rows) => rows,
+        let resolution = match self.fetch_and_classify(&bound).await {
+            Ok(resolution) => resolution,
             // Transient — never cached; the read path fails the request (503).
             Err(err) => return self.finalize(sub, IdentityResolution::Unavailable(err)),
         };
 
-        let resolution = classify(rows, &self.config.map);
+        // #1324: an unknown subject, and a statement that can make it known.
+        //
+        // The pre-provision `ZeroRows` is deliberately **not** cached: a request
+        // that arrived while this one provisions would find it and fail closed
+        // for the rest of `negative_ttl_secs`. Nothing else provisions —
+        // `Ambiguous`, `NullField` and `MissingParam` are the denials of an
+        // identity that already exists, and turning one into access is the whole
+        // failure model inverted.
+        let resolution = match (&resolution, self.config.provision.as_deref()) {
+            (IdentityResolution::Denied(DenyReason::ZeroRows), Some(statement)) => {
+                match self.provision(statement, claims, &bound).await {
+                    Ok(resolution) => resolution,
+                    Err(err) => return self.finalize(sub, IdentityResolution::Unavailable(err)),
+                }
+            },
+            _ => resolution,
+        };
+
         match &resolution {
             IdentityResolution::Resolved(map) => self.cache.insert(
                 key,
@@ -294,6 +348,44 @@ impl IdentityResolver {
             IdentityResolution::Unavailable(_) => {},
         }
         self.finalize(sub, resolution)
+    }
+
+    /// Fetch and classify one bound query — the step both the first resolution
+    /// and the post-provision re-resolution take.
+    async fn fetch_and_classify(
+        &self,
+        bound: &BoundQuery,
+    ) -> Result<IdentityResolution, ResolveError> {
+        let rows = self.store.fetch_rows(&bound.sql, &bound.binds).await?;
+        Ok(classify(rows, &self.config.map))
+    }
+
+    /// Run the configured `provision` statement for an unknown subject, then
+    /// re-read through the **store** (#1324).
+    ///
+    /// The re-read goes to the store rather than the cache on purpose: the cache
+    /// holds nothing for this tuple yet, and reading it back would answer with
+    /// whatever a concurrent request happened to put there.
+    ///
+    /// The statement is the policy. To refuse a subject it inserts nothing, and
+    /// the re-read denies — a denial that *is* cached. Raising is an outage
+    /// (`Unavailable` → 503, never cached), not a way to refuse.
+    async fn provision(
+        &self,
+        statement: &str,
+        claims: &HashMap<String, serde_json::Value>,
+        bound: &BoundQuery,
+    ) -> Result<IdentityResolution, ResolveError> {
+        let provision = match prepare_enrichment_query(statement, claims) {
+            Ok(provision) => provision,
+            // The statement names a claim this token does not carry: a
+            // fail-closed denial, exactly as it is for `query`.
+            Err(MissingParam(name)) => {
+                return Ok(IdentityResolution::Denied(DenyReason::MissingParam(name)));
+            },
+        };
+        self.store.execute(&provision.sql, &provision.binds).await?;
+        self.fetch_and_classify(bound).await
     }
 
     /// Evict every cache entry for `sub` — the admin flush surface

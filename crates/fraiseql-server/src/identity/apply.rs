@@ -84,5 +84,12 @@ fn claims_for_binding(ctx: &SecurityContext) -> HashMap<String, serde_json::Valu
             .entry("iss".to_owned())
             .or_insert_with(|| serde_json::Value::String(iss.clone()));
     }
+    // `$claims` — the whole set as one JSON object, so a provisioning statement
+    // can hand an IdP's token to a function that stores what it chooses (#1324)
+    // instead of the query naming every claim it might ever want. Built last, so
+    // it holds the well-known fields too; it does not hold itself.
+    let snapshot: serde_json::Map<String, serde_json::Value> =
+        claims.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
+    claims.entry("claims".to_owned()).or_insert(serde_json::Value::Object(snapshot));
     claims
 }

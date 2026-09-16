@@ -286,31 +286,60 @@ fn cache_flush_all_clears() {
 
 /// A store that returns a fixed row set (or a transient error) and counts calls,
 /// so tests can assert both the classification and the caching behaviour.
+///
+/// The provisioning arm (#1324) makes it a small state machine: `fetch_rows`
+/// answers `rows` until an `execute` succeeds and `provisioned_rows` answers
+/// after — which is what a `provision` statement does to the table the `query`
+/// reads.
 struct MockStore {
-    rows:  Vec<serde_json::Map<String, Value>>,
-    fail:  Option<ResolveError>,
-    calls: AtomicUsize,
+    rows:             Vec<serde_json::Map<String, Value>>,
+    provisioned_rows: Option<Vec<serde_json::Map<String, Value>>>,
+    provisioned:      std::sync::atomic::AtomicBool,
+    fail:             Option<ResolveError>,
+    provision_fail:   Option<ResolveError>,
+    calls:            AtomicUsize,
+    provisions:       AtomicUsize,
+    executed:         std::sync::Mutex<Vec<(String, Vec<Value>)>>,
 }
 
 impl MockStore {
     fn returning(rows: Vec<serde_json::Map<String, Value>>) -> Self {
         Self {
             rows,
+            provisioned_rows: None,
+            provisioned: std::sync::atomic::AtomicBool::new(false),
             fail: None,
+            provision_fail: None,
             calls: AtomicUsize::new(0),
+            provisions: AtomicUsize::new(0),
+            executed: std::sync::Mutex::new(Vec::new()),
         }
     }
 
     fn failing() -> Self {
         Self {
-            rows:  Vec::new(),
-            fail:  Some(ResolveError::new("db unreachable")),
-            calls: AtomicUsize::new(0),
+            fail: Some(ResolveError::new("db unreachable")),
+            ..Self::returning(Vec::new())
         }
+    }
+
+    /// What `fetch_rows` answers once a provision has run.
+    fn provisioning_to(mut self, rows: Vec<serde_json::Map<String, Value>>) -> Self {
+        self.provisioned_rows = Some(rows);
+        self
     }
 
     fn calls(&self) -> usize {
         self.calls.load(Ordering::Relaxed)
+    }
+
+    fn provisions(&self) -> usize {
+        self.provisions.load(Ordering::Relaxed)
+    }
+
+    /// The `(sql, binds)` of each executed provision statement.
+    fn executed(&self) -> Vec<(String, Vec<Value>)> {
+        self.executed.lock().unwrap().clone()
     }
 }
 
@@ -321,8 +350,28 @@ impl IdentityStore for MockStore {
         _binds: &'a [Value],
     ) -> BoxFuture<'a, Result<Vec<serde_json::Map<String, Value>>, ResolveError>> {
         self.calls.fetch_add(1, Ordering::Relaxed);
-        let result = self.fail.clone().map_or_else(|| Ok(self.rows.clone()), Err);
+        let rows = match &self.provisioned_rows {
+            Some(after) if self.provisioned.load(Ordering::SeqCst) => after.clone(),
+            _ => self.rows.clone(),
+        };
+        let result = self.fail.clone().map_or(Ok(rows), Err);
         Box::pin(async move { result })
+    }
+
+    fn execute<'a>(
+        &'a self,
+        sql: &'a str,
+        binds: &'a [Value],
+    ) -> BoxFuture<'a, Result<(), ResolveError>> {
+        self.provisions.fetch_add(1, Ordering::Relaxed);
+        self.executed.lock().unwrap().push((sql.to_owned(), binds.to_vec()));
+        Box::pin(async move {
+            if let Some(err) = self.provision_fail.clone() {
+                return Err(err);
+            }
+            self.provisioned.store(true, Ordering::SeqCst);
+            Ok(())
+        })
     }
 }
 
@@ -699,6 +748,147 @@ async fn pg_store_binds_hostile_subject_value_safely() {
     sqlx::query(&format!("DROP TABLE {table}")).execute(&pool).await.unwrap();
 }
 
+// ── #1324: provision on miss against a live Postgres ──────────────────────
+
+/// A `sub`-keyed actor table with the conflict target a provisioning statement
+/// needs — the same target any out-of-band writer (an `IdP`'s `user.created`
+/// webhook) must use, or the two writers duplicate the row instead of agreeing
+/// on it.
+async fn make_provisionable_actor_table(pool: &sqlx::PgPool) -> String {
+    let table = format!("tb_actor_prov_{}", uuid::Uuid::new_v4().simple());
+    sqlx::query(&format!(
+        "CREATE TABLE {table} (sub text PRIMARY KEY, actor_id text, actor_role text)"
+    ))
+    .execute(pool)
+    .await
+    .unwrap();
+    table
+}
+
+#[tokio::test]
+async fn pg_provision_function_serves_a_new_subject_and_scopes_its_read() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!(
+            "SKIP pg_provision_function_serves_a_new_subject_and_scopes_its_read: no postgres"
+        );
+        return;
+    };
+    let suffix = uuid::Uuid::new_v4().simple();
+    let actor = make_provisionable_actor_table(&pool).await;
+    let item = format!("tb_item_prov_{suffix}");
+    let view = format!("v_item_prov_{suffix}");
+    let func = format!("fn_provision_actor_{suffix}");
+
+    // The provision function's third parameter is `jsonb`, and it *reads* the
+    // claim set to decide the role. A `$claims` bound as text resolves no such
+    // function, and a `$claims` the function ignores would leave `actor_role`
+    // the same whatever the token said.
+    sqlx::query(&format!(
+        "CREATE FUNCTION {func}(p_sub text, p_email text, p_claims jsonb) RETURNS void AS $$ \
+           INSERT INTO {actor} (sub, actor_id, actor_role) \
+           VALUES (p_sub, 'a-' || split_part(p_email, '@', 1), p_claims->>'department') \
+           ON CONFLICT (sub) DO NOTHING; \
+         $$ LANGUAGE sql"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+    sqlx::query(&format!("CREATE TABLE {item} (id int, owner_actor_id text)"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(&format!("INSERT INTO {item} VALUES (1,'a-newcomer'),(2,'a-someone-else')"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(&format!(
+        "CREATE VIEW {view} AS SELECT * FROM {item} \
+         WHERE current_setting('app.actor_role', true) = 'manager' \
+            OR owner_actor_id = current_setting('app.actor_id', true)"
+    ))
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    let mut cfg = config(
+        &format!("SELECT actor_id, actor_role FROM {actor} WHERE sub = $sub"),
+        &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+    );
+    cfg.provision = Some(format!("SELECT {func}($sub, $email, $claims)"));
+    let resolver = IdentityResolver::new(cfg, Arc::new(PgIdentityStore::new(pool.clone())));
+
+    // A subject with no row: today's #539 answer is 403 until something outside
+    // FraiseQL inserts it.
+    let mut ctx = sec_ctx("newcomer-sub", &[("department", json!("staff"))]);
+    ctx.email = Some("newcomer@acme.example".to_owned());
+    assert_eq!(
+        enrich_security_context(&resolver, &mut ctx).await,
+        EnrichmentOutcome::Proceed,
+        "a brand-new subject is served on its first request"
+    );
+
+    // The row is durable, not a value the resolver made up in memory.
+    let (count,): (i64,) =
+        sqlx::query_as(&format!("SELECT count(*) FROM {actor} WHERE sub = 'newcomer-sub'"))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(count, 1, "the provision statement committed the actor row");
+
+    // And the resolved field reached the query: a bare 200 proves nothing,
+    // because a route that reads no enriched field answers 200 regardless.
+    assert_eq!(enriched(&ctx, "actor_id"), "a-newcomer");
+    assert_eq!(
+        enriched(&ctx, "actor_role"),
+        "staff",
+        "the role came out of the claim set the function read as jsonb"
+    );
+    assert_eq!(
+        count_visible(&pool, &view, &enriched(&ctx, "actor_role"), &enriched(&ctx, "actor_id"))
+            .await,
+        1,
+        "the newly provisioned identity scopes the read to its own row"
+    );
+
+    sqlx::query(&format!("DROP VIEW {view}")).execute(&pool).await.unwrap();
+    sqlx::query(&format!("DROP TABLE {item}")).execute(&pool).await.unwrap();
+    sqlx::query(&format!("DROP FUNCTION {func}(text, text, jsonb)"))
+        .execute(&pool)
+        .await
+        .unwrap();
+    sqlx::query(&format!("DROP TABLE {actor}")).execute(&pool).await.unwrap();
+}
+
+#[tokio::test]
+async fn pg_a_bare_insert_statement_provisions_too() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!("SKIP pg_a_bare_insert_statement_provisions_too: no postgres");
+        return;
+    };
+    let actor = make_provisionable_actor_table(&pool).await;
+
+    // The issue's documented contract is an `INSERT … ON CONFLICT DO NOTHING`.
+    // A data-modifying statement cannot be a `FROM` sub-query, so this only runs
+    // if provisioning has an execute path of its own rather than reusing the
+    // row-returning wrapper.
+    let mut cfg = config(
+        &format!("SELECT actor_id, actor_role FROM {actor} WHERE sub = $sub"),
+        &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+    );
+    cfg.provision = Some(format!(
+        "INSERT INTO {actor} (sub, actor_id, actor_role) VALUES ($sub, 'a-' || $sub, 'staff') \
+         ON CONFLICT (sub) DO NOTHING"
+    ));
+    let resolver = IdentityResolver::new(cfg, Arc::new(PgIdentityStore::new(pool.clone())));
+
+    match resolver.resolve("u-insert", &claims(&[("sub", json!("u-insert"))])).await {
+        IdentityResolution::Resolved(map) => assert_eq!(map["actor_id"], "a-u-insert"),
+        other => panic!("expected Resolved after an INSERT provision, got {other:?}"),
+    }
+
+    sqlx::query(&format!("DROP TABLE {actor}")).execute(&pool).await.unwrap();
+}
+
 // ── Consumer A: enrich_security_context + config (DESIGN §3, §7) ───────────
 
 fn sec_ctx(sub: &str, attrs: &[(&str, Value)]) -> SecurityContext {
@@ -735,6 +925,14 @@ impl IdentityStore for CapturingStore {
         *self.captured.lock().unwrap() = binds.to_vec();
         let rows = self.rows.clone();
         Box::pin(async move { Ok(rows) })
+    }
+
+    fn execute<'a>(
+        &'a self,
+        _sql: &'a str,
+        _binds: &'a [Value],
+    ) -> BoxFuture<'a, Result<(), ResolveError>> {
+        panic!("the capturing store is used by profiles that configure no `provision`")
     }
 }
 
@@ -1174,6 +1372,118 @@ provision = "INSERT INTO tb_actor (sub) VALUES ($sub) ON CONFLICT (sub) DO NOTHI
     .unwrap();
 
     assert!(cfg.validate().is_ok());
+}
+
+/// A resolver whose profile also carries a `provision` statement.
+fn provisioning_resolver(store: Arc<MockStore>, provision: &str) -> IdentityResolver {
+    let mut cfg = config(
+        "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub",
+        &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+    );
+    cfg.provision = Some(provision.to_owned());
+    IdentityResolver::new(cfg, store)
+}
+
+fn provisioned_actor() -> Vec<serde_json::Map<String, Value>> {
+    vec![row(&[
+        ("actor_id", json!("a-new")),
+        ("actor_role", json!("staff")),
+    ])]
+}
+
+#[tokio::test]
+async fn a_zero_row_miss_provisions_and_re_resolves() {
+    let store = Arc::new(MockStore::returning(vec![]).provisioning_to(provisioned_actor()));
+    let resolver = provisioning_resolver(
+        store.clone(),
+        "INSERT INTO tb_actor (sub) VALUES ($sub) ON CONFLICT (sub) DO NOTHING",
+    );
+
+    match resolver.resolve("u-new", &claims(&[("sub", json!("u-new"))])).await {
+        IdentityResolution::Resolved(map) => assert_eq!(map["actor_id"], "a-new"),
+        other => panic!("expected Resolved after provisioning, got {other:?}"),
+    }
+    assert_eq!(store.provisions(), 1, "the statement ran once");
+    assert_eq!(
+        store.calls(),
+        2,
+        "and the query ran again after it — the re-read is what decides the outcome"
+    );
+}
+
+#[tokio::test]
+async fn the_provision_statement_is_bound_from_the_claims_not_interpolated() {
+    let store = Arc::new(MockStore::returning(vec![]).provisioning_to(provisioned_actor()));
+    let resolver = provisioning_resolver(store.clone(), "SELECT fn_provision_actor($sub, $email)");
+
+    let _ = resolver
+        .resolve(
+            "u-new",
+            &claims(&[("sub", json!("u-new")), ("email", json!("new@example.com"))]),
+        )
+        .await;
+
+    let executed = store.executed();
+    assert_eq!(executed.len(), 1);
+    let (sql, binds) = &executed[0];
+    assert_eq!(
+        sql, "SELECT fn_provision_actor($1, $2)",
+        "the statement reaches the store with positional placeholders, never claim text"
+    );
+    assert_eq!(binds, &vec![json!("u-new"), json!("new@example.com")]);
+}
+
+#[tokio::test]
+async fn a_provision_statement_referencing_an_absent_claim_denies() {
+    let store = Arc::new(MockStore::returning(vec![]).provisioning_to(provisioned_actor()));
+    let resolver = provisioning_resolver(store.clone(), "SELECT fn_provision_actor($sub, $org_id)");
+
+    match resolver.resolve("u-new", &claims(&[("sub", json!("u-new"))])).await {
+        IdentityResolution::Denied(DenyReason::MissingParam(name)) => assert_eq!(name, "org_id"),
+        other => panic!("expected Denied(MissingParam), got {other:?}"),
+    }
+    assert_eq!(store.provisions(), 0, "an unbindable statement never reaches the database");
+}
+
+#[tokio::test]
+async fn without_a_provision_statement_a_zero_row_miss_is_unchanged() {
+    // The pin that the whole path is unreachable by default: same store, same
+    // claims, no `provision` key.
+    let store = Arc::new(MockStore::returning(vec![]).provisioning_to(provisioned_actor()));
+    let resolver = IdentityResolver::new(
+        config(
+            "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub",
+            &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+        ),
+        store.clone(),
+    );
+
+    assert!(matches!(
+        resolver.resolve("u-new", &claims(&[("sub", json!("u-new"))])).await,
+        IdentityResolution::Denied(DenyReason::ZeroRows)
+    ));
+    assert_eq!(store.provisions(), 0);
+    assert_eq!(store.calls(), 1);
+}
+
+#[tokio::test]
+async fn the_claims_parameter_binds_the_whole_verified_claim_set() {
+    let store = Arc::new(MockStore::returning(vec![]).provisioning_to(provisioned_actor()));
+    let resolver = provisioning_resolver(store.clone(), "SELECT fn_provision_actor($claims)");
+
+    let mut ctx = sec_ctx("u-new", &[("department", json!("sales"))]);
+    ctx.email = Some("new@example.com".to_owned());
+    assert_eq!(enrich_security_context(&resolver, &mut ctx).await, EnrichmentOutcome::Proceed);
+
+    let executed = store.executed();
+    let bound = &executed[0].1[0];
+    assert_eq!(bound["sub"], "u-new", "the well-known fields are in it: {bound}");
+    assert_eq!(bound["email"], "new@example.com", "including the ones off the context: {bound}");
+    assert_eq!(bound["department"], "sales", "and every forwarded attribute: {bound}");
+    assert!(
+        bound.get("claims").is_none(),
+        "but not itself — the snapshot is of the claims, not of the binding: {bound}"
+    );
 }
 
 #[test]

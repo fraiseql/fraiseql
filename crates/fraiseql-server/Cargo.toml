@@ -130,7 +130,7 @@ webpki-roots = {version = "0.26", optional = true}
 # STARTTLS. The per-connected-account transport keyed by verified sending address.
 lettre = {version = "0.11", default-features = false, features = ["builder", "smtp-transport", "tokio1", "tokio1-rustls-tls"], optional = true}
 # Database
-sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono"]}
+sqlx = {version = "0.8", features = ["postgres", "runtime-tokio", "uuid", "chrono", "json"]}
 # Constant-time comparison (timing attack prevention)
 subtle = "2.5"
 thiserror = "2.0"
