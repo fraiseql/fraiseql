@@ -1664,6 +1664,15 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// Twilio public_url, LemonSqueezy hex) through the real route + real
 		// idempotency claim, plus the boot-time route validation.
 		"cargo test -p fraiseql-server --features inbound --test webhook_provider_matrix_pg -- --test-threads=1",
+		// #1322: what a token-authenticated delivery WRITES. The scheme's own suite
+		// pins what verification reports; this pins that the route's spine row and
+		// ledger row come from the signed claims and not from the outer envelope,
+		// which the fixture makes contradict them on every field. A response of
+		// `{"status":"processed"}` is identical either way, so only the rows can
+		// tell — and only a live database has rows. It is also the one place a
+		// `jwt-jwks` route meets a real `JwksSource` over HTTP rather than a
+		// substituted key source.
+		"cargo test -p fraiseql-server --features inbound --test webhook_jwt_jwks_dispatch_pg -- --test-threads=1",
 		// #794/#795 (CRITICAL): the analytics injection guards. Both holes were reachable
 		// by any client that can POST a GraphQL query, and both were invisible to unit
 		// tests because the allowlist that "covered" them was only ever consulted by a
