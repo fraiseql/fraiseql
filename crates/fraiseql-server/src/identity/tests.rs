@@ -364,6 +364,13 @@ impl MockStore {
         self
     }
 
+    /// A provision statement that raises — the operator's outage, not a
+    /// refusal of the subject.
+    fn failing_provision(mut self) -> Self {
+        self.provision_fail = Some(ResolveError::new("provision function raised"));
+        self
+    }
+
     /// Hold the first provision open on `gate`.
     fn gated(mut self, gate: Arc<ProvisionGate>) -> Self {
         self.gate = Some(gate);
@@ -1657,6 +1664,127 @@ async fn a_request_arriving_while_another_provisions_is_not_refused() {
         2,
         "each provisioned; the statement is what must be idempotent"
     );
+}
+
+#[tokio::test]
+async fn a_provision_that_raises_is_an_outage_and_is_never_cached() {
+    let store = Arc::new(MockStore::returning(vec![]).failing_provision());
+    let resolver = provisioning_resolver(Arc::clone(&store), "SELECT fn_provision_actor($sub)");
+
+    // 503, not 403: the operator's database said no, and the subject may well be
+    // legitimate. Answering `Denied` here would negative-cache an outage.
+    assert!(matches!(
+        resolver.resolve("u-new", &claims(&[("sub", json!("u-new"))])).await,
+        IdentityResolution::Unavailable(_)
+    ));
+    assert!(matches!(
+        resolver.resolve("u-new", &claims(&[("sub", json!("u-new"))])).await,
+        IdentityResolution::Unavailable(_)
+    ));
+    assert_eq!(store.provisions(), 2, "a blip must not pin a denial — the next request retries");
+}
+
+#[tokio::test]
+async fn a_provision_that_inserts_nothing_refuses_once_per_negative_ttl() {
+    // The statement *is* the policy: to refuse a subject it inserts nothing, and
+    // the re-read denies. Without the negative cache that refusal would be one
+    // database write per request, for as long as the token is valid.
+    let store = Arc::new(MockStore::returning(vec![]));
+    let resolver = provisioning_resolver(
+        Arc::clone(&store),
+        "INSERT INTO tb_actor (sub) SELECT $sub WHERE false",
+    );
+
+    for _ in 0..4 {
+        assert!(matches!(
+            resolver.resolve("u-refused", &claims(&[("sub", json!("u-refused"))])).await,
+            IdentityResolution::Denied(DenyReason::ZeroRows)
+        ));
+    }
+    assert_eq!(store.provisions(), 1, "the post-provision denial is what gets cached");
+    assert_eq!(store.calls(), 2, "and no further reads either");
+}
+
+#[tokio::test]
+async fn after_the_negative_ttl_a_refused_subject_is_offered_again() {
+    // The other side of the window: the refusal is bounded, so a subject the
+    // statement declines today is not locked out by a cache entry that never
+    // expires.
+    let store = Arc::new(MockStore::returning(vec![]));
+    let mut cfg = config(
+        "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub",
+        &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+    );
+    cfg.provision = Some("INSERT INTO tb_actor (sub) SELECT $sub WHERE false".to_owned());
+    // Already elapsed by the next monotonic `get` (strict `<`), as in
+    // `cache_expired_entry_returns_none`.
+    cfg.negative_ttl_secs = 0;
+    let resolver = IdentityResolver::new(cfg, store.clone() as Arc<dyn IdentityStore>);
+
+    let _ = resolver.resolve("u-refused", &claims(&[("sub", json!("u-refused"))])).await;
+    let _ = resolver.resolve("u-refused", &claims(&[("sub", json!("u-refused"))])).await;
+
+    assert_eq!(store.provisions(), 2, "an expired refusal is offered the statement again");
+}
+
+#[tokio::test]
+async fn a_provisioned_row_with_a_null_mapped_field_still_refuses() {
+    // Provisioning writes the row; it does not lower the bar the row must clear.
+    // A half-built actor is exactly the empty-string GUC the failure model exists
+    // to prevent.
+    let store = Arc::new(MockStore::returning(vec![]).provisioning_to(vec![row(&[
+        ("actor_id", json!("a-new")),
+        ("actor_role", Value::Null),
+    ])]));
+    let resolver = provisioning_resolver(Arc::clone(&store), "SELECT fn_provision_actor($sub)");
+
+    match resolver.resolve("u-new", &claims(&[("sub", json!("u-new"))])).await {
+        IdentityResolution::Denied(DenyReason::NullField(col)) => assert_eq!(col, "actor_role"),
+        other => panic!("expected Denied(NullField), got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn a_denial_that_is_not_zero_rows_never_provisions() {
+    // The rule that keeps provisioning from inverting the failure model: these
+    // are the denials of an identity that already exists, and no statement may
+    // be given the chance to overwrite it into one that resolves.
+    let ambiguous = Arc::new(MockStore::returning(vec![
+        row(&[("actor_id", json!("a-1")), ("actor_role", json!("manager"))]),
+        row(&[("actor_id", json!("a-2")), ("actor_role", json!("staff"))]),
+    ]));
+    let resolver = provisioning_resolver(Arc::clone(&ambiguous), "SELECT fn_provision_actor($sub)");
+    assert!(matches!(
+        resolver.resolve("u1", &sub_claims()).await,
+        IdentityResolution::Denied(DenyReason::Ambiguous)
+    ));
+    assert_eq!(ambiguous.provisions(), 0, "an ambiguous identity is not a missing one");
+
+    let null_field = Arc::new(MockStore::returning(vec![row(&[
+        ("actor_id", json!("a-1")),
+        ("actor_role", Value::Null),
+    ])]));
+    let resolver =
+        provisioning_resolver(Arc::clone(&null_field), "SELECT fn_provision_actor($sub)");
+    assert!(matches!(
+        resolver.resolve("u1", &sub_claims()).await,
+        IdentityResolution::Denied(DenyReason::NullField(_))
+    ));
+    assert_eq!(null_field.provisions(), 0, "a half-built actor is not a missing one");
+
+    let missing_param = Arc::new(MockStore::returning(vec![]));
+    let mut cfg = config(
+        "SELECT actor_id FROM tb_actor WHERE sub = $sub AND org = $org_id",
+        &[("actor_id", "actor_id")],
+    );
+    cfg.provision = Some("SELECT fn_provision_actor($sub)".to_owned());
+    let resolver = IdentityResolver::new(cfg, missing_param.clone() as Arc<dyn IdentityStore>);
+    assert!(matches!(
+        resolver.resolve("u1", &sub_claims()).await,
+        IdentityResolution::Denied(DenyReason::MissingParam(_))
+    ));
+    assert_eq!(missing_param.provisions(), 0, "a query that cannot be bound never ran");
+    assert_eq!(missing_param.calls(), 0, "and never reached the database at all");
 }
 
 #[tokio::test]
