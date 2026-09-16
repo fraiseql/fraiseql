@@ -1788,6 +1788,36 @@ async fn a_denial_that_is_not_zero_rows_never_provisions() {
 }
 
 #[tokio::test]
+async fn the_request_after_a_successful_provision_is_a_positive_cache_hit() {
+    // The issue's fourth gate item, re-derived. It is written as "a subject
+    // negative-cached before provisioning resolves immediately after", which
+    // presumes the pre-provision miss is cached; it is not, so there is no
+    // negative entry to clear. The property that item protects is asserted
+    // directly instead: the next request costs nothing and is still enriched.
+    let store = Arc::new(MockStore::returning(vec![]).provisioning_to(provisioned_actor()));
+    let resolver = provisioning_resolver(Arc::clone(&store), "SELECT fn_provision_actor($sub)");
+
+    let mut first = sec_ctx("u-new", &[]);
+    assert_eq!(enrich_security_context(&resolver, &mut first).await, EnrichmentOutcome::Proceed);
+    let reads_to_provision = store.calls();
+
+    let mut second = sec_ctx("u-new", &[]);
+    assert_eq!(
+        enrich_security_context(&resolver, &mut second).await,
+        EnrichmentOutcome::Proceed
+    );
+    assert_eq!(enriched(&second, "actor_id"), "a-new");
+    assert_eq!(
+        enriched(&second, "actor_role"),
+        "staff",
+        "a cache hit carries the whole mapped set, not a bare permission to proceed"
+    );
+
+    assert_eq!(store.calls(), reads_to_provision, "the second request read nothing");
+    assert_eq!(store.provisions(), 1, "and no denial survived under that subject's tuple");
+}
+
+#[tokio::test]
 async fn the_claims_parameter_binds_the_whole_verified_claim_set() {
     let store = Arc::new(MockStore::returning(vec![]).provisioning_to(provisioned_actor()));
     let resolver = provisioning_resolver(store.clone(), "SELECT fn_provision_actor($claims)");
