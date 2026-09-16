@@ -978,6 +978,7 @@ dependencies = [
  "fraiseql-db",
  "fraiseql-error",
  "fraiseql-guard",
+ "fraiseql-jwks",
  "futures",
  "graphql-parser",
  "hex",
@@ -1042,6 +1043,22 @@ name = "fraiseql-guard"
 version = "2.15.0"
 dependencies = [
  "tracing",
+]
+
+[[package]]
+name = "fraiseql-jwks"
+version = "2.15.0"
+dependencies = [
+ "fraiseql-guard",
+ "jsonwebtoken",
+ "parking_lot",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "tokio",
+ "tracing",
+ "url",
 ]
 
 [[package]]

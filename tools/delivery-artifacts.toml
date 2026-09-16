@@ -375,6 +375,19 @@ builds = ["workflow:release.yml:validate-release"]
 executes = []
 
 [[artifact]]
+# The one bounded JWKS client (#1335). Reached by the consumption tier without an
+# exemption, unlike its tier-1.5 sibling fraiseql-kafka: `fraiseql-core` and
+# `fraiseql-auth` both depend on it **non-optionally**, and both are compiled by
+# `cargo add fraiseql` (see their rows). Verified with `cargo tree -p fraiseql`
+# at default features, where it appears directly under fraiseql-core.
+id = "crate:fraiseql-jwks"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-jwks"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = ["tool:tools/consume-published-artifacts.sh"]
+
+[[artifact]]
 id = "crate:fraiseql-kafka"
 kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-kafka"

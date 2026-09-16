@@ -755,6 +755,7 @@ dependencies = [
  "dashmap",
  "fraiseql-error",
  "fraiseql-guard",
+ "fraiseql-jwks",
  "hex",
  "hmac 0.13.0",
  "http",
@@ -803,6 +804,22 @@ name = "fraiseql-guard"
 version = "2.15.0"
 dependencies = [
  "tracing",
+]
+
+[[package]]
+name = "fraiseql-jwks"
+version = "2.15.0"
+dependencies = [
+ "fraiseql-guard",
+ "jsonwebtoken",
+ "parking_lot",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "url",
 ]
 
 [[package]]

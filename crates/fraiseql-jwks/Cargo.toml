@@ -1,0 +1,44 @@
+[dependencies]
+# The one outbound-address guard (#776/#802). A JWKS URI is operator-supplied and
+# its host is resolved at fetch time, so this crate both checks every resolved
+# address and pins the connection to it.
+fraiseql-guard = {workspace = true}
+jsonwebtoken = {workspace = true}
+parking_lot = {workspace = true}
+reqwest = {workspace = true}
+serde = {version = "1.0", features = ["derive"]}
+serde_json = {workspace = true}
+thiserror = "2.0"
+tokio = {workspace = true, features = ["sync", "net"]}
+tracing = {workspace = true}
+url = {workspace = true}
+
+[dev-dependencies]
+tokio = {workspace = true, features = ["macros", "rt-multi-thread", "time"]}
+futures = {workspace = true}
+wiremock = "0.6"
+
+[lints]
+workspace = true
+
+[package]
+description = "The single bounded JWKS client shared by every FraiseQL crate that verifies a JWT against a published key set"
+name = "fraiseql-jwks"
+readme = "README.md"
+authors.workspace = true
+categories.workspace = true
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+# docs.rs builds a crate with its DEFAULT features unless told otherwise, so the published
+# page showed none of the feature-gated API — and this workspace's documentation links
+# into that API from prose that is not gated (#1199). `all-features` makes the published
+# page the whole crate.
+[package.metadata.docs.rs]
+all-features = true

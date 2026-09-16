@@ -39,6 +39,10 @@ var legacyPublishOrder = []string{
 	// fraiseql-kafka is tier 1.5: it depends on fraiseql-guard alone, and both
 	// fraiseql-cdc-sinks and fraiseql-core depend on it (#1102).
 	"fraiseql-kafka",
+	// fraiseql-jwks is tier 1.5 for the same reason (#1335): it depends on
+	// fraiseql-guard alone, and fraiseql-auth, fraiseql-webhooks and fraiseql-core
+	// all depend on it — it is the one bounded JWKS client they share.
+	"fraiseql-jwks",
 	"fraiseql-error", "fraiseql-auth", "fraiseql-webhooks", "fraiseql-wire",
 	"fraiseql-cdc-sinks",
 	// Tier 2: depend on tier 1.
