@@ -101,7 +101,7 @@ pub use jsonwebtoken;
 /// `jsonwebtoken::Algorithm`, which `JwtValidator::new` takes — the crate's own
 /// documented first line needs it in scope (#1198).
 pub use jsonwebtoken::Algorithm;
-pub use jwks::{JwksCache, JwksError};
+pub use jwks::{JwksError, JwksSource};
 pub use jwt::{Claims, JwtValidator, generate_hs256_token, generate_rs256_token};
 pub use local_password::{
     EMAIL_VERIFICATION_SCHEMA_SQL, EMAIL_VERIFICATION_TOKEN_TTL_SECS, EmailVerified,

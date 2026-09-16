@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroizing;
 
 use super::{
-    super::jwks::{JwksCache, JwksError},
+    super::jwks::{JwksError, JwksSource},
     pkce::{PKCEChallenge, gen_random_token},
     types::{IdTokenClaims, TokenResponse, UserInfo},
 };
@@ -376,8 +376,11 @@ pub struct OIDCClient {
     /// when this struct is dropped.
     #[allow(dead_code)] // Reason: retained for token revocation and introspection endpoints
     pub(crate) client_secret: Zeroizing<String>,
-    /// JWKS key cache for ID token signature verification.
-    pub jwks_cache:           Arc<JwksCache>,
+    /// The bounded JWKS client this provider's keys are fetched through.
+    ///
+    /// Shared (#1335): the same client the `[auth]` OIDC path and the inbound
+    /// webhook schemes use, rather than a cache this crate keeps of its own.
+    pub jwks:                 Arc<JwksSource>,
     /// HTTP client for userinfo requests.
     http_client:              reqwest::Client,
 }
@@ -416,12 +419,12 @@ impl OIDCClient {
         client_id: impl Into<String>,
         client_secret: impl Into<String>,
     ) -> Result<Self, JwksError> {
-        let jwks_cache = Arc::new(JwksCache::new(&config.jwks_uri, StdDuration::from_hours(1))?);
+        let jwks = Arc::new(JwksSource::new(&config.jwks_uri, StdDuration::from_hours(1))?);
         Ok(Self {
             config,
             client_id: client_id.into(),
             client_secret: Zeroizing::new(client_secret.into()),
-            jwks_cache,
+            jwks,
             http_client: reqwest::Client::builder()
                 .timeout(OAUTH_REQUEST_TIMEOUT)
                 .build()
@@ -429,18 +432,21 @@ impl OIDCClient {
         })
     }
 
-    /// Create OIDC client with a pre-built JWKS cache (for testing).
-    pub fn with_jwks_cache(
+    /// Create an OIDC client over a JWKS client the caller already built.
+    ///
+    /// Used by tests, which point it at a local key set, and by any caller that
+    /// wants two providers to share one client.
+    pub fn with_jwks_source(
         config: OIDCProviderConfig,
         client_id: impl Into<String>,
         client_secret: impl Into<String>,
-        jwks_cache: Arc<JwksCache>,
+        jwks: Arc<JwksSource>,
     ) -> Self {
         Self {
             config,
             client_id: client_id.into(),
             client_secret: Zeroizing::new(client_secret.into()),
-            jwks_cache,
+            jwks,
             http_client: reqwest::Client::builder()
                 .timeout(OAUTH_REQUEST_TIMEOUT)
                 .build()
@@ -554,13 +560,17 @@ impl OIDCClient {
 
         let kid = header.kid.ok_or("JWT missing 'kid' in header")?;
 
-        // 2. Get key from JWKS cache
+        // 2. Get the key, through the one bounded JWKS client (#1335). `Err` and `Ok(None)` are
+        //    separate answers and stay separate here: the first is "the provider's key set is
+        //    unreachable", the second "the provider does not publish that kid".
         let key = self
-            .jwks_cache
-            .get_key(&kid)
+            .jwks
+            .key(&kid)
             .await
             .map_err(|e| format!("JWKS fetch error: {e}"))?
-            .ok_or_else(|| format!("No key found for kid '{kid}'"))?;
+            .ok_or_else(|| format!("No key found for kid '{kid}'"))?
+            .decoding_key()
+            .map_err(|e| format!("Published key for kid '{kid}' is unusable: {e}"))?;
 
         // 3. Build validation criteria
         let mut validation = jsonwebtoken::Validation::new(header.alg);

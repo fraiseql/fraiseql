@@ -138,8 +138,9 @@ fn oidc_ssrf_guards_disabled() -> bool {
 ///   bracketed mapped spelling of `169.254.169.254` reaches the metadata service exactly as the
 ///   bare form does
 ///
-/// The address classification is [`crate::jwks::is_ssrf_blocked_ip`], shared with the
-/// JWKS fetch gate so the two cannot drift.
+/// The address classification is [`fraiseql_guard::net::is_blocked_ip`], the one
+/// outbound guard in the workspace — the same predicate the JWKS fetch applies,
+/// so the two cannot drift. `oidc_ssrf_gate_agrees_with_jwks_gate` asserts it.
 ///
 /// # Errors
 ///

@@ -1,5 +1,6 @@
 [dependencies]
 fraiseql-guard = {workspace = true}
+fraiseql-jwks = {workspace = true}
 aes-gcm = "0.10"
 anyhow = "1.0"
 # Lock-free generation swap for the hot-reloaded SAML IdP registry (#947); `auth-saml` only.

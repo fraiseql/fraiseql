@@ -4107,381 +4107,53 @@ mod state_encryption_legacy_tests {
     }
 }
 
-// ── jwks_tests ────────────────────────────────────────────────────────────────
-mod jwks_tests {
-    use std::time::Duration;
+// ── jwks_tests ────────────────────────────────────────────────────────────
+//
+// This crate's `JwksCache` is gone: there is one JWKS client in the workspace and
+// it is `fraiseql_jwks` (#1335). The suite that stood here moved with the code it
+// covered, and is named below so the relocation is checkable rather than assumed.
+//
+// Cache behaviour → `fraiseql_jwks::tests`:
+//   test_jwks_cache_empty                    a_source_holds_nothing_before_its_first_lookup
+//   test_jwks_cache_fetch_and_retrieve       a_key_published_after_the_cooldown_is_found
+//   test_jwks_cache_missing_kid_returns_none a_miss_is_remembered_until_the_cooldown_lapses
+//   test_jwks_cache_ttl_refresh
+// an_expired_set_is_not_served_even_while_the_cooldown_holds   test_jwks_cache_force_refresh
+// a_forced_refresh_is_not_subject_to_the_cooldown   test_jwks_cache_network_error
+// an_unreachable_publisher_is_asked_once_per_cooldown_too   test_jwks_cache_debug_format
+// the_debug_rendering_names_the_endpoint_and_never_a_key   jwks_oversized_response_is_rejected
+// an_oversized_key_set_is_refused_before_it_is_parsed   jwks_within_size_limit_is_accepted
+// a_key_set_exactly_at_the_size_cap_is_accepted   jwks_response_cap_constant_is_reasonable
+// (dropped: it range-checked the constant, while                                             both
+// sides of the real boundary are now                                             exercised against
+// the fetch itself)   test_jwks_cache_rejects_invalid_url
+// a_jwks_uri_that_is_not_a_url_is_refused   test_jwks_cache_rejects_non_http_scheme
+// a_non_https_jwks_uri_is_refused_unless_it_is_loopback
+//   test_jwks_cache_rejects_http_non_localhost        ″
+//   test_jwks_cache_accepts_https                     ″
+//   test_jwks_cache_accepts_http_localhost            ″
+//
+// Resolve-and-pin → `fraiseql_jwks::tests`:
+//   jwks_dns_check_blocks_private_address
+// a_private_or_loopback_address_is_refused_before_any_connection
+//   jwks_dns_check_returns_validated_public_addrs     a_public_address_is_returned_for_pinning
+//   jwks_pinned_client_connects_only_to_validated_addr
+//                the_pinned_client_connects_to_the_validated_address_and_not_through_dns
+//
+// The fourteen `test_ssrf_*` cases are **deleted, not moved**. They asserted
+// `fraiseql_guard::net::is_blocked_ip` through an alias this crate re-exported,
+// and every vector they named — loopback, 10/8, 172.16/12 with both its edges,
+// 192.168/16, 169.254/16, CGNAT, `0.0.0.0`, `::1`, `::`, `::ffff:169.254.169.254`,
+// ULA, v6 link-local, and public v4/v6 — is already in
+// `fraiseql_guard::net::vectors::{MUST_BLOCK, MUST_ALLOW}`, which that crate's
+// suite iterates in full. A second corpus of the same rule is the drift
+// `check-guard-parity.sh` exists to prevent, one level up.
+//
+// What is NOT a duplicate, and stays: `oidc_ssrf_gate_agrees_with_jwks_gate`
+// below, which asserts this crate's OIDC host gate and the shared guard give the
+// same verdict. That is a parity assertion between two implementations, and it
+// now names the guard directly instead of reaching it through an alias here.
 
-    use wiremock::{
-        Mock, MockServer, ResponseTemplate,
-        matchers::{method, path},
-    };
-
-    use super::super::jwks::*;
-
-    fn jwks_fixture() -> serde_json::Value {
-        serde_json::json!({
-            "keys": [
-                {
-                    "kty": "RSA",
-                    "kid": "test-key-1",
-                    "use": "sig",
-                    "n": "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
-                    "e": "AQAB"
-                }
-            ]
-        })
-    }
-
-    // ── M-jwks-toctou: resolve-and-pin (DNS rebinding) ────────────────────────
-
-    /// The validator must reject a host that resolves to a private/reserved address.
-    /// IP literals resolve to themselves (no real DNS), so this is deterministic.
-    #[tokio::test]
-    async fn jwks_dns_check_blocks_private_address() {
-        let blocked = dns_resolve_and_check("10.0.0.1", 443).await;
-        assert!(blocked.is_err(), "private 10.0.0.1 must be rejected: {blocked:?}");
-        let loopback = dns_resolve_and_check("127.0.0.1", 443).await;
-        assert!(loopback.is_err(), "loopback must be rejected: {loopback:?}");
-    }
-
-    /// The validator returns the validated socket addresses so they can be pinned into
-    /// the client (closing the re-resolution window). A public IP literal passes.
-    #[tokio::test]
-    async fn jwks_dns_check_returns_validated_public_addrs() {
-        let addrs = dns_resolve_and_check("8.8.8.8", 443).await.unwrap();
-        assert!(
-            addrs.iter().any(|a| a.ip().to_string() == "8.8.8.8" && a.port() == 443),
-            "validated addrs must contain the public target: {addrs:?}"
-        );
-    }
-
-    /// The pinned client must connect to exactly the validated address, NOT re-resolve
-    /// the hostname. We pin a synthetic host (no real DNS) to the mock's address; the
-    /// request can only succeed if reqwest used the pin rather than its own resolver —
-    /// the mechanism that closes the DNS-rebinding TOCTOU.
-    #[tokio::test]
-    async fn jwks_pinned_client_connects_only_to_validated_addr() {
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/pinned"))
-            .respond_with(ResponseTemplate::new(200).set_body_string("ok"))
-            .mount(&mock_server)
-            .await;
-
-        let addr = *mock_server.address();
-        let client =
-            build_pinned_client("jwks.pinned.invalid", &[addr], Duration::from_secs(5)).unwrap();
-        // "jwks.pinned.invalid" has no DNS — the request reaching the mock proves the pin.
-        let resp = client
-            .get(format!("http://jwks.pinned.invalid:{}/pinned", addr.port()))
-            .send()
-            .await
-            .expect("pinned client should reach the mock via the pinned addr");
-        assert!(resp.status().is_success());
-        assert_eq!(resp.text().await.unwrap(), "ok");
-    }
-
-    #[tokio::test]
-    async fn test_jwks_cache_empty() {
-        let cache =
-            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_hours(1))
-                .unwrap();
-        assert!(cache.get_key_from_cache("nonexistent_kid").is_none());
-    }
-
-    #[tokio::test]
-    async fn test_jwks_cache_fetch_and_retrieve() {
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/.well-known/jwks.json"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(jwks_fixture()))
-            .mount(&mock_server)
-            .await;
-
-        let cache = JwksCache::new(
-            &format!("{}/.well-known/jwks.json", mock_server.uri()),
-            Duration::from_hours(1),
-        )
-        .unwrap();
-
-        let key = cache.get_key("test-key-1").await.unwrap();
-        assert!(key.is_some());
-    }
-
-    #[tokio::test]
-    async fn test_jwks_cache_missing_kid_returns_none() {
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/.well-known/jwks.json"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(jwks_fixture()))
-            .mount(&mock_server)
-            .await;
-
-        let cache = JwksCache::new(
-            &format!("{}/.well-known/jwks.json", mock_server.uri()),
-            Duration::from_hours(1),
-        )
-        .unwrap();
-
-        let key = cache.get_key("nonexistent-kid").await.unwrap();
-        assert!(key.is_none());
-    }
-
-    #[tokio::test]
-    async fn test_jwks_cache_ttl_refresh() {
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/.well-known/jwks.json"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(jwks_fixture()))
-            .expect(2)
-            .mount(&mock_server)
-            .await;
-
-        let cache = JwksCache::new(
-            &format!("{}/.well-known/jwks.json", mock_server.uri()),
-            Duration::from_secs(0),
-        )
-        .unwrap();
-
-        let _ = cache.get_key("test-key-1").await.unwrap();
-        let _ = cache.get_key("test-key-1").await.unwrap();
-    }
-
-    #[tokio::test]
-    async fn test_jwks_cache_force_refresh() {
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/.well-known/jwks.json"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(jwks_fixture()))
-            .mount(&mock_server)
-            .await;
-
-        let cache = JwksCache::new(
-            &format!("{}/.well-known/jwks.json", mock_server.uri()),
-            Duration::from_hours(1),
-        )
-        .unwrap();
-
-        cache.force_refresh().await.unwrap();
-        assert!(cache.get_key_from_cache("test-key-1").is_some());
-    }
-
-    #[tokio::test]
-    async fn test_jwks_cache_network_error() {
-        let cache =
-            JwksCache::new("http://127.0.0.1:1/nonexistent", Duration::from_hours(1)).unwrap();
-        let result = cache.get_key("any-kid").await;
-        assert!(result.is_err(), "expected Err for network error (connection refused)");
-    }
-
-    #[test]
-    fn jwks_response_cap_constant_is_reasonable() {
-        const { assert!(MAX_JWKS_RESPONSE_BYTES >= 64 * 1024) }
-        const { assert!(MAX_JWKS_RESPONSE_BYTES <= 100 * 1024 * 1024) }
-    }
-
-    #[tokio::test]
-    async fn jwks_oversized_response_is_rejected() {
-        let mock_server = MockServer::start().await;
-        let oversized = vec![b'x'; MAX_JWKS_RESPONSE_BYTES + 1];
-        Mock::given(method("GET"))
-            .and(path("/.well-known/jwks.json"))
-            .respond_with(ResponseTemplate::new(200).set_body_bytes(oversized))
-            .mount(&mock_server)
-            .await;
-
-        let cache = JwksCache::new(
-            &format!("{}/.well-known/jwks.json", mock_server.uri()),
-            Duration::from_hours(1),
-        )
-        .unwrap();
-        let result = cache.get_key("any-kid").await;
-        assert!(result.is_err(), "oversized JWKS response must be rejected");
-        let msg = result.err().unwrap();
-        assert!(msg.contains("too large"), "error must mention size limit: {msg}");
-    }
-
-    #[tokio::test]
-    async fn jwks_within_size_limit_is_accepted() {
-        let mock_server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .and(path("/.well-known/jwks.json"))
-            .respond_with(ResponseTemplate::new(200).set_body_json(jwks_fixture()))
-            .mount(&mock_server)
-            .await;
-
-        let cache = JwksCache::new(
-            &format!("{}/.well-known/jwks.json", mock_server.uri()),
-            Duration::from_hours(1),
-        )
-        .unwrap();
-        let key = cache
-            .get_key("test-key-1")
-            .await
-            .unwrap_or_else(|e| panic!("normal JWKS response must be accepted, got: {e}"));
-        assert!(key.is_some(), "expected key 'test-key-1' to be present in JWKS response");
-    }
-
-    #[test]
-    fn test_jwks_cache_rejects_invalid_url() {
-        let result = JwksCache::new("not-a-url", Duration::from_hours(1));
-        assert!(result.is_err(), "invalid URL should be rejected at construction");
-        assert!(matches!(result.unwrap_err(), JwksError::InvalidUrl { .. }));
-    }
-
-    #[test]
-    fn test_jwks_cache_rejects_non_http_scheme() {
-        let result = JwksCache::new("ftp://example.com/jwks.json", Duration::from_hours(1));
-        assert!(matches!(result.unwrap_err(), JwksError::InvalidScheme { .. }));
-    }
-
-    #[test]
-    fn test_jwks_cache_rejects_http_non_localhost() {
-        let result = JwksCache::new("http://example.com/jwks.json", Duration::from_hours(1));
-        assert!(matches!(result.unwrap_err(), JwksError::InvalidScheme { .. }));
-    }
-
-    #[test]
-    fn test_jwks_cache_accepts_https() {
-        let result =
-            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_hours(1));
-        assert!(result.is_ok(), "valid https:// URL should be accepted");
-    }
-
-    #[test]
-    fn test_jwks_cache_accepts_http_localhost() {
-        let result =
-            JwksCache::new("http://localhost:8080/.well-known/jwks.json", Duration::from_hours(1));
-        assert!(result.is_ok(), "http://localhost should be accepted for dev");
-    }
-
-    #[test]
-    fn test_ssrf_blocks_loopback_v4() {
-        let ip: std::net::IpAddr = "127.0.0.1".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "127.0.0.1 must be blocked");
-        let ip: std::net::IpAddr = "127.255.255.255".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "127.x.x.x must be blocked");
-    }
-
-    #[test]
-    fn test_ssrf_blocks_rfc1918_10() {
-        let ip: std::net::IpAddr = "10.0.0.1".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "10.0.0.1 must be blocked");
-        let ip: std::net::IpAddr = "10.255.255.255".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "10.255.255.255 must be blocked");
-    }
-
-    #[test]
-    fn test_ssrf_blocks_rfc1918_172() {
-        let ip: std::net::IpAddr = "172.16.0.1".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "172.16.0.1 must be blocked");
-        let ip: std::net::IpAddr = "172.31.255.255".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "172.31.255.255 must be blocked");
-        let ip: std::net::IpAddr = "172.15.0.1".parse().unwrap();
-        assert!(!is_ssrf_blocked_ip(&ip), "172.15.0.1 must NOT be blocked");
-        let ip: std::net::IpAddr = "172.32.0.1".parse().unwrap();
-        assert!(!is_ssrf_blocked_ip(&ip), "172.32.0.1 must NOT be blocked");
-    }
-
-    #[test]
-    fn test_ssrf_blocks_rfc1918_192_168() {
-        let ip: std::net::IpAddr = "192.168.0.1".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "192.168.0.1 must be blocked");
-        let ip: std::net::IpAddr = "192.168.255.255".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "192.168.255.255 must be blocked");
-        let ip: std::net::IpAddr = "192.169.0.1".parse().unwrap();
-        assert!(!is_ssrf_blocked_ip(&ip), "192.169.0.1 must NOT be blocked");
-    }
-
-    #[test]
-    fn test_ssrf_blocks_link_local_169_254() {
-        let ip: std::net::IpAddr = "169.254.0.1".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "169.254.x.x must be blocked");
-        let ip: std::net::IpAddr = "169.254.169.254".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "AWS metadata IP must be blocked");
-    }
-
-    #[test]
-    fn test_ssrf_blocks_cgnat_100_64() {
-        let ip: std::net::IpAddr = "100.64.0.1".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "100.64.0.1 (CGNAT) must be blocked");
-        let ip: std::net::IpAddr = "100.127.255.255".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "100.127.255.255 (CGNAT) must be blocked");
-        let ip: std::net::IpAddr = "100.63.255.255".parse().unwrap();
-        assert!(!is_ssrf_blocked_ip(&ip), "100.63.x.x is NOT CGNAT");
-        let ip: std::net::IpAddr = "100.128.0.1".parse().unwrap();
-        assert!(!is_ssrf_blocked_ip(&ip), "100.128.x.x is NOT CGNAT");
-    }
-
-    #[test]
-    fn test_ssrf_blocks_unspecified_v4() {
-        let ip: std::net::IpAddr = "0.0.0.0".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "0.0.0.0 must be blocked");
-    }
-
-    #[test]
-    fn test_ssrf_allows_public_ips() {
-        // Not 203.0.113.x: that is TEST-NET-3, an RFC 5737 documentation range the
-        // shared guard refuses because it is not globally routable. It reads like a
-        // public address precisely because docs use it — pick a real one.
-        for addr in &["8.8.8.8", "1.1.1.1", "93.184.216.34", "104.16.0.1"] {
-            let ip: std::net::IpAddr = addr.parse().unwrap();
-            assert!(!is_ssrf_blocked_ip(&ip), "{addr} is public and must NOT be blocked");
-        }
-    }
-
-    #[test]
-    fn test_ssrf_blocks_loopback_v6() {
-        let ip: std::net::IpAddr = "::1".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "::1 must be blocked");
-    }
-
-    #[test]
-    fn test_ssrf_blocks_unspecified_v6() {
-        let ip: std::net::IpAddr = "::".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), ":: must be blocked");
-    }
-
-    #[test]
-    fn test_ssrf_blocks_ipv4_mapped_v6() {
-        let ip: std::net::IpAddr = "::ffff:127.0.0.1".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "::ffff:127.0.0.1 must be blocked");
-        let ip: std::net::IpAddr = "::ffff:10.0.0.1".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "::ffff:10.0.0.1 must be blocked");
-    }
-
-    #[test]
-    fn test_ssrf_blocks_ula_v6() {
-        let ip: std::net::IpAddr = "fc00::1".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "fc00::1 (ULA) must be blocked");
-        let ip: std::net::IpAddr = "fd00::1".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "fd00::1 (ULA) must be blocked");
-    }
-
-    #[test]
-    fn test_ssrf_blocks_link_local_v6() {
-        let ip: std::net::IpAddr = "fe80::1".parse().unwrap();
-        assert!(is_ssrf_blocked_ip(&ip), "fe80::1 (link-local) must be blocked");
-    }
-
-    #[test]
-    fn test_ssrf_allows_public_v6() {
-        let ip: std::net::IpAddr = "2001:4860:4860::8888".parse().unwrap();
-        assert!(!is_ssrf_blocked_ip(&ip), "Google DNS v6 must NOT be blocked");
-    }
-
-    #[test]
-    fn test_jwks_cache_debug_format() {
-        let cache =
-            JwksCache::new("https://example.com/.well-known/jwks.json", Duration::from_hours(1))
-                .unwrap();
-        let dbg = format!("{cache:?}");
-        assert!(dbg.contains("JwksCache"), "Debug output must contain struct name");
-        assert!(dbg.contains("example.com"), "Debug output must contain jwks_uri");
-    }
-}
-
-// ── multi_provider_tests ──────────────────────────────────────────────────────
 mod multi_provider_tests {
     use std::sync::Arc;
 
@@ -5411,7 +5083,7 @@ mod oidc_provider_tests {
             let ip: std::net::IpAddr = literal.parse().expect("test literal must parse");
             assert_eq!(
                 super::super::oidc_provider::is_ssrf_blocked_oidc_host(literal),
-                crate::jwks::is_ssrf_blocked_ip(&ip),
+                fraiseql_guard::net::is_blocked_ip(&ip),
                 "OIDC and JWKS SSRF gates disagree on {literal}"
             );
         }
