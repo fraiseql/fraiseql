@@ -284,6 +284,39 @@ fn cache_flush_all_clears() {
 
 // ── Failure model against a mock store (DESIGN §5) ────────────────────────
 
+/// Holds the **first** provision open until the test releases it, so a second
+/// request can be driven through its whole `resolve` while the first is still
+/// inside the statement (#1324).
+///
+/// Sequential requests cannot tell a design that caches the pre-provision
+/// `ZeroRows` from one that does not — both answer every request correctly in
+/// the end. This window is the only place they differ.
+struct ProvisionGate {
+    entered: tokio::sync::Semaphore,
+    release: tokio::sync::Semaphore,
+    seen:    AtomicUsize,
+}
+
+impl ProvisionGate {
+    fn new() -> Self {
+        Self {
+            entered: tokio::sync::Semaphore::new(0),
+            release: tokio::sync::Semaphore::new(0),
+            seen:    AtomicUsize::new(0),
+        }
+    }
+
+    /// Resolve once the first provision statement has started.
+    async fn wait_until_provisioning(&self) {
+        self.entered.acquire().await.unwrap().forget();
+    }
+
+    /// Let the held provision finish.
+    fn release(&self) {
+        self.release.add_permits(1);
+    }
+}
+
 /// A store that returns a fixed row set (or a transient error) and counts calls,
 /// so tests can assert both the classification and the caching behaviour.
 ///
@@ -300,6 +333,7 @@ struct MockStore {
     calls:            AtomicUsize,
     provisions:       AtomicUsize,
     executed:         std::sync::Mutex<Vec<(String, Vec<Value>)>>,
+    gate:             Option<Arc<ProvisionGate>>,
 }
 
 impl MockStore {
@@ -313,6 +347,7 @@ impl MockStore {
             calls: AtomicUsize::new(0),
             provisions: AtomicUsize::new(0),
             executed: std::sync::Mutex::new(Vec::new()),
+            gate: None,
         }
     }
 
@@ -327,6 +362,19 @@ impl MockStore {
     fn provisioning_to(mut self, rows: Vec<serde_json::Map<String, Value>>) -> Self {
         self.provisioned_rows = Some(rows);
         self
+    }
+
+    /// Hold the first provision open on `gate`.
+    fn gated(mut self, gate: Arc<ProvisionGate>) -> Self {
+        self.gate = Some(gate);
+        self
+    }
+
+    /// Whether this call is the first provision to arrive.
+    fn first_provision(&self) -> bool {
+        self.gate
+            .as_ref()
+            .is_some_and(|gate| gate.seen.fetch_add(1, Ordering::SeqCst) == 0)
     }
 
     fn calls(&self) -> usize {
@@ -365,7 +413,14 @@ impl IdentityStore for MockStore {
     ) -> BoxFuture<'a, Result<(), ResolveError>> {
         self.provisions.fetch_add(1, Ordering::Relaxed);
         self.executed.lock().unwrap().push((sql.to_owned(), binds.to_vec()));
+        let first = self.first_provision();
         Box::pin(async move {
+            if first {
+                if let Some(gate) = &self.gate {
+                    gate.entered.add_permits(1);
+                    gate.release.acquire().await.unwrap().forget();
+                }
+            }
             if let Some(err) = self.provision_fail.clone() {
                 return Err(err);
             }
@@ -856,6 +911,104 @@ async fn pg_provision_function_serves_a_new_subject_and_scopes_its_read() {
         .execute(&pool)
         .await
         .unwrap();
+    sqlx::query(&format!("DROP TABLE {actor}")).execute(&pool).await.unwrap();
+}
+
+/// Connect with a pool wide enough that N requests really are in flight at once,
+/// rather than queueing on `PgPool::connect`'s default ceiling.
+async fn connect_wide_pool(max: u32) -> Option<(sqlx::PgPool, fraiseql_test_support::Service)> {
+    let svc = fraiseql_test_support::postgres().await?;
+    match sqlx::postgres::PgPoolOptions::new()
+        .max_connections(max)
+        .connect(svc.url())
+        .await
+    {
+        Ok(pool) => Some((pool, svc)),
+        Err(e) => {
+            eprintln!("SKIP: postgres reachable but connect failed ({e}); skipping");
+            None
+        },
+    }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn pg_sixteen_concurrent_first_requests_produce_one_row() {
+    const N: usize = 16;
+    const N_U32: u32 = 16;
+    const N_I64: i64 = 16;
+
+    let Some((pool, _svc)) = connect_wide_pool(N_U32).await else {
+        eprintln!("SKIP pg_sixteen_concurrent_first_requests_produce_one_row: no postgres");
+        return;
+    };
+    let actor = make_provisionable_actor_table(&pool).await;
+    let attempts = format!("tb_provision_attempt_{}", uuid::Uuid::new_v4().simple());
+    sqlx::query(&format!("CREATE TABLE {attempts} (sub text)"))
+        .execute(&pool)
+        .await
+        .unwrap();
+
+    let mut cfg = config(
+        &format!("SELECT actor_id, actor_role FROM {actor} WHERE sub = $sub"),
+        &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+    );
+    // The documented contract: idempotent under concurrency. The conflict target
+    // is the column holding the `IdP` subject — the same one any out-of-band
+    // writer must use, or the two writers duplicate the actor instead of
+    // agreeing on it.
+    //
+    // The `pg_sleep` is what makes this a race rather than sixteen requests that
+    // happen to run one after another: it holds every provision open long enough
+    // that all N have read zero rows before the first insert commits. The
+    // attempt log is the proof — without it, a run where fifteen requests simply
+    // found the row already there would look identical.
+    cfg.provision = Some(format!(
+        "WITH attempt AS ( \
+             INSERT INTO {attempts} (sub) SELECT $sub FROM (SELECT pg_sleep(0.5)) s \
+             RETURNING sub \
+         ) \
+         INSERT INTO {actor} (sub, actor_id, actor_role) \
+         SELECT sub, 'a-' || sub, 'staff' FROM attempt \
+         ON CONFLICT (sub) DO NOTHING"
+    ));
+    let resolver =
+        Arc::new(IdentityResolver::new(cfg, Arc::new(PgIdentityStore::new(pool.clone()))));
+
+    let barrier = Arc::new(tokio::sync::Barrier::new(N));
+    let mut tasks = Vec::with_capacity(N);
+    for _ in 0..N {
+        let resolver = Arc::clone(&resolver);
+        let barrier = Arc::clone(&barrier);
+        tasks.push(tokio::spawn(async move {
+            barrier.wait().await;
+            resolver.resolve("u-storm", &claims(&[("sub", json!("u-storm"))])).await
+        }));
+    }
+
+    for task in tasks {
+        match task.await.unwrap() {
+            IdentityResolution::Resolved(map) => assert_eq!(map["actor_id"], "a-u-storm"),
+            other => panic!("every concurrent first request must be served, got {other:?}"),
+        }
+    }
+
+    let (attempted,): (i64,) = sqlx::query_as(&format!("SELECT count(*) FROM {attempts}"))
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+    assert_eq!(
+        attempted, N_I64,
+        "all {N} requests must have found zero rows and provisioned — a run where some found \
+         the row already committed would prove nothing about the race"
+    );
+    let (count,): (i64,) =
+        sqlx::query_as(&format!("SELECT count(*) FROM {actor} WHERE sub = 'u-storm'"))
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(count, 1, "{N} provisions, one actor");
+
+    sqlx::query(&format!("DROP TABLE {attempts}")).execute(&pool).await.unwrap();
     sqlx::query(&format!("DROP TABLE {actor}")).execute(&pool).await.unwrap();
 }
 
@@ -1464,6 +1617,46 @@ async fn without_a_provision_statement_a_zero_row_miss_is_unchanged() {
     ));
     assert_eq!(store.provisions(), 0);
     assert_eq!(store.calls(), 1);
+}
+
+#[tokio::test]
+async fn a_request_arriving_while_another_provisions_is_not_refused() {
+    // The race #1324 has to survive: an IdP hands a browser its token, the app
+    // opens several requests at once, and none of them has a row yet.
+    let gate = Arc::new(ProvisionGate::new());
+    let store = Arc::new(
+        MockStore::returning(vec![])
+            .provisioning_to(provisioned_actor())
+            .gated(Arc::clone(&gate)),
+    );
+    let resolver =
+        Arc::new(provisioning_resolver(Arc::clone(&store), "SELECT fn_provision_actor($sub)"));
+
+    let first = tokio::spawn({
+        let resolver = Arc::clone(&resolver);
+        async move { resolver.resolve("u-new", &claims(&[("sub", json!("u-new"))])).await }
+    });
+    gate.wait_until_provisioning().await;
+
+    // The first request is *inside* its provision statement. Nothing it has done
+    // on the way there may make this one fail closed — a `Denied(ZeroRows)`
+    // cached before provisioning would 403 every concurrent request, and go on
+    // doing it for the rest of `negative_ttl_secs`.
+    match resolver.resolve("u-new", &claims(&[("sub", json!("u-new"))])).await {
+        IdentityResolution::Resolved(map) => assert_eq!(map["actor_id"], "a-new"),
+        other => panic!("a concurrent first request must not be refused, got {other:?}"),
+    }
+
+    gate.release();
+    assert!(
+        matches!(first.await.unwrap(), IdentityResolution::Resolved(_)),
+        "and the request that did the provisioning is served too"
+    );
+    assert_eq!(
+        store.provisions(),
+        2,
+        "each provisioned; the statement is what must be idempotent"
+    );
 }
 
 #[tokio::test]
