@@ -18,6 +18,74 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Webhooks from identity providers that sign with a JWT, and a verification seam that can
+  fetch a key (#1322).** Four new `provider` values — `hanko`, `kinde`, `fusionauth`, and the
+  generic `jwt-jwks` they are presets over. None of those providers could be received at all
+  before: the receiving path had a header-only credential, a mandatory shared secret, and a
+  synchronous verify with nowhere to look a key up.
+
+  `SignatureVerifier` gains `resolve_key`, called before `verify` and given the request. Its
+  default hands back the route's configured secret and does **no I/O** — the answer for every
+  scheme whose key the operator configured. A scheme whose key its sender's *publisher*
+  publishes overrides it: it parses the credential, refuses an algorithm outside its
+  allow-list, and only then looks the key up, so a token the route would refuse on its header
+  alone costs no outbound request (#1335). `verify` stays a pure function of the request and a
+  key, and its second parameter is now that resolved key rather than the secret. The fifteen
+  existing schemes are unchanged.
+
+  `check_key_material` now takes `Option<&str>`, because "does this scheme want a secret" and
+  "is this secret usable" are the same question at two moments. The default refuses `None`
+  (twelve schemes verify with a shared secret) and `jwt-jwks` refuses `Some` — a secret on
+  such a route is key material nothing consults. `WebhookPipeline::process` and
+  `verify_signature` take `Option<&str>` to match, and `verify_signature` is now `async`.
+  `build_scheme` takes a `SchemeContext` instead of a bare `tolerance_secs`: it carries the
+  replay window and the published-key source, which is a capability the caller supplies
+  because `fraiseql-webhooks` makes no network requests and owns no HTTP client.
+
+  **`[webhooks.<name>].secret_env` is now optional**, and the boot check asks the scheme one
+  question rather than two. A shared-secret route without a secret is refused in production
+  and skipped with a warning in development, exactly as before (#787); a JWT route **needs**
+  none, and one carrying a secret is refused in every environment. Keying the development
+  skip on "the secret is missing" — which is true of every JWT route by design — would have
+  silently skipped all of them.
+
+  `[webhooks.<name>]` gains `jwks_uri` (required for the four, https or loopback http, refused
+  on every other scheme), `audience`, `algorithms` and `max_age_secs`, plus — for the generic
+  scheme only — `event_type_claim`, `payload_claim`, `id_claim` and `body_hash_claim`. The
+  split is format versus policy: a preset fixes what the *provider* decided about its tokens
+  and refuses those keys, while `jwks_uri`, `audience`, `algorithms` and `max_age_secs` are
+  what this *deployment* decided and a preset reads all four. `none` and the `HS*` family are
+  refused at boot whatever `algorithms` says, since an HMAC algorithm verified against a
+  *public* key set means anyone who can read that key set can forge a token; `fusionauth`
+  defaults to RSA **and** EC, because either is an ordinary FusionAuth setup and an RSA-only
+  default would refuse half of them. `credential` is the existing key and is what says where
+  the token is — **required** for the generic scheme, since no provider puts a JWT in the HMAC
+  families' `X-Signature` and inheriting that default would only ever produce a 401.
+
+  Two things an operator has to know, both in `docs/architecture/webhooks.md`:
+
+  - **Token confusion.** A provider's webhook JWKS is usually the same key set that signs its
+    end-user sessions — Hanko's is, and Kinde's webhook JWKS is its access-token JWKS. So each
+    preset fixes the claims that tell a webhook token from a user token (`hanko`:
+    `sub == "hanko webhooks"` plus `evt` and `data`; `kinde`: `event_id`, `type`, `source`;
+    `fusionauth`: the body-digest claim, which is also what binds the body) and refuses a token
+    without them. `audience` is defence in depth on top, validated whenever set — not instead,
+    because a provider's webhook token may carry no `aud` at all and a route that demanded one
+    would refuse every genuine delivery.
+  - **Kinde's replay window is the delivery ledger, not a timestamp.** Its tokens carry no
+    `exp`, so `jsonwebtoken`'s default of requiring one would have refused every genuine
+    delivery; `exp` is checked when present and not required. What stops a replay is the
+    ledger already holding the `event_id`. Hanko's tokens carry no id at all, so its delivery
+    id is a digest of the verified token — and if Hanko re-signs on retry, delivery is
+    at-least-once and `after:ingest` handlers must be idempotent.
+
+  ⚠ **The issue's verification gate is not yet closed.** It asks for each preset to be
+  exercised against a delivery captured from the real provider. The schemes are verified
+  against locally-signed tokens, the route end-to-end against a live database and a real HTTP
+  key set, and every claim above is pinned by a test — but no captured third-party delivery
+  has been replayed. Kinde is SaaS-only and needs an account; Hanko and FusionAuth are
+  self-hostable. Until all three exist this is implemented and unconfirmed against the wire.
+
 - **One JWKS client replaces the two that had drifted, and it bounds its refetches (#1335).**
   A new crate, `fraiseql-jwks`, is the only place this workspace fetches a publisher's key
   set. Both previous copies are gone and their public surfaces change with them.

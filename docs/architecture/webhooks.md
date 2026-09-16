@@ -85,6 +85,10 @@ have (#1338).
 | `discord` | Ed25519 over `timestamp + body`, hex | `X-Signature-Ed25519` | `X-Signature-Timestamp` | hex **public** key |
 | `standard-webhooks` | `HMAC-SHA256("{id}.{timestamp}.{body}")`, base64 behind `v1,` | `webhook-signature` (space-separated list; several during rotation) | `webhook-timestamp` | base64 secret behind `whsec_` |
 | `clerk` | the same, under Svix's header spelling | `svix-signature` | `svix-timestamp` | base64 secret behind `whsec_` |
+| `hanko` | a JWT in the body field `token`, checked against the tenant's JWKS | `body:token` | the token's own `exp` | **none** — keys are published |
+| `kinde` | a JWT that **is** the body (`application/jwt`) | `body` | the token's own `exp`, if it carries one | **none** — keys are published |
+| `fusionauth` | a JWT in a header, bound to the body by a `request_body_sha256` claim | `header:X-FusionAuth-Signature-JWT` | the token's own `exp` | **none** — keys are published |
+| `jwt-jwks` | a JWT checked against a published JWKS | configurable — see below | the token's own `exp` | **none** — keys are published |
 | `hmac-sha256` | `HMAC-SHA256(body)` | configurable — see below | — | shared secret |
 | `hmac-sha1` | `HMAC-SHA1(body)` | configurable — see below | — | shared secret |
 
@@ -153,6 +157,93 @@ decodes at all.
 `secret_env` holds `whpk_…` or `whsk_…` key material is refused when the server starts,
 naming the prefix and the version. The alternative — mounting the route and answering 401
 to every genuine delivery — is a gap an operator has to read the logs to discover.
+
+### Identity providers that sign with a JWT — `hanko` / `kinde` / `fusionauth` / `jwt-jwks`
+
+These four do not send an HMAC over the body. They send a **token** signed by a key
+the provider publishes in a JWKS, and for three of them the event is *inside* the
+token rather than in the request body.
+
+| | `hanko` | `kinde` | `fusionauth` |
+|---|---|---|---|
+| where the token is | body field `token` | the whole body | header `X-FusionAuth-Signature-JWT` |
+| what the signature covers | the claims `evt` + `data`. The outer `event` field is **not signed** | the claims | the **body**, via a `request_body_sha256` claim = base64(SHA-256(raw bytes)) |
+| the dispatched event | the signed `evt` / `data` | the signed `type` / `data` | the body, which the digest claim makes verified material |
+| what the ledger keys on | SHA-256 of the verified token | the signed `event_id` | the body's own id, as the receiver's rules find it |
+| what bounds replay | the token's `exp` (`iat` + 300) | **the delivery ledger alone** — Kinde documents no `iat`/`exp` and retries for up to 36 h | the token's `exp` |
+| key types | tenant JWKS, RSA | RSA | RSA **or** EC — both accepted out of the box, since either is an ordinary FusionAuth setup. An EdDSA or HMAC key is refused **by name** |
+
+Two facts an operator cannot guess:
+
+**A route for these carries no `secret_env`, and setting one refuses the boot.**
+There is no shared secret: the provider publishes the key. A `secret_env` on such a
+route is key material nothing consults, and this configuration refuses rather than
+ignores it. Conversely a `jwks_uri` is **required**, and a route without one does not
+boot.
+
+**Kinde's replay window is the delivery ledger, not a timestamp.** Its tokens carry
+no `exp`, so nothing about a captured token goes stale. What stops a replay is that
+the ledger already holds its `event_id`. Do not truncate
+`webhooks.tb_inbound_delivery` for a route serving Kinde.
+
+And one for Hanko specifically: its tokens carry **no `jti` and no event id**, so the
+delivery id is a digest of the verified token. If Hanko re-signs on retry — a fresh
+`iat` gives a fresh digest — each attempt is a distinct delivery and the ledger cannot
+coalesce retries. Treat delivery as at-least-once and write idempotent
+`after:ingest` handlers. (This is not yet confirmed against a captured retry.)
+
+#### Token confusion: why each preset checks claims, not just the signature
+
+A provider's webhook JWKS is usually the **same key set that signs its end-user
+sessions**. Hanko's is — FraiseQL's issuer-less OIDC mode exists to validate exactly
+those tokens — and Kinde's webhook JWKS is its access-token JWKS.
+
+So a scheme that accepted "any token that verifies against this key set" would accept
+**any logged-in end user POSTing their own session token as a webhook**, and the
+signature would be genuine. Each preset therefore fixes the claims that tell a
+webhook token from a user token and refuses a token without them:
+
+| preset | required |
+|---|---|
+| `hanko` | `sub == "hanko webhooks"`, plus `evt` and `data` present |
+| `kinde` | `event_id`, `type` and `source` present |
+| `fusionauth` | the `request_body_sha256` claim — which is also what binds the body, so it is one check and not two |
+
+`audience` is **defence in depth on top of that**, and is validated whenever it is
+set. It is not mandatory only because a provider's webhook token may carry no `aud`
+at all, and a route that demanded one would refuse every genuine delivery from such
+a provider. Set it whenever the provider sends one.
+
+```toml
+[webhooks.hanko]
+provider = "hanko"
+jwks_uri = "https://your-tenant.hanko.io/.well-known/jwks.json"
+audience = "my-app"          # the service name you registered at Hanko
+# secret_env is NOT set — and setting it refuses the boot
+```
+
+#### What a preset fixes, and what your deployment still chooses
+
+A preset fixes what the **provider** decided about its own tokens: where the token
+is, which claims carry the event, and which claims tell a webhook token from a user
+token. Configuring any of those on a preset route refuses the boot, because it
+would be a knob nothing consults.
+
+What your **deployment** decided stays yours, and a preset reads all four:
+`jwks_uri` (a tenant's key set is per deployment, so not even a preset can fix it),
+`audience` (it names this service), `algorithms` (which of the algorithms the
+provider supports this route will accept — FusionAuth can be configured with an RSA
+or an EC key, so narrowing it is a real choice), and `max_age_secs` (a freshness
+policy on top of the token's own `exp`, which is your risk appetite and nothing the
+provider states).
+
+`jwt-jwks` is the same machinery with the provider's details left to you, for a
+JWT-signing sender that is not one of the three: `credential` says where the token
+is — **required**, there is no default — `algorithms` is the allow-list (`RS256` by
+default; `none` and the `HS*` family are refused whatever it says), and
+`event_type_claim` / `payload_claim` / `id_claim` name where the event sits inside
+the token. `body_hash_claim` is the FusionAuth shape — setting it means the **body**
+is the event, so it cannot be combined with those three.
 
 ### Security Properties
 
@@ -266,8 +357,16 @@ provider   = "github"
 secret_env = "GITHUB_WEBHOOK_SECRET"
 ```
 
-`provider` and `secret_env` are both required and have no defaults: a route missing
-either fails to deserialize, and the server does not boot.
+`provider` is required and has no default: a route without one fails to deserialize
+and the server does not boot.
+
+`secret_env` is required **by most schemes but not by all**, and which way round is
+the scheme's answer rather than the configuration format's (#1322). Every
+shared-secret scheme needs it, and a route missing one is refused in production (and
+skipped with a warning in development, so an unfinished local setup answers 404
+rather than 500). The four JWT schemes need the opposite: they verify against keys
+the provider publishes, so a `secret_env` there is key material nothing consults and
+**refuses the boot in every environment**.
 
 `secret_env` is the *name of an environment variable*, not the secret. The signing
 secret never appears in `fraiseql.toml`, which is a file that gets committed.
@@ -282,6 +381,13 @@ Optional keys:
 | `encoding` | `hmac-sha256`, `hmac-sha1` | `hex` (default) or `base64`. |
 | `prefix` | `hmac-sha256`, `hmac-sha1` | a literal stripped before decoding, e.g. `sha256=`. |
 | `header_prefix` | `standard-webhooks` | the spelling of the Standard Webhooks header triple — `{prefix}-id`, `{prefix}-timestamp`, `{prefix}-signature`. Defaults to `webhook`, the spec's own; Svix and Clerk send `svix`. The `clerk` preset **is** that spelling and refuses the key. |
+| `jwks_uri` | `jwt-jwks`, `hanko`, `kinde`, `fusionauth` | where the provider serves the keys its tokens are signed by. **Required** for these schemes — a route without one does not boot. Must be `https`, or `http` on a loopback host for a local development IdP. A tenant's key set is per deployment, which is why even a preset reads this. |
+| `audience` | the four JWT schemes | the `aud` a token must carry. Validated when set; see [token confusion](#token-confusion-why-each-preset-checks-claims-not-just-the-signature) for why you want it set. |
+| `algorithms` | the four JWT schemes | the `alg` allow-list. Defaults to `["RS256"]`, except `fusionauth`, which defaults to RSA **and** EC because its signing key may be either. Checked **before** any key lookup, so a token this route would refuse on its header alone costs no request to the provider. `none` and the `HS*` family are refused at boot whatever this says: an HMAC algorithm verified against a *public* key set means anyone who can read that key set can forge a token. |
+| `max_age_secs` | the four JWT schemes | an additional freshness window on `iat`, beyond the token's own `exp`. Leave it unset unless you know your provider re-signs on retry: a provider that retries for hours with a reused token would have every retry past this age refused. A route that sets it and receives a token with no `iat` refuses the delivery — the age cannot be established. |
+| `credential` | `jwt-jwks` | where the token is: `header:<Name>`, `body`, or `body:<field>`. **Required** — the generic scheme has no default, because no provider puts a JWT in the HMAC families' `X-Signature` and inheriting that spelling would only produce a 401 per delivery. The three presets fix their own and refuse the key. |
+| `event_type_claim`, `payload_claim`, `id_claim` | `jwt-jwks` | which claims carry the event's type, its payload, and its id. `id_claim` unset means the id is a digest of the verified token. The presets fix their own. |
+| `body_hash_claim` | `jwt-jwks` | the claim carrying `base64(SHA-256(raw body))`, which binds a token in a header to the body it arrived with. Setting it makes the **body** the event, so it cannot be combined with the three claim keys above. |
 
 **An unknown key refuses to boot, and so does a key the chosen scheme does not read**
 (#1321). `encoding = "base64"` on a `stripe` route is not ignored — Stripe fixes its own
