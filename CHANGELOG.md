@@ -18,6 +18,54 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **One JWKS client replaces the two that had drifted, and it bounds its refetches (#1335).**
+  A new crate, `fraiseql-jwks`, is the only place this workspace fetches a publisher's key
+  set. Both previous copies are gone and their public surfaces change with them.
+
+  The defect it exists for: **a `kid` the cache did not hold fetched the key set again,
+  every time.** No negative cache, no cooldown, no single-flight for concurrent misses, and
+  the algorithm allow-list was checked *after* the key lookup. Measured against a counting
+  JWKS server — the first three rows on the stock `auth,cli` binary when the issue was
+  filed, and all four reproduced at `OidcValidator::validate_token` before the fix: 20
+  requests naming 20 distinct unknown `kid`s cost **20 fetches**; the same unknown `kid` 20
+  times cost **20**; an `HS256` token the server refuses on its header alone cost **1**; and
+  8 concurrent misses cost **8**. So any anonymous client could set the server's outbound
+  request rate through `POST /graphql`. The consequence is not the amplification — IdPs rate-limit their JWKS
+  endpoints, and once the IdP throttles the server a *genuine* key rotation can no longer be
+  fetched and every user holding a new-`kid` token is refused. It converts into an
+  authentication outage caused by traffic that never authenticated. All four measurements
+  are now one fetch, one fetch, zero, and one.
+
+  The drift it also ends: `fraiseql-core`'s copy accepted **RSA keys only** and did not pin
+  DNS, while `fraiseql-auth`'s accepted RSA **and** EC and pinned against rebinding. An
+  operator whose IdP rotated onto an EC key had the OAuth path work and the `[auth]` path
+  refuse every token. There is one key-type list now, and one resolve-and-pin.
+
+  `fraiseql_core::security::oidc`: `Jwk` and `Jwks` are **removed** — use
+  `fraiseql_jwks::{Jwk, JwkSet}`. `MAX_JWKS_RESPONSE_BYTES` is now a re-export of
+  `fraiseql_jwks::MAX_RESPONSE_BYTES`. `OidcValidator::with_jwks_uri` takes `&str` and
+  returns `Result`: it used to store the URI unexamined, so `jwks_uri = "not a url"` — or a
+  plain-`http` one pointing anywhere — built a validator that refused every token at its
+  first delivery instead of refusing to exist. `OidcValidator::clear_cache` is **removed**;
+  it was a second name for `invalidate_jwks_cache`, called by nothing.
+  `invalidate_jwks_cache` and `refresh_jwks` are unchanged and still back
+  `POST /admin/v1/auth/refresh-jwks` — a forced refresh is deliberately **not** subject to
+  the new cooldown, which bounds sender-triggered refetches only.
+
+  `fraiseql_auth`: `JwksCache` is **removed** in favour of `fraiseql_jwks::JwksSource`,
+  re-exported from the crate root together with `JwksError`. `OIDCClient::jwks_cache` is
+  now `OIDCClient::jwks: Arc<JwksSource>`, and `with_jwks_cache` is `with_jwks_source`.
+
+  Behaviour an operator should know: `jwks_cache_ttl_secs` still bounds how long a fetched
+  key set is served, and therefore how long a rotated-out key keeps validating (#361). An
+  **expired** set is no longer read at all, so the cooldown cannot extend that window; and
+  the cooldown is clamped to the TTL, so shortening the TTL below it cannot produce a cache
+  that expires and may not be refilled. A publisher that is unreachable now yields a
+  distinct "no key set is held and the next attempt is not due yet" error rather than
+  "that key is not published" — the two have opposite HTTP answers for any caller that maps
+  them, and reporting the operator's own broken key fetch to a sender as a 401 is how a
+  provider comes to disable an endpoint (#1045).
+
 - **A webhook route's verification scheme is its configuration, and verification reports what
   it authenticated (#1321).** Five changes an embedder or an operator can see.
 
