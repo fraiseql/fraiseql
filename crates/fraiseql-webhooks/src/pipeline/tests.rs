@@ -44,19 +44,37 @@ fn never_read(_authenticated: Authenticated<'_>) -> Result<VerifiedEvent> {
     panic!("the event must not be read when the pipeline short-circuits before verifying")
 }
 
-#[test]
-fn verify_signature_accepts_a_valid_signature() {
+#[tokio::test]
+async fn verify_signature_accepts_a_valid_signature() {
     let verifier = MockSignatureVerifier::succeeding();
-    assert!(verify_signature(&verifier, "secret", &delivery()).is_ok());
+    assert!(verify_signature(&verifier, Some("secret"), &delivery()).await.is_ok());
 }
 
-#[test]
-fn verify_signature_rejects_a_mismatch_as_signature_invalid() {
+#[tokio::test]
+async fn verify_signature_rejects_a_mismatch_as_signature_invalid() {
     let verifier = MockSignatureVerifier::failing();
-    let err = verify_signature(&verifier, "secret", &delivery()).unwrap_err();
+    let err = verify_signature(&verifier, Some("secret"), &delivery()).await.unwrap_err();
     assert!(
         matches!(err, WebhookError::SignatureInvalid(_)),
         "a mismatched signature must be SignatureInvalid, got: {err:?}",
+    );
+}
+
+/// A route whose scheme has a shared secret, reached with none, must not verify —
+/// and must report it as the **operator's** error, not the sender's.
+///
+/// Unreachable through a mounted route, because `check_key_material` refuses that
+/// combination at boot. It is asserted here because the trait is this crate's
+/// advertised extension point: an embedder driving it directly gets a 5xx naming
+/// its own mistake rather than a verification against something unintended.
+#[tokio::test]
+async fn verify_signature_with_no_secret_is_the_operators_error() {
+    let verifier = MockSignatureVerifier::succeeding();
+    let err = verify_signature(&verifier, None, &delivery()).await.unwrap_err();
+    assert!(
+        matches!(err, WebhookError::KeyMaterial(_)),
+        "a secret-needing scheme reached without one is KeyMaterial (a 5xx), never \
+         SignatureInvalid (a 401 blaming the sender): {err:?}",
     );
 }
 
@@ -82,7 +100,7 @@ async fn forged_signature_is_rejected_before_any_database_work() {
 
     let verifier = MockSignatureVerifier::failing();
     let err = pipeline
-        .process(&verifier, "stripe", &delivery(), never_read)
+        .process(&verifier, Some("stripe"), &delivery(), never_read)
         .await
         .unwrap_err();
 
@@ -106,7 +124,7 @@ async fn missing_secret_is_rejected_before_any_database_work() {
     // before verification — not a signature failure.
     let verifier = MockSignatureVerifier::succeeding();
     let err = pipeline
-        .process(&verifier, "stripe", &delivery(), never_read)
+        .process(&verifier, Some("stripe"), &delivery(), never_read)
         .await
         .unwrap_err();
 

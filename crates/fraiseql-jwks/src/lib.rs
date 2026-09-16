@@ -375,7 +375,7 @@ impl MonotonicClock for SystemMonotonicClock {
 
 /// A future returned from a `dyn`-dispatched method of this crate.
 ///
-/// Written out rather than reached through `#[async_trait]`: there are two
+/// Written out rather than reached through the `async_trait` macro: there are two
 /// implementations of [`JwksKeys`] in the workspace, the boxing is the whole cost
 /// of `dyn` dispatch and is better visible than generated.
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;

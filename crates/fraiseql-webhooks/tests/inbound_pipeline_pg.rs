@@ -218,7 +218,7 @@ async fn fresh_delivery_is_processed_and_recorded() {
     let outcome = pipeline
         .process(
             &AcceptingVerifier,
-            "stripe",
+            Some("stripe"),
             &delivery(),
             event_of("evt_1", json!({"id": "evt_1"})),
         )
@@ -237,8 +237,8 @@ async fn duplicate_delivery_is_discarded_and_handler_runs_once() {
     let d = delivery();
     let event = || event_of("evt_dup", json!({"id": "evt_dup"}));
 
-    let first = pipeline.process(&AcceptingVerifier, "stripe", &d, event()).await.unwrap();
-    let second = pipeline.process(&AcceptingVerifier, "stripe", &d, event()).await.unwrap();
+    let first = pipeline.process(&AcceptingVerifier, Some("stripe"), &d, event()).await.unwrap();
+    let second = pipeline.process(&AcceptingVerifier, Some("stripe"), &d, event()).await.unwrap();
 
     assert!(matches!(first, Disposition::Processed(_)), "first delivery is processed");
     assert!(
@@ -266,8 +266,8 @@ async fn concurrent_duplicate_deliveries_process_exactly_once() {
     // unique-key row lock inside the atomic claim: exactly one inserts and commits,
     // the other waits, sees the conflict, and is discarded.
     let (a, b) = tokio::join!(
-        pipeline_a.process(&AcceptingVerifier, "stripe", &d, event()),
-        pipeline_b.process(&AcceptingVerifier, "stripe", &d, event()),
+        pipeline_a.process(&AcceptingVerifier, Some("stripe"), &d, event()),
+        pipeline_b.process(&AcceptingVerifier, Some("stripe"), &d, event()),
     );
 
     let processed = [&a, &b]
@@ -293,7 +293,10 @@ async fn handler_failure_rolls_back_claim_and_effects_so_retry_reprocesses() {
 
     // First attempt: the handler writes its side effect, then fails.
     let failing = WebhookPipeline::new(admin.clone(), secrets(), store, FailingHandler);
-    let err = failing.process(&AcceptingVerifier, "stripe", &d, event()).await.unwrap_err();
+    let err = failing
+        .process(&AcceptingVerifier, Some("stripe"), &d, event())
+        .await
+        .unwrap_err();
     assert!(matches!(err, WebhookError::Database(_)), "handler error surfaces, got: {err:?}");
     assert_eq!(
         delivery_count(&admin).await,
@@ -305,7 +308,10 @@ async fn handler_failure_rolls_back_claim_and_effects_so_retry_reprocesses() {
     // The sender retries: a fresh store over the same DB, now with a working handler.
     let store2 = PostgresIdempotencyStore::new(admin.clone());
     let succeeding = WebhookPipeline::new(admin.clone(), secrets(), store2, RecordingHandler);
-    let outcome = succeeding.process(&AcceptingVerifier, "stripe", &d, event()).await.unwrap();
+    let outcome = succeeding
+        .process(&AcceptingVerifier, Some("stripe"), &d, event())
+        .await
+        .unwrap();
     assert!(
         matches!(outcome, Disposition::Processed(_)),
         "the retry reprocesses the event (it was not lost as 'seen but unhandled')",
@@ -320,7 +326,12 @@ async fn forged_signature_writes_no_delivery_row() {
     let pipeline = WebhookPipeline::new(admin.clone(), secrets(), store, RecordingHandler);
 
     let err = pipeline
-        .process(&RejectingVerifier, "stripe", &delivery(), event_of("evt_forged", json!({})))
+        .process(
+            &RejectingVerifier,
+            Some("stripe"),
+            &delivery(),
+            event_of("evt_forged", json!({})),
+        )
         .await
         .unwrap_err();
 
@@ -344,7 +355,7 @@ async fn rls_denies_inbound_delivery_ledger_by_default() {
     let (store, admin) = setup().await.unwrap();
     let pipeline = WebhookPipeline::new(admin.clone(), secrets(), store, RecordingHandler);
     pipeline
-        .process(&AcceptingVerifier, "stripe", &delivery(), event_of("evt_rls", json!({})))
+        .process(&AcceptingVerifier, Some("stripe"), &delivery(), event_of("evt_rls", json!({})))
         .await
         .unwrap();
 
@@ -442,8 +453,8 @@ async fn init_migrates_a_pre_1046_ledger_and_the_claim_stays_atomic() {
     let pipeline = WebhookPipeline::new(admin.clone(), secrets(), store, RecordingHandler);
     let d = delivery();
     let event = || event_of("evt_migrated", json!({"id": "evt_migrated"}));
-    let first = pipeline.process(&AcceptingVerifier, "stripe", &d, event()).await.unwrap();
-    let second = pipeline.process(&AcceptingVerifier, "stripe", &d, event()).await.unwrap();
+    let first = pipeline.process(&AcceptingVerifier, Some("stripe"), &d, event()).await.unwrap();
+    let second = pipeline.process(&AcceptingVerifier, Some("stripe"), &d, event()).await.unwrap();
 
     assert!(
         matches!(first, Disposition::Processed(_)),
@@ -472,7 +483,8 @@ async fn a_handler_reporting_duplicate_is_not_reported_processed() {
     let d = delivery();
     let event = || event_of("evt_handler_dup", json!({"id": "evt_handler_dup"}));
 
-    let disposition = pipeline.process(&AcceptingVerifier, "stripe", &d, event()).await.unwrap();
+    let disposition =
+        pipeline.process(&AcceptingVerifier, Some("stripe"), &d, event()).await.unwrap();
 
     assert!(
         matches!(disposition, Disposition::Duplicate),
@@ -499,7 +511,7 @@ async fn a_handler_reported_duplicate_still_commits_the_claim() {
     let d = delivery();
     let event = || event_of("evt_handler_dup_claim", json!({"id": "evt_handler_dup_claim"}));
 
-    pipeline.process(&AcceptingVerifier, "stripe", &d, event()).await.unwrap();
+    pipeline.process(&AcceptingVerifier, Some("stripe"), &d, event()).await.unwrap();
 
     assert_eq!(
         delivery_count(&admin).await,

@@ -157,7 +157,7 @@ mod genuine_delivery_fixtures {
 
     use crate::{
         request::InboundRequest,
-        scheme::{KNOWN_SCHEMES, SchemeConfig, build_scheme},
+        scheme::{KNOWN_SCHEMES, SchemeConfig, SchemeContext, build_scheme},
         signature::Verified,
     };
 
@@ -565,8 +565,12 @@ mod genuine_delivery_fixtures {
     #[test]
     fn every_genuine_delivery_verifies() {
         for f in fixtures() {
-            let verifier =
-                build_scheme(f.provider, &SchemeConfig::default(), 300).expect(f.provider);
+            let verifier = build_scheme(
+                f.provider,
+                &SchemeConfig::default(),
+                &SchemeContext::with_tolerance(300),
+            )
+            .expect(f.provider);
             let headers = request_of(&f, &f.signature);
             let result = verifier
                 .verify(&InboundRequest::new(&headers, &f.body, f.url.as_deref()), &f.secret);
@@ -585,8 +589,12 @@ mod genuine_delivery_fixtures {
     #[test]
     fn every_tampered_delivery_is_rejected() {
         for f in fixtures() {
-            let verifier =
-                build_scheme(f.provider, &SchemeConfig::default(), 300).expect(f.provider);
+            let verifier = build_scheme(
+                f.provider,
+                &SchemeConfig::default(),
+                &SchemeContext::with_tolerance(300),
+            )
+            .expect(f.provider);
             // GitLab's scheme signs nothing (static token), so tamper the token;
             // for everyone else, tamper the body the signature covers.
             let (body, signature) = if f.provider == "gitlab" {
@@ -618,12 +626,22 @@ mod genuine_delivery_fixtures {
         let mut registered: Vec<String> =
             KNOWN_SCHEMES.iter().map(|name| (*name).to_string()).collect();
         registered.sort();
-        let mut covered: Vec<String> = fixtures().iter().map(|f| f.provider.to_string()).collect();
+        // Two corpora, one gate. A shared-secret scheme's fixture needs a secret
+        // and a signature header; a token scheme's needs a key source and a signed
+        // token, and its tampered twin has to corrupt different bytes (#1322). One
+        // struct carrying both would be `Option` in every field, and forcing the
+        // token schemes into `fixtures()` is what an exemption list would be for —
+        // so the union is taken here instead, and it stays total.
+        let mut covered: Vec<String> = fixtures()
+            .iter()
+            .map(|f| f.provider.to_string())
+            .chain(super::jwt_jwks::tests::token_fixtures().iter().map(|f| f.provider.to_string()))
+            .collect();
         covered.sort();
         covered.dedup();
         assert_eq!(
             registered, covered,
-            "every scheme in KNOWN_SCHEMES needs a genuine + tampered fixture in this file"
+            "every scheme in KNOWN_SCHEMES needs a genuine + tampered fixture, in this file              for a shared-secret scheme or in `jwt_jwks::tests::token_fixtures` for one that              verifies against a published key"
         );
     }
 }

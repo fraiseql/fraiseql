@@ -199,8 +199,18 @@ impl SignatureVerifier for StandardWebhooksVerifier {
         "standard-webhooks"
     }
 
-    fn check_key_material(&self, key_material: &str) -> Result<(), SignatureError> {
-        decode_key_material(key_material).map(|_| ())
+    fn check_key_material(&self, key_material: Option<&str>) -> Result<(), SignatureError> {
+        // The absent case is the trait's, not this scheme's: a Standard Webhooks
+        // sender signs with a shared secret like every other scheme here, so
+        // "there is no secret" has one answer and it is written once.
+        let Some(secret) = key_material else {
+            return Err(SignatureError::KeyMaterial(format!(
+                "the {} scheme verifies with a shared secret, so the route needs `secret_env` \
+                 set to the endpoint's signing secret",
+                self.name()
+            )));
+        };
+        decode_key_material(secret).map(|_| ())
     }
 
     fn verify(

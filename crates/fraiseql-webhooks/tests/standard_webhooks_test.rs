@@ -33,7 +33,7 @@
 use std::collections::BTreeMap;
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
-use fraiseql_webhooks::{SchemeConfig, SignatureError, Verified, build_scheme};
+use fraiseql_webhooks::{SchemeConfig, SchemeContext, SignatureError, Verified, build_scheme};
 use hmac::{Hmac, KeyInit as _, Mac as _};
 use sha2::Sha256;
 
@@ -114,14 +114,18 @@ fn verify(
     body: &[u8],
     secret: &str,
 ) -> Result<Verified, SignatureError> {
-    let scheme = build_scheme(provider, &SchemeConfig::default(), NO_FRESHNESS_WINDOW)
-        .unwrap_or_else(|error| {
-            panic!(
-                "#1323: `provider = \"{provider}\"` must name a scheme `build_scheme` can \
+    let scheme = build_scheme(
+        provider,
+        &SchemeConfig::default(),
+        &SchemeContext::with_tolerance(NO_FRESHNESS_WINDOW),
+    )
+    .unwrap_or_else(|error| {
+        panic!(
+            "#1323: `provider = \"{provider}\"` must name a scheme `build_scheme` can \
                  build. Today it names none, so no route can receive a Svix or Clerk \
                  delivery at all; got: {error}"
-            )
-        });
+        )
+    });
     scheme.verify(&fraiseql_webhooks::InboundRequest::new(headers, body, None), secret)
 }
 

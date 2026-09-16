@@ -68,6 +68,10 @@ fraiseql-observers = {workspace = true, optional = true}
 fraiseql-secrets = {workspace = true, optional = true}
 # Webhooks
 fraiseql-webhooks = {workspace = true, optional = true}
+# The one bounded JWKS client (#1335). Already in this crate's tree through
+# fraiseql-core; named directly because the inbound webhook path constructs one
+# per `jwt-jwks` route (#1322) — fraiseql-webhooks makes no network requests.
+fraiseql-jwks = {workspace = true}
 futures = "0.3"
 # GraphQL AST parsing for secure query validation
 graphql-parser = {workspace = true}

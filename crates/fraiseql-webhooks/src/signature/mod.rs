@@ -12,6 +12,7 @@ pub mod stripe;
 // Additional providers
 pub mod discord;
 pub mod gitlab;
+pub mod jwt_jwks;
 pub mod lemonsqueezy;
 pub mod paddle;
 pub mod postmark;

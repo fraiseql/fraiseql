@@ -65,40 +65,40 @@ fn routes() -> HashMap<String, WebhookRouteConfig> {
     routes.insert(
         "slack".to_string(),
         WebhookRouteConfig {
-            secret_env:    SLACK_SECRET_ENV.to_string(),
-            provider:      "slack".to_string(),
-            path:          None,
-            public_url:    None,
-            credential:    None,
-            encoding:      None,
-            prefix:        None,
-            header_prefix: None,
+            secret_env: Some(SLACK_SECRET_ENV.to_string()),
+            provider: "slack".to_string(),
+            path: None,
+            public_url: None,
+            credential: None,
+            encoding: None,
+            prefix: None,
+            ..Default::default()
         },
     );
     routes.insert(
         "twilio".to_string(),
         WebhookRouteConfig {
-            secret_env:    TWILIO_SECRET_ENV.to_string(),
-            provider:      "twilio".to_string(),
-            path:          None,
-            public_url:    Some(TWILIO_PUBLIC_URL.to_string()),
-            credential:    None,
-            encoding:      None,
-            prefix:        None,
-            header_prefix: None,
+            secret_env: Some(TWILIO_SECRET_ENV.to_string()),
+            provider: "twilio".to_string(),
+            path: None,
+            public_url: Some(TWILIO_PUBLIC_URL.to_string()),
+            credential: None,
+            encoding: None,
+            prefix: None,
+            ..Default::default()
         },
     );
     routes.insert(
         "lemonsqueezy".to_string(),
         WebhookRouteConfig {
-            secret_env:    LEMON_SECRET_ENV.to_string(),
-            provider:      "lemonsqueezy".to_string(),
-            path:          None,
-            public_url:    None,
-            credential:    None,
-            encoding:      None,
-            prefix:        None,
-            header_prefix: None,
+            secret_env: Some(LEMON_SECRET_ENV.to_string()),
+            provider: "lemonsqueezy".to_string(),
+            path: None,
+            public_url: None,
+            credential: None,
+            encoding: None,
+            prefix: None,
+            ..Default::default()
         },
     );
     routes

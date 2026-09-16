@@ -20,6 +20,8 @@
 
 use std::sync::Arc;
 
+use fraiseql_jwks::JwksKeys;
+
 use crate::{
     signature::{
         SignatureError,
@@ -27,6 +29,7 @@ use crate::{
         generic::{HmacSha1Verifier, HmacSha256Verifier},
         github::GitHubVerifier,
         gitlab::GitLabVerifier,
+        jwt_jwks,
         lemonsqueezy::LemonSqueezyVerifier,
         paddle::PaddleVerifier,
         postmark::PostmarkVerifier,
@@ -140,7 +143,7 @@ impl SignatureEncoding {
 /// **permissive by design** — it is what every existing `hmac-sha256` route already
 /// relies on — so it is named here rather than left to be inferred from a
 /// `Default` impl somewhere.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SchemeConfig {
     /// Where the credential is. `None` → `header:X-Signature`.
     pub credential: Option<CredentialLocation>,
@@ -157,9 +160,87 @@ pub struct SchemeConfig {
     /// Read only by `standard-webhooks`; the `clerk` preset fixes it to `svix`, and
     /// every other scheme refuses the key.
     pub header_prefix: Option<String>,
+
+    /// Where the sender's publisher serves the keys its tokens are signed by
+    /// (#1322).
+    ///
+    /// Read by `jwt-jwks` and each of its presets, and by nothing else. It is the
+    /// one key a preset still needs, because the JWKS of a *tenant* is not a detail
+    /// the provider fixes — `https://{tenant}.hanko.io/.well-known/jwks.json` is
+    /// per deployment.
+    pub jwks_uri: Option<String>,
+
+    /// The token algorithms this route accepts, as JWT `alg` names.
+    ///
+    /// `None` → `RS256`, which is what all three providers in #1322 sign with. The
+    /// list is an allow-list checked **before** any key lookup, and `none` and the
+    /// `HS*` family are refused whatever it says: a shared-secret algorithm
+    /// verified against a public key set is the algorithm-confusion attack.
+    pub algorithms: Option<Vec<String>>,
+
+    /// The `aud` claim a token must carry.
+    ///
+    /// Read by `jwt-jwks` and its presets. Not optional in effect: a publisher's
+    /// webhook JWKS is usually the **same** key set that signs its end-user
+    /// sessions, so a route that accepts any token verifying against it accepts a
+    /// logged-in user's own session token. See the presets for the other half of
+    /// that defence.
+    pub audience: Option<String>,
+
+    /// The claim naming the event's type. `None` → the scheme's own default.
+    pub event_type_claim: Option<String>,
+
+    /// The claim carrying the event itself. `None` → the scheme's own default.
+    pub payload_claim: Option<String>,
+
+    /// The claim carrying the event's id, which the delivery ledger keys on.
+    ///
+    /// `None` → the scheme's own default, which for a publisher whose token
+    /// carries no id at all is a digest of the verified token.
+    pub id_claim: Option<String>,
+
+    /// The claim carrying a digest of the raw request body, which is what binds a
+    /// token in a *header* to the body it arrived with (FusionAuth).
+    pub body_hash_claim: Option<String>,
+
+    /// An additional freshness window in seconds, beyond the token's own `exp`.
+    ///
+    /// `None` → the token's `exp` is the only freshness rule, which is the right
+    /// default and not a gap: a publisher that retries for 36 hours with a reused
+    /// token would have every retry past the window refused by a FraiseQL-chosen
+    /// age. Where a token carries no `exp` at all, the delivery ledger is what
+    /// bounds replay, and the scheme's documentation says so.
+    pub max_age_secs: Option<u64>,
 }
 
 impl SchemeConfig {
+    /// Every key absent.
+    ///
+    /// This is exactly what a route carrying no scheme keys deserializes to — each
+    /// field is `#[serde(default)]` on `WebhookRouteConfig` — so a fixture built
+    /// from here has the same shape as one a configuration file produces, rather
+    /// than a shape only a test can reach.
+    ///
+    /// `const`, because the two are the same value and a `Default` impl cannot be
+    /// called from a `const` item.
+    #[must_use]
+    pub const fn none() -> Self {
+        Self {
+            credential:       None,
+            encoding:         None,
+            prefix:           None,
+            header_prefix:    None,
+            jwks_uri:         None,
+            algorithms:       None,
+            audience:         None,
+            event_type_claim: None,
+            payload_claim:    None,
+            id_claim:         None,
+            body_hash_claim:  None,
+            max_age_secs:     None,
+        }
+    }
+
     /// The scheme keys this config actually carries, by name, in the order a
     /// refusal should mention them.
     fn present_keys(&self) -> impl Iterator<Item = &'static str> + '_ {
@@ -168,6 +249,14 @@ impl SchemeConfig {
             ("encoding", self.encoding.is_some()),
             ("prefix", self.prefix.is_some()),
             ("header_prefix", self.header_prefix.is_some()),
+            ("jwks_uri", self.jwks_uri.is_some()),
+            ("algorithms", self.algorithms.is_some()),
+            ("audience", self.audience.is_some()),
+            ("event_type_claim", self.event_type_claim.is_some()),
+            ("payload_claim", self.payload_claim.is_some()),
+            ("id_claim", self.id_claim.is_some()),
+            ("body_hash_claim", self.body_hash_claim.is_some()),
+            ("max_age_secs", self.max_age_secs.is_some()),
         ]
         .into_iter()
         .filter_map(|(key, present)| present.then_some(key))
@@ -201,6 +290,70 @@ impl SchemeConfig {
                 format!("only: {}", reads.join(", "))
             },
         })
+    }
+}
+
+/// What [`build_scheme`] needs besides the route's own configuration.
+///
+/// One struct rather than a growing parameter list, because the two things in it
+/// answer different questions and only one of them is per-route configuration:
+/// `tolerance_secs` is a policy the receiver sets for every route, and `jwks` is a
+/// *capability* the caller supplies because this crate does no network I/O and
+/// owns no HTTP client.
+pub struct SchemeContext {
+    /// The replay window, in seconds, handed to the schemes that sign a timestamp
+    /// (Stripe, Slack, SendGrid, Paddle, Discord, `standard-webhooks`). The others
+    /// ignore it.
+    tolerance_secs: u64,
+    /// The published-key source for this route, when it has one.
+    ///
+    /// `None` is the honest state of a route whose configuration named no
+    /// `jwks_uri`, and it is what makes `provider = "jwt-jwks"` without one a
+    /// **boot refusal** rather than a route that 5xxes on its first delivery.
+    jwks:           Option<Arc<dyn JwksKeys>>,
+}
+
+impl std::fmt::Debug for SchemeContext {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SchemeContext")
+            .field("tolerance_secs", &self.tolerance_secs)
+            .field("jwks", &self.jwks.is_some())
+            .finish()
+    }
+}
+
+impl SchemeContext {
+    /// A context with a replay window and no published-key source.
+    #[must_use]
+    pub const fn with_tolerance(tolerance_secs: u64) -> Self {
+        Self {
+            tolerance_secs,
+            jwks: None,
+        }
+    }
+
+    /// Attach the source a token-verifying scheme looks its keys up in.
+    ///
+    /// The receiver builds one per route from that route's `jwks_uri`; a test
+    /// hands in a local key, which is how a scheme's own suite runs with no
+    /// network at all.
+    #[must_use]
+    pub fn with_jwks(mut self, keys: Arc<dyn JwksKeys>) -> Self {
+        self.jwks = Some(keys);
+        self
+    }
+
+    /// The published-key source, or a refusal naming the route's own scheme.
+    fn require_jwks(&self, provider: &str) -> Result<Arc<dyn JwksKeys>, SchemeError> {
+        self.jwks.clone().ok_or_else(|| SchemeError::MissingKeySource {
+            provider: provider.to_string(),
+        })
+    }
+}
+
+impl Default for SchemeConfig {
+    fn default() -> Self {
+        Self::none()
     }
 }
 
@@ -249,6 +402,42 @@ pub enum SchemeError {
         value:    String,
     },
 
+    /// The scheme verifies against keys its sender's publisher publishes, and the
+    /// route did not say where those are.
+    #[error(
+        "the {provider:?} scheme verifies a token against the keys its sender's publisher \
+         serves, so the route needs `jwks_uri` set to that key set's URL. It must be https \
+         (or http on a loopback host, for local development)."
+    )]
+    MissingKeySource {
+        /// The scheme that has nowhere to look a key up.
+        provider: String,
+    },
+
+    /// The scheme cannot know where its credential is unless the route says.
+    #[error(
+        "the {provider:?} scheme needs `credential` to say where the token is: \
+         `header:<Name>`, `body` (the whole body is the token), or `body:<field>`. It has no \
+         default, because no provider puts a JWT in the generic schemes' `X-Signature` and \
+         inheriting that spelling would only produce a 401 per delivery. The named presets \
+         (`hanko`, `kinde`, `fusionauth`) each fix their own."
+    )]
+    MissingCredentialLocation {
+        /// The scheme that was not told.
+        provider: String,
+    },
+
+    /// `algorithms` names an algorithm this scheme will not verify with.
+    #[error("algorithms = {value:?} cannot be used by the {provider:?} scheme: {reason}")]
+    UnusableAlgorithm {
+        /// The scheme that refuses it.
+        provider: String,
+        /// The value the route configured.
+        value:    String,
+        /// Why it is refused.
+        reason:   String,
+    },
+
     /// The scheme's credential cannot live where the route says it does.
     #[error(
         "credential = {location:?} is not something the {provider:?} scheme can read: its \
@@ -277,10 +466,14 @@ const GENERIC_HMAC_KEYS: &[&str] = &["credential", "encoding", "prefix"];
 pub const KNOWN_SCHEMES: &[&str] = &[
     "clerk",
     "discord",
+    "fusionauth",
     "github",
     "gitlab",
+    "hanko",
     "hmac-sha1",
     "hmac-sha256",
+    "jwt-jwks",
+    "kinde",
     "lemonsqueezy",
     "paddle",
     "postmark",
@@ -298,8 +491,10 @@ pub const KNOWN_SCHEMES: &[&str] = &[
 /// served from the same call, so a configuration that boots can never meet a
 /// different scheme — or no scheme at all — at request time.
 ///
-/// `tolerance_secs` is the replay window handed to the schemes that sign a
-/// timestamp (Stripe, Slack, SendGrid, Paddle, Discord); the others ignore it.
+/// `context` carries what is not the route's own configuration: the replay window
+/// the receiver applies to every route, and the published-key source a
+/// token-verifying scheme looks keys up in — supplied by the caller because this
+/// crate does no network I/O.
 ///
 /// # Errors
 ///
@@ -307,8 +502,9 @@ pub const KNOWN_SCHEMES: &[&str] = &[
 pub fn build_scheme(
     provider: &str,
     config: &SchemeConfig,
-    tolerance_secs: u64,
+    context: &SchemeContext,
 ) -> Result<Arc<dyn SignatureVerifier>, SchemeError> {
+    let tolerance_secs = context.tolerance_secs;
     let built: Arc<dyn SignatureVerifier> = match provider {
         // The two families no provider owns: the operator describes the scheme.
         "hmac-sha256" => {
@@ -327,6 +523,30 @@ pub fn build_scheme(
                 StandardWebhooksVerifier::from_config(provider, config)?
                     .with_tolerance(tolerance_secs),
             )
+        },
+        // Tokens verified against a key set the sender's publisher serves (#1322).
+        // The one scheme whose key material is not the operator's, so it is also the
+        // one that overrides `resolve_key` — and the route's key source is a
+        // capability the caller supplies, not configuration, because this crate
+        // makes no network requests.
+        "jwt-jwks" => {
+            config.reads_only(provider, jwt_jwks::JWT_JWKS_KEYS)?;
+            jwt_jwks::build("jwt-jwks", config, context.require_jwks(provider)?)?
+        },
+        // Its presets. Each fixes its own token location, claims and event shape,
+        // and reads only where its tenant's key set is and which audience this
+        // deployment is — neither of which a provider can fix.
+        "hanko" | "kinde" | "fusionauth" => {
+            config.reads_only(provider, jwt_jwks::JWT_JWKS_PRESET_KEYS)?;
+            let name = match provider {
+                "hanko" => "hanko",
+                "kinde" => "kinde",
+                // Exhaustive over the arm's own pattern, so a fourth preset added to
+                // the match above without a name here is a compile error rather than
+                // a route silently reporting itself as `fusionauth`.
+                _ => "fusionauth",
+            };
+            jwt_jwks::build(name, config, context.require_jwks(provider)?)?
         },
         // Presets. `preset` refuses any scheme key before constructing.
         //

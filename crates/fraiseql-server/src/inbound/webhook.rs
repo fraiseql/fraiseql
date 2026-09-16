@@ -29,10 +29,11 @@ use axum::{
 use fraiseql_functions::{
     InboundMessage, IngestError, IngestSource, PushSource, RawDelivery, Source, Transport,
 };
+use fraiseql_jwks::JwksSource;
 use fraiseql_webhooks::{
     Authenticated, Delivery, Disposition, EventHandler, Handled, InboundRequest,
-    PostgresIdempotencyStore, Result as WebhookResult, SignatureVerifier, StaticSecretProvider,
-    VerifiedEvent, WebhookError, WebhookPipeline, build_scheme,
+    PostgresIdempotencyStore, Result as WebhookResult, SchemeContext, SignatureVerifier,
+    StaticSecretProvider, VerifiedEvent, WebhookError, WebhookPipeline, build_scheme,
 };
 use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Transaction};
@@ -182,11 +183,29 @@ struct BuiltRoute {
     provider:    String,
     /// The verification scheme built from this route's configuration.
     scheme:      Arc<dyn SignatureVerifier>,
-    /// Secret name resolved by the pipeline's secret provider.
-    secret_name: String,
+    /// Secret name resolved by the pipeline's secret provider, when this route's
+    /// scheme has one. `None` for a scheme that verifies against keys its
+    /// sender's publisher serves (#1322) — there is no secret to look up.
+    secret_name: Option<String>,
     /// The exact public URL the provider signed, for URL-signing schemes
     /// (Twilio). `None` for providers that sign the body only.
     public_url:  Option<String>,
+}
+
+impl BuiltRoute {
+    /// This route's key material as the environment supplies it.
+    ///
+    /// `None` when the route names no `secret_env` at all, and also when the
+    /// variable it names is unset **or empty** — #1045: an env var set to `""`
+    /// verifies nothing, so it is unset for every purpose that matters. Checking
+    /// only `is_none()` let `SECRET_ENV=""` boot clean and then fail every
+    /// delivery with a 401 that blamed the sender.
+    fn resolved_secret(&self, get_env: &impl Fn(&str) -> Option<String>) -> Option<String> {
+        self.secret_name
+            .as_deref()
+            .and_then(get_env)
+            .filter(|secret| !secret.is_empty())
+    }
 }
 
 impl std::fmt::Debug for BuiltRoute {
@@ -239,6 +258,16 @@ impl WebhookRoutes {
 /// so this change moves no provider's freshness behaviour.
 const TIMESTAMP_TOLERANCE_SECS: u64 = 300;
 
+/// How long a webhook route holds a publisher's JWKS before refetching (#1322).
+///
+/// Five minutes, matching the `[auth]` path's `jwks_cache_ttl_secs` default and
+/// for the same reason: it is the maximum window in which a key the publisher has
+/// rotated out keeps verifying deliveries (#361). The *refetch* rate is bounded
+/// separately and is not configurable — see `fraiseql_jwks::REFETCH_COOLDOWN`,
+/// which matters more here than on the `[auth]` path because a webhook route is
+/// unauthenticated by construction.
+const JWKS_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
+
 /// Build every configured route, or refuse.
 ///
 /// The **one** construction (#1321): boot validation and the mounted router are
@@ -282,11 +311,24 @@ fn build_routes<S: std::hash::BuildHasher>(
             )));
         }
 
+        // The key source, for a route that named one. Built here and not inside
+        // `fraiseql-webhooks`: that crate makes no network requests and owns no
+        // HTTP client, so the capability is the receiver's to supply. A route that
+        // named no `jwks_uri` gets no source, which is what makes `provider =
+        // "jwt-jwks"` without one a boot refusal (`SchemeError::MissingKeySource`)
+        // rather than a mounted route that 5xxes on its first genuine delivery.
+        let mut context = SchemeContext::with_tolerance(TIMESTAMP_TOLERANCE_SECS);
+        if let Some(uri) = config.jwks_uri.as_deref() {
+            let source = JwksSource::new(uri, JWKS_CACHE_TTL).map_err(|error| {
+                crate::ServerError::ConfigError(format!("[webhooks.{name}] {error}"))
+            })?;
+            context = context.with_jwks(Arc::new(source));
+        }
+
         let scheme =
-            build_scheme(&config.provider, &config.scheme_config(), TIMESTAMP_TOLERANCE_SECS)
-                .map_err(|error| {
-                    crate::ServerError::ConfigError(format!("[webhooks.{name}] {error}"))
-                })?;
+            build_scheme(&config.provider, &config.scheme_config(), &context).map_err(|error| {
+                crate::ServerError::ConfigError(format!("[webhooks.{name}] {error}"))
+            })?;
 
         if scheme.requires_url() && config.public_url.is_none() {
             return Err(crate::ServerError::ConfigError(format!(
@@ -363,17 +405,28 @@ impl WebhookInboundState {
             // #1045: `SECRET_ENV=""` is unset for every purpose that matters — it cannot
             // verify anything — so it takes the same skip path rather than mounting a
             // route that answers 401 to every genuine delivery.
-            let Some(secret) = get_env(&route.secret_name).filter(|s| !s.is_empty()) else {
+            //
+            // The condition is the scheme's, and it is the SAME call
+            // `webhook_routes_check` makes, so the two cannot drift about which
+            // routes are servable (#1322). "The secret is missing" was the right
+            // question only while every scheme wanted one.
+            let secret = route.resolved_secret(&get_env);
+            if let Err(reason) = route.scheme.check_key_material(secret.as_deref()) {
                 tracing::warn!(
                     route = %route.name,
-                    secret_env = %route.secret_name,
-                    "inbound webhook route SKIPPED: signing secret env is unset, so the \
-                     route is not mounted (deliveries answer 404). Set the variable and \
-                     restart to serve it."
+                    secret_env = ?route.secret_name,
+                    %reason,
+                    "inbound webhook route SKIPPED: this scheme cannot verify with the \
+                     route's key material, so the route is not mounted (deliveries answer \
+                     404). Fix the configuration and restart to serve it."
                 );
                 continue;
-            };
-            secrets = secrets.with_secret(route.secret_name.clone(), secret);
+            }
+            // A scheme that wants no secret registers none; there is nothing for the
+            // pipeline's secret provider to resolve.
+            if let (Some(name), Some(value)) = (route.secret_name.clone(), secret) {
+                secrets = secrets.with_secret(name, value);
+            }
             mounted.insert(segment, route);
         }
 
@@ -408,6 +461,15 @@ impl WebhookInboundState {
     ) -> Self {
         self.query_executor_factory = Some(factory);
         self
+    }
+
+    /// Which path segments were actually mounted (test observability: a route the
+    /// scheme could not verify with is skipped, and "skipped" must be assertable
+    /// rather than inferred from a 404).
+    #[cfg(test)]
+    #[must_use]
+    pub(crate) fn mounted_segments(&self) -> Vec<String> {
+        self.routes.keys().cloned().collect()
     }
 
     /// The attached `fraiseql_query` bridge factory, if any (test observability for
@@ -466,47 +528,67 @@ pub fn webhook_routes_check<S: std::hash::BuildHasher>(
 ) -> crate::Result<WebhookRoutes> {
     let built = build_routes(routes)?;
     for route in built.by_segment.values() {
-        // #1045: an env var that is set but empty verifies nothing, so it is treated as
-        // unset here too. Checking only `is_none()` let `SECRET_ENV=""` boot clean and
-        // then fail every delivery with a 401 that blamed the sender.
-        let Some(secret) = get_env(&route.secret_name).filter(|s| !s.is_empty()) else {
-            if is_production {
-                return Err(crate::ServerError::ConfigError(format!(
-                    "[webhooks.{}] secret_env = {:?} is not set (or is empty) in the \
-                     environment, so the configured route cannot verify any delivery. Set \
-                     the variable, or remove the route. (For local development only, \
-                     FRAISEQL_ENV=development downgrades this to a warning and skips the \
-                     route.)",
-                    route.name, route.secret_name
-                )));
-            }
-            tracing::warn!(
-                route = %route.name,
-                secret_env = %route.secret_name,
-                "inbound webhook route will be skipped: signing secret env is unset. \
-                 Allowed only because FRAISEQL_ENV=development."
-            );
+        let secret = route.resolved_secret(&get_env);
+        // The scheme is asked **one** question: can you verify with this? (#1322)
+        //
+        // It used to be two, asked in sequence: "is a secret present" here, and
+        // then "is it usable" of the scheme. That worked while every scheme wanted
+        // a secret. It stops working the moment one does not — a `jwt-jwks` route
+        // has no secret to configure, and the first question would have skipped it
+        // in development and refused it in production, for the absence of something
+        // it must not have.
+        //
+        // So presence and usability are the same question now, and the scheme owns
+        // it: `check_key_material(None)` is refused by the default (twelve schemes
+        // verify with a shared secret) and accepted by `jwt-jwks`, while
+        // `check_key_material(Some(..))` is the reverse, and `standard-webhooks`
+        // also refuses a `whpk_` key it cannot use (#1323).
+        let Err(error) = route.scheme.check_key_material(secret.as_deref()) else {
             continue;
         };
-        // #1323: a scheme that can tell usable key material from unusable gets to
-        // say so here, while the operator is still watching a boot log, rather than
-        // on every genuine delivery. Most schemes cannot and accept anything — see
-        // `SignatureVerifier::check_key_material`, where that permissive default is
-        // named. `standard-webhooks` can: `whpk_`/`whsk_` is asymmetric `v1a`
-        // material this crate does not verify, and a secret that does not
-        // base64-decode is not a key at all.
-        //
-        // Reached only with a secret actually present — the `else` arm above returns
-        // or skips — so the shape of a secret that is not there is never judged: in
-        // development an unset secret skips the route, and refusing the boot for it
-        // would undo that.
-        if let Err(error) = route.scheme.check_key_material(&secret) {
+        // One question, but **three** answers — because they have three different
+        // fixes, and collapsing them would send the operator to the wrong one
+        // (#1323): "the shape of your key is wrong" about a key that is not there
+        // is worse than useless.
+        if secret.is_some() {
+            // Present and unusable, or present on a scheme that wants none. Either
+            // way a configuration mistake rather than an unfinished setup, so no
+            // environment lets it through.
             return Err(crate::ServerError::ConfigError(format!(
                 "[webhooks.{}] the {} scheme cannot use the key material in \
                  secret_env = {:?}: {error}",
                 route.name, route.provider, route.secret_name
             )));
         }
+        // #787: an operator who simply has not set the variable yet gets a warning
+        // and a skipped route in development — the route answers 404 like any
+        // unknown path rather than 500ing with the variable's name in the body.
+        if !is_production {
+            tracing::warn!(
+                route = %route.name,
+                secret_env = ?route.secret_name,
+                "inbound webhook route will be skipped: the signing secret this scheme \
+                 needs is not set. Allowed only because FRAISEQL_ENV=development."
+            );
+            continue;
+        }
+        let development_note = " (For local development only, FRAISEQL_ENV=development \
+                                downgrades this to a warning and skips the route.)";
+        return Err(crate::ServerError::ConfigError(match &route.secret_name {
+            Some(name) => format!(
+                "[webhooks.{}] secret_env = {name:?} is not set (or is empty) in the \
+                 environment, so the configured route cannot verify any delivery. Set the \
+                 variable, or remove the route.{development_note}",
+                route.name
+            ),
+            // The route named no variable at all, so there is nothing to look up —
+            // a different mistake from a variable that is missing from the
+            // environment, and a different fix.
+            None => format!(
+                "[webhooks.{}] this route sets no `secret_env`, and {error}{development_note}",
+                route.name
+            ),
+        }));
     }
     Ok(built)
 }
@@ -811,7 +893,11 @@ pub async fn webhook_handler(
         request:       InboundRequest::new(&header_map, &body, signing_url.as_deref()),
     };
 
-    match state.pipeline.process(verifier, &route.secret_name, &delivery, event_of).await {
+    match state
+        .pipeline
+        .process(verifier, route.secret_name.as_deref(), &delivery, event_of)
+        .await
+    {
         Ok(Disposition::Processed(recorded)) => {
             // Committed durably: now fire `after:ingest` on the persisted message.
             // It comes back from the handler's own return value, so what is

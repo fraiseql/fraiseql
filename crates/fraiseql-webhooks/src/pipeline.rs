@@ -126,37 +126,55 @@ pub enum Disposition {
     Duplicate,
 }
 
-/// Verify a delivery's signature against the resolved secret, and return what the
-/// scheme authenticated.
+/// Resolve the key this delivery is verified against, then verify it, and return
+/// what the scheme authenticated.
 ///
 /// Performs **no** database work, so it is safe to call before taking a
 /// connection — a forged or malformed signature short-circuits the pipeline.
+///
+/// # Two steps, because only the first can reach the network
+///
+/// [`SignatureVerifier::resolve_key`] is where a scheme whose key its sender's
+/// *publisher* publishes goes and gets it, and where such a scheme refuses an
+/// algorithm outside its allow-list — before any lookup, so a token the route
+/// would refuse on its header alone costs no outbound request (#1335).
+/// [`SignatureVerifier::verify`] is then a pure function of the request and that
+/// key. For every other scheme the first step is the route's configured secret,
+/// handed straight through with no I/O at all.
+///
+/// `secret` is `None` for a route whose scheme has no shared secret to configure.
+/// Boot refused the mismatched combinations
+/// ([`SignatureVerifier::check_key_material`]), so a mounted route always arrives
+/// here with the shape its scheme wants.
 ///
 /// # Errors
 ///
 /// Returns [`WebhookError::SignatureInvalid`] if the credential does not match or
 /// cannot be parsed (a [`SignatureError`] from the verifier, e.g. a bad format or
-/// an expired timestamp), and [`WebhookError::KeyMaterial`] if the *server's* key
-/// material is unusable.
-pub fn verify_signature(
+/// an expired timestamp), and [`WebhookError::KeyMaterial`] if the *server's* or
+/// the publisher's key material is unusable or unreachable.
+pub async fn verify_signature(
     verifier: &dyn SignatureVerifier,
-    secret: &str,
+    secret: Option<&str>,
     delivery: &Delivery<'_>,
 ) -> Result<Verified> {
-    match verifier.verify(&delivery.request, secret) {
-        Ok(verified) => Ok(verified),
-        // #1045: route by *who is at fault*. Unusable key material is the operator's
-        // misconfiguration and must not be reported to the sender as a 401 — providers
-        // treat sustained auth failures as a reason to disable the endpoint, so the
-        // whole misconfiguration window is lost. Every other variant is sender-caused.
-        //
-        // The discrimination has to happen at the producer, which is why
-        // `SignatureError::KeyMaterial` exists: the old `Crypto` variant also carried
-        // sender-supplied signature-decode failures, so matching on it here would have
-        // let any anonymous caller mint a 5xx on demand.
-        Err(SignatureError::KeyMaterial(reason)) => Err(WebhookError::KeyMaterial(reason)),
-        Err(e) => Err(WebhookError::SignatureInvalid(e.to_string())),
+    // #1045: route by *who is at fault*. Unusable key material is the operator's
+    // misconfiguration and must not be reported to the sender as a 401 — providers
+    // treat sustained auth failures as a reason to disable the endpoint, so the
+    // whole misconfiguration window is lost. Every other variant is sender-caused.
+    //
+    // The discrimination has to happen at the producer, which is why
+    // `SignatureError::KeyMaterial` exists: the old `Crypto` variant also carried
+    // sender-supplied signature-decode failures, so matching on it here would have
+    // let any anonymous caller mint a 5xx on demand.
+    fn by_fault(error: SignatureError) -> WebhookError {
+        match error {
+            SignatureError::KeyMaterial(reason) => WebhookError::KeyMaterial(reason),
+            other => WebhookError::SignatureInvalid(other.to_string()),
+        }
     }
+    let key = verifier.resolve_key(&delivery.request, secret).await.map_err(by_fault)?;
+    verifier.verify(&delivery.request, &key).map_err(by_fault)
 }
 
 /// A genuinely-real inbound webhook receiver pipeline over a PostgreSQL pool.
@@ -225,16 +243,22 @@ where
     pub async fn process(
         &self,
         verifier: &dyn SignatureVerifier,
-        secret_name: &str,
+        secret_name: Option<&str>,
         delivery: &Delivery<'_>,
         event_of: impl FnOnce(Authenticated<'_>) -> Result<VerifiedEvent>,
     ) -> Result<Disposition> {
-        // 1. Resolve the signing secret (server-side config error if absent). No DB.
-        let secret = self.secret_provider.get_secret(secret_name).await?;
+        // 1. Resolve the signing secret, when the route's scheme has one (server-side config error
+        //    if it is named and absent). No DB. `None` is a route whose keys its sender's publisher
+        //    publishes — there is no secret to look up, and boot refused the combinations where
+        //    that disagrees with the scheme.
+        let secret = match secret_name {
+            Some(name) => Some(self.secret_provider.get_secret(name).await?),
+            None => None,
+        };
 
-        // 2. Verify (sender error if forged/malformed). No DB — a bad signature must never reach
-        //    the connection pool.
-        let verified = verify_signature(verifier, &secret, delivery)?;
+        // 2. Resolve the verification key and verify (sender error if forged/malformed). No DB — a
+        //    bad signature must never reach the connection pool.
+        let verified = verify_signature(verifier, secret.as_deref(), delivery).await?;
 
         // 3. Read the event out of what was authenticated. The body reaches the caller only on the
         //    arm where the scheme signed it, and only now.

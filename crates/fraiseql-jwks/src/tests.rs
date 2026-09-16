@@ -746,8 +746,8 @@ async fn a_ttl_of_zero_means_never_cache_and_not_never_verify() {
     // reads as already expired. The call that fetches is answered by what it
     // fetched.
     let mock = publisher(&["always-refetched"], Duration::ZERO).await;
-    let source = JwksSource::new(&format!("{}{JWKS_PATH}", mock.uri()), Duration::ZERO)
-        .expect("accepted");
+    let source =
+        JwksSource::new(&format!("{}{JWKS_PATH}", mock.uri()), Duration::ZERO).expect("accepted");
 
     for attempt in 0..3 {
         assert!(

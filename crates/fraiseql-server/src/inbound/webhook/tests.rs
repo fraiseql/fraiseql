@@ -328,14 +328,14 @@ mod error_body_sanitization {
         routes.insert(
             "hooks".to_string(),
             WebhookRouteConfig {
-                secret_env:    "TEST_WEBHOOK_SECRET".to_string(),
-                provider:      "hmac-sha256".to_string(),
-                path:          None,
-                public_url:    None,
-                credential:    None,
-                encoding:      None,
-                prefix:        None,
-                header_prefix: None,
+                secret_env: Some("TEST_WEBHOOK_SECRET".to_string()),
+                provider: "hmac-sha256".to_string(),
+                path: None,
+                public_url: None,
+                credential: None,
+                encoding: None,
+                prefix: None,
+                ..Default::default()
             },
         );
         let state = WebhookInboundState::new(lazy_pool(), &built(&routes), |_| {
@@ -419,14 +419,14 @@ mod key_material_is_not_the_senders_fault {
         routes.insert(
             "discord".to_string(),
             WebhookRouteConfig {
-                secret_env:    "TEST_DISCORD_KEY".to_string(),
-                provider:      "discord".to_string(),
-                path:          None,
-                public_url:    None,
-                credential:    None,
-                encoding:      None,
-                prefix:        None,
-                header_prefix: None,
+                secret_env: Some("TEST_DISCORD_KEY".to_string()),
+                provider: "discord".to_string(),
+                path: None,
+                public_url: None,
+                credential: None,
+                encoding: None,
+                prefix: None,
+                ..Default::default()
             },
         );
         let state = WebhookInboundState::new(lazy_pool(), &built(&routes), |_| {
@@ -503,14 +503,14 @@ mod empty_secret_is_not_configured {
         routes.insert(
             "hooks".to_string(),
             WebhookRouteConfig {
-                secret_env:    "TEST_WEBHOOK_SECRET".to_string(),
-                provider:      "hmac-sha256".to_string(),
-                path:          None,
-                public_url:    None,
-                credential:    None,
-                encoding:      None,
-                prefix:        None,
-                header_prefix: None,
+                secret_env: Some("TEST_WEBHOOK_SECRET".to_string()),
+                provider: "hmac-sha256".to_string(),
+                path: None,
+                public_url: None,
+                credential: None,
+                encoding: None,
+                prefix: None,
+                ..Default::default()
             },
         );
         routes
@@ -568,14 +568,14 @@ mod colliding_path_segments {
 
     fn route(provider: &str, secret_env: &str, path: Option<&str>) -> WebhookRouteConfig {
         WebhookRouteConfig {
-            secret_env:    secret_env.to_string(),
-            provider:      provider.to_string(),
-            path:          path.map(str::to_string),
-            public_url:    None,
-            credential:    None,
-            encoding:      None,
-            prefix:        None,
-            header_prefix: None,
+            secret_env: Some(secret_env.to_string()),
+            provider: provider.to_string(),
+            path: path.map(str::to_string),
+            public_url: None,
+            credential: None,
+            encoding: None,
+            prefix: None,
+            ..Default::default()
         }
     }
 
@@ -979,7 +979,7 @@ mod the_event_is_what_the_scheme_authenticated {
                 name:        SEGMENT.to_string(),
                 provider:    "test-envelope".to_string(),
                 scheme:      Arc::new(EnvelopeScheme),
-                secret_name: SECRET_ENV.to_string(),
+                secret_name: Some(SECRET_ENV.to_string()),
                 public_url:  None,
             },
         );
@@ -1225,7 +1225,7 @@ mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
                 name: segment.to_string(),
                 provider: scheme.name().to_string(),
                 scheme,
-                secret_name: SECRET_ENV.to_string(),
+                secret_name: Some(SECRET_ENV.to_string()),
                 public_url: None,
             },
         );
@@ -1379,4 +1379,275 @@ mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
             "a delivery that failed verification must claim nothing"
         );
     }
+}
+
+/// #1322: a route whose scheme verifies a token against keys its sender's
+/// publisher serves has no shared secret — and boot has to refuse each way that
+/// can be got wrong, rather than assuming every scheme wants one.
+///
+/// The development-mode skip (#787) is the case at risk here. It used to be keyed
+/// on "the signing secret is missing", which is true of **every** `jwt-jwks`
+/// route by design — so left alone it would have silently skipped all of them,
+/// and a configured route answering 404 is exactly what that skip exists to make
+/// loud rather than quiet.
+mod token_scheme_boot {
+    use super::{super::webhook_routes_check, HashMap, WebhookInboundState, lazy_pool};
+    use crate::config::WebhookRouteConfig;
+
+    const JWKS: &str = "https://tenant.hanko.io/.well-known/jwks.json";
+
+    fn route(config: WebhookRouteConfig) -> HashMap<String, WebhookRouteConfig> {
+        let mut routes = HashMap::new();
+        routes.insert("idp".to_string(), config);
+        routes
+    }
+
+    /// A well-formed `hanko` route: a key set, an audience, no secret.
+    fn hanko() -> WebhookRouteConfig {
+        WebhookRouteConfig {
+            provider: "hanko".to_string(),
+            jwks_uri: Some(JWKS.to_string()),
+            audience: Some("my-app".to_string()),
+            ..Default::default()
+        }
+    }
+
+    // `lazy_pool` needs a runtime in scope, so these two are async while the
+    // pure boot-refusal cases above are not.
+    #[tokio::test]
+    async fn a_token_route_with_no_secret_boots_and_is_mounted() {
+        // In BOTH environments, and this is the assertion that matters: the absence
+        // of a secret is correct here, not an unfinished setup.
+        for is_production in [false, true] {
+            let built = webhook_routes_check(&route(hanko()), |_| None, is_production)
+                .unwrap_or_else(|error| {
+                    panic!(
+                        "a hanko route needs no secret_env, so it must boot with \
+                         is_production={is_production}: {error}"
+                    )
+                });
+            let state = WebhookInboundState::new(lazy_pool(), &built, |_| None);
+            assert_eq!(
+                state.mounted_segments(),
+                vec!["idp".to_string()],
+                "and it must be MOUNTED, not skipped. The development skip is keyed on the \
+                 scheme refusing this route's key material — keyed on `the secret is \
+                 missing` it would swallow every jwt-jwks route (#787)"
+            );
+        }
+    }
+
+    #[test]
+    fn a_token_route_carrying_a_secret_is_refused_in_every_environment() {
+        let mut config = hanko();
+        config.secret_env = Some("HANKO_SECRET".to_string());
+        for is_production in [false, true] {
+            let error = webhook_routes_check(
+                &route(config.clone()),
+                |_| Some("s3cret".to_string()),
+                is_production,
+            )
+            .err()
+            .unwrap_or_else(|| {
+                panic!("unused key material must be refused (is_production={is_production})")
+            });
+            let message = error.to_string();
+            assert!(
+                message.contains("secret_env"),
+                "and the refusal must name the key to remove: {message}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_token_route_with_no_key_set_is_refused_in_every_environment() {
+        let mut config = hanko();
+        config.jwks_uri = None;
+        for is_production in [false, true] {
+            let error = webhook_routes_check(&route(config.clone()), |_| None, is_production)
+                .err()
+                .unwrap_or_else(|| panic!("a route with nowhere to look a key up must be refused"));
+            assert!(
+                error.to_string().contains("jwks_uri"),
+                "and must name the key an operator has to set: {error}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_key_set_that_could_never_be_fetched_is_refused_at_boot() {
+        for uri in ["http://tenant.hanko.io/jwks", "not a url", "ftp://idp/jwks"] {
+            let mut config = hanko();
+            config.jwks_uri = Some(uri.to_string());
+            let error = webhook_routes_check(&route(config), |_| None, true)
+                .err()
+                .unwrap_or_else(|| panic!("{uri} must be refused at boot"));
+            let _ = error;
+        }
+        // Loopback http is accepted, for a local fixture or a development IdP.
+        let mut config = hanko();
+        config.jwks_uri = Some("http://localhost:9999/jwks".to_string());
+        webhook_routes_check(&route(config), |_| None, true)
+            .expect("a loopback key set is how a development IdP is reached");
+    }
+
+    #[test]
+    fn a_preset_refuses_the_claim_keys_it_fixes_itself() {
+        type Set = fn(&mut WebhookRouteConfig);
+        let cases: [(&str, Set); 5] = [
+            ("event_type_claim", |c| c.event_type_claim = Some("evt".to_string())),
+            ("payload_claim", |c| c.payload_claim = Some("data".to_string())),
+            ("id_claim", |c| c.id_claim = Some("jti".to_string())),
+            ("body_hash_claim", |c| c.body_hash_claim = Some("hash".to_string())),
+            ("credential", |c| c.credential = Some("body".parse().expect("a location"))),
+        ];
+        for (key, config) in cases {
+            let mut route_config = hanko();
+            config(&mut route_config);
+            let error =
+                webhook_routes_check(&route(route_config), |_| None, true).err().unwrap_or_else(
+                    || panic!("`{key}` is fixed by the hanko preset, so it must be refused"),
+                );
+            let message = error.to_string();
+            assert!(
+                message.contains(key),
+                "and the refusal must name the key that would have been ignored: {message}"
+            );
+        }
+    }
+
+    /// The generic scheme reads those keys — so the refusals above are about the
+    /// *preset*, not about the keys being unsupported.
+    #[test]
+    fn the_generic_scheme_reads_what_the_presets_refuse() {
+        let config = WebhookRouteConfig {
+            provider: "jwt-jwks".to_string(),
+            jwks_uri: Some(JWKS.to_string()),
+            audience: Some("my-app".to_string()),
+            credential: Some("body:token".parse().expect("a location")),
+            event_type_claim: Some("kind".to_string()),
+            payload_claim: Some("event".to_string()),
+            id_claim: Some("ref".to_string()),
+            max_age_secs: Some(600),
+            ..Default::default()
+        };
+        webhook_routes_check(&route(config), |_| None, true)
+            .expect("the operator owns the generic scheme's signing details");
+    }
+
+    /// `body_hash_claim` makes the **body** the event, so the claim keys naming
+    /// where the event sits inside the token become configuration nothing reads.
+    #[test]
+    fn the_generic_scheme_refuses_a_body_digest_combined_with_claim_keys() {
+        let config = WebhookRouteConfig {
+            provider: "jwt-jwks".to_string(),
+            jwks_uri: Some(JWKS.to_string()),
+            body_hash_claim: Some("request_body_sha256".to_string()),
+            event_type_claim: Some("kind".to_string()),
+            ..Default::default()
+        };
+        let Err(error) = webhook_routes_check(&route(config), |_| None, true) else {
+            panic!("the two are contradictory, not merely redundant, so this must be refused")
+        };
+        assert!(error.to_string().contains("event_type_claim"), "got {error}");
+    }
+
+    /// The pre-#1322 behaviour, unchanged: a scheme that DOES want a secret and
+    /// has none is skipped in development and refused in production (#787).
+    // `lazy_pool` needs a runtime in scope, so these two are async while the
+    // pure boot-refusal cases above are not.
+    #[tokio::test]
+    async fn a_secret_scheme_with_no_secret_still_skips_in_development_and_refuses_in_production() {
+        let config = WebhookRouteConfig {
+            secret_env: Some("MISSING_SECRET".to_string()),
+            provider: "hmac-sha256".to_string(),
+            ..Default::default()
+        };
+        let built = webhook_routes_check(&route(config.clone()), |_| None, false)
+            .expect("development downgrades this to a warning");
+        let state = WebhookInboundState::new(lazy_pool(), &built, |_| None);
+        assert!(
+            state.mounted_segments().is_empty(),
+            "an unconfigured secret route must be skipped, so it answers 404 rather than \
+             500ing with the variable's name in the body"
+        );
+
+        let Err(error) = webhook_routes_check(&route(config), |_| None, true) else {
+            panic!("production must refuse a route whose signing secret is unset")
+        };
+        assert!(
+            error.to_string().contains("FRAISEQL_ENV=development"),
+            "and says how a local setup may proceed: {error}"
+        );
+    }
+}
+
+/// The boot check asks one question and gives **three** answers, because they have
+/// three different fixes (#1323/#1322).
+///
+/// Collapsing them is a real regression in diagnostics rather than a cosmetic one:
+/// "the shape of your key is wrong" about a key that is not there sends the
+/// operator looking at a value that does not exist. This was caught by an existing
+/// #1323 assertion when the three frames were briefly unified into one.
+#[test]
+fn the_three_key_material_refusals_stay_distinguishable() {
+    use crate::config::WebhookRouteConfig;
+
+    let route = |config: WebhookRouteConfig| {
+        let mut routes = HashMap::new();
+        routes.insert("r".to_string(), config);
+        routes
+    };
+    let hmac_with_env = WebhookRouteConfig {
+        secret_env: Some("A_SECRET_ENV".to_string()),
+        provider: "hmac-sha256".to_string(),
+        ..Default::default()
+    };
+
+    // 1. The variable is named but the environment does not hold it.
+    let Err(error) = super::webhook_routes_check(&route(hmac_with_env), |_| None, true) else {
+        panic!("production refuses a route whose secret is unset")
+    };
+    let message = error.to_string();
+    assert!(message.contains("is not set"), "names the missing variable: {message}");
+    assert!(
+        !message.contains("cannot use the key material"),
+        "and not the shape answer — a secret that is not there has no shape: {message}"
+    );
+    assert!(message.contains("A_SECRET_ENV"), "and says which variable: {message}");
+
+    // 2. The route names no variable at all, which is a different mistake.
+    let no_env = WebhookRouteConfig {
+        provider: "hmac-sha256".to_string(),
+        ..Default::default()
+    };
+    let Err(error) = super::webhook_routes_check(&route(no_env), |_| None, true) else {
+        panic!("a shared-secret scheme with no secret_env cannot verify anything")
+    };
+    let message = error.to_string();
+    assert!(
+        message.contains("sets no `secret_env`"),
+        "there is nothing to look up, so the fix is to add the key rather than to set a \
+         variable: {message}"
+    );
+
+    // 3. The variable holds something the scheme cannot use.
+    let clerk = WebhookRouteConfig {
+        secret_env: Some("A_SECRET_ENV".to_string()),
+        provider: "clerk".to_string(),
+        ..Default::default()
+    };
+    let Err(error) = super::webhook_routes_check(
+        &route(clerk),
+        |_| Some("whpk_C2FVsBQIhrscChlQIMV+b5sSYspob7oD".to_string()),
+        true,
+    ) else {
+        panic!("asymmetric v1a material is not verifiable here")
+    };
+    let message = error.to_string();
+    assert!(
+        message.contains("cannot use the key material"),
+        "a key that IS there and is wrong gets the shape answer: {message}"
+    );
+    assert!(message.contains("whpk_"), "naming what was pasted: {message}");
 }

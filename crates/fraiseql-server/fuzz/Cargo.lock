@@ -1352,6 +1352,7 @@ dependencies = [
  "fraiseql-error",
  "fraiseql-functions",
  "fraiseql-guard",
+ "fraiseql-jwks",
  "fraiseql-storage",
  "futures",
  "graphql-parser",

@@ -82,14 +82,14 @@ fn sign(secret: &str, body: &[u8]) -> String {
 /// provider and differ only in path segment and signing secret.
 fn router(pool: PgPool) -> Router {
     let route = |secret_env: &str| WebhookRouteConfig {
-        secret_env:    secret_env.to_string(),
-        provider:      PROVIDER.to_string(),
-        path:          None,
-        public_url:    None,
-        credential:    None,
-        encoding:      None,
-        prefix:        None,
-        header_prefix: None,
+        secret_env: Some(secret_env.to_string()),
+        provider: PROVIDER.to_string(),
+        path: None,
+        public_url: None,
+        credential: None,
+        encoding: None,
+        prefix: None,
+        ..Default::default()
     };
     let mut routes = HashMap::new();
     routes.insert("partner-a".to_string(), route(A_SECRET_ENV));

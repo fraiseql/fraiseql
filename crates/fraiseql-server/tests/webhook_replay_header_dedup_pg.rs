@@ -71,14 +71,14 @@ fn router(pool: PgPool) -> Router {
     routes.insert(
         "github".to_string(),
         WebhookRouteConfig {
-            secret_env:    SECRET_ENV.to_string(),
-            provider:      "github".to_string(),
-            path:          None,
-            public_url:    None,
-            credential:    None,
-            encoding:      None,
-            prefix:        None,
-            header_prefix: None,
+            secret_env: Some(SECRET_ENV.to_string()),
+            provider: "github".to_string(),
+            path: None,
+            public_url: None,
+            credential: None,
+            encoding: None,
+            prefix: None,
+            ..Default::default()
         },
     );
     let state = WebhookInboundState::new(pool, &built(&routes), |name| {

@@ -1,18 +1,35 @@
-#![allow(clippy::unwrap_used, clippy::expect_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)] // Reason: test code, panics are acceptable
 
 use super::*;
 
-const NO_KEYS: SchemeConfig = SchemeConfig {
-    credential:    None,
-    encoding:      None,
-    prefix:        None,
-    header_prefix: None,
-};
+const NO_KEYS: SchemeConfig = SchemeConfig::none();
 
+/// Every scheme in `KNOWN_SCHEMES` is constructible **given what it needs**.
+///
+/// What a scheme needs is not uniform: the four in the `jwt-jwks` family verify
+/// against keys their sender's publisher serves, so they need a key source. That
+/// is supplied here rather than exempting them, because the list is what the
+/// refusal message offers an operator and what the fixture-coverage test in
+/// `signature::tests` iterates — a name in it that cannot be built is a name
+/// offered to an operator who then cannot use it.
 #[test]
 fn every_known_scheme_builds() {
     for provider in KNOWN_SCHEMES {
-        let built = build_scheme(provider, &NO_KEYS, 300);
+        let context = SchemeContext::with_tolerance(300)
+            .with_jwks(crate::signature::jwt_jwks::tests::LocalKeys::new());
+        // The generic `jwt-jwks` is also the one scheme that must be TOLD where its
+        // credential is: no provider puts a JWT in the HMAC families'
+        // `header:X-Signature`, so inheriting that default would only ever produce a
+        // 401 per delivery. Its three presets fix their own.
+        let config = if *provider == "jwt-jwks" {
+            SchemeConfig {
+                credential: Some(CredentialLocation::Body),
+                ..SchemeConfig::none()
+            }
+        } else {
+            NO_KEYS
+        };
+        let built = build_scheme(provider, &config, &context);
         assert!(
             built.is_ok(),
             "{provider} is advertised in KNOWN_SCHEMES, so it must be constructible: \
@@ -22,9 +39,38 @@ fn every_known_scheme_builds() {
     }
 }
 
+/// A scheme that verifies against a published key set, on a route that named no
+/// `jwks_uri`, is refused at **boot**.
+///
+/// The receiver builds a key source only for a route that configured one, so
+/// `None` here is exactly that route — and the alternative to refusing is a
+/// mounted route that 5xxes on its first genuine delivery with nothing in the
+/// boot log to explain it.
+#[test]
+fn a_token_scheme_without_a_key_source_is_refused_at_boot() {
+    let token_schemes = ["jwt-jwks", "hanko", "kinde", "fusionauth"];
+    for provider in token_schemes {
+        let error = build_scheme(provider, &NO_KEYS, &SchemeContext::with_tolerance(300))
+            .err()
+            .unwrap_or_else(|| panic!("{provider} has no key source, so it must be refused"));
+        let message = error.to_string();
+        assert!(
+            message.contains("jwks_uri"),
+            "and the refusal must name the key an operator has to set: {message}"
+        );
+    }
+
+    // The counterweight: every OTHER scheme builds without one, so the refusal
+    // above is about needing a key source and not about the empty context.
+    for provider in KNOWN_SCHEMES.iter().filter(|name| !token_schemes.contains(name)) {
+        build_scheme(provider, &NO_KEYS, &SchemeContext::with_tolerance(300))
+            .unwrap_or_else(|error| panic!("{provider} needs no key source: {error}"));
+    }
+}
+
 #[test]
 fn an_unknown_scheme_is_refused_and_offers_the_known_ones() {
-    let error = build_scheme("hmac-sha255", &NO_KEYS, 300)
+    let error = build_scheme("hmac-sha255", &NO_KEYS, &SchemeContext::with_tolerance(300))
         .map(|_| ())
         .expect_err("not a scheme");
     let message = error.to_string();
@@ -57,7 +103,7 @@ fn a_preset_refuses_every_scheme_key_by_name() {
             },
         ),
     ] {
-        let error = build_scheme("stripe", &config, 300)
+        let error = build_scheme("stripe", &config, &SchemeContext::with_tolerance(300))
             .map(|_| ())
             .expect_err("stripe fixes its own signing details");
         let message = error.to_string();
@@ -69,13 +115,14 @@ fn a_preset_refuses_every_scheme_key_by_name() {
 #[test]
 fn a_generic_scheme_reads_every_scheme_key() {
     let config = SchemeConfig {
-        credential:    Some(CredentialLocation::Header("X-Lago-Signature".to_string())),
-        encoding:      Some(SignatureEncoding::Base64),
-        prefix:        Some("sha256=".to_string()),
-        header_prefix: None,
+        credential: Some(CredentialLocation::Header("X-Lago-Signature".to_string())),
+        encoding: Some(SignatureEncoding::Base64),
+        prefix: Some("sha256=".to_string()),
+        ..SchemeConfig::none()
     };
     for provider in ["hmac-sha256", "hmac-sha1"] {
-        build_scheme(provider, &config, 300).expect("a generic scheme reads them");
+        build_scheme(provider, &config, &SchemeContext::with_tolerance(300))
+            .expect("a generic scheme reads them");
     }
     // That the keys are *honoured* — not merely accepted — is
     // `signature::generic::tests`, which drives a real request through each one.
@@ -94,7 +141,7 @@ fn a_generic_scheme_refuses_the_header_prefix_it_does_not_read() {
         ..NO_KEYS
     };
     for provider in ["hmac-sha256", "hmac-sha1"] {
-        let error = build_scheme(provider, &config, 300)
+        let error = build_scheme(provider, &config, &SchemeContext::with_tolerance(300))
             .map(|_| ())
             .expect_err("the generic HMAC families read one header, not a triple");
         let message = error.to_string();
@@ -114,7 +161,7 @@ fn the_standard_webhooks_scheme_reads_its_header_prefix_and_nothing_else() {
         header_prefix: Some("svix".to_string()),
         ..NO_KEYS
     };
-    build_scheme("standard-webhooks", &with_prefix, 300)
+    build_scheme("standard-webhooks", &with_prefix, &SchemeContext::with_tolerance(300))
         .expect("`header_prefix` is the one key this scheme reads");
 
     for (key, config) in [
@@ -140,7 +187,7 @@ fn the_standard_webhooks_scheme_reads_its_header_prefix_and_nothing_else() {
             },
         ),
     ] {
-        let error = build_scheme("standard-webhooks", &config, 300)
+        let error = build_scheme("standard-webhooks", &config, &SchemeContext::with_tolerance(300))
             .map(|_| ())
             .expect_err("the spec fixes the credential, its encoding and its version tag");
         assert!(error.to_string().contains(key), "must name the key; got: {error}");
@@ -156,7 +203,7 @@ fn the_clerk_preset_refuses_a_header_prefix() {
         header_prefix: Some("webhook".to_string()),
         ..NO_KEYS
     };
-    let error = build_scheme("clerk", &config, 300)
+    let error = build_scheme("clerk", &config, &SchemeContext::with_tolerance(300))
         .map(|_| ())
         .expect_err("clerk is the svix prefix");
     let message = error.to_string();
@@ -175,7 +222,7 @@ fn a_header_prefix_that_cannot_form_a_header_name_is_refused_naming_the_value() 
             header_prefix: Some(bad.to_string()),
             ..NO_KEYS
         };
-        let error = build_scheme("standard-webhooks", &config, 300)
+        let error = build_scheme("standard-webhooks", &config, &SchemeContext::with_tolerance(300))
             .map(|_| ())
             .expect_err("cannot form a header name");
         let message = error.to_string();
@@ -208,7 +255,7 @@ fn a_generic_scheme_with_no_keys_keeps_the_pre_1321_default() {
     mac.update(payload);
     let signature = hex::encode(mac.finalize().into_bytes());
 
-    let built = build_scheme("hmac-sha256", &NO_KEYS, 300).unwrap();
+    let built = build_scheme("hmac-sha256", &NO_KEYS, &SchemeContext::with_tolerance(300)).unwrap();
     for (header, expected_hit) in [("x-signature", true), ("x-lago-signature", false)] {
         let headers = BTreeMap::from([(header.to_string(), signature.clone())]);
         let result = built.verify(&InboundRequest::new(&headers, payload, None), secret);
@@ -230,7 +277,7 @@ fn a_body_credential_is_refused_by_the_hmac_schemes_naming_the_location() {
             credential: Some(location.clone()),
             ..NO_KEYS
         };
-        let error = build_scheme("hmac-sha256", &config, 300)
+        let error = build_scheme("hmac-sha256", &config, &SchemeContext::with_tolerance(300))
             .map(|_| ())
             .expect_err("the HMAC schemes read a header today");
         let message = error.to_string();
