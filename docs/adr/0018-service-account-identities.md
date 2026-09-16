@@ -183,6 +183,16 @@ that line**: when `[identity.enrichment]` is enabled, a service account is subje
   server-injected (never token-asserted), and (c) still fail-closed if the declared
   set is incomplete. The default — and the recommendation — is a real actor row.
 
+> **Note (2026-09-16, #1324).** "Absent one, it is denied" now reads "absent one, it is
+> denied unless `[identity.enrichment] provision` creates it". A service account without
+> `static_enriched` goes through the same resolver as any principal, so a zero-row miss
+> offers it the provision statement, bound with `$sub = service_account:<name>`. That is
+> the uniform-no-bypass rule working as designed, and it means the statement has to
+> decide what such a subject may become — insert nothing for the ones it will not serve.
+> Note also that a statement binding `$iss` refuses every service account
+> (`MissingParam` → 403), because a credentialed account has no issuer: fail-closed, but
+> a surprising 403 if the statement was written with human principals in mind.
+
 This makes a service account a first-class **subscriber** too: phase 06 subscription
 row-policies resolve the owner filter against the account's enriched identity the same
 way they do for a human, so a trusted daemon subscribing to a scoped entity is filtered
