@@ -62,6 +62,22 @@ pub struct EnrichmentQueryConfig {
     /// actor goes live quickly.
     #[serde(default = "default_negative_ttl_secs")]
     pub negative_ttl_secs: u64,
+    /// Optional statement run when [`query`](Self::query) matches **zero rows**
+    /// (#1324), after which `query` runs again. Bound from the same claims, the
+    /// same way — out-of-band, never interpolated — and executed on the same
+    /// unscoped pool, below the fail-closed gate.
+    ///
+    /// It fires on `ZeroRows` alone: an ambiguous row set, a NULL mapped field
+    /// or a missing `$param` stay denials, so provisioning can never turn the
+    /// refusal of an *existing* identity into access. The statement is the
+    /// policy — to refuse a subject it inserts nothing (the re-run `query` then
+    /// denies, and that denial **is** cached). Raising is an outage (503), not a
+    /// refusal.
+    ///
+    /// Belongs to the enrichment profile only; [`IdentityConfig::validate`]
+    /// refuses it on the sender profile, which shares this schema.
+    #[serde(default)]
+    pub provision:         Option<String>,
 }
 
 /// Top-level `[identity]` configuration: one shared query schema, two profiles
@@ -78,6 +94,32 @@ pub struct IdentityConfig {
     /// the hardening train). Resolves at send time, not per request.
     #[serde(default)]
     pub sender:     Option<EnrichmentQueryConfig>,
+}
+
+impl IdentityConfig {
+    /// Refuse a configuration whose keys would be silently inert or, worse,
+    /// silently act (#1324).
+    ///
+    /// Both profiles deserialize from one [`EnrichmentQueryConfig`], which is
+    /// what keeps a key added to the shared schema from reaching one profile
+    /// only. The cost is that `provision` parses on `[identity.sender]`, where
+    /// it would provision a *sending mailbox* for every subject the send path
+    /// cannot resolve. There is no such thing as a verified address a server
+    /// invents, so this is refused rather than ignored.
+    ///
+    /// # Errors
+    ///
+    /// Returns a human-readable message naming the offending profile when the
+    /// sender profile sets `provision`.
+    pub fn validate(&self) -> Result<(), String> {
+        if self.sender.as_ref().is_some_and(|sender| sender.provision.is_some()) {
+            return Err("[identity.sender] sets `provision`, which only the read path \
+                 honours: provisioning a *sending* identity would invent a verified \
+                 from-address. Move the key to [identity.enrichment], or remove it."
+                .to_owned());
+        }
+        Ok(())
+    }
 }
 
 /// DESIGN §6.1: 60s, not #242's token-remaining-lifetime — a tighter revocation

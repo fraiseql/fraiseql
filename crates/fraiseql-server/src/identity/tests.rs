@@ -341,6 +341,7 @@ fn config(query: &str, map: &[(&str, &str)]) -> EnrichmentQueryConfig {
         map:               map.iter().map(|(c, f)| ((*c).to_owned(), (*f).to_owned())).collect(),
         cache_ttl_secs:    60,
         negative_ttl_secs: 5,
+        provision:         None,
     }
 }
 
@@ -1105,4 +1106,95 @@ async fn flush_all_endpoint_clears_the_cache() {
 
     let _ = resolver.resolve("u1", &sub_claims()).await;
     assert_eq!(store.calls(), 2, "flush-all must clear the cache");
+}
+
+// ── #1324: provision on miss — configuration ──────────────────────────────
+
+#[test]
+fn provision_parses_on_the_enrichment_profile() {
+    let toml_src = r#"
+[enrichment]
+enabled = true
+query = "SELECT actor_id FROM tb_actor WHERE sub = $sub"
+provision = "SELECT fn_provision_actor($sub, $iss, $email, $claims)"
+map = { actor_id = "actor_id" }
+"#;
+    let cfg: IdentityConfig = toml::from_str(toml_src).unwrap();
+    assert_eq!(
+        cfg.enrichment.unwrap().provision.as_deref(),
+        Some("SELECT fn_provision_actor($sub, $iss, $email, $claims)")
+    );
+}
+
+#[test]
+fn a_profile_without_provision_carries_none() {
+    let toml_src = r#"
+[enrichment]
+enabled = true
+query = "SELECT actor_id FROM tb_actor WHERE sub = $sub"
+"#;
+    let cfg: IdentityConfig = toml::from_str(toml_src).unwrap();
+    assert!(
+        cfg.enrichment.unwrap().provision.is_none(),
+        "absent means absent — the provisioning path must be unreachable by default"
+    );
+}
+
+#[test]
+fn provision_on_the_sender_profile_is_refused_naming_the_profile() {
+    // The two profiles share one query schema, so `provision` parses on the
+    // sender profile — where it would silently provision a *sending mailbox* on
+    // every unknown subject. The refusal has to name which profile is wrong and
+    // where the key belongs, because the operator's fix is to move it.
+    let cfg: IdentityConfig = toml::from_str(
+        r#"
+[sender]
+enabled = true
+query = "SELECT sending_address FROM tb_mailbox WHERE sub = $sub"
+provision = "INSERT INTO tb_mailbox (sub) VALUES ($sub)"
+"#,
+    )
+    .unwrap();
+
+    let err = cfg.validate().expect_err("a provisioning sender profile must be refused");
+    assert!(err.contains("[identity.sender]"), "names the offending profile: {err}");
+    assert!(err.contains("[identity.enrichment]"), "and where the key belongs: {err}");
+}
+
+#[test]
+fn provision_on_the_enrichment_profile_validates() {
+    let cfg: IdentityConfig = toml::from_str(
+        r#"
+[enrichment]
+enabled = true
+query = "SELECT actor_id FROM tb_actor WHERE sub = $sub"
+provision = "INSERT INTO tb_actor (sub) VALUES ($sub) ON CONFLICT (sub) DO NOTHING"
+"#,
+    )
+    .unwrap();
+
+    assert!(cfg.validate().is_ok());
+}
+
+#[test]
+fn server_config_validate_refuses_a_provisioning_sender_profile() {
+    // The rule is only worth anything if boot runs it: `ServerConfig::validate`
+    // is the one call `main` makes before serving.
+    let config = crate::ServerConfig {
+        identity: Some(
+            toml::from_str(
+                r#"
+[sender]
+enabled = true
+query = "SELECT sending_address FROM tb_mailbox WHERE sub = $sub"
+provision = "INSERT INTO tb_mailbox (sub) VALUES ($sub)"
+"#,
+            )
+            .unwrap(),
+        ),
+        ..Default::default()
+    };
+
+    let err = config.validate().expect_err("boot must refuse it");
+    assert!(err.contains("provision"), "the boot refusal is the identity one: {err}");
 }

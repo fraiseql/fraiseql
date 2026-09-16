@@ -247,6 +247,13 @@ impl ServerConfig {
             ao.validate()?;
         }
 
+        // Enriched identity (#1324): `provision` is legal on one of the two
+        // profiles that share `EnrichmentQueryConfig`.
+        #[cfg(feature = "auth")]
+        if let Some(ref identity) = self.identity {
+            identity.validate()?;
+        }
+
         if self.metrics_enabled {
             match &self.metrics_token {
                 None => {
