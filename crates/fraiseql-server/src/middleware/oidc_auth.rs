@@ -514,7 +514,10 @@ mod revocation_tests {
             me:                   None,
         };
         // check_revocation never calls the validator; with_jwks_uri avoids async discovery.
-        Arc::new(OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks".to_string()))
+        Arc::new(
+            OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks")
+                .expect("an https jwks_uri is accepted"),
+        )
     }
 
     fn user(sub: &str) -> AuthenticatedUser {

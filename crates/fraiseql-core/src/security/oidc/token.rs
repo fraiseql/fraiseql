@@ -9,11 +9,11 @@
 /// a malicious or misconfigured OIDC provider.
 pub(super) const MAX_DISCOVERY_RESPONSE_BYTES: usize = 64 * 1024; // 64 KiB
 
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
+use fraiseql_jwks::JwksSource;
 use jsonwebtoken::{Algorithm, Validation, decode, decode_header};
-use parking_lot::RwLock;
 
 use crate::security::{
     auth_middleware::{
@@ -23,7 +23,6 @@ use crate::security::{
     errors::{Result, SecurityError},
     oidc::{
         audience::JwtClaims,
-        jwks::CachedJwks,
         providers::{MAX_CLOCK_SKEW_SECS, OidcConfig},
         replay_cache::ReplayCache,
     },
@@ -42,9 +41,11 @@ use crate::security::{
 /// defined in the `jwks` sub-module.
 pub struct OidcValidator {
     pub(super) config:       OidcConfig,
-    pub(super) http_client:  reqwest::Client,
-    pub(super) jwks_cache:   Arc<RwLock<Option<CachedJwks>>>,
-    pub(super) jwks_uri:     String,
+    /// The one bounded JWKS client (#1335). Not a cache this type owns: a
+    /// near-copy of it lived here and another in `fraiseql_auth`, and the two had
+    /// drifted on key types and on DNS pinning while agreeing on the one thing
+    /// that mattered — neither bounded a refetch.
+    pub(super) jwks:         Arc<JwksSource>,
     /// Optional JWT replay cache. When set, each validated token's `jti` is
     /// checked against the cache and rejected if it has been seen before.
     pub(super) replay_cache: Option<Arc<ReplayCache>>,
@@ -63,8 +64,6 @@ impl OidcValidator {
     /// - OIDC discovery fails
     /// - JWKS endpoint cannot be determined
     pub async fn new(config: OidcConfig) -> Result<Self> {
-        use std::time::Duration;
-
         use crate::security::oidc::jwks::OidcDiscoveryDocument;
 
         config.validate()?;
@@ -72,6 +71,10 @@ impl OidcValidator {
         // Redirects are disabled to prevent redirect-chain SSRF attacks.
         // `https_only` is not set here because `OidcConfig::validate()` already
         // requires HTTPS for the issuer URL (localhost HTTP is allowed for dev/test).
+        // Local to this call: the only request it makes is the discovery document.
+        // The key set is fetched by the shared JWKS client, which builds its own
+        // client per fetch so it can pin the connection to the addresses it
+        // validated — a long-lived client cannot do that.
         let http_client = reqwest::Client::builder()
             .redirect(reqwest::redirect::Policy::none())
             .timeout(Duration::from_secs(30))
@@ -135,51 +138,58 @@ impl OidcValidator {
             discovery.jwks_uri
         };
 
-        // Validate the JWKS URI before storing it (SSRF prevention pattern).
-        let _ = reqwest::Url::parse(&jwks_uri).map_err(|e| {
-            SecurityError::SecurityConfigError(format!(
-                "OIDC jwks_uri is not a valid URL '{jwks_uri}': {e}"
-            ))
-        })?;
+        // The URI is validated here, by the client that will fetch it: not a URL,
+        // or not https (bar a loopback host for development), and this validator
+        // is refused rather than built. Core used only to check that it parsed,
+        // while `fraiseql_auth` checked the scheme too — one client, one rule.
+        let jwks = Self::key_source(&config, &jwks_uri)?;
 
         Ok(Self {
             config,
-            http_client,
-            jwks_cache: Arc::new(RwLock::new(None)),
-            jwks_uri,
+            jwks,
             replay_cache: None,
         })
     }
 
+    /// The bounded JWKS client for a configured `jwks_uri`.
+    ///
+    /// `jwks_cache_ttl_secs` is how long a fetched key set is served for, and
+    /// therefore the maximum window in which a rotated-out key keeps validating.
+    /// The refetch bound is [`fraiseql_jwks::REFETCH_COOLDOWN`] and is not
+    /// configurable — see it for why.
+    fn key_source(config: &OidcConfig, jwks_uri: &str) -> Result<Arc<JwksSource>> {
+        JwksSource::new(jwks_uri, Duration::from_secs(config.jwks_cache_ttl_secs))
+            .map(Arc::new)
+            .map_err(|error| {
+                SecurityError::SecurityConfigError(format!(
+                    "OIDC jwks_uri {jwks_uri:?} cannot be used: {error}"
+                ))
+            })
+    }
+
     /// Create a validator without performing discovery.
     ///
-    /// Use this for testing or when you have the JWKS URI directly.
+    /// Use this when you have the JWKS URI directly, and in tests.
     ///
-    /// # Panics
+    /// # Returns a `Result` now (#1335)
     ///
-    /// Panics if the platform TLS backend is unavailable for the HTTP client.
-    /// This would indicate a broken system-level TLS installation.
-    #[must_use]
-    pub fn with_jwks_uri(config: OidcConfig, jwks_uri: String) -> Self {
-        // Use the same 30-second timeout as `new()` to prevent indefinitely
-        // blocked JWKS fetches when the endpoint is slow or hung.
-        // Redirects are disabled to prevent redirect-chain SSRF attacks.
-        // `https_only` is not set here because `OidcConfig::validate()` already
-        // requires HTTPS for the issuer URL (localhost HTTP is allowed for dev/test).
-        let http_client = reqwest::Client::builder()
-            .redirect(reqwest::redirect::Policy::none())
-            .timeout(std::time::Duration::from_secs(30))
-            .build()
-            // Reason: TLS backend absence is a catastrophic system misconfiguration;
-            // this constructor is #[must_use] and returns Self, not Result.
-            .expect("TLS backend should always be available for reqwest HTTP client");
-        Self {
+    /// It used to store the URI unexamined, so `jwks_uri = "not a url"` — or a
+    /// plain-`http` one pointing anywhere — built a validator that refused every
+    /// token at its first delivery instead of refusing to exist. The sibling
+    /// cache in `fraiseql_auth` had always validated at construction; there is now
+    /// one client and one answer.
+    ///
+    /// # Errors
+    ///
+    /// `SecurityError::SecurityConfigError` when `jwks_uri` is not a URL, or is
+    /// not `https` — plain `http` is accepted only for a loopback host, which is
+    /// what a local fixture or a development `IdP` is.
+    pub fn with_jwks_uri(config: OidcConfig, jwks_uri: &str) -> Result<Self> {
+        Ok(Self {
+            jwks: Self::key_source(&config, jwks_uri)?,
             config,
-            http_client,
-            jwks_cache: Arc::new(RwLock::new(None)),
-            jwks_uri,
             replay_cache: None,
-        }
+        })
     }
 
     /// Attach a JWT replay cache to this validator.
@@ -226,11 +236,18 @@ impl OidcValidator {
             SecurityError::InvalidToken
         })?;
 
-        // Get the signing key (fetch/cache logic in jwks.rs)
+        // The allow-list is checked BEFORE the key lookup, and that ordering is
+        // the fix, not an optimisation (#1335). It used to run after, so a token
+        // whose `alg` this server refuses on its header alone — an `HS256` against
+        // an RSA JWKS, the algorithm-confusion probe — still cost one outbound
+        // request to the IdP. Nothing here touches the network.
+        let algorithm = self.get_algorithm(&header)?;
+
+        // Only now: the key lookup, which may reach the provider (bounded).
         let decoding_key = self.get_decoding_key(kid).await?;
 
         // Build validation
-        let mut validation = Validation::new(self.get_algorithm(&header)?);
+        let mut validation = Validation::new(algorithm);
 
         // Validate the `iss` claim only when an issuer is configured.
         //
@@ -435,13 +452,5 @@ impl OidcValidator {
     #[must_use]
     pub fn issuer(&self) -> Option<&str> {
         self.config.issuer.as_deref()
-    }
-
-    /// Clear the JWKS cache.
-    ///
-    /// Call this if you need to force a refresh of the signing keys.
-    pub fn clear_cache(&self) {
-        let mut cache = self.jwks_cache.write();
-        *cache = None;
     }
 }

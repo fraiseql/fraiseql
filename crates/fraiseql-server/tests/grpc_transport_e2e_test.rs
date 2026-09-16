@@ -920,7 +920,8 @@ fn build_service_with_auth(
         required: true,
         ..OidcConfig::default()
     };
-    let validator = OidcValidator::with_jwks_uri(config, "http://localhost:0/jwks".to_string());
+    let validator = OidcValidator::with_jwks_uri(config, "http://localhost:0/jwks")
+        .expect("a loopback http jwks_uri is accepted");
 
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);

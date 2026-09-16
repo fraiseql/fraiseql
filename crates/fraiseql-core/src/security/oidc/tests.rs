@@ -1,20 +1,9 @@
 //! Integration tests for the OIDC module covering providers and token validation logic.
 
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
-use std::{
-    sync::Arc,
-    time::{Duration, Instant},
-};
-
-use parking_lot::RwLock;
-
 use crate::security::{
     errors::SecurityError,
-    oidc::{
-        jwks::{CachedJwks, Jwk, Jwks},
-        providers::OidcConfig,
-        token::OidcValidator,
-    },
+    oidc::{providers::OidcConfig, token::OidcValidator},
 };
 
 // ============================================================================
@@ -186,256 +175,132 @@ fn test_oidc_config_default_cache_ttl_is_short() {
 // OidcValidator / token validation tests
 // ============================================================================
 
-fn make_validator(issuer: &str) -> OidcValidator {
-    OidcValidator {
-        config:       OidcConfig {
-            issuer: Some(issuer.to_string()),
-            ..Default::default()
-        },
-        http_client:  reqwest::Client::new(),
-        jwks_uri:     format!("{issuer}/.well-known/jwks.json"),
-        jwks_cache:   Arc::new(RwLock::new(None)),
-        replay_cache: None,
-    }
+/// A validator pinned to `jwks_uri`, in the shape the `[auth]` path builds.
+///
+/// Built through the real constructor: `OidcValidator` no longer has a cache of
+/// its own to reach into, so a test cannot hand-assemble one — which is the point
+/// (#1335). Seeding a private `jwks_cache` was how three tests asserted the
+/// *shape* of a cache this crate no longer owns.
+fn make_validator(jwks_uri: &str) -> OidcValidator {
+    let config = OidcConfig {
+        issuer: Some("https://idp.example.com".to_string()),
+        audience: Some("fraiseql-test".to_string()),
+        ..Default::default()
+    };
+    OidcValidator::with_jwks_uri(config, jwks_uri)
+        .expect("an https or loopback jwks_uri is accepted")
 }
 
-fn make_jwk(kid: &str) -> Jwk {
-    Jwk {
-        kty:     "RSA".to_string(),
-        kid:     Some(kid.to_string()),
-        alg:     None,
-        key_use: None,
-        n:       None,
-        e:       None,
-        x5c:     vec![],
-    }
+/// A JWKS endpoint serving `kids`, counting every GET.
+async fn jwks_serving(kids: &[&str]) -> wiremock::MockServer {
+    use serde_json::json;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    let keys: Vec<serde_json::Value> = kids
+        .iter()
+        .map(|kid| json!({ "kty": "RSA", "kid": kid, "n": TEST_RSA_N, "e": TEST_RSA_E }))
+        .collect();
+    let mock = MockServer::start().await;
+    Mock::given(method("GET"))
+        .and(path(JWKS_FIXTURE_PATH))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({ "keys": keys })))
+        .mount(&mock)
+        .await;
+    mock
 }
 
-#[test]
-fn test_detect_key_rotation_when_no_cache() {
-    let validator = make_validator("http://localhost:8080");
-    let new_jwks = Jwks {
-        keys: vec![make_jwk("key1")],
-    };
-    // Should not detect rotation when cache is empty
-    assert!(!validator.detect_key_rotation(&new_jwks));
-}
+/// Where every fixture publisher in this file serves its keys.
+const JWKS_FIXTURE_PATH: &str = "/.well-known/jwks.json";
 
-#[test]
-fn test_detect_key_rotation_when_keys_removed() {
-    let validator = make_validator("http://localhost:8080");
-
-    let old_jwks = Jwks {
-        keys: vec![make_jwk("old_key_1"), make_jwk("old_key_2")],
-    };
-    {
-        let mut cache = validator.jwks_cache.write();
-        *cache = Some(CachedJwks {
-            jwks:       old_jwks,
-            fetched_at: Instant::now(),
-            ttl:        Duration::from_mins(5),
-        });
-    }
-
-    // New JWKS with only 1 of the old keys (old_key_2 removed)
-    let new_jwks = Jwks {
-        keys: vec![make_jwk("old_key_1"), make_jwk("new_key_1")],
-    };
-    // Should detect rotation because old_key_2 is missing
-    assert!(validator.detect_key_rotation(&new_jwks));
-}
-
-#[test]
-fn test_detect_key_rotation_when_no_keys_removed() {
-    let validator = make_validator("http://localhost:8080");
-
-    let old_jwks = Jwks {
-        keys: vec![make_jwk("key_1"), make_jwk("key_2")],
-    };
-    {
-        let mut cache = validator.jwks_cache.write();
-        *cache = Some(CachedJwks {
-            jwks:       old_jwks,
-            fetched_at: Instant::now(),
-            ttl:        Duration::from_mins(5),
-        });
-    }
-
-    // New JWKS with old keys + new key (no removal)
-    let new_jwks = Jwks {
-        keys: vec![make_jwk("key_1"), make_jwk("key_2"), make_jwk("new_key")],
-    };
-    // Should NOT detect rotation because all old keys still exist
-    assert!(!validator.detect_key_rotation(&new_jwks));
+/// How many times a fixture publisher was asked for its keys.
+async fn jwks_fetches(mock: &wiremock::MockServer) -> usize {
+    mock.received_requests()
+        .await
+        .expect("the fixture publisher records its requests")
+        .len()
 }
 
 // ============================================================================
-// #361: JWKS rotation — cache invalidation closes the stolen-key replay window
+// #1335: the JWKS cache moved, and these are the seams that stayed
 // ============================================================================
+//
+// What used to be here: three `detect_key_rotation` cases, two `find_key` cases,
+// a `CachedJwks::is_expired` case that slept 1.1 s, a JWK/JWKS deserialisation
+// pair, and three "sentinels" that compared `MAX + 1 > MAX` **in the test body**
+// and so pinned nothing in the code at all.
+//
+// Every one of those described the cache's internals, and the cache is now
+// `fraiseql_jwks` — one implementation instead of the two that had drifted, with
+// each of those properties exercised there against the code that runs:
+// `a_withdrawn_key_is_reported_as_a_rotation_and_an_added_one_is_not`,
+// `a_key_is_selected_by_kid_and_only_by_kid`,
+// `an_expired_set_is_not_served_even_while_the_cooldown_holds`,
+// `a_refetch_that_drops_a_key_stops_that_key_verifying`,
+// `an_oversized_key_set_is_refused_before_it_is_parsed` and
+// `a_key_set_exactly_at_the_size_cap_is_accepted`.
+//
+// What stays here is what is genuinely this crate's: that the operator's two
+// controls reach the shared client. The refetch bound is measured from this side
+// too, in `mod jwks_refetch_bound` at the end of this file — from the caller that
+// #1335 measured, because the `alg`-ordering half of the defect is invisible from
+// anywhere else.
 
-#[test]
-fn invalidate_jwks_cache_clears_the_cached_entry() {
-    let validator = make_validator("http://localhost:8080");
-    {
-        let mut cache = validator.jwks_cache.write();
-        *cache = Some(CachedJwks {
-            jwks:       Jwks {
-                keys: vec![make_jwk("compromised_kid")],
-            },
-            fetched_at: Instant::now(),
-            ttl:        Duration::from_mins(5),
-        });
-    }
-    assert!(validator.jwks_cache.read().is_some(), "precondition: cache populated");
+#[tokio::test]
+async fn the_operators_forced_refresh_reaches_the_provider() {
+    let mock = jwks_serving(&["rotated_in_kid"]).await;
+    let validator = make_validator(&format!("{}{JWKS_FIXTURE_PATH}", mock.uri()));
 
-    // Operator response to a known key compromise: flush so the next validation
-    // refetches from the IdP instead of trusting the cached (now-revoked) key.
+    let count = validator.refresh_jwks().await.expect("force refresh should succeed");
+    assert_eq!(count, 1, "refresh_jwks returns the number of keys the provider now serves");
+
+    // This is the operator's response to a known key compromise, so the refetch
+    // cooldown — which the call above has just armed — must not refuse it.
+    let again = validator.refresh_jwks().await.expect("and again, immediately");
+    assert_eq!(again, 1, "a second forced refresh is not rate-limited");
+    assert_eq!(jwks_fetches(&mock).await, 2, "both refreshes reached the provider");
+}
+
+#[tokio::test]
+async fn invalidating_makes_the_very_next_validation_refetch() {
+    let mock = jwks_serving(&["compromised_kid"]).await;
+    let validator = make_validator(&format!("{}{JWKS_FIXTURE_PATH}", mock.uri()));
+
+    validator.get_decoding_key("compromised_kid").await.expect("published");
+    assert_eq!(jwks_fetches(&mock).await, 1);
+
+    // The flush has to clear the cooldown as well as the keys. Dropping only the
+    // keys would answer the operator's "stop trusting these" by refusing every
+    // token until the cooldown lapsed, rather than by fetching.
     validator.invalidate_jwks_cache();
-
-    assert!(
-        validator.jwks_cache.read().is_none(),
-        "invalidate_jwks_cache must clear the cache so revoked keys stop validating"
+    validator.get_decoding_key("compromised_kid").await.expect("re-fetched");
+    assert_eq!(
+        jwks_fetches(&mock).await,
+        2,
+        "the flush must make the next validation fetch, not merely stop answering"
     );
 }
 
-#[tokio::test]
-async fn refresh_jwks_replaces_the_cache_with_freshly_fetched_keys() {
-    use serde_json::json;
-    use wiremock::{
-        Mock, MockServer, ResponseTemplate,
-        matchers::{method, path},
-    };
-
-    let mock = MockServer::start().await;
-    let port = mock.uri().rsplit(':').next().unwrap().to_string();
-    let issuer = format!("http://localhost:{port}");
-    let jwks_path = "/.well-known/jwks.json";
-
-    // IdP now publishes only the rotated-in key.
-    let jwks_body = json!({
-        "keys": [{ "kty": "RSA", "kid": "rotated_in_kid", "n": TEST_RSA_N, "e": TEST_RSA_E }]
-    });
-    Mock::given(method("GET"))
-        .and(path(jwks_path))
-        .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_body))
-        .expect(1..)
-        .mount(&mock)
-        .await;
-
+#[test]
+fn a_jwks_uri_that_could_never_be_fetched_refuses_the_validator() {
+    // It used to be stored unexamined, so this built a validator that refused
+    // every token at its first delivery instead of refusing to exist. The sibling
+    // cache in `fraiseql_auth` had always checked at construction (#1335).
     let config = OidcConfig {
-        issuer: Some(issuer.clone()),
+        audience: Some("fraiseql-test".to_string()),
         ..Default::default()
     };
-    let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
-
-    // Seed a stale cache holding the compromised key.
-    {
-        let mut cache = validator.jwks_cache.write();
-        *cache = Some(CachedJwks {
-            jwks:       Jwks {
-                keys: vec![make_jwk("compromised_kid")],
-            },
-            fetched_at: Instant::now(),
-            ttl:        Duration::from_mins(5),
-        });
+    for uri in ["not a url", "http://idp.example.com/jwks", "ftp://idp/jwks"] {
+        let error = OidcValidator::with_jwks_uri(config.clone(), uri)
+            .err()
+            .unwrap_or_else(|| panic!("{uri} must be refused at construction"));
+        assert!(
+            matches!(error, SecurityError::SecurityConfigError(_)),
+            "and refused as the operator's configuration error: {error:?}"
+        );
     }
-
-    let count = validator.refresh_jwks().await.expect("force refresh should succeed");
-    assert_eq!(count, 1, "refresh_jwks returns the number of keys fetched");
-
-    let cache = validator.jwks_cache.read();
-    let cached = cache.as_ref().expect("cache repopulated after refresh");
-    let kids: Vec<&str> = cached.jwks.keys.iter().filter_map(|k| k.kid.as_deref()).collect();
-    assert_eq!(kids, vec!["rotated_in_kid"], "compromised key evicted; rotated-in key cached");
-}
-
-#[tokio::test]
-async fn get_decoding_key_refetch_evicts_rotated_out_keys() {
-    use serde_json::json;
-    use wiremock::{
-        Mock, MockServer, ResponseTemplate,
-        matchers::{method, path},
-    };
-
-    let mock = MockServer::start().await;
-    let port = mock.uri().rsplit(':').next().unwrap().to_string();
-    let issuer = format!("http://localhost:{port}");
-    let jwks_path = "/.well-known/jwks.json";
-
-    // After IdP rotation the compromised key is gone; only the new key remains.
-    let jwks_body = json!({
-        "keys": [{ "kty": "RSA", "kid": "new_kid", "n": TEST_RSA_N, "e": TEST_RSA_E }]
-    });
-    Mock::given(method("GET"))
-        .and(path(jwks_path))
-        .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_body))
-        .expect(1..)
-        .mount(&mock)
-        .await;
-
-    let config = OidcConfig {
-        issuer: Some(issuer.clone()),
-        ..Default::default()
-    };
-    let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
-
-    // Seed an EXPIRED cache holding the compromised key so the next lookup refetches.
-    {
-        let mut cache = validator.jwks_cache.write();
-        *cache = Some(CachedJwks {
-            jwks:       Jwks {
-                keys: vec![make_jwk("compromised_kid")],
-            },
-            fetched_at: Instant::now(),
-            ttl:        Duration::ZERO,
-        });
-    }
-    // ttl == 0: age the monotonic clock so the entry is unambiguously expired.
-    tokio::time::sleep(Duration::from_millis(10)).await;
-
-    // A token still signed by the rotated-out key must be rejected …
-    let result = validator.get_decoding_key("compromised_kid").await;
-    assert!(result.is_err(), "a token signed by a rotated-out key must be rejected");
-
-    // … and the refetch must have replaced the cache with the IdP's current keys,
-    // so the compromised key no longer lingers (it would otherwise keep validating
-    // off the stale cache on the hit path). This is the core of #361.
-    let cache = validator.jwks_cache.read();
-    let cached = cache.as_ref().expect("cache repopulated after refetch");
-    let kids: Vec<&str> = cached.jwks.keys.iter().filter_map(|k| k.kid.as_deref()).collect();
-    assert!(!kids.contains(&"compromised_kid"), "rotated-out key must be evicted from cache");
-    assert_eq!(kids, vec!["new_kid"], "cache reflects the IdP's current key set");
-}
-
-#[test]
-fn test_find_key_by_kid() {
-    let validator = make_validator("http://localhost:8080");
-    let jwks = Jwks {
-        keys: vec![make_jwk("key1"), make_jwk("key2")],
-    };
-
-    assert!(validator.find_key(&jwks, "key1").is_some());
-    assert!(validator.find_key(&jwks, "key2").is_some());
-    assert!(validator.find_key(&jwks, "key3").is_none());
-}
-
-#[test]
-fn test_find_key_without_kid() {
-    let validator = make_validator("http://localhost:8080");
-
-    let jwks = Jwks {
-        keys: vec![Jwk {
-            kty:     "RSA".to_string(),
-            kid:     None, // No kid
-            alg:     None,
-            key_use: None,
-            n:       None,
-            e:       None,
-            x5c:     vec![],
-        }],
-    };
-    // Should not find key without kid even if requested
-    assert!(validator.find_key(&jwks, "any_kid").is_none());
 }
 
 // ============================================================================
@@ -504,19 +369,26 @@ async fn oidc_discovery_within_size_limit_proceeds_to_parse() {
 }
 
 // ============================================================================
-// S22-H4: with_jwks_uri timeout
+// with_jwks_uri: what it keeps from the config it is handed
 // ============================================================================
 
+/// The positive counterweight to
+/// [`a_jwks_uri_that_could_never_be_fetched_refuses_the_validator`]: a usable URI
+/// builds a validator that still knows its issuer.
+///
+/// It replaces `with_jwks_uri_creates_validator_without_panicking`, whose subject
+/// no longer exists — the constructor built an HTTP client it never used and
+/// `expect`ed on it, and that client is gone (#1335). A test named for a panic
+/// that cannot happen reads as coverage and is none.
 #[test]
-fn with_jwks_uri_creates_validator_without_panicking() {
-    // with_jwks_uri must not panic even when the client builder is invoked;
-    // verifies the fallback unwrap_or_default() path compiles and runs.
+fn with_jwks_uri_keeps_the_configured_issuer() {
     let config = OidcConfig {
         issuer: Some("https://example.com".to_string()),
         jwks_uri: Some("https://example.com/.well-known/jwks.json".to_string()),
         ..Default::default()
     };
-    let validator = OidcValidator::with_jwks_uri(config, "https://example.com/jwks".to_string());
+    let validator = OidcValidator::with_jwks_uri(config, "https://example.com/jwks")
+        .expect("an https jwks_uri is accepted");
     assert_eq!(validator.issuer(), Some("https://example.com"));
 }
 
@@ -623,7 +495,8 @@ async fn validate_token_with_real_rsa_keypair_and_wiremock_jwks() {
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
     };
-    let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
+    let validator = OidcValidator::with_jwks_uri(config, &format!("{issuer}{jwks_path}"))
+        .expect("a loopback http jwks_uri is accepted");
 
     // ── 5. Validate the token end-to-end ─────────────────────────────
     let user = validator.validate_token(&token).await.expect("token validation should succeed");
@@ -694,7 +567,8 @@ async fn validate_token_rejects_wrong_signing_key() {
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
     };
-    let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
+    let validator = OidcValidator::with_jwks_uri(config, &format!("{issuer}{jwks_path}"))
+        .expect("a loopback http jwks_uri is accepted");
 
     let result = validator.validate_token(&token).await;
     assert!(result.is_err(), "corrupted signature must be rejected");
@@ -754,7 +628,8 @@ async fn validate_token_rejects_expired_jwt() {
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
     };
-    let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
+    let validator = OidcValidator::with_jwks_uri(config, &format!("{issuer}{jwks_path}"))
+        .expect("a loopback http jwks_uri is accepted");
 
     let result = validator.validate_token(&token).await;
     assert!(result.is_err(), "expired token must be rejected");
@@ -818,7 +693,8 @@ async fn validate_token_rejects_wrong_audience() {
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
     };
-    let validator = OidcValidator::with_jwks_uri(config, format!("{issuer}{jwks_path}"));
+    let validator = OidcValidator::with_jwks_uri(config, &format!("{issuer}{jwks_path}"))
+        .expect("a loopback http jwks_uri is accepted");
 
     let result = validator.validate_token(&token).await;
     assert!(result.is_err(), "wrong audience must be rejected");
@@ -879,7 +755,8 @@ async fn validate_token_without_iss_claim_accepted_when_issuer_unset() {
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
     };
-    let validator = OidcValidator::with_jwks_uri(config, format!("{}{jwks_path}", mock.uri()));
+    let validator = OidcValidator::with_jwks_uri(config, &format!("{}{jwks_path}", mock.uri()))
+        .expect("a loopback http jwks_uri is accepted");
 
     let user = validator
         .validate_token(&token)
@@ -942,7 +819,8 @@ async fn validate_token_missing_iss_rejected_when_issuer_set() {
         allowed_algorithms: vec!["RS256".to_string()],
         ..Default::default()
     };
-    let validator = OidcValidator::with_jwks_uri(config, format!("{}{jwks_path}", mock.uri()));
+    let validator = OidcValidator::with_jwks_uri(config, &format!("{}{jwks_path}", mock.uri()))
+        .expect("a loopback http jwks_uri is accepted");
 
     let result = validator.validate_token(&token).await;
     assert!(
@@ -1052,77 +930,10 @@ mod audience_tests {
     }
 }
 
-mod jwks_tests {
+mod discovery_document_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use std::time::{Duration, Instant};
-
-    use crate::security::oidc::{
-        jwks::{CachedJwks, MAX_JWKS_RESPONSE_BYTES},
-        *,
-    };
-
-    #[test]
-    fn test_jwk_deserialization() {
-        let jwk_json = r#"{
-            "kty": "RSA",
-            "kid": "test-key-id",
-            "alg": "RS256",
-            "use": "sig",
-            "n": "0vx7agoebGcQSuuPiLJXZptN9nndrQmbXEps2aiAFbWhM78LhWx4cbbfAAtVT86zwu1RK7aPFFxuhDR1L6tSoc_BJECPebWKRXjBZCiFV4n3oknjhMstn64tZ_2W-5JsGY4Hc5n9yBXArwl93lqt7_RN5w6Cf0h4QyQ5v-65YGjQR0_FDW2QvzqY368QQMicAtaSqzs8KJZgnYb9c7d0zgdAZHzu6qMQvRL5hajrn1n91CbOpbISD08qNLyrdkt-bFTWhAI4vMQFh6WeZu0fM4lFd2NcRwr3XPksINHaQ-G_xBniIqbw0Ls1jF44-csFCur-kEgU8awapJzKnqDKgw",
-            "e": "AQAB"
-        }"#;
-
-        let jwk: Jwk = serde_json::from_str(jwk_json).unwrap();
-        assert_eq!(jwk.kty, "RSA");
-        assert_eq!(jwk.kid, Some("test-key-id".to_string()));
-        assert_eq!(jwk.alg, Some("RS256".to_string()));
-        assert!(jwk.n.is_some());
-        assert!(jwk.e.is_some());
-    }
-
-    #[test]
-    fn test_jwks_deserialization() {
-        let jwks_json = r#"{
-            "keys": [
-                {
-                    "kty": "RSA",
-                    "kid": "key1",
-                    "n": "test_n",
-                    "e": "AQAB"
-                },
-                {
-                    "kty": "RSA",
-                    "kid": "key2",
-                    "n": "test_n2",
-                    "e": "AQAB"
-                }
-            ]
-        }"#;
-
-        let jwks: Jwks = serde_json::from_str(jwks_json).unwrap();
-        assert_eq!(jwks.keys.len(), 2);
-        assert_eq!(jwks.keys[0].kid, Some("key1".to_string()));
-        assert_eq!(jwks.keys[1].kid, Some("key2".to_string()));
-    }
-
-    #[test]
-    fn test_cached_jwks_expiration() {
-        // Test that CachedJwks correctly determines expiration
-        let jwks = Jwks { keys: vec![] };
-        let cached = CachedJwks {
-            jwks,
-            fetched_at: Instant::now(),
-            ttl: Duration::from_secs(1),
-        };
-
-        // Should not be expired immediately
-        assert!(!cached.is_expired());
-
-        // After sleep, should be expired
-        std::thread::sleep(Duration::from_millis(1100));
-        assert!(cached.is_expired());
-    }
+    use crate::security::oidc::*;
 
     #[test]
     fn test_oidc_discovery_document_deserialization() {
@@ -1140,43 +951,16 @@ mod jwks_tests {
         assert_eq!(doc.id_token_signing_alg_values_supported.len(), 3);
     }
 
-    #[test]
-    fn test_jwks_cache_ttl_reduced_for_security() {
-        // SECURITY: Verify the default TTL used by OidcConfig is 5 minutes (300 seconds)
-        // to prevent token cache poisoning attacks.
-        // The constant is defined in mod.rs; we verify the value here via a
-        // hand-coded literal so the test is local and self-contained.
-        const EXPECTED_DEFAULT_TTL: u64 = 300;
-        assert_eq!(EXPECTED_DEFAULT_TTL, 300, "Cache TTL should be 5 minutes (300 seconds)");
-    }
-
-    /// Sentinel: `MAX_JWKS_RESPONSE_BYTES` must be exactly 1 `MiB`.
+    /// The size cap is the shared client's own constant, re-exported rather than
+    /// repeated, so this crate cannot come to hold a second copy of the number.
     ///
-    /// Kills mutations that change the constant value (e.g. halving or doubling it).
+    /// The three tests that used to sit here compared `MAX + 1 > MAX` *in the test
+    /// body*: they pinned the arithmetic of `>`, never the guard. Both sides of
+    /// the real boundary are exercised against the fetch itself in
+    /// `fraiseql_jwks`.
     #[test]
-    fn test_max_jwks_response_bytes_is_one_mib() {
-        assert_eq!(MAX_JWKS_RESPONSE_BYTES, 1024 * 1024, "JWKS size cap must be exactly 1 MiB");
-    }
-
-    /// Sentinel: a payload at the limit (== MAX) must be accepted (`>` not `>=`).
-    ///
-    /// Kills the `> → >=` mutation on the size-guard in `fetch_jwks`.
-    #[test]
-    fn test_jwks_size_check_accepts_payload_at_limit() {
-        let len = MAX_JWKS_RESPONSE_BYTES;
-        let rejected = len > MAX_JWKS_RESPONSE_BYTES;
-        assert!(!rejected, "payload at exactly {len} bytes must be accepted (> not >=)");
-    }
-
-    /// Sentinel: a payload one byte over the limit must be rejected.
-    ///
-    /// Complements `test_jwks_size_check_accepts_payload_at_limit` to pin both sides
-    /// of the boundary.
-    #[test]
-    fn test_jwks_size_check_rejects_payload_over_limit() {
-        let len = MAX_JWKS_RESPONSE_BYTES + 1;
-        let rejected = len > MAX_JWKS_RESPONSE_BYTES;
-        assert!(rejected, "payload of {len} bytes must be rejected (exceeds 1 MiB cap)");
+    fn the_size_cap_is_the_shared_clients_own_constant() {
+        assert_eq!(MAX_JWKS_RESPONSE_BYTES, fraiseql_jwks::MAX_RESPONSE_BYTES);
     }
 }
 
@@ -1263,5 +1047,228 @@ mod replay_cache_tests {
         let _ = cache.check_and_record("jti-counter", Duration::from_mins(15)).await;
         let after = jwt_replay_rejected_total();
         assert!(after > before, "replay counter should have incremented");
+    }
+}
+
+// ============================================================================
+// #1335: the JWKS refetch is bounded, and the algorithm allow-list runs first
+// ============================================================================
+
+/// Every request whose `kid` the cache does not hold used to make the server
+/// fetch the `IdP`'s JWKS again: no negative cache, no cooldown between refetches,
+/// no single-flight for concurrent misses, and the algorithm allow-list checked
+/// *after* the key lookup (`token.rs` took `kid` and called `get_decoding_key`
+/// before `get_algorithm`).
+///
+/// A `/graphql` request needs no credential to reach this code, so any anonymous
+/// client could make the server issue one outbound HTTPS request per inbound
+/// one. The consequence is not the amplification itself but what it turns into:
+/// once the `IdP` throttles this server, a genuine key rotation cannot be fetched
+/// and every user holding a new-`kid` token is refused — an authentication
+/// outage produced by unauthenticated traffic.
+///
+/// # Why these count fetches through `validate_token`
+///
+/// `get_decoding_key` cannot see half the defect. The `alg` ordering is only
+/// observable from the caller that does both things, and that caller is
+/// `validate_token`. Counting at the mock rather than asserting on an internal
+/// counter also keeps the suite honest across cycle A3, where this logic moves
+/// into a shared primitive: what is pinned here is the number of requests the
+/// *provider* sees, which is the property the issue is about.
+mod jwks_refetch_bound {
+    use std::time::Duration;
+
+    use jsonwebtoken::{Algorithm, EncodingKey, Header};
+    use serde_json::json;
+    use wiremock::{
+        Mock, MockServer, ResponseTemplate,
+        matchers::{method, path},
+    };
+
+    use super::{OidcConfig, OidcValidator, TEST_RSA_E, TEST_RSA_N, TEST_RSA_PRIVATE_KEY_PEM};
+
+    /// Where the fixture `IdP` publishes its keys.
+    const JWKS_PATH: &str = "/.well-known/jwks.json";
+
+    /// The one `kid` the fixture `IdP` publishes. Every token below names a
+    /// different one, so each is a genuine cache miss.
+    const PUBLISHED_KID: &str = "published-kid";
+
+    /// How many deliveries one burst of unauthenticated traffic stands for.
+    const BURST: usize = 20;
+
+    /// A JWKS endpoint that publishes one RSA key and counts every GET.
+    ///
+    /// Mounted without `.expect(...)`: the count is read back with
+    /// [`MockServer::received_requests`], because one of these tests asserts the
+    /// endpoint is reached **zero** times and an unmet `expect` would panic on
+    /// drop instead of failing the assertion that matters.
+    async fn published_jwks(delay: Duration) -> MockServer {
+        let mock = MockServer::start().await;
+        let body = json!({
+            "keys": [{
+                "kty": "RSA",
+                "kid": PUBLISHED_KID,
+                "alg": "RS256",
+                "use": "sig",
+                "n":   TEST_RSA_N,
+                "e":   TEST_RSA_E,
+            }]
+        });
+        Mock::given(method("GET"))
+            .and(path(JWKS_PATH))
+            .respond_with(ResponseTemplate::new(200).set_body_json(&body).set_delay(delay))
+            .mount(&mock)
+            .await;
+        mock
+    }
+
+    /// How many times the fixture `IdP` was asked for its keys.
+    async fn fetches(mock: &MockServer) -> usize {
+        mock.received_requests()
+            .await
+            .expect("the fixture JWKS server records its requests")
+            .len()
+    }
+
+    /// A validator pinned to the fixture's JWKS, in the issuer-less mode #708
+    /// added and #1335 measured against. `RS256` only, so the `HS256` token
+    /// below is outside the allow-list.
+    fn validator_for(mock: &MockServer) -> OidcValidator {
+        let config = OidcConfig {
+            issuer: None,
+            audience: Some("fraiseql-1335".to_string()),
+            allowed_algorithms: vec!["RS256".to_string()],
+            ..Default::default()
+        };
+        let uri = format!("{}{JWKS_PATH}", mock.uri());
+        OidcValidator::with_jwks_uri(config, &uri).expect("a loopback http jwks_uri is accepted")
+    }
+
+    /// Claims good enough to reach the key lookup: the point of every token here
+    /// is its *header*, so the body only has to decode.
+    fn claims() -> serde_json::Value {
+        let now = chrono::Utc::now().timestamp();
+        json!({ "sub": "anonymous-caller", "aud": "fraiseql-1335", "exp": now + 3600 })
+    }
+
+    /// A genuinely RS256-signed token naming `kid`. Signed with the fixture key,
+    /// so the only thing wrong with it is that `kid` is not published — which is
+    /// what an attacker sends, and what a legitimate client sends during a
+    /// rotation the server has not yet seen.
+    fn rs256_token(kid: &str) -> String {
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some(kid.to_string());
+        let key = EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes())
+            .expect("the fixture RSA private key parses");
+        jsonwebtoken::encode(&header, &claims(), &key).expect("the fixture token encodes")
+    }
+
+    /// An `HS256` token naming an unknown `kid`. `HS256` is not in
+    /// `allowed_algorithms`, so this token is refused whatever key the `IdP`
+    /// publishes — and must therefore cost no outbound request.
+    fn hs256_token(kid: &str) -> String {
+        let mut header = Header::new(Algorithm::HS256);
+        header.kid = Some(kid.to_string());
+        let key = EncodingKey::from_secret(b"not a key this server would ever accept");
+        jsonwebtoken::encode(&header, &claims(), &key).expect("the fixture token encodes")
+    }
+
+    #[tokio::test]
+    async fn many_distinct_unknown_kids_share_one_jwks_fetch() {
+        let mock = published_jwks(Duration::ZERO).await;
+        let validator = validator_for(&mock);
+
+        for index in 0..BURST {
+            let token = rs256_token(&format!("unknown-kid-{index}"));
+            assert!(
+                validator.validate_token(&token).await.is_err(),
+                "a token signed by a key the `IdP` does not publish must be refused (kid \
+                 unknown-kid-{index})"
+            );
+        }
+
+        // Exactly one, not "at most one": the server has to look once to learn the
+        // kid is unpublished, and an implementation that never looks could not pick
+        // up a rotation at all.
+        assert_eq!(
+            fetches(&mock).await,
+            1,
+            "#1335: {BURST} requests with {BURST} distinct unknown kids must cost one JWKS \
+             fetch, not one each — otherwise any anonymous caller sets the server's outbound \
+             request rate, and the `IdP`'s throttling turns that into an authentication outage"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_repeated_unknown_kid_is_remembered_as_unknown() {
+        let mock = published_jwks(Duration::ZERO).await;
+        let validator = validator_for(&mock);
+        let token = rs256_token("unknown-kid-repeated");
+
+        for _ in 0..BURST {
+            assert!(
+                validator.validate_token(&token).await.is_err(),
+                "a token signed by a key the `IdP` does not publish must be refused"
+            );
+        }
+
+        assert_eq!(
+            fetches(&mock).await,
+            1,
+            "#1335: the same unknown kid {BURST} times must cost one JWKS fetch. A miss that \
+             is never remembered is the cheapest possible amplification — one captured token \
+             replayed is enough"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_disallowed_algorithm_never_reaches_the_jwks_endpoint() {
+        let mock = published_jwks(Duration::ZERO).await;
+        let validator = validator_for(&mock);
+
+        let token = hs256_token("unknown-kid-hs256");
+        assert!(
+            validator.validate_token(&token).await.is_err(),
+            "HS256 is outside allowed_algorithms, so the token must be refused"
+        );
+
+        assert_eq!(
+            fetches(&mock).await,
+            0,
+            "#1335: the algorithm allow-list must be checked BEFORE the key lookup. A token \
+             this server would refuse on its header alone must not cost an outbound request"
+        );
+    }
+
+    /// How many deliveries arrive together in the burst below.
+    const CONCURRENT: usize = 8;
+
+    #[tokio::test]
+    async fn concurrent_unknown_kid_misses_collapse_onto_one_fetch() {
+        // The response is delayed so every miss below is in flight before the
+        // first fetch completes. Without that, a cooldown alone passes this test
+        // while leaving concurrent misses unbounded — the fetches would merely be
+        // serialised, and the test would agree for the wrong reason.
+        let mock = published_jwks(Duration::from_millis(300)).await;
+        let validator = validator_for(&mock);
+
+        let tokens: Vec<String> =
+            (0..CONCURRENT).map(|i| rs256_token(&format!("concurrent-kid-{i}"))).collect();
+        let outcomes =
+            futures::future::join_all(tokens.iter().map(|token| validator.validate_token(token)))
+                .await;
+
+        assert!(
+            outcomes.iter().all(std::result::Result::is_err),
+            "every token names an unpublished kid, so every one must be refused"
+        );
+        assert_eq!(
+            fetches(&mock).await,
+            1,
+            "#1335: {CONCURRENT} concurrent misses must single-flight onto one JWKS fetch. A \
+             cooldown alone does not give this — it is only consulted once a fetch has \
+             finished, and these all start first"
+        );
     }
 }

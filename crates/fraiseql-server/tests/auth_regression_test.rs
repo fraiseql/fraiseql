@@ -61,7 +61,8 @@ fn required_oidc_state() -> OidcAuthState {
     };
     // with_jwks_uri bypasses async OIDC discovery; 401 is returned before
     // any real JWKS request is made.
-    let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks".to_string());
+    let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks")
+        .expect("an https jwks_uri is accepted");
     OidcAuthState::new(Arc::new(validator))
 }
 
@@ -80,7 +81,8 @@ fn optional_oidc_state() -> OidcAuthState {
         require_jti:          false,
         me:                   None,
     };
-    let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks".to_string());
+    let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks")
+        .expect("an https jwks_uri is accepted");
     OidcAuthState::new(Arc::new(validator))
 }
 

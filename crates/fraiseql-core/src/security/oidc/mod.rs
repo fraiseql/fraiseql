@@ -57,7 +57,7 @@ mod tests;
 
 // Public re-exports — external callers see no change in paths.
 pub use audience::{Audience, JwtClaims};
-pub use jwks::{Jwk, Jwks, OidcDiscoveryDocument};
+pub use jwks::{MAX_JWKS_RESPONSE_BYTES, OidcDiscoveryDocument};
 pub use providers::{MeEndpointConfig, OidcConfig};
 pub use replay_cache::{
     FailurePolicy, MemoryReplayCache, ReplayCache, ReplayCacheBackend, ReplayCacheError,

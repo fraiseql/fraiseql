@@ -15,8 +15,10 @@ async fn refresh_jwks_fails_closed_when_provider_unreachable() {
         issuer: Some("http://localhost:8080".to_string()),
         ..Default::default()
     };
-    let validator =
-        Arc::new(OidcValidator::with_jwks_uri(config, "http://127.0.0.1:1/jwks".to_string()));
+    let validator = Arc::new(
+        OidcValidator::with_jwks_uri(config, "http://127.0.0.1:1/jwks")
+            .expect("a loopback http jwks_uri is accepted"),
+    );
 
     let (status, body) = refresh_jwks_handler(State(validator)).await;
 

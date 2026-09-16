@@ -215,7 +215,8 @@ async fn test_auth_me_reads_host_cookie() {
         require_jti:          false,
         me:                   None,
     };
-    let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks".to_string());
+    let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks")
+        .expect("an https jwks_uri is accepted");
     let auth_state = OidcAuthState::new(Arc::new(validator));
 
     let state = make_me_state(&[]);

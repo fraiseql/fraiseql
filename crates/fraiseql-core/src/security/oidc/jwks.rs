@@ -1,28 +1,32 @@
-//! JWKS (JSON Web Key Set) types, cache, key selection, and fetch logic.
+//! OIDC discovery, and the validator's view of the shared JWKS client.
 //!
-//! The `impl OidcValidator` block here adds JWKS-specific methods to the
-//! validator type defined in [`super::token`].
+//! The key set itself is **not** cached here. It is fetched, bounded and selected
+//! by [`fraiseql_jwks`], the one JWKS client in the workspace (#1335). This module
+//! is what the `[auth]` path needed on top of it: the discovery document that
+//! locates a `jwks_uri` in the first place, and the small translation from that
+//! client's answers into [`SecurityError`].
+//!
+//! # What used to live here, and why it does not
+//!
+//! A `CachedJwks` with a TTL, a `fetch_jwks`, a `find_key`, a rotation detector
+//! and a `Jwk` → `DecodingKey` conversion that accepted **RSA keys only**. Every
+//! one of those had a near-twin in `fraiseql_auth::JwksCache`, and the two had
+//! drifted: the twin accepted RSA *and* EC and pinned DNS against rebinding,
+//! which this one did not. Neither bounded a refetch, so an unknown `kid` fetched
+//! every time — see [`fraiseql_jwks`] for what that amplifies into.
 
-use std::time::{Duration, Instant};
-
-use jsonwebtoken::DecodingKey;
+/// Maximum byte length accepted from a JWKS endpoint response.
+///
+/// Re-exported from [`fraiseql_jwks`] so this crate cannot drift from the value
+/// the fetch actually enforces — which is how the two caches came to hold two
+/// copies of every other rule.
+pub use fraiseql_jwks::MAX_RESPONSE_BYTES as MAX_JWKS_RESPONSE_BYTES;
 use serde::Deserialize;
 
 use crate::security::{
     errors::{Result, SecurityError},
     oidc::token::OidcValidator,
 };
-
-/// Maximum byte length accepted from a JWKS endpoint response.
-///
-/// A legitimate JWKS document (a few RSA/EC public keys) is well under 64 `KiB`.
-/// A 1 `MiB` cap prevents a malicious or compromised OIDC provider from sending
-/// a response large enough to exhaust server memory.
-pub const MAX_JWKS_RESPONSE_BYTES: usize = 1024 * 1024; // 1 MiB
-
-// ============================================================================
-// OIDC Discovery Response
-// ============================================================================
 
 /// OIDC Discovery document (partial).
 ///
@@ -48,132 +52,57 @@ pub struct OidcDiscoveryDocument {
     pub token_endpoint: Option<String>,
 }
 
-// ============================================================================
-// JWKS Types
-// ============================================================================
-
-/// JSON Web Key Set.
-#[derive(Debug, Clone, Deserialize)]
-pub struct Jwks {
-    /// Array of JSON Web Keys
-    pub keys: Vec<Jwk>,
-}
-
-/// JSON Web Key.
-#[derive(Debug, Clone, Deserialize)]
-pub struct Jwk {
-    /// Key type (e.g., "RSA")
-    pub kty: String,
-
-    /// Key ID (used to match with JWT header)
-    pub kid: Option<String>,
-
-    /// Algorithm (e.g., "RS256")
-    #[serde(default)]
-    pub alg: Option<String>,
-
-    /// Intended use (e.g., "sig" for signature)
-    #[serde(rename = "use")]
-    pub key_use: Option<String>,
-
-    /// RSA modulus (base64url encoded)
-    pub n: Option<String>,
-
-    /// RSA exponent (base64url encoded)
-    pub e: Option<String>,
-
-    /// X.509 certificate chain
-    #[serde(default)]
-    pub x5c: Vec<String>,
-}
-
-/// Cached JWKS with expiration.
-#[derive(Debug)]
-pub struct CachedJwks {
-    pub(super) jwks:       Jwks,
-    pub(super) fetched_at: Instant,
-    pub(super) ttl:        Duration,
-}
-
-impl CachedJwks {
-    pub(super) fn is_expired(&self) -> bool {
-        self.fetched_at.elapsed() > self.ttl
-    }
-}
-
-// ============================================================================
-// OidcValidator — JWKS fetch, cache and key-resolution methods
-// ============================================================================
-
 impl OidcValidator {
-    /// Get the decoding key for a specific key ID.
+    /// The decoding key for a specific key ID.
     ///
-    /// Checks the cache first; fetches fresh JWKS on miss or expiry.
+    /// Delegates to the shared client, which fetches the publisher's set at most
+    /// once per [`fraiseql_jwks::REFETCH_COOLDOWN`] however many unknown `kid`s
+    /// arrive, single-flights concurrent misses, and never serves an expired set.
+    ///
+    /// # This must not be the first thing `validate_token` does
+    ///
+    /// The algorithm allow-list is checked **before** this call
+    /// (`token.rs`). It used to be checked after, so a token whose `alg` the
+    /// server would refuse on its header alone still cost an outbound request
+    /// (#1335).
     ///
     /// # Errors
     ///
-    /// Returns `SecurityError::InvalidToken` if the key is not found or cannot be decoded.
-    pub(super) async fn get_decoding_key(&self, kid: &str) -> Result<DecodingKey> {
-        // Check cache first
-        {
-            let cache = self.jwks_cache.read();
-            if let Some(ref cached) = *cache {
-                if !cached.is_expired() {
-                    if let Some(key) = self.find_key(&cached.jwks, kid) {
-                        return self.jwk_to_decoding_key(key);
-                    }
-                }
-            }
-        }
-
-        // Fetch fresh JWKS
-        let jwks = self.fetch_jwks().await?;
-
-        // SECURITY (#361): a key missing from the fresh set means the IdP rotated it
-        // out — tokens signed by it must stop validating. Detect this against the
-        // currently-cached set BEFORE we replace the cache below.
-        if self.detect_key_rotation(&jwks) {
-            tracing::warn!(
-                "OIDC key rotation detected: previously cached keys are no longer published \
-                 by the provider; evicting them so tokens signed by rotated-out keys are rejected"
-            );
-        }
-
-        // Resolve the requested key from the freshly-fetched set first, so that a
-        // missing `kid` does not short-circuit the cache replacement below.
-        let key = jwks.keys.iter().find(|k| k.kid.as_deref() == Some(kid)).cloned();
-
-        // SECURITY (#361): ALWAYS replace the cache with the freshly-fetched JWKS,
-        // even when `kid` was not found. This evicts rotated-out keys so a token
-        // signed by a removed key cannot keep validating off a stale cache entry on
-        // a later cache hit.
-        {
-            let mut cache = self.jwks_cache.write();
-            *cache = Some(CachedJwks {
-                jwks,
-                fetched_at: Instant::now(),
-                ttl: Duration::from_secs(self.config.jwks_cache_ttl_secs),
-            });
-        }
-
-        let key = key.ok_or_else(|| {
-            tracing::debug!(kid = %kid, "Key not found in JWKS");
+    /// `SecurityError::InvalidToken` when the publisher does not publish that
+    /// `kid`, or publishes it as a key type this workspace does not verify with —
+    /// both are the sender's token being unverifiable, which is one answer.
+    /// `SecurityError::SecurityConfigError` when the key set could not be fetched
+    /// at all: that is the operator's or the publisher's problem and must not be
+    /// confused with the first.
+    pub(super) async fn get_decoding_key(&self, kid: &str) -> Result<jsonwebtoken::DecodingKey> {
+        let found = self.jwks.key(kid).await.map_err(|error| {
+            tracing::error!(error = %error, kid = %kid, "the OIDC key set could not be consulted");
+            SecurityError::SecurityConfigError(error.to_string())
+        })?;
+        let jwk = found.ok_or_else(|| {
+            tracing::debug!(kid = %kid, "the provider does not publish this key id");
             SecurityError::InvalidToken
         })?;
-        self.jwk_to_decoding_key(&key)
+        jwk.decoding_key().map_err(|error| {
+            // A key type the workspace does not verify with is named in the log
+            // rather than reported as a generic failure, because the operator's
+            // action differs: an EdDSA-signing IdP needs support added, a
+            // malformed key needs the publisher told.
+            tracing::debug!(error = %error, kid = %kid, "the published key is not usable");
+            SecurityError::InvalidTokenAlgorithm {
+                algorithm: jwk.kty.clone(),
+            }
+        })
     }
 
     /// Invalidate the cached JWKS so the next token validation refetches keys.
     ///
-    /// Use this when an operator learns of an `IdP`-side key compromise or rotation
-    /// and wants to close the stolen-key replay window immediately, rather than
-    /// waiting up to `jwks_cache_ttl_secs` for the cache to expire. The next token
-    /// validation performs a fresh fetch from the provider.
+    /// Use this when an operator learns of an `IdP`-side key compromise or
+    /// rotation and wants to close the stolen-key replay window immediately,
+    /// rather than waiting up to `jwks_cache_ttl_secs` for the cached entry to
+    /// expire. The next token validation performs a fresh fetch.
     pub fn invalidate_jwks_cache(&self) {
-        *self.jwks_cache.write() = None;
-        tracing::info!(
-            "JWKS cache invalidated; next token validation will refetch keys from the provider"
-        );
+        self.jwks.invalidate();
     }
 
     /// Force an immediate JWKS refetch, replacing the cache with the provider's
@@ -183,118 +112,21 @@ impl OidcValidator {
     /// `/admin/v1/auth/refresh-jwks` endpoint, which closes the stolen-key replay
     /// window on demand and confirms the refresh succeeded.
     ///
+    /// Not subject to the refetch cooldown: that bound exists to stop an
+    /// unauthenticated sender from driving outbound requests, and this is neither
+    /// unauthenticated nor sender-triggered.
+    ///
     /// # Errors
     ///
     /// Returns `SecurityError::SecurityConfigError` if the JWKS endpoint cannot be
     /// reached or the response cannot be parsed.
     pub async fn refresh_jwks(&self) -> Result<usize> {
-        let jwks = self.fetch_jwks().await?;
-        let key_count = jwks.keys.len();
-        {
-            let mut cache = self.jwks_cache.write();
-            *cache = Some(CachedJwks {
-                jwks,
-                fetched_at: Instant::now(),
-                ttl: Duration::from_secs(self.config.jwks_cache_ttl_secs),
-            });
-        }
-        tracing::info!(key_count, "JWKS cache force-refreshed from provider");
-        Ok(key_count)
-    }
-
-    /// Fetch JWKS from the provider.
-    ///
-    /// # Errors
-    ///
-    /// Returns `SecurityError::SecurityConfigError` if the HTTP request fails or
-    /// the response cannot be parsed as a valid JWKS.
-    async fn fetch_jwks(&self) -> Result<Jwks> {
-        tracing::debug!(uri = %self.jwks_uri, "Fetching JWKS");
-
-        let response = self.http_client.get(&self.jwks_uri).send().await.map_err(|e| {
-            tracing::error!(error = %e, "Failed to fetch JWKS");
-            SecurityError::SecurityConfigError(format!("Failed to fetch JWKS: {e}"))
-        })?;
-
-        if !response.status().is_success() {
-            return Err(SecurityError::SecurityConfigError(format!(
-                "JWKS fetch failed with status: {}",
-                response.status()
-            )));
-        }
-
-        // Cap the response body before deserialising to prevent memory exhaustion
-        // from a malicious or compromised OIDC provider sending an oversized payload.
-        let body_bytes = response.bytes().await.map_err(|e| {
-            SecurityError::SecurityConfigError(format!("Failed to read JWKS response body: {e}"))
-        })?;
-
-        if body_bytes.len() > MAX_JWKS_RESPONSE_BYTES {
-            return Err(SecurityError::SecurityConfigError(format!(
-                "JWKS response body too large ({} bytes, max {MAX_JWKS_RESPONSE_BYTES})",
-                body_bytes.len()
-            )));
-        }
-
-        let jwks: Jwks = serde_json::from_slice(&body_bytes).map_err(|e| {
-            SecurityError::SecurityConfigError(format!("Invalid JWKS response: {e}"))
-        })?;
-
-        tracing::debug!(key_count = jwks.keys.len(), "JWKS fetched successfully");
-
-        Ok(jwks)
-    }
-
-    /// Find a key in the JWKS by key ID.
-    pub(super) fn find_key<'a>(&self, jwks: &'a Jwks, kid: &str) -> Option<&'a Jwk> {
-        jwks.keys.iter().find(|k| k.kid.as_deref() == Some(kid))
-    }
-
-    /// Detect if JWKS keys have been rotated (old keys removed).
-    ///
-    /// Compares current cached keys with newly fetched keys.
-    /// Returns true if any previously cached keys are missing from the new JWKS.
-    pub(super) fn detect_key_rotation(&self, new_jwks: &Jwks) -> bool {
-        let cache = self.jwks_cache.read();
-        if let Some(ref cached) = *cache {
-            // Get set of old key IDs
-            let old_kids: std::collections::HashSet<_> =
-                cached.jwks.keys.iter().filter_map(|k| k.kid.as_deref()).collect();
-
-            // Get set of new key IDs
-            let new_kids: std::collections::HashSet<_> =
-                new_jwks.keys.iter().filter_map(|k| k.kid.as_deref()).collect();
-
-            // Rotation detected if any old keys are missing
-            !old_kids.is_subset(&new_kids)
-        } else {
-            false
-        }
-    }
-
-    /// Convert a JWK to a jsonwebtoken `DecodingKey`.
-    ///
-    /// # Errors
-    ///
-    /// Returns `SecurityError::InvalidToken` if the key type is unsupported or
-    /// required RSA components (n, e) are missing.
-    pub(super) fn jwk_to_decoding_key(&self, jwk: &Jwk) -> Result<DecodingKey> {
-        match jwk.kty.as_str() {
-            "RSA" => {
-                let n = jwk.n.as_ref().ok_or(SecurityError::InvalidToken)?;
-                let e = jwk.e.as_ref().ok_or(SecurityError::InvalidToken)?;
-
-                DecodingKey::from_rsa_components(n, e).map_err(|e| {
-                    tracing::debug!(error = %e, "Failed to create RSA decoding key");
-                    SecurityError::InvalidToken
-                })
-            },
-            other => {
-                tracing::debug!(key_type = %other, "Unsupported key type");
-                Err(SecurityError::InvalidTokenAlgorithm {
-                    algorithm: other.to_string(),
-                })
-            },
-        }
+        let count = self
+            .jwks
+            .refresh()
+            .await
+            .map_err(|error| SecurityError::SecurityConfigError(error.to_string()))?;
+        tracing::info!(key_count = count, "JWKS force-refreshed from provider");
+        Ok(count)
     }
 }
