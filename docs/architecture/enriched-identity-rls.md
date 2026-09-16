@@ -41,6 +41,7 @@ query             = "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub"
 map               = { actor_id = "actor_id", actor_role = "actor_role" }  # column -> field
 cache_ttl_secs    = 60             # a role change propagates within this window (see below)
 negative_ttl_secs = 5
+provision         = "SELECT fn_provision_actor($sub, $iss, $email, $claims)"  # optional, see below
 
 [identity.sender]                  # verified sender-identity (send path)
 enabled = true
@@ -52,6 +53,14 @@ map     = { sending_address = "sending_address" }
 - `$name` tokens are bound from the request's claims (and the well-known
   identity fields `sub` / `tenant_id` / `org_id` / `email` / `name` / `iss`);
   values are bound out-of-band, **never** interpolated into the SQL.
+- `$claims` binds the whole verified claim set as one **`jsonb`** value — the
+  forwarded attributes (inbound `fraiseql.*` claims are stripped by the request
+  extractor) plus those well-known fields. Any claim whose value is a JSON object
+  or array binds as `jsonb`; scalars bind as their own type.
+- `provision` is legal on `[identity.enrichment]` only. It parses on
+  `[identity.sender]` because the two profiles share one schema, and boot refuses
+  it there: provisioning a *sending* identity would invent a verified
+  from-address.
 - Unknown keys are rejected (`deny_unknown_fields`) — a mistyped or stranded key
   fails loud at startup rather than being silently ignored.
 - **Trigger = `enabled = true` alone.** When enrichment is enabled, *every*
@@ -93,7 +102,7 @@ resolver and interpreted by each call site:
 | Lookup outcome | Classification | Read path (sync) | Send path (durable) |
 |---|---|---|---|
 | Exactly one row, **all** mapped fields present & non-null | `Resolved` | merge → proceed | bind `from` → send |
-| **Zero rows** (unknown / unprovisioned subject) | `Denied` | **403, before dispatch** | refuse; permanent |
+| **Zero rows** (unknown / unprovisioned subject) | `Denied` | **403, before dispatch** — unless `provision` is set (below) | refuse; permanent |
 | **> 1 row** (ambiguous identity) | `Denied` | **403** | refuse; permanent |
 | A declared mapped field is **NULL / absent** | `Denied` | **403** | refuse; permanent |
 | A referenced `$param` missing from the token | `Denied` | **403** | refuse; permanent |
@@ -101,7 +110,10 @@ resolver and interpreted by each call site:
 
 - **No row ⇒ fail**, never silent-skip: the unknown subject is denied *before*
   any data query runs, not scoped to an empty set. Strictly stronger than relying
-  on every view author to deny on `NULL`.
+  on every view author to deny on `NULL`. This is the **only** outcome an
+  optional [`provision`](#provision-serving-a-subject-the-actor-table-has-never-seen-1324)
+  statement may change, and it changes it by making the row exist and reading
+  again — not by lowering the bar the row must clear.
 - **`> 1 row` fails** — for identity, ambiguity is a misconfiguration; we fetch up
   to two rows and deny on the second rather than silently `LIMIT 1`.
 - **Never an empty-string GUC** — a NULL/absent mapped field is a denial, so no
@@ -132,6 +144,12 @@ an existence oracle over the actor table.
 - **Positive TTL** `cache_ttl_secs` (default **60s**), **negative TTL**
   `negative_ttl_secs` (default **5s**, so a freshly provisioned actor goes live
   quickly). `Unavailable` is **never** cached.
+- **The pre-provision `ZeroRows` is never cached either.** A request that arrived
+  while another is provisioning would find it and fail closed for the rest of
+  `negative_ttl_secs` — every concurrent first request 403'd by the one that is
+  fixing the problem. What *is* cached is the outcome after the statement ran,
+  denial included: that is what bounds a refused subject to one statement per
+  window instead of one per request.
 - **Invariant:** *a revocation or role change propagates within `cache_ttl_secs`,
   or immediately via `flush(sub)`.* Raising `cache_ttl_secs` widens that window —
   do it with open eyes.
@@ -200,15 +218,80 @@ the subscription rather than silently widening it.
 
 ## Operational notes
 
-- **Provision actors out-of-band.** Under `enabled = true`, every authenticated
-  request fail-closes, so an app that creates a user's actor row *from* that
-  user's first authenticated request would deadlock. Provision via an admin path,
-  an IdP webhook, or another unauthenticated path.
+- **Provisioning a new subject's actor row.** Under `enabled = true`, every
+  authenticated request fail-closes, so an app that creates a user's actor row
+  through *its own* authenticated mutation would deadlock: the gate refuses the
+  request before the mutation can run. The row therefore comes from outside that
+  path — an admin path, the IdP's `user.created` webhook, SCIM — or from
+  `provision`, below, which runs inside the resolver and so is not behind the
+  gate. See [ADR-0016](../adr/0016-enriched-identity-resolution.md)'s amendment.
 - **Verified sender-identity** resolves on the same primitive: `sub → verified
   from-address + mailbox`, cached and fail-closed. The default `LoginEmailSender`
   (sending address == login email) is the degenerate case; a DB-backed resolver
   replaces it where the sending mailbox differs. The `send_email` host op and SMTP
   transport that consume the seam land with the native-runtime hardening train.
+
+---
+
+## `provision`: serving a subject the actor table has never seen (#1324)
+
+For an IdP outside FraiseQL — Hanko, Clerk, Auth0, Kinde — the actor row is
+normally written by that IdP's `user.created` webhook. The IdP hands the browser
+a token before it delivers that webhook, so a brand-new user's first request
+arrives with a valid token and no row, and `[identity.enrichment]` answers 403
+for as long as the delivery takes.
+
+With `provision` set, a **zero-row** resolution runs the statement and then runs
+`query` again. The re-read decides the outcome; nothing else changes.
+
+```toml
+[identity.enrichment]
+enabled   = true
+query     = "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub"
+provision = "SELECT fn_provision_actor($sub, $iss, $email, $claims)"
+map       = { actor_id = "actor_id", actor_role = "actor_role" }
+```
+
+### The contract the statement must keep
+
+- **Idempotent under concurrency.** N concurrent first requests for one new
+  subject each run the statement; they must produce one row.
+  `INSERT … ON CONFLICT (<sub column>) DO NOTHING` is the documented shape, and
+  a function wrapping the same insert is equivalent.
+- **One conflict target, shared with every other writer.** Whatever column holds
+  the IdP's subject is the conflict target here *and* in the IdP-webhook handler
+  that writes the same row out of band (`after:ingest:webhook:<provider>`). If
+  the two disagree — one keying on the subject, the other on the email — a user
+  who signs up and is provisioned in the same second ends up with two actor rows,
+  and the next resolution denies them as `Ambiguous`.
+- **To refuse a subject, insert nothing.** The re-read then denies (403), and
+  that denial is negative-cached for `negative_ttl_secs`, so a refused subject
+  costs one statement per window rather than one per request. **Raising is an
+  outage** (503, never cached): it tells the caller to retry, which is not what a
+  refusal means.
+- **Creation only.** Updates and deletions stay with webhooks or SCIM. The
+  statement never runs for a subject that already has a row.
+
+### What it never does
+
+`provision` fires on `ZeroRows` alone. An ambiguous row set, a NULL mapped field
+and a missing `$param` are the denials of an identity that **exists**, and none
+of them is offered the statement — otherwise a misconfigured deployment could
+overwrite a real actor into one that resolves.
+
+### Security note
+
+With `provision`, the IdP's user base writes the actor table: every subject that
+IdP will issue a token for gets a row, and on a self-signup IdP that is anyone
+who can complete a signup. **The provision function is the policy.** Decide in it
+what a new subject is allowed to become — the role it gets, the tenant it lands
+in, whether a domain is allowed at all — and insert nothing for the ones you
+refuse. Binding `$iss` matters here for the same reason it matters to
+`query`: `sub` is unique only per issuer.
+
+Provisioning runs on the unscoped enrichment pool, below the fail-closed gate.
+That is what makes it work, and it is also why the statement is the only thing
+standing between the IdP and the actor table.
 
 ---
 

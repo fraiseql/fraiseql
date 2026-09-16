@@ -18,6 +18,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **An object- or array-valued claim now binds as `jsonb` in an identity-resolution query
+  (#1324).** `[identity.enrichment]` and `[identity.sender]` used to bind every non-scalar
+  claim value as its JSON *text*, so a query comparing one to a `jsonb` column needed an
+  explicit `$param::jsonb` and a query comparing one to a `text` column worked. Both
+  statements now bind through one builder that gives a value its own Postgres type. A cast
+  that was already there still works (`jsonb::jsonb` is a no-op); a query relying on the text
+  form against a `text` column must add `::text`. Scalar claims — the overwhelming majority —
+  are unaffected.
+
+  `EnrichmentQueryConfig` gains a `provision` field. It defaults to `None` when deserialized,
+  but the type derives no `Default`, so a Rust struct literal of it must name the new field.
+
 - **Webhooks from identity providers that sign with a JWT, and a verification seam that can
   fetch a key (#1322).** Four new `provider` values — `hanko`, `kinde`, `fusionauth`, and the
   generic `jwt-jwks` they are presets over. None of those providers could be received at all
@@ -1116,6 +1128,59 @@ disagreed, and the promise was the part that was wrong.
   retry cadence — only parked a hot-path task.
 
 ### Added
+
+- **`[identity.enrichment] provision`: a new user of an external IdP is served on their first
+  request (#1324).** With enrichment enabled, a token whose `sub` has no actor row is denied
+  (403) before dispatch. That is #539's fail-closed rule and it is correct — but for an IdP
+  outside FraiseQL the row is written by that IdP's `user.created` webhook, and the IdP hands
+  the browser a token before it delivers the webhook. A brand-new user's first call was a 403
+  whose duration nobody controls. SAML (#381) and native social sign-in (#368) already create
+  an account on first assertion; bearer tokens had no equivalent.
+
+  An optional `provision` statement runs on a **zero-row** miss, on the resolver's unscoped
+  pool, after which `query` runs again and the re-read decides:
+
+  ```toml
+  [identity.enrichment]
+  query     = "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub"
+  provision = "SELECT fn_provision_actor($sub, $iss, $email, $claims)"
+  ```
+
+  It fires on `ZeroRows` **alone**. `Ambiguous`, a NULL mapped field and a missing `$param`
+  are the denials of an identity that already exists and are never offered the statement, so
+  provisioning cannot turn the refusal of an existing identity into access. A provisioned row
+  still has to clear the same bar: a NULL mapped field is still a 403.
+
+  **The statement is the policy.** To refuse a subject it inserts nothing — the re-read
+  denies, and *that* denial is cached for `negative_ttl_secs`, so a refused subject costs one
+  statement per window rather than one per request. Raising is an outage (503, never cached),
+  not a way to refuse. And with `provision` set, the IdP's user base writes the actor table:
+  on a self-signup IdP that is anyone who can complete a signup, which is why the decision of
+  what a new subject may become belongs inside the statement.
+
+  The **pre**-provision `ZeroRows` is deliberately not cached. Caching it would 403 every
+  request that arrived while another was provisioning, for the rest of the negative TTL. N
+  concurrent first requests therefore each run the statement and each re-read, which is why
+  the documented contract is idempotence under concurrency — `INSERT … ON CONFLICT
+  (<sub column>) DO NOTHING`. That conflict target must be the **same** one the IdP-webhook
+  handler uses for the same row (#1322, #1323), or a user who signs up and arrives in the
+  same second ends up with two actor rows and is denied as `Ambiguous` from then on.
+
+  `$claims` is new: the whole verified claim set as one `jsonb` value — the forwarded
+  attributes plus `sub` / `tenant_id` / `org_id` / `email` / `name` / `display_name` / `iss` —
+  so a provisioning function can store what it chooses without the statement naming every
+  claim it might want.
+
+  All of it lives in `IdentityResolver::resolve` rather than in a handler, so both call sites
+  inherit it and so will whatever #1336 adds for REST, MCP and gRPC. Until #1336 lands, a new
+  user whose first call is REST is still neither provisioned nor refused.
+
+  ADR-0016 recorded that "actors must be provisioned out-of-band … a first-authenticated-request
+  provisioning flow would deadlock", and carries an amendment. The deadlock is real for an app
+  provisioning through FraiseQL's *own* authenticated path, which fail-closes before the
+  provisioning mutation can run; resolver-side provisioning runs below that gate.
+
+  Without the key, behaviour is unchanged.
 
 - **Standard Webhooks, and a `clerk` preset over it (#1323).** `provider =
   "standard-webhooks"` receives every sender of the

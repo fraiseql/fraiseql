@@ -328,6 +328,8 @@ impl IdentityResolver {
                     Err(err) => return self.finalize(sub, IdentityResolution::Unavailable(err)),
                 }
             },
+            // Deliberately a wildcard rather than an enumeration: a denial kind
+            // added later must not provision until someone decides it should.
             _ => resolution,
         };
 

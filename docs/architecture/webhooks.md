@@ -245,6 +245,22 @@ default; `none` and the `HS*` family are refused whatever it says), and
 the token. `body_hash_claim` is the FusionAuth shape — setting it means the **body**
 is the event, so it cannot be combined with those three.
 
+#### If the same deployment also provisions on miss
+
+A `user.created` delivery from one of these providers and
+[`[identity.enrichment] provision`](enriched-identity-rls.md#provision-serving-a-subject-the-actor-table-has-never-seen-1324)
+write **the same actor row**, and they race: the IdP hands the browser a token
+before it delivers the webhook, which is why `provision` exists at all.
+
+They must agree on **one conflict target** — whatever column holds the IdP's
+subject. Your `after:ingest` handler finds it in the signed payload (the table
+above says which claim carries that payload for each provider; the field inside
+it is the provider's, and this receiver does not interpret it); the resolver
+binds the same value as the token's `sub`. Key one writer on the subject and the
+other on, say, the email address, and a user who signs up and arrives in the same
+second gets two actor rows — after which every resolution for them is
+`Denied(Ambiguous)`, a 403 that neither writer looks responsible for.
+
 ### Security Properties
 
 - **Constant-time comparison** — all HMAC/signature comparisons use `subtle::ConstantTimeEq`

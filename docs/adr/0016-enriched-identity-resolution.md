@@ -88,6 +88,29 @@ failure model, wired to two consumers.
   apps — acceptable, because it is the same DB the request's data query hits.
 - Actors must be provisioned out-of-band (see the architecture doc); a
   first-authenticated-request provisioning flow would deadlock.
+
+  > **Amendment (2026-09-16, #1324).** The *consequence* is superseded; the
+  > reasoning is not. The deadlock is real for an app that provisions **through
+  > FraiseQL's own authenticated path**: that path fail-closes before the
+  > provisioning mutation can run, so the mutation that would create the row can
+  > never be reached by the user who needs it. That argument does not reach the
+  > resolver itself. An optional `provision` statement on `[identity.enrichment]`
+  > runs *inside* `IdentityResolver::resolve`, on the unscoped enrichment pool,
+  > **below** the gate — there is no authenticated request to deadlock on,
+  > because the request being served is the one doing the provisioning.
+  >
+  > It runs on a zero-row miss only, and the `query` then runs again; the re-read
+  > decides. Ambiguous rows, a NULL mapped field and a missing `$param` stay
+  > denials, so provisioning can never turn the refusal of an identity that
+  > *exists* into access. Without the key, behaviour is exactly as recorded
+  > above.
+  >
+  > The reason this is worth having: for an IdP outside FraiseQL the row is
+  > created by that IdP's `user.created` webhook, which races the browser. The
+  > IdP hands out a token before it delivers the webhook, so a brand-new user's
+  > first call is a 403 whose duration nobody controls. SAML (#381) and native
+  > social sign-in (#368) already create an account on first assertion; bearer
+  > tokens had no equivalent.
 - A role change / revocation is visible within `cache_ttl_secs` (default 60s) or
   immediately via `flush(sub)`.
 - Denials are debuggable server-side (WARN with reason + subject) while the
