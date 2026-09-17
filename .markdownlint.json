@@ -23,5 +23,6 @@
   "required-heading-increment": false,
   "proper-names": false,
   "no-inline-html": false,
-  "no-bare-urls": false
+  "no-bare-urls": false,
+  "no-missing-space-atx": false
 }

@@ -95,7 +95,7 @@ Each of the three is pinned by a test in
 
 In a multi-root document an aborted root is reported in `errors` under its own
 response key with `data.<key>: null`, and the remaining roots still execute — the
-# 759 partial-outcome contract, unchanged.
+#759 partial-outcome contract, unchanged.
 
 **What a hook may read, and what that makes it (#1328).** A rule that depends on
 data — a credit limit, a price, a quota, the target row's current state — needs to
