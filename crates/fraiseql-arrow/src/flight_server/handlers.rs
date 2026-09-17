@@ -197,3 +197,42 @@ impl FlightService for FraiseQLFlightService {
         metadata::poll_flight_info(self, request).await
     }
 }
+
+/// Resolve the request subject's database identity before dispatch (#1349).
+///
+/// `[identity.enrichment]`'s contract is that when enrichment is enabled, **every**
+/// authenticated request resolves and fail-closes — whether or not the operation reads an
+/// enriched field. Flight was the last transport not honouring it: it built a principal
+/// and dispatched it, so an unknown subject was served the rows `/graphql` refuses, and an
+/// enriched read failed for every caller.
+///
+/// `None` means the deployment configured no resolver, which leaves the context unmarked —
+/// correct, and what the engine's backstop expects: it refuses an unmarked principal only
+/// when the schema declares an enrichment consumer, and such a schema cannot boot without
+/// enrichment enabled.
+///
+/// The two refusals use the shared bodies, so a Flight client cannot learn from the wording
+/// anything a GraphQL client could not.
+///
+/// # Errors
+///
+/// `PERMISSION_DENIED` on a denial, `UNAVAILABLE` on a transient resolver failure.
+pub(super) async fn resolve_identity(
+    svc: &super::FraiseQLFlightService,
+    ctx: &mut fraiseql_core::security::SecurityContext,
+) -> std::result::Result<(), Status> {
+    use fraiseql_core::security::EnrichmentOutcome;
+
+    let Some(enricher) = svc.identity_enricher.as_ref() else {
+        return Ok(());
+    };
+    match enricher.enrich(ctx).await {
+        EnrichmentOutcome::Proceed => Ok(()),
+        EnrichmentOutcome::Denied => {
+            Err(Status::permission_denied(EnrichmentOutcome::DENIED_MESSAGE))
+        },
+        EnrichmentOutcome::Unavailable => {
+            Err(Status::unavailable(EnrichmentOutcome::UNAVAILABLE_MESSAGE))
+        },
+    }
+}

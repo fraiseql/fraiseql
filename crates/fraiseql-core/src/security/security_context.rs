@@ -66,6 +66,58 @@ fn roles_from_claims(extra_claims: &HashMap<String, serde_json::Value>) -> Vec<S
     roles
 }
 
+/// What a transport should do after an enrichment attempt (#1336).
+///
+/// Lives here rather than in `fraiseql-server` because a third crate needs it:
+/// `fraiseql-arrow`'s Flight transport resolves through the [`IdentityEnricher`] seam
+/// below and must answer a denial exactly as the other six transports do (#1349).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnrichmentOutcome {
+    /// Identity resolved and merged — continue to dispatch.
+    Proceed,
+    /// Permanent denial — fail closed (403 / `PERMISSION_DENIED`) before any data query.
+    Denied,
+    /// Transient resolver failure — fail the request (503 / `UNAVAILABLE`), never fall
+    /// through to an unscoped query.
+    Unavailable,
+}
+
+impl EnrichmentOutcome {
+    /// The outward body for a denial. Generic by design: the precise reason is logged
+    /// server-side, never surfaced, so the response cannot be used as an actor-table
+    /// existence oracle. One constant rather than a literal per transport, because a
+    /// transport that phrased it differently would leak the difference between "unknown
+    /// subject" and "denied subject".
+    pub const DENIED_MESSAGE: &'static str = "Access denied";
+    /// The outward body for a transient resolver failure — distinct from a denial,
+    /// because a client may retry this one and must not retry the other.
+    pub const UNAVAILABLE_MESSAGE: &'static str = "Identity resolution temporarily unavailable";
+}
+
+/// An owned, `Send` boxed future — the object-safe async return used instead of a new
+/// `async_trait`, keeping the dyn-dispatch ratchet flat (ADR-0016 §2.2).
+pub type BoxFuture<'a, T> = std::pin::Pin<Box<dyn std::future::Future<Output = T> + Send + 'a>>;
+
+/// Resolve a request subject's database identity and merge it into the context (#1349).
+///
+/// The implementation lives in `fraiseql-server` — it needs `sqlx` and the unscoped
+/// enrichment pool — so this is the seam a crate that cannot depend on the server calls.
+/// It exists for exactly one caller today: `fraiseql-arrow`'s Flight handlers, which
+/// build their own principal and had no way to resolve it.
+///
+/// Transports inside `fraiseql-server` call `identity::resolve_request_identity`
+/// directly rather than through this trait; both run the same resolver, so a denial
+/// means the same thing on every door.
+pub trait IdentityEnricher: Send + Sync {
+    /// Resolve `ctx`'s identity, merging the resolved fields on success.
+    ///
+    /// All-or-nothing: on a denial or a transient failure nothing is merged and the
+    /// caller must stop the request. On success the context is marked
+    /// [`EnrichmentMark::Resolved`], which is what keeps the engine's backstop from
+    /// refusing it downstream.
+    fn enrich<'a>(&'a self, ctx: &'a mut SecurityContext) -> BoxFuture<'a, EnrichmentOutcome>;
+}
+
 /// How a principal satisfied the enrichment requirement (#1336).
 ///
 /// The contract `[identity.enrichment]` documents is "every authenticated

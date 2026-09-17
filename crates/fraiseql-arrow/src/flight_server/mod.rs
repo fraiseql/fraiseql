@@ -207,6 +207,17 @@ pub struct FraiseQLFlightService {
     pub(crate) executor: Option<Arc<dyn QueryExecutor>>,
     /// Optional query result cache for improving throughput on repeated queries
     pub(crate) cache: Option<Arc<QueryCache>>,
+    /// Resolves a request subject's database identity before dispatch (#1349).
+    ///
+    /// `Some` exactly when `[identity.enrichment]` is enabled. The resolver needs `sqlx`
+    /// and the unscoped enrichment pool, so it lives in `fraiseql-server`; this crate
+    /// holds the object-safe seam and the server installs it at serve time — the same
+    /// wiring point, and the same reason, as `set_executor` (#954).
+    ///
+    /// Until this existed, Flight was the one transport that built a principal and
+    /// dispatched it unresolved, so an enrichment-declaring deployment had its requests
+    /// refused by the engine's fail-closed backstop (#1336).
+    pub(crate) identity_enricher: Option<Arc<dyn fraiseql_core::security::IdentityEnricher>>,
     /// Optional security context for authenticated requests.
     /// Stores session information from successful handshake.
     pub(crate) security_context: Option<SecurityContext>,

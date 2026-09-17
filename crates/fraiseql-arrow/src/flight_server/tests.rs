@@ -547,3 +547,154 @@ mod grpc_error_classification {
         }
     }
 }
+
+// ── #1349: Flight resolves the identity it dispatches with ──────────────────
+//
+// The last transport that built a principal and dispatched it unresolved. It is the
+// third time this one has been "the transport that skips X": #954 (tenant resolution,
+// quotas, trusted documents), the RLS the engine applies, and now enriched identity.
+//
+// `resolve_identity` is driven directly rather than through `do_get`: everything above
+// it is session-token machinery needing `FLIGHT_SESSION_SECRET` and a minted token,
+// while this is the whole of what changed. That the two handlers *call* it is pinned
+// structurally by `tools/check-principal-producers.sh`, which reddens when either stops.
+mod identity_enrichment {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
+    use std::sync::Arc;
+
+    use fraiseql_core::security::{
+        AuthenticatedUser, BoxFuture, EnrichmentMark, EnrichmentOutcome, IdentityEnricher,
+        SecurityContext,
+    };
+
+    use super::super::{FraiseQLFlightService, handlers};
+
+    /// An enricher with a canned answer, standing in for the server's real resolver.
+    struct Canned {
+        outcome: EnrichmentOutcome,
+    }
+
+    impl IdentityEnricher for Canned {
+        fn enrich<'a>(&'a self, ctx: &'a mut SecurityContext) -> BoxFuture<'a, EnrichmentOutcome> {
+            let outcome = self.outcome;
+            Box::pin(async move {
+                if outcome == EnrichmentOutcome::Proceed {
+                    // What the real resolver does: merge the resolved fields under the
+                    // forge-proof namespace and mark the context, so the engine's
+                    // backstop does not refuse it downstream.
+                    ctx.attributes
+                        .insert("fraiseql.enriched.actor_id".to_string(), serde_json::json!("a-1"));
+                    ctx.mark_enrichment(EnrichmentMark::Resolved);
+                }
+                outcome
+            })
+        }
+    }
+
+    fn service(outcome: Option<EnrichmentOutcome>) -> FraiseQLFlightService {
+        let mut svc = FraiseQLFlightService::new();
+        if let Some(outcome) = outcome {
+            svc.set_identity_enricher(Arc::new(Canned { outcome }));
+        }
+        svc
+    }
+
+    fn principal() -> SecurityContext {
+        SecurityContext::from_user(
+            &AuthenticatedUser {
+                user_id:      fraiseql_core::types::UserId::new("flight-subject"),
+                email:        None,
+                display_name: None,
+                scopes:       Vec::new(),
+                expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+                extra_claims: std::collections::HashMap::new(),
+            },
+            "req-1349".to_string(),
+        )
+    }
+
+    #[tokio::test]
+    async fn a_resolved_subject_proceeds_and_carries_its_enriched_fields() {
+        // The positive twin, and the one that matters most: without it, a helper that
+        // refused unconditionally would satisfy both refusal cases below.
+        let svc = service(Some(EnrichmentOutcome::Proceed));
+        let mut ctx = principal();
+
+        handlers::resolve_identity(&svc, &mut ctx)
+            .await
+            .expect("a resolved subject proceeds");
+
+        assert_eq!(
+            ctx.attributes.get("fraiseql.enriched.actor_id"),
+            Some(&serde_json::json!("a-1")),
+            "the resolved fields must land on the context the ticket then dispatches with \
+             — enriching a copy would leave the query unscoped"
+        );
+        assert_eq!(
+            ctx.enrichment_mark(),
+            Some(EnrichmentMark::Resolved),
+            "and the mark must be set, or the engine's #1336 backstop refuses this \
+             request downstream even though it resolved"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_unknown_subject_is_permission_denied() {
+        let svc = service(Some(EnrichmentOutcome::Denied));
+        let mut ctx = principal();
+
+        let status = handlers::resolve_identity(&svc, &mut ctx)
+            .await
+            .expect_err("a subject the actor table does not know must be refused");
+
+        assert_eq!(
+            status.code(),
+            tonic::Code::PermissionDenied,
+            "PERMISSION_DENIED — the Flight spelling of the 403 /graphql answers"
+        );
+        assert_eq!(
+            status.message(),
+            EnrichmentOutcome::DENIED_MESSAGE,
+            "the body is the shared one: a Flight client must not be able to learn from \
+             the wording what an actor table holds when a GraphQL client cannot"
+        );
+        assert_eq!(
+            ctx.enrichment_mark(),
+            None,
+            "a refused context must stay unmarked, so nothing downstream can mistake it \
+             for a resolved one"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_resolver_outage_is_unavailable_not_denied() {
+        // The two must not collapse: a denial is final and must not be retried, an outage
+        // is transient and should be.
+        let svc = service(Some(EnrichmentOutcome::Unavailable));
+        let mut ctx = principal();
+
+        let status = handlers::resolve_identity(&svc, &mut ctx)
+            .await
+            .expect_err("a resolver outage must never fall through to an unscoped query");
+
+        assert_eq!(status.code(), tonic::Code::Unavailable);
+        assert_eq!(status.message(), EnrichmentOutcome::UNAVAILABLE_MESSAGE);
+    }
+
+    #[tokio::test]
+    async fn no_resolver_configured_leaves_the_context_untouched() {
+        // A deployment without `[identity.enrichment]`. The context stays unmarked, which
+        // is correct: the engine's backstop refuses an unmarked principal only when the
+        // schema declares an enrichment consumer, and such a schema cannot boot without
+        // enrichment enabled.
+        let svc = service(None);
+        let mut ctx = principal();
+
+        handlers::resolve_identity(&svc, &mut ctx)
+            .await
+            .expect("nothing to resolve, nothing to refuse");
+
+        assert_eq!(ctx.enrichment_mark(), None);
+    }
+}

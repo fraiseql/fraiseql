@@ -848,9 +848,22 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             // so the wiring lives here rather than in the constructor. Without it
             // Flight is the one transport that skips tenant resolution, the
             // suspended-tenant gate, per-tenant quotas and trusted documents.
-            flight_service.set_executor(crate::arrow::policy_seam::policy_gated_executor(
-                self.build_app_state(),
-            ));
+            let app_state = self.build_app_state();
+
+            // #1349: the same wiring point, for the same reason. Flight builds its own
+            // principal from a session token and, until now, dispatched it unresolved —
+            // so `[identity.enrichment]`'s "every authenticated request resolves and
+            // fail-closes" was true of six transports out of seven, and this one was
+            // refused outright by the engine's backstop on any enrichment-declaring
+            // deployment.
+            #[cfg(feature = "auth")]
+            if let Some(resolver) = app_state.identity_resolver.clone() {
+                flight_service.set_identity_enricher(resolver);
+                info!("Arrow Flight resolves enriched identity before dispatch (#1349)");
+            }
+
+            flight_service
+                .set_executor(crate::arrow::policy_seam::policy_gated_executor(app_state));
             info!(
                 "Arrow Flight GraphQL execution enabled through the policy seam (tenant \
                  dispatch, trusted documents, per-tenant quotas)"

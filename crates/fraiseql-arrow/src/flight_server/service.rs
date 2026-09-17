@@ -120,6 +120,7 @@ impl FraiseQLFlightService {
             db_adapter: None,
             executor: None,
             cache: None,
+            identity_enricher: None,
             security_context: None,
             oidc_validator: None,
             event_storage: None,
@@ -170,6 +171,7 @@ impl FraiseQLFlightService {
             db_adapter: Some(db_adapter),
             executor: None,
             cache: None,
+            identity_enricher: None,
             security_context: None,
             oidc_validator: None,
             event_storage: None,
@@ -218,6 +220,7 @@ impl FraiseQLFlightService {
             db_adapter: Some(db_adapter),
             executor: None,
             cache: Some(Arc::new(QueryCache::new(cache_ttl_secs))),
+            identity_enricher: None,
             security_context: None,
             oidc_validator: None,
             event_storage: None,
@@ -302,6 +305,7 @@ impl FraiseQLFlightService {
             db_adapter: Some(db_adapter),
             executor: None,
             cache,
+            identity_enricher: None,
             security_context: None,
             oidc_validator: Some(oidc_validator),
             event_storage: None,
@@ -479,6 +483,19 @@ impl FraiseQLFlightService {
     /// ```
     pub fn set_executor(&mut self, executor: Arc<dyn QueryExecutor>) {
         self.executor = Some(executor);
+    }
+
+    /// Install the identity enricher (#1349).
+    ///
+    /// Set at serve time, beside [`set_executor`](Self::set_executor) and for the same
+    /// reason: `create_flight_service` builds the service before there is any server
+    /// state to read a resolver from, so anything captured in the constructor would be
+    /// whatever existed then rather than what the server ends up with.
+    pub fn set_identity_enricher(
+        &mut self,
+        enricher: Arc<dyn fraiseql_core::security::IdentityEnricher>,
+    ) {
+        self.identity_enricher = Some(enricher);
     }
 
     /// Get a reference to the query executor, if set.

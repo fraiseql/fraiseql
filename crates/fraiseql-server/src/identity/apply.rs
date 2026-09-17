@@ -10,34 +10,16 @@
 
 use std::collections::HashMap;
 
-use fraiseql_core::security::{ENRICHED_NAMESPACE_PREFIX, EnrichmentMark, SecurityContext};
+// The outcome type and its two outward messages live in `fraiseql-core` (#1349): the
+// Flight transport resolves through an object-safe seam from a crate that cannot depend
+// on this one, and it must answer a denial exactly as the six transports here do. One
+// type, so "generic body, no actor-table oracle" stays a single decision.
+pub use fraiseql_core::security::EnrichmentOutcome;
+use fraiseql_core::security::{
+    BoxFuture, ENRICHED_NAMESPACE_PREFIX, EnrichmentMark, IdentityEnricher, SecurityContext,
+};
 
 use super::{failure::IdentityResolution, resolver::IdentityResolver};
-
-/// What the caller should do after an enrichment attempt (DESIGN §3.1, §5).
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum EnrichmentOutcome {
-    /// Identity resolved and merged — continue to dispatch.
-    Proceed,
-    /// Permanent denial — fail closed (HTTP 403) before any data query runs.
-    Denied,
-    /// Transient resolver failure — fail the request (HTTP 503), never fall
-    /// through to an unscoped query.
-    Unavailable,
-}
-
-impl EnrichmentOutcome {
-    /// The outward body for a denial. Generic by design (DESIGN §5.4): the precise
-    /// `DenyReason` is logged server-side, never surfaced, so a caller cannot use the
-    /// response as an actor-table existence oracle. One constant rather than four
-    /// literals, because a transport that phrased it differently would leak the
-    /// difference between "unknown subject" and "denied subject" (#1323's shape).
-    pub(crate) const DENIED_MESSAGE: &'static str = "Access denied";
-    /// The outward body for a transient resolver failure — distinct from a denial,
-    /// because a client may retry this one and must not retry the other.
-    pub(crate) const UNAVAILABLE_MESSAGE: &'static str =
-        "Identity resolution temporarily unavailable";
-}
 
 /// Resolve `ctx`'s DB identity and, on success, merge every mapped field into
 /// `ctx.attributes` under the reserved namespace. All-or-nothing: on a denial or
@@ -146,4 +128,16 @@ fn claims_for_binding(ctx: &SecurityContext) -> HashMap<String, serde_json::Valu
         claims.iter().map(|(k, v)| (k.clone(), v.clone())).collect();
     claims.entry("claims".to_owned()).or_insert(serde_json::Value::Object(snapshot));
     claims
+}
+
+/// The Flight transport's route to the same resolver every other transport uses (#1349).
+///
+/// `fraiseql-arrow` cannot depend on this crate, so it holds an
+/// [`IdentityEnricher`] and the server hands it this. The body is
+/// [`enrich_security_context`] verbatim — not a second implementation, which is the
+/// shape #1336 was.
+impl IdentityEnricher for IdentityResolver {
+    fn enrich<'a>(&'a self, ctx: &'a mut SecurityContext) -> BoxFuture<'a, EnrichmentOutcome> {
+        Box::pin(enrich_security_context(self, ctx))
+    }
 }

@@ -46,10 +46,14 @@ pub(super) async fn handle(
     info!("DoGet called (authenticated): {:?}", ticket);
 
     // Create security context for RLS filtering
-    let security_context = fraiseql_core::security::SecurityContext::from_user(
+    let mut security_context = fraiseql_core::security::SecurityContext::from_user(
         &authenticated_user,
         uuid::Uuid::new_v4().to_string(),
     );
+    // #1349: resolve before any ticket is served. Fail-closed at source — a denial stops
+    // the request before a data query runs.
+    super::resolve_identity(svc, &mut security_context).await?;
+    let security_context = security_context;
 
     match ticket {
         FlightTicket::GraphQLQuery { query, variables } => {

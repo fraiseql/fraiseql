@@ -50,12 +50,23 @@ cd "$(git rev-parse --show-toplevel)"
 # following `(` saw only the destructuring form.
 PRODUCER='(SecurityContext::(from_user|service_account)|build_security_context)\s*\(|OptionalSecurityContext'
 
-# The one seam that resolves a produced principal and fail-closes. `enrich_identity` is
-# the GraphQL handler's thin stage around it, listed because that transport is split
-# across `handler.rs` and `handler/stages.rs`; the non-vacuity check at the bottom
-# asserts the stage really does call the seam, so this second name cannot become a
-# second implementation.
-RESOLVER='(resolve_request_identity|enrich_identity)\s*\('
+# The seams that resolve a produced principal and fail-close.
+#
+#   resolve_request_identity  the one every transport inside fraiseql-server calls
+#   enrich_identity           the GraphQL handler's thin stage around it, listed because
+#                             that transport is split across `handler.rs` and
+#                             `handler/stages.rs`
+#   resolve_identity          `fraiseql-arrow`'s equivalent (#1349). That crate cannot
+#                             depend on fraiseql-server, so it calls the object-safe
+#                             `IdentityEnricher` seam through a helper of its own.
+#
+# ⚠ The third name was added *because this gate did not demand its own pruning*. #1349
+# was fixed, both KNOWN entries started resolving, and the staleness check below stayed
+# quiet — it was matching function names, and the fix used a name it had never heard of.
+# A staleness check that cannot see the fix it is waiting for is the failure mode it
+# exists to prevent. The non-vacuity checks at the bottom assert each of these three is
+# a real seam, so a name here cannot become a second implementation of the rule.
+RESOLVER='(resolve_request_identity|enrich_identity|resolve_identity)\s*\('
 
 # Producers that legitimately do not resolve, each for a stated structural reason.
 # This is not a severity ladder — an entry here is a claim that the resolve happens
@@ -80,12 +91,10 @@ RESOLVER='(resolve_request_identity|enrich_identity)\s*\('
 DEFERRED='crates/fraiseql-server/src/extractors.rs|crates/fraiseql-server/src/api_key/mod.rs|crates/fraiseql-server/src/service_account.rs|crates/fraiseql-server/src/routes/api/admin_sql.rs|crates/fraiseql-server/src/routes/introspection.rs|crates/fraiseql-server/src/routes/api/tenant_admin.rs|crates/fraiseql-server/src/observers/handlers.rs'
 
 # Producers that do NOT resolve and are tracked as defects. Each needs an issue.
-# The Flight transport lives in a crate that cannot reach the resolver (#1349), which is
-# why it is a gap rather than an oversight — covering it is a seam change, not a call
-# added to a handler. It is not silent: both Flight read paths enter the engine, so
-# `enforce_enrichment_resolved` refuses their unmarked principals rather than serving
-# them unenriched.
-KNOWN='crates/fraiseql-arrow/src/flight_server/handlers/do_get.rs|crates/fraiseql-arrow/src/flight_server/handlers/do_exchange.rs'
+# Empty since #1349: the Flight handlers resolve through the `IdentityEnricher` seam, so
+# every transport in the tree runs the same resolve. An entry here is a named defect with
+# an issue, never a resting place.
+KNOWN=''
 
 # Production code only: a test mints principals freely, and must. Excluding test FILES
 # is not enough — `fraiseql-arrow`'s Flight service carries three `#[cfg(test)]` modules
@@ -163,7 +172,9 @@ fi
 # The allowlists are only safe while they are exact. A DEFERRED or KNOWN entry that
 # stopped producing must not stay listed: it would excuse a file that no longer needs it
 # and hide a NEW unresolved producer added to that same file.
-for entry in $(echo "${DEFERRED}|${KNOWN}" | tr '|' ' '); do
+# `${KNOWN}` is empty as of #1349, so iterate the two lists separately rather than
+# joining them on `|`: an empty half would otherwise contribute a bare `` entry.
+for entry in $(echo "${DEFERRED}" | tr '|' ' ') $(echo "${KNOWN}" | tr '|' ' '); do
   if [ ! -f "$entry" ]; then
     echo "ERROR: allowlist entry $entry does not exist — remove it from this gate."
     exit 1
@@ -194,6 +205,12 @@ if ! grep -rqE "fn resolve_request_identity" crates/fraiseql-server/src; then
   echo "Either it was renamed (update RESOLVER) or this gate is now vacuous."
   exit 1
 fi
+if ! grep -rqE "fn resolve_identity" crates/fraiseql-arrow/src; then
+  echo "ERROR: the Flight enrichment seam resolve_identity no longer exists (#1349)."
+  echo "RESOLVER accepts that name; if it is gone, either the transport stopped resolving"
+  echo "or the name moved, and this gate would excuse fraiseql-arrow either way."
+  exit 1
+fi
 
 # `enrich_identity` is accepted above as a name for "resolves", which is only true while
 # it is a wrapper. If it stopped calling the seam it would be a second implementation of
@@ -206,4 +223,8 @@ if ! grep -qE "resolve_request_identity\s*\(" "$stage"; then
   exit 1
 fi
 
-echo "OK: every principal producer resolves its identity (known gaps, #1349: $KNOWN)"
+if [ -n "$KNOWN" ]; then
+  echo "OK: every principal producer resolves its identity (known gaps: $KNOWN)"
+else
+  echo "OK: every principal producer resolves its identity (no known gaps)"
+fi
