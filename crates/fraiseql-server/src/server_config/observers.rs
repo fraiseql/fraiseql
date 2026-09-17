@@ -53,7 +53,7 @@ const fn default_reload_interval_secs() -> u64 {
 /// ```
 #[cfg(feature = "observers")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ObserverPoolConfig {
     /// Minimum number of connections to keep open (default: 2).
     #[serde(default = "default_observer_pool_min")]
@@ -243,6 +243,11 @@ impl Default for ObserverRuntimeSettings {
 ///
 /// The `legacy_*` fields are migration traps for the pre-#342 flat layout (see
 /// [`misplaced_runtime_keys`](ObserverConfig::misplaced_runtime_keys)).
+// Reason (#1337): NO `deny_unknown_fields`, deliberately. `[observers]` is shared with
+// the CLI's own `ObserversConfig`, which owns `backend` / `redis_url` / `nats_url` /
+// `handlers` in the same table — denying unknown keys here would make the server refuse
+// a config file the compiler wrote. `compiler_schema_keys_are_tolerated` in this
+// module's tests is that contract, and it fails the moment this attribute is added.
 #[cfg(feature = "observers")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObserverConfig {
@@ -321,6 +326,7 @@ impl ObserverConfig {
 /// Pairs with `crate::resilience::backpressure::AdmissionController`.
 /// See [`super::ServerConfig::admission_control`] for wiring instructions.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct AdmissionConfig {
     /// Maximum number of in-flight concurrent requests (semaphore permits).
     ///

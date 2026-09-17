@@ -45,6 +45,7 @@ impl TransportKind {
 
 /// Top-level transport configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TransportConfig {
     /// Transport type (postgres, nats, `in_memory`)
     #[serde(default)]
@@ -135,6 +136,7 @@ impl TransportConfig {
 
 /// NATS `JetStream` transport configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct NatsTransportConfig {
     /// NATS server URL (e.g., `nats://localhost:4222`)
     /// Supports multiple servers: "nats://nats-1:4222,nats://nats-2:4222"
@@ -236,6 +238,7 @@ impl NatsTransportConfig {
 
 /// `JetStream` stream and consumer configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct JetStreamConfig {
     /// Message deduplication window in minutes (default: 5, recommended: 2-10)
     #[serde(default = "default_dedup_window_minutes")]
@@ -368,6 +371,7 @@ impl JetStreamConfig {
 
 /// PostgreSQL → NATS bridge configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct BridgeTransportConfig {
     /// Transport name for checkpoint storage (default: `pg_to_nats`)
     #[serde(default = "default_bridge_transport_name")]

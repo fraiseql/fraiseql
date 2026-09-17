@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 /// To suppress the `WARN` noise in environments that already tune the pool
 /// manually, set `enabled = false` in `[pool_tuning]`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct PoolPressureMonitorConfig {
     /// Enable adaptive pool sizing.  Default: `false`.
     #[serde(default)]

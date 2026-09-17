@@ -27,6 +27,7 @@ pub enum PlaygroundTool {
 
 /// TLS server configuration for HTTPS and secure connections.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TlsServerConfig {
     /// Enable TLS for HTTP/gRPC endpoints.
     pub enabled: bool,
@@ -57,6 +58,7 @@ pub struct TlsServerConfig {
 /// and logged as "applied" while the pool was built with `NoTls` regardless (#801);
 /// the fields that could not be delivered were removed rather than left accepted.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DatabaseTlsConfig {
     /// PostgreSQL SSL mode: `disable`, `prefer`, `require`, or `verify-full`.
     ///

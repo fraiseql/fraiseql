@@ -187,3 +187,132 @@ fn test_config_feature_flags() {
     assert!(!config.apq_enabled);
     assert!(!config.cache_enabled);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// #1337: a mistyped key is refused, in every section — not only at the top
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// #839 put `deny_unknown_fields` on `ServerConfig`. serde does **not** propagate it into
+// nested structs, so every `[section]` whose own struct lacked it accepted a typo and
+// discarded it in silence — `[rate_limiting] enabeld = true` booted the section on its
+// defaults without a word. Several of those are security switches.
+//
+// Table-driven on purpose: the list IS the assertion. One test per section would make
+// "a section nobody added a test for" the same silence one layer up.
+
+/// `(section TOML with a correct key, the same section with that key mistyped)`.
+///
+/// The correct spelling is not decoration — it is the twin. A struct that refused
+/// *everything* would satisfy every refusal below, and so would a section name that
+/// simply does not exist.
+fn section_cases() -> Vec<(&'static str, &'static str, &'static str)> {
+    vec![
+        (
+            "auth",
+            "[auth]\nissuer = \"https://idp.test\"\n",
+            "[auth]\nisseur = \"https://idp.test\"\n",
+        ),
+        // ⚠ The mistyped key must be an **optional** one. Misspelling `secret_env`
+        // (required, no `serde(default)`) is refused as a *missing field* whether or not
+        // the struct denies unknown ones — so it would pass before the fix and prove
+        // nothing. `issuer` has a default, so only `deny_unknown_fields` can refuse it.
+        (
+            "auth_hs256",
+            "[auth_hs256]\nsecret_env = \"S\"\nissuer = \"i\"\n",
+            "[auth_hs256]\nsecret_env = \"S\"\nisseur = \"i\"\n",
+        ),
+        // `cert_path`/`key_path` are required (no `serde(default)`), so a bare
+        // `enabled` would fail as a *missing* field and tell us nothing about unknown
+        // ones. The twin has to actually parse.
+        // Same trap: `enabled`, `cert_path` and `key_path` are all required, so a typo in
+        // any of them is a missing-field error regardless. `require_client_cert` has a
+        // default — and it is one of the security switches this issue is about.
+        (
+            "tls",
+            "[tls]\nenabled = true\ncert_path = \"c.pem\"\nkey_path = \"k.pem\"\nrequire_client_cert = true\n",
+            "[tls]\nenabled = true\ncert_path = \"c.pem\"\nkey_path = \"k.pem\"\nrequire_client_certs = true\n",
+        ),
+        // ⚠ This twin was originally written as `mode = "disable"` and *passed* — because
+        // the section discarded unknown keys, which is the whole defect. The real field
+        // is `postgres_ssl_mode`. The fix caught the fixture.
+        (
+            "database_tls",
+            "[database_tls]\npostgres_ssl_mode = \"disable\"\n",
+            "[database_tls]\npostgres_ssl_mdoe = \"disable\"\n",
+        ),
+        (
+            "rate_limiting",
+            "[rate_limiting]\nenabled = true\n",
+            "[rate_limiting]\nenabeld = true\n",
+        ),
+        (
+            "admission_control",
+            "[admission_control]\nmax_concurrent = 4\n",
+            "[admission_control]\nmax_concurrrent = 4\n",
+        ),
+        (
+            "pool_tuning",
+            "[pool_tuning]\nenabled = true\n",
+            "[pool_tuning]\nenabeld = true\n",
+        ),
+        (
+            "usage",
+            "[usage]\nflush_interval_secs = 5\n",
+            "[usage]\nflush_interval_sec = 5\n",
+        ),
+        // `[tenancy]` nests: `runtime` is its own struct, so this also proves the walk
+        // reaches a section's children rather than stopping at the top of it.
+        (
+            "tenancy",
+            "[tenancy.runtime]\nenabled = true\n",
+            "[tenancy.runtime]\nenabeld = true\n",
+        ),
+        // `[sources]` is behind `#[cfg(feature = "sources")]` on `ServerConfig`, so in a
+        // build without it the section is unknown at the *top* level and the twin fails
+        // for a reason that has nothing to do with this issue.
+        #[cfg(feature = "sources")]
+        ("sources", "[sources]\nenabled = true\n", "[sources]\nenabeld = true\n"),
+    ]
+}
+
+#[test]
+fn a_mistyped_key_is_refused_in_every_section() {
+    let mut served_silently = Vec::new();
+
+    for (section, correct, mistyped) in section_cases() {
+        // The twin first: if the correct spelling does not parse, the mistyped case
+        // below proves nothing — the section name or key might simply be wrong.
+        assert!(
+            toml::from_str::<ServerConfig>(correct).is_ok(),
+            "[{section}]: the *correctly* spelled config must parse, or this case is \
+             measuring a broken fixture rather than the defect.\n{correct}"
+        );
+
+        if toml::from_str::<ServerConfig>(mistyped).is_ok() {
+            served_silently.push(section);
+        }
+    }
+
+    assert!(
+        served_silently.is_empty(),
+        "#1337: these sections accept a mistyped key and discard it silently, so the \
+         setting stays at its default and nothing says so — `[auth] require_jti`, \
+         `[tls] require_client_cert` and `[rate_limiting] enabled` are security \
+         switches. serde does not propagate `deny_unknown_fields` into nested structs, \
+         so each section struct needs its own: {served_silently:?}"
+    );
+}
+
+/// The refusal has to name the key, or an operator cannot act on it.
+#[test]
+fn the_refusal_names_the_offending_key() {
+    let err = toml::from_str::<ServerConfig>("[rate_limiting]\nenabeld = true\n")
+        .expect_err("a mistyped key must be refused");
+    let message = err.to_string();
+
+    assert!(
+        message.contains("enabeld"),
+        "the error must name the key the operator got wrong — 'unknown field' alone \
+         sends them looking through the whole section. Got: {message}"
+    );
+}

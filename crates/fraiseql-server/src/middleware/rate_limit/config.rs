@@ -28,7 +28,7 @@ pub use fraiseql_core::schema::RateLimitingSecurityConfig;
 /// set. Without it, omitting `cleanup_interval_secs` (a key no documentation
 /// mentions) refused to boot.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct RateLimitConfig {
     /// Enable rate limiting
     pub enabled: bool,
@@ -154,6 +154,10 @@ impl RateLimitConfig {
 /// `FRAISEQL_RATE_LIMIT_RPS_PER_IP` is indistinguishable from the struct default, so
 /// the overrides could only be applied wholesale or not at all — and "not at all" is
 /// what happened whenever the compiled schema also configured rate limiting (#774).
+// No `deny_unknown_fields`, and no `serde` attribute at all: this struct derives
+// neither `Serialize` nor `Deserialize`. It is the CLI/env override carrier (#774) —
+// built field by field from flags, never parsed from TOML — so it has no unknown-key
+// surface to close (#1337).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RateLimitOverrides {
     /// `--rate-limiting-enabled` / `FRAISEQL_RATE_LIMITING_ENABLED`.

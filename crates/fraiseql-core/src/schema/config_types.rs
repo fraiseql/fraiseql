@@ -361,8 +361,14 @@ impl Default for DebugConfig {
 }
 
 /// Query validation limits (compiled from `[validation]` in `fraiseql.toml`).
+// #1337: this one has TWO producers — `ServerConfig.validation` (TOML) and
+// `CompiledSchema.validation_config` (the compiled artifact). Refusing unknown keys
+// therefore makes an artifact carrying an unrecognised `validation` key a hard load
+// failure rather than a silent drop. That is the intended direction: a compiled schema
+// whose key does nothing is the same defect one layer down, and this project documents
+// compiled-schema breaks rather than avoiding them.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ValidationConfig {
     /// Maximum allowed query nesting depth.
     #[serde(skip_serializing_if = "Option::is_none")]

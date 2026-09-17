@@ -22,7 +22,9 @@ use crate::security::errors::{Result, SecurityError};
 /// enabled = true
 /// expose_claims = ["email", "tenant_id", "https://myapp.com/role"]
 /// ```
+// #1337: nested inside `OidcConfig`, same surface, same reason.
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct MeEndpointConfig {
     /// Enable the `GET /auth/me` endpoint.  Default: `false` (opt-in).
     #[serde(default)]
@@ -47,7 +49,12 @@ pub struct MeEndpointConfig {
 ///
 /// **SECURITY CRITICAL**: You MUST configure the `audience` field to prevent
 /// token confusion attacks. See the `audience` field documentation for details.
+// #1337: `[auth]` is the only place this is deserialized from — every other use
+// constructs it programmatically — so refusing an unknown key here closes the TOML
+// surface without affecting anything else. `require_jti` is a security switch that
+// used to sit at its default when misspelled, silently.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct OidcConfig {
     /// Issuer URL (e.g., `https://your-tenant.auth0.com/`), optional.
     ///

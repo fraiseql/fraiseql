@@ -38,6 +38,7 @@ pub use pool_tuning::{PoolPressureMonitorConfig, PoolTuningConfig};
 ///
 /// [`NoopBackend`]: crate::usage::aggregator::NoopBackend
 #[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+#[serde(deny_unknown_fields)]
 pub struct UsagePersistenceConfig {
     /// How often (in seconds) to flush in-memory counters to PostgreSQL.
     ///

@@ -22,6 +22,7 @@ use serde::{Deserialize, Serialize};
 /// audience = "my-api"
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct Hs256Config {
     /// Name of the environment variable holding the shared secret.
     ///

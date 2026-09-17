@@ -35,6 +35,7 @@ const fn default_batch_size() -> u32 {
 /// (added by the hardening `send_email` transport). At least one half must be
 /// present for the account to do anything.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct MailboxConfig {
     /// The poll-IMAP receive half (`[mailbox.<name>.imap]`). Absent → this account
     /// is send-only and starts no poll worker.
@@ -52,6 +53,7 @@ pub struct MailboxConfig {
 /// is read from the environment at [`password_env`](Self::password_env), never
 /// stored in the config.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ImapConfig {
     /// IMAP server hostname (also the TLS SNI / certificate name).
     pub host:               String,
@@ -212,6 +214,7 @@ const fn default_challenge_suppress_after() -> u32 {
 /// challenge-suppression threshold; separated from the per-mailbox config because
 /// it is a cross-mailbox policy.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SendSettings {
     /// The number of **unanswered** challenge-response prompts to a recipient
     /// (across campaigns) before that recipient is suppressed. Default 2: a
@@ -244,6 +247,7 @@ impl Default for SendSettings {
 /// A declared `[[mailbox.<name>.imap.routing]]` rule: a dedicated address that maps
 /// to an entity type (the recipient's plus-tag becomes the entity id).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct RoutingRuleConfig {
     /// The dedicated base address this rule matches (`support@example.com`).
     pub address:     String,

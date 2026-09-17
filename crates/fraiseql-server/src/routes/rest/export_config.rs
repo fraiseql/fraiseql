@@ -38,7 +38,7 @@ pub enum ExportFormat {
 /// concurrency limit and format allow-list were each accepted by the config parser and
 /// then ignored.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct ExportConfig {
     /// CSV field delimiter (default `,`).
     pub csv_delimiter:       char,

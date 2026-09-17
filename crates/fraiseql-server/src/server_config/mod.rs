@@ -1048,6 +1048,7 @@ pub struct ServerConfig {
 /// - `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` — comma-separated env-var allowlist (#840).
 #[cfg(feature = "sources")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SourcesConfig {
     /// Global on/off for the source scheduler. Per-source `enabled` in the compiled
     /// schema still applies; this disables the whole scheduler without recompiling.
@@ -1093,6 +1094,7 @@ impl Default for SourcesConfig {
 /// The policy fields (`access`, `max_object_bytes`, `allowed_mime_types`,
 /// `serve_inline`) are optional and default to a private, force-download bucket.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct StorageSectionConfig {
     /// Backend type: `"local"`, `"s3"` (and S3-compatible providers `"hetzner"`,
     /// `"scaleway"`, `"ovh"`, `"exoscale"`, `"backblaze"`, `"r2"`), `"gcs"`,
@@ -1236,6 +1238,7 @@ pub struct TransformPresetConfig {
 /// the server can warn rather than silently ignore the section. All fields are
 /// optional to keep parsing tolerant.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FileSectionConfig {
     /// Named storage backend this upload route writes to.
     #[serde(default)]
@@ -1252,6 +1255,7 @@ pub struct FileSectionConfig {
 
 /// Multi-tenant runtime configuration (`[tenancy]`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TenancyServerConfig {
     /// Per-tenant executor runtime settings (`[tenancy.runtime]`).
     #[serde(default)]
@@ -1260,6 +1264,7 @@ pub struct TenancyServerConfig {
 
 /// Per-tenant executor runtime settings (`[tenancy.runtime]`).
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct TenancyRuntimeConfig {
     /// Mount the multi-tenant executor runtime (registry + admin tenant API +
     /// `X-Tenant-ID` / JWT / Host dispatch). Defaults to `false`.
