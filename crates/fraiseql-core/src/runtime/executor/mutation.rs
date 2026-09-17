@@ -78,6 +78,49 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
             .execute_mutation(mutation_name, variables, selections)
             .await
     }
+
+    /// Execute a mutation **with a principal**, binding arguments by name from
+    /// `variables` (#1330).
+    ///
+    /// This is [`execute_mutation`](Self::execute_mutation) plus the caller's
+    /// identity, and it is the entry a non-GraphQL transport should use when it
+    /// already holds structured arguments. It converges at
+    /// `execute_mutation_impl` like every other write, so `requires_role`,
+    /// `requires_actor`, the `Authorizer`, argument validation, `before:mutation`
+    /// and the change-log write all run.
+    ///
+    /// Distinct from
+    /// [`execute_mutation_with_security`](Self::execute_mutation_with_security),
+    /// which reaches the same place by **formatting a GraphQL document** out of
+    /// the arguments — a round-trip through text that cannot represent every JSON
+    /// value faithfully (#1331). Prefer this one; that one exists for REST and is
+    /// where #1331 will be fixed.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`execute_mutation`](Self::execute_mutation), plus the refusals the
+    /// gates raise for this principal.
+    ///
+    /// Returns the projection **and** the parsed `mutation_response` envelope: a
+    /// transport whose own wire format is that envelope cannot reconstruct
+    /// `entity_id` or a failure message from the projection alone.
+    pub async fn execute_mutation_as(
+        &self,
+        mutation_name: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+        selections: &[FieldSelection],
+    ) -> Result<crate::runtime::MutationExecution> {
+        self.execute_mutation_detailed(
+            mutation_name,
+            mutation_name,
+            variables,
+            security_context,
+            selections,
+            &[],
+        )
+        .await
+    }
 }
 
 impl<A: DatabaseAdapter> Executor<A> {
@@ -140,6 +183,29 @@ impl<A: DatabaseAdapter> Executor<A> {
                 path:    None,
             });
         }
+        self.execute_mutation_detailed(
+            mutation_name,
+            response_key,
+            variables,
+            security_context,
+            selections,
+            inline_arguments,
+        )
+        .await
+        .map(|execution| execution.data)
+    }
+
+    /// [`execute_mutation_query`](Self::execute_mutation_query), keeping the parsed
+    /// `mutation_response` envelope alongside the projection (#1330).
+    pub(super) async fn execute_mutation_detailed(
+        &self,
+        mutation_name: &str,
+        response_key: &str,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+        selections: &[FieldSelection],
+        inline_arguments: &[crate::graphql::GraphQLArgument],
+    ) -> Result<runners::mutation::MutationExecution> {
         runners::mutation::execute_mutation_impl(
             &self.ctx,
             mutation_name,

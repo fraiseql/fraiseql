@@ -200,6 +200,9 @@ pub mod security;
 mod support;
 
 // Re-export pipeline at this level so `runtime/mod.rs` can use `executor::pipeline::*`.
+// #1330: the parsed `mutation_response` envelope, for transports whose own wire
+// format is that envelope rather than a GraphQL projection.
+pub use runners::mutation::MutationExecution;
 pub use support::pipeline;
 
 #[cfg(test)]

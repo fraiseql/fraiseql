@@ -525,3 +525,336 @@ fn recase_keys_to_snake_leaves_scalars_and_snake_keys_untouched() {
         json!({ "already_snake": 1 })
     );
 }
+
+// ── #1330: the gRPC mutation path and the universal chokepoint ────────────
+//
+// `execute_grpc_mutation` calls the database function directly, so every gate
+// enforced at `execute_mutation_impl` is skipped. Each case below is paired with
+// its **positive twin**: a refusal on its own cannot be told apart from a gRPC
+// path that refuses everything, and "the gate fires" is only meaningful beside
+// "the same call succeeds when it should".
+//
+// The discriminator in both directions is whether the SQL function was reached:
+// a gate that refuses must reach it **zero** times, and a gate that passes must
+// reach it **once**. That is a property of the gate rather than of the response
+// shape, so it holds without a faithful `app.mutation_response` fixture.
+mod chokepoint {
+    use std::{
+        collections::HashMap,
+        sync::{
+            Arc,
+            atomic::{AtomicUsize, Ordering},
+        },
+    };
+
+    use async_trait::async_trait;
+    use chrono::Utc;
+    use fraiseql_core::{
+        db::{
+            DatabaseAdapter, DatabaseType, SupportsMutations, WhereClause,
+            types::{JsonbValue, OrderByClause, PoolMetrics},
+        },
+        error::Result as FraiseQLResult,
+        runtime::Executor,
+        schema::{
+            CompiledSchema, FieldDefinition, FieldType, MutationDefinition, SqlProjectionHint,
+            TypeDefinition,
+        },
+        security::{ActorType, SecurityContext},
+    };
+    use prost_reflect::DynamicMessage;
+    use serde_json::Value as JsonValue;
+
+    use super::{super::handler, test_descriptor_pool};
+
+    /// The entity id the canned success row reports. UUID-shaped, because the
+    /// chokepoint parses the column as one.
+    const ENTITY_ID: &str = "3f2504e0-4f89-11d3-9a0c-0305e82c3301";
+
+    /// A mutation-capable adapter that counts how often the SQL function ran.
+    #[derive(Debug, Clone, Default)]
+    struct RecordingAdapter {
+        calls:   Arc<AtomicUsize>,
+        /// When set, the function reports a refusal instead of a success.
+        refusal: Option<(String, String)>,
+    }
+
+    impl RecordingAdapter {
+        fn calls(&self) -> usize {
+            self.calls.load(Ordering::SeqCst)
+        }
+
+        /// The function runs and declines the write: `succeeded = false` with an
+        /// `error_class` and a message, which is a business outcome rather than a
+        /// transport failure.
+        fn refusing(error_class: &str, message: &str) -> Self {
+            Self {
+                refusal: Some((error_class.to_string(), message.to_string())),
+                ..Self::default()
+            }
+        }
+    }
+
+    // Reason: DatabaseAdapter is defined with #[async_trait]; an implementation must
+    // match its transformed signatures.
+    #[async_trait]
+    impl DatabaseAdapter for RecordingAdapter {
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> FraiseQLResult<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> FraiseQLResult<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        async fn health_check(&self) -> FraiseQLResult<()> {
+            Ok(())
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics::default()
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> FraiseQLResult<Vec<HashMap<String, JsonValue>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[JsonValue],
+        ) -> FraiseQLResult<Vec<HashMap<String, JsonValue>>> {
+            Ok(vec![])
+        }
+
+        /// The one method that matters here: reaching it means every gate passed.
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[JsonValue],
+        ) -> FraiseQLResult<Vec<HashMap<String, JsonValue>>> {
+            self.calls.fetch_add(1, Ordering::SeqCst);
+            // The canonical `app.mutation_response` shape the chokepoint parses.
+            // The old direct-to-adapter path read `succeeded` out of whatever the
+            // function returned; `execute_mutation_impl` deserializes the whole
+            // row, so `state_changed` is required and `entity_id` must be a UUID.
+            let mut row = HashMap::new();
+            if let Some((error_class, message)) = &self.refusal {
+                row.insert("succeeded".to_string(), JsonValue::Bool(false));
+                row.insert("state_changed".to_string(), JsonValue::Bool(false));
+                row.insert("error_class".to_string(), JsonValue::String(error_class.clone()));
+                row.insert("message".to_string(), JsonValue::String(message.clone()));
+                return Ok(vec![row]);
+            }
+            row.insert("succeeded".to_string(), JsonValue::Bool(true));
+            row.insert("state_changed".to_string(), JsonValue::Bool(true));
+            row.insert("entity_id".to_string(), JsonValue::String(ENTITY_ID.to_string()));
+            Ok(vec![row])
+        }
+    }
+
+    impl SupportsMutations for RecordingAdapter {}
+
+    /// A schema with one `createUser` mutation, optionally gated.
+    fn gated_schema(requires_role: Option<&str>, requires_actor: Vec<ActorType>) -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.types.push(TypeDefinition {
+            fields: vec![FieldDefinition::new("id", FieldType::Id)],
+            ..TypeDefinition::new("User", "v_user")
+        });
+        let mut m = MutationDefinition::new("createUser", "User");
+        m.sql_source = Some("fn_create_user".to_string());
+        m.requires_role = requires_role.map(ToString::to_string);
+        m.requires_actor = requires_actor;
+        schema.mutations.push(m);
+        schema.build_indexes();
+        schema
+    }
+
+    fn principal(roles: &[&str]) -> SecurityContext {
+        SecurityContext {
+            user_id:          "grpc-caller".into(),
+            roles:            roles.iter().map(ToString::to_string).collect(),
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-grpc".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    /// A request message carrying one field, as a gRPC mutation call would.
+    fn request() -> DynamicMessage {
+        let pool = test_descriptor_pool();
+        let desc = pool.get_message_by_name("test.User").unwrap();
+        let field = desc.get_field_by_name("name").unwrap();
+        let mut msg = DynamicMessage::new(desc);
+        msg.set_field(&field, prost_reflect::Value::String("Alice".to_string()));
+        msg
+    }
+
+    #[tokio::test]
+    async fn a_grpc_mutation_without_the_required_role_is_refused() {
+        let adapter = RecordingAdapter::default();
+        let executor =
+            Executor::new(gated_schema(Some("writer"), vec![]), Arc::new(adapter.clone()));
+        let caller = principal(&["viewer"]);
+
+        let result = handler::execute_grpc_mutation(
+            &executor,
+            "createUser",
+            &request(),
+            false,
+            Some(&caller),
+        )
+        .await;
+
+        assert!(result.is_err(), "a caller without `writer` must be refused");
+        assert_eq!(
+            adapter.calls(),
+            0,
+            "and refused BEFORE the write — a gate that runs after the function has already \
+             written is not a gate"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_grpc_mutation_with_the_required_role_reaches_the_write() {
+        let adapter = RecordingAdapter::default();
+        let executor =
+            Executor::new(gated_schema(Some("writer"), vec![]), Arc::new(adapter.clone()));
+        let caller = principal(&["writer"]);
+
+        let outcome = handler::execute_grpc_mutation(
+            &executor,
+            "createUser",
+            &request(),
+            false,
+            Some(&caller),
+        )
+        .await;
+
+        assert!(
+            outcome.is_ok(),
+            "the positive twin: without it, `refused` cannot be told from `gRPC is broken` — \
+             got {outcome:?}"
+        );
+        assert_eq!(adapter.calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn a_grpc_mutation_requiring_an_actor_is_refused_without_one() {
+        let adapter = RecordingAdapter::default();
+        let executor = Executor::new(
+            gated_schema(None, vec![ActorType::HumanUser]),
+            Arc::new(adapter.clone()),
+        );
+
+        let result =
+            handler::execute_grpc_mutation(&executor, "createUser", &request(), false, None).await;
+
+        assert!(result.is_err(), "#966: an unauthenticated caller cannot satisfy requires_actor");
+        assert_eq!(adapter.calls(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_grpc_mutation_requiring_an_actor_proceeds_with_one() {
+        let adapter = RecordingAdapter::default();
+        let executor = Executor::new(
+            gated_schema(None, vec![ActorType::HumanUser]),
+            Arc::new(adapter.clone()),
+        );
+        let caller = principal(&[]);
+
+        let _ = handler::execute_grpc_mutation(
+            &executor,
+            "createUser",
+            &request(),
+            false,
+            Some(&caller),
+        )
+        .await;
+
+        assert_eq!(adapter.calls(), 1);
+    }
+
+    #[tokio::test]
+    async fn an_ungated_grpc_mutation_still_reaches_the_write() {
+        // The control: routing through the chokepoint must not refuse a mutation
+        // that declares no gate at all.
+        let adapter = RecordingAdapter::default();
+        let executor = Executor::new(gated_schema(None, vec![]), Arc::new(adapter.clone()));
+
+        let _ =
+            handler::execute_grpc_mutation(&executor, "createUser", &request(), false, None).await;
+
+        assert_eq!(adapter.calls(), 1);
+    }
+
+    // ── #1330 cycle 2: the response contract ──────────────────────────────
+
+    #[tokio::test]
+    async fn a_successful_mutation_reports_the_entity_id() {
+        let adapter = RecordingAdapter::default();
+        let executor = Executor::new(gated_schema(None, vec![]), Arc::new(adapter.clone()));
+
+        let result =
+            handler::execute_grpc_mutation(&executor, "createUser", &request(), false, None)
+                .await
+                .expect("an ungated mutation succeeds");
+
+        assert!(result.success);
+        assert_eq!(
+            result.id.as_deref(),
+            Some(ENTITY_ID),
+            "the caller has to learn the id of the row it just created"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_declined_mutation_is_a_response_not_a_transport_error() {
+        // `succeeded = false` is the write refusing on a business rule. It is an
+        // answer, so it travels as a populated MutationResponse — a gRPC error
+        // status would tell the client the call failed, which is a different and
+        // wrong thing to retry.
+        let adapter = RecordingAdapter::refusing("conflict", "email already exists");
+        let executor = Executor::new(gated_schema(None, vec![]), Arc::new(adapter.clone()));
+
+        let result =
+            handler::execute_grpc_mutation(&executor, "createUser", &request(), false, None)
+                .await
+                .expect("a declined write is still a completed call");
+
+        assert!(!result.success, "the envelope carries the refusal");
+        assert_eq!(result.error.as_deref(), Some("email already exists"));
+        assert_eq!(adapter.calls(), 1, "and the function did run");
+    }
+}

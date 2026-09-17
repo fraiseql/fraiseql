@@ -656,6 +656,7 @@ impl<A: DatabaseAdapter + SupportsMutations> MutationRunner<A> {
             &[],
         )
         .await
+        .map(|execution| execution.data)
     }
 }
 
@@ -818,6 +819,24 @@ fn nested_input_type_name(field_type: &str, schema: &CompiledSchema) -> Option<S
 /// `response_key` is the key the result appears under in `data` — the document's
 /// alias when it has one, otherwise `mutation_name`. Two roots calling the same
 /// mutation are told apart only by it.
+/// What a mutation produced: the GraphQL-shaped response **and** the parsed
+/// `mutation_response` envelope (#1330).
+///
+/// A GraphQL client reads the projection; a transport whose own wire format *is*
+/// the envelope — gRPC's `MutationResponse{success, id, error}` — needs
+/// `entity_id` and the failure message, and the projection cannot carry them: on
+/// success it holds the *entity*, whose `id` is the row's, not the envelope's, and
+/// on failure it holds only the error class. Consuming the envelope and discarding
+/// it is what forced gRPC to call the database directly in the first place.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct MutationExecution {
+    /// The `{"data": {...}}` envelope, projected by the selection set.
+    pub data:    serde_json::Value,
+    /// The parsed `app.mutation_response` row this write produced.
+    pub outcome: MutationOutcome,
+}
+
 pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     ctx: &Arc<ExecutorContext<A>>,
     mutation_name: &str,
@@ -826,7 +845,7 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     security_ctx: Option<&SecurityContext>,
     selections: &[FieldSelection],
     inline_arguments: &[crate::graphql::GraphQLArgument],
-) -> Result<serde_json::Value> {
+) -> Result<MutationExecution> {
     // 1. Locate the mutation definition
     let mutation_def = ctx.schema.find_mutation(mutation_name).ok_or_else(|| {
         let display_names: Vec<String> =
@@ -1428,6 +1447,10 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
         parse_mutation_row(&row)?
     };
 
+    // Kept for the caller: the match below consumes `outcome` to build the
+    // projection, and a transport whose wire format is the envelope needs it.
+    let envelope = outcome.clone();
+
     // 6a. Bump fact table versions after a successful mutation.
     //
     // This invalidates cached aggregation results for any fact tables listed
@@ -1699,7 +1722,10 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     }
 
     let response = ResultProjector::wrap_in_data_envelope(result_json, &response_key_owned);
-    Ok(response)
+    Ok(MutationExecution {
+        data:    response,
+        outcome: envelope,
+    })
 }
 
 #[cfg(test)]

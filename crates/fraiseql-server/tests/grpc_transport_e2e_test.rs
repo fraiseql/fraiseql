@@ -12,6 +12,7 @@ use std::sync::Arc;
 
 use fraiseql_core::{
     db::types::ColumnValue,
+    runtime::Executor,
     schema::{CompiledSchema, GrpcConfig},
 };
 use fraiseql_server::routes::grpc::{self, DynamicGrpcService};
@@ -295,9 +296,15 @@ fn build_service(
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
-    let services = grpc::build_grpc_service(schema, adapter, None, None)
-        .expect("build_grpc_service should succeed")
-        .expect("gRPC should be enabled");
+    let services = grpc::build_grpc_service(
+        Arc::clone(&schema),
+        Arc::clone(&adapter),
+        Arc::new(Executor::new((*schema).clone(), Arc::clone(&adapter))),
+        None,
+        None,
+    )
+    .expect("build_grpc_service should succeed")
+    .expect("gRPC should be enabled");
 
     assert_eq!(services.service_name, SERVICE_NAME);
     services.service
@@ -659,8 +666,14 @@ async fn grpc_disabled_returns_none() {
     schema.grpc_config.as_mut().unwrap().enabled = false;
 
     let adapter = FailingAdapter::new();
-    let result = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None, None)
-        .expect("should not error");
+    let result = grpc::build_grpc_service(
+        Arc::new(schema.clone()),
+        Arc::new(adapter.clone()),
+        Arc::new(Executor::new(schema, Arc::new(adapter))),
+        None,
+        None,
+    )
+    .expect("should not error");
     assert!(result.is_none(), "Disabled gRPC should return None");
 }
 
@@ -678,8 +691,14 @@ async fn no_grpc_config_returns_none() {
     schema.grpc_config = None;
 
     let adapter = FailingAdapter::new();
-    let result = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None, None)
-        .expect("should not error");
+    let result = grpc::build_grpc_service(
+        Arc::new(schema.clone()),
+        Arc::new(adapter.clone()),
+        Arc::new(Executor::new(schema, Arc::new(adapter))),
+        None,
+        None,
+    )
+    .expect("should not error");
     assert!(result.is_none(), "No gRPC config should return None");
 }
 
@@ -745,7 +764,10 @@ async fn create_user_mutation_returns_mutation_response() {
     let mut function_row = std::collections::HashMap::new();
     function_row.insert("succeeded".to_string(), serde_json::json!(true));
     function_row.insert("state_changed".to_string(), serde_json::json!(true));
-    function_row.insert("entity_id".to_string(), serde_json::json!("new-user-123"));
+    function_row.insert(
+        "entity_id".to_string(),
+        serde_json::json!("3f2504e0-4f89-11d3-9a0c-0305e82c3301"),
+    );
 
     let adapter =
         FailingAdapter::new().with_function_response("fn_create_user", vec![function_row]);
@@ -784,7 +806,9 @@ async fn create_user_mutation_returns_mutation_response() {
     let id_field = resp_desc.get_field_by_name("id").unwrap();
     assert_eq!(
         response.get_field(&id_field).into_owned(),
-        prost_reflect::Value::String("new-user-123".into())
+        prost_reflect::Value::String("3f2504e0-4f89-11d3-9a0c-0305e82c3301".into()),
+        "the envelope's entity_id reaches the wire — #1330 routes the write through the \
+         chokepoint, which parses that column as a UUID"
     );
 }
 
@@ -865,7 +889,10 @@ async fn all_three_rpcs_are_callable() {
     let mut function_row = std::collections::HashMap::new();
     function_row.insert("succeeded".to_string(), serde_json::json!(true));
     function_row.insert("state_changed".to_string(), serde_json::json!(true));
-    function_row.insert("entity_id".to_string(), serde_json::json!("u-99"));
+    function_row.insert(
+        "entity_id".to_string(),
+        serde_json::json!("3f2504e0-4f89-11d3-9a0c-0305e82c3302"),
+    );
 
     let adapter = FailingAdapter::new()
         .with_row_response("vr_tb_users", vec![alice_row()])
@@ -926,9 +953,15 @@ fn build_service_with_auth(
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
-    let services = grpc::build_grpc_service(schema, adapter, Some(Arc::new(validator)), None)
-        .expect("build_grpc_service should succeed")
-        .expect("gRPC should be enabled");
+    let services = grpc::build_grpc_service(
+        Arc::clone(&schema),
+        Arc::clone(&adapter),
+        Arc::new(Executor::new((*schema).clone(), Arc::clone(&adapter))),
+        Some(Arc::new(validator)),
+        None,
+    )
+    .expect("build_grpc_service should succeed")
+    .expect("gRPC should be enabled");
 
     services.service
 }
@@ -1170,9 +1203,15 @@ fn build_service_with_rate_limiter(
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
-    let services = grpc::build_grpc_service(schema, adapter, None, Some(rate_limiter))
-        .expect("build_grpc_service should succeed")
-        .expect("gRPC should be enabled");
+    let services = grpc::build_grpc_service(
+        Arc::clone(&schema),
+        Arc::clone(&adapter),
+        Arc::new(Executor::new((*schema).clone(), Arc::clone(&adapter))),
+        None,
+        Some(rate_limiter),
+    )
+    .expect("build_grpc_service should succeed")
+    .expect("gRPC should be enabled");
 
     assert_eq!(services.service_name, SERVICE_NAME);
     services.service
@@ -1295,9 +1334,15 @@ fn reflection_descriptor_bytes_present_when_enabled() {
     let schema = build_grpc_schema(&desc_path);
 
     let adapter = FailingAdapter::new();
-    let services = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None, None)
-        .expect("build_grpc_service should succeed")
-        .expect("gRPC should be enabled");
+    let services = grpc::build_grpc_service(
+        Arc::new(schema.clone()),
+        Arc::new(adapter.clone()),
+        Arc::new(Executor::new(schema, Arc::new(adapter))),
+        None,
+        None,
+    )
+    .expect("build_grpc_service should succeed")
+    .expect("gRPC should be enabled");
 
     // Default: reflection = true → descriptor bytes should be present.
     assert!(
@@ -1317,9 +1362,15 @@ fn reflection_descriptor_bytes_absent_when_disabled() {
     schema.grpc_config.as_mut().unwrap().reflection = false;
 
     let adapter = FailingAdapter::new();
-    let services = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None, None)
-        .expect("build_grpc_service should succeed")
-        .expect("gRPC should be enabled");
+    let services = grpc::build_grpc_service(
+        Arc::new(schema.clone()),
+        Arc::new(adapter.clone()),
+        Arc::new(Executor::new(schema, Arc::new(adapter))),
+        None,
+        None,
+    )
+    .expect("build_grpc_service should succeed")
+    .expect("gRPC should be enabled");
 
     assert!(
         services.reflection_descriptor_bytes.is_none(),
@@ -1334,9 +1385,15 @@ fn reflection_service_builds_from_descriptor_bytes() {
     let schema = build_grpc_schema(&desc_path);
 
     let adapter = FailingAdapter::new();
-    let services = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None, None)
-        .expect("build_grpc_service should succeed")
-        .expect("gRPC should be enabled");
+    let services = grpc::build_grpc_service(
+        Arc::new(schema.clone()),
+        Arc::new(adapter.clone()),
+        Arc::new(Executor::new(schema, Arc::new(adapter))),
+        None,
+        None,
+    )
+    .expect("build_grpc_service should succeed")
+    .expect("gRPC should be enabled");
 
     let bytes = services
         .reflection_descriptor_bytes
@@ -1362,9 +1419,15 @@ async fn reflection_service_accepts_tonic_add_service() {
 
     let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
 
-    let services = grpc::build_grpc_service(Arc::new(schema), Arc::new(adapter), None, None)
-        .expect("build_grpc_service should succeed")
-        .expect("gRPC should be enabled");
+    let services = grpc::build_grpc_service(
+        Arc::new(schema.clone()),
+        Arc::new(adapter.clone()),
+        Arc::new(Executor::new(schema, Arc::new(adapter))),
+        None,
+        None,
+    )
+    .expect("build_grpc_service should succeed")
+    .expect("gRPC should be enabled");
 
     let bytes = services
         .reflection_descriptor_bytes

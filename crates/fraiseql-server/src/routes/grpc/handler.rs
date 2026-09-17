@@ -426,63 +426,168 @@ pub async fn execute_grpc_query<A: DatabaseAdapter>(
 /// # Errors
 ///
 /// Returns `FraiseQLError::Database` on function call failure.
-pub async fn execute_grpc_mutation<A: DatabaseAdapter>(
-    adapter: &A,
-    function_name: &str,
+pub async fn execute_grpc_mutation<A>(
+    executor: &fraiseql_core::runtime::Executor<A>,
+    mutation_name: &str,
     request_msg: &DynamicMessage,
     recase_input_keys: bool,
-) -> Result<MutationResult, FraiseQLError> {
-    // Extract arguments from the request message as JSON values.
+    security_context: Option<&fraiseql_core::security::SecurityContext>,
+) -> Result<MutationResult, FraiseQLError>
+where
+    A: DatabaseAdapter + fraiseql_core::db::SupportsMutations,
+{
+    // #1330: this used to call `adapter.execute_function_call` directly, which
+    // reached the database without passing `execute_mutation_impl` — the single
+    // point every other write converges on. `requires_role`, `requires_actor`, the
+    // `Authorizer`, selection-set and argument-name validation, the required-argument
+    // check, `before:mutation` and the change-log write were all skipped, and
+    // `requires_actor`'s own claim that "this chokepoint is why 'every transport' is
+    // a fact rather than a claim" was false for exactly as long as that line existed.
     //
-    // Object-valued args (a nested `input` message under the single-JSONB
-    // convention) serialize with the protobuf JSON name — `camelCase` for a
-    // `camelCase` GraphQL surface — so under `NamingConvention::CamelCase` their
-    // keys must be reversed to canonical `snake_case` before reaching a SQL
-    // function that reads `payload->>'snake_field'`, exactly as the GraphQL and
-    // REST mutation paths do via `recase_input_payload` (#456). Scalars carry no
-    // keys, so recasing is a no-op for them; `to_snake_case` is idempotent on
-    // already-`snake_case` keys.
-    let args: Vec<serde_json::Value> = request_msg
-        .descriptor()
-        .fields()
-        .filter(|f| request_msg.has_field(f))
-        .map(|f| {
-            let value = proto_value_to_json(request_msg.get_field(&f).as_ref());
-            if recase_input_keys {
-                recase_keys_to_snake(value)
-            } else {
-                value
-            }
-        })
-        .collect();
+    // It also means arguments are bound **by name** now. The old path collected the
+    // set fields into a positional `Vec` in protobuf field order and handed it
+    // straight to the SQL function, so the binding was correct only while the
+    // descriptor's field order matched the schema's argument order — a coincidence
+    // nothing enforced, and one a renumbered proto field would break silently.
+    let variables =
+        grpc_mutation_variables(executor.schema(), mutation_name, request_msg, recase_input_keys);
 
     debug!(
-        function = %function_name,
-        arg_count = args.len(),
-        "Executing gRPC mutation"
+        mutation = %mutation_name,
+        arg_count = variables.as_object().map_or(0, serde_json::Map::len),
+        "Executing gRPC mutation through the chokepoint"
     );
 
-    // No session vars: the gRPC mutation path does not yet thread the schema's
-    // session-variable config or a SecurityContext, so current_setting()-backed
-    // RLS / functions are not configured here. Wiring this through gRPC auth is a
-    // follow-up (#329); the GraphQL mutation path uses
-    // execute_function_call_with_session.
-    let rows = adapter.execute_function_call(function_name, &args).await?;
+    // The chokepoint validates the selection set (§ 5.3.1), and gRPC has none:
+    // its response shape is the flat protobuf `MutationResponse`, not a GraphQL
+    // document. Synthesise one from the mutation's **declared return type**, the
+    // same choice REST makes — except built structurally rather than by formatting
+    // field names into a string and reparsing them (#1331).
+    let selections = return_type_selections(executor.schema(), mutation_name);
 
-    // The mutation function returns a single `app.mutation_response` composite row whose
-    // terminal outcome is the `succeeded` boolean (see
-    // `fraiseql_core::runtime::mutation_result::MutationResponse`) — NOT a `status` string.
-    // Reading the wrong column made every gRPC mutation report `success = false`.
-    let row = rows.into_iter().next().unwrap_or_default();
-    let success = row.get("succeeded").and_then(serde_json::Value::as_bool).unwrap_or(false);
-    let id = row.get("entity_id").and_then(|v| v.as_str()).map(String::from);
-    let error = if success {
-        None
-    } else {
-        row.get("message").and_then(|v| v.as_str()).map(String::from)
-    };
+    let execution = executor
+        .execute_mutation_as(mutation_name, Some(&variables), security_context, &selections)
+        .await?;
 
-    Ok(MutationResult { success, id, error })
+    Ok(mutation_result_from_outcome(&execution.outcome))
+}
+
+/// Bind the request message's set fields to the mutation's **declared argument
+/// names** (#1330).
+///
+/// Matched by name rather than by position: a protobuf field carries the
+/// `snake_case` spelling of the argument, while a camelCase GraphQL surface declares
+/// it in camelCase, so both spellings are accepted for each declared argument. A
+/// field the mutation does not declare is dropped here rather than being passed
+/// into whatever positional slot it happened to line up with.
+fn grpc_mutation_variables(
+    schema: &fraiseql_core::schema::CompiledSchema,
+    mutation_name: &str,
+    request_msg: &DynamicMessage,
+    recase_input_keys: bool,
+) -> serde_json::Value {
+    let declared: Vec<String> = schema
+        .find_mutation(mutation_name)
+        .map(|m| m.arguments.iter().map(|a| a.name.clone()).collect())
+        .unwrap_or_default();
+
+    let mut out = serde_json::Map::new();
+    for field in request_msg.descriptor().fields() {
+        if !request_msg.has_field(&field) {
+            continue;
+        }
+        // Object-valued args keep #456's key recasing: a nested `input` message
+        // serializes with protobuf JSON names, and the SQL function reads
+        // `payload->>'snake_field'`.
+        let value = proto_value_to_json(request_msg.get_field(&field).as_ref());
+        let value = if recase_input_keys {
+            recase_keys_to_snake(value)
+        } else {
+            value
+        };
+
+        let proto_name = field.name();
+        let matched = declared.iter().find(|name| {
+            name.as_str() == proto_name || fraiseql_core::utils::to_snake_case(name) == proto_name
+        });
+        match matched {
+            Some(name) => {
+                out.insert(name.clone(), value);
+            },
+            // No declared argument answers to this field. Keeping the protobuf
+            // spelling lets the chokepoint's own argument validation report it
+            // rather than this function silently deciding.
+            None => {
+                out.insert(proto_name.to_string(), value);
+            },
+        }
+    }
+    serde_json::Value::Object(out)
+}
+
+/// The mutation's declared return-type fields, as a flat selection set.
+///
+/// Scalar fields only: a nested composite would need its own selection set, and
+/// the protobuf `MutationResponse` has nowhere to put one.
+fn return_type_selections(
+    schema: &fraiseql_core::schema::CompiledSchema,
+    mutation_name: &str,
+) -> Vec<fraiseql_core::graphql::FieldSelection> {
+    schema
+        .find_mutation(mutation_name)
+        .and_then(|m| schema.find_type(&m.return_type))
+        .map(|t| {
+            t.fields
+                .iter()
+                .filter(|f| f.field_type.is_scalar())
+                .map(|f| fraiseql_core::graphql::FieldSelection {
+                    name:          f.output_name().to_string(),
+                    alias:         None,
+                    arguments:     vec![],
+                    nested_fields: vec![],
+                    directives:    vec![],
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Flatten the chokepoint's `mutation_response` envelope into the gRPC wire result.
+///
+/// gRPC's `MutationResponse{success, id, error}` **is** that envelope, which is why
+/// this reads the envelope rather than the projection: on success the projection
+/// carries the *entity*, whose `id` is the row's rather than the envelope's, and on
+/// failure it carries only the error class, not the message a client shows.
+///
+/// A declined write (`succeeded = false`) is a completed call carrying a refusal,
+/// not a transport error — a gRPC error status would tell the client the call
+/// failed, which is a different thing and retried differently.
+fn mutation_result_from_outcome(
+    outcome: &fraiseql_core::runtime::mutation_result::MutationOutcome,
+) -> MutationResult {
+    use fraiseql_core::runtime::mutation_result::MutationOutcome;
+
+    match outcome {
+        MutationOutcome::Success { entity_id, .. } => MutationResult {
+            success: true,
+            id:      entity_id.clone(),
+            error:   None,
+        },
+        MutationOutcome::Error { message, .. } => MutationResult {
+            success: false,
+            id:      None,
+            error:   Some(message.clone()),
+        },
+        // `MutationOutcome` is `#[non_exhaustive]`, so this arm is required rather
+        // than chosen. It reports **failure**: a variant added upstream is one this
+        // build cannot interpret, and answering `success = true` to a write whose
+        // outcome is unknown is the one answer that cannot be walked back.
+        _ => MutationResult {
+            success: false,
+            id:      None,
+            error:   Some("mutation outcome not recognised by this build".to_string()),
+        },
+    }
 }
 
 /// Result from a gRPC mutation, ready to be encoded as a `MutationResponse`.

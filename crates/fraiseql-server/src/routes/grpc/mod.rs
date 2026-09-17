@@ -14,7 +14,7 @@ pub mod streaming;
 use std::{convert::Infallible, sync::Arc};
 
 use fraiseql_core::{
-    db::traits::DatabaseAdapter,
+    db::{SupportsMutations, traits::DatabaseAdapter},
     schema::CompiledSchema,
     security::{OidcValidator, SecurityContext},
 };
@@ -58,6 +58,13 @@ pub struct GrpcServices<A: DatabaseAdapter> {
 pub struct DynamicGrpcService<A: DatabaseAdapter> {
     /// Shared database adapter for executing row queries.
     adapter:        Arc<A>,
+    /// The **configured** executor, used for every mutation (#1330).
+    ///
+    /// Supplied by the caller rather than built here: `Executor::new` would use
+    /// `RuntimeConfig::default()`, so the `Authorizer`, the RLS policy and the
+    /// `before:mutation` gate would all be absent — the transport would converge
+    /// at the chokepoint and find half the gates missing, which is #1333's shape.
+    executor:       Arc<fraiseql_core::runtime::Executor<A>>,
     /// Compiled schema (for type lookups during request processing).
     schema:         Arc<CompiledSchema>,
     /// RPC method → operation metadata dispatch table.
@@ -80,6 +87,7 @@ impl<A: DatabaseAdapter> Clone for DynamicGrpcService<A> {
     fn clone(&self) -> Self {
         Self {
             adapter:        Arc::clone(&self.adapter),
+            executor:       Arc::clone(&self.executor),
             schema:         Arc::clone(&self.schema),
             dispatch:       Arc::clone(&self.dispatch),
             pool:           Arc::clone(&self.pool),
@@ -94,7 +102,7 @@ impl<A: DatabaseAdapter> NamedService for DynamicGrpcService<A> {
     const NAME: &'static str = "fraiseql.v1.FraiseQLService";
 }
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
+impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
     /// Handle a unary gRPC request.
     ///
     /// When an [`OidcValidator`] is configured, the handler extracts the
@@ -317,17 +325,24 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
                     "ServerStream RPC reached unary handler",
                 );
             },
-            handler::RpcKind::Mutation { function_name } => {
+            handler::RpcKind::Mutation { .. } => {
                 // Under a camelCase GraphQL surface, reverse object-valued arg keys
                 // to canonical snake_case before the SQL call — same contract as the
                 // GraphQL/REST mutation paths (#456).
                 let recase_input_keys = self.schema.naming_convention
                     == fraiseql_core::schema::NamingConvention::CamelCase;
+                // #1330: the mutation **name**, not `RpcKind::Mutation`'s SQL
+                // function name. The dispatch table resolved the name at startup
+                // and then carried only `sql_source`; the chokepoint needs the
+                // name to find the mutation's gates, arguments and return type.
+                // The principal is the one this request already authenticated —
+                // it was in scope here all along and simply was not passed.
                 let result = match handler::execute_grpc_mutation(
-                    self.adapter.as_ref(),
-                    function_name,
+                    &self.executor,
+                    &op.operation_name,
                     &request_msg,
                     recase_input_keys,
+                    security_context.as_ref(),
                 )
                 .await
                 {
@@ -368,7 +383,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
     }
 }
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
+impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
     /// Extract and validate a Bearer JWT token.
     ///
     /// Returns `Ok(Some(SecurityContext))` when the token is valid,
@@ -442,8 +457,8 @@ fn grpc_error_response(code: tonic::Code, message: &str) -> http::Response<Tonic
 }
 
 /// Implement the [`tower::Service`] trait for routing gRPC requests.
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> tower::Service<http::Request<TonicBody>>
-    for DynamicGrpcService<A>
+impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>
+    tower::Service<http::Request<TonicBody>> for DynamicGrpcService<A>
 {
     type Error = Infallible;
     type Future = std::pin::Pin<
@@ -498,9 +513,12 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> tower::Service<http::Re
 ///
 /// Returns an error if the descriptor file is invalid or the dispatch table
 /// cannot be built.
-pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+pub fn build_grpc_service<
+    A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
+>(
     schema: Arc<CompiledSchema>,
     adapter: Arc<A>,
+    executor: Arc<fraiseql_core::runtime::Executor<A>>,
     oidc_validator: Option<Arc<OidcValidator>>,
     rate_limiter: Option<Arc<RateLimiter>>,
 ) -> Result<Option<GrpcServices<A>>, FraiseQLError> {
@@ -596,6 +614,7 @@ pub fn build_grpc_service<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 
     let service = DynamicGrpcService {
         adapter,
+        executor,
         schema,
         dispatch: Arc::new(dispatch),
         pool: Arc::new(pool),
