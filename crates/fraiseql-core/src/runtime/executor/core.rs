@@ -460,7 +460,10 @@ impl<A: DatabaseAdapter> Executor<A> {
         A: 'static,
     {
         // #1336 backstop — the streaming twin of `execute_query_direct`.
-        crate::runtime::executor::support::security::enforce_enrichment_resolved(&self.ctx.schema, security_context.as_ref())?;
+        crate::runtime::executor::support::security::enforce_enrichment_resolved(
+            &self.ctx.schema,
+            security_context.as_ref(),
+        )?;
 
         self.query_runner()
             .stream_query_direct(query_match, variables, security_context)

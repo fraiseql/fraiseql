@@ -341,19 +341,19 @@ mod enrichment_backstop_tests {
 
     fn principal() -> SecurityContext {
         SecurityContext {
-            user_id: crate::types::UserId::new("user-1336"),
-            roles: vec![],
-            tenant_id: None,
-            scopes: vec![],
-            attributes: std::collections::HashMap::new(),
-            request_id: "req-1336".to_string(),
-            ip_address: None,
+            user_id:          crate::types::UserId::new("user-1336"),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       std::collections::HashMap::new(),
+            request_id:       "req-1336".to_string(),
+            ip_address:       None,
             authenticated_at: Utc::now(),
-            expires_at: Utc::now() + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
-            email: None,
-            display_name: None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 
@@ -388,8 +388,10 @@ mod enrichment_backstop_tests {
         // The case this guard exists for: a transport that builds a principal and
         // dispatches it without resolving. REST, MCP and gRPC each did, and the
         // Flight server in `fraiseql-arrow` still cannot reach the resolver at all.
-        for schema in [schema_with_session_variable_consumer(), schema_with_inject_param_consumer()]
-        {
+        for schema in [
+            schema_with_session_variable_consumer(),
+            schema_with_inject_param_consumer(),
+        ] {
             assert!(
                 enforce_enrichment_resolved(&schema, Some(&principal())).is_err(),
                 "a principal carrying no enrichment mark must not execute against a schema \

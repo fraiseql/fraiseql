@@ -70,7 +70,6 @@ pub async fn enrich_security_context(
     }
 }
 
-
 /// The one call a transport makes between authenticating a request and dispatching
 /// it (#1336).
 ///
@@ -100,7 +99,7 @@ pub async fn enrich_security_context(
 /// "no resolver" and "a consumer to satisfy" cannot both be true — and if a transport's
 /// state failed to carry the resolver, the engine refuses the request rather than
 /// treating silence as permission.
-pub(crate) async fn resolve_request_identity(
+pub async fn resolve_request_identity(
     resolver: Option<&IdentityResolver>,
     security_context: Option<&mut SecurityContext>,
 ) -> EnrichmentOutcome {

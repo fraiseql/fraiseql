@@ -595,7 +595,10 @@ mod enrichment_entry_point_tests {
         });
 
         let mut order = TypeDefinition::new("Order", "v_order");
-        order.fields = vec![crate::schema::FieldDefinition::new("id", crate::schema::FieldType::Id)];
+        order.fields = vec![crate::schema::FieldDefinition::new(
+            "id",
+            crate::schema::FieldType::Id,
+        )];
         schema.types.push(order);
 
         let mut query = QueryDefinition::new("orders", "Order");
@@ -618,19 +621,19 @@ mod enrichment_entry_point_tests {
     /// A principal exactly as a transport that never resolved would produce it.
     fn unresolved() -> SecurityContext {
         SecurityContext {
-            user_id: crate::types::UserId::new("user-1336"),
-            roles: vec![],
-            tenant_id: None,
-            scopes: vec![],
-            attributes: std::collections::HashMap::new(),
-            request_id: "req-1336".to_string(),
-            ip_address: None,
+            user_id:          crate::types::UserId::new("user-1336"),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       std::collections::HashMap::new(),
+            request_id:       "req-1336".to_string(),
+            ip_address:       None,
             authenticated_at: Utc::now(),
-            expires_at: Utc::now() + chrono::Duration::hours(1),
-            issuer: None,
-            audience: None,
-            email: None,
-            display_name: None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
         }
     }
 
@@ -660,7 +663,8 @@ mod enrichment_entry_point_tests {
     async fn the_graphql_document_entry_admits_a_resolved_principal() {
         // The twin that keeps the case above honest: this query fails for its own
         // reasons against a mock adapter, but it must not fail as a *refusal*.
-        let outcome = executor().execute_with_security("{ orders { id } }", None, &resolved()).await;
+        let outcome =
+            executor().execute_with_security("{ orders { id } }", None, &resolved()).await;
 
         assert!(
             outcome.as_ref().err().is_none_or(|e| !is_refusal(e)),

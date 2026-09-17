@@ -888,11 +888,11 @@ mod principal_production {
         extra.insert("org_id".to_string(), json!("tenant-a"));
         extra.insert("department".to_string(), json!("ops"));
         AuthenticatedUser {
-            user_id: UserId("u1".to_string()),
-            email: Some("u1@example.test".to_string()),
+            user_id:      UserId("u1".to_string()),
+            email:        Some("u1@example.test".to_string()),
             display_name: None,
-            scopes: Vec::new(),
-            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+            scopes:       Vec::new(),
+            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
             extra_claims: extra,
         }
     }

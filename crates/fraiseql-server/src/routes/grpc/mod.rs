@@ -57,30 +57,30 @@ pub struct GrpcServices<A: DatabaseAdapter> {
 /// `fraiseql-cli generate-proto`.
 pub struct DynamicGrpcService<A: DatabaseAdapter> {
     /// Shared database adapter for executing row queries.
-    adapter:        Arc<A>,
+    adapter:           Arc<A>,
     /// The **configured** executor, used for every mutation (#1330).
     ///
     /// Supplied by the caller rather than built here: `Executor::new` would use
     /// `RuntimeConfig::default()`, so the `Authorizer`, the RLS policy and the
     /// `before:mutation` gate would all be absent — the transport would converge
     /// at the chokepoint and find half the gates missing, which is #1333's shape.
-    executor:       Arc<fraiseql_core::runtime::Executor<A>>,
+    executor:          Arc<fraiseql_core::runtime::Executor<A>>,
     /// Compiled schema (for type lookups during request processing).
-    schema:         Arc<CompiledSchema>,
+    schema:            Arc<CompiledSchema>,
     /// RPC method → operation metadata dispatch table.
-    dispatch:       Arc<RpcDispatchTable>,
+    dispatch:          Arc<RpcDispatchTable>,
     /// Protobuf descriptor pool (for decoding/encoding dynamic messages).
-    pool:           Arc<DescriptorPool>,
+    pool:              Arc<DescriptorPool>,
     /// Fully-qualified service name (e.g., `"fraiseql.v1.FraiseQLService"`).
-    service_name:   Arc<str>,
+    service_name:      Arc<str>,
     /// Optional OIDC validator for JWT authentication.
     /// When present, incoming requests must carry a valid `authorization`
     /// metadata header (`Bearer <jwt>`). The validated token is converted
     /// into a [`SecurityContext`] that drives RLS WHERE clause injection.
-    oidc_validator: Option<Arc<OidcValidator>>,
+    oidc_validator:    Option<Arc<OidcValidator>>,
     /// Optional shared rate limiter (same instance used by GraphQL/REST).
     /// When present, requests are throttled per-IP and per-user before dispatch.
-    rate_limiter:   Option<Arc<RateLimiter>>,
+    rate_limiter:      Option<Arc<RateLimiter>>,
     /// The enriched-identity resolver (#1336). `Some` exactly when
     /// `[identity.enrichment].enabled`, and passed in for the same reason
     /// `executor` is: this transport is mounted by an embedder, and anything it
@@ -92,14 +92,14 @@ pub struct DynamicGrpcService<A: DatabaseAdapter> {
 impl<A: DatabaseAdapter> Clone for DynamicGrpcService<A> {
     fn clone(&self) -> Self {
         Self {
-            adapter:        Arc::clone(&self.adapter),
-            executor:       Arc::clone(&self.executor),
-            schema:         Arc::clone(&self.schema),
-            dispatch:       Arc::clone(&self.dispatch),
-            pool:           Arc::clone(&self.pool),
-            service_name:   Arc::clone(&self.service_name),
+            adapter: Arc::clone(&self.adapter),
+            executor: Arc::clone(&self.executor),
+            schema: Arc::clone(&self.schema),
+            dispatch: Arc::clone(&self.dispatch),
+            pool: Arc::clone(&self.pool),
+            service_name: Arc::clone(&self.service_name),
             oidc_validator: self.oidc_validator.as_ref().map(Arc::clone),
-            rate_limiter:   self.rate_limiter.as_ref().map(Arc::clone),
+            rate_limiter: self.rate_limiter.as_ref().map(Arc::clone),
             #[cfg(feature = "auth")]
             identity_resolver: self.identity_resolver.as_ref().map(Arc::clone),
         }
@@ -484,16 +484,15 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> Dyn
         user: &fraiseql_core::security::AuthenticatedUser,
         request_id: String,
     ) -> std::result::Result<SecurityContext, http::Response<TonicBody>> {
-        let ctx = crate::extractors::build_security_context(user, request_id)
-            .with_transport("grpc");
+        let ctx =
+            crate::extractors::build_security_context(user, request_id).with_transport("grpc");
         // Shadowed rather than declared `mut` up front: without `auth` there is no
         // resolver and nothing mutates it, and an unconditional `mut` warns in that
         // arm — the arm `--all-features` never builds.
         #[cfg(feature = "auth")]
         let ctx = {
             let mut ctx = ctx;
-            match crate::identity::resolve_request_identity(identity_resolver, Some(&mut ctx))
-                .await
+            match crate::identity::resolve_request_identity(identity_resolver, Some(&mut ctx)).await
             {
                 crate::identity::EnrichmentOutcome::Proceed => ctx,
                 crate::identity::EnrichmentOutcome::Denied => {
@@ -594,9 +593,7 @@ pub fn build_grpc_service<
     executor: Arc<fraiseql_core::runtime::Executor<A>>,
     oidc_validator: Option<Arc<OidcValidator>>,
     rate_limiter: Option<Arc<RateLimiter>>,
-    #[cfg(feature = "auth")] identity_resolver: Option<
-        Arc<crate::identity::IdentityResolver>,
-    >,
+    #[cfg(feature = "auth")] identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
 ) -> Result<Option<GrpcServices<A>>, FraiseQLError> {
     let grpc_config = match schema.grpc_config.as_ref() {
         Some(cfg) if cfg.enabled => cfg,

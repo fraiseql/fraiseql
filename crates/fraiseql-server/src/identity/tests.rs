@@ -470,10 +470,17 @@ fn resolver(store: MockStore) -> IdentityResolver {
 /// A resolver that resolves `sub` to `actor_id` / `actor_role`, for another
 /// module's tests (#1336).
 ///
+/// Reason for the allow: the only consumers today are the gRPC transport's producer
+/// tests, so with that feature off — the default build `make preflight` checks — these
+/// have no caller. Gating them on `feature = "grpc"` would be worse: the next transport
+/// to need a resolver fixture would either widen the cfg or build a second mock, and a
+/// mock per transport is how two of them come to disagree about what a denial is.
+///
 /// Exposed rather than re-mocked: the transports each build their own principal, and
 /// a fixture per transport is exactly how their idea of "denied" would drift apart.
 /// `rows` is what the actor query returns — empty denies the subject.
-pub(crate) fn resolver_returning(pairs: &[(&str, Value)]) -> IdentityResolver {
+#[allow(dead_code)]
+pub fn resolver_returning(pairs: &[(&str, Value)]) -> IdentityResolver {
     resolver(MockStore::returning(if pairs.is_empty() {
         Vec::new()
     } else {
@@ -483,7 +490,10 @@ pub(crate) fn resolver_returning(pairs: &[(&str, Value)]) -> IdentityResolver {
 
 /// A resolver whose store is unreachable — the transient arm (`Unavailable`), which
 /// every transport must answer differently from a denial.
-pub(crate) fn resolver_unavailable() -> IdentityResolver {
+///
+/// Reason for the allow: as above — feature-gated consumers only.
+#[allow(dead_code)]
+pub fn resolver_unavailable() -> IdentityResolver {
     resolver(MockStore::failing())
 }
 

@@ -202,6 +202,11 @@ impl SecurityContext {
     /// `snake_case` token), derived at [`from_user`](Self::from_user) and read
     /// back via [`actor_type`](Self::actor_type) (#390).
     pub const ACTOR_TYPE_ATTRIBUTE: &'static str = "fraiseql.actor_type";
+    /// Attribute key recording that this principal passed the enrichment seam
+    /// (#1336). Absent means "no transport resolved this principal", which is
+    /// the fail-closed case the engine refuses when the schema declares an
+    /// enrichment consumer — see [`EnrichmentMark`].
+    pub const ENRICHMENT_ATTRIBUTE: &'static str = "fraiseql.enrichment";
     /// Attribute key under which the originating request's full W3C trace context
     /// is carried (a JSON object), used to populate the change-log `trace_context`
     /// JSONB column (#375).
@@ -210,11 +215,6 @@ impl SecurityContext {
     /// stamped. Set by the server's request pipeline from the inbound
     /// `traceparent` header; read back via [`trace_id`](Self::trace_id).
     pub const TRACE_ID_ATTRIBUTE: &'static str = "fraiseql.trace_id";
-    /// Attribute key recording that this principal passed the enrichment seam
-    /// (#1336). Absent means "no transport resolved this principal", which is
-    /// the fail-closed case the engine refuses when the schema declares an
-    /// enrichment consumer — see [`EnrichmentMark`].
-    pub const ENRICHMENT_ATTRIBUTE: &'static str = "fraiseql.enrichment";
     /// Attribute key under which the ingress transport is carried (#376): the
     /// door this request came through, e.g. `"mcp"`. Set by a transport that
     /// declares itself (via [`with_transport`](Self::with_transport)) — never
@@ -559,7 +559,11 @@ impl SecurityContext {
     /// the seam cannot claim to have passed it by saying nothing.
     #[must_use]
     pub fn enrichment_mark(&self) -> Option<EnrichmentMark> {
-        match self.attributes.get(Self::ENRICHMENT_ATTRIBUTE).and_then(serde_json::Value::as_str) {
+        match self
+            .attributes
+            .get(Self::ENRICHMENT_ATTRIBUTE)
+            .and_then(serde_json::Value::as_str)
+        {
             Some(EnrichmentMark::RESOLVED) => Some(EnrichmentMark::Resolved),
             Some(EnrichmentMark::EXEMPT) => Some(EnrichmentMark::Exempt),
             _ => None,

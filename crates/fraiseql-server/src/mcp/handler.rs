@@ -229,12 +229,12 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
                 .await
                 {
                     crate::identity::EnrichmentOutcome::Proceed => Ok(Some(ctx)),
-                    crate::identity::EnrichmentOutcome::Denied => Err(error_result(
-                        crate::identity::EnrichmentOutcome::DENIED_MESSAGE,
-                    )),
-                    crate::identity::EnrichmentOutcome::Unavailable => Err(error_result(
-                        crate::identity::EnrichmentOutcome::UNAVAILABLE_MESSAGE,
-                    )),
+                    crate::identity::EnrichmentOutcome::Denied => {
+                        Err(error_result(crate::identity::EnrichmentOutcome::DENIED_MESSAGE))
+                    },
+                    crate::identity::EnrichmentOutcome::Unavailable => {
+                        Err(error_result(crate::identity::EnrichmentOutcome::UNAVAILABLE_MESSAGE))
+                    },
                 }
             },
             Err(e) => {

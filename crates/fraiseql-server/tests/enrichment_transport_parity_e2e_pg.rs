@@ -4,20 +4,20 @@
 //! This suite drives the **same deployment** through three transports and asserts they
 //! answer the same question the same way. (gRPC's producer is covered by
 //! `routes::grpc::tests::principal_production` rather than here: reaching it end to end
-//! needs a live JWKS endpoint, and the producer is the whole of what changed.) The GraphQL cases are the control: they pass
-//! today, which is what makes the REST cases evidence of a transport gap rather than a
-//! broken fixture. If a GraphQL case ever reddens, the fixture is wrong and the REST
+//! needs a live JWKS endpoint, and the producer is the whole of what changed.) The GraphQL cases
+//! are the control: they pass today, which is what makes the REST cases evidence of a transport gap
+//! rather than a broken fixture. If a GraphQL case ever reddens, the fixture is wrong and the REST
 //! verdicts mean nothing.
 //!
 //! Two independent halves, because they fail for different reasons and a suite that
 //! asserted only one of them would pass while the other stayed open:
 //!
-//! * **the refusal half** — a route whose query reads *no* enriched field. An unknown
-//!   subject must be refused (403) because the deployment enabled enrichment, not
-//!   because the operation happened to need an enriched value. Today REST serves it.
-//! * **the read half** — a route whose query injects an enriched field. A *known*
-//!   subject must get its own rows. Today REST errors for every caller, because
-//!   `resolve_session_variables` hard-fails the `Enrichment` arm when nothing resolved.
+//! * **the refusal half** — a route whose query reads *no* enriched field. An unknown subject must
+//!   be refused (403) because the deployment enabled enrichment, not because the operation happened
+//!   to need an enriched value. Today REST serves it.
+//! * **the read half** — a route whose query injects an enriched field. A *known* subject must get
+//!   its own rows. Today REST errors for every caller, because `resolve_session_variables`
+//!   hard-fails the `Enrichment` arm when nothing resolved.
 //!
 //! The token carries **only** `sub`; `org_id` exists in the actor table and nowhere in
 //! the JWT. So a row set scoped to `tenant-a` can only have come from the database
@@ -340,8 +340,7 @@ async fn graphql_serves_the_resolved_subject_its_own_rows() {
         return;
     };
 
-    let answer =
-        graphql_post(&base, "{ orders { id tenant_id } }", &token_for(KNOWN_SUB)).await;
+    let answer = graphql_post(&base, "{ orders { id tenant_id } }", &token_for(KNOWN_SUB)).await;
 
     assert_eq!(
         answer.status, 200,
@@ -662,8 +661,7 @@ async fn tenant_keyed_service() -> Option<FraiseQLMcpService<PostgresAdapter>> {
     seed(&adapter).await;
 
     let pool = sqlx::PgPool::connect(&url).await.expect("enrichment pool");
-    let default_executor =
-        Arc::new(Executor::new(build_schema(), Arc::new(adapter.clone())));
+    let default_executor = Arc::new(Executor::new(build_schema(), Arc::new(adapter.clone())));
     let registry = Arc::new(TenantExecutorRegistry::new(Arc::new(arc_swap::ArcSwap::from(
         Arc::clone(&default_executor),
     ))));

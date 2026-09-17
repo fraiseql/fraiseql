@@ -521,7 +521,13 @@ lint-expect:
 # Note the grep sees only the bare `#[async_trait]` spelling; the tree also carries ~62
 # `#[async_trait::async_trait]` sites this ratchet has never counted, so the number is a
 # trend line for one spelling rather than a census.
-ASYNC_TRAIT_LIMIT := 204
+#
+# 204 → 205: `RecordingAdapter`, the test double the gRPC mutation arm converges against
+# (#1330). One real impl — a `DatabaseAdapter`, whose signatures the macro fixes — plus
+# the convention comment that justifies it, because this grep counts prose as well as
+# attributes. #1330 was measured with `make test-leg` and clippy but never with
+# `make preflight`, which is why the increment surfaced a phase later.
+ASYNC_TRAIT_LIMIT := 205
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \

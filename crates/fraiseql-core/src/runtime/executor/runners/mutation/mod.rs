@@ -802,7 +802,7 @@ fn nested_input_type_name(field_type: &str, schema: &CompiledSchema) -> Option<S
 /// Core mutation execution logic, bounded only on `A: DatabaseAdapter`.
 ///
 /// Called from:
-/// - [`MutationRunner::execute_mutation`] — compile-time [`SupportsMutations`] path
+/// - `MutationRunner::execute_mutation` — compile-time [`SupportsMutations`] path
 /// - `Executor::execute_mutation_query` — runtime-guarded path (raw GraphQL dispatch)
 /// - `execute_with_security_internal` — authenticated GraphQL dispatch
 ///
@@ -848,7 +848,10 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
 ) -> Result<MutationExecution> {
     // #1336 backstop: the same question the read path asks, at the write chokepoint
     // every transport converges on (#1327, #1330).
-    crate::runtime::executor::support::security::enforce_enrichment_resolved(&ctx.schema, security_ctx)?;
+    crate::runtime::executor::support::security::enforce_enrichment_resolved(
+        &ctx.schema,
+        security_ctx,
+    )?;
 
     // 1. Locate the mutation definition
     let mutation_def = ctx.schema.find_mutation(mutation_name).ok_or_else(|| {

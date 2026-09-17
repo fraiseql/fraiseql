@@ -35,8 +35,9 @@ use super::{
 /// new `async_trait` macro, keeping the dyn-dispatch ratchet flat (DESIGN §2.2).
 pub(super) type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
 
-/// The configured `sub → DB → identity` query for one profile (DESIGN §7). One
-/// schema, reused by the enrichment and sender profiles. `deny_unknown_fields`
+/// The configured `sub → DB → identity` query for one profile (DESIGN §7).
+///
+/// One schema, reused by the enrichment and sender profiles. `deny_unknown_fields`
 /// makes a mistyped/stranded key fail loud — the failure mode that hid #242's
 /// absence.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -80,9 +81,10 @@ pub struct EnrichmentQueryConfig {
     pub provision:         Option<String>,
 }
 
-/// Top-level `[identity]` configuration: one shared query schema, two profiles
-/// (DESIGN §7). Lives on `ServerConfig` (the config the running server loads), so
-/// it applies under any auth mode — HS256/OIDC parity by construction.
+/// Top-level `[identity]` configuration: one shared query schema, two profiles.
+///
+/// DESIGN §7. Lives on `ServerConfig` (the config the running server loads), so it
+/// applies under any auth mode — HS256/OIDC parity by construction.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct IdentityConfig {

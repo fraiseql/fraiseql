@@ -34,7 +34,11 @@ pub(crate) mod resolver;
 pub(crate) mod sender;
 
 pub(crate) use admin::identity_admin_router;
-pub(crate) use apply::{EnrichmentOutcome, enrich_security_context, resolve_request_identity};
+// `enrich_security_context` is deliberately NOT re-exported: since #1336 every caller
+// outside this module goes through `resolve_request_identity`, which is the seam the
+// transports share and the build gate pins. Re-exporting the inner function would offer
+// a second door to the same rule, which is the shape this issue was.
+pub(crate) use apply::{EnrichmentOutcome, resolve_request_identity};
 use fraiseql_core::schema::CompiledSchema;
 // Public because `ServerConfig.identity` is a public field of this type: before
 // #1336 an embedder could not name it, so `[identity.enrichment]` was configurable
