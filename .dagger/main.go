@@ -546,6 +546,11 @@ func (m *FraiseqlCi) ShellGates(
 		// releases, and no test could see it — a transport that skips the resolve answers
 		// every request reading no enriched field exactly as one that runs it does.
 		"bash tools/check-principal-producers.sh",
+		// #1348: the same shape for row filters. Both gRPC read arms constructed
+		// `DefaultRLSPolicy` themselves, so a deployment's own policy was never consulted
+		// and one that configured none got a filter invented — the same query answering
+		// differently depending on which transport asked.
+		"bash tools/check-rls-policy-construction.sh",
 		// A refusal list is only worth having while nothing can be added outside it
 		// (#1326): a new top-level section whose only consumer sits behind a Cargo
 		// feature would go straight back to being dropped in silence by every lean

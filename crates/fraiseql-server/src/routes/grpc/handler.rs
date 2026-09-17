@@ -346,6 +346,9 @@ pub fn extract_order_by(msg: &DynamicMessage, type_def: &TypeDefinition) -> Opti
 ///
 /// Returns `FraiseQLError::Database` on query execution failure.
 /// Returns `FraiseQLError::Validation` if filter construction fails.
+// Reason: mirrors build_streaming_body's signature; grouping into a struct adds
+// indirection without reducing call-site complexity
+#[allow(clippy::too_many_arguments)]
 pub async fn execute_grpc_query<A: DatabaseAdapter>(
     adapter: &A,
     view_name: &str,
@@ -354,19 +357,23 @@ pub async fn execute_grpc_query<A: DatabaseAdapter>(
     request_msg: &DynamicMessage,
     type_def: &TypeDefinition,
     security_context: Option<&SecurityContext>,
+    rls_policy: Option<&dyn fraiseql_core::security::RLSPolicy>,
 ) -> Result<Vec<Vec<ColumnValue>>, FraiseQLError> {
     // Extract filters and build WHERE clause.
     let user_where = extract_filters(request_msg, type_def);
 
-    // Evaluate RLS policy when a security context is available.
-    // The default policy injects `author_id = <user_id>` for non-admin users
-    // and tenant isolation when a tenant_id is present.
-    let rls_where = if let Some(ctx) = security_context {
-        use fraiseql_core::security::{DefaultRLSPolicy, RLSPolicy as _};
-        let policy = DefaultRLSPolicy::new();
-        policy.evaluate(ctx, type_def.name.as_str())?.map(|rls| rls.into_where_clause())
-    } else {
-        None
+    // #1348: the policy the deployment **configured**, never one built here. This arm
+    // used to construct `DefaultRLSPolicy::new()` itself, which was wrong in both
+    // directions: a deployment with a custom policy never had it consulted, and one
+    // with none — the default — got `DefaultRLSPolicy` on gRPC and no RLS on
+    // GraphQL/REST, so the same query answered differently depending on which transport
+    // asked. `None` means no row filter, exactly as the engine's read path treats an
+    // unconfigured `RuntimeConfig.rls_policy`.
+    let rls_where = match (security_context, rls_policy) {
+        (Some(ctx), Some(policy)) => {
+            policy.evaluate(ctx, type_def.name.as_str())?.map(|rls| rls.into_where_clause())
+        },
+        _ => None,
     };
 
     // Combine: RLS first, then user filters — RLS always wins.

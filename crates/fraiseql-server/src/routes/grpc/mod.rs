@@ -265,6 +265,9 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> Dyn
                 type_def,
                 &request_msg,
                 security_context.as_ref(),
+                // #1348: the configured policy on this arm too. It used to build its
+                // own, and swallow the failure into "no filter".
+                self.executor.config().rls_policy.as_deref(),
                 batch_size,
             )
             .await;
@@ -300,6 +303,9 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> Dyn
                     &request_msg,
                     type_def,
                     security_context.as_ref(),
+                    // #1348: the policy the deployment configured, not one this
+                    // transport invents.
+                    self.executor.config().rls_policy.as_deref(),
                 )
                 .await
                 {

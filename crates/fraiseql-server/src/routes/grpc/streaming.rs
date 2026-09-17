@@ -46,6 +46,18 @@ struct StreamState {
     sent_trailers:  bool,
 }
 
+/// The whole response as a single error-trailers frame, for a failure before any row.
+///
+/// One function rather than three inline `stream::once(async move { … })` blocks: each
+/// would be a distinct opaque type, so the `Either::Left` arms would not unify. #1348
+/// added two of those returns (a failing RLS evaluation and a clause that cannot
+/// generate, both of which used to be swallowed into "no filter").
+fn error_body(
+    message: String,
+) -> impl futures::Stream<Item = Result<Frame<Bytes>, std::convert::Infallible>> + Send {
+    stream::once(async move { Ok(error_trailers(&message)) })
+}
+
 /// Build a gRPC server-streaming response body for a list query.
 ///
 /// Returns a stream of [`Frame<Bytes>`] — each data frame carries one or more
@@ -74,20 +86,28 @@ pub async fn build_streaming_body<A: DatabaseAdapter + 'static>(
     type_def: &TypeDefinition,
     request_msg: &prost_reflect::DynamicMessage,
     security_context: Option<&SecurityContext>,
+    rls_policy: Option<&dyn fraiseql_core::security::RLSPolicy>,
     batch_size: u32,
 ) -> impl futures::Stream<Item = Result<Frame<Bytes>, std::convert::Infallible>> + Send {
     // Extract filters and build WHERE clause up front.
     let user_where = handler::extract_filters(request_msg, type_def);
 
-    let rls_where = security_context.and_then(|ctx| {
-        use fraiseql_core::security::{DefaultRLSPolicy, RLSPolicy as _};
-        let policy = DefaultRLSPolicy::new();
-        policy
-            .evaluate(ctx, type_def.name.as_str())
-            .ok()
-            .flatten()
-            .map(|rls| rls.into_where_clause())
-    });
+    // #1348: the configured policy, and its failure **propagates**.
+    //
+    // This was `.ok().flatten()`, so an `Err` from `evaluate` became `None` — no filter —
+    // and the read served every row. The unary arm uses `?` at the same point, so one
+    // failure was fail-closed on a unary read and fail-open on a streaming one. A
+    // server-streaming RPC is the shape where that is least visible, since the frames
+    // look identical either way.
+    let rls_where = match (security_context, rls_policy) {
+        (Some(ctx), Some(policy)) => match policy.evaluate(ctx, type_def.name.as_str()) {
+            Ok(decision) => decision.map(|rls| rls.into_where_clause()),
+            Err(e) => {
+                return futures::future::Either::Left(error_body(e.to_string()));
+            },
+        },
+        _ => None,
+    };
 
     let combined = match (rls_where, user_where) {
         (Some(rls), Some(user)) => Some(WhereClause::And(vec![rls, user])),
@@ -95,11 +115,24 @@ pub async fn build_streaming_body<A: DatabaseAdapter + 'static>(
         (None, user) => user,
     };
 
-    let where_sql = combined.and_then(|clause| {
-        use fraiseql_core::db::{dialect::PostgresDialect, where_generator::GenericWhereGenerator};
-        let gen = GenericWhereGenerator::new(PostgresDialect);
-        gen.generate(&clause).ok().map(|(sql, _)| sql)
-    });
+    // #1348: the second fail-open on this path. A clause that could not be generated
+    // became `None`, and the read ran with no WHERE at all — including when the clause
+    // that failed was the RLS one. Propagated, like the unary arm does.
+    let where_sql = match combined {
+        Some(clause) => {
+            use fraiseql_core::db::{
+                dialect::PostgresDialect, where_generator::GenericWhereGenerator,
+            };
+            let generator = GenericWhereGenerator::new(PostgresDialect);
+            match generator.generate(&clause) {
+                Ok((sql, _params)) => Some(sql),
+                Err(e) => {
+                    return futures::future::Either::Left(error_body(e.to_string()));
+                },
+            }
+        },
+        None => None,
+    };
 
     let order_by = handler::extract_order_by(request_msg, type_def);
 
@@ -118,9 +151,7 @@ pub async fn build_streaming_body<A: DatabaseAdapter + 'static>(
         Ok(rows) => rows,
         Err(e) => {
             // The read never started, so the whole response is one trailers frame.
-            return futures::future::Either::Left(stream::once(async move {
-                Ok(error_trailers(&e.to_string()))
-            }));
+            return futures::future::Either::Left(error_body(e.to_string()));
         },
     };
 

@@ -1163,6 +1163,10 @@ async fn query_with_security_context_applies_rls_where_clause() {
         &req_msg,
         type_def,
         Some(&ctx),
+        // #1348: the policy now arrives from `RuntimeConfig.rls_policy`. This arm used
+        // to construct `DefaultRLSPolicy` itself, so it applied one whether or not the
+        // deployment had configured any — and ignored the one it had.
+        Some(&fraiseql_core::security::DefaultRLSPolicy::new()),
     )
     .await
     .expect("query should succeed");
@@ -1209,6 +1213,7 @@ async fn query_without_security_context_has_no_rls() {
         false,
         &req_msg,
         type_def,
+        None,
         None,
     )
     .await
@@ -1473,4 +1478,295 @@ async fn reflection_service_accepts_tonic_add_service() {
     // Build a tonic server with both services — verifies type compatibility.
     let mut builder = tonic::transport::Server::builder();
     let _router = builder.add_service(services.service).add_service(reflection_svc);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// #1348: a gRPC read applies the policy the deployment configured
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Both read arms constructed `DefaultRLSPolicy::new()` themselves — the only places
+// outside `fraiseql-core` that built an `RLSPolicy`. That was wrong in both directions,
+// and the two cases below are one per direction.
+
+// ⚠ An `RLSPolicy` implemented **outside** `fraiseql-core` can only ever return
+// `None`: `RlsWhereClause::new` is `pub(crate)` on purpose, so a filter can only be
+// minted by a policy inside that crate ("only RLS policy implementations within
+// `fraiseql-core` may construct this type"). So "a deployment registers a custom
+// policy" means "it chooses among core's" — `CompiledRLSPolicy` being the realistic
+// one, since it carries the rules a schema compiled. That is what direction 1 drives.
+
+/// A configured policy that is recognisably **not** `DefaultRLSPolicy`.
+fn marker_policy() -> fraiseql_core::security::rls_policy::CompiledRLSPolicy {
+    let mut rules = std::collections::HashMap::new();
+    rules.insert(
+        "User".to_string(),
+        vec![fraiseql_core::security::rls_policy::RLSRule {
+            name:              "p1348_marker".to_string(),
+            // Pattern 1 of `evaluate_rls_expression`: `user.{field} == object.{field}`.
+            // The object field name is what reaches the SQL, so `p1348_marker` in the
+            // WHERE clause can only have come from *this* rule — `DefaultRLSPolicy`
+            // emits `author_id`.
+            expression:        "user.id == object.p1348_marker".to_string(),
+            cacheable:         false,
+            cache_ttl_seconds: None,
+        }],
+    );
+    fraiseql_core::security::rls_policy::CompiledRLSPolicy::new(rules, None)
+}
+
+/// Direction 1: a **configured** policy is the one consulted.
+///
+/// Before #1348 this was impossible to observe from the transport — whatever the
+/// deployment registered on `RuntimeConfig`, the read arm evaluated `DefaultRLSPolicy`.
+/// A security control that is silently not the one in force.
+#[tokio::test]
+async fn a_configured_rls_policy_is_the_one_a_grpc_read_applies() {
+    use fraiseql_server::routes::grpc::handler;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+    let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(
+        pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap(),
+    );
+    let type_def = schema.find_type("User").expect("User type must exist");
+    let columns = handler::column_specs_from_type(type_def);
+    let ctx = fraiseql_core::security::SecurityContext::from_user(
+        &fraiseql_core::security::AuthenticatedUser {
+            user_id:      fraiseql_core::types::UserId::new("u-1348"),
+            email:        None,
+            display_name: None,
+            scopes:       Vec::new(),
+            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            extra_claims: std::collections::HashMap::new(),
+        },
+        "req-1348".to_string(),
+    );
+
+    handler::execute_grpc_query(
+        &adapter,
+        "vr_tb_users",
+        &columns,
+        false,
+        &req_msg,
+        type_def,
+        Some(&ctx),
+        Some(&marker_policy()),
+    )
+    .await
+    .expect("query should succeed");
+
+    let where_clauses = adapter.recorded_where_clauses();
+    let where_sql = where_clauses.first().cloned().flatten().unwrap_or_default();
+    assert!(
+        where_sql.contains("p1348_marker"),
+        "#1348: the configured policy's predicate must reach the query. Got: {where_sql:?}"
+    );
+    assert!(
+        !where_sql.contains("author_id"),
+        "and DefaultRLSPolicy must NOT also be applied — that is the policy the arm used \
+         to invent, and a deployment that configured its own never had it consulted. \
+         Got: {where_sql:?}"
+    );
+}
+
+/// Direction 2: with **no** policy configured, a gRPC read applies none.
+///
+/// `RuntimeConfig.rls_policy` defaults to `None` — "no row-level security" — and the
+/// engine's read path applies a policy only when one is set. This arm invented
+/// `DefaultRLSPolicy` instead, so the same query returned different rows depending on
+/// which transport asked. It fails safe in the narrow sense that it filters more, but a
+/// query whose answer depends on the door is its own defect, and it surfaces as "the
+/// gRPC client is missing rows" long after the cause is forgotten.
+#[tokio::test]
+async fn an_unconfigured_policy_is_not_invented_for_a_grpc_read() {
+    use fraiseql_server::routes::grpc::handler;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+    let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(
+        pool.get_message_by_name("fraiseql.v1.GetUserRequest").unwrap(),
+    );
+    let type_def = schema.find_type("User").expect("User type must exist");
+    let columns = handler::column_specs_from_type(type_def);
+    let ctx = fraiseql_core::security::SecurityContext::from_user(
+        &fraiseql_core::security::AuthenticatedUser {
+            user_id:      fraiseql_core::types::UserId::new("u-1348"),
+            email:        None,
+            display_name: None,
+            scopes:       Vec::new(),
+            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            extra_claims: std::collections::HashMap::new(),
+        },
+        "req-1348".to_string(),
+    );
+
+    handler::execute_grpc_query(
+        &adapter,
+        "vr_tb_users",
+        &columns,
+        false,
+        &req_msg,
+        type_def,
+        // A principal IS present — that is the whole point. The old code keyed on the
+        // context's presence and invented a policy from it.
+        Some(&ctx),
+        None,
+    )
+    .await
+    .expect("query should succeed");
+
+    let where_clauses = adapter.recorded_where_clauses();
+    assert_eq!(
+        where_clauses.first().cloned().flatten(),
+        None,
+        "#1348: with no policy configured a gRPC read must apply none, exactly as the \
+         engine's read path does — so the same query answers the same on every transport"
+    );
+}
+
+/// A configured policy whose `evaluate` **fails**.
+///
+/// `CompiledRLSPolicy` refuses an expression it cannot parse — "Unrecognised RLS
+/// expression … fail closed to prevent silent cross-tenant access" — so this is a real
+/// evaluation error rather than a mock of one.
+fn failing_policy() -> fraiseql_core::security::rls_policy::CompiledRLSPolicy {
+    let mut rules = std::collections::HashMap::new();
+    rules.insert(
+        "User".to_string(),
+        vec![fraiseql_core::security::rls_policy::RLSRule {
+            name:              "p1348_unparseable".to_string(),
+            expression:        "this is not a policy expression".to_string(),
+            cacheable:         false,
+            cache_ttl_seconds: None,
+        }],
+    );
+    fraiseql_core::security::rls_policy::CompiledRLSPolicy::new(rules, None)
+}
+
+fn p1348_principal() -> fraiseql_core::security::SecurityContext {
+    fraiseql_core::security::SecurityContext::from_user(
+        &fraiseql_core::security::AuthenticatedUser {
+            user_id:      fraiseql_core::types::UserId::new("u-1348"),
+            email:        None,
+            display_name: None,
+            scopes:       Vec::new(),
+            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            extra_claims: std::collections::HashMap::new(),
+        },
+        "req-1348".to_string(),
+    )
+}
+
+/// #1348: a **server-streaming** read whose RLS evaluation fails must refuse, not serve.
+///
+/// The streaming arm read `policy.evaluate(...).ok().flatten()`, so an `Err` became
+/// `None` — no filter — and the read ran and streamed **every row**. The unary arm uses
+/// `?` at the same point, so one failure was fail-closed on a unary read and fail-open on
+/// a streaming one. A server-streaming RPC is the shape where that is least visible,
+/// since the frames look identical either way.
+///
+/// The assertion is that the query never ran: "returned an error" alone would also hold
+/// for an arm that filtered wrongly and then failed downstream.
+#[tokio::test]
+async fn a_streaming_read_refuses_when_its_rls_policy_fails() {
+    use fraiseql_server::routes::grpc::streaming;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+    let adapter = std::sync::Arc::new(
+        FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]),
+    );
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let row_descriptor = pool.get_message_by_name("fraiseql.v1.User").unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(
+        pool.get_message_by_name("fraiseql.v1.ListUsersRequest").unwrap(),
+    );
+    let type_def = schema.find_type("User").expect("User type must exist");
+    let columns = fraiseql_server::routes::grpc::handler::column_specs_from_type(type_def);
+    let ctx = p1348_principal();
+
+    let body = streaming::build_streaming_body(
+        std::sync::Arc::clone(&adapter),
+        "vr_tb_users".to_string(),
+        columns,
+        row_descriptor,
+        type_def,
+        &req_msg,
+        Some(&ctx),
+        Some(&failing_policy()),
+        10,
+    )
+    .await;
+
+    // Drain the body so the stream is actually polled.
+    let frames: Vec<_> = futures::StreamExt::collect::<Vec<_>>(body).await;
+
+    assert_eq!(
+        adapter.recorded_queries(),
+        Vec::<String>::new(),
+        "#1348: an RLS evaluation failure must stop the read. The query ran, which means \
+         the failure was swallowed into 'no filter' and every row was about to be streamed"
+    );
+    assert!(
+        !frames.is_empty(),
+        "the client must be told — a failure before the first row is one trailers frame"
+    );
+}
+
+/// The positive twin: a policy that evaluates must still filter the streaming read.
+///
+/// Without it, an arm that refused every streaming request would satisfy the case above.
+#[tokio::test]
+async fn a_streaming_read_applies_a_working_rls_policy() {
+    use fraiseql_server::routes::grpc::streaming;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let schema = build_grpc_schema(&desc_path);
+    let adapter = std::sync::Arc::new(
+        FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]),
+    );
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let row_descriptor = pool.get_message_by_name("fraiseql.v1.User").unwrap();
+    let req_msg = prost_reflect::DynamicMessage::new(
+        pool.get_message_by_name("fraiseql.v1.ListUsersRequest").unwrap(),
+    );
+    let type_def = schema.find_type("User").expect("User type must exist");
+    let columns = fraiseql_server::routes::grpc::handler::column_specs_from_type(type_def);
+    let ctx = p1348_principal();
+
+    let body = streaming::build_streaming_body(
+        std::sync::Arc::clone(&adapter),
+        "vr_tb_users".to_string(),
+        columns,
+        row_descriptor,
+        type_def,
+        &req_msg,
+        Some(&ctx),
+        Some(&marker_policy()),
+        10,
+    )
+    .await;
+
+    let _frames: Vec<_> = futures::StreamExt::collect::<Vec<_>>(body).await;
+
+    let where_clauses = adapter.recorded_where_clauses();
+    let where_sql = where_clauses.first().cloned().flatten().unwrap_or_default();
+    assert!(
+        where_sql.contains("p1348_marker"),
+        "the configured policy's predicate must reach a streaming read too — this arm \
+         built its own policy, so a deployment's own was never applied here either. \
+         Got: {where_sql:?}"
+    );
 }
