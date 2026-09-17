@@ -55,6 +55,35 @@ failure model, wired to two consumers.
    silent-skip this design fights. Enabled-with-no-consumer is a loud startup
    warning; zero-cost belongs to disabled/absent only.
 
+   > **Amendment (2026-09-17, #1336).** "Every authenticated request" was written
+   > as a property of the design and implemented as a property of one handler. For
+   > three releases only `/graphql` resolved: REST, MCP and gRPC each built a
+   > `SecurityContext` and dispatched it unresolved, so an enriched read failed for
+   > every caller over those transports while an unknown subject was served the rows
+   > `/graphql` answers 403 to. The sentence read as true because nothing disagreed
+   > with it — a transport that skips the resolve answers every request that reads no
+   > enriched field exactly as one that runs it does.
+   >
+   > The decision is unchanged; what changes is where it is discharged and what holds
+   > it. Resolution now happens where a credential becomes a principal —
+   > `identity::resolve_request_identity`, called by every transport's producer —
+   > rather than in a handler. Two things keep it there: a build gate
+   > (`tools/check-principal-producers.sh`) that fails when a site obtains a principal
+   > and does not resolve it, and an engine backstop
+   > (`enforce_enrichment_resolved`) that refuses an unmarked principal at every
+   > executor entry when the schema declares an enrichment consumer. The mark's
+   > absence is the fail-closed state, so a transport nobody remembered is refused
+   > rather than served.
+   >
+   > One exemption is named rather than assumed: Arrow Flight (#1349), whose handlers
+   > live in a crate that cannot reach the resolver. The backstop refuses its
+   > principals, so the exemption means "refuses", not "serves unenriched".
+   >
+   > The converse is now a boot refusal: a schema declaring an `enrichment` consumer
+   > with `[identity.enrichment]` disabled does not start. That is what makes the
+   > backstop's diagnosis sound — an unresolved principal can only mean a transport
+   > skipped the seam, never that the deployment has no resolver.
+
 4. **Cache key = the bound-`$param` tuple**, not bare `sub`. `sub` is unique only
    per issuer, and FraiseQL speaks multi-IdP; keying on the bound parameters makes
    cache correctness track the `WHERE` clause exactly (a multi-issuer app binds

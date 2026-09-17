@@ -67,7 +67,15 @@ map     = { sending_address = "sending_address" }
   authenticated request resolves and fail-closes, whether or not the current
   operation reads an enriched field. An enabled profile whose schema declares no
   `enrichment` consumer emits a loud startup warning; the zero-cost path belongs
-  to `enabled = false` / absent config only.
+  to `enabled = false` / absent config only. What "every" covers is enumerated
+  under [Which transports resolve](#which-transports-resolve) — for three releases
+  that sentence was true of `/graphql` alone (#1336), which is why the list is now
+  written down and gated rather than asserted.
+- **The converse is a boot refusal.** A compiled schema that declares an
+  `enrichment` consumer while `[identity.enrichment]` is disabled does not start.
+  Nothing would resolve an identity, so every read of an enriched field would fail
+  and every other request would be served without the fail-closed check the schema
+  implies.
 - The resolver runs on a **separate, unscoped** connection pool (the app role, no
   per-request GUCs), so identity is resolved *before* the identity that scopes
   the main query is applied — no chicken-and-egg.
@@ -295,12 +303,52 @@ standing between the IdP and the actor table.
 
 ---
 
+## Which transports resolve
+
+Resolution happens where a credential becomes a principal, not where an operation is
+dispatched. That placement is deliberate: the engine is *not* below every transport
+(gRPC's read arms go straight to the adapter, #1348), and the resolver binds its
+`$param`s from the context's attributes, so the shared context builder has to have run
+first. It also keeps the seam clear of `RuntimeConfig`, which per-tenant executors do
+not inherit (#1333) — so a tenant-keyed request resolves like any other.
+
+| Transport | Resolves | Where |
+|---|---|---|
+| `POST`/`GET /graphql`, GraphQL SSE | yes | `routes/graphql/handler/stages.rs::enrich_identity` |
+| REST | yes | `RestSecurityContext`, the extractor that also enforces `require_auth` |
+| MCP | yes | `mcp/handler.rs::authenticate` |
+| gRPC (unary + server-streaming, reads and writes) | yes | `routes/grpc/mod.rs::principal_from_user` |
+| Async operations (`/operations/v1`) | yes, at submission — the snapshot the background worker runs with carries the resolved identity | `routes/async_operations.rs::submit` |
+| `/ws` subscriptions | resolves; a failed resolve leaves the enriched field absent, so a policy-declaring subscription refuses at derivation | `routes/subscriptions.rs::enrich_principal` |
+| **Arrow Flight** | **no — the one exemption**, tracked as [#1349](https://github.com/fraiseql/fraiseql/issues/1349) | its handlers live in `fraiseql-arrow`, which cannot reach the resolver |
+
+Two things keep that table honest, because a list in a document is exactly what was
+wrong before:
+
+- **`tools/check-principal-producers.sh`** fails the build when a site turns a credential
+  into a principal — or takes one from the shared extractor — and does not resolve it.
+  The Flight handlers are its only `KNOWN` entries, and a staleness check fails the
+  moment either starts resolving, so #1349 cannot be fixed and left listed.
+- **The engine refuses an unresolved principal.** `enforce_enrichment_resolved` rejects a
+  context carrying no enrichment mark when the schema declares an enrichment consumer,
+  at every executor entry point. Absence of the mark is the fail-closed state, so a
+  transport added tomorrow is refused rather than served — including Flight, whose reads
+  do reach the engine. The exemption above therefore means "refuses", not "serves
+  unenriched".
+
+A `system_job` principal — the server acting as itself, from no credential — marks
+itself exempt at its construction site. It has no subject a resolver could look up.
+
+---
+
 ## Where it lives
 
 | Concern | Location |
 |---|---|
 | Resolver, cache, failure model, Postgres store, both consumers | `crates/fraiseql-server/src/identity/` |
+| The seam every transport calls between authenticating and dispatching | `identity::resolve_request_identity` |
 | Config variants + namespaced read (no DB) | `fraiseql-core` (`SessionVariableSource::Enrichment`, `InjectedParamSource::Enrichment`, `security::ENRICHED_NAMESPACE_PREFIX`) |
+| The engine's fail-closed backstop + the mark it reads | `fraiseql-core` (`enforce_enrichment_resolved`, `security::EnrichmentMark`) |
 | Sender seam (object-safe trait + login-email default) | `fraiseql-functions` (`SenderIdentityResolver`, `LoginEmailSender`) |
 
 See [ADR-0016](../adr/0016-enriched-identity-resolution.md) for the decision

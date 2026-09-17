@@ -18,6 +18,57 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`[identity.enrichment]` now resolves on every transport, and a deployment that reads
+  enriched identity without configuring a resolver no longer boots (#1336).** The documented
+  contract — "when enrichment is enabled, *every* authenticated request resolves and
+  fail-closes" — was honoured by `/graphql` alone. REST, MCP and gRPC each built a
+  `SecurityContext` and dispatched it unresolved, so an enriched read failed for **100% of
+  callers** over those transports, while a request that read no enriched field served subjects
+  `/graphql` refuses with 403. Async operations were a fourth: `submit` snapshotted the
+  unresolved principal into the durable row the background worker runs as.
+
+  Nothing could see it. A transport that skips the resolve answers every request that reads no
+  enriched field exactly as one that runs it does, so the defect is invisible from outside and
+  invisible to each transport's own tests.
+
+  What changes for a deployment with enrichment enabled:
+
+  - **REST, MCP, gRPC and `/operations/v1` now refuse an unresolved subject** — 403 / 503
+    (`PERMISSION_DENIED` / `UNAVAILABLE` on gRPC), with the same generic bodies `/graphql`
+    uses, so a response cannot reveal what the actor table holds. Requests those transports
+    previously served are now refused; that is the contract being applied, not a new rule.
+  - **Enriched reads work over those transports at all**, where before they failed for
+    everyone with "enrichment did not run".
+  - **A schema declaring an `enrichment` session variable or inject param refuses to boot
+    unless `[identity.enrichment].enabled`.** That combination's only previous symptom was a
+    total failure rate on enriched reads, discovered in production.
+  - **Arrow Flight is refused, not served unenriched** (#1349). Its handlers live in
+    `fraiseql-arrow`, which cannot reach the resolver; the engine's new backstop rejects the
+    principals they build. `arrow` is in both published images and `main.rs` mounts the service
+    unconditionally under that feature, so this is the one entry here that touches a shipped
+    artifact. Deployments that use Flight *and* an enrichment-declaring schema must wait for
+    #1349 or disable one of the two.
+
+  Resolution happens where a credential becomes a principal, not where an operation is
+  dispatched — the engine is not below every transport (gRPC's reads go straight to the
+  adapter, #1348), the resolver binds its parameters from the context's attributes, and a seam
+  on `RuntimeConfig` would have been inert for every tenant-keyed request (#1333). Two things
+  hold it there: a build gate (`tools/check-principal-producers.sh`) that fails when a site
+  obtains a principal and does not resolve it, and an engine backstop that refuses an unmarked
+  principal at every executor entry point. The mark's absence is the fail-closed state, so a
+  transport added tomorrow is refused rather than served.
+
+- **gRPC principals now carry the token's tenant and claims (#858 on a transport it never
+  reached).** `routes/grpc` built its context with `SecurityContext::from_user` rather than the
+  shared builder, so `tenant_id` was unset and `attributes` were empty: the JWT's `org_id` never
+  became a tenant and every `SessionVariableSource::Jwt` mapping resolved to nothing on that
+  transport. Row scoping and session variables on gRPC change accordingly — they start working.
+  gRPC requests are also stamped `transport = "grpc"` in the change log (#376).
+
+  `build_grpc_service` takes a required `identity_resolver` argument. Required rather than a
+  builder method: an embedder mounting gRPC has to decide about enrichment instead of
+  inheriting `None` by omission.
+
 - **Every gRPC mutation now runs the gates it was skipping, and answers from the engine
   (#1330).** `execute_grpc_mutation` called `adapter.execute_function_call` directly, so it
   never reached `execute_mutation_impl` — the single point every other write converges on.
@@ -1169,6 +1220,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`fraiseql_server::identity` exports `IdentityConfig`, `EnrichmentQueryConfig` and
+  `IdentityResolver` (#1336).** `ServerConfig.identity` is a public field whose type no
+  embedder could name, so `[identity.enrichment]` was configurable from TOML and unreachable
+  from Rust.
+
 - **`Executor::execute_mutation_as`, and the `mutation_response` envelope it returns
   (#1330).** A mutation entry for transports that already hold structured arguments and a
   principal: mutation name, variables, `Option<&SecurityContext>`, selections. It returns
@@ -1228,9 +1284,9 @@ disagreed, and the promise was the part that was wrong.
   so a provisioning function can store what it chooses without the statement naming every
   claim it might want.
 
-  All of it lives in `IdentityResolver::resolve` rather than in a handler, so both call sites
-  inherit it and so will whatever #1336 adds for REST, MCP and gRPC. Until #1336 lands, a new
-  user whose first call is REST is still neither provisioned nor refused.
+  All of it lives in `IdentityResolver::resolve` rather than in a handler, so every call site
+  inherits it — including the REST, MCP, gRPC and async-operations producers #1336 added. A
+  new user provisions on first contact whichever door they arrive at.
 
   ADR-0016 recorded that "actors must be provisioned out-of-band … a first-authenticated-request
   provisioning flow would deadlock", and carries an amendment. The deadlock is real for an app
