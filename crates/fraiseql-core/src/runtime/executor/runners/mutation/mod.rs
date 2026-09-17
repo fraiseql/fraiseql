@@ -899,8 +899,16 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
 
     // 1c. Enforce requires_actor (#966). This chokepoint is why "every transport"
     //     is a fact rather than a claim: every mutation entry path — both GraphQL
-    //     branches, `execute_mutation_query`, and the direct `SupportsMutations`
-    //     API the REST write path uses — converges here.
+    //     branches, `execute_mutation_query`, `execute_mutation_as` (gRPC, #1330),
+    //     and the direct `SupportsMutations` API the REST write path uses —
+    //     converges here.
+    //
+    //     ⚠ That sentence was FALSE between #966 and #1330, and the enumeration
+    //     above is why it read as true: gRPC was simply not in the list, because it
+    //     reached `execute_function_call` on the adapter and never arrived here at
+    //     all. A claim of universality is only worth the audit that produced its
+    //     list — `tools/check-mutation-dispatch-sites.sh` is now that audit, run on
+    //     every push, and its exemption list is empty.
     crate::security::actor_type::enforce_requires_actor(
         "Mutation",
         mutation_name,

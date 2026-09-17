@@ -18,6 +18,46 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Every gRPC mutation now runs the gates it was skipping, and answers from the engine
+  (#1330).** `execute_grpc_mutation` called `adapter.execute_function_call` directly, so it
+  never reached `execute_mutation_impl` — the single point every other write converges on.
+  `requires_role`, `requires_actor` (#966), the operation `Authorizer` (#422), selection-set
+  (#1005) and argument-name (#1154) validation, the inline-argument merge (#719),
+  `before:mutation` (#1327) and the change-log write were all skipped on that transport.
+  `requires_actor`'s own doc claimed "this chokepoint is why 'every transport' is a fact
+  rather than a claim"; that was false for as long as this path existed.
+
+  The principal was never missing — gRPC authenticates the bearer token and passes the
+  resulting context to **both query arms**. The mutation arm simply never passed the one it
+  had, from the same stack frame.
+
+  Three consequences an embedder should know, none of which affects a released artifact
+  (`grpc` is not a default feature, nothing under `src/server/` mounts `DynamicGrpcService`,
+  and neither published image builds it):
+
+  - **The response row must be a canonical `app.mutation_response`.** The chokepoint
+    deserializes the whole row, so `state_changed` is required and `entity_id` is parsed as a
+    **UUID**. The old path read `succeeded` off whatever came back and took `entity_id` as a
+    plain string, so a function returning an integer PK or a slug was accepted before and is
+    refused now. This is not new to FraiseQL — GraphQL and REST already make that parse — but
+    it is new to gRPC, which was the outlier.
+  - **Arguments bind by name, not by position.** The old path built a positional vector in
+    protobuf field order and handed it to the SQL function, which was correct only while that
+    order matched the schema's declared argument order — a coincidence nothing enforced and a
+    renumbered proto field would have broken silently.
+  - **`build_grpc_service` takes the configured `Executor`.** It cannot build its own:
+    `Executor::new` uses `RuntimeConfig::default()`, which would leave the `Authorizer`, the
+    RLS policy and the `before:mutation` gate absent — the transport would converge on the
+    chokepoint and find half the gates missing.
+
+  `tools/check-mutation-dispatch-sites.sh` gated this from the start by listing the gRPC arm
+  as a known bypass; that list is now **empty**, and a new direct dispatch reddens the gate.
+
+  ⚠ The gRPC **read** arms still construct their own `DefaultRLSPolicy` rather than consulting
+  the configured one, so a custom policy is ignored there and the same query can answer
+  differently per transport. That is the read half of the same defect and is tracked
+  separately as #1348.
+
 - **An object- or array-valued claim now binds as `jsonb` in an identity-resolution query
   (#1324).** `[identity.enrichment]` and `[identity.sender]` used to bind every non-scalar
   claim value as its JSON *text*, so a query comparing one to a `jsonb` column needed an
@@ -1128,6 +1168,23 @@ disagreed, and the promise was the part that was wrong.
   retry cadence — only parked a hot-path task.
 
 ### Added
+
+- **`Executor::execute_mutation_as`, and the `mutation_response` envelope it returns
+  (#1330).** A mutation entry for transports that already hold structured arguments and a
+  principal: mutation name, variables, `Option<&SecurityContext>`, selections. It returns
+  `MutationExecution { data, outcome }` — the GraphQL projection **and** the parsed
+  `app.mutation_response` row.
+
+  The envelope is the point. A transport whose own wire format is that envelope — gRPC's
+  `MutationResponse{success, id, error}` — cannot reconstruct it from the projection: on
+  success the projection carries the *entity*, whose `id` is the row's rather than the
+  envelope's, and on failure it carries only the error class, never the message a client
+  shows. Consuming the envelope and discarding it is what pushed gRPC into calling the
+  database directly in the first place.
+
+  Distinct from `execute_mutation_with_security`, which reaches the same place by formatting
+  a GraphQL document out of the arguments and reparsing it; that one stays for REST until
+  #1331.
 
 - **`[identity.enrichment] provision`: a new user of an external IdP is served on their first
   request (#1324).** With enrichment enabled, a token whose `sub` has no actor row is denied
