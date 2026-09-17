@@ -270,6 +270,12 @@ fn section_cases() -> Vec<(&'static str, &'static str, &'static str)> {
         // `[sources]` is behind `#[cfg(feature = "sources")]` on `ServerConfig`, so in a
         // build without it the section is unknown at the *top* level and the twin fails
         // for a reason that has nothing to do with this issue.
+        //
+        // ⚠ `sources` is NOT in the Dagger leg's `serverTestFeatures`, so this case runs
+        // locally and **in no CI leg**. It is kept because it costs nothing and a
+        // `sources` build is a real configuration; what covers that section in CI is
+        // `tools/check-config-deny-unknown.py`, which reads the struct rather than
+        // parsing a config and so is feature-independent.
         #[cfg(feature = "sources")]
         ("sources", "[sources]\nenabled = true\n", "[sources]\nenabeld = true\n"),
     ]
