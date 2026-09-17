@@ -20,11 +20,11 @@
 # because a new route that calls the adapter directly would be invisible to every test
 # the three bypasses have.
 #
-# It is not hypothetical. The gRPC mutation arm does exactly that today (#1330): it
-# builds its arguments from the protobuf message and calls `execute_function_call`
-# itself, so every gate above is skipped on that transport. It is listed in KNOWN below
-# rather than quietly matched, so the hole is named with its issue and a *new* one still
-# reddens this gate.
+# It was not hypothetical. The gRPC mutation arm did exactly that until #1330: it built
+# its arguments from the protobuf message and called `execute_function_call` itself, so
+# every gate above was skipped on that transport. It is fixed, and the KNOWN list is now
+# EMPTY — which is the state this gate exists to hold. An entry here is a named defect
+# with an issue, never a resting place.
 #
 # Mirrors the established shell-gate pattern (lint-graphql-parse, lint-internal-flag).
 set -euo pipefail
@@ -41,8 +41,8 @@ ALLOWED_DIRS='crates/fraiseql-db/src/|crates/fraiseql-core/src/cache/adapter/'
 CHOKEPOINT='crates/fraiseql-core/src/runtime/executor/runners/mutation/mod.rs'
 
 # Sites that bypass the chokepoint and are tracked as defects. Each needs an issue.
-#   #1330 — the gRPC mutation arm skips every gate listed above.
-KNOWN='crates/fraiseql-server/src/routes/grpc/handler.rs'
+# Empty since #1330: every transport converges on the chokepoint.
+KNOWN=''
 
 # Every adapter method that performs a write. `execute_direct_mutation` is the DirectSql
 # strategy; the `execute_function_call*` family is the stored-function strategy.
@@ -55,7 +55,7 @@ violations=$(
     | grep -vE '^[^:]*/tests/' \
     | grep -vE "^($ALLOWED_DIRS)" \
     | grep -vE "^($CHOKEPOINT):" \
-    | grep -vE "^($KNOWN):" \
+    | { if [ -n "$KNOWN" ]; then grep -vE "^($KNOWN):"; else cat; fi } \
     | grep -vE ':[0-9]+:\s*(//|///|//!)' \
     || true
 )
@@ -73,6 +73,7 @@ if [ -n "$violations" ]; then
   echo "Route this through the executor instead:"
   echo "  Executor::execute / execute_with_security   (a GraphQL document)"
   echo "  Executor::execute_mutation                  (typed, SupportsMutations)"
+  echo "  Executor::execute_mutation_as               (structured args + a principal)"
   echo "  Executor::execute_mutation_with_security    (a REST write with a principal)"
   echo
   echo "If a site genuinely cannot, add it to KNOWN in"
@@ -91,7 +92,7 @@ if [ "${chokepoint_calls:-0}" -eq 0 ]; then
   exit 1
 fi
 
-for known in $(echo "$KNOWN" | tr '|' ' '); do
+for known in $(echo "${KNOWN:-}" | tr '|' ' '); do
   if [ ! -f "$known" ]; then
     echo "ERROR: KNOWN entry $known does not exist — remove it from this gate."
     exit 1
@@ -103,4 +104,8 @@ for known in $(echo "$KNOWN" | tr '|' ' '); do
   fi
 done
 
-echo "OK: mutations are dispatched only from the engine chokepoint (1 known bypass: #1330)"
+if [ -n "$KNOWN" ]; then
+  echo "OK: mutations are dispatched only from the engine chokepoint (known bypasses: $KNOWN)"
+else
+  echo "OK: mutations are dispatched only from the engine chokepoint (no known bypasses)"
+fi

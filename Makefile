@@ -928,7 +928,8 @@ lint-gated-sections:
 # gate on a write — the Authorizer, requires_role, requires_actor, argument and
 # selection validation, the change-log write and the before:mutation chain — is enforced
 # in `execute_mutation_impl`; a route that calls the adapter itself skips all of them,
-# which is what the gRPC arm does today (#1330). See tools/check-mutation-dispatch-sites.sh.
+# which is what the gRPC arm did until #1330. The KNOWN list is empty — an entry there is
+# a named defect with an issue, never a resting place. See tools/check-mutation-dispatch-sites.sh.
 .PHONY: lint-mutation-dispatch
 lint-mutation-dispatch:
 	@bash tools/check-mutation-dispatch-sites.sh

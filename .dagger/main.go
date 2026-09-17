@@ -539,7 +539,7 @@ func (m *FraiseqlCi) ShellGates(
 		// The mutation chokepoint is only a chokepoint while nothing reaches the
 		// adapter's write methods on its own (#1327). A route that does skips every
 		// gate on a write at once, and is invisible to the tests the known bypasses
-		// have — which is how the gRPC arm (#1330) has been doing it.
+		// have — which is how the gRPC arm did it until #1330 routed it through the engine.
 		"bash tools/check-mutation-dispatch-sites.sh",
 		// A refusal list is only worth having while nothing can be added outside it
 		// (#1326): a new top-level section whose only consumer sits behind a Cargo
