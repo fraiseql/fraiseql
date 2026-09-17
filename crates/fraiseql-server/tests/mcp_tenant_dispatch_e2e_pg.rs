@@ -169,7 +169,7 @@ async fn setup() -> Option<(PostgresAdapter, AppState<PostgresAdapter>)> {
             &pool_config(&url),
             // #1333: the server's RuntimeConfig; default here — this suite pins
             // tenant dispatch, not the policy a tenant runs under.
-            &Default::default(),
+            &fraiseql_core::runtime::RuntimeConfig::default(),
         )
         .await
         .unwrap_or_else(|e| panic!("provision tenant {key}: {e}"));

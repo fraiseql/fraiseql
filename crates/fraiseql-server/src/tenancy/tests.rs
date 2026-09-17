@@ -255,7 +255,7 @@ mod pool_factory_tests {
             "acme",
             &schema_json,
             &config,
-            &Default::default(),
+            &fraiseql_core::runtime::RuntimeConfig::default(),
         )
         .await
         .unwrap();
@@ -269,7 +269,7 @@ mod pool_factory_tests {
             "acme",
             "not valid json",
             &config,
-            &Default::default(),
+            &fraiseql_core::runtime::RuntimeConfig::default(),
         )
         .await
         else {
@@ -291,7 +291,7 @@ mod pool_factory_tests {
             "acme",
             &schema_json,
             &config,
-            &Default::default(),
+            &fraiseql_core::runtime::RuntimeConfig::default(),
         )
         .await
         else {
@@ -379,7 +379,7 @@ mod pool_factory_tests {
             "acme",
             &schema_json,
             &config,
-            &Default::default(),
+            &fraiseql_core::runtime::RuntimeConfig::default(),
         )
         .await
         else {
@@ -744,6 +744,7 @@ mod schema_isolation_tests {
 // `query_function_resolver` (#1329) landed after it was written, making twelve.
 mod runtime_config_drift {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+    #![allow(clippy::print_stderr)] // Reason: skip diagnostics for the DATABASE_URL-less leg
 
     use fraiseql_core::runtime::RuntimeConfig;
 
@@ -893,11 +894,11 @@ mod runtime_config_drift {
     use std::sync::Arc;
 
     use fraiseql_core::{
-        db::postgres::PostgresAdapter,
+        db::postgres::{PostgresAdapter, PostgresTlsConfig, ReadReplicaPolicy, VectorScanConfig},
         error::Result as CoreResult,
         security::{
             Authorizer, AuthzDecision, AuthzRequest, BeforeMutationGate, BeforeMutationOutcome,
-            BeforeMutationRequest,
+            BeforeMutationRequest, SecurityContext,
         },
     };
 
@@ -957,10 +958,10 @@ mod runtime_config_drift {
             connect_timeout_secs: 10,
             idle_timeout_secs:    300,
             search_path:          None,
-            tls:                  Default::default(),
+            tls:                  PostgresTlsConfig::default(),
             read_replica_urls:    Vec::new(),
-            read_replica_policy:  Default::default(),
-            vector_scan:          Default::default(),
+            read_replica_policy:  ReadReplicaPolicy::default(),
+            vector_scan:          VectorScanConfig::default(),
         }
     }
 
@@ -1014,6 +1015,70 @@ mod runtime_config_drift {
         .expect("provision the tenant executor")
     }
 
+    /// One factory, two registrations, two different configs — the property that
+    /// separates design (B) from the one #1333's own Scope section proposed.
+    ///
+    /// Capturing the config inside `make_executor_factory`, beside the three
+    /// operator-owned pool settings it already stamps (#801, #957, #1116), reads as the
+    /// obvious symmetry. It is wrong: `prepare_functions_runtime` rebuilds the server's
+    /// executor at *serve* time to install the `before:mutation` gate (#1327) and the
+    /// function-query resolver (#1329), and `main.rs` builds the factory before that. A
+    /// captured config would be missing exactly the gate #1327 exists for — and a test
+    /// that only asserted "the authorizer binds" would have passed anyway, because the
+    /// authorizer *is* installed before the factory is built.
+    ///
+    /// So the config travels per invocation. If it were ever captured, both executors
+    /// below would carry the same one and this fails.
+    #[tokio::test]
+    async fn the_factory_reads_the_config_per_registration_rather_than_capturing_it() {
+        let Some(url) = fraiseql_test_support::try_database_url() else {
+            eprintln!("skipping #1333 capture pin: DATABASE_URL not set");
+            return;
+        };
+
+        let factory = crate::tenancy::make_executor_factory::<PostgresAdapter>(
+            PostgresTlsConfig::default(),
+            ReadReplicaPolicy::default(),
+            VectorScanConfig::default(),
+        );
+
+        // The config as it stands when the factory is built: no gate yet.
+        let before = factory(
+            "p37early".to_string(),
+            schema_json(),
+            pool_config(&url),
+            RuntimeConfig::default(),
+        )
+        .await
+        .expect("register the first tenant");
+
+        // The config after the server's serve-time rebuild installed one.
+        let after = factory(
+            "p37late".to_string(),
+            schema_json(),
+            pool_config(&url),
+            RuntimeConfig {
+                before_mutation_gate: Some(Arc::new(AbortAll)),
+                ..RuntimeConfig::default()
+            },
+        )
+        .await
+        .expect("register the second tenant");
+
+        assert!(
+            before.config().before_mutation_gate.is_none(),
+            "the first registration predates the gate, so it must not have one — if it \
+             does, this test is not measuring what it claims"
+        );
+        assert!(
+            after.config().before_mutation_gate.is_some(),
+            "#1333: a tenant registered after the server installed its before:mutation \
+             gate must run under it. A factory that captured the config when it was built \
+             would hand this tenant the earlier one, and the write gate #1327 exists for \
+             would be absent on every tenant-keyed mutation."
+        );
+    }
+
     /// The behaviour half: the config arriving is not the same claim as the gate
     /// binding. A value can be carried and never consulted.
     #[tokio::test]
@@ -1022,8 +1087,6 @@ mod runtime_config_drift {
             eprintln!("skipping #1333 tenant Authorizer pin: DATABASE_URL not set");
             return;
         };
-        use fraiseql_core::security::SecurityContext;
-
         let principal = SecurityContext::system_job("p37", "req-1", vec![], vec![], None);
 
         let denied = tenant_with_authorizer(&url, "p37deny", Arc::new(DenyAll))

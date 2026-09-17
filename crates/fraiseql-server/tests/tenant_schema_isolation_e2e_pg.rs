@@ -237,8 +237,9 @@ async fn every_pooled_connection_carries_the_tenant_search_path() {
         TENANT_A,
         &schema_json_for("schema"),
         &pool_config(&url),
-        &Default::default(), /* #1333: the server's RuntimeConfig; default here — these pin
-                              * pools, not policy */
+        &fraiseql_core::runtime::RuntimeConfig::default(), /* #1333: the server's RuntimeConfig;
+                                                            * default here — these pin
+                                                            * pools, not policy */
     )
     .await
     .expect("tenant registration");
@@ -321,8 +322,9 @@ async fn a_tenants_own_replicas_serve_its_reads_under_its_search_path() {
         TENANT_A,
         &schema_json_for("schema"),
         &pool_config_with_replica(&url, &standby_url),
-        &Default::default(), /* #1333: the server's RuntimeConfig; default here — these pin
-                              * pools, not policy */
+        &fraiseql_core::runtime::RuntimeConfig::default(), /* #1333: the server's RuntimeConfig;
+                                                            * default here — these pin
+                                                            * pools, not policy */
     )
     .await
     .expect("tenant registration with its own replica");
@@ -404,7 +406,7 @@ async fn two_tenants_driven_concurrently_never_cross() {
         TENANT_A,
         &schema,
         &pool_config(&url),
-        &Default::default(),
+        &fraiseql_core::runtime::RuntimeConfig::default(),
     )
     .await
     .expect("tenant A registration");
@@ -412,7 +414,7 @@ async fn two_tenants_driven_concurrently_never_cross() {
         TENANT_B,
         &schema,
         &pool_config(&url),
-        &Default::default(),
+        &fraiseql_core::runtime::RuntimeConfig::default(),
     )
     .await
     .expect("tenant B registration");
@@ -450,8 +452,9 @@ async fn isolation_survives_connection_replacement() {
         TENANT_A,
         &schema_json_for("schema"),
         &pool_config_tagged(&url, APP_NAME),
-        &Default::default(), /* #1333: the server's RuntimeConfig; default here — these pin
-                              * pools, not policy */
+        &fraiseql_core::runtime::RuntimeConfig::default(), /* #1333: the server's RuntimeConfig;
+                                                            * default here — these pin
+                                                            * pools, not policy */
     )
     .await
     .expect("tenant registration");
@@ -517,8 +520,9 @@ async fn tenant_only_relation_resolves_on_every_connection() {
         TENANT_A,
         &schema_json_for("schema"),
         &pool_config(&url),
-        &Default::default(), /* #1333: the server's RuntimeConfig; default here — these pin
-                              * pools, not policy */
+        &fraiseql_core::runtime::RuntimeConfig::default(), /* #1333: the server's RuntimeConfig;
+                                                            * default here — these pin
+                                                            * pools, not policy */
     )
     .await
     .expect("tenant registration");
@@ -558,8 +562,9 @@ async fn non_schema_mode_tenants_keep_the_default_search_path() {
         TENANT_A,
         &schema_json_for("row"),
         &pool_config(&url),
-        &Default::default(), /* #1333: the server's RuntimeConfig; default here — these pin
-                              * pools, not policy */
+        &fraiseql_core::runtime::RuntimeConfig::default(), /* #1333: the server's RuntimeConfig;
+                                                            * default here — these pin
+                                                            * pools, not policy */
     )
     .await
     .expect("tenant registration");
