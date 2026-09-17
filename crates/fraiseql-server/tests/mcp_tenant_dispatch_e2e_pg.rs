@@ -163,10 +163,16 @@ async fn setup() -> Option<(PostgresAdapter, AppState<PostgresAdapter>)> {
         Arc::new(TenantExecutorRegistry::new(Arc::new(arc_swap::ArcSwap::from(default_executor))));
 
     for key in [TENANT_A, TENANT_B] {
-        let executor =
-            create_tenant_executor::<PostgresAdapter>(key, &schema_json(), &pool_config(&url))
-                .await
-                .unwrap_or_else(|e| panic!("provision tenant {key}: {e}"));
+        let executor = create_tenant_executor::<PostgresAdapter>(
+            key,
+            &schema_json(),
+            &pool_config(&url),
+            // #1333: the server's RuntimeConfig; default here — this suite pins
+            // tenant dispatch, not the policy a tenant runs under.
+            &Default::default(),
+        )
+        .await
+        .unwrap_or_else(|e| panic!("provision tenant {key}: {e}"));
         registry.upsert(key, executor);
     }
 

@@ -26,6 +26,7 @@ pub type TenantExecutorFactory<A> = Arc<
             String,
             String,
             TenantPoolConfig,
+            fraiseql_core::runtime::RuntimeConfig,
         ) -> Pin<Box<dyn Future<Output = Result<Arc<Executor<A>>>> + Send>>
         + Send
         + Sync,
@@ -54,18 +55,27 @@ pub type TenantExecutorFactory<A> = Arc<
 /// `vector_scan` is stamped for the third time in the same shape (#1116): whether a
 /// filtered similarity search may quietly return fewer rows than it was asked for
 /// is the operator's answer, not the registration payload's.
+///
+/// The server's [`RuntimeConfig`](fraiseql_core::runtime::RuntimeConfig) is the fourth
+/// (#1333), and it is deliberately **not** captured here like the three above. The
+/// booting server rebuilds its executor after this factory is made —
+/// `prepare_functions_runtime` installs the `before:mutation` gate and the
+/// function-query resolver at serve time — so a snapshot taken now would be missing the
+/// very gate #1327 exists for. The caller passes the live config per registration
+/// instead, which is the same reason `search_path` is recomputed rather than trusted.
 #[must_use]
 pub fn make_executor_factory<A: FromPoolConfig + 'static>(
     database_tls: fraiseql_core::db::postgres::PostgresTlsConfig,
     read_replica_policy: fraiseql_core::db::postgres::ReadReplicaPolicy,
     vector_scan: fraiseql_core::db::postgres::VectorScanConfig,
 ) -> TenantExecutorFactory<A> {
-    Arc::new(move |tenant_key, schema_json, mut pool_config| {
+    Arc::new(move |tenant_key, schema_json, mut pool_config, runtime_config| {
         pool_config.tls = database_tls.clone();
         pool_config.read_replica_policy = read_replica_policy.clone();
         pool_config.vector_scan = vector_scan;
         Box::pin(async move {
-            create_tenant_executor::<A>(&tenant_key, &schema_json, &pool_config).await
+            create_tenant_executor::<A>(&tenant_key, &schema_json, &pool_config, &runtime_config)
+                .await
         })
     })
 }

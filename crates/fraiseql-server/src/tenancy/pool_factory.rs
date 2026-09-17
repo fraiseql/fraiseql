@@ -228,6 +228,7 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
     tenant_key: &str,
     schema_json: &str,
     pool_config: &TenantPoolConfig,
+    runtime_config: &fraiseql_core::runtime::RuntimeConfig,
 ) -> Result<Arc<Executor<A>>> {
     // 1. Parse and validate schema
     let schema =
@@ -264,8 +265,23 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
         schema_isolation::verify_search_path(tenant_key, &adapter).await?;
     }
 
-    // 5. Assemble executor
-    Ok(Arc::new(Executor::new(schema, Arc::new(adapter))))
+    // 5. Assemble the executor through the same composition every other constructor uses (#1333).
+    //    `Executor::new` is `with_config(..., RuntimeConfig::default())`, so this path used to run
+    //    with the `Authorizer`, the `before:mutation` gate, the RLS policy, field filters, the
+    //    page-size and cost ceilings and the change-log toggle all absent — a fourth constructor
+    //    beside the seam whose own doc calls itself "the single seam every server entry point
+    //    routes through (H16)".
+    //
+    //    `with_compiled_schema` re-derives the schema-owned settings on top of the live
+    //    config, so the split is exactly right: the operator's policy is carried
+    //    through, and `[validation]` / `[security.cost_budget]` / `[changelog]` come
+    //    from **this tenant's** schema rather than the server's.
+    let config = runtime_config
+        .clone()
+        .with_compiled_schema(&schema)
+        .map_err(|msg| FraiseQLError::validation(format!("Incompatible compiled schema: {msg}")))?;
+
+    Ok(Arc::new(Executor::with_config(schema, Arc::new(adapter), config)))
 }
 
 /// Drop a tenant's PostgreSQL schema if schema isolation mode is active.

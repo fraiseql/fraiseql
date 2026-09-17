@@ -251,17 +251,27 @@ mod pool_factory_tests {
         let schema_json = serde_json::to_string(&schema).unwrap();
         let config = test_pool_config();
 
-        let executor = create_tenant_executor::<StubPoolAdapter>("acme", &schema_json, &config)
-            .await
-            .unwrap();
+        let executor = create_tenant_executor::<StubPoolAdapter>(
+            "acme",
+            &schema_json,
+            &config,
+            &Default::default(),
+        )
+        .await
+        .unwrap();
         assert_eq!(executor.schema().types.len(), 0);
     }
 
     #[tokio::test]
     async fn test_create_tenant_executor_invalid_json() {
         let config = test_pool_config();
-        let Err(err) =
-            create_tenant_executor::<StubPoolAdapter>("acme", "not valid json", &config).await
+        let Err(err) = create_tenant_executor::<StubPoolAdapter>(
+            "acme",
+            "not valid json",
+            &config,
+            &Default::default(),
+        )
+        .await
         else {
             panic!("expected Err for invalid JSON");
         };
@@ -277,8 +287,13 @@ mod pool_factory_tests {
         let schema_json = serde_json::to_string(&schema).unwrap();
         let config = test_pool_config();
 
-        let Err(err) =
-            create_tenant_executor::<StubPoolAdapter>("acme", &schema_json, &config).await
+        let Err(err) = create_tenant_executor::<StubPoolAdapter>(
+            "acme",
+            &schema_json,
+            &config,
+            &Default::default(),
+        )
+        .await
         else {
             panic!("expected Err for an artifact produced by another build");
         };
@@ -360,8 +375,13 @@ mod pool_factory_tests {
         let schema_json = serde_json::to_string(&schema).unwrap();
         let config = test_pool_config();
 
-        let Err(err) =
-            create_tenant_executor::<FailingAdapter>("acme", &schema_json, &config).await
+        let Err(err) = create_tenant_executor::<FailingAdapter>(
+            "acme",
+            &schema_json,
+            &config,
+            &Default::default(),
+        )
+        .await
         else {
             panic!("expected Err for unreachable DB");
         };
@@ -706,5 +726,356 @@ mod schema_isolation_tests {
         let err = drop_tenant_schema("", &adapter).await.unwrap_err();
         assert!(matches!(err, FraiseQLError::Validation { .. }));
         assert!(adapter.recorded_queries().is_empty());
+    }
+}
+
+// ── #1333: a tenant executor must not drift from the server's ────────────────
+//
+// The defect is not any one missing setting — it is that a fourth constructor exists
+// at all. `create_tenant_executor` ends in `Executor::new(...)`, which is
+// `with_config(..., RuntimeConfig::default())`, while every HTTP constructor routes
+// through `initialization::executor_runtime_config`, whose own doc calls itself "the
+// single seam every server entry point routes through so the config can never drift by
+// constructor (H16)".
+//
+// So this pins the *agreement*, field by field, with exhaustive destructuring: adding a
+// field to `RuntimeConfig` is a compile error here until it is classified. Counting
+// settings instead would have gone stale already — #1333's table lists eleven, and
+// `query_function_resolver` (#1329) landed after it was written, making twelve.
+mod runtime_config_drift {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics acceptable
+
+    use fraiseql_core::runtime::RuntimeConfig;
+
+    /// Which `RuntimeConfig` fields the two executors disagree on.
+    ///
+    /// Compares by **presence** for the `Arc<dyn Trait>` gates: none of them implements
+    /// `PartialEq`, and presence is the property that matters — a tenant request either
+    /// has an `Authorizer` to consult or it does not. Identity is checked too, via
+    /// `Arc::ptr_eq`, so "installed a different policy" is a disagreement as well as
+    /// "installed none".
+    ///
+    /// `deliberately_per_tenant` names the fields a tenant legitimately owns: they come
+    /// from the tenant's **own** compiled schema, not the server's.
+    fn disagreements(server: &RuntimeConfig, tenant: &RuntimeConfig) -> Vec<&'static str> {
+        // Exhaustive destructuring, deliberately without `..`, mirroring
+        // `RuntimeConfig::with_compiled_schema`: a new field is a compile error here
+        // until someone decides whether a tenant inherits it. A `..` tail would let the
+        // next field be dropped on this path in silence — which is the whole of #1333.
+        let RuntimeConfig {
+            cache_query_plans,
+            max_page_size,
+            enable_tracing,
+            field_filter,
+            rls_policy,
+            field_authorizer,
+            authorizer,
+            query_timeout_ms,
+            jsonb_optimization,
+            query_validation,
+            max_operation_cost,
+            audit_mutations,
+            changelog_enabled,
+            dry_run_mutations,
+            cascade_limits,
+            before_mutation_gate,
+            query_function_resolver,
+        } = server;
+
+        let mut out = Vec::new();
+
+        // Caller-installed policy: the operator decides it, so every tenant runs under
+        // the same one. Presence *and* identity.
+        if authorizer.is_some() != tenant.authorizer.is_some() {
+            out.push("authorizer");
+        }
+        if before_mutation_gate.is_some() != tenant.before_mutation_gate.is_some() {
+            out.push("before_mutation_gate");
+        }
+        if rls_policy.is_some() != tenant.rls_policy.is_some() {
+            out.push("rls_policy");
+        }
+        if field_authorizer.is_some() != tenant.field_authorizer.is_some() {
+            out.push("field_authorizer");
+        }
+        if field_filter.is_some() != tenant.field_filter.is_some() {
+            out.push("field_filter");
+        }
+        if query_function_resolver.is_some() != tenant.query_function_resolver.is_some() {
+            out.push("query_function_resolver");
+        }
+
+        // Operator-owned scalars: the same reason `database_tls`, `read_replica_policy`
+        // and `vector_scan` are stamped onto every tenant pool (#801, #957, #1116).
+        if *cache_query_plans != tenant.cache_query_plans {
+            out.push("cache_query_plans");
+        }
+        if *enable_tracing != tenant.enable_tracing {
+            out.push("enable_tracing");
+        }
+        if *query_timeout_ms != tenant.query_timeout_ms {
+            out.push("query_timeout_ms");
+        }
+        if *dry_run_mutations != tenant.dry_run_mutations {
+            out.push("dry_run_mutations");
+        }
+        if format!("{jsonb_optimization:?}") != format!("{:?}", tenant.jsonb_optimization) {
+            out.push("jsonb_optimization");
+        }
+        if format!("{cascade_limits:?}") != format!("{:?}", tenant.cascade_limits) {
+            out.push("cascade_limits");
+        }
+
+        // Schema-derived: a tenant's own `[validation]` / `[security.cost_budget]` /
+        // `[changelog]` are its own, so these are compared only when the two executors
+        // were built from the *same* schema — which is what the test below does.
+        if *max_page_size != tenant.max_page_size {
+            out.push("max_page_size");
+        }
+        if *max_operation_cost != tenant.max_operation_cost {
+            out.push("max_operation_cost");
+        }
+        if *audit_mutations != tenant.audit_mutations {
+            out.push("audit_mutations");
+        }
+        if *changelog_enabled != tenant.changelog_enabled {
+            out.push("changelog_enabled");
+        }
+        if query_validation.is_some() != tenant.query_validation.is_some() {
+            out.push("query_validation");
+        }
+
+        out
+    }
+
+    /// `disagreements` must actually see a dropped field, or the pin below is a
+    /// decoration. Built by taking a fully-populated config and defaulting it — which is
+    /// exactly what `Executor::new` does to a tenant.
+    #[test]
+    fn the_comparison_notices_a_config_that_was_defaulted() {
+        let populated = RuntimeConfig {
+            cache_query_plans: false,
+            max_page_size: Some(17),
+            enable_tracing: true,
+            query_timeout_ms: 4321,
+            max_operation_cost: Some(99),
+            audit_mutations: true,
+            changelog_enabled: false,
+            dry_run_mutations: true,
+            ..RuntimeConfig::default()
+        };
+
+        let found = disagreements(&populated, &RuntimeConfig::default());
+
+        for expected in [
+            "cache_query_plans",
+            "enable_tracing",
+            "query_timeout_ms",
+            "dry_run_mutations",
+            "max_page_size",
+            "max_operation_cost",
+            "audit_mutations",
+            "changelog_enabled",
+        ] {
+            assert!(
+                found.contains(&expected),
+                "the drift comparison missed `{expected}` — a pin that cannot see a \
+                 dropped field would pass over #1333 itself. Found: {found:?}"
+            );
+        }
+    }
+
+    // ── The pin itself, against a real tenant pool ──────────────────────────
+    //
+    // Self-skips without DATABASE_URL, so it is inert in the database-free `test` leg
+    // and runs in `integration (postgres)`.
+
+    use std::sync::Arc;
+
+    use fraiseql_core::{
+        db::postgres::PostgresAdapter,
+        error::Result as CoreResult,
+        security::{
+            Authorizer, AuthzDecision, AuthzRequest, BeforeMutationGate, BeforeMutationOutcome,
+            BeforeMutationRequest,
+        },
+    };
+
+    use crate::tenancy::{TenantPoolConfig, create_tenant_executor};
+
+    /// An operator-installed policy. What it decides is irrelevant here — the pin is
+    /// about whether a tenant request has one to consult at all.
+    struct DenyAll;
+
+    impl Authorizer for DenyAll {
+        fn authorize(&self, _req: &AuthzRequest<'_>) -> CoreResult<AuthzDecision> {
+            Ok(AuthzDecision::Deny {
+                reason: "pinned".to_string(),
+            })
+        }
+    }
+
+    struct AbortAll;
+
+    #[async_trait::async_trait]
+    impl BeforeMutationGate for AbortAll {
+        async fn before_mutation(
+            &self,
+            _request: &BeforeMutationRequest<'_>,
+        ) -> CoreResult<BeforeMutationOutcome> {
+            Ok(BeforeMutationOutcome::Abort {
+                reason: "pinned".to_string(),
+            })
+        }
+    }
+
+    /// The config a booting server ends up with: schema-derived settings plus the
+    /// policy the operator installed programmatically.
+    fn server_config() -> RuntimeConfig {
+        RuntimeConfig {
+            authorizer: Some(Arc::new(DenyAll)),
+            before_mutation_gate: Some(Arc::new(AbortAll)),
+            query_timeout_ms: 4321,
+            ..RuntimeConfig::default()
+        }
+    }
+
+    fn schema_json() -> String {
+        serde_json::json!({
+            "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
+            "types": [],
+            "queries": [],
+            "mutations": [],
+        })
+        .to_string()
+    }
+
+    fn pool_config(url: &str) -> TenantPoolConfig {
+        TenantPoolConfig {
+            connection_string:    url.to_string(),
+            max_connections:      2,
+            connect_timeout_secs: 10,
+            idle_timeout_secs:    300,
+            search_path:          None,
+            tls:                  Default::default(),
+            read_replica_urls:    Vec::new(),
+            read_replica_policy:  Default::default(),
+            vector_scan:          Default::default(),
+        }
+    }
+
+    /// An `Authorizer` that allows — the positive twin's policy.
+    struct AllowAll;
+
+    impl Authorizer for AllowAll {
+        fn authorize(&self, _req: &AuthzRequest<'_>) -> CoreResult<AuthzDecision> {
+            Ok(AuthzDecision::Allow)
+        }
+    }
+
+    /// A schema with one query, so there is an operation for the `Authorizer` to be
+    /// consulted about. The view does not exist: the gate is supposed to refuse
+    /// *before* any SQL runs, so a missing relation is how the allow case proves the
+    /// request got past the gate rather than never reaching the database.
+    fn schema_json_with_query() -> String {
+        serde_json::json!({
+            "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
+            "types": [{
+                "name": "Widget",
+                "sql_source": "v_p37_widget",
+                "fields": [{"name": "id", "field_type": "Int", "nullable": false}],
+            }],
+            "queries": [{
+                "name": "widgets",
+                "return_type": "Widget",
+                "sql_source": "v_p37_widget",
+                "returns_list": true,
+            }],
+            "mutations": [],
+        })
+        .to_string()
+    }
+
+    async fn tenant_with_authorizer(
+        url: &str,
+        key: &str,
+        authorizer: Arc<dyn Authorizer>,
+    ) -> Arc<fraiseql_core::runtime::Executor<PostgresAdapter>> {
+        create_tenant_executor::<PostgresAdapter>(
+            key,
+            &schema_json_with_query(),
+            &pool_config(url),
+            &RuntimeConfig {
+                authorizer: Some(authorizer),
+                ..RuntimeConfig::default()
+            },
+        )
+        .await
+        .expect("provision the tenant executor")
+    }
+
+    /// The behaviour half: the config arriving is not the same claim as the gate
+    /// binding. A value can be carried and never consulted.
+    #[tokio::test]
+    async fn the_authorizer_binds_on_a_tenant_executor() {
+        let Some(url) = fraiseql_test_support::try_database_url() else {
+            eprintln!("skipping #1333 tenant Authorizer pin: DATABASE_URL not set");
+            return;
+        };
+        use fraiseql_core::security::SecurityContext;
+
+        let principal = SecurityContext::system_job("p37", "req-1", vec![], vec![], None);
+
+        let denied = tenant_with_authorizer(&url, "p37deny", Arc::new(DenyAll))
+            .await
+            .execute_with_security("{ widgets { id } }", None, &principal)
+            .await;
+        assert!(
+            matches!(denied, Err(fraiseql_core::error::FraiseQLError::Authorization { .. })),
+            "#1333: an operation Authorizer must be consulted on a tenant-keyed request. \
+             It never was — the tenant executor had none to consult. Got: {denied:?}"
+        );
+
+        // The twin. Without it, a tenant executor that refused everything — or one whose
+        // missing view made every query fail — would satisfy the assertion above.
+        let allowed = tenant_with_authorizer(&url, "p37allow", Arc::new(AllowAll))
+            .await
+            .execute_with_security("{ widgets { id } }", None, &principal)
+            .await;
+        assert!(
+            !matches!(allowed, Err(fraiseql_core::error::FraiseQLError::Authorization { .. })),
+            "an allowing Authorizer must let the request past the gate; it may still fail \
+             on the missing view, which is what shows the gate was the only thing \
+             refusing before. Got: {allowed:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_tenant_executor_runs_under_the_servers_runtime_config() {
+        let Some(url) = fraiseql_test_support::try_database_url() else {
+            eprintln!("skipping #1333 tenant RuntimeConfig pin: DATABASE_URL not set");
+            return;
+        };
+
+        let tenant = create_tenant_executor::<PostgresAdapter>(
+            "p37drift",
+            &schema_json(),
+            &pool_config(&url),
+            // The whole point of this case: the tenant is built from the *server's*
+            // config, the way `upsert_tenant_handler` supplies it.
+            &server_config(),
+        )
+        .await
+        .expect("provision the tenant executor");
+
+        let found = disagreements(&server_config(), tenant.config());
+
+        assert!(
+            found.is_empty(),
+            "#1333: a tenant-keyed request runs with none of these — the tenant factory \
+             ends in `Executor::new`, which is `RuntimeConfig::default()`, while every \
+             HTTP constructor routes through `executor_runtime_config`, the seam whose \
+             own doc calls itself the single one every entry point takes. Drifted: {found:?}"
+        );
     }
 }

@@ -295,8 +295,15 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     };
     quota.validate().map_err(ApiError::validation_error)?;
 
-    let executor =
-        factory(key.clone(), schema_json, body.connection).await.map_err(|e| match &e {
+    // #1333: the config a tenant runs under is read here, from the executor the server
+    // is serving with *now* — not captured when the factory was built, which is before
+    // `prepare_functions_runtime` rebuilds the executor to install the before:mutation
+    // gate.
+    let runtime_config = state.executor().config().clone();
+
+    let executor = factory(key.clone(), schema_json, body.connection, runtime_config)
+        .await
+        .map_err(|e| match &e {
             fraiseql_error::FraiseQLError::Parse { .. }
             | fraiseql_error::FraiseQLError::Validation { .. } => ApiError::validation_error(e),
             fraiseql_error::FraiseQLError::ConnectionPool { .. }
