@@ -134,6 +134,34 @@ async fn submit<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         );
     };
 
+    // #1336: resolve before the snapshot. This surface *is* a transport — it executes a
+    // GraphQL document as the submitter — and the context it serialises at line ~215 is
+    // the one the background worker runs with. Without this the snapshot carries no
+    // enriched fields, so every enriched operation fails later, in a job, rather than
+    // now, at the door; and an unprovisioned subject's work is queued at all.
+    let mut ctx = ctx;
+    match crate::identity::resolve_request_identity(
+        state.app.identity_resolver.as_deref(),
+        Some(&mut ctx),
+    )
+    .await
+    {
+        crate::identity::EnrichmentOutcome::Proceed => {},
+        crate::identity::EnrichmentOutcome::Denied => {
+            return error_response(
+                StatusCode::FORBIDDEN,
+                crate::identity::EnrichmentOutcome::DENIED_MESSAGE,
+            );
+        },
+        crate::identity::EnrichmentOutcome::Unavailable => {
+            return error_response(
+                StatusCode::SERVICE_UNAVAILABLE,
+                crate::identity::EnrichmentOutcome::UNAVAILABLE_MESSAGE,
+            );
+        },
+    }
+    let ctx = ctx;
+
     // The allowlist is the operator's explicit surface (fail-closed).
     if !state.runtime.config.operations.iter().any(|o| o == &operation) {
         return error_response(

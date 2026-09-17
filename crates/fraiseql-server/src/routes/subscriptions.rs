@@ -481,7 +481,11 @@ async fn enrich_principal(
 ) -> Option<SecurityContext> {
     let resolver = state.identity_resolver.as_ref()?;
     let mut ctx = principal?.clone();
-    let _ = crate::identity::enrich_security_context(resolver, &mut ctx).await;
+    // Through the one seam (#1336), so `/ws` cannot drift from the other transports on
+    // what resolving means. The outcome is still discarded here, deliberately: a
+    // subscription's fail-closed happens at derivation, where an absent enriched field
+    // refuses the policy — see this function's doc comment.
+    let _ = crate::identity::resolve_request_identity(Some(resolver), Some(&mut ctx)).await;
     Some(ctx)
 }
 

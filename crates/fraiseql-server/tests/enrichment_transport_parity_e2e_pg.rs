@@ -634,3 +634,151 @@ async fn the_same_schema_boots_once_a_resolver_is_configured() {
         .await
         .expect("the identical schema must boot when [identity.enrichment] is enabled");
 }
+
+// ---------------------------------------------------------------------------
+// The tenant arm (#1333's shape)
+// ---------------------------------------------------------------------------
+
+/// A tenant-keyed request resolves identity too.
+///
+/// This is the arm the plan for #1336 expected to fail. It would have, had the seam
+/// gone where the issue suggested: a gate registered on `RuntimeConfig` is absent from
+/// every per-tenant executor, because `create_tenant_executor` ends in
+/// `Executor::new(...)` → `RuntimeConfig::default()` (#1333) — so the `Authorizer`, the
+/// RLS policy and the `before:mutation` gate are all missing there today.
+///
+/// The producer seam is not on `RuntimeConfig`. It runs on the way in, from the
+/// server's own state, before a tenant key is even resolved — so the tenant arm is
+/// covered by construction rather than by remembering to wire a fourth constructor.
+///
+/// The registry entry here is built with `Executor::new` deliberately: that is exactly
+/// what the tenant factory produces, `RuntimeConfig::default()` and all. A test that
+/// registered a fully-configured executor would prove nothing about the real path.
+async fn tenant_keyed_service() -> Option<FraiseQLMcpService<PostgresAdapter>> {
+    use fraiseql_server::routes::graphql::tenant_registry::TenantExecutorRegistry;
+
+    let url = try_database_url()?;
+    let adapter = PostgresAdapter::new(&url).await.expect("connect to the test database");
+    seed(&adapter).await;
+
+    let pool = sqlx::PgPool::connect(&url).await.expect("enrichment pool");
+    let default_executor =
+        Arc::new(Executor::new(build_schema(), Arc::new(adapter.clone())));
+    let registry = Arc::new(TenantExecutorRegistry::new(Arc::new(arc_swap::ArcSwap::from(
+        Arc::clone(&default_executor),
+    ))));
+    registry.upsert(TENANT_KEY, Arc::new(Executor::new(build_schema(), Arc::new(adapter))));
+
+    let state = AppState::new(default_executor)
+        .with_identity_resolver(Arc::new(IdentityResolver::postgres(enrichment_config(), pool)))
+        .with_tenant_registry(registry);
+
+    Some(
+        FraiseQLMcpService::new(
+            state,
+            McpConfig {
+                enabled: true,
+                require_auth: true,
+                ..McpConfig::default()
+            },
+        )
+        .with_token_validator(Some(McpTokenValidator::Hs256(Arc::new(
+            AuthMiddleware::from_config(AuthConfig {
+                issuer: Some(ISSUER.to_string()),
+                audience: Some(AUDIENCE.to_string()),
+                ..AuthConfig::with_hs256(SECRET)
+            }),
+        )))),
+    )
+}
+
+/// The registered tenant these two cases dispatch to.
+const TENANT_KEY: &str = "p36tenant";
+
+async fn tenant_keyed_call(
+    service: &FraiseQLMcpService<PostgresAdapter>,
+    sub: &str,
+) -> rmcp::model::CallToolResult {
+    tenant_keyed_call_as(service, sub, TENANT_KEY).await
+}
+
+async fn tenant_keyed_call_as(
+    service: &FraiseQLMcpService<PostgresAdapter>,
+    sub: &str,
+    tenant: &str,
+) -> rmcp::model::CallToolResult {
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert("X-Tenant-ID", tenant.parse().expect("valid header value"));
+    service
+        .call_tool_authenticated(
+            "audits",
+            None,
+            Some(token_for(sub)),
+            format!("mcp-p36-tenant-{sub}"),
+            &headers,
+        )
+        .await
+}
+
+#[tokio::test]
+async fn a_tenant_keyed_request_is_refused_when_its_subject_does_not_resolve() {
+    let Some(service) = tenant_keyed_service().await else {
+        eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
+        return;
+    };
+
+    let result = tenant_keyed_call(&service, UNKNOWN_SUB).await;
+
+    assert_eq!(
+        result.is_error,
+        Some(true),
+        "a tenant-keyed request must fail closed on an unresolved subject exactly as a \\
+         default-executor request does. Content: {:?}",
+        result.content
+    );
+}
+
+#[tokio::test]
+async fn a_tenant_keyed_request_is_served_when_its_subject_resolves() {
+    // The twin that makes the case above mean something: without it, a tenant key that
+    // simply failed to dispatch — an unregistered key is an `Authorization` error —
+    // would satisfy the refusal assertion while proving nothing about enrichment.
+    let Some(service) = tenant_keyed_service().await else {
+        eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
+        return;
+    };
+
+    let result = tenant_keyed_call(&service, KNOWN_SUB).await;
+
+    assert_ne!(
+        result.is_error,
+        Some(true),
+        "the tenant key is registered and the subject resolves, so this must be served \\
+         — the refusal above has to come from enrichment, not from dispatch. \\
+         Content: {:?}",
+        result.content
+    );
+}
+
+#[tokio::test]
+async fn the_tenant_key_is_actually_honoured_by_these_cases() {
+    // Without this the two cases above cannot tell "dispatched to the registered
+    // tenant" from "the header was ignored and the default executor answered" — both
+    // succeed. An *unregistered* key is refused rather than silently defaulted, so a
+    // refusal here is proof the key reaches dispatch, which is what makes the pair
+    // above a statement about tenant-keyed requests at all.
+    let Some(service) = tenant_keyed_service().await else {
+        eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
+        return;
+    };
+
+    let result = tenant_keyed_call_as(&service, KNOWN_SUB, "p36neverregistered").await;
+
+    assert_eq!(
+        result.is_error,
+        Some(true),
+        "an unregistered tenant key must be refused — if this is served, the header is \
+         not reaching dispatch and the tenant cases prove nothing. Content: {:?}",
+        result.content
+    );
+}

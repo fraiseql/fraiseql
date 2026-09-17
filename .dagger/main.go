@@ -541,6 +541,11 @@ func (m *FraiseqlCi) ShellGates(
 		// gate on a write at once, and is invisible to the tests the known bypasses
 		// have — which is how the gRPC arm did it until #1330 routed it through the engine.
 		"bash tools/check-mutation-dispatch-sites.sh",
+		// The same shape one layer up (#1336): a transport that turns a credential into a
+		// principal and dispatches it unresolved. REST, MCP and gRPC each did for three
+		// releases, and no test could see it — a transport that skips the resolve answers
+		// every request reading no enriched field exactly as one that runs it does.
+		"bash tools/check-principal-producers.sh",
 		// A refusal list is only worth having while nothing can be added outside it
 		// (#1326): a new top-level section whose only consumer sits behind a Cargo
 		// feature would go straight back to being dropped in silence by every lean
