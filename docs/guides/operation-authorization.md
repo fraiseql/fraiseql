@@ -99,6 +99,7 @@ A PEP is only as strong as its least-guarded entry path. The authorizer is enfor
 | Mutations — GraphQL, MCP, **authenticated and anonymous REST**, the direct API | The universal mutation chokepoint (`execute_mutation_impl`), covering the anonymous-REST write path that bypasses the `execute*`/`execute_with_security` chokepoints |
 | REST reads — GET, count, streaming (NDJSON/CSV/XLSX), embedding sub-queries, bulk-by-filter lookup | The shared read runner methods (`execute_query_direct` / `count_rows`) |
 | Subscriptions (`graphql-transport-ws` / `graphql-ws`) | At subscribe-time, with the connection's principal — a deny rejects with a `FORBIDDEN` error frame |
+| **Tenant-keyed requests**, on every path above | The tenant's own executor, built from the **server's** `RuntimeConfig` (#1333) |
 
 > **Introspection and federation are gated too** (as `Query` named `__schema`/`__type`/
 > `_entities`/`_service`). If you want introspection always available, have your authorizer
@@ -120,6 +121,15 @@ A PEP is only as strong as its least-guarded entry path. The authorizer is enfor
 - **No TOML/env surface.** Like `FieldAuthorizer`, the `Authorizer` is a library-config
   plug today (`with_authorizer`); the server binary installs one only if an embedder sets it
   on the `RuntimeConfig`. An SDK/declarative authoring surface is a follow-up.
+
+> **Until #1333, "every entry path" excluded tenant-keyed requests.** Per-tenant executors
+> were built by a fourth constructor that used `RuntimeConfig::default()`, so the authorizer
+> — along with the `before:mutation` gate, the RLS policy, field filters and the page-size
+> and cost ceilings — was simply absent on that whole class of request. The table above was
+> true of every path and false for a class of caller, which is a distinction a path table
+> cannot express. The tenant factory now composes the server's live config with the
+> tenant's own compiled schema, and a drift pin destructures `RuntimeConfig` exhaustively so
+> a field added later cannot be dropped on that path in silence.
 
 ## See also
 

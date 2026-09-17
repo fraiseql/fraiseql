@@ -18,6 +18,35 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Tenant-keyed requests now run under the gates the operator configured (#1333).** Every
+  per-tenant executor was built by `create_tenant_executor`, which ended in
+  `Executor::new(schema, adapter)` — that is, `RuntimeConfig::default()`. Every HTTP
+  constructor instead routes through `executor_runtime_config`, the seam whose own doc calls
+  itself "the single seam every server entry point routes through so the config can never
+  drift by constructor (H16)". The tenant factory was a fourth constructor beside it.
+
+  A tenant-keyed request therefore ran with **none** of: the operation `Authorizer` (#422),
+  the `before:mutation` gate (#1327), the RLS policy, field filters and the field authorizer
+  (#423), the compiled `[validation]` page-size ceiling (#421) and the depth/complexity
+  gate, the `[security.cost_budget]` per-request ceiling (#379), mutation audit, the
+  change-log write toggle, the cascade limits, or the function-query resolver (#1329).
+
+  `requires_role` and `requires_actor` were never affected: they are read from the compiled
+  schema at the mutation chokepoint, not from `RuntimeConfig`. Single-tenant deployments —
+  `tenant_key = None`, the default executor — were never affected either.
+
+  **This is breaking in the direction of enforcement.** A multi-tenant deployment that
+  installed an `Authorizer`, an RLS policy, field filters or a `before:mutation` chain will
+  find them applying to tenant-keyed requests for the first time. Requests those tenants
+  previously served may now be refused — which is the configuration being honoured, not a
+  new rule. A tenant's own `[validation]`, `[security.cost_budget]` and `[changelog]` come
+  from that tenant's compiled schema, so per-tenant ceilings stay per-tenant.
+
+  The config is read from the live executor at registration rather than captured when the
+  factory is built: the server rebuilds its executor at serve time to install the
+  `before:mutation` gate and the function-query resolver, so a snapshot taken earlier would
+  have been missing exactly the gate #1327 exists for.
+
 - **`[identity.enrichment]` now resolves on every transport, and a deployment that reads
   enriched identity without configuring a resolver no longer boots (#1336).** The documented
   contract — "when enrichment is enabled, *every* authenticated request resolves and
