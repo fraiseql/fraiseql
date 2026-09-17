@@ -894,15 +894,15 @@ func (m *FraiseqlCi) Test(
 		// integration leg below. Skipping by name rather than letting the suite
 		// self-skip keeps the split visible in the log instead of turning into a
 		// green that asserted nothing.
-		"echo '### cargo test -p fraiseql-server --lib (SYNC:SERVER_FEATURES; storage_policy_admin_tests → integration leg)'",
-		"cargo test -p fraiseql-server --lib --features '" + serverTestFeatures + "' -- --skip server::routing::storage_policy_admin_tests",
+		"echo '### cargo test -p fraiseql-server --lib (SYNC:SERVER_FEATURES; storage_policy_admin_tests + runtime_config_drift → integration leg)'",
+		"cargo test -p fraiseql-server --lib --features '" + serverTestFeatures + "' -- --skip server::routing::storage_policy_admin_tests --skip tenancy::tests::runtime_config_drift",
 		// ...and on the DEFAULT feature set, for the same reason as the core line above:
 		// the `not(federation)` health-status arms and
 		// `from_file_names_the_build_feature_for_a_compiled_out_section` — which asserts
 		// that a `[observers]` section in a build without the feature is REFUSED by name
 		// rather than ignored — compile only where those features are off (#1179).
 		"echo '### cargo test -p fraiseql-server --lib (default features: the feature-OFF refusal arms)'",
-		"cargo test -p fraiseql-server --lib -- --skip server::routing::storage_policy_admin_tests",
+		"cargo test -p fraiseql-server --lib -- --skip server::routing::storage_policy_admin_tests --skip tenancy::tests::runtime_config_drift",
 		// The MCP transport's Docker-free test binaries. They ran in
 		// feature-flags.yml's `feature-integration-tests` job, which has been
 		// dispatch-only since the Dagger migration (2026-05-31) — so no CI leg
@@ -1410,6 +1410,13 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// refusal that leaves the running policy in place, and the wholesale
 		// store-over-config precedence. The DB-less test leg skips it by name.
 		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --lib server::routing::storage_policy_admin_tests -- --test-threads=1",
+		// #1333: the tenant-executor RuntimeConfig pins. These build a real tenant pool,
+		// so in the DB-less `test` leg they self-skip and report `ok` while asserting
+		// nothing — a skip reads as passing. They are the drift comparison against a
+		// factory-built executor, the Authorizer actually binding on one, and the proof
+		// the config is read per registration rather than captured. Serial: each
+		// registration provisions its own pool.
+		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --lib tenancy::tests::runtime_config_drift -- --test-threads=1",
 		// #775: per-mailbox spine scoping + content-digest dedup key. Drives
 		// EmailIngestSink against real PG (no IMAP, no real mailbox): the same
 		// Message-ID to two mailboxes lands twice; a pre-claimed Message-ID cannot

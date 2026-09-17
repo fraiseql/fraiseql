@@ -222,6 +222,7 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-webhooks --test inbound_pipeline_pg -- --test-threads=1
 	@cargo test -p fraiseql-server --features inbound,inbound-email --lib inbound:: -- --test-threads=1
 	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend' --lib server::routing::storage_policy_admin_tests -- --test-threads=1
+	@cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend' --lib tenancy::tests::runtime_config_drift -- --test-threads=1
 	@cargo test -p fraiseql-server --features inbound-email --test inbound_email_dedup_scope_pg -- --test-threads=1
 	@cargo test -p fraiseql-server --features sources --lib sources:: -- --test-threads=1
 	@cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1
@@ -332,8 +333,8 @@ test-leg:
 	cargo test -p fraiseql-db --lib --features 'postgres,wire-backend'
 	@echo ""
 	@echo "### server --lib (SYNC:SERVER_FEATURES, then default features)"
-	cargo test -p fraiseql-server --lib --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend' -- --skip server::routing::storage_policy_admin_tests
-	cargo test -p fraiseql-server --lib -- --skip server::routing::storage_policy_admin_tests
+	cargo test -p fraiseql-server --lib --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend' -- --skip server::routing::storage_policy_admin_tests --skip tenancy::tests::runtime_config_drift
+	cargo test -p fraiseql-server --lib -- --skip server::routing::storage_policy_admin_tests --skip tenancy::tests::runtime_config_drift
 	@echo ""
 	@echo "### server test binaries not covered by --lib (mcp, subscriptions, idempotency, in-process)"
 	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend' --test mcp_transport_safety_test --test mcp_e2e_test --test mcp_integration_test
