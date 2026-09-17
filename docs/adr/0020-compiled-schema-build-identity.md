@@ -25,7 +25,7 @@ field did not exist. So on a 2.15 runtime, a 2.14 artifact turns every paginated
 into the overlapping, row-skipping pages that 2.15 shipped to remove — under a `200`, with
 nothing in a log.
 
-#1303 did not bump the constant, because a bump refuses artifacts for reasons unrelated to
+# 1303 did not bump the constant, because a bump refuses artifacts for reasons unrelated to
 the one field, and that is a decision about compiled artifacts in general rather than about
 `pagination_order`. This is that decision.
 

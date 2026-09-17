@@ -95,7 +95,7 @@ Each of the three is pinned by a test in
 
 In a multi-root document an aborted root is reported in `errors` under its own
 response key with `data.<key>: null`, and the remaining roots still execute — the
-#759 partial-outcome contract, unchanged.
+# 759 partial-outcome contract, unchanged.
 
 **What a hook may read, and what that makes it (#1328).** A rule that depends on
 data — a credit limit, a price, a quota, the target row's current state — needs to
@@ -414,9 +414,9 @@ observer.register_runtime(RuntimeType::Deno, DenoRuntime::new(&DenoConfig::defau
 A function has two halves, with one owner each
 ([config-vs-settings.md](./config-vs-settings.md)):
 
-* the **definitions** — what fires, on which trigger, under what authority — are schema, authored
+- the **definitions** — what fires, on which trigger, under what authority — are schema, authored
   through an SDK and carried in `schema.json`;
-* the **settings** — where the modules live and which dead-letter store backs dispatch — are
+- the **settings** — where the modules live and which dead-letter store backs dispatch — are
   deployment facts, declared in `[functions]` in `fraiseql.toml`.
 
 Neither half can reach into the other. A `FunctionDefinition` has no `module_dir` key
@@ -569,14 +569,14 @@ under 1 ms cached — that is the same order as a cold read and roughly 5× a ca
 It is a defensible price for computation SQL cannot express and a poor one for
 anything a view could answer. Three consequences worth acting on:
 
-* **Declare what it reads.** With no `sql_source` there is nothing for the invalidator to infer a
+- **Declare what it reads.** With no `sql_source` there is nothing for the invalidator to infer a
   read set from, so `additional_views` is how a function-backed field says which writes must evict
   it. A field that reads nothing declares nothing and is invalidated by nothing — correct, because
   nothing it returns depends on a row.
-* **`cache_ttl_seconds` is refused beside it.** A per-query TTL is applied to the **row** cache,
+- **`cache_ttl_seconds` is refused beside it.** A per-query TTL is applied to the **row** cache,
   keyed by the query's view; this field reads none, so the number would be accepted and never
   applied.
-* **Today it is not cached at all in the stock binary**, and that is worth saying plainly. The
+- **Today it is not cached at all in the stock binary**, and that is worth saying plainly. The
   engine's whole-response cache is the only facility that could cover a field with no view, and
   `fraiseql-server` installs none (#1344) — so an invocation happens on every request. The read
   path here consults and populates that cache exactly as the SQL path does, so the field becomes
