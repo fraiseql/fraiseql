@@ -1404,3 +1404,51 @@ pub fn field_encryption_unsupported_check(schema: &CompiledSchema) -> crate::Res
         encrypted.join(", ")
     )))
 }
+
+/// Refuse to boot when the compiled schema reads enriched identity but the deployment
+/// never configured a resolver (#1336).
+///
+/// A schema declaring a `SessionVariableSource::Enrichment` mapping or an
+/// `InjectedParamSource::Enrichment` parameter is saying reads are scoped by a
+/// DB-derived identity. Without `[identity.enrichment].enabled` nothing resolves one,
+/// and the outcome before this check was a 100% failure rate discovered in production:
+/// every request touching an enriched field answered "enrichment did not run", while
+/// requests that touched none were served to subjects the actor table would have
+/// refused.
+///
+/// Refusing at boot also makes the engine's backstop sound. That guard treats an
+/// unresolved principal as a transport that skipped the seam — a diagnosis that only
+/// holds if a resolver exists whenever the schema declares a consumer, which is exactly
+/// what this check establishes.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` when the schema declares an enrichment consumer
+/// and `[identity.enrichment].enabled` is not set.
+#[cfg(feature = "auth")]
+pub fn enrichment_consumer_without_resolver_check(
+    schema: &CompiledSchema,
+    config: &crate::ServerConfig,
+) -> crate::Result<()> {
+    if !schema.declares_enrichment_consumer() {
+        return Ok(());
+    }
+    let enabled = config
+        .identity
+        .as_ref()
+        .and_then(|identity| identity.enrichment.as_ref())
+        .is_some_and(|enrichment| enrichment.enabled);
+    if enabled {
+        return Ok(());
+    }
+
+    Err(crate::ServerError::ConfigError(
+        "The compiled schema reads enriched identity (a session variable or inject param \
+         with an `enrichment` source), but `[identity.enrichment]` is not enabled. Nothing \
+         would resolve an identity, so every request reading an enriched field would fail \
+         and every other request would be served without the fail-closed check the schema \
+         implies. Enable `[identity.enrichment]` in fraiseql.toml, or remove the \
+         `enrichment` sources from the schema."
+            .to_string(),
+    ))
+}

@@ -35,7 +35,7 @@ pub(crate) mod sender;
 
 pub(crate) use admin::identity_admin_router;
 pub(crate) use apply::{EnrichmentOutcome, enrich_security_context, resolve_request_identity};
-use fraiseql_core::schema::{CompiledSchema, InjectedParamSource, SessionVariableSource};
+use fraiseql_core::schema::CompiledSchema;
 // Public because `ServerConfig.identity` is a public field of this type: before
 // #1336 an embedder could not name it, so `[identity.enrichment]` was configurable
 // from TOML and unreachable from Rust — a public field with no way to build a value
@@ -43,26 +43,12 @@ use fraiseql_core::schema::{CompiledSchema, InjectedParamSource, SessionVariable
 // is public and takes one.
 pub use resolver::{EnrichmentQueryConfig, IdentityConfig, IdentityResolver};
 
-/// Whether the compiled schema declares any consumer of enriched identity — a
-/// `SessionVariableSource::Enrichment` or an `InjectedParamSource::Enrichment`.
+/// Whether the compiled schema declares any consumer of enriched identity.
 ///
-/// Used only to decide whether an enabled-but-unused enrichment profile warrants
-/// a loud startup warning (DESIGN §7). The per-request fail-closed boundary
-/// itself never depends on this scan — that would reintroduce the exact
-/// declaration-conditional silent-skip the design fights.
+/// Delegates to the engine's own scan so the startup warning and the engine's
+/// enrichment backstop can never disagree about what "declares a consumer" means.
 pub(crate) fn schema_declares_enrichment_consumer(schema: &CompiledSchema) -> bool {
-    let in_session_vars = schema
-        .session_variables
-        .variables
-        .iter()
-        .any(|mapping| matches!(mapping.source, SessionVariableSource::Enrichment { .. }));
-    let in_inject_params = schema
-        .queries
-        .iter()
-        .flat_map(|q| q.inject_params.values())
-        .chain(schema.mutations.iter().flat_map(|m| m.inject_params.values()))
-        .any(|source| matches!(source, InjectedParamSource::Enrichment(_)));
-    in_session_vars || in_inject_params
+    schema.declares_enrichment_consumer()
 }
 
 // `pub(crate)` so a transport's own tests can drive a resolver without a second

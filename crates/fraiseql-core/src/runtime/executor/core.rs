@@ -389,6 +389,13 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<u64> {
+        // #1336 backstop: REST reads enter here rather than through the GraphQL
+        // document path, so the guard cannot live in `execute_with_timeout` alone.
+        crate::runtime::executor::support::security::enforce_enrichment_resolved(
+            &self.ctx.schema,
+            security_context,
+        )?;
+
         self.query_runner().count_rows(query_match, variables, security_context).await
     }
 
@@ -408,6 +415,13 @@ impl<A: DatabaseAdapter> Executor<A> {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
+        // #1336 backstop: REST reads enter here rather than through the GraphQL
+        // document path, so the guard cannot live in `execute_with_timeout` alone.
+        crate::runtime::executor::support::security::enforce_enrichment_resolved(
+            &self.ctx.schema,
+            security_context,
+        )?;
+
         self.query_runner()
             .execute_query_direct(query_match, variables, security_context)
             .await
@@ -445,6 +459,9 @@ impl<A: DatabaseAdapter> Executor<A> {
     where
         A: 'static,
     {
+        // #1336 backstop — the streaming twin of `execute_query_direct`.
+        crate::runtime::executor::support::security::enforce_enrichment_resolved(&self.ctx.schema, security_context.as_ref())?;
+
         self.query_runner()
             .stream_query_direct(query_match, variables, security_context)
             .await

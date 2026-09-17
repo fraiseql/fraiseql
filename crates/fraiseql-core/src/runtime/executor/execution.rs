@@ -80,6 +80,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         security_context: Option<&SecurityContext>,
         operation_name: Option<&str>,
     ) -> Result<serde_json::Value> {
+        // #1336 backstop: a principal that never passed a transport's enrichment seam
+        // does not execute. Placed here rather than at the four public entry points
+        // above it, because every GraphQL-document path funnels through this one.
+        crate::runtime::executor::support::security::enforce_enrichment_resolved(&self.ctx.schema, security_context)?;
+
         if self.ctx.config.query_timeout_ms > 0 {
             let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
             tokio::time::timeout(

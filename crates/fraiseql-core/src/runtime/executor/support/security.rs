@@ -11,6 +11,60 @@ use crate::{
     security::{ENRICHED_NAMESPACE_PREFIX, SecurityContext},
 };
 
+/// Refuse a principal that never passed a transport's enrichment seam (#1336).
+///
+/// The enforcement that matters is the producer's: every transport resolves the
+/// subject it dispatches with, and fail-closes there. This is the **backstop** for
+/// the failure that produced the issue — a transport that builds a principal and
+/// dispatches it without resolving. REST, MCP and gRPC each did exactly that, and
+/// nothing downstream noticed, because an operation reading no enriched field
+/// answers the same either way.
+///
+/// So the engine asks the one question it can answer for every transport that
+/// reaches it: *was this principal ever resolved?* An unmarked context is refused
+/// when the schema declares an enrichment consumer — which, given the boot check
+/// that refuses such a schema without `[identity.enrichment].enabled`, means a
+/// resolver exists and something skipped it.
+///
+/// Absence of the mark is the fail-closed state, so this catches a transport nobody
+/// remembered to change — including `fraiseql-arrow`'s Flight server, which lives in
+/// a crate that cannot reach the resolver and reaches the engine through
+/// `execute_with_security`.
+///
+/// Anonymous requests carry no principal and are not this gate's business; a
+/// `system_job` marks itself [`EnrichmentMark::Exempt`], having no subject to
+/// resolve.
+///
+/// ⚠ A deployment that enables enrichment while declaring **no** consumer is outside
+/// this backstop — the engine has no schema-visible signal there. The producer seam
+/// still fail-closes such a deployment; the server already warns at startup that it
+/// is probably a misconfiguration.
+///
+/// # Errors
+///
+/// [`FraiseQLError::Authorization`] — surfaced as 403, matching the transport
+/// producers' own answer for a refused identity.
+pub(in super::super) fn enforce_enrichment_resolved(
+    schema: &crate::schema::CompiledSchema,
+    security_context: Option<&SecurityContext>,
+) -> crate::error::Result<()> {
+    let Some(ctx) = security_context else {
+        return Ok(());
+    };
+    if ctx.enrichment_mark().is_some() || !schema.declares_enrichment_consumer() {
+        return Ok(());
+    }
+    Err(FraiseQLError::Authorization {
+        message:  "Identity was not resolved for this request. The schema declares an \
+                   enriched-identity consumer, so every authenticated request must resolve \
+                   before dispatch — this one reached the engine unresolved, which means the \
+                   transport it arrived on does not run the enrichment seam."
+            .to_string(),
+        action:   Some("execute".to_string()),
+        resource: None,
+    })
+}
+
 /// Resolve session variable mappings against the current security context.
 ///
 /// Returns a list of `(name, value)` pairs to inject as PostgreSQL transaction-scoped
@@ -267,5 +321,128 @@ pub(in super::super) fn classify_fields_for_read(
     match security_context {
         Some(ctx) => apply_field_rbac_filtering(schema, return_type, projection_fields, ctx),
         None => apply_anonymous_field_rbac_filtering(schema, return_type, &projection_fields),
+    }
+}
+
+// ── #1336: the backstop for a transport that never resolved ────────────────
+#[cfg(test)]
+mod enrichment_backstop_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use chrono::Utc;
+
+    use super::enforce_enrichment_resolved;
+    use crate::{
+        schema::{
+            CompiledSchema, InjectedParamSource, SessionVariableMapping, SessionVariableSource,
+        },
+        security::{EnrichmentMark, SecurityContext},
+    };
+
+    fn principal() -> SecurityContext {
+        SecurityContext {
+            user_id: crate::types::UserId::new("user-1336"),
+            roles: vec![],
+            tenant_id: None,
+            scopes: vec![],
+            attributes: std::collections::HashMap::new(),
+            request_id: "req-1336".to_string(),
+            ip_address: None,
+            authenticated_at: Utc::now(),
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            issuer: None,
+            audience: None,
+            email: None,
+            display_name: None,
+        }
+    }
+
+    /// A schema that reads enriched identity through a **session variable**.
+    fn schema_with_session_variable_consumer() -> CompiledSchema {
+        let mut schema = CompiledSchema::default();
+        schema.session_variables.variables.push(SessionVariableMapping {
+            name:   "app.actor_id".to_string(),
+            source: SessionVariableSource::Enrichment {
+                field: "actor_id".to_string(),
+            },
+        });
+        schema
+    }
+
+    /// A schema that reads enriched identity through an **inject param** instead.
+    ///
+    /// Both declaration sites, because a scan that covered one would let the other
+    /// deployment through the backstop entirely — and they are separate loops.
+    fn schema_with_inject_param_consumer() -> CompiledSchema {
+        let mut schema = CompiledSchema::default();
+        let mut query = crate::schema::QueryDefinition::new("orders", "Order");
+        query
+            .inject_params
+            .insert("actor".to_string(), InjectedParamSource::Enrichment("actor_id".to_string()));
+        schema.queries.push(query);
+        schema
+    }
+
+    #[test]
+    fn an_unresolved_principal_is_refused() {
+        // The case this guard exists for: a transport that builds a principal and
+        // dispatches it without resolving. REST, MCP and gRPC each did, and the
+        // Flight server in `fraiseql-arrow` still cannot reach the resolver at all.
+        for schema in [schema_with_session_variable_consumer(), schema_with_inject_param_consumer()]
+        {
+            assert!(
+                enforce_enrichment_resolved(&schema, Some(&principal())).is_err(),
+                "a principal carrying no enrichment mark must not execute against a schema \
+                 that reads enriched identity"
+            );
+        }
+    }
+
+    #[test]
+    fn a_resolved_principal_proceeds() {
+        // The positive twin. Without it a guard that refused everything would satisfy
+        // every refusal case in this module.
+        let mut ctx = principal();
+        ctx.mark_enrichment(EnrichmentMark::Resolved);
+
+        assert!(
+            enforce_enrichment_resolved(&schema_with_session_variable_consumer(), Some(&ctx))
+                .is_ok(),
+            "a principal that passed a transport's seam must execute"
+        );
+    }
+
+    #[test]
+    fn a_system_job_is_exempt() {
+        // The server acting as itself has no subject a resolver could look up, so a
+        // scheduled Source must keep running against an enrichment-declaring schema.
+        let ctx = SecurityContext::system_job("ingest", "req-1", vec![], vec![], None);
+
+        assert_eq!(ctx.enrichment_mark(), Some(EnrichmentMark::Exempt));
+        assert!(
+            enforce_enrichment_resolved(&schema_with_session_variable_consumer(), Some(&ctx))
+                .is_ok(),
+            "a system job must not be refused by a gate about resolving request subjects"
+        );
+    }
+
+    #[test]
+    fn an_anonymous_request_is_not_this_gates_business() {
+        assert!(
+            enforce_enrichment_resolved(&schema_with_session_variable_consumer(), None).is_ok(),
+            "there is no subject to resolve, so there is nothing to refuse here — the \
+             operation's own inject/session-variable requirements still apply downstream"
+        );
+    }
+
+    #[test]
+    fn a_schema_that_reads_no_enriched_field_admits_an_unmarked_principal() {
+        // The over-refusal case. Every deployment that does not use enriched identity
+        // dispatches unmarked principals — including every fixture in this repo — so a
+        // guard keyed on the principal alone would refuse the entire test suite.
+        assert!(
+            enforce_enrichment_resolved(&CompiledSchema::default(), Some(&principal())).is_ok(),
+            "a schema declaring no enrichment consumer must be unaffected by this guard"
+        );
     }
 }

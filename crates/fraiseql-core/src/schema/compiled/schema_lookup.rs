@@ -15,6 +15,41 @@ use crate::schema::{
 };
 
 impl CompiledSchema {
+    /// Whether this schema declares any consumer of enriched identity — a
+    /// [`SessionVariableSource::Enrichment`] mapping or an
+    /// [`InjectedParamSource::Enrichment`] parameter (#539).
+    ///
+    /// Computed rather than cached: a cached flag would default to `false` on any
+    /// schema that skipped `build_indexes`, and a security backstop that switches
+    /// itself off on a hand-built fixture is worse than none. The scan is two
+    /// iterator passes over declarations, run once per executor construction.
+    ///
+    /// ⚠ This answers "does anything *read* enriched identity", which is **not**
+    /// the same question as "must this request resolve". Resolution is enforced by
+    /// the transport's producer seam and runs whenever a resolver is configured,
+    /// whether or not anything reads the result — making the fail-closed boundary
+    /// conditional on a declaration is precisely the silent-skip the design fights.
+    /// This is read only by the engine's *backstop*, which asks a narrower question:
+    /// "may a principal that never met a resolver execute here".
+    ///
+    /// [`SessionVariableSource::Enrichment`]: crate::schema::SessionVariableSource::Enrichment
+    /// [`InjectedParamSource::Enrichment`]: crate::schema::InjectedParamSource::Enrichment
+    #[must_use]
+    pub fn declares_enrichment_consumer(&self) -> bool {
+        use crate::schema::{InjectedParamSource, SessionVariableSource};
+
+        self.session_variables
+            .variables
+            .iter()
+            .any(|mapping| matches!(mapping.source, SessionVariableSource::Enrichment { .. }))
+            || self
+                .queries
+                .iter()
+                .flat_map(|q| q.inject_params.values())
+                .chain(self.mutations.iter().flat_map(|m| m.inject_params.values()))
+                .any(|source| matches!(source, InjectedParamSource::Enrichment(_)))
+    }
+
     /// Build the schema's derived state: O(1) operation lookup indexes, and the
     /// filter/sort input surface `where`/`orderBy` are typed against.
     ///

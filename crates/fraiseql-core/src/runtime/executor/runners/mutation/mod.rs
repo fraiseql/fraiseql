@@ -846,6 +846,10 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     selections: &[FieldSelection],
     inline_arguments: &[crate::graphql::GraphQLArgument],
 ) -> Result<MutationExecution> {
+    // #1336 backstop: the same question the read path asks, at the write chokepoint
+    // every transport converges on (#1327, #1330).
+    crate::runtime::executor::support::security::enforce_enrichment_resolved(&ctx.schema, security_ctx)?;
+
     // 1. Locate the mutation definition
     let mutation_def = ctx.schema.find_mutation(mutation_name).ok_or_else(|| {
         let display_names: Vec<String> =

@@ -575,3 +575,62 @@ async fn mcp_serves_the_resolved_subject_its_own_rows() {
          resolve. Got: {text}"
     );
 }
+
+// ---------------------------------------------------------------------------
+// The boot check that makes the engine's backstop sound
+// ---------------------------------------------------------------------------
+
+#[tokio::test]
+async fn a_schema_that_reads_enriched_identity_refuses_to_boot_without_a_resolver() {
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
+        return;
+    };
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
+
+    // The same schema the cases above serve — it injects `enrichment:org_id` — but a
+    // deployment that never enabled `[identity.enrichment]`.
+    let config = ServerConfig {
+        cors_enabled: false,
+        database_url: url,
+        ..ServerConfig::default()
+    };
+
+    let outcome = Box::pin(Server::new(config, build_schema(), adapter, None)).await;
+
+    let Err(error) = outcome else {
+        panic!(
+            "#1336: a schema whose reads are scoped by a DB-derived identity, in a \
+             deployment that resolves none, must not boot. Every request reading an \
+             enriched field answers \"enrichment did not run\", and every other request \
+             is served without the fail-closed check the schema implies — a 100% failure \
+             rate whose only previous symptom was in production."
+        );
+    };
+    let message = error.to_string();
+    assert!(
+        message.contains("identity.enrichment"),
+        "the refusal must name the config block an operator has to change, not just \
+         fail: {message}"
+    );
+}
+
+#[tokio::test]
+async fn the_same_schema_boots_once_a_resolver_is_configured() {
+    // The positive twin. Without it, a check that refused every boot would satisfy the
+    // case above — and the seven cases before it never construct a `Server` at all.
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping #1336 enrichment parity: DATABASE_URL not set");
+        return;
+    };
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
+    std::env::set_var(SECRET_ENV, SECRET);
+
+    let mut config = server_config();
+    config.database_url = url.clone();
+    let pool = sqlx::PgPool::connect(&url).await.expect("enrichment pool");
+
+    Box::pin(Server::new(config, build_schema(), adapter, Some(pool)))
+        .await
+        .expect("the identical schema must boot when [identity.enrichment] is enabled");
+}

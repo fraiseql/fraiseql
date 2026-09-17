@@ -558,3 +558,169 @@ mod session_variable_tests {
         );
     }
 }
+
+// ── #1336: the backstop fires at every engine entry, not only in isolation ──
+//
+// `enforce_enrichment_resolved` has its own unit tests; these assert it is actually
+// *reached* from each family of entry point. The distinction matters: the defect this
+// guards against is a call site that does not consult a rule, so testing the rule
+// without testing the sites would reproduce the original failure exactly.
+#[cfg(test)]
+mod enrichment_entry_point_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use std::sync::Arc;
+
+    use chrono::Utc;
+
+    use crate::{
+        error::FraiseQLError,
+        runtime::{Executor, executor::test_support::MockAdapter},
+        schema::{
+            CompiledSchema, MutationDefinition, QueryDefinition, SessionVariableMapping,
+            SessionVariableSource, TypeDefinition,
+        },
+        security::{EnrichmentMark, SecurityContext},
+    };
+
+    /// A schema that reads enriched identity, with one query and one mutation so
+    /// every entry family has something to dispatch to.
+    fn schema() -> CompiledSchema {
+        let mut schema = CompiledSchema::default();
+        schema.session_variables.variables.push(SessionVariableMapping {
+            name:   "app.actor_id".to_string(),
+            source: SessionVariableSource::Enrichment {
+                field: "actor_id".to_string(),
+            },
+        });
+
+        let mut order = TypeDefinition::new("Order", "v_order");
+        order.fields = vec![crate::schema::FieldDefinition::new("id", crate::schema::FieldType::Id)];
+        schema.types.push(order);
+
+        let mut query = QueryDefinition::new("orders", "Order");
+        query.sql_source = Some("v_order".to_string());
+        query.returns_list = true;
+        schema.queries.push(query);
+
+        let mut create = MutationDefinition::new("createOrder", "Order");
+        create.sql_source = Some("fn_create_order".to_string());
+        schema.mutations.push(create);
+
+        schema.build_indexes();
+        schema
+    }
+
+    fn executor() -> Executor<MockAdapter> {
+        Executor::new(schema(), Arc::new(MockAdapter::new(vec![])))
+    }
+
+    /// A principal exactly as a transport that never resolved would produce it.
+    fn unresolved() -> SecurityContext {
+        SecurityContext {
+            user_id: crate::types::UserId::new("user-1336"),
+            roles: vec![],
+            tenant_id: None,
+            scopes: vec![],
+            attributes: std::collections::HashMap::new(),
+            request_id: "req-1336".to_string(),
+            ip_address: None,
+            authenticated_at: Utc::now(),
+            expires_at: Utc::now() + chrono::Duration::hours(1),
+            issuer: None,
+            audience: None,
+            email: None,
+            display_name: None,
+        }
+    }
+
+    fn resolved() -> SecurityContext {
+        let mut ctx = unresolved();
+        ctx.mark_enrichment(EnrichmentMark::Resolved);
+        ctx
+    }
+
+    fn is_refusal(err: &FraiseQLError) -> bool {
+        matches!(err, FraiseQLError::Authorization { .. })
+    }
+
+    #[tokio::test]
+    async fn the_graphql_document_entry_refuses_an_unresolved_principal() {
+        // `execute_with_security` is how `fraiseql-arrow`'s Flight server reaches the
+        // engine, from a crate that cannot see the resolver at all.
+        let err = executor()
+            .execute_with_security("{ orders { id } }", None, &unresolved())
+            .await
+            .expect_err("an unresolved principal must not execute");
+
+        assert!(is_refusal(&err), "expected an authorization refusal, got: {err}");
+    }
+
+    #[tokio::test]
+    async fn the_graphql_document_entry_admits_a_resolved_principal() {
+        // The twin that keeps the case above honest: this query fails for its own
+        // reasons against a mock adapter, but it must not fail as a *refusal*.
+        let outcome = executor().execute_with_security("{ orders { id } }", None, &resolved()).await;
+
+        assert!(
+            outcome.as_ref().err().is_none_or(|e| !is_refusal(e)),
+            "a resolved principal must get past this guard; got: {outcome:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_direct_read_entries_refuse_an_unresolved_principal() {
+        // REST does not go through the GraphQL document path, so the guard has to be
+        // at these entries too — the gap that let #808 and #739 ship.
+        let executor = executor();
+        // A real match, built the way REST builds one — route resolution first, then
+        // the pre-resolved `QueryMatch` handed straight to the executor.
+        let query_match = crate::runtime::QueryMatcher::new(schema())
+            .match_query("{ orders { id } }", None)
+            .expect("the fixture query matches");
+
+        let read = executor.execute_query_direct(&query_match, None, Some(&unresolved())).await;
+        assert!(
+            read.as_ref().err().is_some_and(is_refusal),
+            "execute_query_direct must refuse; got: {read:?}"
+        );
+
+        let count = executor.count_rows(&query_match, None, Some(&unresolved())).await;
+        assert!(
+            count.as_ref().err().is_some_and(is_refusal),
+            "count_rows must refuse too — it is the second chokepoint every REST read \
+             passes through, and a guard on one of the pair leaves the other open; \
+             got: {count:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_streaming_read_entry_refuses_an_unresolved_principal() {
+        // Found by mutating the guard away: with only the two non-streaming read cases
+        // above, this call site could be deleted and the suite stayed green. REST's
+        // NDJSON/CSV/XLSX routes are the ones that reach it, and they carry exactly the
+        // same principal the JSON route does.
+        let executor = executor();
+        let query_match = crate::runtime::QueryMatcher::new(schema())
+            .match_query("{ orders { id } }", None)
+            .expect("the fixture query matches");
+
+        let stream = executor.stream_query_direct(query_match, None, Some(unresolved())).await;
+
+        assert!(
+            stream.as_ref().err().is_some_and(is_refusal),
+            "stream_query_direct must refuse an unresolved principal too; got an Ok or a \
+             non-authorization error"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_mutation_chokepoint_refuses_an_unresolved_principal() {
+        let err = executor()
+            .execute_mutation_as("createOrder", None, Some(&unresolved()), &[])
+            .await
+            .expect_err("an unresolved principal must not write");
+
+        assert!(is_refusal(&err), "expected an authorization refusal, got: {err}");
+    }
+}

@@ -218,6 +218,14 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
         // than silently storing sensitive data unencrypted.
         crate::server::initialization::field_encryption_unsupported_check(&schema)?;
 
+        // Refuse a schema that reads enriched identity with no resolver configured
+        // (#1336) — the misconfiguration whose only previous symptom was a 100%
+        // failure rate on enriched reads, found in production.
+        #[cfg(feature = "auth")]
+        crate::server::initialization::enrichment_consumer_without_resolver_check(
+            &schema, &config,
+        )?;
+
         // Read every schema-derived subsystem through the one shared seam.
         let subsystems = Self::schema_subsystems(&schema, &config).await?;
 
