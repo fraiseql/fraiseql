@@ -18,6 +18,34 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A gRPC read applies the row-level-security policy the deployment configured, and a
+  streaming read fails closed (#1348).** Both read arms constructed
+  `DefaultRLSPolicy::new()` themselves — the only places outside `fraiseql-core` that
+  built an `RLSPolicy` — which was wrong in both directions: a deployment that configured
+  a custom policy never had it consulted, and one that configured **none** got
+  `DefaultRLSPolicy` applied on gRPC reads while GraphQL and REST applied nothing.
+
+  **What changes for a gRPC deployment with no configured policy**: a read stops applying
+  `DefaultRLSPolicy` and returns the rows GraphQL and REST already return — that is
+  **more** rows than before. The transports now agree, which is the point, but it is a
+  visible change. A deployment that wants that filter must configure it, as GraphQL and
+  REST have always required.
+
+  Two fail-open paths on the **server-streaming** arm are closed with it, neither of them
+  in the issue. `policy.evaluate(...).ok().flatten()` turned an RLS evaluation failure
+  into "no filter", and `gen.generate(&clause).ok()` turned a clause that could not be
+  generated into "no WHERE at all" — including when the clause that failed was the RLS
+  one. Each streamed every row. The unary arm uses `?` at both points, so the same failure
+  was fail-closed on a unary read and fail-open on a streaming one, which is the shape
+  where it is least visible: the frames look identical either way.
+
+  `tools/check-rls-policy-construction.sh` now fails the build when production code
+  outside `fraiseql-core` names a concrete policy.
+
+  Routing these arms fully through the engine — which would also bring field filters, the
+  page-size and cost ceilings and the read `Authorizer` — remains a separate, larger
+  change, and is not part of this.
+
 - **Arrow Flight resolves enriched identity, and `[identity.enrichment]` now has no
   exempt transport (#1349).** `DoGet` and `DoExchange` built a `SecurityContext` from the
   session token and dispatched it unresolved, so an unknown subject was served the rows

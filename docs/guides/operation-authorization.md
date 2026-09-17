@@ -118,6 +118,19 @@ A PEP is only as strong as its least-guarded entry path. The authorizer is enfor
 - **`RLSPolicy::evaluate()` argument widening.** Row-filter injection already receives the
   operation name; widening it to also receive the operation arguments is a separate
   (breaking) change tracked independently.
+- **An `RLSPolicy` implemented outside `fraiseql-core` can only return `None`.**
+  `RlsWhereClause` can be constructed only within that crate, by design — "only RLS policy
+  implementations within `fraiseql-core` may construct this type" — so an embedder
+  registering a policy is choosing among the ones core provides (`DefaultRLSPolicy`,
+  `NoRLSPolicy`, `CompiledRLSPolicy` with compiled rules) rather than writing a new filter.
+
+> **Every read consults the *configured* policy, and none invents one** (#1348). Both gRPC
+> read arms used to build `DefaultRLSPolicy` themselves, so a deployment's own policy was
+> never applied there and a deployment with none got a filter GraphQL and REST did not —
+> the same query answering differently depending on which transport asked.
+> `tools/check-rls-policy-construction.sh` keeps that closed: no production code outside
+> `fraiseql-core` may name a concrete policy.
+
 - **No TOML/env surface.** Like `FieldAuthorizer`, the `Authorizer` is a library-config
   plug today (`with_authorizer`); the server binary installs one only if an embedder sets it
   on the `RuntimeConfig`. An SDK/declarative authoring surface is a follow-up.
