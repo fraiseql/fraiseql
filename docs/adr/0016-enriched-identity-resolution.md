@@ -75,9 +75,12 @@ failure model, wired to two consumers.
    > absence is the fail-closed state, so a transport nobody remembered is refused
    > rather than served.
    >
-   > One exemption is named rather than assumed: Arrow Flight (#1349), whose handlers
-   > live in a crate that cannot reach the resolver. The backstop refuses its
-   > principals, so the exemption means "refuses", not "serves unenriched".
+   > One exemption was named rather than assumed: Arrow Flight (#1349), whose handlers
+   > live in a crate that cannot reach the resolver. **It is closed.** `IdentityEnricher`
+   > — object-safe, `BoxFuture`, per decision 7's rule against a new `async_trait` — is
+   > the seam that crate resolves through, implemented by `IdentityResolver` and
+   > installed at serve time. There are no exemptions, and the build gate's allowlist is
+   > empty.
    >
    > The converse is now a boot refusal: a schema declaring an `enrichment` consumer
    > with `[identity.enrichment]` disabled does not start. That is what makes the

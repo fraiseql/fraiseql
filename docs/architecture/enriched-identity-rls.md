@@ -320,21 +320,25 @@ not inherit (#1333) — so a tenant-keyed request resolves like any other.
 | gRPC (unary + server-streaming, reads and writes) | yes | `routes/grpc/mod.rs::principal_from_user` |
 | Async operations (`/operations/v1`) | yes, at submission — the snapshot the background worker runs with carries the resolved identity | `routes/async_operations.rs::submit` |
 | `/ws` subscriptions | resolves; a failed resolve leaves the enriched field absent, so a policy-declaring subscription refuses at derivation | `routes/subscriptions.rs::enrich_principal` |
-| **Arrow Flight** | **no — the one exemption**, tracked as [#1349](https://github.com/fraiseql/fraiseql/issues/1349) | its handlers live in `fraiseql-arrow`, which cannot reach the resolver |
+| Arrow Flight (`DoGet`, `DoExchange`) | yes, since #1349 | `flight_server/handlers.rs::resolve_identity`, through the object-safe `IdentityEnricher` seam |
+
+**There are no exemptions.** There was one — Flight, whose handlers live in
+`fraiseql-arrow` and cannot reach the resolver directly — and closing it is what the
+`IdentityEnricher` seam in `fraiseql-core` exists for: the server implements it and hands
+it to the Flight service at serve time, beside the policy-gated executor (#954), so
+nothing is captured before the resolver exists.
 
 Two things keep that table honest, because a list in a document is exactly what was
 wrong before:
 
 - **`tools/check-principal-producers.sh`** fails the build when a site turns a credential
-  into a principal — or takes one from the shared extractor — and does not resolve it.
-  The Flight handlers are its only `KNOWN` entries, and a staleness check fails the
-  moment either starts resolving, so #1349 cannot be fixed and left listed.
+  into a principal — or takes one from the shared extractor — and does not resolve it. Its
+  `KNOWN` list is **empty**, which is the state it exists to hold: an entry there is a
+  named defect with an issue, never a resting place.
 - **The engine refuses an unresolved principal.** `enforce_enrichment_resolved` rejects a
   context carrying no enrichment mark when the schema declares an enrichment consumer,
   at every executor entry point. Absence of the mark is the fail-closed state, so a
-  transport added tomorrow is refused rather than served — including Flight, whose reads
-  do reach the engine. The exemption above therefore means "refuses", not "serves
-  unenriched".
+  transport added tomorrow is refused rather than served.
 
 A `system_job` principal — the server acting as itself, from no credential — marks
 itself exempt at its construction site. It has no subject a resolver could look up.
@@ -349,6 +353,7 @@ itself exempt at its construction site. It has no subject a resolver could look 
 | The seam every transport calls between authenticating and dispatching | `identity::resolve_request_identity` |
 | Config variants + namespaced read (no DB) | `fraiseql-core` (`SessionVariableSource::Enrichment`, `InjectedParamSource::Enrichment`, `security::ENRICHED_NAMESPACE_PREFIX`) |
 | The engine's fail-closed backstop + the mark it reads | `fraiseql-core` (`enforce_enrichment_resolved`, `security::EnrichmentMark`) |
+| The object-safe seam a crate outside `fraiseql-server` resolves through | `fraiseql-core` (`security::IdentityEnricher`), implemented by `IdentityResolver` |
 | Sender seam (object-safe trait + login-email default) | `fraiseql-functions` (`SenderIdentityResolver`, `LoginEmailSender`) |
 
 See [ADR-0016](../adr/0016-enriched-identity-resolution.md) for the decision

@@ -18,6 +18,26 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Arrow Flight resolves enriched identity, and `[identity.enrichment]` now has no
+  exempt transport (#1349).** `DoGet` and `DoExchange` built a `SecurityContext` from the
+  session token and dispatched it unresolved, so an unknown subject was served the rows
+  `/graphql` refuses and an enriched read failed for every caller. This was the highest-
+  exposure instance of #1336: `arrow` is in **both** published images' `CARGO_FEATURES`
+  and the binary mounts the Flight service unconditionally under that feature.
+
+  Closing it needed a seam rather than a call: `fraiseql-core` gains `IdentityEnricher`
+  (object-safe, `BoxFuture`, no new `async_trait`), `IdentityResolver` implements it, and
+  the server installs it at serve time beside the policy-gated executor (#954) — the point
+  where both halves first exist. `EnrichmentOutcome` and its two outward messages move to
+  `fraiseql-core` with it, so "generic body, no actor-table oracle" stays a single decision
+  across three crates rather than a convention each restates.
+
+  **Breaking for a Flight deployment with enrichment enabled**: an unknown subject is now
+  `PERMISSION_DENIED` and a resolver outage is `UNAVAILABLE`, where both previously
+  reached the data. A deployment whose schema declares an enrichment consumer gets a
+  working Flight surface back — since #1336 in this same release, the engine refused every
+  such request.
+
 - **Tenant-keyed requests now run under the gates the operator configured (#1333).** Every
   per-tenant executor was built by `create_tenant_executor`, which ended in
   `Executor::new(schema, adapter)` — that is, `RuntimeConfig::default()`. Every HTTP
@@ -71,12 +91,10 @@ disagreed, and the promise was the part that was wrong.
   - **A schema declaring an `enrichment` session variable or inject param refuses to boot
     unless `[identity.enrichment].enabled`.** That combination's only previous symptom was a
     total failure rate on enriched reads, discovered in production.
-  - **Arrow Flight is refused, not served unenriched** (#1349). Its handlers live in
-    `fraiseql-arrow`, which cannot reach the resolver; the engine's new backstop rejects the
-    principals they build. `arrow` is in both published images and `main.rs` mounts the service
-    unconditionally under that feature, so this is the one entry here that touches a shipped
-    artifact. Deployments that use Flight *and* an enrichment-declaring schema must wait for
-    #1349 or disable one of the two.
+  - **Arrow Flight resolves too**, as of #1349 below. It was briefly the one exemption —
+    its handlers live in `fraiseql-arrow`, which cannot reach the resolver — and the
+    engine's backstop refused them rather than serving them unenriched. Both land in this
+    release, so no published version ever ships the refusing state.
 
   Resolution happens where a credential becomes a principal, not where an operation is
   dispatched — the engine is not below every transport (gRPC's reads go straight to the
