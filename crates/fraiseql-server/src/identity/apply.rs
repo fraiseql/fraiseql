@@ -134,7 +134,7 @@ fn claims_for_binding(ctx: &SecurityContext) -> HashMap<String, serde_json::Valu
 ///
 /// `fraiseql-arrow` cannot depend on this crate, so it holds an
 /// [`IdentityEnricher`] and the server hands it this. The body is
-/// [`enrich_security_context`] verbatim — not a second implementation, which is the
+/// `enrich_security_context` verbatim — not a second implementation, which is the
 /// shape #1336 was.
 impl IdentityEnricher for IdentityResolver {
     fn enrich<'a>(&'a self, ctx: &'a mut SecurityContext) -> BoxFuture<'a, EnrichmentOutcome> {
