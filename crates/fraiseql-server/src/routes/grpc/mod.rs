@@ -81,6 +81,12 @@ pub struct DynamicGrpcService<A: DatabaseAdapter> {
     /// Optional shared rate limiter (same instance used by GraphQL/REST).
     /// When present, requests are throttled per-IP and per-user before dispatch.
     rate_limiter:   Option<Arc<RateLimiter>>,
+    /// The enriched-identity resolver (#1336). `Some` exactly when
+    /// `[identity.enrichment].enabled`, and passed in for the same reason
+    /// `executor` is: this transport is mounted by an embedder, and anything it
+    /// builds for itself is a copy that drifts from the one the deployment configured.
+    #[cfg(feature = "auth")]
+    identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
 }
 
 impl<A: DatabaseAdapter> Clone for DynamicGrpcService<A> {
@@ -94,6 +100,8 @@ impl<A: DatabaseAdapter> Clone for DynamicGrpcService<A> {
             service_name:   Arc::clone(&self.service_name),
             oidc_validator: self.oidc_validator.as_ref().map(Arc::clone),
             rate_limiter:   self.rate_limiter.as_ref().map(Arc::clone),
+            #[cfg(feature = "auth")]
+            identity_resolver: self.identity_resolver.as_ref().map(Arc::clone),
         }
     }
 }
@@ -431,13 +439,78 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> Dyn
         match validator.validate_token(&token).await {
             Ok(user) => {
                 debug!(user_id = %user.user_id, "gRPC user authenticated");
-                Ok(Some(SecurityContext::from_user(&user, request_id)))
+                Self::principal_from_user(
+                    #[cfg(feature = "auth")]
+                    self.identity_resolver.as_deref(),
+                    &user,
+                    request_id,
+                )
+                .await
+                .map(Some)
             },
             Err(e) => {
                 warn!(error = %e, "gRPC token validation failed");
                 Err(grpc_error_response(tonic::Code::Unauthenticated, "Invalid or expired token"))
             },
         }
+    }
+
+    /// Turn a **validated** token's user into the principal this request dispatches
+    /// with — the shared context build plus enrichment (#1336).
+    ///
+    /// Split out from [`authenticate`](Self::authenticate) because everything above it
+    /// is JWKS machinery that needs a live key endpoint, while everything in it is the
+    /// producer logic that has twice been wrong on this transport. Tests drive it
+    /// directly, the way MCP's `call_tool_authenticated` is driven — and it takes the
+    /// resolver rather than `&self` so driving it needs no descriptor pool, no dispatch
+    /// table and no adapter, none of which it reads.
+    ///
+    /// `build_security_context` rather than `SecurityContext::from_user`: #858's fix
+    /// never reached gRPC, so `tenant_id` stayed unset and `attributes` stayed empty —
+    /// the JWT's `org_id` never became a tenant and every `SessionVariableSource::Jwt`
+    /// mapping resolved to nothing. It is also a *prerequisite* for the enrichment
+    /// call below whenever the configured query binds anything other than `$sub`:
+    /// `claims_for_binding` reads `attributes`, so against an empty map a query binding
+    /// `$org_id` fails its parameter and denies every subject. A `$sub`-only query
+    /// would have masked that — which is why the two are tested separately below.
+    ///
+    /// # Errors
+    ///
+    /// `PERMISSION_DENIED` when the identity is denied, `UNAVAILABLE` when resolution
+    /// fails transiently — the gRPC spellings of the same two answers every other
+    /// transport gives, with the same generic bodies.
+    async fn principal_from_user(
+        #[cfg(feature = "auth")] identity_resolver: Option<&crate::identity::IdentityResolver>,
+        user: &fraiseql_core::security::AuthenticatedUser,
+        request_id: String,
+    ) -> std::result::Result<SecurityContext, http::Response<TonicBody>> {
+        let ctx = crate::extractors::build_security_context(user, request_id)
+            .with_transport("grpc");
+        // Shadowed rather than declared `mut` up front: without `auth` there is no
+        // resolver and nothing mutates it, and an unconditional `mut` warns in that
+        // arm — the arm `--all-features` never builds.
+        #[cfg(feature = "auth")]
+        let ctx = {
+            let mut ctx = ctx;
+            match crate::identity::resolve_request_identity(identity_resolver, Some(&mut ctx))
+                .await
+            {
+                crate::identity::EnrichmentOutcome::Proceed => ctx,
+                crate::identity::EnrichmentOutcome::Denied => {
+                    return Err(grpc_error_response(
+                        tonic::Code::PermissionDenied,
+                        crate::identity::EnrichmentOutcome::DENIED_MESSAGE,
+                    ));
+                },
+                crate::identity::EnrichmentOutcome::Unavailable => {
+                    return Err(grpc_error_response(
+                        tonic::Code::Unavailable,
+                        crate::identity::EnrichmentOutcome::UNAVAILABLE_MESSAGE,
+                    ));
+                },
+            }
+        };
+        Ok(ctx)
     }
 }
 
@@ -521,6 +594,9 @@ pub fn build_grpc_service<
     executor: Arc<fraiseql_core::runtime::Executor<A>>,
     oidc_validator: Option<Arc<OidcValidator>>,
     rate_limiter: Option<Arc<RateLimiter>>,
+    #[cfg(feature = "auth")] identity_resolver: Option<
+        Arc<crate::identity::IdentityResolver>,
+    >,
 ) -> Result<Option<GrpcServices<A>>, FraiseQLError> {
     let grpc_config = match schema.grpc_config.as_ref() {
         Some(cfg) if cfg.enabled => cfg,
@@ -621,6 +697,8 @@ pub fn build_grpc_service<
         service_name: service_name.clone().into(),
         oidc_validator,
         rate_limiter,
+        #[cfg(feature = "auth")]
+        identity_resolver,
     };
 
     Ok(Some(GrpcServices {

@@ -1723,6 +1723,14 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// This boots the real mount over a real socket against a real database and
 		// asserts two tenants' rows stay apart — authenticated and anonymous.
 		"cargo test -p fraiseql-server --features rest --test rest_tenant_isolation_e2e_pg -- --test-threads=1",
+		// #1336 — `[identity.enrichment]`'s "every authenticated request resolves and
+		// fail-closes" was true of /graphql only. Drives one deployment through two
+		// transports and requires the same verdict from each: the GraphQL cases are the
+		// control (they pass before the fix), so a red REST case is a transport gap
+		// rather than a broken fixture. Needs a real resolver against a real actor
+		// table — the defect is invisible without one, because an unwired resolver and
+		// an unreached one look identical from the response.
+		"cargo test -p fraiseql-server --features rest,mcp --test enrichment_transport_parity_e2e_pg -- --test-threads=1",
 		// P13 — the REST write surface (#865) and the four defects that had to be green
 		// before it could be mounted. Every one of these suites drives real PostgreSQL;
 		// three of them drive the real `Server::serve_on_listener` mount rather than

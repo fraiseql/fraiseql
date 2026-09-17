@@ -183,7 +183,8 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
     ///
     /// The context is built by the same function the `/graphql` extractor uses, so
     /// the JWT's `org_id` becomes `tenant_id` and its extra claims become
-    /// `attributes` on this transport too (#858).
+    /// `attributes` on this transport too (#858) — and it goes through the same
+    /// enrichment seam, so a subject the actor table refuses is refused here (#1336).
     ///
     /// - `Ok(None)` — no validator configured, or no Bearer token present (anonymous). The
     ///   fail-closed gate in `executor::call_tool` still refuses the call when RLS or
@@ -213,9 +214,29 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
         // change-log row's `extra_metadata.transport`, making MCP-originated
         // writes queryable in the audit trail.
         match validator.validate(&token).await {
-            Ok(user) => Ok(Some(
-                crate::extractors::build_security_context(&user, request_id).with_transport("mcp"),
-            )),
+            Ok(user) => {
+                let mut ctx = crate::extractors::build_security_context(&user, request_id)
+                    .with_transport("mcp");
+                // #1336: resolve the subject's DB identity before the tool call, exactly
+                // as `/graphql` does. MCP reached the engine's authenticated dispatch
+                // already, so it consumed enriched fields correctly — it simply never
+                // produced them, which made every enriched tool call fail and every
+                // unknown subject succeed.
+                match crate::identity::resolve_request_identity(
+                    self.state.identity_resolver.as_deref(),
+                    Some(&mut ctx),
+                )
+                .await
+                {
+                    crate::identity::EnrichmentOutcome::Proceed => Ok(Some(ctx)),
+                    crate::identity::EnrichmentOutcome::Denied => Err(error_result(
+                        crate::identity::EnrichmentOutcome::DENIED_MESSAGE,
+                    )),
+                    crate::identity::EnrichmentOutcome::Unavailable => Err(error_result(
+                        crate::identity::EnrichmentOutcome::UNAVAILABLE_MESSAGE,
+                    )),
+                }
+            },
             Err(e) => {
                 tracing::warn!(error = %e, "MCP token validation failed");
                 Err(error_result("Invalid or expired authentication token"))

@@ -136,22 +136,25 @@ pub(super) async fn enrich_identity<A: DatabaseAdapter + Clone + Send + Sync + '
     state: &AppState<A>,
     security_context: &mut Option<SecurityContext>,
 ) -> Result<(), ErrorResponse> {
-    let Some(resolver) = state.identity_resolver.as_ref() else {
-        return Ok(());
-    };
-    let Some(ctx) = security_context.as_mut() else {
-        return Ok(());
-    };
-    match crate::identity::enrich_security_context(resolver, ctx).await {
+    match crate::identity::resolve_request_identity(
+        state.identity_resolver.as_deref(),
+        security_context.as_mut(),
+    )
+    .await
+    {
         crate::identity::EnrichmentOutcome::Proceed => Ok(()),
         // Generic outward body (DESIGN §5.4): the precise DenyReason is logged
-        // server-side, never surfaced (actor-table oracle guard).
-        crate::identity::EnrichmentOutcome::Denied => Err(ErrorResponse::from_error(
-            GraphQLError::new("Access denied", crate::error::ErrorCode::Forbidden),
-        )),
+        // server-side, never surfaced (actor-table oracle guard). The wording is
+        // shared with every other transport so the response cannot differ by door.
+        crate::identity::EnrichmentOutcome::Denied => {
+            Err(ErrorResponse::from_error(GraphQLError::new(
+                crate::identity::EnrichmentOutcome::DENIED_MESSAGE,
+                crate::error::ErrorCode::Forbidden,
+            )))
+        },
         crate::identity::EnrichmentOutcome::Unavailable => {
             Err(ErrorResponse::from_error(GraphQLError::new(
-                "Identity resolution temporarily unavailable",
+                crate::identity::EnrichmentOutcome::UNAVAILABLE_MESSAGE,
                 crate::error::ErrorCode::ServiceUnavailable,
             )))
         },

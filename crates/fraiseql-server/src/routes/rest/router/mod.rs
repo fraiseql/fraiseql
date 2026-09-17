@@ -158,6 +158,8 @@ where
         route_table: route_table.clone(),
         idempotency_store,
         error_sanitizer: Arc::clone(&state.error_sanitizer),
+        #[cfg(feature = "auth")]
+        identity_resolver: state.identity_resolver.clone(),
         function_hooks: state.before_mutation_hooks.clone(),
         #[cfg(feature = "observers")]
         event_fanout: state.entity_event_fanout.clone(),
@@ -418,6 +420,15 @@ struct RestState<A: DatabaseAdapter> {
     /// Error sanitizer (from `compiled.security.error_sanitization`). Strips raw DB/SQL
     /// detail from 5xx response bodies before they reach the client (H7).
     error_sanitizer:   Arc<crate::config::error_sanitization::ErrorSanitizer>,
+    /// The enriched-identity resolver (#1336), forwarded from `AppState` so a REST
+    /// request resolves its DB identity exactly as a `/graphql` request does.
+    ///
+    /// `Some` precisely when `[identity.enrichment].enabled`. Its absence used to be
+    /// structural rather than configured — `RestState` held no resolver at all — which
+    /// is how a documented "every authenticated request" contract came to be honoured
+    /// by one transport.
+    #[cfg(feature = "auth")]
+    identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
     /// After-mutation function-trigger hooks (#460), forwarded to the mutation
     /// handlers so a committed REST mutation can dispatch `after:mutation`
     /// functions. `None` when the functions subsystem is absent.
@@ -466,7 +477,8 @@ struct RestState<A: DatabaseAdapter> {
 // Security context extraction
 // ---------------------------------------------------------------------------
 
-/// The request's [`SecurityContext`], with `RestConfig.require_auth` **enforced**.
+/// The request's [`SecurityContext`], with `RestConfig.require_auth` **enforced** and
+/// the subject's DB identity **resolved**.
 ///
 /// #810 shipped because `require_auth` was a per-handler responsibility and five of the
 /// six handlers simply did not discharge it: only `rest_sse_handler` read the flag, so
@@ -477,6 +489,12 @@ struct RestState<A: DatabaseAdapter> {
 /// forgetting it: a handler cannot obtain a `SecurityContext` without the guard having
 /// run, and a handler that does not obtain one cannot execute a query. That is the
 /// difference between a rule and a rule that is enforced by the type system.
+///
+/// #1336 is the same failure one layer along: `[identity.enrichment]` documents "every
+/// authenticated request resolves and fail-closes", and REST resolved nothing — so an
+/// enriched read failed for every caller while an unknown subject was served the rows
+/// `/graphql` refused it. The resolution runs here for the same reason the auth check
+/// does: a handler cannot hold a context this extractor did not finish building.
 struct RestSecurityContext(Option<SecurityContext>);
 
 impl<A> FromRequestParts<RestState<A>> for RestSecurityContext
@@ -493,6 +511,8 @@ where
         let require_auth =
             state.executor.schema().rest_config.as_ref().is_some_and(|c| c.require_auth);
         let sanitizer = Arc::clone(&state.error_sanitizer);
+        #[cfg(feature = "auth")]
+        let resolver = state.identity_resolver.clone();
 
         async move {
             let OptionalSecurityContext(security_ctx) =
@@ -503,6 +523,33 @@ where
             if require_auth && security_ctx.is_none() {
                 return Err(rest_result_to_response(Err(RestError::unauthenticated()), &sanitizer));
             }
+
+            #[cfg(feature = "auth")]
+            let security_ctx = {
+                let mut security_ctx = security_ctx;
+                match crate::identity::resolve_request_identity(
+                    resolver.as_deref(),
+                    security_ctx.as_mut(),
+                )
+                .await
+                {
+                    crate::identity::EnrichmentOutcome::Proceed => security_ctx,
+                    crate::identity::EnrichmentOutcome::Denied => {
+                        return Err(rest_result_to_response(
+                            Err(RestError::forbidden()),
+                            &sanitizer,
+                        ));
+                    },
+                    crate::identity::EnrichmentOutcome::Unavailable => {
+                        return Err(rest_result_to_response(
+                            Err(RestError::service_unavailable(
+                                crate::identity::EnrichmentOutcome::UNAVAILABLE_MESSAGE,
+                            )),
+                            &sanitizer,
+                        ));
+                    },
+                }
+            };
 
             Ok(Self(security_ctx))
         }

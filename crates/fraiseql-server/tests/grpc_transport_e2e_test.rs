@@ -41,6 +41,38 @@ const SERVICE_NAME: &str = "fraiseql.v1.FraiseqlService";
 // Helper: build a CompiledSchema with gRPC enabled and a single User type
 // ---------------------------------------------------------------------------
 
+/// `build_grpc_service` with the `#[cfg(feature = "auth")]` resolver argument supplied.
+///
+/// #1336 gave the constructor a required `identity_resolver` — required rather than a
+/// builder method, so an embedder mounting gRPC has to decide about enrichment instead
+/// of inheriting `None` by omission. These tests all pass `None`: none of them
+/// configures enrichment, and the point of each is the transport, not the resolver.
+#[allow(clippy::needless_pass_by_value)] // Reason: mirrors build_grpc_service's own signature
+fn build_grpc_service_for_test<
+    A: fraiseql_core::db::DatabaseAdapter
+        + fraiseql_core::db::SupportsMutations
+        + Clone
+        + Send
+        + Sync
+        + 'static,
+>(
+    schema: Arc<CompiledSchema>,
+    adapter: Arc<A>,
+    executor: Arc<Executor<A>>,
+    oidc_validator: Option<Arc<fraiseql_core::security::OidcValidator>>,
+    rate_limiter: Option<Arc<fraiseql_server::middleware::RateLimiter>>,
+) -> Result<Option<grpc::GrpcServices<A>>, fraiseql_core::error::FraiseQLError> {
+    grpc::build_grpc_service(
+        schema,
+        adapter,
+        executor,
+        oidc_validator,
+        rate_limiter,
+        #[cfg(feature = "auth")]
+        None,
+    )
+}
+
 fn build_grpc_schema(descriptor_path: &str) -> CompiledSchema {
     let mut schema = TestSchemaBuilder::new()
         .with_query(TestQueryBuilder::new("user", "User").build())
@@ -296,7 +328,7 @@ fn build_service(
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
-    let services = grpc::build_grpc_service(
+    let services = build_grpc_service_for_test(
         Arc::clone(&schema),
         Arc::clone(&adapter),
         Arc::new(Executor::new((*schema).clone(), Arc::clone(&adapter))),
@@ -666,7 +698,7 @@ async fn grpc_disabled_returns_none() {
     schema.grpc_config.as_mut().unwrap().enabled = false;
 
     let adapter = FailingAdapter::new();
-    let result = grpc::build_grpc_service(
+    let result = build_grpc_service_for_test(
         Arc::new(schema.clone()),
         Arc::new(adapter.clone()),
         Arc::new(Executor::new(schema, Arc::new(adapter))),
@@ -691,7 +723,7 @@ async fn no_grpc_config_returns_none() {
     schema.grpc_config = None;
 
     let adapter = FailingAdapter::new();
-    let result = grpc::build_grpc_service(
+    let result = build_grpc_service_for_test(
         Arc::new(schema.clone()),
         Arc::new(adapter.clone()),
         Arc::new(Executor::new(schema, Arc::new(adapter))),
@@ -953,7 +985,7 @@ fn build_service_with_auth(
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
-    let services = grpc::build_grpc_service(
+    let services = build_grpc_service_for_test(
         Arc::clone(&schema),
         Arc::clone(&adapter),
         Arc::new(Executor::new((*schema).clone(), Arc::clone(&adapter))),
@@ -1203,7 +1235,7 @@ fn build_service_with_rate_limiter(
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
-    let services = grpc::build_grpc_service(
+    let services = build_grpc_service_for_test(
         Arc::clone(&schema),
         Arc::clone(&adapter),
         Arc::new(Executor::new((*schema).clone(), Arc::clone(&adapter))),
@@ -1334,7 +1366,7 @@ fn reflection_descriptor_bytes_present_when_enabled() {
     let schema = build_grpc_schema(&desc_path);
 
     let adapter = FailingAdapter::new();
-    let services = grpc::build_grpc_service(
+    let services = build_grpc_service_for_test(
         Arc::new(schema.clone()),
         Arc::new(adapter.clone()),
         Arc::new(Executor::new(schema, Arc::new(adapter))),
@@ -1362,7 +1394,7 @@ fn reflection_descriptor_bytes_absent_when_disabled() {
     schema.grpc_config.as_mut().unwrap().reflection = false;
 
     let adapter = FailingAdapter::new();
-    let services = grpc::build_grpc_service(
+    let services = build_grpc_service_for_test(
         Arc::new(schema.clone()),
         Arc::new(adapter.clone()),
         Arc::new(Executor::new(schema, Arc::new(adapter))),
@@ -1385,7 +1417,7 @@ fn reflection_service_builds_from_descriptor_bytes() {
     let schema = build_grpc_schema(&desc_path);
 
     let adapter = FailingAdapter::new();
-    let services = grpc::build_grpc_service(
+    let services = build_grpc_service_for_test(
         Arc::new(schema.clone()),
         Arc::new(adapter.clone()),
         Arc::new(Executor::new(schema, Arc::new(adapter))),
@@ -1419,7 +1451,7 @@ async fn reflection_service_accepts_tonic_add_service() {
 
     let adapter = FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]);
 
-    let services = grpc::build_grpc_service(
+    let services = build_grpc_service_for_test(
         Arc::new(schema.clone()),
         Arc::new(adapter.clone()),
         Arc::new(Executor::new(schema, Arc::new(adapter))),

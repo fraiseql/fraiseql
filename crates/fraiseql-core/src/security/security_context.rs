@@ -66,6 +66,43 @@ fn roles_from_claims(extra_claims: &HashMap<String, serde_json::Value>) -> Vec<S
     roles
 }
 
+/// How a principal satisfied the enrichment requirement (#1336).
+///
+/// The contract `[identity.enrichment]` documents is "every authenticated
+/// request resolves and fail-closes". Enforcing it needs the engine to tell an
+/// *enriched* principal from one that never met a resolver — and the transports
+/// that produce principals are not all in one crate, so the answer rides on the
+/// context rather than on a per-deployment flag the producer might not see.
+///
+/// There is deliberately **no** `NotResolved` variant: the absence of a mark is
+/// that state. A variant would be settable, and anything settable eventually
+/// gets set by the code path that should have refused.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EnrichmentMark {
+    /// The resolver ran and the identity resolved — or the principal already
+    /// carried server-injected `fraiseql.enriched.*` fields, which stand in lieu
+    /// of a resolve (ADR-0018 decision 5).
+    Resolved,
+    /// A principal with no subject to resolve: the server acting as itself
+    /// (`system_job`). Set at exactly one construction site, never as a fallback
+    /// for "no resolver was available" — that case must fail closed.
+    Exempt,
+}
+
+impl EnrichmentMark {
+    const EXEMPT: &'static str = "exempt";
+    const RESOLVED: &'static str = "resolved";
+
+    /// The wire token stored in the context attribute.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Resolved => Self::RESOLVED,
+            Self::Exempt => Self::EXEMPT,
+        }
+    }
+}
+
 /// Security context for authorization evaluation.
 ///
 /// Carries information about the authenticated user and their permissions
@@ -173,6 +210,11 @@ impl SecurityContext {
     /// stamped. Set by the server's request pipeline from the inbound
     /// `traceparent` header; read back via [`trace_id`](Self::trace_id).
     pub const TRACE_ID_ATTRIBUTE: &'static str = "fraiseql.trace_id";
+    /// Attribute key recording that this principal passed the enrichment seam
+    /// (#1336). Absent means "no transport resolved this principal", which is
+    /// the fail-closed case the engine refuses when the schema declares an
+    /// enrichment consumer — see [`EnrichmentMark`].
+    pub const ENRICHMENT_ATTRIBUTE: &'static str = "fraiseql.enrichment";
     /// Attribute key under which the ingress transport is carried (#376): the
     /// door this request came through, e.g. `"mcp"`. Set by a transport that
     /// declares itself (via [`with_transport`](Self::with_transport)) — never
@@ -255,14 +297,20 @@ impl SecurityContext {
         scopes: Vec<String>,
         tenant: Option<TenantId>,
     ) -> Self {
-        Self::principal_from_ceiling(
+        let mut ctx = Self::principal_from_ceiling(
             format!("system_job:{}", job_id.into()),
             request_id,
             roles,
             scopes,
             tenant,
             ActorType::SystemJob,
-        )
+        );
+        // #1336: the server acting as itself has no subject a resolver could look
+        // up, so it is exempt from the enrichment requirement — stated here, at the
+        // one site that mints such a principal, rather than inferred downstream from
+        // "nothing resolved it".
+        ctx.mark_enrichment(EnrichmentMark::Exempt);
+        ctx
     }
 
     /// Mint a **service-account** context from a `run_as` ceiling (ADR-0018).
@@ -500,6 +548,34 @@ impl SecurityContext {
             serde_json::Value::String(transport.to_string()),
         );
         self
+    }
+
+    /// How this principal satisfied the enrichment requirement (#1336), or
+    /// `None` when it never passed the seam.
+    ///
+    /// `None` is the fail-closed state, and it is the *default* precisely
+    /// because the defect this guards against is a transport that builds a
+    /// principal and dispatches it without resolving. A context that skipped
+    /// the seam cannot claim to have passed it by saying nothing.
+    #[must_use]
+    pub fn enrichment_mark(&self) -> Option<EnrichmentMark> {
+        match self.attributes.get(Self::ENRICHMENT_ATTRIBUTE).and_then(serde_json::Value::as_str) {
+            Some(EnrichmentMark::RESOLVED) => Some(EnrichmentMark::Resolved),
+            Some(EnrichmentMark::EXEMPT) => Some(EnrichmentMark::Exempt),
+            _ => None,
+        }
+    }
+
+    /// Record that this principal passed the enrichment seam.
+    ///
+    /// Carried in `attributes` under the reserved `fraiseql.` namespace, which
+    /// the token-claim builder strips — so a caller cannot mint this mark from a
+    /// JWT claim. Only server code on the request path sets it.
+    pub fn mark_enrichment(&mut self, mark: EnrichmentMark) {
+        self.attributes.insert(
+            Self::ENRICHMENT_ATTRIBUTE.to_string(),
+            serde_json::Value::String(mark.as_str().to_string()),
+        );
     }
 
     /// Check if the token has expired.

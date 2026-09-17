@@ -34,9 +34,14 @@ pub(crate) mod resolver;
 pub(crate) mod sender;
 
 pub(crate) use admin::identity_admin_router;
-pub(crate) use apply::{EnrichmentOutcome, enrich_security_context};
+pub(crate) use apply::{EnrichmentOutcome, enrich_security_context, resolve_request_identity};
 use fraiseql_core::schema::{CompiledSchema, InjectedParamSource, SessionVariableSource};
-pub(crate) use resolver::{IdentityConfig, IdentityResolver};
+// Public because `ServerConfig.identity` is a public field of this type: before
+// #1336 an embedder could not name it, so `[identity.enrichment]` was configurable
+// from TOML and unreachable from Rust — a public field with no way to build a value
+// for it. `IdentityResolver` comes with it, since `AppState::with_identity_resolver`
+// is public and takes one.
+pub use resolver::{EnrichmentQueryConfig, IdentityConfig, IdentityResolver};
 
 /// Whether the compiled schema declares any consumer of enriched identity — a
 /// `SessionVariableSource::Enrichment` or an `InjectedParamSource::Enrichment`.
@@ -60,5 +65,8 @@ pub(crate) fn schema_declares_enrichment_consumer(schema: &CompiledSchema) -> bo
     in_session_vars || in_inject_params
 }
 
+// `pub(crate)` so a transport's own tests can drive a resolver without a second
+// mock store: each transport owns a producer (#1336), and a mock per producer is
+// how two of them would come to disagree about what a denial looks like.
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;

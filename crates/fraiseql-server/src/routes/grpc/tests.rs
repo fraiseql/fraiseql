@@ -858,3 +858,127 @@ mod chokepoint {
         assert_eq!(adapter.calls(), 1, "and the function did run");
     }
 }
+
+// ── #1336 / #858: the principal this transport dispatches with ──────────────
+//
+// gRPC has been wrong about its own principal twice, in the same place and for the
+// same reason: it built one itself instead of using the shared producer. #858 fixed
+// `tenant_id` and `attributes` for MCP and left gRPC on `SecurityContext::from_user`;
+// #1336 added enrichment to every transport and gRPC was again the one that had
+// nothing to add it to. These drive `principal_from_user` — the whole producer below
+// token validation — with no descriptor pool, dispatch table or adapter, because it
+// reads none of them.
+#[cfg(feature = "auth")]
+mod principal_production {
+    use fraiseql_core::{
+        db::postgres::PostgresAdapter, security::AuthenticatedUser, types::UserId,
+    };
+    use serde_json::json;
+
+    use crate::{identity::tests as identity_fixtures, routes::grpc::DynamicGrpcService};
+
+    /// The service type is only a carrier here: `principal_from_user` is an associated
+    /// function that takes the resolver explicitly, so `A` is never touched.
+    type Svc = DynamicGrpcService<PostgresAdapter>;
+
+    /// A validated token's user, carrying the `org_id` claim a multi-tenant
+    /// deployment scopes on.
+    fn user() -> AuthenticatedUser {
+        let mut extra = std::collections::HashMap::new();
+        extra.insert("org_id".to_string(), json!("tenant-a"));
+        extra.insert("department".to_string(), json!("ops"));
+        AuthenticatedUser {
+            user_id: UserId("u1".to_string()),
+            email: Some("u1@example.test".to_string()),
+            display_name: None,
+            scopes: Vec::new(),
+            expires_at: chrono::Utc::now() + chrono::Duration::hours(1),
+            extra_claims: extra,
+        }
+    }
+
+    #[tokio::test]
+    async fn the_principal_carries_the_tokens_tenant_and_claims() {
+        // #858's fix, which never reached this transport: `SecurityContext::from_user`
+        // leaves `tenant_id` unset and `attributes` empty, so `org_id` never became a
+        // tenant and every `SessionVariableSource::Jwt` mapping resolved to nothing on
+        // gRPC. Asserted without a resolver, because it is true with enrichment off.
+        let ctx = Svc::principal_from_user(None, &user(), "req-1".to_string())
+            .await
+            .expect("no resolver configured — nothing to refuse");
+
+        assert_eq!(
+            ctx.tenant_id.as_ref().map(|t| t.0.as_str()),
+            Some("tenant-a"),
+            "the JWT's org_id must become the tenant, as it does on /graphql and MCP"
+        );
+        assert_eq!(
+            ctx.attributes.get("department"),
+            Some(&json!("ops")),
+            "extra claims must reach `attributes`, or every jwt: session-variable \
+             mapping resolves to nothing on this transport"
+        );
+        assert_eq!(ctx.transport(), Some("grpc"), "and the ingress door is recorded (#376)");
+    }
+
+    #[tokio::test]
+    async fn a_resolved_subject_proceeds_and_carries_its_enriched_fields() {
+        // The positive twin. Without it, a producer that refused unconditionally would
+        // satisfy both refusal cases below.
+        let resolver = identity_fixtures::resolver_returning(&[
+            ("actor_id", json!("a-1")),
+            ("actor_role", json!("admin")),
+        ]);
+
+        let ctx = Svc::principal_from_user(Some(&resolver), &user(), "req-2".to_string())
+            .await
+            .expect("a subject the actor table knows must proceed");
+
+        assert_eq!(
+            ctx.attributes.get("fraiseql.enriched.actor_id"),
+            Some(&json!("a-1")),
+            "the resolved identity must be merged under the forge-proof namespace"
+        );
+        assert_eq!(
+            ctx.enrichment_mark(),
+            Some(fraiseql_core::security::EnrichmentMark::Resolved),
+            "and the principal must record that it passed the seam, or the engine \
+             refuses it downstream"
+        );
+    }
+
+    #[tokio::test]
+    async fn an_unknown_subject_is_permission_denied() {
+        // Zero rows is a denial. Before #1336 this transport built the context and
+        // dispatched it, so an unprovisioned subject reached the data.
+        let resolver = identity_fixtures::resolver_returning(&[]);
+
+        let response = Svc::principal_from_user(Some(&resolver), &user(), "req-3".to_string())
+            .await
+            .expect_err("a subject the actor table does not know must be refused");
+
+        assert_eq!(
+            response.headers().get("grpc-status").map(|v| v.to_str().unwrap()),
+            Some("7"),
+            "PERMISSION_DENIED — the gRPC spelling of the 403 /graphql answers"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_resolver_outage_is_unavailable_not_denied() {
+        // The two must not collapse: a denial is final and a client must not retry it,
+        // an outage is transient and a client should.
+        let resolver = identity_fixtures::resolver_unavailable();
+
+        let response = Svc::principal_from_user(Some(&resolver), &user(), "req-4".to_string())
+            .await
+            .expect_err("a resolver outage must never fall through to an unscoped query");
+
+        assert_eq!(
+            response.headers().get("grpc-status").map(|v| v.to_str().unwrap()),
+            Some("14"),
+            "UNAVAILABLE — distinct from PERMISSION_DENIED (7), which is what a \
+             collapsed mapping would send"
+        );
+    }
+}

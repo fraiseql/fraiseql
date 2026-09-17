@@ -467,6 +467,26 @@ fn resolver(store: MockStore) -> IdentityResolver {
     )
 }
 
+/// A resolver that resolves `sub` to `actor_id` / `actor_role`, for another
+/// module's tests (#1336).
+///
+/// Exposed rather than re-mocked: the transports each build their own principal, and
+/// a fixture per transport is exactly how their idea of "denied" would drift apart.
+/// `rows` is what the actor query returns — empty denies the subject.
+pub(crate) fn resolver_returning(pairs: &[(&str, Value)]) -> IdentityResolver {
+    resolver(MockStore::returning(if pairs.is_empty() {
+        Vec::new()
+    } else {
+        vec![row(pairs)]
+    }))
+}
+
+/// A resolver whose store is unreachable — the transient arm (`Unavailable`), which
+/// every transport must answer differently from a denial.
+pub(crate) fn resolver_unavailable() -> IdentityResolver {
+    resolver(MockStore::failing())
+}
+
 fn sub_claims() -> HashMap<String, Value> {
     claims(&[("sub", json!("u1"))])
 }

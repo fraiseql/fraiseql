@@ -122,6 +122,22 @@ impl RestError {
         }
     }
 
+    /// 503 Service Unavailable.
+    ///
+    /// Distinct from [`forbidden`](Self::forbidden) because the two say different
+    /// things to a client: a denial is final, a transient resolver failure is
+    /// retryable. Collapsing them would turn an outage into an apparent permission
+    /// error (#1336).
+    #[must_use]
+    pub fn service_unavailable(message: impl Into<String>) -> Self {
+        Self {
+            status:  StatusCode::SERVICE_UNAVAILABLE,
+            code:    "SERVICE_UNAVAILABLE",
+            message: message.into(),
+            details: None,
+        }
+    }
+
     /// 404 Not Found.
     pub fn not_found(message: impl Into<String>) -> Self {
         Self {
