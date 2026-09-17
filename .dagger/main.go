@@ -551,6 +551,11 @@ func (m *FraiseqlCi) ShellGates(
 		// and one that configured none got a filter invented — the same query answering
 		// differently depending on which transport asked.
 		"bash tools/check-rls-policy-construction.sh",
+		// #1337: `deny_unknown_fields` stops at the top level. Every section struct needs
+		// its own, or a mistyped key is discarded and the setting stays at its default
+		// without a word — `[auth] require_jti`, `[tls] require_client_cert` and
+		// `[rate_limiting] enabled` among them.
+		"python3 tools/check-config-deny-unknown.py",
 		// A refusal list is only worth having while nothing can be added outside it
 		// (#1326): a new top-level section whose only consumer sits behind a Cargo
 		// feature would go straight back to being dropped in silence by every lean

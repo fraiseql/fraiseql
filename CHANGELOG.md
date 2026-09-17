@@ -18,6 +18,36 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A mistyped config key is refused in every section, not only at the top (#1337).**
+  #839 put `deny_unknown_fields` on `ServerConfig`, but serde does not propagate it into
+  nested structs — so every `[section]` whose own struct lacked it accepted a typo and
+  discarded it in silence. `[rate_limiting] enabeld = true` booted the section on its
+  defaults, and since `enabled` defaults to `true` the operator saw exactly the behaviour
+  they intended while having configured nothing. `[auth] require_jti`,
+  `[tls] require_client_cert` and `[rate_limiting] enabled` are security switches that sat
+  at their defaults when misspelled.
+
+  **27 config structs reachable from `ServerConfig` now refuse unknown keys**, `[auth]`,
+  `[auth_hs256]`, `[tls]`, `[database_tls]`, `[rate_limiting]`, `[admission_control]`,
+  `[pool_tuning]`, `[usage]`, `[tenancy]`, `[sources]`, `[export]`, `[storage.*]`,
+  `[files.*]`, `[mailbox.*]` and `[send]` among them, plus the nested tables inside them.
+
+  **A config that booted before may now be refused.** That is the point — the key was
+  doing nothing — but an operator with a long-standing typo sees a new boot failure naming
+  the key and its section.
+
+  `ValidationConfig` is also a field of the compiled schema, so an artifact carrying an
+  unrecognised key under `validation_config` is now a load failure rather than a silent
+  drop. One golden fixture in this repo carried `introspection_enabled` there — a key no
+  producer has ever emitted and the runtime has always discarded.
+
+  Two structs deliberately do **not** deny, each with the reason stated beside it:
+  `ObserverConfig`, because `[observers]` is shared with the compiler's own config and
+  must tolerate the keys it owns; and `RateLimitOverrides`, which is never deserialized at
+  all. `tools/check-config-deny-unknown.py` discovers the sections from `ServerConfig`'s
+  fields rather than keeping a list, and asserts the discovered count, so a new section
+  cannot join unchecked.
+
 - **A gRPC read applies the row-level-security policy the deployment configured, and a
   streaming read fails closed (#1348).** Both read arms constructed
   `DefaultRLSPolicy::new()` themselves — the only places outside `fraiseql-core` that
