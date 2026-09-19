@@ -18,6 +18,35 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A mutation's return type must be a composite type — object, interface or union
+  (#1358).** An enum, a built-in scalar or a declared custom scalar in that position is
+  now a compile error naming the type and why.
+
+  It compiled before because the validator scored a mutation's return type against the
+  whole type registry, and that registry holds enums and scalars for the sake of every
+  *other* position — field types, argument types — that legitimately takes one.
+
+  What the runtime then did with the result is why this is an error rather than a
+  warning. A leaf return type needs no selection set, so GraphQL § 5.3.3 (#1357)
+  correctly does not refuse `mutation { setStatus }`, and the empty set reaches the
+  projector — where an empty set means "no field filtering". The response was the
+  **whole stored entity object**, under a field the schema types as an enum, with the
+  #423 field authorizer never consulted: a leaf type has no field list, so
+  `selection_set_selects_gated_field` has nothing to find a gated field in.
+
+  A mutation's result is projected out of the `app.mutation_response` envelope, which
+  is entity-shaped by construction, so a leaf return type has no coherent meaning under
+  it. Refused at compile time rather than taught to the runtime.
+
+  `[Boolean!]!` is adjudicated as `Boolean`, so the list wrapper does not smuggle one
+  past. A name the schema does not carry at all still reports `unknown type` with its
+  did-you-mean suggestion, so the two refusals stay distinguishable. **Queries are
+  unaffected** — a query may return a leaf, and its result is not projected out of the
+  mutation envelope.
+
+  **Who this breaks:** a schema declaring a leaf-returning mutation. All 118 schema
+  fixtures in this repository were scanned; none does.
+
 - **A field whose type is composite must have a selection set; a document that omits one is
   refused (GraphQL § 5.3.3, #1357).** `mutation { createUser }` and `{ users }` were accepted
   and executed. They are now a validation error, raised before the write.

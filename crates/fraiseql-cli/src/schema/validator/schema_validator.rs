@@ -80,6 +80,17 @@ impl SchemaValidator {
             type_names.insert(enum_def.name.clone());
         }
 
+        // The **composite** types, as GraphQL defines them: objects, interfaces and
+        // unions. A mutation's return type must be one of these (#1358); every other
+        // position accepts the wider `type_names`.
+        let composite_type_names: HashSet<String> = schema
+            .types
+            .iter()
+            .map(|t| t.name.clone())
+            .chain(schema.unions.iter().map(|u| u.name.clone()))
+            .chain(schema.interfaces.iter().map(|i| i.name.clone()))
+            .collect();
+
         // Add built-in scalars
         for scalar in crate::schema::builtin_scalar_names() {
             type_names.insert(scalar.to_string());
@@ -217,7 +228,39 @@ impl SchemaValidator {
 
             // Validate return type exists (strip ! and [] modifiers)
             let base_return = extract_base_type(&mutation.return_type);
-            if !type_names.contains(base_return) {
+            if type_names.contains(base_return) {
+                // …and that it is **composite** (#1358).
+                //
+                // A mutation's result is projected out of the `app.mutation_response`
+                // envelope, which is entity-shaped by construction, so a leaf return
+                // type has no coherent meaning under it. Declaring one was accepted:
+                // `type_names` registers enums, built-in scalars and declared custom
+                // scalars alongside the composite types, because every *other*
+                // position — field types, argument types — legitimately takes them.
+                //
+                // What the runtime then did with `mutation { setStatus }` is the
+                // reason this is an error rather than a warning. A leaf return type
+                // needs no selection set, so GraphQL § 5.3.3 (#1357) correctly does
+                // not refuse the document, and the empty set reaches the projector —
+                // where an empty set means "no field filtering". The response was the
+                // whole stored entity object, under a field the schema types as an
+                // enum, with the #423 field authorizer never consulted because a leaf
+                // type has no field list to find a gated field in.
+                if !composite_type_names.contains(base_return) {
+                    report.errors.push(ValidationError {
+                        message:    format!(
+                            "Mutation '{}' returns '{}', which is not a composite type. A                              mutation's return type must be an object, interface or union.",
+                            mutation.name, base_return
+                        ),
+                        path:       format!("mutations[{idx}].return_type"),
+                        severity:   ErrorSeverity::Error,
+                        suggestion: Some(
+                            "Return the entity type the mutation writes, or a union of                              success and error variants."
+                                .to_string(),
+                        ),
+                    });
+                }
+            } else {
                 report.errors.push(ValidationError {
                     message:    format!(
                         "Mutation '{}' references unknown type '{}'",

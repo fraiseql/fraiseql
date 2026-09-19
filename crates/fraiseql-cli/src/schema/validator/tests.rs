@@ -506,8 +506,9 @@ mod schema_validator_tests {
     use crate::schema::{
         intermediate::{
             IntermediateSchema,
+            advanced_types::{IntermediateInterface, IntermediateUnion},
             operations::{IntermediateArgument, IntermediateMutation, IntermediateQuery},
-            types::{IntermediateField, IntermediateType},
+            types::{IntermediateEnum, IntermediateField, IntermediateType},
         },
         validator::{
             ErrorSeverity,
@@ -644,6 +645,149 @@ mod schema_validator_tests {
         let errors: Vec<_> =
             report.errors.iter().filter(|e| e.severity == ErrorSeverity::Error).collect();
         assert!(errors.is_empty(), "[Item!]! should resolve to Item: {errors:?}");
+    }
+
+    // ── #1358: a mutation's return type must be composite ───────────
+
+    fn mutation(return_type: &str) -> IntermediateMutation {
+        IntermediateMutation {
+            name: "act".to_string(),
+            return_type: return_type.to_string(),
+            sql_source: Some("fn_act".to_string()),
+            ..Default::default()
+        }
+    }
+
+    fn errors_of(schema: &IntermediateSchema) -> Vec<String> {
+        SchemaValidator::validate(schema)
+            .unwrap()
+            .errors
+            .iter()
+            .filter(|e| e.severity == ErrorSeverity::Error)
+            .map(|e| e.message.clone())
+            .collect()
+    }
+
+    /// An enum is a *leaf* type, so § 5.3.3 (#1357) rightly lets
+    /// `mutation { act }` through with no selection set — and an empty selection
+    /// set is the permissive shape at the projector. The result was the whole
+    /// stored entity object under an enum-typed field, with no field
+    /// authorization. The envelope a mutation is projected out of is
+    /// entity-shaped, so a leaf return type has no meaning under it; refused here
+    /// rather than taught to the runtime.
+    #[test]
+    fn a_mutation_returning_an_enum_is_refused() {
+        let mut schema = minimal_schema();
+        schema.enums.push(IntermediateEnum {
+            name:        "Status".to_string(),
+            values:      vec![],
+            description: None,
+        });
+        schema.mutations.push(mutation("Status"));
+
+        let errors = errors_of(&schema);
+        assert_eq!(errors.len(), 1, "expected exactly one error: {errors:?}");
+        assert!(
+            errors[0].contains("not a composite type"),
+            "must say why, not merely that it is wrong: {errors:?}"
+        );
+        assert!(errors[0].contains("Status"), "must name the type: {errors:?}");
+    }
+
+    /// The wider half of the same hole. `type_names` registers the built-in
+    /// scalars because every *other* position takes them, so `Boolean` resolved
+    /// and the mutation compiled.
+    #[test]
+    fn a_mutation_returning_a_builtin_scalar_is_refused() {
+        let mut schema = minimal_schema();
+        schema.mutations.push(mutation("Boolean"));
+
+        let errors = errors_of(&schema);
+        assert_eq!(errors.len(), 1, "expected exactly one error: {errors:?}");
+        assert!(
+            errors[0].contains("not a composite type"),
+            "a scalar return type is refused for the same reason as an enum: {errors:?}"
+        );
+    }
+
+    /// The list wrapper is stripped first, so `[Boolean!]!` is adjudicated as
+    /// `Boolean` — a gate that only saw the bare spelling would miss it.
+    #[test]
+    fn a_mutation_returning_a_list_of_scalars_is_refused() {
+        let mut schema = minimal_schema();
+        schema.mutations.push(mutation("[Boolean!]!"));
+
+        let errors = errors_of(&schema);
+        assert_eq!(errors.len(), 1, "expected exactly one error: {errors:?}");
+        assert!(errors[0].contains("not a composite type"), "{errors:?}");
+    }
+
+    /// Control: an object return type — the ordinary shape — still compiles.
+    #[test]
+    fn a_mutation_returning_an_object_is_valid() {
+        let mut schema = minimal_schema();
+        schema.mutations.push(mutation("Item"));
+        assert!(errors_of(&schema).is_empty());
+    }
+
+    /// Control: a union of success and error variants is the shape #212,
+    /// #450/#451 and #698 produce, and is the one this rule must not reject.
+    #[test]
+    fn a_mutation_returning_a_union_is_valid() {
+        let mut schema = minimal_schema();
+        schema.unions.push(IntermediateUnion {
+            name:         "ActResult".to_string(),
+            member_types: vec!["Item".to_string()],
+            description:  None,
+        });
+        schema.mutations.push(mutation("ActResult"));
+        assert!(errors_of(&schema).is_empty(), "{:?}", errors_of(&schema));
+    }
+
+    /// Control: an interface is composite too (GraphQL § 3.7).
+    #[test]
+    fn a_mutation_returning_an_interface_is_valid() {
+        let mut schema = minimal_schema();
+        schema.interfaces.push(IntermediateInterface {
+            name:        "Node".to_string(),
+            fields:      vec![field("id", "UUID")],
+            description: None,
+        });
+        schema.mutations.push(mutation("Node"));
+        assert!(errors_of(&schema).is_empty(), "{:?}", errors_of(&schema));
+    }
+
+    /// The two refusals stay distinguishable: a name the schema does not carry at
+    /// all is still "unknown type", with its did-you-mean suggestion, rather than
+    /// being absorbed into the composite message.
+    #[test]
+    fn a_mutation_returning_an_unresolvable_name_still_reports_unknown_type() {
+        let mut schema = minimal_schema();
+        schema.mutations.push(mutation("Nonesuch"));
+
+        let errors = errors_of(&schema);
+        assert_eq!(errors.len(), 1, "expected exactly one error: {errors:?}");
+        assert!(errors[0].contains("unknown type"), "{errors:?}");
+        assert!(!errors[0].contains("not a composite type"), "{errors:?}");
+    }
+
+    /// The rule is mutation-only. A *query* may return a leaf — a count, a flag —
+    /// and its result is not projected out of the mutation envelope.
+    #[test]
+    fn a_query_returning_an_enum_is_unaffected() {
+        let mut schema = minimal_schema();
+        schema.enums.push(IntermediateEnum {
+            name:        "Status".to_string(),
+            values:      vec![],
+            description: None,
+        });
+        schema.queries.push(IntermediateQuery {
+            name: "status".to_string(),
+            return_type: "Status".to_string(),
+            sql_source: Some("v_status".to_string()),
+            ..Default::default()
+        });
+        assert!(errors_of(&schema).is_empty(), "{:?}", errors_of(&schema));
     }
 
     // ── Truly unknown types are still rejected ──────────────────────
