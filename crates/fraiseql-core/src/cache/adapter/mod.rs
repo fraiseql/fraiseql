@@ -77,8 +77,8 @@ use super::{
 use crate::{
     cache::config::RlsEnforcement,
     db::{
-        ChangeLogWrite, DatabaseAdapter, DatabaseType, DirectMutationContext, MutationStrategy,
-        PoolMetrics, SupportsMutations, WhereClause, quote_postgres_identifier,
+        ChangeLogWrite, DatabaseAdapter, DatabaseType, PoolMetrics, SupportsMutations, WhereClause,
+        quote_postgres_identifier,
         types::{JsonbValue, OrderByClause, ReadRouting},
     },
     error::{FraiseQLError, Result},
@@ -925,22 +925,8 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     }
 
     // Mutation-strategy delegation: a cache-wrapped adapter must report and use the
-    // inner adapter's strategy, so a wrapped SqliteAdapter still dispatches DirectSql
-    // instead of falling back to the trait defaults (FunctionCall / Unsupported).
     fn supports_mutations(&self) -> bool {
         self.adapter.supports_mutations()
-    }
-
-    fn mutation_strategy(&self) -> MutationStrategy {
-        self.adapter.mutation_strategy()
-    }
-
-    async fn execute_direct_mutation(
-        &self,
-        ctx: &DirectMutationContext<'_>,
-    ) -> Result<Vec<serde_json::Value>> {
-        // Mutations are never cached; pass through to the underlying adapter.
-        self.adapter.execute_direct_mutation(ctx).await
     }
 
     async fn count_where_query(

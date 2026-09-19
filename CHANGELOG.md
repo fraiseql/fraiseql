@@ -18,6 +18,41 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`MutationStrategy`, `DirectMutationOp`, `DirectMutationContext`,
+  `DatabaseAdapter::mutation_strategy` and `DatabaseAdapter::execute_direct_mutation` are
+  removed.** They were the `DirectSql` mutation strategy: the arm of the write chokepoint that
+  built INSERT/DELETE straight from the mutation contract, for adapters without stored
+  functions.
+
+  **No adapter has been able to select it since #374 removed the non-PostgreSQL backends.**
+  There were exactly two `mutation_strategy` implementations left in the workspace — the trait
+  default returning `FunctionCall`, and the caching adapter forwarding to its inner adapter —
+  so `matches!(ctx.adapter.mutation_strategy(), MutationStrategy::DirectSql)` was always
+  false. The arm behind it was unreachable, and **no test in the tree ever covered it**, in
+  either direction.
+
+  Unreachable code inside `execute_mutation_impl` is worse than unreachable code elsewhere:
+  that function is where a reader goes to learn which gates a write faces, and it carried
+  roughly a hundred lines of dispatch, envelope-reshaping and two `Unsupported` refusals for a
+  backend that cannot be configured. The `direct_columns` / `direct_inject_columns` vectors
+  that existed only to populate `DirectMutationContext` go with it, along with three call
+  sites that maintained them on every mutation.
+
+  **This is not a dialect seam and does not narrow one.** `DatabaseType` and the
+  `SqlDialect` / `PostgresDialect` machinery are untouched, so SQL generation stays tagged
+  with the dialect it emits and adding a backend remains a compile-time-visible change at
+  every match site. What is gone is a *strategy* selector with one reachable value.
+  Reintroducing a direct-SQL backend means reintroducing the enum, which
+  `docs/database-compatibility.md` already gates behind a per-dialect integration matrix
+  running against a real database in CI.
+
+  **Who this breaks:** an out-of-tree `DatabaseAdapter` implementation that overrode either
+  method. Both had defaults, so an implementation that did not override them is unaffected.
+
+  `tools/check-mutation-dispatch-sites.sh` drops `execute_direct_mutation` from its pattern in
+  the same change — a gate pattern naming a method that no longer exists reads as coverage and
+  matches nothing.
+
 - **A REST write's response is the mutation return type's scalar fields, for every caller
   (#1331, #1352).** Both arms of the REST write route now derive one selection set from
   `fraiseql_core::runtime::mutation_return_selections`, and both are projected and

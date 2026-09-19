@@ -967,8 +967,13 @@ fn check_sqlite_compatibility_warnings(
         return;
     }
 
-    // SQLite executes direct-SQL Insert/Delete mutations via the `DirectSql` strategy;
-    // only Update and custom / stored-procedure (`fn_*`) mutations are unsupported.
+    // ⚠ These warnings are stale and understate the situation: they date from when a
+    // SQLite adapter existed and could serve Insert/Delete through the `DirectSql`
+    // mutation strategy. #374 removed every non-PostgreSQL adapter, and this change
+    // removed that strategy — so the runtime can serve NO SQLite query, and a schema
+    // whose mutations are all Insert/Delete draws no warning here at all before failing
+    // at run time. Tracked as #1356; not widened into this change because what this
+    // should do instead (warn harder, or refuse the compile) is a user-facing decision.
     let unsupported_mutation_count = schema
         .mutations
         .iter()

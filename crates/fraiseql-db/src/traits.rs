@@ -964,14 +964,6 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         })
     }
 
-    /// Returns the mutation strategy used by this adapter.
-    ///
-    /// The default is `FunctionCall` (stored procedures). Adapters that generate
-    /// direct SQL (e.g., SQLite) override this to return `DirectSql`.
-    fn mutation_strategy(&self) -> MutationStrategy {
-        MutationStrategy::FunctionCall
-    }
-
     /// Execute a database function call after pinning session variables on the
     /// **same connection** within the **same transaction** as the call.
     ///
@@ -1071,9 +1063,7 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     ///
     /// Only the PostgreSQL adapter overrides this today; every other adapter keeps
     /// the default below, which returns `Unsupported` rather than silently
-    /// committing. (SQL Server already wraps mutations in `BEGIN TRANSACTION` and
-    /// could override this with a `ROLLBACK`; SQLite uses `MutationStrategy::DirectSql`
-    /// and would need its own variant.)
+    /// committing.
     ///
     /// # Errors
     ///
@@ -1270,28 +1260,6 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
             .execute_row_query(view_name, columns, where_sql, order_by, limit, offset)
             .await?;
         Ok(Box::pin(futures::stream::iter(rows.into_iter().map(Ok))))
-    }
-
-    /// Execute a direct SQL mutation (INSERT/UPDATE/DELETE) and return the
-    /// mutation response rows as JSON objects.
-    ///
-    /// Only adapters using `MutationStrategy::DirectSql` need to override this.
-    /// The default implementation returns `Unsupported`.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Unsupported` by default.
-    /// Returns `FraiseQLError::Database` on SQL execution failure.
-    /// Returns `FraiseQLError::Validation` on invalid mutation parameters.
-    async fn execute_direct_mutation(
-        &self,
-        _ctx: &DirectMutationContext<'_>,
-    ) -> Result<Vec<serde_json::Value>> {
-        Err(FraiseQLError::Unsupported {
-            message: "Direct SQL mutations are not supported by this adapter. \
-                      Use execute_function_call for stored-procedure mutations."
-                .to_string(),
-        })
     }
 
     /// Retrieve query performance statistics from the database.

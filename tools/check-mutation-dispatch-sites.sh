@@ -62,9 +62,13 @@ CHOKEPOINT='crates/fraiseql-core/src/runtime/executor/runners/mutation/mod.rs'
 # Empty since #1330: every transport converges on the chokepoint.
 KNOWN=''
 
-# Every adapter method that performs a write. `execute_direct_mutation` is the DirectSql
-# strategy; the `execute_function_call*` family is the stored-function strategy.
-PATTERN='\.(execute_function_call(_with_session|_with_changelog|_dry_run)?|execute_direct_mutation)\s*\('
+# Every adapter method that performs a write: the `execute_function_call*` family, which is
+# the stored-function strategy and now the only one. `execute_direct_mutation` was the second
+# alternative here until the `DirectSql` strategy was deleted — no adapter had been able to
+# return it since #374, so the arm was unreachable and untested. A pattern naming a method
+# that no longer exists is the same stale claim this gate just stopped making about its own
+# allowlist: it reads as coverage and matches nothing.
+PATTERN='\.execute_function_call(_with_session|_with_changelog|_dry_run)?\s*\('
 
 # Rule 2's two halves. A file matching BOTH constructs a write statement and dispatches it
 # outside the chokepoint. Deliberately not keyed on the builder function names alone: a raw
