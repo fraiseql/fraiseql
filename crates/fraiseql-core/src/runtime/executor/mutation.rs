@@ -19,20 +19,37 @@ use crate::{
     security::SecurityContext,
 };
 
-/// Compile-time enforcement: `SqliteAdapter` must NOT implement `SupportsMutations`.
+/// Compile-time enforcement: the `SupportsMutations` bound on this impl block is what keeps a
+/// read-only adapter out of the write entries. The witness is `FraiseWireAdapter`, which
+/// implements `DatabaseAdapter` and **not** `SupportsMutations`.
 ///
-/// Calling `execute_mutation` on an `Executor<SqliteAdapter>` must not compile
-/// because `SqliteAdapter` does not implement the `SupportsMutations` marker trait.
+/// ⚠ **The two blocks below are a pair, and only the pair is the assertion.** A
+/// `compile_fail` block is satisfied by *any* compile error, including one that has nothing
+/// to do with the rule. This one named `SqliteAdapter` until the non-PostgreSQL backends were
+/// deleted (#374), after which `use fraiseql_core::db::sqlite::SqliteAdapter;` no longer
+/// resolved — so the block failed to compile because of the import and passed for a full
+/// release while proving nothing.
+///
+/// The two differ by exactly the `execute_mutation` call. If the witness ever stops resolving,
+/// the *first* block goes red rather than the second one going quietly green.
+///
+/// `FraiseWireAdapter` needs `--all-features`; every `--doc` invocation in this repository
+/// passes it (`Makefile`, `.dagger/main.go`).
+///
+/// The witness resolves, and `Executor` accepts it:
+///
+/// ```
+/// use fraiseql_core::{db::FraiseWireAdapter, runtime::Executor};
+/// fn _the_witness_resolves(_: &Executor<FraiseWireAdapter>) {}
+/// ```
+///
+/// …and reaching a write entry through it does not compile:
 ///
 /// ```compile_fail
-/// use fraiseql_core::runtime::Executor;
-/// use fraiseql_core::db::sqlite::SqliteAdapter;
-/// use fraiseql_core::schema::CompiledSchema;
-/// use std::sync::Arc;
-/// async fn _wont_compile() {
-///     let adapter = Arc::new(SqliteAdapter::new_in_memory().await.unwrap());
-///     let executor = Executor::new(CompiledSchema::new(), adapter);
-///     executor.execute_mutation("createUser", None, &[]).await.unwrap();
+/// use fraiseql_core::{db::FraiseWireAdapter, runtime::Executor};
+/// use serde_json::Value;
+/// async fn _wont_compile(executor: &Executor<FraiseWireAdapter>) {
+///     let _ = executor.execute_mutation("createUser", None::<&Value>, &[]).await;
 /// }
 /// ```
 impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {

@@ -107,13 +107,25 @@ and `make lint-write-selections` refuses a write path that invents one instead.
 | Path | Behaviour with a gated field |
 |------|------------------------------|
 | Authenticated query (`execute_with_security`) | **Enforced** per row |
-| Mutation (success entity + error metadata) | **Enforced** per row |
+| Mutation (success entity + error metadata) | **Enforced** per row — but *after* the write, see below |
 | Unauthenticated query (`execute`) | Fail closed (no principal to authorize against) |
-| REST write (`execute_mutation_with_security`) | **Enforced** per row — on the entity the function returned |
+| REST write (`execute_mutation_with_security`) | **Enforced** per row — *after* the write, see below |
 | REST direct projection (read) | Fail closed |
 | Relay list / `node` lookup | Fail closed (type-level) |
 | Federation `_entities` | Fail closed (schema-level) |
 | Aggregate / window | Not applicable — these project synthetic aggregate result types, which never carry an entity's gated field |
+
+> **⚠ On a mutation, enforcement happens *after* the write (#1353).** The authorizer takes
+> the resolved entity as `parent`, so on a write it runs on the row the SQL function
+> **returned**. A caller it refuses loses the field and **keeps the side effect** — the write
+> has already happened. "Enforced" in the table above means the value is refused, not the
+> operation.
+>
+> This is not specific to any transport: it is identical on GraphQL, REST and gRPC. The gates
+> that refuse the *operation* all run before dispatch — the operation `Authorizer` (#422),
+> `requires_role`, `requires_actor` and the `before:mutation` chain. A deployment whose only
+> protection on a write is a field-level `authorize` flag is relying on the one gate that
+> cannot refuse it; pair it with one of those four.
 
 > **Performance note.** When a query selects a gated field, the runtime fetches the full
 > row (it skips the SQL projection hint) so the authorizer sees a complete `parent`, and it

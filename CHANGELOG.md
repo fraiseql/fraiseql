@@ -2456,6 +2456,41 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Two gates stopped asserting things that were not true.**
+
+  `tools/check-mutation-dispatch-sites.sh` printed **"no known bypasses"** while two write
+  paths reached the database outside the engine chokepoint. Its pattern matched only the
+  adapter's named write methods (`execute_function_call*`, `execute_direct_mutation`), and
+  both bypasses build SQL themselves and dispatch it through `execute_raw_query` — a general
+  query method with ~20 legitimate production callers, so matching it alone would have been
+  nineteen allowlist entries and one defect. A second rule now matches the **pair**: a
+  production file that both builds write SQL and dispatches it raw. That discriminates
+  precisely — `flight_server/handlers/do_exchange.rs` moved off `execute_raw_query` in #953
+  and names it only in the comment explaining why, so it stays green, while
+  `handlers/do_put.rs`, which never got that fix, goes red. Both bypasses are now tracked in
+  `KNOWN_RAW` against **#1354** (the federation saga's local write, which takes no
+  `SecurityContext` at all) and **#1355** (the Flight `DoPut` upload, where #953's
+  change-log atomicity fix reached only one of the two upload paths).
+
+  The `compile_fail` doctest on `Executor<A>`'s mutation impl block
+  (`runtime/executor/mutation.rs`) asserted that a read-only adapter cannot reach a write
+  entry. It named `SqliteAdapter`, deleted with the non-PostgreSQL backends in #374, so
+  `use fraiseql_core::db::sqlite::SqliteAdapter;` stopped resolving and the block failed to
+  compile **because of the import**. A `compile_fail` test is satisfied by any compile error,
+  so it had proved nothing for a release. It now uses `FraiseWireAdapter` — a real adapter
+  that implements `DatabaseAdapter` and not `SupportsMutations` — paired with a *passing*
+  doctest that differs by exactly the `execute_mutation` call, so a witness that stops
+  resolving reddens the pair instead of silently satisfying it. Verified by pointing the
+  block at `PostgresAdapter`, which made it compile and the test fail, proving the refusal is
+  attributable to the missing bound.
+
+- **`docs/guides/field-authorization.md` says *when* a mutation's field authorizer runs.**
+  Its path-coverage table read "**Enforced** per row" for the mutation paths without
+  qualifying the timing. The authorizer takes the resolved entity as `parent`, so on a write
+  it runs on the row the SQL function returned: a caller it refuses loses the field and keeps
+  the side effect. Identical on every transport, tracked as **#1353**, and stated in the
+  table a reader actually scans rather than only in the limitations section below it.
+
 - **`doctor` reports the build that compiled a schema, instead of warning on a key nothing
   writes (#1320).** The "Schema format version" check read a top-level `version` key. No
   compiler has ever emitted one — the field was `schema_format_version` and is now
