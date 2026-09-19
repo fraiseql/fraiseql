@@ -7,7 +7,7 @@
 
 use serde_json::json;
 
-use crate::db::where_clause::{WhereClause, WhereOperator};
+use crate::backend::where_clause::{WhereClause, WhereOperator};
 
 /// Multi-tenancy enforcer for query scoping
 ///

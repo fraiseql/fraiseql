@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use indexmap::IndexMap;
 
 use crate::{
-    db::{
+    backend::{
         SupportsMutations,
         traits::DatabaseAdapter,
         types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
@@ -188,7 +188,7 @@ impl DatabaseAdapter for CapturingMockAdapter {
         sql: &str,
         params: &[serde_json::Value],
         session_vars: &[(&str, &str)],
-        _routing: crate::db::types::ReadRouting,
+        _routing: crate::backend::types::ReadRouting,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         *self.captured_aggregate_session_vars.lock().unwrap() =
             Some(session_vars.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect());
@@ -405,7 +405,7 @@ pub fn test_schema() -> CompiledSchema {
         relay_cursor_column: None,
         relay_cursor_type:   CursorType::default(),
         inject_params:       IndexMap::default(),
-        read_routing:        crate::db::types::ReadRouting::default(),
+        read_routing:        crate::backend::types::ReadRouting::default(),
         cache_ttl_seconds:   None,
         additional_views:    vec![],
         requires_role:       None,

@@ -93,7 +93,7 @@ pub type WebhookConfig = WebhookTransportConfig;
 ///
 /// Returns a description of the first unenforceable clause shape encountered.
 pub fn extract_rls_conditions(
-    clause: &crate::db::WhereClause,
+    clause: &crate::backend::WhereClause,
 ) -> Result<Vec<(String, serde_json::Value)>, String> {
     let mut conditions = Vec::new();
     collect_eq_conditions(clause, &mut conditions)?;
@@ -101,10 +101,10 @@ pub fn extract_rls_conditions(
 }
 
 fn collect_eq_conditions(
-    clause: &crate::db::WhereClause,
+    clause: &crate::backend::WhereClause,
     out: &mut Vec<(String, serde_json::Value)>,
 ) -> Result<(), String> {
-    use crate::db::{WhereClause, WhereOperator};
+    use crate::backend::{WhereClause, WhereOperator};
     match clause {
         WhereClause::Field {
             path,

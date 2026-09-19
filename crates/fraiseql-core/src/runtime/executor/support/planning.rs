@@ -2,7 +2,7 @@
 
 use super::super::{Executor, QueryType};
 use crate::{
-    db::traits::DatabaseAdapter,
+    backend::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     runtime::{ExplainPlan, suggest_similar},
 };

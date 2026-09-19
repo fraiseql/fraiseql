@@ -52,6 +52,12 @@
 use std::fmt::Write as _;
 
 use crate::{
+    backend::{
+        identifier::quote_postgres_identifier,
+        path_escape::escape_postgres_jsonb_segment,
+        types::DatabaseType,
+        where_clause::{WhereClause, WhereOperator},
+    },
     compiler::{
         aggregate_types::{AggregateFunction, TemporalBucket},
         aggregation::{
@@ -59,12 +65,6 @@ use crate::{
             ValidatedHavingCondition,
         },
         fact_table::FactTableMetadata,
-    },
-    db::{
-        identifier::quote_postgres_identifier,
-        path_escape::escape_postgres_jsonb_segment,
-        types::DatabaseType,
-        where_clause::{WhereClause, WhereOperator},
     },
     error::{FraiseQLError, Result},
     utils::casing::to_snake_case,
@@ -80,7 +80,7 @@ mod tests;
 /// Aggregate query with bind parameters instead of escaped string literals.
 ///
 /// Produced by [`AggregationSqlGenerator::generate_parameterized`].  Pass `sql`
-/// and `params` directly to [`crate::db::DatabaseAdapter::execute_parameterized_aggregate`].
+/// and `params` directly to [`crate::backend::DatabaseAdapter::execute_parameterized_aggregate`].
 #[derive(Debug, Clone)]
 pub struct ParameterizedAggregationSql {
     /// SQL with `$N` (PostgreSQL), `?` (MySQL / SQLite), or `@P1` (SQL Server) placeholders.

@@ -9,7 +9,7 @@ use super::{
     fact_table_version::{FactTableVersionStrategy, generate_version_key_component},
 };
 use crate::{
-    db::{DatabaseAdapter, types::JsonbValue},
+    backend::{DatabaseAdapter, types::JsonbValue},
     error::Result,
 };
 

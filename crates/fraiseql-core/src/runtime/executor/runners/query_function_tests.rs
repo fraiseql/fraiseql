@@ -19,7 +19,7 @@ use std::{
 use indexmap::IndexMap;
 
 use crate::{
-    db::types::JsonbValue,
+    backend::types::JsonbValue,
     error::{FraiseQLError, Result},
     runtime::{
         Executor, QueryFunctionRequest, QueryFunctionResolver, RuntimeConfig,
@@ -135,7 +135,7 @@ fn function_backed_query() -> QueryDefinition {
         relay_cursor_column: None,
         relay_cursor_type:   CursorType::default(),
         inject_params:       IndexMap::default(),
-        read_routing:        crate::db::types::ReadRouting::default(),
+        read_routing:        crate::backend::types::ReadRouting::default(),
         cache_ttl_seconds:   None,
         additional_views:    vec![],
         requires_role:       None,
@@ -654,8 +654,8 @@ fn readable_schema() -> CompiledSchema {
 /// At module scope rather than inside the test: `clippy::pedantic` denies
 /// `items_after_statements`, and a recursive helper cannot be hoisted above the
 /// statements it is declared among without moving out of the function entirely.
-fn bound_values(clause: &crate::db::WhereClause) -> Vec<String> {
-    use crate::db::WhereClause;
+fn bound_values(clause: &crate::backend::WhereClause) -> Vec<String> {
+    use crate::backend::WhereClause;
     match clause {
         WhereClause::Field { value, .. } => vec![value.to_string()],
         WhereClause::And(inner) | WhereClause::Or(inner) => {

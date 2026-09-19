@@ -1680,7 +1680,7 @@ mod matcher_tests {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
-            read_routing:        crate::db::types::ReadRouting::default(),
+            read_routing:        crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -2069,7 +2069,7 @@ mod matcher_tests {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
-            read_routing:        crate::db::types::ReadRouting::default(),
+            read_routing:        crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -2110,7 +2110,7 @@ mod matcher_tests {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
-            read_routing:        crate::db::types::ReadRouting::default(),
+            read_routing:        crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -2625,7 +2625,7 @@ mod planner_tests {
                 relay_cursor_column: None,
                 relay_cursor_type:   CursorType::default(),
                 inject_params:       IndexMap::default(),
-                read_routing:        crate::db::types::ReadRouting::default(),
+                read_routing:        crate::backend::types::ReadRouting::default(),
                 cache_ttl_seconds:   None,
                 additional_views:    vec![],
                 requires_role:       None,
@@ -2822,7 +2822,7 @@ mod projection_tests {
     use serde_json::json;
 
     use crate::{
-        db::types::JsonbValue, error::FraiseQLError, graphql::FieldSelection,
+        backend::types::JsonbValue, error::FraiseQLError, graphql::FieldSelection,
         runtime::projection::*,
     };
 
@@ -4037,7 +4037,7 @@ mod tenant_enforcer_tests {
     use serde_json::json;
 
     use crate::{
-        db::where_clause::{WhereClause, WhereOperator},
+        backend::where_clause::{WhereClause, WhereOperator},
         runtime::tenant_enforcer::*,
     };
 
@@ -4143,6 +4143,7 @@ mod tenant_enforcer_tests {
 mod window_tests {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
     use crate::{
+        backend::{WhereClause, WhereOperator, types::DatabaseType},
         compiler::{
             aggregation::{OrderByClause, OrderDirection},
             window_functions::{
@@ -4150,7 +4151,6 @@ mod window_tests {
                 WindowFunction, WindowFunctionType,
             },
         },
-        db::{WhereClause, WhereOperator, types::DatabaseType},
         runtime::window::*,
     };
 

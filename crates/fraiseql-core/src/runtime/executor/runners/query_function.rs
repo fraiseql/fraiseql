@@ -33,7 +33,7 @@ use tracing::debug;
 
 use super::query::QueryRunner;
 use crate::{
-    db::{traits::DatabaseAdapter, types::JsonbValue},
+    backend::{traits::DatabaseAdapter, types::JsonbValue},
     error::{FraiseQLError, Result},
     runtime::{QueryFunctionRequest, ResultProjector, matcher::QueryMatch},
     security::SecurityContext,

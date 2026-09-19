@@ -2774,7 +2774,7 @@ mod rls_policy_tests {
     use std::collections::HashMap;
 
     use crate::{
-        db::WhereClause,
+        backend::WhereClause,
         security::{
             rls_policy::{RLSRule, extract_user_value},
             *,
@@ -3049,7 +3049,7 @@ mod rls_policy_tests {
 
         let result = Some(WhereClause::Field {
             path:     vec!["author_id".to_string()],
-            operator: crate::db::WhereOperator::Eq,
+            operator: crate::backend::WhereOperator::Eq,
             value:    serde_json::json!("user_x"),
         });
 

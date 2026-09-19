@@ -17,10 +17,10 @@ use std::sync::Arc;
 use futures::future::BoxFuture;
 
 use crate::{
-    compiler::aggregation::OrderByClause,
-    db::{
+    backend::{
         CursorValue, RelayDatabaseAdapter, WhereClause, traits::RelayPageResult, types::ReadRouting,
     },
+    compiler::aggregation::OrderByClause,
     error::Result,
 };
 

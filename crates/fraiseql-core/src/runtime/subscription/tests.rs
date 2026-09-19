@@ -1183,7 +1183,7 @@ fn test_rls_empty_conditions_allows_all() {
 #[test]
 fn test_extract_rls_conditions_from_where_clause() {
     use super::super::extract_rls_conditions;
-    use crate::db::{WhereClause, WhereOperator};
+    use crate::backend::{WhereClause, WhereOperator};
 
     // AND(tenant_id = "abc", author_id = "user-1")
     let clause = WhereClause::And(vec![
@@ -1208,7 +1208,7 @@ fn test_extract_rls_conditions_from_where_clause() {
 #[test]
 fn test_extract_rls_conditions_refuses_non_eq_fail_closed() {
     use super::super::extract_rls_conditions;
-    use crate::db::{WhereClause, WhereOperator};
+    use crate::backend::{WhereClause, WhereOperator};
 
     // A non-Eq operator cannot be enforced on the event stream. Fail-closed (#596):
     // refuse rather than silently dropping the `score > 100` bound and delivering rows

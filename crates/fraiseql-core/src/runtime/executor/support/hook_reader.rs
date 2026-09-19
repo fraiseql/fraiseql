@@ -26,7 +26,7 @@ use std::{future::Future, pin::Pin, sync::Arc};
 
 use super::super::{Executor, context::ExecutorContext};
 use crate::{
-    db::traits::DatabaseAdapter,
+    backend::traits::DatabaseAdapter,
     error::Result,
     security::{GuestQueryBridge, SecurityContext},
 };

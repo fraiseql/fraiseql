@@ -2,7 +2,7 @@
 
 use super::super::{Executor, MutationRoot, QueryType};
 use crate::{
-    db::traits::DatabaseAdapter,
+    backend::traits::DatabaseAdapter,
     error::Result,
     graphql::{operation_selection_error, parse_query_with_operation_name},
     runtime::{

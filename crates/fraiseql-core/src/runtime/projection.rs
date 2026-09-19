@@ -3,7 +3,7 @@
 use serde_json::{Map, Value as JsonValue};
 
 use crate::{
-    db::types::JsonbValue,
+    backend::types::JsonbValue,
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
     schema::{CompiledSchema, FieldDefinition, FieldType},

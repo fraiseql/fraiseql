@@ -4,7 +4,7 @@
 //! explicit query arguments, and compute response cache keys.
 
 use crate::{
-    db::{WhereClause, WhereOperator},
+    backend::{WhereClause, WhereOperator},
     error::{FraiseQLError, Result},
     schema::PaginationOrder,
 };
@@ -49,7 +49,7 @@ pub fn nearest_order_and_limit(
     arguments: &std::collections::HashMap<String, serde_json::Value>,
     schema: &crate::schema::CompiledSchema,
     query_def: &crate::schema::QueryDefinition,
-) -> Result<Option<(crate::db::OrderByClause, u32)>> {
+) -> Result<Option<(crate::backend::OrderByClause, u32)>> {
     let Some(raw) = arguments.get("nearest") else {
         return Ok(None);
     };
@@ -107,12 +107,14 @@ pub fn nearest_order_and_limit(
     // column. Derived and validated by the one function the threshold WHERE
     // predicates also call (#1117) — this ORDER BY and that WHERE must name the
     // same column, and two copies of the rule is how they would stop doing so.
-    let column = crate::db::utils::vector_storage_column(field.name.as_str())?;
+    let column = crate::backend::utils::vector_storage_column(field.name.as_str())?;
 
-    let mut clause =
-        crate::db::OrderByClause::new(field.name.to_string(), crate::db::OrderDirection::Asc);
+    let mut clause = crate::backend::OrderByClause::new(
+        field.name.to_string(),
+        crate::backend::OrderDirection::Asc,
+    );
     clause.native_column = Some(format!("\"{column}\""));
-    clause.vector = Some(crate::db::VectorDistanceOrder {
+    clause.vector = Some(crate::backend::VectorDistanceOrder {
         operator: metric.operator().to_string(),
         query_vector: literal,
         kind,
@@ -150,7 +152,7 @@ fn query_vector_literal(
     operand: &serde_json::Value,
     field: &crate::schema::FieldDefinition,
     type_name: &str,
-) -> Result<(String, crate::db::VectorOperandKind)> {
+) -> Result<(String, crate::backend::VectorOperandKind)> {
     let config = field.vector_config.as_ref().expect("caller selected a configured vector field");
     // Dimension check against the declared config — the request-time consumer
     // vector_config previously never had. On the binary side it is the only
@@ -181,7 +183,7 @@ fn query_vector_literal(
         if bits.len() != declared {
             return Err(dimension_err(bits.len(), "bits"));
         }
-        return Ok((bits.to_string(), crate::db::VectorOperandKind::Bit));
+        return Ok((bits.to_string(), crate::backend::VectorOperandKind::Bit));
     }
 
     if matches!(field.field_type, crate::schema::FieldType::SparseVector) {
@@ -197,7 +199,7 @@ fn query_vector_literal(
         if dimensions != declared {
             return Err(dimension_err(dimensions, "dimensions"));
         }
-        return Ok((sparse.to_string(), crate::db::VectorOperandKind::Sparse));
+        return Ok((sparse.to_string(), crate::backend::VectorOperandKind::Sparse));
     }
 
     let vector = operand.as_array().ok_or_else(nearest_shape_err)?;
@@ -221,7 +223,7 @@ fn query_vector_literal(
     // A `HalfVector` field lowers to the same `::vector` literal: PostgreSQL
     // resolves it to the column's type and uses the `halfvec_*_ops` index either
     // way. Half precision is a property of the column, not of the query.
-    Ok((literal, crate::db::VectorOperandKind::Float))
+    Ok((literal, crate::backend::VectorOperandKind::Float))
 }
 
 /// Check a pgvector sparse literal and return the dimension count it declares.
@@ -726,11 +728,11 @@ pub fn enforce_max_page_size(
 /// substituted, so it can only break ties the client's own keys left.
 #[must_use]
 pub fn apply_pagination_order(
-    order_by: Option<Vec<crate::db::OrderByClause>>,
+    order_by: Option<Vec<crate::backend::OrderByClause>>,
     query_def: &crate::schema::QueryDefinition,
     limit: Option<u32>,
     offset: Option<u32>,
-) -> Option<Vec<crate::db::OrderByClause>> {
+) -> Option<Vec<crate::backend::OrderByClause>> {
     let Some(order) = query_def.pagination_order.as_ref() else {
         return order_by;
     };
@@ -738,13 +740,15 @@ pub fn apply_pagination_order(
         return order_by;
     }
     let mut clauses = order_by.unwrap_or_default();
-    if crate::db::order_by::orders_by_identity(&clauses) {
+    if crate::backend::order_by::orders_by_identity(&clauses) {
         return Some(clauses);
     }
     clauses.push(match order {
-        PaginationOrder::JsonIdentity => crate::db::OrderByClause::identity("id".to_string(), None),
+        PaginationOrder::JsonIdentity => {
+            crate::backend::OrderByClause::identity("id".to_string(), None)
+        },
         PaginationOrder::Column(col) => {
-            crate::db::OrderByClause::identity(col.clone(), Some(col.clone()))
+            crate::backend::OrderByClause::identity(col.clone(), Some(col.clone()))
         },
     });
     Some(clauses)

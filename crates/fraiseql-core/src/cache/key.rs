@@ -48,7 +48,7 @@ use ahash::RandomState;
 use serde_json::Value as JsonValue;
 
 use crate::{
-    db::{OrderByClause, WhereOperator, where_clause::WhereClause},
+    backend::{OrderByClause, WhereOperator, where_clause::WhereClause},
     schema::{QueryDefinition, SqlProjectionHint},
 };
 

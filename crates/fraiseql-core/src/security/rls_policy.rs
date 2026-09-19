@@ -33,7 +33,7 @@ use std::sync::Arc;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    db::WhereClause,
+    backend::WhereClause,
     error::{FraiseQLError, Result},
     security::SecurityContext,
     utils::clock::{Clock, SystemClock},
@@ -238,7 +238,7 @@ impl RLSPolicy for DefaultRLSPolicy {
             if let Some(ref tenant_id) = context.tenant_id {
                 filters.push(WhereClause::Field {
                     path:     vec![self.tenant_field.clone()],
-                    operator: crate::db::WhereOperator::Eq,
+                    operator: crate::backend::WhereOperator::Eq,
                     value:    serde_json::json!(tenant_id.clone()),
                 });
             }
@@ -247,7 +247,7 @@ impl RLSPolicy for DefaultRLSPolicy {
         // Rule 2: Owner-based access (users can only access their own rows)
         filters.push(WhereClause::Field {
             path:     vec![self.owner_field.clone()],
-            operator: crate::db::WhereOperator::Eq,
+            operator: crate::backend::WhereOperator::Eq,
             value:    serde_json::json!(context.user_id.clone()),
         });
 
@@ -455,14 +455,14 @@ fn evaluate_rls_expression(
                 // Return a field comparison filter
                 return Ok(Some(WhereClause::Field {
                     path:     vec![object_field.to_string()],
-                    operator: crate::db::WhereOperator::Eq,
+                    operator: crate::backend::WhereOperator::Eq,
                     value:    user_value.unwrap_or(serde_json::Value::Null),
                 }));
             } else if serde_json::from_str::<serde_json::Value>(right).is_ok() {
                 // Literal value comparison
                 return Ok(Some(WhereClause::Field {
                     path:     vec!["_literal_".to_string()],
-                    operator: crate::db::WhereOperator::Eq,
+                    operator: crate::backend::WhereOperator::Eq,
                     value:    serde_json::json!(user_value),
                 }));
             }
@@ -487,7 +487,7 @@ fn evaluate_rls_expression(
         if let Some(tenant_id) = &context.tenant_id {
             return Ok(Some(WhereClause::Field {
                 path:     vec!["tenant_id".to_string()],
-                operator: crate::db::WhereOperator::Eq,
+                operator: crate::backend::WhereOperator::Eq,
                 value:    serde_json::json!(tenant_id),
             }));
         }

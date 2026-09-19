@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use crate::{
-    db::{
+    backend::{
         OrderByClause, ProjectionField, ScalarFieldType,
         projection_generator::FieldKind,
         where_clause::{SharedFieldTypes, WhereFieldSchema},
@@ -388,13 +388,13 @@ pub fn vector_distance_projection_fields(
                 field_def.name, clause.field
             )));
         }
-        let expr =
-            crate::db::order_by::vector_distance_expr(clause, crate::db::DatabaseType::PostgreSQL)?
-                .ok_or_else(|| {
-                    crate::error::FraiseQLError::internal(
-                        "a nearest clause carried no vector operand",
-                    )
-                })?;
+        let expr = crate::backend::order_by::vector_distance_expr(
+            clause,
+            crate::backend::DatabaseType::PostgreSQL,
+        )?
+        .ok_or_else(|| {
+            crate::error::FraiseQLError::internal("a nearest clause carried no vector operand")
+        })?;
         fields.push(ProjectionField::computed(sel.response_key(), expr));
     }
     Ok(fields)
@@ -519,7 +519,7 @@ mod order_by_validation {
 
     use super::*;
     use crate::{
-        db::OrderByClause,
+        backend::OrderByClause,
         schema::{FieldDefinition, FieldType, TypeDefinition},
     };
 
@@ -535,7 +535,7 @@ mod order_by_validation {
     fn clause(field: &str) -> Vec<OrderByClause> {
         vec![OrderByClause::new(
             field.to_string(),
-            crate::db::OrderDirection::Asc,
+            crate::backend::OrderDirection::Asc,
         )]
     }
 

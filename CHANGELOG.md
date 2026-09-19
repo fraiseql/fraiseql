@@ -18,6 +18,37 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_core::db` is an enumerated re-export, not the whole of `fraiseql-db`.**
+  S3 of the boundary work. `pub use fraiseql_db as db;` made every item in the database
+  crate nameable from any crate depending on `fraiseql-core` — including the data-plane
+  surface the write chokepoint sits above.
+
+  Measured: of 59 top-level items the blanket export carried, **28 are no longer
+  reachable** — among them `ChangeLogWrite`, `ColumnRowStream`, `JsonbRowStream`,
+  `ProjectionRequest`, `DatabaseIntrospector`, `GenericWhereGenerator`, the `changelog`
+  module and its constants, `view_name`, `order_by`, and the `serde_json` /
+  `tokio_postgres` / `uuid` pass-throughs.
+
+  The narrowing is **compiler-verified**: an item that is not listed is a compile error
+  at the point of use, not a lint that has to be written and then kept in step.
+
+  Everything the workspace actually reaches for is listed, and the list is short enough
+  to read as a policy. What it surfaced is worth recording: outside `fraiseql-core`,
+  only six items were being reached for beyond the obvious signature types — the admin
+  SQL route's own request/response pair, `CursorValue` (a trait-signature type),
+  `RelevanceOrder`, `to_snake_case`, and `quote_postgres_identifier`, which the
+  boot-time `sql_source` probe (#487) uses deliberately so that it and the runtime
+  cannot drift on how a name is rendered. **None was a transport reaching around the
+  engine on a request path.** `utils` is narrowed to `to_snake_case` and `identifier` to
+  `quote_postgres_identifier` rather than re-exported whole.
+
+  Core's own access moves to a private `crate::backend` handle, so core is never forced
+  to widen the public list merely to reach something for itself — which is how the
+  blanket export came to carry the data plane in the first place.
+
+  **Who this breaks:** a downstream crate naming one of the 28. Import it from
+  `fraiseql-db` directly, or open an issue if it belongs on the supported surface.
+
 - **The engine's write entries take `WriteSelections`, a selection set that cannot be
   empty.** `Executor::execute_mutation` and `Executor::execute_mutation_as` change
   signature from `&[FieldSelection]` to `WriteSelections<'_>`; build one with

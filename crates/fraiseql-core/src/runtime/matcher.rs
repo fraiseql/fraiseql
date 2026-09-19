@@ -63,7 +63,7 @@ pub struct QueryMatch {
     /// The transport sets this only when the client named no sort of its own, so
     /// an explicit `?sort=` always wins — which is what the generated `OpenAPI`
     /// document promises ("ranked by relevance unless `sort` is specified").
-    pub search_relevance: Option<crate::db::RelevanceOrder>,
+    pub search_relevance: Option<crate::backend::RelevanceOrder>,
 
     /// The parsed query (for access to fragments, variables, etc.).
     pub parsed_query: ParsedQuery,
@@ -167,7 +167,7 @@ impl QueryMatch {
     /// See [`search_relevance`](Self::search_relevance) for why this is not
     /// another entry in `arguments`.
     #[must_use]
-    pub fn with_search_relevance(mut self, relevance: crate::db::RelevanceOrder) -> Self {
+    pub fn with_search_relevance(mut self, relevance: crate::backend::RelevanceOrder) -> Self {
         self.search_relevance = Some(relevance);
         self
     }

@@ -59,7 +59,7 @@ pub const fn sql_type_to_pg_cast(sql_type: &SqlType) -> &'static str {
 /// An empty cast string (`""`) means no cast is needed for that column type.
 ///
 /// This map is passed to [`crate::runtime::AggregateQueryParser::parse`] so that the
-/// parser can emit [`crate::db::where_clause::WhereClause::NativeField`] and
+/// parser can emit [`crate::backend::where_clause::WhereClause::NativeField`] and
 /// [`crate::compiler::aggregation::GroupBySelection::NativeDimension`] variants for
 /// native columns instead of JSONB extraction variants.
 #[must_use]

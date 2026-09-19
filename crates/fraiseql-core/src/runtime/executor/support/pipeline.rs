@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::super::{Executor, root_type_name};
 use crate::{
-    db::traits::DatabaseAdapter,
+    backend::traits::DatabaseAdapter,
     error::Result,
     graphql::{FieldSelection, GraphQLArgument, ParsedQuery},
 };

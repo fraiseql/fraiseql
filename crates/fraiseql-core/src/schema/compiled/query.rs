@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 
 use super::argument::{ArgumentDefinition, AutoParams};
 use crate::{
-    db::types::ReadRouting,
+    backend::types::ReadRouting,
     schema::{
         field_type::{DeprecationInfo, FieldType},
         graphql_type_defs::default_jsonb_column,

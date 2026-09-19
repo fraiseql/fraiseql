@@ -4,7 +4,7 @@ use std::fmt::Write as _;
 
 use super::super::Executor;
 use crate::{
-    db::{WhereClause, WhereOperator, traits::DatabaseAdapter},
+    backend::{WhereClause, WhereOperator, traits::DatabaseAdapter},
     error::{FraiseQLError, Result},
     runtime::explain::ExplainResult,
 };

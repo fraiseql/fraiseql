@@ -560,7 +560,7 @@ mod live_path_injection {
 
     fn sql_from_variables(variables: &serde_json::Value) -> Result<String> {
         let plan = plan_from_variables(variables)?;
-        Ok(WindowSqlGenerator::new(crate::db::DatabaseType::PostgreSQL)
+        Ok(WindowSqlGenerator::new(crate::backend::DatabaseType::PostgreSQL)
             .generate(&plan)?
             .raw_sql)
     }

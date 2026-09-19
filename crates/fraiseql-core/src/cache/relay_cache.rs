@@ -5,7 +5,7 @@
 
 use super::adapter::CachedDatabaseAdapter;
 use crate::{
-    db::{DatabaseAdapter, RelayDatabaseAdapter},
+    backend::{DatabaseAdapter, RelayDatabaseAdapter},
     error::Result,
 };
 
@@ -14,14 +14,14 @@ impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter for CachedD
         &self,
         view: &str,
         cursor_column: &str,
-        after: Option<crate::db::traits::CursorValue>,
-        before: Option<crate::db::traits::CursorValue>,
+        after: Option<crate::backend::traits::CursorValue>,
+        before: Option<crate::backend::traits::CursorValue>,
         limit: u32,
         forward: bool,
-        where_clause: Option<&crate::db::where_clause::WhereClause>,
+        where_clause: Option<&crate::backend::where_clause::WhereClause>,
         order_by: Option<&[crate::compiler::aggregation::OrderByClause]>,
         include_total_count: bool,
-    ) -> Result<crate::db::traits::RelayPageResult> {
+    ) -> Result<crate::backend::traits::RelayPageResult> {
         // Relay pagination results are not cached — always delegate to the underlying adapter
         self.adapter
             .execute_relay_page(
@@ -43,16 +43,16 @@ impl<A: RelayDatabaseAdapter + DatabaseAdapter> RelayDatabaseAdapter for CachedD
         &self,
         view: &str,
         cursor_column: &str,
-        after: Option<crate::db::traits::CursorValue>,
-        before: Option<crate::db::traits::CursorValue>,
+        after: Option<crate::backend::traits::CursorValue>,
+        before: Option<crate::backend::traits::CursorValue>,
         limit: u32,
         forward: bool,
-        where_clause: Option<&crate::db::where_clause::WhereClause>,
+        where_clause: Option<&crate::backend::where_clause::WhereClause>,
         order_by: Option<&[crate::compiler::aggregation::OrderByClause]>,
         include_total_count: bool,
         session_vars: &[(&str, &str)],
-        routing: crate::db::types::ReadRouting,
-    ) -> Result<crate::db::traits::RelayPageResult> {
+        routing: crate::backend::types::ReadRouting,
+    ) -> Result<crate::backend::traits::RelayPageResult> {
         // Relay results are not cached; forward with session affinity so RLS
         // pagination sees the configured session variables (#329).
         self.adapter

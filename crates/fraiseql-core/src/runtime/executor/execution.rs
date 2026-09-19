@@ -5,7 +5,7 @@ use std::{sync::Arc, time::Duration};
 
 use super::{Executor, QueryType, pipeline, root_type_name, support};
 use crate::{
-    db::traits::DatabaseAdapter,
+    backend::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     security::SecurityContext,
 };

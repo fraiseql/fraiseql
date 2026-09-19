@@ -18,7 +18,7 @@ use super::{
     query_projection::selections_contain_field,
 };
 use crate::{
-    db::traits::{DatabaseAdapter, SupportsMutations},
+    backend::traits::{DatabaseAdapter, SupportsMutations},
     error::{FraiseQLError, Result},
     graphql::{DirectiveEvaluator, FieldSelection},
     runtime::{

@@ -10,7 +10,7 @@ use super::{
     support::relay::{RelayDispatch, RelayDispatchImpl},
 };
 use crate::{
-    db::{RelayDatabaseAdapter, traits::DatabaseAdapter, types::PoolMetrics},
+    backend::{RelayDatabaseAdapter, traits::DatabaseAdapter, types::PoolMetrics},
     error::Result,
     runtime::{QueryMatcher, QueryPlanner, RuntimeConfig, matcher::QueryMatch},
     schema::{CompiledSchema, IntrospectionResponses},

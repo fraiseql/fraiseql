@@ -10,7 +10,7 @@ use moka::sync::Cache as MokaCache;
 
 use super::{QueryType, support::relay::RelayDispatch};
 use crate::{
-    db::{traits::DatabaseAdapter, types::PoolMetrics},
+    backend::{traits::DatabaseAdapter, types::PoolMetrics},
     graphql::ParsedQuery,
     runtime::{QueryMatcher, QueryPlanner, RuntimeConfig},
     schema::{CompiledSchema, IntrospectionResponses},

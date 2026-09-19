@@ -3,7 +3,7 @@
 
 use super::{Executor, support};
 use crate::{
-    db::traits::DatabaseAdapter,
+    backend::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     runtime::ExecutionContext,
     schema::SessionVariablesConfig,

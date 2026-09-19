@@ -12,6 +12,7 @@
 use std::fmt::Write as _;
 
 use crate::{
+    backend::{GenericWhereGenerator, PostgresDialect, types::DatabaseType},
     compiler::{
         aggregation::OrderDirection,
         window_functions::{
@@ -19,7 +20,6 @@ use crate::{
             WindowFunction, WindowFunctionType,
         },
     },
-    db::{GenericWhereGenerator, PostgresDialect, types::DatabaseType},
     error::{FraiseQLError, Result},
 };
 

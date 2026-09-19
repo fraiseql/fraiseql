@@ -7,8 +7,8 @@ use serde_json::json;
 
 use super::*;
 use crate::{
+    backend::WhereOperator,
     cache::{CacheConfig, FactTableVersionStrategy},
-    db::WhereOperator,
     schema::CompiledSchema,
 };
 
@@ -1238,7 +1238,7 @@ impl DatabaseAdapter for StreamSpyAdapter {
 
     async fn stream_with_projection(
         &self,
-        _request: &crate::db::ProjectionRequest<'_>,
+        _request: &crate::backend::ProjectionRequest<'_>,
         _session_vars: &[(&str, &str)],
         _routing: fraiseql_db::types::ReadRouting,
     ) -> Result<fraiseql_db::JsonbRowStream> {
@@ -1312,7 +1312,7 @@ async fn cached_adapter_forwards_a_streaming_read_instead_of_buffering_it() {
 
     let rows: Vec<_> = adapter
         .stream_with_projection(
-            &crate::db::ProjectionRequest::new("v_user"),
+            &crate::backend::ProjectionRequest::new("v_user"),
             &[],
             fraiseql_db::types::ReadRouting::Any,
         )

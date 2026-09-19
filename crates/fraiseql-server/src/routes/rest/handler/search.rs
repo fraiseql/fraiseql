@@ -6,7 +6,7 @@
 //! searched — and there would be no error to notice, only a plausible wrong order.
 
 use fraiseql_core::{
-    db::{RelevanceOrder, utils::to_snake_case},
+    db::{RelevanceOrder, to_snake_case},
     schema::TypeDefinition,
 };
 use serde_json::json;

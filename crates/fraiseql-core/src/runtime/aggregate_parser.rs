@@ -48,6 +48,7 @@
 use serde_json::Value;
 
 use crate::{
+    backend::where_clause::{WhereClause, WhereOperator},
     compiler::{
         aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket},
         aggregation::{
@@ -56,7 +57,6 @@ use crate::{
         },
         fact_table::FactTableMetadata,
     },
-    db::where_clause::{WhereClause, WhereOperator},
     error::{FraiseQLError, Result},
 };
 

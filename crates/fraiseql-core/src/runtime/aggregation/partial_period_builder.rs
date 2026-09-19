@@ -12,11 +12,11 @@ use chrono::NaiveDate;
 
 use super::{AggregationSqlGenerator, Result};
 use crate::{
+    backend::where_clause::WhereClause,
     compiler::{
         aggregation::{AggregateExpression, AggregationPlan, GroupByExpression},
         fact_table::{FactTableMetadata, PartialPeriodConfig, TemporalGrain},
     },
-    db::where_clause::WhereClause,
     runtime::partial_period::BranchPlan,
 };
 

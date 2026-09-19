@@ -13,7 +13,7 @@
 
 use super::{Executor, runners};
 use crate::{
-    db::traits::{DatabaseAdapter, SupportsMutations},
+    backend::traits::{DatabaseAdapter, SupportsMutations},
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
     security::SecurityContext,

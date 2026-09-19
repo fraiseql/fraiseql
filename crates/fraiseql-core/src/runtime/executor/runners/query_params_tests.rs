@@ -528,7 +528,7 @@ fn nearest_on_a_bit_vector_lowers_to_a_bit_literal_and_operator() {
     assert_eq!(vector.query_vector, "1011", "the literal is the bit string, with no brackets");
     assert_eq!(
         vector.kind,
-        crate::db::VectorOperandKind::Bit,
+        crate::backend::VectorOperandKind::Bit,
         "the kind is what makes the ORDER BY cast `::varbit` rather than `::vector`"
     );
 }

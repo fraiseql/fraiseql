@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 
 use super::super::Executor;
 use crate::{
-    db::traits::DatabaseAdapter,
+    backend::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     schema::InjectedParamSource,
     security::SecurityContext,
@@ -528,8 +528,8 @@ impl<A: DatabaseAdapter> Executor<A> {
         &self,
         representations: &[crate::federation::EntityRepresentation],
         security_context: Option<&SecurityContext>,
-    ) -> Result<std::collections::HashMap<String, crate::db::WhereClause>> {
-        use crate::db::{WhereClause, WhereOperator};
+    ) -> Result<std::collections::HashMap<String, crate::backend::WhereClause>> {
+        use crate::backend::{WhereClause, WhereOperator};
 
         let mut filters = std::collections::HashMap::new();
         let Some(sc) = security_context else {

@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use super::super::context::ExecutorContext;
 use crate::{
-    db::{WhereClause, traits::DatabaseAdapter},
+    backend::{WhereClause, traits::DatabaseAdapter},
     error::{FraiseQLError, Result},
     runtime::suggest_similar,
     security::{RlsWhereClause, SecurityContext},
@@ -175,13 +175,13 @@ impl<A: DatabaseAdapter> AggregateRunner<A> {
     /// through a `QueryDefinition`, so the annotation has to be looked back up.
     /// Falling back to `Any` is the same answer every query gave before the field
     /// existed — an aggregate nobody annotated keeps following server policy.
-    fn aggregate_read_routing(&self, query_name: &str) -> crate::db::types::ReadRouting {
+    fn aggregate_read_routing(&self, query_name: &str) -> crate::backend::types::ReadRouting {
         self.ctx
             .schema
             .queries
             .iter()
             .find(|q| q.name == query_name)
-            .map_or(crate::db::types::ReadRouting::Any, |q| q.read_routing)
+            .map_or(crate::backend::types::ReadRouting::Any, |q| q.read_routing)
     }
 
     pub(in super::super) async fn execute_aggregate_query(

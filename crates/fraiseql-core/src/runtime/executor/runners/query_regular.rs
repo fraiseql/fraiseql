@@ -19,7 +19,9 @@ use super::{
     },
 };
 use crate::{
-    db::{WhereClause, projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter},
+    backend::{
+        WhereClause, projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter,
+    },
     error::{FraiseQLError, Result},
     runtime::{JsonbStrategy, ResultProjector},
     schema::SqlProjectionHint,
@@ -41,7 +43,7 @@ pub(in super::super) struct ResolvedDirectRead {
     /// Security conditions (RLS + `inject_params`) AND-ed with the client filter.
     composed_where: Option<WhereClause>,
     /// Enriched ORDER BY, or `None` for the view's own order.
-    order_by:       Option<Vec<crate::db::OrderByClause>>,
+    order_by:       Option<Vec<crate::backend::OrderByClause>>,
     /// Page size, already capped by `max_page_size` (#421).
     limit:          Option<u32>,
     /// Page offset.
@@ -52,7 +54,7 @@ pub(in super::super) struct ResolvedDirectRead {
     pub access:     crate::runtime::field_filter::FieldAccessResult,
     /// Projection for the computed fields this read selects (#959), or `None`
     /// when it selects none — see [`Self::projection_request`].
-    projection:     Option<crate::db::SqlProjectionHint>,
+    projection:     Option<crate::backend::SqlProjectionHint>,
 }
 
 impl ResolvedDirectRead {
@@ -69,8 +71,8 @@ impl ResolvedDirectRead {
     /// model. A vector distance (#959) is not in the document at all, so it is
     /// projected as `data || jsonb_build_object(…)` — additive, so the reason
     /// for reading the whole row still holds.
-    fn projection_request(&self) -> crate::db::ProjectionRequest<'_> {
-        crate::db::ProjectionRequest {
+    fn projection_request(&self) -> crate::backend::ProjectionRequest<'_> {
+        crate::backend::ProjectionRequest {
             view:         &self.sql_source,
             projection:   self.projection.as_ref(),
             where_clause: self.composed_where.as_ref(),
@@ -202,7 +204,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         query_match: &crate::runtime::matcher::QueryMatch,
         plan: &crate::runtime::planner::ExecutionPlan,
         full_row: bool,
-        nearest: Option<&crate::db::OrderByClause>,
+        nearest: Option<&crate::backend::OrderByClause>,
     ) -> Result<Option<SqlProjectionHint>> {
         let root_fields = query_match
             .selections
@@ -526,7 +528,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             query_match
                 .arguments
                 .get("orderBy")
-                .map(crate::db::OrderByClause::from_graphql_json)
+                .map(crate::backend::OrderByClause::from_graphql_json)
                 .transpose()?
                 .map(|clauses| {
                     enrich_order_by_clauses(
@@ -581,7 +583,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             .ctx
             .adapter
             .execute_with_projection_arc_with_session(
-                &crate::db::ProjectionRequest {
+                &crate::backend::ProjectionRequest {
                     view: sql_source,
                     projection: projection_hint.as_ref(),
                     where_clause: combined_where.as_ref(),
@@ -722,7 +724,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         query_match: &crate::runtime::matcher::QueryMatch,
         security_context: &SecurityContext,
         access: &crate::runtime::field_filter::FieldAccessResult,
-        rows: &[crate::db::types::JsonbValue],
+        rows: &[crate::backend::types::JsonbValue],
         projected: &mut serde_json::Value,
     ) -> Result<()> {
         use crate::security::field_authorizer as authz;
@@ -957,7 +959,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             query_match
                 .arguments
                 .get("orderBy")
-                .map(crate::db::OrderByClause::from_graphql_json)
+                .map(crate::backend::OrderByClause::from_graphql_json)
                 .transpose()?
                 .map(|clauses| {
                     enrich_order_by_clauses(
@@ -1011,7 +1013,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let results = self
             .ctx
             .adapter
-            .execute_with_projection_arc(&crate::db::ProjectionRequest {
+            .execute_with_projection_arc(&crate::backend::ProjectionRequest {
                 view: sql_source,
                 projection: projection_hint.as_ref(),
                 where_clause: user_where.as_ref(),
@@ -1250,7 +1252,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         let order_by_clauses = query_match
             .arguments
             .get("orderBy")
-            .map(crate::db::OrderByClause::from_graphql_json)
+            .map(crate::backend::OrderByClause::from_graphql_json)
             .transpose()?
             .map(|clauses| {
                 enrich_order_by_clauses(
@@ -1292,9 +1294,9 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         // A clause list that exists wins, so a client's `?sort=` can never be
         // silently replaced by a ranking it did not ask for.
         let order_by_clauses = match (order_by_clauses, query_match.search_relevance.as_ref()) {
-            (None, Some(relevance)) => {
-                Some(vec![crate::db::OrderByClause::by_relevance(relevance.clone())])
-            },
+            (None, Some(relevance)) => Some(vec![crate::backend::OrderByClause::by_relevance(
+                relevance.clone(),
+            )]),
             (existing, _) => existing,
         };
 
@@ -1474,7 +1476,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
         access: &crate::runtime::field_filter::FieldAccessResult,
-        rows: &[crate::db::types::JsonbValue],
+        rows: &[crate::backend::types::JsonbValue],
         returns_list: bool,
     ) -> Result<serde_json::Value> {
         // Masked fields stay in the projection, in their requested position, and are

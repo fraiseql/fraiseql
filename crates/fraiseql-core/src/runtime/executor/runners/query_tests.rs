@@ -7,7 +7,7 @@ use chrono::Utc;
 use indexmap::IndexMap;
 
 use crate::{
-    db::{types::JsonbValue, where_clause::WhereClause},
+    backend::{types::JsonbValue, where_clause::WhereClause},
     runtime::{
         Executor, RuntimeConfig,
         executor::test_support::{
@@ -53,7 +53,7 @@ mod sourceless {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
-            read_routing:        crate::db::types::ReadRouting::default(),
+            read_routing:        crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -111,7 +111,7 @@ mod routing {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
-            read_routing:        crate::db::types::ReadRouting::default(),
+            read_routing:        crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -159,7 +159,7 @@ mod auto_params {
             relay_cursor_column: None,
             relay_cursor_type: CursorType::default(),
             inject_params: IndexMap::default(),
-            read_routing: crate::db::types::ReadRouting::default(),
+            read_routing: crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds: None,
             additional_views: vec![],
             requires_role: None,
@@ -362,7 +362,7 @@ mod rls_composition {
             relay_cursor_column: None,
             relay_cursor_type: CursorType::default(),
             inject_params,
-            read_routing: crate::db::types::ReadRouting::default(),
+            read_routing: crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds: None,
             additional_views: vec![],
             requires_role: None,
@@ -612,7 +612,7 @@ mod rls_composition {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       inject,
-            read_routing:        crate::db::types::ReadRouting::default(),
+            read_routing:        crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -661,7 +661,7 @@ mod session_variables {
 
     use super::*;
     use crate::{
-        db::{
+        backend::{
             traits::DatabaseAdapter,
             types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
             where_clause::WhereClause,
@@ -719,9 +719,9 @@ mod session_variables {
 
         async fn execute_with_projection_arc_with_session(
             &self,
-            _request: &crate::db::ProjectionRequest<'_>,
+            _request: &crate::backend::ProjectionRequest<'_>,
             session_vars: &[(&str, &str)],
-            _routing: crate::db::types::ReadRouting,
+            _routing: crate::backend::types::ReadRouting,
         ) -> Result<std::sync::Arc<Vec<JsonbValue>>> {
             let mut guard = self.captured.lock().unwrap();
             for (k, v) in session_vars {
@@ -738,7 +738,7 @@ mod session_variables {
             _offset: Option<u32>,
             _order_by: Option<&[OrderByClause]>,
             session_vars: &[(&str, &str)],
-            _routing: crate::db::types::ReadRouting,
+            _routing: crate::backend::types::ReadRouting,
         ) -> Result<std::sync::Arc<Vec<JsonbValue>>> {
             let mut guard = self.captured.lock().unwrap();
             for (k, v) in session_vars {
@@ -1273,7 +1273,7 @@ mod node_authz {
             relay_cursor_column: None,
             relay_cursor_type: CursorType::default(),
             inject_params,
-            read_routing: crate::db::types::ReadRouting::default(),
+            read_routing: crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds: None,
             additional_views: vec![],
             requires_role: requires_role.map(str::to_string),
@@ -1457,7 +1457,7 @@ mod explicit_arg_recasing {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
-            read_routing:        crate::db::types::ReadRouting::default(),
+            read_routing:        crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -1523,7 +1523,7 @@ mod explicit_arg_recasing {
 // `scope_where` does (#1170) — and is lowered here.
 mod search_relevance {
     use super::*;
-    use crate::db::RelevanceOrder;
+    use crate::backend::RelevanceOrder;
 
     fn users_match() -> crate::runtime::matcher::QueryMatch {
         crate::runtime::QueryMatcher::new(test_schema())
@@ -1562,7 +1562,11 @@ mod search_relevance {
         let captured = adapter.captured_order_by().expect("the read must be ordered");
         assert_eq!(captured.len(), 1, "one ordering, the rank: {captured:?}");
         assert_eq!(captured[0].relevance.as_ref(), Some(&relevance()));
-        assert_eq!(captured[0].direction, crate::db::OrderDirection::Desc, "most relevant first");
+        assert_eq!(
+            captured[0].direction,
+            crate::backend::OrderDirection::Desc,
+            "most relevant first"
+        );
     }
 
     /// A client's own sort wins, which is what the generated OpenAPI document
@@ -1624,7 +1628,7 @@ mod pagination_order {
     async fn captured_for(
         schema: CompiledSchema,
         args: &[(&str, serde_json::Value)],
-    ) -> Option<Vec<crate::db::OrderByClause>> {
+    ) -> Option<Vec<crate::backend::OrderByClause>> {
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
         let executor = Executor::new(schema.clone(), adapter.clone());
         let mut qm = crate::runtime::QueryMatcher::new(schema)
@@ -1646,7 +1650,7 @@ mod pagination_order {
         assert!(captured[0].identity, "the clause must be marked, or the renderer adds a second");
         assert_eq!(captured[0].field, "id");
         assert_eq!(captured[0].native_column, None, "the JSONB identity reads no column");
-        assert_eq!(captured[0].direction, crate::db::OrderDirection::Asc);
+        assert_eq!(captured[0].direction, crate::backend::OrderDirection::Asc);
     }
 
     /// The control that makes the case above mean something: an unpaged read has
@@ -1708,7 +1712,7 @@ mod pagination_order {
         .expect("ordered");
         assert_eq!(captured.len(), 2, "{captured:?}");
         assert_eq!(captured[0].field, "name");
-        assert_eq!(captured[0].direction, crate::db::OrderDirection::Desc);
+        assert_eq!(captured[0].direction, crate::backend::OrderDirection::Desc);
         assert!(!captured[0].identity);
         assert!(captured[1].identity);
     }
@@ -1727,7 +1731,7 @@ mod pagination_order {
         .await
         .expect("ordered");
         assert_eq!(captured.len(), 1, "{captured:?}");
-        assert_eq!(captured[0].direction, crate::db::OrderDirection::Desc, "the client's own");
+        assert_eq!(captured[0].direction, crate::backend::OrderDirection::Desc, "the client's own");
     }
 
     /// The ordering is server-composed and never enters the argument map, which

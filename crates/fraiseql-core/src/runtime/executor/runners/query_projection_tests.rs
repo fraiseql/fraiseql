@@ -11,7 +11,7 @@
 
 use super::build_typed_projection_fields;
 use crate::{
-    db::projection_generator::PostgresProjectionGenerator,
+    backend::projection_generator::PostgresProjectionGenerator,
     graphql::FieldSelection,
     schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition},
 };

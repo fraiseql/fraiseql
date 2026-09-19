@@ -35,7 +35,7 @@ use std::collections::HashMap;
 use serde_json::Value as JsonValue;
 
 use crate::{
-    db::types::JsonbValue,
+    backend::types::JsonbValue,
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
     runtime::projection::effective_selections,

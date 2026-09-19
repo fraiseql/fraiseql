@@ -53,11 +53,11 @@ use serde::{Deserialize, Serialize};
 
 pub use crate::types::{OrderByClause, OrderDirection};
 use crate::{
+    backend::where_clause::WhereClause,
     compiler::{
         aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket},
         fact_table::FactTableMetadata,
     },
-    db::where_clause::WhereClause,
     error::{FraiseQLError, Result},
 };
 

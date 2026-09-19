@@ -14,7 +14,7 @@ use super::{
     },
 };
 use crate::{
-    db::{
+    backend::{
         CursorValue, WhereClause, projection_generator::PostgresProjectionGenerator,
         traits::DatabaseAdapter,
     },
@@ -433,7 +433,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
         use crate::{
-            db::{WhereClause, where_clause::WhereOperator},
+            backend::{WhereClause, where_clause::WhereOperator},
             graphql::selection_set,
             runtime::relay::decode_node_id,
         };
@@ -620,7 +620,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             .ctx
             .adapter
             .execute_with_projection_arc_with_session(
-                &crate::db::ProjectionRequest {
+                &crate::backend::ProjectionRequest {
                     view:         &sql_source,
                     projection:   projection_hint.as_ref(),
                     where_clause: Some(&where_clause),

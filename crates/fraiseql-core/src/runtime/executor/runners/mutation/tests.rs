@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use fraiseql_db::ChangeLogWrite;
 
 use crate::{
-    db::{
+    backend::{
         SupportsMutations,
         traits::DatabaseAdapter,
         types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
@@ -2707,7 +2707,7 @@ mod mutation_audit {
 
     use super::*;
     use crate::{
-        db::types::{DatabaseType, PoolMetrics},
+        backend::types::{DatabaseType, PoolMetrics},
         schema::MutationOperation,
     };
 
@@ -3039,7 +3039,7 @@ mod field_authz {
 
     use super::*;
     use crate::{
-        db::types::{DatabaseType, PoolMetrics, sql_hints::OrderByClause},
+        backend::types::{DatabaseType, PoolMetrics, sql_hints::OrderByClause},
         schema::{FieldDefinition, FieldDenyPolicy, FieldType, MutationDefinition, TypeDefinition},
         security::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest, SecurityContext},
     };
@@ -3373,7 +3373,7 @@ mod cascade {
 
     use super::*;
     use crate::{
-        db::types::{DatabaseType, PoolMetrics, sql_hints::OrderByClause},
+        backend::types::{DatabaseType, PoolMetrics, sql_hints::OrderByClause},
         runtime::CascadeLimits,
         schema::{FieldDefinition, FieldDenyPolicy, FieldType, MutationDefinition, TypeDefinition},
         security::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest, SecurityContext},
@@ -4482,7 +4482,7 @@ mod before_mutation_read_bridge {
 
     use super::*;
     use crate::{
-        db::WhereClause,
+        backend::WhereClause,
         schema::{
             ArgumentDefinition, AutoParams, CursorType, FieldType, InputFieldDefinition,
             InputObjectDefinition, MutationDefinition, MutationOperation, QueryDefinition,
@@ -4666,7 +4666,7 @@ mod before_mutation_read_bridge {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       indexmap::IndexMap::default(),
-            read_routing:        crate::db::types::ReadRouting::default(),
+            read_routing:        crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,

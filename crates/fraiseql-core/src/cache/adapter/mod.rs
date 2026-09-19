@@ -75,12 +75,12 @@ use super::{
     result::QueryResultCache,
 };
 use crate::{
-    cache::config::RlsEnforcement,
-    db::{
+    backend::{
         ChangeLogWrite, DatabaseAdapter, DatabaseType, PoolMetrics, SupportsMutations, WhereClause,
         quote_postgres_identifier,
         types::{JsonbValue, OrderByClause, ReadRouting},
     },
+    cache::config::RlsEnforcement,
     error::{FraiseQLError, Result},
     schema::{CompiledSchema, SourceKind, SourceProbe, sql_source_probes},
 };
@@ -818,7 +818,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
 
     async fn execute_with_projection_arc(
         &self,
-        request: &crate::db::ProjectionRequest<'_>,
+        request: &crate::backend::ProjectionRequest<'_>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
         self.execute_with_projection_impl(
             request.view,
@@ -987,7 +987,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
 
     async fn execute_with_projection_arc_with_session(
         &self,
-        request: &crate::db::ProjectionRequest<'_>,
+        request: &crate::backend::ProjectionRequest<'_>,
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
@@ -1027,7 +1027,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     /// that wants the cache asks for the buffered method.
     async fn stream_with_projection(
         &self,
-        request: &crate::db::ProjectionRequest<'_>,
+        request: &crate::backend::ProjectionRequest<'_>,
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<fraiseql_db::JsonbRowStream> {

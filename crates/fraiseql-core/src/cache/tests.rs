@@ -1386,8 +1386,8 @@ mod key_tests {
     use serde_json::{Value as JsonValue, json};
 
     use crate::{
+        backend::{WhereOperator, where_clause::WhereClause},
         cache::{key::verify_deterministic, *},
-        db::{WhereOperator, where_clause::WhereClause},
         schema::{CursorType, QueryDefinition},
     };
 
@@ -1664,7 +1664,7 @@ mod key_tests {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
-            read_routing:        crate::db::types::ReadRouting::default(),
+            read_routing:        crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -1707,7 +1707,7 @@ mod key_tests {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
-            read_routing:        crate::db::types::ReadRouting::default(),
+            read_routing:        crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -1745,7 +1745,7 @@ mod key_tests {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
-            read_routing:        crate::db::types::ReadRouting::default(),
+            read_routing:        crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec!["v_post".to_string(), "v_tag".to_string()],
             requires_role:       None,
@@ -1807,7 +1807,7 @@ mod key_tests {
 
     #[test]
     fn test_view_key_different_order_by_produces_different_keys() {
-        use crate::db::{OrderByClause, OrderDirection};
+        use crate::backend::{OrderByClause, OrderDirection};
 
         let asc = [OrderByClause::new("name".into(), OrderDirection::Asc)];
         let desc = [OrderByClause::new("name".into(), OrderDirection::Desc)];
@@ -1820,7 +1820,7 @@ mod key_tests {
 
     #[test]
     fn test_view_key_same_order_by_produces_same_key() {
-        use crate::db::{OrderByClause, OrderDirection};
+        use crate::backend::{OrderByClause, OrderDirection};
 
         let clauses = [OrderByClause::new("createdAt".into(), OrderDirection::Desc)];
 
@@ -1832,7 +1832,7 @@ mod key_tests {
 
     #[test]
     fn test_view_key_with_and_without_order_by() {
-        use crate::db::{OrderByClause, OrderDirection};
+        use crate::backend::{OrderByClause, OrderDirection};
 
         let clauses = [OrderByClause::new("name".into(), OrderDirection::Asc)];
 
@@ -1844,7 +1844,7 @@ mod key_tests {
 
     #[test]
     fn test_view_key_different_fields_produce_different_keys() {
-        use crate::db::{OrderByClause, OrderDirection};
+        use crate::backend::{OrderByClause, OrderDirection};
 
         let by_name = [OrderByClause::new("name".into(), OrderDirection::Asc)];
         let by_date = [OrderByClause::new("createdAt".into(), OrderDirection::Asc)];
@@ -1857,7 +1857,7 @@ mod key_tests {
 
     #[test]
     fn test_projection_key_includes_order_by() {
-        use crate::db::{OrderByClause, OrderDirection};
+        use crate::backend::{OrderByClause, OrderDirection};
 
         let clauses = [OrderByClause::new("name".into(), OrderDirection::Asc)];
 
@@ -3516,8 +3516,8 @@ mod invalidation_fence_tests {
         QueryResultCache::new(CacheConfig::enabled())
     }
 
-    fn rows() -> Vec<crate::db::types::JsonbValue> {
-        vec![crate::db::types::JsonbValue::new(
+    fn rows() -> Vec<crate::backend::types::JsonbValue> {
+        vec![crate::backend::types::JsonbValue::new(
             serde_json::json!({"id": "u-1", "n": "pre"}),
         )]
     }

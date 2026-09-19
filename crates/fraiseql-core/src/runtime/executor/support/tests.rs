@@ -10,7 +10,7 @@ mod explain_tests {
     use serde_json::json;
 
     use crate::{
-        db::{
+        backend::{
             DatabaseType, PoolMetrics, WhereClause,
             types::{JsonbValue, OrderByClause},
         },
@@ -26,7 +26,7 @@ mod explain_tests {
     // its transformed method signatures to satisfy the trait contract
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
-    impl crate::db::traits::DatabaseAdapter for MockAdapter {
+    impl crate::backend::traits::DatabaseAdapter for MockAdapter {
         async fn execute_where_query(
             &self,
             _view: &str,
@@ -161,7 +161,7 @@ mod pipeline_tests {
     use async_trait::async_trait;
 
     use crate::{
-        db::{
+        backend::{
             WhereClause,
             types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         },
@@ -195,7 +195,7 @@ mod pipeline_tests {
     // its transformed method signatures to satisfy the trait contract
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
-    impl crate::db::traits::DatabaseAdapter for MockAdapter {
+    impl crate::backend::traits::DatabaseAdapter for MockAdapter {
         async fn execute_where_query(
             &self,
             _view: &str,

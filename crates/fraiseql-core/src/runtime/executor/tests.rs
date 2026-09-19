@@ -6,7 +6,7 @@ use indexmap::IndexMap;
 
 use super::{test_support::*, *};
 use crate::{
-    db::types::JsonbValue,
+    backend::types::JsonbValue,
     runtime::{
         JsonbOptimizationOptions, JsonbStrategy, RuntimeConfig,
         executor::mutation::any_write_selections,
@@ -550,7 +550,7 @@ mod entities_authz {
             relay_cursor_column: None,
             relay_cursor_type: CursorType::default(),
             inject_params,
-            read_routing: crate::db::types::ReadRouting::default(),
+            read_routing: crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds: None,
             additional_views: vec![],
             requires_role: requires_role.map(str::to_string),
@@ -891,7 +891,7 @@ mod entities_authz {
                 relay_cursor_column: None,
                 relay_cursor_type:   CursorType::default(),
                 inject_params:       IndexMap::new(),
-                read_routing:        crate::db::types::ReadRouting::default(),
+                read_routing:        crate::backend::types::ReadRouting::default(),
                 cache_ttl_seconds:   None,
                 additional_views:    vec![],
                 requires_role:       None,
@@ -1429,7 +1429,7 @@ mod inject {
             relay_cursor_column: None,
             relay_cursor_type: CursorType::default(),
             inject_params,
-            read_routing: crate::db::types::ReadRouting::default(),
+            read_routing: crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds: None,
             additional_views: vec![],
             requires_role: None,
@@ -1815,7 +1815,7 @@ mod field_rbac {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
-            read_routing:        crate::db::types::ReadRouting::default(),
+            read_routing:        crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -2444,7 +2444,7 @@ mod field_authz {
             relay_cursor_column: None,
             relay_cursor_type:   CursorType::default(),
             inject_params:       IndexMap::default(),
-            read_routing:        crate::db::types::ReadRouting::default(),
+            read_routing:        crate::backend::types::ReadRouting::default(),
             cache_ttl_seconds:   None,
             additional_views:    vec![],
             requires_role:       None,
@@ -3331,7 +3331,7 @@ mod rls_fail_closed {
 
 mod where_types_reach_the_generator {
     use super::*;
-    use crate::db::{
+    use crate::backend::{
         PostgresDialect, ScalarFieldType, WhereClause, where_generator::GenericWhereGenerator,
     };
 
@@ -3452,8 +3452,8 @@ mod response_cache_key {
 
     use super::MockAdapter;
     use crate::{
+        backend::types::JsonbValue,
         cache::{ResponseCache, ResponseCacheConfig},
-        db::types::JsonbValue,
         runtime::Executor,
         schema::{CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition},
         security::SecurityContext,

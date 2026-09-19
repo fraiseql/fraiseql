@@ -7,11 +7,11 @@ use std::sync::Arc;
 
 use super::CachedDatabaseAdapter;
 use crate::{
-    cache::key::{generate_projection_query_key, generate_view_query_key},
-    db::{
+    backend::{
         DatabaseAdapter, WhereClause,
         types::{JsonbValue, sql_hints::OrderByClause},
     },
+    cache::key::{generate_projection_query_key, generate_view_query_key},
     error::Result,
     schema::SqlProjectionHint,
 };

@@ -89,11 +89,11 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    backend::where_clause::WhereClause,
     compiler::{
         aggregation::{OrderByClause, OrderDirection},
         fact_table::FactTableMetadata,
     },
-    db::where_clause::WhereClause,
     error::{FraiseQLError, Result},
 };
 

@@ -51,6 +51,7 @@
 use serde_json::Value;
 
 use crate::{
+    backend::where_clause::{WhereClause, WhereOperator},
     compiler::{
         aggregation::OrderDirection,
         fact_table::FactTableMetadata,
@@ -60,7 +61,6 @@ use crate::{
             WindowSelectColumn,
         },
     },
-    db::where_clause::{WhereClause, WhereOperator},
     error::{FraiseQLError, Result},
 };
 
