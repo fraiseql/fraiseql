@@ -18,6 +18,59 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`Executor::adapter` is gone; the engine mediates the operations instead.**
+  S4 of the boundary work. Handing out `&Arc<A>` gave every transport the whole
+  `DatabaseAdapter` surface — roughly forty methods, including `execute_raw_query` —
+  from any handler that could reach an executor. Sixteen production sites took it, and
+  what they actually wanted was twelve named operations.
+
+  Those are now methods on `Executor`: `health_check`, `database_type`, `query_stats`,
+  `query_stats_by_id`, `reset_query_stats`, `result_cache_stats`, `clear_result_cache`,
+  `invalidate_views`, `explain_query`, `execute_admin_sql`, `on_schema_reload`, and
+  `drop_tenant_schema`. `pool_metrics` already existed on `Executor` and the health
+  handler was reaching past it to call the adapter's — which is the shape in miniature:
+  an accessor that exists gets used in preference to the mediated call.
+
+  `drop_tenant_schema` takes the schema *name*, not a statement, and re-validates it as
+  a bare identifier before interpolating. `fraiseql-server` validates the tenant key too;
+  both, deliberately — that layer owns the tenant-key rules, and the engine owns being
+  safe at the interpolation site regardless of who calls it.
+
+  **Who this breaks:** anything calling `executor.adapter()`. Use the named operation.
+  There is deliberately no replacement accessor: one would restore exactly what this
+  removes. `ResultCacheStats` joins the enumerated `fraiseql_core::db` list as the return
+  type of `result_cache_stats`.
+
+- **`Executor::rebuild_with` replaces the recorded-rebuilder machinery; `ExecutorRebuilder`
+  is deleted.** A hot-reload could not rebuild the executor itself, because relay dispatch
+  needs a `RelayDatabaseAdapter` bound that only the relay constructor carries. #750
+  worked around that by having `Server` *record* the constructor it had used and thread
+  the closure into `AppState` — a step that could be skipped, or record the wrong one, and
+  which #750 guarded against by hand.
+
+  Nothing needed re-running: `RelayDispatchImpl` holds the adapter and nothing derived from
+  the schema, so the same dispatch object is still correct under a new schema.
+  `rebuild_with` carries it over, and a rebuild therefore *cannot* downgrade a relay
+  executor — there is no longer a step that could omit it. Every constructor and every
+  rebuild now funnels through one private `build`, so a new executor cannot differ from
+  the others by a forgotten field either.
+
+  **Who this breaks:** `AppState::with_reload_config(path, adapter, rebuilder)` becomes
+  `with_reload_config(path)`. `ExecutorRebuilder<A>` no longer exists. A directly-assembled
+  `AppState` can now hot-reload, where it previously refused for want of the plumbing.
+
+- **`destroy_tenant_schema` takes the executor, not an adapter.** Signature changes from
+  `(&str, &dyn DatabaseAdapter)` to `(&str, &Executor<A>)`. `create_tenant_executor_with_adapter`
+  is new: it returns the pool it built alongside the executor, for tests that must issue
+  probes over *those* connections — a separately-built adapter connects with its own pool
+  options and so cannot witness whether these ones carry the tenant search path.
+
+  `schema_isolation::drop_schema_ddl` is removed: the engine composes that statement now,
+  so the server-side formatter had no caller left and only its own tests kept it alive.
+  Its coverage is preserved — `tenant_schema_name` is tested directly (including injection
+  and the identifier-length bound), and the exact `DROP SCHEMA IF EXISTS … CASCADE` text is
+  asserted in `fraiseql-core` where it is now built.
+
 - **`fraiseql_core::db` is an enumerated re-export, not the whole of `fraiseql-db`.**
   S3 of the boundary work. `pub use fraiseql_db as db;` made every item in the database
   crate nameable from any crate depending on `fraiseql-core` — including the data-plane

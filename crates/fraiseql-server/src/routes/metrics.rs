@@ -265,7 +265,7 @@ pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
     }
 
     // Database query performance stats (top 5 from pg_stat_statements / equivalent)
-    if let Ok(stats) = state.executor().adapter().query_stats(5).await {
+    if let Ok(stats) = state.executor().query_stats(5).await {
         if !stats.is_empty() {
             output.push_str(concat!(
                 "\n# HELP fraiseql_db_query_exec_seconds ",

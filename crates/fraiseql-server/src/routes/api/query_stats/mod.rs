@@ -67,12 +67,11 @@ pub async fn query_stats_handler<A: DatabaseAdapter + 'static>(
 ) -> Result<Json<ApiResponse<QueryStatsResponse>>, ApiError> {
     let limit = params.limit.unwrap_or(20).clamp(1, 100);
     let executor = state.executor();
-    let adapter = executor.adapter();
-    let db_type = adapter.database_type();
+    let db_type = executor.database_type();
 
     let stats_available = matches!(db_type, DatabaseType::PostgreSQL);
 
-    let entries = adapter
+    let entries = executor
         .query_stats(limit)
         .await
         .map_err(|e| ApiError::internal_error(format!("Failed to fetch query stats: {e}")))?;
@@ -112,10 +111,9 @@ pub async fn query_stats_detail_handler<A: DatabaseAdapter + 'static>(
     Path(queryid): Path<String>,
 ) -> Result<Json<ApiResponse<QueryStatsDetailResponse>>, ApiError> {
     let executor = state.executor();
-    let adapter = executor.adapter();
-    let db_type = adapter.database_type();
+    let db_type = executor.database_type();
 
-    let entry = adapter
+    let entry = executor
         .query_stats_by_id(&queryid)
         .await
         .map_err(|e| ApiError::internal_error(format!("Failed to fetch query stats: {e}")))?;
@@ -144,9 +142,8 @@ pub async fn query_stats_reset_handler<A: DatabaseAdapter + 'static>(
     State(state): State<AppState<A>>,
 ) -> Result<Json<ApiResponse<QueryStatsResetResponse>>, ApiError> {
     let executor = state.executor();
-    let adapter = executor.adapter();
 
-    match adapter.reset_query_stats().await {
+    match executor.reset_query_stats().await {
         Ok(()) => Ok(Json(ApiResponse {
             status: "success".to_string(),
             data:   QueryStatsResetResponse {

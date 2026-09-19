@@ -174,7 +174,7 @@ impl PoolSizingAdvisor {
     /// Returns a [`tokio::task::JoinHandle`] that can be aborted for shutdown.
     pub fn start<A: DatabaseAdapter + 'static>(
         self: Arc<Self>,
-        adapter: Arc<A>,
+        executor: Arc<fraiseql_core::runtime::Executor<A>>,
         resize_fn: Option<Arc<dyn Fn(usize) + Send + Sync>>,
     ) -> tokio::task::JoinHandle<()> {
         let interval_ms = self.config.tuning_interval_ms;
@@ -199,7 +199,7 @@ impl PoolSizingAdvisor {
 
             loop {
                 ticker.tick().await;
-                let metrics = adapter.pool_metrics();
+                let metrics = executor.pool_metrics();
 
                 match self.evaluate(&metrics) {
                     PoolSizingRecommendation::Stable => {},

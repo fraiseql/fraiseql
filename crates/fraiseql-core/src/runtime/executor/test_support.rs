@@ -14,8 +14,8 @@ use indexmap::IndexMap;
 
 use crate::{
     backend::{
-        SupportsMutations,
-        traits::DatabaseAdapter,
+        CursorValue, RelayPageResult, SupportsMutations,
+        traits::{DatabaseAdapter, RelayDatabaseAdapter},
         types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
         where_clause::WhereClause,
     },
@@ -213,10 +213,16 @@ impl SupportsMutations for CapturingMockAdapter {}
 /// (`with_view()` builder) so tests can verify correct query routing.
 pub struct MockAdapter {
     /// Default results returned for any view that has no specific override.
-    pub mock_results:   Vec<JsonbValue>,
+    pub mock_results:      Vec<JsonbValue>,
     /// Per-view result overrides. When present, `execute_where_query` returns
     /// these instead of `mock_results`, enabling routing-correctness tests.
-    pub view_responses: std::collections::HashMap<String, Vec<JsonbValue>>,
+    pub view_responses:    std::collections::HashMap<String, Vec<JsonbValue>>,
+    /// Every statement that reached `execute_raw_query`, in order.
+    ///
+    /// Recorded so a test asserting that something was *refused* can witness that
+    /// nothing ran, rather than inferring it from the returned error — an error and
+    /// an executed statement are not mutually exclusive.
+    pub captured_raw_sql:  std::sync::Mutex<Vec<String>>,
 }
 
 impl MockAdapter {
@@ -225,7 +231,13 @@ impl MockAdapter {
         Self {
             mock_results,
             view_responses: std::collections::HashMap::new(),
+            captured_raw_sql: std::sync::Mutex::new(Vec::new()),
         }
+    }
+
+    /// The statements `execute_raw_query` saw, in order.
+    pub fn raw_sql(&self) -> Vec<String> {
+        self.captured_raw_sql.lock().unwrap().clone()
     }
 
     /// Per-view mode builder: register a specific result set for a named view.
@@ -287,8 +299,9 @@ impl DatabaseAdapter for MockAdapter {
 
     async fn execute_raw_query(
         &self,
-        _sql: &str,
+        sql: &str,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        self.captured_raw_sql.lock().unwrap().push(sql.to_string());
         Ok(vec![])
     }
 
@@ -313,6 +326,27 @@ impl SupportsMutations for MockAdapter {}
 
 /// Read-only adapter that returns false from `supports_mutations()` —
 /// used to test the runtime mutation guard in `execute_mutation_query`.
+/// Relay dispatch over the mock, so a test can build a relay-capable executor.
+///
+/// Returns an empty page: the tests that need this are about whether relay dispatch
+/// is *present*, not about what it pages over.
+impl RelayDatabaseAdapter for MockAdapter {
+    async fn execute_relay_page<'a>(
+        &'a self,
+        _view: &'a str,
+        _cursor_column: &'a str,
+        _after: Option<CursorValue>,
+        _before: Option<CursorValue>,
+        _limit: u32,
+        _forward: bool,
+        _where_clause: Option<&'a WhereClause>,
+        _order_by: Option<&'a [OrderByClause]>,
+        _include_total_count: bool,
+    ) -> Result<RelayPageResult> {
+        Ok(RelayPageResult::new(Vec::new(), None))
+    }
+}
+
 pub struct ReadOnlyMockAdapter;
 
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match

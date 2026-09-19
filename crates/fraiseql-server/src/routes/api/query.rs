@@ -136,7 +136,6 @@ pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
                 let db_plan =
                     if is_db_explain_enabled(state.debug_config.as_ref()) && !plan.sql.is_empty() {
                         executor
-                            .adapter()
                             .explain_query(&plan.sql, &[])
                             .await
                             .inspect_err(|e| tracing::warn!(error = %e, "EXPLAIN query failed"))

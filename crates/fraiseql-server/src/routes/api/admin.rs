@@ -412,8 +412,8 @@ async fn clear_query_result_cache<A: DatabaseAdapter>(
     state: &AppState<A>,
     req: &CacheClearRequest,
 ) -> Result<CacheOperationResult, ApiError> {
-    let adapter = state.executor().adapter().clone();
-    if adapter.result_cache_stats().is_none() {
+    let executor = state.executor();
+    if executor.result_cache_stats().is_none() {
         return Ok(CacheOperationResult {
             cache:           QUERY_RESULT_CACHE,
             configured:      false,
@@ -425,7 +425,7 @@ async fn clear_query_result_cache<A: DatabaseAdapter>(
     }
 
     let cleared = match req.scope.as_str() {
-        "all" => adapter
+        "all" => executor
             .clear_result_cache()
             .await
             .map_err(|e| ApiError::internal_error(format!("Cache clear failed: {e}")))?,
@@ -444,7 +444,7 @@ async fn clear_query_result_cache<A: DatabaseAdapter>(
                     )),
                 });
             };
-            let evicted = adapter
+            let evicted = executor
                 .invalidate_views(&[fraiseql_core::cache::ViewName::from(view.as_str())])
                 .await
                 .map_err(|e| ApiError::internal_error(format!("Cache clear failed: {e}")))?;
@@ -541,7 +541,7 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
     // one `/admin/config` reports. It was invisible here until #941.
     #[cfg_attr(not(feature = "arrow"), allow(unused_mut))]
     // Reason: the arrow push below is the only mutation, and it is feature-gated.
-    let mut caches = vec![state.executor().adapter().result_cache_stats().map_or(
+    let mut caches = vec![state.executor().result_cache_stats().map_or(
         CacheStatsEntry {
             cache:         QUERY_RESULT_CACHE,
             configured:    false,

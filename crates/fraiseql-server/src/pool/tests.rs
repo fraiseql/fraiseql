@@ -220,7 +220,11 @@ mod auto_tuner_tests {
         };
         let tuner = Arc::new(PoolSizingAdvisor::new(config));
         let adapter = Arc::new(MockAdapter::with_metrics(metrics(10, 8, 0)));
-        let handle = PoolSizingAdvisor::start(tuner.clone(), adapter, None);
+        let executor = Arc::new(fraiseql_core::runtime::Executor::new(
+            fraiseql_core::schema::CompiledSchema::default(),
+            adapter,
+        ));
+        let handle = PoolSizingAdvisor::start(tuner.clone(), executor, None);
         tokio::time::advance(Duration::from_millis(50)).await;
         // Not crashing and handle is alive = success
         assert!(!handle.is_finished());

@@ -303,7 +303,6 @@ async fn execute<A: DatabaseAdapter + 'static>(
     };
 
     executor
-        .adapter()
         .execute_admin_sql(&request)
         .await
         .map(|outcome| (bounds, outcome))

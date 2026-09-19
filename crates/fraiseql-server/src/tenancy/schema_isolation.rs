@@ -86,16 +86,6 @@ pub fn create_schema_ddl(key: &str) -> Result<String> {
     Ok(format!("CREATE SCHEMA IF NOT EXISTS {schema_name}"))
 }
 
-/// Generate the `DROP SCHEMA ... CASCADE` DDL for a tenant.
-///
-/// # Errors
-///
-/// Returns `FraiseQLError::Validation` if the key produces an invalid schema name.
-pub fn drop_schema_ddl(key: &str) -> Result<String> {
-    let schema_name = tenant_schema_name(key)?;
-    Ok(format!("DROP SCHEMA IF EXISTS {schema_name} CASCADE"))
-}
-
 /// Provision a PostgreSQL schema for a tenant.
 ///
 /// Executes `CREATE SCHEMA IF NOT EXISTS tenant_{key}` against the provided
@@ -166,9 +156,15 @@ async fn count_relations(schema_name: &str, adapter: &dyn DatabaseAdapter) -> u6
 ///
 /// Returns `FraiseQLError::Validation` if the key is invalid.
 /// Returns `FraiseQLError::Database` if the DDL execution fails.
-pub async fn drop_tenant_schema(key: &str, adapter: &dyn DatabaseAdapter) -> Result<()> {
-    let ddl = drop_schema_ddl(key)?;
-    adapter.execute_raw_query(&ddl).await.map_err(|e| {
+pub async fn drop_tenant_schema<A: DatabaseAdapter>(
+    key: &str,
+    executor: &fraiseql_core::runtime::Executor<A>,
+) -> Result<()> {
+    // The key is validated here and the derived name re-validated by the engine.
+    // Both, deliberately: this layer owns the tenant-key rules, and the engine owns
+    // being safe at the interpolation site regardless of who calls it.
+    let schema_name = tenant_schema_name(key)?;
+    executor.drop_tenant_schema(&schema_name).await.map_err(|e| {
         FraiseQLError::database(format!("Failed to drop schema for tenant '{key}': {e}"))
     })?;
     Ok(())

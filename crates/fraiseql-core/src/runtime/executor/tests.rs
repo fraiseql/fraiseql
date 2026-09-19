@@ -3566,3 +3566,104 @@ mod response_cache_key {
         );
     }
 }
+
+// ── mod boundary: what the executor mediates, and what it refuses ────────────
+
+/// The engine no longer hands out its adapter (`Executor::adapter` is gone), so the
+/// operations a transport legitimately needs are named methods here. These pin the
+/// two that are not simple forwarding: the rebuild that has to carry a capability
+/// across, and the one door that composes SQL.
+mod boundary {
+    use super::*;
+
+    /// #750's property, now structural.
+    ///
+    /// A hot-reload used to rebuild through a closure the booting constructor had
+    /// recorded, because `RelayDispatchImpl` needs a `RelayDatabaseAdapter` bound
+    /// that only the relay constructor carries. Recording it was a step that could
+    /// be skipped or get the wrong value. `rebuild_with` carries the *existing*
+    /// dispatch object over instead, so there is no step left to get wrong.
+    ///
+    /// Mutating `rebuild_with` to pass `None` for the relay argument fails this.
+    #[tokio::test]
+    async fn rebuild_with_keeps_relay_dispatch() {
+        let executor = Executor::with_config_and_relay(
+            test_schema(),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default(),
+        );
+        assert!(executor.relay_enabled(), "precondition: built relay-capable");
+
+        let rebuilt = executor.rebuild_with(CompiledSchema::default(), RuntimeConfig::default());
+
+        assert!(rebuilt.relay_enabled(), "a rebuild must not downgrade relay dispatch");
+    }
+
+    /// The converse, so the assertion above is discriminating rather than a
+    /// tautology about `relay_enabled` always being true.
+    #[tokio::test]
+    async fn rebuild_with_does_not_invent_relay_dispatch() {
+        let executor =
+            Executor::with_config(test_schema(), Arc::new(MockAdapter::new(vec![])), RuntimeConfig::default());
+        assert!(!executor.relay_enabled(), "precondition: built without relay");
+
+        let rebuilt = executor.rebuild_with(CompiledSchema::default(), RuntimeConfig::default());
+
+        assert!(!rebuilt.relay_enabled(), "a rebuild must not add a capability boot withheld");
+    }
+
+    /// A rebuild is for a *new* schema; carrying the capability must not also carry
+    /// the old schema.
+    #[tokio::test]
+    async fn rebuild_with_takes_the_new_schema() {
+        let executor =
+            Executor::with_config(test_schema(), Arc::new(MockAdapter::new(vec![])), RuntimeConfig::default());
+        let before = executor.schema().content_hash();
+
+        let rebuilt = executor.rebuild_with(CompiledSchema::default(), RuntimeConfig::default());
+
+        assert_ne!(rebuilt.schema().content_hash(), before);
+    }
+
+    #[tokio::test]
+    async fn drop_tenant_schema_composes_the_cascade_ddl() {
+        let adapter = Arc::new(MockAdapter::new(vec![]));
+        let executor =
+            Executor::with_config(test_schema(), Arc::clone(&adapter), RuntimeConfig::default());
+
+        executor.drop_tenant_schema("tenant_acme").await.unwrap();
+
+        assert_eq!(adapter.raw_sql(), vec![
+            "DROP SCHEMA IF EXISTS tenant_acme CASCADE".to_string()
+        ]);
+    }
+
+    /// The engine re-validates the name it interpolates, independently of the
+    /// caller that derived it.
+    ///
+    /// Asserted on the recorded SQL, not only on the returned error: an `Err` says
+    /// the call failed, not that nothing ran. A guard that refused *after* issuing
+    /// the statement would satisfy an error-only assertion.
+    #[tokio::test]
+    async fn drop_tenant_schema_refuses_a_non_identifier_and_runs_nothing() {
+        for name in ["", "a; DROP SCHEMA public CASCADE", "public\"", &"x".repeat(64)] {
+            let adapter = Arc::new(MockAdapter::new(vec![]));
+            let executor = Executor::with_config(
+                test_schema(),
+                Arc::clone(&adapter),
+                RuntimeConfig::default(),
+            );
+
+            let err = executor
+                .drop_tenant_schema(name)
+                .await
+                .expect_err("must refuse a name that is not a bare identifier");
+
+            assert!(
+                matches!(err, crate::error::FraiseQLError::Validation { .. }),
+                "{name:?}: got {err:?}"
+            );
+            assert!(adapter.raw_sql().is_empty(), "{name:?}: a statement reached the backend");
+        }
+    }
+}

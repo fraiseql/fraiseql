@@ -127,9 +127,11 @@ pub mod db {
         path_escape,
         projection_generator::{self, PostgresProjectionGenerator},
         // The traits a transport bounds on, and the types that appear in those bounds.
+        // `ResultCacheStats` is here as the return type of `Executor::result_cache_stats`,
+        // not as a way to reach the cache: the executor mediates every operation on it.
         traits::{
             self, ArcDatabaseAdapter, CursorValue, DatabaseAdapter, RelayDatabaseAdapter,
-            SupportsMutations,
+            ResultCacheStats, SupportsMutations,
         },
         types::{
             self, DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

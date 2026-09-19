@@ -945,10 +945,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             adapter_cache_enabled: false,
             storage_max_upload_bytes: 100 * 1024 * 1024, // 100 MiB default
             usage: Arc::clone(crate::usage::aggregator::global_aggregator()),
-            // The default construction path. `with_relay_pagination` overrides it
-            // with the relay-capable one; nothing else may set it, so a reload
-            // always rebuilds exactly what boot built (#750).
-            executor_rebuilder: Arc::new(Executor::with_config),
             tasks,
         })
     }

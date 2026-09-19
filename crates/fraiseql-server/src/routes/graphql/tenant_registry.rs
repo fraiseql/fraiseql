@@ -762,7 +762,7 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     pub async fn health_check(&self, key: &str) -> fraiseql_error::Result<()> {
         let entry = self.tenants.get(key).ok_or_else(|| FraiseQLError::not_found("tenant", key))?;
         let executor = entry.value().executor.load();
-        executor.adapter().health_check().await
+        executor.health_check().await
     }
 }
 

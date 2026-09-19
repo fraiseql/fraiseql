@@ -9,11 +9,8 @@ use crate::routes::graphql::AppState;
 impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// Build the shared `AppState` with all configured subsystems attached.
     pub(crate) fn build_app_state(&self) -> AppState<A> {
-        let mut state = AppState::new(self.executor.clone()).with_reload_config(
-            self.config.schema_path.clone(),
-            self.executor.adapter().clone(),
-            Some(self.executor_rebuilder.clone()),
-        );
+        let mut state = AppState::new(self.executor.clone())
+            .with_reload_config(self.config.schema_path.clone());
 
         // Attach secrets manager if configured
         #[cfg(feature = "secrets")]
@@ -217,7 +214,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 // Spawn background polling task (recommendation mode — no resize_fn supplied
                 // because deadpool-postgres does not expose runtime resize).
                 let _handle =
-                    std::sync::Arc::clone(&tuner).start(self.executor.adapter().clone(), None);
+                    std::sync::Arc::clone(&tuner).start(self.executor.clone(), None);
                 state = state.with_pool_tuner(tuner);
                 info!(
                     tuning_interval_ms = cfg.tuning_interval_ms,

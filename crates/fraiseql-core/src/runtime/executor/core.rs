@@ -10,7 +10,12 @@ use super::{
     support::relay::{RelayDispatch, RelayDispatchImpl},
 };
 use crate::{
-    backend::{RelayDatabaseAdapter, traits::DatabaseAdapter, types::PoolMetrics},
+    backend::{
+        AdminSqlOutcome, AdminSqlRequest, RelayDatabaseAdapter, ResultCacheStats,
+        traits::DatabaseAdapter,
+        types::{DatabaseType, PoolMetrics, QueryStatEntry},
+    },
+    cache::ViewName,
     error::Result,
     runtime::{QueryMatcher, QueryPlanner, RuntimeConfig, matcher::QueryMatch},
     schema::{CompiledSchema, IntrospectionResponses},
@@ -88,6 +93,11 @@ const PARSE_CACHE_CAPACITY: u64 = 1_024;
 ///
 /// Small on purpose: the realistic population is one shape per client tool.
 const INTROSPECTION_PROJECTION_CAPACITY: u64 = 64;
+
+/// PostgreSQL's identifier length limit (`NAMEDATALEN - 1`). A longer schema name is
+/// silently truncated by the server, so a `DROP` built from one would target a
+/// *different* schema than the caller named.
+const MAX_PG_IDENTIFIER_LEN: usize = 63;
 
 /// Query executor - executes compiled GraphQL queries.
 ///
@@ -176,6 +186,22 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// * `config` - Runtime configuration
     #[must_use]
     pub fn with_config(schema: CompiledSchema, adapter: Arc<A>, config: RuntimeConfig) -> Self {
+        Self::build(schema, adapter, config, None)
+    }
+
+    /// The one construction path. Every public constructor and every rebuild funnels
+    /// through here, so a new executor cannot differ from the others by an omitted
+    /// field — which is the drift #750 set out to prevent by recording a closure.
+    ///
+    /// `relay` is passed in rather than built here because constructing a
+    /// `RelayDispatchImpl` needs a `RelayDatabaseAdapter` bound that this impl block
+    /// deliberately does not carry.
+    fn build(
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+        config: RuntimeConfig,
+        relay: Option<Arc<dyn RelayDispatch>>,
+    ) -> Self {
         let matcher = QueryMatcher::new(schema.clone());
         let planner = QueryPlanner::new(config.cache_query_plans);
         // Build introspection responses at startup (zero-cost at runtime),
@@ -202,7 +228,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             schema,
             schema_version,
             adapter,
-            relay: None,
+            relay,
             matcher,
             planner,
             config,
@@ -250,10 +276,155 @@ impl<A: DatabaseAdapter> Executor<A> {
         self.ctx.relay.is_some()
     }
 
-    /// Get database adapter reference.
+    /// Which backend this executor is bound to.
     #[must_use]
-    pub fn adapter(&self) -> &Arc<A> {
-        &self.ctx.adapter
+    pub fn database_type(&self) -> DatabaseType {
+        self.ctx.database_type()
+    }
+
+    /// Whether the backend is reachable.
+    ///
+    /// # Errors
+    ///
+    /// Returns the backend's own error when the probe fails.
+    pub async fn health_check(&self) -> Result<()> {
+        self.ctx.health_check().await
+    }
+
+    /// The slowest `limit` statements the backend is willing to report.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Unsupported` on a backend with no statement-stats
+    /// facility, or the backend's own error when the read fails.
+    pub async fn query_stats(&self, limit: u32) -> Result<Vec<QueryStatEntry>> {
+        self.ctx.query_stats(limit).await
+    }
+
+    /// One statement's stats by backend-assigned id.
+    ///
+    /// # Errors
+    ///
+    /// As [`Executor::query_stats`].
+    pub async fn query_stats_by_id(&self, id: &str) -> Result<Option<QueryStatEntry>> {
+        self.ctx.query_stats_by_id(id).await
+    }
+
+    /// Discard the backend's accumulated statement statistics.
+    ///
+    /// # Errors
+    ///
+    /// As [`Executor::query_stats`].
+    pub async fn reset_query_stats(&self) -> Result<()> {
+        self.ctx.reset_query_stats().await
+    }
+
+    /// Adapter-level result-cache counters, or `None` when no cache is active.
+    #[must_use]
+    pub fn result_cache_stats(&self) -> Option<ResultCacheStats> {
+        self.ctx.result_cache_stats()
+    }
+
+    /// Evict every entry from the adapter-level result cache.
+    ///
+    /// `Ok(None)` means the backend has no such cache to clear.
+    ///
+    /// # Errors
+    ///
+    /// Returns the backend's own error when eviction fails.
+    pub async fn clear_result_cache(&self) -> Result<Option<usize>> {
+        self.ctx.clear_result_cache().await
+    }
+
+    /// Evict adapter-level result-cache entries derived from the given views.
+    ///
+    /// Returns the number of entries removed; `0` on a backend with no such cache.
+    ///
+    /// # Errors
+    ///
+    /// Returns the backend's own error when eviction fails.
+    pub async fn invalidate_views(&self, views: &[ViewName]) -> Result<u64> {
+        self.ctx.invalidate_views(views).await
+    }
+
+    /// The backend's plan for a statement, as its own JSON shape.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Unsupported` on a backend with no `EXPLAIN`, or the
+    /// backend's own error when planning fails.
+    pub async fn explain_query(
+        &self,
+        sql: &str,
+        params: &[serde_json::Value],
+    ) -> Result<serde_json::Value> {
+        self.ctx.explain_query(sql, params).await
+    }
+
+    /// Run the admin-SQL route's bounded statement.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Unsupported` on a backend that declines admin SQL, or
+    /// the backend's own error when the statement fails.
+    pub async fn execute_admin_sql(&self, request: &AdminSqlRequest) -> Result<AdminSqlOutcome> {
+        self.ctx.execute_admin_sql(request).await
+    }
+
+    /// Tell the backend the compiled schema changed, so it can drop anything it
+    /// derived from the old one — a result cache keyed by the old views, say.
+    ///
+    /// Call this *before* [`Executor::rebuild_with`]: the backend is shared between
+    /// the old executor and the new one, so anything stale it holds would otherwise
+    /// outlive the swap.
+    pub fn on_schema_reload(&self) {
+        self.ctx.on_schema_reload();
+    }
+
+    /// Drop a tenant's PostgreSQL schema and everything in it.
+    ///
+    /// Takes the schema *name*, not a statement: the engine composes the DDL, so no
+    /// caller-supplied SQL reaches the backend through this door. Deleting
+    /// `Executor::adapter` removed the transports' general raw-SQL reach, and this is
+    /// deliberately not a replacement for it — it does one thing.
+    ///
+    /// The name is re-validated here even though `fraiseql-server` validates the
+    /// tenant key before deriving it. This is the interpolation site, so it is the
+    /// site that has to be safe on its own; a guard that holds only while every
+    /// caller remembers to validate is not a guard.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Validation` if `schema_name` is not a bare identifier
+    /// (ASCII alphanumeric and underscore, non-empty, at most 63 bytes), and the
+    /// backend's own error if the DDL fails.
+    pub async fn drop_tenant_schema(&self, schema_name: &str) -> Result<()> {
+        if schema_name.is_empty()
+            || schema_name.len() > MAX_PG_IDENTIFIER_LEN
+            || !schema_name.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
+        {
+            return Err(crate::error::FraiseQLError::validation(format!(
+                "refusing to drop schema '{schema_name}': not a bare identifier"
+            )));
+        }
+        self.ctx.execute_ddl(&format!("DROP SCHEMA IF EXISTS {schema_name} CASCADE")).await
+    }
+
+    /// Build a new executor over *this* executor's backend, for a hot-reload or a
+    /// re-provision.
+    ///
+    /// Supersedes the recorded-rebuilder closure of #750. That closure existed
+    /// because relay dispatch needs a `RelayDatabaseAdapter` bound that is only in
+    /// scope at the relay constructor, so a rebuild had to re-run the constructor
+    /// that had it — and the recording could be wrong, which is what #750 guarded
+    /// against by hand. Nothing needs re-running: `RelayDispatchImpl` holds the
+    /// adapter and nothing schema-derived, so the *same* dispatch object is still
+    /// correct for the new schema and is carried over as-is. A rebuild cannot
+    /// downgrade a relay executor to a non-relay one, because there is no longer a
+    /// step that could omit it.
+    #[must_use]
+    pub fn rebuild_with(&self, schema: CompiledSchema, config: RuntimeConfig) -> Self {
+        Self::build(schema, Arc::clone(&self.ctx.adapter), config, self.ctx.relay.clone())
     }
 
     /// Return the number of entries currently held in the parsed-query AST cache.
@@ -508,41 +679,6 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
     ) -> Self {
         let relay_dispatch: Arc<dyn RelayDispatch> =
             Arc::new(RelayDispatchImpl(Arc::clone(&adapter)));
-        let matcher = QueryMatcher::new(schema.clone());
-        let planner = QueryPlanner::new(config.cache_query_plans);
-        // Use the same filtered builder as `with_config` so a relay-enabled
-        // executor never silently exposes `@inaccessible` fields in
-        // introspection that the non-relay path would hide (L-relay-inaccessible).
-        let introspection = build_introspection(&schema);
-
-        let mut node_type_index: HashMap<String, Arc<str>> = HashMap::new();
-        for q in &schema.queries {
-            if let Some(src) = q.sql_source.as_deref() {
-                node_type_index.entry(q.return_type.clone()).or_insert_with(|| Arc::from(src));
-            }
-        }
-
-        // Compute the schema version (content hash) once — it is stamped onto
-        // every change-log outbox row and is too expensive to recompute per call.
-        let schema_version: Arc<str> = Arc::from(schema.content_hash());
-
-        let gate1 = resolve_gate1(&config, &schema);
-        let ctx = Arc::new(ExecutorContext {
-            schema,
-            schema_version,
-            adapter,
-            relay: Some(relay_dispatch),
-            matcher,
-            planner,
-            config,
-            introspection,
-            node_type_index,
-            gate1,
-            parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
-            introspection_projections: MokaCache::new(INTROSPECTION_PROJECTION_CAPACITY),
-            response_cache: None,
-        });
-
-        Self { ctx }
+        Self::build(schema, adapter, config, Some(relay_dispatch))
     }
 }

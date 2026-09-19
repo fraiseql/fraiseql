@@ -87,8 +87,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// The chain is enforcement, so it has to run wherever a mutation runs — which
     /// is the engine's write chokepoint, not one HTTP handler. The gate therefore
     /// lives on the executor's `RuntimeConfig`, and the executor is rebuilt here
-    /// through the constructor's own `executor_rebuilder` (#750) rather than a
-    /// fourth construction path. Nothing has been served at this point in the serve
+    /// through `Executor::rebuild_with` rather than a fourth construction path, so
+    /// it keeps the backend and the relay dispatch it already had (#750). Nothing
+    /// has been served at this point in the serve
     /// path, so the rebuild discards no warm state; `with_compiled_schema` carries
     /// caller-owned config through, so the gate also survives every later hot
     /// reload.
@@ -112,8 +113,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
             .with_before_mutation_gate(gate)
             .with_query_function_resolver(resolver);
         let schema = self.executor.schema().clone();
-        let adapter = Arc::clone(self.executor.adapter());
-        self.executor = Arc::new((self.executor_rebuilder)(schema, adapter, config));
+        self.executor = Arc::new(self.executor.rebuild_with(schema, config));
         if query_budget.is_enforced() {
             tracing::info!(
                 budget_ms = u64::try_from(query_budget.duration().as_millis()).unwrap_or(u64::MAX),

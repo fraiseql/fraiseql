@@ -388,7 +388,7 @@ pub async fn delete_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
     let dropped = if params.purge {
         // Irreversible, and explicitly asked for. Do it before deregistering, so a
         // failure leaves the tenant intact and retryable through this same endpoint.
-        crate::tenancy::destroy_tenant_schema(&key, executor.adapter().as_ref())
+        crate::tenancy::destroy_tenant_schema(&key, &executor)
             .await
             .map_err(|e| ApiError::internal_error(format!("failed to drop tenant schema: {e}")))?;
         schema_name.clone()

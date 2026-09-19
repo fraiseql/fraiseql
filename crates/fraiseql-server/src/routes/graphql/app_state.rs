@@ -6,7 +6,7 @@ use arc_swap::ArcSwap;
 use fraiseql_core::{
     apq::{ApqMetrics, ArcApqStorage},
     db::traits::DatabaseAdapter,
-    runtime::{Executor, RuntimeConfig},
+    runtime::Executor,
     schema::CompiledSchema,
     security::IntrospectionPolicy,
 };
@@ -19,16 +19,6 @@ use crate::{
     config::error_sanitization::ErrorSanitizer, error::GraphQLError,
     metrics_server::MetricsCollector, usage::aggregator::UsageAggregator,
 };
-
-/// How to rebuild the executor for a new compiled schema, preserving whatever
-/// capability the booting constructor gave it.
-///
-/// `Executor::with_config` for the plain path, `Executor::with_config_and_relay`
-/// for the relay path. `Server` records one at construction and threads it into
-/// [`AppState`], so a hot-reload is the *same* construction path rather than a
-/// fourth one that drifted (#750).
-pub type ExecutorRebuilder<A> =
-    Arc<dyn Fn(CompiledSchema, Arc<A>, RuntimeConfig) -> Executor<A> + Send + Sync>;
 
 /// Server state containing executor and configuration.
 #[derive(Clone)]
@@ -124,7 +114,6 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Schema file path for reload operations.
     pub schema_path: Option<PathBuf>,
     /// Database adapter reference for constructing new executors on reload.
-    pub(crate) reload_adapter: Option<Arc<A>>,
     /// How the booting constructor built its executor, so a reload rebuilds the
     /// *same kind*.
     ///
@@ -133,7 +122,6 @@ pub struct AppState<A: DatabaseAdapter> {
     /// Reload used to call `Executor::new` unconditionally, which dropped relay
     /// dispatch and made every relay query fail validation until the process
     /// restarted (#750).
-    pub(crate) reload_rebuilder: Option<ExecutorRebuilder<A>>,
     /// Reload mutex to serialize concurrent reload attempts.
     pub(crate) reload_lock: Arc<tokio::sync::Mutex<()>>,
     /// Whether the adapter-level query result cache is active.
@@ -265,8 +253,6 @@ impl<A: DatabaseAdapter> AppState<A> {
             graphql_incremental_batch_size: 100,
             introspection_policy: IntrospectionPolicy::Disabled,
             schema_path: None,
-            reload_adapter: None,
-            reload_rebuilder: None,
             reload_lock: Arc::new(tokio::sync::Mutex::new(())),
             adapter_cache_enabled: false,
             tenant_registry: None,
@@ -427,24 +413,17 @@ impl<A: DatabaseAdapter> AppState<A> {
         self
     }
 
-    /// Configure reload support with a schema file path, database adapter, and
-    /// the constructor's executor rebuilder.
+    /// Configure reload support with the schema file path to reload from.
     ///
-    /// `rebuilder` is how the booting constructor built its executor; a reload
-    /// uses the same one so it cannot silently downgrade the runtime's
-    /// capabilities (#750). Pass `None` only where no such constructor exists —
-    /// a directly-assembled test `AppState` — in which case reload refuses
-    /// rather than guessing.
+    /// Took an adapter and the booting constructor's executor rebuilder until the
+    /// boundary work: a reload had to re-run the constructor that had the
+    /// `RelayDatabaseAdapter` bound in scope, and #750 guarded by hand against
+    /// recording the wrong one. [`Executor::rebuild_with`] carries relay dispatch
+    /// over by construction, so there is nothing left to record or to get wrong, and
+    /// a directly-assembled test `AppState` can now reload like any other.
     #[must_use]
-    pub fn with_reload_config(
-        mut self,
-        schema_path: PathBuf,
-        adapter: Arc<A>,
-        rebuilder: Option<ExecutorRebuilder<A>>,
-    ) -> Self {
+    pub fn with_reload_config(mut self, schema_path: PathBuf) -> Self {
         self.schema_path = Some(schema_path);
-        self.reload_adapter = Some(adapter);
-        self.reload_rebuilder = rebuilder;
         self
     }
 
@@ -502,15 +481,6 @@ impl<A: DatabaseAdapter> AppState<A> {
             .reload_lock
             .try_lock()
             .map_err(|_| "Reload already in progress".to_string())?;
-        if self.reload_adapter.is_none() {
-            return Err("Reload not configured: no adapter available".to_string());
-        }
-        if self.reload_rebuilder.is_none() {
-            return Err("Reload not configured: no executor rebuilder available. Reload is only \
-                 supported on an AppState built by a Server constructor, which records how \
-                 the executor must be rebuilt."
-                .to_string());
-        }
         Ok(guard)
     }
 
@@ -541,13 +511,6 @@ impl<A: DatabaseAdapter> AppState<A> {
         // it.
         _guard: &tokio::sync::MutexGuard<'_, ()>,
     ) -> Result<(), String> {
-        let (Some(adapter), Some(rebuilder)) =
-            (self.reload_adapter.as_ref(), self.reload_rebuilder.as_ref())
-        else {
-            // `begin_reload` already refused this case; unreachable in practice.
-            return Err("Reload not configured".to_string());
-        };
-
         schema
             .validate_producer_version()
             .map_err(|msg| format!("Incompatible compiled schema: {msg}"))?;
@@ -588,11 +551,13 @@ impl<A: DatabaseAdapter> AppState<A> {
             .with_compiled_schema(&schema)
             .map_err(|msg| format!("Incompatible compiled schema: {msg}"))?;
 
-        // Notify adapter of schema change (clears query result cache if applicable)
-        adapter.on_schema_reload();
+        // Notify the backend of the schema change (clears the query result cache if
+        // applicable) before the swap, while the stale derivations are still reachable.
+        current.on_schema_reload();
 
-        // Rebuild through the constructor's own path, preserving relay dispatch.
-        let new_executor = Arc::new(rebuilder(schema, adapter.clone(), config));
+        // Rebuild over the same backend. `rebuild_with` carries relay dispatch across
+        // by construction, so a reload cannot downgrade a relay executor (#750).
+        let new_executor = Arc::new(current.rebuild_with(schema, config));
 
         // Atomic swap
         self.executor.store(new_executor);

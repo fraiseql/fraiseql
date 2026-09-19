@@ -162,12 +162,11 @@ pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     let executor = state.executor();
 
     // Perform real database health check
-    let health_result = executor.adapter().health_check().await;
+    let health_result = executor.health_check().await;
     let db_healthy = health_result.is_ok();
 
-    let adapter = executor.adapter();
-    let db_type = adapter.database_type();
-    let metrics = adapter.pool_metrics();
+    let db_type = executor.database_type();
+    let metrics = executor.pool_metrics();
 
     let database = if db_healthy {
         DatabaseStatus {
@@ -320,7 +319,7 @@ pub async fn readiness_handler<A: DatabaseAdapter + Clone + Send + Sync + 'stati
 ) -> impl IntoResponse {
     debug!("Readiness check requested");
 
-    let db_healthy = state.executor().adapter().health_check().await.is_ok();
+    let db_healthy = state.executor().health_check().await.is_ok();
 
     if db_healthy {
         (

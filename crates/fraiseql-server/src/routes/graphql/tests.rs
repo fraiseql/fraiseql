@@ -514,21 +514,29 @@ mod app_state_tests {
         assert_eq!(guard.schema().queries.len(), 1);
     }
 
+    /// Reload used to refuse on an `AppState` that carried no adapter and no
+    /// recorded rebuilder — the plumbing, not the schema, was what it lacked.
+    /// `Executor::rebuild_with` takes both from the executor already in hand, so
+    /// that refusal has no subject any more: a directly-assembled state reloads
+    /// like any other, and the only thing that can still stop it is the schema
+    /// file itself.
+    ///
+    /// Asserted as "not the old message" as well as "the file message", so this
+    /// keeps failing if a configuration refusal ever comes back by another route.
     #[tokio::test]
-    async fn test_reload_schema_no_adapter_returns_error() {
+    async fn test_reload_schema_needs_no_reload_config() {
         let state = make_state();
-        let result = state.reload_schema(std::path::Path::new("/nonexistent")).await;
-        assert!(result.is_err());
-        assert!(result.unwrap_err().contains("no adapter available"));
+        let err = state
+            .reload_schema(std::path::Path::new("/nonexistent"))
+            .await
+            .expect_err("a missing file must still fail");
+        assert!(err.contains("Failed to read schema file"), "got: {err}");
+        assert!(!err.contains("not configured"), "reload still refuses for plumbing: {err}");
     }
 
     #[tokio::test]
     async fn test_reload_schema_nonexistent_file_returns_error() {
-        let state = make_state().with_reload_config(
-            "/nonexistent/schema.json".into(),
-            Arc::new(StubAdapter),
-            Some(Arc::new(Executor::with_config)),
-        );
+        let state = make_state().with_reload_config("/nonexistent/schema.json".into());
         let result = state.reload_schema(std::path::Path::new("/nonexistent/schema.json")).await;
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Failed to read schema file"));
@@ -542,11 +550,7 @@ mod app_state_tests {
         let executor = Arc::new(Executor::new(schema, adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
-        let state = AppState::new(executor).with_reload_config(
-            schema_path.clone(),
-            adapter,
-            Some(Arc::new(Executor::with_config)),
-        );
+        let state = AppState::new(executor).with_reload_config(schema_path.clone());
 
         let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
         std::fs::write(&schema_path, &schema_json).unwrap();
@@ -562,11 +566,7 @@ mod app_state_tests {
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
-        let state = AppState::new(executor).with_reload_config(
-            schema_path.clone(),
-            adapter,
-            Some(Arc::new(Executor::with_config)),
-        );
+        let state = AppState::new(executor).with_reload_config(schema_path.clone());
 
         let _guard = state.reload_lock.lock().await;
 
@@ -654,11 +654,7 @@ mod app_state_tests {
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
-        let state = AppState::new(executor).with_reload_config(
-            schema_path.clone(),
-            adapter,
-            Some(Arc::new(Executor::with_config)),
-        );
+        let state = AppState::new(executor).with_reload_config(schema_path.clone());
 
         let mut new_schema = CompiledSchema::default();
         new_schema
@@ -683,11 +679,7 @@ mod app_state_tests {
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
-        let state = AppState::new(executor).with_reload_config(
-            schema_path.clone(),
-            adapter,
-            Some(Arc::new(Executor::with_config)),
-        );
+        let state = AppState::new(executor).with_reload_config(schema_path.clone());
         let rx = state.subscribe_policy_reload();
         assert!(!rx.has_changed().unwrap(), "no bump before any reload");
 
@@ -717,11 +709,7 @@ mod app_state_tests {
         let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
-        let state = AppState::new(executor).with_reload_config(
-            schema_path.clone(),
-            adapter,
-            Some(Arc::new(Executor::with_config)),
-        );
+        let state = AppState::new(executor).with_reload_config(schema_path.clone());
 
         let schema_json = serde_json::to_string(&CompiledSchema::default()).unwrap();
         std::fs::write(&schema_path, &schema_json).unwrap();

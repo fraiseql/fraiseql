@@ -493,11 +493,6 @@ mod schema_isolation_tests {
     }
 
     #[test]
-    fn drop_schema_ddl_generates_correct_sql() {
-        assert_eq!(drop_schema_ddl("acme").unwrap(), "DROP SCHEMA IF EXISTS tenant_acme CASCADE");
-    }
-
-    #[test]
     fn create_schema_idempotent() {
         // IF NOT EXISTS means calling twice produces the same SQL
         let ddl1 = create_schema_ddl("acme").unwrap();
@@ -510,11 +505,6 @@ mod schema_isolation_tests {
     fn create_schema_ddl_rejects_invalid_key() {
         assert!(create_schema_ddl("").is_err());
         assert!(create_schema_ddl("org; DROP").is_err());
-    }
-
-    #[test]
-    fn drop_schema_ddl_rejects_invalid_key() {
-        assert!(drop_schema_ddl("").is_err());
     }
 
     // ── search_path ─────────────────────────────────────────────────────
@@ -643,9 +633,13 @@ mod schema_isolation_tests {
     }
 
     #[tokio::test]
-    async fn drop_executes_drop_schema_ddl() {
-        let adapter = SpyAdapter::new();
-        drop_tenant_schema("acme", &adapter).await.unwrap();
+    async fn drop_tenant_schema_issues_the_cascade_ddl() {
+        let adapter = std::sync::Arc::new(SpyAdapter::new());
+        let executor = fraiseql_core::runtime::Executor::new(
+            fraiseql_core::schema::CompiledSchema::default(),
+            std::sync::Arc::clone(&adapter),
+        );
+        drop_tenant_schema("acme", &executor).await.unwrap();
         let queries = adapter.recorded_queries();
         assert_eq!(queries.len(), 1);
         assert_eq!(queries[0], "DROP SCHEMA IF EXISTS tenant_acme CASCADE");
@@ -722,8 +716,12 @@ mod schema_isolation_tests {
 
     #[tokio::test]
     async fn drop_rejects_invalid_key() {
-        let adapter = SpyAdapter::new();
-        let err = drop_tenant_schema("", &adapter).await.unwrap_err();
+        let adapter = std::sync::Arc::new(SpyAdapter::new());
+        let executor = fraiseql_core::runtime::Executor::new(
+            fraiseql_core::schema::CompiledSchema::default(),
+            std::sync::Arc::clone(&adapter),
+        );
+        let err = drop_tenant_schema("", &executor).await.unwrap_err();
         assert!(matches!(err, FraiseQLError::Validation { .. }));
         assert!(adapter.recorded_queries().is_empty());
     }

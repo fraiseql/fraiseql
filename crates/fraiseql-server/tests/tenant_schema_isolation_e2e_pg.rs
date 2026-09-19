@@ -25,14 +25,13 @@
 //! `public.v_iso_probe` decoy → run `--test-threads=1`.
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
-use std::{collections::HashMap, sync::Arc};
+use std::collections::HashMap;
 
 use fraiseql_core::{
     db::postgres::{PostgresAdapter, PostgresTlsConfig, ReadReplicaPolicy},
     prelude::DatabaseAdapter as _,
-    runtime::Executor,
 };
-use fraiseql_server::tenancy::{TenantPoolConfig, create_tenant_executor};
+use fraiseql_server::tenancy::{TenantPoolConfig, create_tenant_executor_with_adapter};
 use fraiseql_test_support::try_database_url;
 use serde_json::Value;
 
@@ -188,10 +187,7 @@ struct Observation {
 /// different: a wrong marker is the silent-wrong-data case, and a missing relation
 /// (which surfaces as an `Err`) is the hard-failure case on a deployment where
 /// `public` holds no shadowing relation.
-async fn probe<A>(executor: &Arc<Executor<A>>) -> Result<Observation, String>
-where
-    A: fraiseql_core::db::traits::DatabaseAdapter,
-{
+async fn probe(adapter: &PostgresAdapter) -> Result<Observation, String> {
     let sql = format!(
         "SELECT pg_sleep(0.35) IS NULL AS held, \
          pg_backend_pid()::text AS pid, \
@@ -199,7 +195,7 @@ where
          (SELECT data->>'marker' FROM {PROBE_RELATION} LIMIT 1) AS marker"
     );
     let rows: Vec<HashMap<String, Value>> =
-        executor.adapter().execute_raw_query(&sql).await.map_err(|e| e.to_string())?;
+        adapter.execute_raw_query(&sql).await.map_err(|e| e.to_string())?;
     let row = rows.first().ok_or_else(|| "no row returned".to_string())?;
     let cell = |name: &str| {
         row.get(name).and_then(Value::as_str).map(str::to_owned).ok_or_else(|| {
@@ -214,11 +210,8 @@ where
 }
 
 /// Drive `CONCURRENCY` probes at once, so the pool must open more than one connection.
-async fn concurrent_wave<A>(executor: &Arc<Executor<A>>) -> Vec<Result<Observation, String>>
-where
-    A: fraiseql_core::db::traits::DatabaseAdapter,
-{
-    futures::future::join_all((0..CONCURRENCY).map(|_| probe(executor))).await
+async fn concurrent_wave(adapter: &PostgresAdapter) -> Vec<Result<Observation, String>> {
+    futures::future::join_all((0..CONCURRENCY).map(|_| probe(adapter))).await
 }
 
 /// #809 core: **every** connection in a tenant's pool must carry the tenant search
@@ -233,7 +226,7 @@ async fn every_pooled_connection_carries_the_tenant_search_path() {
         return;
     };
 
-    let executor = create_tenant_executor::<PostgresAdapter>(
+    let (_executor, adapter) = create_tenant_executor_with_adapter::<PostgresAdapter>(
         TENANT_A,
         &schema_json_for("schema"),
         &pool_config(&url),
@@ -244,7 +237,7 @@ async fn every_pooled_connection_carries_the_tenant_search_path() {
     .await
     .expect("tenant registration");
 
-    let results = concurrent_wave(&executor).await;
+    let results = concurrent_wave(&adapter).await;
     teardown(&admin).await;
 
     let mut leaked = Vec::new();
@@ -318,7 +311,7 @@ async fn a_tenants_own_replicas_serve_its_reads_under_its_search_path() {
         .await;
     }
 
-    let executor = create_tenant_executor::<PostgresAdapter>(
+    let (_executor, adapter) = create_tenant_executor_with_adapter::<PostgresAdapter>(
         TENANT_A,
         &schema_json_for("schema"),
         &pool_config_with_replica(&url, &standby_url),
@@ -337,8 +330,7 @@ async fn a_tenants_own_replicas_serve_its_reads_under_its_search_path() {
     // here use, is mixed-use and always runs on the primary by design.
     let mut observed = None;
     for _ in 0..100 {
-        let rows = executor
-            .adapter()
+        let rows = adapter
             .execute_where_query(REPLICA_PROBE_RELATION, None, None, None, None)
             .await
             .expect("tenant replica read");
@@ -402,7 +394,7 @@ async fn two_tenants_driven_concurrently_never_cross() {
     };
 
     let schema = schema_json_for("schema");
-    let exec_a = create_tenant_executor::<PostgresAdapter>(
+    let (_exec_a, adapter_a) = create_tenant_executor_with_adapter::<PostgresAdapter>(
         TENANT_A,
         &schema,
         &pool_config(&url),
@@ -410,7 +402,7 @@ async fn two_tenants_driven_concurrently_never_cross() {
     )
     .await
     .expect("tenant A registration");
-    let exec_b = create_tenant_executor::<PostgresAdapter>(
+    let (_exec_b, adapter_b) = create_tenant_executor_with_adapter::<PostgresAdapter>(
         TENANT_B,
         &schema,
         &pool_config(&url),
@@ -419,7 +411,7 @@ async fn two_tenants_driven_concurrently_never_cross() {
     .await
     .expect("tenant B registration");
 
-    let (a_results, b_results) = tokio::join!(concurrent_wave(&exec_a), concurrent_wave(&exec_b));
+    let (a_results, b_results) = tokio::join!(concurrent_wave(&adapter_a), concurrent_wave(&adapter_b));
     teardown(&admin).await;
 
     for (label, expected, results) in [("A", TENANT_A, &a_results), ("B", TENANT_B, &b_results)] {
@@ -448,7 +440,7 @@ async fn isolation_survives_connection_replacement() {
         return;
     };
 
-    let executor = create_tenant_executor::<PostgresAdapter>(
+    let (_executor, adapter) = create_tenant_executor_with_adapter::<PostgresAdapter>(
         TENANT_A,
         &schema_json_for("schema"),
         &pool_config_tagged(&url, APP_NAME),
@@ -460,7 +452,7 @@ async fn isolation_survives_connection_replacement() {
     .expect("tenant registration");
 
     // Fill the pool and record which backends served it.
-    let before: std::collections::HashSet<String> = concurrent_wave(&executor)
+    let before: std::collections::HashSet<String> = concurrent_wave(&adapter)
         .await
         .into_iter()
         .filter_map(|r| r.ok().map(|o| o.pid))
@@ -481,8 +473,8 @@ async fn isolation_survives_connection_replacement() {
     // already dispatched onto the killed backends; it is what evicts them from the
     // pool. The claim under test is about the *replacements*, so it is the wave
     // after that which must be perfect.
-    let _ = concurrent_wave(&executor).await;
-    let results = concurrent_wave(&executor).await;
+    let _ = concurrent_wave(&adapter).await;
+    let results = concurrent_wave(&adapter).await;
     teardown(&admin).await;
 
     let after: std::collections::HashSet<String> =
@@ -516,7 +508,7 @@ async fn tenant_only_relation_resolves_on_every_connection() {
     };
     exec(&admin, &format!("CREATE TABLE tenant_{TENANT_A}.v_iso_only (id int)")).await;
 
-    let executor = create_tenant_executor::<PostgresAdapter>(
+    let (_executor, adapter) = create_tenant_executor_with_adapter::<PostgresAdapter>(
         TENANT_A,
         &schema_json_for("schema"),
         &pool_config(&url),
@@ -528,8 +520,7 @@ async fn tenant_only_relation_resolves_on_every_connection() {
     .expect("tenant registration");
 
     let results = futures::future::join_all((0..CONCURRENCY).map(|_| async {
-        executor
-            .adapter()
+        adapter
             .execute_raw_query(
                 "SELECT pg_sleep(0.35) IS NULL AS held, count(*)::text AS n FROM v_iso_only",
             )
@@ -558,7 +549,7 @@ async fn non_schema_mode_tenants_keep_the_default_search_path() {
         return;
     };
 
-    let executor = create_tenant_executor::<PostgresAdapter>(
+    let (_executor, adapter) = create_tenant_executor_with_adapter::<PostgresAdapter>(
         TENANT_A,
         &schema_json_for("row"),
         &pool_config(&url),
@@ -569,7 +560,7 @@ async fn non_schema_mode_tenants_keep_the_default_search_path() {
     .await
     .expect("tenant registration");
 
-    let result = probe(&executor).await;
+    let result = probe(&adapter).await;
     teardown(&admin).await;
 
     let o = result.expect("row-mode read");

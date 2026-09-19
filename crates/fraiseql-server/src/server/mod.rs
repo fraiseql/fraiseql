@@ -322,15 +322,6 @@ pub struct Server<A: DatabaseAdapter> {
     /// [`AppState::usage`]: crate::routes::graphql::AppState::usage
     pub(super) usage: Arc<crate::usage::aggregator::UsageAggregator>,
 
-    /// How this constructor built its executor, so a hot-reload can rebuild the
-    /// same kind rather than silently downgrading it.
-    ///
-    /// `Executor::with_config` by default; `with_relay_pagination` replaces it
-    /// with `Executor::with_config_and_relay`, which is the only place the
-    /// `RelayDatabaseAdapter` bound is in scope. Threaded into `AppState` by
-    /// `build_app_state` (#750).
-    pub(super) executor_rebuilder: crate::routes::graphql::app_state::ExecutorRebuilder<A>,
-
     /// Background lifecycle tasks owned by the server.
     ///
     /// Long-running tasks spawned during server construction or `serve_with_shutdown`

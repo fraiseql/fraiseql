@@ -105,10 +105,6 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
         .await?;
 
         server.adapter_cache_enabled = cache_config.enabled;
-        // Record the relay-capable rebuild. This is the only scope where the
-        // `RelayDatabaseAdapter` bound holds, so it is the only place that can
-        // teach the hot-reload path to preserve relay dispatch (#750).
-        server.executor_rebuilder = Arc::new(Executor::with_config_and_relay);
 
         server.apply_compiled_config()
     }

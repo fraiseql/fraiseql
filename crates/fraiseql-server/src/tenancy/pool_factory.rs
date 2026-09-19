@@ -230,6 +230,32 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
     pool_config: &TenantPoolConfig,
     runtime_config: &fraiseql_core::runtime::RuntimeConfig,
 ) -> Result<Arc<Executor<A>>> {
+    create_tenant_executor_with_adapter(tenant_key, schema_json, pool_config, runtime_config)
+        .await
+        .map(|(executor, _adapter)| executor)
+}
+
+/// As [`create_tenant_executor`], and also hands back the adapter it built.
+///
+/// The adapter is *returned* rather than reachable from the executor, which is the
+/// distinction the boundary work draws: whoever constructs a pool may hold it, and
+/// no transport can pry one out of an executor it was merely handed.
+///
+/// The second value exists for the schema-isolation tests, which have to issue their
+/// probes over **this pool's** connections. A separately-built adapter would connect
+/// with its own pool options and so could not witness whether *these* connections
+/// carry the tenant search path — which is the property under test.
+///
+/// # Errors
+///
+/// As [`create_tenant_executor`].
+#[doc(hidden)] // Internal-pub: see `create_tenant_executor`.
+pub async fn create_tenant_executor_with_adapter<A: FromPoolConfig>(
+    tenant_key: &str,
+    schema_json: &str,
+    pool_config: &TenantPoolConfig,
+    runtime_config: &fraiseql_core::runtime::RuntimeConfig,
+) -> Result<(Arc<Executor<A>>, Arc<A>)> {
     // 1. Parse and validate schema
     let schema =
         CompiledSchema::from_json(schema_json, false).map_err(|e| FraiseQLError::Parse {
@@ -281,7 +307,11 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
         .with_compiled_schema(&schema)
         .map_err(|msg| FraiseQLError::validation(format!("Incompatible compiled schema: {msg}")))?;
 
-    Ok(Arc::new(Executor::with_config(schema, Arc::new(adapter), config)))
+    let adapter = Arc::new(adapter);
+    Ok((
+        Arc::new(Executor::with_config(schema, Arc::clone(&adapter), config)),
+        adapter,
+    ))
 }
 
 /// Drop a tenant's PostgreSQL schema if schema isolation mode is active.
@@ -294,6 +324,9 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
 ///
 /// Returns `FraiseQLError::Validation` if the tenant key is invalid.
 /// Returns `FraiseQLError::Database` if the DDL execution fails.
-pub async fn destroy_tenant_schema(tenant_key: &str, adapter: &dyn DatabaseAdapter) -> Result<()> {
-    schema_isolation::drop_tenant_schema(tenant_key, adapter).await
+pub async fn destroy_tenant_schema<A: DatabaseAdapter>(
+    tenant_key: &str,
+    executor: &fraiseql_core::runtime::Executor<A>,
+) -> Result<()> {
+    schema_isolation::drop_tenant_schema(tenant_key, executor).await
 }
