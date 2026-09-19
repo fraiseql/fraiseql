@@ -7,7 +7,10 @@ use indexmap::IndexMap;
 use super::{test_support::*, *};
 use crate::{
     db::types::JsonbValue,
-    runtime::{JsonbOptimizationOptions, JsonbStrategy, RuntimeConfig},
+    runtime::{
+        JsonbOptimizationOptions, JsonbStrategy, RuntimeConfig,
+        executor::mutation::any_write_selections,
+    },
     schema::{
         AutoParams, CompiledSchema, CursorType, FieldDefinition, FieldDenyPolicy, FieldType,
         InjectedParamSource, QueryDefinition, RoleDefinition, SecurityConfig, TenancyConfig,
@@ -3120,7 +3123,10 @@ mod operation_authz {
             Arc::new(MockAdapter::new(vec![])),
             RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
         );
-        let err = executor.execute_mutation("createUser", None, &[]).await.unwrap_err();
+        let err = executor
+            .execute_mutation("createUser", None, any_write_selections())
+            .await
+            .unwrap_err();
         assert!(
             is_authz(&err),
             "direct execute_mutation deny → 403 (anon-REST bypass closed): {err:?}"
@@ -3135,7 +3141,10 @@ mod operation_authz {
             Arc::new(MockAdapter::new(vec![])),
             RuntimeConfig::default().with_authorizer(Arc::new(Raising)),
         );
-        let err = executor.execute_mutation("createUser", None, &[]).await.unwrap_err();
+        let err = executor
+            .execute_mutation("createUser", None, any_write_selections())
+            .await
+            .unwrap_err();
         assert!(is_authz(&err), "raising authorizer must fail the mutation closed: {err:?}");
     }
 
@@ -3148,7 +3157,7 @@ mod operation_authz {
             Arc::new(MockAdapter::new(vec![])),
             RuntimeConfig::default().with_authorizer(Arc::new(AllowAll)),
         );
-        let result = executor.execute_mutation("createUser", None, &[]).await;
+        let result = executor.execute_mutation("createUser", None, any_write_selections()).await;
         // The gate allowed it; any resulting error is downstream, not Authorization.
         if let Err(err) = result {
             assert!(!is_authz(&err), "AllowAll must not block at the authz gate: {err:?}");
@@ -3164,7 +3173,10 @@ mod operation_authz {
             Arc::new(MockAdapter::new(vec![])),
             RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
         );
-        let err = executor.execute_mutation("doesNotExist", None, &[]).await.unwrap_err();
+        let err = executor
+            .execute_mutation("doesNotExist", None, any_write_selections())
+            .await
+            .unwrap_err();
         assert!(
             matches!(err, FraiseQLError::Validation { .. }),
             "unknown mutation must stay 'not found' (Validation), got {err:?}"

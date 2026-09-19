@@ -699,8 +699,32 @@ const MAX_ENTITY_PROJECTION_DEPTH: usize = 4;
 ///
 /// `type_name` is the concrete GraphQL object type of `entity` (resolved by the
 /// caller). `selections` is the result selection set for this level, with inline
-/// `... on T` fragments preserved; an **empty** slice means "no field filtering"
-/// and returns the stored entity unchanged.
+/// `... on T` fragments preserved.
+///
+/// # An empty selection set projects **nothing**
+///
+/// It used to return the stored entity unchanged, and that one line is what made
+/// #1352 and #1357 invisible: an empty slice is the *permissive* shape, not a
+/// neutral one, so a transport that arrived without a selection set was not
+/// refused — it was granted every field of the row, policy-gated ones included,
+/// while `selection_set_selects_gated_field` reported that nothing gated was
+/// selected and the #423 field authorizer took zero calls.
+///
+/// Nothing legitimate reaches here empty any more: GraphQL § 5.3.3 refuses a
+/// composite field named without a selection set (#1357), every mutation's return
+/// type is composite (#1358), and the write entries take a non-empty
+/// [`WriteSelections`](crate::runtime::WriteSelections). An empty slice arriving
+/// here is therefore a defect upstream, and the safe answer to a defect is the
+/// empty object — which is also what the read path already answers for a selection
+/// set that `@skip` resolves to nothing, so the two agree.
+///
+/// There is deliberately **no `project_entity_unfiltered`** to reach for. Every
+/// caller in the tree either has a real selection set or guards emptiness before
+/// calling (federation returns early on `root.nested_fields.is_empty()`), so a
+/// named permissive helper would be a public function with no caller — and an
+/// unused facility is how the permissive branch stayed reachable in the first
+/// place. A caller that genuinely wants the whole entity can write `entity.clone()`
+/// and own that decision where it is made.
 #[must_use]
 pub fn project_entity(
     entity: &JsonValue,
@@ -709,8 +733,7 @@ pub fn project_entity(
     schema: &CompiledSchema,
 ) -> JsonValue {
     if selections.is_empty() {
-        // No selection set (e.g. the REST/typed path) — no field filtering.
-        return entity.clone();
+        return JsonValue::Object(Map::new());
     }
     project_entity_at(entity, type_name, selections, schema, 0)
 }

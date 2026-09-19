@@ -14,7 +14,7 @@ use std::sync::Arc;
 use fraiseql_db::{ChangeLogWrite, ViewName};
 
 use super::{
-    super::{context::ExecutorContext, resolve_inject_value},
+    super::{context::ExecutorContext, mutation::WriteSelections, resolve_inject_value},
     query_projection::selections_contain_field,
 };
 use crate::{
@@ -640,7 +640,7 @@ impl<A: DatabaseAdapter + SupportsMutations> MutationRunner<A> {
         &self,
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
-        selections: &[FieldSelection],
+        selections: WriteSelections<'_>,
     ) -> Result<serde_json::Value> {
         // The typed SupportsMutations API supplies the input via `variables`; it
         // has no inline-literal root arguments to resolve.
@@ -841,9 +841,10 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     response_key: &str,
     variables: Option<&serde_json::Value>,
     security_ctx: Option<&SecurityContext>,
-    selections: &[FieldSelection],
+    selections: WriteSelections<'_>,
     inline_arguments: &[crate::graphql::GraphQLArgument],
 ) -> Result<MutationExecution> {
+    let selections = selections.as_slice();
     // #1336 backstop: the same question the read path asks, at the write chokepoint
     // every transport converges on (#1327, #1330).
     crate::runtime::executor::support::security::enforce_enrichment_resolved(

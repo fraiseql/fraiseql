@@ -18,6 +18,57 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The engine's write entries take `WriteSelections`, a selection set that cannot be
+  empty.** `Executor::execute_mutation` and `Executor::execute_mutation_as` change
+  signature from `&[FieldSelection]` to `WriteSelections<'_>`; build one with
+  `WriteSelections::new(&selections)?`.
+
+  An empty selection set is the *permissive* shape at the write entries, not a neutral
+  one. It is the input to two security decisions at once: `project_entity` filters the
+  returned entity to it, and an empty slice means "no field filtering"; and
+  `selection_set_selects_gated_field` decides whether the #423 field authorizer runs at
+  all, and it is false for an empty slice. So a write that arrived without a selection
+  set was not refused — it was granted every field of the row, policy-gated ones
+  included, with the authorizer taking zero calls.
+
+  Three transports reached that shape by three different spellings: REST's anonymous
+  arm passed `&[]` (#1352), gRPC arrived via `unwrap_or_default()`, and an ordinary
+  `mutation { createUser }` carried one in from a client document (#1357). One shape,
+  three spellings — which is what a type, rather than a fourth grep gate, is for.
+
+  **Why non-empty is sound rather than merely convenient:** every mutation's return
+  type is composite (#1358) and § 5.3.3 refuses a composite field named without a
+  selection set (#1357), so a document reaching a write entry always carries one, and a
+  transport with no document of its own uses `mutation_return_selections`, which never
+  returns empty. `WriteSelections::new` is still fallible rather than an assertion,
+  because both of those guarantees are compiler- and validator-side and
+  `schema.compiled.json` can be hand-authored. A hand-authored schema declaring a
+  leaf-returning mutation now fails closed at the write entry instead of projecting the
+  entity whole.
+
+  § 5.3.3 runs at `execute_mutation_query` — before the conversion, not only at the
+  chokepoint — so a client document with an empty set still gets the error naming the
+  offending type rather than the backstop's generic one. Constructing the type ahead of
+  the validator made the better diagnosis unreachable on the one path that can produce
+  the shape from a client document.
+
+- **`project_entity` with an empty selection set projects nothing, instead of returning
+  the stored entity unchanged.** That one line is what made #1352 and #1357 invisible.
+
+  Nothing legitimate reaches it empty now, so an empty slice there is a defect
+  upstream, and the empty object is the safe answer to a defect — and it is what the
+  read path already answers for a selection set that `@skip` resolves to nothing, so
+  the two paths agree rather than diverging.
+
+  There is deliberately **no `project_entity_unfiltered`** to reach for: every caller in
+  the tree either has a real selection set or guards emptiness before calling, so a
+  named permissive helper would be a public function with no caller — and an unused
+  facility is how the permissive branch stayed reachable in the first place.
+
+  `empty_selection_returns_entity_unchanged` asserted the old behaviour as intended and
+  is inverted. It is the third such test in this release: the property had been pinned
+  as correct in three places.
+
 - **A mutation's return type must be a composite type — object, interface or union
   (#1358).** An enum, a built-in scalar or a declared custom scalar in that position is
   now a compile error naming the type and why.

@@ -212,12 +212,31 @@ fn list_field_is_recased_and_projected() {
 
 // ── edge cases ─────────────────────────────────────────────────────────────
 
+/// An empty selection set projects **nothing**.
+///
+/// ⚠ This asserted the opposite — "no selection → no filtering (stored entity
+/// returned as-is)" — and that one line of behaviour is what made #1352 and #1357
+/// invisible. An empty slice is the *permissive* shape, not a neutral one: it is
+/// simultaneously the input that tells `project_entity` to filter nothing and the
+/// input that tells `selection_set_selects_gated_field` that nothing gated was
+/// selected, so the whole stored row was returned with the #423 field authorizer
+/// taking zero calls.
+///
+/// Nothing legitimate reaches here empty now — § 5.3.3 (#1357), composite-only
+/// mutation return types (#1358), and a non-empty `WriteSelections` at the write
+/// entries — so an empty slice is a defect upstream, and the empty object is the
+/// safe answer to a defect. It is also what the read path already answers for a
+/// selection set that `@skip` resolves to nothing, so the two agree.
 #[test]
-fn empty_selection_returns_entity_unchanged() {
+fn empty_selection_projects_nothing() {
     let s = schema();
     let md = json!({ "reason": "blocked", "cascade_count": 1 });
     let out = project_entity(&md, "DecommissionError", &[], &s);
-    assert_eq!(out, md, "no selection → no filtering (stored entity returned as-is)");
+    assert_eq!(
+        out,
+        json!({}),
+        "an empty selection set must not be read as permission to return everything"
+    );
 }
 
 #[test]

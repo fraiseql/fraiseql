@@ -573,6 +573,7 @@ mod enrichment_entry_point_tests {
 
     use chrono::Utc;
 
+    use super::super::mutation::any_write_selections;
     use crate::{
         error::FraiseQLError,
         runtime::{Executor, executor::test_support::MockAdapter},
@@ -721,7 +722,7 @@ mod enrichment_entry_point_tests {
     #[tokio::test]
     async fn the_mutation_chokepoint_refuses_an_unresolved_principal() {
         let err = executor()
-            .execute_mutation_as("createOrder", None, Some(&unresolved()), &[])
+            .execute_mutation_as("createOrder", None, Some(&unresolved()), any_write_selections())
             .await
             .expect_err("an unresolved principal must not write");
 

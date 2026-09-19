@@ -17,7 +17,10 @@ use crate::{
     error::{FraiseQLError, Result},
     runtime::{
         Executor, RuntimeConfig,
-        executor::test_support::{MockAdapter, ReadOnlyMockAdapter},
+        executor::{
+            mutation::any_write_selections,
+            test_support::{MockAdapter, ReadOnlyMockAdapter},
+        },
     },
     schema::CompiledSchema,
 };
@@ -1140,7 +1143,10 @@ mod mutation {
         let vars = serde_json::json!({
             "input": { "id": "abc", "name": "Alice", "email": "alice@example.com" }
         });
-        executor.execute_mutation("update_user", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("update_user", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 1, "update mutation must pass exactly one JSONB arg");
@@ -1173,7 +1179,10 @@ mod mutation {
                 "billingAddress": { "postalCode": "75001" }
             }
         });
-        executor.execute_mutation("update_user", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("update_user", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 1, "update mutation must pass exactly one JSONB arg");
@@ -1256,7 +1265,10 @@ mod mutation {
                 "oauth2Token": "t-3"
             }
         });
-        executor.execute_mutation("update_resource", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("update_resource", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         let payload = &captured[0];
@@ -1285,7 +1297,10 @@ mod mutation {
         let vars = serde_json::json!({
             "input": { "name": "Bob", "email": "bob@example.com" }
         });
-        executor.execute_mutation("create_user", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("create_user", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         // Two positional args (name, email), not one JSONB object.
@@ -1433,7 +1448,10 @@ mod mutation {
                 "tags": [{ "s3Bucket": "logs", "maxConnections": 2 }]
             }
         });
-        executor.execute_mutation("create_server", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("create_server", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         // Positional: [name, config, tags].
@@ -1527,7 +1545,10 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         let vars = serde_json::json!({ "input": { "id": "u1", "fullName": "Alice" } });
-        executor.execute_mutation("save_user", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("save_user", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(
@@ -1577,7 +1598,10 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         let vars = serde_json::json!({ "input": { "id": "u1" } });
-        executor.execute_mutation("save_user", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("save_user", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(
@@ -1606,7 +1630,10 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         let vars = serde_json::json!({ "input": { "id": "u1", "fullName": "Alice" } });
-        executor.execute_mutation("save_user", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("save_user", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 2, "flatten must keep positional args, got {captured:?}");
@@ -1667,7 +1694,10 @@ mod mutation {
         let vars = serde_json::json!({
             "input": { "shippingAddress": "1 Main St", "customerNote": "gift" }
         });
-        executor.execute_mutation("create_order", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("create_order", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 1, "jsonb path passes one JSONB arg, got {captured:?}");
@@ -1738,7 +1768,10 @@ mod mutation {
         let vars = serde_json::json!({
             "input": { "shippingAddress": "1 Main St", "customerNote": "gift" }
         });
-        executor.execute_mutation("createOrder", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("createOrder", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 1, "jsonb path passes one JSONB arg, got {captured:?}");
@@ -1800,7 +1833,10 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         let vars = serde_json::json!({ "input": { "id": "u1", "fullName": "Alice" } });
-        executor.execute_mutation("createOrder", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("createOrder", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(
@@ -2004,7 +2040,10 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         let vars = serde_json::json!({ "input": { "id": "u1", "fullName": "Alice" } });
-        executor.execute_mutation("save_user", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("save_user", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         assert_eq!(
             adapter_ref.pre_image(),
@@ -2029,7 +2068,10 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         let vars = serde_json::json!({ "input": { "id": "u1", "fullName": "Alice" } });
-        executor.execute_mutation("save_user", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("save_user", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         assert_eq!(
             adapter_ref.pre_image(),
@@ -2120,7 +2162,7 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         executor
-            .execute_mutation("m", Some(&acronym_digit_nested_vars()), &[])
+            .execute_mutation("m", Some(&acronym_digit_nested_vars()), any_write_selections())
             .await
             .unwrap();
 
@@ -2146,7 +2188,7 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         executor
-            .execute_mutation("m", Some(&acronym_digit_nested_vars()), &[])
+            .execute_mutation("m", Some(&acronym_digit_nested_vars()), any_write_selections())
             .await
             .unwrap();
 
@@ -2173,7 +2215,7 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         executor
-            .execute_mutation("m", Some(&acronym_digit_nested_vars()), &[])
+            .execute_mutation("m", Some(&acronym_digit_nested_vars()), any_write_selections())
             .await
             .unwrap();
 
@@ -2196,7 +2238,10 @@ mod mutation {
         let vars = serde_json::json!({
             "input": [{ "s3Key": "a", "maxConnections": 1 }, { "dns1Id": "b" }]
         });
-        executor.execute_mutation("m", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("m", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 1, "array input must pass as exactly one JSONB arg");
@@ -2218,7 +2263,10 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         let vars = serde_json::json!({ "input": { "dns1Id": "d", "s3Key": "k" } });
-        executor.execute_mutation("m", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("m", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let p = &adapter_ref.args()[0];
         assert_eq!(p["dns1Id"], "d", "Preserve must not recase: {p:?}");
@@ -2238,7 +2286,10 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         let vars = serde_json::json!({ "input": "hello" });
-        executor.execute_mutation("m", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("m", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 1, "scalar input passes as one positional arg");
@@ -2282,7 +2333,10 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         let vars = serde_json::json!({ "name": "x", "metadata": { "s3Key": "k" } });
-        executor.execute_mutation("m", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("m", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 2);
@@ -2348,7 +2402,10 @@ mod mutation {
 
         // contract_id (required) is omitted; active has a default, so absent is fine.
         let vars = serde_json::json!({ "input": { "currency": "USD" } });
-        let err = executor.execute_mutation("create_price", Some(&vars), &[]).await.unwrap_err();
+        let err = executor
+            .execute_mutation("create_price", Some(&vars), any_write_selections())
+            .await
+            .unwrap_err();
 
         match err {
             FraiseQLError::Validation { message, .. } => {
@@ -2374,7 +2431,10 @@ mod mutation {
         let executor = Executor::new(schema, adapter);
 
         let vars = serde_json::json!({ "input": { "contract_id": null, "currency": "USD" } });
-        let err = executor.execute_mutation("create_price", Some(&vars), &[]).await.unwrap_err();
+        let err = executor
+            .execute_mutation("create_price", Some(&vars), any_write_selections())
+            .await
+            .unwrap_err();
 
         assert!(
             matches!(err, FraiseQLError::Validation { .. }),
@@ -2397,7 +2457,10 @@ mod mutation {
 
         // contract_id present; active (non-null but defaulted) omitted → still OK.
         let vars = serde_json::json!({ "input": { "contract_id": "c1", "currency": "USD" } });
-        executor.execute_mutation("create_price", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("create_price", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 3, "all three input fields flatten to positional args");
@@ -2415,7 +2478,9 @@ mod mutation {
 
         // Provide the genuinely-required field; omit `active` (non-null + default).
         let vars = serde_json::json!({ "input": { "contract_id": "c1" } });
-        let result = executor.execute_mutation("create_price", Some(&vars), &[]).await;
+        let result = executor
+            .execute_mutation("create_price", Some(&vars), any_write_selections())
+            .await;
         assert!(
             result.is_ok(),
             "omitting a defaulted non-null field must not be rejected: {result:?}"
@@ -2439,7 +2504,9 @@ mod mutation {
 
         // `id` (now required) omitted — update must still proceed (three-state).
         let vars = serde_json::json!({ "input": { "name": "Alice" } });
-        let result = executor.execute_mutation("update_user", Some(&vars), &[]).await;
+        let result = executor
+            .execute_mutation("update_user", Some(&vars), any_write_selections())
+            .await;
         assert!(result.is_ok(), "update path must not enforce required input fields: {result:?}");
     }
 
@@ -2487,7 +2554,10 @@ mod mutation {
 
         // Client speaks camelCase: `fullName` maps to canonical `full_name`.
         let vars = serde_json::json!({ "input": { "fullName": "Alice" } });
-        executor.execute_mutation("create_user", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("create_user", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 1, "single field flattens to one positional arg");
@@ -2509,7 +2579,10 @@ mod mutation {
         let vars = serde_json::json!({
             "input": { "id": "abc", "name": null }
         });
-        executor.execute_mutation("update_user", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("update_user", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 1);
@@ -2531,7 +2604,10 @@ mod mutation {
         let vars = serde_json::json!({
             "input": { "id": "abc", "name": "Alice" }
         });
-        executor.execute_mutation("update_user", Some(&vars), &[]).await.unwrap();
+        executor
+            .execute_mutation("update_user", Some(&vars), any_write_selections())
+            .await
+            .unwrap();
 
         let captured = adapter_ref.args();
         assert_eq!(captured.len(), 1);
@@ -2809,7 +2885,10 @@ mod mutation_audit {
         };
         let executor = Executor::with_config(schema, Arc::new(AuditMockAdapter), config);
 
-        executor.execute_mutation("createUser", None, &[]).await.unwrap();
+        executor
+            .execute_mutation("createUser", None, any_write_selections())
+            .await
+            .unwrap();
 
         let events = captured.lock().unwrap();
         assert!(
@@ -2832,7 +2911,10 @@ mod mutation_audit {
         // Default config: audit_mutations=false
         let executor = Executor::new(schema, Arc::new(AuditMockAdapter));
 
-        executor.execute_mutation("createUser", None, &[]).await.unwrap();
+        executor
+            .execute_mutation("createUser", None, any_write_selections())
+            .await
+            .unwrap();
 
         let events = captured.lock().unwrap();
         assert!(
@@ -3207,6 +3289,50 @@ mod field_authz {
             .execute_with_security("mutation { createUser }", None, &ctx())
             .await
             .expect_err("a composite return type named with no selection set is invalid");
+
+        assert!(
+            !format!("{err}").contains("alice@x.com"),
+            "the gated value must not appear, not even in the refusal: {err}"
+        );
+    }
+
+    /// The runtime half of #1358, and S2's reason for existing.
+    ///
+    /// `schema_validator` refuses a leaf-returning mutation, but it is only a gate
+    /// for schemas that go *through* the compiler — `schema.compiled.json` can be
+    /// hand-authored. This builds one directly: `act` returns an enum, so § 5.3.3
+    /// correctly does not refuse `mutation { act }` (a leaf needs no selection set)
+    /// and the empty set reaches the write entry.
+    ///
+    /// Before `WriteSelections` that answered with the whole stored entity —
+    /// `alice@x.com` included — with zero authorizer calls. `PanicIfCalled` is what
+    /// proves the refusal is not the authorizer denying.
+    #[tokio::test]
+    async fn a_hand_authored_leaf_returning_mutation_fails_closed() {
+        use crate::schema::{EnumDefinition, MutationDefinition};
+
+        let mut s = CompiledSchema::new();
+        s.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("act", "Status")
+        });
+        s.enums.push(EnumDefinition {
+            name:        "Status".into(),
+            values:      vec![],
+            description: None,
+        });
+        s.build_indexes();
+
+        let executor = Executor::with_config(
+            s,
+            Arc::new(GatedEntityAdapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
+        );
+
+        let err = executor
+            .execute_with_security("mutation { act }", None, &ctx())
+            .await
+            .expect_err("a write with no selection set must fail closed");
 
         assert!(
             !format!("{err}").contains("alice@x.com"),
@@ -4164,7 +4290,7 @@ mod before_mutation_enforcement {
 
         let variables = serde_json::json!({ "input": { "name": "G", "email": "g@x.tld" } });
         let err = executor
-            .execute_mutation("guarded", Some(&variables), &[])
+            .execute_mutation("guarded", Some(&variables), any_write_selections())
             .await
             .expect_err("the direct write API must run the chain too");
 
@@ -5347,5 +5473,31 @@ mod rest_write_body {
         .expect("a flat body must keep working on the batch path");
 
         assert_eq!(adapter.args_for("fn_rename_user"), vec![serde_json::json!("G")]);
+    }
+}
+
+// ── mod write_selections: the non-empty invariant at the write entries (S2) ───
+mod write_selections {
+    use crate::{error::FraiseQLError, graphql::FieldSelection, runtime::WriteSelections};
+
+    #[test]
+    fn an_empty_selection_set_is_refused() {
+        let err = WriteSelections::new(&[])
+            .expect_err("an empty selection set is the permissive shape, not a neutral one");
+        assert!(matches!(err, FraiseQLError::Validation { .. }), "{err:?}");
+    }
+
+    #[test]
+    fn a_non_empty_selection_set_is_adopted_unchanged() {
+        let set = vec![FieldSelection {
+            name:          "id".to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: vec![],
+            directives:    vec![],
+        }];
+        let ws = WriteSelections::new(&set).expect("one field is not empty");
+        assert_eq!(ws.as_slice().len(), 1);
+        assert_eq!(ws.as_slice()[0].name, "id");
     }
 }

@@ -480,7 +480,12 @@ where
         fraiseql_core::runtime::mutation_return_selections(executor.schema(), mutation_name);
 
     let execution = executor
-        .execute_mutation_as(mutation_name, Some(&variables), security_context, &selections)
+        .execute_mutation_as(
+            mutation_name,
+            Some(&variables),
+            security_context,
+            fraiseql_core::runtime::WriteSelections::new(&selections)?,
+        )
         .await?;
 
     Ok(mutation_result_from_outcome(&execution.outcome))

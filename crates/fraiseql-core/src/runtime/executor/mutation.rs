@@ -86,7 +86,7 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
         &self,
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
-        selections: &[FieldSelection],
+        selections: WriteSelections<'_>,
     ) -> Result<serde_json::Value> {
         // No runtime supports_mutations() check: the SupportsMutations bound
         // guarantees at compile time that this adapter supports mutations.
@@ -125,7 +125,7 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
         mutation_name: &str,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
-        selections: &[FieldSelection],
+        selections: WriteSelections<'_>,
     ) -> Result<crate::runtime::MutationExecution> {
         self.execute_mutation_detailed(
             mutation_name,
@@ -168,7 +168,7 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
             mutation_name,
             Some(arguments),
             security_context,
-            &selections,
+            WriteSelections::new(&selections)?,
             &[],
         )
         .await
@@ -316,12 +316,37 @@ impl<A: DatabaseAdapter> Executor<A> {
                 path:    None,
             });
         }
+        // The one place a *client document's* selection set becomes a write's.
+        //
+        // § 5.3.3 (#1357) runs **here, before the conversion**, not only at step 1e
+        // of the chokepoint. `WriteSelections::new` would otherwise refuse the empty
+        // set first, and its message is the backstop's — "a write needs a selection
+        // set" — where § 5.3.3's names the offending type and is the answer the
+        // GraphQL spec gives. Constructing the type ahead of the validator made the
+        // better diagnosis unreachable on the one path that can actually produce the
+        // shape from a client document.
+        //
+        // An unknown mutation is left to `execute_mutation_impl`, which has the
+        // did-you-mean suggestion for it.
+        if let Some(def) = self.schema().find_mutation(mutation_name) {
+            crate::graphql::validate_leaf_field_selections(
+                self.schema(),
+                &def.return_type,
+                selections,
+            )?;
+        }
+
+        // Every mutation's return type is composite (#1358) and § 5.3.3 has just
+        // adjudicated the set, so a compiled schema cannot deliver an empty one here.
+        // Both of those are compiler- and validator-side, though, and
+        // `schema.compiled.json` can be hand-authored — so this is where a schema
+        // that skipped them fails closed rather than projecting the entity whole.
         self.execute_mutation_detailed(
             mutation_name,
             response_key,
             variables,
             security_context,
-            selections,
+            WriteSelections::new(selections)?,
             inline_arguments,
         )
         .await
@@ -336,7 +361,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         response_key: &str,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
-        selections: &[FieldSelection],
+        selections: WriteSelections<'_>,
         inline_arguments: &[crate::graphql::GraphQLArgument],
     ) -> Result<runners::mutation::MutationExecution> {
         runners::mutation::execute_mutation_impl(
@@ -350,6 +375,87 @@ impl<A: DatabaseAdapter> Executor<A> {
         )
         .await
     }
+}
+
+/// A write's result selection set, **guaranteed non-empty**.
+///
+/// # Why this is a type and not a `&[FieldSelection]`
+///
+/// An empty selection set is the *permissive* shape at the write entries, not a
+/// neutral one. It is the input to two security decisions at once:
+///
+/// * [`project_entity`](crate::runtime::project_entity) filters the returned entity to it — and an
+///   empty slice means "no field filtering", so the whole stored entity is returned;
+/// * `selection_set_selects_gated_field` decides whether the #423 field authorizer runs at all —
+///   and it is false for an empty slice, so the authorizer takes **zero calls**.
+///
+/// So `&[]` is not a value a write entry should be able to receive by accident.
+/// REST's anonymous arm passed one (#1352); gRPC reached the same slice a different
+/// way, through `unwrap_or_default()`; and an ordinary `mutation { createUser }`
+/// carried one in from a client document (#1357). Three transports, three spellings,
+/// one shape — which is what a type, rather than a fourth grep gate, is for.
+///
+/// # Why "non-empty" is sound
+///
+/// Every mutation's return type is composite (#1358), and GraphQL § 5.3.3 refuses a
+/// composite field named without a selection set (#1357), so a document that reaches
+/// a write entry always carries one. A transport with no document of its own uses
+/// [`mutation_return_selections`], which never returns empty.
+///
+/// [`new`](Self::new) is still fallible rather than an assertion: the compiler is
+/// only a gate for schemas that go *through* the compiler, and
+/// `schema.compiled.json` can be hand-authored. This is the runtime backstop for
+/// one that declares a leaf-returning mutation anyway.
+#[derive(Clone, Copy, Debug)]
+pub struct WriteSelections<'a>(&'a [FieldSelection]);
+
+impl<'a> WriteSelections<'a> {
+    /// Adopt a selection set for a write.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Validation`] when `selections` is empty. See the type
+    /// docs for why that is a refusal rather than a permissive default.
+    pub fn new(selections: &'a [FieldSelection]) -> Result<Self> {
+        if selections.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: "A write needs a selection set: an empty one is read as \"no field \
+                          filtering\", which returns the stored entity whole and skips \
+                          field-level authorization."
+                    .to_string(),
+                path:    None,
+            });
+        }
+        Ok(Self(selections))
+    }
+
+    /// The selection set, for the projector and the field authorizer.
+    #[must_use]
+    pub const fn as_slice(self) -> &'a [FieldSelection] {
+        self.0
+    }
+}
+
+/// A minimal non-empty selection set, for tests that do not exercise projection.
+///
+/// `__typename` is valid on every composite type and is never policy-gated, so it is
+/// the smallest thing a write entry can legitimately be handed. Test-only on purpose:
+/// production code either has a client's selection set or derives one from the return
+/// type, and a public constructor for "the smallest set that compiles" would be a
+/// third answer for a transport to reach for.
+#[cfg(test)]
+pub fn any_write_selections() -> WriteSelections<'static> {
+    static SET: std::sync::OnceLock<Vec<FieldSelection>> = std::sync::OnceLock::new();
+    let set = SET.get_or_init(|| {
+        vec![FieldSelection {
+            name:          "__typename".to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: vec![],
+            directives:    vec![],
+        }]
+    });
+    WriteSelections::new(set).expect("a one-field selection set is not empty")
 }
 
 /// The selection set a transport with **no selection set of its own** projects a write
