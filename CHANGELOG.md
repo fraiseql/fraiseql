@@ -18,6 +18,54 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A REST write's response is the mutation return type's scalar fields, for every caller
+  (#1331, #1352).** Both arms of the REST write route now derive one selection set from
+  `fraiseql_core::runtime::mutation_return_selections`, and both are projected and
+  field-authorized through it. Two things change at once, and each was a defect.
+
+  **The anonymous arm was returning the whole stored entity.** It passed `&[]` as its
+  selection set, and an empty selection set is the *permissive* shape, not a neutral one:
+  `project_entity` returns the stored entity unchanged, and `selection_set_selects_gated_field`
+  is false for it, so the #423 field authorizer short-circuits with **zero calls**. The
+  authenticated arm named the return type's fields and therefore did trip that gate. So an
+  **unauthenticated** caller was served policy-gated fields that an authenticated caller is
+  refused — measured with a `PanicIfCalled` authorizer that took no calls while the payload
+  came back carrying a field declared `authorize`. `RestConfig.require_auth` defaults to
+  `false` and nothing in `routes/rest/` consults the operation `Authorizer`, so no filter kept
+  a gated type off a write route. An anonymous REST write now returns the return type's
+  scalar fields and is refused a gated one, like every other caller.
+
+  **The authenticated arm could not carry a nested body at all.** It reached the engine by
+  formatting a GraphQL document out of its arguments, and `format!("{k}: {v}")` renders a
+  `serde_json::Value` through `Display`, which emits JSON — and JSON quotes object keys where
+  GraphQL does not. `{"input": {"name": "G"}}` produced `mutation { guarded(input:
+  {"name":"G"}) { … } }` and a `Parse error at 1:28`. Under the JSONB `data`-column model a
+  nested object is the ordinary body shape, so an authenticated write failed on a body the
+  anonymous arm accepted. Arguments are bound as **values** now; nothing round-trips through
+  text.
+
+  **What narrows for an authenticated caller**: the field list is scalars only. It used to be
+  *every* field of the return type, and this engine accepts an object field selected without a
+  sub-selection (`selection_validation.rs` skips it) while `project_field_value` returns such
+  a field's stored blob verbatim — so a composite field came back whole, unexpanded, and with
+  no field authorizer consulted on anything inside it. A client reading an object field out of
+  a REST write response no longer finds it; read it back with a GET, or select it over GraphQL,
+  which has a real selection set to expand.
+
+  gRPC shares the helper rather than its own copy. Its local derivation ended in
+  `unwrap_or_default()` — the same empty set, one transport along, for an unknown mutation or
+  an all-object return type. `make lint-write-selections`
+  (`tools/check-write-selection-sources.py`) holds all three properties: no write entry takes
+  an empty selection set, no transport derives its own, and no request path rebuilds a GraphQL
+  document by formatting.
+
+  ⚠ **The field authorizer is still post-write.** It reads the entity the SQL function
+  returned, so a caller it refuses has already caused the write. That is pre-existing, applies
+  identically to the authenticated path and to GraphQL, and is **not** fixed here — it is
+  tracked as #1353. A deployment that must refuse the write itself configures an operation
+  `Authorizer` (#422), `requires_role`, `requires_actor`, or `[rest] require_auth`; each of
+  those runs before dispatch.
+
 - **A mistyped config key is refused in every section, not only at the top (#1337).**
   #839 put `deny_unknown_fields` on `ServerConfig`, but serde does not propagate it into
   nested structs — so every `[section]` whose own struct lacked it accepted a typo and
@@ -1343,9 +1391,10 @@ disagreed, and the promise was the part that was wrong.
   shows. Consuming the envelope and discarding it is what pushed gRPC into calling the
   database directly in the first place.
 
-  Distinct from `execute_mutation_with_security`, which reaches the same place by formatting
-  a GraphQL document out of the arguments and reparsing it; that one stays for REST until
-  #1331.
+  `execute_mutation_with_security` is the same call with the selection set derived from the
+  mutation's return type rather than supplied by the caller — the entry a transport uses when
+  it has no selection set of its own. It used to reach the engine by formatting a GraphQL
+  document out of the arguments and reparsing it; that is fixed (#1331).
 
 - **`[identity.enrichment] provision`: a new user of an external IdP is served on their first
   request (#1324).** With enrichment enabled, a token whose `sub` has no actor row is denied

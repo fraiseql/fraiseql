@@ -4662,3 +4662,618 @@ mod before_mutation_read_bridge {
         }
     }
 }
+
+// ── mod rest_write_body: #1331 + #1352 — a REST write carries the body it was given,
+//    and both arms face the same gate ───────────────────────────────────────────────
+//
+// #1331: `execute_mutation_with_security` reached the engine by re-serialising its
+// arguments into a GraphQL document with `format!("{k}: {v}")`. `Display` on a
+// `serde_json::Value` emits JSON, and JSON quotes object keys where GraphQL does not, so
+// any argument that *is* or *contains* an object produced a document the parser refused.
+// Under the JSONB `data`-column model a nested object is the ordinary body shape.
+//
+// #1352: the anonymous arm passes an **empty** selection set, and an empty selection set
+// is the permissive shape — `project_entity` returns the whole entity and
+// `selection_set_selects_gated_field` is false, so the field authorizer is never
+// consulted. An unauthenticated caller was served a gated field that an authenticated
+// one is refused.
+mod rest_write_body {
+    use std::{
+        collections::HashMap,
+        sync::{Arc, Mutex},
+    };
+
+    use async_trait::async_trait;
+    use chrono::Utc;
+
+    use super::*;
+    use crate::{
+        graphql::FieldSelection,
+        schema::{
+            ArgumentDefinition, FieldDefinition, FieldDenyPolicy, FieldType, InputFieldDefinition,
+            InputObjectDefinition, MutationDefinition, MutationOperation, TypeDefinition,
+        },
+        security::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest, SecurityContext},
+    };
+
+    /// Records the positional arguments each SQL function was actually bound.
+    ///
+    /// The assertion that matters is not "no parse error" but "the nested value arrived
+    /// **intact** at the function": a fix that reached the engine while flattening or
+    /// stringifying the object would still be wrong.
+    struct ArgLog {
+        calls:  Mutex<Vec<(String, Vec<serde_json::Value>)>>,
+        entity: serde_json::Value,
+    }
+
+    impl ArgLog {
+        fn new() -> Self {
+            Self::returning(serde_json::json!({ "id": "1", "name": "G", "email": "g@x.tld" }))
+        }
+
+        /// The `entity` the `mutation_response` row carries back.
+        fn returning(entity: serde_json::Value) -> Self {
+            Self {
+                calls: Mutex::new(Vec::new()),
+                entity,
+            }
+        }
+
+        fn functions(&self) -> Vec<String> {
+            self.calls.lock().unwrap().iter().map(|(n, _)| n.clone()).collect()
+        }
+
+        fn args_for(&self, function: &str) -> Vec<serde_json::Value> {
+            self.calls
+                .lock()
+                .unwrap()
+                .iter()
+                .find(|(n, _)| n == function)
+                .map(|(_, a)| a.clone())
+                .unwrap_or_default()
+        }
+    }
+
+    #[async_trait]
+    impl DatabaseAdapter for ArgLog {
+        async fn execute_function_call(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            self.calls.lock().unwrap().push((function_name.to_string(), args.to_vec()));
+            let mut row = HashMap::new();
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
+            row.insert("entity".to_string(), self.entity.clone());
+            row.insert("entity_type".to_string(), json!("User"));
+            row.insert("message".to_string(), json!(""));
+            Ok(vec![row])
+        }
+
+        async fn execute_function_call_with_changelog(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&ChangeLogWrite<'_>>,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            self.execute_function_call(function_name, args).await
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    impl SupportsMutations for ArgLog {}
+
+    /// `createUser(input: CreateUserInput!)` — the nested shape, and
+    /// `patchUser(id: ID!, input: CreateUserInput!)` for the by-ids bulk path, which
+    /// merges the row identity into the body under a declared argument.
+    ///
+    /// `gate_email` declares `User.email` policy-gated (#423), which is what #1352 turns on.
+    fn schema(gate_email: bool) -> CompiledSchema {
+        let mut s = CompiledSchema::new();
+        s.input_types.push(InputObjectDefinition {
+            name:        "CreateUserInput".to_string(),
+            fields:      vec![
+                InputFieldDefinition::new("name", "String!"),
+                InputFieldDefinition::new("email", "String!"),
+            ],
+            description: None,
+            metadata:    None,
+        });
+
+        let input_arg = || ArgumentDefinition {
+            name:          "input".to_string(),
+            arg_type:      FieldType::Input("CreateUserInput".to_string()),
+            nullable:      false,
+            default_value: None,
+            description:   None,
+            deprecation:   None,
+        };
+
+        s.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            operation: MutationOperation::Insert {
+                table: "fn_create_user".to_string(),
+            },
+            arguments: vec![input_arg()],
+            ..MutationDefinition::new("createUser", "User")
+        });
+
+        s.mutations.push(MutationDefinition {
+            sql_source: Some("fn_patch_user".to_string()),
+            operation: MutationOperation::Insert {
+                table: "fn_patch_user".to_string(),
+            },
+            arguments: vec![
+                ArgumentDefinition {
+                    name:          "id".to_string(),
+                    arg_type:      FieldType::Id,
+                    nullable:      false,
+                    default_value: None,
+                    description:   None,
+                    deprecation:   None,
+                },
+                input_arg(),
+            ],
+            ..MutationDefinition::new("patchUser", "User")
+        });
+
+        // A flat-scalar mutation: the positive twin's subject. It round-trips **today**,
+        // which is exactly why a nested-only test proves nothing on its own.
+        s.mutations.push(MutationDefinition {
+            sql_source: Some("fn_rename_user".to_string()),
+            operation: MutationOperation::Insert {
+                table: "fn_rename_user".to_string(),
+            },
+            arguments: vec![ArgumentDefinition {
+                name:          "name".to_string(),
+                arg_type:      FieldType::String,
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("renameUser", "User")
+        });
+
+        // Declares a return type that is not among `s.types`, so
+        // `mutation_return_selections` takes its envelope fallback.
+        s.mutations.push(MutationDefinition {
+            sql_source: Some("fn_envelope_write".to_string()),
+            operation: MutationOperation::Insert {
+                table: "fn_envelope_write".to_string(),
+            },
+            arguments: vec![ArgumentDefinition {
+                name:          "name".to_string(),
+                arg_type:      FieldType::String,
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("envelopeWrite", "MutationResponse")
+        });
+
+        // A return type whose only field is an **object**: there is no scalar to select,
+        // so the helper must fall back rather than hand back an empty (permissive) set.
+        s.mutations.push(MutationDefinition {
+            sql_source: Some("fn_object_only".to_string()),
+            operation: MutationOperation::Insert {
+                table: "fn_object_only".to_string(),
+            },
+            ..MutationDefinition::new("objectOnlyWrite", "ObjectOnly")
+        });
+        let mut object_only = TypeDefinition::new("ObjectOnly", "v_object_only");
+        object_only.fields = vec![FieldDefinition::nullable(
+            "owner",
+            FieldType::Object("User".to_string()),
+        )];
+        s.types.push(object_only);
+
+        let mut user = TypeDefinition::new("User", "v_user");
+        let email = FieldDefinition::nullable("email", FieldType::String);
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::nullable("name", FieldType::String),
+            if gate_email {
+                email.with_authorize(true)
+            } else {
+                email
+            },
+        ];
+        s.types.push(user);
+        s.build_indexes();
+        s
+    }
+
+    fn executor(gate_email: bool) -> (Executor<ArgLog>, Arc<ArgLog>) {
+        let adapter = Arc::new(ArgLog::new());
+        let ex = Executor::with_config(
+            schema(gate_email),
+            Arc::clone(&adapter),
+            RuntimeConfig::default(),
+        );
+        (ex, adapter)
+    }
+
+    fn principal() -> SecurityContext {
+        SecurityContext {
+            user_id:          "u1".into(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-1331".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    fn nested_body() -> serde_json::Value {
+        serde_json::json!({ "input": { "name": "G", "email": "g@x.tld" } })
+    }
+
+    // ── #1331: the three callers of `execute_mutation_with_security` ──────────────
+
+    /// Caller 1 of 3 — `routes/rest/handler/mutation.rs:597`, the authenticated arm.
+    #[tokio::test]
+    async fn a_nested_body_reaches_the_function_through_the_authenticated_write() {
+        let (ex, adapter) = executor(false);
+
+        ex.execute_mutation_with_security("createUser", &nested_body(), Some(&principal()))
+            .await
+            .expect("an authenticated REST write must carry a nested body to the engine");
+
+        assert_eq!(
+            adapter.args_for("fn_create_user"),
+            vec![serde_json::json!("G"), serde_json::json!("g@x.tld")],
+            "the nested object's values must arrive intact, not stringified"
+        );
+    }
+
+    /// Caller 2 of 3 — `routes/rest/bulk/mod.rs:121`, via `execute_mutation_batch`.
+    ///
+    /// A single red on the shared helper would pass over a fix that only reached one
+    /// caller, so each of the three is asserted separately.
+    #[tokio::test]
+    async fn a_nested_body_reaches_the_function_through_the_batch_write() {
+        let (ex, adapter) = executor(false);
+
+        let result = ex
+            .execute_mutation_batch(
+                "createUser",
+                &[nested_body(), nested_body()],
+                Some(&principal()),
+            )
+            .await
+            .expect("a bulk REST write must carry a nested body to the engine");
+
+        assert_eq!(result.affected_rows, 2, "both items must run");
+        assert_eq!(
+            adapter.functions(),
+            vec!["fn_create_user".to_string(), "fn_create_user".to_string()],
+            "one call per item"
+        );
+        assert_eq!(
+            adapter.args_for("fn_create_user"),
+            vec![serde_json::json!("G"), serde_json::json!("g@x.tld")],
+        );
+    }
+
+    /// Caller 3 of 3 — `routes/rest/bulk/mod.rs:313`, via `execute_bulk_by_ids`.
+    #[tokio::test]
+    async fn a_nested_body_reaches_the_function_through_the_by_ids_write() {
+        let (ex, adapter) = executor(false);
+        let body = serde_json::json!({ "input": { "name": "G", "email": "g@x.tld" } });
+
+        let result = ex
+            .execute_bulk_by_ids(
+                "patchUser",
+                "id",
+                &[serde_json::json!("row-1")],
+                Some(&body),
+                Some(&principal()),
+            )
+            .await
+            .expect("a by-ids REST write must carry a nested body to the engine");
+
+        assert_eq!(result.affected_rows, 1);
+        // A two-argument mutation binds `input` as an **object**, where the
+        // single-argument `createUser` above flattens it to positional scalars. Both
+        // shapes are asserted, because #1331 was a failure to represent the object at
+        // all: before the fix this call never reached the function, so `args` was empty.
+        let args = adapter.args_for("fn_patch_user");
+        assert!(
+            args.contains(&serde_json::json!({ "name": "G", "email": "g@x.tld" })),
+            "the nested object must reach the function intact: {args:?}"
+        );
+        assert!(
+            args.contains(&serde_json::json!("row-1")),
+            "and the row identity must too: {args:?}"
+        );
+    }
+
+    // ── the positive twins: these pass TODAY, and must keep passing ───────────────
+
+    /// A flat-scalar body round-trips today. Without this twin, the nested tests above
+    /// could be made green by a change that broke the shape REST actually sends most
+    /// often, and nothing would say so.
+    #[tokio::test]
+    async fn a_flat_scalar_body_still_reaches_the_function_when_authenticated() {
+        let (ex, adapter) = executor(false);
+
+        ex.execute_mutation_with_security(
+            "renameUser",
+            &serde_json::json!({ "name": "G" }),
+            Some(&principal()),
+        )
+        .await
+        .expect("a flat body must keep working");
+
+        assert_eq!(adapter.args_for("fn_rename_user"), vec![serde_json::json!("G")]);
+    }
+
+    // ── #1352 + #423: both arms face the same gate ───────────────────────────────
+
+    struct AllowAll;
+    impl FieldAuthorizer for AllowAll {
+        fn authorize_field(&self, _r: &FieldAuthzRequest<'_>) -> Result<FieldAuthzDecision> {
+            Ok(FieldAuthzDecision::Allow)
+        }
+    }
+
+    struct MaskAll;
+    impl FieldAuthorizer for MaskAll {
+        fn authorize_field(&self, _r: &FieldAuthzRequest<'_>) -> Result<FieldAuthzDecision> {
+            Ok(FieldAuthzDecision::Deny {
+                code:    "not_owner".into(),
+                on_deny: FieldDenyPolicy::Mask,
+            })
+        }
+    }
+
+    fn gated_executor(authorizer: Arc<dyn FieldAuthorizer>) -> Executor<ArgLog> {
+        Executor::with_config(
+            schema(true),
+            Arc::new(ArgLog::new()),
+            RuntimeConfig::default().with_field_authorizer(authorizer),
+        )
+    }
+
+    /// ⚠ **This is the test that must redden if the selection set is simplified to
+    /// `&[]`.** `selection_set_selects_gated_field` is false for an empty set, so
+    /// `enforce_mutation_field_authz` short-circuits with zero authorizer calls and
+    /// `project_entity` hands back the whole entity — `email` would come back in full
+    /// instead of masked. Prove that by reverting, not by reading.
+    #[tokio::test]
+    async fn an_authenticated_write_masks_a_gated_field_the_authorizer_denies() {
+        let ex = gated_executor(Arc::new(MaskAll));
+
+        let res = ex
+            .execute_mutation_with_security("createUser", &nested_body(), Some(&principal()))
+            .await
+            .expect("a masked field is a success, not a refusal");
+
+        let payload = &res["data"]["createUser"];
+        assert_eq!(payload["name"], "G", "ungated fields are still returned");
+        assert!(payload["email"].is_null(), "the gated field must be masked: {payload}");
+    }
+
+    /// The positive twin, and the reason the test above proves something: with an
+    /// **accepting** authorizer the same field comes back in full. Without this, a change
+    /// that dropped `email` entirely would leave the masking test green.
+    #[tokio::test]
+    async fn an_authenticated_write_returns_a_gated_field_the_authorizer_allows() {
+        let ex = gated_executor(Arc::new(AllowAll));
+
+        let res = ex
+            .execute_mutation_with_security("createUser", &nested_body(), Some(&principal()))
+            .await
+            .expect("an allowed field is returned");
+
+        assert_eq!(res["data"]["createUser"]["email"], "g@x.tld");
+    }
+
+    /// #1352: the anonymous arm. Asserted on the **refusal**, not merely on the field's
+    /// absence — a test that only checked `email` was missing would also pass if the
+    /// field were dropped for some unrelated reason.
+    ///
+    /// The authorizer here *accepts*, so the refusal cannot be its answer: it is the
+    /// fail-closed "gated field selected with no authenticated principal" rule.
+    #[tokio::test]
+    async fn an_anonymous_write_is_refused_a_gated_field() {
+        let ex = gated_executor(Arc::new(AllowAll));
+
+        let err = ex
+            .execute_mutation_with_security("createUser", &nested_body(), None)
+            .await
+            .expect_err("an anonymous write must not be served a gated field");
+
+        match err {
+            FraiseQLError::Authorization {
+                ref resource,
+                ref message,
+                ..
+            } => {
+                assert_eq!(resource.as_deref(), Some("User"), "{err:?}");
+                assert!(
+                    message.contains("not authenticated"),
+                    "the refusal must be about the missing principal: {message}"
+                );
+            },
+            other => panic!("expected a fail-closed Authorization refusal, got {other:?}"),
+        }
+        assert!(
+            !format!("{err:?}").contains("g@x.tld"),
+            "and the refusal must not leak the value it withheld"
+        );
+    }
+
+    /// The discriminating pair, stated as one assertion: the bug was that the
+    /// **anonymous** caller was served a field the **authenticated** one is refused.
+    /// Whatever the gate decides, anonymous must never see more.
+    #[tokio::test]
+    async fn the_anonymous_arm_is_never_served_more_than_the_authenticated_one() {
+        let authenticated = gated_executor(Arc::new(MaskAll))
+            .execute_mutation_with_security("createUser", &nested_body(), Some(&principal()))
+            .await
+            .expect("authenticated write succeeds with the field masked");
+        let anonymous = gated_executor(Arc::new(MaskAll))
+            .execute_mutation_with_security("createUser", &nested_body(), None)
+            .await;
+
+        assert!(authenticated["data"]["createUser"]["email"].is_null(), "authenticated: masked");
+        assert!(anonymous.is_err(), "anonymous: refused outright, never served the value");
+    }
+
+    /// The fallback's intent: a mutation whose declared return type is not a known object
+    /// type still answers with the `app.mutation_response` envelope's own field names.
+    ///
+    /// This is what keeps `mutation_return_selections` from ever returning an empty set —
+    /// and an empty set is the permissive shape this whole phase is about.
+    #[tokio::test]
+    async fn a_mutation_returning_the_envelope_still_answers_status_entity_id_message() {
+        // `internal_note` is the discriminator. Without it this test would pass under an
+        // empty selection set too — `project_entity` returns the whole entity, which
+        // happens to be exactly the envelope — and the pin would be decorative. The
+        // fourth key is a field the fallback must **not** name, so the test fails if the
+        // fallback is ever replaced by `&[]`.
+        let adapter = Arc::new(ArgLog::returning(serde_json::json!({
+            "status": "ok", "entity_id": "42", "message": "done",
+            "internal_note": "do not ship"
+        })));
+        let ex =
+            Executor::with_config(schema(false), Arc::clone(&adapter), RuntimeConfig::default());
+
+        let res = ex
+            .execute_mutation_with_security(
+                "envelopeWrite",
+                &serde_json::json!({ "name": "G" }),
+                Some(&principal()),
+            )
+            .await
+            .expect("a schema that genuinely returns the envelope keeps working");
+
+        let payload = &res["data"]["envelopeWrite"];
+        assert_eq!(payload["status"], "ok", "{payload}");
+        assert_eq!(payload["entity_id"], "42", "{payload}");
+        assert_eq!(payload["message"], "done", "{payload}");
+        assert!(
+            payload.get("internal_note").is_none(),
+            "the fallback names three fields; it must not return the whole entity: {payload}"
+        );
+    }
+
+    /// The property **every** transport now depends on, pinned on the helper itself:
+    /// `mutation_return_selections` never hands back an empty set.
+    ///
+    /// gRPC's own copy of this helper ended in `unwrap_or_default()` and so returned `&[]`
+    /// for exactly these inputs, which is the permissive shape (#1352). Both transports
+    /// share this function now, so this is the one place the property has to hold.
+    #[test]
+    fn the_selection_set_is_never_empty() {
+        const ENVELOPE: [&str; 3] = ["status", "entity_id", "message"];
+
+        let s = schema(false);
+        let names =
+            |sels: Vec<FieldSelection>| sels.into_iter().map(|f| f.name).collect::<Vec<_>>();
+
+        assert_eq!(
+            names(crate::runtime::mutation_return_selections(&s, "createUser")),
+            vec!["id", "name", "email"],
+            "a normal return type names its scalar fields"
+        );
+        assert_eq!(
+            names(crate::runtime::mutation_return_selections(&s, "noSuchMutation")),
+            ENVELOPE,
+            "an unknown mutation falls back rather than returning an empty set"
+        );
+        assert_eq!(
+            names(crate::runtime::mutation_return_selections(&s, "objectOnlyWrite")),
+            ENVELOPE,
+            "a return type with no scalar field falls back rather than returning an empty set"
+        );
+        assert_eq!(
+            names(crate::runtime::mutation_return_selections(&s, "envelopeWrite")),
+            ENVELOPE,
+            "an undeclared return type falls back"
+        );
+    }
+
+    /// The same twin on the batch path.
+    #[tokio::test]
+    async fn a_flat_scalar_body_still_reaches_the_function_through_the_batch_write() {
+        let (ex, adapter) = executor(false);
+
+        ex.execute_mutation_batch(
+            "renameUser",
+            &[serde_json::json!({ "name": "G" })],
+            Some(&principal()),
+        )
+        .await
+        .expect("a flat body must keep working on the batch path");
+
+        assert_eq!(adapter.args_for("fn_rename_user"), vec![serde_json::json!("G")]);
+    }
+}

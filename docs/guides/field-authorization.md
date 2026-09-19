@@ -93,14 +93,24 @@ tracked follow-up; today, set `authorize` in the authored schema directly.)
 A field PEP is only as strong as its least-guarded projection path. The authorizer is
 enforced per row on the **authenticated query** and **mutation** paths. Every other
 projection path **fails closed** (403) when a policy-gated field could be projected, so a
-missed path cannot silently leak a gated field's value:
+missed path cannot silently leak a gated field's value.
+
+⚠ A path reaches this table's protection only if it hands the projector a **selection set**.
+An empty one is the permissive shape, not a neutral one: `project_entity` returns the entity
+unfiltered and `selection_set_selects_gated_field` is false, so the authorizer is never asked.
+REST's anonymous write arm passed `&[]` and was therefore outside this table entirely while
+appearing to be in it — an unauthenticated caller served gated fields an authenticated one is
+refused (#1352). Both REST write arms now derive their selection set from
+`fraiseql_core::runtime::mutation_return_selections`, which is scalars-only and never empty,
+and `make lint-write-selections` refuses a write path that invents one instead.
 
 | Path | Behaviour with a gated field |
 |------|------------------------------|
 | Authenticated query (`execute_with_security`) | **Enforced** per row |
 | Mutation (success entity + error metadata) | **Enforced** per row |
 | Unauthenticated query (`execute`) | Fail closed (no principal to authorize against) |
-| REST direct projection | Fail closed |
+| REST write (`execute_mutation_with_security`) | **Enforced** per row — on the entity the function returned |
+| REST direct projection (read) | Fail closed |
 | Relay list / `node` lookup | Fail closed (type-level) |
 | Federation `_entities` | Fail closed (schema-level) |
 | Aggregate / window | Not applicable — these project synthetic aggregate result types, which never carry an entity's gated field |
@@ -121,6 +131,13 @@ These fail **closed** today and are tracked for a future release:
   rather than enforcing per row.
 - **SDK `@authorize_field` surface.** The compiled-schema `authorize` flag is the authoring
   contract today; richer per-SDK decorators are a follow-up.
+- **Enforcement on a mutation is post-write (#1353).** The authorizer takes the resolved
+  entity as `parent`, so on a write it runs on the row the SQL function *returned*: a caller
+  it refuses has already caused the write, and keeps the side effect while losing the field.
+  This does **not** fail closed in the "refuse the operation" sense — it fails closed on the
+  *value*. To refuse the write itself, gate it before dispatch with an operation `Authorizer`
+  ([operation-level authorization](operation-authorization.md)), `requires_role`,
+  `requires_actor`, or `[rest] require_auth`.
 
 ## See also
 

@@ -470,7 +470,14 @@ where
     // document. Synthesise one from the mutation's **declared return type**, the
     // same choice REST makes — except built structurally rather than by formatting
     // field names into a string and reparsing them (#1331).
-    let selections = return_type_selections(executor.schema(), mutation_name);
+    // The same helper the REST write uses (#1331/#1352). It differs from the local one
+    // this replaced in exactly one way that matters: it **never returns an empty set**.
+    // The old `unwrap_or_default()` yielded `&[]` for an unknown mutation or a return
+    // type with no scalar fields — and an empty selection set is the permissive shape,
+    // so `project_entity` returns the whole entity and the #423 field authorizer
+    // short-circuits with zero calls.
+    let selections =
+        fraiseql_core::runtime::mutation_return_selections(executor.schema(), mutation_name);
 
     let execution = executor
         .execute_mutation_as(mutation_name, Some(&variables), security_context, &selections)
@@ -530,33 +537,6 @@ fn grpc_mutation_variables(
         }
     }
     serde_json::Value::Object(out)
-}
-
-/// The mutation's declared return-type fields, as a flat selection set.
-///
-/// Scalar fields only: a nested composite would need its own selection set, and
-/// the protobuf `MutationResponse` has nowhere to put one.
-fn return_type_selections(
-    schema: &fraiseql_core::schema::CompiledSchema,
-    mutation_name: &str,
-) -> Vec<fraiseql_core::graphql::FieldSelection> {
-    schema
-        .find_mutation(mutation_name)
-        .and_then(|m| schema.find_type(&m.return_type))
-        .map(|t| {
-            t.fields
-                .iter()
-                .filter(|f| f.field_type.is_scalar())
-                .map(|f| fraiseql_core::graphql::FieldSelection {
-                    name:          f.output_name().to_string(),
-                    alias:         None,
-                    arguments:     vec![],
-                    nested_fields: vec![],
-                    directives:    vec![],
-                })
-                .collect()
-        })
-        .unwrap_or_default()
 }
 
 /// Flatten the chokepoint's `mutation_response` envelope into the gRPC wire result.

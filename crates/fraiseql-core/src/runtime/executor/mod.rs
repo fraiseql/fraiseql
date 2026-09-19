@@ -183,7 +183,7 @@ pub type JsonRowStream =
     std::pin::Pin<Box<dyn futures::Stream<Item = crate::error::Result<serde_json::Value>> + Send>>;
 
 mod execution;
-mod mutation;
+pub mod mutation;
 mod runners;
 
 /// One definition of "is this argument a row count", re-exported so every

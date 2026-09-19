@@ -585,25 +585,33 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
 // Mutation helpers
 // ---------------------------------------------------------------------------
 
-/// Execute a mutation, routing through security context when available.
+/// Execute a mutation, carrying the principal when there is one.
+///
+/// **One call, both arms.** These used to be two: an authenticated arm that named the
+/// return type's fields, and an anonymous arm that passed `&[]`. That asymmetry was the
+/// whole of #1352 — an empty selection set is the *permissive* shape, so
+/// `project_entity` returned the entity unfiltered and the #423 field authorizer
+/// short-circuited with zero calls, and an **unauthenticated** caller was served
+/// policy-gated fields that an authenticated one is refused. The selection set now comes
+/// from the same place for both, inside
+/// [`execute_mutation_with_security`](Executor::execute_mutation_with_security).
+///
+/// ⚠ Do not reintroduce a `&[]` arm here to "skip filtering" for anonymous callers.
 pub(super) async fn execute_mutation<A: DatabaseAdapter + SupportsMutations>(
     executor: &Executor<A>,
     mutation_name: &str,
     variables: Option<&serde_json::Value>,
     security_context: Option<&SecurityContext>,
 ) -> Result<serde_json::Value, RestError> {
-    let result = if let Some(ctx) = security_context {
-        executor
-            .execute_mutation_with_security(
-                mutation_name,
-                variables.unwrap_or(&serde_json::json!({})),
-                Some(ctx),
-            )
-            .await
-    } else {
-        executor.execute_mutation(mutation_name, variables, &[]).await
-    };
-    result.map_err(RestError::from)
+    let empty = serde_json::json!({});
+    executor
+        .execute_mutation_with_security(
+            mutation_name,
+            variables.unwrap_or(&empty),
+            security_context,
+        )
+        .await
+        .map_err(RestError::from)
 }
 
 /// Build mutation variables from path params and request body.

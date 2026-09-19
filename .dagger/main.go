@@ -541,6 +541,15 @@ func (m *FraiseqlCi) ShellGates(
 		// gate on a write at once, and is invisible to the tests the known bypasses
 		// have — which is how the gRPC arm did it until #1330 routed it through the engine.
 		"bash tools/check-mutation-dispatch-sites.sh",
+		// One layer in from the chokepoint (#1331, #1352): the selection set a write is
+		// projected through. `&[]` is the PERMISSIVE shape — project_entity returns the
+		// whole entity and the #423 field authorizer takes zero calls — so REST's
+		// anonymous arm served gated fields the authenticated arm is refused, and gRPC's
+		// own copy of the derivation reached the same empty set via unwrap_or_default().
+		// Rule 3 bans the other half: a document rebuilt out of arguments by format!,
+		// which quotes object keys as JSON and so refused every nested REST body.
+		"python3 tools/check-write-selection-sources.py",
+		"make test-write-selections-gate",
 		// The same shape one layer up (#1336): a transport that turns a credential into a
 		// principal and dispatches it unresolved. REST, MCP and gRPC each did for three
 		// releases, and no test could see it — a transport that skips the resolve answers

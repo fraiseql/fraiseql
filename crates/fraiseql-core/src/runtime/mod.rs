@@ -89,6 +89,7 @@ pub use executor::{
     JsonRowStream,
     MutationExecution,
     coerce_pagination_arg,
+    mutation::mutation_return_selections,
     pipeline::{extract_root_field_names, is_multi_root, multi_root_queries_total},
     // Exported so the admin SQL console's RLS preview (#962) resolves an
     // identity's session variables with the *same* function that sets them on a

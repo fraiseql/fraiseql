@@ -48,8 +48,9 @@ abort it, so it is where a validation or business rule goes. That makes it
 
 It is enforced in the engine, not in a transport: the chain is consulted from
 `execute_mutation_impl` (`fraiseql-core`), the single point every mutation entry path
-converges on — both GraphQL branches, the direct `SupportsMutations` API the
-anonymous REST write uses, and `execute_mutation_with_security` — next to
+converges on — both GraphQL branches, `execute_mutation_as` (gRPC), and
+`execute_mutation_with_security`, which is now where **both** REST write arms go,
+authenticated and anonymous alike (#1352) — next to
 `requires_role`, `requires_actor` (#966) and the operation `Authorizer` (#422), for
 the same reason those live there. A transport cannot reach a write without passing
 it, so a *new* route needs no wiring and cannot forget any.

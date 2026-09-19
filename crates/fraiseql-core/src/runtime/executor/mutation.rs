@@ -16,7 +16,6 @@ use crate::{
     db::traits::{DatabaseAdapter, SupportsMutations},
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
-    schema::FieldDefinition,
     security::SecurityContext,
 };
 
@@ -89,12 +88,12 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
     /// `requires_actor`, the `Authorizer`, argument validation, `before:mutation`
     /// and the change-log write all run.
     ///
-    /// Distinct from
-    /// [`execute_mutation_with_security`](Self::execute_mutation_with_security),
-    /// which reaches the same place by **formatting a GraphQL document** out of
-    /// the arguments — a round-trip through text that cannot represent every JSON
-    /// value faithfully (#1331). Prefer this one; that one exists for REST and is
-    /// where #1331 will be fixed.
+    /// [`execute_mutation_with_security`](Self::execute_mutation_with_security) is
+    /// the same call with the selection set derived from the mutation's return type
+    /// rather than supplied by the caller — the entry a transport uses when it has no
+    /// selection set of its own. It used to reach the engine by formatting a GraphQL
+    /// document out of the arguments, a round-trip through text that could not
+    /// represent every JSON value faithfully; that is fixed (#1331).
     ///
     /// # Errors
     ///
@@ -120,6 +119,123 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
             &[],
         )
         .await
+    }
+
+    /// Execute a mutation for a transport that holds **structured arguments**, with an
+    /// optional principal.
+    ///
+    /// Both arms of the REST write come here — authenticated and anonymous — so both are
+    /// projected through the same selection set and face the same gates (#1352).
+    ///
+    /// This used to reach the engine by **formatting a GraphQL document** out of its
+    /// arguments: `format!("{k}: {v}")` renders a `serde_json::Value` through `Display`,
+    /// which emits JSON, and JSON quotes object keys where GraphQL does not. Any argument
+    /// that was — or contained — an object produced a document the parser refused, so an
+    /// authenticated REST write carrying a nested body failed outright, and under the
+    /// JSONB `data`-column model a nested object is the ordinary body shape (#1331).
+    /// Arguments are bound as **values** now; nothing round-trips through text.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Database` if the adapter returns an error.
+    /// Returns `FraiseQLError::Validation` if inject params require a missing security context.
+    pub async fn execute_mutation_with_security(
+        &self,
+        mutation_name: &str,
+        arguments: &serde_json::Value,
+        security_context: Option<&SecurityContext>,
+    ) -> crate::error::Result<serde_json::Value> {
+        let selections = mutation_return_selections(self.schema(), mutation_name);
+        self.execute_mutation_detailed(
+            mutation_name,
+            mutation_name,
+            Some(arguments),
+            security_context,
+            &selections,
+            &[],
+        )
+        .await
+        .map(|execution| execution.data)
+    }
+
+    /// Execute a batch of mutations (for REST bulk insert).
+    ///
+    /// Executes each mutation individually and collects results into a `BulkResult`.
+    ///
+    /// # Errors
+    ///
+    /// Returns the first error encountered during batch execution.
+    pub async fn execute_mutation_batch(
+        &self,
+        mutation_name: &str,
+        items: &[serde_json::Value],
+        security_context: Option<&SecurityContext>,
+    ) -> crate::error::Result<crate::runtime::BulkResult> {
+        let mut entities = Vec::with_capacity(items.len());
+        for item in items {
+            let result = self
+                .execute_mutation_with_security(mutation_name, item, security_context)
+                .await?;
+            entities.push(result);
+        }
+        Ok(crate::runtime::BulkResult {
+            affected_rows: entities.len() as u64,
+            entities:      Some(entities),
+        })
+    }
+
+    /// Execute a mutation once per identified row — the engine behind a collection-level
+    /// `PATCH`/`DELETE`.
+    ///
+    /// `ids` are the primary-key values the caller's filter selected; each is merged into
+    /// the request body under `id_field` so the mutation function receives the row it is
+    /// meant to act on. `affected_rows` is the number of mutations that actually ran.
+    ///
+    /// This replaces `execute_bulk_by_filter`, which ran the filter query, **discarded
+    /// the matched rows**, invoked the mutation exactly once with the body and no row
+    /// identity, and then reported `affected_rows` as the *filter's* row count — a
+    /// fabricated success on a write path (`#913`). Its `_id_field` and `_max_affected`
+    /// parameters were both unused.
+    ///
+    /// Row selection and the `max_affected` cap now live in the caller (the REST bulk
+    /// handler), where the filter guard and the HTTP status for "too many rows" belong.
+    /// Keeping them there is deliberate: this function can no longer run without a
+    /// caller having decided which rows it applies to.
+    ///
+    /// # Errors
+    ///
+    /// Returns whatever the underlying mutation returns; the first failure aborts and
+    /// propagates, so a partially-applied bulk reports the error rather than a count.
+    pub async fn execute_bulk_by_ids(
+        &self,
+        mutation_name: &str,
+        id_field: &str,
+        ids: &[serde_json::Value],
+        body: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+    ) -> crate::error::Result<crate::runtime::BulkResult> {
+        let mut entities = Vec::with_capacity(ids.len());
+
+        for id in ids {
+            let mut args = body.and_then(|b| b.as_object().cloned()).unwrap_or_default();
+            // The row identity wins over anything the client put in the body under the
+            // same key: a bulk request must not be able to redirect a per-row mutation.
+            args.insert(id_field.to_string(), id.clone());
+
+            let result = self
+                .execute_mutation_with_security(
+                    mutation_name,
+                    &serde_json::Value::Object(args),
+                    security_context,
+                )
+                .await?;
+            entities.push(result);
+        }
+
+        Ok(crate::runtime::BulkResult {
+            affected_rows: u64::try_from(entities.len()).unwrap_or(u64::MAX),
+            entities:      Some(entities),
+        })
     }
 }
 
@@ -217,139 +333,56 @@ impl<A: DatabaseAdapter> Executor<A> {
         )
         .await
     }
+}
 
-    /// Execute a mutation with security context for REST transport.
-    ///
-    /// Delegates to the standard mutation execution path with RLS enforcement.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Database` if the adapter returns an error.
-    /// Returns `FraiseQLError::Validation` if inject params require a missing security context.
-    pub async fn execute_mutation_with_security(
-        &self,
-        mutation_name: &str,
-        arguments: &serde_json::Value,
-        security_context: Option<&SecurityContext>,
-    ) -> crate::error::Result<serde_json::Value> {
-        // Build a synthetic GraphQL mutation query and delegate to execute()
-        let args_str = if let Some(obj) = arguments.as_object() {
-            obj.iter().map(|(k, v)| format!("{k}: {v}")).collect::<Vec<_>>().join(", ")
-        } else {
-            String::new()
-        };
-        // The selection set is the mutation's **declared return type's** fields.
-        //
-        // It used to be the literal `status entity_id message` — the field names of the
-        // `app.mutation_response` envelope, not of the type the mutation returns. Every
-        // REST mutation therefore answered `{"data":{"createItem":{}}}`: a 201 whose body
-        // named no field the caller could read, so a client could not learn the id of the
-        // row it had just created. This is the write-path twin of #886, and it stayed
-        // invisible for exactly the same reason — the REST write surface had no
-        // production caller and no test asserted a mutation response's *content*.
-        //
-        // Falling back to the envelope names when the return type is unknown keeps a
-        // schema that genuinely returns the envelope working.
-        let fields = self
-            .schema()
-            .find_mutation(mutation_name)
-            .and_then(|m| self.schema().find_type(&m.return_type))
-            .map(|t| {
-                t.fields.iter().map(FieldDefinition::output_name).collect::<Vec<_>>().join(" ")
-            })
-            .filter(|f| !f.is_empty())
-            .unwrap_or_else(|| "status entity_id message".to_string());
-
-        let query = if args_str.is_empty() {
-            format!("mutation {{ {mutation_name} {{ {fields} }} }}")
-        } else {
-            format!("mutation {{ {mutation_name}({args_str}) {{ {fields} }} }}")
-        };
-
-        if let Some(ctx) = security_context {
-            self.execute_with_security(&query, None, ctx).await
-        } else {
-            self.execute(&query, None).await
+/// The selection set a transport with **no selection set of its own** projects a write
+/// through: every scalar field the mutation's declared return type names.
+///
+/// ⚠ **Never empty, and scalars only.** Both are load-bearing, not stylistic.
+///
+/// An empty selection set is the *permissive* shape rather than a neutral one:
+/// [`project_entity`](crate::runtime::project_entity) returns the whole entity
+/// unfiltered, and `selection_set_selects_gated_field` is false for `&[]`, so the #423
+/// field authorizer short-circuits with **zero calls**. The REST anonymous write arm
+/// passed `&[]`, and so served policy-gated fields to unauthenticated callers that an
+/// authenticated caller is refused (#1352).
+///
+/// Scalars only for the same reason one layer down: `project_field_value` returns a
+/// *sub-selection-less object* verbatim, and `selection_field_has_gated_descendant` is
+/// false when `nested_fields` is empty — so naming an object field without expanding it
+/// would hand back whatever gated field is nested inside it.
+///
+/// The field list was built as **text** until #1331. Before that it was the literal
+/// `status entity_id message` — the `app.mutation_response` envelope's field names rather
+/// than the return type's — so every REST mutation answered `{"data":{"createItem":{}}}`,
+/// a 201 naming no field the caller could read: the write-path twin of #886. Falling back
+/// to those names when the return type is unknown keeps a schema that genuinely returns
+/// the envelope working, and keeps this function's promise never to return an empty set.
+#[must_use]
+pub fn mutation_return_selections(
+    schema: &crate::schema::CompiledSchema,
+    mutation_name: &str,
+) -> Vec<FieldSelection> {
+    fn named(name: &str) -> FieldSelection {
+        FieldSelection {
+            name:          name.to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: vec![],
+            directives:    vec![],
         }
     }
 
-    /// Execute a batch of mutations (for REST bulk insert).
-    ///
-    /// Executes each mutation individually and collects results into a `BulkResult`.
-    ///
-    /// # Errors
-    ///
-    /// Returns the first error encountered during batch execution.
-    pub async fn execute_mutation_batch(
-        &self,
-        mutation_name: &str,
-        items: &[serde_json::Value],
-        security_context: Option<&SecurityContext>,
-    ) -> crate::error::Result<crate::runtime::BulkResult> {
-        let mut entities = Vec::with_capacity(items.len());
-        for item in items {
-            let result = self
-                .execute_mutation_with_security(mutation_name, item, security_context)
-                .await?;
-            entities.push(result);
-        }
-        Ok(crate::runtime::BulkResult {
-            affected_rows: entities.len() as u64,
-            entities:      Some(entities),
+    schema
+        .find_mutation(mutation_name)
+        .and_then(|m| schema.find_type(&m.return_type))
+        .map(|t| {
+            t.fields
+                .iter()
+                .filter(|f| f.field_type.is_scalar())
+                .map(|f| named(f.output_name()))
+                .collect::<Vec<_>>()
         })
-    }
-
-    /// Execute a mutation once per identified row — the engine behind a collection-level
-    /// `PATCH`/`DELETE`.
-    ///
-    /// `ids` are the primary-key values the caller's filter selected; each is merged into
-    /// the request body under `id_field` so the mutation function receives the row it is
-    /// meant to act on. `affected_rows` is the number of mutations that actually ran.
-    ///
-    /// This replaces `execute_bulk_by_filter`, which ran the filter query, **discarded
-    /// the matched rows**, invoked the mutation exactly once with the body and no row
-    /// identity, and then reported `affected_rows` as the *filter's* row count — a
-    /// fabricated success on a write path (`#913`). Its `_id_field` and `_max_affected`
-    /// parameters were both unused.
-    ///
-    /// Row selection and the `max_affected` cap now live in the caller (the REST bulk
-    /// handler), where the filter guard and the HTTP status for "too many rows" belong.
-    /// Keeping them there is deliberate: this function can no longer run without a
-    /// caller having decided which rows it applies to.
-    ///
-    /// # Errors
-    ///
-    /// Returns whatever the underlying mutation returns; the first failure aborts and
-    /// propagates, so a partially-applied bulk reports the error rather than a count.
-    pub async fn execute_bulk_by_ids(
-        &self,
-        mutation_name: &str,
-        id_field: &str,
-        ids: &[serde_json::Value],
-        body: Option<&serde_json::Value>,
-        security_context: Option<&SecurityContext>,
-    ) -> crate::error::Result<crate::runtime::BulkResult> {
-        let mut entities = Vec::with_capacity(ids.len());
-
-        for id in ids {
-            let mut args = body.and_then(|b| b.as_object().cloned()).unwrap_or_default();
-            // The row identity wins over anything the client put in the body under the
-            // same key: a bulk request must not be able to redirect a per-row mutation.
-            args.insert(id_field.to_string(), id.clone());
-
-            let result = self
-                .execute_mutation_with_security(
-                    mutation_name,
-                    &serde_json::Value::Object(args),
-                    security_context,
-                )
-                .await?;
-            entities.push(result);
-        }
-
-        Ok(crate::runtime::BulkResult {
-            affected_rows: u64::try_from(entities.len()).unwrap_or(u64::MAX),
-            entities:      Some(entities),
-        })
-    }
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| vec![named("status"), named("entity_id"), named("message")])
 }

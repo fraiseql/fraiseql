@@ -528,7 +528,12 @@ lint-expect:
 # the convention comment that justifies it, because this grep counts prose as well as
 # attributes. #1330 was measured with `make test-leg` and clippy but never with
 # `make preflight`, which is why the increment surfaced a phase later.
-ASYNC_TRAIT_LIMIT := 205
+# 205 → 206: `GatedEntityAdapter`, the test double behind the field-authorizer pin for
+# #1331/#1352. Its mutation returns a `User` whose `email` is declared `authorize`, which is
+# what makes the anonymous-vs-authenticated pair discriminating — with an empty selection set
+# the authorizer takes zero calls and the value is served. One real impl, of a
+# `DatabaseAdapter` whose signatures the macro fixes, so the impl has no choice.
+ASYNC_TRAIT_LIMIT := 206
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \
@@ -940,6 +945,25 @@ lint-gated-sections:
 .PHONY: lint-mutation-dispatch
 lint-mutation-dispatch:
 	@bash tools/check-mutation-dispatch-sites.sh
+
+# Gate: a write's SELECTION SET is derived, never invented (#1331, #1352). An empty
+# selection set is the permissive shape — `project_entity` returns the whole entity and
+# the #423 field authorizer short-circuits with zero calls — so REST's anonymous arm
+# served gated fields an authenticated caller is refused, and gRPC's own derivation
+# reached the same empty set through `unwrap_or_default()`. The third rule bans the other
+# half: a GraphQL document rebuilt out of arguments by `format!`, which is why an
+# authenticated REST write could not carry a nested body at all.
+.PHONY: lint-write-selections
+lint-write-selections:
+	@python3 tools/check-write-selection-sources.py
+
+# The red capability of the gate above: each rule goes red on the shape it names, and
+# stays green on the adjacent shape that is correct — an empty `inline_arguments`, an
+# error message opening with the word "mutation", a `#[cfg(test)]` module, a doc comment
+# quoting the defect. The twins are what stop it being a blunt ban on `&[]`.
+.PHONY: test-write-selections-gate
+test-write-selections-gate:
+	@bash tools/tests/write_selection_sources_test.sh
 
 # Gate: every site that turns a credential into a principal also resolves that
 # principal's DB identity (#1336). Three transports produced one and dispatched it
@@ -1366,7 +1390,7 @@ lint-required-checks:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown lint-gated-sections lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown lint-gated-sections lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-write-selections-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
