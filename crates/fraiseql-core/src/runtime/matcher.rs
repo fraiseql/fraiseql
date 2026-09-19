@@ -271,12 +271,12 @@ impl QueryMatcher {
 
         // 3. Reduce the document to the fields the client asked for: expand fragment spreads, then
         //    evaluate `@skip`/`@include`. Shared with the multi-root fan-out, `node(id:)` and
-        //    mutations so no entry point can answer this question differently (#826, #827).
-        let final_selections = selection_set::resolve_and_filter(
-            &parsed.selections,
-            &parsed.fragments,
-            &variables_map,
-        )?;
+        //    mutations so no entry point can answer this question differently (#826, #827). Kept as
+        //    two steps rather than `resolve_and_filter` so the *written* set survives: § 5.3.3
+        //    below is anti-monotone under field removal and has to see the document as written,
+        //    while § 5.3.1 and everything after it want the filtered set.
+        let written_selections = selection_set::resolve(&parsed.selections, &parsed.fragments)?;
+        let final_selections = selection_set::filter(&written_selections, &variables_map)?;
 
         // 5. Find matching query definition using root field
         let query_def = self
@@ -327,6 +327,20 @@ impl QueryMatcher {
         if !query_def.relay && !query_def.returns_count {
             if let Some(root) = final_selections.first() {
                 crate::graphql::validate_selection_set(
+                    &self.schema,
+                    &query_def.return_type,
+                    &root.nested_fields,
+                )?;
+            }
+            // 5b-ii. #1357: § 5.3.3, on the set as **written**. `{ users }` was
+            //        answered with one empty object per row under a 200 with no
+            //        `errors` — the fabricated success #1076's AI adapters reported
+            //        to models. Nothing leaks on this path (the SQL projection is
+            //        built *from* the selection set, so an empty one selects
+            //        nothing), which is why the shape read as a formatting quirk;
+            //        the write path's twin of it is a policy bypass.
+            if let Some(root) = written_selections.first() {
+                crate::graphql::validate_leaf_field_selections(
                     &self.schema,
                     &query_def.return_type,
                     &root.nested_fields,

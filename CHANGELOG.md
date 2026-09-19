@@ -18,6 +18,62 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A field whose type is composite must have a selection set; a document that omits one is
+  refused (GraphQL § 5.3.3, #1357).** `mutation { createUser }` and `{ users }` were accepted
+  and executed. They are now a validation error, raised before the write.
+
+  **On the write path the missing selection set was not under-specification, it was
+  permission.** An empty selection set is the *permissive* shape at two engine inputs at once:
+  `project_entity` returns the stored entity unchanged for an empty slice, and
+  `selection_set_selects_gated_field` reports that nothing gated was selected. So
+  `mutation { createUser }` answered with the **entire stored row — every `authorize`-gated
+  field included — while the #423 field authorizer took zero calls.** The same mutation
+  written `mutation { createUser { id email } }` is masked, refused for an unauthenticated
+  caller, and refused when no authorizer is configured; three existing tests pin all three.
+  Deleting the braces sidestepped every one of them. The same bypass applies one level down:
+  naming a composite field without a sub-selection (`{ id profile }`) returned the whole
+  `profile` sub-blob, gated fields and all.
+
+  This is #1352's root cause reached over GraphQL rather than REST, and it is the more
+  reachable half: no REST arm, no SDK, no special client — an ordinary document on the primary
+  transport.
+
+  **On the read path nothing leaked** — the SQL projection is built *from* the selection set,
+  so an empty one selects nothing — but the same invalid document answered
+  `{"data":{"users":[{},{}]}}` under HTTP 200 with no `errors`, which is what #1076's AI
+  adapters reported to models as success. That asymmetry is why the shape read as a formatting
+  quirk for two releases: the half that was visible was the harmless one.
+
+  #1076's adversarial review recorded the write-path behaviour and said it "should be stated
+  separately rather than folded into the 'empty objects' headline". It was never filed. That
+  review framed it as over-disclosure and did not note that the selection set also decides
+  *whether the field authorizer runs at all*, which is what makes it a policy bypass.
+
+  **Enforcement is one predicate consulted at both sites that can meet an absent selection
+  set** — the operation's root set and every composite field below it — so the two cannot drift
+  into disagreeing about what "composite" means. Objects, interfaces and unions require a
+  selection set. **Leaf types are unaffected:** enums and scalars named without a sub-selection
+  are correct and still execute. The validator's governing rule is preserved — every unknown is
+  a pass, so a type the compiled schema does not carry, and an object whose field list the
+  compiler did not emit, both still pass rather than being refused on absent evidence.
+
+  **Who this breaks:** any client sending a composite root field or composite sub-field with no
+  selection set. Such a request previously returned `{}` per row (reads) or the unfiltered
+  entity (writes); it now returns a validation error naming the type. The in-tree producers were
+  checked: the Python SDK's `OperationSpec.document` already emits a selection set for composite
+  roots (#1076's own fix), and `fraiseql doctor`'s probe builder does too — except for a
+  **union** return type, which lives in `schema.unions` rather than `schema.types`, so its
+  object lookup missed and it emitted a bare probe. That is fixed in the same change;
+  success-or-error union payloads are the ordinary mutation shape, so doctor would otherwise
+  have probed every one of them into a validation failure instead of the write check it exists
+  to run.
+
+  `test_mutation_empty_selection_set_returns_all_fields` asserted the old behaviour as intended
+  and is inverted. Its schema registered the mutation without registering its return **type**,
+  so `find_type` missed and the validator's unknown-is-a-pass rule applied: with the fix in
+  place its original assertions still passed. The test could see neither the defect it pinned
+  nor the fix that closed it, and the type is now registered for that reason.
+
 - **`MutationStrategy`, `DirectMutationOp`, `DirectMutationContext`,
   `DatabaseAdapter::mutation_strategy` and `DatabaseAdapter::execute_direct_mutation` are
   removed.** They were the `DirectSql` mutation strategy: the arm of the write chokepoint that

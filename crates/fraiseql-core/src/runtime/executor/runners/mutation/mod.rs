@@ -939,6 +939,26 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     //      rather than after `@skip`/`@include` — exactly as the query path does.
     crate::graphql::validate_selection_set(&ctx.schema, &mutation_def.return_type, selections)?;
 
+    // 1f. #1357: and the payload's composite fields must each *have* a selection set
+    //      (GraphQL § 5.3.3). On a write an absent one is not under-specification but
+    //      permission: `project_entity` returns the stored entity unchanged for an
+    //      empty slice, and `selection_set_selects_gated_field` reports nothing gated
+    //      is selected, so `mutation { createUser }` answered with every
+    //      `authorize`-gated field of the row while the #423 field authorizer took
+    //      zero calls. `{ id profile }` did the same one level down, returning the
+    //      whole `profile` sub-blob.
+    //
+    //      Like § 5.3.1 above this is a static rule, so it runs on `selections` —
+    //      the written set, before `@skip`/`@include`. That ordering is load-bearing
+    //      here in a way it is not above: an all-skipped selection set is a valid
+    //      document whose answer is `{}`, and adjudicating the post-directive set
+    //      would refuse it.
+    crate::graphql::validate_leaf_field_selections(
+        &ctx.schema,
+        &mutation_def.return_type,
+        selections,
+    )?;
+
     // 1d. #1154: the arguments written on the mutation field must be defined on
     //      it (GraphQL § 5.4.1). Step 3 below binds positionally from
     //      `mutation_def.arguments`, so an undeclared argument was dropped and

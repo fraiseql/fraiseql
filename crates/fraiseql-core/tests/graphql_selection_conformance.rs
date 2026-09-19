@@ -2331,3 +2331,109 @@ async fn operation_selection_distinguishes_a_query_from_a_mutation() {
         adapter.recorded_function_calls()
     );
 }
+
+// ══════════════════════════════════════════════════════════════════════════════
+// D. § 5.3.3 Leaf Field Selections — #1357
+//
+// A field whose type is composite must have a selection set. The rule went
+// unenforced, and on the write path its absence is not under-specification but
+// *permission*: `project_entity` returns the stored entity unchanged for an empty
+// slice and `selection_set_selects_gated_field` reports nothing gated is selected,
+// so `mutation { createUser }` answered with every `authorize`-gated field of the
+// row while the #423 field authorizer took zero calls.
+//
+// The read path returned `{}` per row for the same invalid document (#1076), which
+// is why the shape read as a formatting quirk rather than a bypass. Both halves are
+// refused here, and — as with #1005 — the refusal must land *before* the write.
+// ══════════════════════════════════════════════════════════════════════════════
+
+/// The root case, and the assertion that matters most: the write must not happen.
+///
+/// An invalid document that commits a row and then over-returns it is worse than
+/// one that is refused — the same reasoning as
+/// `an_undeclared_mutation_payload_field_is_a_validation_error`, with disclosure
+/// on top of the commit.
+#[tokio::test]
+async fn a_mutation_named_with_no_selection_set_is_refused_before_the_write() {
+    let (exec, adapter) = mutation_executor();
+    let err = exec
+        .execute(r#"mutation { createUser(email: "a@b.com", name: "A") }"#, None)
+        .await
+        .expect_err("a composite return type named with no selection set is invalid");
+
+    assert!(
+        err.to_string().contains("User"),
+        "the error must name the type that needed a selection set, got: {err}"
+    );
+    assert!(
+        adapter.recorded_function_calls().is_empty(),
+        "#1357: the write must not happen — got {:?}",
+        adapter.recorded_function_calls()
+    );
+}
+
+/// The read half of the same invalid document. It never leaked — the SQL
+/// projection is built *from* the selection set, so an empty one selects nothing —
+/// but it answered `{"data":{"users":[{},{}]}}` under a 200 with no `errors`, which
+/// is what #1076's adapters reported as success.
+#[tokio::test]
+async fn a_query_root_named_with_no_selection_set_is_refused() {
+    let (exec, _) = executor();
+    let err = exec
+        .execute("{ users }", None)
+        .await
+        .expect_err("a composite root field named with no selection set is invalid");
+
+    assert!(
+        err.to_string().contains("User"),
+        "the error must name the type that needed a selection set, got: {err}"
+    );
+}
+
+/// Control: the rule is about *composite* types. Every leaf field named without a
+/// sub-selection — scalars and a list of scalars — must still execute, or the fix
+/// refuses more working documents than the defect ever served.
+#[tokio::test]
+async fn leaf_fields_named_without_a_sub_selection_still_execute() {
+    let (exec, _) = mutation_executor();
+    exec.execute(
+        r#"mutation { createUser(email: "a@b.com", name: "A") { id email name age tags } }"#,
+        None,
+    )
+    .await
+    .expect("scalars, custom scalars and lists of scalars are leaf types");
+}
+
+/// Control: a union payload named *with* a selection set is unaffected — the
+/// union arm refuses only the absent set, not the bare fields it deliberately
+/// leaves unadjudicated.
+#[tokio::test]
+async fn a_union_payload_with_a_selection_set_still_executes() {
+    let (exec, _) = union_payload_executor();
+    exec.execute(
+        r#"mutation { createUser(email: "a@b.com") { __typename ... on CreateUserSuccess { id } } }"#,
+        None,
+    )
+    .await
+    .expect("a union with a selection set is exactly right");
+}
+
+/// …and a union payload named *without* one is refused, before the write.
+#[tokio::test]
+async fn a_union_payload_named_with_no_selection_set_is_refused_before_the_write() {
+    let (exec, adapter) = union_payload_executor();
+    let err = exec
+        .execute(r#"mutation { createUser(email: "a@b.com") }"#, None)
+        .await
+        .expect_err("a union is composite, so § 5.3.3 applies to it too");
+
+    assert!(
+        err.to_string().contains("CreateUserResult"),
+        "the error must name the union, got: {err}"
+    );
+    assert!(
+        adapter.recorded_function_calls().is_empty(),
+        "the write must not happen — got {:?}",
+        adapter.recorded_function_calls()
+    );
+}

@@ -414,34 +414,54 @@ mod mutation {
         assert!(data.get("id").is_some());
     }
 
-    /// When a mutation has an empty selection set (just the field name, no `{ ... }`),
-    /// the response passes the stored entity through unfiltered — and, with nothing
-    /// selected, without an injected `__typename`.
+    /// A mutation named with no selection set (`mutation { createUser }`) is an
+    /// invalid document (GraphQL § 5.3.3) and is refused.
+    ///
+    /// ⚠ This test asserted the opposite until #1357 — that the response "passes the
+    /// stored entity through unfiltered" — and that is how the behaviour survived two
+    /// releases of review: an empty selection set is the *permissive* shape, so the
+    /// response carried every `authorize`-gated field of the stored row while
+    /// `selection_set_selects_gated_field` reported nothing gated was selected and the
+    /// #423 field authorizer took zero calls.
+    ///
+    /// ⚠ Its schema pushed `createUser` **without** pushing the `User` type, so
+    /// `find_type` missed and the validator's "every unknown is a pass" rule applied.
+    /// With the fix in place the old assertions still passed — the test could not see
+    /// the defect it pinned, nor the fix that closed it. The type is pushed here for
+    /// that reason: without it this test is green either way.
     #[tokio::test]
-    async fn test_mutation_empty_selection_set_returns_all_fields() {
-        use crate::schema::MutationDefinition;
+    async fn test_mutation_empty_selection_set_is_refused() {
+        use crate::schema::{FieldDefinition, FieldType, MutationDefinition, TypeDefinition};
 
         let mut schema = CompiledSchema::new();
         schema.mutations.push(MutationDefinition {
             sql_source: Some("fn_create_user".to_string()),
             ..MutationDefinition::new("createUser", "User")
         });
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::nullable("name", FieldType::String),
+            FieldDefinition::nullable("email", FieldType::String),
+        ];
+        schema.types.push(user);
+        schema.build_indexes();
 
         let adapter = Arc::new(EmptySelectionMockAdapter);
         let executor = Executor::new(schema, adapter);
 
-        // Empty selection set: pass the stored entity through unfiltered.
-        let result = executor.execute("mutation { createUser }", None).await.unwrap();
+        let err = executor
+            .execute("mutation { createUser }", None)
+            .await
+            .expect_err("a composite return type named with no selection set is invalid");
 
-        let data = result.get("data").and_then(|d| d.get("createUser")).unwrap();
-
-        // All stored fields present; no synthetic __typename (nothing was selected).
-        assert!(data.get("id").is_some(), "response must include all field 'id'");
-        assert!(data.get("name").is_some(), "response must include all field 'name'");
-        assert!(data.get("email").is_some(), "response must include all field 'email'");
         assert!(
-            data.get("__typename").is_none(),
-            "no __typename injected for an empty selection set"
+            matches!(err, FraiseQLError::Validation { .. }),
+            "§ 5.3.3 is a document rule, so the refusal must be a validation error: {err:?}"
+        );
+        assert!(
+            err.to_string().contains("User"),
+            "the refusal must name the type that needed a selection set, got: {err}"
         );
     }
 
@@ -3160,6 +3180,58 @@ mod field_authz {
         let payload = &res["data"]["createUser"];
         assert_eq!(payload["name"], "Alice");
         assert!(payload.get("email").is_none(), "email not selected → absent");
+    }
+
+    // #1357: the document that bypassed this whole module.
+    //
+    // `mutation { createUser }` carried an empty selection set into the chokepoint,
+    // and an empty selection set is the *permissive* shape:
+    // `selection_set_selects_gated_field` is false for it, so the gate at the top of
+    // `enforce_mutation_field_authz` returned `Ok(())` with zero authorizer calls,
+    // and `project_entity` returned the stored entity unchanged. The three tests
+    // above — mask, raise, no-principal, no-authorizer — all pin
+    // `mutation { createUser { id email } }`, and every one of them was sidestepped
+    // by deleting the braces.
+    //
+    // `PanicIfCalled` is the load-bearing double: it proves the refusal is not the
+    // authorizer denying, but § 5.3.3 refusing the document before the authorizer is
+    // ever a question.
+    #[tokio::test]
+    async fn mutation_with_no_selection_set_is_refused_and_never_serves_the_gated_field() {
+        let executor = Executor::with_config(
+            schema(),
+            Arc::new(GatedEntityAdapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
+        );
+        let err = executor
+            .execute_with_security("mutation { createUser }", None, &ctx())
+            .await
+            .expect_err("a composite return type named with no selection set is invalid");
+
+        assert!(
+            !format!("{err}").contains("alice@x.com"),
+            "the gated value must not appear, not even in the refusal: {err}"
+        );
+    }
+
+    // The same document, unauthenticated. The anonymous caller was the sharper half
+    // of #1352's REST twin: no principal, no authorizer call, gated field served.
+    #[tokio::test]
+    async fn anonymous_mutation_with_no_selection_set_is_refused() {
+        let executor = Executor::with_config(
+            schema(),
+            Arc::new(GatedEntityAdapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
+        );
+        let err = executor
+            .execute("mutation { createUser }", None)
+            .await
+            .expect_err("an anonymous caller must not receive the unfiltered entity either");
+
+        assert!(
+            !format!("{err}").contains("alice@x.com"),
+            "the gated value must not appear: {err}"
+        );
     }
 }
 

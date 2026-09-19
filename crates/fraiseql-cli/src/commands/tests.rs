@@ -3349,7 +3349,7 @@ mod query_tests {
 mod doctor_runtime_tests {
     use fraiseql_core::schema::{
         ArgumentDefinition, CompiledSchema, FieldDefinition, FieldType, MutationDefinition,
-        QueryDefinition, TypeDefinition,
+        QueryDefinition, TypeDefinition, UnionDefinition,
     };
 
     use super::super::doctor::{
@@ -3395,6 +3395,39 @@ mod doctor_runtime_tests {
     fn minimal_selection_none_for_leaf_type() {
         let schema = CompiledSchema::new(); // "Int" is not an object type
         assert!(minimal_selection_for_type("Int", &schema).is_none());
+    }
+
+    /// A union return type is composite, so its probe needs a selection set —
+    /// but a union lives in `schema.unions`, not `schema.types`, so the object
+    /// lookup misses it and it used to fall through to the leaf branch. The
+    /// resulting bare `mutation { createUser }` is refused by § 5.3.3 (#1357),
+    /// which would turn every doctor probe of a success-or-error mutation into a
+    /// validation failure instead of the write check it is there to run.
+    #[test]
+    fn minimal_selection_uses_typename_for_a_union() {
+        let mut schema = CompiledSchema::new();
+        schema.unions.push(UnionDefinition {
+            name:         "CreateUserResult".into(),
+            member_types: vec!["User".into()],
+            description:  None,
+        });
+        assert_eq!(
+            minimal_selection_for_type("CreateUserResult", &schema).as_deref(),
+            Some("__typename")
+        );
+    }
+
+    #[test]
+    fn mutation_probe_for_a_union_payload_carries_a_selection_set() {
+        let mut schema = CompiledSchema::new();
+        schema.unions.push(UnionDefinition {
+            name:         "CreateUserResult".into(),
+            member_types: vec!["User".into()],
+            description:  None,
+        });
+        schema.mutations.push(MutationDefinition::new("createUser", "CreateUserResult"));
+        let op = minimal_mutation_probe(&schema.mutations[0], &schema).unwrap();
+        assert_eq!(op, "mutation { createUser { __typename } }");
     }
 
     #[test]

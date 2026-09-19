@@ -126,7 +126,7 @@ pub use parser::{
 };
 pub use require_permission_directive::RequirePermissionDirective;
 pub use selection_set::SelectionError;
-pub use selection_validation::validate_selection_set;
+pub use selection_validation::{validate_leaf_field_selections, validate_selection_set};
 pub use types::{
     Directive, FieldSelection, FragmentDefinition, GraphQLArgument, GraphQLType, ParsedQuery,
     VariableDefinition,

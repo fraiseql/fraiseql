@@ -1005,16 +1005,37 @@ pub(crate) fn probe_requires_arguments(args: &[ArgumentDefinition]) -> bool {
     args.iter().any(|a| !a.nullable && a.default_value.is_none())
 }
 
-/// Build a minimal sub-selection for an object return type: the first scalar
+/// Build a minimal sub-selection for a composite return type: the first scalar
 /// field, falling back to `__typename`. Returns `None` when `type_name` is a leaf
 /// (scalar / enum) that needs no sub-selection.
+///
+/// The three branches mirror `requires_selection_set` in
+/// `fraiseql-core`'s `selection_validation` — object, union, unknown — because a
+/// probe document this builds is adjudicated by that rule (§ 5.3.3, #1357). They
+/// disagreed for exactly one shape: a mutation returning a **union** is absent from
+/// `schema.types` (unions live in `schema.unions`), so this emitted a bare
+/// `mutation { createUser }` for it, which the engine now refuses. Union payloads
+/// are the ordinary shape for a mutation that reports success-or-error (#212,
+/// #450/#451, #698), so doctor probed them into a validation failure rather than
+/// the write it was checking for.
 pub(crate) fn minimal_selection_for_type(
     type_name: &str,
     schema: &CompiledSchema,
 ) -> Option<String> {
-    let type_def = schema.types.iter().find(|t| t.name.as_str() == type_name)?;
-    let field = type_def.fields.iter().find(|f| f.field_type.is_scalar());
-    Some(field.map_or_else(|| "__typename".to_string(), |f| f.name.as_str().to_string()))
+    if let Some(type_def) = schema.types.iter().find(|t| t.name.as_str() == type_name) {
+        let field = type_def.fields.iter().find(|f| f.field_type.is_scalar());
+        return Some(
+            field.map_or_else(|| "__typename".to_string(), |f| f.name.as_str().to_string()),
+        );
+    }
+    // A union has no fields of its own to probe, but `__typename` is valid on every
+    // composite selection set and is enough to make the document well-formed.
+    if schema.unions.iter().any(|u| u.name.as_str() == type_name) {
+        return Some("__typename".to_string());
+    }
+    // A leaf, or a type the compiled schema does not carry: no sub-selection is the
+    // correct document, and the engine passes both for the same reason.
+    None
 }
 
 /// Build a minimal probe document for a root query, or `None` if it requires args.
