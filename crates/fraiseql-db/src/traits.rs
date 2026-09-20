@@ -719,6 +719,41 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         Ok(results.iter().map(|row| row_to_column_values(row, columns)).collect())
     }
 
+    /// Connection-affine variant of [`execute_row_query`](Self::execute_row_query).
+    ///
+    /// See
+    /// [`execute_where_query_arc_with_session`](Self::execute_where_query_arc_with_session)
+    /// for the rationale: an RLS policy backed by `current_setting()` (#329) only sees
+    /// the variables if they are applied transaction-locally on the **same** connection
+    /// as the read.
+    ///
+    /// # Why the row shape needs its own pair
+    ///
+    /// The row-shaped read is the gRPC transport's source. Until #1351 it resolved its
+    /// own predicate and never reached the engine, so it had no session variables to
+    /// pin and none of these methods existed. Routing it through the direct-read
+    /// chokepoint gives it `session_variables` like every other read — and a resolved
+    /// value the read cannot apply is the failure mode the chokepoint exists to
+    /// prevent, so it travels rather than being dropped.
+    ///
+    /// # Errors
+    ///
+    /// Same errors as [`execute_row_query`](Self::execute_row_query); additionally
+    /// returns `FraiseQLError::Database` if `set_config` fails on any pair.
+    async fn execute_row_query_with_session(
+        &self,
+        view_name: &str,
+        columns: &[crate::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        _session_vars: &[(&str, &str)],
+    ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
+        self.execute_row_query(view_name, columns, where_sql, order_by, limit, offset)
+            .await
+    }
+
     /// Execute a parameterized aggregate SQL query (GROUP BY / HAVING / window).
     ///
     /// `sql` contains `$N` (PostgreSQL), `?` (MySQL / SQLite), or `@P1` (SQL Server)
@@ -1272,6 +1307,32 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
             .execute_row_query(view_name, columns, where_sql, order_by, limit, offset)
             .await?;
         Ok(Box::pin(futures::stream::iter(rows.into_iter().map(Ok))))
+    }
+
+    /// Connection-affine variant of [`stream_row_query`](Self::stream_row_query).
+    ///
+    /// The streaming twin of
+    /// [`execute_row_query_with_session`](Self::execute_row_query_with_session); see
+    /// that method for why the row shape carries session variables at all. The
+    /// streaming arm is where dropping them costs the most, because it is the arm
+    /// that delivers an unbounded number of rows.
+    ///
+    /// # Errors
+    ///
+    /// Same errors as [`stream_row_query`](Self::stream_row_query); additionally
+    /// returns `FraiseQLError::Database` if `set_config` fails on any pair.
+    async fn stream_row_query_with_session(
+        &self,
+        view_name: &str,
+        columns: &[crate::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        _session_vars: &[(&str, &str)],
+    ) -> Result<ColumnRowStream> {
+        self.stream_row_query(view_name, columns, where_sql, order_by, limit, offset)
+            .await
     }
 
     /// Retrieve query performance statistics from the database.

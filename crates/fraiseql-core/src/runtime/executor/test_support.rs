@@ -47,6 +47,28 @@ pub struct CapturingMockAdapter {
     pub captured_aggregate_sql:          std::sync::Mutex<Option<String>>,
     pub captured_aggregate_params:       std::sync::Mutex<Option<Vec<serde_json::Value>>>,
     pub captured_aggregate_session_vars: std::sync::Mutex<Option<Vec<(String, String)>>>,
+    /// Rows the row-shaped read returns (#1351).
+    pub mock_row_results:                Vec<Vec<crate::backend::types::ColumnValue>>,
+    /// What the last row-shaped read asked the adapter for.
+    pub captured_row_read:               std::sync::Mutex<Option<CapturedRowRead>>,
+}
+
+/// The arguments a row-shaped read reached the adapter with (#1351).
+///
+/// Records the **lowered** call — the `Option<&str>` pair the column-shaped
+/// adapter methods take — because that is where a gate that did not run becomes
+/// visible: an uncapped limit, an absent RLS predicate, or a column the caller
+/// may not read are all arguments, not return values.
+#[derive(Debug, Clone)]
+pub struct CapturedRowRead {
+    pub view:         String,
+    /// Column names, in the order the read projected them.
+    pub columns:      Vec<String>,
+    pub where_sql:    Option<String>,
+    pub order_by:     Option<String>,
+    pub limit:        Option<u32>,
+    pub offset:       Option<u32>,
+    pub session_vars: Vec<(String, String)>,
 }
 
 impl CapturingMockAdapter {
@@ -61,6 +83,8 @@ impl CapturingMockAdapter {
             captured_aggregate_sql: std::sync::Mutex::new(None),
             captured_aggregate_params: std::sync::Mutex::new(None),
             captured_aggregate_session_vars: std::sync::Mutex::new(None),
+            mock_row_results: Vec::new(),
+            captured_row_read: std::sync::Mutex::new(None),
         }
     }
 
@@ -115,6 +139,19 @@ impl CapturingMockAdapter {
     /// (no session variables reached the connection) — the #610 partial-period gap.
     pub fn captured_aggregate_session_vars(&self) -> Option<Vec<(String, String)>> {
         self.captured_aggregate_session_vars.lock().unwrap().clone()
+    }
+
+    /// Rows for the row-shaped read (#1351).
+    #[must_use]
+    pub fn with_row_results(mut self, rows: Vec<Vec<crate::backend::types::ColumnValue>>) -> Self {
+        self.mock_row_results = rows;
+        self
+    }
+
+    /// What the last row-shaped read asked for, or `None` if none reached the
+    /// adapter — which is the assertion a gate that refuses before dispatch needs.
+    pub fn captured_row_read(&self) -> Option<CapturedRowRead> {
+        self.captured_row_read.lock().unwrap().clone()
     }
 }
 
@@ -176,6 +213,58 @@ impl DatabaseAdapter for CapturingMockAdapter {
         _sql: &str,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
+    }
+
+    /// Records the row-shaped read (#1351).
+    ///
+    /// Both arms are recorded, and the session variables distinguish them: an
+    /// engine that called the session-free method would be witnessed here with an
+    /// empty `session_vars`, so a test asserting the variables travelled fails
+    /// rather than passing against a read that silently dropped them.
+    async fn execute_row_query(
+        &self,
+        view_name: &str,
+        columns: &[crate::backend::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+    ) -> Result<Vec<Vec<crate::backend::types::ColumnValue>>> {
+        *self.captured_row_read.lock().unwrap() = Some(CapturedRowRead {
+            view: view_name.to_string(),
+            columns: columns.iter().map(|c| c.name.clone()).collect(),
+            where_sql: where_sql.map(str::to_string),
+            order_by: order_by.map(str::to_string),
+            limit,
+            offset,
+            session_vars: Vec::new(),
+        });
+        Ok(self.mock_row_results.clone())
+    }
+
+    async fn execute_row_query_with_session(
+        &self,
+        view_name: &str,
+        columns: &[crate::backend::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        session_vars: &[(&str, &str)],
+    ) -> Result<Vec<Vec<crate::backend::types::ColumnValue>>> {
+        *self.captured_row_read.lock().unwrap() = Some(CapturedRowRead {
+            view: view_name.to_string(),
+            columns: columns.iter().map(|c| c.name.clone()).collect(),
+            where_sql: where_sql.map(str::to_string),
+            order_by: order_by.map(str::to_string),
+            limit,
+            offset,
+            session_vars: session_vars
+                .iter()
+                .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+                .collect(),
+        });
+        Ok(self.mock_row_results.clone())
     }
 
     async fn execute_parameterized_aggregate(

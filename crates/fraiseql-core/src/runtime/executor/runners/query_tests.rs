@@ -1822,3 +1822,395 @@ mod pagination_order {
         assert!(err.contains("Recompile"), "{err}");
     }
 }
+
+// ── mod row_read: the row-shaped read faces the same gates (#1351) ────────
+//
+// gRPC answers row-shaped results — a `Vec<Vec<ColumnValue>>` projected through
+// protobuf `ColumnSpec`s — and used to get them by calling
+// `DatabaseAdapter::execute_row_query` itself, building its own WHERE clause. That
+// made it a second read implementation, so the operation `Authorizer` (#422), the
+// `requires_role` gate (#1122), the actor allow-list (#966), the field gate (#423)
+// and the compiled page-size ceiling (#421) applied to every transport but that one.
+//
+// Every case here is a **pair**. A refusal-only test passes against a read arm that
+// refuses everything, which is exactly the shape #1351 warns about.
+mod row_read {
+    use fraiseql_db::dialect::RowViewColumnType;
+
+    use super::*;
+    use crate::{
+        backend::types::{ColumnSpec, ColumnValue},
+        schema::{FieldDenyPolicy, SessionVariableMapping, SessionVariableSource},
+        security::{Authorizer, AuthzDecision, AuthzRequest},
+    };
+
+    /// `User` with an ordinary field and, optionally, a policy-gated one.
+    fn user_schema() -> CompiledSchema {
+        let mut schema = test_schema();
+        schema.types.push(TypeDefinition {
+            fields: vec![
+                FieldDefinition::new("id", FieldType::Id),
+                FieldDefinition::new("name", FieldType::String),
+            ],
+            ..TypeDefinition::new("User", "v_user")
+        });
+        schema.build_indexes();
+        schema
+    }
+
+    /// The same schema, with `salary` gated on a field policy (#423).
+    fn gated_schema() -> CompiledSchema {
+        let mut schema = test_schema();
+        let mut salary = FieldDefinition::new("salary", FieldType::Int);
+        salary.authorize = true;
+        schema.types.push(TypeDefinition {
+            fields: vec![
+                FieldDefinition::new("id", FieldType::Id),
+                FieldDefinition::new("name", FieldType::String),
+                salary,
+            ],
+            ..TypeDefinition::new("User", "v_user")
+        });
+        schema.build_indexes();
+        schema
+    }
+
+    fn cols(names: &[&str]) -> Vec<ColumnSpec> {
+        names
+            .iter()
+            .map(|n| ColumnSpec {
+                name:        (*n).to_string(),
+                column_type: RowViewColumnType::Text,
+            })
+            .collect()
+    }
+
+    /// A principal carrying `read:User` and nothing else — notably not
+    /// `read:salary`, which the masking case below depends on.
+    fn principal() -> SecurityContext {
+        SecurityContext {
+            user_id:          "user-42".into(),
+            roles:            vec!["viewer".to_string()],
+            tenant_id:        Some("tenant-abc".into()),
+            scopes:           vec!["read:User".to_string()],
+            attributes:       HashMap::default(),
+            request_id:       "req-row".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    fn rows() -> Vec<Vec<ColumnValue>> {
+        vec![vec![
+            ColumnValue::Text("1".into()),
+            ColumnValue::Text("Alice".into()),
+        ]]
+    }
+
+    fn match_on(schema: &CompiledSchema, query: &str) -> crate::runtime::matcher::QueryMatch {
+        crate::runtime::QueryMatcher::new(schema.clone())
+            .match_query(query, None)
+            .unwrap()
+    }
+
+    /// `match_query` seeds the argument map from the variables, which is the
+    /// reachable spelling for `limit`/`offset`/`where` on this path.
+    fn match_with(
+        schema: &CompiledSchema,
+        query: &str,
+        vars: &serde_json::Value,
+    ) -> crate::runtime::matcher::QueryMatch {
+        crate::runtime::QueryMatcher::new(schema.clone())
+            .match_query(query, Some(vars))
+            .unwrap()
+    }
+
+    struct DenyAll;
+    impl Authorizer for DenyAll {
+        fn authorize(&self, _req: &AuthzRequest<'_>) -> crate::error::Result<AuthzDecision> {
+            Ok(AuthzDecision::Deny {
+                reason: "nope".into(),
+            })
+        }
+    }
+
+    struct AllowAll;
+    impl Authorizer for AllowAll {
+        fn authorize(&self, _req: &AuthzRequest<'_>) -> crate::error::Result<AuthzDecision> {
+            Ok(AuthzDecision::Allow)
+        }
+    }
+
+    fn with_authorizer(authz: Arc<dyn Authorizer>) -> RuntimeConfig {
+        RuntimeConfig {
+            authorizer: Some(authz),
+            ..RuntimeConfig::default()
+        }
+    }
+
+    // ---- the operation Authorizer (#422) ---------------------------------
+
+    /// Denied: the read never reaches the database.
+    #[tokio::test]
+    async fn an_operation_the_authorizer_denies_never_reaches_the_database() {
+        let schema = user_schema();
+        let qm = match_on(&schema, "{ users { id name } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor =
+            Executor::with_config(schema, adapter.clone(), with_authorizer(Arc::new(DenyAll)));
+
+        let err = executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(err, crate::FraiseQLError::Authorization { .. }),
+            "expected Authorization, got {err:?}"
+        );
+        assert!(
+            adapter.captured_row_read().is_none(),
+            "a denied read must not reach the adapter"
+        );
+    }
+
+    /// Allowed: the very same read does reach it. Without this half, the case
+    /// above would pass against an entry that refused everything.
+    #[tokio::test]
+    async fn the_same_read_a_permitted_principal_makes_reaches_the_database() {
+        let schema = user_schema();
+        let qm = match_on(&schema, "{ users { id name } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor =
+            Executor::with_config(schema, adapter.clone(), with_authorizer(Arc::new(AllowAll)));
+
+        let out = executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .unwrap();
+
+        assert_eq!(out.rows.len(), 1);
+        let seen = adapter.captured_row_read().expect("the read must reach the adapter");
+        assert_eq!(seen.view, "v_user");
+    }
+
+    // ---- the compiled page-size ceiling (#421) ---------------------------
+
+    /// Over the ceiling: refused, and nothing is read.
+    ///
+    /// `enforce_max_page_size` **refuses** rather than silently capping, so the
+    /// assertion is a `Validation` error plus an untouched adapter — not a
+    /// clamped limit.
+    #[tokio::test]
+    async fn a_page_larger_than_the_compiled_ceiling_is_refused() {
+        let schema = user_schema();
+        let qm = match_with(&schema, "{ users { id name } }", &serde_json::json!({"limit": 5000}));
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let err = executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .unwrap_err();
+
+        match err {
+            crate::FraiseQLError::Validation { message, .. } => {
+                assert!(message.contains("maximum page size"), "message was: {message}");
+            },
+            other => panic!("expected Validation, got {other:?}"),
+        }
+        assert!(adapter.captured_row_read().is_none(), "refused before dispatch");
+    }
+
+    /// At the ceiling: read, and the limit travels unchanged.
+    #[tokio::test]
+    async fn a_page_at_the_compiled_ceiling_is_read() {
+        let schema = user_schema();
+        let qm = match_with(&schema, "{ users { id name } }", &serde_json::json!({"limit": 1000}));
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .unwrap();
+
+        let seen = adapter.captured_row_read().expect("the read must reach the adapter");
+        assert_eq!(seen.limit, Some(1000));
+    }
+
+    /// Everything the chokepoint resolved is lowered into the row call — the
+    /// client predicate, the declared page ordering (#1303) and the offset.
+    ///
+    /// Without this the row entry could resolve a predicate correctly and hand the
+    /// adapter `None`, which is the exact shape of a gate that runs and is then
+    /// ignored: the read would return every row while every gate reported success.
+    #[tokio::test]
+    async fn the_resolved_predicate_ordering_and_offset_are_lowered_to_the_row_read() {
+        let schema = user_schema();
+        let qm = match_with(
+            &schema,
+            "{ users { id name } }",
+            &serde_json::json!({
+                "limit": 10,
+                "offset": 5,
+                "where": {"name": {"eq": "Alice"}}
+            }),
+        );
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .unwrap();
+
+        let seen = adapter.captured_row_read().expect("the read must reach the adapter");
+        assert_eq!(seen.offset, Some(5), "the offset travels");
+        assert_eq!(seen.limit, Some(10), "the limit travels");
+        let where_sql = seen.where_sql.expect("the client predicate must reach the read");
+        assert!(where_sql.contains("Alice"), "predicate was: {where_sql}");
+        assert!(
+            seen.order_by.is_some(),
+            "a paginated read carries the declared ordering (#1303)"
+        );
+    }
+
+    // ---- the field gate (#423) -------------------------------------------
+
+    /// A policy-gated field in the projection is refused on this path, exactly as
+    /// it is on the REST direct read: the row path does not run the per-row
+    /// authorizer, so it fails closed rather than serving the value.
+    #[tokio::test]
+    async fn a_gated_field_in_the_projection_is_refused() {
+        let schema = gated_schema();
+        let qm = match_on(&schema, "{ users { id name salary } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let err = executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name", "salary"]))
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(err, crate::FraiseQLError::Authorization { .. }),
+            "expected Authorization, got {err:?}"
+        );
+        assert!(adapter.captured_row_read().is_none(), "the gated value must never be read");
+    }
+
+    /// The same schema, the same transport, a projection without the gated field:
+    /// served. The refusal above is about the field, not about the path.
+    #[tokio::test]
+    async fn the_same_read_without_the_gated_field_is_served() {
+        let schema = gated_schema();
+        let qm = match_on(&schema, "{ users { id name } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let out = executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .unwrap();
+
+        assert_eq!(out.rows.len(), 1);
+        assert_eq!(out.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["id", "name"]);
+    }
+
+    // ---- field-level RBAC narrows the projection (#886) ------------------
+
+    /// A masked field is not read at all, and the columns that come back describe
+    /// the row that came back.
+    ///
+    /// The alignment half is the load-bearing one: the adapter zips values to
+    /// specs positionally, so a caller that encoded with the specs it *asked* for
+    /// while the read used a narrower set would serve one field's value under
+    /// another field's name.
+    #[tokio::test]
+    async fn a_masked_field_is_not_read_and_the_columns_match_the_rows() {
+        let mut schema = test_schema();
+        let mut salary = FieldDefinition::new("salary", FieldType::Int);
+        salary.requires_scope = Some("read:salary".to_string());
+        salary.on_deny = FieldDenyPolicy::Mask;
+        schema.types.push(TypeDefinition {
+            fields: vec![
+                FieldDefinition::new("id", FieldType::Id),
+                FieldDefinition::new("name", FieldType::String),
+                salary,
+            ],
+            ..TypeDefinition::new("User", "v_user")
+        });
+        // Field-level RBAC is inert unless the schema declares a security section —
+        // `apply_field_rbac_filtering` returns "everything projected, nothing masked"
+        // when it is absent, so a fixture without one would assert the permissive
+        // shape and pass no matter what the row path did.
+        schema.security = Some(crate::schema::SecurityConfig::default());
+        schema.build_indexes();
+
+        let qm = match_on(&schema, "{ users { id name salary } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        // A principal without `read:salary`.
+        let ctx = principal();
+        let out = executor
+            .execute_row_read(&qm, None, Some(&ctx), &cols(&["id", "name", "salary"]))
+            .await
+            .unwrap();
+
+        let seen = adapter.captured_row_read().expect("the read must reach the adapter");
+        assert!(
+            !seen.columns.iter().any(|c| c == "salary"),
+            "a masked field must not be read: {:?}",
+            seen.columns
+        );
+        assert_eq!(
+            out.columns.iter().map(|c| c.name.clone()).collect::<Vec<_>>(),
+            seen.columns,
+            "the columns handed back must be the ones the read used"
+        );
+    }
+
+    // ---- session variables reach the read (#329) -------------------------
+
+    /// A resolved session variable travels to the adapter.
+    ///
+    /// The row path had no session-pinned method at all before #1351, so the
+    /// variables the chokepoint resolves had nowhere to go. A resolved value the
+    /// read cannot apply is the failure the chokepoint exists to prevent, so this
+    /// asserts the pair `(name, value)` arrives — not merely that some call happened.
+    #[tokio::test]
+    async fn the_resolved_session_variables_reach_the_row_read() {
+        let mut schema = user_schema();
+        schema.session_variables.variables.push(SessionVariableMapping {
+            name:   "app.tenant_id".to_string(),
+            source: SessionVariableSource::Literal {
+                value: "tenant-abc".to_string(),
+            },
+        });
+        schema.build_indexes();
+
+        let qm = match_on(&schema, "{ users { id name } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let ctx = principal();
+        executor
+            .execute_row_read(&qm, None, Some(&ctx), &cols(&["id", "name"]))
+            .await
+            .unwrap();
+
+        let seen = adapter.captured_row_read().expect("the read must reach the adapter");
+        assert_eq!(
+            seen.session_vars,
+            vec![("app.tenant_id".to_string(), "tenant-abc".to_string())],
+            "the session variable must reach the read's connection"
+        );
+    }
+}

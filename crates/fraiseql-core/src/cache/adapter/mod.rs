@@ -1051,6 +1051,63 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             .await
     }
 
+    /// Forwarded to the inner adapter — see
+    /// [`stream_row_query`](Self::stream_row_query).
+    ///
+    /// Forwarding is load-bearing: the trait default drops the session variables,
+    /// so a wrapper that inherited it would leave every row read behind this cache
+    /// running without the `set_config` an RLS policy reads (#329). The shipped
+    /// binary always wraps its adapter in this one, so "the default is fine" is
+    /// never true here.
+    async fn execute_row_query_with_session(
+        &self,
+        view_name: &str,
+        columns: &[fraiseql_db::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        session_vars: &[(&str, &str)],
+    ) -> Result<Vec<Vec<fraiseql_db::types::ColumnValue>>> {
+        self.adapter
+            .execute_row_query_with_session(
+                view_name,
+                columns,
+                where_sql,
+                order_by,
+                limit,
+                offset,
+                session_vars,
+            )
+            .await
+    }
+
+    /// Forwarded to the inner adapter — the streaming twin of
+    /// [`execute_row_query_with_session`](Self::execute_row_query_with_session),
+    /// load-bearing for the same reason.
+    async fn stream_row_query_with_session(
+        &self,
+        view_name: &str,
+        columns: &[fraiseql_db::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        session_vars: &[(&str, &str)],
+    ) -> Result<fraiseql_db::ColumnRowStream> {
+        self.adapter
+            .stream_row_query_with_session(
+                view_name,
+                columns,
+                where_sql,
+                order_by,
+                limit,
+                offset,
+                session_vars,
+            )
+            .await
+    }
+
     /// Forwarded to the inner adapter, and deliberately **uncached** (#962).
     ///
     /// Forwarding is load-bearing for the same reason as

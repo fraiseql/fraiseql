@@ -1273,6 +1273,87 @@ impl DatabaseAdapter for PostgresAdapter {
         .await
     }
 
+    /// The session-pinned collecting row read (#1351).
+    ///
+    /// Same shape as [`count_where_query`](Self::count_where_query): with no session
+    /// variables it is a plain read; with them it is one transaction, so `set_config`
+    /// and the SELECT land on the same connection and an RLS policy backed by
+    /// `current_setting()` sees them (#329).
+    async fn execute_row_query_with_session(
+        &self,
+        view_name: &str,
+        columns: &[crate::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        session_vars: &[(&str, &str)],
+    ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
+        if session_vars.is_empty() {
+            return self
+                .execute_row_query(view_name, columns, where_sql, order_by, limit, offset)
+                .await;
+        }
+
+        let sql = crate::traits::build_row_query_sql(view_name, where_sql, order_by, limit, offset);
+
+        let mut client = self.acquire_connection_with_retry().await?;
+        let txn =
+            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+                message:   format!(
+                    "Failed to start row-read session-var transaction: {}",
+                    pg_detail(&e)
+                ),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+        apply_session_vars(&txn, session_vars).await?;
+        let rows: Vec<Row> =
+            txn.query(sql.as_str(), &[]).await.map_err(|e| FraiseQLError::Database {
+                message:   format!("Row query execution failed: {}", pg_detail(&e)),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+        txn.commit().await.map_err(|e| FraiseQLError::Database {
+            message:   format!(
+                "Failed to commit row-read session-var transaction: {}",
+                pg_detail(&e)
+            ),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+
+        Ok(rows
+            .iter()
+            .map(|row| crate::traits::row_to_column_values(&row_to_map(row), columns))
+            .collect())
+    }
+
+    /// The session-pinned streaming row read (#1351).
+    ///
+    /// `stream_rows` already pins session variables for the life of the portal —
+    /// the non-session arm above passes `&[]` to the very same call.
+    async fn stream_row_query_with_session(
+        &self,
+        view_name: &str,
+        columns: &[crate::types::ColumnSpec],
+        where_sql: Option<&str>,
+        order_by: Option<&str>,
+        limit: Option<u32>,
+        offset: Option<u32>,
+        session_vars: &[(&str, &str)],
+    ) -> Result<ColumnRowStream> {
+        let sql = crate::traits::build_row_query_sql(view_name, where_sql, order_by, limit, offset);
+        let columns = columns.to_vec();
+
+        super::streaming::stream_rows(
+            self,
+            sql,
+            Vec::new(),
+            session_vars,
+            ReadRouting::Primary,
+            move |row, _sql| Ok(crate::traits::row_to_column_values(&row_to_map(row), &columns)),
+        )
+        .await
+    }
+
     async fn explain_query(
         &self,
         sql: &str,

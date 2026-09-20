@@ -83,6 +83,29 @@ impl ResolvedDirectRead {
     }
 }
 
+/// A row-shaped read and the projection it was actually read with (#1351).
+///
+/// The columns travel with the rows because field-level RBAC (#886) can narrow
+/// them: the adapter zips values to specs positionally, so a caller that encoded
+/// with the specs it *asked* for rather than the ones the read *used* would shift
+/// every value one column to the left the moment a field was withheld — serving
+/// one field's value under another field's name.
+#[derive(Debug)]
+pub struct RowRead {
+    /// The columns read, after field-level RBAC narrowed them.
+    pub columns: Vec<fraiseql_db::types::ColumnSpec>,
+    /// The rows, each in `columns` order.
+    pub rows:    Vec<Vec<fraiseql_db::types::ColumnValue>>,
+}
+
+/// The streamed twin of [`RowRead`], carrying its projection for the same reason.
+pub struct StreamedRowRead {
+    /// The columns read, after field-level RBAC narrowed them.
+    pub columns: Vec<fraiseql_db::types::ColumnSpec>,
+    /// The rows, each in `columns` order.
+    pub stream:  fraiseql_db::ColumnRowStream,
+}
+
 impl<A: DatabaseAdapter> QueryRunner<A> {
     /// Resolve configured session variables for `security_context` into owned
     /// `(name, value)` pairs.
@@ -1104,6 +1127,181 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
 
         // Wrap in GraphQL data envelope.
         Ok(ResultProjector::wrap_in_data_envelope(projected, query_match.response_key()))
+    }
+
+    /// Resolve a row-shaped read down to the strings the column-shaped adapter
+    /// methods take (#1351).
+    ///
+    /// The row shape is the gRPC transport's: a `Vec<Vec<ColumnValue>>` projected
+    /// through protobuf `ColumnSpec`s, not GraphQL-shaped JSON against a selection
+    /// set. It resolves through [`resolve_direct_read`](Self::resolve_direct_read)
+    /// like every other read — that is the whole point of the entry — and then
+    /// lowers the resolved clause to the `Option<&str>` pair
+    /// [`execute_row_query`](DatabaseAdapter::execute_row_query) accepts.
+    ///
+    /// Returns the resolved read and the columns **narrowed by field-level RBAC**.
+    /// The caller must project with the returned columns rather than the ones it
+    /// passed in: the adapter zips values to specs positionally, so reading a
+    /// narrowed set and encoding with the original one misaligns every row.
+    ///
+    /// # Errors
+    ///
+    /// Everything [`resolve_direct_read`](Self::resolve_direct_read) returns, plus
+    /// `FraiseQLError::Unsupported` for the two resolved shapes the row path cannot
+    /// carry — a parameterised ordering (`?search=` relevance, #1284) and a SQL
+    /// projection hint (a `nearest` vector distance, #959). Both are refused rather
+    /// than dropped: a read that silently loses its ordering or its computed column
+    /// answers a different question than the one asked.
+    fn resolve_row_read(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+        columns: &[fraiseql_db::types::ColumnSpec],
+    ) -> Result<(
+        ResolvedDirectRead,
+        Vec<fraiseql_db::types::ColumnSpec>,
+        Option<String>,
+        Option<String>,
+    )> {
+        let resolved = self.resolve_direct_read(query_match, variables, security_context)?;
+
+        if resolved.projection.is_some() {
+            return Err(FraiseQLError::Unsupported {
+                message: format!(
+                    "Query '{}' resolves to a SQL projection the row-shaped read cannot \
+                     carry; it is not available on this transport",
+                    query_match.query_def.name
+                ),
+            });
+        }
+
+        // #886: read only what this principal may see. `allowed()` excludes the
+        // masked fields, which on the JSON path are projected and then nulled —
+        // a column-shaped row has no key to null, so the column is not read.
+        let allowed = resolved.access.allowed();
+        let narrowed: Vec<fraiseql_db::types::ColumnSpec> = columns
+            .iter()
+            .filter(|c| allowed.iter().any(|a| a == &c.name))
+            .cloned()
+            .collect();
+
+        let where_sql = match resolved.composed_where {
+            Some(ref clause) => {
+                Some(fraiseql_db::where_sql_generator::WhereSqlGenerator::to_sql(clause)?)
+            },
+            None => None,
+        };
+
+        let order_sql = match fraiseql_db::order_by::render_order_by_columns(
+            resolved.order_by.as_deref(),
+            fraiseql_db::DatabaseType::PostgreSQL,
+            1,
+            fraiseql_db::order_by::Tiebreak::None,
+        )? {
+            Some(rendered) if rendered.params.is_empty() => Some(rendered.columns),
+            Some(_) => {
+                return Err(FraiseQLError::Unsupported {
+                    message: format!(
+                        "Query '{}' resolves to a parameterised ordering the row-shaped read \
+                         cannot carry; it is not available on this transport",
+                        query_match.query_def.name
+                    ),
+                });
+            },
+            None => None,
+        };
+
+        Ok((resolved, narrowed, where_sql, order_sql))
+    }
+
+    /// Execute a row-shaped read through the direct-read chokepoint (#1351).
+    ///
+    /// The column-shaped twin of
+    /// [`execute_query_direct`](Self::execute_query_direct). gRPC used to answer its
+    /// reads by calling [`DatabaseAdapter::execute_row_query`] itself, building its
+    /// own `WHERE` clause from the request message — a second read implementation,
+    /// so the operation `Authorizer` (#422), the `requires_role` gate (#1122), the
+    /// actor allow-list (#966), the field gate (#423) and the compiled page-size
+    /// ceiling (#421) all applied to every transport except that one.
+    ///
+    /// # Errors
+    ///
+    /// Everything [`resolve_row_read`](Self::resolve_row_read) returns, and
+    /// `FraiseQLError::Database` if the read fails.
+    pub(in super::super) async fn execute_row_read(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+        columns: &[fraiseql_db::types::ColumnSpec],
+    ) -> Result<RowRead> {
+        let (resolved, narrowed, where_sql, order_sql) =
+            self.resolve_row_read(query_match, variables, security_context, columns)?;
+        let session_pairs = resolved.session_pairs();
+
+        let rows = self
+            .ctx
+            .adapter
+            .execute_row_query_with_session(
+                &resolved.sql_source,
+                &narrowed,
+                where_sql.as_deref(),
+                order_sql.as_deref(),
+                resolved.limit,
+                resolved.offset,
+                &session_pairs,
+            )
+            .await?;
+
+        Ok(RowRead {
+            columns: narrowed,
+            rows,
+        })
+    }
+
+    /// The same read as [`execute_row_read`](Self::execute_row_read), delivered one
+    /// row at a time (#1351).
+    ///
+    /// The gRPC server-streaming arm's source. It resolves through the same
+    /// function as the collecting arm for the reason
+    /// [`resolve_direct_read`](Self::resolve_direct_read) exists at all: the two
+    /// gRPC read arms had already drifted apart once (#1348 found one fail-closed
+    /// and the other fail-open on the same RLS failure), and a streaming arm is
+    /// where a missing ceiling costs the most.
+    ///
+    /// # Errors
+    ///
+    /// The same as [`execute_row_read`](Self::execute_row_read).
+    pub(in super::super) async fn stream_row_read(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+        columns: &[fraiseql_db::types::ColumnSpec],
+    ) -> Result<StreamedRowRead> {
+        let (resolved, narrowed, where_sql, order_sql) =
+            self.resolve_row_read(query_match, variables, security_context, columns)?;
+        let session_pairs = resolved.session_pairs();
+
+        let stream = self
+            .ctx
+            .adapter
+            .stream_row_query_with_session(
+                &resolved.sql_source,
+                &narrowed,
+                where_sql.as_deref(),
+                order_sql.as_deref(),
+                resolved.limit,
+                resolved.offset,
+                &session_pairs,
+            )
+            .await?;
+
+        Ok(StreamedRowRead {
+            columns: narrowed,
+            stream,
+        })
     }
 
     /// Resolve a direct read down to the SQL it will run and the field access it

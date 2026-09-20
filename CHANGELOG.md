@@ -1628,6 +1628,37 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`Executor::execute_row_read` and `Executor::stream_row_read`, the engine's row-shaped
+  read (#1351).** A read answered as typed `ColumnValue` rows projected through a
+  `ColumnSpec` list, rather than as GraphQL-shaped JSON against a selection set. It exists
+  because gRPC answers row-shaped results and had no way to reach the engine without a
+  round-trip through the shape it picked that transport to avoid — so it called
+  `DatabaseAdapter::execute_row_query` itself and built its own `WHERE` clause, which made
+  it a second read implementation.
+
+  Both entries resolve through the same `resolve_direct_read` chokepoint as every other
+  read, so the operation `Authorizer` (#422), the `requires_role` gate (#1122), the actor
+  allow-list (#966), the field gate (#423), the configured RLS policy, `inject_params` and
+  the compiled `[validation]` page-size ceiling (#421) all apply by construction.
+
+  The returned `RowRead`/`StreamedRowRead` carry the columns the read **actually used**,
+  which is narrower than the caller's list when field-level RBAC (#886) withholds a field.
+  Callers must project with those, not with the list they passed: the adapter zips values
+  to specs positionally, so encoding with the wider list would serve one field's value
+  under another field's name.
+
+  A policy-gated field in the projection is refused rather than decided per row — the same
+  fail-closed posture the REST direct read has. Per-row field authorization on the
+  direct-read path is tracked separately (#1353, #1357, #1358) and will reach every
+  non-GraphQL transport at once.
+
+- **`DatabaseAdapter::execute_row_query_with_session` and `stream_row_query_with_session`
+  (#1351).** The connection-affine row-shaped reads. The row path had no session-pinned
+  method at all, so once it resolved through the chokepoint the `session_variables` it
+  resolved would have had nowhere to go — and a resolved value the read cannot apply is
+  the failure the chokepoint exists to prevent. Both have defaults that delegate to the
+  session-free method, and `PostgresAdapter` and the caching wrapper override them.
+
 - **`fraiseql_server::identity` exports `IdentityConfig`, `EnrichmentQueryConfig` and
   `IdentityResolver` (#1336).** `ServerConfig.identity` is a public field whose type no
   embedder could name, so `[identity.enrichment]` was configurable from TOML and unreachable
