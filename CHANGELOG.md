@@ -2937,6 +2937,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The SCIM conformance gate stopped being a vote on someone else's release day.**
+
+  `.dagger/main.go` installed the third-party client with `pip install scim2-tester httpx`,
+  unpinned, so the verdict on an untouched tree moved whenever upstream published. On
+  2026-09-20 it moved twice in nine hours. At 07:10Z scim2-models 0.8.0 dropped
+  `Resource.get_by_payload`, which scim2-client 0.7.5 calls on every response, and the run
+  died inside `discover()` with an `AttributeError` before a single check executed. At 15:29Z
+  scim2-client 0.8.0 capped scim2-models `<0.8` — repairing that — but renamed its exception
+  hierarchy: a server-returned SCIM `Error` now raises `scim2_models.SCIMException` where it
+  used to raise `scim2_client.errors.SCIMResponseErrorObject`. scim2-tester 0.2.8 catches
+  `SCIMClientError` around the GET it issues after a delete, so the **correct** 404 escaped
+  that handler and was reported as a defect — `object_deletion: User not found`, 53 passed /
+  2 failed — against a surface whose DELETE → 204 → GET → 404 is exactly what RFC 7644 §3.6
+  asks for. Both reds were reproduced locally against this tree, which passes with zero
+  failures under the pinned set.
+
+  The client stack now installs from `tools/scim-conformance-requirements.txt`, pinned
+  exactly with transitive versions included, and the Rust test and the script's own install
+  hint point at that one file instead of each carrying its own command to drift. The pins are
+  meant to move — #946 exists to be driven by request shapes nobody here chose, and a frozen
+  client stops finding new ones — but they move in a commit that says so and shows the run.
+
 - **Two gates stopped asserting things that were not true.**
 
   `tools/check-mutation-dispatch-sites.sh` printed **"no known bypasses"** while two write

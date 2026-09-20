@@ -64,7 +64,10 @@ def main(argv: list[str]) -> int:
         from scim2_tester import Status, check_server
     except ImportError as exc:  # pragma: no cover - environment problem, not a test failure
         print(f"scim-conformance: dependency missing ({exc}).", file=sys.stderr)
-        print("Install with: uv pip install scim2-tester", file=sys.stderr)
+        print(
+            "Install with: uv pip install -r tools/scim-conformance-requirements.txt",
+            file=sys.stderr,
+        )
         return 2
 
     http = Client(base_url=base_url, headers={"Authorization": f"Bearer {token}"})

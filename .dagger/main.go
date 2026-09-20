@@ -1621,9 +1621,13 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 		// agent are hosted services needing a public URL and a vendor tenant, so neither
 		// can run here; scim2-tester can, and it found real defects the hand-written tests
 		// missed. Vendor validation stays a manual pre-release step.
+		// Installed from an exact pin set, transitive versions included: the verdict comes
+		// from third-party code, and an unpinned install lets an upstream release redden an
+		// untouched tree. It did, twice in nine hours on 2026-09-20 — the file carries both
+		// post-mortems and the regeneration command.
 		"apt-get install -y --no-install-recommends python3-venv >/dev/null",
 		"python3 -m venv /tmp/scim-tester",
-		"/tmp/scim-tester/bin/pip install --quiet scim2-tester httpx",
+		"/tmp/scim-tester/bin/pip install --quiet -r /src/tools/scim-conformance-requirements.txt",
 		"export FRAISEQL_SCIM_TESTER_PYTHON=/tmp/scim-tester/bin/python",
 		"cargo test -p fraiseql-server --features auth,observers --test scim_conformance_e2e_pg -- --test-threads=1 --nocapture",
 		"echo 'test-integration OK: saml suite passed'",

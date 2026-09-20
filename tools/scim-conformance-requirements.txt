@@ -1,0 +1,51 @@
+# Pinned dependency set for the #946 SCIM conformance gate (`tools/scim-conformance.py`).
+#
+# Every version here is exact, transitive ones included, because this gate's verdict is
+# produced by third-party code: an unpinned install hands someone else's release day the
+# power to redden an unchanged tree. That is not hypothetical. On 2026-09-20 the gate broke
+# twice in nine hours, both times with the branch untouched:
+#
+#   * 07:10Z — scim2-models 0.8.0 dropped `Resource.get_by_payload`, which scim2-client 0.7.5
+#     calls on every response. `AttributeError` inside `discover()`, before a single check ran.
+#   * 15:29Z — scim2-client 0.8.0 capped scim2-models <0.8 (repairing the above) but renamed
+#     its exception hierarchy: a server-returned SCIM `Error` now raises
+#     `scim2_models.SCIMException`, where it used to raise
+#     `scim2_client.errors.SCIMResponseErrorObject`. scim2-tester 0.2.8 catches
+#     `SCIMClientError` around the post-delete GET, so the *correct* 404 stopped being caught
+#     and was reported as a defect: "object_deletion: User not found", 53 passed / 2 failed,
+#     against a surface whose DELETE→204→GET→404 sequence was exactly conformant.
+#
+# Neither was a finding about FraiseQL, and a gate that cannot tell those apart is worse than
+# no gate: it teaches the reader to discount its reds.
+#
+# These pins are meant to MOVE. The whole point of #946 is to be driven by request shapes
+# nobody here chose, and a frozen client stops discovering new ones — so bumping is a
+# deliberate commit that says which versions changed and shows the run, not something that
+# happens to the build overnight. Regenerate with:
+#
+#     uv venv --python 3.11 /tmp/scim
+#     uv pip install --python /tmp/scim/bin/python scim2-tester httpx
+#     uv pip freeze --python /tmp/scim/bin/python
+#
+# Keep the interpreter at 3.11: the Dagger integration base is `rust:1.94.1`, i.e. Debian 12.
+#
+# Current ceiling: scim2-tester 0.2.8 is the newest release and does NOT work with
+# scim2-client 0.8.0 (the rename above). Unpin the client only once a tester release handles
+# the new exception types.
+
+annotated-types==0.8.0
+anyio==4.15.1
+certifi==2026.7.22
+dnspython==2.8.0
+email-validator==2.3.0
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.20
+pydantic==2.13.5
+pydantic-core==2.46.5
+scim2-client==0.7.5
+scim2-models==0.7.0
+scim2-tester==0.2.8
+typing-extensions==4.16.0
+typing-inspection==0.4.4

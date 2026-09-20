@@ -34,8 +34,11 @@ use sqlx::PgPool;
 const HS256_SECRET: &str = "p16-scim-conf-hs256-secret-32byt";
 const SECRET_ENV: &str = "FRAISEQL_TEST_P16_SCIM_CONF_SECRET";
 const ADMIN_TOKEN: &str = "p16-scim-conformance-admin-token";
-/// Interpreter with `scim2-tester` installed. The Dagger leg sets it; locally,
-/// `uv venv .scim && uv pip install --python .scim/bin/python scim2-tester httpx`.
+/// Interpreter with `scim2-tester` installed. The Dagger leg sets it; locally, `uv venv
+/// --python 3.11 .scim && uv pip install --python .scim/bin/python -r
+/// tools/scim-conformance-requirements.txt`. Install from that file and nowhere else — it
+/// pins the client stack exactly, and an unpinned resolution reddens this test on upstream
+/// releases that say nothing about FraiseQL.
 const TESTER_PYTHON_ENV: &str = "FRAISEQL_SCIM_TESTER_PYTHON";
 const DB: &str = "fraiseql_p16_scim_conformance";
 
