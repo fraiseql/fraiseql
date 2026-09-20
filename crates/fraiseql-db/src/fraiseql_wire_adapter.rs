@@ -309,6 +309,21 @@ impl DatabaseAdapter for FraiseWireAdapter {
         DatabaseType::PostgreSQL
     }
 
+    /// This adapter reads. It has no write path at all: `execute_function_call` is the
+    /// trait's default, which refuses.
+    ///
+    /// The compile-time [`SupportsMutations`](crate::traits::SupportsMutations) marker —
+    /// which this adapter deliberately does not implement — is what keeps it out of
+    /// `Executor`'s write entries. This override is the runtime half of the same rule, so
+    /// the gate that calls itself authoritative actually answers for the one adapter its
+    /// own documentation names. Without it the gate returned the permissive default and
+    /// the refusal arrived only at the far end of the write pipeline, after the
+    /// authorizer, the role and actor gates, argument validation and the
+    /// `before:mutation` chain had all run.
+    fn supports_mutations(&self) -> bool {
+        false
+    }
+
     async fn health_check(&self) -> Result<()> {
         // fraiseql-wire's FraiseClient contains non-Send types (raw pointers in TLS),
         // which makes it incompatible with the async_trait Send requirement.

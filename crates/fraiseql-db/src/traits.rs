@@ -803,7 +803,7 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
             message: format!(
                 "Mutations via function calls are not supported by this adapter. \
                  Function '{function_name}' cannot be executed. \
-                 Use PostgreSQL, MySQL, or SQL Server for mutation support."
+                 Use the PostgreSQL adapter for mutation support."
             ),
         })
     }
@@ -815,9 +815,17 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     /// mutations to fail with a clear `FraiseQLError::Validation` diagnostic instead
     /// of silently calling the unsupported `execute_function_call` default.
     ///
-    /// Override to return `false` for read-only adapters (e.g., `SqliteAdapter`,
-    /// `FraiseWireAdapter`). The compile-time [`SupportsMutations`] marker trait
+    /// Override to return `false` for read-only adapters — `FraiseWireAdapter` is the
+    /// one in this workspace. The compile-time [`SupportsMutations`] marker trait
     /// complements this runtime check — see its documentation for the distinction.
+    ///
+    /// ⚠ The two layers are not equally safe, and the difference decides what a
+    /// forgetful adapter author gets. [`SupportsMutations`] is **opt-in**: an adapter
+    /// that says nothing cannot reach `Executor`'s write entries at all. This method is
+    /// **opt-out**: an adapter that says nothing is granted writes. So this one is a
+    /// backstop behind the marker, never a replacement for it — and only for adapters
+    /// that remember to override it. `FraiseWireAdapter` did not, which made this gate a
+    /// no-op for the only adapter its own documentation named.
     ///
     /// # Default
     ///

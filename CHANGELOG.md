@@ -4860,6 +4860,30 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **The runtime mutation gate was a no-op for the only read-only adapter in the tree.**
+  `DatabaseAdapter::supports_mutations` calls itself "the authoritative mutation gate"
+  and tells read-only adapters to override it, naming `FraiseWireAdapter`.
+  `FraiseWireAdapter` never did, so the gate returned the permissive default — `true` —
+  for the one adapter its own documentation named. It now returns `false`.
+
+  Nothing was writable that should not have been: the compile-time `SupportsMutations`
+  marker, which `FraiseWireAdapter` deliberately does not implement, is what actually
+  kept it out of `Executor`'s write entries, and a write dispatched through the
+  runtime-guarded path still ended in a refusal from the trait's default
+  `execute_function_call`. But that refusal arrived at the far end of the pipeline,
+  after the operation authorizer, `requires_role`, `requires_actor`, argument
+  validation and the `before:mutation` chain had all run — and `before:mutation` runs
+  app-authored rule code. The gate that was supposed to stop that first did not fire.
+
+  The two layers are not interchangeable, and the docs now say so: `SupportsMutations`
+  is **opt-in**, so an adapter that says nothing cannot reach a write entry;
+  `supports_mutations()` is **opt-out**, so an adapter that says nothing is granted
+  writes. The second is a backstop behind the first, never a substitute for it. That
+  asymmetry is load-bearing for the boundary work — see the note below on S5.
+
+  The unsupported-mutation error also stopped advising callers to "use PostgreSQL,
+  MySQL, or SQL Server"; the latter two adapters were deleted in #374.
+
 
 - **rustls 0.23.42 → 0.23.45 clears RUSTSEC-2026-0285 (TLS 1.3 handshake messages
   accepted across encryption-level boundaries).**

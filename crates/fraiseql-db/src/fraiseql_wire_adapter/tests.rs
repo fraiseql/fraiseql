@@ -57,3 +57,24 @@ fn a_relevance_ordering_is_refused_rather_than_escaped() {
         "data->>'created_at' DESC, data->>'id' ASC"
     );
 }
+
+/// The runtime half of the mutation gate must refuse this adapter.
+///
+/// `DatabaseAdapter::supports_mutations` calls itself "**the authoritative mutation
+/// gate**" and instructs read-only adapters to override it, naming this one. It never
+/// did, so the gate answered `true` — the permissive default — for the only read-only
+/// adapter in the tree, and the refusal came instead from the trait's default
+/// `execute_function_call`, at the far end of the whole write pipeline.
+///
+/// The compile-time `SupportsMutations` bound (which this adapter deliberately does not
+/// implement) is what actually kept it out of the write entries. This assertion pins the
+/// runtime layer so the two agree, rather than one standing alone.
+#[test]
+fn wire_adapter_refuses_mutations_at_the_runtime_gate() {
+    let adapter = FraiseWireAdapter::new("postgres://localhost/test");
+    assert!(
+        !adapter.supports_mutations(),
+        "FraiseWireAdapter has no write path — its `execute_function_call` is the trait \
+         default, which refuses. The authoritative runtime gate must say so too."
+    );
+}
