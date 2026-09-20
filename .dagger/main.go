@@ -492,6 +492,11 @@ func (m *FraiseqlCi) ShellGates(
 		// docker.io/library/fraiseql, which this project cannot publish to — #1129's
 		// defect, in the one place the file-level gates do not read (#1220).
 		"bash tools/check-doc-image-refs.sh",
+		// Every tool CI installs names a version. `pip install scim2-tester httpx` in
+		// this very file let two PyPI releases redden `integration (saml)` twice in nine
+		// hours on an untouched branch (2026-09-20) — once before a single check ran.
+		"bash tools/check-ci-install-pins.sh",
+		"bash tools/tests/ci_install_pins_test.sh",
 		"bash tools/check-phases-citations.sh",
 		"bash tools/check-image-context.sh",
 		"bash tools/tests/doc_image_refs_test.sh",

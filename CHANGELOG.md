@@ -2959,6 +2959,17 @@ disagreed, and the promise was the part that was wrong.
   meant to move — #946 exists to be driven by request shapes nobody here chose, and a frozen
   client stops finding new ones — but they move in a commit that says so and shows the run.
 
+  The same shape was swept out of the rest of CI: `uv`, `build`, `twine`, `critcmp`,
+  `cargo-fuzz`, `cargo-mutants`, `cargo-nextest` and `cargo-semver-checks` were all
+  installed at whatever the registry served that morning, and now name a version.
+  `tools/check-ci-install-pins.sh` keeps it that way — a preflight and ShellGates gate
+  requiring every `pip install` to carry `==` or a requirements file and every `cargo
+  install` to carry `--version`, with one exemption (the `pip` bootstrap itself) that
+  fails the run if it ever stops matching. It reads fenced code blocks as documentation,
+  so `sbom-generation.yml`'s printed instructions are out of scope by construction rather
+  than by allowlist. Verified red on the original `.dagger/main.go` line, in the
+  ShellGates container's shape (`git init`, no history) as well as locally.
+
 - **Two gates stopped asserting things that were not true.**
 
   `tools/check-mutation-dispatch-sites.sh` printed **"no known bypasses"** while two write

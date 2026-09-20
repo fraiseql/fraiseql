@@ -65,7 +65,7 @@ jobs:
       - uses: Swatinem/rust-cache@42dc69e1aa15d09112580998cf2ef0119e2e91ae  # v2
 
       - name: Install critcmp
-        run: cargo install critcmp --locked
+        run: cargo install critcmp --version 0.1.8 --locked
 
       - name: Install mold linker
         run: |

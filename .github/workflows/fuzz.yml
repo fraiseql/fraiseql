@@ -97,7 +97,7 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
       - name: Install cargo-fuzz
-        run: cargo install cargo-fuzz
+        run: cargo install cargo-fuzz --version 0.13.2 --locked
 
       # Build and run are separate steps on purpose. A build failure is a toolchain or
       # API-drift problem in CI; a run failure is a bug in FraiseQL. Collapsing them (as

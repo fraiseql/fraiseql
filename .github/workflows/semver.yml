@@ -37,7 +37,7 @@ jobs:
           sudo apt-get install -y mold
 
       - name: Install cargo-semver-checks
-        run: cargo install cargo-semver-checks --locked
+        run: cargo install cargo-semver-checks --version 0.50.0 --locked
 
       # Compare the PR branch against the latest published crates.io baseline.
       # --workspace covers all public crates in the monorepo.

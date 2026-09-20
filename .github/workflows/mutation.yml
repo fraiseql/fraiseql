@@ -26,7 +26,7 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
       - name: Install cargo-mutants and cargo-nextest
-        run: cargo install cargo-mutants --locked && cargo install cargo-nextest --locked
+        run: cargo install cargo-mutants --version 27.1.0 --locked && cargo install cargo-nextest --version 0.9.145 --locked
       - name: Pre-build baseline
         run: cargo build --tests -p fraiseql-core
       - name: Run mutation tests
@@ -57,7 +57,7 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
       - name: Install cargo-mutants and cargo-nextest
-        run: cargo install cargo-mutants --locked && cargo install cargo-nextest --locked
+        run: cargo install cargo-mutants --version 27.1.0 --locked && cargo install cargo-nextest --version 0.9.145 --locked
       - name: Pre-build baseline
         run: cargo build --tests -p fraiseql-auth
       - name: Run mutation tests
@@ -88,7 +88,7 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
       - name: Install cargo-mutants and cargo-nextest
-        run: cargo install cargo-mutants --locked && cargo install cargo-nextest --locked
+        run: cargo install cargo-mutants --version 27.1.0 --locked && cargo install cargo-nextest --version 0.9.145 --locked
       - name: Pre-build baseline
         run: cargo build --tests -p fraiseql-db
       - name: Run mutation tests
@@ -118,7 +118,7 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
       - name: Install cargo-mutants and cargo-nextest
-        run: cargo install cargo-mutants --locked && cargo install cargo-nextest --locked
+        run: cargo install cargo-mutants --version 27.1.0 --locked && cargo install cargo-nextest --version 0.9.145 --locked
       - name: Pre-build baseline
         run: cargo build --tests -p fraiseql-federation
       - name: Run mutation tests
