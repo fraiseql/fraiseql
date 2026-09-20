@@ -106,7 +106,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use ::tracing::debug;
-use fraiseql_db::traits::DatabaseAdapter;
+use fraiseql_db::traits::{DatabaseAdapter, SupportsMutations};
 use reqwest::Url;
 use uuid::Uuid;
 
@@ -385,7 +385,7 @@ impl SagaCompensator {
     /// A step with no registered compensation, or whose inverse mutation `Err`s
     /// (local or remote), is reported `success: false` — never a fabricated
     /// rollback (audit H33).
-    pub(crate) async fn dispatch_compensation<A: DatabaseAdapter>(
+    pub(crate) async fn dispatch_compensation<A: DatabaseAdapter + SupportsMutations>(
         mutation_executor: &FederationMutationExecutor<A>,
         step: &crate::saga_store::SagaStep,
         remote: Option<(&HttpMutationClient, &Url)>,
@@ -419,7 +419,7 @@ impl SagaCompensator {
         let outcome = match remote {
             None => {
                 mutation_executor
-                    .execute_local_mutation(&step.typename, mutation, variables)
+                    .execute_local_mutation(mutation, variables, &idempotency_key)
                     .await
             },
             Some((client, url)) => {
@@ -463,7 +463,7 @@ impl SagaCompensator {
     ///
     /// Returns [`SagaStoreError::Database`] if no saga store is configured, or
     /// any store error encountered while persisting the compensated state.
-    pub async fn compensate_step<A: DatabaseAdapter>(
+    pub async fn compensate_step<A: DatabaseAdapter + SupportsMutations>(
         &self,
         mutation_executor: &FederationMutationExecutor<A>,
         step: &crate::saga_store::SagaStep,
@@ -524,7 +524,7 @@ impl SagaCompensator {
     /// Returns [`SagaStoreError::Database`] if no saga store is configured,
     /// [`SagaStoreError::SagaNotFound`] if the saga does not exist, or any store
     /// error encountered while loading steps or persisting state.
-    pub async fn compensate_saga<A: DatabaseAdapter>(
+    pub async fn compensate_saga<A: DatabaseAdapter + SupportsMutations>(
         &self,
         saga_id: Uuid,
         mutation_executor: &FederationMutationExecutor<A>,

@@ -232,10 +232,10 @@ test-integration-postgres: db-up db-failover-reset
 	@echo ""
 	@echo "### saga: forward execution, compensation, recovery, remote dispatch"
 	@cargo test -p fraiseql-saga --features test-utils --test saga_integration -- --include-ignored --test-threads=1
-# #1354 moved the saga above the engine. These two binaries were fraiseql-core's
-# tests/federation/mutation_* + federation_mutation_http, which the core --test '*'
-# sweep covered by wildcard; a wildcard cannot reach another package.
-	@cargo test -p fraiseql-saga --features test-utils --test mutations --test mutation_http -- --test-threads=1
+# #1354 moved the saga above the engine. This binary was fraiseql-core's
+# federation_mutation_http, which the core --test '*' sweep covered by wildcard;
+# a wildcard cannot reach another package.
+	@cargo test -p fraiseql-saga --features test-utils --test mutation_http -- --test-threads=1
 	@echo ""
 	@echo "### fraiseql-cli against-db suites (each self-skips without DATABASE_URL)"
 	@cargo test -p fraiseql-cli --features test-postgres --test init_first_run_pg -- --test-threads=1

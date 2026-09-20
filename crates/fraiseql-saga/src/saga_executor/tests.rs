@@ -102,8 +102,16 @@ mod wired {
                 "test bug: the local adapter must not be reached on a remote path".to_string(),
             sql_state: None,
         }));
-        let executor =
-            FederationMutationExecutor::new(Arc::clone(&adapter), order_metadata(), false);
+        let engine = Arc::new(fraiseql_core::runtime::Executor::new(
+            fraiseql_core::schema::CompiledSchema::default(),
+            Arc::clone(&adapter),
+        ));
+        let executor = FederationMutationExecutor::new(
+            engine,
+            order_metadata(),
+            "executor-tests",
+            fraiseql_core::schema::RunAs::default(),
+        );
         (executor, adapter)
     }
 

@@ -18,6 +18,69 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A saga step's local write goes through the mutation chokepoint (#1354).** S8 of the
+  boundary work, second half — the fix the crate split made possible.
+
+  `FederationMutationExecutor::execute_local_mutation` was a **second write path**. It
+  built `INSERT`/`UPDATE`/`DELETE` SQL as a string from the entity's federation
+  metadata, guessed the statement kind from the leading verb of the operation name, and
+  dispatched it with `DatabaseAdapter::execute_raw_query` — taking **no
+  `SecurityContext` at all**. Every gate lived on the other path:
+
+  | Gate | On a saga write, before | Now |
+  |---|---|---|
+  | operation `Authorizer` (#422) | skipped | runs |
+  | `requires_role` | skipped | runs |
+  | `requires_actor` (#966) | skipped | runs |
+  | `before:mutation` chain (#1327) | skipped | runs |
+  | argument-name / selection validation | skipped | runs |
+  | session variables → RLS GUCs | skipped | runs |
+  | change-log outbox row | skipped | runs |
+  | selection set + field authorizer (#423) | skipped | runs |
+
+  It now calls `Executor::execute_mutation_with_security` and nothing else.
+
+  **A saga must now state the authority it writes with.**
+  `FederationMutationExecutor::new` takes the engine, a `job_id` and a
+  `fraiseql_core::schema::RunAs` — the same background-identity type `[[sources]]` and
+  cron already use — and mints `SecurityContext::system_job` per dispatch, with the
+  step's id as the request id so each write correlates to the step that issued it.
+  There is **no default**: an empty `RunAs` is a real answer meaning "no authority",
+  under which any mutation declaring `requires_role` is refused. Inferring one would be
+  the only way back to the fail-open write this change removes.
+
+  ```rust
+  // before — an adapter, and whatever SQL the verb prefix implied
+  FederationMutationExecutor::new(adapter, metadata, recase_input_keys);
+  executor.execute_local_mutation(typename, "createOrder", &vars).await?;
+
+  // after — the engine, and a stated authority
+  FederationMutationExecutor::new(engine, metadata, "order-saga", run_as);
+  executor.execute_local_mutation("createOrder", &vars, &step_id).await?;
+  ```
+
+  **Behaviour, and worth reading before upgrading.**
+  - A step's `mutation_name` must be a mutation the **compiled schema defines**. The verb
+    sniffing is gone: which statement a mutation issues is the schema's to say, not a
+    prefix match on its name. A step with no name used to fall back to the kind's verb
+    (`create`), which the old builder accepted; that now fails loud. Unrecognised names
+    that previously defaulted to `UPDATE` (a typo silently updating the entity table)
+    also fail loud.
+  - The step result is the engine's response envelope — `{"data": {"<op>": …}}`,
+    projected through the mutation's return type — not the flat `__typename`-plus-every-
+    column map the deleted builder assembled.
+  - A role refusal reads "not found in schema", not "forbidden": the chokepoint answers
+    `requires_role` that way so a caller cannot enumerate mutations by probing.
+  - `FederationMutationExecutor<A>` now requires `A: SupportsMutations`, so a read-only
+    adapter cannot construct a saga at all — a compile-time refusal, not a runtime one.
+
+  **Deleted with it:** `mutation_query_builder` (the three `INSERT`/`UPDATE`/`DELETE`
+  builders), `mutation_detector` — which had **no in-tree caller** — `sql_utils::
+  value_to_sql_literal`, `determine_mutation_type`, `build_entity_response`, and the
+  key-recasing that existed only to make metadata-derived column names line up.
+  `tools/check-mutation-dispatch-sites.sh` no longer lists a saga bypass; its staleness
+  check is what confirmed the entry had stopped matching.
+
 - **Saga orchestration moves out of `fraiseql-federation` into a new `fraiseql-saga`
   crate, above `fraiseql-core` (#1354).** S8 of the boundary work, first half: the move
   itself, with no behaviour change.

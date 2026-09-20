@@ -72,7 +72,7 @@ use std::{
 };
 
 use ::tracing::{info, warn};
-use fraiseql_db::traits::DatabaseAdapter;
+use fraiseql_db::traits::{DatabaseAdapter, SupportsMutations};
 use uuid::Uuid;
 
 use crate::{
@@ -344,7 +344,7 @@ impl SagaRecoveryManager {
     ///
     /// Panics if the internal stats mutex is poisoned (a prior panic occurred
     /// while the lock was held).
-    pub async fn run_iteration<A: DatabaseAdapter>(
+    pub async fn run_iteration<A: DatabaseAdapter + SupportsMutations>(
         &self,
         executor: &FederationMutationExecutor<A>,
     ) -> SagaStoreResult<()> {
@@ -424,7 +424,7 @@ impl SagaRecoveryManager {
     /// incrementing attempt count) and drives the saga through
     /// [`SagaExecutor::execute_saga`], which transitions it to a terminal
     /// `Completed`/`Failed` state (skipping already-`Completed` steps, #744).
-    async fn recover_one<A: DatabaseAdapter>(
+    async fn recover_one<A: DatabaseAdapter + SupportsMutations>(
         &self,
         saga_executor: &SagaExecutor,
         executor: &FederationMutationExecutor<A>,
@@ -511,7 +511,7 @@ impl SagaRecoveryManager {
         executor: Arc<FederationMutationExecutor<A>>,
     ) -> SagaStoreResult<()>
     where
-        A: DatabaseAdapter + 'static,
+        A: DatabaseAdapter + SupportsMutations + 'static,
     {
         if self
             .running

@@ -1,137 +1,61 @@
-//! Federation mutation execution.
+//! Saga mutation dispatch.
 //!
-//! Executes GraphQL mutations on federation entities, handling both
-//! local mutations (owned entities) and extended mutations (non-owned).
+//! A saga step's **local** arm is a client of the engine's mutation chokepoint.
+//! Its **remote** arm dispatches to a peer subgraph over HTTPS
+//! ([`crate::HttpMutationClient`]).
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
-use fraiseql_db::{traits::DatabaseAdapter, utils::to_snake_case};
+use fraiseql_core::{runtime::Executor, schema::RunAs, security::SecurityContext, types::TenantId};
+use fraiseql_db::traits::{DatabaseAdapter, SupportsMutations};
 use fraiseql_error::Result;
-use fraiseql_federation::{
-    metadata_helpers::find_federation_type,
-    types::{FederatedType, FederationMetadata},
-};
+use fraiseql_federation::types::FederationMetadata;
 use serde_json::Value;
 
-use crate::mutation_query_builder::{build_delete_query, build_insert_query, build_update_query};
-
-/// Type of mutation being performed.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum MutationType {
-    /// CREATE mutation (INSERT)
-    Create,
-    /// UPDATE mutation
-    Update,
-    /// DELETE mutation
-    Delete,
-}
-
-/// Determine the mutation type from the operation name.
+/// Executes saga mutations.
 ///
-/// # Errors
-///
-/// Returns `FraiseQLError::Validation` when the operation name does not begin
-/// with a recognised verb. The previous behaviour defaulted an unrecognised name
-/// to `Update` (M-fed-mut-executor), so a typo or an unsupported operation
-/// silently issued an `UPDATE` against the entity table. It now fails loud.
-fn determine_mutation_type(mutation_name: &str) -> Result<MutationType> {
-    let lower = mutation_name.to_lowercase();
-
-    if lower.starts_with("create") || lower.starts_with("add") {
-        Ok(MutationType::Create)
-    } else if lower.starts_with("update") || lower.starts_with("modify") {
-        Ok(MutationType::Update)
-    } else if lower.starts_with("delete") || lower.starts_with("remove") {
-        Ok(MutationType::Delete)
-    } else {
-        Err(fraiseql_error::FraiseQLError::Validation {
-            message: format!(
-                "Cannot determine mutation type from operation name '{mutation_name}': \
-                 expected a name beginning with create/add, update/modify, or delete/remove"
-            ),
-            path:    None,
-        })
-    }
-}
-
-/// Build the federation entity response from a read-back row: `__typename`
-/// followed by every column the database returned.
-fn build_entity_response(typename: &str, row: HashMap<String, Value>) -> Value {
-    let mut map = serde_json::Map::with_capacity(row.len() + 1);
-    map.insert("__typename".to_string(), Value::String(typename.to_string()));
-    map.extend(row);
-    Value::Object(map)
-}
-
-/// Best-effort identifier for a not-found error: the value of the entity's first
-/// key field from the input variables, or `<unknown>` if absent.
-fn key_identifier(fed_type: &FederatedType, variables: &Value) -> String {
-    fed_type
-        .keys
-        .first()
-        .and_then(|k| k.fields.first())
-        .and_then(|field| variables.get(field))
-        .map_or_else(
-            || "<unknown>".to_string(),
-            |v| v.as_str().map_or_else(|| v.to_string(), ToString::to_string),
-        )
-}
-
-/// Recase a mutation's input variable keys to their canonical `snake_case` column
-/// names when the GraphQL surface is camelCase (`recase` = true).
-///
-/// The federation mutation builders treat each input key as a SQL column
-/// identifier and the `@key` field names as already-canonical, so a camelCase
-/// surface (`s3Key`, `dns1Id`) must be reversed to the stored column name
-/// (`s3_key`, `dns_1_id`) — otherwise the generated `INSERT`/`UPDATE` quotes a
-/// column that does not exist and the write silently misses (#400). Uses the same
-/// acronym-aware [`to_snake_case`] as the read path, so `s3Key` → `s3_key`
-/// (acronym kept whole) while `dns1Id` → `dns_1_id`.
-///
-/// Federation mutations are scalar-only (`value_to_sql_literal` rejects objects),
-/// so only the top-level keys are recased; values are left untouched. Idempotent
-/// on already-`snake_case` keys, and a no-op under `Preserve` (`recase` = false).
-fn canonicalize_input_keys(variables: &Value, recase: bool) -> Value {
-    match variables.as_object() {
-        Some(obj) if recase => {
-            let recased: serde_json::Map<String, Value> =
-                obj.iter().map(|(k, v)| (to_snake_case(k), v.clone())).collect();
-            Value::Object(recased)
-        },
-        _ => variables.clone(),
-    }
-}
-
-/// Executes federation mutations.
+/// Generic over an adapter that is **statically** write-capable: the engine's
+/// write entries live on `impl<A: DatabaseAdapter + SupportsMutations>`, so a
+/// read-only adapter cannot reach them, and a saga cannot be built over one.
 #[derive(Clone)]
-pub struct FederationMutationExecutor<A: DatabaseAdapter> {
-    /// Database adapter for executing mutations
-    adapter:           Arc<A>,
-    /// Federation metadata
-    metadata:          FederationMetadata,
-    /// Recase mutation input keys to canonical `snake_case` before they become SQL
-    /// column identifiers. Set from the schema's `naming_convention == CamelCase`
-    /// (#400); when false (the `Preserve` default) keys pass through verbatim.
-    recase_input_keys: bool,
+pub struct FederationMutationExecutor<A: DatabaseAdapter + SupportsMutations> {
+    /// The engine. A saga step dispatches *through* it, never around it.
+    engine:   Arc<Executor<A>>,
+    /// Federation metadata. Used by the **remote** arm to build the outgoing
+    /// GraphQL mutation and project its response; the local arm resolves the
+    /// mutation from the compiled schema instead, so it needs none of this.
+    metadata: FederationMetadata,
+    /// Names this saga in the principal it mints (`system_job:<job_id>`), so an
+    /// audit row says which orchestrator wrote.
+    job_id:   String,
+    /// The background authority every step of this saga writes with.
+    ///
+    /// There is no default and no fallback: an application that orchestrates a
+    /// saga states the roles, scopes and tenant its steps act with, and an empty
+    /// `RunAs` is a real answer meaning "no authority" — under which any mutation
+    /// declaring `requires_role` is refused. Inferring it would be the only way
+    /// back to the fail-open write this crate exists to remove (#1354).
+    run_as:   RunAs,
 }
 
-impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
-    /// Create a new mutation executor.
+impl<A: DatabaseAdapter + SupportsMutations> FederationMutationExecutor<A> {
+    /// Create a saga mutation executor over an engine.
     ///
-    /// `recase_input_keys` should be set when the schema's GraphQL surface is
-    /// camelCase (`naming_convention == CamelCase`) so mutation input keys are
-    /// reversed to canonical `snake_case` column names before SQL generation;
-    /// pass `false` for a `Preserve`-convention schema.
+    /// `job_id` names the saga in the minted principal; `run_as` is the authority
+    /// its steps write with — see [`Self::run_as`](Self#structfield.run_as) for why
+    /// it has no default.
     #[must_use]
-    pub const fn new(
-        adapter: Arc<A>,
+    pub fn new(
+        engine: Arc<Executor<A>>,
         metadata: FederationMetadata,
-        recase_input_keys: bool,
+        job_id: impl Into<String>,
+        run_as: RunAs,
     ) -> Self {
         Self {
-            adapter,
+            engine,
             metadata,
-            recase_input_keys,
+            job_id: job_id.into(),
+            run_as,
         }
     }
 
@@ -139,96 +63,64 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
     ///
     /// Used by the saga remote-dispatch path
     /// ([`SagaExecutor::dispatch_step`](crate::saga_executor::SagaExecutor)) to
-    /// build the outgoing GraphQL mutation and project its response — the same
-    /// metadata the local path uses to locate the entity table.
+    /// build the outgoing GraphQL mutation and project its response.
     #[must_use]
     pub(crate) const fn metadata(&self) -> &FederationMetadata {
         &self.metadata
     }
 
-    /// Execute a mutation on a locally-owned entity.
+    /// The principal one dispatch runs under.
     ///
-    /// # Arguments
+    /// [`SecurityContext::system_job`] marks its own principal
+    /// `EnrichmentMark::Exempt` at the construction site: the orchestrator acting
+    /// as itself has no subject an identity resolver could look up. `request_id`
+    /// is the step's id, so each write correlates to the step that issued it and
+    /// a crash-recovery replay carries the same correlation as the original.
+    fn identity(&self, request_id: &str) -> SecurityContext {
+        SecurityContext::system_job(
+            self.job_id.as_str(),
+            request_id,
+            self.run_as.roles.clone(),
+            self.run_as.scopes.clone(),
+            self.run_as.tenant.clone().map(TenantId::from),
+        )
+    }
+
+    /// Execute a locally-owned step's mutation **through the engine**.
     ///
-    /// * `typename` - The entity type name
-    /// * `mutation_name` - The mutation operation name (e.g., "updateUser", "createUser",
-    ///   "deleteUser")
-    /// * `variables` - Mutation variables/input
+    /// `mutation_name` is the step's full persisted operation name (e.g.
+    /// `createOrder`) — the same name any other caller of the chokepoint passes,
+    /// resolved against the compiled schema.
     ///
-    /// # Returns
+    /// This used to be a second write path. It built `INSERT`/`UPDATE`/`DELETE`
+    /// SQL as a string from the entity metadata, guessed the statement kind from
+    /// the operation name's leading verb, and dispatched it with
+    /// `DatabaseAdapter::execute_raw_query` — taking no `SecurityContext` at all.
+    /// So the operation `Authorizer` (#422), `requires_role`, `requires_actor`
+    /// (#966), the `before:mutation` chain (#1327), argument validation, the RLS
+    /// session variables, the change-log outbox row and the field authorizer
+    /// (#423) were all skipped, on every saga write (#1354). They run now,
+    /// because this is [`Executor::execute_mutation_with_security`] and nothing
+    /// else.
     ///
-    /// The mutated row read back from the database, in federation format
-    /// (`__typename` plus every returned column).
-    ///
-    /// The mutation SQL uses `RETURNING *`, so the response reflects the actual
-    /// database state — including DB-computed defaults — rather than echoing the
-    /// input (#430). A `0`-row `UPDATE`/`DELETE` means the targeted entity does
-    /// not exist and returns `FraiseQLError::NotFound` instead of a fabricated
-    /// success. Unknown operation names fail loud (`determine_mutation_type`).
+    /// The verb sniffing is gone with the SQL: which statement a mutation issues
+    /// is the compiled schema's to say, not a prefix match on its name.
     ///
     /// # Errors
     ///
-    /// Returns error if the operation name is unrecognised, the entity type is
-    /// unknown, query construction fails, mutation execution fails, or an
-    /// `UPDATE`/`DELETE` matched no row (`FraiseQLError::NotFound`).
+    /// Returns whatever the chokepoint returns: an unknown mutation name, a
+    /// refusal from any gate above for this saga's authority, an argument that
+    /// does not validate, or the database's own error.
     pub async fn execute_local_mutation(
         &self,
-        typename: &str,
         mutation_name: &str,
         variables: &Value,
+        request_id: &str,
     ) -> Result<Value> {
-        // Find entity type
-        let fed_type = find_federation_type(typename, &self.metadata)?;
-
-        // Determine mutation type from operation name
-        let mutation_type = determine_mutation_type(mutation_name)?;
-
-        // Recase the input keys to canonical snake_case column names before the
-        // builders turn them into SQL identifiers and look up the `@key` field
-        // (which is already canonical). No-op under the `Preserve` default (#400).
-        let recased = canonicalize_input_keys(variables, self.recase_input_keys);
-        let variables = &recased;
-
-        // Build and execute SQL based on mutation type
-        // The literal builder is dialect-aware (#728): it refuses dialects whose
-        // string-escaping rules it cannot apply soundly (MySQL) instead of
-        // emitting a wrong literal.
-        let db_type = self.adapter.database_type();
-        let sql = match mutation_type {
-            MutationType::Create => {
-                build_insert_query(db_type, typename, variables, &self.metadata)?
-            },
-            MutationType::Update => {
-                build_update_query(db_type, typename, variables, &self.metadata)?
-            },
-            MutationType::Delete => {
-                build_delete_query(db_type, typename, variables, &self.metadata)?
-            },
-        };
-
-        // Execute the mutation and read the affected row back (RETURNING *).
-        let returned = self.adapter.execute_raw_query(&sql).await?.into_iter().next();
-
-        let row = match (mutation_type, returned) {
-            // A row came back — use it verbatim (the real post-mutation state).
-            (_, Some(row)) => row,
-            // An INSERT that returns no row is a backend contract violation.
-            (MutationType::Create, None) => {
-                return Err(fraiseql_error::FraiseQLError::Database {
-                    message:   format!("INSERT into '{typename}' returned no row from RETURNING *"),
-                    sql_state: None,
-                });
-            },
-            // A 0-row UPDATE/DELETE means the targeted entity does not exist.
-            (MutationType::Update | MutationType::Delete, None) => {
-                return Err(fraiseql_error::FraiseQLError::not_found(
-                    typename,
-                    key_identifier(fed_type, variables),
-                ));
-            },
-        };
-
-        Ok(build_entity_response(typename, row))
+        let principal = self.identity(request_id);
+        self.engine
+            .execute_mutation_with_security(mutation_name, variables, Some(&principal))
+            .await
     }
 
     /// Execute a mutation on an extended (non-owned) entity — **not
@@ -238,7 +130,7 @@ impl<A: DatabaseAdapter> FederationMutationExecutor<A> {
     /// back with `_remote_execution: true` without contacting any subgraph, so
     /// a caller believed the owning service applied a write it never heard of.
     /// It now fails loud. Real cross-subgraph mutation propagation exists —
-    /// register the owning subgraph on a `SagaCoordinator` (feature `saga`) (or use
+    /// register the owning subgraph on a `SagaCoordinator` (or use
     /// [`crate::HttpMutationClient`] directly), which dispatches the mutation
     /// over HTTPS with SSRF validation and an idempotency key.
     ///

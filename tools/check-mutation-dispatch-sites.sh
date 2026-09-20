@@ -41,8 +41,12 @@
 # the comment explaining that, so it does not match. `handlers/do_put.rs` never got that fix
 # and does match (#1355). A gate that cannot tell those two apart would be useless here.
 #
-# ⚠ Both bypasses in KNOWN_RAW were invisible to this gate while it printed "no known
-# bypasses". That sentence is the reason the gate exists; it must not be able to be false.
+# ⚠ Both bypasses rule 2 was written for were invisible to this gate while it printed "no
+# known bypasses". That sentence is the reason the gate exists; it must not be able to be
+# false. One of the two — the saga's local write (#1354) — is fixed: the orchestrator moved
+# above the engine and its local arm now calls the chokepoint, so the entry came out of
+# KNOWN_RAW. The staleness loop below is what said so, by refusing to keep listing a file
+# that had stopped matching.
 #
 # Mirrors the established shell-gate pattern (lint-graphql-parse, lint-internal-flag).
 set -euo pipefail
@@ -79,14 +83,10 @@ WRITE_SQL='build_(insert|update|delete)_query|"[[:space:]]*(INSERT INTO|UPDATE |
 # Files that build write SQL and dispatch it raw. Each is a named defect with an issue, and
 # each must keep matching both halves or it is stale — see the staleness loop below.
 #
-#   mutation_executor.rs  the saga's local write (#1354). Takes no SecurityContext
-#                         at all, so the operation Authorizer, requires_role, requires_actor,
-#                         before:mutation, the RLS session variables, the change-log row and
-#                         the field authorizer are all skipped.
 #   do_put.rs             the Flight DoPut upload (#1355). #953 moved DoExchange onto
 #                         `execute_gated_upload` so rows and outbox rows commit together;
 #                         DoPut never got it, so the Change Spine is blind to every DoPut.
-KNOWN_RAW='crates/fraiseql-saga/src/mutation_executor.rs|crates/fraiseql-arrow/src/flight_server/handlers/do_put.rs'
+KNOWN_RAW='crates/fraiseql-arrow/src/flight_server/handlers/do_put.rs'
 
 # Production code only: a test may drive an adapter directly, and a bench must.
 violations=$(

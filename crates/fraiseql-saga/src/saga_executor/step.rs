@@ -1,7 +1,7 @@
 //! Single-step execution for saga forward phase.
 
 use ::tracing::warn;
-use fraiseql_db::traits::DatabaseAdapter;
+use fraiseql_db::traits::{DatabaseAdapter, SupportsMutations};
 use reqwest::Url;
 
 use super::{SagaExecutor, StepExecutionResult, forward};
@@ -28,7 +28,7 @@ impl SagaExecutor {
     /// (`create`/`update`/`delete`), which the name-driven `determine_mutation_type`
     /// also resolves for the local path. A mutation `Err` (local or remote) becomes a
     /// real `success: false` step, never fabricated success (audit H32).
-    pub(crate) async fn dispatch_step<A: DatabaseAdapter>(
+    pub(crate) async fn dispatch_step<A: DatabaseAdapter + SupportsMutations>(
         mutation_executor: &FederationMutationExecutor<A>,
         step: &SagaStep,
         remote: Option<(&HttpMutationClient, &Url)>,
@@ -47,7 +47,7 @@ impl SagaExecutor {
         let outcome = match remote {
             None => {
                 mutation_executor
-                    .execute_local_mutation(&step.typename, op_name, &step.variables)
+                    .execute_local_mutation(op_name, &step.variables, &idempotency_key)
                     .await
             },
             Some((client, url)) => {
@@ -77,7 +77,7 @@ impl SagaExecutor {
     /// compensation strategy acts on a genuine failure. With the default
     /// [`crate::saga_executor::RetryPolicy::none`] this is exactly one attempt,
     /// identical to [`Self::dispatch_step`].
-    pub(crate) async fn dispatch_step_with_retry<A: DatabaseAdapter>(
+    pub(crate) async fn dispatch_step_with_retry<A: DatabaseAdapter + SupportsMutations>(
         &self,
         mutation_executor: &FederationMutationExecutor<A>,
         step: &SagaStep,
@@ -148,7 +148,7 @@ impl SagaExecutor {
     ///
     /// * `mutation_executor` - Local mutation transport for the step's subgraph
     /// * `step` - The persisted step definition (typename, mutation type, input)
-    pub async fn execute_step<A: DatabaseAdapter>(
+    pub async fn execute_step<A: DatabaseAdapter + SupportsMutations>(
         &self,
         mutation_executor: &FederationMutationExecutor<A>,
         step: &SagaStep,

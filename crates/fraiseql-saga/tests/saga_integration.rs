@@ -8,6 +8,153 @@
 
 #![allow(clippy::unwrap_used, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
+/// Shared fixture for the saga's **local** arm.
+///
+/// Before #1354 a local step built `INSERT`/`UPDATE`/`DELETE` from the entity's
+/// federation metadata and ran it raw, so a test needed only a table. The arm now
+/// dispatches through the engine's mutation chokepoint, which resolves the step's
+/// operation name against a **compiled schema** and calls that mutation's
+/// `sql_source`. So a fixture needs three things the old one did not: the
+/// functions, the schema that names them, and an `Executor` over both.
+///
+/// That the fixture had to grow is the point. The old shape could not express
+/// "this write faces the gates", because there were no gates on it to face.
+mod chokepoint_fixture {
+    use std::sync::Arc;
+
+    use fraiseql_core::{
+        runtime::Executor,
+        schema::{ArgumentDefinition, CompiledSchema, FieldType, MutationDefinition},
+    };
+    use fraiseql_db::{PostgresAdapter, traits::DatabaseAdapter};
+    use fraiseql_test_utils::schema_builder::{TestFieldBuilder, TestTypeBuilder};
+
+    /// `Order` → `order`; the table, view and function names are all derived from it.
+    fn table(typename: &str) -> String {
+        typename.to_lowercase()
+    }
+
+    /// The compiled schema a step's `mutation_name` resolves against.
+    ///
+    /// One entity type with the two columns the saga fixtures use, and the three
+    /// mutations a saga step or its compensation can name. Argument order is the
+    /// positional order the engine binds in, so it matches each function's
+    /// parameter list exactly.
+    pub fn entity_schema(typename: &str) -> CompiledSchema {
+        let t = table(typename);
+        let entity = TestTypeBuilder::new(typename, &format!("v_{t}"))
+            .with_field(TestFieldBuilder::new("id", FieldType::String).build())
+            .with_field(TestFieldBuilder::nullable("total", FieldType::String).build())
+            .build();
+
+        let mutation = |name: String, sql: String, args: Vec<ArgumentDefinition>| {
+            let mut m = MutationDefinition::new(&name, typename);
+            m.sql_source = Some(sql);
+            m.arguments = args;
+            m
+        };
+
+        let mut schema = CompiledSchema {
+            types: vec![entity],
+            mutations: vec![
+                mutation(
+                    format!("create{typename}"),
+                    format!("fn_create_{t}"),
+                    vec![
+                        ArgumentDefinition::new("id", FieldType::String),
+                        ArgumentDefinition::optional("total", FieldType::String),
+                    ],
+                ),
+                mutation(
+                    format!("update{typename}"),
+                    format!("fn_update_{t}"),
+                    vec![
+                        ArgumentDefinition::new("id", FieldType::String),
+                        ArgumentDefinition::optional("total", FieldType::String),
+                    ],
+                ),
+                mutation(
+                    format!("delete{typename}"),
+                    format!("fn_delete_{t}"),
+                    vec![ArgumentDefinition::new("id", FieldType::String)],
+                ),
+            ],
+            ..CompiledSchema::default()
+        };
+        schema.build_indexes();
+        schema
+    }
+
+    /// Provision the entity table, its read view, and the three mutation
+    /// functions the schema above names. `mutation_response` is the composite the
+    /// engine reads its envelope from.
+    pub async fn provision(adapter: &PostgresAdapter, typename: &str) {
+        let t = table(typename);
+        let stmts = vec![
+            "DO $$ BEGIN CREATE SCHEMA IF NOT EXISTS app; EXCEPTION WHEN OTHERS THEN NULL; END $$"
+                .to_string(),
+            "DO $$ BEGIN CREATE TYPE app.mutation_response AS (succeeded BOOLEAN, \
+             state_changed BOOLEAN, status_code SMALLINT, message TEXT, entity_id UUID, \
+             entity_type TEXT, entity JSONB, updated_fields TEXT[], cascade JSONB, \
+             error_detail JSONB, metadata JSONB); EXCEPTION WHEN duplicate_object THEN NULL; \
+             END $$"
+                .to_string(),
+            format!("DROP TABLE IF EXISTS \"{t}\" CASCADE"),
+            format!("CREATE TABLE \"{t}\" (id TEXT PRIMARY KEY, total TEXT)"),
+            format!(
+                "CREATE OR REPLACE VIEW v_{t} AS SELECT id, jsonb_build_object('id', id, \
+                 'total', total) AS data FROM \"{t}\""
+            ),
+            format!(
+                "CREATE OR REPLACE FUNCTION fn_create_{t}(p_id text, p_total text) RETURNS \
+                 app.mutation_response LANGUAGE plpgsql AS $$ DECLARE v app.mutation_response; \
+                 BEGIN INSERT INTO \"{t}\" (id, total) VALUES (p_id, p_total); v.succeeded := \
+                 true; v.state_changed := true; v.message := 'created'; v.entity_type := \
+                 '{typename}'; v.entity := jsonb_build_object('id', p_id, 'total', p_total); \
+                 RETURN v; END; $$"
+            ),
+            format!(
+                "CREATE OR REPLACE FUNCTION fn_update_{t}(p_id text, p_total text) RETURNS \
+                 app.mutation_response LANGUAGE plpgsql AS $$ DECLARE v app.mutation_response; \
+                 BEGIN UPDATE \"{t}\" SET total = p_total WHERE id = p_id; v.succeeded := \
+                 FOUND; v.state_changed := FOUND; v.message := 'updated'; v.entity_type := \
+                 '{typename}'; v.entity := jsonb_build_object('id', p_id, 'total', p_total); \
+                 RETURN v; END; $$"
+            ),
+            format!(
+                "CREATE OR REPLACE FUNCTION fn_delete_{t}(p_id text) RETURNS \
+                 app.mutation_response LANGUAGE plpgsql AS $$ DECLARE v app.mutation_response; \
+                 BEGIN DELETE FROM \"{t}\" WHERE id = p_id; v.succeeded := FOUND; \
+                 v.state_changed := FOUND; v.message := 'deleted'; v.entity_type := \
+                 '{typename}'; v.entity := jsonb_build_object('id', p_id); RETURN v; END; $$"
+            ),
+        ];
+        for stmt in stmts {
+            adapter.execute_raw_query(&stmt).await.unwrap();
+        }
+    }
+
+    /// The operation name a step of this kind carries for this entity.
+    ///
+    /// Steps used to leave `mutation_name` unset and let the old path sniff the
+    /// statement kind from the leading verb of the *kind* string ("create"). The
+    /// chokepoint resolves a real name against the compiled schema instead, so a
+    /// step has to carry one — which is the point: a name the schema does not
+    /// define is now refused rather than guessed.
+    pub fn op_name(mutation_type: &fraiseql_saga::MutationType, typename: &str) -> String {
+        format!("{}{typename}", mutation_type.as_str())
+    }
+
+    /// Provision, then hand back the engine a saga writes through.
+    pub async fn engine(
+        adapter: Arc<PostgresAdapter>,
+        typename: &str,
+    ) -> Arc<Executor<PostgresAdapter>> {
+        provision(&adapter, typename).await;
+        Arc::new(Executor::new(entity_schema(typename), adapter))
+    }
+}
+
 // ── Forward phase end-to-end against real PostgreSQL (saga) ────
 //
 // Ignored by default — these require a live PostgreSQL reachable via
@@ -69,20 +216,14 @@ mod wired_pg {
     ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
-        let adapter = PostgresAdapter::new(url).await.unwrap();
-        let table = typename.to_lowercase();
-        adapter
-            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
-            .await
-            .unwrap();
-        adapter
-            .execute_raw_query(&format!(
-                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
-            ))
-            .await
-            .unwrap();
-        let executor =
-            FederationMutationExecutor::new(Arc::new(adapter), entity_metadata(typename), false);
+        let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
+        let engine = super::chokepoint_fixture::engine(adapter, typename).await;
+        let executor = FederationMutationExecutor::new(
+            engine,
+            entity_metadata(typename),
+            "saga-integration",
+            fraiseql_core::schema::RunAs::default(),
+        );
         (store, executor)
     }
 
@@ -109,8 +250,8 @@ mod wired_pg {
             order,
             subgraph: "orders".to_string(),
             remote: false,
+            mutation_name: Some(super::chokepoint_fixture::op_name(&mt, typename)),
             mutation_type: mt,
-            mutation_name: None,
             typename: typename.to_string(),
             variables,
             state: StepState::Pending,
@@ -212,7 +353,13 @@ mod wired_pg {
         store.save_saga_step(&named).await.unwrap();
 
         // Step WITHOUT a mutation name (backwards-compatible None round-trip).
-        let unnamed = new_step(saga_id, 1, MutationType::Create, &typename, json!({"id": "n2"}));
+        // Cleared explicitly: since #1354 the shared `new_step` helper always
+        // carries a name, because a dispatched step needs one the compiled schema
+        // defines. This test is about the *store* keeping `None` as `None`, so it
+        // must build the absent case itself rather than inherit it.
+        let mut unnamed =
+            new_step(saga_id, 1, MutationType::Create, &typename, json!({"id": "n2"}));
+        unnamed.mutation_name = None;
         store.save_saga_step(&unnamed).await.unwrap();
 
         let reloaded_named = store.load_saga_step(named.id).await.unwrap().unwrap();
@@ -634,20 +781,14 @@ mod recovery_pg {
     ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
-        let adapter = PostgresAdapter::new(url).await.unwrap();
-        let table = typename.to_lowercase();
-        adapter
-            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
-            .await
-            .unwrap();
-        adapter
-            .execute_raw_query(&format!(
-                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
-            ))
-            .await
-            .unwrap();
-        let executor =
-            FederationMutationExecutor::new(Arc::new(adapter), entity_metadata(typename), false);
+        let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
+        let engine = super::chokepoint_fixture::engine(adapter, typename).await;
+        let executor = FederationMutationExecutor::new(
+            engine,
+            entity_metadata(typename),
+            "saga-integration",
+            fraiseql_core::schema::RunAs::default(),
+        );
         (store, executor)
     }
 
@@ -691,8 +832,8 @@ mod recovery_pg {
             order,
             subgraph: "orders".to_string(),
             remote: false,
+            mutation_name: Some(super::chokepoint_fixture::op_name(&mt, typename)),
             mutation_type: mt,
-            mutation_name: None,
             typename: typename.to_string(),
             variables,
             state: StepState::Pending,
@@ -1137,20 +1278,14 @@ mod coordinator_pg {
     ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
-        let adapter = PostgresAdapter::new(url).await.unwrap();
-        let table = typename.to_lowercase();
-        adapter
-            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
-            .await
-            .unwrap();
-        adapter
-            .execute_raw_query(&format!(
-                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
-            ))
-            .await
-            .unwrap();
-        let executor =
-            FederationMutationExecutor::new(Arc::new(adapter), entity_metadata(typename), false);
+        let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
+        let engine = super::chokepoint_fixture::engine(adapter, typename).await;
+        let executor = FederationMutationExecutor::new(
+            engine,
+            entity_metadata(typename),
+            "saga-integration",
+            fraiseql_core::schema::RunAs::default(),
+        );
         (store, executor)
     }
 
@@ -1506,20 +1641,14 @@ mod remote_dispatch_pg {
     ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
-        let adapter = PostgresAdapter::new(url).await.unwrap();
-        let table = typename.to_lowercase();
-        adapter
-            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
-            .await
-            .unwrap();
-        adapter
-            .execute_raw_query(&format!(
-                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
-            ))
-            .await
-            .unwrap();
-        let executor =
-            FederationMutationExecutor::new(Arc::new(adapter), entity_metadata(typename), false);
+        let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
+        let engine = super::chokepoint_fixture::engine(adapter, typename).await;
+        let executor = FederationMutationExecutor::new(
+            engine,
+            entity_metadata(typename),
+            "saga-integration",
+            fraiseql_core::schema::RunAs::default(),
+        );
         (store, executor)
     }
 
@@ -1609,8 +1738,10 @@ mod remote_dispatch_pg {
             "both Completed: {steps:?}"
         );
         let local_result = steps[0].result.as_ref().expect("local step result persisted");
+        let local_op =
+            super::chokepoint_fixture::op_name(&fraiseql_saga::MutationType::Create, &typename);
         assert_eq!(
-            local_result["total"], "10",
+            local_result["data"][&local_op]["total"], "10",
             "local step carries the DB read-back: {local_result}"
         );
         let remote_result = steps[1].result.as_ref().expect("remote step result persisted");
@@ -1823,20 +1954,14 @@ mod prefetch_pg {
     ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
-        let adapter = PostgresAdapter::new(url).await.unwrap();
-        let table = typename.to_lowercase();
-        adapter
-            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
-            .await
-            .unwrap();
-        adapter
-            .execute_raw_query(&format!(
-                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
-            ))
-            .await
-            .unwrap();
-        let executor =
-            FederationMutationExecutor::new(Arc::new(adapter), entity_metadata(typename), false);
+        let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
+        let engine = super::chokepoint_fixture::engine(adapter, typename).await;
+        let executor = FederationMutationExecutor::new(
+            engine,
+            entity_metadata(typename),
+            "saga-integration",
+            fraiseql_core::schema::RunAs::default(),
+        );
         (store, executor)
     }
 
@@ -2150,20 +2275,14 @@ mod recovery_safety_pg {
     ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
-        let adapter = PostgresAdapter::new(url).await.unwrap();
-        let table = typename.to_lowercase();
-        adapter
-            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
-            .await
-            .unwrap();
-        adapter
-            .execute_raw_query(&format!(
-                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
-            ))
-            .await
-            .unwrap();
-        let executor =
-            FederationMutationExecutor::new(Arc::new(adapter), entity_metadata(typename), false);
+        let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
+        let engine = super::chokepoint_fixture::engine(adapter, typename).await;
+        let executor = FederationMutationExecutor::new(
+            engine,
+            entity_metadata(typename),
+            "saga-integration",
+            fraiseql_core::schema::RunAs::default(),
+        );
         (store, executor)
     }
 
@@ -2623,7 +2742,10 @@ mod recovery_safety_pg {
             subgraph: "orders".to_string(),
             remote: false,
             mutation_type: MutationType::Create,
-            mutation_name: None,
+            mutation_name: Some(super::chokepoint_fixture::op_name(
+                &MutationType::Create,
+                &typename,
+            )),
             typename: typename.clone(),
             variables: serde_json::json!({"id": "g1"}),
             state: StepState::Pending,
@@ -2814,20 +2936,14 @@ mod compensation_honesty_pg {
     ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
-        let adapter = PostgresAdapter::new(url).await.unwrap();
-        let table = typename.to_lowercase();
-        adapter
-            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
-            .await
-            .unwrap();
-        adapter
-            .execute_raw_query(&format!(
-                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
-            ))
-            .await
-            .unwrap();
-        let executor =
-            FederationMutationExecutor::new(Arc::new(adapter), entity_metadata(typename), false);
+        let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
+        let engine = super::chokepoint_fixture::engine(adapter, typename).await;
+        let executor = FederationMutationExecutor::new(
+            engine,
+            entity_metadata(typename),
+            "saga-integration",
+            fraiseql_core::schema::RunAs::default(),
+        );
         (store, executor)
     }
 
@@ -3107,7 +3223,10 @@ mod compensation_honesty_pg {
             subgraph: "orders".to_string(),
             remote: false,
             mutation_type: MutationType::Create,
-            mutation_name: None,
+            mutation_name: Some(super::chokepoint_fixture::op_name(
+                &MutationType::Create,
+                &typename,
+            )),
             typename: typename.clone(),
             variables: json!({"id": "x1"}),
             state: StepState::Pending,
@@ -3207,8 +3326,8 @@ mod wired_execution_pg {
             order: 0,
             subgraph: "orders".to_string(),
             remote: false,
+            mutation_name: Some(super::chokepoint_fixture::op_name(&mutation_type, typename)),
             mutation_type,
-            mutation_name: None,
             typename: typename.to_string(),
             variables,
             state: StepState::Pending,
@@ -3230,22 +3349,20 @@ mod wired_execution_pg {
         typename: &str,
     ) -> (FederationMutationExecutor<PostgresAdapter>, Arc<PostgresAdapter>) {
         let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
-        let table = typename.to_lowercase();
-        adapter
-            .execute_raw_query(&format!(
-                "CREATE TABLE \"{table}\" (id TEXT PRIMARY KEY, total TEXT)"
-            ))
-            .await
-            .unwrap();
-        let executor =
-            FederationMutationExecutor::new(Arc::clone(&adapter), entity_metadata(typename), false);
+        let engine = super::chokepoint_fixture::engine(Arc::clone(&adapter), typename).await;
+        let executor = FederationMutationExecutor::new(
+            engine,
+            entity_metadata(typename),
+            "saga-integration",
+            fraiseql_core::schema::RunAs::default(),
+        );
         (executor, adapter)
     }
 
     async fn drop_entity_table(adapter: &PostgresAdapter, typename: &str) {
         let table = typename.to_lowercase();
         adapter
-            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\""))
+            .execute_raw_query(&format!("DROP TABLE IF EXISTS \"{table}\" CASCADE"))
             .await
             .unwrap();
     }
@@ -3266,9 +3383,16 @@ mod wired_execution_pg {
 
         assert!(result.success, "a successful create must report success: {result:?}");
         assert_eq!(result.step_number, 1, "0-based order maps to 1-indexed step number");
+        // The payload is the engine's response envelope — `{"data": {"<op>": …}}`
+        // projected through the mutation's return type — not the flat
+        // `__typename`-plus-every-column map the deleted builder used to assemble
+        // (#1354). Navigating it by the step's own operation name is the assertion:
+        // a response key the step did not ask for would fail here.
         let data = result.data.expect("a successful step must carry the read-back entity");
-        assert_eq!(data["id"], "o1", "result must reflect the real inserted row: {data}");
-        assert_eq!(data["__typename"], typename);
+        let op = super::chokepoint_fixture::op_name(&MutationType::Create, &typename);
+        let entity = &data["data"][&op];
+        assert_eq!(entity["id"], "o1", "result must reflect the real inserted row: {data}");
+        assert_eq!(entity["total"], "100", "every projected field comes from the row: {data}");
 
         // The row really landed in the database — not a fabricated response.
         let rows = adapter

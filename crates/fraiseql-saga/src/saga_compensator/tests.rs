@@ -96,7 +96,19 @@ mod wired {
             message:   "test bug: the local adapter must not be reached".to_string(),
             sql_state: None,
         }));
-        FederationMutationExecutor::new(adapter, order_metadata(), false)
+        // The engine over that adapter: an empty schema, because the local arm must
+        // not run here either — an unresolvable mutation name is a second loud
+        // failure behind the adapter's own.
+        let engine = Arc::new(fraiseql_core::runtime::Executor::new(
+            fraiseql_core::schema::CompiledSchema::default(),
+            adapter,
+        ));
+        FederationMutationExecutor::new(
+            engine,
+            order_metadata(),
+            "compensator-tests",
+            fraiseql_core::schema::RunAs::default(),
+        )
     }
 
     fn completed_step() -> SagaStep {

@@ -1,165 +1,177 @@
+//! The saga's local arm dispatches through the engine, and faces its gates.
+//!
+//! These tests exist because the arm they cover used to face none of them: it
+//! built `INSERT`/`UPDATE`/`DELETE` SQL from entity metadata and ran it with
+//! `execute_raw_query`, taking no `SecurityContext` at all (#1354). The
+//! assertions below are about that difference, so each one is written to fail if
+//! the dispatch ever leaves the chokepoint again.
+
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-use fraiseql_db::DatabaseType;
 
-use super::*;
+use std::{collections::HashMap, sync::Arc};
 
-// M-fed-mut-executor: an unrecognised operation name must fail loud rather than
-// silently default to UPDATE (which would issue an `UPDATE` for a typo'd or
-// unsupported mutation).
+use fraiseql_core::{
+    runtime::Executor,
+    schema::{CompiledSchema, RunAs},
+};
+use fraiseql_federation::types::FederationMetadata;
+use fraiseql_test_utils::{
+    failing_adapter::FailingAdapter,
+    schema_builder::{TestFieldBuilder, TestMutationBuilder, TestSchemaBuilder, TestTypeBuilder},
+};
+use serde_json::json;
 
-#[test]
-fn determine_mutation_type_recognises_known_verbs() {
-    assert_eq!(determine_mutation_type("createUser").unwrap(), MutationType::Create);
-    assert_eq!(determine_mutation_type("addUser").unwrap(), MutationType::Create);
-    assert_eq!(determine_mutation_type("updateUser").unwrap(), MutationType::Update);
-    assert_eq!(determine_mutation_type("modifyUser").unwrap(), MutationType::Update);
-    assert_eq!(determine_mutation_type("deleteUser").unwrap(), MutationType::Delete);
-    assert_eq!(determine_mutation_type("removeUser").unwrap(), MutationType::Delete);
+use super::FederationMutationExecutor;
+
+/// A schema with one composite-returning mutation, optionally role-guarded.
+fn schema(requires_role: Option<&str>) -> CompiledSchema {
+    let mut create_order = TestMutationBuilder::new("createOrder", "Order")
+        .with_sql_source("fn_create_order")
+        .build();
+    create_order.requires_role = requires_role.map(str::to_string);
+
+    TestSchemaBuilder::new()
+        .with_type(
+            TestTypeBuilder::new("Order", "v_order")
+                .with_field(
+                    TestFieldBuilder::new("id", fraiseql_core::schema::FieldType::String).build(),
+                )
+                .with_field(
+                    TestFieldBuilder::new("amount", fraiseql_core::schema::FieldType::Int).build(),
+                )
+                .build(),
+        )
+        .with_mutation(create_order)
+        .build()
 }
 
-#[test]
-fn determine_mutation_type_rejects_unknown_verb() {
-    let result = determine_mutation_type("frobnicateUser");
-    assert!(
-        matches!(result, Err(fraiseql_error::FraiseQLError::Validation { .. })),
-        "an unrecognised operation name must error, not default to UPDATE: {result:?}"
+/// The `mutation_response` envelope a successful mutation function returns.
+fn success_row() -> HashMap<String, serde_json::Value> {
+    let mut row = HashMap::new();
+    row.insert("succeeded".to_string(), json!(true));
+    row.insert("state_changed".to_string(), json!(true));
+    row.insert("message".to_string(), json!("ok"));
+    row.insert("entity".to_string(), json!({"id": "order-1", "amount": 99}));
+    row.insert("entity_type".to_string(), json!("Order"));
+    row
+}
+
+fn saga_over(
+    schema: CompiledSchema,
+    roles: &[&str],
+) -> (FederationMutationExecutor<FailingAdapter>, Arc<FailingAdapter>) {
+    let adapter = Arc::new(
+        FailingAdapter::new().with_function_response("fn_create_order", vec![success_row()]),
     );
-}
-
-// #400: under a camelCase GraphQL surface, mutation input keys must be reversed to
-// the entity table's canonical snake_case column names before the query builders
-// turn them into SQL identifiers — or the write targets a column that does not
-// exist. Federation mutations are scalar-only, so only top-level keys are recased.
-
-fn make_metadata(typename: &str, key_field: &str) -> FederationMetadata {
-    FederationMetadata {
-        enabled: true,
-        version: "v2".to_string(),
-        types: vec![FederatedType {
-            name:                typename.to_string(),
-            keys:                vec![fraiseql_federation::types::KeyDirective {
-                fields:     vec![key_field.to_string()],
-                resolvable: true,
-            }],
-            is_extends:          false,
-            external_fields:     Vec::new(),
-            shareable_fields:    Vec::new(),
-            inaccessible_fields: Vec::new(),
-            field_directives:    std::collections::HashMap::new(),
-            type_shareable:      false,
-        }],
-        remote_subscription_fields: std::collections::HashMap::new(),
-    }
-}
-
-#[test]
-fn canonicalize_input_keys_recases_camel_and_acronyms() {
-    let vars = serde_json::json!({
-        "name": "web-1",
-        "dns1Id": "d-1",
-        "s3Key": "k-2",
-        "ipv4Cidr": "10.0.0.0/8",
-        "oauth2Token": "t-3"
-    });
-    let out = canonicalize_input_keys(&vars, true);
-    let obj = out.as_object().unwrap();
-    assert!(obj.contains_key("name"), "single-word key unchanged: {obj:?}");
-    assert_eq!(obj["dns_1_id"], "d-1", "digit-boundary key must recase: {obj:?}");
-    assert_eq!(obj["s3_key"], "k-2", "acronym key must recase: {obj:?}");
-    assert_eq!(obj["ipv4_cidr"], "10.0.0.0/8", "acronym key must recase: {obj:?}");
-    assert_eq!(obj["oauth2_token"], "t-3", "acronym key must recase: {obj:?}");
-    for stale in ["dns1Id", "s3Key", "ipv4Cidr", "oauth2Token"] {
-        assert!(!obj.contains_key(stale), "verbatim '{stale}' must not survive: {obj:?}");
-    }
-}
-
-#[test]
-fn canonicalize_input_keys_noop_when_disabled() {
-    // Preserve convention (recase = false): keys pass through verbatim.
-    let vars = serde_json::json!({ "s3Key": "k" });
-    assert_eq!(canonicalize_input_keys(&vars, false), vars);
-}
-
-#[test]
-fn canonicalize_input_keys_idempotent_on_snake() {
-    let vars = serde_json::json!({ "s3_key": "k", "dns_1_id": "d" });
-    assert_eq!(
-        canonicalize_input_keys(&vars, true),
-        vars,
-        "already-snake keys must be unchanged"
-    );
-}
-
-#[test]
-fn canonicalize_input_keys_leaves_values_untouched() {
-    // Only keys are recased; a value that happens to look camelCase stays verbatim.
-    let vars = serde_json::json!({ "s3Key": "myBucketName" });
-    let out = canonicalize_input_keys(&vars, true);
-    assert_eq!(out["s3_key"], "myBucketName", "value must not be recased: {out:?}");
-}
-
-#[test]
-fn recased_keys_produce_snake_case_insert_columns() {
-    // End-to-end: recased keys reach the builder as the table's snake_case columns.
-    let meta = make_metadata("Server", "id");
-    let vars = canonicalize_input_keys(
-        &serde_json::json!({ "id": "s1", "s3Key": "b", "dns1Id": "d" }),
-        true,
-    );
-    let sql = build_insert_query(DatabaseType::PostgreSQL, "Server", &vars, &meta).unwrap();
-    assert!(sql.contains("\"s3_key\""), "insert column must be snake_case: {sql}");
-    assert!(sql.contains("\"dns_1_id\""), "insert column must be snake_case: {sql}");
-    assert!(!sql.contains("\"s3Key\""), "camelCase column must not survive: {sql}");
-    assert!(!sql.contains("\"dns1Id\""), "camelCase column must not survive: {sql}");
-}
-
-#[test]
-fn recased_keys_fix_update_set_and_key_lookup() {
-    // The @key field is canonical (`dns_1_id`); the client sends the camelCase
-    // surface (`dns1Id`). Without recasing, `vars.get("dns_1_id")` would miss and
-    // the build would error "Key field 'dns_1_id' missing"; recasing fixes both
-    // the SET column casing and the WHERE-key lookup.
-    let meta = make_metadata("Server", "dns_1_id");
-    let vars = canonicalize_input_keys(&serde_json::json!({ "dns1Id": "k1", "s3Key": "b" }), true);
-    let sql = build_update_query(DatabaseType::PostgreSQL, "Server", &vars, &meta).unwrap();
-    assert!(sql.contains("\"s3_key\""), "SET column must be snake_case: {sql}");
-    assert!(sql.contains("WHERE \"dns_1_id\""), "WHERE key column must be snake_case: {sql}");
-    assert!(!sql.contains("\"dns1Id\""), "camelCase must not survive: {sql}");
-}
-
-/// #785 — `execute_extended_mutation` must fail loud, never fabricate the
-/// success it used to (echoing the input with `_remote_execution: true`
-/// without contacting any subgraph). The real cross-subgraph mutation path is
-/// `HttpMutationClient` / a saga step with the owning subgraph registered.
-#[tokio::test]
-async fn extended_mutation_fails_loud_instead_of_fabricating_success() {
-    use std::sync::Arc;
-
-    use fraiseql_test_utils::failing_adapter::{FailError, FailingAdapter};
-
-    // The extended-mutation path must error before any database work; a
-    // fail-everything adapter proves the local path is never reached.
-    let adapter = Arc::new(FailingAdapter::new().fail_with_error(FailError::Database {
-        message:   "test bug: the local adapter must not be reached".to_string(),
-        sql_state: None,
-    }));
-    let executor = FederationMutationExecutor::new(
+    let engine = Arc::new(Executor::new(schema, Arc::clone(&adapter)));
+    let run_as = RunAs {
+        roles:  roles.iter().map(|r| (*r).to_string()).collect(),
+        scopes: vec![],
+        tenant: None,
+    };
+    (
+        FederationMutationExecutor::new(engine, FederationMetadata::default(), "test-saga", run_as),
         adapter,
-        fraiseql_federation::types::FederationMetadata::default(),
-        false,
-    );
+    )
+}
 
-    let err = executor
-        .execute_extended_mutation("Order", "updateOrder", &serde_json::json!({"id": "o1"}))
+/// The gate the old path could not run, because it never held a principal.
+///
+/// The refusal deliberately reads "not found in schema" rather than "forbidden":
+/// the chokepoint answers `requires_role` that way so a caller cannot enumerate
+/// mutations by probing them (`runners/mutation/mod.rs` step 1b). So this test
+/// cannot assert on the message — what makes it a *role* refusal rather than a
+/// genuine unknown name is its twin below: same schema, same mutation name, only
+/// the authority differs, and that one succeeds.
+#[tokio::test]
+async fn a_role_guarded_mutation_is_refused_when_the_saga_authority_lacks_the_role() {
+    let (saga, adapter) = saga_over(schema(Some("saga_writer")), &[]);
+
+    let err = saga
+        .execute_local_mutation("createOrder", &json!({"amount": 99}), "step-1")
         .await
-        .expect_err("an unimplemented remote propagation must be an error, not an echo");
+        .expect_err("a saga with no roles must not pass a requires_role mutation");
+
     let msg = err.to_string();
     assert!(
-        msg.contains("not") && msg.contains("implemented"),
-        "the error says the path is unimplemented: {msg}"
+        !msg.to_lowercase().contains("role") && !msg.to_lowercase().contains("forbidden"),
+        "the refusal must not disclose that a role gate exists, got: {msg}"
     );
     assert!(
-        msg.contains("HttpMutationClient"),
-        "the error points at the real remote-dispatch path: {msg}"
+        adapter.recorded_queries().is_empty(),
+        "a refused mutation must not reach the database at all, saw: {:?}",
+        adapter.recorded_queries()
+    );
+}
+
+/// The twin. A gate that refuses everything is not a gate — this is the case
+/// that must stay green, so the test above is about the *role* and not about
+/// the saga being unable to write at all.
+#[tokio::test]
+async fn the_same_mutation_succeeds_when_the_authority_names_the_role() {
+    let (saga, _) = saga_over(schema(Some("saga_writer")), &["saga_writer"]);
+
+    saga.execute_local_mutation("createOrder", &json!({"amount": 99}), "step-1")
+        .await
+        .expect("an authority holding the required role must be allowed through");
+}
+
+/// What the dispatch *is*. The old path issued `INSERT INTO "order" (…)` through
+/// `execute_raw_query`; the engine calls the mutation's compiled `sql_source`.
+/// Asserting on the adapter's own log discriminates between the two — a
+/// regression to string SQL would fail here even if the write still succeeded.
+#[tokio::test]
+async fn the_write_is_the_compiled_function_call_not_a_built_statement() {
+    let (saga, adapter) = saga_over(schema(None), &[]);
+
+    saga.execute_local_mutation("createOrder", &json!({"amount": 99}), "step-1")
+        .await
+        .expect("an unguarded mutation should execute");
+
+    let seen = adapter.recorded_queries();
+    assert!(
+        seen.iter().any(|q| q == "fn_create_order"),
+        "the engine should have called the mutation's compiled sql_source, saw: {seen:?}"
+    );
+    assert!(
+        !seen.iter().any(|q| {
+            let q = q.to_uppercase();
+            q.contains("INSERT INTO") || q.contains("UPDATE ") || q.contains("DELETE FROM")
+        }),
+        "no statement may be built and dispatched raw, saw: {seen:?}"
+    );
+}
+
+/// An operation name the compiled schema does not know fails loud. The old path
+/// resolved a name by its leading verb, so `shipOrder` — a real mutation with no
+/// recognised prefix — was refused, while a *typo* beginning with `update`
+/// silently issued an `UPDATE` against the entity table.
+#[tokio::test]
+async fn an_unknown_mutation_name_is_refused_rather_than_guessed() {
+    let (saga, adapter) = saga_over(schema(None), &[]);
+
+    saga.execute_local_mutation("updateOrdr", &json!({"amount": 99}), "step-1")
+        .await
+        .expect_err("a name the compiled schema does not define must not execute");
+
+    assert!(
+        adapter.recorded_queries().is_empty(),
+        "nothing should reach the database, saw: {:?}",
+        adapter.recorded_queries()
+    );
+}
+
+/// The remote arm is unchanged and still refuses to fabricate success (#785).
+#[tokio::test]
+async fn an_extended_mutation_still_fails_loud() {
+    let (saga, _) = saga_over(schema(None), &[]);
+
+    let err = saga
+        .execute_extended_mutation("Order", "createOrder", &json!({}))
+        .await
+        .expect_err("extended mutations are not implemented on this executor");
+    assert!(
+        err.to_string().contains("not \nimplemented")
+            || err.to_string().contains("not implemented")
     );
 }

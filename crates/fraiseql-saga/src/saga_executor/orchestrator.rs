@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use fraiseql_db::traits::DatabaseAdapter;
+use fraiseql_db::traits::{DatabaseAdapter, SupportsMutations};
 use fraiseql_federation::http_resolver::HttpEntityResolver;
 use reqwest::Url;
 use uuid::Uuid;
@@ -52,7 +52,7 @@ impl SagaExecutor {
     /// Returns [`SagaStoreError::Database`] if no saga store is configured,
     /// [`SagaStoreError::SagaNotFound`] if the saga does not exist, or any store
     /// error encountered while loading steps or persisting state.
-    pub async fn execute_saga<A: DatabaseAdapter>(
+    pub async fn execute_saga<A: DatabaseAdapter + SupportsMutations>(
         &self,
         saga_id: Uuid,
         mutation_executor: &FederationMutationExecutor<A>,

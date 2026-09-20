@@ -38,10 +38,8 @@
 //! depends on it, so a deployment that does not orchestrate cross-subgraph
 //! transactions never compiles the Postgres saga store or its dependencies.
 
-pub mod mutation_detector;
 pub mod mutation_executor;
 pub mod mutation_http_client;
-pub mod mutation_query_builder;
 pub mod saga_compensator;
 pub mod saga_coordinator;
 pub mod saga_executor;
@@ -51,10 +49,8 @@ pub mod saga_store;
 /// The `chrono` this crate's public API is built against (#1198).
 pub use chrono;
 pub use fraiseql_error::Result;
-pub use mutation_detector::*;
 pub use mutation_executor::*;
 pub use mutation_http_client::*;
-pub use mutation_query_builder::*;
 /// The `reqwest` this crate's public API is built against (#1198).
 pub use reqwest;
 pub use saga_compensator::{
