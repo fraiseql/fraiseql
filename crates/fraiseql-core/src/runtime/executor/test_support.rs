@@ -122,6 +122,11 @@ impl CapturingMockAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl DatabaseAdapter for CapturingMockAdapter {
+    // Writes: opted in, because both capability gates default to refusing.
+    fn supports_mutations(&self) -> bool {
+        true
+    }
+
     async fn execute_with_projection(
         &self,
         view: &str,
@@ -252,6 +257,11 @@ impl MockAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl DatabaseAdapter for MockAdapter {
+    // Writes: opted in, because both capability gates default to refusing.
+    fn supports_mutations(&self) -> bool {
+        true
+    }
+
     async fn execute_with_projection(
         &self,
         view: &str,

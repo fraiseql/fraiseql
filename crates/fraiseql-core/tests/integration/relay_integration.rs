@@ -75,6 +75,11 @@ impl RelayMockAdapter {
 // its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for RelayMockAdapter {
+    // Writes: opted in, because both capability gates default to refusing.
+    fn supports_mutations(&self) -> bool {
+        true
+    }
+
     async fn execute_where_query(
         &self,
         _view: &str,
@@ -790,6 +795,11 @@ impl UuidRelayMockAdapter {
 // its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for UuidRelayMockAdapter {
+    // Writes: opted in, because both capability gates default to refusing.
+    fn supports_mutations(&self) -> bool {
+        true
+    }
+
     async fn execute_where_query(
         &self,
         _view: &str,
@@ -1207,6 +1217,11 @@ mod relay_security {
     // its transformed method signatures to satisfy the trait contract
     #[async_trait]
     impl DatabaseAdapter for RecordingRelayAdapter {
+        // Writes: opted in, because both capability gates default to refusing.
+        fn supports_mutations(&self) -> bool {
+            true
+        }
+
         async fn execute_where_query(
             &self,
             _view: &str,

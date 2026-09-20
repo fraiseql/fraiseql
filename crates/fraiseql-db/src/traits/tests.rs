@@ -9,14 +9,18 @@ fn database_adapter_is_send_sync() {
     assert_send_sync::<dyn super::DatabaseAdapter>();
 }
 
-/// The streaming defaults (#958).
+/// What the trait's defaults hand an adapter that implements nothing.
 ///
-/// An adapter that implements none of the streaming methods must still answer
-/// them, with exactly the rows its collecting methods return — that is the whole
-/// contract of the default, and it is what lets a stub adapter, a test double or
-/// a future backend be dropped into a streaming caller without special-casing.
+/// The streaming defaults (#958): an adapter that implements none of the streaming
+/// methods must still answer them, with exactly the rows its collecting methods
+/// return — that is the whole contract of the default, and it is what lets a stub
+/// adapter, a test double or a future backend be dropped into a streaming caller
+/// without special-casing.
+///
+/// The mutation default is the opposite kind of question, and must answer the
+/// opposite way: silence about a capability that writes must mean refused.
 #[cfg(test)]
-mod streaming_defaults {
+mod trait_defaults {
     use std::collections::HashMap;
 
     use async_trait::async_trait;
@@ -107,6 +111,24 @@ mod streaming_defaults {
         ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
             Ok(Vec::new())
         }
+    }
+
+    /// An adapter that says nothing about mutations must not be granted them.
+    ///
+    /// `CollectOnlyAdapter` implements `DatabaseAdapter`, does **not** implement the
+    /// opt-in [`SupportsMutations`](crate::traits::SupportsMutations) marker, and does
+    /// not override `supports_mutations()`. That is the shape every new backend and
+    /// every test double has before anyone has thought about writes.
+    ///
+    /// It is a sharp witness because its `execute_function_call` returns `Ok`: under
+    /// the permissive default this adapter was handed a write *and reported success*.
+    #[test]
+    fn an_adapter_that_says_nothing_is_refused_mutations() {
+        let adapter = CollectOnlyAdapter { rows: Vec::new() };
+        assert!(
+            !adapter.supports_mutations(),
+            "silence must mean refused: this adapter never opted in to writes"
+        );
     }
 
     #[tokio::test]

@@ -4860,6 +4860,29 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **`DatabaseAdapter::supports_mutations` now defaults to `false`.** An adapter is
+  read-only until it says otherwise. It defaulted to `true`, which is how the gate came
+  to be a no-op for `FraiseWireAdapter` (below): a write capability was something a
+  backend acquired by omission.
+
+  Both mutation gates now fail closed. The compile-time `SupportsMutations` marker was
+  already opt-in; this one has stopped being opt-out. An adapter that implements neither
+  is refused writes by the type system and by the runtime guard, instead of being refused
+  by one and granted by the other.
+
+  `SupportsMutations` documents the pairing it cannot enforce: implementing the marker
+  obliges you to override `supports_mutations()` to `true` as well. Rust cannot derive
+  one from the other without specialization, so the two are stated together at each
+  adapter. `PostgresAdapter` opts in; `CachedDatabaseAdapter` already forwarded its
+  inner adapter's answer and is unchanged.
+
+  **Who this breaks:** any out-of-tree adapter that writes and relied on the permissive
+  default. It will be refused mutations at runtime until it overrides
+  `supports_mutations()` to return `true`. The failure is a `FraiseQLError::Validation`
+  refusing the write, not silent data loss; its message now says what an adapter must do
+  to be write-capable, and no longer advises callers to reach for `MySqlAdapter` or
+  `SqlServerAdapter`, both deleted in #374.
+
 - **The runtime mutation gate was a no-op for the only read-only adapter in the tree.**
   `DatabaseAdapter::supports_mutations` calls itself "the authoritative mutation gate"
   and tells read-only adapters to override it, naming `FraiseWireAdapter`.

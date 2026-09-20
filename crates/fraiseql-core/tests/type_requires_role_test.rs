@@ -70,6 +70,11 @@ impl CapturingAdapter {
 // Reason: DatabaseAdapter is defined with #[async_trait]; implementations must match.
 #[async_trait]
 impl DatabaseAdapter for CapturingAdapter {
+    // Writes: opted in, because both capability gates default to refusing.
+    fn supports_mutations(&self) -> bool {
+        true
+    }
+
     async fn execute_with_projection(
         &self,
         view: &str,

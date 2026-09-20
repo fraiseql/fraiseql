@@ -41,6 +41,11 @@ struct NoopAdapter;
 
 #[async_trait]
 impl DatabaseAdapter for NoopAdapter {
+    // Writes: opted in, because both capability gates default to refusing.
+    fn supports_mutations(&self) -> bool {
+        true
+    }
+
     async fn execute_where_query(
         &self,
         _view: &str,

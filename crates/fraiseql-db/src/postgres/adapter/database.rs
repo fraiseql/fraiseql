@@ -556,6 +556,18 @@ impl DatabaseAdapter for PostgresAdapter {
         DatabaseType::PostgreSQL
     }
 
+    /// The stored-function write path is this adapter's, so it opts in.
+    ///
+    /// Stated here as well as through the [`SupportsMutations`] marker below because the
+    /// two gates answer at different times — the marker at compile time, this at runtime
+    /// — and both now default to refusing. Implementing the marker without this would
+    /// leave the runtime gate saying "read-only" about an adapter that writes.
+    ///
+    /// [`SupportsMutations`]: crate::traits::SupportsMutations
+    fn supports_mutations(&self) -> bool {
+        true
+    }
+
     async fn health_check(&self) -> Result<()> {
         // Use retry logic for health check to avoid false negatives during pool exhaustion
         let client = self.acquire_connection_with_retry().await?;

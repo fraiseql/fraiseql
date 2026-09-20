@@ -823,16 +823,20 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     /// forgetful adapter author gets. [`SupportsMutations`] is **opt-in**: an adapter
     /// that says nothing cannot reach `Executor`'s write entries at all. This method is
     /// **opt-out**: an adapter that says nothing is granted writes. So this one is a
-    /// backstop behind the marker, never a replacement for it — and only for adapters
-    /// that remember to override it. `FraiseWireAdapter` did not, which made this gate a
-    /// no-op for the only adapter its own documentation named.
+    /// backstop behind the marker rather than a replacement for it. Both now fail closed:
+    /// an adapter that implements neither is refused writes at compile time by the marker
+    /// and at runtime by this method.
     ///
     /// # Default
     ///
-    /// Returns `true`. All adapters are assumed mutation-capable unless they override
-    /// this method.
+    /// Returns `false`. An adapter is assumed read-only until it says otherwise, so an
+    /// adapter that never considered writes is refused them rather than granted them.
+    ///
+    /// The default used to be `true`, which is how this gate came to be a no-op for
+    /// `FraiseWireAdapter` — the one adapter its own documentation told to override it.
+    /// A write capability is not something a backend should acquire by omission.
     fn supports_mutations(&self) -> bool {
-        true
+        false
     }
 
     /// Bump fact table version counters after a successful mutation.
@@ -843,7 +847,7 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     /// re-fetch fresh data.
     ///
     /// The default implementation is a **no-op**: adapters that are not cache-
-    /// aware (e.g. `PostgresAdapter`, `SqliteAdapter`) simply return `Ok(())`.
+    /// aware (e.g. `PostgresAdapter`) simply return `Ok(())`.
     /// `CachedDatabaseAdapter` overrides this to call `bump_tf_version($1)` for
     /// every `FactTableVersionStrategy::VersionTable` table and update the
     /// in-process version cache.

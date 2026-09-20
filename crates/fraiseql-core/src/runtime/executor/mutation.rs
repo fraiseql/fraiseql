@@ -65,7 +65,8 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
     /// Unlike `execute()` (which accepts raw GraphQL strings and performs a runtime
     /// `supports_mutations()` check), this method is only available on adapters that
     /// implement [`SupportsMutations`].  The capability is enforced at **compile time**:
-    /// attempting to call this method with `SqliteAdapter` results in a compiler error.
+    /// attempting to call this method with `FraiseWireAdapter` results in a compiler error.
+    /// That is the witness the `compile_fail` pair on this impl block uses.
     ///
     /// # Arguments
     ///
@@ -324,8 +325,10 @@ impl<A: DatabaseAdapter> Executor<A> {
             return Err(FraiseQLError::Validation {
                 message: format!(
                     "Mutation '{mutation_name}' cannot be executed: the configured database \
-                     adapter does not support mutations. Use PostgresAdapter, MySqlAdapter, \
-                     or SqlServerAdapter for mutation operations."
+                     adapter is read-only. A write-capable adapter implements the \
+                     `SupportsMutations` marker and returns `true` from \
+                     `supports_mutations()` — both default to refusing. `PostgresAdapter` \
+                     does; `FraiseWireAdapter` deliberately does not."
                 ),
                 path:    None,
             });

@@ -36,6 +36,11 @@ mod mutation {
 
     #[async_trait]
     impl DatabaseAdapter for SelectionSetFilterMockAdapter {
+        // Writes: opted in, because both capability gates default to refusing.
+        fn supports_mutations(&self) -> bool {
+            true
+        }
+
         async fn execute_function_call(
             &self,
             _function_name: &str,
@@ -123,6 +128,11 @@ mod mutation {
 
     #[async_trait]
     impl DatabaseAdapter for EmptySelectionMockAdapter {
+        // Writes: opted in, because both capability gates default to refusing.
+        fn supports_mutations(&self) -> bool {
+            true
+        }
+
         async fn execute_function_call(
             &self,
             _function_name: &str,
@@ -266,9 +276,13 @@ mod mutation {
         let err = executor.execute("mutation { createUser { id } }", None).await.unwrap_err();
 
         let msg = err.to_string();
+        assert!(msg.contains("read-only"), "expected a read-only diagnostic, got: {msg}");
+        // The message must tell an adapter author what to do about it, because since the
+        // default flipped to refusing, this is the error an out-of-tree adapter that
+        // simply never mentioned writes will hit.
         assert!(
-            msg.contains("does not support mutations"),
-            "expected 'does not support mutations' diagnostic, got: {msg}"
+            msg.contains("SupportsMutations") && msg.contains("supports_mutations()"),
+            "the diagnostic must name both gates, got: {msg}"
         );
         assert!(msg.contains("createUser"), "error message should name the mutation, got: {msg}");
     }
@@ -518,6 +532,11 @@ mod mutation {
 
     #[async_trait]
     impl DatabaseAdapter for MutationErrorMockAdapter {
+        // Writes: opted in, because both capability gates default to refusing.
+        fn supports_mutations(&self) -> bool {
+            true
+        }
+
         async fn execute_function_call(
             &self,
             _function_name: &str,
@@ -919,6 +938,11 @@ mod mutation {
 
     #[async_trait]
     impl DatabaseAdapter for CapturingFunctionCallAdapter {
+        // Writes: opted in, because both capability gates default to refusing.
+        fn supports_mutations(&self) -> bool {
+            true
+        }
+
         async fn execute_function_call(
             &self,
             _function_name: &str,
@@ -2716,6 +2740,11 @@ mod mutation_audit {
 
     #[async_trait]
     impl DatabaseAdapter for AuditMockAdapter {
+        // Writes: opted in, because both capability gates default to refusing.
+        fn supports_mutations(&self) -> bool {
+            true
+        }
+
         async fn execute_function_call(
             &self,
             _function_name: &str,
@@ -3050,6 +3079,11 @@ mod field_authz {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for GatedEntityAdapter {
+        // Writes: opted in, because both capability gates default to refusing.
+        fn supports_mutations(&self) -> bool {
+            true
+        }
+
         async fn execute_function_call(
             &self,
             _function_name: &str,
@@ -3411,6 +3445,11 @@ mod cascade {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for CannedMutationAdapter {
+        // Writes: opted in, because both capability gates default to refusing.
+        fn supports_mutations(&self) -> bool {
+            true
+        }
+
         async fn execute_function_call(
             &self,
             _function_name: &str,
@@ -3900,6 +3939,11 @@ mod before_mutation_enforcement {
 
     #[async_trait]
     impl DatabaseAdapter for MutationCallLog {
+        // Writes: opted in, because both capability gates default to refusing.
+        fn supports_mutations(&self) -> bool {
+            true
+        }
+
         async fn execute_function_call(
             &self,
             function_name: &str,
@@ -4536,6 +4580,11 @@ mod before_mutation_read_bridge {
 
     #[async_trait]
     impl DatabaseAdapter for ReadEchoAdapter {
+        // Writes: opted in, because both capability gates default to refusing.
+        fn supports_mutations(&self) -> bool {
+            true
+        }
+
         async fn execute_function_call(
             &self,
             function_name: &str,
@@ -4934,6 +4983,11 @@ mod rest_write_body {
 
     #[async_trait]
     impl DatabaseAdapter for ArgLog {
+        // Writes: opted in, because both capability gates default to refusing.
+        fn supports_mutations(&self) -> bool {
+            true
+        }
+
         async fn execute_function_call(
             &self,
             function_name: &str,

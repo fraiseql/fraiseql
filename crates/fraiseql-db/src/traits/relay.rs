@@ -21,8 +21,9 @@ use crate::{
 /// # Implementors
 ///
 /// - `PostgresAdapter` — full keyset pagination
-/// - `MySqlAdapter` — keyset pagination with `?` params
 /// - `CachedDatabaseAdapter<A>` — delegates to inner `A`
+///
+/// `MySqlAdapter` was listed here until #374 removed the non-PostgreSQL backends.
 ///
 /// # Usage
 ///

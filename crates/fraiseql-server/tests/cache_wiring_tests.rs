@@ -63,6 +63,11 @@ impl Clone for CountingAdapter {
 // Reason: async_trait required by DatabaseAdapter trait definition
 #[async_trait]
 impl DatabaseAdapter for CountingAdapter {
+    // Writes: opted in, because both capability gates default to refusing.
+    fn supports_mutations(&self) -> bool {
+        true
+    }
+
     async fn execute_where_query(
         &self,
         _view: &str,

@@ -43,6 +43,11 @@ impl ErrorMockAdapter {
 // its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for ErrorMockAdapter {
+    // Writes: opted in, because both capability gates default to refusing.
+    fn supports_mutations(&self) -> bool {
+        true
+    }
+
     async fn execute_with_projection(
         &self,
         _view: &str,

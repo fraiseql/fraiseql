@@ -58,6 +58,11 @@ impl SwappableAdapter {
 // its transformed method signatures.
 #[async_trait]
 impl DatabaseAdapter for SwappableAdapter {
+    // Writes: opted in, because both capability gates default to refusing.
+    fn supports_mutations(&self) -> bool {
+        true
+    }
+
     async fn execute_with_projection(
         &self,
         _view: &str,

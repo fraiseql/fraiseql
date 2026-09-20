@@ -617,7 +617,7 @@ fn build_deleted_entities(
 /// Executes GraphQL mutations with compile-time capability enforcement.
 ///
 /// Only constructible when `A: SupportsMutations`. This means calling mutation
-/// methods on an executor backed by `SqliteAdapter` (which does not implement
+/// methods on an executor backed by `FraiseWireAdapter` (which does not implement
 /// `SupportsMutations`) is a compiler error, not a runtime failure.
 pub(in super::super) struct MutationRunner<A: DatabaseAdapter + SupportsMutations> {
     ctx: Arc<ExecutorContext<A>>,

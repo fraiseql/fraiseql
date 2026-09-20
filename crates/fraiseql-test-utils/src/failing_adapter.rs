@@ -336,6 +336,11 @@ impl Default for FailingAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl DatabaseAdapter for FailingAdapter {
+    // Writes: opted in, because both capability gates default to refusing.
+    fn supports_mutations(&self) -> bool {
+        true
+    }
+
     async fn execute_where_query(
         &self,
         view: &str,
