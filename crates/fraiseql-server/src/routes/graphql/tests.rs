@@ -403,7 +403,7 @@ mod app_state_tests {
 
     fn make_state() -> AppState<StubAdapter> {
         let schema = CompiledSchema::default();
-        let executor = Arc::new(Executor::new(schema, Arc::new(StubAdapter)));
+        let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter)));
         AppState::new(executor)
     }
 
@@ -505,7 +505,7 @@ mod app_state_tests {
         new_schema
             .queries
             .push(fraiseql_core::schema::QueryDefinition::new("users", "User"));
-        let new_executor = Arc::new(Executor::new(new_schema, Arc::new(StubAdapter)));
+        let new_executor = Arc::new(Executor::read_only(new_schema, Arc::new(StubAdapter)));
 
         state.swap_executor(new_executor);
 
@@ -547,7 +547,7 @@ mod app_state_tests {
         let schema = CompiledSchema::default();
         let hash_before = schema.content_hash();
         let adapter = Arc::new(StubAdapter);
-        let executor = Arc::new(Executor::new(schema, adapter.clone()));
+        let executor = Arc::new(Executor::read_only(schema, adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
         let state = AppState::new(executor).with_reload_config(schema_path.clone());
@@ -563,7 +563,7 @@ mod app_state_tests {
     #[tokio::test]
     async fn test_concurrent_reload_serialized() {
         let adapter = Arc::new(StubAdapter);
-        let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
+        let executor = Arc::new(Executor::read_only(CompiledSchema::default(), adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
         let state = AppState::new(executor).with_reload_config(schema_path.clone());
@@ -651,7 +651,7 @@ mod app_state_tests {
     async fn test_reload_schema_calls_on_schema_reload() {
         let adapter = Arc::new(TrackingAdapter::new());
         let reload_called = adapter.reload_called.clone();
-        let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
+        let executor = Arc::new(Executor::read_only(CompiledSchema::default(), adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
         let state = AppState::new(executor).with_reload_config(schema_path.clone());
@@ -676,7 +676,7 @@ mod app_state_tests {
     #[tokio::test]
     async fn test_reload_schema_bumps_policy_reload_generation() {
         let adapter = Arc::new(StubAdapter);
-        let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
+        let executor = Arc::new(Executor::read_only(CompiledSchema::default(), adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
         let state = AppState::new(executor).with_reload_config(schema_path.clone());
@@ -706,7 +706,7 @@ mod app_state_tests {
     async fn test_reload_same_hash_skips_on_schema_reload() {
         let adapter = Arc::new(TrackingAdapter::new());
         let reload_called = adapter.reload_called.clone();
-        let executor = Arc::new(Executor::new(CompiledSchema::default(), adapter.clone()));
+        let executor = Arc::new(Executor::read_only(CompiledSchema::default(), adapter.clone()));
         let dir = tempfile::tempdir().unwrap();
         let schema_path = dir.path().join("schema.json");
         let state = AppState::new(executor).with_reload_config(schema_path.clone());
@@ -736,7 +736,7 @@ mod app_state_tests {
         tenant_schema
             .queries
             .push(fraiseql_core::schema::QueryDefinition::new("users", "User"));
-        let tenant_exec = Arc::new(Executor::new(tenant_schema, Arc::new(StubAdapter)));
+        let tenant_exec = Arc::new(Executor::read_only(tenant_schema, Arc::new(StubAdapter)));
         registry.upsert("tenant-abc", tenant_exec);
 
         let state = state.with_tenant_registry(Arc::new(registry));
@@ -1027,7 +1027,7 @@ mod tenant_registry_tests {
 
     fn default_executor() -> Arc<ArcSwap<Executor<StubAdapter>>> {
         let schema = CompiledSchema::default();
-        let executor = Arc::new(Executor::new(schema, Arc::new(StubAdapter::new("default"))));
+        let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter::new("default"))));
         Arc::new(ArcSwap::from(executor))
     }
 
@@ -1036,7 +1036,7 @@ mod tenant_registry_tests {
         schema
             .queries
             .push(fraiseql_core::schema::QueryDefinition::new("users", "User"));
-        Arc::new(Executor::new(schema, Arc::new(StubAdapter::new(label))))
+        Arc::new(Executor::read_only(schema, Arc::new(StubAdapter::new(label))))
     }
 
     #[test]
@@ -1167,7 +1167,8 @@ mod tenant_registry_tests {
         schema_v2
             .queries
             .push(fraiseql_core::schema::QueryDefinition::new("posts", "Post"));
-        let executor_v2 = Arc::new(Executor::new(schema_v2, Arc::new(StubAdapter::new("abc-v2"))));
+        let executor_v2 =
+            Arc::new(Executor::read_only(schema_v2, Arc::new(StubAdapter::new("abc-v2"))));
         registry.upsert("tenant-abc", executor_v2);
 
         assert_eq!(guard_v1.schema().queries.len(), 1);
@@ -1432,7 +1433,7 @@ mod tenant_registry_tests {
             per_tenant_per_minute_default: Some(1_000),
         });
         schema.security = Some(security);
-        let default = Arc::new(ArcSwap::from(Arc::new(Executor::new(
+        let default = Arc::new(ArcSwap::from(Arc::new(Executor::read_only(
             schema,
             Arc::new(StubAdapter::new("default")),
         ))));
@@ -1473,7 +1474,7 @@ mod tenant_registry_tests {
             per_tenant_per_minute_default: Some(10),
         });
         schema.security = Some(security);
-        let default = Arc::new(ArcSwap::from(Arc::new(Executor::new(
+        let default = Arc::new(ArcSwap::from(Arc::new(Executor::read_only(
             schema,
             Arc::new(StubAdapter::new("default")),
         ))));

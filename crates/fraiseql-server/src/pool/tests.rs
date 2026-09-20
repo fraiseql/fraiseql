@@ -220,7 +220,7 @@ mod auto_tuner_tests {
         };
         let tuner = Arc::new(PoolSizingAdvisor::new(config));
         let adapter = Arc::new(MockAdapter::with_metrics(metrics(10, 8, 0)));
-        let executor = Arc::new(fraiseql_core::runtime::Executor::new(
+        let executor = Arc::new(fraiseql_core::runtime::Executor::read_only(
             fraiseql_core::schema::CompiledSchema::default(),
             adapter,
         ));

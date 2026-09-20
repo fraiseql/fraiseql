@@ -826,7 +826,7 @@ mod session_variables {
     async fn test_session_variables_injected_on_read_query() {
         let schema = schema_with_session_vars();
         let adapter = Arc::new(SessionVarCapturingAdapter::new(mock_user_results()));
-        let executor = Executor::new(schema, adapter.clone());
+        let executor = Executor::read_only(schema, adapter.clone());
 
         let ctx = security_ctx_with_tenant();
         executor
@@ -851,7 +851,7 @@ mod session_variables {
     async fn test_no_session_variables_injected_when_config_empty() {
         let schema = test_schema(); // session_variables defaults to empty
         let adapter = Arc::new(SessionVarCapturingAdapter::new(mock_user_results()));
-        let executor = Executor::new(schema, adapter.clone());
+        let executor = Executor::read_only(schema, adapter.clone());
 
         let ctx = security_ctx_with_tenant();
         executor
@@ -890,7 +890,7 @@ mod session_variables {
     async fn test_session_variables_injected_on_node_lookup() {
         let schema = node_schema_with_session_vars();
         let adapter = Arc::new(SessionVarCapturingAdapter::new(mock_user_results()));
-        let executor = Executor::new(schema, adapter.clone());
+        let executor = Executor::read_only(schema, adapter.clone());
 
         let node_id =
             crate::runtime::relay::encode_node_id("User", "11111111-1111-1111-1111-111111111111");

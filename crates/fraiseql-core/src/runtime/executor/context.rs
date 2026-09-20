@@ -42,6 +42,24 @@ pub(super) struct ExecutorContext<A: DatabaseAdapter> {
     /// Shared database adapter for query execution.
     pub(super) adapter: Arc<A>,
 
+    /// Type-erased **write** capability slot.
+    ///
+    /// `Some` only when both capability gates agreed at construction: the executor
+    /// was built through a constructor bounded on [`SupportsMutations`] (compile
+    /// time, opt-in) *and* the adapter's
+    /// [`supports_mutations()`](DatabaseAdapter::supports_mutations) returned `true`
+    /// (runtime, opt-out backstop). Until now the two were, in the marker trait's own
+    /// words, "stated rather than enforced" — an adapter could carry the marker and
+    /// never override the method, and the typed write entries, which skipped the
+    /// runtime check *because* they had the bound, would dispatch it anyway. This slot
+    /// is their intersection, computed once, in one place.
+    ///
+    /// Every write dispatch takes its handle from here, so **obtaining the handle is
+    /// the check**. That is the property a boolean does not have: there is no way to
+    /// reach the database and forget to consult it. It is the shape `relay` next door
+    /// already uses.
+    pub(super) writer: Option<Arc<dyn DatabaseAdapter>>,
+
     /// Type-erased relay capability slot.
     ///
     /// `Some` when constructed via `new_with_relay`. `None` returns a
@@ -95,6 +113,31 @@ pub(super) struct ExecutorContext<A: DatabaseAdapter> {
 }
 
 impl<A: DatabaseAdapter> ExecutorContext<A> {
+    /// The write handle, or the refusal that names both gates.
+    ///
+    /// The single adjudication of "may this executor write?". Both the document path
+    /// (`execute_mutation_query`) and the five typed write entries resolve it here, so
+    /// there is one decision rather than one per entry point — and the entries that
+    /// used to have no check at all cannot regain that state, because they need the
+    /// return value to dispatch.
+    ///
+    /// # Errors
+    ///
+    /// [`FraiseQLError::Validation`] naming the mutation and both gates.
+    pub(super) fn writer(&self, mutation_name: &str) -> Result<&dyn DatabaseAdapter> {
+        self.writer.as_deref().ok_or_else(|| crate::error::FraiseQLError::Validation {
+            message: format!(
+                "Mutation '{mutation_name}' cannot be executed: the configured database \
+                 adapter is read-only. A write-capable adapter implements the \
+                 `SupportsMutations` marker and returns `true` from \
+                 `supports_mutations()` — both default to refusing, and an executor is \
+                 write-capable only when both agree. `PostgresAdapter` does; \
+                 `FraiseWireAdapter` deliberately does not."
+            ),
+            path:    None,
+        })
+    }
+
     /// Return current connection pool metrics.
     pub(super) fn pool_metrics(&self) -> PoolMetrics {
         self.adapter.pool_metrics()

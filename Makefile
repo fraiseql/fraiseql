@@ -537,7 +537,13 @@ lint-expect:
 # what makes the anonymous-vs-authenticated pair discriminating — with an empty selection set
 # the authorizer takes zero calls and the value is served. One real impl, of a
 # `DatabaseAdapter` whose signatures the macro fixes, so the impl has no choice.
-ASYNC_TRAIT_LIMIT := 206
+# 206 → 207: `MarkerWithoutOverride`, the test double that carries the `SupportsMutations`
+# marker and deliberately never overrides `supports_mutations()` — the pairing the marker's
+# own doc calls "stated rather than enforced". It is the witness that the typed write entries
+# consult the runtime gate; no adapter already in the tree has that shape, because every one
+# of them states the pairing correctly. One real impl, of a `DatabaseAdapter` whose
+# signatures the macro fixes, so the impl has no choice.
+ASYNC_TRAIT_LIMIT := 207
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \

@@ -7,7 +7,7 @@ use std::sync::Arc;
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
     cache::CachedDatabaseAdapter,
-    db::traits::{DatabaseAdapter, RelayDatabaseAdapter},
+    db::traits::{DatabaseAdapter, RelayDatabaseAdapter, SupportsMutations},
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
 };
@@ -22,7 +22,7 @@ use tracing::warn;
 use super::{ObserverRuntime, ObserverRuntimeConfig};
 use super::{Result, Server, ServerConfig};
 
-impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
+impl<A: DatabaseAdapter + RelayDatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>
     Server<CachedDatabaseAdapter<A>>
 {
     /// Create a server with relay pagination support enabled.
@@ -111,7 +111,9 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + Clone + Send + Sync + 'static>
 }
 
 #[cfg(feature = "arrow")]
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAdapter<A>> {
+impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>
+    Server<CachedDatabaseAdapter<A>>
+{
     /// Create new server with pre-configured Arrow Flight service.
     ///
     /// Use this constructor when you want to provide a Flight service with a real database adapter.

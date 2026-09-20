@@ -18,7 +18,7 @@ use super::{
     query_projection::selections_contain_field,
 };
 use crate::{
-    backend::traits::{DatabaseAdapter, SupportsMutations},
+    backend::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     graphql::{DirectiveEvaluator, FieldSelection},
     runtime::{
@@ -614,16 +614,19 @@ fn build_deleted_entities(
     Ok(serde_json::Value::Array(result))
 }
 
-/// Executes GraphQL mutations with compile-time capability enforcement.
+/// Executes GraphQL mutations.
 ///
-/// Only constructible when `A: SupportsMutations`. This means calling mutation
-/// methods on an executor backed by `FraiseWireAdapter` (which does not implement
-/// `SupportsMutations`) is a compiler error, not a runtime failure.
-pub(in super::super) struct MutationRunner<A: DatabaseAdapter + SupportsMutations> {
+/// Carries no capability bound. It used to require `A: SupportsMutations`, which was
+/// described as making a write through `FraiseWireAdapter` a compiler error — true, and
+/// the reason `execute_mutation` skipped the runtime check, which was the defect: the
+/// bound speaks for the marker and not for `supports_mutations()`. Capability now lives
+/// in the executor's write slot, resolved from both gates at construction and consulted
+/// at step 0 of [`execute_mutation_impl`].
+pub(in super::super) struct MutationRunner<A: DatabaseAdapter> {
     ctx: Arc<ExecutorContext<A>>,
 }
 
-impl<A: DatabaseAdapter + SupportsMutations> MutationRunner<A> {
+impl<A: DatabaseAdapter> MutationRunner<A> {
     /// Create a new `MutationRunner` from a shared executor context.
     ///
     /// Zero-cost: `Arc` is already shared — this is just a newtype wrapper.
@@ -631,7 +634,7 @@ impl<A: DatabaseAdapter + SupportsMutations> MutationRunner<A> {
         Self { ctx }
     }
 
-    /// Execute a GraphQL mutation with compile-time [`SupportsMutations`] enforcement.
+    /// Execute a GraphQL mutation.
     ///
     /// # Errors
     ///
@@ -642,8 +645,8 @@ impl<A: DatabaseAdapter + SupportsMutations> MutationRunner<A> {
         variables: Option<&serde_json::Value>,
         selections: WriteSelections<'_>,
     ) -> Result<serde_json::Value> {
-        // The typed SupportsMutations API supplies the input via `variables`; it
-        // has no inline-literal root arguments to resolve.
+        // The typed API supplies the input via `variables`; it has no inline-literal
+        // root arguments to resolve.
         execute_mutation_impl(
             &self.ctx,
             mutation_name,
@@ -797,16 +800,18 @@ fn nested_input_type_name(field_type: &str, schema: &CompiledSchema) -> Option<S
     schema.find_input_type(base).map(|_| base.to_string())
 }
 
-/// Core mutation execution logic, bounded only on `A: DatabaseAdapter`.
+/// Core mutation execution logic.
 ///
 /// Called from:
-/// - `MutationRunner::execute_mutation` — compile-time [`SupportsMutations`] path
-/// - `Executor::execute_mutation_query` — runtime-guarded path (raw GraphQL dispatch)
+/// - `MutationRunner::execute_mutation` — the typed entries a non-GraphQL transport uses
+/// - `Executor::execute_mutation_query` — raw GraphQL dispatch
 /// - `execute_with_security_internal` — authenticated GraphQL dispatch
 ///
-/// The caller is responsible for ensuring the adapter supports mutations before calling
-/// this function (either via the compile-time `SupportsMutations` bound or a runtime
-/// `supports_mutations()` guard).
+/// The caller is **not** responsible for establishing write capability. It used to be,
+/// by one of two means — a `SupportsMutations` bound or a `supports_mutations()` guard —
+/// and the first caller above met it with the bound, which speaks only for the marker.
+/// Step 0 below resolves the executor's write slot, which is the intersection of both
+/// gates, and the handle it returns is the only way to reach the database from here.
 ///
 /// # Errors
 ///
@@ -845,6 +850,23 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     inline_arguments: &[crate::graphql::GraphQLArgument],
 ) -> Result<MutationExecution> {
     let selections = selections.as_slice();
+
+    // 0. May this executor write at all? First, before every other gate.
+    //
+    // `78f91c9e2` fixed this for the document path and named the reason: a capability
+    // refusal that arrives at the dispatch has already let the operation authorizer,
+    // `requires_role`, `requires_actor`, argument validation and the `before:mutation`
+    // chain run — and `before:mutation` runs app-authored rule code, placed after every
+    // static gate precisely so an unauthorized caller never reaches it. The five typed
+    // write entries still had no check of any kind: they trusted the `SupportsMutations`
+    // bound on their impl block, which settles the *marker* and cannot settle the
+    // *override* that `execute_function_call` is actually keyed on.
+    //
+    // Both paths now resolve one slot, here. The returned handle is also the only way to
+    // reach the database further down, so this cannot decay back into a check that some
+    // later entry point forgets to make.
+    let writer = ctx.writer(mutation_name)?;
+
     // #1336 backstop: the same question the read path asks, at the write chokepoint
     // every transport converges on (#1327, #1330).
     crate::runtime::executor::support::security::enforce_enrichment_resolved(
@@ -1375,11 +1397,9 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
             // outbox row is written. The `changelog` descriptor above is unused
             // on this path. PostgreSQL implements the rollback; other adapters
             // return `Unsupported` rather than silently committing.
-            ctx.adapter
-                .execute_function_call_dry_run(sql_source, &args, &session_pairs)
-                .await?
+            writer.execute_function_call_dry_run(sql_source, &args, &session_pairs).await?
         } else {
-            ctx.adapter
+            writer
                 .execute_function_call_with_changelog(
                     sql_source,
                     &args,
@@ -1413,9 +1433,12 @@ pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
     if matches!(outcome, MutationOutcome::Success { .. })
         && !mutation_def.invalidates_fact_tables.is_empty()
     {
-        ctx.adapter
-            .bump_fact_table_versions(&mutation_def.invalidates_fact_tables)
-            .await?;
+        // Through the write handle, like the dispatch above: this bumps a version row
+        // in the database, so it is write-shaped even though it is cache bookkeeping.
+        // It is unreachable without the handle anyway — it runs only after a mutation
+        // succeeded — but taking it from the same place keeps "the handle is the
+        // permission" true of every write in this function rather than nearly every one.
+        writer.bump_fact_table_versions(&mutation_def.invalidates_fact_tables).await?;
     }
 
     // Invalidate query result cache for views/entities touched by this mutation.

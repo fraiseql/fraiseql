@@ -77,7 +77,9 @@ fn build_grpc_service_for_test<
 /// is the one on `RuntimeConfig` — which is what #1348 was about. These tests used to
 /// hand the policy to the handler as an argument; passing it through the executor is
 /// the same assertion made one layer closer to how a deployment actually configures it.
-fn executor_with_policy<A: fraiseql_core::db::DatabaseAdapter>(
+fn executor_with_policy<
+    A: fraiseql_core::db::DatabaseAdapter + fraiseql_core::db::traits::SupportsMutations,
+>(
     schema: &CompiledSchema,
     adapter: Arc<A>,
     rls_policy: Option<Arc<dyn fraiseql_core::security::RLSPolicy>>,
@@ -1829,7 +1831,9 @@ impl fraiseql_core::security::Authorizer for GrpcAllowAll {
     }
 }
 
-fn executor_with_runtime_config<A: fraiseql_core::db::DatabaseAdapter>(
+fn executor_with_runtime_config<
+    A: fraiseql_core::db::DatabaseAdapter + fraiseql_core::db::traits::SupportsMutations,
+>(
     schema: &CompiledSchema,
     adapter: Arc<A>,
     config: fraiseql_core::runtime::RuntimeConfig,

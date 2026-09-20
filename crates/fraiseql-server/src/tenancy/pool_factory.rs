@@ -13,7 +13,7 @@ use fraiseql_core::{
         postgres::{
             PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig, ReadReplicaPolicy, SearchPath,
         },
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, SupportsMutations},
     },
     runtime::Executor,
     schema::{CompiledSchema, TenancyMode},
@@ -224,7 +224,7 @@ impl<A: FromPoolConfig> FromPoolConfig for CachedDatabaseAdapter<A> {
 /// cannot be created, schema DDL fails, or the pool's connections do not carry the
 /// tenant search path.
 #[doc(hidden)] // Internal-pub: tenant pool builder used by TenantExecutorRegistry; downstream wires tenants via TenancyConfig, not this fn directly.
-pub async fn create_tenant_executor<A: FromPoolConfig>(
+pub async fn create_tenant_executor<A: FromPoolConfig + SupportsMutations>(
     tenant_key: &str,
     schema_json: &str,
     pool_config: &TenantPoolConfig,
@@ -250,7 +250,7 @@ pub async fn create_tenant_executor<A: FromPoolConfig>(
 ///
 /// As [`create_tenant_executor`].
 #[doc(hidden)] // Internal-pub: see `create_tenant_executor`.
-pub async fn create_tenant_executor_with_adapter<A: FromPoolConfig>(
+pub async fn create_tenant_executor_with_adapter<A: FromPoolConfig + SupportsMutations>(
     tenant_key: &str,
     schema_json: &str,
     pool_config: &TenantPoolConfig,

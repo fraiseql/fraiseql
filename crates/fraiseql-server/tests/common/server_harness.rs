@@ -10,7 +10,10 @@
 
 use std::sync::Arc;
 
-use fraiseql_core::{db::traits::DatabaseAdapter, schema::CompiledSchema};
+use fraiseql_core::{
+    db::traits::{DatabaseAdapter, SupportsMutations},
+    schema::CompiledSchema,
+};
 use fraiseql_server::{Server, server_config::ServerConfig};
 use tokio::{net::TcpListener, sync::oneshot};
 
@@ -35,7 +38,7 @@ impl TestServer {
     /// Panics if the listener cannot be bound or the server fails to start.
     pub async fn start<A>(schema: CompiledSchema, adapter: Arc<A>) -> Self
     where
-        A: DatabaseAdapter + Clone + Send + Sync + 'static,
+        A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
     {
         // Boxed so callers of `start` do not await a ~19 KiB future on the stack:
         // delegating to `start_with_config` nests the `Server::new` future inside this
@@ -70,7 +73,7 @@ impl TestServer {
         adapter: Arc<A>,
     ) -> Self
     where
-        A: DatabaseAdapter + Clone + Send + Sync + 'static,
+        A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
     {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind to ephemeral port");
         let port = listener.local_addr().expect("local addr").port();
@@ -116,7 +119,7 @@ impl TestServer {
         revocation: Arc<fraiseql_server::token_revocation::TokenRevocationManager>,
     ) -> Self
     where
-        A: DatabaseAdapter + Clone + Send + Sync + 'static,
+        A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
     {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind to ephemeral port");
         let port = listener.local_addr().expect("local addr").port();

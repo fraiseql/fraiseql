@@ -636,7 +636,10 @@ async fn dispatch_server(
     warn_tenant_provisioning_requires_postgres(&config, "wire-backend");
     warn_revocation_requires_postgres(&schema, "wire-backend");
     let adapter = build_wire_adapter(&config).await?;
-    let server = Server::new(config, schema, adapter, None).await?;
+    // `FraiseWireAdapter` is read-only — it implements `DatabaseAdapter` and
+    // deliberately not `SupportsMutations` — so this server is built through the
+    // constructor that says so rather than the one bounded on write capability.
+    let server = Server::new_read_only(config, schema, adapter, None).await?;
     // #896: the functions section comes from the artifact we loaded, not from a
     // second read of `schema_path` inside the serve path.
     #[cfg(feature = "functions-runtime")]

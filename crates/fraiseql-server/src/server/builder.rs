@@ -6,7 +6,7 @@ use std::sync::Arc;
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
     cache::CachedDatabaseAdapter,
-    db::traits::DatabaseAdapter,
+    db::traits::{DatabaseAdapter, SupportsMutations},
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
     security::{AuthConfig, AuthMiddleware, OidcValidator},
@@ -157,7 +157,9 @@ pub(super) struct SchemaSubsystems {
     pub tasks: tokio::task::JoinSet<()>,
 }
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAdapter<A>> {
+impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>
+    Server<CachedDatabaseAdapter<A>>
+{
     /// Create new server.
     ///
     /// Relay pagination queries will return a `Validation` error at runtime. Use
@@ -194,12 +196,70 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
     /// let server = Server::new(config, schema, adapter, None).await?;
     /// server.serve().await?;
     /// ```
-    #[allow(clippy::cognitive_complexity)] // Reason: server construction with subsystem initialization (auth, rate-limit, observers, etc.)
     pub async fn new(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
         db_pool: Option<sqlx::PgPool>,
+    ) -> Result<Self> {
+        // The write-capable arm: `Executor::with_config` is bounded on
+        // `SupportsMutations`, and naming it here is what requires this impl block's
+        // bound. `new_read_only` names the other constructor and carries no bound.
+        // Boxed here rather than at every call site: `new_inner` nests the whole
+        // subsystem-construction future inside this one, which puts it past clippy's
+        // 16-KiB `large_futures` threshold. One allocation at startup.
+        Box::pin(Self::new_inner(config, schema, adapter, db_pool, Executor::with_config)).await
+    }
+}
+
+impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAdapter<A>> {
+    /// Create a new server that cannot write.
+    ///
+    /// The entry for a backend that does not declare
+    /// [`SupportsMutations`] — today
+    /// `FraiseWireAdapter`, which the `wire-backend` feature dispatches to. That
+    /// deployment has always been read-only; until now nothing in its construction said
+    /// so, and it relied on the write entries being unreachable for its adapter. It now
+    /// states it, and mutations are refused with a diagnostic naming both capability
+    /// gates instead of failing somewhere further in.
+    ///
+    /// # Errors
+    ///
+    /// Same as [`new`](Server::new).
+    pub async fn new_read_only(
+        config: ServerConfig,
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+        db_pool: Option<sqlx::PgPool>,
+    ) -> Result<Self> {
+        // Boxed here rather than at every call site: `new_inner` nests the whole
+        // subsystem-construction future inside this one, which puts it past clippy's
+        // 16-KiB `large_futures` threshold. One allocation at startup.
+        Box::pin(Self::new_inner(
+            config,
+            schema,
+            adapter,
+            db_pool,
+            Executor::read_only_with_config,
+        ))
+        .await
+    }
+
+    /// The shared body of both constructors. They differ by exactly one thing — which
+    /// `Executor` constructor builds the engine — so it is passed in rather than
+    /// duplicated: a second copy of this function is how `cache_enabled` came to mean
+    /// three different things by constructor (#889).
+    #[allow(clippy::cognitive_complexity)] // Reason: server construction with subsystem initialization (auth, rate-limit, observers, etc.)
+    async fn new_inner(
+        config: ServerConfig,
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+        db_pool: Option<sqlx::PgPool>,
+        make_executor: fn(
+            CompiledSchema,
+            Arc<CachedDatabaseAdapter<A>>,
+            fraiseql_core::runtime::RuntimeConfig,
+        ) -> Executor<CachedDatabaseAdapter<A>>,
     ) -> Result<Self> {
         // Build the runtime config from the compiled schema. This is the single
         // seam every server constructor routes through (H16): it validates the
@@ -241,8 +301,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
 
         // `executor_config` was built from the compiled schema at the top of this
         // constructor (the H16 seam — audit flag, #421 page-size, change-log toggle).
-        let executor =
-            Arc::new(Executor::with_config(schema.clone(), Arc::new(cached), executor_config));
+        let executor = Arc::new(make_executor(schema.clone(), Arc::new(cached), executor_config));
         let subscription_manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
 
         // Boxed: `from_executor` constructs every subsystem, and its future is
@@ -1711,7 +1770,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
 ///
 /// `Server<A>`'s lifecycle — `build_router`, `mount_extensions`, `serve_with_shutdown`,
 /// `serve_on_listener` — is deliberately unbounded by
-/// [`SupportsMutations`](fraiseql_core::db::traits::SupportsMutations), so read-only
+/// [`SupportsMutations`], so read-only
 /// adapters can be served. Anything needing that bound therefore has to be installed
 /// from a call site that has it, which is what this block is for.
 #[cfg(feature = "rest")]

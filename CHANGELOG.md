@@ -18,6 +18,58 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Write capability is one slot, resolved from both gates, and the typed write entries
+  now consult it (#1354 follow-on).** S5 of the boundary work, first half.
+
+  `SupportsMutations`' documentation describes two gates that are meant to be a pair — the
+  compile-time marker, and the runtime `supports_mutations()` — and says that getting the
+  pairing wrong fails safe: *"Marker without the override: the runtime guard refuses, so no
+  write happens."*
+
+  That was true of one path. `Executor::execute_mutation_query`, which serves a client
+  GraphQL document, checked `supports_mutations()`. The five **typed** write entries —
+  `execute_mutation`, `execute_mutation_as`, `execute_mutation_with_security`,
+  `execute_mutation_batch`, `execute_bulk_by_ids`, the entries every non-GraphQL transport
+  uses — deliberately did not, on the reasoning that the `SupportsMutations` bound on their
+  impl block had already settled the question. The bound settles the *marker*; it cannot
+  settle the *override*, which is what `execute_function_call` is keyed on. An adapter
+  carrying one and not the other was dispatched to the database through all five.
+
+  The refusal it did eventually get came from the trait's default `execute_function_call`,
+  at the far end of `execute_mutation_impl` — after the operation authorizer,
+  `requires_role`, `requires_actor`, argument validation and the `before:mutation` chain
+  had run. `before:mutation` runs app-authored rule code and sits after every static gate
+  precisely so an unauthorized caller never reaches it. This is the same defect
+  `78f91c9e2` fixed for the document path, and it was still open on this one.
+
+  An executor now holds a single write slot, resolved once at construction as the
+  intersection of both gates, and **every** write takes its database handle from it at step
+  0 of the chokepoint — before any other gate. Obtaining the handle is the check, so no
+  entry point can be added that forgets to make it.
+
+  **`Executor::new` and `Executor::with_config` are now bounded on `SupportsMutations`.**
+  An adapter that does not declare it uses `Executor::read_only` /
+  `Executor::read_only_with_config`, which are bounded only on `DatabaseAdapter`. The
+  compile-time refusal did not disappear — it moved from the write call to the
+  constructor, where the `compile_fail`/positive doctest pair now lives. The default is the
+  refusing one: an adapter that says nothing cannot reach `new`.
+
+  `Server::new` gains the same bound, and `Server::new_read_only` is added beside it. The
+  `wire-backend` server — `FraiseWireAdapter`, which is read-only — uses it. That
+  deployment has always been read-only; nothing in its construction said so until now.
+
+  ```rust
+  // a write-capable backend — unchanged
+  let executor = Executor::new(schema, Arc::new(postgres_adapter));
+
+  // a read-only one — previously Executor::new, now says what it is
+  let executor = Executor::read_only(schema, Arc::new(wire_adapter));
+  ```
+
+  `MutationRunner` and the typed write entries no longer carry a `SupportsMutations`
+  bound; `Executor::rebuild_with` carries the write slot across a hot-reload the way it
+  already carries relay, so a rebuild cannot silently downgrade the capability (#750).
+
 - **A saga step's local write goes through the mutation chokepoint (#1354).** S8 of the
   boundary work, second half — the fix the crate split made possible.
 

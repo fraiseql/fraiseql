@@ -65,7 +65,9 @@ pub type TenantExecutorFactory<A> = Arc<
 /// very gate #1327 exists for. The caller passes the live config per registration
 /// instead, which is the same reason `search_path` is recomputed rather than trusted.
 #[must_use]
-pub fn make_executor_factory<A: FromPoolConfig + 'static>(
+pub fn make_executor_factory<
+    A: FromPoolConfig + fraiseql_core::db::traits::SupportsMutations + 'static,
+>(
     database_tls: fraiseql_core::db::postgres::PostgresTlsConfig,
     read_replica_policy: fraiseql_core::db::postgres::ReadReplicaPolicy,
     vector_scan: fraiseql_core::db::postgres::VectorScanConfig,

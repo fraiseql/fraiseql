@@ -157,7 +157,7 @@ mod pool_factory_tests {
         db::{
             WhereClause,
             postgres::{PostgresTlsConfig, ReadReplicaPolicy},
-            traits::DatabaseAdapter,
+            traits::{DatabaseAdapter, SupportsMutations},
             types::{DatabaseType, JsonbValue, PoolMetrics},
         },
         error::Result as FraiseQLResult,
@@ -223,6 +223,13 @@ mod pool_factory_tests {
             Ok(vec![])
         }
     }
+
+    // A tenant adapter stands in for `PostgresAdapter`, which is write-capable, so
+    // the stub declares the marker too — a fixture that is read-only where its
+    // producer is not exercises a shape no tenant ever has. It does not override
+    // `supports_mutations()`, so the executor these build still refuses writes;
+    // these tests are about pool construction, not dispatch.
+    impl SupportsMutations for StubPoolAdapter {}
 
     #[async_trait]
     impl FromPoolConfig for StubPoolAdapter {
@@ -359,6 +366,13 @@ mod pool_factory_tests {
             Ok(vec![])
         }
     }
+
+    // A tenant adapter stands in for `PostgresAdapter`, which is write-capable, so
+    // the stub declares the marker too — a fixture that is read-only where its
+    // producer is not exercises a shape no tenant ever has. It does not override
+    // `supports_mutations()`, so the executor these build still refuses writes;
+    // these tests are about pool construction, not dispatch.
+    impl SupportsMutations for FailingAdapter {}
 
     #[async_trait]
     impl FromPoolConfig for FailingAdapter {
@@ -635,7 +649,7 @@ mod schema_isolation_tests {
     #[tokio::test]
     async fn drop_tenant_schema_issues_the_cascade_ddl() {
         let adapter = std::sync::Arc::new(SpyAdapter::new());
-        let executor = fraiseql_core::runtime::Executor::new(
+        let executor = fraiseql_core::runtime::Executor::read_only(
             fraiseql_core::schema::CompiledSchema::default(),
             std::sync::Arc::clone(&adapter),
         );
@@ -717,7 +731,7 @@ mod schema_isolation_tests {
     #[tokio::test]
     async fn drop_rejects_invalid_key() {
         let adapter = std::sync::Arc::new(SpyAdapter::new());
-        let executor = fraiseql_core::runtime::Executor::new(
+        let executor = fraiseql_core::runtime::Executor::read_only(
             fraiseql_core::schema::CompiledSchema::default(),
             std::sync::Arc::clone(&adapter),
         );

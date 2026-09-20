@@ -271,7 +271,7 @@ mod mutation {
         });
 
         let adapter = Arc::new(ReadOnlyMockAdapter);
-        let executor = Executor::new(schema, adapter);
+        let executor = Executor::read_only(schema, adapter);
 
         let err = executor.execute("mutation { createUser { id } }", None).await.unwrap_err();
 
@@ -285,6 +285,190 @@ mod mutation {
             "the diagnostic must name both gates, got: {msg}"
         );
         assert!(msg.contains("createUser"), "error message should name the mutation, got: {msg}");
+    }
+
+    /// An adapter that carries the marker but never overrides `supports_mutations()`
+    /// must be refused by the **typed** write entries too.
+    ///
+    /// `SupportsMutations`' own documentation says the two gates are a pair and that
+    /// getting the pairing wrong fails safe: "Marker without the override: the runtime
+    /// guard refuses, so no write happens." That is true of `execute_mutation_query`
+    /// — `test_mutation_rejected_by_non_capable_adapter` above pins it — and it is the
+    /// *only* place the runtime guard is consulted. The five typed entries
+    /// (`execute_mutation`, `_as`, `_with_security`, `_batch`, `execute_bulk_by_ids`)
+    /// deliberately skip it, on the reasoning that the `SupportsMutations` bound has
+    /// already settled the question. The bound settles the *marker*; it cannot settle
+    /// the *override*, which is what `execute_function_call` is keyed on.
+    ///
+    /// So the claim is false on the typed path, and the cost is not academic: the
+    /// refusal that does eventually arrive comes from the trait's default
+    /// `execute_function_call`, at the far end of `execute_mutation_impl` — after the
+    /// operation authorizer, `requires_role`, `requires_actor`, argument validation
+    /// and the `before:mutation` chain have all run. `before:mutation` runs
+    /// app-authored rule code, and it sits where it does precisely so an unauthorized
+    /// caller never reaches it. This is the same defect `78f91c9e2` fixed for the
+    /// document path, still open on this one.
+    #[tokio::test]
+    async fn typed_write_entry_refuses_a_marker_without_the_override() {
+        use crate::schema::MutationDefinition;
+
+        /// Says nothing about writes at runtime — so `supports_mutations()` is the
+        /// trait default, which refuses. Carries the marker anyway, which is exactly
+        /// the "stated rather than enforced" pairing the trait doc warns about.
+        struct MarkerWithoutOverride {
+            reached: Arc<std::sync::atomic::AtomicBool>,
+        }
+
+        #[async_trait]
+        impl DatabaseAdapter for MarkerWithoutOverride {
+            // Deliberately no `supports_mutations()` override — the trait default refuses.
+            async fn execute_function_call(
+                &self,
+                _function_name: &str,
+                _args: &[serde_json::Value],
+            ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+                self.reached.store(true, std::sync::atomic::Ordering::SeqCst);
+                Ok(vec![])
+            }
+
+            async fn execute_function_call_with_changelog(
+                &self,
+                function_name: &str,
+                args: &[serde_json::Value],
+                _session_vars: &[(&str, &str)],
+                _changelog: Option<&ChangeLogWrite<'_>>,
+            ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+                self.execute_function_call(function_name, args).await
+            }
+
+            async fn execute_with_projection(
+                &self,
+                _view: &str,
+                _projection: Option<&crate::schema::SqlProjectionHint>,
+                _where_clause: Option<&WhereClause>,
+                _limit: Option<u32>,
+                _offset: Option<u32>,
+                _order_by: Option<&[OrderByClause]>,
+            ) -> Result<Vec<JsonbValue>> {
+                Ok(vec![])
+            }
+
+            async fn execute_where_query(
+                &self,
+                _view: &str,
+                _where_clause: Option<&WhereClause>,
+                _limit: Option<u32>,
+                _offset: Option<u32>,
+                _order_by: Option<&[OrderByClause]>,
+            ) -> Result<Vec<JsonbValue>> {
+                Ok(vec![])
+            }
+
+            async fn execute_raw_query(
+                &self,
+                _sql: &str,
+            ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+                Ok(vec![])
+            }
+
+            async fn execute_parameterized_aggregate(
+                &self,
+                _sql: &str,
+                _params: &[serde_json::Value],
+            ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+                Ok(vec![])
+            }
+
+            async fn health_check(&self) -> Result<()> {
+                Ok(())
+            }
+
+            fn database_type(&self) -> DatabaseType {
+                DatabaseType::PostgreSQL
+            }
+
+            fn pool_metrics(&self) -> PoolMetrics {
+                PoolMetrics {
+                    total_connections:  1,
+                    active_connections: 0,
+                    idle_connections:   1,
+                    waiting_requests:   0,
+                }
+            }
+        }
+
+        impl SupportsMutations for MarkerWithoutOverride {}
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "User")
+        });
+
+        let reached = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        let adapter = Arc::new(MarkerWithoutOverride {
+            reached: Arc::clone(&reached),
+        });
+        let executor = Executor::new(schema, adapter);
+
+        let result = executor.execute_mutation("createUser", None, any_write_selections()).await;
+
+        // The assertion that discriminates: not *whether* the call failed — it fails
+        // either way, because the stub returns no rows — but whether the dispatch was
+        // reached at all. A refusal that arrives after `before:mutation` has run is the
+        // defect, and only this flag can tell the two apart.
+        assert!(
+            !reached.load(std::sync::atomic::Ordering::SeqCst),
+            "the typed write entry dispatched to an adapter whose supports_mutations() \
+             is false; the capability gate was never consulted on this path"
+        );
+
+        let err = result.expect_err("a read-only-at-runtime adapter must be refused");
+        let msg = err.to_string();
+        assert!(msg.contains("read-only"), "expected a read-only diagnostic, got: {msg}");
+    }
+
+    /// The capability gate is adjudicated at step 0, before the gate that names the
+    /// mutation.
+    ///
+    /// The sibling test above proves the dispatch is not reached. That much is also true
+    /// of a gate sitting *at* the dispatch — and a capability refusal that arrives there
+    /// has already let the operation authorizer, `requires_role`, `requires_actor`,
+    /// argument validation and the `before:mutation` chain run. `78f91c9e2` is the whole
+    /// argument for why that is not good enough, so "not reached" cannot be the only
+    /// assertion.
+    ///
+    /// What discriminates: a read-only executor asked for a mutation that **does not
+    /// exist**. Step 1 is `find_mutation`, whose miss produces a did-you-mean error. If
+    /// the capability question is asked first, the answer is read-only regardless of the
+    /// name — which is also why this leaks nothing: the refusal is identical for a name
+    /// that exists and one that does not.
+    #[tokio::test]
+    async fn the_capability_gate_is_adjudicated_before_the_mutation_is_looked_up() {
+        use crate::schema::MutationDefinition;
+
+        let mut schema = CompiledSchema::new();
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "User")
+        });
+
+        let executor = Executor::read_only(schema, Arc::new(ReadOnlyMockAdapter));
+
+        let msg = executor
+            .execute_mutation("noSuchMutation", None, any_write_selections())
+            .await
+            .expect_err("a read-only executor refuses")
+            .to_string();
+
+        assert!(
+            msg.contains("read-only"),
+            "capability must be adjudicated before the name is looked up, got: {msg}"
+        );
+        assert!(
+            !msg.contains("did you mean") && !msg.contains("Did you mean"),
+            "a did-you-mean answer means step 1 ran before the capability gate, got: {msg}"
+        );
     }
 
     /// When both `sql_source` and operation.table are absent the executor must still
@@ -330,7 +514,7 @@ mod mutation {
         });
 
         let adapter = Arc::new(ReadOnlyMockAdapter);
-        let executor = Executor::new(schema, adapter);
+        let executor = Executor::read_only(schema, adapter);
 
         let err = executor.execute("mutation { createUser { id } }", None).await.unwrap_err();
 
@@ -354,7 +538,7 @@ mod mutation {
         });
 
         let adapter = Arc::new(ReadOnlyMockAdapter);
-        let executor = Executor::new(schema, adapter);
+        let executor = Executor::read_only(schema, adapter);
 
         let err = executor.execute("mutation { deleteAccount { id } }", None).await.unwrap_err();
 

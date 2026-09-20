@@ -102,7 +102,7 @@ mod explain_tests {
     #[tokio::test]
     async fn test_explain_unknown_query_returns_error() {
         let schema = make_schema_with_query("users", "v_user");
-        let executor = Executor::new(schema, Arc::new(MockAdapter));
+        let executor = Executor::read_only(schema, Arc::new(MockAdapter));
 
         let err = executor.explain("nonexistent", None, None, None).await.unwrap_err();
         assert!(
@@ -114,7 +114,7 @@ mod explain_tests {
     #[tokio::test]
     async fn test_explain_mutation_returns_error() {
         let schema = make_schema_with_mutation("createUser");
-        let executor = Executor::new(schema, Arc::new(MockAdapter));
+        let executor = Executor::read_only(schema, Arc::new(MockAdapter));
 
         let err = executor.explain("createUser", None, None, None).await.unwrap_err();
         assert!(
@@ -127,7 +127,7 @@ mod explain_tests {
     async fn test_explain_unsupported_adapter_returns_error() {
         // MockAdapter uses the default Unsupported implementation.
         let schema = make_schema_with_query("users", "v_user");
-        let executor = Executor::new(schema, Arc::new(MockAdapter));
+        let executor = Executor::read_only(schema, Arc::new(MockAdapter));
 
         let err = executor
             .explain("users", Some(&json!({"status": "active"})), Some(10), None)
@@ -256,7 +256,7 @@ mod pipeline_tests {
 
     fn make_executor(names: &[(&str, &str)]) -> Executor<MockAdapter> {
         let schema = make_schema_with_queries(names);
-        Executor::new(schema, Arc::new(MockAdapter))
+        Executor::read_only(schema, Arc::new(MockAdapter))
     }
 
     // ── detection tests ───────────────────────────────────────────────────────
@@ -432,7 +432,7 @@ mod pipeline_tests {
             }),
             ..RuntimeConfig::default()
         };
-        let exec = Executor::with_config(schema, Arc::new(MockAdapter), config);
+        let exec = Executor::read_only_with_config(schema, Arc::new(MockAdapter), config);
         let ctx = auth_ctx();
         let result = exec.execute_with_security("{ users { id } }", None, &ctx).await;
         assert!(

@@ -12,7 +12,7 @@ use super::{
 use crate::{
     backend::{
         AdminSqlOutcome, AdminSqlRequest, RelayDatabaseAdapter, ResultCacheStats,
-        traits::DatabaseAdapter,
+        traits::{DatabaseAdapter, SupportsMutations},
         types::{DatabaseType, PoolMetrics, QueryStatEntry},
     },
     cache::ViewName,
@@ -147,8 +147,64 @@ pub struct Executor<A: DatabaseAdapter> {
     pub(super) ctx: Arc<ExecutorContext<A>>,
 }
 
-impl<A: DatabaseAdapter> Executor<A> {
-    /// Create new executor.
+/// Whether a constructor may hand the executor a write handle.
+///
+/// Private on purpose: the only way to obtain `Permitted` is to call a constructor
+/// bounded on [`SupportsMutations`], so the compile-time gate cannot be routed around
+/// from outside this module. Matched exhaustively at the one site that reads it, so a
+/// third state cannot be absorbed by a wildcard arm.
+enum Writes {
+    Permitted,
+    Refused,
+}
+
+/// Compile-time enforcement lives here, on the **constructor**.
+///
+/// The bound on this block is what keeps a read-only adapter from ever being handed a
+/// write handle. Its witness is `FraiseWireAdapter`, which implements `DatabaseAdapter`
+/// and deliberately not `SupportsMutations`.
+///
+/// ⚠ **The two blocks below are a pair, and only the pair is the assertion.** A
+/// `compile_fail` block is satisfied by *any* compile error, including one with nothing
+/// to do with the rule — the previous version of this pair named `SqliteAdapter`, and
+/// when #374 deleted that adapter the block passed for a full release while proving
+/// nothing. The two differ by exactly the constructor called. If the witness ever stops
+/// resolving, the *first* block goes red rather than the second going quietly green.
+///
+/// `FraiseWireAdapter` needs `--all-features`; every `--doc` invocation in this
+/// repository passes it (`Makefile`, `.dagger/main.go`).
+///
+/// The witness resolves, and the read-only constructor accepts it:
+///
+/// ```
+/// use fraiseql_core::{db::FraiseWireAdapter, runtime::Executor, schema::CompiledSchema};
+/// use std::sync::Arc;
+/// fn _read_only_is_available(schema: CompiledSchema, adapter: Arc<FraiseWireAdapter>) {
+///     let _ = Executor::read_only(schema, adapter);
+/// }
+/// ```
+///
+/// …and the write-capable constructor does not compile for it:
+///
+/// ```compile_fail
+/// use fraiseql_core::{db::FraiseWireAdapter, runtime::Executor, schema::CompiledSchema};
+/// use std::sync::Arc;
+/// fn _wont_compile(schema: CompiledSchema, adapter: Arc<FraiseWireAdapter>) {
+///     let _ = Executor::new(schema, adapter);
+/// }
+/// ```
+impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
+    /// Create a new write-capable executor.
+    ///
+    /// Available only for adapters that declare [`SupportsMutations`]. For one that
+    /// does not — or one whose write capability you do not want to grant — use
+    /// [`read_only`](Executor::read_only), which is bounded only on `DatabaseAdapter`.
+    ///
+    /// Carrying the marker is necessary but not sufficient: the adapter's
+    /// [`supports_mutations()`](DatabaseAdapter::supports_mutations) must also return
+    /// `true`. An adapter that states one and not the other gets a read-only executor,
+    /// because the two gates are meant to be a pair and this is where the pairing stops
+    /// being merely stated.
     ///
     /// # Arguments
     ///
@@ -177,7 +233,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         Self::with_config(schema, adapter, RuntimeConfig::default())
     }
 
-    /// Create new executor with custom configuration.
+    /// Create a new write-capable executor with custom configuration.
     ///
     /// # Arguments
     ///
@@ -186,7 +242,61 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// * `config` - Runtime configuration
     #[must_use]
     pub fn with_config(schema: CompiledSchema, adapter: Arc<A>, config: RuntimeConfig) -> Self {
-        Self::build(schema, adapter, config, None)
+        let writer = Self::resolve_writer(&adapter, &Writes::Permitted);
+        Self::build(schema, adapter, config, None, writer)
+    }
+}
+
+impl<A: DatabaseAdapter> Executor<A> {
+    /// Create a new executor that cannot write.
+    ///
+    /// The entry for an adapter that does not declare [`SupportsMutations`] — a
+    /// read-replica handle, `FraiseWireAdapter`, a read-only test double — and for a
+    /// write-capable adapter you want to expose read-only. Mutations are refused with a
+    /// diagnostic naming both capability gates, on every transport, because the refusal
+    /// is the absence of a handle rather than a check somebody has to remember.
+    ///
+    /// # Arguments
+    ///
+    /// * `schema` - Compiled schema
+    /// * `adapter` - Database adapter
+    #[must_use]
+    pub fn read_only(schema: CompiledSchema, adapter: Arc<A>) -> Self {
+        Self::read_only_with_config(schema, adapter, RuntimeConfig::default())
+    }
+
+    /// Create a new read-only executor with custom configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `schema` - Compiled schema
+    /// * `adapter` - Database adapter
+    /// * `config` - Runtime configuration
+    #[must_use]
+    pub fn read_only_with_config(
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+        config: RuntimeConfig,
+    ) -> Self {
+        let writer = Self::resolve_writer(&adapter, &Writes::Refused);
+        Self::build(schema, adapter, config, None, writer)
+    }
+
+    /// Resolve the write slot as the *intersection* of the two capability gates.
+    ///
+    /// Reaching this with `Writes::Permitted` already required a constructor bounded on
+    /// `SupportsMutations` — the compile-time, opt-in gate. `supports_mutations()` is
+    /// the runtime, opt-out backstop, and it has to agree. An adapter that carries the
+    /// marker and never overrode the method resolves to `None`: the trait documentation
+    /// calls that pairing "stated rather than enforced", and this is the one line that
+    /// enforces it.
+    fn resolve_writer(adapter: &Arc<A>, writes: &Writes) -> Option<Arc<dyn DatabaseAdapter>> {
+        match writes {
+            Writes::Permitted if adapter.supports_mutations() => {
+                Some(Arc::clone(adapter) as Arc<dyn DatabaseAdapter>)
+            },
+            Writes::Permitted | Writes::Refused => None,
+        }
     }
 
     /// The one construction path. Every public constructor and every rebuild funnels
@@ -201,6 +311,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         adapter: Arc<A>,
         config: RuntimeConfig,
         relay: Option<Arc<dyn RelayDispatch>>,
+        writer: Option<Arc<dyn DatabaseAdapter>>,
     ) -> Self {
         let matcher = QueryMatcher::new(schema.clone());
         let planner = QueryPlanner::new(config.cache_query_plans);
@@ -228,6 +339,7 @@ impl<A: DatabaseAdapter> Executor<A> {
             schema,
             schema_version,
             adapter,
+            writer,
             relay,
             matcher,
             planner,
@@ -424,9 +536,21 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// correct for the new schema and is carried over as-is. A rebuild cannot
     /// downgrade a relay executor to a non-relay one, because there is no longer a
     /// step that could omit it.
+    ///
+    /// The write slot is carried over for the same reason and in the same way. It is
+    /// resolved from the adapter, and the adapter is unchanged, so recomputing it could
+    /// only ever agree — but a rebuild that *recomputed* a capability is precisely the
+    /// step #750 showed can omit one. Carrying it makes a downgrade unrepresentable
+    /// rather than merely unlikely.
     #[must_use]
     pub fn rebuild_with(&self, schema: CompiledSchema, config: RuntimeConfig) -> Self {
-        Self::build(schema, Arc::clone(&self.ctx.adapter), config, self.ctx.relay.clone())
+        Self::build(
+            schema,
+            Arc::clone(&self.ctx.adapter),
+            config,
+            self.ctx.relay.clone(),
+            self.ctx.writer.clone(),
+        )
     }
 
     /// Return the number of entries currently held in the parsed-query AST cache.
@@ -722,7 +846,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     }
 }
 
-impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
+impl<A: DatabaseAdapter + RelayDatabaseAdapter + SupportsMutations + 'static> Executor<A> {
     /// Create a new executor with relay cursor pagination enabled.
     ///
     /// Only callable when `A: RelayDatabaseAdapter`.  The relay capability is
@@ -759,6 +883,7 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + 'static> Executor<A> {
     ) -> Self {
         let relay_dispatch: Arc<dyn RelayDispatch> =
             Arc::new(RelayDispatchImpl(Arc::clone(&adapter)));
-        Self::build(schema, adapter, config, Some(relay_dispatch))
+        let writer = Self::resolve_writer(&adapter, &Writes::Permitted);
+        Self::build(schema, adapter, config, Some(relay_dispatch), writer)
     }
 }

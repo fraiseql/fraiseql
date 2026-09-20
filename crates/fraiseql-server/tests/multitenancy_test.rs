@@ -108,11 +108,11 @@ impl DatabaseAdapter for StubAdapter {
 fn make_executor(label: &str, query_name: &str) -> Arc<Executor<StubAdapter>> {
     let mut schema = CompiledSchema::default();
     schema.queries.push(QueryDefinition::new(query_name, "Result"));
-    Arc::new(Executor::new(schema, Arc::new(StubAdapter::new(label))))
+    Arc::new(Executor::read_only(schema, Arc::new(StubAdapter::new(label))))
 }
 
 fn make_multitenant_state() -> AppState<StubAdapter> {
-    let state = AppState::new(Arc::new(Executor::new(
+    let state = AppState::new(Arc::new(Executor::read_only(
         CompiledSchema::default(),
         Arc::new(StubAdapter::new("default")),
     )));
@@ -121,7 +121,7 @@ fn make_multitenant_state() -> AppState<StubAdapter> {
 }
 
 fn make_single_tenant_state() -> AppState<StubAdapter> {
-    AppState::new(Arc::new(Executor::new(
+    AppState::new(Arc::new(Executor::read_only(
         CompiledSchema::default(),
         Arc::new(StubAdapter::new("single")),
     )))
@@ -328,7 +328,7 @@ async fn test_hot_reload_in_flight_requests_see_old_executor() {
     let mut schema_v2 = CompiledSchema::default();
     schema_v2.queries.push(QueryDefinition::new("users_v2", "User"));
     schema_v2.queries.push(QueryDefinition::new("orders_v2", "Order"));
-    let v2_executor = Arc::new(Executor::new(schema_v2, Arc::new(StubAdapter::new("a-v2"))));
+    let v2_executor = Arc::new(Executor::read_only(schema_v2, Arc::new(StubAdapter::new("a-v2"))));
     let was_insert = registry.upsert("tenant-a", v2_executor);
     assert!(!was_insert, "should be an update, not insert");
 

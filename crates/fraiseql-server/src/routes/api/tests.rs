@@ -576,7 +576,7 @@ mod metadata_tests {
     #[tokio::test]
     async fn metadata_handler_returns_200_with_correct_body() {
         let schema = make_security_schema();
-        let executor = Arc::new(Executor::new(schema, Arc::new(StubAdapter)));
+        let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter)));
         let state = AppState::new(executor);
 
         let axum::Json(resp) = metadata_handler(State(state)).await;
@@ -600,7 +600,7 @@ mod metadata_tests {
     #[tokio::test]
     async fn metadata_handler_body_serialises_to_expected_json() {
         let schema = make_security_schema();
-        let executor = Arc::new(Executor::new(schema, Arc::new(StubAdapter)));
+        let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter)));
         let state = AppState::new(executor);
 
         let axum::Json(resp) = metadata_handler(State(state)).await;
@@ -1095,7 +1095,7 @@ mod tenant_admin_tests {
 
     fn make_multitenant_state() -> AppState<StubAdapter> {
         let schema = CompiledSchema::default();
-        let executor = Arc::new(Executor::new(schema, Arc::new(StubAdapter)));
+        let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter)));
         let state = AppState::new(executor);
         let registry = TenantExecutorRegistry::new(state.executor.clone());
         state.with_tenant_registry(Arc::new(registry))
@@ -1103,7 +1103,7 @@ mod tenant_admin_tests {
 
     fn make_single_tenant_state() -> AppState<StubAdapter> {
         let schema = CompiledSchema::default();
-        let executor = Arc::new(Executor::new(schema, Arc::new(StubAdapter)));
+        let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter)));
         AppState::new(executor)
     }
 
@@ -1126,7 +1126,8 @@ mod tenant_admin_tests {
         let state = make_multitenant_state();
         let registry = state.tenant_registry().unwrap();
 
-        let executor = Arc::new(Executor::new(CompiledSchema::default(), Arc::new(StubAdapter)));
+        let executor =
+            Arc::new(Executor::read_only(CompiledSchema::default(), Arc::new(StubAdapter)));
         registry.upsert("tenant-abc", executor);
 
         assert_eq!(registry.len(), 1);
@@ -1138,10 +1139,12 @@ mod tenant_admin_tests {
         let state = make_multitenant_state();
         let registry = state.tenant_registry().unwrap();
 
-        let executor = Arc::new(Executor::new(CompiledSchema::default(), Arc::new(StubAdapter)));
+        let executor =
+            Arc::new(Executor::read_only(CompiledSchema::default(), Arc::new(StubAdapter)));
         assert!(registry.upsert("tenant-abc", executor));
 
-        let executor2 = Arc::new(Executor::new(CompiledSchema::default(), Arc::new(StubAdapter)));
+        let executor2 =
+            Arc::new(Executor::read_only(CompiledSchema::default(), Arc::new(StubAdapter)));
         assert!(!registry.upsert("tenant-abc", executor2));
     }
 
@@ -1161,7 +1164,7 @@ mod tenant_admin_tests {
         schema
             .queries
             .push(fraiseql_core::schema::QueryDefinition::new("users", "User"));
-        let executor = Arc::new(Executor::new(schema, Arc::new(StubAdapter)));
+        let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter)));
         registry.upsert("tenant-abc", executor);
 
         let exec = registry.executor_for(Some("tenant-abc")).unwrap();
@@ -1174,7 +1177,8 @@ mod tenant_admin_tests {
         let state = make_multitenant_state();
         let registry = state.tenant_registry().unwrap();
 
-        let executor = Arc::new(Executor::new(CompiledSchema::default(), Arc::new(StubAdapter)));
+        let executor =
+            Arc::new(Executor::read_only(CompiledSchema::default(), Arc::new(StubAdapter)));
         registry.upsert("tenant-abc", executor);
 
         assert!(registry.health_check("tenant-abc").await.is_ok());
@@ -1193,7 +1197,8 @@ mod tenant_admin_tests {
         let state = make_multitenant_state();
         let registry = state.tenant_registry().unwrap();
 
-        let executor = Arc::new(Executor::new(CompiledSchema::default(), Arc::new(StubAdapter)));
+        let executor =
+            Arc::new(Executor::read_only(CompiledSchema::default(), Arc::new(StubAdapter)));
         registry.upsert("tenant-abc", executor);
 
         state.domain_registry().register("api.acme.com", "tenant-abc");
@@ -1324,7 +1329,7 @@ mod usage_tests {
 
     fn make_state_with_usage(usage: Arc<UsageAggregator>) -> AppState<StubAdapter> {
         let schema = CompiledSchema::default();
-        let executor = Arc::new(Executor::new(schema, Arc::new(StubAdapter)));
+        let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter)));
         AppState::new(executor).with_usage(usage)
     }
 

@@ -4,55 +4,38 @@
 //! [`runners::mutation::execute_mutation_impl`](super::runners::mutation::execute_mutation_impl).
 //! This module contains:
 //!
-//! - The compile-time-enforced public API ([`Executor::execute_mutation`], bounded on
-//!   [`SupportsMutations`]).
-//! - The runtime-guarded internal dispatch entry point (`Executor::execute_mutation_query`, bounded
-//!   only on [`DatabaseAdapter`]).
+//! - The typed public API ([`Executor::execute_mutation`] and friends), which a transport uses when
+//!   it already holds structured arguments.
+//! - The internal dispatch entry point for a client document (`Executor::execute_mutation_query`).
 //! - Convenience wrappers used by the REST transport ([`execute_mutation_with_security`],
 //!   [`execute_mutation_batch`], [`execute_bulk_by_ids`]).
+//!
+//! None of them carries a capability bound. All converge on `execute_mutation_impl`, whose
+//! step 0 resolves the executor's write slot — see [`Executor::new`] for where the
+//! compile-time half of that decision is made.
 
 use super::{Executor, runners};
 use crate::{
-    backend::traits::{DatabaseAdapter, SupportsMutations},
+    backend::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
     security::SecurityContext,
 };
 
-/// Compile-time enforcement: the `SupportsMutations` bound on this impl block is what keeps a
-/// read-only adapter out of the write entries. The witness is `FraiseWireAdapter`, which
-/// implements `DatabaseAdapter` and **not** `SupportsMutations`.
+/// The typed write entries.
 ///
-/// ⚠ **The two blocks below are a pair, and only the pair is the assertion.** A
-/// `compile_fail` block is satisfied by *any* compile error, including one that has nothing
-/// to do with the rule. This one named `SqliteAdapter` until the non-PostgreSQL backends were
-/// deleted (#374), after which `use fraiseql_core::db::sqlite::SqliteAdapter;` no longer
-/// resolved — so the block failed to compile because of the import and passed for a full
-/// release while proving nothing.
+/// These used to sit on an `impl<A: DatabaseAdapter + SupportsMutations>` block, and the
+/// bound was described as the thing keeping a read-only adapter out. It kept out an
+/// adapter without the *marker*; it could not speak for `supports_mutations()`, the
+/// runtime gate `execute_function_call` is keyed on, and these entries skipped that check
+/// on the strength of the bound. An adapter carrying one and not the other was dispatched.
 ///
-/// The two differ by exactly the `execute_mutation` call. If the witness ever stops resolving,
-/// the *first* block goes red rather than the second one going quietly green.
-///
-/// `FraiseWireAdapter` needs `--all-features`; every `--doc` invocation in this repository
-/// passes it (`Makefile`, `.dagger/main.go`).
-///
-/// The witness resolves, and `Executor` accepts it:
-///
-/// ```
-/// use fraiseql_core::{db::FraiseWireAdapter, runtime::Executor};
-/// fn _the_witness_resolves(_: &Executor<FraiseWireAdapter>) {}
-/// ```
-///
-/// …and reaching a write entry through it does not compile:
-///
-/// ```compile_fail
-/// use fraiseql_core::{db::FraiseWireAdapter, runtime::Executor};
-/// use serde_json::Value;
-/// async fn _wont_compile(executor: &Executor<FraiseWireAdapter>) {
-///     let _ = executor.execute_mutation("createUser", None::<&Value>, &[]).await;
-/// }
-/// ```
-impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
+/// The question is now asked once, at step 0 of the chokepoint, against a slot resolved at
+/// construction from *both* gates. The compile-time refusal did not disappear: it moved to
+/// `Executor::new`, which is bounded on `SupportsMutations` and is where the
+/// `compile_fail` pair now lives. An adapter that declares nothing still cannot be built
+/// into a write-capable executor.
+impl<A: DatabaseAdapter> Executor<A> {
     /// Construct a mutation runner on demand.
     ///
     /// Zero-cost: `Arc::clone` is one atomic increment, no allocation.
@@ -60,13 +43,12 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
         runners::mutation::MutationRunner::new(std::sync::Arc::clone(&self.ctx))
     }
 
-    /// Execute a GraphQL mutation directly, with compile-time capability enforcement.
+    /// Execute a GraphQL mutation directly, by name.
     ///
-    /// Unlike `execute()` (which accepts raw GraphQL strings and performs a runtime
-    /// `supports_mutations()` check), this method is only available on adapters that
-    /// implement [`SupportsMutations`].  The capability is enforced at **compile time**:
-    /// attempting to call this method with `FraiseWireAdapter` results in a compiler error.
-    /// That is the witness the `compile_fail` pair on this impl block uses.
+    /// Unlike `execute()`, which accepts a raw GraphQL string, this takes the mutation
+    /// name and variables directly. Capability is settled by the executor's write slot:
+    /// an executor built by [`Executor::read_only`], or from an adapter whose
+    /// `supports_mutations()` returns `false`, refuses here before any other gate runs.
     ///
     /// # Arguments
     ///
@@ -89,8 +71,6 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
         variables: Option<&serde_json::Value>,
         selections: WriteSelections<'_>,
     ) -> Result<serde_json::Value> {
-        // No runtime supports_mutations() check: the SupportsMutations bound
-        // guarantees at compile time that this adapter supports mutations.
         self.mutation_runner()
             .execute_mutation(mutation_name, variables, selections)
             .await
@@ -315,24 +295,11 @@ impl<A: DatabaseAdapter> Executor<A> {
         selections: &[FieldSelection],
         inline_arguments: &[crate::graphql::GraphQLArgument],
     ) -> Result<serde_json::Value> {
-        // Runtime guard: verify this adapter supports mutations.
-        // Note: this is a runtime check, not compile-time enforcement.
-        // The common execute() entry point accepts raw GraphQL strings and
-        // determines the operation type at runtime, which precludes compile-time
-        // mutation gating. The direct execute_mutation() API provides compile-time
-        // enforcement via the SupportsMutations bound on MutationRunner.
-        if !self.ctx.adapter.supports_mutations() {
-            return Err(FraiseQLError::Validation {
-                message: format!(
-                    "Mutation '{mutation_name}' cannot be executed: the configured database \
-                     adapter is read-only. A write-capable adapter implements the \
-                     `SupportsMutations` marker and returns `true` from \
-                     `supports_mutations()` — both default to refusing. `PostgresAdapter` \
-                     does; `FraiseWireAdapter` deliberately does not."
-                ),
-                path:    None,
-            });
-        }
+        // The capability question is asked at step 0 of `execute_mutation_impl`, which
+        // every path below reaches — including the § 5.3.3 refusal underneath, which is a
+        // *validation* answer and must not depend on write capability to be given. The
+        // check that used to stand here was the document path's own copy of a decision the
+        // typed entries were meanwhile not making at all; there is one copy now.
         // The one place a *client document's* selection set becomes a write's.
         //
         // § 5.3.3 (#1357) runs **here, before the conversion**, not only at step 1e
