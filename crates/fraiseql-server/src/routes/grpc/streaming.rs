@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use fraiseql_core::{
-    db::{traits::DatabaseAdapter, types::ColumnSpec, where_clause::WhereClause},
+    db::{traits::DatabaseAdapter, types::ColumnSpec},
     schema::TypeDefinition,
     security::SecurityContext,
 };
@@ -73,89 +73,57 @@ fn error_body(
 /// another. A server-streaming RPC is exactly the shape where that is least
 /// visible to the client, since the frames look identical either way.
 ///
+/// # Gates
+///
+/// Resolved by the engine (#1351), through the same entry as the unary arm. This
+/// arm used to open the read itself and pass `None` for both `limit` and `offset`,
+/// so the compiled page-size ceiling (#421) was not merely unenforced — there was
+/// no bound of any kind on the number of frames a client could ask for.
+///
 /// # Errors
 ///
 /// A failure before the first row is returned as an error trailers frame;
 /// one after it is surfaced as trailers at the point the stream stops.
-#[allow(clippy::too_many_arguments)] // Reason: mirrors execute_grpc_query() signature; grouping into a struct adds indirection without reducing call-site complexity
+// Reason: mirrors the unary arm's shape; grouping into a struct adds indirection
+// without reducing call-site complexity, and the two arms staying parallel is what
+// #1348 showed matters most here.
+#[allow(clippy::too_many_arguments)]
 pub async fn build_streaming_body<A: DatabaseAdapter + 'static>(
-    adapter: Arc<A>,
-    view_name: String,
+    executor: Arc<fraiseql_core::runtime::Executor<A>>,
+    query_name: String,
     columns: Vec<ColumnSpec>,
     row_descriptor: MessageDescriptor,
     type_def: &TypeDefinition,
     request_msg: &prost_reflect::DynamicMessage,
     security_context: Option<&SecurityContext>,
-    rls_policy: Option<&dyn fraiseql_core::security::RLSPolicy>,
     batch_size: u32,
 ) -> impl futures::Stream<Item = Result<Frame<Bytes>, std::convert::Infallible>> + Send {
-    // Extract filters and build WHERE clause up front.
-    let user_where = handler::extract_filters(request_msg, type_def);
-
-    // #1348: the configured policy, and its failure **propagates**.
-    //
-    // This was `.ok().flatten()`, so an `Err` from `evaluate` became `None` — no filter —
-    // and the read served every row. The unary arm uses `?` at the same point, so one
-    // failure was fail-closed on a unary read and fail-open on a streaming one. A
-    // server-streaming RPC is the shape where that is least visible, since the frames
-    // look identical either way.
-    let rls_where = match (security_context, rls_policy) {
-        (Some(ctx), Some(policy)) => match policy.evaluate(ctx, type_def.name.as_str()) {
-            Ok(decision) => decision.map(|rls| rls.into_where_clause()),
-            Err(e) => {
-                return futures::future::Either::Left(error_body(e.to_string()));
-            },
-        },
-        _ => None,
+    let query_match = match handler::grpc_query_match(
+        executor.schema(),
+        &query_name,
+        &columns,
+        true,
+        request_msg,
+        type_def,
+    ) {
+        Ok(qm) => qm,
+        Err(e) => return futures::future::Either::Left(error_body(e.to_string())),
     };
 
-    let combined = match (rls_where, user_where) {
-        (Some(rls), Some(user)) => Some(WhereClause::And(vec![rls, user])),
-        (Some(rls), None) => Some(rls),
-        (None, user) => user,
-    };
+    debug!(query = %query_name, batch_size, "Opening gRPC streaming read through the engine");
 
-    // #1348: the second fail-open on this path. A clause that could not be generated
-    // became `None`, and the read ran with no WHERE at all — including when the clause
-    // that failed was the RLS one. Propagated, like the unary arm does.
-    let where_sql = match combined {
-        Some(clause) => {
-            use fraiseql_core::db::{
-                dialect::PostgresDialect, where_generator::GenericWhereGenerator,
-            };
-            let generator = GenericWhereGenerator::new(PostgresDialect);
-            match generator.generate(&clause) {
-                Ok((sql, _params)) => Some(sql),
-                Err(e) => {
-                    return futures::future::Either::Left(error_body(e.to_string()));
-                },
-            }
-        },
-        None => None,
-    };
+    // The engine narrows the projection when field-level RBAC withholds a field,
+    // and the values it streams are positional — so the columns the frames are
+    // encoded with must be the ones the read used, never the ones asked for.
+    let opened = executor.stream_row_read(&query_match, None, security_context, &columns).await;
 
-    let order_by = handler::extract_order_by(request_msg, type_def);
-
-    let opened = adapter
-        .stream_row_query(
-            &view_name,
-            &columns,
-            where_sql.as_deref(),
-            order_by.as_deref(),
-            None,
-            None,
-        )
-        .await;
-
-    let rows = match opened {
-        Ok(rows) => rows,
+    let (columns, rows) = match opened {
+        Ok(read) => (read.columns, read.stream),
         Err(e) => {
             // The read never started, so the whole response is one trailers frame.
             return futures::future::Either::Left(error_body(e.to_string()));
         },
     };
-
-    debug!(view = %view_name, batch_size, "gRPC streaming response opened");
 
     let framed = stream::unfold(
         StreamState {

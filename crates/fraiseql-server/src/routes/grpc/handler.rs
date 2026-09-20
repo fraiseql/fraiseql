@@ -1,20 +1,23 @@
-//! gRPC request handler — translates protobuf queries into row-shaped view
-//! queries and encodes results back to protobuf.
+//! gRPC request handler — translates protobuf requests into engine reads and
+//! encodes the resulting rows back to protobuf.
 //!
-//! The handler accepts a decoded [`prost_reflect::DynamicMessage`] request,
-//! extracts filter/pagination arguments, generates a SQL WHERE clause via
-//! [`GenericWhereGenerator`], calls [`DatabaseAdapter::execute_row_query()`],
-//! and maps the resulting [`ColumnValue`] rows into a protobuf response message.
+//! The handler accepts a decoded [`prost_reflect::DynamicMessage`], lifts its
+//! filter and pagination fields into the argument map the engine takes, and calls
+//! [`execute_grpc_read`] — which resolves through the same chokepoint every other
+//! read uses (#1351). It then maps the returned [`ColumnValue`] rows into a
+//! protobuf response message.
+//!
+//! It used to compose a `WHERE` clause itself and call the adapter's row query
+//! directly. That made gRPC a second read implementation, and the gates it did not
+//! reach were the ones every other transport had.
 
 use std::collections::HashMap;
 
 use fraiseql_core::{
     db::{
-        dialect::{PostgresDialect, RowViewColumnType},
+        dialect::RowViewColumnType,
         traits::DatabaseAdapter,
         types::{ColumnSpec, ColumnValue},
-        where_clause::{WhereClause, WhereOperator},
-        where_generator::GenericWhereGenerator,
     },
     schema::{CompiledSchema, FieldType, TypeDefinition},
     security::SecurityContext,
@@ -41,7 +44,7 @@ pub enum RpcKind {
     /// A read query against a row-shaped view (`vr_*`).
     Query {
         /// Row-shaped view name (e.g., `"vr_user"`).
-        view_name:      String,
+
         /// Whether this RPC returns a list.
         returns_list:   bool,
         /// Column specs for the row-shaped view.
@@ -57,7 +60,7 @@ pub enum RpcKind {
     /// individually as gRPC frames.
     ServerStream {
         /// Row-shaped view name (e.g., `"vr_user"`).
-        view_name:      String,
+
         /// Column specs for the row-shaped view.
         columns:        Vec<ColumnSpec>,
         /// Row message descriptor (the entity type, e.g., `User`).
@@ -135,56 +138,6 @@ pub fn column_specs_from_type(type_def: &TypeDefinition) -> Vec<ColumnSpec> {
 // ---------------------------------------------------------------------------
 // Filter extraction — protobuf message → WhereClause
 // ---------------------------------------------------------------------------
-
-/// Extract filter arguments from a protobuf request message and build a
-/// [`WhereClause`].
-///
-/// Expects the request message to contain top-level fields that correspond to
-/// filter parameters. For example, a `ListUsersRequest` with field `email` of
-/// type `string` becomes `WHERE email = $1`.
-///
-/// Only simple equality filters are supported in the MVP. The returned clause
-/// is `None` when no filter fields are set.
-#[must_use]
-pub fn extract_filters(msg: &DynamicMessage, type_def: &TypeDefinition) -> Option<WhereClause> {
-    let mut clauses = Vec::new();
-
-    for field_desc in msg.descriptor().fields() {
-        let field_name = field_desc.name();
-
-        // Skip pagination fields.
-        if matches!(field_name, "limit" | "offset" | "order_by") {
-            continue;
-        }
-
-        // Only process fields that exist on the type definition.
-        if type_def.find_field(field_name).is_none() {
-            continue;
-        }
-
-        // Check if the field is set in the message.
-        if !msg.has_field(&field_desc) {
-            continue;
-        }
-
-        let value = msg.get_field(&field_desc);
-        let json_value = proto_value_to_json(&value);
-
-        clauses.push(WhereClause::Field {
-            path:     vec![field_name.to_string()],
-            operator: WhereOperator::Eq,
-            value:    json_value,
-        });
-    }
-
-    if clauses.is_empty() {
-        None
-    } else if clauses.len() == 1 {
-        clauses.into_iter().next()
-    } else {
-        Some(WhereClause::And(clauses))
-    }
-}
 
 /// Convert a protobuf [`Value`] to a [`serde_json::Value`] for WHERE clause
 /// parameter binding.
@@ -300,129 +253,187 @@ pub fn extract_offset(msg: &DynamicMessage) -> Option<u32> {
     None
 }
 
-/// Extract `order_by` from the request message.
-pub fn extract_order_by(msg: &DynamicMessage, type_def: &TypeDefinition) -> Option<String> {
-    for field_desc in msg.descriptor().fields() {
-        if field_desc.name() == "order_by" && msg.has_field(&field_desc) {
-            let val = msg.get_field(&field_desc);
-            if let Value::String(s) = val.as_ref() {
-                // Validate that the order_by column exists on the type to prevent
-                // SQL injection via crafted order_by strings.
-                let parts: Vec<&str> = s.split_whitespace().collect();
-                if let Some(col_name) = parts.first() {
-                    if type_def.find_field(col_name).is_some() {
-                        let direction = parts
-                            .get(1)
-                            .filter(|d| {
-                                d.eq_ignore_ascii_case("asc") || d.eq_ignore_ascii_case("desc")
-                            })
-                            .copied()
-                            .unwrap_or("ASC");
-                        return Some(format!("\"{col_name}\" {direction}"));
-                    }
-                    warn!(
-                        column = %col_name,
-                        "gRPC order_by references unknown column — ignoring"
-                    );
-                }
-            }
-        }
-    }
-    None
-}
-
 // ---------------------------------------------------------------------------
 // Query execution
 // ---------------------------------------------------------------------------
 
-/// Execute a gRPC query against a row-shaped view.
+/// Build the engine argument map for a gRPC read (#1351).
 ///
-/// When a [`SecurityContext`] is provided, RLS (Row-Level Security) WHERE
-/// clauses are generated from the user's identity and AND-ed with any
-/// client-supplied filters.  RLS always wins — client filters can only
-/// *narrow*, never *widen*, the result set.
+/// The protobuf request carries the client's filter and pagination as top-level
+/// message fields. The engine reads them from
+/// [`QueryMatch::arguments`](fraiseql_core::runtime::QueryMatch::arguments) in the
+/// same shape a GraphQL document or a REST query string produces, so converting
+/// here — rather than composing a `WhereClause` directly, as this arm used to —
+/// is what lets a gRPC read resolve through the chokepoint every other read uses.
+///
+/// One consequence is deliberate: a filter on a query compiled with
+/// `where_clause = false` is now **refused** rather than applied. The operator
+/// turned the client-facing filter surface off; this arm used to apply it anyway.
+#[must_use]
+pub fn read_arguments(
+    msg: &DynamicMessage,
+    type_def: &TypeDefinition,
+    returns_list: bool,
+) -> HashMap<String, serde_json::Value> {
+    let mut arguments = HashMap::new();
+
+    let mut filters = serde_json::Map::new();
+    for field_desc in msg.descriptor().fields() {
+        let field_name = field_desc.name();
+        if matches!(field_name, "limit" | "offset" | "order_by") {
+            continue;
+        }
+        if type_def.find_field(field_name).is_none() || !msg.has_field(&field_desc) {
+            continue;
+        }
+        let value = msg.get_field(&field_desc);
+        filters.insert(
+            field_name.to_string(),
+            serde_json::json!({ "eq": proto_value_to_json(&value) }),
+        );
+    }
+    if !filters.is_empty() {
+        arguments.insert("where".to_string(), serde_json::Value::Object(filters));
+    }
+
+    // A `Get` RPC answers a single row; a `List` RPC answers a page.
+    //
+    // The requested page travels unclamped. `extract_limit` caps at
+    // `MAX_GRPC_RESULT_ROWS`, which is a transport-local number the operator never
+    // wrote; the compiled `[validation] max_page_size` is the one they did, and it
+    // is the engine's to enforce (#421) — refusing an over-large page rather than
+    // silently serving a smaller one than was asked for.
+    let limit = if returns_list { extract_limit(msg) } else { 1 };
+    arguments.insert("limit".to_string(), serde_json::json!(limit));
+
+    if let Some(offset) = extract_offset(msg) {
+        arguments.insert("offset".to_string(), serde_json::json!(offset));
+    }
+    if let Some((field, direction)) = extract_order_by_pair(msg, type_def) {
+        arguments.insert("orderBy".to_string(), serde_json::json!({ field: direction }));
+    }
+
+    arguments
+}
+
+/// Extract `order_by` as a `(field, direction)` pair.
+///
+/// The engine takes the ordering as `{"field": "ASC"}` and validates the field
+/// itself. The removed `extract_order_by` rendered a pre-quoted SQL fragment
+/// instead — the shape the old self-built statement needed, and nothing else.
+#[must_use]
+pub fn extract_order_by_pair(
+    msg: &DynamicMessage,
+    type_def: &TypeDefinition,
+) -> Option<(String, String)> {
+    for field_desc in msg.descriptor().fields() {
+        if field_desc.name() != "order_by" || !msg.has_field(&field_desc) {
+            continue;
+        }
+        let val = msg.get_field(&field_desc);
+        let Value::String(s) = val.as_ref() else {
+            continue;
+        };
+        let mut parts = s.split_whitespace();
+        let col_name = parts.next()?;
+        if type_def.find_field(col_name).is_none() {
+            warn!(column = %col_name, "gRPC order_by references unknown column — ignoring");
+            return None;
+        }
+        let direction = parts
+            .next()
+            .filter(|d| d.eq_ignore_ascii_case("asc") || d.eq_ignore_ascii_case("desc"))
+            .map_or("ASC", |d| {
+                if d.eq_ignore_ascii_case("desc") {
+                    "DESC"
+                } else {
+                    "ASC"
+                }
+            });
+        return Some((col_name.to_string(), direction.to_string()));
+    }
+    None
+}
+
+/// Execute a gRPC read through the engine (#1351).
+///
+/// This arm used to build its own `WHERE` clause and call
+/// [`DatabaseAdapter::execute_row_query`] directly, which made gRPC a second read
+/// implementation: the operation `Authorizer` (#422), the `requires_role` gate
+/// (#1122), the actor allow-list (#966), the field gate (#423) and the compiled
+/// page-size ceiling (#421) applied to every transport except this one. #1348
+/// fixed the one gate reachable without moving the arm — the configured RLS
+/// policy — and filed the rest as this.
+///
+/// The engine answers the row shape directly, so nothing round-trips through
+/// GraphQL-shaped JSON on a transport chosen partly to avoid one.
+///
+/// Callers must encode with
+/// [`RowRead::columns`](fraiseql_core::runtime::RowRead::columns), not with the `columns` passed
+/// in: field-level RBAC (#886) can narrow them, and the values are positional.
 ///
 /// # Errors
 ///
-/// Returns `FraiseQLError::Database` on query execution failure.
-/// Returns `FraiseQLError::Validation` if filter construction fails.
-// Reason: mirrors build_streaming_body's signature; grouping into a struct adds
-// indirection without reducing call-site complexity
-#[allow(clippy::too_many_arguments)]
-pub async fn execute_grpc_query<A: DatabaseAdapter>(
-    adapter: &A,
-    view_name: &str,
+/// `FraiseQLError::Authorization` when the operation, the role gate, the actor
+/// gate or a selected gated field is refused; `FraiseQLError::Validation` when an
+/// argument does not parse, the page exceeds the compiled ceiling, or a policy has
+/// no principal to evaluate for; `FraiseQLError::Database` on read failure.
+pub async fn execute_grpc_read<A: DatabaseAdapter>(
+    executor: &fraiseql_core::runtime::Executor<A>,
+    query_name: &str,
     columns: &[ColumnSpec],
     returns_list: bool,
     request_msg: &DynamicMessage,
     type_def: &TypeDefinition,
     security_context: Option<&SecurityContext>,
-    rls_policy: Option<&dyn fraiseql_core::security::RLSPolicy>,
-) -> Result<Vec<Vec<ColumnValue>>, FraiseQLError> {
-    // Extract filters and build WHERE clause.
-    let user_where = extract_filters(request_msg, type_def);
-
-    // #1348: the policy the deployment **configured**, never one built here. This arm
-    // used to construct `DefaultRLSPolicy::new()` itself, which was wrong in both
-    // directions: a deployment with a custom policy never had it consulted, and one
-    // with none — the default — got `DefaultRLSPolicy` on gRPC and no RLS on
-    // GraphQL/REST, so the same query answered differently depending on which transport
-    // asked. `None` means no row filter, exactly as the engine's read path treats an
-    // unconfigured `RuntimeConfig.rls_policy`.
-    let rls_where = match (security_context, rls_policy) {
-        (Some(ctx), Some(policy)) => {
-            policy.evaluate(ctx, type_def.name.as_str())?.map(|rls| rls.into_where_clause())
-        },
-        _ => None,
-    };
-
-    // Combine: RLS first, then user filters — RLS always wins.
-    let combined = match (rls_where, user_where) {
-        (Some(rls), Some(user)) => Some(WhereClause::And(vec![rls, user])),
-        (Some(rls), None) => Some(rls),
-        (None, user) => user,
-    };
-
-    // Generate SQL WHERE clause string via GenericWhereGenerator.
-    let where_sql = if let Some(ref clause) = combined {
-        let gen = GenericWhereGenerator::new(PostgresDialect);
-        let (sql, _params) = gen.generate(clause)?;
-        // Note: In the MVP, the WHERE clause string is passed directly to
-        // execute_row_query(). The adapter is responsible for parameterized
-        // execution. For production, we should pass params alongside the SQL.
-        Some(sql)
-    } else {
-        None
-    };
-
-    let limit = if returns_list {
-        Some(extract_limit(request_msg))
-    } else {
-        Some(1)
-    };
-    let offset = extract_offset(request_msg);
-    let order_by = extract_order_by(request_msg, type_def);
+) -> Result<fraiseql_core::runtime::RowRead, FraiseQLError> {
+    let query_match = grpc_query_match(
+        executor.schema(),
+        query_name,
+        columns,
+        returns_list,
+        request_msg,
+        type_def,
+    )?;
 
     debug!(
-        view = %view_name,
-        where_clause = ?where_sql,
-        limit = ?limit,
-        offset = ?offset,
-        order_by = ?order_by,
+        query = %query_name,
+        columns = columns.len(),
         user_id = ?security_context.map(|c| &c.user_id),
-        "Executing gRPC row query"
+        "Executing gRPC row read through the engine"
     );
 
-    adapter
-        .execute_row_query(
-            view_name,
-            columns,
-            where_sql.as_deref(),
-            order_by.as_deref(),
-            limit,
-            offset,
-        )
-        .await
+    executor.execute_row_read(&query_match, None, security_context, columns).await
+}
+
+/// Build the [`QueryMatch`] a gRPC read resolves through.
+///
+/// The requested field set is the `ColumnSpec` list — there is no selection set
+/// on the wire, so the projection *is* the selection. It must travel as one:
+/// `QueryMatch::from_operation` puts the fields in `selections[0].nested_fields`,
+/// which is where the `#423` gate and the field-RBAC classifier both read them.
+/// Handing either an empty slice instead would be the permissive shape — the whole
+/// entity, with no field authorization — which is exactly `#886`.
+///
+/// # Errors
+///
+/// `FraiseQLError::Validation` if the schema has no such query.
+pub(super) fn grpc_query_match(
+    schema: &CompiledSchema,
+    query_name: &str,
+    columns: &[ColumnSpec],
+    returns_list: bool,
+    request_msg: &DynamicMessage,
+    type_def: &TypeDefinition,
+) -> Result<fraiseql_core::runtime::QueryMatch, FraiseQLError> {
+    let query_def = schema.find_query(query_name).cloned().ok_or_else(|| {
+        FraiseQLError::validation(format!("Query '{query_name}' not found in schema"))
+    })?;
+
+    let fields: Vec<String> = columns.iter().map(|c| c.name.clone()).collect();
+    let arguments = read_arguments(request_msg, type_def, returns_list);
+
+    fraiseql_core::runtime::QueryMatch::from_operation(query_def, fields, arguments, Some(type_def))
 }
 
 /// Execute a gRPC mutation by calling the database function.
@@ -784,7 +795,9 @@ pub fn build_dispatch_table(
                     continue;
                 };
 
-                let view_name = format!("vr_{}", type_def.sql_source);
+                // No view name here: which object a row read targets is the engine's
+                // to decide (#1351). A copy kept in the dispatch table would be a
+                // second source of truth, free to drift from the one that runs.
                 let columns = column_specs_from_type(type_def);
 
                 // Server-streaming list queries: the descriptor marks
@@ -794,7 +807,6 @@ pub fn build_dispatch_table(
 
                 let kind = if is_server_streaming && query_def.returns_list {
                     RpcKind::ServerStream {
-                        view_name,
                         columns,
                         row_descriptor: response_desc.clone(),
                     }
@@ -809,7 +821,6 @@ pub fn build_dispatch_table(
                         response_desc.clone()
                     };
                     RpcKind::Query {
-                        view_name,
                         returns_list: query_def.returns_list,
                         columns,
                         row_descriptor: row_desc,

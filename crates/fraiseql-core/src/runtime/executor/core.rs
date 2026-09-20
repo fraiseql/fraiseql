@@ -658,7 +658,8 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// (#423) and the compiled page-size ceiling (#421) applied to every transport
     /// but that one.
     ///
-    /// The caller must project with [`RowRead::columns`], not with the columns it
+    /// The caller must project with [`RowRead::columns`](crate::runtime::RowRead::columns),
+    /// not with the columns it
     /// passed in — see that field for why.
     ///
     /// # Errors

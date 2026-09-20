@@ -18,6 +18,44 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The gRPC read arms go through the engine, and no longer hold a `DatabaseAdapter`
+  (#1351).** S7 of the boundary work. Both arms built their own `WHERE` clause and
+  called `DatabaseAdapter::execute_row_query` directly, which made gRPC a second read
+  implementation — so the operation `Authorizer` (#422), the `requires_role` gate
+  (#1122), the actor allow-list (#966), the field gate (#423) and the compiled
+  `[validation]` page-size ceiling (#421) applied to every transport except that one.
+
+  **API.** `DynamicGrpcService` no longer holds `Arc<A>`, so `build_grpc_service` no
+  longer takes an `adapter` argument — pass the configured executor only.
+  `handler::execute_grpc_query` is replaced by `handler::execute_grpc_read`, which
+  takes an `&Executor<A>` and a query name instead of an adapter and a view name, and
+  returns a `RowRead`. `streaming::build_streaming_body` takes the executor and the
+  query name in place of the adapter, the view name and an RLS policy argument.
+  `handler::extract_filters` and `handler::extract_order_by` are gone: they existed
+  only to build the statement the arm no longer issues. `RpcKind::Query` and
+  `RpcKind::ServerStream` lose `view_name` — which object a row read targets is the
+  engine's to decide, and a copy in the dispatch table was a second source of truth.
+
+  **Behaviour, and worth reading before upgrading.**
+
+  - A page larger than the compiled `max_page_size` is now **refused**, where this
+    transport used to clamp it silently to `MAX_GRPC_RESULT_ROWS` (10 000) — a
+    transport-local number no operator ever wrote. The streaming arm passed no limit
+    at all, so it had no bound of any kind.
+  - A filter on a query compiled with `where_clause = false` is now refused. The arm
+    used to apply it regardless, so a project that had turned the client-facing filter
+    surface off still had it honoured over gRPC.
+  - A read whose projection contains a policy-gated field is refused, as it is on the
+    REST direct read. Previously the field was read and returned with no field
+    authorization at all.
+  - **The RLS policy is evaluated with the query name, not the type name.** Every read
+    path in the engine passes `query_def.name`; this arm passed `type_def.name`, so a
+    deployment's rules matched on gRPC only if they had been written against a key no
+    other transport uses. Rules keyed by type name for gRPC's sake must be rekeyed to
+    the query name. See the note below — the trait parameter is still *named*
+    `type_name`, and that disagreement is not resolved here.
+  - Refusals now surface as `PermissionDenied` rather than `Internal`.
+
 - **`Executor::adapter` is gone; the engine mediates the operations instead.**
   S4 of the boundary work. Handing out `&Arc<A>` gave every transport the whole
   `DatabaseAdapter` surface — roughly forty methods, including `execute_raw_query` —

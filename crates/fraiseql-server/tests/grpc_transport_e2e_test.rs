@@ -57,19 +57,38 @@ fn build_grpc_service_for_test<
         + 'static,
 >(
     schema: Arc<CompiledSchema>,
-    adapter: Arc<A>,
     executor: Arc<Executor<A>>,
     oidc_validator: Option<Arc<fraiseql_core::security::OidcValidator>>,
     rate_limiter: Option<Arc<fraiseql_server::middleware::RateLimiter>>,
 ) -> Result<Option<grpc::GrpcServices<A>>, fraiseql_core::error::FraiseQLError> {
     grpc::build_grpc_service(
         schema,
-        adapter,
         executor,
         oidc_validator,
         rate_limiter,
         #[cfg(feature = "auth")]
         None,
+    )
+}
+
+/// An `Executor` carrying the deployment's configured RLS policy.
+///
+/// #1351 routed the gRPC read arms through the engine, so the policy a read applies
+/// is the one on `RuntimeConfig` — which is what #1348 was about. These tests used to
+/// hand the policy to the handler as an argument; passing it through the executor is
+/// the same assertion made one layer closer to how a deployment actually configures it.
+fn executor_with_policy<A: fraiseql_core::db::DatabaseAdapter>(
+    schema: &CompiledSchema,
+    adapter: Arc<A>,
+    rls_policy: Option<Arc<dyn fraiseql_core::security::RLSPolicy>>,
+) -> Executor<A> {
+    Executor::with_config(
+        schema.clone(),
+        adapter,
+        fraiseql_core::runtime::RuntimeConfig {
+            rls_policy,
+            ..fraiseql_core::runtime::RuntimeConfig::default()
+        },
     )
 }
 
@@ -330,7 +349,6 @@ fn build_service(
 
     let services = build_grpc_service_for_test(
         Arc::clone(&schema),
-        Arc::clone(&adapter),
         Arc::new(Executor::new((*schema).clone(), Arc::clone(&adapter))),
         None,
         None,
@@ -700,7 +718,6 @@ async fn grpc_disabled_returns_none() {
     let adapter = FailingAdapter::new();
     let result = build_grpc_service_for_test(
         Arc::new(schema.clone()),
-        Arc::new(adapter.clone()),
         Arc::new(Executor::new(schema, Arc::new(adapter))),
         None,
         None,
@@ -725,7 +742,6 @@ async fn no_grpc_config_returns_none() {
     let adapter = FailingAdapter::new();
     let result = build_grpc_service_for_test(
         Arc::new(schema.clone()),
-        Arc::new(adapter.clone()),
         Arc::new(Executor::new(schema, Arc::new(adapter))),
         None,
         None,
@@ -758,7 +774,7 @@ async fn adapter_failure_propagates_as_grpc_error() {
 }
 
 #[tokio::test]
-async fn dispatch_table_has_correct_view_names() {
+async fn a_read_targets_the_row_shaped_view_end_to_end() {
     let tmp = tempfile::tempdir().unwrap();
     let desc_path = write_descriptor(tmp.path());
     let schema = build_grpc_schema(&desc_path);
@@ -777,7 +793,10 @@ async fn dispatch_table_has_correct_view_names() {
     let (_status, grpc_status, _body) = send_grpc(&svc, "GetUser", &req_bytes).await;
     assert_eq!(grpc_status.as_deref(), Some("0"));
 
-    // Verify the adapter was queried with the correct view name.
+    // The view is now the engine's to derive (#1351) — the dispatch table no longer
+    // carries one. This pins that the object reached end-to-end is still the
+    // row-shaped view, not the query's JSONB `sql_source`, which would answer every
+    // field as NULL rather than failing.
     let queries = adapter.recorded_queries();
     assert_eq!(queries, vec!["vr_tb_users"]);
 }
@@ -987,7 +1006,6 @@ fn build_service_with_auth(
 
     let services = build_grpc_service_for_test(
         Arc::clone(&schema),
-        Arc::clone(&adapter),
         Arc::new(Executor::new((*schema).clone(), Arc::clone(&adapter))),
         Some(Arc::new(validator)),
         None,
@@ -1112,7 +1130,7 @@ async fn request_with_bad_auth_scheme_returns_unauthenticated() {
     assert_eq!(grpc_status.as_deref(), Some("16"), "Basic auth should return UNAUTHENTICATED");
 }
 
-/// Test that when a `SecurityContext` is provided, `execute_grpc_query` generates
+/// Test that when a `SecurityContext` is provided, the gRPC read generates
 /// RLS WHERE clauses (`DefaultRLSPolicy`: owner-based filtering).
 #[tokio::test]
 async fn query_with_security_context_applies_rls_where_clause() {
@@ -1155,18 +1173,23 @@ async fn query_with_security_context_applies_rls_where_clause() {
     let columns = handler::column_specs_from_type(type_def);
 
     // Execute with SecurityContext → RLS should inject WHERE clause.
-    let _result = handler::execute_grpc_query(
-        &adapter,
-        "vr_tb_users",
+    // #1348: the policy arrives from `RuntimeConfig.rls_policy`. This arm used to
+    // construct `DefaultRLSPolicy` itself, so it applied one whether or not the
+    // deployment had configured any — and ignored the one it had.
+    let adapter = Arc::new(adapter);
+    let executor = executor_with_policy(
+        &schema,
+        Arc::clone(&adapter),
+        Some(Arc::new(fraiseql_core::security::DefaultRLSPolicy::new())),
+    );
+    let _result = handler::execute_grpc_read(
+        &executor,
+        "user",
         &columns,
         false,
         &req_msg,
         type_def,
         Some(&ctx),
-        // #1348: the policy now arrives from `RuntimeConfig.rls_policy`. This arm used
-        // to construct `DefaultRLSPolicy` itself, so it applied one whether or not the
-        // deployment had configured any — and ignored the one it had.
-        Some(&fraiseql_core::security::DefaultRLSPolicy::new()),
     )
     .await
     .expect("query should succeed");
@@ -1206,18 +1229,12 @@ async fn query_without_security_context_has_no_rls() {
     let columns = handler::column_specs_from_type(type_def);
 
     // Execute WITHOUT SecurityContext → no RLS.
-    let _result = handler::execute_grpc_query(
-        &adapter,
-        "vr_tb_users",
-        &columns,
-        false,
-        &req_msg,
-        type_def,
-        None,
-        None,
-    )
-    .await
-    .expect("query should succeed");
+    let adapter = Arc::new(adapter);
+    let executor = executor_with_policy(&schema, Arc::clone(&adapter), None);
+    let _result =
+        handler::execute_grpc_read(&executor, "user", &columns, false, &req_msg, type_def, None)
+            .await
+            .expect("query should succeed");
 
     // Verify no WHERE clause was passed (no RLS, no user filters).
     let where_clauses = adapter.recorded_where_clauses();
@@ -1242,7 +1259,6 @@ fn build_service_with_rate_limiter(
 
     let services = build_grpc_service_for_test(
         Arc::clone(&schema),
-        Arc::clone(&adapter),
         Arc::new(Executor::new((*schema).clone(), Arc::clone(&adapter))),
         None,
         Some(rate_limiter),
@@ -1373,7 +1389,6 @@ fn reflection_descriptor_bytes_present_when_enabled() {
     let adapter = FailingAdapter::new();
     let services = build_grpc_service_for_test(
         Arc::new(schema.clone()),
-        Arc::new(adapter.clone()),
         Arc::new(Executor::new(schema, Arc::new(adapter))),
         None,
         None,
@@ -1401,7 +1416,6 @@ fn reflection_descriptor_bytes_absent_when_disabled() {
     let adapter = FailingAdapter::new();
     let services = build_grpc_service_for_test(
         Arc::new(schema.clone()),
-        Arc::new(adapter.clone()),
         Arc::new(Executor::new(schema, Arc::new(adapter))),
         None,
         None,
@@ -1424,7 +1438,6 @@ fn reflection_service_builds_from_descriptor_bytes() {
     let adapter = FailingAdapter::new();
     let services = build_grpc_service_for_test(
         Arc::new(schema.clone()),
-        Arc::new(adapter.clone()),
         Arc::new(Executor::new(schema, Arc::new(adapter))),
         None,
         None,
@@ -1458,7 +1471,6 @@ async fn reflection_service_accepts_tonic_add_service() {
 
     let services = build_grpc_service_for_test(
         Arc::new(schema.clone()),
-        Arc::new(adapter.clone()),
         Arc::new(Executor::new(schema, Arc::new(adapter))),
         None,
         None,
@@ -1496,21 +1508,33 @@ async fn reflection_service_accepts_tonic_add_service() {
 // one, since it carries the rules a schema compiled. That is what direction 1 drives.
 
 /// A configured policy that is recognisably **not** `DefaultRLSPolicy`.
+/// ⚠ The rules are keyed by **query** name, not type name.
+///
+/// `RLSPolicy::evaluate`'s parameter is declared `type_name`, and this fixture keyed
+/// on `"User"` because the gRPC arm used to pass `type_def.name`. Every read path in
+/// the engine — regular, relay, node — passes `query_def.name` instead. Routing gRPC
+/// through the engine (#1351) makes it agree with the other transports, which is the
+/// point; the key it used before matched nothing any other transport would match.
+///
+/// That the trait's parameter and its every caller disagree is a real defect, and a
+/// wider one than this test: a deployment that writes rules against the documented
+/// `type_name` gets no filtering on **any** transport. It is not fixed here — renaming
+/// the parameter or changing the key is a behaviour change for existing policies, and
+/// belongs in its own change.
 fn marker_policy() -> fraiseql_core::security::rls_policy::CompiledRLSPolicy {
+    // Pattern 1 of `evaluate_rls_expression`: `user.{field} == object.{field}`. The
+    // object field name is what reaches the SQL, so `p1348_marker` in the WHERE clause
+    // can only have come from *this* rule — `DefaultRLSPolicy` emits `author_id`.
+    let rule = || fraiseql_core::security::rls_policy::RLSRule {
+        name:              "p1348_marker".to_string(),
+        expression:        "user.id == object.p1348_marker".to_string(),
+        cacheable:         false,
+        cache_ttl_seconds: None,
+    };
+    // Both read arms: the unary test reads `user`, the streaming test reads `users`.
     let mut rules = std::collections::HashMap::new();
-    rules.insert(
-        "User".to_string(),
-        vec![fraiseql_core::security::rls_policy::RLSRule {
-            name:              "p1348_marker".to_string(),
-            // Pattern 1 of `evaluate_rls_expression`: `user.{field} == object.{field}`.
-            // The object field name is what reaches the SQL, so `p1348_marker` in the
-            // WHERE clause can only have come from *this* rule — `DefaultRLSPolicy`
-            // emits `author_id`.
-            expression:        "user.id == object.p1348_marker".to_string(),
-            cacheable:         false,
-            cache_ttl_seconds: None,
-        }],
-    );
+    rules.insert("user".to_string(), vec![rule()]);
+    rules.insert("users".to_string(), vec![rule()]);
     fraiseql_core::security::rls_policy::CompiledRLSPolicy::new(rules, None)
 }
 
@@ -1546,18 +1570,12 @@ async fn a_configured_rls_policy_is_the_one_a_grpc_read_applies() {
         "req-1348".to_string(),
     );
 
-    handler::execute_grpc_query(
-        &adapter,
-        "vr_tb_users",
-        &columns,
-        false,
-        &req_msg,
-        type_def,
-        Some(&ctx),
-        Some(&marker_policy()),
-    )
-    .await
-    .expect("query should succeed");
+    let adapter = Arc::new(adapter);
+    let executor =
+        executor_with_policy(&schema, Arc::clone(&adapter), Some(Arc::new(marker_policy())));
+    handler::execute_grpc_read(&executor, "user", &columns, false, &req_msg, type_def, Some(&ctx))
+        .await
+        .expect("query should succeed");
 
     let where_clauses = adapter.recorded_where_clauses();
     let where_sql = where_clauses.first().cloned().flatten().unwrap_or_default();
@@ -1608,20 +1626,13 @@ async fn an_unconfigured_policy_is_not_invented_for_a_grpc_read() {
         "req-1348".to_string(),
     );
 
-    handler::execute_grpc_query(
-        &adapter,
-        "vr_tb_users",
-        &columns,
-        false,
-        &req_msg,
-        type_def,
-        // A principal IS present — that is the whole point. The old code keyed on the
-        // context's presence and invented a policy from it.
-        Some(&ctx),
-        None,
-    )
-    .await
-    .expect("query should succeed");
+    let adapter = Arc::new(adapter);
+    let executor = executor_with_policy(&schema, Arc::clone(&adapter), None);
+    // A principal IS present — that is the whole point. The old code keyed on the
+    // context's presence and invented a policy from it.
+    handler::execute_grpc_read(&executor, "user", &columns, false, &req_msg, type_def, Some(&ctx))
+        .await
+        .expect("query should succeed");
 
     let where_clauses = adapter.recorded_where_clauses();
     assert_eq!(
@@ -1639,8 +1650,9 @@ async fn an_unconfigured_policy_is_not_invented_for_a_grpc_read() {
 /// evaluation error rather than a mock of one.
 fn failing_policy() -> fraiseql_core::security::rls_policy::CompiledRLSPolicy {
     let mut rules = std::collections::HashMap::new();
+    // Keyed by query name — see `marker_policy` for why.
     rules.insert(
-        "User".to_string(),
+        "users".to_string(),
         vec![fraiseql_core::security::rls_policy::RLSRule {
             name:              "p1348_unparseable".to_string(),
             expression:        "this is not a policy expression".to_string(),
@@ -1695,15 +1707,19 @@ async fn a_streaming_read_refuses_when_its_rls_policy_fails() {
     let columns = fraiseql_server::routes::grpc::handler::column_specs_from_type(type_def);
     let ctx = p1348_principal();
 
-    let body = streaming::build_streaming_body(
+    let executor = Arc::new(executor_with_policy(
+        &schema,
         std::sync::Arc::clone(&adapter),
-        "vr_tb_users".to_string(),
+        Some(Arc::new(failing_policy())),
+    ));
+    let body = streaming::build_streaming_body(
+        executor,
+        "users".to_string(),
         columns,
         row_descriptor,
         type_def,
         &req_msg,
         Some(&ctx),
-        Some(&failing_policy()),
         10,
     )
     .await;
@@ -1746,15 +1762,19 @@ async fn a_streaming_read_applies_a_working_rls_policy() {
     let columns = fraiseql_server::routes::grpc::handler::column_specs_from_type(type_def);
     let ctx = p1348_principal();
 
-    let body = streaming::build_streaming_body(
+    let executor = Arc::new(executor_with_policy(
+        &schema,
         std::sync::Arc::clone(&adapter),
-        "vr_tb_users".to_string(),
+        Some(Arc::new(marker_policy())),
+    ));
+    let body = streaming::build_streaming_body(
+        executor,
+        "users".to_string(),
         columns,
         row_descriptor,
         type_def,
         &req_msg,
         Some(&ctx),
-        Some(&marker_policy()),
         10,
     )
     .await;
@@ -1769,4 +1789,385 @@ async fn a_streaming_read_applies_a_working_rls_policy() {
          built its own policy, so a deployment's own was never applied here either. \
          Got: {where_sql:?}"
     );
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// #1351 — the gates the read arms used to skip
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// The read arms called `execute_row_query` directly and built their own WHERE
+// clause, so the operation `Authorizer` (#422) and the compiled page-size ceiling
+// (#421) never applied to gRPC. #1348 fixed the one gate reachable without moving
+// the arms; these cover the move itself.
+//
+// Each gate is a **pair** on **both** arms. A refusal-only test passes against an
+// arm that refuses everything, and #1348 found these two arms had drifted apart in
+// exactly the way a single-arm test would not have caught.
+//
+// The assertion for a refusal is that the adapter was never queried — "returned an
+// error" alone would also hold for an arm that read every row and then failed.
+
+struct GrpcDenyAll;
+impl fraiseql_core::security::Authorizer for GrpcDenyAll {
+    fn authorize(
+        &self,
+        _req: &fraiseql_core::security::AuthzRequest<'_>,
+    ) -> fraiseql_core::error::Result<fraiseql_core::security::AuthzDecision> {
+        Ok(fraiseql_core::security::AuthzDecision::Deny {
+            reason: "denied for the test".into(),
+        })
+    }
+}
+
+struct GrpcAllowAll;
+impl fraiseql_core::security::Authorizer for GrpcAllowAll {
+    fn authorize(
+        &self,
+        _req: &fraiseql_core::security::AuthzRequest<'_>,
+    ) -> fraiseql_core::error::Result<fraiseql_core::security::AuthzDecision> {
+        Ok(fraiseql_core::security::AuthzDecision::Allow)
+    }
+}
+
+fn executor_with_runtime_config<A: fraiseql_core::db::DatabaseAdapter>(
+    schema: &CompiledSchema,
+    adapter: Arc<A>,
+    config: fraiseql_core::runtime::RuntimeConfig,
+) -> Executor<A> {
+    Executor::with_config(schema.clone(), adapter, config)
+}
+
+fn authorizer_config(
+    authorizer: Arc<dyn fraiseql_core::security::Authorizer>,
+) -> fraiseql_core::runtime::RuntimeConfig {
+    fraiseql_core::runtime::RuntimeConfig {
+        authorizer: Some(authorizer),
+        ..fraiseql_core::runtime::RuntimeConfig::default()
+    }
+}
+
+/// A `ListUsersRequest`, optionally carrying a `limit`.
+fn list_users_request(limit: Option<i32>) -> prost_reflect::DynamicMessage {
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let desc = pool.get_message_by_name("fraiseql.v1.ListUsersRequest").unwrap();
+    let mut msg = prost_reflect::DynamicMessage::new(desc.clone());
+    if let Some(n) = limit {
+        let field = desc.get_field_by_name("limit").unwrap();
+        msg.set_field(&field, prost_reflect::Value::I32(n));
+    }
+    msg
+}
+
+fn user_row_descriptor() -> prost_reflect::MessageDescriptor {
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    pool.get_message_by_name("fraiseql.v1.User").unwrap()
+}
+
+/// Drain a streaming body so the read is actually polled.
+async fn drain(
+    body: impl futures::Stream<Item = Result<http_body::Frame<bytes::Bytes>, std::convert::Infallible>>,
+) -> usize {
+    futures::StreamExt::collect::<Vec<_>>(body).await.len()
+}
+
+// ---- the operation Authorizer (#422), unary -------------------------------
+
+#[tokio::test]
+async fn a_denied_operation_never_reaches_the_database_on_the_unary_arm() {
+    use fraiseql_server::routes::grpc::handler;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let schema = build_grpc_schema(&write_descriptor(tmp.path()));
+    let adapter =
+        Arc::new(FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]));
+    let type_def = schema.find_type("User").unwrap();
+    let columns = handler::column_specs_from_type(type_def);
+    let executor = executor_with_runtime_config(
+        &schema,
+        Arc::clone(&adapter),
+        authorizer_config(Arc::new(GrpcDenyAll)),
+    );
+    let ctx = p1348_principal();
+
+    let err = handler::execute_grpc_read(
+        &executor,
+        "users",
+        &columns,
+        true,
+        &list_users_request(None),
+        type_def,
+        Some(&ctx),
+    )
+    .await
+    .expect_err("a denied operation must be refused");
+
+    assert!(
+        matches!(err, fraiseql_core::error::FraiseQLError::Authorization { .. }),
+        "expected Authorization, got {err:?}"
+    );
+    assert_eq!(
+        adapter.recorded_queries(),
+        Vec::<String>::new(),
+        "#1351: a denied read must not reach the database"
+    );
+}
+
+#[tokio::test]
+async fn the_same_operation_a_permitted_principal_makes_is_read_on_the_unary_arm() {
+    use fraiseql_server::routes::grpc::handler;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let schema = build_grpc_schema(&write_descriptor(tmp.path()));
+    let adapter =
+        Arc::new(FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]));
+    let type_def = schema.find_type("User").unwrap();
+    let columns = handler::column_specs_from_type(type_def);
+    let executor = executor_with_runtime_config(
+        &schema,
+        Arc::clone(&adapter),
+        authorizer_config(Arc::new(GrpcAllowAll)),
+    );
+    let ctx = p1348_principal();
+
+    handler::execute_grpc_read(
+        &executor,
+        "users",
+        &columns,
+        true,
+        &list_users_request(None),
+        type_def,
+        Some(&ctx),
+    )
+    .await
+    .expect("a permitted operation must be served");
+
+    assert_eq!(
+        adapter.recorded_queries(),
+        vec!["vr_tb_users".to_string()],
+        "the permitted read must reach the database — without this the case above \
+         would hold for an arm that refuses everything"
+    );
+}
+
+// ---- the operation Authorizer (#422), streaming ---------------------------
+
+#[tokio::test]
+async fn a_denied_operation_never_reaches_the_database_on_the_streaming_arm() {
+    use fraiseql_server::routes::grpc::{handler, streaming};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let schema = build_grpc_schema(&write_descriptor(tmp.path()));
+    let adapter =
+        Arc::new(FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]));
+    let type_def = schema.find_type("User").unwrap();
+    let columns = handler::column_specs_from_type(type_def);
+    let executor = Arc::new(executor_with_runtime_config(
+        &schema,
+        Arc::clone(&adapter),
+        authorizer_config(Arc::new(GrpcDenyAll)),
+    ));
+    let ctx = p1348_principal();
+
+    let body = streaming::build_streaming_body(
+        executor,
+        "users".to_string(),
+        columns,
+        user_row_descriptor(),
+        type_def,
+        &list_users_request(None),
+        Some(&ctx),
+        10,
+    )
+    .await;
+    let frames = drain(body).await;
+
+    assert_eq!(
+        adapter.recorded_queries(),
+        Vec::<String>::new(),
+        "#1351: a denied streaming read must not reach the database — this arm had no \
+         bound of any kind on the number of frames it would emit"
+    );
+    assert!(frames > 0, "the client must be told, as one trailers frame");
+}
+
+#[tokio::test]
+async fn the_same_operation_a_permitted_principal_makes_is_read_on_the_streaming_arm() {
+    use fraiseql_server::routes::grpc::{handler, streaming};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let schema = build_grpc_schema(&write_descriptor(tmp.path()));
+    let adapter =
+        Arc::new(FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]));
+    let type_def = schema.find_type("User").unwrap();
+    let columns = handler::column_specs_from_type(type_def);
+    let executor = Arc::new(executor_with_runtime_config(
+        &schema,
+        Arc::clone(&adapter),
+        authorizer_config(Arc::new(GrpcAllowAll)),
+    ));
+    let ctx = p1348_principal();
+
+    let body = streaming::build_streaming_body(
+        executor,
+        "users".to_string(),
+        columns,
+        user_row_descriptor(),
+        type_def,
+        &list_users_request(None),
+        Some(&ctx),
+        10,
+    )
+    .await;
+    drain(body).await;
+
+    assert_eq!(
+        adapter.recorded_queries(),
+        vec!["vr_tb_users".to_string()],
+        "the permitted streaming read must reach the database"
+    );
+}
+
+// ---- the compiled page-size ceiling (#421), both arms ---------------------
+
+#[tokio::test]
+async fn a_page_over_the_compiled_ceiling_is_refused_on_the_unary_arm() {
+    use fraiseql_server::routes::grpc::handler;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let schema = build_grpc_schema(&write_descriptor(tmp.path()));
+    let adapter =
+        Arc::new(FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]));
+    let type_def = schema.find_type("User").unwrap();
+    let columns = handler::column_specs_from_type(type_def);
+    let executor = executor_with_runtime_config(
+        &schema,
+        Arc::clone(&adapter),
+        fraiseql_core::runtime::RuntimeConfig::default(),
+    );
+
+    let err = handler::execute_grpc_read(
+        &executor,
+        "users",
+        &columns,
+        true,
+        &list_users_request(Some(5000)),
+        type_def,
+        None,
+    )
+    .await
+    .expect_err("a page over the compiled ceiling must be refused");
+
+    assert!(
+        err.to_string().contains("maximum page size"),
+        "the refusal must name the ceiling: {err}"
+    );
+    assert_eq!(
+        adapter.recorded_queries(),
+        Vec::<String>::new(),
+        "#1351: refused before dispatch. This arm used to clamp silently to a \
+         transport-local number the operator never wrote"
+    );
+}
+
+#[tokio::test]
+async fn a_page_under_the_compiled_ceiling_is_read_on_the_unary_arm() {
+    use fraiseql_server::routes::grpc::handler;
+
+    let tmp = tempfile::tempdir().unwrap();
+    let schema = build_grpc_schema(&write_descriptor(tmp.path()));
+    let adapter =
+        Arc::new(FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]));
+    let type_def = schema.find_type("User").unwrap();
+    let columns = handler::column_specs_from_type(type_def);
+    let executor = executor_with_runtime_config(
+        &schema,
+        Arc::clone(&adapter),
+        fraiseql_core::runtime::RuntimeConfig::default(),
+    );
+
+    handler::execute_grpc_read(
+        &executor,
+        "users",
+        &columns,
+        true,
+        &list_users_request(Some(10)),
+        type_def,
+        None,
+    )
+    .await
+    .expect("a page under the ceiling must be served");
+
+    assert_eq!(adapter.recorded_queries(), vec!["vr_tb_users".to_string()]);
+}
+
+#[tokio::test]
+async fn a_page_over_the_compiled_ceiling_is_refused_on_the_streaming_arm() {
+    use fraiseql_server::routes::grpc::{handler, streaming};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let schema = build_grpc_schema(&write_descriptor(tmp.path()));
+    let adapter =
+        Arc::new(FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]));
+    let type_def = schema.find_type("User").unwrap();
+    let columns = handler::column_specs_from_type(type_def);
+    let executor = Arc::new(executor_with_runtime_config(
+        &schema,
+        Arc::clone(&adapter),
+        fraiseql_core::runtime::RuntimeConfig::default(),
+    ));
+
+    let body = streaming::build_streaming_body(
+        executor,
+        "users".to_string(),
+        columns,
+        user_row_descriptor(),
+        type_def,
+        &list_users_request(Some(5000)),
+        None,
+        10,
+    )
+    .await;
+    let frames = drain(body).await;
+
+    assert_eq!(
+        adapter.recorded_queries(),
+        Vec::<String>::new(),
+        "#1351: the streaming arm is where a missing ceiling costs the most — it used \
+         to pass `None` for the limit, so there was no bound at all"
+    );
+    assert!(frames > 0, "the client must be told, as one trailers frame");
+}
+
+#[tokio::test]
+async fn a_page_under_the_compiled_ceiling_is_read_on_the_streaming_arm() {
+    use fraiseql_server::routes::grpc::{handler, streaming};
+
+    let tmp = tempfile::tempdir().unwrap();
+    let schema = build_grpc_schema(&write_descriptor(tmp.path()));
+    let adapter =
+        Arc::new(FailingAdapter::new().with_row_response("vr_tb_users", vec![alice_row()]));
+    let type_def = schema.find_type("User").unwrap();
+    let columns = handler::column_specs_from_type(type_def);
+    let executor = Arc::new(executor_with_runtime_config(
+        &schema,
+        Arc::clone(&adapter),
+        fraiseql_core::runtime::RuntimeConfig::default(),
+    ));
+
+    let body = streaming::build_streaming_body(
+        executor,
+        "users".to_string(),
+        columns,
+        user_row_descriptor(),
+        type_def,
+        &list_users_request(Some(10)),
+        None,
+        10,
+    )
+    .await;
+    drain(body).await;
+
+    assert_eq!(adapter.recorded_queries(), vec!["vr_tb_users".to_string()]);
 }

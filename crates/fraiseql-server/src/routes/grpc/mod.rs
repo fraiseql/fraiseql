@@ -56,9 +56,7 @@ pub struct GrpcServices<A: DatabaseAdapter> {
 /// a [`DescriptorPool`] loaded from the `descriptor.binpb` file produced by
 /// `fraiseql-cli generate-proto`.
 pub struct DynamicGrpcService<A: DatabaseAdapter> {
-    /// Shared database adapter for executing row queries.
-    adapter:           Arc<A>,
-    /// The **configured** executor, used for every mutation (#1330).
+    /// The **configured** executor — every read and every write (#1330, #1351).
     ///
     /// Supplied by the caller rather than built here: `Executor::new` would use
     /// `RuntimeConfig::default()`, so the `Authorizer`, the RLS policy and the
@@ -92,7 +90,6 @@ pub struct DynamicGrpcService<A: DatabaseAdapter> {
 impl<A: DatabaseAdapter> Clone for DynamicGrpcService<A> {
     fn clone(&self) -> Self {
         Self {
-            adapter: Arc::clone(&self.adapter),
             executor: Arc::clone(&self.executor),
             schema: Arc::clone(&self.schema),
             dispatch: Arc::clone(&self.dispatch),
@@ -119,8 +116,9 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> Dyn
     /// rejected with `UNAUTHENTICATED` (gRPC status 16).
     ///
     /// The resulting `SecurityContext` is threaded through to
-    /// [`handler::execute_grpc_query`] where it drives RLS WHERE clause
-    /// injection.
+    /// [`handler::execute_grpc_read`], which hands it to the engine — where it
+    /// drives the RLS policy, the operation `Authorizer` and every other gate a
+    /// read faces (#1351).
     async fn handle_request(
         &self,
         method: &str,
@@ -241,7 +239,6 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> Dyn
         // Server-streaming RPCs return early with a streaming body;
         // unary RPCs continue to the framing code below.
         if let handler::RpcKind::ServerStream {
-            view_name,
             columns,
             row_descriptor,
         } = &op.kind
@@ -258,16 +255,13 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> Dyn
             debug!(method = %method, batch_size, "Starting gRPC server-streaming response");
 
             let body_stream = streaming::build_streaming_body(
-                Arc::clone(&self.adapter),
-                view_name.clone(),
+                Arc::clone(&self.executor),
+                op.operation_name.clone(),
                 columns.clone(),
                 row_descriptor.clone(),
                 type_def,
                 &request_msg,
                 security_context.as_ref(),
-                // #1348: the configured policy on this arm too. It used to build its
-                // own, and swallow the failure into "no filter".
-                self.executor.config().rls_policy.as_deref(),
                 batch_size,
             )
             .await;
@@ -282,7 +276,6 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> Dyn
 
         let response_msg = match &op.kind {
             handler::RpcKind::Query {
-                view_name,
                 returns_list,
                 columns,
                 row_descriptor,
@@ -295,35 +288,46 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> Dyn
                     );
                 };
 
-                let rows = match handler::execute_grpc_query(
-                    self.adapter.as_ref(),
-                    view_name,
+                let read = match handler::execute_grpc_read(
+                    self.executor.as_ref(),
+                    &op.operation_name,
                     columns,
                     *returns_list,
                     &request_msg,
                     type_def,
                     security_context.as_ref(),
-                    // #1348: the policy the deployment configured, not one this
-                    // transport invents.
-                    self.executor.config().rls_policy.as_deref(),
                 )
                 .await
                 {
-                    Ok(rows) => rows,
+                    Ok(read) => read,
                     Err(FraiseQLError::Validation { message, .. }) => {
                         return grpc_error_response(tonic::Code::InvalidArgument, &message);
                     },
                     Err(FraiseQLError::Unsupported { message }) => {
                         return grpc_error_response(tonic::Code::Unimplemented, &message);
                     },
+                    // #1351: the gates the engine now applies to this arm refuse with
+                    // `Authorization`. Mapped to `PermissionDenied` rather than falling
+                    // into `Internal` below — a refused caller must not be told the
+                    // server broke, and a client cannot retry its way out of a 403.
+                    Err(FraiseQLError::Authorization { message, .. }) => {
+                        return grpc_error_response(tonic::Code::PermissionDenied, &message);
+                    },
                     Err(e) => return grpc_error_response(tonic::Code::Internal, &e.to_string()),
                 };
 
-                debug!(method = %method, row_count = rows.len(), "gRPC query returned results");
+                debug!(
+                    method = %method,
+                    row_count = read.rows.len(),
+                    "gRPC query returned results"
+                );
 
+                // The engine narrows the projection when field-level RBAC withholds a
+                // field, and `ColumnValue`s are positional — so the response is encoded
+                // with the columns the read *used*, never the ones the table holds.
                 handler::encode_response(
-                    rows,
-                    columns,
+                    read.rows,
+                    &read.columns,
                     *returns_list,
                     row_descriptor,
                     &op.response_descriptor,
@@ -595,7 +599,6 @@ pub fn build_grpc_service<
     A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
 >(
     schema: Arc<CompiledSchema>,
-    adapter: Arc<A>,
     executor: Arc<fraiseql_core::runtime::Executor<A>>,
     oidc_validator: Option<Arc<OidcValidator>>,
     rate_limiter: Option<Arc<RateLimiter>>,
@@ -643,25 +646,20 @@ pub fn build_grpc_service<
     for (method, op) in &dispatch {
         match &op.kind {
             handler::RpcKind::Query {
-                view_name,
                 columns,
                 returns_list,
                 ..
             } => {
                 debug!(
                     method = %method,
-                    view = %view_name,
                     columns = columns.len(),
                     list = returns_list,
                     "Registered gRPC query RPC"
                 );
             },
-            handler::RpcKind::ServerStream {
-                view_name, columns, ..
-            } => {
+            handler::RpcKind::ServerStream { columns, .. } => {
                 debug!(
                     method = %method,
-                    view = %view_name,
                     columns = columns.len(),
                     "Registered gRPC server-streaming RPC"
                 );
@@ -692,7 +690,6 @@ pub fn build_grpc_service<
     };
 
     let service = DynamicGrpcService {
-        adapter,
         executor,
         schema,
         dispatch: Arc::new(dispatch),

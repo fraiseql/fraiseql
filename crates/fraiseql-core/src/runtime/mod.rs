@@ -88,6 +88,10 @@ pub use executor::{
     Executor,
     JsonRowStream,
     MutationExecution,
+    // The row-shaped read's results (#1351). This list is enumerated, so a new
+    // public item is invisible outside the crate until it is named here.
+    RowRead,
+    StreamedRowRead,
     coerce_pagination_arg,
     mutation::{WriteSelections, mutation_return_selections},
     pipeline::{extract_root_field_names, is_multi_root, multi_root_queries_total},

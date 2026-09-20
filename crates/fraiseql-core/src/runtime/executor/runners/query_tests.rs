@@ -1852,7 +1852,7 @@ mod row_read {
                 FieldDefinition::new("id", FieldType::Id),
                 FieldDefinition::new("name", FieldType::String),
             ],
-            ..TypeDefinition::new("User", "v_user")
+            ..TypeDefinition::new("User", "tb_users")
         });
         schema.build_indexes();
         schema
@@ -1869,7 +1869,7 @@ mod row_read {
                 FieldDefinition::new("name", FieldType::String),
                 salary,
             ],
-            ..TypeDefinition::new("User", "v_user")
+            ..TypeDefinition::new("User", "tb_users")
         });
         schema.build_indexes();
         schema
@@ -1996,7 +1996,33 @@ mod row_read {
 
         assert_eq!(out.rows.len(), 1);
         let seen = adapter.captured_row_read().expect("the read must reach the adapter");
-        assert_eq!(seen.view, "v_user");
+        assert_eq!(seen.view, "vr_tb_users");
+    }
+
+    /// The read targets the **row-shaped** view, not the query's `sql_source`.
+    ///
+    /// `sql_source` names the JSONB document view, whose only column is `data`.
+    /// Reading it with the column extractor would not error — `SELECT *` succeeds
+    /// and the extractor simply finds none of the names it wants — it would answer
+    /// every field of every row as `NULL`. That is why this is pinned by name: the
+    /// wrong view here is a silent wrong answer, not a failure.
+    #[tokio::test]
+    async fn the_read_targets_the_row_shaped_view_not_the_document_view() {
+        let schema = user_schema();
+        let qm = match_on(&schema, "{ users { id name } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .unwrap();
+
+        let seen = adapter.captured_row_read().expect("the read must reach the adapter");
+        assert_eq!(
+            seen.view, "vr_tb_users",
+            "the row read takes the type's row-shaped view, not the query's `v_user`"
+        );
     }
 
     // ---- the compiled page-size ceiling (#421) ---------------------------
@@ -2144,7 +2170,7 @@ mod row_read {
                 FieldDefinition::new("name", FieldType::String),
                 salary,
             ],
-            ..TypeDefinition::new("User", "v_user")
+            ..TypeDefinition::new("User", "tb_users")
         });
         // Field-level RBAC is inert unless the schema declares a security section —
         // `apply_field_rbac_filtering` returns "everything projected, nothing masked"

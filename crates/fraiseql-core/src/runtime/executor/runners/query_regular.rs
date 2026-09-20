@@ -83,6 +83,26 @@ impl ResolvedDirectRead {
     }
 }
 
+/// A row-shaped read resolved down to the arguments the column-shaped adapter
+/// methods take (#1351).
+///
+/// One struct rather than a tuple because the buffered and the streamed arm both
+/// consume it, and the two gRPC read arms have already drifted apart once (#1348
+/// found one fail-closed and the other fail-open on the same RLS failure). A named
+/// field is harder to pass in the wrong position than the fourth element of a tuple.
+struct RowReadPlan {
+    /// Everything resolved before the database — gates, RLS, limit, field access.
+    resolved:  ResolvedDirectRead,
+    /// The row-shaped view this read targets.
+    view:      String,
+    /// The projection, after field-level RBAC narrowed it.
+    columns:   Vec<fraiseql_db::types::ColumnSpec>,
+    /// The composed predicate, lowered to SQL.
+    where_sql: Option<String>,
+    /// The resolved ordering, lowered to SQL.
+    order_sql: Option<String>,
+}
+
 /// A row-shaped read and the projection it was actually read with (#1351).
 ///
 /// The columns travel with the rows because field-level RBAC (#886) can narrow
@@ -1158,13 +1178,32 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
         columns: &[fraiseql_db::types::ColumnSpec],
-    ) -> Result<(
-        ResolvedDirectRead,
-        Vec<fraiseql_db::types::ColumnSpec>,
-        Option<String>,
-        Option<String>,
-    )> {
+    ) -> Result<RowReadPlan> {
         let resolved = self.resolve_direct_read(query_match, variables, security_context)?;
+
+        // The **row-shaped** view, not the query's own `sql_source`.
+        //
+        // A row read answers scalar columns; `sql_source` names the JSONB document
+        // view, whose only column is `data`. Reading that here would not fail —
+        // `SELECT *` succeeds and the column extractor simply finds none of the names
+        // it is looking for — it would answer every field of every row as `NULL`. A
+        // silent wrong answer, which is worse than an error.
+        //
+        // The convention lives here rather than in the transport because the engine
+        // owns which object a read targets, exactly as `resolve_direct_read` does for
+        // the JSON path. A transport that names a database object is the leak this
+        // work removes.
+        let type_def =
+            self.ctx.schema.find_type(&query_match.query_def.return_type).ok_or_else(|| {
+                FraiseQLError::Validation {
+                    message: format!(
+                        "Type '{}' not found in schema",
+                        query_match.query_def.return_type
+                    ),
+                    path:    None,
+                }
+            })?;
+        let view = format!("vr_{}", type_def.sql_source);
 
         if resolved.projection.is_some() {
             return Err(FraiseQLError::Unsupported {
@@ -1212,7 +1251,13 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
             None => None,
         };
 
-        Ok((resolved, narrowed, where_sql, order_sql))
+        Ok(RowReadPlan {
+            resolved,
+            view,
+            columns: narrowed,
+            where_sql,
+            order_sql,
+        })
     }
 
     /// Execute a row-shaped read through the direct-read chokepoint (#1351).
@@ -1236,26 +1281,25 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         security_context: Option<&SecurityContext>,
         columns: &[fraiseql_db::types::ColumnSpec],
     ) -> Result<RowRead> {
-        let (resolved, narrowed, where_sql, order_sql) =
-            self.resolve_row_read(query_match, variables, security_context, columns)?;
-        let session_pairs = resolved.session_pairs();
+        let plan = self.resolve_row_read(query_match, variables, security_context, columns)?;
+        let session_pairs = plan.resolved.session_pairs();
 
         let rows = self
             .ctx
             .adapter
             .execute_row_query_with_session(
-                &resolved.sql_source,
-                &narrowed,
-                where_sql.as_deref(),
-                order_sql.as_deref(),
-                resolved.limit,
-                resolved.offset,
+                &plan.view,
+                &plan.columns,
+                plan.where_sql.as_deref(),
+                plan.order_sql.as_deref(),
+                plan.resolved.limit,
+                plan.resolved.offset,
                 &session_pairs,
             )
             .await?;
 
         Ok(RowRead {
-            columns: narrowed,
+            columns: plan.columns,
             rows,
         })
     }
@@ -1280,26 +1324,25 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         security_context: Option<&SecurityContext>,
         columns: &[fraiseql_db::types::ColumnSpec],
     ) -> Result<StreamedRowRead> {
-        let (resolved, narrowed, where_sql, order_sql) =
-            self.resolve_row_read(query_match, variables, security_context, columns)?;
-        let session_pairs = resolved.session_pairs();
+        let plan = self.resolve_row_read(query_match, variables, security_context, columns)?;
+        let session_pairs = plan.resolved.session_pairs();
 
         let stream = self
             .ctx
             .adapter
             .stream_row_query_with_session(
-                &resolved.sql_source,
-                &narrowed,
-                where_sql.as_deref(),
-                order_sql.as_deref(),
-                resolved.limit,
-                resolved.offset,
+                &plan.view,
+                &plan.columns,
+                plan.where_sql.as_deref(),
+                plan.order_sql.as_deref(),
+                plan.resolved.limit,
+                plan.resolved.offset,
                 &session_pairs,
             )
             .await?;
 
         Ok(StreamedRowRead {
-            columns: narrowed,
+            columns: plan.columns,
             stream,
         })
     }
