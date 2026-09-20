@@ -24,11 +24,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use fraiseql_core::{
-    cache::CachedDatabaseAdapter,
-    db::{DatabaseAdapter, postgres::PostgresAdapter},
-    schema::CompiledSchema,
-};
+use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
 use fraiseql_server::{
     Server, ServerConfig,
     server_config::{DatabaseTlsConfig, TlsServerConfig},
@@ -242,7 +238,7 @@ async fn serve_postgres(
             format!("Failed to connect to database (ssl_mode = {})", tls.effective_mode())
         })?,
     );
-    let server: Server<CachedDatabaseAdapter<PostgresAdapter>> =
+    let server: Server =
         // Box the server-init future: it exceeds clippy's `large_futures` stack
         // threshold once the platform features are compiled in (`--all-features`).
         Box::pin(Server::new(config, schema, adapter, None))
@@ -251,10 +247,7 @@ async fn serve_postgres(
     Box::pin(finish_serve(server, shutdown)).await
 }
 
-async fn finish_serve<X>(server: Server<X>, shutdown: ShutdownFuture) -> Result<()>
-where
-    X: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+async fn finish_serve(server: Server, shutdown: ShutdownFuture) -> Result<()> {
     if let Some(shutdown) = shutdown {
         server.serve_with_shutdown(shutdown).await.context("Server error")
     } else {

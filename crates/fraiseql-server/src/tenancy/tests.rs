@@ -1013,7 +1013,7 @@ mod runtime_config_drift {
         url: &str,
         key: &str,
         authorizer: Arc<dyn Authorizer>,
-    ) -> Arc<fraiseql_core::runtime::Executor<PostgresAdapter>> {
+    ) -> Arc<fraiseql_core::runtime::Executor> {
         create_tenant_executor::<PostgresAdapter>(
             key,
             &schema_json_with_query(),

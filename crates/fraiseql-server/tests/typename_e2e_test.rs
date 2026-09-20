@@ -28,9 +28,7 @@ fn typename_router() -> Router {
     let schema = CompiledSchema::new();
     let adapter = Arc::new(FailingAdapter::new());
     let state = AppState::new(Arc::new(Executor::new(schema, adapter)));
-    Router::new()
-        .route("/graphql", post(graphql_handler::<FailingAdapter>))
-        .with_state(state)
+    Router::new().route("/graphql", post(graphql_handler)).with_state(state)
 }
 
 async fn post_graphql(router: Router, body: Value) -> (StatusCode, Value) {

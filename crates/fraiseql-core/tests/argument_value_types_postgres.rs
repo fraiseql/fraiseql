@@ -77,7 +77,7 @@ fn schema() -> CompiledSchema {
         .build()
 }
 
-async fn executor() -> Option<Executor<PostgresAdapter>> {
+async fn executor() -> Option<Executor> {
     let pg = fraiseql_test_support::postgres().await?;
     let adapter = PostgresAdapter::new(pg.url()).await.expect("connect to the bound PostgreSQL");
     for stmt in FIXTURE.split(";\n") {
@@ -108,7 +108,7 @@ impl std::fmt::Display for Outcome {
     }
 }
 
-async fn run(exec: &Executor<PostgresAdapter>, doc: &str, vars: Option<&Value>) -> Outcome {
+async fn run(exec: &Executor, doc: &str, vars: Option<&Value>) -> Outcome {
     match exec.execute(doc, vars).await {
         Ok(response) => {
             let rows = response["data"]["things"]

@@ -4,7 +4,6 @@
 //! `bearer_auth_middleware` (reusing the same admin token from `ServerConfig`).
 
 use axum::{Json, extract::State};
-use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
 
 use crate::routes::graphql::app_state::AppState;
@@ -68,12 +67,7 @@ pub fn extract_bearer_token(auth_header: Option<&str>) -> Option<&str> {
 /// # Errors
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
-pub async fn schema_handler<A>(
-    State(state): State<AppState<A>>,
-) -> impl axum::response::IntoResponse
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+pub async fn schema_handler(State(state): State<AppState>) -> impl axum::response::IntoResponse {
     let schema = state.executor.load().schema().clone();
     let value = serde_json::to_value(&schema).unwrap_or(serde_json::Value::Null);
     Json(AdminSchemaResponse { schema: value })
@@ -86,12 +80,7 @@ where
 /// # Errors
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
-pub async fn health_handler<A>(
-    State(state): State<AppState<A>>,
-) -> impl axum::response::IntoResponse
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+pub async fn health_handler(State(state): State<AppState>) -> impl axum::response::IntoResponse {
     // Was `SystemTime::now() - UNIX_EPOCH`, i.e. the current Unix timestamp: a
     // server that had been up for four seconds reported ~1.8 billion seconds of
     // uptime. `AppState::started_at` is set when the state is built at boot.

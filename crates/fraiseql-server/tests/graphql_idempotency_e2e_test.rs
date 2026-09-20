@@ -75,9 +75,7 @@ fn make_router() -> (Router, Arc<FailingAdapter>) {
     let executor = Arc::new(Executor::new(schema, Arc::clone(&adapter)));
     let state = AppState::new(executor);
 
-    let router = Router::new()
-        .route("/graphql", post(graphql_handler::<FailingAdapter>))
-        .with_state(state);
+    let router = Router::new().route("/graphql", post(graphql_handler)).with_state(state);
     (router, adapter)
 }
 

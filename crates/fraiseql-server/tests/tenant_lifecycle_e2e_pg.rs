@@ -89,7 +89,7 @@ fn registration(url: &str) -> TenantRegistrationRequest {
 
 /// An `AppState` wired exactly as the binary wires it for multi-tenant mode: a real
 /// registry and the real PostgreSQL executor factory.
-async fn setup() -> Option<(String, PostgresAdapter, AppState<PostgresAdapter>)> {
+async fn setup() -> Option<(String, PostgresAdapter, AppState)> {
     let url = try_database_url()?;
     let admin = PostgresAdapter::new(&url).await.expect("connect to the test database");
     exec(&admin, &format!("DROP SCHEMA IF EXISTS tenant_{TENANT_KEY} CASCADE")).await;
@@ -129,11 +129,7 @@ async fn schema_exists(adapter: &PostgresAdapter, schema: &str) -> bool {
 }
 
 /// Register the tenant and write one row into its schema.
-async fn register_with_a_secret(
-    state: &AppState<PostgresAdapter>,
-    admin: &PostgresAdapter,
-    url: &str,
-) {
+async fn register_with_a_secret(state: &AppState, admin: &PostgresAdapter, url: &str) {
     let _ = upsert_tenant_handler(
         State(state.clone()),
         Path(TENANT_KEY.to_string()),
@@ -151,7 +147,7 @@ async fn register_with_a_secret(
     .await;
 }
 
-async fn delete(state: &AppState<PostgresAdapter>, purge: bool) -> String {
+async fn delete(state: &AppState, purge: bool) -> String {
     let response = delete_tenant_handler(
         State(state.clone()),
         Path(TENANT_KEY.to_string()),

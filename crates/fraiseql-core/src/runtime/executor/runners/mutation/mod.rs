@@ -18,7 +18,6 @@ use super::{
     query_projection::selections_contain_field,
 };
 use crate::{
-    backend::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     graphql::{DirectiveEvaluator, FieldSelection},
     runtime::{
@@ -42,8 +41,8 @@ use crate::{
 /// - a `Reject` decision or any policy error → 403.
 ///
 /// No-op (and zero authorizer calls) when the selection set has no gated field.
-fn enforce_mutation_field_authz<A: DatabaseAdapter>(
-    ctx: &ExecutorContext<A>,
+fn enforce_mutation_field_authz(
+    ctx: &ExecutorContext,
     security_ctx: Option<&SecurityContext>,
     type_name: &str,
     selections: &[FieldSelection],
@@ -180,8 +179,8 @@ fn payload_entity_type(payload_type: &str, schema: &CompiledSchema) -> Option<St
 // resolved type names, and the three outcome payloads); grouping into a struct
 // would only relocate them.
 #[allow(clippy::too_many_arguments)]
-fn build_cascade_payload<A: DatabaseAdapter>(
-    ctx: &ExecutorContext<A>,
+fn build_cascade_payload(
+    ctx: &ExecutorContext,
     security_ctx: Option<&SecurityContext>,
     payload_type: &str,
     entity_type: &str,
@@ -242,8 +241,8 @@ fn build_cascade_payload<A: DatabaseAdapter>(
 /// filtered to the client's selection set. Enforces the affected-entity ceiling
 /// (truncating + flagging `metadata.truncated`) and the response-size ceiling
 /// (rejecting an over-large cascade), per graphql-cascade `16_security`.
-fn build_cascade_updates<A: DatabaseAdapter>(
-    ctx: &ExecutorContext<A>,
+fn build_cascade_updates(
+    ctx: &ExecutorContext,
     security_ctx: Option<&SecurityContext>,
     cascade: Option<&serde_json::Value>,
     selections: &[FieldSelection],
@@ -445,8 +444,8 @@ fn build_invalidations(
 /// unknown `__typename`, a missing `id`, or a missing/invalid `operation` aborts
 /// the response rather than shipping an unprojectable entity or an SDL-invalid
 /// non-null violation — regardless of what the client selected.
-fn build_updated_entities<A: DatabaseAdapter>(
-    ctx: &ExecutorContext<A>,
+fn build_updated_entities(
+    ctx: &ExecutorContext,
     security_ctx: Option<&SecurityContext>,
     entries: &[serde_json::Value],
     selections: &[FieldSelection],
@@ -622,15 +621,15 @@ fn build_deleted_entities(
 /// bound speaks for the marker and not for `supports_mutations()`. Capability now lives
 /// in the executor's write slot, resolved from both gates at construction and consulted
 /// at step 0 of [`execute_mutation_impl`].
-pub(in super::super) struct MutationRunner<A: DatabaseAdapter> {
-    ctx: Arc<ExecutorContext<A>>,
+pub(in super::super) struct MutationRunner {
+    ctx: Arc<ExecutorContext>,
 }
 
-impl<A: DatabaseAdapter> MutationRunner<A> {
+impl MutationRunner {
     /// Create a new `MutationRunner` from a shared executor context.
     ///
     /// Zero-cost: `Arc` is already shared — this is just a newtype wrapper.
-    pub(in super::super) const fn new(ctx: Arc<ExecutorContext<A>>) -> Self {
+    pub(in super::super) const fn new(ctx: Arc<ExecutorContext>) -> Self {
         Self { ctx }
     }
 
@@ -840,8 +839,8 @@ pub struct MutationExecution {
     pub outcome: MutationOutcome,
 }
 
-pub(in super::super) async fn execute_mutation_impl<A: DatabaseAdapter>(
-    ctx: &Arc<ExecutorContext<A>>,
+pub(in super::super) async fn execute_mutation_impl(
+    ctx: &Arc<ExecutorContext>,
     mutation_name: &str,
     response_key: &str,
     variables: Option<&serde_json::Value>,

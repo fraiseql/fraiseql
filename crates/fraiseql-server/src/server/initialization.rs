@@ -99,7 +99,7 @@ impl SharedStateBackends {
     }
 }
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl Server {
     #[cfg(feature = "auth")]
     /// Build a `StateEncryptionService` from `security.state_encryption` in the compiled
     /// schema, if the section is present and `enabled = true`.

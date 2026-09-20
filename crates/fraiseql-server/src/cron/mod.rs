@@ -383,16 +383,13 @@ impl CronPoller {
 ///
 /// Returns the sqlx error if reading `_fraiseql_cron_state` fails — fatal at boot: a
 /// cross-restart guard that cannot load its state is not a guard.
-pub async fn build_cron_pollers<A>(
+pub async fn build_cron_pollers(
     db_pool: &sqlx::PgPool,
-    executor: &Arc<arc_swap::ArcSwap<fraiseql_core::runtime::Executor<A>>>,
+    executor: &Arc<arc_swap::ArcSwap<fraiseql_core::runtime::Executor>>,
     hooks: &BeforeMutationHooks,
     host_config: &HostContextConfig,
     limits: &ResourceLimits,
-) -> Result<Vec<CronPoller>, sqlx::Error>
-where
-    A: fraiseql_core::db::traits::DatabaseAdapter + Send + Sync + 'static,
-{
+) -> Result<Vec<CronPoller>, sqlx::Error> {
     let cron_state = PgCronState::new(db_pool.clone());
     let mut pollers = Vec::new();
     for trigger in &hooks.trigger_registry.cron_triggers {

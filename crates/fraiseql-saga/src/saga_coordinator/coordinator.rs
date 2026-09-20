@@ -12,7 +12,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use ::tracing::{info, warn};
-use fraiseql_db::traits::{DatabaseAdapter, SupportsMutations};
 use fraiseql_error::Result;
 use fraiseql_federation::http_resolver::{HttpClientConfig, HttpEntityResolver};
 use reqwest::Url;
@@ -356,10 +355,10 @@ impl SagaCoordinator {
     ///
     /// Returns any store error from the forward or compensation phase — e.g.
     /// [`SagaStoreError::SagaNotFound`] if `saga_id` does not exist.
-    pub async fn execute_saga<A: DatabaseAdapter + SupportsMutations>(
+    pub async fn execute_saga(
         &self,
         saga_id: Uuid,
-        mutation_executor: &FederationMutationExecutor<A>,
+        mutation_executor: &FederationMutationExecutor,
     ) -> SagaStoreResult<SagaResult> {
         let results = self
             .executor
@@ -503,10 +502,10 @@ impl SagaCoordinator {
     /// Returns [`SagaStoreError::SagaNotFound`] if `saga_id` does not exist,
     /// [`SagaStoreError::InvalidStateTransition`] if the saga is already terminal, or
     /// any store/compensation error encountered while cancelling.
-    pub async fn cancel_saga<A: DatabaseAdapter + SupportsMutations>(
+    pub async fn cancel_saga(
         &self,
         saga_id: Uuid,
-        mutation_executor: &FederationMutationExecutor<A>,
+        mutation_executor: &FederationMutationExecutor,
     ) -> SagaStoreResult<SagaResult> {
         let saga = self
             .store

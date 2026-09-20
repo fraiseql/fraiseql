@@ -15,9 +15,7 @@
 use std::sync::Arc;
 
 use fraiseql_arrow::QueryExecutor;
-use fraiseql_core::{
-    cache::CachedDatabaseAdapter, schema::CompiledSchema, security::SecurityContext, types::UserId,
-};
+use fraiseql_core::{schema::CompiledSchema, security::SecurityContext, types::UserId};
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
 
 use super::policy_seam::PolicyGatedExecutor;
@@ -31,9 +29,7 @@ const ADHOC_DOC: &str = "{ adhoc { id } }";
 
 /// A server in `persisted_queries_only` mode with a real manifest file, exactly as
 /// an operator would ship it (the same fixture as the HTTP transport tests).
-async fn persisted_only_server(
-    dir: &tempfile::TempDir,
-) -> Server<CachedDatabaseAdapter<FailingAdapter>> {
+async fn persisted_only_server(dir: &tempfile::TempDir) -> Server {
     use sha2::Digest as _;
     let hash = hex::encode(sha2::Sha256::digest(PERSISTED_DOC.as_bytes()));
     let manifest = serde_json::json!({

@@ -20,7 +20,6 @@ use std::sync::atomic::Ordering;
 
 use axum::http::HeaderMap;
 use fraiseql_core::{
-    db::traits::DatabaseAdapter,
     graphql::parse_graphql_document,
     security::{IntrospectionEnforcer, SecurityContext, SecurityError},
 };
@@ -47,8 +46,8 @@ use crate::{
 /// # Errors
 ///
 /// Returns a 401 response for ambiguous credentials or an invalid API key.
-pub(super) async fn authenticate<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: &AppState<A>,
+pub(super) async fn authenticate(
+    state: &AppState,
     headers: &HeaderMap,
     mut security_context: Option<SecurityContext>,
 ) -> Result<Option<SecurityContext>, ErrorResponse> {
@@ -132,8 +131,8 @@ pub(super) fn stamp_trace_context(
 /// Returns 403 when the identity is denied and 503 when resolution is
 /// unavailable.
 #[cfg(feature = "auth")]
-pub(super) async fn enrich_identity<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: &AppState<A>,
+pub(super) async fn enrich_identity(
+    state: &AppState,
     security_context: &mut Option<SecurityContext>,
 ) -> Result<(), ErrorResponse> {
     match crate::identity::resolve_request_identity(
@@ -173,8 +172,8 @@ pub(super) async fn enrich_identity<A: DatabaseAdapter + Clone + Send + Sync + '
 ///
 /// Returns the trusted-document rejection, the APQ mismatch/not-found error, or
 /// a request error when no query was supplied at all.
-pub(super) async fn resolve_query_body<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: &AppState<A>,
+pub(super) async fn resolve_query_body(
+    state: &AppState,
     request: &mut GraphQLRequest,
 ) -> Result<String, ErrorResponse> {
     if let Some(ref td_store) = state.trusted_docs {
@@ -234,8 +233,8 @@ pub(super) async fn resolve_query_body<A: DatabaseAdapter + Clone + Send + Sync 
 /// # Errors
 ///
 /// Returns a GraphQL error in `errors[]` with HTTP 200, never a 5xx.
-pub(super) fn enforce_introspection_policy<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: &AppState<A>,
+pub(super) fn enforce_introspection_policy(
+    state: &AppState,
     query: &str,
     security_context: Option<&SecurityContext>,
 ) -> Result<(), ErrorResponse> {
@@ -268,8 +267,8 @@ pub(super) fn enforce_introspection_policy<A: DatabaseAdapter + Clone + Send + S
 ///
 /// Returns the corresponding validation error, or a 429 when the peer has
 /// exceeded its validation-error budget.
-pub(super) fn validate_request<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: &AppState<A>,
+pub(super) fn validate_request(
+    state: &AppState,
     query: &str,
     request: &GraphQLRequest,
     peer_ip: &str,
@@ -348,10 +347,7 @@ pub(super) fn validate_request<A: DatabaseAdapter + Clone + Send + Sync + 'stati
 /// Extracted so both validation branches spend from the same counter — they were
 /// two copies of the same block, which is one edit away from only one of them
 /// counting.
-fn check_validation_error_budget<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: &AppState<A>,
-    peer_ip: &str,
-) -> Result<(), ErrorResponse> {
+fn check_validation_error_budget(state: &AppState, peer_ip: &str) -> Result<(), ErrorResponse> {
     #[cfg(feature = "auth")]
     if state.graphql_rate_limiter.check(peer_ip).is_err() {
         return Err(ErrorResponse::from_error(GraphQLError::rate_limited(
@@ -370,10 +366,8 @@ fn check_validation_error_budget<A: DatabaseAdapter + Clone + Send + Sync + 'sta
 ///
 /// Returns a `circuit_breaker_open` error carrying the retry hint.
 #[cfg(feature = "federation")]
-pub(super) fn check_federation_circuit_breakers<
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
->(
-    state: &AppState<A>,
+pub(super) fn check_federation_circuit_breakers(
+    state: &AppState,
     query: &str,
     variables: Option<&serde_json::Value>,
 ) -> Result<Vec<String>, ErrorResponse> {
@@ -408,8 +402,8 @@ pub(super) fn check_federation_circuit_breakers<
 /// Returns a sanitized internal error if decryption fails — never the
 /// ciphertext, and never a partially decrypted body.
 #[cfg(feature = "secrets")]
-pub(super) async fn decrypt_response_fields<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: &AppState<A>,
+pub(super) async fn decrypt_response_fields(
+    state: &AppState,
     response: &mut serde_json::Value,
 ) -> Result<(), ErrorResponse> {
     let Some(ref encryption) = state.field_encryption else {

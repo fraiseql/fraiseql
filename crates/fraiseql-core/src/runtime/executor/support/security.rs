@@ -2,7 +2,7 @@
 //!
 //! These are stateless functions that require no `&self` — all inputs come from
 //! parameters.  They are shared by multiple runners without creating any coupling
-//! to `Executor<A>`.
+//! to `Executor`.
 
 use crate::{
     error::{FraiseQLError, Result},

@@ -91,7 +91,7 @@ mod wired {
     /// store-free and remote paths, so any touch of the local adapter is a
     /// routing bug and must surface as a loud failure (G2 removed SQLite,
     /// which used to sit here as an inert placeholder).
-    fn order_executor() -> FederationMutationExecutor<FailingAdapter> {
+    fn order_executor() -> FederationMutationExecutor {
         let adapter = Arc::new(FailingAdapter::new().fail_with_error(FailError::Database {
             message:   "test bug: the local adapter must not be reached".to_string(),
             sql_state: None,

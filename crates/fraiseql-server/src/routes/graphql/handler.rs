@@ -9,7 +9,6 @@ use axum::{
 };
 use fraiseql_core::{
     apq::{ApqMetrics, ApqStorage},
-    db::traits::DatabaseAdapter,
     security::SecurityContext,
 };
 use fraiseql_error::FraiseQLError;
@@ -44,8 +43,8 @@ use crate::{
 /// Returns appropriate HTTP status codes based on error type.
 #[tracing::instrument(skip_all, fields(operation_name))]
 #[doc(hidden)] // Internal-pub: axum route handler wired via Server::route; downstream uses Server::serve(), not this fn directly.
-pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn graphql_handler(
+    State(state): State<AppState>,
     headers: HeaderMap,
     PeerIp(peer_ip): PeerIp,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
@@ -119,8 +118,8 @@ pub async fn graphql_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 /// restriction but logs a warning for mutation-like queries.
 #[tracing::instrument(skip_all, fields(operation_name))]
 #[doc(hidden)] // Internal-pub: axum route handler wired via Server::route; downstream uses Server::serve(), not this fn directly.
-pub async fn graphql_get_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn graphql_get_handler(
+    State(state): State<AppState>,
     headers: HeaderMap,
     PeerIp(peer_ip): PeerIp,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
@@ -250,8 +249,8 @@ pub(crate) const HTTP_QUERY_METHOD: &str = "QUERY";
 /// - `405` when the request method is not `QUERY` (any other unmatched method).
 /// - `405` when the document is a `mutation` or `subscription`.
 /// - `400` when the body is not a valid `GraphQLRequest`.
-pub async fn graphql_query_method_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn graphql_query_method_handler(
+    State(state): State<AppState>,
     method: axum::http::Method,
     headers: HeaderMap,
     PeerIp(peer_ip): PeerIp,
@@ -416,8 +415,8 @@ pub(crate) async fn resolve_apq(
 
 /// Shared GraphQL execution logic for both GET and POST handlers.
 #[tracing::instrument(skip_all, fields(operation_name = request.operation_name.as_deref().unwrap_or("anonymous")))]
-async fn execute_graphql_request<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: AppState<A>,
+async fn execute_graphql_request(
+    state: AppState,
     mut request: GraphQLRequest,
     #[cfg(feature = "federation")] _trace_context: Option<
         fraiseql_core::federation::FederationTraceContext,

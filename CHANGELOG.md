@@ -18,6 +18,56 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`Executor` is no longer generic over its database adapter, and neither is anything
+  that holds one.** S5 of the boundary work, second half.
+
+  A transport that can name the data plane can reach around the engine. `Executor<A>`
+  handed every holder that name: `Server<A>`, `AppState<A>` and eight other server state
+  types carried `A` for exactly one field each, the saga's
+  `FederationMutationExecutor<A>` for none at all, and a hundred handlers carried it so
+  they could mention `AppState<A>` in a signature. The parameter is gone from all of
+  them. `ExecutorContext` stores `Arc<dyn DatabaseAdapter>`; a holder of an `Executor`
+  cannot name the adapter, cannot recover it, and cannot call anything on it the engine
+  does not offer.
+
+  Measured: 146 `Executor<…>` sites across 66 files in `crates/` and `examples/`, now
+  zero; 25 `FederationMutationExecutor<…>` sites in `fraiseql-saga`, now zero.
+
+  **What this costs, stated plainly.** The parameter was carrying a compile-time
+  capability in two places, and both lose it:
+
+  * `Server`'s REST write surface was mounted from an `impl` block bounded on
+    `SupportsMutations`, so mounting writes over a read-only adapter was a compile error.
+    It is now a mount that succeeds and routes that refuse.
+  * `FederationMutationExecutor<A: … + SupportsMutations>` said the same thing for sagas:
+    a saga could not be built over a read-only adapter. It can now, and every step refuses.
+
+  What replaces both is the write slot from the first half of S5: resolved once at
+  construction as the intersection of the marker and `supports_mutations()`, and taken at
+  step 0 of every write. The trade is a refusal that arrives at dispatch instead of at
+  compile time, in exchange for one adjudication that every entry on every transport must
+  pass through — where the bound could only speak for the call sites that happened to
+  carry it, and spoke for the marker alone even there.
+
+  The opt-in gate itself did **not** move: it sits on the constructors, which stayed
+  generic. `Executor::new` and `Executor::with_config` are bounded on `SupportsMutations`;
+  `Executor::read_only` and `read_only_with_config` are not. `Server::new` is bounded;
+  `Server::new_read_only` is not. The `compile_fail`/positive doctest pair now witnesses
+  the constructor, and was verified by mutation: dropping the bound from `Executor::new`
+  makes the negative block compile — failing the test with "compiled successfully, but
+  it's marked `compile_fail`" — while its positive twin stays green.
+
+  Two upstream bounds widened to `?Sized` so an erased handle can flow through them:
+  `fraiseql_federation::DatabaseEntityResolver<A>` and the eight `batch_load_entities*` /
+  `resolve_entities_from_db*` functions. Existing callers with a concrete adapter are
+  unaffected.
+
+  **Removed: `fraiseql_core::runtime::ExecutorAdapter`** (and its re-export from the
+  `fraiseql` prelude). The object-safe trait existed so holders could store an executor
+  without naming its adapter; that is what the executor now does by itself. Nothing in the
+  workspace implemented or consumed it, and the problem it solved was deleted by this
+  change. An embedder that implemented it externally should hold `Arc<Executor>` directly.
+
 - **Write capability is one slot, resolved from both gates, and the typed write entries
   now consult it (#1354 follow-on).** S5 of the boundary work, first half.
 

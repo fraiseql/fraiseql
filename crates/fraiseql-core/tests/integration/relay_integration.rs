@@ -267,12 +267,12 @@ fn relay_schema() -> CompiledSchema {
     schema
 }
 
-fn executor() -> Executor<RelayMockAdapter> {
+fn executor() -> Executor {
     Executor::new_with_relay(relay_schema(), Arc::new(RelayMockAdapter::new()))
 }
 
 /// Executor with relay support AND an RLS policy configured.
-fn rls_executor() -> Executor<RelayMockAdapter> {
+fn rls_executor() -> Executor {
     let config = fraiseql_core::runtime::RuntimeConfig::default()
         .with_rls_policy(Arc::new(fraiseql_core::security::DefaultRLSPolicy::new()));
     Executor::with_config_and_relay(relay_schema(), Arc::new(RelayMockAdapter::new()), config)
@@ -947,7 +947,7 @@ fn uuid_relay_schema() -> CompiledSchema {
     TestSchemaBuilder::new().with_type(item_type).with_query(items_query).build()
 }
 
-fn uuid_executor() -> Executor<UuidRelayMockAdapter> {
+fn uuid_executor() -> Executor {
     Executor::new_with_relay(uuid_relay_schema(), Arc::new(UuidRelayMockAdapter::new()))
 }
 
@@ -1389,7 +1389,7 @@ mod relay_security {
     }
 
     /// Build an executor with RLS policy and a recording adapter.
-    fn rls_executor() -> (Executor<RecordingRelayAdapter>, Arc<RecordingRelayAdapter>) {
+    fn rls_executor() -> (Executor, Arc<RecordingRelayAdapter>) {
         let adapter = Arc::new(RecordingRelayAdapter::new());
         let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
         let exec = Executor::with_config_and_relay(relay_schema(), adapter.clone(), config);
@@ -1397,7 +1397,7 @@ mod relay_security {
     }
 
     /// Build an executor with both RLS policy and `inject_params` on the relay query.
-    fn rls_inject_executor() -> (Executor<RecordingRelayAdapter>, Arc<RecordingRelayAdapter>) {
+    fn rls_inject_executor() -> (Executor, Arc<RecordingRelayAdapter>) {
         let adapter = Arc::new(RecordingRelayAdapter::new());
         let config = RuntimeConfig::default().with_rls_policy(Arc::new(DefaultRLSPolicy::new()));
 
@@ -1600,7 +1600,7 @@ mod relay_security {
         /// reads `where:`/`orderBy:` when the compiled schema says the query
         /// accepts them — without this the arguments would be dropped for a
         /// legitimate reason and the test would prove nothing.
-        fn arg_executor() -> (Executor<RecordingRelayAdapter>, Arc<RecordingRelayAdapter>) {
+        fn arg_executor() -> (Executor, Arc<RecordingRelayAdapter>) {
             let adapter = Arc::new(RecordingRelayAdapter::new());
             let mut schema = relay_schema();
             for q in &mut schema.queries {

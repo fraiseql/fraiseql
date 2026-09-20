@@ -17,7 +17,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::super::{Executor, root_type_name};
 use crate::{
-    backend::traits::DatabaseAdapter,
     error::Result,
     graphql::{FieldSelection, GraphQLArgument, ParsedQuery},
 };
@@ -163,7 +162,7 @@ fn arg_value_to_graphql(arg: &GraphQLArgument) -> String {
 
 // ── Parallel execution ────────────────────────────────────────────────────────
 
-impl<A: DatabaseAdapter> Executor<A> {
+impl Executor {
     /// Execute all root fields of a multi-root query concurrently.
     ///
     /// Each root field is dispatched as an independent single-root query.

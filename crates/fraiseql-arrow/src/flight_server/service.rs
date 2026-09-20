@@ -450,7 +450,7 @@ impl FraiseQLFlightService {
 
     /// Set the query executor for GraphQL query execution.
     ///
-    /// The executor must be passed as `Arc<Executor<A>>` wrapped in Arc for shared ownership.
+    /// The executor must be passed as `Arc<Executor>` wrapped in Arc for shared ownership.
     ///
     /// **What you attach here decides the transport's policy.** Without an
     /// executor the Flight GraphQL paths (`do_get`, `do_exchange` `Query`) refuse
@@ -627,7 +627,7 @@ impl FraiseQLFlightService {
     ///
     /// **Query Execution with RLS**:
     /// 1. Check `has_executor()` - if true, real execution available
-    /// 2. Downcast executor: `executor.downcast_ref::<Executor<A>>()`
+    /// 2. Downcast executor: `executor.downcast_ref::<Executor>()`
     /// 3. Call `executor.execute_with_security(query, variables, &security_context).await`
     /// 4. Convert JSON to Arrow `RecordBatches`
     ///

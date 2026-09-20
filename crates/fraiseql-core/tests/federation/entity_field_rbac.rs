@@ -26,7 +26,6 @@ use std::{collections::HashMap, sync::Arc};
 
 use chrono::Utc;
 use fraiseql_core::{
-    db::postgres::PostgresAdapter,
     error::FraiseQLError,
     runtime::Executor,
     schema::{
@@ -119,7 +118,7 @@ fn representations() -> serde_json::Value {
 }
 
 /// Seed one real employee row and return an executor over the live adapter.
-async fn fixture() -> Option<(fraiseql_test_support::Service, Executor<PostgresAdapter>)> {
+async fn fixture() -> Option<(fraiseql_test_support::Service, Executor)> {
     let row: HashMap<String, serde_json::Value> = std::iter::once((
         "data".to_string(),
         json!({ "id": "e-1", "name": "Ada", "salary": 120_000, "email": "ada@example.com" }),

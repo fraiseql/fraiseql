@@ -15,7 +15,6 @@ use axum::{
     response::{IntoResponse, Response},
     routing::post,
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use uuid::Uuid;
@@ -30,11 +29,11 @@ use crate::{
 /// Router state: the shared runtime plus the app state (tenant resolution,
 /// idempotency store, cost budgets).
 #[derive(Clone)]
-pub struct AsyncOperationsState<A: DatabaseAdapter> {
+pub struct AsyncOperationsState {
     /// Store + validated configuration.
     pub runtime: AsyncOperationsRuntime,
     /// The application state (same instance the GraphQL transport uses).
-    pub app:     AppState<A>,
+    pub app:     AppState,
 }
 
 /// Build the `/operations/v1` router.
@@ -44,14 +43,9 @@ pub struct AsyncOperationsState<A: DatabaseAdapter> {
 /// panic at boot — the #316 class the route-syntax gate exists for). `POST`
 /// reads the capture as the operation name; `GET`/`DELETE` parse it as the
 /// operation id.
-pub fn router<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: AsyncOperationsState<A>,
-) -> Router {
+pub fn router(state: AsyncOperationsState) -> Router {
     Router::new()
-        .route(
-            "/operations/v1/{id_or_operation}",
-            post(submit::<A>).get(status::<A>).delete(cancel::<A>),
-        )
+        .route("/operations/v1/{id_or_operation}", post(submit).get(status).delete(cancel))
         .with_state(state)
 }
 
@@ -117,8 +111,8 @@ fn op_json(op: &crate::async_operations::AsyncOperation) -> Value {
     })
 }
 
-async fn submit<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AsyncOperationsState<A>>,
+async fn submit(
+    State(state): State<AsyncOperationsState>,
     Path(operation): Path<String>,
     OptionalSecurityContext(ctx): OptionalSecurityContext,
     headers: HeaderMap,
@@ -290,8 +284,8 @@ async fn submit<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     (StatusCode::ACCEPTED, Json(response_body)).into_response()
 }
 
-async fn status<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AsyncOperationsState<A>>,
+async fn status(
+    State(state): State<AsyncOperationsState>,
     Path(op_id): Path<String>,
     OptionalSecurityContext(ctx): OptionalSecurityContext,
     headers: HeaderMap,
@@ -320,8 +314,8 @@ async fn status<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
     }
 }
 
-async fn cancel<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AsyncOperationsState<A>>,
+async fn cancel(
+    State(state): State<AsyncOperationsState>,
     Path(op_id): Path<String>,
     OptionalSecurityContext(ctx): OptionalSecurityContext,
     headers: HeaderMap,

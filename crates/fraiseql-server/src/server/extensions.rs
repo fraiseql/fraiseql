@@ -6,7 +6,6 @@ use std::sync::Arc;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
-    cache::CachedDatabaseAdapter,
     db::traits::{DatabaseAdapter, RelayDatabaseAdapter, SupportsMutations},
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
@@ -22,9 +21,7 @@ use tracing::warn;
 use super::{ObserverRuntime, ObserverRuntimeConfig};
 use super::{Result, Server, ServerConfig};
 
-impl<A: DatabaseAdapter + RelayDatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>
-    Server<CachedDatabaseAdapter<A>>
-{
+impl Server {
     /// Create a server with relay pagination support enabled.
     ///
     /// The adapter must implement [`RelayDatabaseAdapter`]. Currently, only
@@ -53,7 +50,9 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + SupportsMutations + Clone + Sen
     /// let server = Server::with_relay_pagination(config, schema, adapter, None).await?;
     /// server.serve().await?;
     /// ```
-    pub async fn with_relay_pagination(
+    pub async fn with_relay_pagination<
+        A: DatabaseAdapter + RelayDatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
+    >(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
@@ -111,14 +110,13 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + SupportsMutations + Clone + Sen
 }
 
 #[cfg(feature = "arrow")]
-impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>
-    Server<CachedDatabaseAdapter<A>>
-{
+impl Server {
     /// Create new server with pre-configured Arrow Flight service.
     ///
     /// Use this constructor when you want to provide a Flight service with a real database adapter.
     ///
-    /// The GraphQL side is wrapped in a [`CachedDatabaseAdapter`] exactly as
+    /// The GraphQL side is wrapped in a
+    /// [`CachedDatabaseAdapter`](fraiseql_core::cache::CachedDatabaseAdapter) exactly as
     /// [`Server::new`] wraps it — `cache_enabled` means the same thing on this boot
     /// path as on every other (#889). The Flight service keeps its own handle to the
     /// raw adapter; the two do not share a cache, which is why `flight_upload_tables`
@@ -139,7 +137,9 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>
     /// reaches the mutation runner, so nothing invalidates the result cache for the views
     /// over the uploaded table and GraphQL reads would serve pre-upload rows until the TTL
     /// expired. Also returns an error if OIDC validator initialization fails.
-    pub async fn with_flight_service(
+    pub async fn with_flight_service<
+        A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
+    >(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
@@ -212,7 +212,7 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>
     }
 }
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl Server {
     /// Initialize observer runtime from configuration.
     ///
     /// # Errors

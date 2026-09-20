@@ -1,7 +1,6 @@
 //! GraphQL endpoint route construction with optional authentication.
 
 use axum::{Router, middleware, routing::get};
-use fraiseql_core::db::traits::DatabaseAdapter;
 use tower_http::compression::{
     CompressionLayer,
     predicate::{NotForContentType, Predicate as _, SizeAbove},
@@ -13,9 +12,9 @@ use super::{
 };
 use crate::routes::graphql::{AppState, handler::graphql_query_method_handler};
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl Server {
     /// Build the GraphQL endpoint router with optional auth and compression.
-    pub(super) fn build_graphql_router(&self, state: &AppState<A>) -> Router {
+    pub(super) fn build_graphql_router(&self, state: &AppState) -> Router {
         // Build GraphQL route (possibly with auth + Content-Type enforcement).
         // Supports both GET and POST per GraphQL over HTTP spec.
         // OIDC and HS256 are mutually exclusive (enforced by ServerConfig::validate).
@@ -30,9 +29,9 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
         //
         // The fallback also catches PUT/DELETE/…; the handler answers 405 for
         // anything that is not QUERY, which is what the router did before.
-        let mut methods = get(graphql_get_handler::<A>).post(graphql_handler::<A>);
+        let mut methods = get(graphql_get_handler).post(graphql_handler);
         if self.config.enable_http_query {
-            methods = methods.fallback(graphql_query_method_handler::<A>);
+            methods = methods.fallback(graphql_query_method_handler);
         }
 
         let router = self.attach_auth(

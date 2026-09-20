@@ -5,7 +5,6 @@ use std::sync::Arc;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
-    db::traits::DatabaseAdapter,
     runtime::{Executor, SubscriptionManager},
     security::{AuthMiddleware, OidcValidator},
 };
@@ -56,16 +55,16 @@ mod tests;
 /// `(app state, compression enabled, auth layer attached)`.
 ///
 /// This exists as a stored closure rather than a direct call because
-/// `SupportsMutations` is not — and must not become — a bound on `Server<A>`'s
+/// `SupportsMutations` is not — and must not become — a bound on `Server`'s
 /// lifecycle: adding it would lock read-only adapters such as `SqliteAdapter` and
 /// `FraiseWireAdapter` out of every deployment. The closure is installed from the one
 /// place where the concrete adapter is known to support mutations (the binary's boot
 /// path), which is the same idiom as
 /// [`tenant_executor_factory`](Server::with_tenant_executor_factory).
 #[cfg(feature = "rest")]
-pub(super) type RestRouterBuilder<A> = Arc<
+pub(super) type RestRouterBuilder = Arc<
     dyn Fn(
-            &crate::routes::graphql::AppState<A>,
+            &crate::routes::graphql::AppState,
             &crate::routes::rest::RestMountConfig,
         ) -> Option<axum::Router>
         + Send
@@ -74,8 +73,11 @@ pub(super) type RestRouterBuilder<A> = Arc<
 
 /// FraiseQL HTTP Server.
 ///
-/// `Server<A>` is generic over a `DatabaseAdapter` implementation, which allows
-/// swapping database backends and injecting mock adapters in tests.
+/// `Server` names no adapter type. It is handed an adapter by its constructor, which
+/// passes it straight to the executor and keeps nothing typed: swapping backends and
+/// injecting mocks in tests is a choice made at construction, not a parameter the
+/// server and its nine state types carry around. What the server holds afterwards is
+/// an `Executor`, whose surface is the only way to the database.
 ///
 /// # Feature: `observers`
 ///
@@ -88,12 +90,12 @@ pub(super) type RestRouterBuilder<A> = Arc<
 /// be skipped at startup (an error is logged) rather than panicking, but the
 /// rest of the server continues to function normally.
 ///
-/// The PostgreSQL pool is distinct from the generic `DatabaseAdapter`: the
-/// adapter handles application queries, while the pool is used exclusively by
+/// The PostgreSQL pool is distinct from the `DatabaseAdapter` given to the executor:
+/// the adapter handles application queries, while the pool is used exclusively by
 /// the observer subsystem to store and retrieve reactive rule metadata.
-pub struct Server<A: DatabaseAdapter> {
+pub struct Server {
     pub(super) config: ServerConfig,
-    pub(super) executor: Arc<Executor<A>>,
+    pub(super) executor: Arc<Executor>,
     pub(super) subscription_manager: Arc<SubscriptionManager>,
     pub(super) subscription_lifecycle: Arc<dyn crate::subscriptions::SubscriptionLifecycle>,
     /// #571: drain signal for live `WebSocket` subscription connections. Flipped to
@@ -280,7 +282,7 @@ pub struct Server<A: DatabaseAdapter> {
     /// `PUT /api/v1/admin/tenants/{key}` can provision tenants. `None` leaves
     /// runtime provisioning unavailable (dispatch to pre-registered tenants still
     /// works).
-    pub(super) tenant_executor_factory: Option<crate::tenancy::TenantExecutorFactory<A>>,
+    pub(super) tenant_executor_factory: Option<crate::tenancy::TenantExecutorFactory>,
 
     /// Builds the REST router *including its write half* (POST/PUT/PATCH/DELETE and
     /// the collection-level bulk routes).
@@ -297,7 +299,7 @@ pub struct Server<A: DatabaseAdapter> {
     /// bypassed that call would put the whole write surface behind no authentication
     /// (#812).
     #[cfg(feature = "rest")]
-    pub(super) rest_router_builder: Option<RestRouterBuilder<A>>,
+    pub(super) rest_router_builder: Option<RestRouterBuilder>,
 
     /// Pool pressure monitoring configuration (loaded from `[pool_tuning]` in `fraiseql.toml`).
     pub(super) pool_tuning_config: Option<crate::config::pool_tuning::PoolPressureMonitorConfig>,

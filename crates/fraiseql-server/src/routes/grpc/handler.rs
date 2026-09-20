@@ -16,7 +16,6 @@ use std::collections::HashMap;
 use fraiseql_core::{
     db::{
         dialect::RowViewColumnType,
-        traits::DatabaseAdapter,
         types::{ColumnSpec, ColumnValue},
     },
     schema::{CompiledSchema, FieldType, TypeDefinition},
@@ -358,7 +357,8 @@ pub fn extract_order_by_pair(
 /// Execute a gRPC read through the engine (#1351).
 ///
 /// This arm used to build its own `WHERE` clause and call
-/// [`DatabaseAdapter::execute_row_query`] directly, which made gRPC a second read
+/// [`DatabaseAdapter::execute_row_query`](fraiseql_core::db::traits::DatabaseAdapter::execute_row_query)
+/// directly, which made gRPC a second read
 /// implementation: the operation `Authorizer` (#422), the `requires_role` gate
 /// (#1122), the actor allow-list (#966), the field gate (#423) and the compiled
 /// page-size ceiling (#421) applied to every transport except this one. #1348
@@ -378,8 +378,8 @@ pub fn extract_order_by_pair(
 /// gate or a selected gated field is refused; `FraiseQLError::Validation` when an
 /// argument does not parse, the page exceeds the compiled ceiling, or a policy has
 /// no principal to evaluate for; `FraiseQLError::Database` on read failure.
-pub async fn execute_grpc_read<A: DatabaseAdapter>(
-    executor: &fraiseql_core::runtime::Executor<A>,
+pub async fn execute_grpc_read(
+    executor: &fraiseql_core::runtime::Executor,
     query_name: &str,
     columns: &[ColumnSpec],
     returns_list: bool,
@@ -444,16 +444,13 @@ pub(super) fn grpc_query_match(
 /// # Errors
 ///
 /// Returns `FraiseQLError::Database` on function call failure.
-pub async fn execute_grpc_mutation<A>(
-    executor: &fraiseql_core::runtime::Executor<A>,
+pub async fn execute_grpc_mutation(
+    executor: &fraiseql_core::runtime::Executor,
     mutation_name: &str,
     request_msg: &DynamicMessage,
     recase_input_keys: bool,
     security_context: Option<&fraiseql_core::security::SecurityContext>,
-) -> Result<MutationResult, FraiseQLError>
-where
-    A: DatabaseAdapter + fraiseql_core::db::SupportsMutations,
-{
+) -> Result<MutationResult, FraiseQLError> {
     // #1330: this used to call `adapter.execute_function_call` directly, which
     // reached the database without passing `execute_mutation_impl` — the single
     // point every other write converges on. `requires_role`, `requires_actor`, the

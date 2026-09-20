@@ -78,7 +78,7 @@ fn schema() -> CompiledSchema {
     TestSchemaBuilder::new().with_type(note).with_query(notes).build()
 }
 
-async fn executor() -> Option<Executor<PostgresAdapter>> {
+async fn executor() -> Option<Executor> {
     let pg = fraiseql_test_support::postgres().await?;
     let adapter = PostgresAdapter::new(pg.url()).await.expect("connect to the bound PostgreSQL");
     for stmt in FIXTURE.split(";\n") {
@@ -90,7 +90,7 @@ async fn executor() -> Option<Executor<PostgresAdapter>> {
     Some(Executor::new(schema(), Arc::new(adapter)))
 }
 
-async fn first_note(exec: &Executor<PostgresAdapter>, doc: &str) -> Value {
+async fn first_note(exec: &Executor, doc: &str) -> Value {
     let response = exec.execute(doc, None).await.expect("the query must resolve");
     response["data"]["notes"][0].clone()
 }

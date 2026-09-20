@@ -8,7 +8,6 @@ use axum::{
     Router, middleware,
     routing::{get, post},
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::info;
 
 use super::super::{
@@ -16,7 +15,7 @@ use super::super::{
 };
 use crate::auth::{anon_signup, mfa_challenge, mfa_confirm, mfa_enroll, mfa_unenroll, mfa_verify};
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl Server {
     /// Mount all `#[cfg(feature = "auth")]`-gated authentication routes.
     pub(super) fn mount_auth_routes(&self, mut app: Router) -> Router {
         // PKCE OAuth2 auth routes — mounted only when both pkce and [auth] are configured.

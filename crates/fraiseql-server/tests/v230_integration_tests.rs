@@ -38,13 +38,13 @@ use tower::ServiceExt;
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-fn make_state() -> AppState<FailingAdapter> {
+fn make_state() -> AppState {
     let schema = CompiledSchema::new();
     let adapter = Arc::new(FailingAdapter::new());
     AppState::new(Arc::new(Executor::new(schema, adapter)))
 }
 
-fn make_state_with_usage(usage: Arc<UsageAggregator>) -> AppState<FailingAdapter> {
+fn make_state_with_usage(usage: Arc<UsageAggregator>) -> AppState {
     make_state().with_usage(usage)
 }
 
@@ -66,7 +66,7 @@ async fn get_json(router: &Router, uri: &str) -> (StatusCode, serde_json::Value)
 #[tokio::test]
 async fn test_metadata_endpoint_returns_200_with_envelope() {
     let router = Router::new()
-        .route("/api/v1/schema/metadata", get(metadata_handler::<FailingAdapter>))
+        .route("/api/v1/schema/metadata", get(metadata_handler))
         .with_state(make_state());
 
     let (status, body) = get_json(&router, "/api/v1/schema/metadata").await;
@@ -80,7 +80,7 @@ async fn test_metadata_endpoint_returns_200_with_envelope() {
 #[tokio::test]
 async fn test_metadata_endpoint_empty_schema_returns_empty_map() {
     let router = Router::new()
-        .route("/api/v1/schema/metadata", get(metadata_handler::<FailingAdapter>))
+        .route("/api/v1/schema/metadata", get(metadata_handler))
         .with_state(make_state());
 
     let (status, body) = get_json(&router, "/api/v1/schema/metadata").await;
@@ -102,7 +102,7 @@ async fn test_metadata_endpoint_empty_schema_returns_empty_map() {
 #[tokio::test]
 async fn test_metadata_endpoint_accessible_without_auth_by_default() {
     let router = Router::new()
-        .route("/api/v1/schema/metadata", get(metadata_handler::<FailingAdapter>))
+        .route("/api/v1/schema/metadata", get(metadata_handler))
         .with_state(make_state());
 
     let (status, _) = get_json(&router, "/api/v1/schema/metadata").await;
@@ -113,7 +113,7 @@ async fn test_metadata_endpoint_accessible_without_auth_by_default() {
 
 fn make_usage_router(usage: Arc<UsageAggregator>) -> Router {
     Router::new()
-        .route("/api/v1/admin/usage", get(usage_handler::<FailingAdapter>))
+        .route("/api/v1/admin/usage", get(usage_handler))
         .with_state(make_state_with_usage(usage))
 }
 
@@ -309,7 +309,7 @@ mod federation_plan_tests {
     #[tokio::test]
     async fn test_federation_plan_endpoint_returns_200() {
         let router = Router::new()
-            .route("/admin/v1/federation/plan", get(plan_handler::<FailingAdapter>))
+            .route("/admin/v1/federation/plan", get(plan_handler))
             .with_state(make_state());
 
         let query = urlencoding::encode("{ __typename }");
@@ -325,7 +325,7 @@ mod federation_plan_tests {
     #[tokio::test]
     async fn test_federation_plan_endpoint_missing_query_returns_400() {
         let router = Router::new()
-            .route("/admin/v1/federation/plan", get(plan_handler::<FailingAdapter>))
+            .route("/admin/v1/federation/plan", get(plan_handler))
             .with_state(make_state());
 
         let (status, _body) = get_json(&router, "/admin/v1/federation/plan").await;

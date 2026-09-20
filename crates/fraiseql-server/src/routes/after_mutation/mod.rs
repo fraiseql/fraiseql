@@ -428,19 +428,16 @@ pub type QueryExecutorFactory = std::sync::Arc<
 
 /// Build a [`QueryExecutorFactory`] over the request-path executor handle (#594).
 ///
-/// Captures the hot-reloadable `Arc<ArcSwap<Executor<A>>>` so each dispatched
+/// Captures the hot-reloadable `Arc<ArcSwap<Executor>>` so each dispatched
 /// function's `fraiseql_query` runs against the current schema snapshot under its own
 /// `run_as` identity — the same [`RunAsQueryExecutor`](crate::query_bridge::RunAsQueryExecutor)
 /// scheduled sources use. Called from the route handlers (which know the adapter `A`)
 /// and passed into [`spawn_after_mutation`] / [`spawn_after_ingest`].
 #[cfg(feature = "functions-runtime")]
 #[must_use]
-pub fn make_query_executor_factory<A>(
-    executor: std::sync::Arc<arc_swap::ArcSwap<fraiseql_core::runtime::Executor<A>>>,
-) -> QueryExecutorFactory
-where
-    A: fraiseql_core::db::traits::DatabaseAdapter + 'static,
-{
+pub fn make_query_executor_factory(
+    executor: std::sync::Arc<arc_swap::ArcSwap<fraiseql_core::runtime::Executor>>,
+) -> QueryExecutorFactory {
     std::sync::Arc::new(move |identity| {
         std::sync::Arc::new(crate::query_bridge::RunAsQueryExecutor::new(
             std::sync::Arc::clone(&executor),

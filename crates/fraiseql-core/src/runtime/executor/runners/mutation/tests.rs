@@ -2828,9 +2828,7 @@ mod mutation {
 
     // ── #433: updated_fields surfaced as updatedFields, selection-gated ─────
 
-    fn updated_fields_executor(
-        updated_fields: serde_json::Value,
-    ) -> Executor<CapturingFunctionCallAdapter> {
+    fn updated_fields_executor(updated_fields: serde_json::Value) -> Executor {
         use crate::schema::MutationDefinition;
         let mut schema = CompiledSchema::new();
         schema.mutations.push(MutationDefinition {
@@ -4331,7 +4329,7 @@ mod before_mutation_enforcement {
         schema
     }
 
-    fn gated(gate: Arc<AbortsOne>) -> (Executor<MutationCallLog>, Arc<MutationCallLog>) {
+    fn gated(gate: Arc<AbortsOne>) -> (Executor, Arc<MutationCallLog>) {
         let adapter = Arc::new(MutationCallLog::new());
         let gate: Arc<dyn BeforeMutationGate> = gate;
         let executor = Executor::with_config(
@@ -4939,9 +4937,7 @@ mod before_mutation_read_bridge {
         }
     }
 
-    fn executor_reading(
-        document: &'static str,
-    ) -> (Executor<ReadEchoAdapter>, Arc<ReadEchoAdapter>) {
+    fn executor_reading(document: &'static str) -> (Executor, Arc<ReadEchoAdapter>) {
         let adapter = Arc::new(ReadEchoAdapter::new());
         let gate: Arc<dyn BeforeMutationGate> = Arc::new(ReadsThroughTheBridge { document });
         let executor = Executor::with_config(
@@ -5378,7 +5374,7 @@ mod rest_write_body {
         s
     }
 
-    fn executor(gate_email: bool) -> (Executor<ArgLog>, Arc<ArgLog>) {
+    fn executor(gate_email: bool) -> (Executor, Arc<ArgLog>) {
         let adapter = Arc::new(ArgLog::new());
         let ex = Executor::with_config(
             schema(gate_email),
@@ -5529,7 +5525,7 @@ mod rest_write_body {
         }
     }
 
-    fn gated_executor(authorizer: Arc<dyn FieldAuthorizer>) -> Executor<ArgLog> {
+    fn gated_executor(authorizer: Arc<dyn FieldAuthorizer>) -> Executor {
         Executor::with_config(
             schema(true),
             Arc::new(ArgLog::new()),

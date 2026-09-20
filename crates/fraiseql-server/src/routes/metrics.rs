@@ -14,7 +14,6 @@
 use std::fmt::Write as _;
 
 use axum::{Json, extract::State, response::IntoResponse};
-use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::Serialize;
 use tracing::debug;
 
@@ -61,9 +60,7 @@ pub struct MetricsResponse {
 /// # TYPE fraiseql_graphql_query_duration_ms gauge
 /// fraiseql_graphql_query_duration_ms 12.5
 /// ```
-pub async fn metrics_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
-) -> impl IntoResponse {
+pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse {
     debug!("Metrics endpoint requested");
 
     // Collect metrics from AppState
@@ -479,9 +476,7 @@ fn truncate_label(s: &str, max_chars: usize) -> String {
 /// JSON metrics handler - returns metrics in JSON format.
 ///
 /// Useful for dashboards and monitoring systems that consume JSON.
-pub async fn metrics_json_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
-) -> impl IntoResponse {
+pub async fn metrics_json_handler(State(state): State<AppState>) -> impl IntoResponse {
     debug!("JSON metrics endpoint requested");
 
     // Collect metrics from AppState

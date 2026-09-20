@@ -27,7 +27,7 @@
 use std::sync::Arc;
 
 use axum::{Router, body::Body};
-use fraiseql_core::{cache::CachedDatabaseAdapter, schema::CompiledSchema};
+use fraiseql_core::schema::CompiledSchema;
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use http::{Request, StatusCode};
 use tower::ServiceExt;
@@ -47,7 +47,7 @@ async fn prod_router(config: ServerConfig) -> Router {
     };
     // Boxed at the delegation point: `Server::new`'s future is large enough to trip
     // `clippy::large_futures` (pedantic, denied) at every call site otherwise.
-    let server: Server<CachedDatabaseAdapter<FailingAdapter>> = Box::pin(Server::new(
+    let server: Server = Box::pin(Server::new(
         config,
         CompiledSchema::new(),
         Arc::new(FailingAdapter::new()),

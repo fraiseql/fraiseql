@@ -21,23 +21,23 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use fraiseql_arrow::QueryExecutor;
-use fraiseql_core::{db::traits::DatabaseAdapter, security::SecurityContext};
+use fraiseql_core::security::SecurityContext;
 use http::HeaderMap;
 
 use crate::routes::graphql::{app_state::AppState, tenant_dispatch};
 
 /// A [`QueryExecutor`] that enforces the transport-independent policy before it
 /// executes anything.
-pub struct PolicyGatedExecutor<A: DatabaseAdapter> {
+pub struct PolicyGatedExecutor {
     /// The full request-handling state: tenant registry, trusted-document store,
     /// per-tenant executors and quotas.
-    state: AppState<A>,
+    state: AppState,
 }
 
-impl<A: DatabaseAdapter> PolicyGatedExecutor<A> {
+impl PolicyGatedExecutor {
     /// Wrap `state` as the Flight service's executor.
     #[must_use]
-    pub const fn new(state: AppState<A>) -> Self {
+    pub const fn new(state: AppState) -> Self {
         Self { state }
     }
 }
@@ -46,7 +46,7 @@ impl<A: DatabaseAdapter> PolicyGatedExecutor<A> {
 // its transformed method signatures to satisfy the trait contract
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> QueryExecutor for PolicyGatedExecutor<A> {
+impl QueryExecutor for PolicyGatedExecutor {
     /// # Errors
     ///
     /// Returns the refusal as a `String` — the Flight protocol's error channel — for
@@ -122,8 +122,6 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> QueryExecutor for Polic
 ///
 /// This is the wiring #954 exists for: the shipped binary attaches **this**, and
 /// never a bare `ExecutorQueryAdapter`.
-pub(crate) fn policy_gated_executor<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: AppState<A>,
-) -> Arc<dyn QueryExecutor> {
+pub(crate) fn policy_gated_executor(state: AppState) -> Arc<dyn QueryExecutor> {
     Arc::new(PolicyGatedExecutor::new(state))
 }

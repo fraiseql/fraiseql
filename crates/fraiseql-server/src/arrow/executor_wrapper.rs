@@ -1,6 +1,6 @@
 //! Executor wrapper that implements `QueryExecutor` trait for Arrow Flight.
 //!
-//! This module provides a wrapper around the generic `Executor<A>` type
+//! This module provides a wrapper around the generic `Executor` type
 //! that implements the `QueryExecutor` trait for type erasure, allowing
 //! the executor to be used with `FraiseQLFlightService`.
 
@@ -8,24 +8,24 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use fraiseql_arrow::QueryExecutor;
-use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, security::SecurityContext};
+use fraiseql_core::{runtime::Executor, security::SecurityContext};
 
-/// Wrapper that adapts `Executor<A>` to the `QueryExecutor` trait.
+/// Wrapper that adapts `Executor` to the `QueryExecutor` trait.
 ///
 /// This enables the Arrow Flight service to execute GraphQL queries
 /// with RLS filtering without knowing the specific database adapter type.
-pub struct ExecutorQueryAdapter<A: DatabaseAdapter> {
+pub struct ExecutorQueryAdapter {
     /// The underlying executor
-    executor: Arc<Executor<A>>,
+    executor: Arc<Executor>,
 }
 
-impl<A: DatabaseAdapter> ExecutorQueryAdapter<A> {
+impl ExecutorQueryAdapter {
     /// Create a new executor adapter.
     ///
     /// # Arguments
     /// * `executor` - The executor instance to wrap
     #[must_use]
-    pub const fn new(executor: Arc<Executor<A>>) -> Self {
+    pub const fn new(executor: Arc<Executor>) -> Self {
         Self { executor }
     }
 }
@@ -34,7 +34,7 @@ impl<A: DatabaseAdapter> ExecutorQueryAdapter<A> {
 // its transformed method signatures to satisfy the trait contract
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
-impl<A: DatabaseAdapter + 'static> QueryExecutor for ExecutorQueryAdapter<A> {
+impl QueryExecutor for ExecutorQueryAdapter {
     /// # Errors
     ///
     /// Returns the executor's error unchanged.

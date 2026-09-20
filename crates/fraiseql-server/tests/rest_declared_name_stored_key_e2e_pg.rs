@@ -153,7 +153,7 @@ struct Rig {
     router:   axum::Router,
     /// Held so the same schema and connection can be read through the GraphQL
     /// surface as well, which is the other half of the parity assertion.
-    executor: Arc<Executor<PostgresAdapter>>,
+    executor: Arc<Executor>,
 }
 
 impl Rig {

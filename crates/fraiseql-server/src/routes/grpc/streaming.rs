@@ -11,11 +11,7 @@
 use std::sync::Arc;
 
 use bytes::Bytes;
-use fraiseql_core::{
-    db::{traits::DatabaseAdapter, types::ColumnSpec},
-    schema::TypeDefinition,
-    security::SecurityContext,
-};
+use fraiseql_core::{db::types::ColumnSpec, schema::TypeDefinition, security::SecurityContext};
 use futures::{StreamExt as _, stream};
 use http_body::Frame;
 use prost::Message as _;
@@ -88,8 +84,8 @@ fn error_body(
 // without reducing call-site complexity, and the two arms staying parallel is what
 // #1348 showed matters most here.
 #[allow(clippy::too_many_arguments)]
-pub async fn build_streaming_body<A: DatabaseAdapter + 'static>(
-    executor: Arc<fraiseql_core::runtime::Executor<A>>,
+pub async fn build_streaming_body(
+    executor: Arc<fraiseql_core::runtime::Executor>,
     query_name: String,
     columns: Vec<ColumnSpec>,
     row_descriptor: MessageDescriptor,

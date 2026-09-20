@@ -2,12 +2,11 @@
 
 use super::super::{Executor, QueryType};
 use crate::{
-    backend::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     runtime::{ExplainPlan, suggest_similar},
 };
 
-impl<A: DatabaseAdapter> Executor<A> {
+impl Executor {
     /// Generate an explain plan for a query without executing it.
     ///
     /// Returns the SQL that would be generated, parameters, cost estimate,

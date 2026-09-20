@@ -23,9 +23,7 @@
 
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use bytes::Bytes;
-use fraiseql_core::{
-    db::traits::DatabaseAdapter, runtime::JsonRowStream, security::SecurityContext,
-};
+use fraiseql_core::{runtime::JsonRowStream, security::SecurityContext};
 use futures::StreamExt as _;
 use rust_xlsxwriter::Workbook;
 use tempfile::NamedTempFile;
@@ -80,8 +78,8 @@ pub fn accepts_xlsx(headers: &HeaderMap) -> bool {
 ///   [`ExportConfig::xlsx_max_rows`]. The message suggests using `Accept: text/csv` for larger
 ///   exports.
 /// - `RestError::Internal` when the workbook build or temp-file I/O fails.
-pub async fn handle_xlsx_get<A: DatabaseAdapter + 'static>(
-    handler: &RestHandler<'_, A>,
+pub async fn handle_xlsx_get(
+    handler: &RestHandler<'_>,
     export_config: &ExportConfig,
     relative_path: &str,
     query_pairs: &[(&str, &str)],

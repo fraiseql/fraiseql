@@ -1,7 +1,7 @@
 //! Tenant pool creation and executor construction.
 //!
 //! Provides [`TenantPoolConfig`] and [`create_tenant_executor`] to build a
-//! fully-formed `Executor<A>` from a compiled schema JSON string and database
+//! fully-formed `Executor` from a compiled schema JSON string and database
 //! connection configuration. Used by the management API to register
 //! tenants at runtime.
 
@@ -174,7 +174,7 @@ impl FromPoolConfig for PostgresAdapter {
 }
 
 /// The binary's `Server` wraps its adapter in a [`CachedDatabaseAdapter`], so the
-/// per-tenant executor registry stores `Executor<CachedDatabaseAdapter<A>>` and the
+/// per-tenant executor registry stores `Executor` and the
 /// factory must build that wrapped type. Each tenant gets its own fresh, isolated
 /// [`QueryResultCache`]; on a schema update the whole executor is replaced
 /// (`TenantExecutorRegistry::upsert`), so the cache is rebuilt rather than
@@ -195,7 +195,7 @@ impl<A: FromPoolConfig> FromPoolConfig for CachedDatabaseAdapter<A> {
 ///
 /// This is the primary entry point for tenant registration: it parses the schema,
 /// validates its format version, creates a database pool, and assembles an
-/// `Executor<A>` with both baked in.
+/// `Executor` with both baked in.
 ///
 /// When the compiled schema specifies `tenancy.mode = "schema"`, the tenant's
 /// search path is baked into the pool **before** it is built, so every connection
@@ -229,8 +229,8 @@ pub async fn create_tenant_executor<A: FromPoolConfig + SupportsMutations>(
     schema_json: &str,
     pool_config: &TenantPoolConfig,
     runtime_config: &fraiseql_core::runtime::RuntimeConfig,
-) -> Result<Arc<Executor<A>>> {
-    create_tenant_executor_with_adapter(tenant_key, schema_json, pool_config, runtime_config)
+) -> Result<Arc<Executor>> {
+    create_tenant_executor_with_adapter::<A>(tenant_key, schema_json, pool_config, runtime_config)
         .await
         .map(|(executor, _adapter)| executor)
 }
@@ -255,7 +255,7 @@ pub async fn create_tenant_executor_with_adapter<A: FromPoolConfig + SupportsMut
     schema_json: &str,
     pool_config: &TenantPoolConfig,
     runtime_config: &fraiseql_core::runtime::RuntimeConfig,
-) -> Result<(Arc<Executor<A>>, Arc<A>)> {
+) -> Result<(Arc<Executor>, Arc<A>)> {
     // 1. Parse and validate schema
     let schema =
         CompiledSchema::from_json(schema_json, false).map_err(|e| FraiseQLError::Parse {
@@ -321,9 +321,9 @@ pub async fn create_tenant_executor_with_adapter<A: FromPoolConfig + SupportsMut
 ///
 /// Returns `FraiseQLError::Validation` if the tenant key is invalid.
 /// Returns `FraiseQLError::Database` if the DDL execution fails.
-pub async fn destroy_tenant_schema<A: DatabaseAdapter>(
+pub async fn destroy_tenant_schema(
     tenant_key: &str,
-    executor: &fraiseql_core::runtime::Executor<A>,
+    executor: &fraiseql_core::runtime::Executor,
 ) -> Result<()> {
     schema_isolation::drop_tenant_schema(tenant_key, executor).await
 }

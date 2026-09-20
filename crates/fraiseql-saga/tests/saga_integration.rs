@@ -146,10 +146,7 @@ mod chokepoint_fixture {
     }
 
     /// Provision, then hand back the engine a saga writes through.
-    pub async fn engine(
-        adapter: Arc<PostgresAdapter>,
-        typename: &str,
-    ) -> Arc<Executor<PostgresAdapter>> {
+    pub async fn engine(adapter: Arc<PostgresAdapter>, typename: &str) -> Arc<Executor> {
         provision(&adapter, typename).await;
         Arc::new(Executor::new(entity_schema(typename), adapter))
     }
@@ -210,10 +207,7 @@ mod wired_pg {
 
     /// Build a saga store + a mutation executor over a freshly-created entity
     /// table named after `typename`.
-    async fn setup(
-        url: &str,
-        typename: &str,
-    ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
+    async fn setup(url: &str, typename: &str) -> (PostgresSagaStore, FederationMutationExecutor) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
         let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
@@ -775,10 +769,7 @@ mod recovery_pg {
 
     /// Build a saga store + a mutation executor over a freshly-created entity
     /// table named after `typename`.
-    async fn setup(
-        url: &str,
-        typename: &str,
-    ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
+    async fn setup(url: &str, typename: &str) -> (PostgresSagaStore, FederationMutationExecutor) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
         let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
@@ -1272,10 +1263,7 @@ mod coordinator_pg {
 
     /// Build a saga store + a mutation executor over a freshly-created entity
     /// table named after `typename`.
-    async fn setup(
-        url: &str,
-        typename: &str,
-    ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
+    async fn setup(url: &str, typename: &str) -> (PostgresSagaStore, FederationMutationExecutor) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
         let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
@@ -1635,10 +1623,7 @@ mod remote_dispatch_pg {
         }
     }
 
-    async fn setup(
-        url: &str,
-        typename: &str,
-    ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
+    async fn setup(url: &str, typename: &str) -> (PostgresSagaStore, FederationMutationExecutor) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
         let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
@@ -1948,10 +1933,7 @@ mod prefetch_pg {
         }
     }
 
-    async fn setup(
-        url: &str,
-        typename: &str,
-    ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
+    async fn setup(url: &str, typename: &str) -> (PostgresSagaStore, FederationMutationExecutor) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
         let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
@@ -2269,10 +2251,7 @@ mod recovery_safety_pg {
         }
     }
 
-    async fn setup(
-        url: &str,
-        typename: &str,
-    ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
+    async fn setup(url: &str, typename: &str) -> (PostgresSagaStore, FederationMutationExecutor) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
         let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
@@ -2930,10 +2909,7 @@ mod compensation_honesty_pg {
         }
     }
 
-    async fn setup(
-        url: &str,
-        typename: &str,
-    ) -> (PostgresSagaStore, FederationMutationExecutor<PostgresAdapter>) {
+    async fn setup(url: &str, typename: &str) -> (PostgresSagaStore, FederationMutationExecutor) {
         let store = PostgresSagaStore::new(url).await.unwrap();
         store.migrate_schema().await.unwrap();
         let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
@@ -3347,7 +3323,7 @@ mod wired_execution_pg {
     async fn entity_table_executor(
         url: &str,
         typename: &str,
-    ) -> (FederationMutationExecutor<PostgresAdapter>, Arc<PostgresAdapter>) {
+    ) -> (FederationMutationExecutor, Arc<PostgresAdapter>) {
         let adapter = Arc::new(PostgresAdapter::new(url).await.unwrap());
         let engine = super::chokepoint_fixture::engine(Arc::clone(&adapter), typename).await;
         let executor = FederationMutationExecutor::new(

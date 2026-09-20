@@ -2,7 +2,6 @@
 //! and admission control.
 
 use axum::{Router, middleware};
-use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::info;
 
 use super::super::{BearerAuthState, Server, api, bearer_auth_middleware};
@@ -10,10 +9,10 @@ use super::super::{BearerAuthState, Server, api, bearer_auth_middleware};
 use super::AuthPosture;
 use crate::routes::graphql::AppState;
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl Server {
     /// Mount MCP, API routes, RBAC, observer hooks, storage, functions, REST,
     /// and admission control.
-    pub(super) fn mount_extensions(&self, mut app: Router, state: &AppState<A>) -> Router {
+    pub(super) fn mount_extensions(&self, mut app: Router, state: &AppState) -> Router {
         // MCP (Model Context Protocol) route
         #[cfg(feature = "mcp")]
         if let Some(ref mcp_cfg) = self.mcp_config {
@@ -315,7 +314,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// hooks from `state` are attached so a persisted message fires its
     /// `after:ingest` functions.
     #[cfg(feature = "inbound")]
-    fn add_inbound_routes(&self, app: Router, state: &AppState<A>) -> Router {
+    fn add_inbound_routes(&self, app: Router, state: &AppState) -> Router {
         let Some(ref db_pool) = self.db_pool else {
             if !self.webhook_routes.is_empty() {
                 tracing::error!(
@@ -357,7 +356,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     fn mount_mcp(
         &self,
         mut app: Router,
-        state: &AppState<A>,
+        state: &AppState,
         mcp_cfg: &fraiseql_core::schema::McpConfig,
     ) -> Router {
         if mcp_cfg.transport == "http" || mcp_cfg.transport == "both" {

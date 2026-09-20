@@ -2,7 +2,6 @@
 
 use super::super::{Executor, MutationRoot, QueryType};
 use crate::{
-    backend::traits::DatabaseAdapter,
     error::Result,
     graphql::{operation_selection_error, parse_query_with_operation_name},
     runtime::{
@@ -11,7 +10,7 @@ use crate::{
     },
 };
 
-impl<A: DatabaseAdapter> Executor<A> {
+impl Executor {
     /// Classify a GraphQL query into its operation type for routing.
     ///
     /// This is the first phase of query execution. It determines which handler

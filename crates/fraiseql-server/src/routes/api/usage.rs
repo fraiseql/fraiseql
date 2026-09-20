@@ -35,7 +35,6 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -80,8 +79,8 @@ pub struct UsageResponse {
 ///
 /// Returns `(400, {"error": "invalid period format"})` when the `period`
 /// query parameter is not in `YYYY-MM` format.
-pub async fn usage_handler<A: DatabaseAdapter>(
-    State(state): State<AppState<A>>,
+pub async fn usage_handler(
+    State(state): State<AppState>,
     Query(params): Query<UsageQueryParams>,
 ) -> Result<Json<UsageResponse>, (StatusCode, Json<serde_json::Value>)> {
     if !validate_period(&params.period) {

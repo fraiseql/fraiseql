@@ -3,10 +3,7 @@
 //! Provides FraiseQL-calibrated design quality analysis for schemas.
 
 use axum::{Json, extract::State};
-use fraiseql_core::{
-    db::traits::DatabaseAdapter,
-    design::{DesignAudit, IssueSeverity},
-};
+use fraiseql_core::design::{DesignAudit, IssueSeverity};
 use serde::{Deserialize, Serialize};
 
 use crate::routes::{
@@ -78,8 +75,8 @@ pub struct DesignAuditResponse {
 /// # Errors
 ///
 /// Returns `ApiError` with a parse error if the schema JSON is invalid.
-pub async fn federation_audit_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+pub async fn federation_audit_handler(
+    State(_state): State<AppState>,
     Json(req): Json<DesignAuditRequest>,
 ) -> std::result::Result<Json<ApiResponse<CategoryAuditResponse>>, ApiError> {
     let audit = DesignAudit::from_schema_json(&req.schema.to_string())
@@ -114,8 +111,8 @@ pub async fn federation_audit_handler<A: DatabaseAdapter>(
 /// # Errors
 ///
 /// Returns `ApiError` with a parse error if the schema JSON is invalid.
-pub async fn cost_audit_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+pub async fn cost_audit_handler(
+    State(_state): State<AppState>,
     Json(req): Json<DesignAuditRequest>,
 ) -> std::result::Result<Json<ApiResponse<CategoryAuditResponse>>, ApiError> {
     let audit = DesignAudit::from_schema_json(&req.schema.to_string())
@@ -150,8 +147,8 @@ pub async fn cost_audit_handler<A: DatabaseAdapter>(
 /// # Errors
 ///
 /// Returns `ApiError` with a parse error if the schema JSON is invalid.
-pub async fn cache_audit_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+pub async fn cache_audit_handler(
+    State(_state): State<AppState>,
     Json(req): Json<DesignAuditRequest>,
 ) -> std::result::Result<Json<ApiResponse<CategoryAuditResponse>>, ApiError> {
     let audit = DesignAudit::from_schema_json(&req.schema.to_string())
@@ -186,8 +183,8 @@ pub async fn cache_audit_handler<A: DatabaseAdapter>(
 /// # Errors
 ///
 /// Returns `ApiError` with a parse error if the schema JSON is invalid.
-pub async fn auth_audit_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+pub async fn auth_audit_handler(
+    State(_state): State<AppState>,
     Json(req): Json<DesignAuditRequest>,
 ) -> std::result::Result<Json<ApiResponse<CategoryAuditResponse>>, ApiError> {
     let audit = DesignAudit::from_schema_json(&req.schema.to_string())
@@ -222,8 +219,8 @@ pub async fn auth_audit_handler<A: DatabaseAdapter>(
 /// # Errors
 ///
 /// Returns `ApiError` with a parse error if the schema JSON is invalid.
-pub async fn compilation_audit_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+pub async fn compilation_audit_handler(
+    State(_state): State<AppState>,
     Json(req): Json<DesignAuditRequest>,
 ) -> std::result::Result<Json<ApiResponse<CategoryAuditResponse>>, ApiError> {
     let audit = DesignAudit::from_schema_json(&req.schema.to_string())
@@ -258,8 +255,8 @@ pub async fn compilation_audit_handler<A: DatabaseAdapter>(
 /// # Errors
 ///
 /// Returns `ApiError` with a parse error if the schema JSON is invalid.
-pub async fn overall_design_audit_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+pub async fn overall_design_audit_handler(
+    State(_state): State<AppState>,
     Json(req): Json<DesignAuditRequest>,
 ) -> std::result::Result<Json<ApiResponse<DesignAuditResponse>>, ApiError> {
     let audit = DesignAudit::from_schema_json(&req.schema.to_string())

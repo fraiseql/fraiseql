@@ -32,7 +32,7 @@ mod storage_policy_admin_tests;
 use std::sync::Arc;
 
 use axum::{Router, middleware::from_fn_with_state};
-use fraiseql_core::{db::traits::DatabaseAdapter, security::OidcValidator};
+use fraiseql_core::security::OidcValidator;
 use tracing::info;
 
 use super::{OidcAuthState, Server, oidc_auth_middleware};
@@ -59,7 +59,7 @@ pub(super) enum AuthPosture {
     Authenticated,
 }
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl Server {
     /// Attach the deployment's configured authentication layer to `router`.
     ///
     /// This is the single place any data-serving transport acquires authentication.
@@ -111,7 +111,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     }
 }
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl Server {
     /// Build an [`OidcAuthState`] for `validator`, attaching the configured
     /// token-revocation manager (if any) so revoked tokens are rejected on **every**
     /// authenticated route (H8).
@@ -147,7 +147,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     ///
     /// The returned `AppState` is needed by the lifecycle module for
     /// SIGUSR1 schema reload handling.
-    pub(super) fn build_router(&self) -> (Router, AppState<A>) {
+    pub(super) fn build_router(&self) -> (Router, AppState) {
         let state = self.build_app_state();
 
         // Build GraphQL route (possibly with auth + Content-Type enforcement).

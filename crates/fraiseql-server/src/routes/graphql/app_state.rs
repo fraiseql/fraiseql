@@ -5,7 +5,6 @@ use std::{path::PathBuf, sync::Arc};
 use arc_swap::ArcSwap;
 use fraiseql_core::{
     apq::{ApqMetrics, ArcApqStorage},
-    db::traits::DatabaseAdapter,
     runtime::Executor,
     schema::CompiledSchema,
     security::IntrospectionPolicy,
@@ -22,9 +21,9 @@ use crate::{
 
 /// Server state containing executor and configuration.
 #[derive(Clone)]
-pub struct AppState<A: DatabaseAdapter> {
+pub struct AppState {
     /// Query executor (atomically swappable for schema hot-reload).
-    pub executor: Arc<ArcSwap<Executor<A>>>,
+    pub executor: Arc<ArcSwap<Executor>>,
     /// Metrics collector.
     pub metrics: Arc<MetricsCollector>,
     /// Query result cache (optional).
@@ -136,12 +135,12 @@ pub struct AppState<A: DatabaseAdapter> {
     /// When `Some`, the server operates in multi-tenant mode: each request's
     /// tenant key selects an executor from this registry. When `None`,
     /// single-tenant mode is in effect and all requests use `self.executor`.
-    pub tenant_registry: Option<Arc<TenantExecutorRegistry<A>>>,
+    pub tenant_registry: Option<Arc<TenantExecutorRegistry>>,
     /// Factory for creating tenant executors from schema JSON + pool config.
     ///
     /// Type-erased so that the management API handler does not need
     /// `A: FromPoolConfig` on its generic bounds.
-    pub tenant_executor_factory: Option<crate::tenancy::TenantExecutorFactory<A>>,
+    pub tenant_executor_factory: Option<crate::tenancy::TenantExecutorFactory>,
     /// Domain-to-tenant mapping for Host header-based tenant resolution.
     pub domain_registry: Arc<DomainRegistry>,
     /// Tenant audit log (optional, for lifecycle event recording).
@@ -204,10 +203,10 @@ pub struct AppState<A: DatabaseAdapter> {
     pub idempotency_store: Arc<dyn crate::routes::idempotency::IdempotencyStore>,
 }
 
-impl<A: DatabaseAdapter> AppState<A> {
+impl AppState {
     /// Create new application state.
     #[must_use]
-    pub fn new(executor: Arc<Executor<A>>) -> Self {
+    pub fn new(executor: Arc<Executor>) -> Self {
         Self {
             executor: Arc::new(ArcSwap::from(executor)),
             metrics: Arc::new(MetricsCollector::new()),
@@ -306,7 +305,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     /// Returns a guard that keeps the executor alive for the duration of the
     /// request. This is wait-free (no lock).
     #[must_use]
-    pub fn executor(&self) -> arc_swap::Guard<Arc<Executor<A>>> {
+    pub fn executor(&self) -> arc_swap::Guard<Arc<Executor>> {
         self.executor.load()
     }
 
@@ -314,7 +313,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     ///
     /// In-flight requests that already called `executor()` continue using
     /// the old executor until their guard is dropped.
-    pub fn swap_executor(&self, new_executor: Arc<Executor<A>>) {
+    pub fn swap_executor(&self, new_executor: Arc<Executor>) {
         self.executor.store(new_executor);
     }
 
@@ -331,7 +330,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     pub fn executor_for_tenant(
         &self,
         tenant_key: Option<&str>,
-    ) -> fraiseql_error::Result<arc_swap::Guard<Arc<Executor<A>>>> {
+    ) -> fraiseql_error::Result<arc_swap::Guard<Arc<Executor>>> {
         match &self.tenant_registry {
             Some(registry) => registry.executor_for(tenant_key),
             None => Ok(self.executor()),
@@ -340,14 +339,14 @@ impl<A: DatabaseAdapter> AppState<A> {
 
     /// Attach a multi-tenant executor registry.
     #[must_use]
-    pub fn with_tenant_registry(mut self, registry: Arc<TenantExecutorRegistry<A>>) -> Self {
+    pub fn with_tenant_registry(mut self, registry: Arc<TenantExecutorRegistry>) -> Self {
         self.tenant_registry = Some(registry);
         self
     }
 
     /// Get the tenant registry if multi-tenant mode is enabled.
     #[must_use]
-    pub const fn tenant_registry(&self) -> Option<&Arc<TenantExecutorRegistry<A>>> {
+    pub const fn tenant_registry(&self) -> Option<&Arc<TenantExecutorRegistry>> {
         self.tenant_registry.as_ref()
     }
 
@@ -355,7 +354,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[must_use]
     pub fn with_tenant_executor_factory(
         mut self,
-        factory: crate::tenancy::TenantExecutorFactory<A>,
+        factory: crate::tenancy::TenantExecutorFactory,
     ) -> Self {
         self.tenant_executor_factory = Some(factory);
         self
@@ -363,9 +362,7 @@ impl<A: DatabaseAdapter> AppState<A> {
 
     /// Get the tenant executor factory if configured.
     #[must_use]
-    pub const fn tenant_executor_factory(
-        &self,
-    ) -> Option<&crate::tenancy::TenantExecutorFactory<A>> {
+    pub const fn tenant_executor_factory(&self) -> Option<&crate::tenancy::TenantExecutorFactory> {
         self.tenant_executor_factory.as_ref()
     }
 
@@ -582,7 +579,7 @@ impl<A: DatabaseAdapter> AppState<A> {
 
     /// Create new application state with custom metrics collector.
     #[must_use]
-    pub fn with_metrics(executor: Arc<Executor<A>>, metrics: Arc<MetricsCollector>) -> Self {
+    pub fn with_metrics(executor: Arc<Executor>, metrics: Arc<MetricsCollector>) -> Self {
         Self::new(executor).set_metrics(metrics)
     }
 
@@ -590,7 +587,7 @@ impl<A: DatabaseAdapter> AppState<A> {
     #[cfg(feature = "arrow")]
     #[must_use]
     pub fn with_cache(
-        executor: Arc<Executor<A>>,
+        executor: Arc<Executor>,
         cache: Arc<fraiseql_arrow::cache::QueryCache>,
     ) -> Self {
         Self::new(executor).set_cache(cache)

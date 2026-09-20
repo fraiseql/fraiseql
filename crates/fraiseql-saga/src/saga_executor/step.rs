@@ -1,7 +1,6 @@
 //! Single-step execution for saga forward phase.
 
 use ::tracing::warn;
-use fraiseql_db::traits::{DatabaseAdapter, SupportsMutations};
 use reqwest::Url;
 
 use super::{SagaExecutor, StepExecutionResult, forward};
@@ -28,8 +27,8 @@ impl SagaExecutor {
     /// (`create`/`update`/`delete`), which the name-driven `determine_mutation_type`
     /// also resolves for the local path. A mutation `Err` (local or remote) becomes a
     /// real `success: false` step, never fabricated success (audit H32).
-    pub(crate) async fn dispatch_step<A: DatabaseAdapter + SupportsMutations>(
-        mutation_executor: &FederationMutationExecutor<A>,
+    pub(crate) async fn dispatch_step(
+        mutation_executor: &FederationMutationExecutor,
         step: &SagaStep,
         remote: Option<(&HttpMutationClient, &Url)>,
     ) -> (StepExecutionResult, StepState) {
@@ -77,9 +76,9 @@ impl SagaExecutor {
     /// compensation strategy acts on a genuine failure. With the default
     /// [`crate::saga_executor::RetryPolicy::none`] this is exactly one attempt,
     /// identical to [`Self::dispatch_step`].
-    pub(crate) async fn dispatch_step_with_retry<A: DatabaseAdapter + SupportsMutations>(
+    pub(crate) async fn dispatch_step_with_retry(
         &self,
-        mutation_executor: &FederationMutationExecutor<A>,
+        mutation_executor: &FederationMutationExecutor,
         step: &SagaStep,
         remote: Option<(&HttpMutationClient, &Url)>,
     ) -> (StepExecutionResult, StepState) {
@@ -148,9 +147,9 @@ impl SagaExecutor {
     ///
     /// * `mutation_executor` - Local mutation transport for the step's subgraph
     /// * `step` - The persisted step definition (typename, mutation type, input)
-    pub async fn execute_step<A: DatabaseAdapter + SupportsMutations>(
+    pub async fn execute_step(
         &self,
-        mutation_executor: &FederationMutationExecutor<A>,
+        mutation_executor: &FederationMutationExecutor,
         step: &SagaStep,
     ) -> StepExecutionResult {
         // Direct single-step dispatch is always local; the remote-routing registry

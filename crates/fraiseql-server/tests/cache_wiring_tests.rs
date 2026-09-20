@@ -200,7 +200,7 @@ async fn test_server_new_wraps_adapter_successfully() {
     };
 
     // This compiles and runs only if Server::new correctly returns
-    // Server<CachedDatabaseAdapter<CountingAdapter>>.
+    // Server.
     let _server = Server::new(config, schema, Arc::new(adapter), None)
         .await
         .expect("Server::new must succeed when adapter satisfies bounds");
@@ -263,13 +263,10 @@ async fn post_graphql(port: u16, body: &str) -> String {
 /// Serve `server` on an ephemeral port, issue the same query twice, and return the
 /// adapter call count plus the first response body.
 #[cfg(feature = "arrow")]
-async fn count_adapter_calls_for_two_identical_queries<A>(
-    server: Server<A>,
+async fn count_adapter_calls_for_two_identical_queries(
+    server: Server,
     counter: &Arc<AtomicU64>,
-) -> (u64, String)
-where
-    A: fraiseql_core::db::DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+) -> (u64, String) {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let port = listener.local_addr().expect("local addr").port();
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();

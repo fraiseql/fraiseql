@@ -10,10 +10,7 @@
 use std::collections::BTreeMap;
 
 use axum::{Json, extract::State};
-use fraiseql_core::{
-    db::traits::DatabaseAdapter,
-    schema::{CompiledSchema, FieldDenyPolicy},
-};
+use fraiseql_core::schema::{CompiledSchema, FieldDenyPolicy};
 use serde::Serialize;
 
 use crate::routes::{api::types::ApiResponse, graphql::AppState};
@@ -83,8 +80,8 @@ pub struct MetadataResponse {
 /// map and returns it as a JSON object.
 ///
 /// The handler is infallible — the schema is always present in `AppState`.
-pub async fn metadata_handler<A: DatabaseAdapter>(
-    State(state): State<AppState<A>>,
+pub async fn metadata_handler(
+    State(state): State<AppState>,
 ) -> Json<ApiResponse<MetadataResponse>> {
     let metadata = flatten_field_metadata(state.executor().schema());
     Json(ApiResponse {

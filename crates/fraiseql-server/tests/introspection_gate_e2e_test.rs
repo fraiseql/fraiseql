@@ -43,9 +43,7 @@ fn router_with_policy(policy: IntrospectionPolicy) -> Router {
     let adapter = Arc::new(FailingAdapter::new());
     let state =
         AppState::new(Arc::new(Executor::new(schema, adapter))).with_introspection_policy(policy);
-    Router::new()
-        .route("/graphql", post(graphql_handler::<FailingAdapter>))
-        .with_state(state)
+    Router::new().route("/graphql", post(graphql_handler)).with_state(state)
 }
 
 /// `/graphql` over an empty schema with the *default* `AppState` — no explicit
@@ -54,9 +52,7 @@ fn default_router() -> Router {
     let schema = CompiledSchema::new();
     let adapter = Arc::new(FailingAdapter::new());
     let state = AppState::new(Arc::new(Executor::new(schema, adapter)));
-    Router::new()
-        .route("/graphql", post(graphql_handler::<FailingAdapter>))
-        .with_state(state)
+    Router::new().route("/graphql", post(graphql_handler)).with_state(state)
 }
 
 /// An authenticated principal, as the OIDC middleware would deposit in the

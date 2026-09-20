@@ -14,7 +14,6 @@ pub mod streaming;
 use std::{convert::Infallible, sync::Arc};
 
 use fraiseql_core::{
-    db::{SupportsMutations, traits::DatabaseAdapter},
     schema::CompiledSchema,
     security::{OidcValidator, SecurityContext},
 };
@@ -35,9 +34,9 @@ use crate::middleware::RateLimiter;
 ///
 /// Contains the dynamic gRPC service, optional descriptor bytes for
 /// reflection, and the fully-qualified service name.
-pub struct GrpcServices<A: DatabaseAdapter> {
+pub struct GrpcServices {
     /// The dynamic gRPC service that dispatches RPCs.
-    pub service:                     DynamicGrpcService<A>,
+    pub service:                     DynamicGrpcService,
     /// Raw `FileDescriptorSet` bytes for building reflection at serve time.
     /// Present when `GrpcConfig.reflection` is true.
     pub reflection_descriptor_bytes: Option<Vec<u8>>,
@@ -55,14 +54,14 @@ pub struct GrpcServices<A: DatabaseAdapter> {
 /// Unlike generated tonic services, this service is constructed at runtime from
 /// a [`DescriptorPool`] loaded from the `descriptor.binpb` file produced by
 /// `fraiseql-cli generate-proto`.
-pub struct DynamicGrpcService<A: DatabaseAdapter> {
+pub struct DynamicGrpcService {
     /// The **configured** executor — every read and every write (#1330, #1351).
     ///
     /// Supplied by the caller rather than built here: `Executor::new` would use
     /// `RuntimeConfig::default()`, so the `Authorizer`, the RLS policy and the
     /// `before:mutation` gate would all be absent — the transport would converge
     /// at the chokepoint and find half the gates missing, which is #1333's shape.
-    executor:          Arc<fraiseql_core::runtime::Executor<A>>,
+    executor:          Arc<fraiseql_core::runtime::Executor>,
     /// Compiled schema (for type lookups during request processing).
     schema:            Arc<CompiledSchema>,
     /// RPC method → operation metadata dispatch table.
@@ -87,7 +86,7 @@ pub struct DynamicGrpcService<A: DatabaseAdapter> {
     identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
 }
 
-impl<A: DatabaseAdapter> Clone for DynamicGrpcService<A> {
+impl Clone for DynamicGrpcService {
     fn clone(&self) -> Self {
         Self {
             executor: Arc::clone(&self.executor),
@@ -103,11 +102,11 @@ impl<A: DatabaseAdapter> Clone for DynamicGrpcService<A> {
     }
 }
 
-impl<A: DatabaseAdapter> NamedService for DynamicGrpcService<A> {
+impl NamedService for DynamicGrpcService {
     const NAME: &'static str = "fraiseql.v1.FraiseQLService";
 }
 
-impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
+impl DynamicGrpcService {
     /// Handle a unary gRPC request.
     ///
     /// When an [`OidcValidator`] is configured, the handler extracts the
@@ -401,7 +400,7 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> Dyn
     }
 }
 
-impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static> DynamicGrpcService<A> {
+impl DynamicGrpcService {
     /// Extract and validate a Bearer JWT token.
     ///
     /// Returns `Ok(Some(SecurityContext))` when the token is valid,
@@ -539,9 +538,7 @@ fn grpc_error_response(code: tonic::Code, message: &str) -> http::Response<Tonic
 }
 
 /// Implement the [`tower::Service`] trait for routing gRPC requests.
-impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>
-    tower::Service<http::Request<TonicBody>> for DynamicGrpcService<A>
-{
+impl tower::Service<http::Request<TonicBody>> for DynamicGrpcService {
     type Error = Infallible;
     type Future = std::pin::Pin<
         Box<dyn std::future::Future<Output = Result<Self::Response, Self::Error>> + Send>,
@@ -595,15 +592,13 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>
 ///
 /// Returns an error if the descriptor file is invalid or the dispatch table
 /// cannot be built.
-pub fn build_grpc_service<
-    A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
->(
+pub fn build_grpc_service(
     schema: Arc<CompiledSchema>,
-    executor: Arc<fraiseql_core::runtime::Executor<A>>,
+    executor: Arc<fraiseql_core::runtime::Executor>,
     oidc_validator: Option<Arc<OidcValidator>>,
     rate_limiter: Option<Arc<RateLimiter>>,
     #[cfg(feature = "auth")] identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
-) -> Result<Option<GrpcServices<A>>, FraiseQLError> {
+) -> Result<Option<GrpcServices>, FraiseQLError> {
     let grpc_config = match schema.grpc_config.as_ref() {
         Some(cfg) if cfg.enabled => cfg,
         _ => return Ok(None),

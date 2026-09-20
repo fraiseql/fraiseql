@@ -59,7 +59,7 @@ fn success_row() -> HashMap<String, serde_json::Value> {
 fn saga_over(
     schema: CompiledSchema,
     roles: &[&str],
-) -> (FederationMutationExecutor<FailingAdapter>, Arc<FailingAdapter>) {
+) -> (FederationMutationExecutor, Arc<FailingAdapter>) {
     let adapter = Arc::new(
         FailingAdapter::new().with_function_response("fn_create_order", vec![success_row()]),
     );

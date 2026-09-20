@@ -6,7 +6,7 @@
 //! - Retrieving query statistics and performance data
 
 use axum::{Json, extract::State};
-use fraiseql_core::{db::traits::DatabaseAdapter, graphql::DEFAULT_MAX_ALIASES};
+use fraiseql_core::graphql::DEFAULT_MAX_ALIASES;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -103,8 +103,8 @@ pub struct StatsResponse {
 /// # Errors
 ///
 /// Returns `ApiError` with a validation error if the query string is empty.
-pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn explain_handler(
+    State(state): State<AppState>,
     Json(req): Json<ExplainRequest>,
 ) -> Result<Json<ApiResponse<ExplainResponse>>, ApiError> {
     // Validate query is not empty
@@ -188,8 +188,8 @@ pub async fn explain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>
 /// # Errors
 ///
 /// This handler always succeeds; validation errors are reported inside the response body.
-pub async fn validate_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+pub async fn validate_handler(
+    State(_state): State<AppState>,
     Json(req): Json<ValidateRequest>,
 ) -> Result<Json<ApiResponse<ValidateResponse>>, ApiError> {
     if req.query.trim().is_empty() {
@@ -232,8 +232,8 @@ pub async fn validate_handler<A: DatabaseAdapter>(
 /// # Errors
 ///
 /// This handler is infallible.
-pub async fn stats_handler<A: DatabaseAdapter>(
-    State(state): State<AppState<A>>,
+pub async fn stats_handler(
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<StatsResponse>>, ApiError> {
     // Get metrics from the metrics collector using atomic operations
     let total_queries = state.metrics.queries_total.load(std::sync::atomic::Ordering::Relaxed);

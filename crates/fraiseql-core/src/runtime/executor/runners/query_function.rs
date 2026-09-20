@@ -33,13 +33,13 @@ use tracing::debug;
 
 use super::query::QueryRunner;
 use crate::{
-    backend::{traits::DatabaseAdapter, types::JsonbValue},
+    backend::types::JsonbValue,
     error::{FraiseQLError, Result},
     runtime::{QueryFunctionRequest, ResultProjector, matcher::QueryMatch},
     security::SecurityContext,
 };
 
-impl<A: DatabaseAdapter> QueryRunner<A> {
+impl QueryRunner {
     /// Answer a root query field from the function it declares (#1329).
     ///
     /// The caller has already matched the query and enforced `requires_role` and

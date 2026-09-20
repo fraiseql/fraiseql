@@ -126,11 +126,10 @@
   │    compilation_cache  Incremental cache
   │
   ├─ runtime/             Query execution engine
-  │    executor/          Executor<A: DatabaseAdapter>
+  │    executor/          Executor (adapter erased behind the context)
   │      query.rs         SELECT execution + JSONB strategy dispatch
   │      mutation.rs      Mutation execution
   │      tests.rs         Executor unit tests
-  │    executor_adapter.rs ExecutorAdapter trait
   │    planner.rs         Query plan builder (JsonbStrategy selection)
   │    jsonb_strategy.rs  Project | Stream strategy
   │    input_validator.rs Input validation

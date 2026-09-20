@@ -88,7 +88,7 @@ fn make_mcp_config() -> McpConfig {
     }
 }
 
-fn make_service() -> FraiseQLMcpService<FailingAdapter> {
+fn make_service() -> FraiseQLMcpService {
     let schema = build_test_schema();
     let adapter = Arc::new(FailingAdapter::new());
     let executor = Arc::new(Executor::new(schema, adapter));
@@ -97,9 +97,9 @@ fn make_service() -> FraiseQLMcpService<FailingAdapter> {
 /// Assemble the call context for [`call_tool`].
 fn call_ctx<'a>(
     schema: &'a CompiledSchema,
-    executor: &'a Executor<FailingAdapter>,
+    executor: &'a Executor,
     config: &'a McpConfig,
-) -> McpCallContext<'a, FailingAdapter> {
+) -> McpCallContext<'a> {
     McpCallContext {
         schema,
         executor,
@@ -112,7 +112,7 @@ fn call_ctx<'a>(
 static SANITIZER: std::sync::LazyLock<ErrorSanitizer> =
     std::sync::LazyLock::new(ErrorSanitizer::disabled);
 
-fn make_executor() -> (CompiledSchema, Arc<Executor<FailingAdapter>>) {
+fn make_executor() -> (CompiledSchema, Arc<Executor>) {
     let schema = build_test_schema();
     let adapter = Arc::new(FailingAdapter::new());
     let executor = Arc::new(Executor::new(schema.clone(), adapter));

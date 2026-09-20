@@ -10,7 +10,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use arc_swap::ArcSwap;
-use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, schema::SourceDefinition};
+use fraiseql_core::{runtime::Executor, schema::SourceDefinition};
 use fraiseql_functions::{
     FunctionModule, ResourceLimits,
     host::live::{HostContextConfig, QueryExecutor},
@@ -133,10 +133,10 @@ fn schedulable<'a>(
 // Reason: a wiring seam whose args are each a distinct runtime collaborator; a
 // params struct would relocate the same fields without reducing coupling.
 #[allow(clippy::too_many_arguments)]
-pub fn build_source_pollers<A: DatabaseAdapter + Send + Sync + 'static>(
+pub fn build_source_pollers(
     sources: &[SourceDefinition],
     db_pool: &sqlx::PgPool,
-    executor: &Arc<ArcSwap<Executor<A>>>,
+    executor: &Arc<ArcSwap<Executor>>,
     hooks: &BeforeMutationHooks,
     host_config: &HostContextConfig,
     limits: &ResourceLimits,

@@ -96,7 +96,7 @@ fn schema() -> CompiledSchema {
     schema
 }
 
-async fn executor() -> Option<Executor<PostgresAdapter>> {
+async fn executor() -> Option<Executor> {
     let pg = fraiseql_test_support::postgres().await?;
     let adapter = PostgresAdapter::new(pg.url()).await.expect("connect to the bound PostgreSQL");
     for stmt in FIXTURE.split(";\n") {

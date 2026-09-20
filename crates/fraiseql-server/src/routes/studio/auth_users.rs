@@ -9,7 +9,6 @@ use axum::{
     extract::{Path, State},
     response::{IntoResponse, Response},
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
 
 use crate::routes::{graphql::app_state::AppState, studio::not_implemented};
@@ -88,10 +87,7 @@ pub struct UserInviteResponse {
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
 /// Returns `501` — see above.
-pub async fn list_users_handler<A>(State(_state): State<AppState<A>>) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+pub async fn list_users_handler(State(_state): State<AppState>) -> Response {
     not_implemented(
         "studio.users.list",
         "FraiseQL does not maintain a user directory; identities are owned by the \
@@ -108,13 +104,10 @@ where
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
 /// Returns `501` — see above.
-pub async fn invite_user_handler<A>(
-    State(_state): State<AppState<A>>,
+pub async fn invite_user_handler(
+    State(_state): State<AppState>,
     Json(_req): Json<UserInviteRequest>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+) -> Response {
     not_implemented(
         "studio.users.invite",
         "No invitation subsystem is wired: FraiseQL does not send magic links. Invite \
@@ -141,13 +134,10 @@ where
 /// Returns `401` without valid admin credentials (enforced by middleware).
 /// Returns `501` when no revocation store is configured.
 /// Returns `500` when the revocation store rejects the write.
-pub async fn revoke_user_handler<A>(
+pub async fn revoke_user_handler(
     Path(user_id): Path<String>,
-    State(state): State<AppState<A>>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+    State(state): State<AppState>,
+) -> Response {
     let Some(manager) = state.revocation_manager.as_ref() else {
         return not_implemented(
             "studio.users.revoke",
@@ -183,13 +173,10 @@ where
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
 /// Returns `501` — MFA enrollment state is not exposed through the admin API.
-pub async fn mfa_status_handler<A>(
+pub async fn mfa_status_handler(
     Path(_user_id): Path<String>,
-    State(_state): State<AppState<A>>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+    State(_state): State<AppState>,
+) -> Response {
     not_implemented(
         "studio.users.mfa",
         "MFA enrollment state is not exposed through the admin API.",

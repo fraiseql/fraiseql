@@ -224,7 +224,7 @@ async fn mutation_invalidates_listed_views_in_cache() {
     let inner = InnerMockAdapter::with_row(order_success_row());
     let cached_adapter = Arc::new(CachedDatabaseAdapter::new(inner, cache, "test-v1".to_string()));
 
-    // Executor<CachedDatabaseAdapter<InnerMockAdapter>> — concrete, Sized.
+    // Executor — concrete, Sized.
     let executor = Executor::new(schema, Arc::clone(&cached_adapter));
 
     let ctx = admin_security_context();

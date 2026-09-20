@@ -5,7 +5,6 @@
 //! the existing `Executor`.
 
 use fraiseql_core::{
-    db::traits::DatabaseAdapter,
     runtime::Executor,
     schema::{CompiledSchema, FieldType, McpConfig},
     security::SecurityContext,
@@ -20,11 +19,11 @@ use crate::config::error_sanitization::ErrorSanitizer;
 /// necessarily the one the session was constructed with; `schema` stays the
 /// schema the tool list was advertised from, so an operation can only be reached
 /// if it was advertised.
-pub struct McpCallContext<'a, A: DatabaseAdapter> {
+pub struct McpCallContext<'a> {
     /// The schema the advertised tool list was built from.
     pub schema:           &'a CompiledSchema,
     /// The executor this call must run on.
-    pub executor:         &'a Executor<A>,
+    pub executor:         &'a Executor,
     /// The `[mcp]` configuration, including the tool allowlist.
     pub config:           &'a McpConfig,
     /// The validated caller, when the transport supplied one.
@@ -45,10 +44,10 @@ pub struct McpCallContext<'a, A: DatabaseAdapter> {
 /// running such a query without a security context would bypass tenant
 /// isolation. Non-RLS schemas with `require_auth = false` continue to run
 /// unauthenticated (development convenience).
-pub async fn call_tool<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+pub async fn call_tool(
     tool_name: &str,
     arguments: Option<&serde_json::Map<String, serde_json::Value>>,
-    ctx: &McpCallContext<'_, A>,
+    ctx: &McpCallContext<'_>,
 ) -> CallToolResult {
     let operation = match build_operation(tool_name, arguments, ctx.schema, ctx.config) {
         Ok(op) => op,

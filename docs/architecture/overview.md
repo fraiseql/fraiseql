@@ -25,7 +25,7 @@ FraiseQL v2 achieves four goals simultaneously:
 ├─────────────────────────────────────────────────────────────┤
 │  fraiseql-core/           Pure GraphQL execution engine     │
 │  ├── schema/              Compiled schema representation    │
-│  ├── runtime/             Executor<DatabaseAdapter>         │
+│  ├── runtime/             Executor (adapter-erased)         │
 │  ├── db/                  PostgreSQL adapter                │
 │  └── graphql/             Query parsing & projection        │
 └─────────────────────────────────────────────────────────────┘

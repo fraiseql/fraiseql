@@ -856,11 +856,12 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     ///
     /// ⚠ The two layers are not equally safe, and the difference decides what a
     /// forgetful adapter author gets. [`SupportsMutations`] is **opt-in**: an adapter
-    /// that says nothing cannot reach `Executor`'s write entries at all. This method is
-    /// **opt-out**: an adapter that says nothing is granted writes. So this one is a
-    /// backstop behind the marker rather than a replacement for it. Both now fail closed:
-    /// an adapter that implements neither is refused writes at compile time by the marker
-    /// and at runtime by this method.
+    /// that says nothing cannot be used to construct a write-capable executor at all.
+    /// This method is **opt-out**: an adapter that says nothing is granted writes. So
+    /// this one is a backstop behind the marker rather than a replacement for it. Both
+    /// now fail closed: an adapter that implements neither is refused at construction by
+    /// the marker and, if it somehow reached one, at dispatch by this method — the
+    /// executor's write handle is populated only where the two agree.
     ///
     /// # Default
     ///

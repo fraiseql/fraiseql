@@ -1,7 +1,7 @@
 //! Type-erased relay cursor dispatch.
 //!
 //! `RelayDispatch` is a private type-erased relay executor stored as
-//! `Option<Arc<dyn RelayDispatch>>` in `Executor<A>`.  It is populated at
+//! `Option<Arc<dyn RelayDispatch>>` in `Executor`.  It is populated at
 //! construction time only when `A: RelayDatabaseAdapter`, giving us:
 //!
 //!  - No `unreachable!()` in non-relay adapters.

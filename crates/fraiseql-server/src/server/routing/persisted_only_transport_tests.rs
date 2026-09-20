@@ -16,7 +16,7 @@
 use std::sync::Arc;
 
 use axum::body::Body;
-use fraiseql_core::{cache::CachedDatabaseAdapter, schema::CompiledSchema};
+use fraiseql_core::schema::CompiledSchema;
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use http::{Request, StatusCode};
 use tower::ServiceExt;
@@ -28,9 +28,7 @@ const PERSISTED_DOC: &str = "{ users { id } }";
 
 /// Build a server whose compiled schema declares `persisted_queries_only` with
 /// a real manifest file, exactly as an operator would ship it.
-async fn persisted_only_server(
-    dir: &tempfile::TempDir,
-) -> Server<CachedDatabaseAdapter<FailingAdapter>> {
+async fn persisted_only_server(dir: &tempfile::TempDir) -> Server {
     use sha2::Digest as _;
     let hash = hex::encode(sha2::Sha256::digest(PERSISTED_DOC.as_bytes()));
     let manifest = serde_json::json!({
@@ -64,10 +62,7 @@ async fn persisted_only_server(
 }
 
 /// Status of one ad-hoc request at the real router.
-async fn adhoc_status(
-    server: &Server<CachedDatabaseAdapter<FailingAdapter>>,
-    method: &str,
-) -> StatusCode {
+async fn adhoc_status(server: &Server, method: &str) -> StatusCode {
     let state = server.build_app_state();
     let app = server.build_graphql_router(&state);
     let request = if method == "GET" {

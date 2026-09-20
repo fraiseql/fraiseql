@@ -23,7 +23,7 @@ use axum::{
     extract::{Extension, State},
 };
 use fraiseql_core::{
-    db::{AdminSqlOutcome, AdminSqlRequest, traits::DatabaseAdapter},
+    db::{AdminSqlOutcome, AdminSqlRequest},
     security::{AuthenticatedUser, SecurityContext},
     types::UserId,
 };
@@ -53,10 +53,10 @@ const AUDIT_SQL_PREVIEW_BYTES: usize = 1024;
 /// by one call site under three conditions, and the config it enforces should
 /// not be reachable — or forgettable — from handlers that are not it.
 #[derive(Clone)]
-pub struct AdminSqlState<A: DatabaseAdapter> {
+pub struct AdminSqlState {
     /// The server's shared state; the console reads the executor's adapter and
     /// the compiled schema's session-variable mappings from it.
-    pub app:    AppState<A>,
+    pub app:    AppState,
     /// The `[admin_sql]` section, already validated at boot.
     pub config: AdminSqlConfig,
 }
@@ -158,8 +158,8 @@ pub struct AdminSqlResponse {
 ///   privileged one on the server.
 ///
 /// Requires an admin token; which one decides whether writes are possible at all.
-pub async fn admin_sql_handler<A: DatabaseAdapter + 'static>(
-    State(state): State<AdminSqlState<A>>,
+pub async fn admin_sql_handler(
+    State(state): State<AdminSqlState>,
     caller: Option<Extension<AdminCaller>>,
     Json(body): Json<AdminSqlRequestBody>,
 ) -> Result<Json<ApiResponse<AdminSqlResponse>>, ApiError> {
@@ -283,8 +283,8 @@ struct AdminSqlRequestPlan {
 }
 
 /// Resolve the previewed session variables and run the statement.
-async fn execute<A: DatabaseAdapter + 'static>(
-    state: &AdminSqlState<A>,
+async fn execute(
+    state: &AdminSqlState,
     (bounds, plan): (AppliedBounds, AdminSqlRequestPlan),
 ) -> Result<(AppliedBounds, AdminSqlOutcome), ApiError> {
     let executor = state.app.executor();

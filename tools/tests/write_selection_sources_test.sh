@@ -40,7 +40,7 @@ fixture() {
   mkdir -p "${root}/crates/fraiseql-saga/src/saga_executor"
 
   cat > "${root}/crates/fraiseql-core/src/runtime/executor/mutation.rs" <<'RS'
-impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
+impl Executor {
     pub async fn execute_mutation(
         &self,
         mutation_name: &str,
@@ -113,7 +113,7 @@ pub async fn execute_mutation_impl(
 RS
 
   cat > "${root}/crates/fraiseql-server/src/routes/grpc/handler.rs" <<'RS'
-async fn mutate(executor: &Executor<A>, mutation_name: &str) -> Result<MutationResponse> {
+async fn mutate(executor: &Executor, mutation_name: &str) -> Result<MutationResponse> {
     let selections =
         fraiseql_core::runtime::mutation_return_selections(executor.schema(), mutation_name);
     executor

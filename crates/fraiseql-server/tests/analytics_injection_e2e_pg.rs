@@ -94,11 +94,7 @@ async fn setup() -> Option<Router> {
     schema.add_fact_table(FACT_TABLE.to_string(), sales_metadata());
 
     let state = AppState::new(Arc::new(Executor::new(schema, Arc::new(adapter))));
-    Some(
-        Router::new()
-            .route("/graphql", post(graphql_handler::<PostgresAdapter>))
-            .with_state(state),
-    )
+    Some(Router::new().route("/graphql", post(graphql_handler)).with_state(state))
 }
 
 async fn post_graphql(router: Router, body: &Value) -> (StatusCode, Value) {

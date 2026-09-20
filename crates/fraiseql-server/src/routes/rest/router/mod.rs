@@ -29,11 +29,7 @@ use axum::{
     response::{IntoResponse, Response},
     routing::{delete, get, patch, post, put},
 };
-use fraiseql_core::{
-    db::traits::{DatabaseAdapter, SupportsMutations},
-    runtime::Executor,
-    security::SecurityContext,
-};
+use fraiseql_core::{runtime::Executor, security::SecurityContext};
 use helpers::{
     error_response, parse_query_pairs, rest_result_to_response, strip_base_path, to_axum_path,
 };
@@ -90,8 +86,8 @@ pub struct RestMountConfig {
 /// # Errors
 ///
 /// Returns `None` (with a warning log) if the route table cannot be derived.
-fn derive_rest_context<A>(
-    state: &AppState<A>,
+fn derive_rest_context(
+    state: &AppState,
     // `mount` is read only by the export writers' concurrency limits below, each behind an
     // `export-*` cfg, so a `rest`-without-export build warned that it is unused (#1291).
     // Silenced on the parameter rather than by making the arity depend on features:
@@ -109,10 +105,7 @@ fn derive_rest_context<A>(
         allow(unused_variables)
     )]
     mount: &RestMountConfig,
-) -> Option<(String, Arc<RestRouteTable>, RestState<A>)>
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+) -> Option<(String, Arc<RestRouteTable>, RestState)> {
     let executor = state.executor();
     let schema = executor.schema();
 
@@ -195,10 +188,7 @@ where
 /// # Errors
 ///
 /// Returns `None` (with a warning log) if the route table cannot be derived.
-pub fn rest_query_router<A>(state: &AppState<A>, mount: &RestMountConfig) -> Option<Router>
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+pub fn rest_query_router(state: &AppState, mount: &RestMountConfig) -> Option<Router> {
     let (base_path, route_table, rest_state) = derive_rest_context(state, mount)?;
     let executor = state.executor();
     let schema = executor.schema();
@@ -213,10 +203,10 @@ where
         let axum_path = to_axum_path(&base_path, path);
         // `read_surface` yields GETs only; the SSE routes are the ones ending `/stream`.
         router = if path.ends_with("/stream") {
-            router.route(&axum_path, get(rest_sse_handler::<A>))
+            router.route(&axum_path, get(rest_sse_handler))
         } else {
             debug_assert_eq!(method, HttpMethod::Get, "read surface must be GET-only");
-            router.route(&axum_path, get(rest_get_handler::<A>))
+            router.route(&axum_path, get(rest_get_handler))
         };
     }
 
@@ -280,10 +270,7 @@ where
 /// # Errors
 ///
 /// Returns `None` (with a warning log) if the route table cannot be derived.
-pub fn rest_router<A>(state: &AppState<A>, mount: &RestMountConfig) -> Option<Router>
-where
-    A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
-{
+pub fn rest_router(state: &AppState, mount: &RestMountConfig) -> Option<Router> {
     let (base_path, route_table, rest_state) = derive_rest_context(state, mount)?;
     let executor = state.executor();
     let schema = executor.schema();
@@ -299,13 +286,13 @@ where
         let axum_path = to_axum_path(&base_path, path);
         router = match method {
             HttpMethod::Get if path.ends_with("/stream") => {
-                router.route(&axum_path, get(rest_sse_handler::<A>))
+                router.route(&axum_path, get(rest_sse_handler))
             },
-            HttpMethod::Get => router.route(&axum_path, get(rest_get_handler::<A>)),
-            HttpMethod::Post => router.route(&axum_path, post(rest_post_handler::<A>)),
-            HttpMethod::Put => router.route(&axum_path, put(rest_put_handler::<A>)),
-            HttpMethod::Patch => router.route(&axum_path, patch(rest_patch_handler::<A>)),
-            HttpMethod::Delete => router.route(&axum_path, delete(rest_delete_handler::<A>)),
+            HttpMethod::Get => router.route(&axum_path, get(rest_get_handler)),
+            HttpMethod::Post => router.route(&axum_path, post(rest_post_handler)),
+            HttpMethod::Put => router.route(&axum_path, put(rest_put_handler)),
+            HttpMethod::Patch => router.route(&axum_path, patch(rest_patch_handler)),
+            HttpMethod::Delete => router.route(&axum_path, delete(rest_delete_handler)),
         };
     }
 
@@ -357,8 +344,8 @@ where
 /// `406 Not Acceptable` rather than `404`: the resource exists and the route answers, it
 /// is the requested *representation* the server declines to produce.
 #[cfg(any(feature = "export-csv", feature = "export-xlsx"))]
-fn refuse_disabled_export<A: DatabaseAdapter>(
-    rest: &RestState<A>,
+fn refuse_disabled_export(
+    rest: &RestState,
     format: super::export_config::ExportFormat,
 ) -> Option<Response> {
     if rest.export.serves(format) {
@@ -413,8 +400,8 @@ fn serve_openapi(
 
 /// Shared state for REST handlers.
 #[derive(Clone)]
-struct RestState<A: DatabaseAdapter> {
-    executor:          Arc<Executor<A>>,
+struct RestState {
+    executor:          Arc<Executor>,
     route_table:       Arc<RestRouteTable>,
     idempotency_store: Arc<dyn super::idempotency::IdempotencyStore>,
     /// Error sanitizer (from `compiled.security.error_sanitization`). Strips raw DB/SQL
@@ -497,16 +484,13 @@ struct RestState<A: DatabaseAdapter> {
 /// does: a handler cannot hold a context this extractor did not finish building.
 struct RestSecurityContext(Option<SecurityContext>);
 
-impl<A> FromRequestParts<RestState<A>> for RestSecurityContext
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+impl FromRequestParts<RestState> for RestSecurityContext {
     type Rejection = Response;
 
     #[allow(clippy::manual_async_fn)] // Reason: axum's FromRequestParts requires an explicit Future type in return position
     fn from_request_parts(
         parts: &mut Parts,
-        state: &RestState<A>,
+        state: &RestState,
     ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
         let require_auth =
             state.executor.schema().rest_config.as_ref().is_some_and(|c| c.require_auth);
@@ -568,14 +552,11 @@ where
 /// - `Accept: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` → XLSX workbook
 ///   (with `export-xlsx` feature)
 /// - `Accept: application/json` (default) → standard envelope response
-async fn rest_get_handler<A>(
-    State(rest): State<RestState<A>>,
+async fn rest_get_handler(
+    State(rest): State<RestState>,
     RestSecurityContext(security_ctx): RestSecurityContext,
     request: Request<Body>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+) -> Response {
     let (parts, _body) = request.into_parts();
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
     let query_string = parts.uri.query().unwrap_or("");
@@ -727,14 +708,11 @@ where
 }
 
 /// POST handler — create mutation or custom action.
-async fn rest_post_handler<A>(
-    State(rest): State<RestState<A>>,
+async fn rest_post_handler(
+    State(rest): State<RestState>,
     RestSecurityContext(security_ctx): RestSecurityContext,
     request: Request<Body>,
-) -> Response
-where
-    A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
-{
+) -> Response {
     let (parts, body) = request.into_parts();
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
 
@@ -757,14 +735,11 @@ where
 }
 
 /// PUT handler — full update mutation.
-async fn rest_put_handler<A>(
-    State(rest): State<RestState<A>>,
+async fn rest_put_handler(
+    State(rest): State<RestState>,
     RestSecurityContext(security_ctx): RestSecurityContext,
     request: Request<Body>,
-) -> Response
-where
-    A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
-{
+) -> Response {
     let (parts, body) = request.into_parts();
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
 
@@ -786,14 +761,11 @@ where
 }
 
 /// PATCH handler — partial update mutation or bulk update.
-async fn rest_patch_handler<A>(
-    State(rest): State<RestState<A>>,
+async fn rest_patch_handler(
+    State(rest): State<RestState>,
     RestSecurityContext(security_ctx): RestSecurityContext,
     request: Request<Body>,
-) -> Response
-where
-    A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
-{
+) -> Response {
     let (parts, body) = request.into_parts();
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
     let query_string = parts.uri.query().unwrap_or("");
@@ -825,14 +797,11 @@ where
 }
 
 /// DELETE handler — single-resource delete or bulk delete.
-async fn rest_delete_handler<A>(
-    State(rest): State<RestState<A>>,
+async fn rest_delete_handler(
+    State(rest): State<RestState>,
     RestSecurityContext(security_ctx): RestSecurityContext,
     request: Request<Body>,
-) -> Response
-where
-    A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
-{
+) -> Response {
     let (parts, _body) = request.into_parts();
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
     let query_string = parts.uri.query().unwrap_or("");
@@ -871,15 +840,12 @@ where
 /// A database error resolving any of this is a refusal too, not a fresh stream: falling
 /// back to "events from now on" is precisely the silent gap being refused.
 #[cfg(feature = "observers")]
-async fn resume_state<A>(
-    rest: &RestState<A>,
+async fn resume_state(
+    rest: &RestState,
     entity_type: &str,
     tenant: &fraiseql_observers::transport::TenantScope,
     resume: super::sse::ResumeRequest,
-) -> Result<Option<super::resumable_stream::ResumeState>, super::handler::RestError>
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+) -> Result<Option<super::resumable_stream::ResumeState>, super::handler::RestError> {
     use fraiseql_observers::listener::ResumeAnchor;
 
     let super::sse::ResumeRequest::From(seq) = resume else {
@@ -942,8 +908,8 @@ where
 ///
 /// The body reads it as well, since #1113: it scopes the event subscription to the
 /// caller's tenant. Before that it was bound as `_security_ctx` and discarded.
-async fn rest_sse_handler<A>(
-    State(rest): State<RestState<A>>,
+async fn rest_sse_handler(
+    State(rest): State<RestState>,
     // Read only by the live-event branch below, which is `observers`-gated, so a
     // `rest`-without-`observers` build warns that it is unused — a warning preflight
     // cannot see, because it lints `--all-features` (the `server-rest` feature-matrix
@@ -956,10 +922,7 @@ async fn rest_sse_handler<A>(
     #[cfg_attr(not(feature = "observers"), allow(unused_variables))]
     RestSecurityContext(security_ctx): RestSecurityContext,
     request: Request<Body>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+) -> Response {
     let (parts, _body) = request.into_parts();
     let relative_path = strip_base_path(&rest.route_table.base_path, parts.uri.path());
 

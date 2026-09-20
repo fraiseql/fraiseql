@@ -7,7 +7,6 @@
 use std::sync::atomic::Ordering;
 
 use axum::{Json, extract::State, response::IntoResponse};
-use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
 
 use crate::{metrics_server::MetricsCollector, routes::graphql::app_state::AppState};
@@ -132,10 +131,7 @@ impl MetricsSummary {
 /// # Errors
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
-pub async fn summary_handler<A>(State(state): State<AppState<A>>) -> impl IntoResponse
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+pub async fn summary_handler(State(state): State<AppState>) -> impl IntoResponse {
     Json(build_summary(&state.metrics))
 }
 

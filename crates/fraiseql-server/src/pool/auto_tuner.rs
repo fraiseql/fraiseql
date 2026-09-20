@@ -12,7 +12,7 @@ use std::{
     time::Duration,
 };
 
-use fraiseql_core::db::{traits::DatabaseAdapter, types::PoolMetrics};
+use fraiseql_core::db::types::PoolMetrics;
 
 use crate::config::pool_tuning::PoolPressureMonitorConfig;
 
@@ -172,9 +172,9 @@ impl PoolSizingAdvisor {
     /// warning without modifying the pool.
     ///
     /// Returns a [`tokio::task::JoinHandle`] that can be aborted for shutdown.
-    pub fn start<A: DatabaseAdapter + 'static>(
+    pub fn start(
         self: Arc<Self>,
-        executor: Arc<fraiseql_core::runtime::Executor<A>>,
+        executor: Arc<fraiseql_core::runtime::Executor>,
         resize_fn: Option<Arc<dyn Fn(usize) + Send + Sync>>,
     ) -> tokio::task::JoinHandle<()> {
         let interval_ms = self.config.tuning_interval_ms;

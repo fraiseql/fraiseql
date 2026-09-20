@@ -1,4 +1,4 @@
-//! Mutation execution — thin wrappers on `Executor<A>`.
+//! Mutation execution — thin wrappers on `Executor`.
 //!
 //! The core mutation logic lives in
 //! [`runners::mutation::execute_mutation_impl`](super::runners::mutation::execute_mutation_impl).
@@ -16,7 +16,6 @@
 
 use super::{Executor, runners};
 use crate::{
-    backend::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
     security::SecurityContext,
@@ -35,11 +34,11 @@ use crate::{
 /// `Executor::new`, which is bounded on `SupportsMutations` and is where the
 /// `compile_fail` pair now lives. An adapter that declares nothing still cannot be built
 /// into a write-capable executor.
-impl<A: DatabaseAdapter> Executor<A> {
+impl Executor {
     /// Construct a mutation runner on demand.
     ///
     /// Zero-cost: `Arc::clone` is one atomic increment, no allocation.
-    fn mutation_runner(&self) -> runners::mutation::MutationRunner<A> {
+    fn mutation_runner(&self) -> runners::mutation::MutationRunner {
         runners::mutation::MutationRunner::new(std::sync::Arc::clone(&self.ctx))
     }
 
@@ -237,7 +236,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     }
 }
 
-impl<A: DatabaseAdapter> Executor<A> {
+impl Executor {
     /// Execute a GraphQL mutation by calling the configured database function.
     ///
     /// This is the **runtime-guarded** entry point called from [`execute_internal`] when the

@@ -30,7 +30,7 @@ use http::{Request, StatusCode};
 use tower::ServiceExt;
 
 /// Create a default `AppState` with a healthy `FailingAdapter` and empty schema.
-pub fn make_test_state() -> AppState<FailingAdapter> {
+pub fn make_test_state() -> AppState {
     let schema = CompiledSchema::new();
     let adapter = Arc::new(FailingAdapter::new());
     AppState::new(Arc::new(Executor::new(schema, adapter)))
@@ -46,7 +46,7 @@ pub fn make_test_state() -> AppState<FailingAdapter> {
 /// Use this helper when the test needs to verify that the schema export endpoints
 /// return actual content rather than an empty response.
 // Migration 6: make_populated_test_state (TypeDefinition struct literal → TestTypeBuilder)
-pub fn make_populated_test_state() -> AppState<FailingAdapter> {
+pub fn make_populated_test_state() -> AppState {
     use fraiseql_core::schema::FieldType;
     let mut schema = TestSchemaBuilder::new()
         .with_type(
@@ -66,32 +66,29 @@ pub fn make_populated_test_state() -> AppState<FailingAdapter> {
 }
 
 /// Create an `AppState` with a custom adapter and schema.
-pub fn make_test_state_with(
-    adapter: FailingAdapter,
-    schema: CompiledSchema,
-) -> AppState<FailingAdapter> {
+pub fn make_test_state_with(adapter: FailingAdapter, schema: CompiledSchema) -> AppState {
     AppState::new(Arc::new(Executor::new(schema, Arc::new(adapter))))
 }
 
 /// Build a router with health and introspection endpoints.
-pub fn health_router(state: AppState<FailingAdapter>) -> Router {
+pub fn health_router(state: AppState) -> Router {
     Router::new()
-        .route("/health", get(health_handler::<FailingAdapter>))
+        .route("/health", get(health_handler))
         // `/live` is stateless on purpose (#1217) — it is merged rather than given the
         // state, which is also what `mount_base_and_admin_routes` does.
         .merge(Router::new().route("/live", get(liveness_handler)))
-        .route("/introspection", get(introspection_handler::<FailingAdapter>))
+        .route("/introspection", get(introspection_handler))
         .with_state(state)
 }
 
 /// Build a router with API query and schema endpoints.
-pub fn api_router(state: AppState<FailingAdapter>) -> Router {
+pub fn api_router(state: AppState) -> Router {
     Router::new()
-        .route("/api/v1/query/explain", post(explain_handler::<FailingAdapter>))
-        .route("/api/v1/query/validate", post(validate_handler::<FailingAdapter>))
-        .route("/api/v1/query/stats", get(stats_handler::<FailingAdapter>))
-        .route("/api/v1/schema.graphql", get(export_sdl_handler::<FailingAdapter>))
-        .route("/api/v1/schema.json", get(export_json_handler::<FailingAdapter>))
+        .route("/api/v1/query/explain", post(explain_handler))
+        .route("/api/v1/query/validate", post(validate_handler))
+        .route("/api/v1/query/stats", get(stats_handler))
+        .route("/api/v1/schema.graphql", get(export_sdl_handler))
+        .route("/api/v1/schema.json", get(export_json_handler))
         .with_state(state)
 }
 

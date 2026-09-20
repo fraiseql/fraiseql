@@ -20,7 +20,7 @@
 //!
 //! Two properties matter:
 //!
-//! - **Hot-reload-safe.** It holds the same `Arc<ArcSwap<Executor<A>>>` the request path holds and
+//! - **Hot-reload-safe.** It holds the same `Arc<ArcSwap<Executor>>` the request path holds and
 //!   `load`s a fresh snapshot per call, so a schema reload is picked up by the next firing rather
 //!   than pinned at construction.
 //! - **Per-message tenant seam.** The identity is not a frozen field. A single `execute_query`
@@ -34,7 +34,7 @@
 use std::{future::Future, pin::Pin, sync::Arc};
 
 use arc_swap::ArcSwap;
-use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, security::SecurityContext};
+use fraiseql_core::{runtime::Executor, security::SecurityContext};
 use fraiseql_error::Result;
 use fraiseql_functions::host::live::QueryExecutor;
 use serde_json::Value;
@@ -53,23 +53,23 @@ pub const SOURCE_TENANT_VAR: &str = "__source_tenant";
 ///
 /// Shared by scheduled sources and event-dispatched functions (after:mutation /
 /// after:ingest / cron / after:capture) — the identity distinguishes them.
-pub struct RunAsQueryExecutor<A: DatabaseAdapter> {
+pub struct RunAsQueryExecutor {
     /// The hot-reloadable executor — the exact handle the request path uses, so a
     /// schema swap is reflected on the next firing (loaded per call).
-    executor: Arc<ArcSwap<Executor<A>>>,
+    executor: Arc<ArcSwap<Executor>>,
     /// The base `run_as` identity (a `SystemJob` context). A per-message tenant may
     /// re-scope it, but never widen its roles/scopes.
     identity: SecurityContext,
 }
 
-impl<A: DatabaseAdapter> RunAsQueryExecutor<A> {
+impl RunAsQueryExecutor {
     /// Bridge `executor` to a background job running under `identity` (its `run_as`
     /// ceiling — a source's
     /// [`SourceDefinition::identity`](fraiseql_core::schema::SourceDefinition::identity)
     /// or a function's
     /// [`FunctionDefinition::identity`](fraiseql_functions::FunctionDefinition::identity)).
     #[must_use]
-    pub const fn new(executor: Arc<ArcSwap<Executor<A>>>, identity: SecurityContext) -> Self {
+    pub const fn new(executor: Arc<ArcSwap<Executor>>, identity: SecurityContext) -> Self {
         Self { executor, identity }
     }
 }
@@ -108,7 +108,7 @@ fn split_tenant_override(variables: Option<&Value>) -> (Option<Value>, Option<St
     (Some(Value::Object(map)), tenant)
 }
 
-impl<A: DatabaseAdapter + 'static> QueryExecutor for RunAsQueryExecutor<A> {
+impl QueryExecutor for RunAsQueryExecutor {
     fn execute_query(
         &self,
         query: &str,

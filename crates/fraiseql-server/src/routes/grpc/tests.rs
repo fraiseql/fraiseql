@@ -875,16 +875,14 @@ mod chokepoint {
 // reads none of them.
 #[cfg(feature = "auth")]
 mod principal_production {
-    use fraiseql_core::{
-        db::postgres::PostgresAdapter, security::AuthenticatedUser, types::UserId,
-    };
+    use fraiseql_core::{security::AuthenticatedUser, types::UserId};
     use serde_json::json;
 
     use crate::{identity::tests as identity_fixtures, routes::grpc::DynamicGrpcService};
 
     /// The service type is only a carrier here: `principal_from_user` is an associated
     /// function that takes the resolver explicitly, so `A` is never touched.
-    type Svc = DynamicGrpcService<PostgresAdapter>;
+    type Svc = DynamicGrpcService;
 
     /// A validated token's user, carrying the `org_id` claim a multi-tenant
     /// deployment scopes on.

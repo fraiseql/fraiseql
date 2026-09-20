@@ -3,7 +3,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::{
-    db::traits::DatabaseAdapter,
     runtime::{Executor, QueryMatch},
     schema::{Cardinality, CompiledSchema, Relationship, RestConfig},
     security::SecurityContext,
@@ -12,8 +11,8 @@ use fraiseql_core::{
 use crate::routes::rest::handler::RestError;
 
 /// Shared context for embedding execution, reducing argument count.
-pub(super) struct EmbedCtx<'a, A: DatabaseAdapter> {
-    pub executor:         &'a Arc<Executor<A>>,
+pub(super) struct EmbedCtx<'a> {
+    pub executor:         &'a Arc<Executor>,
     pub schema:           &'a CompiledSchema,
     pub config:           &'a RestConfig,
     /// The type whose rows are being embedded *into*.
@@ -62,8 +61,8 @@ pub(super) fn declared_key(schema: &CompiledSchema, type_name: &str, column: &st
 }
 
 /// Embed related resources into each row of a parent array.
-pub(super) async fn embed_into_rows<A: DatabaseAdapter>(
-    ctx: &EmbedCtx<'_, A>,
+pub(super) async fn embed_into_rows(
+    ctx: &EmbedCtx<'_>,
     rel: &Relationship,
     output_name: &str,
     sub_field_names: &[String],
@@ -77,8 +76,8 @@ pub(super) async fn embed_into_rows<A: DatabaseAdapter>(
 }
 
 /// Embed related resources into a single parent row.
-pub(super) async fn embed_into_single<A: DatabaseAdapter>(
-    ctx: &EmbedCtx<'_, A>,
+pub(super) async fn embed_into_single(
+    ctx: &EmbedCtx<'_>,
     rel: &Relationship,
     output_name: &str,
     sub_field_names: &[String],
@@ -267,8 +266,8 @@ pub(super) fn extract_query_data(
 }
 
 /// Count related resources for a single parent row.
-pub(super) async fn count_related<A: DatabaseAdapter>(
-    ctx: &EmbedCtx<'_, A>,
+pub(super) async fn count_related(
+    ctx: &EmbedCtx<'_>,
     rel: &Relationship,
     row: &serde_json::Value,
     embedded_filter: Option<&serde_json::Value>,

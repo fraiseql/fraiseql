@@ -128,9 +128,7 @@ fn config_with_no_schema_file() -> ServerConfig {
     }
 }
 
-async fn serve_and_capture(
-    server: Server<impl DatabaseAdapter + Clone + 'static>,
-) -> fraiseql_server::Result<()> {
+async fn serve_and_capture(server: Server) -> fraiseql_server::Result<()> {
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     // Shut the server down immediately: the assertion is about the boot prologue,

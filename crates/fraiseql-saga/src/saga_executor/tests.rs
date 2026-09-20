@@ -96,7 +96,7 @@ mod wired {
     /// reached, and if it is, the injected failure turns the step result into
     /// a loud test failure. The returned handle exposes `query_count()` so a
     /// test can additionally assert zero local traffic.
-    fn order_table_executor() -> (FederationMutationExecutor<FailingAdapter>, Arc<FailingAdapter>) {
+    fn order_table_executor() -> (FederationMutationExecutor, Arc<FailingAdapter>) {
         let adapter = Arc::new(FailingAdapter::new().fail_with_error(FailError::Database {
             message:
                 "test bug: the local adapter must not be reached on a remote path".to_string(),

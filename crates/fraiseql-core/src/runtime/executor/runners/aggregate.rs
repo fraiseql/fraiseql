@@ -4,19 +4,19 @@ use std::sync::Arc;
 
 use super::super::context::ExecutorContext;
 use crate::{
-    backend::{WhereClause, traits::DatabaseAdapter},
+    backend::WhereClause,
     error::{FraiseQLError, Result},
     runtime::suggest_similar,
     security::{RlsWhereClause, SecurityContext},
 };
 
 /// Runner for aggregate and window analytics queries.
-pub(in super::super) struct AggregateRunner<A: DatabaseAdapter> {
-    ctx: Arc<ExecutorContext<A>>,
+pub(in super::super) struct AggregateRunner {
+    ctx: Arc<ExecutorContext>,
 }
 
-impl<A: DatabaseAdapter> AggregateRunner<A> {
-    pub(in super::super) const fn new(ctx: Arc<ExecutorContext<A>>) -> Self {
+impl AggregateRunner {
+    pub(in super::super) const fn new(ctx: Arc<ExecutorContext>) -> Self {
         Self { ctx }
     }
 

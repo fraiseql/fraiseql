@@ -2,7 +2,7 @@
 //!
 //! [`ExecutorContext`] is the single source of truth for the schema, adapter,
 //! configuration, and caches used during query execution. It is always accessed
-//! via `Arc<ExecutorContext<A>>` so sub-executors can be cheaply cloned.
+//! via `Arc<ExecutorContext>` so sub-executors can be cheaply cloned.
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -25,9 +25,9 @@ use crate::{
 /// All shared state for an executor instance.
 ///
 /// Constructed once at `Executor::new()` / `Executor::with_config()` and then
-/// stored as `Arc<ExecutorContext<A>>`. Sub-executors (query runner, mutation
+/// stored as `Arc<ExecutorContext>`. Sub-executors (query runner, mutation
 /// runner, etc.) each hold a clone of this `Arc`.
-pub(super) struct ExecutorContext<A: DatabaseAdapter> {
+pub(super) struct ExecutorContext {
     /// Compiled schema with optimized SQL templates.
     pub(super) schema: CompiledSchema,
 
@@ -40,7 +40,7 @@ pub(super) struct ExecutorContext<A: DatabaseAdapter> {
     pub(super) schema_version: Arc<str>,
 
     /// Shared database adapter for query execution.
-    pub(super) adapter: Arc<A>,
+    pub(super) adapter: Arc<dyn DatabaseAdapter>,
 
     /// Type-erased **write** capability slot.
     ///
@@ -112,7 +112,7 @@ pub(super) struct ExecutorContext<A: DatabaseAdapter> {
     pub(super) response_cache: Option<Arc<crate::cache::ResponseCache>>,
 }
 
-impl<A: DatabaseAdapter> ExecutorContext<A> {
+impl ExecutorContext {
     /// The write handle, or the refusal that names both gates.
     ///
     /// The single adjudication of "may this executor write?". Both the document path

@@ -155,9 +155,7 @@ fn schema_without_rest() -> fraiseql_core::schema::CompiledSchema {
         .build()
 }
 
-fn make_app_state(
-    schema: fraiseql_core::schema::CompiledSchema,
-) -> AppState<fraiseql_test_utils::failing_adapter::FailingAdapter> {
+fn make_app_state(schema: fraiseql_core::schema::CompiledSchema) -> AppState {
     let adapter = Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::default());
     let executor = Arc::new(fraiseql_core::runtime::Executor::new(schema, adapter));
     AppState::new(executor)

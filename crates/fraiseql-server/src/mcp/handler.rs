@@ -9,7 +9,6 @@ use std::sync::{
 };
 
 use fraiseql_core::{
-    db::traits::DatabaseAdapter,
     schema::CompiledSchema,
     security::{AuthMiddleware, AuthRequest, AuthenticatedUser, OidcValidator, SecurityContext},
 };
@@ -110,8 +109,8 @@ impl McpTokenValidator {
 /// registry, domain registry and error sanitizer. Capturing one executor at
 /// session construction is precisely what made every MCP call run on the default
 /// tenant's database and let a suspended tenant keep reading (#858).
-pub struct FraiseQLMcpService<A: DatabaseAdapter> {
-    state:         AppState<A>,
+pub struct FraiseQLMcpService {
+    state:         AppState,
     schema:        Arc<CompiledSchema>,
     tools:         Vec<Tool>,
     config:        McpConfig,
@@ -120,7 +119,7 @@ pub struct FraiseQLMcpService<A: DatabaseAdapter> {
     session_state: Option<Arc<fraiseql_auth::session_state::SessionState>>,
 }
 
-impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
+impl FraiseQLMcpService {
     /// Create a new MCP service over the server's state.
     ///
     /// The advertised tool list is computed from the state's current (default)
@@ -132,7 +131,7 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
     /// [`with_token_validator`](Self::with_token_validator) to enable
     /// per-request Bearer-token authentication over the HTTP transport.
     #[must_use]
-    pub fn new(state: AppState<A>, config: McpConfig) -> Self {
+    pub fn new(state: AppState, config: McpConfig) -> Self {
         let schema = Arc::new(state.executor().schema().clone());
         let tools = super::tools::schema_to_tools(&schema, &config);
         Self {
@@ -266,10 +265,7 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
         token: Option<String>,
         request_id: String,
         headers: &axum::http::HeaderMap,
-    ) -> CallToolResult
-    where
-        A: Clone + Send + Sync + 'static,
-    {
+    ) -> CallToolResult {
         use crate::routes::graphql::tenant_dispatch;
 
         let security_context = match self.authenticate(token, request_id).await {
@@ -339,7 +335,7 @@ impl<A: DatabaseAdapter> FraiseQLMcpService<A> {
     }
 }
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> FraiseQLMcpService<A> {
+impl FraiseQLMcpService {
     /// Read a Resource, given credentials already in hand (#967).
     ///
     /// The seam under [`ServerHandler::read_resource`], for the same reason
@@ -415,7 +411,7 @@ pub(crate) fn sanitize(
         .message
 }
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> ServerHandler for FraiseQLMcpService<A> {
+impl ServerHandler for FraiseQLMcpService {
     fn get_info(&self) -> ServerInfo {
         ServerInfo::new(
             ServerCapabilities::builder()

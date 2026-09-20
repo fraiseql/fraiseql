@@ -33,16 +33,16 @@ use http::StatusCode;
 
 use crate::common::test_app::{get_json, get_text};
 
-fn make_metrics_state() -> AppState<FailingAdapter> {
+fn make_metrics_state() -> AppState {
     let schema = CompiledSchema::new();
     let adapter = Arc::new(FailingAdapter::new());
     AppState::new(Arc::new(Executor::new(schema, adapter)))
 }
 
-fn metrics_router(state: AppState<FailingAdapter>) -> Router {
+fn metrics_router(state: AppState) -> Router {
     Router::new()
-        .route("/metrics", get(metrics_handler::<FailingAdapter>))
-        .route("/metrics/json", get(metrics_json_handler::<FailingAdapter>))
+        .route("/metrics", get(metrics_handler))
+        .route("/metrics/json", get(metrics_json_handler))
         .with_state(state)
 }
 

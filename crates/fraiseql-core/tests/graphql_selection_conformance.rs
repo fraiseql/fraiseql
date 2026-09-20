@@ -271,14 +271,14 @@ fn user_schema() -> CompiledSchema {
     schema
 }
 
-fn executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+fn executor() -> (Executor, Arc<RecordingAdapter>) {
     let adapter = Arc::new(RecordingAdapter::new());
     (Executor::new_with_relay(user_schema(), Arc::clone(&adapter)), adapter)
 }
 
 /// The same schema with `secret` gated behind a scope nobody holds, under
 /// `on_deny = Mask` — so an anonymous read still projects the key and gets `null`.
-fn masking_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+fn masking_executor() -> (Executor, Arc<RecordingAdapter>) {
     let user_type = TestTypeBuilder::new("User", "v_user")
         .with_simple_field("id", FieldType::Uuid)
         .with_simple_field("name", FieldType::String)
@@ -305,13 +305,11 @@ fn masking_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
 
 /// The golden-fixture schema, which carries four real mutations — the shape
 /// #759 is about.
-fn mutation_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+fn mutation_executor() -> (Executor, Arc<RecordingAdapter>) {
     mutation_executor_with(RecordingAdapter::new())
 }
 
-fn mutation_executor_with(
-    adapter: RecordingAdapter,
-) -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+fn mutation_executor_with(adapter: RecordingAdapter) -> (Executor, Arc<RecordingAdapter>) {
     let json = include_str!("../../../tests/fixtures/golden/01-basic-query-mutation.json");
     let schema = CompiledSchema::from_json(json, false).expect("golden fixture must parse");
     let adapter = Arc::new(adapter);
@@ -836,7 +834,7 @@ async fn an_undeclared_mutation_payload_field_is_a_validation_error() {
 /// A mutation whose payload is a **union** of a success and an error variant —
 /// the shape #1005 says must be scoped before the write path can be validated at
 /// all (#212, #450/#451, #698's synthesized cascade envelope all produce it).
-fn union_payload_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+fn union_payload_executor() -> (Executor, Arc<RecordingAdapter>) {
     let json = serde_json::json!({
         "types": [
             {
@@ -983,7 +981,7 @@ async fn declared_fields_still_execute() {
 
 /// `users` with pagination auto-params, so `limit`/`offset` are argument names
 /// the query genuinely accepts and a rejection can only come from the variable.
-fn paginating_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+fn paginating_executor() -> (Executor, Arc<RecordingAdapter>) {
     let mut schema = user_schema();
     for q in &mut schema.queries {
         q.auto_params.has_limit = true;
@@ -1173,7 +1171,7 @@ async fn an_undefined_variable_inside_a_reachable_fragment_is_a_validation_error
 /// [`paginating_executor`] whose schema also declares an enum and an input
 /// object, so § 5.8.2 has the input-type information it needs to adjudicate.
 /// Without either, the rule deliberately fails open.
-fn typed_variable_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+fn typed_variable_executor() -> (Executor, Arc<RecordingAdapter>) {
     use fraiseql_core::schema::{
         EnumDefinition, EnumValueDefinition, InputFieldDefinition, InputObjectDefinition,
     };
@@ -1469,7 +1467,7 @@ async fn a_declared_order_by_field_still_sorts() {
 
 /// [`ordering_executor`] whose `users` query is a **relay connection**, so the
 /// relay runner is exercised rather than the list runner.
-fn relay_ordering_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+fn relay_ordering_executor() -> (Executor, Arc<RecordingAdapter>) {
     let mut schema = user_schema();
     for q in &mut schema.queries {
         q.auto_params.has_order_by = true;
@@ -1818,7 +1816,7 @@ async fn aliased_nested_typename_uses_the_alias_as_its_key() {
 /// The relay/`orderBy`-accepting variant of `user_schema`, so a re-serialized
 /// `orderBy` is not dropped for the legitimate reason that the query does not
 /// declare the argument.
-fn ordering_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+fn ordering_executor() -> (Executor, Arc<RecordingAdapter>) {
     let mut schema = user_schema();
     for q in &mut schema.queries {
         q.auto_params.has_order_by = true;
@@ -1830,7 +1828,7 @@ fn ordering_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
 
 /// [`ordering_executor`] whose queries also declare a `filter` argument, for the
 /// case that pins an argument *value* shape rather than an argument name.
-fn filter_arg_executor() -> (Executor<RecordingAdapter>, Arc<RecordingAdapter>) {
+fn filter_arg_executor() -> (Executor, Arc<RecordingAdapter>) {
     let mut schema = user_schema();
     for q in &mut schema.queries {
         q.auto_params.has_order_by = true;

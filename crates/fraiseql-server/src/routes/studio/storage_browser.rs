@@ -9,7 +9,6 @@ use axum::{
     extract::{Query, State},
     response::Response,
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
 
 use crate::routes::{graphql::app_state::AppState, studio::not_implemented};
@@ -122,10 +121,7 @@ pub struct DeleteObjectRequest {
 /// # Errors
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
-pub async fn list_buckets_handler<A>(State(_state): State<AppState<A>>) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+pub async fn list_buckets_handler(State(_state): State<AppState>) -> Response {
     not_implemented(
         "studio.storage.buckets",
         "The storage browser is not wired to a StorageBackend; an empty bucket list \
@@ -139,13 +135,10 @@ where
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
 /// Returns `404` if the bucket does not exist.
-pub async fn list_objects_handler<A>(
-    State(_state): State<AppState<A>>,
+pub async fn list_objects_handler(
+    State(_state): State<AppState>,
     Query(_params): Query<ObjectListQuery>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+) -> Response {
     not_implemented(
         "studio.storage.objects",
         "The storage browser is not wired to a StorageBackend; an empty object list \
@@ -158,13 +151,10 @@ where
 /// # Errors
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
-pub async fn presign_handler<A>(
-    State(_state): State<AppState<A>>,
+pub async fn presign_handler(
+    State(_state): State<AppState>,
     Json(_req): Json<PresignRequest>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+) -> Response {
     not_implemented(
         "studio.storage.presign",
         "The storage browser is not wired to a StorageBackend; no presigned URL was \
@@ -177,13 +167,10 @@ where
 /// # Errors
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
-pub async fn delete_object_handler<A>(
-    State(_state): State<AppState<A>>,
+pub async fn delete_object_handler(
+    State(_state): State<AppState>,
     Json(_req): Json<DeleteObjectRequest>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+) -> Response {
     not_implemented(
         "studio.storage.delete",
         "The storage browser is not wired to a StorageBackend; no object was deleted.",

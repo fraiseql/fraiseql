@@ -187,10 +187,7 @@ fn fully_configured_server_config() -> ServerConfig {
 
 /// Assert every property the compiled configuration promises, on a server built
 /// by any construction path.
-async fn assert_carries_full_config<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    server: &Server<A>,
-    path: &str,
-) {
+async fn assert_carries_full_config(server: &Server, path: &str) {
     let cfg = server.executor.config();
 
     assert!(

@@ -1,6 +1,6 @@
 //! `TenantExecutorRegistry` — per-tenant executor dispatch with lock-free reads.
 //!
-//! Maps tenant keys to individual `Executor<A>` instances, each holding its own
+//! Maps tenant keys to individual `Executor` instances, each holding its own
 //! compiled schema and database adapter. Reads are lock-free via `ArcSwap`;
 //! writes are serialized per-key via `DashMap`.
 
@@ -14,7 +14,7 @@ use std::{
 
 use arc_swap::ArcSwap;
 use dashmap::DashMap;
-use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, security::ActorType};
+use fraiseql_core::{runtime::Executor, security::ActorType};
 use fraiseql_error::FraiseQLError;
 use serde::{Deserialize, Serialize};
 use tokio::sync::Semaphore;
@@ -56,7 +56,7 @@ impl TenantStatus {
 ///
 /// The subscription `WebSocket` path
 /// ([`SubscriptionState`](crate::routes::subscriptions::SubscriptionState)) is not generic over the
-/// database adapter, so it cannot hold a [`TenantExecutorRegistry<A>`] directly. This trait lets it
+/// database adapter, so it cannot hold a [`TenantExecutorRegistry`] directly. This trait lets it
 /// consult tenant suspension status through a trait object (M-tenant-ws-suspended).
 pub trait TenantStatusSource: Send + Sync {
     /// Returns `true` if the named tenant is currently **suspended**.
@@ -67,7 +67,7 @@ pub trait TenantStatusSource: Send + Sync {
     fn is_suspended(&self, tenant_key: &str) -> bool;
 }
 
-impl<A: DatabaseAdapter> TenantStatusSource for TenantExecutorRegistry<A> {
+impl TenantStatusSource for TenantExecutorRegistry {
     fn is_suspended(&self, tenant_key: &str) -> bool {
         matches!(self.tenant_status(tenant_key), Ok(TenantStatus::Suspended))
     }
@@ -228,8 +228,8 @@ impl CostWindow {
 }
 
 /// A single tenant entry in the registry: executor + lifecycle status + quotas.
-struct TenantEntry<A: DatabaseAdapter> {
-    executor:              Arc<ArcSwap<Executor<A>>>,
+struct TenantEntry {
+    executor:              Arc<ArcSwap<Executor>>,
     status:                AtomicU8,
     /// Concurrency semaphore — `None` when `max_concurrent` is unset.
     concurrency:           Option<Arc<Semaphore>>,
@@ -257,8 +257,8 @@ struct TenantEntry<A: DatabaseAdapter> {
     quota:                 TenantQuota,
 }
 
-impl<A: DatabaseAdapter> TenantEntry<A> {
-    fn new(executor: Arc<Executor<A>>) -> Self {
+impl TenantEntry {
+    fn new(executor: Arc<Executor>) -> Self {
         Self {
             executor: Arc::new(ArcSwap::from(executor)),
             status: AtomicU8::new(TenantStatus::Active as u8),
@@ -330,7 +330,7 @@ const SUSPENDED_RETRY_AFTER_SECS: u64 = 60;
 
 /// Registry mapping tenant keys to executors.
 ///
-/// Each tenant gets its own `TenantEntry` holding an `ArcSwap<Executor<A>>` and
+/// Each tenant gets its own `TenantEntry` holding an `ArcSwap<Executor>` and
 /// an `AtomicU8` status flag. Reads (`executor_for`) are wait-free; writes
 /// (`upsert`, `remove`, `suspend`, `resume`) are serialized per-key by `DashMap`.
 ///
@@ -340,11 +340,11 @@ const SUSPENDED_RETRY_AFTER_SECS: u64 = 60;
 /// `executor_for` returns `Err(FraiseQLError::Authorization)` — it does **not**
 /// fall back to the default executor. Silent fallback on an explicit key would
 /// serve the wrong tenant's data.
-pub struct TenantExecutorRegistry<A: DatabaseAdapter> {
+pub struct TenantExecutorRegistry {
     /// Default executor used when no tenant key is provided (single-tenant compat).
-    default:               Arc<ArcSwap<Executor<A>>>,
+    default:               Arc<ArcSwap<Executor>>,
     /// Per-tenant entries keyed by tenant identifier.
-    tenants:               DashMap<String, TenantEntry<A>>,
+    tenants:               DashMap<String, TenantEntry>,
     /// Compiled `[security.cost_budget] per_tenant_per_minute_default` (#379),
     /// read once from the default executor's schema at construction. Seeds a
     /// cost window for every registered tenant that does not set its own
@@ -352,14 +352,14 @@ pub struct TenantExecutorRegistry<A: DatabaseAdapter> {
     default_minute_budget: Option<u64>,
 }
 
-impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
+impl TenantExecutorRegistry {
     /// Create a new registry with the given default executor.
     ///
     /// Reads the compiled schema's `[security.cost_budget]
     /// per_tenant_per_minute_default` here, in the constructor, so a second
     /// construction site cannot forget it.
     #[must_use]
-    pub fn new(default: Arc<ArcSwap<Executor<A>>>) -> Self {
+    pub fn new(default: Arc<ArcSwap<Executor>>) -> Self {
         let default_minute_budget = default
             .load()
             .schema()
@@ -389,7 +389,7 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     pub fn executor_for(
         &self,
         tenant_key: Option<&str>,
-    ) -> fraiseql_error::Result<arc_swap::Guard<Arc<Executor<A>>>> {
+    ) -> fraiseql_error::Result<arc_swap::Guard<Arc<Executor>>> {
         match tenant_key {
             None => Ok(self.default.load()),
             Some(key) => {
@@ -408,7 +408,7 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     ///
     /// Returns `FraiseQLError::ServiceUnavailable` with a 60-second retry hint
     /// if the tenant status is `Suspended`.
-    fn require_active(&self, key: &str, entry: &TenantEntry<A>) -> fraiseql_error::Result<()> {
+    fn require_active(&self, key: &str, entry: &TenantEntry) -> fraiseql_error::Result<()> {
         if entry.status() == TenantStatus::Suspended {
             return Err(FraiseQLError::ServiceUnavailable {
                 message:     format!("Tenant '{key}' is suspended"),
@@ -429,7 +429,7 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     pub fn executor_for_admin(
         &self,
         key: &str,
-    ) -> fraiseql_error::Result<arc_swap::Guard<Arc<Executor<A>>>> {
+    ) -> fraiseql_error::Result<arc_swap::Guard<Arc<Executor>>> {
         let entry = self.tenants.get(key).ok_or_else(|| {
             FraiseQLError::unauthorized(format!("Tenant '{key}' is not registered"))
         })?;
@@ -442,7 +442,7 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     /// update (existing tenant). On update, the old executor is atomically swapped
     /// via `ArcSwap::store` — in-flight requests holding a guard to the previous
     /// executor continue undisturbed. Status is preserved on update.
-    pub fn upsert(&self, key: impl Into<String>, executor: Arc<Executor<A>>) -> bool {
+    pub fn upsert(&self, key: impl Into<String>, executor: Arc<Executor>) -> bool {
         let key = key.into();
         if let Some(existing) = self.tenants.get(&key) {
             existing.value().executor.store(executor);
@@ -465,7 +465,7 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
     pub fn upsert_with_quota(
         &self,
         key: impl Into<String>,
-        executor: Arc<Executor<A>>,
+        executor: Arc<Executor>,
         quota: TenantQuota,
     ) -> bool {
         let key = key.into();
@@ -749,7 +749,7 @@ impl<A: DatabaseAdapter> TenantExecutorRegistry<A> {
 
     /// Get a reference to the default executor.
     #[must_use]
-    pub fn default_executor(&self) -> arc_swap::Guard<Arc<Executor<A>>> {
+    pub fn default_executor(&self) -> arc_swap::Guard<Arc<Executor>> {
         self.default.load()
     }
 

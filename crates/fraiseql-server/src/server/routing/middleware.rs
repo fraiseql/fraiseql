@@ -4,7 +4,6 @@
 use std::sync::Arc;
 
 use axum::{Router, extract::DefaultBodyLimit, middleware};
-use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::info;
 
 use super::super::{Server, metrics_middleware, trace_layer};
@@ -15,9 +14,9 @@ use crate::{
     routes::graphql::AppState,
 };
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl Server {
     /// Apply global middleware layers to the router.
-    pub(super) fn apply_middleware(&self, mut app: Router, state: &AppState<A>) -> Router {
+    pub(super) fn apply_middleware(&self, mut app: Router, state: &AppState) -> Router {
         let metrics = state.metrics.clone();
 
         // Add HTTP metrics middleware (tracks requests and response status codes)

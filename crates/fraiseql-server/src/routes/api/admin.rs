@@ -8,7 +8,7 @@
 use std::{collections::HashMap, fs};
 
 use axum::{Json, extract::State};
-use fraiseql_core::{db::traits::DatabaseAdapter, schema::CompiledSchema};
+use fraiseql_core::schema::CompiledSchema;
 use serde::{Deserialize, Serialize};
 use tracing::{error, info};
 
@@ -214,8 +214,8 @@ pub fn validate_schema_path(
 /// Returns `ApiError` with a parse error if the schema file cannot be read or parsed.
 ///
 /// Requires admin token authentication.
-pub async fn reload_schema_handler<A: DatabaseAdapter>(
-    State(state): State<AppState<A>>,
+pub async fn reload_schema_handler(
+    State(state): State<AppState>,
     Json(req): Json<ReloadSchemaRequest>,
 ) -> Result<Json<ApiResponse<ReloadSchemaResponse>>, ApiError> {
     let _ = &state; // used conditionally by #[cfg(feature = "arrow")]
@@ -346,8 +346,8 @@ pub struct CacheStatsEntry {
 /// invalid.
 ///
 /// Requires admin token authentication.
-pub async fn cache_clear_handler<A: DatabaseAdapter>(
-    State(state): State<AppState<A>>,
+pub async fn cache_clear_handler(
+    State(state): State<AppState>,
     Json(req): Json<CacheClearRequest>,
 ) -> Result<Json<ApiResponse<CacheClearResponse>>, ApiError> {
     // Argument validation first, and identically for every cache: a missing
@@ -408,8 +408,8 @@ pub async fn cache_clear_handler<A: DatabaseAdapter>(
 /// `pattern` has no counterpart here — the query result cache is keyed by a hash, not
 /// by a string an operator could glob — so the scope is reported unsupported rather
 /// than silently doing nothing, which is the shape #941 is about.
-async fn clear_query_result_cache<A: DatabaseAdapter>(
-    state: &AppState<A>,
+async fn clear_query_result_cache(
+    state: &AppState,
     req: &CacheClearRequest,
 ) -> Result<CacheOperationResult, ApiError> {
     let executor = state.executor();
@@ -474,10 +474,7 @@ async fn clear_query_result_cache<A: DatabaseAdapter>(
 
 /// Apply an admin clear request to the Arrow Flight query cache.
 #[cfg(feature = "arrow")]
-fn clear_arrow_flight_cache<A: DatabaseAdapter>(
-    state: &AppState<A>,
-    req: &CacheClearRequest,
-) -> CacheOperationResult {
+fn clear_arrow_flight_cache(state: &AppState, req: &CacheClearRequest) -> CacheOperationResult {
     let Some(cache) = state.cache() else {
         return CacheOperationResult {
             cache:           ARROW_FLIGHT_CACHE,
@@ -511,10 +508,7 @@ fn clear_arrow_flight_cache<A: DatabaseAdapter>(
 }
 
 /// The view a GraphQL type reads from, per the compiled schema the server is serving.
-fn view_of_entity_type<A: DatabaseAdapter>(
-    state: &AppState<A>,
-    entity_type: &str,
-) -> Option<String> {
+fn view_of_entity_type(state: &AppState, entity_type: &str) -> Option<String> {
     state
         .executor()
         .schema()
@@ -534,8 +528,8 @@ fn view_of_entity_type<A: DatabaseAdapter>(
 /// This handler currently always succeeds; it is infallible.
 ///
 /// Requires admin token authentication.
-pub async fn cache_stats_handler<A: DatabaseAdapter>(
-    State(state): State<AppState<A>>,
+pub async fn cache_stats_handler(
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<CacheStatsResponse>>, ApiError> {
     // The cache that serves GraphQL queries — the one `cache_enabled` toggles and the
     // one `/admin/config` reports. It was invisible here until #941.
@@ -612,8 +606,8 @@ pub async fn cache_stats_handler<A: DatabaseAdapter>(
 /// This handler currently always succeeds; it is infallible.
 ///
 /// Requires admin token authentication.
-pub async fn config_handler<A: DatabaseAdapter>(
-    State(state): State<AppState<A>>,
+pub async fn config_handler(
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<AdminConfigResponse>>, ApiError> {
     let mut config = HashMap::new();
 
@@ -680,8 +674,8 @@ pub struct ExplainRequest {
 /// by the `test_grafana_dashboard_is_valid_json` unit test.
 ///
 /// Requires admin token authentication.
-pub async fn grafana_dashboard_handler<A: DatabaseAdapter>(
-    State(_state): State<AppState<A>>,
+pub async fn grafana_dashboard_handler(
+    State(_state): State<AppState>,
 ) -> impl axum::response::IntoResponse {
     const DASHBOARD_JSON: &str = include_str!("../../../resources/fraiseql-dashboard.json");
 
@@ -704,8 +698,8 @@ pub async fn grafana_dashboard_handler<A: DatabaseAdapter>(
 /// * `500 Internal Server Error` — database execution failure
 ///
 /// Requires admin token authentication.
-pub async fn explain_handler<A: DatabaseAdapter + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn explain_handler(
+    State(state): State<AppState>,
     Json(req): Json<ExplainRequest>,
 ) -> Result<Json<ApiResponse<fraiseql_core::runtime::ExplainResult>>, ApiError> {
     if req.query.is_empty() {

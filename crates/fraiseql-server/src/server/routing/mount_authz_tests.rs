@@ -11,7 +11,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use axum::{Router, body::Body};
-use fraiseql_core::{cache::CachedDatabaseAdapter, schema::CompiledSchema};
+use fraiseql_core::schema::CompiledSchema;
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use http::{Request, StatusCode};
 use tower::ServiceExt;
@@ -23,7 +23,7 @@ use crate::{server::Server, server_config::ServerConfig};
 /// tests deliberately never do).
 /// Boxed at the delegation point: `Server::new`'s future is large enough to trip
 /// `clippy::large_futures` (pedantic, denied) at every call site otherwise.
-async fn server_with(config: ServerConfig) -> Server<CachedDatabaseAdapter<FailingAdapter>> {
+async fn server_with(config: ServerConfig) -> Server {
     // #874: Server::new now runs ServerConfig::validate(); the default
     // cors_enabled=true with no origins is refused in production mode. These
     // tests are about mount authorization, not CORS.

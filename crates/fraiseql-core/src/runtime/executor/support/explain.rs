@@ -4,17 +4,18 @@ use std::fmt::Write as _;
 
 use super::super::Executor;
 use crate::{
-    backend::{WhereClause, WhereOperator, traits::DatabaseAdapter},
+    backend::{WhereClause, WhereOperator},
     error::{FraiseQLError, Result},
     runtime::explain::ExplainResult,
 };
 
-impl<A: DatabaseAdapter> Executor<A> {
+impl Executor {
     /// Run `EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)` for a named query.
     ///
     /// Looks up `query_name` in the compiled schema, builds a parameterized
     /// WHERE clause from `variables`, and delegates to
-    /// [`DatabaseAdapter::explain_where_query`].  The result includes the
+    /// [`DatabaseAdapter::explain_where_query`](crate::backend::traits::DatabaseAdapter::explain_where_query).
+    /// The result includes the
     /// generated SQL and the raw PostgreSQL EXPLAIN output.
     ///
     /// # Arguments

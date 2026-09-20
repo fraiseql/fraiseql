@@ -106,7 +106,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use ::tracing::debug;
-use fraiseql_db::traits::{DatabaseAdapter, SupportsMutations};
 use reqwest::Url;
 use uuid::Uuid;
 
@@ -385,8 +384,8 @@ impl SagaCompensator {
     /// A step with no registered compensation, or whose inverse mutation `Err`s
     /// (local or remote), is reported `success: false` — never a fabricated
     /// rollback (audit H33).
-    pub(crate) async fn dispatch_compensation<A: DatabaseAdapter + SupportsMutations>(
-        mutation_executor: &FederationMutationExecutor<A>,
+    pub(crate) async fn dispatch_compensation(
+        mutation_executor: &FederationMutationExecutor,
         step: &crate::saga_store::SagaStep,
         remote: Option<(&HttpMutationClient, &Url)>,
     ) -> CompensationStepResult {
@@ -463,9 +462,9 @@ impl SagaCompensator {
     ///
     /// Returns [`SagaStoreError::Database`] if no saga store is configured, or
     /// any store error encountered while persisting the compensated state.
-    pub async fn compensate_step<A: DatabaseAdapter + SupportsMutations>(
+    pub async fn compensate_step(
         &self,
-        mutation_executor: &FederationMutationExecutor<A>,
+        mutation_executor: &FederationMutationExecutor,
         step: &crate::saga_store::SagaStep,
         remote: Option<(&HttpMutationClient, &Url)>,
     ) -> SagaStoreResult<CompensationStepResult> {
@@ -524,10 +523,10 @@ impl SagaCompensator {
     /// Returns [`SagaStoreError::Database`] if no saga store is configured,
     /// [`SagaStoreError::SagaNotFound`] if the saga does not exist, or any store
     /// error encountered while loading steps or persisting state.
-    pub async fn compensate_saga<A: DatabaseAdapter + SupportsMutations>(
+    pub async fn compensate_saga(
         &self,
         saga_id: Uuid,
-        mutation_executor: &FederationMutationExecutor<A>,
+        mutation_executor: &FederationMutationExecutor,
         subgraph_urls: &HashMap<String, Url>,
         http_client: Option<&HttpMutationClient>,
     ) -> SagaStoreResult<CompensationResult> {

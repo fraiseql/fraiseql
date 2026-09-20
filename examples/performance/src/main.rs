@@ -126,11 +126,7 @@ async fn main() -> Result<()> {
 }
 
 /// Run `query` `runs` times and return every duration in microseconds.
-async fn measure<A: DatabaseAdapter>(
-    executor: &Executor<A>,
-    query: &str,
-    runs: usize,
-) -> Result<Vec<u64>> {
+async fn measure(executor: &Executor, query: &str, runs: usize) -> Result<Vec<u64>> {
     let mut durations = Vec::with_capacity(runs);
     for _ in 0..runs {
         let started = Instant::now();

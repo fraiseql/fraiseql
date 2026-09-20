@@ -3,7 +3,6 @@
 
 use super::{Executor, support};
 use crate::{
-    backend::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     runtime::ExecutionContext,
     schema::SessionVariablesConfig,
@@ -43,7 +42,7 @@ pub fn resolve_session_variables(
     support::security::resolve_session_variables(config, security_context)
 }
 
-impl<A: DatabaseAdapter> Executor<A> {
+impl Executor {
     /// Validate that user has access to all requested fields.
     pub(super) fn validate_field_access(
         &self,
@@ -615,7 +614,7 @@ mod enrichment_entry_point_tests {
         schema
     }
 
-    fn executor() -> Executor<MockAdapter> {
+    fn executor() -> Executor {
         Executor::new(schema(), Arc::new(MockAdapter::new(vec![])))
     }
 

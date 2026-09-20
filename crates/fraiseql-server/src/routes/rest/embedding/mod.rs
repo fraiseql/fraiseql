@@ -16,7 +16,6 @@ use std::{collections::HashMap, sync::Arc};
 
 use executor::{EmbedCtx, count_related, declared_key, embed_into_rows, embed_into_single};
 use fraiseql_core::{
-    db::traits::DatabaseAdapter,
     schema::{CompiledSchema, RestConfig},
     security::SecurityContext,
 };
@@ -27,9 +26,9 @@ use super::{
 };
 
 /// Parameters for embedding execution, grouping shared context.
-pub struct EmbeddingRequest<'a, A: DatabaseAdapter> {
+pub struct EmbeddingRequest<'a> {
     /// Query executor.
-    pub executor:         &'a Arc<fraiseql_core::runtime::Executor<A>>,
+    pub executor:         &'a Arc<fraiseql_core::runtime::Executor>,
     /// Compiled schema for type/query lookup.
     pub schema:           &'a CompiledSchema,
     /// REST configuration (page size limits, etc.).
@@ -190,8 +189,8 @@ impl SubSelect {
 /// Returns `RestError` if a relationship is not found, a sub-query fails,
 /// or the parent data cannot be parsed.
 #[allow(clippy::implicit_hasher)] // Reason: generic BuildHasher makes future non-Send
-pub async fn execute_embeddings<A: DatabaseAdapter>(
-    req: &EmbeddingRequest<'_, A>,
+pub async fn execute_embeddings(
+    req: &EmbeddingRequest<'_>,
     parent_data: &mut serde_json::Value,
     embeddings: &[EmbeddedSpec],
     embedding_filters: &HashMap<String, serde_json::Value>,
@@ -375,8 +374,8 @@ pub async fn execute_embeddings<A: DatabaseAdapter>(
 ///
 /// Returns `RestError` if a relationship is not found or a count query fails.
 #[allow(clippy::implicit_hasher)] // Reason: generic BuildHasher makes future non-Send
-pub async fn execute_embedding_counts<A: DatabaseAdapter>(
-    req: &EmbeddingRequest<'_, A>,
+pub async fn execute_embedding_counts(
+    req: &EmbeddingRequest<'_>,
     parent_data: &mut serde_json::Value,
     count_fields: &[String],
     embedding_filters: &HashMap<String, serde_json::Value>,

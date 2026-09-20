@@ -147,10 +147,7 @@ fn function_backed_query() -> QueryDefinition {
     }
 }
 
-fn executor_with(
-    schema: CompiledSchema,
-    resolver: Option<Arc<StubResolver>>,
-) -> Executor<MockAdapter> {
+fn executor_with(schema: CompiledSchema, resolver: Option<Arc<StubResolver>>) -> Executor {
     let mut config = RuntimeConfig::default();
     if let Some(resolver) = resolver {
         config = config.with_query_function_resolver(resolver);
@@ -474,7 +471,7 @@ async fn the_read_bridge_still_serves_a_sql_backed_field() {
 // right answer while still spending an isolate would pass an equality assertion and
 // fail the only property anyone wants from it.
 
-fn caching_executor(schema: CompiledSchema, resolver: Arc<StubResolver>) -> Executor<MockAdapter> {
+fn caching_executor(schema: CompiledSchema, resolver: Arc<StubResolver>) -> Executor {
     let cache = Arc::new(crate::cache::ResponseCache::new(crate::cache::ResponseCacheConfig {
         enabled:     true,
         max_entries: 100,

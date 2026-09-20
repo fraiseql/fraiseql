@@ -35,7 +35,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use axum::{Router, body::Body};
-use fraiseql_core::{cache::CachedDatabaseAdapter, schema::CompiledSchema};
+use fraiseql_core::schema::CompiledSchema;
 use fraiseql_storage::{
     BucketAccess, BucketConfig, LocalBackend, PolicyMethod, PolicyPrincipal, PolicyRule,
     StorageBackend, StorageMetadataRepo, StoragePolicyStore, StorageRlsEvaluator, StorageState,
@@ -146,7 +146,7 @@ async fn rig(bucket: &str) -> Rig {
         admin_readonly_token: Some(READ_TOKEN.to_string()),
         ..ServerConfig::default()
     };
-    let server: Server<CachedDatabaseAdapter<FailingAdapter>> = Box::pin(Server::new(
+    let server: Server = Box::pin(Server::new(
         config,
         CompiledSchema::new(),
         Arc::new(FailingAdapter::new()),
@@ -479,7 +479,7 @@ async fn the_endpoint_is_absent_without_storage() {
         admin_readonly_token: Some(READ_TOKEN.to_string()),
         ..ServerConfig::default()
     };
-    let server: Server<CachedDatabaseAdapter<FailingAdapter>> = Box::pin(Server::new(
+    let server: Server = Box::pin(Server::new(
         config,
         CompiledSchema::new(),
         Arc::new(FailingAdapter::new()),

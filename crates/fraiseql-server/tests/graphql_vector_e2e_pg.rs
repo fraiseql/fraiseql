@@ -315,11 +315,7 @@ async fn setup() -> Option<Router> {
     let adapter = PostgresAdapter::new(&url).await.expect("connect to the test database");
     seed(&adapter).await;
     let state = AppState::new(Arc::new(Executor::new(schema(), Arc::new(adapter))));
-    Some(
-        Router::new()
-            .route("/graphql", post(graphql_handler::<PostgresAdapter>))
-            .with_state(state),
-    )
+    Some(Router::new().route("/graphql", post(graphql_handler)).with_state(state))
 }
 
 async fn post_graphql(router: Router, body: &Value) -> (StatusCode, Value) {

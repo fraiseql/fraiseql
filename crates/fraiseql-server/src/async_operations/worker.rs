@@ -2,7 +2,7 @@
 
 use std::{sync::Arc, time::Duration};
 
-use fraiseql_core::{db::traits::DatabaseAdapter, security::SecurityContext};
+use fraiseql_core::security::SecurityContext;
 use serde_json::Value;
 use tokio::time::MissedTickBehavior;
 use tracing::{debug, warn};
@@ -15,10 +15,7 @@ use crate::routes::graphql::{AppState, tenant_dispatch};
 /// Each tick claims up to one operation (per worker — parallelism comes from
 /// the worker count) and executes it. Also opportunistically sweeps expired
 /// terminal rows.
-pub async fn run<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    runtime: AsyncOperationsRuntime,
-    state: AppState<A>,
-) {
+pub async fn run(runtime: AsyncOperationsRuntime, state: AppState) {
     let mut ticker = tokio::time::interval(Duration::from_millis(runtime.config.poll_interval_ms));
     ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
     loop {
@@ -44,9 +41,9 @@ pub async fn run<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 }
 
 /// Execute one claimed operation, heartbeating while it runs.
-async fn execute_claimed<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
+async fn execute_claimed(
     runtime: &AsyncOperationsRuntime,
-    state: &AppState<A>,
+    state: &AppState,
     claimed: ClaimedOperation,
 ) {
     let ClaimedOperation { op, claim_token } = claimed;

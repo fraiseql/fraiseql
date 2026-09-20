@@ -105,13 +105,13 @@ impl DatabaseAdapter for StubAdapter {
 
 // ── Test helpers ────────────────────────────────────────────────────────
 
-fn make_executor(label: &str, query_name: &str) -> Arc<Executor<StubAdapter>> {
+fn make_executor(label: &str, query_name: &str) -> Arc<Executor> {
     let mut schema = CompiledSchema::default();
     schema.queries.push(QueryDefinition::new(query_name, "Result"));
     Arc::new(Executor::read_only(schema, Arc::new(StubAdapter::new(label))))
 }
 
-fn make_multitenant_state() -> AppState<StubAdapter> {
+fn make_multitenant_state() -> AppState {
     let state = AppState::new(Arc::new(Executor::read_only(
         CompiledSchema::default(),
         Arc::new(StubAdapter::new("default")),
@@ -120,7 +120,7 @@ fn make_multitenant_state() -> AppState<StubAdapter> {
     state.with_tenant_registry(Arc::new(registry))
 }
 
-fn make_single_tenant_state() -> AppState<StubAdapter> {
+fn make_single_tenant_state() -> AppState {
     AppState::new(Arc::new(Executor::read_only(
         CompiledSchema::default(),
         Arc::new(StubAdapter::new("single")),

@@ -105,9 +105,7 @@ fn make_apq_mutation_router() -> Router {
     let state = AppState::new(executor).with_apq_store(apq_store);
 
     // 5. Build minimal router
-    Router::new()
-        .route("/graphql", post(graphql_handler::<FailingAdapter>))
-        .with_state(state)
+    Router::new().route("/graphql", post(graphql_handler)).with_state(state)
 }
 
 /// Send a POST request with JSON body; return (status, parsed body).
@@ -212,9 +210,7 @@ async fn test_apq_mutation_hash_only_returns_data() {
     );
     let executor = Arc::new(Executor::new(schema, adapter));
     let state = AppState::new(executor).with_apq_store(apq_store);
-    let router = Router::new()
-        .route("/graphql", post(graphql_handler::<FailingAdapter>))
-        .with_state(state);
+    let router = Router::new().route("/graphql", post(graphql_handler)).with_state(state);
 
     let (status, body) = post_graphql(
         router,
@@ -281,9 +277,7 @@ async fn test_apq_mutation_full_lifecycle() {
     ));
     let executor = Arc::new(Executor::new(schema, adapter));
     let state = AppState::new(executor).with_apq_store(apq_store);
-    let router = Router::new()
-        .route("/graphql", post(graphql_handler::<FailingAdapter>))
-        .with_state(state);
+    let router = Router::new().route("/graphql", post(graphql_handler)).with_state(state);
 
     let variables = json!({
         "id": "11111111-1111-1111-1111-111111111111",

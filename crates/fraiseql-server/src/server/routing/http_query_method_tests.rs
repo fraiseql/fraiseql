@@ -19,7 +19,7 @@
 use std::sync::Arc;
 
 use axum::body::Body;
-use fraiseql_core::{cache::CachedDatabaseAdapter, schema::CompiledSchema};
+use fraiseql_core::schema::CompiledSchema;
 use fraiseql_test_utils::failing_adapter::FailingAdapter;
 use http::{Request, StatusCode};
 use tower::ServiceExt;
@@ -30,7 +30,7 @@ use crate::{server::Server, server_config::ServerConfig};
 ///
 /// Boxed at the delegation point: `Server::new`'s future trips `clippy::large_futures`
 /// (pedantic, denied) at every call site otherwise.
-async fn server_with_query_method(enabled: bool) -> Server<CachedDatabaseAdapter<FailingAdapter>> {
+async fn server_with_query_method(enabled: bool) -> Server {
     let config = ServerConfig {
         // #874: `Server::new` runs `validate()`, and the default `cors_enabled = true`
         // with no origins is refused in production mode. CORS is not what this pins.

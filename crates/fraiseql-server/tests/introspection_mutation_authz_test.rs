@@ -46,7 +46,7 @@ fn schema_with_gated_mutation() -> CompiledSchema {
 fn introspection_app(schema: CompiledSchema) -> Router {
     let state = AppState::new(Arc::new(Executor::new(schema, Arc::new(FailingAdapter::new()))));
     Router::new()
-        .route("/introspection", get(introspection_handler::<FailingAdapter>))
+        .route("/introspection", get(introspection_handler))
         .with_state(state)
 }
 

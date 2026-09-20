@@ -1245,7 +1245,7 @@ mod session_state_boot_tests {
         server_config::{ServerConfig, SessionStateServerConfig},
     };
 
-    type TestServer = Server<fraiseql_core::db::postgres::PostgresAdapter>;
+    type TestServer = Server;
 
     fn config_with(backend: &str) -> ServerConfig {
         ServerConfig {
@@ -1336,7 +1336,7 @@ mod async_operations_boot_tests {
         server_config::{AsyncOperationsConfig, ServerConfig},
     };
 
-    type TestServer = Server<fraiseql_core::db::postgres::PostgresAdapter>;
+    type TestServer = Server;
 
     fn config_with_ops() -> ServerConfig {
         ServerConfig {

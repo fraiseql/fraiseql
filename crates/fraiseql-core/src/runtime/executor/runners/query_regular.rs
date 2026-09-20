@@ -19,9 +19,7 @@ use super::{
     },
 };
 use crate::{
-    backend::{
-        WhereClause, projection_generator::PostgresProjectionGenerator, traits::DatabaseAdapter,
-    },
+    backend::{WhereClause, projection_generator::PostgresProjectionGenerator},
     error::{FraiseQLError, Result},
     runtime::{JsonbStrategy, ResultProjector},
     schema::SqlProjectionHint,
@@ -126,7 +124,7 @@ pub struct StreamedRowRead {
     pub stream:  fraiseql_db::ColumnRowStream,
 }
 
-impl<A: DatabaseAdapter> QueryRunner<A> {
+impl QueryRunner {
     /// Resolve configured session variables for `security_context` into owned
     /// `(name, value)` pairs.
     ///
@@ -1664,10 +1662,7 @@ impl<A: DatabaseAdapter> QueryRunner<A> {
         query_match: crate::runtime::matcher::QueryMatch,
         variables: Option<serde_json::Value>,
         security_context: Option<SecurityContext>,
-    ) -> Result<crate::runtime::JsonRowStream>
-    where
-        A: 'static,
-    {
+    ) -> Result<crate::runtime::JsonRowStream> {
         let resolved =
             self.resolve_direct_read(&query_match, variables.as_ref(), security_context.as_ref())?;
         let rows = {

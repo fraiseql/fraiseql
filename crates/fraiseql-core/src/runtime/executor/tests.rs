@@ -1604,7 +1604,7 @@ mod gate1_schema_derived {
         schema
     }
 
-    fn executor_from_schema(schema: CompiledSchema) -> Executor<MockAdapter> {
+    fn executor_from_schema(schema: CompiledSchema) -> Executor {
         let config = RuntimeConfig::from_compiled_schema(&schema)
             .expect("test schema must produce a valid runtime config");
         Executor::with_config(schema, Arc::new(MockAdapter::new(mock_user_results())), config)
@@ -1727,7 +1727,7 @@ mod schema_cost_cap {
         schema
     }
 
-    fn executor_from_schema(schema: CompiledSchema) -> Executor<MockAdapter> {
+    fn executor_from_schema(schema: CompiledSchema) -> Executor {
         let config = RuntimeConfig::from_compiled_schema(&schema)
             .expect("test schema must produce a valid runtime config");
         Executor::with_config(schema, Arc::new(MockAdapter::new(mock_user_results())), config)
@@ -3251,7 +3251,7 @@ mod rls_fail_closed {
     use super::*;
     use crate::security::DefaultRLSPolicy;
 
-    fn rls_executor() -> Executor<MockAdapter> {
+    fn rls_executor() -> Executor {
         Executor::with_config(
             test_schema(),
             Arc::new(MockAdapter::new(mock_user_results())),
@@ -3498,7 +3498,7 @@ mod response_cache_key {
         }
     }
 
-    fn executor_with_response_cache() -> Executor<MockAdapter> {
+    fn executor_with_response_cache() -> Executor {
         Executor::new(schema(), Arc::new(MockAdapter::new(rows()))).with_response_cache(Arc::new(
             ResponseCache::new(ResponseCacheConfig {
                 enabled:     true,

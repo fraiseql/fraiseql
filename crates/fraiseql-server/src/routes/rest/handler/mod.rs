@@ -22,7 +22,6 @@ mod tests;
 use std::sync::Arc;
 
 use fraiseql_core::{
-    db::traits::DatabaseAdapter,
     runtime::Executor,
     schema::{CompiledSchema, RestConfig},
 };
@@ -43,8 +42,8 @@ use super::{idempotency::IdempotencyStore, resource::RestRouteTable};
 ///
 /// This handler does NOT construct GraphQL strings. It builds typed
 /// `QueryMatch` or mutation calls and executes them directly.
-pub struct RestHandler<'a, A: DatabaseAdapter> {
-    pub(super) executor:          &'a Arc<Executor<A>>,
+pub struct RestHandler<'a> {
+    pub(super) executor:          &'a Arc<Executor>,
     pub(super) schema:            &'a CompiledSchema,
     pub(super) config:            &'a RestConfig,
     pub(super) route_table:       &'a RestRouteTable,
@@ -55,11 +54,11 @@ pub struct RestHandler<'a, A: DatabaseAdapter> {
     pub(super) function_hooks:    Option<&'a Arc<crate::subsystems::BeforeMutationHooks>>,
 }
 
-impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
+impl<'a> RestHandler<'a> {
     /// Create a new REST handler.
     #[must_use]
     pub const fn new(
-        executor: &'a Arc<Executor<A>>,
+        executor: &'a Arc<Executor>,
         schema: &'a CompiledSchema,
         config: &'a RestConfig,
         route_table: &'a RestRouteTable,
@@ -89,7 +88,7 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
 
     /// Access the underlying executor.
     #[must_use]
-    pub const fn executor(&self) -> &Arc<Executor<A>> {
+    pub const fn executor(&self) -> &Arc<Executor> {
         self.executor
     }
 

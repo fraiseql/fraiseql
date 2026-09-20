@@ -254,7 +254,7 @@ mod pipeline_tests {
         }
     }
 
-    fn make_executor(names: &[(&str, &str)]) -> Executor<MockAdapter> {
+    fn make_executor(names: &[(&str, &str)]) -> Executor {
         let schema = make_schema_with_queries(names);
         Executor::read_only(schema, Arc::new(MockAdapter))
     }

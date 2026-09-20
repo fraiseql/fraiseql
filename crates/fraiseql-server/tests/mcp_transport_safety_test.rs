@@ -95,13 +95,13 @@ fn build_schema(naming: NamingConvention) -> CompiledSchema {
 /// A schema plus the adapter recording which views were actually queried.
 struct Fixture {
     schema:    Arc<CompiledSchema>,
-    executor:  Arc<Executor<FailingAdapter>>,
+    executor:  Arc<Executor>,
     adapter:   Arc<FailingAdapter>,
     sanitizer: ErrorSanitizer,
 }
 
 impl Fixture {
-    fn ctx<'a>(&'a self, config: &'a McpConfig) -> McpCallContext<'a, FailingAdapter> {
+    fn ctx<'a>(&'a self, config: &'a McpConfig) -> McpCallContext<'a> {
         McpCallContext {
             schema: &self.schema,
             executor: &self.executor,

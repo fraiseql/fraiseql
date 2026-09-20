@@ -1,4 +1,4 @@
-//! `Executor<A>` struct definition, constructors, and basic accessors.
+//! `Executor` struct definition, constructors, and basic accessors.
 
 use std::{collections::HashMap, sync::Arc};
 
@@ -104,16 +104,26 @@ const MAX_PG_IDENTIFIER_LEN: usize = 63;
 /// This is the main entry point for runtime query execution.
 /// It coordinates matching, planning, execution, and projection.
 ///
-/// # Type Parameters
+/// # The adapter has no name here
 ///
-/// * `A` - The database adapter type (implements `DatabaseAdapter` trait)
+/// `Executor` is not generic over its adapter. The concrete type is consumed by the
+/// constructor and stored erased, as `Arc<dyn DatabaseAdapter>`, so a holder of an
+/// `Executor` cannot name the adapter, cannot recover it, and cannot call anything on
+/// it that the engine does not offer. That is the whole point: a transport handed an
+/// executor is handed the engine's surface, not a database handle it can go around the
+/// engine with.
+///
+/// The capability that the type parameter used to carry is carried by a value instead.
+/// A constructor bounded on [`SupportsMutations`] resolves a write handle, and only if
+/// the adapter's `supports_mutations()` agrees; everything else gets `None` and refuses
+/// every write. See [`Executor::new`] and [`Executor::read_only`].
 ///
 /// # Ownership and Lifetimes
 ///
 /// The executor holds owned references to schema and runtime data, with no borrowed pointers:
 /// - `schema`: Owned `CompiledSchema` (immutable after construction)
-/// - `adapter`: Shared via `Arc<A>` to allow multiple executors/tasks to use the same connection
-///   pool
+/// - `adapter`: Shared via `Arc<dyn DatabaseAdapter>` so multiple executors and tasks use the same
+///   connection pool
 /// - `introspection`: Owned cached GraphQL schema responses
 /// - `config`: Owned runtime configuration
 ///
@@ -123,8 +133,9 @@ const MAX_PG_IDENTIFIER_LEN: usize = 63;
 ///
 /// # Concurrency
 ///
-/// `Executor<A>` is `Send + Sync` when `A` is `Send + Sync`. It can be safely shared across
-/// threads and tasks without cloning:
+/// `Executor` is `Send + Sync` — `DatabaseAdapter` requires both of every implementor, so
+/// erasing the adapter cannot lose them. It can be safely shared across threads and tasks
+/// without cloning:
 /// ```no_run
 /// // Requires: a live database adapter.
 /// // See: tests/integration/ for runnable examples.
@@ -142,9 +153,9 @@ const MAX_PG_IDENTIFIER_LEN: usize = 63;
 /// Queries are protected by the `query_timeout_ms` configuration in `RuntimeConfig` (default: 30s).
 /// When a query exceeds this timeout, it returns `FraiseQLError::Timeout` without panicking.
 /// Set `query_timeout_ms` to 0 to disable timeout enforcement.
-pub struct Executor<A: DatabaseAdapter> {
+pub struct Executor {
     /// All shared state — schema, adapter, config, caches, relay.
-    pub(super) ctx: Arc<ExecutorContext<A>>,
+    pub(super) ctx: Arc<ExecutorContext>,
 }
 
 /// Whether a constructor may hand the executor a write handle.
@@ -193,7 +204,7 @@ enum Writes {
 ///     let _ = Executor::new(schema, adapter);
 /// }
 /// ```
-impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
+impl Executor {
     /// Create a new write-capable executor.
     ///
     /// Available only for adapters that declare [`SupportsMutations`]. For one that
@@ -229,7 +240,10 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
     /// # Ok(()) }
     /// ```
     #[must_use]
-    pub fn new(schema: CompiledSchema, adapter: Arc<A>) -> Self {
+    pub fn new<A: DatabaseAdapter + SupportsMutations>(
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+    ) -> Self {
         Self::with_config(schema, adapter, RuntimeConfig::default())
     }
 
@@ -241,13 +255,16 @@ impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
     /// * `adapter` - Database adapter
     /// * `config` - Runtime configuration
     #[must_use]
-    pub fn with_config(schema: CompiledSchema, adapter: Arc<A>, config: RuntimeConfig) -> Self {
+    pub fn with_config<A: DatabaseAdapter + SupportsMutations>(
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+        config: RuntimeConfig,
+    ) -> Self {
+        let adapter: Arc<dyn DatabaseAdapter> = adapter;
         let writer = Self::resolve_writer(&adapter, &Writes::Permitted);
         Self::build(schema, adapter, config, None, writer)
     }
-}
 
-impl<A: DatabaseAdapter> Executor<A> {
     /// Create a new executor that cannot write.
     ///
     /// The entry for an adapter that does not declare [`SupportsMutations`] — a
@@ -261,7 +278,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// * `schema` - Compiled schema
     /// * `adapter` - Database adapter
     #[must_use]
-    pub fn read_only(schema: CompiledSchema, adapter: Arc<A>) -> Self {
+    pub fn read_only<A: DatabaseAdapter>(schema: CompiledSchema, adapter: Arc<A>) -> Self {
         Self::read_only_with_config(schema, adapter, RuntimeConfig::default())
     }
 
@@ -273,11 +290,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// * `adapter` - Database adapter
     /// * `config` - Runtime configuration
     #[must_use]
-    pub fn read_only_with_config(
+    pub fn read_only_with_config<A: DatabaseAdapter>(
         schema: CompiledSchema,
         adapter: Arc<A>,
         config: RuntimeConfig,
     ) -> Self {
+        let adapter: Arc<dyn DatabaseAdapter> = adapter;
         let writer = Self::resolve_writer(&adapter, &Writes::Refused);
         Self::build(schema, adapter, config, None, writer)
     }
@@ -290,11 +308,12 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// marker and never overrode the method resolves to `None`: the trait documentation
     /// calls that pairing "stated rather than enforced", and this is the one line that
     /// enforces it.
-    fn resolve_writer(adapter: &Arc<A>, writes: &Writes) -> Option<Arc<dyn DatabaseAdapter>> {
+    fn resolve_writer(
+        adapter: &Arc<dyn DatabaseAdapter>,
+        writes: &Writes,
+    ) -> Option<Arc<dyn DatabaseAdapter>> {
         match writes {
-            Writes::Permitted if adapter.supports_mutations() => {
-                Some(Arc::clone(adapter) as Arc<dyn DatabaseAdapter>)
-            },
+            Writes::Permitted if adapter.supports_mutations() => Some(Arc::clone(adapter)),
             Writes::Permitted | Writes::Refused => None,
         }
     }
@@ -308,7 +327,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// deliberately does not carry.
     fn build(
         schema: CompiledSchema,
-        adapter: Arc<A>,
+        adapter: Arc<dyn DatabaseAdapter>,
         config: RuntimeConfig,
         relay: Option<Arc<dyn RelayDispatch>>,
         writer: Option<Arc<dyn DatabaseAdapter>>,
@@ -590,26 +609,26 @@ impl<A: DatabaseAdapter> Executor<A> {
 
     /// Rebuild an executor view over an already-shared context.
     ///
-    /// `Executor` *is* its `Arc<ExecutorContext<A>>`, so this is one atomic
+    /// `Executor` *is* its `Arc<ExecutorContext>`, so this is one atomic
     /// increment — the same zero-cost move the runner accessors make. It exists so
     /// a component holding only the context (the `before:mutation` read bridge,
     /// which is built inside `execute_mutation_impl`) can reach the read entry
-    /// points, which are `impl Executor<A>`.
-    pub(super) const fn from_ctx(ctx: Arc<ExecutorContext<A>>) -> Self {
+    /// points, which are `impl Executor`.
+    pub(super) const fn from_ctx(ctx: Arc<ExecutorContext>) -> Self {
         Self { ctx }
     }
 
     /// Construct a query runner on demand.
     ///
     /// Zero-cost: `Arc::clone` is one atomic increment, no allocation.
-    pub(super) fn query_runner(&self) -> runners::query::QueryRunner<A> {
+    pub(super) fn query_runner(&self) -> runners::query::QueryRunner {
         runners::query::QueryRunner::new(Arc::clone(&self.ctx))
     }
 
     /// Construct an aggregate runner on demand.
     ///
     /// Zero-cost: `Arc::clone` is one atomic increment, no allocation.
-    pub(super) fn aggregate_runner(&self) -> runners::aggregate::AggregateRunner<A> {
+    pub(super) fn aggregate_runner(&self) -> runners::aggregate::AggregateRunner {
         runners::aggregate::AggregateRunner::new(Arc::clone(&self.ctx))
     }
 
@@ -752,10 +771,7 @@ impl<A: DatabaseAdapter> Executor<A> {
         query_match: QueryMatch,
         variables: Option<serde_json::Value>,
         security_context: Option<SecurityContext>,
-    ) -> Result<crate::runtime::JsonRowStream>
-    where
-        A: 'static,
-    {
+    ) -> Result<crate::runtime::JsonRowStream> {
         // #1336 backstop — the streaming twin of `execute_query_direct`.
         crate::runtime::executor::support::security::enforce_enrichment_resolved(
             &self.ctx.schema,
@@ -846,7 +862,7 @@ impl<A: DatabaseAdapter> Executor<A> {
     }
 }
 
-impl<A: DatabaseAdapter + RelayDatabaseAdapter + SupportsMutations + 'static> Executor<A> {
+impl Executor {
     /// Create a new executor with relay cursor pagination enabled.
     ///
     /// Only callable when `A: RelayDatabaseAdapter`.  The relay capability is
@@ -870,19 +886,27 @@ impl<A: DatabaseAdapter + RelayDatabaseAdapter + SupportsMutations + 'static> Ex
     /// # Ok(()) }
     /// ```
     #[must_use]
-    pub fn new_with_relay(schema: CompiledSchema, adapter: Arc<A>) -> Self {
+    pub fn new_with_relay<
+        A: DatabaseAdapter + RelayDatabaseAdapter + SupportsMutations + 'static,
+    >(
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+    ) -> Self {
         Self::with_config_and_relay(schema, adapter, RuntimeConfig::default())
     }
 
     /// Create a new executor with relay support and custom configuration.
     #[must_use]
-    pub fn with_config_and_relay(
+    pub fn with_config_and_relay<
+        A: DatabaseAdapter + RelayDatabaseAdapter + SupportsMutations + 'static,
+    >(
         schema: CompiledSchema,
         adapter: Arc<A>,
         config: RuntimeConfig,
     ) -> Self {
         let relay_dispatch: Arc<dyn RelayDispatch> =
             Arc::new(RelayDispatchImpl(Arc::clone(&adapter)));
+        let adapter: Arc<dyn DatabaseAdapter> = adapter;
         let writer = Self::resolve_writer(&adapter, &Writes::Permitted);
         Self::build(schema, adapter, config, Some(relay_dispatch), writer)
     }

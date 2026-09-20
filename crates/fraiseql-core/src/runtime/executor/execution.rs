@@ -5,12 +5,11 @@ use std::{sync::Arc, time::Duration};
 
 use super::{Executor, QueryType, pipeline, root_type_name, support};
 use crate::{
-    backend::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     security::SecurityContext,
 };
 
-impl<A: DatabaseAdapter> Executor<A> {
+impl Executor {
     /// Execute a GraphQL query string and return a serialized JSON response.
     ///
     /// Applies the configured query timeout if one is set. Handles queries,

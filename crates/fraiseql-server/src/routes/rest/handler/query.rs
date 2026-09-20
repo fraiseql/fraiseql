@@ -3,7 +3,7 @@
 use std::collections::HashMap;
 
 use axum::http::{HeaderMap, HeaderValue};
-use fraiseql_core::{db::traits::DatabaseAdapter, runtime::QueryMatch, security::SecurityContext};
+use fraiseql_core::{runtime::QueryMatch, security::SecurityContext};
 use serde_json::json;
 
 use super::{
@@ -357,7 +357,7 @@ fn quoted_list<S: AsRef<str>>(names: impl IntoIterator<Item = S>) -> String {
         .join(", ")
 }
 
-impl<A: DatabaseAdapter> RestHandler<'_, A> {
+impl RestHandler<'_> {
     /// Resolve a GET request path for a **streaming representation**, refusing a
     /// route that has not opted in (#958).
     ///

@@ -31,7 +31,6 @@
 use std::{collections::HashMap, sync::Arc};
 
 use fraiseql_core::{
-    db::postgres::PostgresAdapter,
     runtime::Executor,
     schema::{
         CompiledSchema, FederationConfig, FederationEntity, FieldDefinition, FieldType,
@@ -86,7 +85,7 @@ fn user_schema() -> CompiledSchema {
 }
 
 /// One user owning two orders, each carrying **five** keys.
-async fn fixture() -> Option<(fraiseql_test_support::Service, Executor<PostgresAdapter>)> {
+async fn fixture() -> Option<(fraiseql_test_support::Service, Executor)> {
     let row: HashMap<String, Value> = std::iter::once((
         "data".to_string(),
         json!({
@@ -114,7 +113,7 @@ fn representations() -> Value {
     json!({ "representations": [{ "__typename": "User", "id": "u-1" }] })
 }
 
-async fn entity(executor: &Executor<PostgresAdapter>, fields: &str) -> Value {
+async fn entity(executor: &Executor, fields: &str) -> Value {
     executor
         .execute(&entities_query(fields), Some(&representations()))
         .await

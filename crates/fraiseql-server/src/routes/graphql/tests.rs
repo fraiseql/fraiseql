@@ -83,7 +83,7 @@ fn test_graphql_get_params_camel_case() {
 #[test]
 fn test_appstate_has_cache_field() {
     // Documents: AppState must have cache field
-    let note = "AppState<A> includes: executor, metrics, cache";
+    let note = "AppState includes: executor, metrics, cache";
     assert!(!note.is_empty());
 }
 
@@ -97,7 +97,7 @@ fn test_appstate_cache_accessor() {
 #[test]
 fn test_appstate_executor_provides_access_to_schema() {
     // Documents: AppState should provide access to schema through executor
-    let note = "AppState<A>::executor can be queried for schema information";
+    let note = "AppState::executor can be queried for schema information";
     assert!(!note.is_empty());
 }
 
@@ -401,7 +401,7 @@ mod app_state_tests {
         }
     }
 
-    fn make_state() -> AppState<StubAdapter> {
+    fn make_state() -> AppState {
         let schema = CompiledSchema::default();
         let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter)));
         AppState::new(executor)
@@ -463,7 +463,7 @@ mod app_state_tests {
             variables:      Some(format!(r#"{{"token": "{SECRET}""#)),
             operation_name: None,
         };
-        let result = crate::routes::graphql::handler::graphql_get_handler::<StubAdapter>(
+        let result = crate::routes::graphql::handler::graphql_get_handler(
             axum::extract::State(state),
             axum::http::HeaderMap::new(),
             crate::extractors::PeerIp("127.0.0.1".to_string()),
@@ -1025,13 +1025,13 @@ mod tenant_registry_tests {
         }
     }
 
-    fn default_executor() -> Arc<ArcSwap<Executor<StubAdapter>>> {
+    fn default_executor() -> Arc<ArcSwap<Executor>> {
         let schema = CompiledSchema::default();
         let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter::new("default"))));
         Arc::new(ArcSwap::from(executor))
     }
 
-    fn tenant_executor(label: &'static str) -> Arc<Executor<StubAdapter>> {
+    fn tenant_executor(label: &'static str) -> Arc<Executor> {
         let mut schema = CompiledSchema::default();
         schema
             .queries
@@ -1256,14 +1256,14 @@ mod tenant_registry_tests {
 
     #[test]
     fn test_suspend_unknown_tenant_returns_not_found() {
-        let registry = TenantExecutorRegistry::<StubAdapter>::new(default_executor());
+        let registry = TenantExecutorRegistry::new(default_executor());
         let err = registry.suspend("unknown").unwrap_err();
         assert!(matches!(err, FraiseQLError::NotFound { .. }), "Expected NotFound, got: {err:?}");
     }
 
     #[test]
     fn test_resume_unknown_tenant_returns_not_found() {
-        let registry = TenantExecutorRegistry::<StubAdapter>::new(default_executor());
+        let registry = TenantExecutorRegistry::new(default_executor());
         let err = registry.resume("unknown").unwrap_err();
         assert!(matches!(err, FraiseQLError::NotFound { .. }), "Expected NotFound, got: {err:?}");
     }

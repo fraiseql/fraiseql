@@ -7,20 +7,23 @@
 use std::sync::Arc;
 
 use fraiseql_core::{runtime::Executor, schema::RunAs, security::SecurityContext, types::TenantId};
-use fraiseql_db::traits::{DatabaseAdapter, SupportsMutations};
 use fraiseql_error::Result;
 use fraiseql_federation::types::FederationMetadata;
 use serde_json::Value;
 
 /// Executes saga mutations.
 ///
-/// Generic over an adapter that is **statically** write-capable: the engine's
-/// write entries live on `impl<A: DatabaseAdapter + SupportsMutations>`, so a
-/// read-only adapter cannot reach them, and a saga cannot be built over one.
+/// This used to be generic over an adapter that was *statically* write-capable, on the
+/// reasoning that the engine's write entries sat behind a `SupportsMutations` bound, so
+/// a saga could not be built over a read-only adapter. Neither half is true any more:
+/// the entries carry no bound, and this type names no adapter. A saga built over a
+/// read-only engine now constructs, and every step it dispatches is refused by the
+/// executor's write slot with a diagnostic naming both capability gates. The refusal
+/// moved from the type to the dispatch; it did not go away.
 #[derive(Clone)]
-pub struct FederationMutationExecutor<A: DatabaseAdapter + SupportsMutations> {
+pub struct FederationMutationExecutor {
     /// The engine. A saga step dispatches *through* it, never around it.
-    engine:   Arc<Executor<A>>,
+    engine:   Arc<Executor>,
     /// Federation metadata. Used by the **remote** arm to build the outgoing
     /// GraphQL mutation and project its response; the local arm resolves the
     /// mutation from the compiled schema instead, so it needs none of this.
@@ -38,7 +41,7 @@ pub struct FederationMutationExecutor<A: DatabaseAdapter + SupportsMutations> {
     run_as:   RunAs,
 }
 
-impl<A: DatabaseAdapter + SupportsMutations> FederationMutationExecutor<A> {
+impl FederationMutationExecutor {
     /// Create a saga mutation executor over an engine.
     ///
     /// `job_id` names the saga in the minted principal; `run_as` is the authority
@@ -46,7 +49,7 @@ impl<A: DatabaseAdapter + SupportsMutations> FederationMutationExecutor<A> {
     /// it has no default.
     #[must_use]
     pub fn new(
-        engine: Arc<Executor<A>>,
+        engine: Arc<Executor>,
         metadata: FederationMetadata,
         job_id: impl Into<String>,
         run_as: RunAs,

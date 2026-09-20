@@ -15,7 +15,6 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
 
 use crate::routes::{graphql::app_state::AppState, studio::not_implemented};
@@ -153,14 +152,11 @@ pub struct DataQueryResponse {
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
 /// Returns `404` when the entity does not exist in the compiled schema.
-pub async fn query_handler<A>(
+pub async fn query_handler(
     Path(entity): Path<String>,
-    State(state): State<AppState<A>>,
+    State(state): State<AppState>,
     Json(_req): Json<DataBrowserQuery>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+) -> Response {
     // Validate entity exists in the compiled schema.
     let schema = state.executor.load().schema().clone();
     let entity_exists = schema.types.iter().any(|t| t.name == entity);
@@ -194,14 +190,11 @@ where
 /// Returns `401` without valid admin credentials (enforced by middleware).
 /// Returns `403` in read-only mode.
 /// Returns `404` when the entity does not exist.
-pub async fn mutate_handler<A>(
+pub async fn mutate_handler(
     Path(entity): Path<String>,
-    State(state): State<AppState<A>>,
+    State(state): State<AppState>,
     Json(_req): Json<DataMutateRequest>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+) -> Response {
     // Validate entity exists.
     let schema = state.executor.load().schema().clone();
     let entity_exists = schema.types.iter().any(|t| t.name == entity);

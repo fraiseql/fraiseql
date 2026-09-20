@@ -1,6 +1,6 @@
 //! Route-mounting tests for conditional subsystem wiring.
 //!
-//! These tests operate at the axum `Router` level (not full `Server<A>`), which
+//! These tests operate at the axum `Router` level (not full `Server`), which
 //! lets them run without a real `DatabaseAdapter`.  Each test spawns a minimal
 //! TCP server, sends a plain HTTP request, and checks whether the response is
 //! 404 (route not mounted) or something else (handler ran).

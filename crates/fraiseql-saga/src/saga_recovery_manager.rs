@@ -72,7 +72,6 @@ use std::{
 };
 
 use ::tracing::{info, warn};
-use fraiseql_db::traits::{DatabaseAdapter, SupportsMutations};
 use uuid::Uuid;
 
 use crate::{
@@ -344,9 +343,9 @@ impl SagaRecoveryManager {
     ///
     /// Panics if the internal stats mutex is poisoned (a prior panic occurred
     /// while the lock was held).
-    pub async fn run_iteration<A: DatabaseAdapter + SupportsMutations>(
+    pub async fn run_iteration(
         &self,
-        executor: &FederationMutationExecutor<A>,
+        executor: &FederationMutationExecutor,
     ) -> SagaStoreResult<()> {
         let saga_executor = SagaExecutor::with_store(Arc::clone(&self.store));
 
@@ -424,10 +423,10 @@ impl SagaRecoveryManager {
     /// incrementing attempt count) and drives the saga through
     /// [`SagaExecutor::execute_saga`], which transitions it to a terminal
     /// `Completed`/`Failed` state (skipping already-`Completed` steps, #744).
-    async fn recover_one<A: DatabaseAdapter + SupportsMutations>(
+    async fn recover_one(
         &self,
         saga_executor: &SagaExecutor,
-        executor: &FederationMutationExecutor<A>,
+        executor: &FederationMutationExecutor,
         saga: &Saga,
     ) -> SagaStoreResult<()> {
         // Attempt cap: park rather than retry a poison saga forever (#785).
@@ -506,13 +505,10 @@ impl SagaRecoveryManager {
     // Reason: spawns the recovery loop rather than awaiting it, but is part of the
     // awaited lifecycle surface — see `stop_background_loop`.
     #[allow(unknown_lints, clippy::unused_async_trait_impl)]
-    pub async fn start_background_loop<A>(
+    pub async fn start_background_loop(
         self: Arc<Self>,
-        executor: Arc<FederationMutationExecutor<A>>,
-    ) -> SagaStoreResult<()>
-    where
-        A: DatabaseAdapter + SupportsMutations + 'static,
-    {
+        executor: Arc<FederationMutationExecutor>,
+    ) -> SagaStoreResult<()> {
         if self
             .running
             .compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst)

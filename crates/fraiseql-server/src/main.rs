@@ -845,41 +845,29 @@ async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> 
 /// lost its only production caller while the served `OpenAPI` document went on
 /// advertising every write path, so following the published contract earned a 405.
 ///
-/// The read-only backend needs no entry here and cannot be given one —
-/// `FraiseWireAdapter` does not implement `SupportsMutations`, so the type system,
-/// rather than a runtime check someone must remember to write, is what keeps writes off
-/// it.
+/// The read-only backend needs no entry here: this helper is reached only from the
+/// non-`wire-backend` boot paths. It used to be bounded on `SupportsMutations` as well,
+/// described as the type system keeping writes off `FraiseWireAdapter` — a claim that
+/// retired with the type parameter. The executor a wire-backend boot builds is
+/// constructed read-only, so mounting the write routes over it would mount routes that
+/// refuse, not routes that write.
 #[cfg(all(not(feature = "wire-backend"), feature = "rest"))]
-fn enable_rest_writes<X>(server: Server<X>) -> Server<X>
-where
-    X: fraiseql_core::db::DatabaseAdapter
-        + fraiseql_core::db::traits::SupportsMutations
-        + Clone
-        + Send
-        + Sync
-        + 'static,
-{
+fn enable_rest_writes(server: Server) -> Server {
     server.with_rest_write_surface()
 }
 
 /// No-op counterpart for builds without the `rest` feature, where there is no REST
 /// transport to mount at all.
 #[cfg(all(not(feature = "wire-backend"), not(feature = "rest")))]
-const fn enable_rest_writes<X>(server: Server<X>) -> Server<X>
-where
-    X: fraiseql_core::db::DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+const fn enable_rest_writes(server: Server) -> Server {
     server
 }
 
-/// Finalize startup for any constructed `Server<X>`: attach the secrets
+/// Finalize startup for any constructed `Server`: attach the secrets
 /// manager if configured, dispatch to MCP-stdio mode if requested, otherwise
 /// start the HTTP server.
 #[cfg_attr(not(feature = "mcp"), allow(unused_variables))]
-async fn finish_server<X>(server: Server<X>, cli: &Cli, with_arrow: bool) -> anyhow::Result<()>
-where
-    X: fraiseql_core::db::DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+async fn finish_server(server: Server, cli: &Cli, with_arrow: bool) -> anyhow::Result<()> {
     // Attach secrets manager if configured.
     #[cfg(feature = "secrets")]
     let mut server = server;

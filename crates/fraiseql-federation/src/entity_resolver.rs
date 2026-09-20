@@ -142,7 +142,7 @@ fn scatter_resolved(
 }
 
 /// Resolve entities for a specific typename from local database
-pub async fn resolve_entities_from_db<A: DatabaseAdapter>(
+pub async fn resolve_entities_from_db<A: DatabaseAdapter + ?Sized>(
     representations: &[EntityRepresentation],
     typename: &str,
     adapter: Arc<A>,
@@ -161,7 +161,7 @@ pub async fn resolve_entities_from_db<A: DatabaseAdapter>(
 }
 
 /// Resolve entities for a specific typename from local database with optional distributed tracing.
-pub async fn resolve_entities_from_db_with_tracing<A: DatabaseAdapter>(
+pub async fn resolve_entities_from_db_with_tracing<A: DatabaseAdapter + ?Sized>(
     representations: &[EntityRepresentation],
     typename: &str,
     adapter: Arc<A>,
@@ -193,7 +193,7 @@ pub async fn resolve_entities_from_db_with_tracing<A: DatabaseAdapter>(
 // Reason: mirrors resolve_entities_from_db_with_tracing's positional API, plus the
 // per-row enforcement inputs (row_filter + session_vars); an extra struct would add
 // indirection without clarifying these internal resolver entry points.
-pub async fn resolve_entities_from_db_enforced<A: DatabaseAdapter>(
+pub async fn resolve_entities_from_db_enforced<A: DatabaseAdapter + ?Sized>(
     representations: &[EntityRepresentation],
     typename: &str,
     adapter: Arc<A>,
@@ -245,7 +245,7 @@ pub async fn resolve_entities_from_db_enforced<A: DatabaseAdapter>(
 ///
 /// Returns `FraiseQLError::Validation` if the batch size exceeds the maximum.
 /// Returns `FraiseQLError` if the database query fails.
-pub async fn batch_load_entities<A: DatabaseAdapter>(
+pub async fn batch_load_entities<A: DatabaseAdapter + ?Sized>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
     adapter: Arc<A>,
@@ -262,7 +262,7 @@ pub async fn batch_load_entities<A: DatabaseAdapter>(
 /// Returns `FraiseQLError::Database` if any typename batch failed to resolve
 /// (#764) — a database failure is an **error**, never `data: [null, …]`; a
 /// `None` entity in a successful result means "not found", nothing else.
-pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter>(
+pub async fn batch_load_entities_with_tracing<A: DatabaseAdapter + ?Sized>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
     adapter: Arc<A>,
@@ -314,7 +314,7 @@ fn propagate_batch_errors(result: EntityResolutionMetrics) -> Result<Vec<Option<
 #[allow(clippy::implicit_hasher)]
 // Reason: the core runtime always builds `row_filters` with the default hasher; a
 // generic `S` would leak a hasher type parameter through every call site for no gain.
-pub async fn batch_load_entities_enforced<A: DatabaseAdapter>(
+pub async fn batch_load_entities_enforced<A: DatabaseAdapter + ?Sized>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
     adapter: Arc<A>,
@@ -344,7 +344,7 @@ pub async fn batch_load_entities_enforced<A: DatabaseAdapter>(
 ///
 /// Returns `FraiseQLError::Validation` if the batch size exceeds the maximum.
 /// Returns `FraiseQLError` if the database query fails.
-pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
+pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter + ?Sized>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
     adapter: Arc<A>,
@@ -381,7 +381,7 @@ pub async fn batch_load_entities_with_tracing_and_metrics<A: DatabaseAdapter>(
 #[allow(clippy::implicit_hasher)]
 // Reason: the core runtime always builds `row_filters` with the default hasher; a
 // generic `S` would leak a hasher type parameter through every call site for no gain.
-pub async fn batch_load_entities_with_tracing_and_metrics_enforced<A: DatabaseAdapter>(
+pub async fn batch_load_entities_with_tracing_and_metrics_enforced<A: DatabaseAdapter + ?Sized>(
     representations: &[EntityRepresentation],
     fed_resolver: &FederationResolver,
     adapter: Arc<A>,

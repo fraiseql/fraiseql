@@ -14,10 +14,7 @@ use super::{
     },
 };
 use crate::{
-    backend::{
-        CursorValue, WhereClause, projection_generator::PostgresProjectionGenerator,
-        traits::DatabaseAdapter,
-    },
+    backend::{CursorValue, WhereClause, projection_generator::PostgresProjectionGenerator},
     error::{FraiseQLError, Result},
     graphql::FieldSelection,
     runtime::ResultProjector,
@@ -25,7 +22,7 @@ use crate::{
     security::{RlsWhereClause, SecurityContext},
 };
 
-impl<A: DatabaseAdapter> QueryRunner<A> {
+impl QueryRunner {
     /// Execute a Relay connection query with cursor-based (keyset) pagination.
     ///
     /// Reads `first`, `after`, `last`, `before` from the match's merged arguments

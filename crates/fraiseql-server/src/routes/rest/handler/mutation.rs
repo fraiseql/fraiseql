@@ -4,7 +4,6 @@ use std::sync::Arc;
 
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use fraiseql_core::{
-    db::traits::{DatabaseAdapter, SupportsMutations},
     runtime::Executor,
     schema::{DeleteResponse, TypeDefinition},
     security::SecurityContext,
@@ -24,7 +23,7 @@ use crate::routes::rest::{
     response::helpers::{extract_id_from_data, extract_mutation_data, format_id_for_url},
 };
 
-impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
+impl<'a> RestHandler<'a> {
     /// Set the idempotency store for POST mutation replay.
     #[must_use]
     pub const fn with_idempotency_store(mut self, store: &'a Arc<dyn IdempotencyStore>) -> Self {
@@ -36,7 +35,7 @@ impl<'a, A: DatabaseAdapter> RestHandler<'a, A> {
 // `A: 'static` is required by the #594 query-bridge factory
 // (`make_query_executor_factory` captures the adapter in a `'static` closure); every
 // real `DatabaseAdapter` is an owned `'static` type, so this is a no-op in practice.
-impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
+impl RestHandler<'_> {
     /// Fire-and-forget dispatch of `after:mutation` function triggers for a
     /// committed REST mutation (#460).
     ///
@@ -597,8 +596,8 @@ impl<A: DatabaseAdapter + SupportsMutations + 'static> RestHandler<'_, A> {
 /// [`execute_mutation_with_security`](Executor::execute_mutation_with_security).
 ///
 /// ⚠ Do not reintroduce a `&[]` arm here to "skip filtering" for anonymous callers.
-pub(super) async fn execute_mutation<A: DatabaseAdapter + SupportsMutations>(
-    executor: &Executor<A>,
+pub(super) async fn execute_mutation(
+    executor: &Executor,
     mutation_name: &str,
     variables: Option<&serde_json::Value>,
     security_context: Option<&SecurityContext>,

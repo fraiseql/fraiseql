@@ -74,7 +74,7 @@ use crate::{
 
 /// Trait for executing GraphQL queries with security context (RLS filtering).
 ///
-/// This trait abstracts over the generic `Executor<A>` type (where `A` is the database adapter),
+/// This trait abstracts over the generic `Executor` type (where `A` is the database adapter),
 /// allowing `FraiseQLFlightService` to execute queries without knowing the specific database
 /// adapter type.
 ///
@@ -203,7 +203,7 @@ pub struct FraiseQLFlightService {
     /// If None, placeholder queries are used (for testing/development).
     pub(crate) db_adapter: Option<Arc<dyn ArrowDatabaseAdapter>>,
     /// Optional query executor for executing GraphQL queries with RLS.
-    /// Uses trait object to abstract over generic `Executor<A>` type.
+    /// Uses trait object to abstract over generic `Executor` type.
     pub(crate) executor: Option<Arc<dyn QueryExecutor>>,
     /// Optional query result cache for improving throughput on repeated queries
     pub(crate) cache: Option<Arc<QueryCache>>,

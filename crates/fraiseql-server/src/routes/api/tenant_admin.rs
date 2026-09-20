@@ -10,7 +10,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use fraiseql_core::{db::traits::DatabaseAdapter, schema::TenancyMode, security::ActorType};
+use fraiseql_core::{schema::TenancyMode, security::ActorType};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
@@ -256,8 +256,8 @@ pub struct DomainMapping {
 ///
 /// Returns `ApiError` with 404 if multi-tenant mode is disabled, 400 for invalid
 /// schema JSON, or 503 if the connection cannot be established.
-pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn upsert_tenant_handler(
+    State(state): State<AppState>,
     Path(key): Path<String>,
     ctx: OptionalSecurityContext,
     Json(body): Json<TenantRegistrationRequest>,
@@ -356,8 +356,8 @@ pub async fn upsert_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
 /// Returns `ApiError` with 404 if multi-tenant mode is disabled or the tenant
 /// key is not found; 400 if `?purge=true` is given for a tenant that owns no
 /// schema; 500 if the schema drop fails.
-pub async fn delete_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn delete_tenant_handler(
+    State(state): State<AppState>,
     Path(key): Path<String>,
     Query(params): Query<DeleteTenantQuery>,
     ctx: OptionalSecurityContext,
@@ -448,8 +448,8 @@ pub async fn delete_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
 ///
 /// Returns `ApiError` with 404 if multi-tenant mode is disabled or the tenant
 /// key is not found.
-pub async fn suspend_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn suspend_tenant_handler(
+    State(state): State<AppState>,
     Path(key): Path<String>,
     ctx: OptionalSecurityContext,
 ) -> Result<Json<TenantResponse>, ApiError> {
@@ -483,8 +483,8 @@ pub async fn suspend_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + '
 ///
 /// Returns `ApiError` with 404 if multi-tenant mode is disabled or the tenant
 /// key is not found.
-pub async fn resume_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn resume_tenant_handler(
+    State(state): State<AppState>,
     Path(key): Path<String>,
     ctx: OptionalSecurityContext,
 ) -> Result<Json<TenantResponse>, ApiError> {
@@ -518,8 +518,8 @@ pub async fn resume_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
 ///
 /// Returns `ApiError` with 404 if multi-tenant mode is disabled or the tenant
 /// key is not found.
-pub async fn get_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn get_tenant_handler(
+    State(state): State<AppState>,
     Path(key): Path<String>,
 ) -> Result<Json<TenantMetadata>, ApiError> {
     let registry = state
@@ -549,8 +549,8 @@ pub async fn get_tenant_handler<A: DatabaseAdapter + Clone + Send + Sync + 'stat
 /// # Errors
 ///
 /// Returns `ApiError` with 404 if multi-tenant mode is disabled.
-pub async fn list_tenants_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn list_tenants_handler(
+    State(state): State<AppState>,
 ) -> Result<Json<TenantListResponse>, ApiError> {
     let registry = state
         .tenant_registry()
@@ -568,8 +568,8 @@ pub async fn list_tenants_handler<A: DatabaseAdapter + Clone + Send + Sync + 'st
 ///
 /// Returns `ApiError` with 404 if multi-tenant mode is disabled or the tenant
 /// key is not found. Returns 503 if the health check fails.
-pub async fn tenant_health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn tenant_health_handler(
+    State(state): State<AppState>,
     Path(key): Path<String>,
 ) -> Result<Json<TenantHealthResponse>, ApiError> {
     let registry = state
@@ -601,8 +601,8 @@ const MAX_EVENTS_LIMIT: usize = 200;
 ///
 /// Returns `ApiError` with 404 if multi-tenant mode is disabled, the tenant
 /// key is not found, or no audit log is configured.
-pub async fn tenant_events_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn tenant_events_handler(
+    State(state): State<AppState>,
     Path(key): Path<String>,
     Query(params): Query<EventsQuery>,
 ) -> Result<Json<TenantEventsResponse>, ApiError> {
@@ -642,8 +642,8 @@ pub async fn tenant_events_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
 ///
 /// Returns `ApiError` with 404 if multi-tenant mode is disabled or the
 /// referenced tenant key is not registered.
-pub async fn upsert_domain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn upsert_domain_handler(
+    State(state): State<AppState>,
     Path(domain): Path<String>,
     Json(body): Json<DomainRegistrationRequest>,
 ) -> Result<Json<DomainResponse>, ApiError> {
@@ -674,8 +674,8 @@ pub async fn upsert_domain_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
 ///
 /// Returns `ApiError` with 404 if multi-tenant mode is disabled or the
 /// domain is not registered.
-pub async fn delete_domain_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn delete_domain_handler(
+    State(state): State<AppState>,
     Path(domain): Path<String>,
 ) -> Result<Json<DomainResponse>, ApiError> {
     state
@@ -700,8 +700,8 @@ pub async fn delete_domain_handler<A: DatabaseAdapter + Clone + Send + Sync + 's
 /// # Errors
 ///
 /// Returns `ApiError` with 404 if multi-tenant mode is disabled.
-pub async fn list_domains_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn list_domains_handler(
+    State(state): State<AppState>,
 ) -> Result<Json<DomainListResponse>, ApiError> {
     state
         .tenant_registry()

@@ -127,7 +127,7 @@ async fn exec(adapter: &PostgresAdapter, sql: &str) {
 
 /// Build the fixture and the `AppState` the binary builds for multi-tenant mode:
 /// a real registry holding a real per-tenant PostgreSQL executor for each key.
-async fn setup() -> Option<(PostgresAdapter, AppState<PostgresAdapter>)> {
+async fn setup() -> Option<(PostgresAdapter, AppState)> {
     let url = try_database_url()?;
     let admin = PostgresAdapter::new(&url).await.expect("connect to the test database");
 
@@ -198,7 +198,7 @@ fn headers_for(tenant: Option<&str>) -> HeaderMap {
 }
 
 /// Call the `widgets` MCP tool as `tenant`, returning the tool result's text.
-async fn call_as(state: &AppState<PostgresAdapter>, tenant: Option<&str>) -> (bool, String) {
+async fn call_as(state: &AppState, tenant: Option<&str>) -> (bool, String) {
     let service = FraiseQLMcpService::new(state.clone(), mcp_config());
     let result = service
         .call_tool_authenticated(
@@ -219,11 +219,7 @@ async fn call_as(state: &AppState<PostgresAdapter>, tenant: Option<&str>) -> (bo
 
 /// Read the same operation as a **Resource** (#967), through the seam under
 /// `ServerHandler::read_resource`.
-async fn read_as(
-    state: &AppState<PostgresAdapter>,
-    uri: &str,
-    tenant: Option<&str>,
-) -> Result<String, String> {
+async fn read_as(state: &AppState, uri: &str, tenant: Option<&str>) -> Result<String, String> {
     let service = FraiseQLMcpService::new(state.clone(), mcp_config());
     service
         .read_resource_authenticated(

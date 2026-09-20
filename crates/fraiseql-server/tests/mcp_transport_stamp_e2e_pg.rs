@@ -146,7 +146,7 @@ fn mint_token(sub: &str) -> String {
     .expect("mint token")
 }
 
-async fn setup() -> Option<(PostgresAdapter, FraiseQLMcpService<PostgresAdapter>)> {
+async fn setup() -> Option<(PostgresAdapter, FraiseQLMcpService)> {
     let url = try_database_url()?;
     let adapter = PostgresAdapter::new(&url).await.expect("connect");
     provision(&adapter).await;

@@ -8,12 +8,10 @@
 
 use std::sync::Arc;
 
-use fraiseql_core::db::traits::DatabaseAdapter;
-
 use super::{Server, ServerError};
 use crate::subsystems::loader::build_functions_subsystem;
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl Server {
     /// Prepare functions-runtime dispatch from the functions section this server
     /// was built with.
     ///

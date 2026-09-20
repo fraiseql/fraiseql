@@ -6,11 +6,11 @@ use axum::serve::ListenerExt;
 use tokio::net::TcpListener;
 use tracing::{error, info, warn};
 
-use super::{DatabaseAdapter, Result, Server, ServerError, TlsSetup};
+use super::{Result, Server, ServerError, TlsSetup};
 #[cfg(feature = "observers")]
 use crate::subscriptions::event_bridge::{EventBridge, EventBridgeConfig};
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl Server {
     /// Start server and listen for requests.
     ///
     /// Uses SIGUSR1-aware shutdown signal when a schema path is configured,

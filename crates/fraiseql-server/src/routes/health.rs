@@ -1,7 +1,6 @@
 //! Health check endpoint.
 
 use axum::{Json, extract::State, http::StatusCode, response::IntoResponse};
-use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::Serialize;
 use tracing::{debug, error};
 
@@ -153,9 +152,7 @@ pub struct FederationHealthResponse {
 ///
 /// - 200: Everything healthy
 /// - 503: Database connection failed
-pub async fn health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
-) -> impl IntoResponse {
+pub async fn health_handler(State(state): State<AppState>) -> impl IntoResponse {
     debug!("Health check requested");
 
     // Bind executor guard once for consistency within this handler
@@ -314,9 +311,7 @@ pub async fn liveness_handler() -> impl IntoResponse {
 /// Kubernetes usage:
 /// - `livenessProbe` → `GET /live` (200 while the process can serve a request)
 /// - `readinessProbe` → `GET /readiness` (503 while not ready to serve traffic)
-pub async fn readiness_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
-) -> impl IntoResponse {
+pub async fn readiness_handler(State(state): State<AppState>) -> impl IntoResponse {
     debug!("Readiness check requested");
 
     let db_healthy = state.executor().health_check().await.is_ok();
@@ -351,9 +346,7 @@ pub async fn readiness_handler<A: DatabaseAdapter + Clone + Send + Sync + 'stati
 ///
 /// - 200: Federation status retrieved
 #[cfg(feature = "federation")]
-pub async fn federation_health_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
-) -> impl IntoResponse {
+pub async fn federation_health_handler(State(state): State<AppState>) -> impl IntoResponse {
     debug!("Federation health check requested");
 
     let executor = state.executor();

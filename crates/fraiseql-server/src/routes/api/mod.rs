@@ -6,7 +6,6 @@ use axum::{
     Router,
     routing::{get, post},
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
 
 pub mod admin;
 /// The operator SQL console (#962) — compiled in only with the `admin-sql`
@@ -32,9 +31,7 @@ pub use types::{ApiError, ApiResponse};
 /// Build API router with all v1 endpoints.
 ///
 /// Generic over the database adapter type used by the executor.
-pub fn routes<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: crate::routes::graphql::AppState<A>,
-) -> Router {
+pub fn routes(state: crate::routes::graphql::AppState) -> Router {
     #[allow(unused_mut)]
     // Reason: mutability required when federation feature is enabled to add federation routes
     let mut router = Router::new()
@@ -42,16 +39,16 @@ pub fn routes<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         // NOTE: /query/explain is intentionally omitted here — it is mounted
         // in server/routing.rs under the admin bearer-auth router to prevent
         // unauthenticated access to query plan details (H13).
-        .route("/query/validate", post(query::validate_handler::<A>))
-        .route("/query/stats", get(query::stats_handler::<A>));
+        .route("/query/validate", post(query::validate_handler))
+        .route("/query/stats", get(query::stats_handler));
 
     // Federation endpoints
     #[cfg(feature = "federation")]
     {
         router = router
-            .route("/federation/subgraphs", get(federation::subgraphs_handler::<A>))
-            .route("/federation/graph", get(federation::graph_handler::<A>))
-            .route("/federation/plan", get(federation::plan_handler::<A>));
+            .route("/federation/subgraphs", get(federation::subgraphs_handler))
+            .route("/federation/graph", get(federation::graph_handler))
+            .route("/federation/plan", get(federation::plan_handler));
     }
 
     // Schema export endpoints are now conditionally added in server.rs with optional auth

@@ -9,7 +9,6 @@ use axum::{
     extract::{Path, State},
     response::Response,
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
 
 use crate::routes::{graphql::app_state::AppState, studio::not_implemented};
@@ -107,10 +106,7 @@ pub struct SecretSetRequest {
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
 /// Returns `501` — see above.
-pub async fn list_functions_handler<A>(State(_state): State<AppState<A>>) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+pub async fn list_functions_handler(State(_state): State<AppState>) -> Response {
     not_implemented(
         "studio.functions.list",
         "The deployed-function registry is not exposed through the admin API; an \
@@ -124,14 +120,11 @@ where
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
 /// Returns `404` if the function does not exist.
-pub async fn invoke_function_handler<A>(
+pub async fn invoke_function_handler(
     Path(_name): Path<String>,
-    State(_state): State<AppState<A>>,
+    State(_state): State<AppState>,
     Json(_req): Json<InvokeRequest>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+) -> Response {
     not_implemented(
         "studio.functions.invoke",
         "Ad-hoc function invocation is not exposed through the admin API. Use \
@@ -144,13 +137,10 @@ where
 /// # Errors
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
-pub async fn function_logs_handler<A>(
+pub async fn function_logs_handler(
     Path(_name): Path<String>,
-    State(_state): State<AppState<A>>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+    State(_state): State<AppState>,
+) -> Response {
     not_implemented(
         "studio.functions.logs",
         "No invocation-log ring buffer is exposed through the admin API; an empty \
@@ -163,13 +153,10 @@ where
 /// # Errors
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
-pub async fn list_secrets_handler<A>(
+pub async fn list_secrets_handler(
     Path(_name): Path<String>,
-    State(_state): State<AppState<A>>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+    State(_state): State<AppState>,
+) -> Response {
     not_implemented(
         "studio.functions.secrets.list",
         "Function secrets are not managed through the admin API; an empty key list \
@@ -182,14 +169,11 @@ where
 /// # Errors
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
-pub async fn set_secret_handler<A>(
+pub async fn set_secret_handler(
     Path((_name, _key)): Path<(String, String)>,
-    State(_state): State<AppState<A>>,
+    State(_state): State<AppState>,
     Json(_req): Json<SecretSetRequest>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+) -> Response {
     // #749: this answered `{"success": true}` under a doc claiming the value was
     // "encrypted and stored server-side", storing nothing — so a credential rotation
     // reported success while the function kept using the leaked secret.
@@ -205,13 +189,10 @@ where
 /// # Errors
 ///
 /// Returns `401` without valid admin credentials (enforced by middleware).
-pub async fn delete_secret_handler<A>(
+pub async fn delete_secret_handler(
     Path((_name, _key)): Path<(String, String)>,
-    State(_state): State<AppState<A>>,
-) -> Response
-where
-    A: DatabaseAdapter + Clone + Send + Sync + 'static,
-{
+    State(_state): State<AppState>,
+) -> Response {
     not_implemented(
         "studio.functions.secrets.delete",
         "Function secrets are not deletable through the admin API; nothing was \

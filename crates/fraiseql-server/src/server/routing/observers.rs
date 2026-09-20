@@ -1,13 +1,12 @@
 //! Observer management route mounting.
 
 use axum::{Router, middleware};
-use fraiseql_core::db::traits::DatabaseAdapter;
 use tracing::info;
 
 use super::super::Server;
 use crate::middleware::admin_auth_middleware;
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl Server {
     /// Add observer-related routes to the router.
     ///
     /// # PostgreSQL requirement

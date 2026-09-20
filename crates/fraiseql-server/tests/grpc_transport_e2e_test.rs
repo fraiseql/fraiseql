@@ -48,19 +48,12 @@ const SERVICE_NAME: &str = "fraiseql.v1.FraiseqlService";
 /// of inheriting `None` by omission. These tests all pass `None`: none of them
 /// configures enrichment, and the point of each is the transport, not the resolver.
 #[allow(clippy::needless_pass_by_value)] // Reason: mirrors build_grpc_service's own signature
-fn build_grpc_service_for_test<
-    A: fraiseql_core::db::DatabaseAdapter
-        + fraiseql_core::db::SupportsMutations
-        + Clone
-        + Send
-        + Sync
-        + 'static,
->(
+fn build_grpc_service_for_test(
     schema: Arc<CompiledSchema>,
-    executor: Arc<Executor<A>>,
+    executor: Arc<Executor>,
     oidc_validator: Option<Arc<fraiseql_core::security::OidcValidator>>,
     rate_limiter: Option<Arc<fraiseql_server::middleware::RateLimiter>>,
-) -> Result<Option<grpc::GrpcServices<A>>, fraiseql_core::error::FraiseQLError> {
+) -> Result<Option<grpc::GrpcServices>, fraiseql_core::error::FraiseQLError> {
     grpc::build_grpc_service(
         schema,
         executor,
@@ -78,12 +71,14 @@ fn build_grpc_service_for_test<
 /// hand the policy to the handler as an argument; passing it through the executor is
 /// the same assertion made one layer closer to how a deployment actually configures it.
 fn executor_with_policy<
-    A: fraiseql_core::db::DatabaseAdapter + fraiseql_core::db::traits::SupportsMutations,
+    A: fraiseql_core::db::traits::DatabaseAdapter
+        + fraiseql_core::db::traits::SupportsMutations
+        + 'static,
 >(
     schema: &CompiledSchema,
     adapter: Arc<A>,
     rls_policy: Option<Arc<dyn fraiseql_core::security::RLSPolicy>>,
-) -> Executor<A> {
+) -> Executor {
     Executor::with_config(
         schema.clone(),
         adapter,
@@ -342,10 +337,7 @@ fn write_descriptor(dir: &std::path::Path) -> String {
 // Helper: build service + adapter with canned row data
 // ---------------------------------------------------------------------------
 
-fn build_service(
-    adapter: FailingAdapter,
-    schema: CompiledSchema,
-) -> DynamicGrpcService<FailingAdapter> {
+fn build_service(adapter: FailingAdapter, schema: CompiledSchema) -> DynamicGrpcService {
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
@@ -387,7 +379,7 @@ fn grpc_request(method: &str, msg_bytes: &[u8]) -> http::Request<tonic::body::Bo
 
 /// Send a gRPC request through the service and return (`status_code`, `grpc_status`, `body_bytes`).
 async fn send_grpc(
-    svc: &DynamicGrpcService<FailingAdapter>,
+    svc: &DynamicGrpcService,
     method: &str,
     msg_bytes: &[u8],
 ) -> (http::StatusCode, Option<String>, Vec<u8>) {
@@ -448,7 +440,7 @@ fn decode_streaming_frames(body: &[u8], message_name: &str) -> Vec<prost_reflect
 /// For streaming responses, `grpc-status` arrives via HTTP/2 trailers
 /// (extracted by `http_body_util`), not headers.
 async fn send_grpc_streaming(
-    svc: &DynamicGrpcService<FailingAdapter>,
+    svc: &DynamicGrpcService,
     method: &str,
     msg_bytes: &[u8],
 ) -> (Option<String>, Vec<u8>) {
@@ -988,10 +980,7 @@ async fn all_three_rpcs_are_callable() {
 /// Uses `OidcValidator::with_jwks_uri` to skip OIDC discovery (no network
 /// access needed). The JWKS URI points to `http://localhost:0/jwks` which
 /// will never be called for the "no token" test path.
-fn build_service_with_auth(
-    adapter: FailingAdapter,
-    schema: CompiledSchema,
-) -> DynamicGrpcService<FailingAdapter> {
+fn build_service_with_auth(adapter: FailingAdapter, schema: CompiledSchema) -> DynamicGrpcService {
     use fraiseql_core::security::{OidcConfig, OidcValidator};
 
     let config = OidcConfig {
@@ -1255,7 +1244,7 @@ fn build_service_with_rate_limiter(
     adapter: FailingAdapter,
     schema: CompiledSchema,
     rate_limiter: Arc<fraiseql_server::middleware::RateLimiter>,
-) -> DynamicGrpcService<FailingAdapter> {
+) -> DynamicGrpcService {
     let schema = Arc::new(schema);
     let adapter = Arc::new(adapter);
 
@@ -1832,12 +1821,14 @@ impl fraiseql_core::security::Authorizer for GrpcAllowAll {
 }
 
 fn executor_with_runtime_config<
-    A: fraiseql_core::db::DatabaseAdapter + fraiseql_core::db::traits::SupportsMutations,
+    A: fraiseql_core::db::traits::DatabaseAdapter
+        + fraiseql_core::db::traits::SupportsMutations
+        + 'static,
 >(
     schema: &CompiledSchema,
     adapter: Arc<A>,
     config: fraiseql_core::runtime::RuntimeConfig,
-) -> Executor<A> {
+) -> Executor {
     Executor::with_config(schema.clone(), adapter, config)
 }
 

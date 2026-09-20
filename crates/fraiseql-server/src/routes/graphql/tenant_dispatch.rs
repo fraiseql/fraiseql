@@ -17,14 +17,14 @@
 use std::sync::Arc;
 
 use axum::http::HeaderMap;
-use fraiseql_core::{db::traits::DatabaseAdapter, runtime::Executor, security::SecurityContext};
+use fraiseql_core::{runtime::Executor, security::SecurityContext};
 
 use super::{AppState, TenantKeyResolver};
 
 /// The executor a request must run on, plus the quota permits it holds.
-pub struct TenantDispatch<A: DatabaseAdapter> {
+pub struct TenantDispatch {
     /// The tenant's executor, or the default one when no key was resolved.
-    pub executor: arc_swap::Guard<Arc<Executor<A>>>,
+    pub executor: arc_swap::Guard<Arc<Executor>>,
 
     /// The per-tenant concurrency permit, released when this value is dropped.
     ///
@@ -43,8 +43,8 @@ pub struct TenantDispatch<A: DatabaseAdapter> {
 ///
 /// Returns `FraiseQLError::Validation` when the `X-Tenant-ID` header is malformed,
 /// or when strict validation is on and the available sources disagree.
-pub fn resolve_tenant_key<A: DatabaseAdapter>(
-    state: &AppState<A>,
+pub fn resolve_tenant_key(
+    state: &AppState,
     security_context: Option<&SecurityContext>,
     headers: &HeaderMap,
 ) -> fraiseql_error::Result<Option<String>> {
@@ -66,10 +66,10 @@ pub fn resolve_tenant_key<A: DatabaseAdapter>(
 /// Propagates the registry's decision: `Authorization` for an unregistered key,
 /// `ServiceUnavailable` for a suspended tenant, `RateLimited` when a quota is
 /// exhausted.
-pub fn dispatch_to_tenant<A: DatabaseAdapter>(
-    state: &AppState<A>,
+pub fn dispatch_to_tenant(
+    state: &AppState,
     tenant_key: Option<&str>,
-) -> fraiseql_error::Result<TenantDispatch<A>> {
+) -> fraiseql_error::Result<TenantDispatch> {
     let executor = state.executor_for_tenant(tenant_key)?;
 
     // M-quotas: enforce the per-tenant concurrency limit. Only an explicit,
@@ -106,10 +106,10 @@ pub fn dispatch_to_tenant<A: DatabaseAdapter>(
 /// observe real traffic costs *before* configuring any budget: the number that
 /// sizes `[security.cost_budget]` has to exist prior to enforcement.
 #[must_use]
-pub fn estimate_request_cost<A: DatabaseAdapter>(
+pub fn estimate_request_cost(
     document: &str,
     variables: Option<&serde_json::Value>,
-    executor: &Executor<A>,
+    executor: &Executor,
 ) -> Option<u64> {
     let doc = fraiseql_core::graphql::parse_graphql_document(document).ok()?;
     Some(fraiseql_core::graphql::estimate_query_cost(
@@ -148,8 +148,8 @@ pub fn estimate_request_cost<A: DatabaseAdapter>(
 /// Returns `FraiseQLError::CostExceeded` when `cost` exceeds the tenant's
 /// per-request budget (no retry hint) or exhausts its per-minute window
 /// (`Retry-After` hint).
-pub fn charge_cost_budget<A: DatabaseAdapter>(
-    state: &AppState<A>,
+pub fn charge_cost_budget(
+    state: &AppState,
     tenant_key: Option<&str>,
     security_context: Option<&fraiseql_core::security::SecurityContext>,
     cost: Option<u64>,

@@ -24,7 +24,7 @@ use crate::{
 };
 
 /// Resolves federation entities from local databases.
-pub struct DatabaseEntityResolver<A: DatabaseAdapter> {
+pub struct DatabaseEntityResolver<A: DatabaseAdapter + ?Sized> {
     /// Database adapter for executing queries
     adapter:        Arc<A>,
     /// Federation metadata
@@ -34,7 +34,7 @@ pub struct DatabaseEntityResolver<A: DatabaseAdapter> {
     entity_sources: std::collections::HashMap<String, EntitySource>,
 }
 
-impl<A: DatabaseAdapter> DatabaseEntityResolver<A> {
+impl<A: DatabaseAdapter + ?Sized> DatabaseEntityResolver<A> {
     /// Create a new database entity resolver.
     ///
     /// The `_entities` `FROM` relation falls back to `lower(typename)` unless a

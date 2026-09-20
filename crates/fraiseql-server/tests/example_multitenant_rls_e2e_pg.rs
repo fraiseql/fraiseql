@@ -187,7 +187,7 @@ fn principal(claims: &[(&str, &str)]) -> SecurityContext {
 
 /// Run a GraphQL query as `ctx` and return the named root field's rows.
 async fn rows_for(
-    executor: &Executor<PostgresAdapter>,
+    executor: &Executor,
     query: &str,
     field: &str,
     ctx: &SecurityContext,

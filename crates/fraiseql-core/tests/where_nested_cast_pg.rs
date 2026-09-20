@@ -110,7 +110,7 @@ INSERT INTO {view} (data) VALUES
     )
 }
 
-async fn executor(test: &str) -> Option<(Executor<PostgresAdapter>, String)> {
+async fn executor(test: &str) -> Option<(Executor, String)> {
     let view = table_for(test);
     let pg = fraiseql_test_support::postgres().await?;
     let adapter = PostgresAdapter::new(pg.url()).await.expect("connect to the bound PostgreSQL");
@@ -129,10 +129,7 @@ async fn executor(test: &str) -> Option<(Executor<PostgresAdapter>, String)> {
 /// Run one `where:` argument through the whole live path — GraphQL parse,
 /// schema-typed where parse, SQL generation, execution — and return the matching
 /// `id`s in order.
-async fn ids_matching(
-    exec: &Executor<PostgresAdapter>,
-    where_arg: &Value,
-) -> Result<Vec<i64>, String> {
+async fn ids_matching(exec: &Executor, where_arg: &Value) -> Result<Vec<i64>, String> {
     let query = format!("{{ orders(where: {}) {{ id }} }}", graphql_literal(where_arg));
     let response = exec.execute(&query, None).await.map_err(|e| format!("execute failed: {e}"))?;
     if let Some(errors) = response.get("errors") {

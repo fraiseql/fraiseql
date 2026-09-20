@@ -14,7 +14,6 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use fraiseql_core::{
-    db::traits::DatabaseAdapter,
     runtime::{Executor, JsonRowStream, QueryMatch},
     security::SecurityContext,
 };
@@ -46,8 +45,8 @@ use crate::routes::rest::handler::RestError;
 /// authorization, a gated field, a missing principal for an RLS or tenant-scoped
 /// query. A failure after that point cannot be an HTTP status any more (the
 /// response has begun) and arrives as an `Err` item in the stream.
-pub(super) async fn export_rows<A: DatabaseAdapter + 'static>(
-    executor: &Arc<Executor<A>>,
+pub(super) async fn export_rows(
+    executor: &Arc<Executor>,
     mut query_match: QueryMatch,
     variables: serde_json::Value,
     security_ctx: Option<SecurityContext>,

@@ -9,7 +9,7 @@ use axum::{
     Json,
     extract::{Path, Query, State},
 };
-use fraiseql_core::db::{DatabaseType, QueryStatEntry, traits::DatabaseAdapter};
+use fraiseql_core::db::{DatabaseType, QueryStatEntry};
 use serde::{Deserialize, Serialize};
 
 use crate::routes::{
@@ -61,8 +61,8 @@ pub struct QueryStatsResetResponse {
 /// # Errors
 ///
 /// Returns `ApiError` with `INTERNAL_ERROR` if the database query fails.
-pub async fn query_stats_handler<A: DatabaseAdapter + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn query_stats_handler(
+    State(state): State<AppState>,
     Query(params): Query<QueryStatsParams>,
 ) -> Result<Json<ApiResponse<QueryStatsResponse>>, ApiError> {
     let limit = params.limit.unwrap_or(20).clamp(1, 100);
@@ -106,8 +106,8 @@ pub async fn query_stats_handler<A: DatabaseAdapter + 'static>(
 ///
 /// Returns `ApiError` with `NOT_FOUND` if the query ID is not found.
 /// Returns `ApiError` with `INTERNAL_ERROR` if the database query fails.
-pub async fn query_stats_detail_handler<A: DatabaseAdapter + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn query_stats_detail_handler(
+    State(state): State<AppState>,
     Path(queryid): Path<String>,
 ) -> Result<Json<ApiResponse<QueryStatsDetailResponse>>, ApiError> {
     let executor = state.executor();
@@ -138,8 +138,8 @@ pub async fn query_stats_detail_handler<A: DatabaseAdapter + 'static>(
 ///
 /// Returns 501 if the backend does not support reset.
 /// Returns `ApiError` with `INTERNAL_ERROR` on other failures.
-pub async fn query_stats_reset_handler<A: DatabaseAdapter + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn query_stats_reset_handler(
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<QueryStatsResetResponse>>, ApiError> {
     let executor = state.executor();
 

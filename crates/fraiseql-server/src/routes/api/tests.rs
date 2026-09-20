@@ -1093,7 +1093,7 @@ mod tenant_admin_tests {
         }
     }
 
-    fn make_multitenant_state() -> AppState<StubAdapter> {
+    fn make_multitenant_state() -> AppState {
         let schema = CompiledSchema::default();
         let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter)));
         let state = AppState::new(executor);
@@ -1101,7 +1101,7 @@ mod tenant_admin_tests {
         state.with_tenant_registry(Arc::new(registry))
     }
 
-    fn make_single_tenant_state() -> AppState<StubAdapter> {
+    fn make_single_tenant_state() -> AppState {
         let schema = CompiledSchema::default();
         let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter)));
         AppState::new(executor)
@@ -1327,7 +1327,7 @@ mod usage_tests {
         }
     }
 
-    fn make_state_with_usage(usage: Arc<UsageAggregator>) -> AppState<StubAdapter> {
+    fn make_state_with_usage(usage: Arc<UsageAggregator>) -> AppState {
         let schema = CompiledSchema::default();
         let executor = Arc::new(Executor::read_only(schema, Arc::new(StubAdapter)));
         AppState::new(executor).with_usage(usage)
@@ -1335,16 +1335,14 @@ mod usage_tests {
 
     fn make_router(usage: Arc<UsageAggregator>) -> Router {
         let state = make_state_with_usage(usage);
-        Router::new()
-            .route("/api/v1/admin/usage", get(usage_handler::<StubAdapter>))
-            .with_state(state)
+        Router::new().route("/api/v1/admin/usage", get(usage_handler)).with_state(state)
     }
 
     fn make_authed_router(usage: Arc<UsageAggregator>) -> Router {
         let state = make_state_with_usage(usage);
         let auth_state = BearerAuthState::new("secret-token".to_string());
         Router::new()
-            .route("/api/v1/admin/usage", get(usage_handler::<StubAdapter>))
+            .route("/api/v1/admin/usage", get(usage_handler))
             .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware))
             .with_state(state)
     }

@@ -8,7 +8,6 @@ use axum::{
     Json,
     extract::{Query, State},
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::{Deserialize, Serialize};
 
 use crate::routes::{
@@ -66,8 +65,8 @@ pub(crate) fn default_format() -> String {
 /// # Errors
 ///
 /// This handler currently always succeeds; it is infallible.
-pub async fn subgraphs_handler<A: DatabaseAdapter>(
-    State(state): State<AppState<A>>,
+pub async fn subgraphs_handler(
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<SubgraphsResponse>>, ApiError> {
     let executor = state.executor();
     let schema = executor.schema();
@@ -113,8 +112,8 @@ pub async fn subgraphs_handler<A: DatabaseAdapter>(
 ///
 /// Returns `ApiError` with a validation error if `format` is not one of `json`, `dot`, or
 /// `mermaid`.
-pub async fn graph_handler<A: DatabaseAdapter>(
-    State(state): State<AppState<A>>,
+pub async fn graph_handler(
+    State(state): State<AppState>,
     Query(query): Query<GraphFormatQuery>,
 ) -> Result<Json<ApiResponse<GraphResponse>>, ApiError> {
     // Validate format parameter
@@ -224,8 +223,8 @@ pub struct PlanResponse {
 ///
 /// Returns `ApiError` if the `query` parameter is missing or too long.
 #[cfg(feature = "federation")]
-pub async fn plan_handler<A: DatabaseAdapter>(
-    State(state): State<AppState<A>>,
+pub async fn plan_handler(
+    State(state): State<AppState>,
     Query(params): Query<PlanQuery>,
 ) -> Result<Json<ApiResponse<PlanResponse>>, ApiError> {
     if params.query.is_empty() {

@@ -1,14 +1,14 @@
 //! `AppState` construction and configuration wiring for the server router.
 
-use fraiseql_core::{db::traits::DatabaseAdapter, security::IntrospectionPolicy};
+use fraiseql_core::security::IntrospectionPolicy;
 use tracing::info;
 
 use super::super::Server;
 use crate::routes::graphql::AppState;
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl Server {
     /// Build the shared `AppState` with all configured subsystems attached.
-    pub(crate) fn build_app_state(&self) -> AppState<A> {
+    pub(crate) fn build_app_state(&self) -> AppState {
         let mut state = AppState::new(self.executor.clone())
             .with_reload_config(self.config.schema_path.clone());
 

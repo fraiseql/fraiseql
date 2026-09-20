@@ -458,7 +458,7 @@ fn enrichment_config() -> EnrichmentQueryConfig {
 /// An MCP service over the same schema, actor table and HS256 secret as the HTTP
 /// cases — driven through `call_tool_authenticated`, the documented testable seam
 /// under `ServerHandler::call_tool`.
-async fn mcp_service() -> Option<FraiseQLMcpService<PostgresAdapter>> {
+async fn mcp_service() -> Option<FraiseQLMcpService> {
     let url = try_database_url()?;
     let adapter = PostgresAdapter::new(&url).await.expect("connect to the test database");
     seed(&adapter).await;
@@ -492,7 +492,7 @@ async fn mcp_service() -> Option<FraiseQLMcpService<PostgresAdapter>> {
 }
 
 async fn mcp_call(
-    service: &FraiseQLMcpService<PostgresAdapter>,
+    service: &FraiseQLMcpService,
     tool: &str,
     sub: &str,
 ) -> rmcp::model::CallToolResult {
@@ -653,7 +653,7 @@ async fn the_same_schema_boots_once_a_resolver_is_configured() {
 /// The registry entry here is built with `Executor::new` deliberately: that is exactly
 /// what the tenant factory produces, `RuntimeConfig::default()` and all. A test that
 /// registered a fully-configured executor would prove nothing about the real path.
-async fn tenant_keyed_service() -> Option<FraiseQLMcpService<PostgresAdapter>> {
+async fn tenant_keyed_service() -> Option<FraiseQLMcpService> {
     use fraiseql_server::routes::graphql::tenant_registry::TenantExecutorRegistry;
 
     let url = try_database_url()?;
@@ -693,15 +693,12 @@ async fn tenant_keyed_service() -> Option<FraiseQLMcpService<PostgresAdapter>> {
 /// The registered tenant these two cases dispatch to.
 const TENANT_KEY: &str = "p36tenant";
 
-async fn tenant_keyed_call(
-    service: &FraiseQLMcpService<PostgresAdapter>,
-    sub: &str,
-) -> rmcp::model::CallToolResult {
+async fn tenant_keyed_call(service: &FraiseQLMcpService, sub: &str) -> rmcp::model::CallToolResult {
     tenant_keyed_call_as(service, sub, TENANT_KEY).await
 }
 
 async fn tenant_keyed_call_as(
-    service: &FraiseQLMcpService<PostgresAdapter>,
+    service: &FraiseQLMcpService,
     sub: &str,
     tenant: &str,
 ) -> rmcp::model::CallToolResult {

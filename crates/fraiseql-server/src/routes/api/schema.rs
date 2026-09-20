@@ -10,7 +10,6 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
-use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::Serialize;
 
 use crate::routes::{
@@ -42,9 +41,7 @@ pub struct JsonSchemaResponse {
 /// # Errors
 ///
 /// This handler currently always succeeds; it is infallible.
-pub async fn export_sdl_handler<A: DatabaseAdapter>(
-    State(state): State<AppState<A>>,
-) -> Result<Response, ApiError> {
+pub async fn export_sdl_handler(State(state): State<AppState>) -> Result<Response, ApiError> {
     let schema_sdl = state.executor().schema().raw_schema();
     Ok((StatusCode::OK, schema_sdl).into_response())
 }
@@ -60,8 +57,8 @@ pub async fn export_sdl_handler<A: DatabaseAdapter>(
 /// # Errors
 ///
 /// Returns `ApiError` with an internal error if the schema cannot be serialized to JSON.
-pub async fn export_json_handler<A: DatabaseAdapter>(
-    State(state): State<AppState<A>>,
+pub async fn export_json_handler(
+    State(state): State<AppState>,
 ) -> Result<Json<ApiResponse<JsonSchemaResponse>>, ApiError> {
     let schema_json = serde_json::to_value(state.executor().schema())
         .map_err(|e| ApiError::internal_error(format!("Failed to serialize schema: {e}")))?;

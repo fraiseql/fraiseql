@@ -39,7 +39,7 @@ mod export_embedding_filter_tests;
 
 use axum::http::{HeaderMap, HeaderValue};
 use bytes::Bytes;
-use fraiseql_core::{db::traits::DatabaseAdapter, security::SecurityContext};
+use fraiseql_core::security::SecurityContext;
 use futures::{StreamExt as _, stream};
 
 use super::handler::{ResolvedGetQuery, RestError, RestHandler, set_request_id};
@@ -72,8 +72,8 @@ pub fn accepts_ndjson(headers: &HeaderMap) -> bool {
 /// Returns `RestError` on route resolution, parameter extraction, or initial
 /// query setup failure.  Errors that occur mid-stream are emitted as a
 /// trailing NDJSON error line: `{"error":"..."}\n`.
-pub async fn handle_ndjson_get<A: DatabaseAdapter + 'static>(
-    handler: &RestHandler<'_, A>,
+pub async fn handle_ndjson_get(
+    handler: &RestHandler<'_>,
     relative_path: &str,
     query_pairs: &[(&str, &str)],
     headers: &HeaderMap,

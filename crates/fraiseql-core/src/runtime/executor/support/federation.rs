@@ -6,13 +6,12 @@ use indexmap::IndexMap;
 
 use super::super::Executor;
 use crate::{
-    backend::traits::DatabaseAdapter,
     error::{FraiseQLError, Result},
     schema::InjectedParamSource,
     security::SecurityContext,
 };
 
-impl<A: DatabaseAdapter> Executor<A> {
+impl Executor {
     /// Execute a federation query (_service or _entities).
     ///
     /// # Errors

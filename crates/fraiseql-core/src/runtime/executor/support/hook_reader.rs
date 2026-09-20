@@ -26,15 +26,14 @@ use std::{future::Future, pin::Pin, sync::Arc};
 
 use super::super::{Executor, context::ExecutorContext};
 use crate::{
-    backend::traits::DatabaseAdapter,
     error::Result,
     security::{GuestQueryBridge, SecurityContext},
 };
 
 /// A read-only GraphQL bridge bound to one executor and one principal.
-pub(in super::super) struct CallerScopedReader<A: DatabaseAdapter> {
+pub(in super::super) struct CallerScopedReader {
     /// The context of the executor adjudicating the write.
-    ctx:       Arc<ExecutorContext<A>>,
+    ctx:       Arc<ExecutorContext>,
     /// The principal that issued the write, or `None` for an anonymous one — in
     /// which case the hook reads anonymously, which is exactly what its caller
     /// could do. Owned because the bridge outlives this call: the gate hands it to
@@ -42,10 +41,10 @@ pub(in super::super) struct CallerScopedReader<A: DatabaseAdapter> {
     principal: Option<SecurityContext>,
 }
 
-impl<A: DatabaseAdapter> CallerScopedReader<A> {
+impl CallerScopedReader {
     /// Bind a read bridge to `ctx`, running as `principal`.
     pub(in super::super) fn new(
-        ctx: Arc<ExecutorContext<A>>,
+        ctx: Arc<ExecutorContext>,
         principal: Option<&SecurityContext>,
     ) -> Self {
         Self {
@@ -55,7 +54,7 @@ impl<A: DatabaseAdapter> CallerScopedReader<A> {
     }
 }
 
-impl<A: DatabaseAdapter> GuestQueryBridge for CallerScopedReader<A> {
+impl GuestQueryBridge for CallerScopedReader {
     fn query<'a>(
         &'a self,
         graphql: &'a str,

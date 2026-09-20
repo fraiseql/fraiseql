@@ -97,7 +97,7 @@ pub mod prelude {
     //! - Core schema types: [`CompiledSchema`]
     //! - Error handling: [`FraiseQLError`], [`Result`]
     //! - Database abstraction: [`DatabaseAdapter`], [`db`] module
-    //! - GraphQL execution: [`Executor`], [`ExecutorAdapter`]
+    //! - GraphQL execution: [`Executor`]
     //! - GraphQL parsing: [`ParsedQuery`], [`parse_query`]
     //! - Tenancy: [`TenantContext`], [`Tenant`]
     //! - Observer system (feature `observers`): `EntityEvent`, `EventKind`, `ObserverExecutor`
@@ -112,7 +112,7 @@ pub mod prelude {
         db,
         graphql::{ParsedQuery, parse_query},
         prelude::DatabaseAdapter,
-        runtime::{Executor, ExecutorAdapter},
+        runtime::Executor,
         tenancy::TenantContext as Tenant,
     };
 

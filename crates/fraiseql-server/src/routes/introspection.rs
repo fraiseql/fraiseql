@@ -1,7 +1,6 @@
 //! Schema introspection endpoint.
 
 use axum::{Json, extract::State, response::IntoResponse};
-use fraiseql_core::db::traits::DatabaseAdapter;
 use serde::Serialize;
 use tracing::debug;
 
@@ -75,8 +74,8 @@ pub struct MutationInfo {
 /// # Security Note
 ///
 /// In production, this endpoint should be disabled or require authentication.
-pub async fn introspection_handler<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    State(state): State<AppState<A>>,
+pub async fn introspection_handler(
+    State(state): State<AppState>,
     OptionalSecurityContext(security_context): OptionalSecurityContext,
 ) -> impl IntoResponse {
     debug!("Introspection requested");

@@ -53,7 +53,6 @@ mod argument_validation;
 mod argument_value_validation;
 pub mod cascade;
 mod executor;
-pub mod executor_adapter;
 mod explain;
 pub mod field_filter;
 pub mod input_validator;
@@ -101,7 +100,6 @@ pub use executor::{
     // that implementation.
     security::resolve_session_variables,
 };
-pub use executor_adapter::ExecutorAdapter;
 pub use explain::{ExplainPlan, ExplainResult};
 pub use field_filter::{FieldAccessResult, can_access_field, classify_field_access, filter_fields};
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};

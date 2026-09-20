@@ -19,16 +19,16 @@ pub use pool_factory::{
 /// Type-erased async factory for creating tenant executors.
 ///
 /// Stored in `AppState` so that the management API handler (`upsert_tenant_handler`)
-/// can build an `Executor<A>` without requiring `A: FromPoolConfig` as a bound on
-/// the route handler or the `Server<A>` impl. The factory is set once at server
+/// can build an `Executor` without requiring `A: FromPoolConfig` as a bound on
+/// the route handler or the `Server` impl. The factory is set once at server
 /// startup by code that knows the concrete adapter type.
-pub type TenantExecutorFactory<A> = Arc<
+pub type TenantExecutorFactory = Arc<
     dyn Fn(
             String,
             String,
             TenantPoolConfig,
             fraiseql_core::runtime::RuntimeConfig,
-        ) -> Pin<Box<dyn Future<Output = Result<Arc<Executor<A>>>> + Send>>
+        ) -> Pin<Box<dyn Future<Output = Result<Arc<Executor>>> + Send>>
         + Send
         + Sync,
 >;
@@ -71,7 +71,7 @@ pub fn make_executor_factory<
     database_tls: fraiseql_core::db::postgres::PostgresTlsConfig,
     read_replica_policy: fraiseql_core::db::postgres::ReadReplicaPolicy,
     vector_scan: fraiseql_core::db::postgres::VectorScanConfig,
-) -> TenantExecutorFactory<A> {
+) -> TenantExecutorFactory {
     Arc::new(move |tenant_key, schema_json, mut pool_config, runtime_config| {
         pool_config.tls = database_tls.clone();
         pool_config.read_replica_policy = read_replica_policy.clone();

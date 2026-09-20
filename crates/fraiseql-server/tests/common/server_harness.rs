@@ -36,10 +36,10 @@ impl TestServer {
     /// # Panics
     ///
     /// Panics if the listener cannot be bound or the server fails to start.
-    pub async fn start<A>(schema: CompiledSchema, adapter: Arc<A>) -> Self
-    where
-        A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
-    {
+    pub async fn start<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>(
+        schema: CompiledSchema,
+        adapter: Arc<A>,
+    ) -> Self {
         // Boxed so callers of `start` do not await a ~19 KiB future on the stack:
         // delegating to `start_with_config` nests the `Server::new` future inside this
         // one, and `clippy::large_futures` (pedantic, denied) rejects the result at every
@@ -67,14 +67,13 @@ impl TestServer {
     /// # Panics
     ///
     /// Panics if the listener cannot be bound or the server fails to start.
-    pub async fn start_with_config<A>(
+    pub async fn start_with_config<
+        A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
+    >(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
-    ) -> Self
-    where
-        A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
-    {
+    ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind to ephemeral port");
         let port = listener.local_addr().expect("local addr").port();
 
@@ -112,15 +111,14 @@ impl TestServer {
     /// # Panics
     ///
     /// Panics if the listener cannot be bound or the server fails to start.
-    pub async fn start_with_revocation<A>(
+    pub async fn start_with_revocation<
+        A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
+    >(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
         revocation: Arc<fraiseql_server::token_revocation::TokenRevocationManager>,
-    ) -> Self
-    where
-        A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
-    {
+    ) -> Self {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind to ephemeral port");
         let port = listener.local_addr().expect("local addr").port();
 
@@ -153,7 +151,7 @@ impl TestServer {
     /// the binary's PostgreSQL boot path does.
     ///
     /// This is a separate entry point rather than a flag because
-    /// `SupportsMutations` is not a bound on `Server<A>`'s lifecycle — the write
+    /// `SupportsMutations` is not a bound on `Server`'s lifecycle — the write
     /// router can only be installed where the concrete adapter is known. A test that
     /// short-circuited this by merging `rest_router` itself would be exercising a
     /// router the binary never serves, which is exactly how #812 (no auth on the REST

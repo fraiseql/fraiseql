@@ -31,7 +31,6 @@ use std::collections::HashMap;
 
 use axum::response::Response;
 use fraiseql_core::{
-    db::traits::DatabaseAdapter,
     graphql::{
         defer, parse_query_with_operation_name, selection_set, selection_set::variables_map,
         stream_split, types::FieldSelection, value_json,
@@ -68,8 +67,8 @@ struct StreamPlan {
 
 /// Serve a negotiated SSE request. Returns the streaming response, or the
 /// ordinary HTTP error when the request fails before any event is emitted.
-pub(in super::super) async fn handle_sse<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: AppState<A>,
+pub(in super::super) async fn handle_sse(
+    state: AppState,
     wire: Wire,
     headers: axum::http::HeaderMap,
     peer_ip: String,
@@ -473,8 +472,8 @@ enum Phase {
 }
 
 /// State threaded through the continuation `unfold`.
-struct BatchState<A: DatabaseAdapter + Clone + Send + Sync + 'static> {
-    state:            AppState<A>,
+struct BatchState {
+    state:            AppState,
     query:            String,
     /// The operation the request selected — every continuation batch must run
     /// the same one the first batch did (§ 6.1).
@@ -498,9 +497,7 @@ struct BatchState<A: DatabaseAdapter + Clone + Send + Sync + 'static> {
 
 /// One step of the continuation stream: fetch and emit the next batch, the
 /// final `complete` event, or end the stream.
-async fn batch_step<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    mut st: BatchState<A>,
-) -> Option<(Chunk, BatchState<A>)> {
+async fn batch_step(mut st: BatchState) -> Option<(Chunk, BatchState)> {
     match st.phase {
         Phase::Finished => None,
         Phase::Complete => {
@@ -619,8 +616,8 @@ async fn batch_step<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
 // the client verbatim. Boxing it to shrink the `Result` would add an allocation
 // on every rejection and force each `?` site to unbox what it is about to return.
 #[allow(clippy::result_large_err)]
-async fn run_batch<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: &AppState<A>,
+async fn run_batch(
+    state: &AppState,
     tenant_key: Option<&str>,
     query: &str,
     variables: &Value,
@@ -693,8 +690,8 @@ const fn resumable_chunk(payload: Value, next_offset: u64) -> Chunk {
 /// `Ok(Some(plan))` for a valid streamed delivery, and a loud error for every
 /// unsupported placement — an ignored `@stream` on a negotiated SSE request
 /// would read as "streaming worked" while silently buffering.
-fn plan_stream<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
-    state: &AppState<A>,
+fn plan_stream(
+    state: &AppState,
     query: &str,
     variables: Option<&Value>,
     operation_name: Option<&str>,

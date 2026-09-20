@@ -74,11 +74,7 @@ fn open_mcp_config() -> McpConfig {
 }
 
 /// Create the MCP service backed by a `FailingAdapter`.
-fn make_mcp_service() -> (
-    FraiseQLMcpService<FailingAdapter>,
-    Arc<CompiledSchema>,
-    Arc<Executor<FailingAdapter>>,
-) {
+fn make_mcp_service() -> (FraiseQLMcpService, Arc<CompiledSchema>, Arc<Executor>) {
     let schema = build_test_schema();
     let adapter = Arc::new(FailingAdapter::new());
     let executor = Arc::new(Executor::new(schema.clone(), adapter));
@@ -89,10 +85,10 @@ fn make_mcp_service() -> (
 /// Assemble the call context for [`executor::call_tool`].
 fn call_ctx<'a>(
     schema: &'a CompiledSchema,
-    executor: &'a Executor<FailingAdapter>,
+    executor: &'a Executor,
     config: &'a McpConfig,
     security_context: Option<&'a SecurityContext>,
-) -> executor::McpCallContext<'a, FailingAdapter> {
+) -> executor::McpCallContext<'a> {
     executor::McpCallContext {
         schema,
         executor,

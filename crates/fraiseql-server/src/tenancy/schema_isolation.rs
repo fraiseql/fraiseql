@@ -156,9 +156,9 @@ async fn count_relations(schema_name: &str, adapter: &dyn DatabaseAdapter) -> u6
 ///
 /// Returns `FraiseQLError::Validation` if the key is invalid.
 /// Returns `FraiseQLError::Database` if the DDL execution fails.
-pub async fn drop_tenant_schema<A: DatabaseAdapter>(
+pub async fn drop_tenant_schema(
     key: &str,
-    executor: &fraiseql_core::runtime::Executor<A>,
+    executor: &fraiseql_core::runtime::Executor,
 ) -> Result<()> {
     // The key is validated here and the derived name re-validated by the engine.
     // Both, deliberately: this layer owns the tenant-key rules, and the engine owns

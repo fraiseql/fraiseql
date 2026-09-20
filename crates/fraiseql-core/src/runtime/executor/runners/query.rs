@@ -21,17 +21,16 @@ pub use super::query_params::{
 };
 #[cfg(test)]
 pub use super::query_projection::selections_contain_field;
-use crate::backend::traits::DatabaseAdapter;
 #[cfg(test)]
 pub use crate::backend::{WhereClause, WhereOperator};
 
 /// Executes regular GraphQL queries and relay/node lookups.
-pub(in super::super) struct QueryRunner<A: DatabaseAdapter> {
-    pub(super) ctx: Arc<ExecutorContext<A>>,
+pub(in super::super) struct QueryRunner {
+    pub(super) ctx: Arc<ExecutorContext>,
 }
 
-impl<A: DatabaseAdapter> QueryRunner<A> {
-    pub(in super::super) const fn new(ctx: Arc<ExecutorContext<A>>) -> Self {
+impl QueryRunner {
+    pub(in super::super) const fn new(ctx: Arc<ExecutorContext>) -> Self {
         Self { ctx }
     }
 

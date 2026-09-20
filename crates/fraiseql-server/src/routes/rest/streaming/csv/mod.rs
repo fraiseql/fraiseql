@@ -23,7 +23,7 @@
 
 use axum::http::{HeaderMap, HeaderValue};
 use bytes::Bytes;
-use fraiseql_core::{db::traits::DatabaseAdapter, security::SecurityContext};
+use fraiseql_core::security::SecurityContext;
 use futures::{StreamExt as _, stream};
 
 use super::{
@@ -63,8 +63,8 @@ pub fn accepts_csv(headers: &HeaderMap) -> bool {
 /// query setup failure. Errors that occur mid-stream are emitted as a final
 /// CSV record `# error: <message>` (the leading `#` and the absence of the
 /// configured delimiter make the line clearly distinguishable from data).
-pub async fn handle_csv_get<A: DatabaseAdapter + 'static>(
-    handler: &RestHandler<'_, A>,
+pub async fn handle_csv_get(
+    handler: &RestHandler<'_>,
     export_config: &ExportConfig,
     relative_path: &str,
     query_pairs: &[(&str, &str)],

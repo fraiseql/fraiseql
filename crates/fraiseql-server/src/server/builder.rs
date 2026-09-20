@@ -157,9 +157,7 @@ pub(super) struct SchemaSubsystems {
     pub tasks: tokio::task::JoinSet<()>,
 }
 
-impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>
-    Server<CachedDatabaseAdapter<A>>
-{
+impl Server {
     /// Create new server.
     ///
     /// Relay pagination queries will return a `Validation` error at runtime. Use
@@ -196,7 +194,7 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>
     /// let server = Server::new(config, schema, adapter, None).await?;
     /// server.serve().await?;
     /// ```
-    pub async fn new(
+    pub async fn new<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
@@ -212,7 +210,7 @@ impl<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>
     }
 }
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAdapter<A>> {
+impl Server {
     /// Create a new server that cannot write.
     ///
     /// The entry for a backend that does not declare
@@ -226,7 +224,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
     /// # Errors
     ///
     /// Same as [`new`](Server::new).
-    pub async fn new_read_only(
+    pub async fn new_read_only<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
@@ -250,7 +248,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
     /// duplicated: a second copy of this function is how `cache_enabled` came to mean
     /// three different things by constructor (#889).
     #[allow(clippy::cognitive_complexity)] // Reason: server construction with subsystem initialization (auth, rate-limit, observers, etc.)
-    async fn new_inner(
+    async fn new_inner<A: DatabaseAdapter + Clone + Send + Sync + 'static>(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
@@ -259,7 +257,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
             CompiledSchema,
             Arc<CachedDatabaseAdapter<A>>,
             fraiseql_core::runtime::RuntimeConfig,
-        ) -> Executor<CachedDatabaseAdapter<A>>,
+        ) -> Executor,
     ) -> Result<Self> {
         // Build the runtime config from the compiled schema. This is the single
         // seam every server constructor routes through (H16): it validates the
@@ -325,7 +323,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<CachedDatabaseAd
     }
 }
 
-impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
+impl Server {
     /// Build every subsystem the compiled schema declares.
     ///
     /// The **one** place a compiled schema is turned into subsystems. Every
@@ -485,7 +483,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[allow(clippy::cognitive_complexity)] // Reason: internal constructor that assembles server from pre-built subsystems
     pub(super) async fn from_executor(
         config: ServerConfig,
-        executor: Arc<Executor<A>>,
+        executor: Arc<Executor>,
         subscription_manager: Arc<SubscriptionManager>,
         subsystems: SchemaSubsystems,
         // `db_pool` is forwarded to the observer runtime and/or auth enrichment.
@@ -1154,7 +1152,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     /// not configured.
     pub(super) fn spawn_async_operation_workers(
         &mut self,
-        state: &crate::routes::graphql::AppState<A>,
+        state: &crate::routes::graphql::AppState,
     ) {
         let Some(runtime) = self.async_operations.clone() else {
             return;
@@ -1561,7 +1559,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     #[must_use]
     pub fn with_tenant_executor_factory(
         mut self,
-        factory: crate::tenancy::TenantExecutorFactory<A>,
+        factory: crate::tenancy::TenantExecutorFactory,
     ) -> Self {
         self.tenant_executor_factory = Some(factory);
         self
@@ -1766,23 +1764,18 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
     }
 }
 
-/// Builder methods that require the adapter to support mutations.
+/// Builder methods for the REST **write** surface.
 ///
-/// `Server<A>`'s lifecycle — `build_router`, `mount_extensions`, `serve_with_shutdown`,
-/// `serve_on_listener` — is deliberately unbounded by
-/// [`SupportsMutations`], so read-only
-/// adapters can be served. Anything needing that bound therefore has to be installed
-/// from a call site that has it, which is what this block is for.
+/// This block used to be bounded on `SupportsMutations`, which is what kept the write
+/// routes off a read-only adapter. The bound has nowhere left to sit: `Server` no
+/// longer names the adapter type, so there is no `A` to constrain here. What stands in
+/// its place is not a compile error at this call site — it is a refusal underneath
+/// every write path. The executor resolves its write handle once, at construction, as
+/// the intersection of both capability gates, and no dispatch can happen without that
+/// handle. Mounting these routes over a read-only executor therefore mounts routes
+/// that refuse, naming both gates, rather than routes that could not be mounted.
 #[cfg(feature = "rest")]
-impl<A> Server<A>
-where
-    A: DatabaseAdapter
-        + fraiseql_core::db::traits::SupportsMutations
-        + Clone
-        + Send
-        + Sync
-        + 'static,
-{
+impl Server {
     /// Mount the REST **write** surface — `POST`/`PUT`/`PATCH`/`DELETE` on derived
     /// resources, plus the collection-level bulk update and delete routes.
     ///
@@ -1792,16 +1785,18 @@ where
     /// write path, so a client that followed the published contract received `405`
     /// (fraiseql/fraiseql#865, a regression of #227).
     ///
-    /// Call it from the boot path, before `serve`. It is not called for read-only
-    /// adapters (`SqliteAdapter`, `FraiseWireAdapter`) because they cannot satisfy the
-    /// bound — the type system, not a runtime check, is what keeps writes off them.
+    /// Call it from the boot path, before `serve`. Mounting it over an executor built
+    /// by [`Executor::read_only`](fraiseql_core::runtime::Executor::read_only) — the
+    /// entry for `FraiseWireAdapter` and any other adapter that does not declare
+    /// `SupportsMutations` — is not an error: the routes mount and every one of them
+    /// refuses at dispatch, because the executor holds no write handle to give them.
     ///
     /// The router still passes through `Server::attach_auth` at the shared mount site,
     /// so enabling writes cannot accidentally place them on an unauthenticated
     /// transport (#812).
     #[must_use]
     pub fn with_rest_write_surface(mut self) -> Self {
-        self.rest_router_builder = Some(Arc::new(crate::routes::rest::rest_router::<A>));
+        self.rest_router_builder = Some(Arc::new(crate::routes::rest::rest_router));
         self
     }
 }

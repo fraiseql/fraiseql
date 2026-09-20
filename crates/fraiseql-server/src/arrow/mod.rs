@@ -24,8 +24,8 @@
 //!
 //! - [`FlightDatabaseAdapter`]: Wraps fraiseql-core adapters (Postgres, Wire) to implement
 //!   `fraiseql_arrow::ArrowDatabaseAdapter`
-//! - [`ExecutorQueryAdapter`]: Wraps `Executor<A>` to implement `fraiseql_arrow::QueryExecutor`
-//!   (type erasure)
+//! - [`ExecutorQueryAdapter`]: Wraps `Executor` to implement `fraiseql_arrow::QueryExecutor` (type
+//!   erasure)
 //! - [`create_flight_service`]: Factory that assembles a configured `FraiseQLFlightService` from
 //!   core adapters
 //!
