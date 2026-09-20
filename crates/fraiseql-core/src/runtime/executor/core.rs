@@ -407,7 +407,9 @@ impl<A: DatabaseAdapter> Executor<A> {
                 "refusing to drop schema '{schema_name}': not a bare identifier"
             )));
         }
-        self.ctx.execute_ddl(&format!("DROP SCHEMA IF EXISTS {schema_name} CASCADE")).await
+        self.ctx
+            .execute_ddl(&format!("DROP SCHEMA IF EXISTS {schema_name} CASCADE"))
+            .await
     }
 
     /// Build a new executor over *this* executor's backend, for a hot-reload or a

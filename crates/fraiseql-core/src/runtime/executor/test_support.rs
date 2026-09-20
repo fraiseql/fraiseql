@@ -213,16 +213,16 @@ impl SupportsMutations for CapturingMockAdapter {}
 /// (`with_view()` builder) so tests can verify correct query routing.
 pub struct MockAdapter {
     /// Default results returned for any view that has no specific override.
-    pub mock_results:      Vec<JsonbValue>,
+    pub mock_results:     Vec<JsonbValue>,
     /// Per-view result overrides. When present, `execute_where_query` returns
     /// these instead of `mock_results`, enabling routing-correctness tests.
-    pub view_responses:    std::collections::HashMap<String, Vec<JsonbValue>>,
+    pub view_responses:   std::collections::HashMap<String, Vec<JsonbValue>>,
     /// Every statement that reached `execute_raw_query`, in order.
     ///
     /// Recorded so a test asserting that something was *refused* can witness that
     /// nothing ran, rather than inferring it from the returned error — an error and
     /// an executed statement are not mutually exclusive.
-    pub captured_raw_sql:  std::sync::Mutex<Vec<String>>,
+    pub captured_raw_sql: std::sync::Mutex<Vec<String>>,
 }
 
 impl MockAdapter {

@@ -411,7 +411,8 @@ async fn two_tenants_driven_concurrently_never_cross() {
     .await
     .expect("tenant B registration");
 
-    let (a_results, b_results) = tokio::join!(concurrent_wave(&adapter_a), concurrent_wave(&adapter_b));
+    let (a_results, b_results) =
+        tokio::join!(concurrent_wave(&adapter_a), concurrent_wave(&adapter_b));
     teardown(&admin).await;
 
     for (label, expected, results) in [("A", TENANT_A, &a_results), ("B", TENANT_B, &b_results)] {

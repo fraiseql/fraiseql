@@ -213,8 +213,7 @@ impl<A: DatabaseAdapter + Clone + Send + Sync + 'static> Server<A> {
                 let tuner = std::sync::Arc::new(crate::pool::PoolSizingAdvisor::new(cfg.clone()));
                 // Spawn background polling task (recommendation mode — no resize_fn supplied
                 // because deadpool-postgres does not expose runtime resize).
-                let _handle =
-                    std::sync::Arc::clone(&tuner).start(self.executor.clone(), None);
+                let _handle = std::sync::Arc::clone(&tuner).start(self.executor.clone(), None);
                 state = state.with_pool_tuner(tuner);
                 info!(
                     tuning_interval_ms = cfg.tuning_interval_ms,

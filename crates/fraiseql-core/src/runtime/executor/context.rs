@@ -11,7 +11,8 @@ use moka::sync::Cache as MokaCache;
 use super::{QueryType, support::relay::RelayDispatch};
 use crate::{
     backend::{
-        AdminSqlOutcome, AdminSqlRequest, ResultCacheStats, traits::DatabaseAdapter,
+        AdminSqlOutcome, AdminSqlRequest, ResultCacheStats,
+        traits::DatabaseAdapter,
         types::{DatabaseType, PoolMetrics, QueryStatEntry},
     },
     cache::ViewName,

@@ -3603,8 +3603,11 @@ mod boundary {
     /// tautology about `relay_enabled` always being true.
     #[tokio::test]
     async fn rebuild_with_does_not_invent_relay_dispatch() {
-        let executor =
-            Executor::with_config(test_schema(), Arc::new(MockAdapter::new(vec![])), RuntimeConfig::default());
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default(),
+        );
         assert!(!executor.relay_enabled(), "precondition: built without relay");
 
         let rebuilt = executor.rebuild_with(CompiledSchema::default(), RuntimeConfig::default());
@@ -3616,8 +3619,11 @@ mod boundary {
     /// the old schema.
     #[tokio::test]
     async fn rebuild_with_takes_the_new_schema() {
-        let executor =
-            Executor::with_config(test_schema(), Arc::new(MockAdapter::new(vec![])), RuntimeConfig::default());
+        let executor = Executor::with_config(
+            test_schema(),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default(),
+        );
         let before = executor.schema().content_hash();
 
         let rebuilt = executor.rebuild_with(CompiledSchema::default(), RuntimeConfig::default());
@@ -3633,9 +3639,10 @@ mod boundary {
 
         executor.drop_tenant_schema("tenant_acme").await.unwrap();
 
-        assert_eq!(adapter.raw_sql(), vec![
-            "DROP SCHEMA IF EXISTS tenant_acme CASCADE".to_string()
-        ]);
+        assert_eq!(
+            adapter.raw_sql(),
+            vec!["DROP SCHEMA IF EXISTS tenant_acme CASCADE".to_string()]
+        );
     }
 
     /// The engine re-validates the name it interpolates, independently of the
@@ -3646,7 +3653,12 @@ mod boundary {
     /// the statement would satisfy an error-only assertion.
     #[tokio::test]
     async fn drop_tenant_schema_refuses_a_non_identifier_and_runs_nothing() {
-        for name in ["", "a; DROP SCHEMA public CASCADE", "public\"", &"x".repeat(64)] {
+        for name in [
+            "",
+            "a; DROP SCHEMA public CASCADE",
+            "public\"",
+            &"x".repeat(64),
+        ] {
             let adapter = Arc::new(MockAdapter::new(vec![]));
             let executor = Executor::with_config(
                 test_schema(),

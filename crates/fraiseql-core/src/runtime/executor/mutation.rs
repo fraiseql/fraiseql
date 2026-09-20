@@ -277,17 +277,31 @@ impl<A: DatabaseAdapter> Executor<A> {
     /// // Requires: live database adapter with SupportsMutations implementation.
     /// // See: tests/integration/ for runnable examples.
     /// # use fraiseql_core::db::postgres::PostgresAdapter;
+    /// # use fraiseql_core::graphql::FieldSelection;
     /// # use fraiseql_core::schema::CompiledSchema;
-    /// # use fraiseql_core::runtime::Executor;
+    /// # use fraiseql_core::runtime::{Executor, WriteSelections};
     /// # use std::sync::Arc;
     /// # async fn example() -> Result<(), Box<dyn std::error::Error>> {
     /// # let schema: CompiledSchema = panic!("example");
     /// # let adapter = PostgresAdapter::new("postgresql://localhost/mydb").await?;
     /// # let executor = Executor::new(schema, Arc::new(adapter));
     /// let vars = serde_json::json!({ "name": "Alice", "email": "alice@example.com" });
-    /// // Returns {"data":{"createUser":{"id":"...", "name":"Alice"}}}
+    ///
+    /// // The selection set is required and cannot be empty: an empty one reads as
+    /// // "no field filtering", which returns the stored entity whole and skips
+    /// // field-level authorization.
+    /// let fields = vec![FieldSelection {
+    ///     name:          "id".to_string(),
+    ///     alias:         None,
+    ///     arguments:     vec![],
+    ///     nested_fields: vec![],
+    ///     directives:    vec![],
+    /// }];
+    /// let selections = WriteSelections::new(&fields)?;
+    ///
+    /// // Returns {"data":{"createUser":{"id":"..."}}}
     /// // or      {"data":{"createUser":{"__typename":"UserAlreadyExistsError", "email":"..."}}}
-    /// let result = executor.execute_mutation("createUser", Some(&vars), &[]).await?;
+    /// let result = executor.execute_mutation("createUser", Some(&vars), selections).await?;
     /// # Ok(())
     /// # }
     /// ```

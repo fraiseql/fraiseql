@@ -308,10 +308,7 @@ pub async fn create_tenant_executor_with_adapter<A: FromPoolConfig>(
         .map_err(|msg| FraiseQLError::validation(format!("Incompatible compiled schema: {msg}")))?;
 
     let adapter = Arc::new(adapter);
-    Ok((
-        Arc::new(Executor::with_config(schema, Arc::clone(&adapter), config)),
-        adapter,
-    ))
+    Ok((Arc::new(Executor::with_config(schema, Arc::clone(&adapter), config)), adapter))
 }
 
 /// Drop a tenant's PostgreSQL schema if schema isolation mode is active.
