@@ -8,17 +8,16 @@
 //! - Service SDL via `_service` query
 //! - Multiple resolution strategies (local, direct DB, HTTP)
 //!
+//! Saga orchestration lives in `fraiseql-saga`, which sits *above* `fraiseql-core`
+//! so a saga step dispatches through the mutation chokepoint rather than building
+//! its own SQL (#1354).
+//!
 //! # Production-ready vs unstable APIs
 //!
 //! | Component | Status | Notes |
 //! |-----------|--------|-------|
 //! | Subgraph mode — `HttpEntityResolver` (`_entities` HTTP resolution) | ✅ Production | SSRF-protected, retry, tracing |
 //! | Composition validation — `CompositionValidator` | ✅ Production | compile-time only |
-//! | Saga forward execution — `SagaExecutor::{execute_step, execute_saga, execution_state}` | ✅ Stable | requires the opt-in `saga` feature; dispatches real mutations (local SQL, or over HTTPS to a registered peer subgraph) and persists real step/saga state (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). A `RetryPolicy` retries a transient step failure with exponential backoff (+ optional per-step timeout) before the saga gives up. A step's caller-supplied `@requires` fields (`RequiredField`) are pre-fetched from their owning subgraph's `_entities` endpoint and merged into the mutation variables before dispatch; an unresolved field fails the step before its mutation runs. |
-//! | Saga compensation — `SagaCompensator::{compensate_step, compensate_saga}` | ✅ Stable | requires the opt-in `saga` feature; rolls back completed steps in reverse execution order — each on the same transport its forward step used (local SQL adapter, or over HTTPS to a registered peer subgraph) — and persists real `Compensated` state (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). |
-//! | Saga recovery — `SagaRecoveryManager::{run_iteration, start_background_loop}` | ✅ Stable | requires the opt-in `saga` feature; re-drives crash-interrupted (`Pending`/`Executing`) sagas to a terminal state by replaying `execute_saga`, records recovery attempts, and cleans up stale sagas (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). Stuck sagas are claimed under a lease via `FOR UPDATE SKIP LOCKED`, so concurrent recovery workers never double-drive one. |
-//! | Saga coordination — `SagaCoordinator::{create_saga, execute_saga, get_saga_status, cancel_saga, get_saga_result, list_in_flight_sagas}` | ✅ Stable | requires the opt-in `saga` feature; ties forward execution + compensation into one handle — persists a saga with compensation metadata, runs the forward phase, and on failure (under `Automatic`) rolls back the completed steps via the local SQL adapter; `cancel_saga` compensates then marks the saga `Cancelled` (see [#429](https://github.com/fraiseql/fraiseql/issues/429)). `with_http_client` + `with_subgraph` route a step to a registered peer subgraph over HTTPS, for both forward execution and compensation (rollback); `with_http_client_mtls` adds mutual-TLS (client-certificate) authentication; `with_entity_resolver` enables cross-subgraph `@requires` pre-fetch (a step's `RequiredField`s are fetched from their owning subgraph and merged into its mutation variables before dispatch, rejected at `create_saga` if the owning subgraph is unregistered). |
-//! | HTTP mutation propagation — `HttpMutationClient` | ✅ Production | SSRF-protected |
 //! | Gateway mode — `ConnectionManager::get_or_create_connection` | 🚧 Unstable | requires `unstable` feature |
 //! | Direct-DB federation — `DirectDbResolver` | 🚧 Unstable | stub only; not yet implemented |
 //!
@@ -56,25 +55,11 @@ pub mod health;
 pub mod http_resolver;
 pub mod logging;
 pub mod metadata_helpers;
-pub mod mutation_detector;
-pub mod mutation_executor;
-pub mod mutation_http_client;
-pub mod mutation_query_builder;
 pub mod observability;
 pub mod query_builder;
 pub mod query_plan_cache;
 pub mod representation;
 pub mod requires_provides_validator;
-#[cfg(feature = "saga")]
-pub mod saga_compensator;
-#[cfg(feature = "saga")]
-pub mod saga_coordinator;
-#[cfg(feature = "saga")]
-pub mod saga_executor;
-#[cfg(feature = "saga")]
-pub mod saga_recovery_manager;
-#[cfg(feature = "saga")]
-pub mod saga_store;
 pub mod selection_parser;
 pub mod service_sdl;
 pub mod sql_utils;
@@ -100,10 +85,6 @@ pub use http_resolver::*;
 pub use logging::{
     FederationLogContext, FederationOperationType, LogTimer, OperationStatus, ResolutionStrategy,
 };
-pub use mutation_detector::*;
-pub use mutation_executor::*;
-pub use mutation_http_client::*;
-pub use mutation_query_builder::*;
 pub use observability::{EntityResolutionMetrics, SubgraphLatencyEntry, SubgraphLatencyTracker};
 pub use query_builder::*;
 pub use query_plan_cache::{QueryPlan, QueryPlanCache, SubgraphFetch};
@@ -113,25 +94,6 @@ pub use requires_provides_validator::{
 };
 /// The `reqwest` this crate's public API is built against (#1198).
 pub use reqwest;
-#[cfg(feature = "saga")]
-pub use saga_compensator::{
-    CompensationResult, CompensationStatus, CompensationStepResult, SagaCompensator,
-};
-#[cfg(feature = "saga")]
-pub use saga_coordinator::{
-    CompensationStrategy, SagaCoordinator, SagaResult, SagaStatus, SagaStep as SagaCoordinatorStep,
-};
-#[cfg(feature = "saga")]
-pub use saga_executor::{ExecutionState, RetryPolicy, SagaExecutor, StepExecutionResult};
-#[cfg(feature = "saga")]
-pub use saga_recovery_manager::{
-    RecoveryConfig, RecoveryRouting, RecoveryStats, SagaRecoveryManager,
-};
-#[cfg(feature = "saga")]
-pub use saga_store::{
-    MutationType, PostgresSagaStore, RequiredField, Saga, SagaRecovery, SagaState, SagaStep,
-    SagaStoreError, StepState,
-};
 pub use selection_parser::*;
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;

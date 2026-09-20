@@ -216,11 +216,15 @@ var featureCombos = []featureCombo{
 	{name: "functions-runtime-deno", crate: "fraiseql-functions", noDefaultFeatures: true, clippy: true, features: []string{"runtime-deno"}},
 	{name: "functions-host-combined", crate: "fraiseql-functions", noDefaultFeatures: true, clippy: true, features: []string{"host-live", "host-storage"}},
 
-	// ── federation: the gated #429 wired saga forward executor ────────────────
-	// clippy `--all-targets` compiles the wired execute_step/execute_saga + their
-	// SQLite/Postgres tests under -D warnings; the default-feature (fail-loud) path
-	// is covered by preflight `--all-features` and the workspace test leg.
-	{name: "fed-saga", crate: "fraiseql-federation", clippy: true, features: []string{"saga"}},
+	// ── saga: the #429 orchestrator, feature-OFF arm ──────────────────────────
+	// #1354 moved this out of fraiseql-federation into its own crate and deleted the
+	// `saga` feature — depending on the crate is the opt-in — so the combo that used
+	// to turn that feature ON has nothing left to turn on. The arm worth pinning is
+	// the opposite one: preflight's clippy is `--all-features`, which compiles
+	// `test-utils`, and `test-utils` gates real code here (the coordinator's
+	// `*_for_test` builders, the store's helpers). Without this combo, nothing lints
+	// the crate as a consumer actually builds it.
+	{name: "saga-no-test-utils", crate: "fraiseql-saga", clippy: true},
 	// ── cdc: the gated #382 NATS JetStream outbound sink ──────────────────────
 	// clippy `--all-targets` compiles the NatsJetStreamSink + its real-PG/NATS
 	// e2e test under -D warnings on MSRV; the default (broker-free) drain path is

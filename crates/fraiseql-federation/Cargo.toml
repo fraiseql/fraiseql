@@ -1,5 +1,5 @@
 [package]
-description = "Apollo Federation v2 support for FraiseQL — entity resolution, saga orchestration, multi-subgraph composition"
+description = "Apollo Federation v2 support for FraiseQL — entity resolution, multi-subgraph composition"
 name = "fraiseql-federation"
 readme = "README.md"
 authors.workspace = true
@@ -65,22 +65,6 @@ test-utils = []
 # #
 # # These APIs may change without semver guarantees.
 unstable = []
-# # Enable distributed saga execution (#429).
-# #
-# # Opt-in but **stable**: the API exposed by this feature is covered by semver
-# # (it will not change without a major version bump). It is opt-in so that builds
-# # that do not orchestrate cross-subgraph transactions are not forced to compile
-# # the Postgres saga store and its dependencies.
-# #
-# # With it, the methods dispatch real mutations, persist real state, and never
-# # fabricate success: forward execution (`SagaExecutor`), compensation
-# # (`SagaCompensator`), crash recovery (`SagaRecoveryManager`), and the
-# # `SagaCoordinator` handle — including remote step dispatch over HTTPS to a
-# # registered peer subgraph via `HttpMutationClient` (with optional mutual TLS),
-# # and cross-subgraph `@requires` pre-fetch (a step's required fields are fetched
-# # from their owning subgraph and merged into its mutation variables before
-# # dispatch). Without the feature, the saga types are not compiled at all.
-saga = []
 
 [lints]
 workspace = true

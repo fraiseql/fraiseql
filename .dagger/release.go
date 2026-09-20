@@ -55,6 +55,9 @@ var legacyPublishOrder = []string{
 	"fraiseql-codegen",
 	// Tier 5.
 	"fraiseql-arrow", "fraiseql-secrets", "fraiseql-observers", "fraiseql-functions",
+	// fraiseql-saga is tier 5 too: it depends on fraiseql-core and
+	// fraiseql-federation, both published above it (#1354).
+	"fraiseql-saga",
 	// Tier 6: top-level binaries + umbrella.
 	"fraiseql-server", "fraiseql-cli", "fraiseql",
 }

@@ -44,6 +44,7 @@ members = [
   "crates/fraiseql-webhooks",
   "crates/fraiseql-cdc-sinks",  # Outbound CDC: drains the change-log outbox to brokers (#382)
   "crates/fraiseql-federation",  # Apollo Federation v2 support
+  "crates/fraiseql-saga",  # Distributed saga orchestration, above the engine (#1354)
   "crates/fraiseql-functions",  # Serverless functions runtime
   "crates/fraiseql-storage",  # Object storage backends
   "crates/fraiseql-wire",  # Streaming JSON query engine for Postgres
@@ -94,6 +95,7 @@ fraiseql-core = {path = "crates/fraiseql-core", version = "2.15.0", default-feat
 fraiseql-db = {path = "crates/fraiseql-db", version = "2.15.0", default-features = false}
 fraiseql-error = {path = "crates/fraiseql-error", version = "2.15.0", default-features = false}
 fraiseql-federation = {path = "crates/fraiseql-federation", version = "2.15.0"}
+fraiseql-saga = {path = "crates/fraiseql-saga", version = "2.15.0"}
 fraiseql-guard = {path = "crates/fraiseql-guard", version = "2.15.0"}
 fraiseql-jwks = {path = "crates/fraiseql-jwks", version = "2.15.0"}
 fraiseql-kafka = {path = "crates/fraiseql-kafka", version = "2.15.0"}
@@ -401,13 +403,14 @@ fraiseql-codegen = 8_000  # first budget; the crate predates #1055 and had none
 fraiseql-core = 145_000  # re-baselined #1055 (was 110_000, actual 122_165)
 fraiseql-db = 25_000
 fraiseql-error = 5_000
-fraiseql-federation = 22_000  # first budget; the crate predates #1055 and had none
+fraiseql-federation = 12_500  # re-baselined #1354, which moved the saga half out (was 22_000, actual 10_293)
 fraiseql-functions = 23_000  # first budget; the crate predates #1055 and had none
 fraiseql-guard = 5_000
 fraiseql-jwks = 5_000  # new in #1335; fetch + bound + select a key, and nothing else
 fraiseql-kafka = 5_000  # new in #1102; connect + produce and nothing else
 fraiseql-observers = 45_000
 fraiseql-secrets = 20_000
+fraiseql-saga = 9_500  # new in #1354; the saga half of fraiseql-federation, moved above core (actual 7_724)
 fraiseql-server = 125_000  # re-baselined #1055 (was 55_000, actual 105_420)
 fraiseql-storage = 20_000  # first budget; the crate predates #1055 and had none
 fraiseql-test-support = 5_000

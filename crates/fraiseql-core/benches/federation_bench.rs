@@ -11,10 +11,7 @@
 
 #![allow(clippy::cast_precision_loss)] // Reason: bench reporting uses u64→f64 for human-readable output; precision loss is irrelevant
 #![allow(clippy::missing_errors_doc)] // Reason: criterion_group! macro generates undocumented items
-use fraiseql_core::federation::{
-    mutation_http_client::{HttpMutationClient, HttpMutationConfig},
-    types::{FederatedType, FederationMetadata, KeyDirective},
-};
+use fraiseql_core::federation::types::{FederatedType, FederationMetadata, KeyDirective};
 use serde_json::json;
 
 fn create_test_metadata() -> FederationMetadata {
@@ -90,64 +87,6 @@ fn criterion_benchmark(c: &mut criterion::Criterion) {
                 "userId": "user456",
                 "email": "user@example.com"
             });
-        });
-    });
-
-    // ========================================================================
-    // HTTP Mutation Client Benchmarks
-    // ========================================================================
-
-    c.bench_function("build_variable_definitions", |b| {
-        let config = HttpMutationConfig::default();
-        let client = HttpMutationClient::new(config).unwrap();
-
-        let variables = json!({
-            "id": "user123",
-            "name": "Alice",
-            "email": "alice@example.com",
-            "active": true
-        });
-
-        b.iter(|| {
-            let _ = client.build_variable_definitions(&variables);
-        });
-    });
-
-    c.bench_function("parse_graphql_response", |b| {
-        let config = HttpMutationConfig::default();
-        let client = HttpMutationClient::new(config).unwrap();
-
-        let response = fraiseql_core::federation::mutation_http_client::GraphQLResponse {
-            data:   Some(json!({
-                "updateUser": {
-                    "__typename": "User",
-                    "id": "user123",
-                    "name": "Alice",
-                    "email": "alice@example.com"
-                }
-            })),
-            errors: None,
-        };
-
-        b.iter(|| {
-            let _ = client.parse_response(response.clone(), "updateUser");
-        });
-    });
-
-    c.bench_function("build_mutation_query", |b| {
-        let config = HttpMutationConfig::default();
-        let client = HttpMutationClient::new(config).unwrap();
-
-        let metadata = create_test_metadata();
-        let fed_type = &metadata.types[1]; // Order (extended)
-
-        let variables = json!({
-            "id": "order123",
-            "status": "shipped"
-        });
-
-        b.iter(|| {
-            let _ = client.build_mutation_query("Order", "shipOrder", &variables, fed_type);
         });
     });
 

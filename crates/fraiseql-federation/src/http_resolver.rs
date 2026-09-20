@@ -153,7 +153,13 @@ pub use fraiseql_guard::net::is_blocked_ip as is_ssrf_blocked_ip;
 ///
 /// Returns `FraiseQLError::Internal` if DNS resolution fails, returns no
 /// addresses, or any resolved address is in a private/reserved range.
-pub(crate) async fn dns_resolve_and_check(url: &str) -> fraiseql_error::Result<()> {
+///
+/// Public because `fraiseql-saga`'s outbound mutation client needs the same guard
+/// on the same URLs, and the crates are now separate (#1354). The workspace has
+/// **four** independent copies of this resolve-and-check loop sharing only
+/// [`fraiseql_guard::net`]'s range list; consolidating them into that crate — where
+/// the lists already live — is tracked as #1360, not done one-quarter at a time here.
+pub async fn dns_resolve_and_check(url: &str) -> fraiseql_error::Result<()> {
     let parsed = reqwest::Url::parse(url).map_err(|e| fraiseql_error::FraiseQLError::Internal {
         message: format!("Invalid URL '{url}': {e}"),
         source:  None,

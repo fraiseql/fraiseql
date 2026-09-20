@@ -226,12 +226,16 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-server --features inbound-email --test inbound_email_dedup_scope_pg -- --test-threads=1
 	@cargo test -p fraiseql-server --features sources --lib sources:: -- --test-threads=1
 	@cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1
-	@cargo test -p fraiseql-federation --features saga --lib saga_store::tests -- --test-threads=1
+	@cargo test -p fraiseql-saga --lib saga_store::tests -- --test-threads=1
 	@cargo test -p fraiseql-server --features functions-runtime --test functions_schema_seam_test
 	@cargo test -p fraiseql-server --features functions-runtime --test functions_query_bridge_pin_test
 	@echo ""
 	@echo "### saga: forward execution, compensation, recovery, remote dispatch"
-	@cargo test -p fraiseql-federation --features saga,test-utils --test saga_integration -- --include-ignored --test-threads=1
+	@cargo test -p fraiseql-saga --features test-utils --test saga_integration -- --include-ignored --test-threads=1
+# #1354 moved the saga above the engine. These two binaries were fraiseql-core's
+# tests/federation/mutation_* + federation_mutation_http, which the core --test '*'
+# sweep covered by wildcard; a wildcard cannot reach another package.
+	@cargo test -p fraiseql-saga --features test-utils --test mutations --test mutation_http -- --test-threads=1
 	@echo ""
 	@echo "### fraiseql-cli against-db suites (each self-skips without DATABASE_URL)"
 	@cargo test -p fraiseql-cli --features test-postgres --test init_first_run_pg -- --test-threads=1
@@ -357,10 +361,10 @@ test-leg:
 	@echo "### config-coverage manifest + doc config examples"
 	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka' --test config_coverage_manifest_test --test doc_config_examples_test
 	@echo ""
-	@echo "### observers (--lib + in-process binaries), federation saga"
+	@echo "### observers (--lib + in-process binaries), saga"
 	cargo test -p fraiseql-observers --lib --features 'caching,cli,arrow,checkpoint,dedup,metrics,nats,postgres,queue,search'
 	cargo test -p fraiseql-observers --features 'queue,metrics,testing' --test job_queue_integration --test property_state_machine --test stress_tests --test transport_pipeline_test
-	cargo test -p fraiseql-federation --lib --features saga
+	cargo test -p fraiseql-saga --lib
 	@echo ""
 	@echo "### cargo test --doc --all-features"
 	cargo test --doc --all-features -- --test-threads=6

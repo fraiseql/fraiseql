@@ -18,6 +18,48 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Saga orchestration moves out of `fraiseql-federation` into a new `fraiseql-saga`
+  crate, above `fraiseql-core` (#1354).** S8 of the boundary work, first half: the move
+  itself, with no behaviour change.
+
+  The saga orchestrator is a *client* of the mutation chokepoint, but it sat **below**
+  the engine in the crate graph, where the chokepoint is unreachable — so it had grown
+  its own `INSERT`/`UPDATE`/`DELETE` string builder and dispatched it raw, skipping the
+  operation `Authorizer`, `requires_role`, `requires_actor`, `before:mutation`, argument
+  validation, the RLS session variables, the change-log row and the field authorizer.
+  The layering was the defect. This change fixes the layering; the second half routes
+  the local step through the chokepoint and deletes the SQL builder.
+
+  `fraiseql-federation` keeps what it is for — entity resolution, representations,
+  selection parsing, service SDL, composition — and is now purely below the engine.
+
+  **API.** `fraiseql-federation` no longer contains `mutation_detector`,
+  `mutation_executor`, `mutation_http_client`, `mutation_query_builder`,
+  `saga_compensator`, `saga_coordinator`, `saga_executor`, `saga_recovery_manager` or
+  `saga_store`, nor their root re-exports (`SagaExecutor`, `SagaCoordinator`,
+  `SagaCompensator`, `SagaRecoveryManager`, `PostgresSagaStore`, `SagaStep`,
+  `SagaState`, `StepState`, `MutationType`, `RequiredField`, `RetryPolicy`,
+  `HttpMutationClient`, `FederationMutationExecutor`, …). They are in `fraiseql-saga`
+  under the same paths. `fraiseql_core::federation` therefore no longer reaches any of
+  them either.
+
+  **The `saga` feature is gone.** Depending on `fraiseql-saga` *is* the opt-in. Replace
+  `fraiseql-federation = { features = ["saga"] }` with a `fraiseql-saga` dependency;
+  `test-utils` still exists on both crates and forwards where needed.
+
+  ```toml
+  # before
+  fraiseql-federation = { version = "2.14", features = ["saga"] }
+  # after
+  fraiseql-federation = "2.15"   # only if you use entity resolution directly
+  fraiseql-saga = "2.15"
+  ```
+
+  `fraiseql_federation::http_resolver::dns_resolve_and_check` is now `pub` (it was
+  `pub(crate)`): the outbound mutation client needs the same guard and is now in another
+  crate. The workspace has four independent copies of that resolve-and-check loop sharing
+  only `fraiseql-guard`'s range list; consolidating them is #1360.
+
 - **The gRPC read arms go through the engine, and no longer hold a `DatabaseAdapter`
   (#1351).** S7 of the boundary work. Both arms built their own `WHERE` clause and
   called `DatabaseAdapter::execute_row_query` directly, which made gRPC a second read

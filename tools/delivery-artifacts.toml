@@ -404,6 +404,14 @@ builds = ["workflow:release.yml:validate-release"]
 executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
+id = "crate:fraiseql-saga"
+kind = "crate"
+consumed_as = "crates.io/crates/fraiseql-saga"
+publishes = ["workflow:release.yml:publish-crates"]
+builds = ["workflow:release.yml:validate-release"]
+executes = []
+
+[[artifact]]
 id = "crate:fraiseql-secrets"
 kind = "crate"
 consumed_as = "crates.io/crates/fraiseql-secrets"
@@ -620,6 +628,11 @@ reason = "published and consumable, but no consumption tier pulls it: MEASURED a
 applies_to = "crate:fraiseql-kafka"
 issue = 1102
 reason = "same shape as fraiseql-guard above and for a sharper reason: nothing pulls it unless a Kafka feature is on (`cdc-kafka` on fraiseql-cdc-sinks, `kafka` on fraiseql-core, `subscription-kafka` on fraiseql-server), and none is default — a consumption tier that installed it by default would be pulling librdkafka, a C library built from source, into every install. Its code IS executed in CI: `cargo test -p fraiseql-kafka` on the workspace test leg, and through both callers on the integration leg's real broker (cdc_kafka_e2e, subscription_kafka_mirror_e2e)"
+
+[[exempt]]
+applies_to = "crate:fraiseql-saga"
+issue = 1354
+reason = "published and consumable, but no consumption tier pulls it, and that is the point of the crate: nothing in the workspace depends on fraiseql-saga — depending on it IS the opt-in, so neither `cargo add fraiseql` nor `cargo install fraiseql-server` can reach it by any feature combination. New in 2.15.0, so it is outside the 2.14.1 measurement the rows above cite. Its code IS executed in CI: `cargo test -p fraiseql-saga --lib` on the test leg, and `--test saga_integration --include-ignored`, `--lib saga_store::tests` and `--test mutations --test mutation_http` on the integration leg"
 
 [[exempt]]
 applies_to = "crate:fraiseql-secrets"

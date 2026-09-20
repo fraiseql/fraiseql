@@ -9,10 +9,6 @@ mod federation {
     mod requires_enforcement;
 
     // Mutation operations
-    mod mutation_detection;
-    mod mutation_error;
-    mod mutation_local;
-    mod mutation_response;
 
     // Entity resolution — database integration
     mod entity_connection;

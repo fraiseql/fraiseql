@@ -12,10 +12,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use fraiseql_core::{
     db::{postgres::PostgresAdapter, traits::DatabaseAdapter},
-    federation::{
-        mutation_executor::FederationMutationExecutor,
-        types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective},
-    },
+    federation::types::{EntityRepresentation, FederatedType, FederationMetadata, KeyDirective},
 };
 use serde_json::{Value, json};
 
@@ -102,50 +99,6 @@ fn sql_literal(value: Option<&Value>) -> String {
         Some(Value::Null) | None => "NULL".to_string(),
         Some(other) => format!("'{}'", other.to_string().replace('\'', "''")),
     }
-}
-
-// =============================================================================
-// Mutation Executor Fixture (real PostgreSQL)
-// =============================================================================
-
-/// Connect to the harness Postgres, provision each `(table, column_ddl)` as a
-/// fresh empty table, and return a [`FederationMutationExecutor`] over the real
-/// adapter.
-///
-/// `FederationMutationExecutor::execute_local_mutation` builds a plain
-/// `INSERT`/`UPDATE`/`DELETE` against the lowercased entity type name and runs
-/// it via `execute_raw_query`, so each test provisions exactly the columns its
-/// variables reference. The table name is lowercased here to match the builder
-/// (`quote_postgres_identifier(typename.to_lowercase())`), so callers can pass
-/// either case without drift. `execute_extended_mutation` never touches the
-/// adapter, so its tests pass an empty `tables` slice.
-///
-/// Returns `None` when no Postgres is configured (`DATABASE_URL` unset and no
-/// local-testcontainers spawn) so the caller skips cleanly on the non-DB
-/// preflight leg; the bound `Service` is returned alongside the executor so a
-/// locally-spawned container, if any, is held for the test's lifetime.
-pub async fn pg_mutation_executor(
-    metadata: FederationMetadata,
-    tables: &[(&str, &[&str])],
-) -> Option<(fraiseql_test_support::Service, FederationMutationExecutor<PostgresAdapter>)> {
-    let (pg, adapter) = pg_adapter().await?;
-
-    for (table, column_ddl) in tables {
-        let table = table.to_lowercase();
-        adapter
-            .execute_raw_query(&format!(r#"DROP TABLE IF EXISTS "{table}" CASCADE"#))
-            .await
-            .expect("drop mutation table");
-        adapter
-            .execute_raw_query(&format!(r#"CREATE TABLE "{table}" ({})"#, column_ddl.join(", ")))
-            .await
-            .expect("create mutation table");
-    }
-
-    // These fixtures author snake_case input keys directly, so no recasing is
-    // needed (recase_input_keys = false). The recasing path (camelCase surface →
-    // snake_case columns) is covered by the mutation_executor unit tests.
-    Some((pg, FederationMutationExecutor::new(adapter, metadata, false)))
 }
 
 // =============================================================================

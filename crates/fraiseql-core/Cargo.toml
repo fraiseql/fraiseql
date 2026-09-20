@@ -184,10 +184,6 @@ required-features = ["federation"]
 name = "federation_multi_subgraph"
 required-features = ["federation"]
 
-[[test]]
-name = "federation_mutation_http"
-required-features = ["federation"]
-
 
 [[test]]
 name = "federation_provides_enforcement"

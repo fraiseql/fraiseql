@@ -37,7 +37,7 @@ fixture() {
   local root="$1"
   mkdir -p "${root}/crates/fraiseql-core/src/runtime/executor/runners/mutation"
   mkdir -p "${root}/crates/fraiseql-server/src/routes/grpc"
-  mkdir -p "${root}/crates/fraiseql-federation/src/saga_executor"
+  mkdir -p "${root}/crates/fraiseql-saga/src/saga_executor"
 
   cat > "${root}/crates/fraiseql-core/src/runtime/executor/mutation.rs" <<'RS'
 impl<A: DatabaseAdapter + SupportsMutations> Executor<A> {
@@ -122,8 +122,8 @@ async fn mutate(executor: &Executor<A>, mutation_name: &str) -> Result<MutationR
 }
 RS
 
-  for f in "${root}/crates/fraiseql-federation/src/saga_compensator.rs" \
-           "${root}/crates/fraiseql-federation/src/saga_executor/step.rs"; do
+  for f in "${root}/crates/fraiseql-saga/src/saga_compensator.rs" \
+           "${root}/crates/fraiseql-saga/src/saga_executor/step.rs"; do
     cat > "$f" <<'RS'
 async fn compensate(client: &HttpMutationClient) -> Result<Value> {
     client
@@ -331,7 +331,7 @@ fi
 
 # ── 14. A NAMESAKE that stopped calling must not stay listed ─────────────────────────
 root="$(new_tree stale_namesake)"
-: > "${root}/crates/fraiseql-federation/src/saga_executor/step.rs"
+: > "${root}/crates/fraiseql-saga/src/saga_executor/step.rs"
 run_gate "$root"
 if [ "$(rc)" = "1" ] && said "no longer calls"; then
   pass "a stale NAMESAKES entry fails the gate"

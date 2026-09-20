@@ -146,12 +146,12 @@ EMPTY_SELECTIONS = re.compile(
 # report the ambiguity, never guess which one it found.
 NAMESAKES: dict[tuple[str, str, int], str] = {
     (
-        "crates/fraiseql-federation/src/saga_compensator.rs",
+        "crates/fraiseql-saga/src/saga_compensator.rs",
         "execute_mutation",
         6,
     ): "HttpMutationClient::execute_mutation — a remote subgraph call over HTTP",
     (
-        "crates/fraiseql-federation/src/saga_executor/step.rs",
+        "crates/fraiseql-saga/src/saga_executor/step.rs",
         "execute_mutation",
         6,
     ): "HttpMutationClient::execute_mutation — a remote subgraph call over HTTP",

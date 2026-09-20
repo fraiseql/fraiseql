@@ -79,14 +79,14 @@ WRITE_SQL='build_(insert|update|delete)_query|"[[:space:]]*(INSERT INTO|UPDATE |
 # Files that build write SQL and dispatch it raw. Each is a named defect with an issue, and
 # each must keep matching both halves or it is stale — see the staleness loop below.
 #
-#   mutation_executor.rs  the federation saga's local write (#1354). Takes no SecurityContext
+#   mutation_executor.rs  the saga's local write (#1354). Takes no SecurityContext
 #                         at all, so the operation Authorizer, requires_role, requires_actor,
 #                         before:mutation, the RLS session variables, the change-log row and
 #                         the field authorizer are all skipped.
 #   do_put.rs             the Flight DoPut upload (#1355). #953 moved DoExchange onto
 #                         `execute_gated_upload` so rows and outbox rows commit together;
 #                         DoPut never got it, so the Change Spine is blind to every DoPut.
-KNOWN_RAW='crates/fraiseql-federation/src/mutation_executor.rs|crates/fraiseql-arrow/src/flight_server/handlers/do_put.rs'
+KNOWN_RAW='crates/fraiseql-saga/src/mutation_executor.rs|crates/fraiseql-arrow/src/flight_server/handlers/do_put.rs'
 
 # Production code only: a test may drive an adapter directly, and a bench must.
 violations=$(
