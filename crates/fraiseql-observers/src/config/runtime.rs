@@ -395,7 +395,7 @@ pub enum ActionConfig {
         reply_to:         Option<String>,
     },
 
-    /// Send SMS (stub for, full implementation later)
+    /// SMS action. Rejected at config load as unsupported (H24); see #428.
     Sms {
         /// Phone number to send to
         phone:            Option<String>,
@@ -405,7 +405,7 @@ pub enum ActionConfig {
         message_template: Option<String>,
     },
 
-    /// Send push notification (stub for)
+    /// Push notification action. Rejected at config load as unsupported (H24); see #428.
     Push {
         /// Device token
         device_token:   Option<String>,
@@ -415,7 +415,7 @@ pub enum ActionConfig {
         body_template:  Option<String>,
     },
 
-    /// Update search index (stub for)
+    /// Search index action. Rejected at config load as unsupported (H24); see #428.
     Search {
         /// Index name
         index:       String,
@@ -423,7 +423,7 @@ pub enum ActionConfig {
         id_template: Option<String>,
     },
 
-    /// Invalidate cache (stub for)
+    /// Cache invalidation action, dispatched through the cache transport (#632).
     Cache {
         /// Cache key pattern
         key_pattern: String,
@@ -486,8 +486,8 @@ impl ActionConfig {
     ///
     /// Returns [`ObserverError::InvalidActionConfig`] if required fields such as
     /// `url`, `webhook_url`, or `to` are absent or empty for the given action variant,
-    /// or [`ObserverError::UnsupportedActionType`] for action types with no wired
-    /// transport (`sms`, `push`, `search`, `cache`).
+    /// or [`ObserverError::UnsupportedActionType`] for `sms`, `push` and `search` (H24), which
+    /// have no real transport wired.
     pub fn validate(&self) -> Result<()> {
         match self {
             Self::Webhook {

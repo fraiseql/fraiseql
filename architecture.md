@@ -88,14 +88,9 @@
   projection_generator.rs SELECT projection SQL
   path_escape.rs          Identifier escaping (anti-injection) per dialect
   identifier.rs           SQL identifier types
-  collation.rs / .._config  Collation + locale handling
   wire_pool.rs            Wire streaming pool
 
   ┌─ postgres/   ─── Postgres adapter  (primary, most features)
-  ├─ mysql/      ─── MySQL adapter
-  ├─ sqlite/     ─── SQLite adapter (local dev / testing)
-  ├─ sqlserver/  ─── SQL Server adapter (tiberius)
-  ├─ filters/    ─── Rich filter operators (ExtendedOperator, ExtendedHandler)
   └─ types/      ─── OrderByClause, OrderDirection, SqlProjectionHint
 
   Features: postgres(default) | mysql | sqlite | sqlserver
@@ -117,7 +112,6 @@
   ├─ compiler/            schema.json → optimized IR + SQL templates
   │    parser.rs          Schema JSON parsing
   │    validator.rs       Schema validation
-  │    lowering.rs        AST → IR lowering
   │    ir.rs              Intermediate representation
   │    codegen.rs         SQL template generation
   │    aggregation.rs     Aggregation SQL (with allowlist injection guard)
@@ -191,7 +185,6 @@
   ├─ filters/             Filter expression types
   ├─ utils/               Shared utilities
   │                       operators.rs (OPERATOR_REGISTRY)
-  │                       vector.rs (pgvector support)
   │                       opaque_id.rs (OpaqueIdValidator)
   └─ validation/          Request/schema validation
 
@@ -293,7 +286,7 @@
   state_encryption.rs     PKCE state AES-GCM encryption (constant-time)
   session.rs              Session management
   session_postgres.rs     Postgres-backed session store
-  audit_logger.rs         AuditLogger (canonical audit sink)
+  audit/                  Audit logger (actor model)
   constant_time.rs        Timing-attack-safe comparison (subtle crate)
   error_sanitizer.rs      Auth error message scrubbing
   operation_rbac.rs       Operation-level RBAC enforcement
@@ -333,21 +326,11 @@
     types.rs              Secret types, SecretRef
     mod.rs                Backend dispatch + caching
 
-  encryption/             Field-level encryption
+  encryption/             Field-level encryption — not shipped: a schema that marks a
+                          field `encryption` makes the server refuse to boot (H12)
     database_adapter.rs   Encrypted DatabaseAdapter wrapper
-    audit_logging.rs      Encryption audit trail
-    compliance.rs         Compliance metadata
     credential_rotation.rs VersionedFieldEncryption (key rotation)
-    rotation_api.rs       Rotation HTTP API
-    refresh_trigger.rs    Automatic refresh scheduling
-    error_recovery.rs     Encryption error recovery
-    middleware.rs         Encryption middleware
-    mapper.rs             Field ↔ key mapping
-    performance.rs        Encryption performance tracking
-    schema.rs             Encrypted schema types
-    dashboard.rs          Encryption observability
-    query_builder.rs      Encrypted query construction
-    transaction.rs        Transactional encryption
+    middleware.rs         Encryption middleware (no production caller)
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
  LAYER 8 — fraiseql-observers  (reactive business logic)
@@ -364,7 +347,7 @@
   queued_executor.rs      Queue-backed async observer
   storage.rs              Observer state persistence
 
-  actions.rs / actions_additional.rs   ActionDispatcher trait + builtins
+  actions.rs / actions/   ActionDispatcher trait + builtins
   arrow_bridge.rs         Arrow Flight event bridge
   elasticsearch_sink.rs   Elasticsearch event sink
   testing.rs              MockActionDispatcher + test helpers
@@ -448,7 +431,6 @@
     extract/              Schema extraction helpers
     federation/           Federation schema merging
     init/                 Project scaffolding
-    serve.rs              Dev server (not default)
     run.rs                fraiseql run <compiled>
 
   schema/                 CLI schema loading

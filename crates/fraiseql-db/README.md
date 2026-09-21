@@ -4,7 +4,7 @@ Database abstraction layer for FraiseQL v2. This crate provides runtime SQL gene
 
 ## Features
 
-- PostgreSQL (primary), MySQL, SQLite, and SQL Server adapters
+- PostgreSQL adapter
 - Runtime SQL generation tailored to each backend's dialect
 - Connection pooling with configurable bounds
 - Database introspection for schema discovery

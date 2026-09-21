@@ -53,9 +53,6 @@ cargo test schema::sql_templates::tests
 ### SQL Template Generation (30+ tests)
 
 - PostgreSQL template correctness
-- MySQL template correctness
-- SQLite template correctness
-- SQL Server template correctness
 - Database-specific syntax validation
 
 **Example**:
@@ -138,9 +135,6 @@ Validates EmailAddressWhereInput:
 For each type and operator:
 
 - PostgreSQL template present
-- MySQL template present
-- SQLite template present
-- SQL Server template present
 
 Sample coverage: EmailAddress, VIN, Coordinates
 Total templates validated: 188 operator-database combinations

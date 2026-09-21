@@ -709,6 +709,7 @@ test-release-tooling:
 .PHONY: test-deadline-gate
 .PHONY: test-audit-ledger-gate
 .PHONY: test-docs-env-vars-gate
+.PHONY: test-doc-claims-gate
 test-deadline-gate:
 	@bash tools/tests/check_deadlines_test.sh
 
@@ -721,6 +722,11 @@ test-audit-ledger-gate:
 # in both directions so it cannot widen into a runbook exemption.
 test-docs-env-vars-gate:
 	@bash tools/tests/check_docs_env_vars_test.sh
+
+# Unit tests for the doc-claims gate: each rule red on the claim it exists for, green on
+# the historical or negative form, red when it has nothing to scan.
+test-doc-claims-gate:
+	@bash tools/tests/check_doc_claims_test.sh
 
 # Unit tests for the changelog-completeness gate (#1127). The gate ITSELF cannot
 # run in ShellGates — it needs real git history, and `.dagger/main.go` ignores
@@ -1440,7 +1446,7 @@ lint-required-checks:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown lint-gated-sections lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-write-selections-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-ci-install-pins-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
+preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown lint-gated-sections lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-write-selections-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-ci-install-pins-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
@@ -1751,12 +1757,18 @@ audit:
 # Gate: fail if any accepted-advisory deadline in deny.toml has lapsed.
 .PHONY: lint-deadlines
 .PHONY: lint-audit-ledger
+.PHONY: lint-doc-claims
 lint-deadlines:
 	bash tools/check-deadlines.sh
 
 # Gate: the security findings ledger is complete against the tracked audit.
 lint-audit-ledger:
 	bash tools/check-audit-ledger.sh
+
+# Gate: documents claim only what the tree has (removed backends, architecture file names,
+# observer action types, roadmap version lines, the README parity count).
+lint-doc-claims:
+	bash tools/check-doc-claims.sh
 
 # Gate: every [workspace] members entry must reach the release Dockerfile's builder
 # stage. cargo loads the whole workspace manifest before building anything, so an

@@ -58,33 +58,6 @@ within JSONB operators (`->`, `->>`, `->`):
 // Generated SQL: data->'user''name'->>'email'
 ```
 
-**MySQL**: Path segments are escaped within `JSON_EXTRACT` and `JSON_UNQUOTE`
-function parameters using backslash escaping (`'` → `\'`):
-
-```rust
-// Example: path = ["user'name", "email"]
-// Escaped: "$.user\'name.email"
-// Generated SQL: JSON_UNQUOTE(JSON_EXTRACT(data, '$.user\'name.email'))
-```
-
-**SQLite**: Path segments are escaped within `json_extract` function parameters
-using backslash escaping (`'` → `\'`):
-
-```rust
-// Example: path = ["user'name", "email"]
-// Escaped: "$.user\'name.email"
-// Generated SQL: json_extract(data, '$.user\'name.email')
-```
-
-**SQL Server**: Path segments are escaped within `JSON_VALUE` function parameters
-by doubling single quotes (`'` → `''`):
-
-```rust
-// Example: path = ["user'name", "email"]
-// Escaped: "$.user''name.email"
-// Generated SQL: JSON_VALUE(data, '$.user''name.email')
-```
-
 **Implementation**: Escaping is applied in the `path_escape` module and consistently
 applied across all WHERE clause generators before SQL string interpolation.
 

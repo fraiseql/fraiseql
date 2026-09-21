@@ -139,24 +139,9 @@ WHERE ST_DWithin(
 
 | Operator | Input | Database Support | Use Case |
 |----------|-------|------------------|----------|
-| `distanceWithin` | {lat, lng, radiusKm} | PostgreSQL (native), MySQL, SQLite (approx), SQL Server | Location-based queries |
-| `withinBoundingBox` | {minLat, maxLat, minLng, maxLng} | All databases | Rectangular region queries |
+| `distanceWithin` | {lat, lng, radiusKm} | PostgreSQL (PostGIS) | Location-based queries |
+| `withinBoundingBox` | {minLat, maxLat, minLng, maxLng} | PostgreSQL | Rectangular region queries |
 | `withinPolygon` | [[lat, lng], ...] | PostgreSQL (planned) | Custom polygon regions |
-
-**SQLite Implementation** (Haversine approximation):
-
-```sql
--- distanceWithin using Haversine formula
-WHERE (
-  6371 * 2 * ASIN(
-    SQRT(
-      SIN(RADIANS(($1 - latitude) / 2)) ^ 2 +
-      COS(RADIANS(latitude)) * COS(RADIANS($1)) *
-      SIN(RADIANS(($2 - longitude) / 2)) ^ 2
-    )
-  )
-) < $3
-```
 
 ### DateRange Operators
 
@@ -169,13 +154,13 @@ WHERE (
 
 ## Database Support Matrix
 
-| Type | PostgreSQL | MySQL | SQLite | SQL Server |
-|------|-----------|-------|--------|-----------|
-| EmailAddress | ✅ Native | ✅ Native | ✅ Native | ✅ Native |
-| PhoneNumber | ✅ Regex | ✅ REGEXP | ✅ GLOB | ✅ LIKE |
-| Coordinates | ✅ PostGIS | ✅ ST_Distance | ⚠️ Approx | ✅ Geography |
-| DateRange | ✅ Intervals | ✅ DATEDIFF | ✅ julianday | ✅ DATEDIFF |
-| Duration | ✅ INTERVAL | ✅ Parse PT | ✅ Parse PT | ✅ Parse PT |
+| Type | PostgreSQL |
+|------|-----------|
+| EmailAddress | ✅ Native |
+| PhoneNumber | ✅ Regex |
+| Coordinates | ✅ PostGIS |
+| DateRange | ✅ Intervals |
+| Duration | ✅ INTERVAL |
 
 ### PostGIS Requirements
 
@@ -371,7 +356,6 @@ pub struct RichFilterConfig {
 ### Current Limitations
 
 - ✓ Phone validation limited to E.164 format (not carrier type)
-- ✓ SQLite geospatial uses Haversine approximation (not exact)
 - ✓ No polygon containment without spatial extension
 - ✓ ISO 8601 duration parsing requires standard format
 

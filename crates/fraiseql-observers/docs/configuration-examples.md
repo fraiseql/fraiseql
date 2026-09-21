@@ -1,5 +1,9 @@
 # Configuration Examples - Phase 8
 
+> ⚠ The `ObserverRuntimeConfig` literals in this document do not match the struct in
+> `src/config/runtime.rs`; they are being rewritten under #1365. The prose is accurate; the
+> Rust snippets are not.
+
 This guide provides real-world configuration examples for different scenarios.
 
 ## Table of Contents
@@ -154,7 +158,7 @@ OBSERVER_CACHE_TTL=300
 **Characteristics**:
 
 - Minimal external dependencies
-- SQLite for checkpoints (local file)
+- PostgreSQL for checkpoints (`checkpoint::postgres`, the only checkpoint store)
 - In-memory caching
 - No Elasticsearch
 - Immediate retries (no backoff)
@@ -172,10 +176,10 @@ development = ["checkpoint"]  # Only checkpoints, nothing else
 ```rust
 pub async fn development_config() -> ObserverRuntimeConfig {
     ObserverRuntimeConfig {
-        // Checkpoints: SQLite for local development
+        // Checkpoints: PostgreSQL, the only checkpoint store
         checkpoint_batch_size: 1,  // Save immediately
         checkpoint_store: Arc::new(
-            SqliteCheckpointStore::new("./observer_checkpoints.db")
+            PostgresCheckpointStore::new(pool)
                 .await
                 .expect("Failed to initialize checkpoint store")
         ),

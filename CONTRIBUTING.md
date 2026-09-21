@@ -54,7 +54,7 @@ CI commands: `cargo clippy --workspace --all-targets -- -D warnings && cargo nex
 | `fraiseql-core` | Core compilation and execution engine |
 | `fraiseql-server` | HTTP/GraphQL server |
 | `fraiseql-cli` | Compiler CLI (`fraiseql compile`, `fraiseql serve`) |
-| `fraiseql-db` | Database adapters (PostgreSQL, MySQL, SQLite, SQL Server) |
+| `fraiseql-db` | Database adapter (PostgreSQL) |
 | `fraiseql-auth` | Authentication and authorization |
 | `fraiseql-secrets` | Secrets management and field-level encryption |
 | `fraiseql-observers` | Event-driven observer system |
@@ -327,7 +327,7 @@ make coverage       # Generate test coverage report (target/llvm-cov/html/index.
 ### Infrastructure
 
 ```bash
-make db-up          # Start test databases (PostgreSQL, MySQL, SQL Server, Redis, NATS, Vault)
+make db-up          # Start test services (PostgreSQL, Redis, NATS, Vault)
 make db-down        # Stop test databases
 make db-reset       # Reset volumes (after schema changes)
 ```
