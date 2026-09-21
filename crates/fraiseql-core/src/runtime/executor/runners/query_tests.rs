@@ -2240,3 +2240,201 @@ mod row_read {
         );
     }
 }
+
+// ── mod enum_membership: the read path's call site is load-bearing (#1362) ────
+//
+// The write half is pinned next door in `runners/mutation/tests.rs`. This is the
+// other call site: a read reaches its enums through the matcher, not through the
+// mutation chokepoint, so removing either one leaves the other's tests green. The
+// adapter here HAS rows to give, so a query that is not refused answers 200 with
+// data — which is precisely what the defect did.
+mod enum_membership {
+    use super::*;
+    use crate::schema::{
+        ArgumentDefinition, EnumDefinition, EnumValueDefinition, InputFieldDefinition,
+        InputObjectDefinition,
+    };
+
+    fn enum_arg(name: &str, type_name: &str) -> ArgumentDefinition {
+        ArgumentDefinition {
+            name:          name.to_string(),
+            arg_type:      FieldType::Enum(type_name.to_string()),
+            nullable:      true,
+            default_value: None,
+            description:   None,
+            deprecation:   None,
+        }
+    }
+
+    /// `orders(status: OrderStatus)` over an enum of three members.
+    fn schema() -> CompiledSchema {
+        let mut schema = test_schema();
+        schema.enums.push(
+            EnumDefinition::new("OrderStatus")
+                .with_value(EnumValueDefinition::new("PENDING"))
+                .with_value(EnumValueDefinition::new("SHIPPED"))
+                .with_value(EnumValueDefinition::new("CANCELLED")),
+        );
+        schema.input_types.push(
+            InputObjectDefinition::new("OrderProbeInput")
+                .with_field(InputFieldDefinition::new("status", "OrderStatus")),
+        );
+        if let Some(users) = schema.queries.iter_mut().find(|q| q.name == "users") {
+            users.arguments.push(enum_arg("status", "OrderStatus"));
+        }
+        // `test_schema` declares the query but no `User` type, and `order_by_inputs`
+        // skips a return type it cannot adjudicate — so without this the `orderBy`
+        // argument falls back to `JSON`, the walk never enters it, and the
+        // `SortDirection` cases below would pass while proving nothing.
+        schema.types.push(
+            TypeDefinition::new("User", "v_user")
+                .with_field(FieldDefinition::new("id", FieldType::Id))
+                .with_field(FieldDefinition::new("name", FieldType::String)),
+        );
+        schema.build_indexes();
+        schema
+    }
+
+    /// `SortDirection` is derived, not authored, and it is an enum like any other.
+    #[test]
+    fn the_derived_sort_direction_enum_is_in_scope() {
+        let schema = schema();
+        let def = schema.find_enum("SortDirection").expect("derived alongside OrderByInput");
+        let members: Vec<&str> = def.values.iter().map(|v| v.name.as_str()).collect();
+        assert_eq!(members, ["ASC", "DESC"], "the published members are upper case");
+        assert!(
+            schema.find_input_type("UserOrderByInput").is_some(),
+            "the derived item type must exist or the orderBy cases below prove nothing"
+        );
+    }
+
+    /// ⚠ **A deliberate break, pinned so it stays a decision.**
+    ///
+    /// `OrderByClause::from_graphql_json` upper-cases the written direction
+    /// (`dir_str.to_ascii_uppercase()`), so `direction: "desc"` was honoured — while the
+    /// schema published `SortDirection` with members `ASC` and `DESC`, and introspection,
+    /// all four generated clients and the REST `?sort=-name` translation emit only those.
+    /// The parser was quietly wider than the contract the schema advertises.
+    ///
+    /// #1362 makes the engine honour what it publishes, so this is now refused. The
+    /// alternative was to carve `SortDirection` out of the enum rule, which is the kind of
+    /// exception that rots — and which would have left the enum half of `orderBy`
+    /// unvalidated, the very defect being fixed.
+    #[tokio::test]
+    async fn a_lower_case_sort_direction_is_now_refused() {
+        let err = executor()
+            .execute(
+                r#"{ users(orderBy: [{field: "name", direction: "desc"}]) { id name } }"#,
+                None,
+            )
+            .await
+            .expect_err("`desc` is not a member of SortDirection; `DESC` is");
+        assert!(
+            err.to_string().contains("SortDirection"),
+            "the refusal must name the enum so the migration is obvious: {err}"
+        );
+    }
+
+    #[tokio::test]
+    async fn the_published_spelling_of_a_sort_direction_is_served() {
+        let result = executor()
+            .execute(
+                r#"{ users(orderBy: [{field: "name", direction: "DESC"}]) { id name } }"#,
+                None,
+            )
+            .await
+            .expect("`DESC` is exactly what the schema publishes");
+        assert!(result.get("data").is_some(), "{result}");
+    }
+
+    /// The boundary, stated rather than discovered.
+    ///
+    /// `orderBy` has a second, *object* form — `{name: "desc"}`, a field-to-direction map —
+    /// which `order_by_argument_type`'s own doc comment says "keeps executing but has no
+    /// expression in this type". It carries neither `field` nor `direction`, so the declared
+    /// `UserOrderByInput` cannot adjudicate it and the walk passes it through untouched,
+    /// exactly as #939 requires. Lower case still works there.
+    ///
+    /// So the asymmetry is real and deliberate: the form the schema describes is checked,
+    /// the form it does not describe is not. Pinned so nobody reads it as an oversight —
+    /// and note the ARRAY form is a different thing again, where the parser itself demands
+    /// a `field` key before this walk is ever consulted.
+    #[tokio::test]
+    async fn the_untyped_object_form_of_order_by_is_still_passed_through() {
+        let result = executor()
+            .execute(r#"{ users(orderBy: {name: "desc"}) { id name } }"#, None)
+            .await
+            .expect("a shape the derived input type does not describe is not adjudicated");
+        assert!(result.get("data").is_some(), "{result}");
+    }
+
+    /// And the array form's own requirement is untouched: the parser demands `field`, and
+    /// that refusal is its own, not this walk's. Without this the case above could be
+    /// passing because `orderBy` stopped being adjudicated at all.
+    #[tokio::test]
+    async fn the_array_form_still_demands_a_field_key() {
+        let err = executor()
+            .execute(r#"{ users(orderBy: [{name: "desc"}]) { id name } }"#, None)
+            .await
+            .expect_err("an array item without `field` is refused by the orderBy parser");
+        assert!(
+            err.to_string().contains("missing 'field'"),
+            "the refusal must be the parser's, not the enum walk's: {err}"
+        );
+    }
+
+    fn executor() -> Executor {
+        // Rows to give: an unrefused query answers with data, which is the shape
+        // the defect had — a 200 carrying `BANANA` straight through to SQL.
+        Executor::new(schema(), Arc::new(MockAdapter::new(mock_user_results())))
+    }
+
+    #[tokio::test]
+    async fn an_inline_non_member_literal_is_refused_on_a_read() {
+        let err = executor()
+            .execute("{ users(status: BANANA) { id name } }", None)
+            .await
+            .expect_err("a value that is not a member of OrderStatus must not reach SQL");
+        assert!(err.to_string().contains("OrderStatus"), "the refusal must name the enum: {err}");
+    }
+
+    #[tokio::test]
+    async fn a_non_member_supplied_by_variable_is_refused_on_a_read() {
+        let vars = serde_json::json!({"s": "BANANA"});
+        let err = executor()
+            .execute("query Q($s: OrderStatus) { users(status: $s) { id name } }", Some(&vars))
+            .await
+            .expect_err("a non-member supplied by variable must not reach SQL");
+        assert!(err.to_string().contains("OrderStatus"), "the refusal must name the enum: {err}");
+    }
+
+    /// The third call site. A multi-root document does not reach the matcher's copy
+    /// of this check — `field_selection_to_query` re-serialises each root into a
+    /// synthetic document carrying no variable *declarations*, so the matcher sees an
+    /// empty list and passes. Its own call in `execute_dispatch` is what adjudicates
+    /// here, and without this case removing that line leaves every other enum test
+    /// green.
+    #[tokio::test]
+    async fn a_non_member_variable_in_a_multi_root_document_is_refused() {
+        let vars = serde_json::json!({"s": "BANANA"});
+        let err = executor()
+            .execute(
+                "query Q($s: OrderStatus) { a: users(status: $s) { id } b: users { id } }",
+                Some(&vars),
+            )
+            .await
+            .expect_err("a multi-root document's variables must be adjudicated too");
+        assert!(err.to_string().contains("OrderStatus"), "the refusal must name the enum: {err}");
+    }
+
+    /// The counterweight: a declared member is served, so this module cannot pass
+    /// by refusing every read.
+    #[tokio::test]
+    async fn a_declared_member_is_still_served() {
+        let result = executor()
+            .execute("{ users(status: SHIPPED) { id name } }", None)
+            .await
+            .expect("a declared member must be served, not refused");
+        assert!(result.get("data").is_some(), "a declared member must produce data: {result}");
+    }
+}

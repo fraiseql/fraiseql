@@ -5735,3 +5735,121 @@ mod write_selections {
         assert_eq!(ws.as_slice()[0].name, "id");
     }
 }
+
+// ── mod enum_membership: the wiring, not the facility (#1362) ─────────────────
+//
+// `argument_value_validation_tests` proves the adjudication answers correctly when
+// it is called. These prove it IS called — through `Executor::execute`, against the
+// chokepoint every transport that writes converges on. A facility with no installer
+// is the shape of #1344, and a unit test on the function alone cannot tell the two
+// apart: it passes whether or not a single call site exists.
+//
+// The discriminator is the message. `MockAdapter::new(vec![])` answers every write
+// with "no rows", so a refusal that names the enum can only have come from before
+// the database call — and the accepted-member case asserts it reaches "no rows",
+// which is what keeps this from passing by refusing everything.
+mod enum_membership {
+    use super::*;
+    use crate::schema::{
+        ArgumentDefinition, EnumDefinition, EnumValueDefinition, FieldType, InputFieldDefinition,
+        InputObjectDefinition, MutationDefinition, MutationOperation,
+    };
+
+    /// `createOrder(input: CreateOrderInput)` over an `OrderStatus` of three members.
+    fn schema() -> CompiledSchema {
+        let mut schema = CompiledSchema::new();
+        schema.enums.push(
+            EnumDefinition::new("OrderStatus")
+                .with_value(EnumValueDefinition::new("PENDING"))
+                .with_value(EnumValueDefinition::new("SHIPPED"))
+                .with_value(EnumValueDefinition::new("CANCELLED")),
+        );
+        schema.input_types.push(
+            InputObjectDefinition::new("CreateOrderInput")
+                .with_field(InputFieldDefinition::new("reference", "String"))
+                .with_field(InputFieldDefinition::new("status", "OrderStatus")),
+        );
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_order".to_string()),
+            operation: MutationOperation::Insert {
+                table: "fn_create_order".to_string(),
+            },
+            // The compiler emits an input-type reference as `Object`, never `Input`.
+            arguments: vec![ArgumentDefinition {
+                name:          "input".to_string(),
+                arg_type:      FieldType::Object("CreateOrderInput".to_string()),
+                nullable:      false,
+                default_value: None,
+                description:   None,
+                deprecation:   None,
+            }],
+            ..MutationDefinition::new("createOrder", "Order")
+        });
+        schema.build_indexes();
+        schema
+    }
+
+    fn executor() -> Executor {
+        Executor::new(schema(), Arc::new(MockAdapter::new(vec![])))
+    }
+
+    /// The finding, through the mounted path: an inline enum literal that names no
+    /// member is refused before the write.
+    #[tokio::test]
+    async fn an_inline_non_member_literal_is_refused_before_the_database_call() {
+        let err = executor()
+            .execute(
+                r#"mutation { createOrder(input: {reference: "r-1", status: BANANA}) { id } }"#,
+                None,
+            )
+            .await
+            .expect_err("a value that is not a member of OrderStatus must not reach the database");
+        let msg = err.to_string();
+        assert!(msg.contains("OrderStatus"), "the refusal must name the enum: {msg}");
+        assert!(
+            !msg.contains("no rows"),
+            "reaching 'no rows' means the write was dispatched and nothing adjudicated the \
+             enum: {msg}"
+        );
+    }
+
+    /// The same value supplied as a variable. Both spellings reach SQL identically,
+    /// so both have to be adjudicated identically.
+    #[tokio::test]
+    async fn a_non_member_supplied_by_variable_is_refused_before_the_database_call() {
+        let vars = serde_json::json!({"input": {"reference": "r-1", "status": "BANANA"}});
+        let err = executor()
+            .execute(
+                "mutation Create($input: CreateOrderInput!) { createOrder(input: $input) { id } }",
+                Some(&vars),
+            )
+            .await
+            .expect_err("a non-member supplied by variable must not reach the database");
+        let msg = err.to_string();
+        assert!(msg.contains("OrderStatus"), "the refusal must name the enum: {msg}");
+        assert!(!msg.contains("no rows"), "the write was dispatched: {msg}");
+    }
+
+    /// The counterweight. Without it this module would pass by refusing everything,
+    /// which is the failure mode a refusal-only suite cannot see.
+    #[tokio::test]
+    async fn a_declared_member_still_reaches_the_database() {
+        let vars = serde_json::json!({"input": {"reference": "r-1", "status": "SHIPPED"}});
+        let err = executor()
+            .execute(
+                "mutation Create($input: CreateOrderInput!) { createOrder(input: $input) { id } }",
+                Some(&vars),
+            )
+            .await
+            .expect_err("the empty mock adapter answers every write with 'no rows'");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("no rows"),
+            "a declared member must be dispatched, not refused — got: {msg}"
+        );
+        assert!(
+            !msg.contains("OrderStatus"),
+            "a declared member must not be refused as a non-member: {msg}"
+        );
+    }
+}

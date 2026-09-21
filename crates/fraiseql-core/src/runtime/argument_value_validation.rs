@@ -35,15 +35,42 @@
 //!
 //! Outside that set, execution is unchanged:
 //!
-//! * **Custom scalars, enums, input objects, lists and vectors.** A project may back any of these
-//!   with any JSON shape, so a disagreement here is not evidence of a client mistake.
-//! * **Nested input-object fields.** Only the value written *at* the argument is checked, not the
-//!   keys inside a `where:` predicate. Those have their own surface and their own operators.
+//! * **Custom scalars, input objects, lists and vectors.** A project may back any of these with any
+//!   JSON shape, so a disagreement here is not evidence of a client mistake.
+//! * **Nested input-object fields**, for the scalar check above. Only the value written *at* the
+//!   argument is adjudicated as a scalar, not the keys inside a `where:` predicate. Those have
+//!   their own surface and their own operators.
+//!
+//! # Enums are the exception, and were wrongly inside the exclusion (#1362)
+//!
+//! Enums sat in that first bullet until #1362, and the bullet's own rationale is
+//! what makes it wrong for them. A custom scalar's value space *is* a project's
+//! choice — `Email` can be backed by anything the project's SQL accepts. An
+//! enum's is not: [`EnumDefinition::values`] enumerates it, exhaustively, in the
+//! compiled schema, and introspection publishes the same list. So a value that
+//! is not one of those members is not an undecidable disagreement; it is
+//! positively contradicted by the schema, which is exactly the standard the
+//! paragraph above sets.
+//!
+//! Nothing checked it. `find_enum` had three callers — the § 5.8.2 *name* check,
+//! a `SortDirection` presence test and introspection's kind resolution — and
+//! every consumer of `EnumDefinition::values` was a generator (the client
+//! emitters, the OpenAPI schema), never a validator. `BANANA`, `"pending"` and
+//! `42` all reached the resolver, on the literal path and the variable path
+//! alike, against an argument the schema says has three members.
+//!
+//! Enum membership is therefore adjudicated, and **nested input-object fields
+//! are walked for it** — unlike the scalar check, which stops at the argument.
+//! It has to: the shape the defect was reported against is an enum *inside* an
+//! input object, and a `where:` predicate reaches its enums the same way.
+//!
+//! [`EnumDefinition::values`]: crate::schema::EnumDefinition::values
 //! * **Nullability.** An explicit `null` is accepted for every argument, including a non-null one.
 //!   That is § 5.6.1's other half; it changes which *documents* are valid rather than which
 //!   *answers* are correct, so it is not folded in here.
-//! * **Mutations.** Their arguments are input objects almost without exception, which the paragraph
-//!   above excludes anyway.
+//! * **Mutations**, for the scalar check. Their arguments are input objects almost without
+//!   exception, which the paragraph above excludes anyway. The *enum* check does cover them, from
+//!   the mutation chokepoint rather than from here — see [`validate_enum_argument_values`].
 //!
 //! # Variable *values* are the half a spec-shaped fix would miss
 //!
@@ -63,7 +90,7 @@ use crate::{
         types::{GraphQLArgument, VariableDefinition},
         value_json,
     },
-    schema::{ArgumentDefinition, FieldType},
+    schema::{ArgumentDefinition, CompiledSchema, EnumDefinition, FieldType},
 };
 
 /// A built-in scalar whose value space this module is willing to adjudicate.
@@ -405,6 +432,303 @@ pub fn validate_variable_values(
         }
     }
     Ok(())
+}
+
+// ── Enum membership — § 5.6.1 and § 6.1.2 for the one kind the schema fully
+// ── specifies (#1362) ────────────────────────────────────────────────────────
+
+/// How deep the walk follows nested input objects before giving up.
+///
+/// The recursion is driven by the *value*, which is finite, so this is a stack
+/// guard and not a termination argument: a self-referential input object like
+/// `OrderWhereInput._and: [OrderWhereInput!]` recurses only as far as the client
+/// actually nested. Matches `value_json`'s own literal-nesting cap, so a document
+/// that parsed cannot be refused here for depth it was already allowed.
+const MAX_WALK_DEPTH: usize = 32;
+
+/// At most this many members are named in a refusal before it summarises.
+const MAX_MEMBERS_LISTED: usize = 12;
+
+/// Adjudicate enum membership for the values written at a field's arguments,
+/// from a **resolved** argument map (#1362).
+///
+/// This is the entry the mutation chokepoint uses, and the reason it takes a map
+/// rather than a document's `[GraphQLArgument]`: `execute_mutation_impl` is where
+/// every transport that writes converges, and REST, gRPC and MCP arrive there
+/// with a JSON payload and no GraphQL document at all. Inline literals are
+/// already merged into that same map (#719), so one call covers a literal, a
+/// variable and a payload alike.
+///
+/// `provided` is the map arguments are read out of — the value under each
+/// argument's own name. An argument with no entry is not adjudicated; whether it
+/// was required is the mutation runner's question, asked a few lines later.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] naming the path to the offending field
+/// and the members its enum declares.
+pub fn validate_enum_argument_values(
+    schema: &CompiledSchema,
+    field_label: &str,
+    declared: &[ArgumentDefinition],
+    provided: Option<&Value>,
+) -> Result<()> {
+    let Some(map) = provided.and_then(Value::as_object) else {
+        return Ok(());
+    };
+    for arg in declared {
+        let Some(value) = map.get(&arg.name) else {
+            continue;
+        };
+        walk_field_type(schema, field_label, &arg.name, &arg.arg_type, value, 0)?;
+    }
+    Ok(())
+}
+
+/// Adjudicate enum membership for the **literals** a document writes at a field's
+/// arguments (#1362).
+///
+/// The read path's counterpart to [`validate_enum_argument_values`]. A value that
+/// is a variable *reference* is skipped here and adjudicated by
+/// [`validate_enum_variable_values`] against its own declaration, so neither
+/// check has to resolve the other's half and a reference cannot be mistaken for
+/// an object whose single key happens to be the variable marker.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] as above.
+pub fn validate_enum_argument_literals(
+    schema: &CompiledSchema,
+    field_label: &str,
+    declared: &[ArgumentDefinition],
+    provided: &[GraphQLArgument],
+) -> Result<()> {
+    for arg in provided {
+        let Some(def) = declared.iter().find(|d| d.name == arg.name) else {
+            continue;
+        };
+        let value = value_json::decode(&arg.value_json)?;
+        if value_json::variable_name(&value).is_some() {
+            continue;
+        }
+        walk_field_type(schema, field_label, &arg.name, &def.arg_type, &value, 0)?;
+    }
+    Ok(())
+}
+
+/// Adjudicate enum membership for supplied variable values against their own
+/// declarations — § 6.1.2, for enums (#1362).
+///
+/// Kept separate from [`validate_variable_values`] rather than folded into it
+/// because that function answers a question about built-in scalars and needs no
+/// schema; this one cannot be asked without one. They are called together at
+/// every site, so the pair is the check.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Validation`] naming the variable and the members its
+/// enum declares.
+pub fn validate_enum_variable_values(
+    schema: &CompiledSchema,
+    operation_name: Option<&str>,
+    variable_defs: &[VariableDefinition],
+    values: Option<&Value>,
+) -> Result<()> {
+    let Some(map) = values.and_then(Value::as_object) else {
+        return Ok(());
+    };
+    for def in variable_defs {
+        let Some(value) = map.get(&def.name) else {
+            continue;
+        };
+        let subject = format!("Variable `${}`{}", def.name, operation_label(operation_name));
+        walk_type_ref(schema, &subject, "", &def.var_type.name, value, 0)?;
+    }
+    Ok(())
+}
+
+/// Walk a compiled [`FieldType`] against `value`, adjudicating every enum under it.
+fn walk_field_type(
+    schema: &CompiledSchema,
+    subject: &str,
+    path: &str,
+    declared: &FieldType,
+    value: &Value,
+    depth: usize,
+) -> Result<()> {
+    if value.is_null() || depth > MAX_WALK_DEPTH {
+        return Ok(());
+    }
+    match declared {
+        FieldType::List(inner) => walk_list(schema, subject, path, value, depth, |v, p, d| {
+            walk_field_type(schema, subject, p, inner, v, d)
+        }),
+        FieldType::Enum(name) => check_membership(schema, subject, path, name, value),
+        // The compiler emits an input-type reference as `Object`, never `Input`
+        // (`parse_field_type` has no `Input` variant), so both have to resolve
+        // through the input registry — the same pairing `execute_mutation_impl`
+        // makes when it decides whether an argument is a structured input.
+        FieldType::Object(name) | FieldType::Input(name) => {
+            walk_input_object(schema, subject, path, name, value, depth)
+        },
+        _ => Ok(()),
+    }
+}
+
+/// Walk a **written** GraphQL type reference — the form an input field and a
+/// variable declaration carry — against `value`.
+///
+/// Input fields store their type as a string (`"[OrderStatus!]"`), not a
+/// [`FieldType`], so the wrappers are peeled here rather than matched.
+fn walk_type_ref(
+    schema: &CompiledSchema,
+    subject: &str,
+    path: &str,
+    declared: &str,
+    value: &Value,
+    depth: usize,
+) -> Result<()> {
+    if depth > MAX_WALK_DEPTH {
+        return Ok(());
+    }
+    let declared = declared.trim();
+    // `!` before `[`: `[X]!` peels to `[X]` and then to `X`, and `[X!]` to `X!`
+    // to `X`. Peeling brackets first would leave a stray `!` on the inner name.
+    if let Some(inner) = declared.strip_suffix('!') {
+        return walk_type_ref(schema, subject, path, inner, value, depth);
+    }
+    if let Some(inner) = declared.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
+        return walk_list(schema, subject, path, value, depth, |v, p, d| {
+            walk_type_ref(schema, subject, p, inner, v, d)
+        });
+    }
+    if value.is_null() {
+        return Ok(());
+    }
+    if schema.find_enum(declared).is_some() {
+        return check_membership(schema, subject, path, declared, value);
+    }
+    walk_input_object(schema, subject, path, declared, value, depth)
+}
+
+/// Apply `walk` to each element of a list value.
+///
+/// A value that is not an array is walked as a single element rather than
+/// skipped: § 3.11 lets a bare value stand for a one-element list, and that
+/// coercion is how `where: {status: {in: PENDING}}` is written in practice. A
+/// list declaration must not become a hole an unchecked enum fits through.
+fn walk_list(
+    _schema: &CompiledSchema,
+    _subject: &str,
+    path: &str,
+    value: &Value,
+    depth: usize,
+    mut walk: impl FnMut(&Value, &str, usize) -> Result<()>,
+) -> Result<()> {
+    match value.as_array() {
+        Some(items) => {
+            for (index, item) in items.iter().enumerate() {
+                walk(item, &format!("{path}[{index}]"), depth + 1)?;
+            }
+            Ok(())
+        },
+        None => walk(value, path, depth + 1),
+    }
+}
+
+/// Walk the fields of a declared input object, if `name` is one.
+///
+/// A name that is not a registered input object resolves to nothing and is
+/// passed through: a custom scalar, an output object or a type this schema does
+/// not declare is not this check's business.
+fn walk_input_object(
+    schema: &CompiledSchema,
+    subject: &str,
+    path: &str,
+    name: &str,
+    value: &Value,
+    depth: usize,
+) -> Result<()> {
+    let (Some(input_type), Some(object)) = (schema.find_input_type(name), value.as_object()) else {
+        return Ok(());
+    };
+    for field in &input_type.fields {
+        // The client writes the *surface* name, which under `camelCase` differs
+        // from the stored one. Both are accepted: `display_name` is what the
+        // required-field check (#414) looks the value up by, and the canonical
+        // name is what a payload arriving over REST or gRPC carries. Validating
+        // only one of the two would leave the other transport's enums unchecked
+        // — and a value present under either key is a value that reaches SQL.
+        let surface = schema.display_name(&field.name);
+        let value = object
+            .get(surface.as_str())
+            .or_else(|| (surface != field.name).then(|| object.get(&field.name)).flatten());
+        let Some(value) = value else {
+            continue;
+        };
+        let child = if path.is_empty() {
+            surface
+        } else {
+            format!("{path}.{surface}")
+        };
+        walk_type_ref(schema, subject, &child, &field.field_type, value, depth + 1)?;
+    }
+    Ok(())
+}
+
+/// The adjudication itself: `value` must name a member of `enum_name`.
+fn check_membership(
+    schema: &CompiledSchema,
+    subject: &str,
+    path: &str,
+    enum_name: &str,
+    value: &Value,
+) -> Result<()> {
+    let Some(def) = schema.find_enum(enum_name) else {
+        return Ok(());
+    };
+    // A GraphQL enum value is a bare name, which JSON carries as a string —
+    // `value_json` encodes a literal `PENDING` and a variable-supplied
+    // `"PENDING"` identically, which is what lets one check cover both paths.
+    if let Some(written) = value.as_str() {
+        if def.values.iter().any(|member| member.name == written) {
+            return Ok(());
+        }
+    }
+    let wrote = if value.is_string() {
+        "a name that is not one of its members".to_string()
+    } else {
+        format!("{} , which is not a name at all", json_shape(value))
+    };
+    let at = if path.is_empty() {
+        String::new()
+    } else {
+        format!(" at `{path}`")
+    };
+    Err(FraiseQLError::Validation {
+        // The offending value is described, never quoted back — the same rule
+        // the scalar half follows, and for the same reason (#1197). The members
+        // are safe to name: introspection publishes exactly this list.
+        message: format!(
+            "{subject}{at} has enum type `{enum_name}`, but the document wrote {wrote}. \
+             Valid members: {}",
+            member_list(def)
+        ),
+        path:    (!path.is_empty()).then(|| path.to_string()),
+    })
+}
+
+/// The members of `def`, capped so a large enum does not produce an unreadable
+/// error.
+fn member_list(def: &EnumDefinition) -> String {
+    let total = def.values.len();
+    let shown: Vec<&str> =
+        def.values.iter().take(MAX_MEMBERS_LISTED).map(|v| v.name.as_str()).collect();
+    if total > shown.len() {
+        format!("{} (and {} more)", shown.join(", "), total - shown.len())
+    } else {
+        shown.join(", ")
+    }
 }
 
 /// The " in operation ..." clause an error message carries, or nothing for an

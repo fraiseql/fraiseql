@@ -379,8 +379,26 @@ impl QueryMatcher {
                 &root.arguments,
                 &parsed.variables,
             )?;
+            //     5e. #1362: and an enum written at one of those names must name a
+            //     member the schema declares. Separate from 5d because that check
+            //     adjudicates the ten built-in scalars and needs no schema, while an
+            //     enum's value space is only knowable from one — and because 5d stops
+            //     at the argument, where this walks into `where:` and every other
+            //     input object to reach the enums inside them.
+            argument_value_validation::validate_enum_argument_literals(
+                &self.schema,
+                &field_label,
+                &query_def.graphql_arguments(&self.schema),
+                &root.arguments,
+            )?;
         }
         argument_value_validation::validate_variable_values(
+            parsed.operation_name.as_deref(),
+            &parsed.variables,
+            variables,
+        )?;
+        argument_value_validation::validate_enum_variable_values(
+            &self.schema,
             parsed.operation_name.as_deref(),
             &parsed.variables,
             variables,

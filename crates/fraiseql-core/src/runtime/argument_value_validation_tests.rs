@@ -250,3 +250,232 @@ fn an_out_of_range_int_says_so_rather_than_int_where_int_was_expected() {
     assert!(msg.contains("32-bit"), "message was: {msg}");
     assert!(!msg.contains("a Int value"), "message was: {msg}");
 }
+
+// ── Enum membership — § 5.6.1 / § 6.1.2 for enums (#1362) ────────────────────
+
+use crate::schema::{
+    CompiledSchema, EnumDefinition, EnumValueDefinition, InputFieldDefinition,
+    InputObjectDefinition,
+};
+
+/// `OrderStatus` with three members, `CreateOrderInput { reference, status }`, and a
+/// `where`-shaped nesting so the walk into input objects is exercised by the same
+/// fixture the defect was reported against.
+fn enum_schema() -> CompiledSchema {
+    let mut schema = CompiledSchema::new();
+    schema.enums.push(
+        EnumDefinition::new("OrderStatus")
+            .with_value(EnumValueDefinition::new("PENDING"))
+            .with_value(EnumValueDefinition::new("SHIPPED"))
+            .with_value(EnumValueDefinition::new("CANCELLED")),
+    );
+    schema.input_types.push(
+        InputObjectDefinition::new("CreateOrderInput")
+            .with_field(InputFieldDefinition::new("reference", "String"))
+            .with_field(InputFieldDefinition::new("status", "OrderStatus"))
+            .with_field(InputFieldDefinition::new("history", "[OrderStatus!]"))
+            .with_field(InputFieldDefinition::new("nested", "CreateOrderInput")),
+    );
+    schema
+}
+
+fn input_arg() -> Vec<ArgumentDefinition> {
+    vec![ArgumentDefinition::optional(
+        "input",
+        // The compiler emits an input-type reference as `Object`, never `Input`.
+        FieldType::Object("CreateOrderInput".to_string()),
+    )]
+}
+
+fn status_arg() -> Vec<ArgumentDefinition> {
+    vec![ArgumentDefinition::optional(
+        "status",
+        FieldType::Enum("OrderStatus".to_string()),
+    )]
+}
+
+/// The whole finding in one case: the shape the issue reported, through the entry
+/// every transport that writes uses.
+#[test]
+fn a_non_member_at_an_enum_input_field_is_refused() {
+    let schema = enum_schema();
+    let values = json!({"input": {"reference": "r-1", "status": "BANANA"}});
+    let err = message(validate_enum_argument_values(
+        &schema,
+        "Mutation.createOrder",
+        &input_arg(),
+        Some(&values),
+    ));
+    assert!(err.contains("OrderStatus"), "the refusal must name the enum: {err}");
+    assert!(err.contains("input.status"), "the refusal must name the path: {err}");
+    assert!(
+        err.contains("PENDING, SHIPPED, CANCELLED"),
+        "the refusal must name the members introspection already publishes: {err}"
+    );
+    assert!(
+        !err.contains("BANANA"),
+        "the offending value is described, never quoted back (#1197): {err}"
+    );
+}
+
+#[test]
+fn a_member_at_an_enum_input_field_is_accepted() {
+    let schema = enum_schema();
+    let values = json!({"input": {"reference": "r-1", "status": "SHIPPED"}});
+    assert!(
+        validate_enum_argument_values(&schema, "M.m", &input_arg(), Some(&values)).is_ok(),
+        "a declared member must pass"
+    );
+}
+
+/// Every row of the issue's table, in one place. The value spelling matters: a
+/// member's *value* rather than its name, and a JSON number, were both forwarded.
+#[test]
+fn the_reported_non_member_spellings_are_each_refused() {
+    let schema = enum_schema();
+    for wrote in [
+        json!("BANANA"),
+        json!("pending"),
+        json!("anything at all"),
+        json!(42),
+    ] {
+        let values = json!({"input": {"status": wrote}});
+        assert!(
+            validate_enum_argument_values(&schema, "M.m", &input_arg(), Some(&values)).is_err(),
+            "{wrote} is not a member of OrderStatus and must be refused"
+        );
+    }
+}
+
+#[test]
+fn a_non_member_inside_a_list_of_enums_is_refused() {
+    let schema = enum_schema();
+    let values = json!({"input": {"history": ["PENDING", "BANANA"]}});
+    let err = message(validate_enum_argument_values(&schema, "M.m", &input_arg(), Some(&values)));
+    assert!(err.contains("input.history[1]"), "the refusal must name the element: {err}");
+}
+
+/// § 3.11 — a bare value stands for a one-element list, so a list declaration must
+/// not become a hole an unchecked enum fits through.
+#[test]
+fn a_bare_non_member_written_at_a_list_of_enums_is_refused() {
+    let schema = enum_schema();
+    let values = json!({"input": {"history": "BANANA"}});
+    assert!(validate_enum_argument_values(&schema, "M.m", &input_arg(), Some(&values)).is_err());
+}
+
+#[test]
+fn a_non_member_nested_one_input_object_deeper_is_refused() {
+    let schema = enum_schema();
+    let values = json!({"input": {"nested": {"status": "BANANA"}}});
+    let err = message(validate_enum_argument_values(&schema, "M.m", &input_arg(), Some(&values)));
+    assert!(err.contains("input.nested.status"), "the refusal must name the path: {err}");
+}
+
+#[test]
+fn a_non_member_at_a_bare_enum_argument_is_refused() {
+    let schema = enum_schema();
+    let values = json!({"status": "BANANA"});
+    assert!(validate_enum_argument_values(&schema, "Q.q", &status_arg(), Some(&values)).is_err());
+}
+
+#[test]
+fn an_absent_or_null_enum_field_is_left_to_the_required_field_rule() {
+    let schema = enum_schema();
+    for values in [
+        json!({"input": {"reference": "r"}}),
+        json!({"input": {"status": null}}),
+    ] {
+        assert!(
+            validate_enum_argument_values(&schema, "M.m", &input_arg(), Some(&values)).is_ok(),
+            "nullability is #414's question, not this one"
+        );
+    }
+}
+
+/// The leniency policy still holds for everything the schema does not enumerate.
+#[test]
+fn a_field_whose_type_the_schema_does_not_declare_is_not_adjudicated() {
+    let mut schema = enum_schema();
+    schema.input_types.push(
+        InputObjectDefinition::new("Loose")
+            .with_field(InputFieldDefinition::new("whatever", "SomeProjectScalar")),
+    );
+    let declared = vec![ArgumentDefinition::optional(
+        "input",
+        FieldType::Object("Loose".to_string()),
+    )];
+    let values = json!({"input": {"whatever": "anything at all"}});
+    assert!(validate_enum_argument_values(&schema, "M.m", &declared, Some(&values)).is_ok());
+}
+
+// ── the literal path ─────────────────────────────────────────────────────────
+
+#[test]
+fn a_non_member_written_as_an_inline_enum_literal_is_refused() {
+    let schema = enum_schema();
+    // `value_json` encodes a bare GraphQL enum name as a JSON string — the same
+    // shape a variable supplies, which is what lets one walk cover both.
+    let args = [literal("status", "enum", "\"BANANA\"")];
+    assert!(
+        validate_enum_argument_literals(&schema, "Query.orders", &status_arg(), &args).is_err(),
+        "an inline literal must be adjudicated, not only a variable"
+    );
+}
+
+#[test]
+fn a_member_written_as_an_inline_enum_literal_is_accepted() {
+    let schema = enum_schema();
+    let args = [literal("status", "enum", "\"SHIPPED\"")];
+    assert!(validate_enum_argument_literals(&schema, "Query.orders", &status_arg(), &args).is_ok());
+}
+
+/// A literal that is a *reference* is the variable check's half. Adjudicating the
+/// marker object here would refuse every `status: $s`.
+#[test]
+fn a_variable_reference_is_left_to_the_variable_check() {
+    let schema = enum_schema();
+    let args = [var_use("status", "s")];
+    assert!(validate_enum_argument_literals(&schema, "Query.orders", &status_arg(), &args).is_ok());
+}
+
+// ── the variable path (§ 6.1.2) ──────────────────────────────────────────────
+
+#[test]
+fn a_non_member_supplied_for_an_enum_variable_is_refused() {
+    let schema = enum_schema();
+    let defs = [var("s", "OrderStatus", true)];
+    let values = json!({"s": "BANANA"});
+    let err = message(validate_enum_variable_values(&schema, Some("Op"), &defs, Some(&values)));
+    assert!(err.contains("$s"), "the refusal must name the variable: {err}");
+    assert!(err.contains("Op"), "the refusal must name the operation: {err}");
+}
+
+#[test]
+fn a_non_member_supplied_inside_an_input_object_variable_is_refused() {
+    let schema = enum_schema();
+    let defs = [var("input", "CreateOrderInput", true)];
+    let values = json!({"input": {"status": "BANANA"}});
+    let err = message(validate_enum_variable_values(&schema, None, &defs, Some(&values)));
+    assert!(err.contains("status"), "the refusal must name the field: {err}");
+}
+
+#[test]
+fn a_member_supplied_for_an_enum_variable_is_accepted() {
+    let schema = enum_schema();
+    let defs = [var("s", "OrderStatus", true)];
+    assert!(
+        validate_enum_variable_values(&schema, None, &defs, Some(&json!({"s": "PENDING"}))).is_ok()
+    );
+}
+
+/// A schema that declares no enums cannot refuse anything — the #939 principle:
+/// reject what the schema positively contradicts, not an absence of evidence.
+#[test]
+fn a_schema_declaring_no_enums_adjudicates_nothing() {
+    let schema = CompiledSchema::new();
+    let defs = [var("s", "OrderStatus", true)];
+    assert!(
+        validate_enum_variable_values(&schema, None, &defs, Some(&json!({"s": "BANANA"}))).is_ok()
+    );
+}

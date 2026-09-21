@@ -18,6 +18,78 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **An enum value that is not one of the enum's members is now refused, on every path
+  (#1362).**
+
+  ⚠ **This can refuse traffic a deployment is sending today.** A value that reached the
+  resolver before now returns a validation error before execution — including the two
+  spellings most likely to be in the wild: a member's *value* rather than its name
+  (`"pending"` for `PENDING`), and a JSON number where a name belongs. Check what your
+  clients actually send before upgrading; the refusal names the field and lists the
+  members.
+
+  **The one case inside FraiseQL's own surface is `orderBy`.** `OrderByClause::from_graphql_json`
+  upper-cases the written direction, so `orderBy: [{field: "name", direction: "desc"}]` was
+  honoured — while the schema published `SortDirection` with members `ASC` and `DESC`, and
+  introspection, all four generated clients and the REST `?sort=-name` translation emit only
+  those. The parser was quietly wider than the contract the schema advertises, and the engine
+  now honours what it publishes. **Migration: write `ASC` / `DESC`.** Carving `SortDirection`
+  out of the rule was the alternative, and it would have left the enum half of `orderBy`
+  unvalidated — the very defect being fixed. `orderBy`'s *object* form (`{name: "desc"}`, a
+  field-to-direction map) has no expression in the derived input type, so it is not
+  adjudicated and lower case still works there; that asymmetry is deliberate (#939: adjudicate
+  what the schema describes, pass what it cannot) and is pinned by its own test.
+
+  The engine never checked an enum value against its declared members. Not on an input
+  field, not on an argument, not on a variable, and on neither the literal nor the
+  variable path. `find_enum` had three callers — the § 5.8.2 *name* check, a
+  `SortDirection` presence test, and introspection's kind resolution — and every consumer
+  of `EnumDefinition::values` was a generator (the four client emitters, the OpenAPI
+  schema), never a validator. Against `enum OrderStatus { PENDING SHIPPED CANCELLED }`,
+  `BANANA`, `"pending"`, `"anything at all"` and `42` were all forwarded, the last as the
+  string `"42"`. The only remaining defence was a hand-written check inside the database
+  function, which then had to answer for the GraphQL path as well as for direct-SQL and
+  ETL callers.
+
+  `argument_value_validation` already owned § 5.6.1 and § 6.1.2, and enums sat inside its
+  stated exclusion list — "a project may back any of these with any JSON shape, so a
+  disagreement here is not evidence of a client mistake". That rationale is right for a
+  custom scalar and wrong for an enum: `EnumDefinition::values` enumerates an enum's value
+  space exhaustively, and introspection publishes the same list, so a non-member is
+  positively contradicted by the schema rather than undecidable. The exclusion has been
+  corrected rather than worked around, and everything outside it is unchanged — a custom
+  scalar, an input object's non-enum fields, nullability and list shape are all still
+  passed through.
+
+  Unlike the scalar half, the enum walk **descends into input objects**, because the shape
+  this was reported against is an enum inside one, and a `where:` predicate reaches its
+  enums the same way. Lists are walked, including § 3.11's bare-value-as-one-element-list
+  coercion, so a list declaration is not a hole an unchecked enum fits through. Both the
+  surface and the canonical spelling of a field name are accepted, so a camelCase GraphQL
+  key and a snake_case REST payload are adjudicated alike.
+
+  **Four call sites, each proven load-bearing by mutation.** The write half is at the
+  mutation chokepoint (`execute_mutation_impl`), not in the GraphQL matcher: that is the
+  seam every transport that writes converges on (#1327), and REST, gRPC and MCP arrive
+  there with a JSON payload and no document at all, so a check reading `[GraphQLArgument]`
+  would have covered one caller in four. The read half is the matcher's literal and
+  variable checks, plus `execute_dispatch`'s own variable check for multi-root documents —
+  which the matcher structurally cannot see, because `field_selection_to_query`
+  re-serialises each root into a synthetic document carrying no variable declarations.
+  Removing any one of the four reddens only its own tests and leaves the other three
+  green; neutering the adjudication reddens all five refusal cases and nine unit tests.
+  Each refusal case is paired with a counterweight asserting a declared member still
+  reaches SQL, so the suite cannot pass by refusing everything.
+
+  Three of the four impacts reported in #1362 were **already fixed** and are recorded here
+  because the issue said otherwise: introspection resolves an input field's enum to
+  `kind: ENUM` (`type_resolver.rs`, with a test), the generated clients type the field as
+  the enum (measured: `status?: OrderStatus | null`), and a derived `where` input filters
+  it through `OrderStatusFilter`, not `StringFilter`. The compiled artifact does carry the
+  input field's type as a bare string — but so does every input field, `String` included:
+  `InputFieldDefinition::field_type` is a GraphQL type *reference*, not a `FieldType`, and
+  that is by design rather than a misclassification.
+
 - **`Executor` is no longer generic over its database adapter, and neither is anything
   that holds one.** S5 of the boundary work, second half.
 

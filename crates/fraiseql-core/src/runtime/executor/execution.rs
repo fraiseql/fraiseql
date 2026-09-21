@@ -412,6 +412,16 @@ impl Executor {
                         &parsed.variables,
                         variables,
                     )?;
+                    // #1362, for the same shape and the same reason: the matcher's
+                    // copy of the enum check also sees an empty declaration list on a
+                    // re-serialised root, so a multi-root document's variables would
+                    // reach SQL with an enum nobody adjudicated.
+                    crate::runtime::validate_enum_variable_values(
+                        &self.ctx.schema,
+                        parsed.operation_name.as_deref(),
+                        &parsed.variables,
+                        variables,
+                    )?;
                     let pr = self.execute_parallel(&parsed, variables, security_context).await?;
                     let data = pr.merge_into_data_map();
                     return Ok(serde_json::json!({ "data": data }));

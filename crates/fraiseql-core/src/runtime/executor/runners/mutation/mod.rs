@@ -1111,6 +1111,21 @@ pub(in super::super) async fn execute_mutation_impl(
 
     let vars_obj = variables.and_then(|v| v.as_object());
 
+    // #1362: an enum written at an argument — or at a field of the input object
+    // under one — must name a member the schema declares. Here rather than in the
+    // GraphQL matcher because this is the seam every transport that writes passes
+    // through (#1327): REST, gRPC and MCP arrive with a JSON payload and no
+    // document, so a check that reads `[GraphQLArgument]` would cover one caller in
+    // four. Before the branch below, so the single-JSONB path and the flatten path
+    // are adjudicated by one call — the two differ in how the value reaches SQL,
+    // never in whether it should.
+    crate::runtime::validate_enum_argument_values(
+        &ctx.schema,
+        &format!("Mutation.{}", ctx.schema.display_name(mutation_name)),
+        &mutation_def.arguments,
+        variables,
+    )?;
+
     let mut missing_required: Vec<&str> = Vec::new();
     let total_args = mutation_def.arguments.len() + mutation_def.inject_params.len();
     let mut args: Vec<serde_json::Value> = Vec::with_capacity(total_args);
