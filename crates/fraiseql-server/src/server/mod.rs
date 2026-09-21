@@ -56,8 +56,8 @@ mod tests;
 ///
 /// This exists as a stored closure rather than a direct call because
 /// `SupportsMutations` is not — and must not become — a bound on `Server`'s
-/// lifecycle: adding it would lock read-only adapters such as `SqliteAdapter` and
-/// `FraiseWireAdapter` out of every deployment. The closure is installed from the one
+/// lifecycle: adding it would lock read-only adapters such as `FraiseWireAdapter`
+/// out of every deployment. The closure is installed from the one
 /// place where the concrete adapter is known to support mutations (the binary's boot
 /// path), which is the same idiom as
 /// [`tenant_executor_factory`](Server::with_tenant_executor_factory).

@@ -384,7 +384,7 @@ async fn rig_with_writes() -> Option<Rig> {
     })
 }
 
-/// A server built the read-only way — the posture a `SqliteAdapter` deployment gets.
+/// A server built the read-only way — the posture a `FraiseWireAdapter` deployment gets.
 async fn rig_read_only() -> Option<Rig> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));

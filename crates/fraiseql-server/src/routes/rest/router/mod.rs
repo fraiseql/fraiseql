@@ -174,7 +174,7 @@ fn derive_rest_context(
 /// route derivation fails.
 ///
 /// Does **not** require `SupportsMutations` — suitable for read-only adapters such
-/// as `FraiseWireAdapter` and `SqliteAdapter`.
+/// as `FraiseWireAdapter`.
 ///
 /// The returned router is *not* nested — the caller must merge it into the
 /// application router. Rate limiting, CORS, tracing and the body-size limit are

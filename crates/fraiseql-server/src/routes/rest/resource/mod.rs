@@ -49,7 +49,7 @@ impl MountedRoutes {
     /// stream endpoint per resource.
     ///
     /// This is the posture of an adapter that cannot execute mutations at all
-    /// (`SqliteAdapter`, `FraiseWireAdapter`).
+    /// (`FraiseWireAdapter`).
     #[must_use]
     pub fn read_surface(route_table: &RestRouteTable) -> Self {
         let mut mounted = Self::default();

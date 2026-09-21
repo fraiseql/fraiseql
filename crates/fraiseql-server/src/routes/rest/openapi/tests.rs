@@ -511,8 +511,8 @@ fn bulk_delete_produces_collection_delete() {
 /// #865: the read-only mount must not publish the write API it answers with `405`.
 ///
 /// The document used to be generated from the route table regardless of which router was
-/// built, so a `SqliteAdapter` deployment served a complete description of endpoints that
-/// did not exist. The reads must survive, or this could be satisfied by a document that
+/// built, so a read-only deployment served a complete description of endpoints that did
+/// not exist. The reads must survive, or this could be satisfied by a document that
 /// lost everything.
 #[test]
 fn a_read_only_mount_advertises_reads_but_no_writes() {

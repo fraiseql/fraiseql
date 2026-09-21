@@ -324,6 +324,11 @@ shared integration cache). Note: legacy ran fact_table/aggregation only via the 
 `--test '*'` step (the dedicated `--ignored` step was a no-op — 0 ignored tests); Dagger runs
 them as a named, real suite.
 
+> **Superseded.** The `sqlite` suite and `SqliteAdapter` were removed with the
+> non-PostgreSQL backends in #374 (v2.15.0); `dagger call test-integration
+> --suite=sqlite` no longer resolves. The paragraph above is kept as the record of
+> what the migration did at the time, not as a description of the current legs.
+
 | Legacy job | Dagger suite | Tier | Status |
 |---|---|---|---|
 | (harness foundation) | — | — | Inc 1 DONE (local GREEN) |
