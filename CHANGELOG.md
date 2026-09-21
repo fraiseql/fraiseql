@@ -3086,6 +3086,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Two schema roundtrip properties no longer generate the duplicate names the load path
+  refuses (#1367).**
+
+  `prop_schema_type_count_preserved` and `prop_schema_query_count_preserved` drew names
+  with `prop::collection::vec`, so two draws could be equal, and since `from_json` validates
+  on load a collision failed the property with "schema declares a name twice" — a few percent
+  of runs at 200 cases, every run at 200 000. Names now come from `hash_set`, as the
+  duplicate-type property already did; the roundtrip is what these properties assert, and
+  duplicates keep their own property.
+
 - **A Flight `DoPut` upload is recorded by the Change Spine, like every other write
   (#1355).**
 
