@@ -72,7 +72,8 @@ finding, with the changelog entry, test or issue that proves it, is in
 [docs/security/audits/2026-06-11-status.md](docs/security/audits/2026-06-11-status.md)
 (as of 2026-09-21: 92 fixed, 6 unreachable because the server refuses to boot with the
 feature configured, 4 deleted with their feature, 1 accepted). `tools/check-audit-ledger.sh`
-keeps that ledger complete. A public retrospective is being written and will be linked here.
+keeps that ledger complete. The retrospective, what was found and what was done about it, is
+[docs/security/audits/2026-06-11-retrospective.md](docs/security/audits/2026-06-11-retrospective.md).
 
 ---
 
