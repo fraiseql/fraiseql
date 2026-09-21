@@ -89,6 +89,10 @@ jobs:
             npm publish --access public
           fi
 
+      # Blocking (trust closure, 2026-09-21): this is the only step that installs and
+      # loads the published package as a consumer would, so it must be able to fail. It
+      # also asserts the installed version is the one just published, the npm twin of the
+      # PyPI step's H30 check.
       - name: Validate npm package
         id: validate
         run: |
@@ -96,8 +100,12 @@ jobs:
           sleep 10
           VERSION="${{ steps.ver.outputs.version }}"
           npm install "fraiseql@${VERSION}" --prefix /tmp/npm-validate
-          echo "fraiseql ${VERSION} successfully published to npm"
-        continue-on-error: true
+          node -e "
+            const pkg = require('/tmp/npm-validate/node_modules/fraiseql/package.json');
+            if (pkg.version !== '${VERSION}') { throw new Error('installed ' + pkg.version + ', expected ${VERSION}'); }
+            require('/tmp/npm-validate/node_modules/fraiseql');
+            console.log('fraiseql ' + pkg.version + ' installs and loads from npm');
+          "
 
       - name: Report results
         if: always()

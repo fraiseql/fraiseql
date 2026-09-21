@@ -867,6 +867,10 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
         run: twine upload dist/* --skip-existing
 
+      # Blocking (trust closure, 2026-09-21). verify-release below proves only that the
+      # version is visible on the index; this is the one step that installs and imports
+      # what was published, as a user would, so an indexed-but-broken wheel must redden
+      # the release rather than print a warning nobody reads.
       - name: Validate PyPI package
         id: validate-pypi
         run: |
@@ -878,7 +882,6 @@ jobs:
           VERSION="${GITHUB_REF#refs/tags/v}"
           python -m pip install --upgrade "fraiseql==${VERSION}"
           python -c "import fraiseql, sys; assert fraiseql.__version__ == '${VERSION}', f'installed {fraiseql.__version__}, expected ${VERSION}'; print(f'✅ fraiseql {fraiseql.__version__} successfully published to PyPI')"
-        continue-on-error: true
 
       - name: Report Python publishing results
         if: always()

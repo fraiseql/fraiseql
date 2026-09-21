@@ -457,6 +457,7 @@ func (m *FraiseqlCi) ShellGates(
 		"make test-audit-ledger-gate",
 		"make test-docs-env-vars-gate",
 		"make test-doc-claims-gate",
+		"make test-release-validation-gate",
 		// The changelog gate's SELF-TEST only. The gate itself needs real git
 		// history and would pass vacuously here — this function ignores `.git`
 		// and runs `git init -q .` below, so `Closes #N` over the release range
@@ -581,6 +582,7 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/check-audit-lockstep.sh",
 		"bash tools/check-audit-ledger.sh",
 		"bash tools/check-doc-claims.sh",
+		"python3 tools/check-release-validation.py",
 		// The no-orphan-suites gate: every test target × feature combo maps to a
 		// leg that executes it (it parses THIS file, so legs and gate cannot
 		// drift). Retrospective rule 1 of the 2026-07-27 program.
