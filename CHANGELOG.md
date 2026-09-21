@@ -36,10 +36,10 @@ disagreed, and the promise was the part that was wrong.
   **What this costs, stated plainly.** The parameter was carrying a compile-time
   capability in two places, and both lose it:
 
-  * `Server`'s REST write surface was mounted from an `impl` block bounded on
+  - `Server`'s REST write surface was mounted from an `impl` block bounded on
     `SupportsMutations`, so mounting writes over a read-only adapter was a compile error.
     It is now a mount that succeeds and routes that refuse.
-  * `FederationMutationExecutor<A: … + SupportsMutations>` said the same thing for sagas:
+  - `FederationMutationExecutor<A: … + SupportsMutations>` said the same thing for sagas:
     a saga could not be built over a read-only adapter. It can now, and every step refuses.
 
   What replaces both is the write slot from the first half of S5: resolved once at
