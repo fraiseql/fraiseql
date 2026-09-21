@@ -24,13 +24,44 @@ Override, for testing:  RELEASE_VALIDATION_ROOT=<dir>
 """
 from __future__ import annotations
 
+import importlib.util
 import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 
-import yaml
+TOOLS = Path(__file__).resolve().parent
+
+_YAML_MODULE = None
+
+
+def _yaml_module():
+    """`parse_yaml` / `YamlError` from tools/check-suite-coverage.py.
+
+    The ShellGates and preflight containers are bare Ubuntu plus python3 — no
+    PyYAML, no pip step — so this gate borrows the one hand-written YAML-subset
+    parser the workflow gates already share rather than keeping a copy that
+    drifts from it. A missing or unloadable sibling is FATAL, never a skip: a
+    release gate that quietly checks nothing is the failure it exists to prevent.
+    """
+    global _YAML_MODULE
+    if _YAML_MODULE is not None:
+        return _YAML_MODULE
+    path = TOOLS / "check-suite-coverage.py"
+    spec = importlib.util.spec_from_file_location("_fraiseql_suite_coverage", path)
+    if spec is None or spec.loader is None:
+        print(f"FATAL: cannot load the YAML parser from {path}", file=sys.stderr)
+        raise SystemExit(2)
+    module = importlib.util.module_from_spec(spec)
+    # Registered before execution: `@dataclass` in an imported module resolves its
+    # own `sys.modules[__module__]`, and an unregistered module makes that lookup
+    # return None (AttributeError on 3.14, not an import error naming the cause).
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)  # type: ignore[union-attr]
+    _YAML_MODULE = module
+    return module
+
 
 CHECKS = [
     # (workflow path, step name, install substring, load regex, version-compare substring)
@@ -59,6 +90,7 @@ def steps_of(workflow: dict) -> list[dict]:
 
 def main() -> int:
     root = repo_root()
+    yaml = _yaml_module()
     failures: list[str] = []
     for rel, name, install, load, compare in CHECKS:
         path = root / rel
@@ -66,8 +98,8 @@ def main() -> int:
             failures.append(f"{rel}: not found")
             continue
         try:
-            workflow = yaml.safe_load(path.read_text()) or {}
-        except yaml.YAMLError as exc:
+            workflow = yaml.parse_yaml(path.read_text()) or {}
+        except yaml.YamlError as exc:
             failures.append(f"{rel}: not parseable YAML ({exc})")
             continue
         matches = [s for s in steps_of(workflow) if s.get("name") == name]
