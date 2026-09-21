@@ -44,7 +44,7 @@ report() { sed 's/^/  /' >&2; }
 # --- Rule 1: removed backends -------------------------------------------------------------
 historical_paths='^\./(CHANGELOG\.md|DEPRECATIONS\.md|docs/security/audits/|docs/adr/|docs/migration/|docs/guides/v1-to-v2-migration\.md|docs/database-compatibility\.md|docs/contributing/dagger-parity-notes\.md|docs/architecture/async-trait-migration\.md)'
 historical_words='removed|deleted|no longer|not supported|does not support|unsupported|#374|until |were listed|dropped|previously|used to|legacy'
-md_files=$(find . -name '*.md' -not -path '*/target/*' -not -path '*/node_modules/*' -not -path './.git/*' -not -path './.phases/*' -not -path './.claude/*' | sort)
+md_files=$(find . \( -path '*/target' -o -path '*/node_modules' -o -path './.git' -o -path './.phases' -o -path './.claude' \) -prune -o -name '*.md' -print | sort)
 if [ -z "$md_files" ]; then
   fail "rule 1: no markdown files found to scan"
 else
