@@ -14,8 +14,21 @@
 # examples/ (example sidecars legitimately read their own variables). Deliberate exceptions —
 # operator-chosen names shown in `*_env = "…"` config examples — live in
 # tools/docs-env-vars.allow with a reason each.
+#
+# One more case (2026-09-21): a dated audit record under docs/security/audits/ quotes the tree
+# as it was, so it may name a variable that has since been removed — provided CHANGELOG.md
+# records the removal. The record is not an instruction, and the status ledger beside it says
+# what became of the finding. The exception is by location AND by changelog: a runbook naming
+# a removed variable is still an orphan, and an audit record naming a variable the changelog
+# never removed is still an orphan.
+#
+# Overrides, for testing:  DOCS_ENV_VARS_ROOT=<dir>
 set -euo pipefail
-cd "$(git rev-parse --show-toplevel)"
+if [ -n "${DOCS_ENV_VARS_ROOT:-}" ]; then
+  cd "$DOCS_ENV_VARS_ROOT"
+else
+  cd "$(git rev-parse --show-toplevel)"
+fi
 
 allowlist=tools/docs-env-vars.allow
 
@@ -40,6 +53,12 @@ for token in $doc_tokens; do
     continue
   fi
   files=$(grep -rlF "$token" docs/ README.md examples/ 2>/dev/null | grep -v "$allowlist" | sort -u | tr '\n' ' ')
+  # Quoted only by dated audit records, and recorded as removed in the changelog?
+  if [ -n "$files" ] \
+     && ! printf '%s\n' "$files" | tr ' ' '\n' | grep -v '^$' | grep -qvE '^docs/security/audits/' \
+     && grep -F "$token" CHANGELOG.md 2>/dev/null | grep -qiE '\bremoved\b'; then
+    continue
+  fi
   orphans="${orphans}  ${token}  →  ${files}\n"
 done
 
