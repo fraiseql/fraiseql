@@ -2757,6 +2757,15 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// adapter has no atomic-upload seam) and would run zero tests while reading
 		// green — the #940-class trap.
 		"cargo test -p fraiseql-server --features arrow --test flight_upload_outbox_pg -- --ignored --test-threads=1",
+		// #1355: the SECOND upload verb. #953 reached DoExchange only, so every DoPut
+		// upload committed unrecorded and the Change Spine saw the same rows in the same
+		// table appear or not appear depending on which Flight verb wrote them. Asserts on
+		// the OUTBOX, never on the target table — a row-count assertion passed throughout
+		// the defect. Carries a DoExchange twin driving the same bytes through the verb
+		// #953 fixed: it is what makes a DoPut failure a statement about DoPut rather than
+		// about the fixture, and if both ever go red it is the harness that broke.
+		// `--features arrow` for the same #940-class reason as the line above.
+		"cargo test -p fraiseql-server --features arrow --test flight_do_put_outbox_pg -- --ignored --test-threads=1",
 		// #908/#1001: the three DB-backed Flight suites. They self-skipped on a
 		// missing DATABASE_URL and the test leg has none, so all 31 tests read as
 		// passing while running nothing — and two of the three asserted a

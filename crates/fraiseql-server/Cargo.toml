@@ -193,6 +193,10 @@ temp-env = {workspace = true}
 tempfile = "3.13"
 tokio-postgres = {workspace = true}
 # Testing
+# Test-only: `TcpListenerStream`, so the #1355 Flight DoPut suite can serve the real
+# Flight service on an ephemeral port. `net` is named explicitly rather than relied on
+# from another crate's feature unification.
+tokio-stream = {version = "0.1", features = ["net"]}
 tokio-test = "0.4"
 tonic-reflection = "0.14"
 tokio-tungstenite = "0.29"

@@ -4215,6 +4215,7 @@ dependencies = [
  "tokio",
  "tokio-postgres",
  "tokio-rustls",
+ "tokio-stream",
  "tokio-test",
  "tokio-tungstenite",
  "toml 0.8.23",

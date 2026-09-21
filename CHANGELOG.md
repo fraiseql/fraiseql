@@ -2987,6 +2987,56 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A Flight `DoPut` upload is recorded by the Change Spine, like every other write
+  (#1355).**
+
+  #953 made a Flight upload and its change-log outbox rows commit together, by moving the
+  upload off `execute_raw_query` and onto `execute_gated_upload`. Flight has **two** upload
+  verbs, and the fix reached one. `DoExchange`'s `Upload` carried it — and said so in a
+  comment. `DoPut` kept building an INSERT with `build_insert_query` and dispatching it raw,
+  batch by batch, so every `DoPut` upload committed with no record of itself: a subscriber
+  tailing the change log saw the same rows, in the same table, appear or not appear
+  depending on which Flight verb the client happened to use.
+
+  Nothing caught it because both verbs look identical from outside — the rows land either
+  way, and the difference is visible only to something reading the change log. The gate that
+  should have seen it is the one that had been printing "no known bypasses" over it; that is
+  the entry below, and `DoPut` was the second of the two paths it found.
+
+  `DoPut` now resolves the caller's database identity (#1349's contract, which it had also
+  never honoured — it built no `SecurityContext` at all, so it was invisible to
+  `tools/check-principal-producers.sh` rather than listed by it) and writes each batch
+  through `execute_gated_upload`, with the same `fraiseql::mutation_audit` event
+  `DoExchange` emits. The outbox row now carries the Flight subject and the tenant from the
+  resolved context instead of nothing.
+
+  **The stream is deliberately not one transaction.** Each batch is atomic with its own
+  outbox rows, and the `PutResult` acknowledging a batch means that batch is committed and
+  recorded. Making the whole upload atomic would mean either buffering an unbounded number
+  of client-supplied rows or holding a transaction and its locks open for as long as an
+  untrusted client keeps the stream alive; `DoPut` is the bulk-load verb, so both are the
+  client's choice to make. `DoExchange` carries a single `RecordBatch` and so never had to
+  answer this.
+
+  Covered by `flight_do_put_outbox_pg`, which drives a real `DoPut` over a real Flight
+  socket against a real PostgreSQL and asserts on the **outbox**, never on the target table —
+  a row-count assertion passed throughout the defect. It carries a `DoExchange` twin sending
+  the same bytes through the same adapter: at RED the two `DoPut` cases failed with zero
+  outbox rows for two and three landed rows while the twin passed, which is what makes the
+  failure a statement about `DoPut` rather than about the fixture. Named by the Dagger
+  `integration` leg's `observers` suite.
+
+  `KNOWN_RAW` is now empty, and rule 2's non-vacuity check had to change with it: it tested
+  that *some* file matched both halves, which was sound only while a defect existed. With
+  the last one fixed, the goal state is zero files matching the pair, and the check would
+  have gone red for succeeding. The two halves are now proven live separately — a renamed
+  pattern still empties its own half and still fails before the staleness loop, so a blind
+  pattern can never be the reason a `KNOWN_RAW` entry is pruned. Both new branches were
+  verified red by blinding each pattern in turn, and the third by restoring the raw dispatch
+  in `do_put.rs`. The first attempt at that check exited 1 while printing **nothing** —
+  `set -euo pipefail` aborts at a `$(grep … | wc -l)` whose grep matches nothing — which is
+  why the counts now swallow the pipeline status.
+
 - **The SCIM conformance gate stopped being a vote on someone else's release day.**
 
   `.dagger/main.go` installed the third-party client with `pip install scim2-tester httpx`,
@@ -3031,10 +3081,11 @@ disagreed, and the promise was the part that was wrong.
   production file that both builds write SQL and dispatches it raw. That discriminates
   precisely — `flight_server/handlers/do_exchange.rs` moved off `execute_raw_query` in #953
   and names it only in the comment explaining why, so it stays green, while
-  `handlers/do_put.rs`, which never got that fix, goes red. Both bypasses are now tracked in
-  `KNOWN_RAW` against **#1354** (the federation saga's local write, which takes no
-  `SecurityContext` at all) and **#1355** (the Flight `DoPut` upload, where #953's
-  change-log atomicity fix reached only one of the two upload paths).
+  `handlers/do_put.rs`, which never got that fix, went red. Both bypasses it found —
+  **#1354** (the federation saga's local write, which took no `SecurityContext` at all) and
+  **#1355** (the Flight `DoPut` upload, where #953's change-log atomicity fix reached only
+  one of the two upload paths) — have since been fixed in this same cycle, and `KNOWN_RAW`
+  is empty.
 
   The `compile_fail` doctest on `Executor<A>`'s mutation impl block
   (`runtime/executor/mutation.rs`) asserted that a read-only adapter cannot reach a write

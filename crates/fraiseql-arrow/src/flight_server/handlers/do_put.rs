@@ -1,8 +1,22 @@
 //! Handler for the Arrow Flight `do_put` RPC method.
 //!
-//! Authenticates the caller, receives a stream of `FlightData` messages containing
-//! Arrow `RecordBatch`es, and inserts each batch into the target table via the
-//! configured database adapter.
+//! Authenticates the caller, resolves its database identity, receives a stream of
+//! `FlightData` messages containing Arrow `RecordBatch`es, and writes each batch into
+//! the allow-listed target table together with its Change Spine outbox rows.
+//!
+//! # Batch granularity is the transaction (#1355)
+//!
+//! Each batch is one `execute_gated_upload`, so a batch's rows and the
+//! `core.tb_entity_change_log` rows recording them commit together or not at all. The
+//! stream as a whole is deliberately **not** one transaction: `DoPut` is the bulk-load
+//! verb, so the whole upload is sized by the client, and making it atomic would mean
+//! either buffering an unbounded number of client-supplied rows in memory or holding a
+//! database transaction — and its locks — open for as long as an untrusted client cares
+//! to keep the stream alive. Per-batch instead gives the `PutResult` acknowledgement a
+//! precise meaning: the batch it answers is committed and recorded.
+//!
+//! `DoExchange`'s `Upload` carries a single `RecordBatch`, so #953 never had to answer
+//! this; the two verbs converge on the same adapter seam either way.
 
 use std::sync::Arc;
 
@@ -37,6 +51,16 @@ pub(super) async fn handle(
         "Authenticated do_put request"
     );
 
+    // #1349: an unresolved subject must not reach a write. `do_exchange`'s Upload arm
+    // resolves; this one did not, so the one verb that had never resolved was also the
+    // one whose rows the Change Spine could not attribute — the outbox row's tenant comes
+    // from this context and nowhere else.
+    let mut security_context = fraiseql_core::security::SecurityContext::from_user(
+        &authenticated_user,
+        uuid::Uuid::new_v4().to_string(),
+    );
+    super::resolve_identity(svc, &mut security_context).await?;
+
     // Check if database adapter is available
     let db_adapter = svc
         .db_adapter
@@ -52,6 +76,7 @@ pub(super) async fn handle(
     // Clone database adapter for spawned task
     let db_adapter = Arc::clone(db_adapter);
     let upload_allowed_tables = svc.upload_allowed_tables.clone();
+    let tenant_id = security_context.tenant_id.map(|t| t.0);
     let user_id = authenticated_user.user_id;
 
     // Spawn handler task to process incoming data
@@ -81,11 +106,6 @@ pub(super) async fn handle(
                 // #953 allow-list was applied there and not here, so DoPut was a second,
                 // ungated door to the same capability. Checked before any batch is read,
                 // so a refused upload does no work and leaves no trace but the refusal.
-                // #1028: the table is named by the *client* and these rows bypass the
-                // mutation pipeline entirely, exactly as in `do_exchange`'s Upload. The
-                // #953 allow-list was applied there and not here, so DoPut was a second,
-                // ungated door to the same capability. Checked before any batch is read,
-                // so a refused upload does no work and leaves no trace but the refusal.
                 if let Err(message) =
                     authorize_upload(upload_allowed_tables.as_ref(), &user_id.0, &table_name)
                 {
@@ -99,7 +119,7 @@ pub(super) async fn handle(
                     "Starting data upload"
                 );
 
-                let mut total_rows = 0;
+                let mut total_rows: u64 = 0;
 
                 // Process incoming RecordBatch messages
                 while let Ok(Some(flight_data)) = stream.message().await {
@@ -123,14 +143,40 @@ pub(super) async fn handle(
                                         "Inserting batch"
                                     );
 
-                                    // Execute INSERT via database adapter
-                                    match db_adapter.execute_raw_query(&sql).await {
-                                        Ok(_) => {
-                                            total_rows += rows_in_batch;
+                                    // #1355: the batch's rows and their change-log outbox
+                                    // rows commit together or not at all. `execute_raw_query`
+                                    // is deliberately no longer on this path — it cannot
+                                    // express the transaction, and using it left the Change
+                                    // Spine blind to every DoPut, exactly as it had left it
+                                    // blind to every DoExchange Upload before #953.
+                                    let upload = crate::db::GatedUpload {
+                                        table:      &table_name,
+                                        insert_sql: &sql,
+                                        user_id:    &user_id.0,
+                                        tenant_id:  tenant_id.as_deref(),
+                                    };
+                                    match db_adapter.execute_gated_upload(&upload).await {
+                                        Ok(written) => {
+                                            total_rows += written;
+                                            // The mutation-audit event (#953). `runners/mutation`
+                                            // emits this for every path through the mutation
+                                            // pipeline; an Upload does not, so it emits its own
+                                            // with the same target and shape. Per batch, because
+                                            // per batch is what committed.
+                                            tracing::info!(
+                                                target: "fraiseql::mutation_audit",
+                                                mutation_name = "flightUpload",
+                                                entity_type = %table_name,
+                                                operation = "INSERT",
+                                                tenant_id = tenant_id.as_deref().unwrap_or(""),
+                                                actor = %user_id,
+                                                transport = "flight",
+                                                rows = written,
+                                                "mutation.executed"
+                                            );
                                             // Send success result for this batch
                                             let metadata =
-                                                format!("Inserted {} rows", rows_in_batch)
-                                                    .into_bytes();
+                                                format!("Inserted {} rows", written).into_bytes();
                                             let sent = send_ok(
                                                 &tx,
                                                 PutResult {

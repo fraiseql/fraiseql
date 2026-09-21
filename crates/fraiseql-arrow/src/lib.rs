@@ -94,6 +94,13 @@ pub mod clickhouse_sink;
 
 /// The `arrow` this crate's public API is built against (#1198).
 pub use arrow;
+/// The `arrow_flight` this crate's public API is built against (#1198).
+///
+/// Re-exported for the same reason as `arrow` and `tonic`: `FlightData`, `PutResult`
+/// and the Flight client are part of this crate's wire contract, and a downstream that
+/// pins its own `arrow-flight` can end up handing the service types from a different
+/// version of the same crate.
+pub use arrow_flight;
 pub use cache::QueryCache;
 /// The `chrono` this crate's public API is built against (#1198).
 pub use chrono;
