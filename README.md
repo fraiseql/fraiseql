@@ -190,7 +190,7 @@ See [Security Checklist](docs/guides/production-security-checklist.md) for produ
 ## Quality
 
 - 10,000+ tests (unit, integration, E2E, property-based, fuzz)
-- Cross-SDK parity suite: all 9 authoring SDKs (Python, TypeScript, Go, Java, PHP, C#, F#, Elixir, Rust SDK) produce identical schema JSON
+- Cross-SDK parity suite: 5 authoring SDKs (Python, TypeScript, Go and PHP for the full schema, Rust for types) produce identical schema JSON; `make test-parity` and the SDK Schema Parity workflow run it
 - Golden fixture regression guards for every field in the compiled schema contract (protects against issue-#53-class bugs)
 - Zero unsafe code (forbidden at compile time)
 - Clippy pedantic as deny with justified suppressions

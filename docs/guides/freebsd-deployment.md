@@ -163,7 +163,6 @@ are unverified there:
 | `secrets` (Vault) | ✅ | HTTP over rustls, covered |
 | `mcp`, `metrics`, `tracing-opentelemetry`, `webhooks` | ✅ | covered |
 | Deno edge functions (`fraiseql-functions/runtime-deno`) | ⚠️ build natively | pulls `deno_core` → `v8`, which has no Linux→FreeBSD cross path. Build on a FreeBSD host; not exercised in CI. |
-| SQL Server backend (`sqlserver` / `mssql`) | ⚠️ build natively | uses `tiberius` (`native-tls` → OpenSSL). Cross-builds only against a target OpenSSL; builds natively on FreeBSD where OpenSSL ships in base. PostgreSQL is the primary backend. |
 
 If you depend on one of the ⚠️ features on FreeBSD, build on the host
 and please file an issue with your results.

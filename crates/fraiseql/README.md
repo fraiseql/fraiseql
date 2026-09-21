@@ -33,9 +33,6 @@ async fn main() -> Result<()> {
 ## Feature Flags
 
 - `postgres` (default) - PostgreSQL support
-- `mysql` - MySQL support
-- `sqlite` - SQLite support
-- `sqlserver` - SQL Server support
 - `server` - HTTP server
 - `observers` - Reactive business logic
 - `arrow` - Apache Arrow Flight

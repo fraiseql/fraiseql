@@ -37,7 +37,7 @@ Explain the impact or value this would have.
 **Environment:**
 
 - Language: Python / TypeScript / Go / PHP
-- Database: PostgreSQL / MySQL / SQLite / SQL Server
+- Database: PostgreSQL (version)
 - Deployment: Local / Docker / Kubernetes
 - Use case: (GraphQL API, data export, analytics, etc.)
 

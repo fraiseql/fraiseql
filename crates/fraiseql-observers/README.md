@@ -5,14 +5,8 @@ A comprehensive, event-driven observer system for FraiseQL that enables post-mut
 ## Features
 
 - **Event-Driven Architecture**: React to database mutations (INSERT, UPDATE, DELETE) in real-time
-- **Flexible Actions**: 7 action types with more planned
-  - Webhook: HTTP POST to external endpoints
-  - Slack: Send messages to Slack channels
-  - Email: Send emails via SMTP
-  - SMS: Send text messages (stub, future implementation)
-  - Push Notifications: Send mobile push notifications (stub)
-  - Search: Index/update/delete documents in search engines (stub)
-  - Cache: Invalidate or refresh cache entries (stub)
+- **Actions**: webhook, Slack, email, cache invalidation, database function and log
+  - SMS, push and search are rejected at config load as unsupported (H24); their transports are #428
 - **Condition Evaluation**: DSL for conditional action execution
   - Field comparisons: `status = 'shipped'`, `total > 100`
   - Change detection: `CHANGED(status)`, `CHANGED_TO(status, 'active')`
@@ -169,36 +163,8 @@ println!("Executed {} actions, {} succeeded, {} failed",
 }
 ```
 
-#### SMS
-
-```json
-{
-  "type": "sms",
-  "phone": "+1234567890",
-  "message_template": "Order {{entity_id}} shipped"
-}
-```
-
-#### Push Notification
-
-```json
-{
-  "type": "push",
-  "device_token": "device123",
-  "title_template": "Order Update",
-  "body_template": "Order {{entity_id}} status: {{status}}"
-}
-```
-
-#### Search Index
-
-```json
-{
-  "type": "search",
-  "index": "orders",
-  "id_template": "order_{{entity_id}}"
-}
-```
+SMS, push and search action types are rejected at config load as unsupported (H24); their
+real transports are tracked in #428, so there is no working example to show for them.
 
 #### Cache
 
@@ -444,9 +410,7 @@ impl DeadLetterQueue for CustomDLQ {
 
 ## Future Enhancements
 
-- [ ] SMS integration (Twilio, AWS SNS)
-- [ ] Push notifications (Firebase, APNs)
-- [ ] Search indexing (Elasticsearch, Meilisearch)
+- [ ] SMS, push and search transports (#428; those action types are rejected until then)
 - [ ] Cache backends (Redis, Memcached)
 - [ ] Scheduled actions
 - [ ] Action dependencies

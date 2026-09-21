@@ -16,7 +16,7 @@ Brief description of the bug you encountered.
 
 - **FraiseQL version**: 2.0.0-alpha.1
 - **Language**: Python / TypeScript / Go / PHP
-- **Database**: PostgreSQL / MySQL / SQLite / SQL Server (version)
+- **Database**: PostgreSQL (version)
 - **OS**: Linux / macOS / Windows
 - **Rust version** (if building from source):
 

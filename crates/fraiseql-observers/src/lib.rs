@@ -30,8 +30,8 @@
 //!
 //! # Key Features
 //!
-//! - **Flexible Actions**: Webhook, email, Slack, SMS, push notifications, cache invalidation,
-//!   search indexing
+//! - **Actions**: webhook, email, Slack and cache invalidation; SMS, push and search are rejected
+//!   at config load as unsupported (H24), their real transports being #428.
 //! - **Conditions**: DSL for conditional action execution (e.g., `field_changed_to('status',
 //!   'shipped') && total > 100`; `field_changed*` requires the producing mutation to set
 //!   `changelog_pre_image = true`)

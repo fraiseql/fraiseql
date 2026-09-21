@@ -568,4 +568,4 @@ A: Not directly. Regenerate from Python definitions instead.
 A: Validation happens at compile time (fraiseql-cli). No runtime validation in Python SDK.
 
 **Q: Can FraiseQL work with other databases?**
-A: Yes, via SQL views and functions. Supports PostgreSQL, MySQL, SQLite, SQL Server.
+A: Yes, via SQL views and functions on PostgreSQL.
