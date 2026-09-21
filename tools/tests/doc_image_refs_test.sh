@@ -73,6 +73,50 @@ else
   fail "a tree with no references should fail"
 fi
 
+# ── 6. Templated references are skipped, and the count says so ───────────────────────
+# `$VAR`, `{{ .Values }}` and `<placeholder>` are not references to anything yet. They
+# were skipped before #1334's rewrite and must still be: a rewrite that stopped skipping
+# them would flag every Helm README, and one that stopped *matching* them would be
+# invisible — hence the count, not just the exit code.
+root="${tmp}/templated"
+mk "${root}/deploy/guide.md" '    image: ${FRAISEQL_IMAGE}'
+{
+  printf '    image: {{ .Values.fraiseql.image }}\n'
+  printf '    image: <your-registry>/fraiseql/server:2.15.0\n'
+  printf '    image: ghcr.io/fraiseql/server:2.15.0\n'
+} >> "${root}/deploy/guide.md"
+run_gate "$root"
+if [ "$(cat "${tmp}/rc")" = "0" ] && grep -F "all 1 FraiseQL image reference(s)" "${tmp}/out" >/dev/null; then
+  pass "templated references are skipped and only the real one is counted"
+else
+  fail "templated references should be skipped, leaving exactly 1 counted"
+fi
+
+# ── 7. The scan is not per-line — #1334 ──────────────────────────────────────────────
+# The gate spawned `printf | sed | head` for every line of every file: 1:35 wall on the
+# build box, 91s of it system time, to find 2 references. The cost was paid by every
+# pre-push and every CI run.
+#
+# Pinned by wall clock, which is the property that regressed, against a tree the old
+# shape could not finish inside the bound: 20,000 lines took it ~64s, and the rewrite
+# does the whole repository in 0.06s. The 30s bound is ~500x headroom for a single `grep`
+# and still red for a per-line loop, so a loaded runner cannot flake it — only a
+# reintroduced fork-per-line can.
+root="${tmp}/large"
+mkdir -p "${root}/docs"
+{
+  printf '    image: ghcr.io/fraiseql/server:2.15.0\n'
+  for _ in $(seq 1 20000); do printf 'Ordinary prose that matches nothing at all.\n'; done
+} > "${root}/docs/big.md"
+started="$(date +%s)"
+run_gate "$root"
+elapsed=$(( $(date +%s) - started ))
+if [ "$(cat "${tmp}/rc")" = "0" ] && [ "$elapsed" -lt 30 ]; then
+  pass "a 20,000-line tree is scanned in ${elapsed}s (a per-line loop takes ~64s)"
+else
+  fail "a 20,000-line tree took ${elapsed}s — the per-line fork loop is back"
+fi
+
 if [ "$failures" -ne 0 ]; then
   echo "FAIL: ${failures} check-doc-image-refs.sh assertion(s) failed"
   exit 1

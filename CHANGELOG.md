@@ -2732,6 +2732,33 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **`check-doc-image-refs.sh` stopped costing three minutes of every run (#1334).**
+
+  The gate spawned `printf | sed | head` — three processes — once or twice for every line
+  of every scanned file: up to ~60,000 pipelines and ~180,000 forks over 125 Markdown
+  files and 29,782 lines, to find **2** image references. Measured on the build box at
+  1:35 wall, 91s of it *system* time, which is process creation rather than matching. It
+  runs in `make preflight` and in the Dagger ShellGates leg, so every pre-push and every
+  CI run paid it. It now completes in **0.06s**.
+
+  The extraction is unchanged — the same two `sed` expressions, the same bytes, producing
+  the same decisions and the same messages. Only the candidate set shrank: one `grep -nHE`
+  finds the handful of lines that could match, and the per-line work runs on those. The
+  pre-filter is a deliberate **superset** of what the extractions accept, so a line it
+  admits and the `sed` rejects is skipped exactly as before; narrowing it to match would
+  couple two patterns that must be free to disagree, which is how a combined pattern once
+  made the `--image=` spelling match nothing while the gate reported OK.
+
+  Equivalence was proven rather than assumed: both versions were instrumented to dump every
+  reference they extracted *before* the `fraiseql` filter, and the two dumps are identical
+  across the whole tree — all 5 raw references, same files, same line numbers, same values.
+
+  `tools/tests/doc_image_refs_test.sh` gains the two cases the issue asked for: templated
+  references (`$VAR`, `{{ }}`, `<placeholder>`) are still skipped with the surviving count
+  asserted, not just the exit code; and a 20,000-line tree must be scanned inside 30s. Run
+  against the pre-rewrite gate, the first six cases pass — which is what shows no decision
+  changed — and the timing case fails at 54s.
+
 - **A function invocation no longer spends ~9 ms waiting for its own watchdog (#1342).**
   Every Deno invocation arms a watchdog thread that terminates the isolate if the guest
   is still running at the deadline. It polled a done-flag on a `sleep(10ms)`, and the

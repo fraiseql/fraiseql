@@ -41,48 +41,78 @@ shopt -s globstar nullglob
 files=(deploy/**/*.md docs/**/*.md README.md)
 shopt -u globstar nullglob
 
-for file in "${files[@]}"; do
-  [ -f "$file" ] || continue
-  lineno=0
-  while IFS= read -r line; do
-    lineno=$((lineno + 1))
-    # `image: X`, `"image": "X"`, `--image=X`
-    # Two spellings, because there are two. `image:` / `"image":` is Compose and
-    # Kubernetes; `--image=` is kubectl and gcloud. They need separate patterns: the
-    # first must NOT match `my-image:`, so it excludes a preceding `-`, which is exactly
-    # the character the second one starts with. Written as one pattern, the `--image=`
-    # form matched nothing and the gate read 1 reference where the tree has 2.
+# Candidate lines, in ONE pass over the whole file set (#1334).
+#
+# This loop used to run per line, spawning `printf | sed | head` — three processes —
+# once or twice for every one of the 29,782 lines in 125 files. Up to ~60,000 pipelines
+# and ~180,000 forks, to find 2 references: measured at 1:35 wall on the build box,
+# 91s of it *system* time, which is process creation and not matching. It ran in
+# `make preflight` and in the Dagger ShellGates leg, so every pre-push and every CI run
+# paid it.
+#
+# The extraction itself is unchanged — the two `sed` expressions below are the same
+# bytes, applied to the same lines, producing the same decisions and the same messages.
+# Only the candidate set shrank: one `grep` finds the handful of lines that could match,
+# and the per-line work now runs on those instead of on every line in the tree.
+#
+# The pre-filter is a deliberate SUPERSET of what the extractions accept. It requires
+# only the `image:` / `--image=` trigger, not the value part, so a line the `grep`
+# admits and the `sed` rejects yields an empty `ref` and is skipped exactly as before.
+# Narrowing it to match the extractions would couple two patterns that must be allowed
+# to disagree — and a pre-filter that is too narrow is invisible: the gate would report
+# OK over a reference it never read.
+#
+# `-H` is load-bearing: with a single file in the set (which is what the test roots and
+# `DOC_IMAGE_REFS_ROOT` produce) `grep -n` omits the filename, and the `file:line:text`
+# split below would take the line number for the path.
+if [ "${#files[@]}" -eq 0 ]; then
+  candidates=''
+else
+  candidates="$(grep -nHE '(^|[^A-Za-z_-])"?image"?:|--image=' -- "${files[@]}" 2>/dev/null || true)"
+fi
+
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  file="${hit%%:*}"
+  rest="${hit#*:}"
+  lineno="${rest%%:*}"
+  line="${rest#*:}"
+  # `image: X`, `"image": "X"`, `--image=X`
+  # Two spellings, because there are two. `image:` / `"image":` is Compose and
+  # Kubernetes; `--image=` is kubectl and gcloud. They need separate patterns: the
+  # first must NOT match `my-image:`, so it excludes a preceding `-`, which is exactly
+  # the character the second one starts with. Written as one pattern, the `--image=`
+  # form matched nothing and the gate read 1 reference where the tree has 2.
+  ref="$(printf '%s' "$line" \
+    | sed -nE 's/.*(^|[^A-Za-z_-])"?image"?:[[:space:]]*"?([^"[:space:],]+).*/\2/p' \
+    | head -1)"
+  if [ -z "$ref" ]; then
     ref="$(printf '%s' "$line" \
-      | sed -nE 's/.*(^|[^A-Za-z_-])"?image"?:[[:space:]]*"?([^"[:space:],]+).*/\2/p' \
+      | sed -nE 's/.*--image=[[:space:]]*"?([^"[:space:],\\]+).*/\1/p' \
       | head -1)"
-    if [ -z "$ref" ]; then
-      ref="$(printf '%s' "$line" \
-        | sed -nE 's/.*--image=[[:space:]]*"?([^"[:space:],\\]+).*/\1/p' \
-        | head -1)"
-    fi
-    [ -z "$ref" ] && continue
-    case "$ref" in
-      *'$'*|*'{{'*|*'<'*) continue ;;
-    esac
-    case "$ref" in
-      *fraiseql*) ;;
-      *) continue ;;
-    esac
-    checked=$((checked + 1))
-    repo="${ref%%:*}"
-    case "$repo" in
-      */*) ;;  # has a namespace or a registry — pullable
-      *)
-        echo "ERROR: ${file}:${lineno} names a bare FraiseQL image: ${ref}"
-        echo "       Docker resolves that to docker.io/library/${repo}, the official-images"
-        echo "       namespace, which this project cannot publish to. Use"
-        echo "       ghcr.io/fraiseql/server:<version> or fraiseql/server:<version>."
-        flagged=$((flagged + 1))
-        status=1
-        ;;
-    esac
-  done < "$file"
-done
+  fi
+  [ -z "$ref" ] && continue
+  case "$ref" in
+    *'$'*|*'{{'*|*'<'*) continue ;;
+  esac
+  case "$ref" in
+    *fraiseql*) ;;
+    *) continue ;;
+  esac
+  checked=$((checked + 1))
+  repo="${ref%%:*}"
+  case "$repo" in
+    */*) ;;  # has a namespace or a registry — pullable
+    *)
+      echo "ERROR: ${file}:${lineno} names a bare FraiseQL image: ${ref}"
+      echo "       Docker resolves that to docker.io/library/${repo}, the official-images"
+      echo "       namespace, which this project cannot publish to. Use"
+      echo "       ghcr.io/fraiseql/server:<version> or fraiseql/server:<version>."
+      flagged=$((flagged + 1))
+      status=1
+      ;;
+  esac
+done <<< "$candidates"
 
 if [ "$checked" -eq 0 ]; then
   # The docs always name at least one FraiseQL image. Matching none means the extraction
