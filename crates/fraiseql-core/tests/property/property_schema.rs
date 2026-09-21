@@ -46,18 +46,18 @@ proptest! {
     #![proptest_config(ProptestConfig::with_cases(200))]
 
     /// Property: Schema with N types roundtrips through JSON with all types preserved.
+    ///
+    /// Names come from a set, not a vec: the load path refuses a schema that declares a
+    /// name twice (#1367), and this property is about the roundtrip, not about duplicates
+    /// — `prop_schema_duplicate_types_always_error` owns those.
     #[test]
     fn prop_schema_type_count_preserved(
-        names in prop::collection::vec(arb_type_name(), 0..10),
+        names in prop::collection::hash_set(arb_type_name(), 0..10),
         sources in prop::collection::vec(arb_sql_source(), 0..10),
     ) {
-        let count = names.len().min(sources.len());
         let mut schema = CompiledSchema::new();
-        for i in 0..count {
-            schema.types.push(TypeDefinition::new(
-                names[i].clone(),
-                sources[i].clone(),
-            ));
+        for (name, source) in names.into_iter().zip(sources) {
+            schema.types.push(TypeDefinition::new(name, source));
         }
 
         let json_str = schema.to_json().expect("serialization should succeed");
@@ -67,13 +67,15 @@ proptest! {
     }
 
     /// Property: Schema with N queries roundtrips through JSON with all queries preserved.
+    ///
+    /// Names come from a set for the same reason as the type property above (#1367).
     #[test]
     fn prop_schema_query_count_preserved(
-        names in prop::collection::vec(arb_query_name(), 0..10),
+        names in prop::collection::hash_set(arb_query_name(), 0..10),
     ) {
         let mut schema = CompiledSchema::new();
-        for name in &names {
-            schema.queries.push(QueryDefinition::new(name.clone(), "String"));
+        for name in names {
+            schema.queries.push(QueryDefinition::new(name, "String"));
         }
 
         let json_str = schema.to_json().expect("serialization should succeed");
