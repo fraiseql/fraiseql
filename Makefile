@@ -135,9 +135,17 @@ test-full: db-up
 	@echo "=== Full test suite complete (all 8 steps passed) ==="
 
 # Run unit tests only (no database required)
+#
+# NOT `--all-features`: `test-postgres` is an opt-in marker feature meaning "a live
+# database is available", and `--all-features` switches it on, which pulled 77
+# DB-backed tests in fraiseql-db/src into this target and made it unpassable (#1169
+# neighbourhood). fraiseql-db is therefore given an explicit feature list, mirroring
+# the per-crate enumeration in .github/workflows/coverage.yml.
 test-unit:
 	@echo "Running unit tests..."
-	@cargo test --lib --all-features
+	@cargo test --lib --workspace --all-features --exclude fraiseql-db
+# SYNC:DB_FEATURES - test-postgres deliberately omitted: --lib runs without a database
+	@cargo test --lib -p fraiseql-db --features "postgres,wire-backend"
 
 # Run integration tests (requires Docker databases)
 # Runs each suite with the correct feature flags and env vars.
@@ -145,8 +153,13 @@ test-unit:
 # The PostgreSQL section is `test-integration-postgres` — the mirror of the
 # Dagger shard. It used to be one `-p fraiseql-core … -- --ignored` line, which
 # ran 1 test out of 2828 across 77 binaries and then printed "All integration
-# tests passed": none of those suites are `#[ignore]`d (they self-skip on an
-# absent DATABASE_URL), and `--ignored` runs ONLY ignored tests (#1169).
+# tests passed": none of those suites are `#[ignore]`d, and `--ignored` runs
+# ONLY ignored tests (#1169).
+#
+# Nor do they self-skip on an absent DATABASE_URL: fraiseql-test-support's
+# `resolve_or_panic` fails loudly by design, so a DB-backed test invoked without
+# a URL is a hard failure, not a skip. That is why `test-unit` must not enable
+# the `test-postgres` marker feature -- see the note on that target above.
 test-integration: test-integration-postgres
 	@echo ""
 	@echo "=== fraiseql-observers integration tests ==="
