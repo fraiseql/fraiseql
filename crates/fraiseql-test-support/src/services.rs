@@ -265,16 +265,24 @@ fn default_port(scheme: &str) -> Option<u16> {
 
 #[cfg(feature = "local-testcontainers")]
 async fn spawn_postgres() -> Option<Service> {
-    use testcontainers_modules::{postgres::Postgres, testcontainers::runners::AsyncRunner};
+    use testcontainers_modules::{
+        postgres::Postgres,
+        testcontainers::{ImageExt, runners::AsyncRunner},
+    };
 
     let user = "fraiseql_test";
     let password = "fraiseql_test_password";
     let database = "test_fraiseql";
 
+    // Pinned to match the docker-compose stack (PG 16). testcontainers-modules 0.15
+    // defaults to `postgres:11-alpine`, which predates built-in `gen_random_uuid()`
+    // (PG 13): DDL that every other environment accepts failed here with 42883, and
+    // a local spawn quietly validating against PG 11 is a false-negative source.
     let container = Postgres::default()
         .with_user(user)
         .with_password(password)
         .with_db_name(database)
+        .with_tag("16-alpine")
         .start()
         .await
         .expect("failed to start local postgres testcontainer");
