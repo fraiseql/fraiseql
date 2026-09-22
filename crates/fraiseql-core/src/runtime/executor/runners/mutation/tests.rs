@@ -3251,26 +3251,53 @@ mod field_authz {
     use super::*;
     use crate::{
         backend::types::{DatabaseType, PoolMetrics, sql_hints::OrderByClause},
+        graphql::{FieldSelection, GraphQLArgument},
+        runtime::WriteSelections,
         schema::{FieldDefinition, FieldDenyPolicy, FieldType, MutationDefinition, TypeDefinition},
         security::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest, SecurityContext},
     };
 
-    /// Adapter whose mutation returns a `User` entity carrying a policy-gated `email`.
-    struct GatedEntityAdapter;
+    /// Adapter whose mutation returns a `User` entity carrying a policy-gated `email`,
+    /// and which records whether that write was ever allowed to stand.
+    ///
+    /// `committed` is the whole point of #1353. A real adapter records it by having
+    /// committed the transaction; this one records it by flipping the flag on exactly
+    /// the paths that commit — the ungated entry point unconditionally, the gated one
+    /// only once the gate has agreed. A test that finds the flag clear after a refusal is finding
+    /// the same thing the PostgreSQL integration test finds by counting rows.
+    ///
+    /// `rows` is what the SQL function returned: the canned `User` row by default, or
+    /// whatever a test needs the gate to be handed — no rows, or a row that is not a
+    /// `mutation_response`.
+    struct GatedEntityAdapter {
+        committed: std::sync::atomic::AtomicBool,
+        rows:      Vec<HashMap<String, serde_json::Value>>,
+    }
 
-    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
-    #[async_trait]
-    impl DatabaseAdapter for GatedEntityAdapter {
-        // Writes: opted in, because both capability gates default to refusing.
-        fn supports_mutations(&self) -> bool {
-            true
+    impl Default for GatedEntityAdapter {
+        fn default() -> Self {
+            Self::returning(Self::canned_row())
+        }
+    }
+
+    impl GatedEntityAdapter {
+        fn returning(rows: Vec<HashMap<String, serde_json::Value>>) -> Self {
+            Self {
+                committed: std::sync::atomic::AtomicBool::new(false),
+                rows,
+            }
         }
 
-        async fn execute_function_call(
-            &self,
-            _function_name: &str,
-            _args: &[serde_json::Value],
-        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        fn committed(&self) -> bool {
+            self.committed.load(std::sync::atomic::Ordering::SeqCst)
+        }
+
+        fn mark_committed(&self) {
+            self.committed.store(true, std::sync::atomic::Ordering::SeqCst);
+        }
+
+        /// The row the SQL function returns — built once, used by both entry points.
+        fn canned_row() -> Vec<HashMap<String, serde_json::Value>> {
             use serde_json::json;
             let mut row = HashMap::new();
             row.insert("succeeded".to_string(), json!(true));
@@ -3281,7 +3308,53 @@ mod field_authz {
             );
             row.insert("entity_type".to_string(), json!("User"));
             row.insert("message".to_string(), json!(""));
-            Ok(vec![row])
+            vec![row]
+        }
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait]
+    impl DatabaseAdapter for GatedEntityAdapter {
+        /// The commit gate (#1353), for a test double with no durable state.
+        ///
+        /// Since this schema declares a policy-gated field, the runner routes its
+        /// write through `execute_function_call_gated` so the field authorizer can
+        /// refuse the write and not merely its result. The trait default refuses
+        /// outright — an adapter that cannot roll back must not be the one to decide
+        /// a refused write is survivable — so a double on a gated schema has to say
+        /// what it does. This one has nothing to roll back (its "write" is a canned
+        /// row), so running the call and then adjudicating it is exactly what the
+        /// PostgreSQL adapter does, minus the durability.
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            session_vars: &[(&str, &str)],
+            changelog: Option<&ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            let _ = (function_name, args, session_vars, changelog);
+            let rows = self.rows.clone();
+            // The function has run; the transaction has not committed. A refusal
+            // here returns without ever marking the write as having stood.
+            gate(&rows)?;
+            self.mark_committed();
+            Ok(rows)
+        }
+
+        // Writes: opted in, because both capability gates default to refusing.
+        fn supports_mutations(&self) -> bool {
+            true
+        }
+
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            // The ungated path: whatever the function did, it stands.
+            self.mark_committed();
+            Ok(self.rows.clone())
         }
 
         async fn execute_with_projection(
@@ -3362,11 +3435,264 @@ mod field_authz {
         }
     }
 
+    struct DenyReject;
+    impl FieldAuthorizer for DenyReject {
+        fn authorize_field(&self, _r: &FieldAuthzRequest<'_>) -> Result<FieldAuthzDecision> {
+            Ok(FieldAuthzDecision::Deny {
+                code:    "not_owner".into(),
+                on_deny: FieldDenyPolicy::Reject,
+            })
+        }
+    }
+
     struct PanicIfCalled;
     impl FieldAuthorizer for PanicIfCalled {
         fn authorize_field(&self, _r: &FieldAuthzRequest<'_>) -> Result<FieldAuthzDecision> {
             panic!("field authorizer must not be consulted here");
         }
+    }
+
+    // ── #1353: a refused write must not have happened ────────────────────────
+    //
+    // The four gates that can refuse a mutation before it dispatches — the operation
+    // `Authorizer` (#422), `requires_role`, `requires_actor` and the `before:mutation`
+    // chain — all answer from the principal and the arguments. The field authorizer
+    // cannot: its contract takes the resolved entity as `parent`, so it has nothing to
+    // decide on until the row exists. It therefore used to run after the transaction
+    // had committed, and a caller it rejected lost the field and kept the side effect.
+    //
+    // These pin the ruling: the write commits only if adjudication completed without
+    // refusal. Any error from adjudication rolls it back and reaches the caller as
+    // itself — the rollback is decided by the flow, not by the variant — so each case
+    // below asserts both halves: the write did not stand, and the error is the one the
+    // adjudication raised. `Mask` is not a refusal, and commits.
+
+    /// Run `createUser` selecting `{ id email }` against `adapter`, as `ctx()`.
+    async fn refused_write(
+        adapter: &Arc<GatedEntityAdapter>,
+        authorizer: Arc<dyn FieldAuthorizer>,
+    ) -> FraiseQLError {
+        Executor::with_config(
+            schema(),
+            Arc::clone(adapter),
+            RuntimeConfig::default().with_field_authorizer(authorizer),
+        )
+        .execute_with_security("mutation { createUser { id email } }", None, &ctx())
+        .await
+        .expect_err("adjudication failed, so the mutation must fail")
+    }
+
+    // A `Reject` decision refuses the operation, not just the value: the write the
+    // function performed never commits.
+    #[tokio::test]
+    async fn mutation_deny_reject_does_not_commit_the_write() {
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let err = refused_write(&adapter, Arc::new(DenyReject)).await;
+
+        assert!(
+            matches!(err, FraiseQLError::Authorization { .. }),
+            "a Reject decision reports as Authorization, got: {err:?}"
+        );
+        assert!(
+            !adapter.committed(),
+            "the write must not stand after the authorizer rejected the caller (#1353)"
+        );
+    }
+
+    // A policy error fails closed. The #423 contract reports it as `Authorization`
+    // without surfacing the policy's own error (the `Raising` double returns a
+    // `Validation`), and that contract is shared with the read path — so the variant
+    // is the relabelled one. The rollback does not depend on it.
+    #[tokio::test]
+    async fn mutation_raising_policy_does_not_commit_the_write() {
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let err = refused_write(&adapter, Arc::new(Raising)).await;
+
+        assert!(
+            matches!(err, FraiseQLError::Authorization { .. }),
+            "a policy error fails closed as Authorization (#423), got: {err:?}"
+        );
+        assert!(
+            !format!("{err}").contains("policy backend down"),
+            "the policy's own error is not surfaced: {err}"
+        );
+        assert!(
+            !adapter.committed(),
+            "a fail-closed policy error must not leave the write standing"
+        );
+    }
+
+    // A gated field whose arguments cannot be read is a server fault, reported as
+    // `Internal` exactly as on the read path — and the authorizer was never asked, so
+    // the write was never adjudicated and rolls back. The GraphQL parser cannot emit
+    // unreadable argument JSON, so the selection set is handed in directly.
+    #[tokio::test]
+    async fn mutation_unreadable_gated_arguments_do_not_commit_the_write() {
+        let field = |name: &str, arguments| FieldSelection {
+            name: name.to_string(),
+            alias: None,
+            arguments,
+            nested_fields: vec![],
+            directives: vec![],
+        };
+        let selections = vec![
+            field("id", vec![]),
+            field(
+                "email",
+                vec![GraphQLArgument {
+                    name:       "format".to_string(),
+                    value_type: "string".to_string(),
+                    value_json: "{not json".to_string(),
+                }],
+            ),
+        ];
+
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let executor = Executor::with_config(
+            schema(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
+        );
+        let err = executor
+            .execute_mutation_detailed(
+                "createUser",
+                "createUser",
+                None,
+                Some(&ctx()),
+                WriteSelections::new(&selections).expect("two fields"),
+                &[],
+            )
+            .await
+            .expect_err("unreadable gated-field arguments must fail the mutation");
+
+        assert!(
+            matches!(err, FraiseQLError::Internal { .. }),
+            "unreadable arguments report as Internal on both paths, got: {err:?}"
+        );
+        assert!(
+            !adapter.committed(),
+            "a write whose gated field could not be adjudicated must not stand"
+        );
+    }
+
+    // A row that is not a `mutation_response` cannot be adjudicated at all. Before
+    // this ruling it committed and then failed, so the client was told the write
+    // failed while it had landed. On a gated schema it now rolls back, and the parse
+    // error is reported as itself.
+    #[tokio::test]
+    async fn mutation_unparseable_response_does_not_commit_the_write() {
+        let mut row = HashMap::new();
+        row.insert("succeeded".to_string(), serde_json::json!("not a boolean"));
+        let adapter = Arc::new(GatedEntityAdapter::returning(vec![row]));
+        let err = refused_write(&adapter, Arc::new(PanicIfCalled)).await;
+
+        assert!(
+            matches!(err, FraiseQLError::Validation { .. }),
+            "an unparseable mutation_response reports as Validation, got: {err:?}"
+        );
+        assert!(
+            format!("{err}").contains("failed to deserialize"),
+            "the parse error is reported unchanged: {err}"
+        );
+        assert!(
+            !adapter.committed(),
+            "a write whose response could not be parsed was never adjudicated"
+        );
+    }
+
+    // A function that returned no rows gave the gate nothing to adjudicate. Same
+    // ruling as the unparseable row: roll back, report the error as itself.
+    #[tokio::test]
+    async fn mutation_returning_no_rows_does_not_commit_the_write() {
+        let adapter = Arc::new(GatedEntityAdapter::returning(vec![]));
+        let err = refused_write(&adapter, Arc::new(PanicIfCalled)).await;
+
+        assert!(
+            matches!(err, FraiseQLError::Validation { .. }),
+            "no rows reports as Validation, got: {err:?}"
+        );
+        assert!(
+            format!("{err}").contains("function returned no rows"),
+            "the no-rows error is reported unchanged: {err}"
+        );
+        assert!(!adapter.committed(), "a write with no row to adjudicate must not stand");
+    }
+
+    // `Mask` is a statement about the value, not about the operation: the caller may
+    // do this, they just may not see that field. The write stands.
+    #[tokio::test]
+    async fn mutation_deny_mask_still_commits_the_write() {
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let executor = Executor::with_config(
+            schema(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(DenyMask)),
+        );
+        let res = executor
+            .execute_with_security("mutation { createUser { id email } }", None, &ctx())
+            .await
+            .expect("a masked field is a success, not a refusal");
+
+        assert!(res["data"]["createUser"]["email"].is_null(), "the field is masked");
+        assert!(adapter.committed(), "a masked field must not roll the write back");
+    }
+
+    // An allowed caller commits, which is what makes the two refusals above mean
+    // something: the difference is the decision, not the path.
+    #[tokio::test]
+    async fn mutation_allowed_field_commits_the_write() {
+        struct AllowAll;
+        impl FieldAuthorizer for AllowAll {
+            fn authorize_field(&self, _r: &FieldAuthzRequest<'_>) -> Result<FieldAuthzDecision> {
+                Ok(FieldAuthzDecision::Allow)
+            }
+        }
+
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let executor = Executor::with_config(
+            schema(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(AllowAll)),
+        );
+        let res = executor
+            .execute_with_security("mutation { createUser { id email } }", None, &ctx())
+            .await
+            .expect("an allowed field is returned");
+
+        assert_eq!(res["data"]["createUser"]["email"], "alice@x.com");
+        assert!(adapter.committed(), "an allowed write commits");
+    }
+
+    // The gate is not a second authorizer pass: the decision is taken once, inside
+    // the transaction, and the response is built from that same pass. An authorizer
+    // with an audit side effect must not see the write twice.
+    #[tokio::test]
+    async fn the_authorizer_is_consulted_exactly_once_per_gated_field() {
+        struct CountingAllow(std::sync::atomic::AtomicUsize);
+        impl FieldAuthorizer for CountingAllow {
+            fn authorize_field(&self, _r: &FieldAuthzRequest<'_>) -> Result<FieldAuthzDecision> {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                Ok(FieldAuthzDecision::Allow)
+            }
+        }
+
+        let authorizer = Arc::new(CountingAllow(std::sync::atomic::AtomicUsize::new(0)));
+        let executor = Executor::with_config(
+            schema(),
+            Arc::new(GatedEntityAdapter::default()),
+            RuntimeConfig::default()
+                .with_field_authorizer(Arc::clone(&authorizer) as Arc<dyn FieldAuthorizer>),
+        );
+        executor
+            .execute_with_security("mutation { createUser { id email } }", None, &ctx())
+            .await
+            .expect("allowed");
+
+        assert_eq!(
+            authorizer.0.load(std::sync::atomic::Ordering::SeqCst),
+            1,
+            "one gated field selected, one authorizer call"
+        );
     }
 
     fn schema() -> CompiledSchema {
@@ -3410,7 +3736,7 @@ mod field_authz {
     async fn mutation_raising_policy_denies() {
         let executor = Executor::with_config(
             schema(),
-            Arc::new(GatedEntityAdapter),
+            Arc::new(GatedEntityAdapter::default()),
             RuntimeConfig::default().with_field_authorizer(Arc::new(Raising)),
         );
         let res = executor
@@ -3428,7 +3754,7 @@ mod field_authz {
     async fn mutation_deny_mask_nulls_field() {
         let executor = Executor::with_config(
             schema(),
-            Arc::new(GatedEntityAdapter),
+            Arc::new(GatedEntityAdapter::default()),
             RuntimeConfig::default().with_field_authorizer(Arc::new(DenyMask)),
         );
         let res = executor
@@ -3445,7 +3771,7 @@ mod field_authz {
     async fn mutation_gated_without_principal_fails_closed() {
         let executor = Executor::with_config(
             schema(),
-            Arc::new(GatedEntityAdapter),
+            Arc::new(GatedEntityAdapter::default()),
             RuntimeConfig::default().with_field_authorizer(Arc::new(DenyMask)),
         );
         let res = executor.execute("mutation { createUser { id email } }", None).await;
@@ -3455,8 +3781,11 @@ mod field_authz {
     // A gated field selected with no authorizer configured fails closed.
     #[tokio::test]
     async fn mutation_gated_without_authorizer_fails_closed() {
-        let executor =
-            Executor::with_config(schema(), Arc::new(GatedEntityAdapter), RuntimeConfig::default());
+        let executor = Executor::with_config(
+            schema(),
+            Arc::new(GatedEntityAdapter::default()),
+            RuntimeConfig::default(),
+        );
         let res = executor
             .execute_with_security("mutation { createUser { id email } }", None, &ctx())
             .await;
@@ -3468,7 +3797,7 @@ mod field_authz {
     async fn mutation_no_gated_field_skips_authorizer() {
         let executor = Executor::with_config(
             schema(),
-            Arc::new(GatedEntityAdapter),
+            Arc::new(GatedEntityAdapter::default()),
             RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
         );
         let res = executor
@@ -3498,7 +3827,7 @@ mod field_authz {
     async fn mutation_with_no_selection_set_is_refused_and_never_serves_the_gated_field() {
         let executor = Executor::with_config(
             schema(),
-            Arc::new(GatedEntityAdapter),
+            Arc::new(GatedEntityAdapter::default()),
             RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
         );
         let err = executor
@@ -3541,7 +3870,7 @@ mod field_authz {
 
         let executor = Executor::with_config(
             s,
-            Arc::new(GatedEntityAdapter),
+            Arc::new(GatedEntityAdapter::default()),
             RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
         );
 
@@ -3562,7 +3891,7 @@ mod field_authz {
     async fn anonymous_mutation_with_no_selection_set_is_refused() {
         let executor = Executor::with_config(
             schema(),
-            Arc::new(GatedEntityAdapter),
+            Arc::new(GatedEntityAdapter::default()),
             RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
         );
         let err = executor
@@ -3627,6 +3956,24 @@ mod cascade {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for CannedMutationAdapter {
+        /// The commit gate (#1353) — see `field_authz::GatedEntityAdapter` for why a
+        /// double on a policy-gated schema has to implement this rather than inherit
+        /// the refusing default.
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            session_vars: &[(&str, &str)],
+            changelog: Option<&ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            let rows = self
+                .execute_function_call_with_changelog(function_name, args, session_vars, changelog)
+                .await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+
         // Writes: opted in, because both capability gates default to refusing.
         fn supports_mutations(&self) -> bool {
             true
@@ -5163,6 +5510,24 @@ mod rest_write_body {
 
     #[async_trait]
     impl DatabaseAdapter for ArgLog {
+        /// The commit gate (#1353) — see `field_authz::GatedEntityAdapter` for why a
+        /// double on a policy-gated schema has to implement this rather than inherit
+        /// the refusing default.
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            session_vars: &[(&str, &str)],
+            changelog: Option<&ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            let rows = self
+                .execute_function_call_with_changelog(function_name, args, session_vars, changelog)
+                .await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+
         // Writes: opted in, because both capability gates default to refusing.
         fn supports_mutations(&self) -> bool {
             true

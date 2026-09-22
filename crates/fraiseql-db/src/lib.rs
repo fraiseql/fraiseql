@@ -84,8 +84,8 @@ pub use serde_json;
 pub use tokio_postgres;
 pub use traits::{
     AdminSqlOutcome, AdminSqlRequest, ArcDatabaseAdapter, BoxDatabaseAdapter, ChangeLogWrite,
-    ColumnRowStream, CursorValue, DatabaseAdapter, JsonbRowStream, ProjectionRequest,
-    RelayDatabaseAdapter, RelayPageResult, ResultCacheStats, SupportsMutations,
+    ColumnRowStream, CursorValue, DatabaseAdapter, JsonbRowStream, MutationRowGate,
+    ProjectionRequest, RelayDatabaseAdapter, RelayPageResult, ResultCacheStats, SupportsMutations,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

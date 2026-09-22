@@ -27,6 +27,203 @@ use crate::{
     where_clause::WhereClause,
 };
 
+/// Run a mutation function inside one explicit transaction, optionally writing the
+/// change-log outbox row in the same statement and optionally letting a caller-supplied
+/// gate decide whether that transaction commits.
+///
+/// The three callers differ only in those two options:
+/// - `execute_function_call_with_changelog` → `Some(changelog)`, no gate (commit always);
+/// - `execute_function_call_gated` → whatever changelog the mutation asked for, plus the gate that
+///   can roll the write back (#1353);
+/// - neither → `execute_function_call_with_session`, which keeps its own no-txn fast path and never
+///   arrives here.
+///
+/// `gate` runs after the function has executed and before `COMMIT`, on the rows it
+/// returned. An `Err` from it rolls back and is returned to the caller verbatim, so a
+/// refusal that could only be decided from the written row still refuses the write.
+async fn run_function_in_txn(
+    adapter: &PostgresAdapter,
+    function_name: &str,
+    args: &[serde_json::Value],
+    session_vars: &[(&str, &str)],
+    changelog: Option<&crate::traits::ChangeLogWrite<'_>>,
+    gate: Option<crate::traits::MutationRowGate<'_>>,
+) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+    // Arm the read-your-writes pin (entry + post-commit) — #407.
+    adapter.mark_write();
+    let quoted_fn = quote_postgres_identifier(function_name);
+
+    // One statement when there is an outbox row: run the function once and INSERT
+    // its outbox row in the same txn, atomically, with no extra connection acquire
+    // (Change Spine). Otherwise the plain call.
+    let sql = if let Some(cl) = changelog {
+        build_changelog_cte_sql(&quoted_fn, args.len(), cl.pre_image)
+    } else {
+        let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
+        format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "))
+    };
+
+    // See execute_function_call for why FlexParam is required here.
+    let mut flex_args: Vec<FlexParam> = args
+        .iter()
+        .map(|v| match v {
+            serde_json::Value::Null => FlexParam::Null,
+            serde_json::Value::String(s) => FlexParam::Text(s.clone()),
+            _ => FlexParam::Text(v.to_string()),
+        })
+        .collect();
+    if let Some(changelog) = changelog {
+        // Function args first; then the threaded change-log envelope params —
+        // object_type fallback ($n+1), modification_type verb ($n+2), the
+        // tenant_id stamp ($n+3, bound against `::uuid`), the trace_id
+        // ($n+4, plain text), the schema_version ($n+5, plain text), the
+        // trace_context ($n+6, bound against `::jsonb`), the actor_type ($n+7,
+        // plain text), the acting_for ($n+8, bound against `::uuid`) and the
+        // transport ($n+9, plain text merged into extra_metadata — #376). Order
+        // matches build_changelog_cte_sql's positional contract; appending the
+        // envelope params keeps the SQL text stable for prepare_cached.
+        flex_args.push(FlexParam::Text(changelog.object_type.to_string()));
+        flex_args.push(FlexParam::Text(changelog.modification_type.to_string()));
+        // tenant_id: bound as text and serialised by FlexParam's UUID branch
+        // (the `::uuid` cast pins the param type); None → SQL NULL.
+        flex_args
+            .push(changelog.tenant_id.map_or(FlexParam::Null, |t| FlexParam::Text(t.to_string())));
+        // trace_id ($n+4): plain text, None → SQL NULL.
+        flex_args
+            .push(changelog.trace_id.map_or(FlexParam::Null, |t| FlexParam::Text(t.to_string())));
+        // schema_version ($n+5): plain text, None → SQL NULL.
+        flex_args.push(
+            changelog
+                .schema_version
+                .map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())),
+        );
+        // trace_context ($n+6): JSON text bound against `::jsonb`, None → SQL NULL.
+        flex_args.push(
+            changelog
+                .trace_context
+                .map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())),
+        );
+        // actor_type ($n+7): plain text, None → SQL NULL.
+        flex_args
+            .push(changelog.actor_type.map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())));
+        // acting_for ($n+8): bound as text + serialised by FlexParam's UUID branch
+        // (the `::uuid` cast pins the param type); None → SQL NULL.
+        flex_args
+            .push(changelog.acting_for.map_or(FlexParam::Null, |u| FlexParam::Text(u.to_string())));
+        // transport ($n+9): plain text merged into extra_metadata.transport by the
+        // CTE's deterministic CASE; None → SQL NULL → key omitted (#376).
+        flex_args
+            .push(changelog.transport.map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())));
+    }
+    let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
+        .iter()
+        .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
+        .collect();
+
+    let mut client = adapter.acquire_connection_with_retry().await?;
+    // Parse/plan the (complex) CTE once per connection (statement cache) — this
+    // is the dominant outbox hot-path cost; cached, the in-txn write is ~free.
+    let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
+    // The messages below name the outbox when the outbox is what ran. They are the
+    // strings the error sanitizer's corpus is reduced from, and an operator reading a
+    // failed write wants to know whether the CTE was in it.
+    let mechanism = if changelog.is_some() {
+        " (with change-log outbox)"
+    } else {
+        ""
+    };
+    let txn = client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
+        message:   format!("Failed to start mutation{mechanism} transaction: {}", pg_detail(&e)),
+        sql_state: e.code().map(|c| c.code().to_string()),
+    })?;
+
+    // Apply session variables FIRST so the function body sees them (and so
+    // the started_at directive stamps the DB clock on this very txn).
+    apply_session_vars(&txn, session_vars).await?;
+
+    // Mark the txn FraiseQL-mediated so the #366 fallback-capture trigger
+    // suppresses its row — this write is already logged by the outbox below,
+    // and on the no-outbox path the opt-out means "no change-log row," not
+    // "let the trigger write a degraded one."
+    mark_cdc_mediated(&txn).await?;
+
+    // If mutation timing is on, stamp the timing variable in the same txn.
+    if adapter.mutation_timing_enabled {
+        txn.execute(
+            "SELECT set_config($1, clock_timestamp()::text, true)",
+            &[&adapter.timing_variable_name],
+        )
+        .await
+        .map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to set mutation timing variable: {}", pg_detail(&e)),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+    }
+
+    // The outbox INSERT reads `fraiseql.started_at` with current_setting()
+    // (no missing_ok), so the GUC MUST exist on this txn. The mutation runner
+    // injects it via session_vars on the authenticated path; guarantee it on
+    // every other path (e.g. an unauthenticated mutation that resolves no
+    // session vars) so the duration computation never hits an unset
+    // parameter and aborts the mutation. Only the outbox reads it, so the
+    // no-changelog path is left exactly as `execute_function_call_with_session`
+    // leaves it.
+    if changelog.is_some() {
+        let started_at_set =
+            session_vars.iter().any(|(name, _)| *name == crate::changelog::STARTED_AT_VAR)
+                || (adapter.mutation_timing_enabled
+                    && adapter.timing_variable_name == crate::changelog::STARTED_AT_VAR);
+        if !started_at_set {
+            txn.execute(
+                "SELECT set_config($1, clock_timestamp()::text, true)",
+                &[&crate::changelog::STARTED_AT_VAR],
+            )
+            .await
+            .map_err(|e| FraiseQLError::Database {
+                message:   format!("Failed to stamp change-log started_at: {}", pg_detail(&e)),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+        }
+    }
+
+    let rows: Vec<Row> =
+        txn.query(&stmt, params.as_slice()).await.map_err(|e| FraiseQLError::Database {
+            message:   format!(
+                "Function call {function_name}{mechanism} failed: {}",
+                pg_detail(&e)
+            ),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+
+    let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
+        rows.iter().map(row_to_map).collect();
+
+    // The gate decides the commit. It sees the rows the function returned — the
+    // only thing a per-row decision can be keyed on — while they are still
+    // uncommitted, so a refusal takes the write with it rather than leaving the
+    // caller refused and the side effect standing (#1353).
+    if let Some(gate) = gate {
+        if let Err(refusal) = gate(&results) {
+            txn.rollback().await.map_err(|e| FraiseQLError::Database {
+                message:   format!(
+                    "Failed to roll back refused mutation transaction: {}",
+                    pg_detail(&e)
+                ),
+                sql_state: e.code().map(|c| c.code().to_string()),
+            })?;
+            return Err(refusal);
+        }
+    }
+
+    txn.commit().await.map_err(|e| FraiseQLError::Database {
+        message:   format!("Failed to commit mutation{mechanism} transaction: {}", pg_detail(&e)),
+        sql_state: e.code().map(|c| c.code().to_string()),
+    })?;
+    adapter.mark_write();
+
+    Ok(results)
+}
+
 /// PostgreSQL SQLSTATE 42703: undefined column.
 const PG_UNDEFINED_COLUMN: &str = "42703";
 
@@ -939,140 +1136,21 @@ impl DatabaseAdapter for PostgresAdapter {
                 .execute_function_call_with_session(function_name, args, session_vars)
                 .await;
         };
+        run_function_in_txn(self, function_name, args, session_vars, Some(changelog), None).await
+    }
 
-        // Arm the read-your-writes pin (entry + post-commit) — #407.
-        self.mark_write();
-        let quoted_fn = quote_postgres_identifier(function_name);
-        // One statement: run the function once and INSERT its outbox row in the
-        // same txn, atomically, with no extra connection acquire (Change Spine).
-        let sql = build_changelog_cte_sql(&quoted_fn, args.len(), changelog.pre_image);
-
-        // Function args first; then the threaded change-log envelope params —
-        // object_type fallback ($n+1), modification_type verb ($n+2), the
-        // tenant_id stamp ($n+3, bound against `::uuid`), the trace_id
-        // ($n+4, plain text), the schema_version ($n+5, plain text), the
-        // trace_context ($n+6, bound against `::jsonb`), the actor_type ($n+7,
-        // plain text), the acting_for ($n+8, bound against `::uuid`) and the
-        // transport ($n+9, plain text merged into extra_metadata — #376). Order
-        // matches build_changelog_cte_sql's positional contract; appending the
-        // envelope params keeps the SQL text stable for prepare_cached.
-        let mut flex_args: Vec<FlexParam> = args
-            .iter()
-            .map(|v| match v {
-                serde_json::Value::Null => FlexParam::Null,
-                serde_json::Value::String(s) => FlexParam::Text(s.clone()),
-                _ => FlexParam::Text(v.to_string()),
-            })
-            .collect();
-        flex_args.push(FlexParam::Text(changelog.object_type.to_string()));
-        flex_args.push(FlexParam::Text(changelog.modification_type.to_string()));
-        // tenant_id: bound as text and serialised by FlexParam's UUID branch
-        // (the `::uuid` cast pins the param type); None → SQL NULL.
-        flex_args
-            .push(changelog.tenant_id.map_or(FlexParam::Null, |t| FlexParam::Text(t.to_string())));
-        // trace_id ($n+4): plain text, None → SQL NULL.
-        flex_args
-            .push(changelog.trace_id.map_or(FlexParam::Null, |t| FlexParam::Text(t.to_string())));
-        // schema_version ($n+5): plain text, None → SQL NULL.
-        flex_args.push(
-            changelog
-                .schema_version
-                .map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())),
-        );
-        // trace_context ($n+6): JSON text bound against `::jsonb`, None → SQL NULL.
-        flex_args.push(
-            changelog
-                .trace_context
-                .map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())),
-        );
-        // actor_type ($n+7): plain text, None → SQL NULL.
-        flex_args
-            .push(changelog.actor_type.map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())));
-        // acting_for ($n+8): bound as text + serialised by FlexParam's UUID branch
-        // (the `::uuid` cast pins the param type); None → SQL NULL.
-        flex_args
-            .push(changelog.acting_for.map_or(FlexParam::Null, |u| FlexParam::Text(u.to_string())));
-        // transport ($n+9): plain text merged into extra_metadata.transport by the
-        // CTE's deterministic CASE; None → SQL NULL → key omitted (#376).
-        flex_args
-            .push(changelog.transport.map_or(FlexParam::Null, |s| FlexParam::Text(s.to_string())));
-        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
-            .iter()
-            .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
-            .collect();
-
-        let mut client = self.acquire_connection_with_retry().await?;
-        // Parse/plan the (complex) CTE once per connection (statement cache) — this
-        // is the dominant outbox hot-path cost; cached, the in-txn write is ~free.
-        let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
-        let txn =
-            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                message:   format!(
-                    "Failed to start change-log outbox transaction: {}",
-                    pg_detail(&e)
-                ),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-
-        // Apply session variables FIRST so the function body sees them (and so
-        // the started_at directive stamps the DB clock on this very txn).
-        apply_session_vars(&txn, session_vars).await?;
-
-        // Mark the txn FraiseQL-mediated so the #366 fallback-capture trigger
-        // suppresses its row — this write is already logged by the outbox below.
-        mark_cdc_mediated(&txn).await?;
-
-        // If mutation timing is on, stamp the timing variable in the same txn.
-        if self.mutation_timing_enabled {
-            txn.execute(
-                "SELECT set_config($1, clock_timestamp()::text, true)",
-                &[&self.timing_variable_name],
-            )
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to set mutation timing variable: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-        }
-
-        // The outbox INSERT reads `fraiseql.started_at` with current_setting()
-        // (no missing_ok), so the GUC MUST exist on this txn. The mutation runner
-        // injects it via session_vars on the authenticated path; guarantee it on
-        // every other path (e.g. an unauthenticated mutation that resolves no
-        // session vars) so the duration computation never hits an unset
-        // parameter and aborts the mutation.
-        let started_at_set =
-            session_vars.iter().any(|(name, _)| *name == crate::changelog::STARTED_AT_VAR)
-                || (self.mutation_timing_enabled
-                    && self.timing_variable_name == crate::changelog::STARTED_AT_VAR);
-        if !started_at_set {
-            txn.execute(
-                "SELECT set_config($1, clock_timestamp()::text, true)",
-                &[&crate::changelog::STARTED_AT_VAR],
-            )
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to stamp change-log started_at: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-        }
-
-        let rows: Vec<Row> =
-            txn.query(&stmt, params.as_slice()).await.map_err(|e| FraiseQLError::Database {
-                message:   format!(
-                    "Function call {function_name} (with change-log outbox) failed: {}",
-                    pg_detail(&e)
-                ),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-
-        txn.commit().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to commit change-log outbox transaction: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
-        })?;
-        self.mark_write();
-
-        Ok(rows.iter().map(row_to_map).collect())
+    async fn execute_function_call_gated(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+        changelog: Option<&crate::traits::ChangeLogWrite<'_>>,
+        gate: crate::traits::MutationRowGate<'_>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Deliberately no fast path: a gate that may roll back needs a transaction
+        // it can roll back, even when there are no session variables and no outbox
+        // row. The caller reaches here only when a refusal is actually possible.
+        run_function_in_txn(self, function_name, args, session_vars, changelog, Some(gate)).await
     }
 
     async fn execute_where_query_arc_with_session(

@@ -839,6 +839,224 @@ pub struct MutationExecution {
     pub outcome: MutationOutcome,
 }
 
+/// Build a mutation's GraphQL response value from the `mutation_response` row the
+/// SQL function returned.
+///
+/// Pure: it reads `ctx.schema`, the request's principal and selection set, and the
+/// parsed outcome — and touches the database not at all. That is what lets the
+/// caller run it *inside* the write's transaction, so the field authorizer (#423)
+/// can refuse the write rather than only its result (#1353).
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Authorization`] when the field authorizer refuses a
+/// selected policy-gated field (or cannot be consulted), and
+/// [`FraiseQLError::Internal`] when a gated field's arguments cannot be read. On the
+/// gated path the caller rolls the write back on any error, whatever its variant.
+fn build_mutation_result(
+    ctx: &ExecutorContext,
+    security_ctx: Option<&SecurityContext>,
+    outcome: MutationOutcome,
+    mutation_return_type: &str,
+    is_cascade: bool,
+    selections: &[FieldSelection],
+    authz_variables: &std::collections::HashMap<String, serde_json::Value>,
+) -> Result<serde_json::Value> {
+    match outcome {
+        MutationOutcome::Success {
+            entity,
+            entity_type,
+            cascade,
+            updated_fields,
+            ..
+        } if is_cascade => {
+            // Cascade mutation: build the typed payload `{ entity, cascade,
+            // updatedFields }`, projecting + field-authorizing the primary entity
+            // and every cascade entity (findings 1, 5). The payload type is the
+            // success member of the (possibly error-union) return type; the
+            // concrete entity type is the DB-stamped `entity_type`, else the
+            // payload's `entity` field type.
+            let payload_type = resolve_payload_type(mutation_return_type, &ctx.schema);
+            let entity_type_name = entity_type
+                .or_else(|| payload_entity_type(&payload_type, &ctx.schema))
+                .unwrap_or_else(|| mutation_return_type.to_string());
+            build_cascade_payload(
+                ctx,
+                security_ctx,
+                &payload_type,
+                &entity_type_name,
+                &entity,
+                cascade.as_ref(),
+                &updated_fields,
+                selections,
+                authz_variables,
+            )
+        },
+        MutationOutcome::Success {
+            entity,
+            entity_type,
+            cascade,
+            updated_fields,
+            ..
+        } => {
+            // Resolve the concrete GraphQL type of the success entity: the
+            // mutation_response's entity_type, else the first non-error union
+            // member, else the declared return type.
+            let typename = entity_type
+                .or_else(|| {
+                    ctx.schema
+                        .find_union(mutation_return_type)
+                        .and_then(|u| {
+                            u.member_types
+                                .iter()
+                                .find(|t| ctx.schema.find_type(t).is_none_or(|td| !td.is_error))
+                        })
+                        .cloned()
+                })
+                .unwrap_or_else(|| mutation_return_type.to_string());
+
+            // Project the entity through the single canonical projector — the same
+            // snake_case source keys, surface output keys, depth-aware recursion and
+            // selection-gated __typename as the query path — so a mutation's success
+            // payload and a query over the same entity return an identical shape.
+            let mut projected = project_entity(&entity, &typename, selections, &ctx.schema);
+
+            // Enforce the dynamic field authorizer (#423) on the success entity, per
+            // the resolved concrete type, before surfacing it. Fail-closed.
+            enforce_mutation_field_authz(
+                ctx,
+                security_ctx,
+                &typename,
+                selections,
+                &entity,
+                &mut projected,
+                authz_variables,
+            )?;
+
+            // Cascade is opt-in (`cascade = true`, handled by the guarded arm
+            // above): a non-cascade mutation never surfaces cascade, even if its
+            // function returns a `cascade` JSONB. `cascade` is a typed,
+            // selection-gated payload field on cascade mutations, or nothing.
+            let _ = cascade;
+
+            // Surface `updated_fields` (the GraphQL field names this mutation
+            // changed) as `updatedFields`, selection-gated — present only when the
+            // client selects it, so a mutation that does not ask for it keeps an
+            // exact projected shape (#433). An empty list (noop) still surfaces as
+            // `[]` when selected.
+            if selections_contain_field(selections, "updatedFields") {
+                if let serde_json::Value::Object(ref mut map) = projected {
+                    map.insert(
+                        "updatedFields".to_string(),
+                        serde_json::Value::Array(
+                            updated_fields.into_iter().map(serde_json::Value::String).collect(),
+                        ),
+                    );
+                }
+            }
+
+            Ok(projected)
+        },
+        MutationOutcome::Error {
+            error_class,
+            message,
+            http_status,
+            entity_type,
+            metadata,
+        } => {
+            let status = error_class.as_str();
+
+            // Build the error projection source from the error_detail JSONB, enriched
+            // with the composite's first-class fields under snake_case keys so a
+            // declared error type can surface them as ordinary projected fields
+            // (project_entity omits any field whose source key is absent). The
+            // always-injected `status` is attached after projection, below.
+            let mut source_map = match metadata {
+                serde_json::Value::Object(map) => map,
+                _ => serde_json::Map::new(),
+            };
+            if !message.is_empty() {
+                source_map
+                    .entry("message".to_string())
+                    .or_insert_with(|| serde_json::Value::String(message));
+            }
+            if let Some(code) = http_status {
+                source_map
+                    .entry("http_status".to_string())
+                    .or_insert_with(|| serde_json::json!(code));
+            }
+            source_map
+                .entry("error_class".to_string())
+                .or_insert_with(|| serde_json::Value::String(status.to_string()));
+            let source = serde_json::Value::Object(source_map);
+
+            // Resolve the concrete error type to project — symmetric with the
+            // success arm's typename resolution (#465). The function stamps the
+            // declared error type it produced onto `entity_type`, so prefer it when
+            // it names a known `is_error` type: this routes onto the *specific*
+            // error member (e.g. `DuplicateEmailError` vs `ValidationError`) and,
+            // crucially, surfaces the declared error type even when the mutation's
+            // return type is the bare success entity rather than a union (the
+            // `Entity`-return + declared-error-types pattern, where `find_union`
+            // finds nothing and the result previously leaked the success typename).
+            // Fall back to the return union's first `is_error` member otherwise.
+            let error_type = entity_type
+                .as_deref()
+                .and_then(|name| ctx.schema.find_type(name))
+                .filter(|td| td.is_error)
+                .or_else(|| {
+                    ctx.schema.find_union(mutation_return_type).and_then(|u| {
+                        u.member_types.iter().find_map(|t| {
+                            let td = ctx.schema.find_type(t)?;
+                            if td.is_error { Some(td) } else { None }
+                        })
+                    })
+                });
+
+            // Project the error source through the same canonical projector when the
+            // schema declares a matching error type. Otherwise emit just __typename
+            // (only when selected, matching the query contract); status is attached
+            // below in both cases.
+            let mut result = if let Some(td) = error_type {
+                project_entity(&source, td.name.as_str(), selections, &ctx.schema)
+            } else {
+                let mut map = serde_json::Map::new();
+                // Scan recursively: `__typename` may be nested inside an inline
+                // fragment (`... on T { __typename }`), not just at the top level.
+                if selections_contain_field(selections, "__typename") {
+                    map.insert(
+                        "__typename".to_string(),
+                        serde_json::Value::String(mutation_return_type.to_string()),
+                    );
+                }
+                serde_json::Value::Object(map)
+            };
+
+            // Enforce the dynamic field authorizer (#423) on error metadata too, so a
+            // gated field on an error type cannot leak through the error arm.
+            if let Some(td) = error_type {
+                enforce_mutation_field_authz(
+                    ctx,
+                    security_ctx,
+                    td.name.as_str(),
+                    selections,
+                    &source,
+                    &mut result,
+                    authz_variables,
+                )?;
+            }
+
+            // Inject the synthetic `status` field — not part of the type definition,
+            // but required by clients to discriminate error outcomes.
+            if let serde_json::Value::Object(ref mut map) = result {
+                map.insert("status".to_string(), serde_json::Value::String(status.to_string()));
+            }
+
+            Ok(result)
+        },
+    }
+}
+
 pub(in super::super) async fn execute_mutation_impl(
     ctx: &Arc<ExecutorContext>,
     mutation_name: &str,
@@ -1321,7 +1539,49 @@ pub(in super::super) async fn execute_mutation_impl(
     //    unreachable, and no test ever covered it. Unreachable code inside the write
     //    chokepoint is worse than unreachable code elsewhere: it is where a reader goes to
     //    learn which gates a write faces.
-    let outcome = {
+    // Resolve everything the response shape depends on BEFORE the write. None of it
+    // reads the database — it is `mutation_def` plus the request's own variables — and
+    // computing it here means a `@skip`/`@include` expression the evaluator refuses is
+    // refused before the function runs rather than after it committed, matching every
+    // other gate in this function. It also lets the projection run inside the write's
+    // transaction below, which is what lets the field authorizer refuse the write
+    // itself (#1353) instead of only its result.
+    // Clone name and return_type to avoid borrow issues after schema lookups
+    let mutation_return_type = mutation_def.return_type.clone();
+    let response_key_owned = response_key.to_string();
+    // Whether this mutation exposes the typed cascade payload surface.
+    let is_cascade = mutation_def.cascade;
+
+    // Evaluate @skip / @include against the request variables before projecting, so
+    // conditional fields are honoured exactly as on the query path. (Named fragment
+    // spreads were already resolved at classification time, where the document's
+    // fragment definitions are available.)
+    let variables_map: std::collections::HashMap<String, serde_json::Value> = match variables {
+        Some(serde_json::Value::Object(map)) => {
+            map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+        },
+        _ => std::collections::HashMap::new(),
+    };
+    let filtered_selections = DirectiveEvaluator::filter_selections(selections, &variables_map)
+        .map_err(|e| FraiseQLError::Validation {
+            message: e.to_string(),
+            path:    Some("directives".to_string()),
+        })?;
+    let selections: &[FieldSelection] = &filtered_selections;
+
+    // Can the field authorizer refuse anything at all on this write? It is consulted
+    // only for a selected field the compiled schema marks `authorize`, so a schema
+    // that declares none cannot produce a refusal — and a write that cannot be refused
+    // does not need the transaction the gated path below takes.
+    //
+    // Deliberately asked of the whole schema rather than of this mutation's return
+    // type: the concrete entity type is stamped by the database on the row the
+    // function returns, so it is not known until after the write. Over-approximating
+    // here is the only direction that is safe. Answered from the context, which
+    // computed it once at construction — the scan is linear in the schema.
+    let may_refuse = ctx.schema_has_gated_field;
+
+    let (envelope, result_json) = {
         // 3b. Resolve session variables once and pass them to the adapter call so
         //     they are applied on the same connection / transaction as the function
         //     (fixes #329 — set_config(..., true) is transaction-local, so applying
@@ -1405,37 +1665,105 @@ pub(in super::super) async fn execute_mutation_impl(
                 // default → no extra column, byte-for-byte today's behavior.
                 .with_pre_image(mutation_def.changelog_pre_image)
         });
-        let rows = if ctx.config.dry_run_mutations {
+        // 5/6. Row → outcome → response, as one step, because on the gated path
+        //      below all of it has to happen before the transaction commits.
+        let adjudicate = |rows: &[std::collections::HashMap<String, serde_json::Value>]| {
+            let row = rows.first().ok_or_else(|| FraiseQLError::Validation {
+                message: format!("Mutation '{mutation_name}': function returned no rows"),
+                path:    None,
+            })?;
+            let outcome = parse_mutation_row(row)?;
+            // The caller needs the envelope; `build_mutation_result` consumes the
+            // outcome to build the projection.
+            let envelope = outcome.clone();
+            let result_json = build_mutation_result(
+                ctx,
+                security_ctx,
+                outcome,
+                &mutation_return_type,
+                is_cascade,
+                selections,
+                &authz_variables,
+            )?;
+            Ok::<_, FraiseQLError>((envelope, result_json))
+        };
+
+        if ctx.config.dry_run_mutations {
             // Validate-bind-without-commit (#501): run the function inside a
             // transaction the adapter rolls back, so nothing persists and no
             // outbox row is written. The `changelog` descriptor above is unused
             // on this path. PostgreSQL implements the rollback; other adapters
-            // return `Unsupported` rather than silently committing.
-            writer.execute_function_call_dry_run(sql_source, &args, &session_pairs).await?
-        } else {
+            // return `Unsupported` rather than silently committing. Nothing here
+            // needs a commit gate — the commit never comes.
+            let rows =
+                writer.execute_function_call_dry_run(sql_source, &args, &session_pairs).await?;
+            adjudicate(&rows)?
+        } else if may_refuse {
+            // #1353: the field authorizer's contract takes the resolved entity as
+            // `parent`, so it cannot be asked before the row exists. Every gate that
+            // *can* be asked earlier already runs pre-dispatch (the operation
+            // `Authorizer`, `requires_role`, `requires_actor`, `before:mutation`), so
+            // this is the one refusal that arrived too late to mean anything: the
+            // caller was refused the field and kept the side effect.
+            //
+            // So run the projection — authorizer included — inside the write's own
+            // transaction, and let its verdict decide the commit. A `Reject` or a
+            // fail-closed policy error now takes the write with it.
+            //
+            // The write commits only if adjudication completed without refusal:
+            // `adjudicate` returned `Ok`. That is not the same as every field being
+            // allowed — a `Mask` decision nulls one field on one row and returns `Ok`,
+            // because it is a statement about the value, not the operation.
+            //
+            // Any `Err` rolls back, and is returned unchanged. The variant is not
+            // consulted: a `Reject`, a policy error (already failed closed to
+            // `Authorization` by the #423 contract), unreadable gated arguments
+            // (`Internal`), an unparseable `mutation_response` or a function that
+            // returned no rows all mean the write was never adjudicated, and a write
+            // that was never adjudicated must not land while the client is told it
+            // failed.
+            let built = std::sync::OnceLock::new();
+            let gate = |rows: &[std::collections::HashMap<String, serde_json::Value>]| {
+                drop(built.set(adjudicate(rows)?));
+                Ok(())
+            };
+            // The adapter returns the gate's error verbatim once the rollback has
+            // landed — so a refusal, a failed rollback and a failed commit all surface
+            // here, and a failed rollback surfaces as itself rather than as the error
+            // it was trying to honour.
             writer
+                .execute_function_call_gated(
+                    sql_source,
+                    &args,
+                    &session_pairs,
+                    changelog.as_ref(),
+                    &gate,
+                )
+                .await?;
+            built.into_inner().ok_or_else(|| FraiseQLError::Internal {
+                message: format!(
+                    "Mutation '{mutation_name}': the commit gate never ran, so the write \
+                     committed unadjudicated"
+                ),
+                source:  None,
+            })?
+        } else {
+            // No policy-gated field anywhere in the schema, so the authorizer cannot
+            // be consulted and cannot refuse — see `may_refuse`. Keep the ungated
+            // call, which keeps `execute_function_call_with_session`'s no-session
+            // fast path (no explicit transaction) for the mutations that never needed
+            // one.
+            let rows = writer
                 .execute_function_call_with_changelog(
                     sql_source,
                     &args,
                     &session_pairs,
                     changelog.as_ref(),
                 )
-                .await?
-        };
-
-        // 5. Expect at least one row
-        let row = rows.into_iter().next().ok_or_else(|| FraiseQLError::Validation {
-            message: format!("Mutation '{mutation_name}': function returned no rows"),
-            path:    None,
-        })?;
-
-        // 6. Parse the mutation_response row
-        parse_mutation_row(&row)?
+                .await?;
+            adjudicate(&rows)?
+        }
     };
-
-    // Kept for the caller: the match below consumes `outcome` to build the
-    // projection, and a transport whose wire format is the envelope needs it.
-    let envelope = outcome.clone();
 
     // 6a. Bump fact table versions after a successful mutation.
     //
@@ -1444,7 +1772,7 @@ pub(in super::super) async fn execute_mutation_impl(
     // Success only — an Error outcome means no data was written, so caches
     // remain valid.  Non-cached adapters return Ok(()) from the default trait
     // implementation (no-op); only `CachedDatabaseAdapter` performs actual work.
-    if matches!(outcome, MutationOutcome::Success { .. })
+    if matches!(envelope, MutationOutcome::Success { .. })
         && !mutation_def.invalidates_fact_tables.is_empty()
     {
         // Through the write handle, like the dispatch above: this bumps a version row
@@ -1462,7 +1790,7 @@ pub(in super::super) async fn execute_mutation_impl(
     // than a list-vs-point classification (#741, #742, #763). Declared views,
     // the return type, the stamped entity type and cascade side-effects all
     // resolve in the same place, so no caller can reach a different answer.
-    let plan = invalidation::plan_invalidation(mutation_def, &outcome, &ctx.schema);
+    let plan = invalidation::plan_invalidation(mutation_def, &envelope, &ctx.schema);
     if !plan.views.is_empty() {
         ctx.adapter.invalidate_views(&plan.views).await?;
         if let Some(ref rc) = ctx.response_cache {
@@ -1474,223 +1802,6 @@ pub(in super::super) async fn execute_mutation_impl(
     if let Some((etype, eid)) = &plan.entity {
         ctx.adapter.invalidate_by_entity(etype, eid).await?;
     }
-
-    // Clone name and return_type to avoid borrow issues after schema lookups
-    let mutation_return_type = mutation_def.return_type.clone();
-    let response_key_owned = response_key.to_string();
-    // Whether this mutation exposes the typed cascade payload surface.
-    let is_cascade = mutation_def.cascade;
-
-    // Evaluate @skip / @include against the request variables before projecting, so
-    // conditional fields are honoured exactly as on the query path. (Named fragment
-    // spreads were already resolved at classification time, where the document's
-    // fragment definitions are available.)
-    let variables_map: std::collections::HashMap<String, serde_json::Value> = match variables {
-        Some(serde_json::Value::Object(map)) => {
-            map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
-        },
-        _ => std::collections::HashMap::new(),
-    };
-    let filtered_selections = DirectiveEvaluator::filter_selections(selections, &variables_map)
-        .map_err(|e| FraiseQLError::Validation {
-            message: e.to_string(),
-            path:    Some("directives".to_string()),
-        })?;
-    let selections: &[FieldSelection] = &filtered_selections;
-
-    let result_json = match outcome {
-        MutationOutcome::Success {
-            entity,
-            entity_type,
-            cascade,
-            updated_fields,
-            ..
-        } if is_cascade => {
-            // Cascade mutation: build the typed payload `{ entity, cascade,
-            // updatedFields }`, projecting + field-authorizing the primary entity
-            // and every cascade entity (findings 1, 5). The payload type is the
-            // success member of the (possibly error-union) return type; the
-            // concrete entity type is the DB-stamped `entity_type`, else the
-            // payload's `entity` field type.
-            let payload_type = resolve_payload_type(&mutation_return_type, &ctx.schema);
-            let entity_type_name = entity_type
-                .or_else(|| payload_entity_type(&payload_type, &ctx.schema))
-                .unwrap_or_else(|| mutation_return_type.clone());
-            build_cascade_payload(
-                ctx,
-                security_ctx,
-                &payload_type,
-                &entity_type_name,
-                &entity,
-                cascade.as_ref(),
-                &updated_fields,
-                selections,
-                &authz_variables,
-            )?
-        },
-        MutationOutcome::Success {
-            entity,
-            entity_type,
-            cascade,
-            updated_fields,
-            ..
-        } => {
-            // Resolve the concrete GraphQL type of the success entity: the
-            // mutation_response's entity_type, else the first non-error union
-            // member, else the declared return type.
-            let typename = entity_type
-                .or_else(|| {
-                    ctx.schema
-                        .find_union(&mutation_return_type)
-                        .and_then(|u| {
-                            u.member_types
-                                .iter()
-                                .find(|t| ctx.schema.find_type(t).is_none_or(|td| !td.is_error))
-                        })
-                        .cloned()
-                })
-                .unwrap_or_else(|| mutation_return_type.clone());
-
-            // Project the entity through the single canonical projector — the same
-            // snake_case source keys, surface output keys, depth-aware recursion and
-            // selection-gated __typename as the query path — so a mutation's success
-            // payload and a query over the same entity return an identical shape.
-            let mut projected = project_entity(&entity, &typename, selections, &ctx.schema);
-
-            // Enforce the dynamic field authorizer (#423) on the success entity, per
-            // the resolved concrete type, before surfacing it. Fail-closed.
-            enforce_mutation_field_authz(
-                ctx,
-                security_ctx,
-                &typename,
-                selections,
-                &entity,
-                &mut projected,
-                &authz_variables,
-            )?;
-
-            // Cascade is opt-in (`cascade = true`, handled by the guarded arm
-            // above): a non-cascade mutation never surfaces cascade, even if its
-            // function returns a `cascade` JSONB. `cascade` is a typed,
-            // selection-gated payload field on cascade mutations, or nothing.
-            let _ = cascade;
-
-            // Surface `updated_fields` (the GraphQL field names this mutation
-            // changed) as `updatedFields`, selection-gated — present only when the
-            // client selects it, so a mutation that does not ask for it keeps an
-            // exact projected shape (#433). An empty list (noop) still surfaces as
-            // `[]` when selected.
-            if selections_contain_field(selections, "updatedFields") {
-                if let serde_json::Value::Object(ref mut map) = projected {
-                    map.insert(
-                        "updatedFields".to_string(),
-                        serde_json::Value::Array(
-                            updated_fields.into_iter().map(serde_json::Value::String).collect(),
-                        ),
-                    );
-                }
-            }
-
-            projected
-        },
-        MutationOutcome::Error {
-            error_class,
-            message,
-            http_status,
-            entity_type,
-            metadata,
-        } => {
-            let status = error_class.as_str();
-
-            // Build the error projection source from the error_detail JSONB, enriched
-            // with the composite's first-class fields under snake_case keys so a
-            // declared error type can surface them as ordinary projected fields
-            // (project_entity omits any field whose source key is absent). The
-            // always-injected `status` is attached after projection, below.
-            let mut source_map = match metadata {
-                serde_json::Value::Object(map) => map,
-                _ => serde_json::Map::new(),
-            };
-            if !message.is_empty() {
-                source_map
-                    .entry("message".to_string())
-                    .or_insert_with(|| serde_json::Value::String(message));
-            }
-            if let Some(code) = http_status {
-                source_map
-                    .entry("http_status".to_string())
-                    .or_insert_with(|| serde_json::json!(code));
-            }
-            source_map
-                .entry("error_class".to_string())
-                .or_insert_with(|| serde_json::Value::String(status.to_string()));
-            let source = serde_json::Value::Object(source_map);
-
-            // Resolve the concrete error type to project — symmetric with the
-            // success arm's typename resolution (#465). The function stamps the
-            // declared error type it produced onto `entity_type`, so prefer it when
-            // it names a known `is_error` type: this routes onto the *specific*
-            // error member (e.g. `DuplicateEmailError` vs `ValidationError`) and,
-            // crucially, surfaces the declared error type even when the mutation's
-            // return type is the bare success entity rather than a union (the
-            // `Entity`-return + declared-error-types pattern, where `find_union`
-            // finds nothing and the result previously leaked the success typename).
-            // Fall back to the return union's first `is_error` member otherwise.
-            let error_type = entity_type
-                .as_deref()
-                .and_then(|name| ctx.schema.find_type(name))
-                .filter(|td| td.is_error)
-                .or_else(|| {
-                    ctx.schema.find_union(&mutation_return_type).and_then(|u| {
-                        u.member_types.iter().find_map(|t| {
-                            let td = ctx.schema.find_type(t)?;
-                            if td.is_error { Some(td) } else { None }
-                        })
-                    })
-                });
-
-            // Project the error source through the same canonical projector when the
-            // schema declares a matching error type. Otherwise emit just __typename
-            // (only when selected, matching the query contract); status is attached
-            // below in both cases.
-            let mut result = if let Some(td) = error_type {
-                project_entity(&source, td.name.as_str(), selections, &ctx.schema)
-            } else {
-                let mut map = serde_json::Map::new();
-                // Scan recursively: `__typename` may be nested inside an inline
-                // fragment (`... on T { __typename }`), not just at the top level.
-                if selections_contain_field(selections, "__typename") {
-                    map.insert(
-                        "__typename".to_string(),
-                        serde_json::Value::String(mutation_return_type.clone()),
-                    );
-                }
-                serde_json::Value::Object(map)
-            };
-
-            // Enforce the dynamic field authorizer (#423) on error metadata too, so a
-            // gated field on an error type cannot leak through the error arm.
-            if let Some(td) = error_type {
-                enforce_mutation_field_authz(
-                    ctx,
-                    security_ctx,
-                    td.name.as_str(),
-                    selections,
-                    &source,
-                    &mut result,
-                    &authz_variables,
-                )?;
-            }
-
-            // Inject the synthetic `status` field — not part of the type definition,
-            // but required by clients to discriminate error outcomes.
-            if let serde_json::Value::Object(ref mut map) = result {
-                map.insert("status".to_string(), serde_json::Value::String(status.to_string()));
-            }
-
-            result
-        },
-    };
 
     // 7. Emit structured mutation audit event when audit_mutations is enabled.
     //

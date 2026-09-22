@@ -18,6 +18,44 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A mutation the field authorizer rejects no longer happens (#1353).**
+
+  The #423 field authorizer was post-write enforcement. Its contract takes the resolved
+  entity as `parent`, so it ran on the row the SQL function had already committed: a caller
+  it rejected lost the field and **kept the side effect**. Every gate that can be asked
+  earlier already was — the operation `Authorizer` (#422), `requires_role`, `requires_actor`
+  and the `before:mutation` chain all run pre-dispatch — so this was the one refusal that
+  arrived too late to mean anything. A deployment whose only protection on a write was a
+  field-level `authorize` flag was relying on it.
+
+  The projection now runs *inside* the mutation's transaction, and the write commits only if
+  adjudication completed without refusal. `Deny { on_deny: Reject }`, and any policy error
+  (which fails closed), roll the write back — including the change-log outbox row, which is
+  written by the same CTE in the same transaction and would otherwise have been replayed by
+  every spine consumer for a write that never happened. `Deny { on_deny: Mask }` is
+  unchanged: it is a statement about the value, not the operation, so the write commits and
+  the field comes back `null`.
+
+  On a schema that declares a gated field, **every** failure to adjudicate rolls back, not
+  only a refusal: unreadable gated-field arguments (`Internal`), an unparseable
+  `mutation_response` and a function that returned no rows (both `Validation`) used to
+  commit and then fail, so the client was told the write failed while it had landed. The
+  error reported is unchanged in each case. A schema with no gated field keeps the old
+  commit-then-fail order for the last two.
+
+  **What this costs.** A mutation on a schema that declares at least one `authorize` field
+  now takes an explicit transaction, giving up the no-session fast path in
+  `execute_function_call_with_session`. A schema with no gated field cannot produce a refusal
+  and takes the unchanged path; the check that decides this is a short-circuiting scan of the
+  compiled schema, measured at well under the cost of the round-trip it guards.
+
+  **What breaks for adapter authors.** `DatabaseAdapter` gains
+  `execute_function_call_gated`, whose default returns `Unsupported`. An adapter that cannot
+  roll back must not be the one to decide a refused write is survivable, so a gated mutation
+  on such an adapter is refused rather than committed unadjudicated. `PostgresAdapter`
+  implements it and `CachedDatabaseAdapter` forwards it; a custom adapter that serves a
+  schema with `authorize` fields must implement it too.
+
 - **`RLSPolicy::evaluate` takes an `RlsTarget` instead of a name, and an unmatched target is
   now refused rather than read unfiltered (#1359).**
 

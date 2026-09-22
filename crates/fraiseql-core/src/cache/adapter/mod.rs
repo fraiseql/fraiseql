@@ -924,6 +924,23 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             .await
     }
 
+    async fn execute_function_call_gated(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+        changelog: Option<&ChangeLogWrite<'_>>,
+        gate: fraiseql_db::MutationRowGate<'_>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Pass through, like every other write. Forwarding is load-bearing here:
+        // the trait default refuses (it cannot roll back), so a cache-wrapped
+        // PostgreSQL adapter that did not forward would turn every commit-gated
+        // mutation into an `Unsupported` error rather than a gated write (#1353).
+        self.adapter
+            .execute_function_call_gated(function_name, args, session_vars, changelog, gate)
+            .await
+    }
+
     // Mutation-strategy delegation: a cache-wrapped adapter must report and use the
     fn supports_mutations(&self) -> bool {
         self.adapter.supports_mutations()

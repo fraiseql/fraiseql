@@ -107,25 +107,42 @@ and `make lint-write-selections` refuses a write path that invents one instead.
 | Path | Behaviour with a gated field |
 |------|------------------------------|
 | Authenticated query (`execute_with_security`) | **Enforced** per row |
-| Mutation (success entity + error metadata) | **Enforced** per row — but *after* the write, see below |
+| Mutation (success entity + error metadata) | **Enforced** per row — a `Reject` refuses the write, see below |
 | Unauthenticated query (`execute`) | Fail closed (no principal to authorize against) |
-| REST write (`execute_mutation_with_security`) | **Enforced** per row — *after* the write, see below |
+| REST write (`execute_mutation_with_security`) | **Enforced** per row — a `Reject` refuses the write, see below |
 | REST direct projection (read) | Fail closed |
 | Relay list / `node` lookup | Fail closed (type-level) |
 | Federation `_entities` | Fail closed (schema-level) |
 | Aggregate / window | Not applicable — these project synthetic aggregate result types, which never carry an entity's gated field |
 
-> **⚠ On a mutation, enforcement happens *after* the write (#1353).** The authorizer takes
-> the resolved entity as `parent`, so on a write it runs on the row the SQL function
-> **returned**. A caller it refuses loses the field and **keeps the side effect** — the write
-> has already happened. "Enforced" in the table above means the value is refused, not the
-> operation.
+> **On a mutation, a `Reject` refuses the write itself (#1353).** The authorizer takes the
+> resolved entity as `parent`, so on a write it can only be asked once the row exists. It is
+> therefore asked *inside the mutation's transaction*: the SQL function runs, the authorizer
+> decides from the row it returned, and the transaction commits only if adjudication
+> completed without refusal. A `Deny { on_deny: Reject }` — or any policy error, which fails
+> closed — rolls the write back, so a refused caller does not keep the side effect.
 >
-> This is not specific to any transport: it is identical on GraphQL, REST and gRPC. The gates
-> that refuse the *operation* all run before dispatch — the operation `Authorizer` (#422),
-> `requires_role`, `requires_actor` and the `before:mutation` chain. A deployment whose only
-> protection on a write is a field-level `authorize` flag is relying on the one gate that
-> cannot refuse it; pair it with one of those four.
+> `Deny { on_deny: Mask }` is a statement about the *value*, not the operation: the write
+> commits and the field comes back `null`, exactly as on a query.
+>
+> Anything else that stops the response being adjudicated rolls the write back too: gated-field
+> arguments that cannot be read, a `mutation_response` row that cannot be parsed, or a
+> function that returned no rows. The error reaches the client unchanged — `Internal` for the
+> first, `Validation` for the other two — but the write it describes did not land. On a schema
+> with no gated field these still commit and then fail, as before: nothing there can be refused,
+> so the write takes no transaction to roll back.
+>
+> This is identical on every transport — GraphQL, REST and gRPC all converge on the same
+> write chokepoint. The four gates that refuse the operation *before* it dispatches are still
+> the cheaper and broader answer, because they decide without running the function at all:
+> the operation `Authorizer` (#422), `requires_role`, `requires_actor` and the
+> `before:mutation` chain.
+>
+> **Cost.** A mutation on a schema that declares at least one `authorize` field takes an
+> explicit transaction so the decision has something to roll back — it gives up the
+> no-session fast path the ungated write keeps. A schema that declares no gated field cannot
+> produce a refusal and is not affected. Only the PostgreSQL adapter implements the gate;
+> any other adapter refuses a gated mutation outright rather than committing it unadjudicated.
 
 > **Performance note.** When a query selects a gated field, the runtime fetches the full
 > row (it skips the SQL projection hint) so the authorizer sees a complete `parent`, and it
@@ -143,13 +160,6 @@ These fail **closed** today and are tracked for a future release:
   rather than enforcing per row.
 - **SDK `@authorize_field` surface.** The compiled-schema `authorize` flag is the authoring
   contract today; richer per-SDK decorators are a follow-up.
-- **Enforcement on a mutation is post-write (#1353).** The authorizer takes the resolved
-  entity as `parent`, so on a write it runs on the row the SQL function *returned*: a caller
-  it refuses has already caused the write, and keeps the side effect while losing the field.
-  This does **not** fail closed in the "refuse the operation" sense — it fails closed on the
-  *value*. To refuse the write itself, gate it before dispatch with an operation `Authorizer`
-  ([operation-level authorization](operation-authorization.md)), `requires_role`,
-  `requires_actor`, or `[rest] require_auth`.
 
 ## See also
 

@@ -353,10 +353,15 @@ impl Executor {
         // every change-log outbox row and is too expensive to recompute per call.
         let schema_version: Arc<str> = Arc::from(schema.content_hash());
 
+        // Likewise once: the mutation runner asks this per write (#1353) and the scan
+        // is linear in the whole schema.
+        let schema_has_gated_field = schema.has_any_authorize_field();
+
         let gate1 = resolve_gate1(&config, &schema);
         let ctx = Arc::new(ExecutorContext {
             schema,
             schema_version,
+            schema_has_gated_field,
             adapter,
             writer,
             relay,

@@ -24,6 +24,22 @@ use crate::{
     where_clause::WhereClause,
 };
 
+/// Adjudicates the rows a mutation function returned, from **inside** the
+/// transaction that produced them and before it commits.
+///
+/// `Ok(())` commits the transaction; `Err(e)` rolls it back and `e` reaches the
+/// caller. See
+/// [`execute_function_call_gated`](DatabaseAdapter::execute_function_call_gated)
+/// for why a write needs a decision seam this late (#1353).
+///
+/// Synchronous by construction: the only decision taken here today is the field
+/// authorizer's, whose `authorize_field` is itself synchronous, and holding an open
+/// transaction across an arbitrary `await` would pin a pooled connection for as long
+/// as app-supplied policy code chose to take.
+pub type MutationRowGate<'a> = &'a (
+        dyn Fn(&[std::collections::HashMap<String, serde_json::Value>]) -> Result<()> + Send + Sync
+    );
+
 /// The framework-owned change-log row the mutation executor writes in-txn.
 ///
 /// Carries only the fields the adapter cannot derive from the
@@ -1129,6 +1145,50 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
                 "--dry-run mutations (validate-bind-without-commit) are only supported by the \
                       PostgreSQL adapter."
                     .to_string(),
+        })
+    }
+
+    /// Commit-gated variant of
+    /// [`execute_function_call_with_changelog`](Self::execute_function_call_with_changelog):
+    /// run the mutation function (and its outbox write) in a transaction, hand the
+    /// rows it returned to `gate`, and commit only if `gate` agrees.
+    ///
+    /// This is the seam for a decision that *cannot* be made before the write —
+    /// one keyed on the row the function produced. The field-level authorizer
+    /// (#423) is exactly that: its contract takes the resolved entity as `parent`,
+    /// so before #1353 it could only refuse the *result* of a write that had
+    /// already committed. Running it here lets it refuse the write itself.
+    ///
+    /// `gate` returning `Err` rolls the transaction back; that error is what the
+    /// caller receives. `Ok(())` commits, exactly as the ungated method would.
+    ///
+    /// Callers must reach this only when a gate can actually refuse — it always
+    /// takes an explicit transaction, so it gives up the no-session fast path that
+    /// [`execute_function_call_with_session`](Self::execute_function_call_with_session)
+    /// keeps.
+    ///
+    /// Only the PostgreSQL adapter overrides this today. The default below returns
+    /// `Unsupported` rather than committing an ungated write: an adapter that
+    /// cannot roll back must not be the one to decide that a refusal is survivable.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FraiseQLError::Unsupported` on adapters with no rollback path,
+    /// whatever `gate` returns on a refusal, or `FraiseQLError::Database` on
+    /// execution / transaction failure.
+    async fn execute_function_call_gated(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
+        _changelog: Option<&ChangeLogWrite<'_>>,
+        _gate: MutationRowGate<'_>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        Err(FraiseQLError::Unsupported {
+            message: "Commit-gated mutations (the seam that lets the field authorizer refuse \
+                      the write rather than only its result, #1353) are only supported by the \
+                      PostgreSQL adapter."
+                .to_string(),
         })
     }
 
