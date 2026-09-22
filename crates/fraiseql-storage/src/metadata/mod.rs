@@ -102,6 +102,17 @@ impl StorageMetadataRepo {
         Self { pool }
     }
 
+    /// The backing pool, for tests that must reach the bound database directly.
+    ///
+    /// Test-only: a second `fraiseql_test_support::postgres()` call is NOT a second
+    /// connection to the same database. Under `local-testcontainers` every call spawns
+    /// a fresh container, so a test that re-resolves the service lands on a database
+    /// where the migration has never run.
+    #[cfg(test)]
+    pub(crate) const fn pool(&self) -> &PgPool {
+        &self.pool
+    }
+
     /// Insert a new object metadata row, returning the generated primary key.
     ///
     /// # Errors
