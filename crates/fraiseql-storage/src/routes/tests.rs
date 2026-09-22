@@ -1619,11 +1619,14 @@ async fn expired_session_is_gone_and_reaped() {
     let location = tus_create(&a, "docs", "stale.bin", 10).await;
 
     // Force the deadline into the past (the TTL itself is config, not clock)
-    // through a second connection to the same bound database.
-    let svc = fraiseql_test_support::postgres().await.expect("postgres");
-    let admin = sqlx::PgPool::connect(svc.url()).await.unwrap();
+    // through the pool already bound to this test's database.
+    //
+    // Re-resolving the service here would NOT be "a second connection to the same
+    // database": `fraiseql_test_support::postgres()` does not cache, so under
+    // `local-testcontainers` each call spawns a fresh container and this UPDATE
+    // landed on a database where the migration had never run (42P01).
     sqlx::query("UPDATE _fraiseql_storage_uploads SET expires_at = now() - interval '1 hour'")
-        .execute(&admin)
+        .execute(state.metadata.pool())
         .await
         .unwrap();
 
