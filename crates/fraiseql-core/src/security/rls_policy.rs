@@ -39,6 +39,84 @@ use crate::{
     utils::clock::{Clock, SystemClock},
 };
 
+/// What a read is being performed against, for [`RLSPolicy::evaluate()`].
+///
+/// # Why this is a struct and not a name
+///
+/// `evaluate` used to take a single `&str` documented as `type_name`. No runtime
+/// caller passed a type name: five passed the query name and two passed a table
+/// name (#1359). A policy could not be written to satisfy all three, and a key
+/// that matched nothing was not an error — `CompiledRLSPolicy` fell through to
+/// its default rule, and with no default rule returned `Ok(None)`, meaning **no
+/// filter at all**. A row-level security control that was configured, consulted,
+/// and silently not in force.
+///
+/// Naming each part separately makes the question unambiguous, and changing the
+/// signature breaks every implementation at compile time — which for a security
+/// trait is the failure mode to prefer, because no deployment is silently rekeyed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RlsTarget<'a> {
+    /// The root field being executed. Always known.
+    pub query:     &'a str,
+    /// The GraphQL type the read returns, when the caller knows it.
+    ///
+    /// `None` on the aggregate paths, which resolve a fact table rather than a
+    /// type.
+    pub type_name: Option<&'a str>,
+    /// The physical table or view the read resolves to, when the caller knows it.
+    ///
+    /// `None` on the ordinary query paths, which resolve a SQL source later.
+    pub table:     Option<&'a str>,
+}
+
+impl<'a> RlsTarget<'a> {
+    /// A read of `query` returning `type_name`. The ordinary query paths.
+    #[must_use]
+    pub const fn query(query: &'a str, type_name: &'a str) -> Self {
+        Self {
+            query,
+            type_name: Some(type_name),
+            table: None,
+        }
+    }
+
+    /// A read of `query` resolved against fact table `table`. The aggregate paths.
+    #[must_use]
+    pub const fn fact_table(query: &'a str, table: &'a str) -> Self {
+        Self {
+            query,
+            type_name: None,
+            table: Some(table),
+        }
+    }
+
+    /// The keys this target may be looked up under, most specific first.
+    ///
+    /// Order is deliberate: the type name is the key the trait always documented,
+    /// the table is what the aggregate paths keyed on after #795, and the query
+    /// name is what every other caller keyed on in practice. Trying all three
+    /// means an existing deployment keeps resolving whichever key it already used.
+    pub fn keys(&self) -> impl Iterator<Item = &'a str> + '_ {
+        self.type_name.into_iter().chain(self.table).chain(std::iter::once(self.query))
+    }
+}
+
+/// What [`CompiledRLSPolicy`] does when no rule matches a target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
+pub enum UnmatchedTarget {
+    /// Refuse the read with an [`Authorization`](fraiseql_error::FraiseQLError::Authorization)
+    /// error naming the target and the keys tried.
+    ///
+    /// The default, because the alternative is a filter that silently does not apply.
+    #[default]
+    Deny,
+    /// Return `Ok(None)` — no filter, full access.
+    ///
+    /// The pre-#1359 behaviour. Only choose this when unpolicied reads are
+    /// genuinely intended to be unrestricted.
+    Allow,
+}
+
 /// A WHERE clause that has been evaluated by an RLS policy.
 ///
 /// This type is a compile-time guarantee that the WHERE clause was produced
@@ -60,9 +138,10 @@ use crate::{
 /// // The executor receives an RlsWhereClause after evaluating the policy.
 /// // It cannot construct one directly — that would be a compile error.
 /// # use fraiseql_core::security::{RLSPolicy, DefaultRLSPolicy, SecurityContext};
+/// # use fraiseql_core::security::rls_policy::RlsTarget;
 /// # let context: SecurityContext = panic!("example");
 /// let rls = DefaultRLSPolicy::new();
-/// let rls_clause = rls.evaluate(&context, "Post").unwrap();
+/// let rls_clause = rls.evaluate(&context, &RlsTarget::query("posts", "Post")).unwrap();
 /// // rls_clause is Option<RlsWhereClause> — proven to have gone through RLS
 /// ```
 #[derive(Debug, Clone, PartialEq)]
@@ -115,12 +194,15 @@ pub(crate) struct CacheEntry {
 ///
 /// The executor composes this with user-provided filters via `WhereClause::And()`.
 pub trait RLSPolicy: Send + Sync {
-    /// Evaluate RLS rules for the given type and security context.
+    /// Evaluate RLS rules for the given target and security context.
     ///
     /// # Arguments
     ///
     /// * `context` - Security context with user information and permissions
-    /// * `type_name` - GraphQL type name being accessed (e.g., "Post", "User")
+    /// * `target` - What is being read: see [`RlsTarget`]. It names the query, and the return type
+    ///   or fact table where the caller knows them. It is a struct rather than a single name
+    ///   because the callers disagreed about which name they were passing, and a mismatched key
+    ///   filtered nothing (#1359).
     ///
     /// # Returns
     ///
@@ -128,25 +210,34 @@ pub trait RLSPolicy: Send + Sync {
     /// - `Ok(None)`: No RLS filter (full access)
     /// - `Err(e)`: Policy evaluation error (access denied)
     ///
+    /// # Implementing this trait
+    ///
+    /// An implementation that recognises none of the target's names must not
+    /// return `Ok(None)`: that is full access, and it is indistinguishable from a
+    /// deliberate decision not to filter. Refuse instead, or opt in explicitly —
+    /// [`CompiledRLSPolicy`] takes [`UnmatchedTarget`] for exactly this choice.
+    ///
     /// # Example
     ///
     /// ```no_run
     /// // Requires: a SecurityContext built from authenticated request metadata.
     /// // See: tests/integration/ for runnable examples.
     /// # use fraiseql_core::security::{RLSPolicy, DefaultRLSPolicy, SecurityContext};
+    /// # use fraiseql_core::security::rls_policy::RlsTarget;
     /// # let context: SecurityContext = panic!("example");
     /// let rls = DefaultRLSPolicy::new();
     /// // filter is Some(RlsWhereClause) wrapping the evaluated WhereClause
-    /// let filter = rls.evaluate(&context, "Post").unwrap();
+    /// let filter = rls.evaluate(&context, &RlsTarget::query("posts", "Post")).unwrap();
     /// ```
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError` if the RLS policy evaluation fails.
+    /// Returns `FraiseQLError` if the RLS policy evaluation fails, or if the
+    /// implementation refuses an unrecognised target.
     fn evaluate(
         &self,
         context: &SecurityContext,
-        type_name: &str,
+        target: &RlsTarget<'_>,
     ) -> Result<Option<RlsWhereClause>>;
 
     /// Optional: Cache RLS decisions for performance.
@@ -224,7 +315,7 @@ impl RLSPolicy for DefaultRLSPolicy {
     fn evaluate(
         &self,
         context: &SecurityContext,
-        _type_name: &str,
+        _target: &RlsTarget<'_>,
     ) -> Result<Option<RlsWhereClause>> {
         // Admins bypass RLS
         if context.is_admin() {
@@ -270,7 +361,7 @@ impl RLSPolicy for NoRLSPolicy {
     fn evaluate(
         &self,
         _context: &SecurityContext,
-        _type_name: &str,
+        _target: &RlsTarget<'_>,
     ) -> Result<Option<RlsWhereClause>> {
         Ok(None)
     }
@@ -292,6 +383,13 @@ pub struct CompiledRLSPolicy {
     pub rules_by_type: std::collections::HashMap<String, Vec<RLSRule>>,
     /// Default RLS rule if no type-specific rule exists
     pub default_rule:  Option<RLSRule>,
+    /// What to do when no rule matches and there is no default rule.
+    ///
+    /// Defaults to [`UnmatchedTarget::Deny`]. Before #1359 this case returned
+    /// `Ok(None)` — no filter — so a policy keyed on names the callers never
+    /// passed was consulted on every read and silently applied nothing.
+    #[serde(default)]
+    pub on_unmatched:  UnmatchedTarget,
     /// Cache for policy evaluation results (not serialized)
     #[serde(skip)]
     pub(crate) cache:  Arc<parking_lot::RwLock<std::collections::HashMap<String, CacheEntry>>>,
@@ -308,6 +406,7 @@ impl std::fmt::Debug for CompiledRLSPolicy {
         f.debug_struct("CompiledRLSPolicy")
             .field("rules_by_type", &self.rules_by_type)
             .field("default_rule", &self.default_rule)
+            .field("on_unmatched", &self.on_unmatched)
             .field("cache", &"<cached>")
             .field("clock", &"<clock>")
             .finish()
@@ -316,6 +415,10 @@ impl std::fmt::Debug for CompiledRLSPolicy {
 
 impl CompiledRLSPolicy {
     /// Create a new compiled RLS policy with caching enabled.
+    ///
+    /// Unmatched targets are refused ([`UnmatchedTarget::Deny`]). Use
+    /// [`Self::with_unmatched`] to opt into the pre-#1359 behaviour of treating
+    /// them as unrestricted.
     #[must_use]
     pub fn new(
         rules_by_type: std::collections::HashMap<String, Vec<RLSRule>>,
@@ -333,9 +436,17 @@ impl CompiledRLSPolicy {
         Self {
             rules_by_type,
             default_rule,
+            on_unmatched: UnmatchedTarget::Deny,
             cache: Arc::new(parking_lot::RwLock::new(std::collections::HashMap::new())),
             clock,
         }
+    }
+
+    /// Choose what happens when no rule matches a target and no default rule is set.
+    #[must_use]
+    pub const fn with_unmatched(mut self, on_unmatched: UnmatchedTarget) -> Self {
+        self.on_unmatched = on_unmatched;
+        self
     }
 }
 
@@ -356,21 +467,47 @@ impl RLSPolicy for CompiledRLSPolicy {
     fn evaluate(
         &self,
         context: &SecurityContext,
-        type_name: &str,
+        target: &RlsTarget<'_>,
     ) -> Result<Option<RlsWhereClause>> {
         // Admins bypass all RLS (never cache admin access)
         if context.is_admin() {
             return Ok(None);
         }
 
-        // Find rule for type or use default
-        let rule = self
-            .rules_by_type
-            .get(type_name)
-            .and_then(|rules| rules.first())
-            .or(self.default_rule.as_ref());
+        // Try every name the target carries, most specific first, so a policy keyed
+        // the way any existing deployment keyed it still resolves. `matched_key` is
+        // kept because it is what the cache is keyed on: caching under a different
+        // name than the one that selected the rule would serve one type's filter to
+        // another.
+        let matched = target.keys().find_map(|key| {
+            self.rules_by_type.get(key).and_then(|r| r.first()).map(|rule| (key, rule))
+        });
 
-        if let Some(rule) = rule {
+        let (matched_key, rule) = match matched {
+            Some(found) => found,
+            None => match self.default_rule.as_ref() {
+                Some(rule) => (target.query, rule),
+                // No rule and no default. Returning Ok(None) here is what made a
+                // mis-keyed policy invisible (#1359): full access, no error, no log.
+                None => {
+                    return match self.on_unmatched {
+                        UnmatchedTarget::Allow => Ok(None),
+                        UnmatchedTarget::Deny => Err(FraiseQLError::Authorization {
+                            message:  format!(
+                                "no RLS rule matches this read, and the policy has no default \
+                                 rule; refusing rather than reading unfiltered (tried {})",
+                                target.keys().collect::<Vec<_>>().join(", ")
+                            ),
+                            action:   Some("read".to_string()),
+                            resource: Some(target.query.to_string()),
+                        }),
+                    };
+                },
+            },
+        };
+
+        {
+            let type_name = matched_key;
             // Check cache for cacheable rules
             let cache_key = if rule.cacheable {
                 Some(format!("{}:{}", context.user_id, type_name))
@@ -407,8 +544,6 @@ impl RLSPolicy for CompiledRLSPolicy {
             }
 
             Ok(result.map(RlsWhereClause::new))
-        } else {
-            Ok(None)
         }
     }
 

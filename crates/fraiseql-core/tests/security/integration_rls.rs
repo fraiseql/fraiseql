@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use fraiseql_core::{
     db::WhereClause,
     runtime::RuntimeConfig,
-    security::{DefaultRLSPolicy, RLSPolicy, SecurityContext},
+    security::{DefaultRLSPolicy, RLSPolicy, SecurityContext, rls_policy::RlsTarget},
 };
 
 /// Test that non-admin users are filtered by RLS policy
@@ -38,7 +38,7 @@ fn test_rls_policy_evaluates_correctly_for_non_admins() {
         display_name:     None,
     };
 
-    let admin_result = policy.evaluate(&admin_context, "Post").unwrap();
+    let admin_result = policy.evaluate(&admin_context, &RlsTarget::query("posts", "Post")).unwrap();
     assert_eq!(admin_result, None, "Admin users should bypass RLS");
 
     // Non-admin user should have RLS filter applied
@@ -58,7 +58,7 @@ fn test_rls_policy_evaluates_correctly_for_non_admins() {
         display_name:     None,
     };
 
-    let user_result = policy.evaluate(&user_context, "Post").unwrap();
+    let user_result = policy.evaluate(&user_context, &RlsTarget::query("posts", "Post")).unwrap();
     assert!(user_result.is_some(), "Non-admin users should have RLS filter");
 
     // Verify filter is a WHERE clause on author_id == user_id
@@ -102,7 +102,7 @@ fn test_rls_policy_enforces_multi_tenant_isolation() {
         display_name:     None,
     };
 
-    let result = policy.evaluate(&tenant1_context, "Post").unwrap();
+    let result = policy.evaluate(&tenant1_context, &RlsTarget::query("posts", "Post")).unwrap();
     assert!(result.is_some(), "Multi-tenant context should have RLS filter");
 
     // Result should be AND of both tenant_id and author_id filters
@@ -139,7 +139,7 @@ fn test_rls_allows_access_when_no_policy_matches() {
     };
 
     // Any type should get a filter (not None)
-    let result = policy.evaluate(&context, "UnknownType").unwrap();
+    let result = policy.evaluate(&context, &RlsTarget::query("unknowns", "UnknownType")).unwrap();
     assert!(result.is_some(), "RLS should apply standard filters even for unknown types");
 }
 
@@ -245,7 +245,7 @@ fn test_rls_policy_produces_correct_where_clauses() {
         display_name:     None,
     };
 
-    let result = policy.evaluate(&user_context, "Post").unwrap();
+    let result = policy.evaluate(&user_context, &RlsTarget::query("posts", "Post")).unwrap();
 
     // Should have a WHERE clause
     assert!(result.is_some(), "Non-admin should have WHERE filter");
@@ -287,7 +287,7 @@ fn test_rls_compose_with_tenant_and_owner_filters() {
         display_name:     None,
     };
 
-    let result = policy.evaluate(&user_context, "Post").unwrap();
+    let result = policy.evaluate(&user_context, &RlsTarget::query("posts", "Post")).unwrap();
 
     assert!(result.is_some(), "Multi-tenant user should have WHERE filter");
 

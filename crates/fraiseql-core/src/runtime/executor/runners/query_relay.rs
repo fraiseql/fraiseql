@@ -19,7 +19,7 @@ use crate::{
     graphql::FieldSelection,
     runtime::ResultProjector,
     schema::SqlProjectionHint,
-    security::{RlsWhereClause, SecurityContext},
+    security::{RlsWhereClause, SecurityContext, rls_policy::RlsTarget},
 };
 
 impl QueryRunner {
@@ -122,7 +122,8 @@ impl QueryRunner {
         // Evaluate RLS policy to generate security WHERE clause.
         let rls_where_clause: Option<RlsWhereClause> =
             match (&self.ctx.config.rls_policy, security_context) {
-                (Some(rls_policy), Some(ctx)) => rls_policy.evaluate(ctx, &query_def.name)?,
+                (Some(rls_policy), Some(ctx)) => rls_policy
+                    .evaluate(ctx, &RlsTarget::query(&query_def.name, &query_def.return_type))?,
                 (Some(_), None) => {
                     // Fail closed: an RLS-protected deployment must not serve a relay page to an
                     // anonymous caller. Previously this fell through to `None` (no RLS clause),
@@ -536,7 +537,9 @@ impl QueryRunner {
         let security_where: Option<WhereClause> = match security_context {
             Some(sc) => {
                 let rls = if let Some(ref rls_policy) = self.ctx.config.rls_policy {
-                    rls_policy.evaluate(sc, &node_qdef.name)?.map(RlsWhereClause::into_where_clause)
+                    rls_policy
+                        .evaluate(sc, &RlsTarget::query(&node_qdef.name, &node_qdef.return_type))?
+                        .map(RlsWhereClause::into_where_clause)
                 } else {
                     None
                 };

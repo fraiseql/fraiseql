@@ -26,6 +26,7 @@ use crate::{
     security::{
         RlsWhereClause, SecurityContext,
         authorizer::{OperationKind, enforce_authz},
+        rls_policy::RlsTarget,
     },
 };
 
@@ -467,14 +468,18 @@ impl QueryRunner {
         // 4. Evaluate RLS policy and build WHERE clause filter. The return type is
         //    Option<RlsWhereClause> — a compile-time proof that the clause passed through RLS
         //    evaluation.
-        let rls_where_clause: Option<RlsWhereClause> =
-            if let Some(ref rls_policy) = self.ctx.config.rls_policy {
-                // Evaluate RLS policy with user's security context
-                rls_policy.evaluate(security_context, &query_match.query_def.name)?
-            } else {
-                // No RLS policy configured, allow all access
-                None
-            };
+        let rls_where_clause: Option<RlsWhereClause> = if let Some(ref rls_policy) =
+            self.ctx.config.rls_policy
+        {
+            // Evaluate RLS policy with user's security context
+            rls_policy.evaluate(
+                security_context,
+                &RlsTarget::query(&query_match.query_def.name, &query_match.query_def.return_type),
+            )?
+        } else {
+            // No RLS policy configured, allow all access
+            None
+        };
 
         // 5. Get SQL source from query definition
         let sql_source =
@@ -1427,9 +1432,13 @@ impl QueryRunner {
         // posture as the relay and node runners.
         let rls_where_clause: Option<RlsWhereClause> =
             match (&self.ctx.config.rls_policy, security_context) {
-                (Some(rls_policy), Some(ctx)) => {
-                    rls_policy.evaluate(ctx, &query_match.query_def.name)?
-                },
+                (Some(rls_policy), Some(ctx)) => rls_policy.evaluate(
+                    ctx,
+                    &RlsTarget::query(
+                        &query_match.query_def.name,
+                        &query_match.query_def.return_type,
+                    ),
+                )?,
                 (Some(_), None) => {
                     return Err(FraiseQLError::Validation {
                         message: format!(
@@ -1816,9 +1825,13 @@ impl QueryRunner {
         //    principal — the count must not disagree with the (equally refused) body it describes.
         let rls_where_clause: Option<RlsWhereClause> =
             match (&self.ctx.config.rls_policy, security_context) {
-                (Some(rls_policy), Some(ctx)) => {
-                    rls_policy.evaluate(ctx, &query_match.query_def.name)?
-                },
+                (Some(rls_policy), Some(ctx)) => rls_policy.evaluate(
+                    ctx,
+                    &RlsTarget::query(
+                        &query_match.query_def.name,
+                        &query_match.query_def.return_type,
+                    ),
+                )?,
                 (Some(_), None) => {
                     return Err(FraiseQLError::Validation {
                         message: format!(

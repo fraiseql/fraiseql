@@ -18,6 +18,33 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`RLSPolicy::evaluate` takes an `RlsTarget` instead of a name, and an unmatched target is
+  now refused rather than read unfiltered (#1359).**
+
+  ⚠ **If you implement `RLSPolicy`, this is a compile error until you update it — deliberately.**
+  The parameter was declared `type_name` and documented as one, but no runtime caller passed a
+  type: five passed the query name and two passed a fact table. A policy could not be written to
+  satisfy all three, and `CompiledRLSPolicy` treated a key that matched nothing as no error —
+  with no default rule it returned `Ok(None)`, meaning **no filter at all**. A row-level security
+  control could be configured, consulted on every read, and silently not in force.
+
+  Of the three ways to resolve the disagreement, keying on the query name or on the type name
+  would both have rekeyed existing policies **silently, in the fail-open direction**. Replacing
+  the parameter breaks every implementation loudly instead, which for a security trait is the
+  failure mode to prefer.
+
+  **Migration.** Take `target: &RlsTarget<'_>` and read `target.type_name`, `target.table` or
+  `target.query` as your rules require. `CompiledRLSPolicy` needs no rule changes: it tries the
+  type name, then the table, then the query name, so whichever of the three your `rules_by_type`
+  was keyed by still resolves.
+
+  **The second half is a behaviour change with no compile error.** A target matching no rule,
+  in a policy with no default rule, now returns an `Authorization` error naming what was tried.
+  Previously it read unfiltered. If unpolicied reads are genuinely meant to be unrestricted,
+  say so: `CompiledRLSPolicy::new(rules, None).with_unmatched(UnmatchedTarget::Allow)`. Reads
+  that were quietly returning unfiltered rows will now fail — that is the point, and it is worth
+  checking before upgrading rather than after.
+
 - **An enum value that is not one of the enum's members is now refused, on every path
   (#1362).**
 

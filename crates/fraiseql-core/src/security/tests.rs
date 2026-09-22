@@ -2867,6 +2867,135 @@ mod rls_policy_tests {
         CompiledRLSPolicy::new_with_clock(rules_by_type, None, clock)
     }
 
+    // ── #1359: an unmatched target must not read unfiltered ──────────────────
+    //
+    // The defect these pin: `evaluate` took one `&str` documented as a type name,
+    // five callers passed a query name and two a table name, and a key that matched
+    // nothing returned `Ok(None)` — no filter. The policy was configured, consulted,
+    // and silently not in force. A refusal-only test cannot catch that, so each of
+    // these asserts the negative case as well as the positive one.
+
+    use crate::security::rls_policy::{RlsTarget, UnmatchedTarget};
+
+    #[test]
+    fn unmatched_target_is_refused_rather_than_read_unfiltered() {
+        // `policy_with_rule` keys its only rule under "Post" with no default rule —
+        // the exact shape that used to fail open.
+        let policy = policy_with_rule(cacheable_owner_rule());
+        let context = make_context("user1", vec!["viewer"], None);
+
+        let result = policy.evaluate(&context, &RlsTarget::query("widgets", "Widget"));
+
+        let err = result.expect_err(
+            "a target matching no rule must be refused; Ok(None) is full access and is \
+             indistinguishable from a deliberate decision not to filter",
+        );
+        let msg = err.to_string();
+        // The message has to name what was tried, or the operator cannot tell a
+        // mis-keyed policy from a genuinely unpolicied read.
+        assert!(msg.contains("Widget"), "error must name the type tried: {msg}");
+        assert!(msg.contains("widgets"), "error must name the query tried: {msg}");
+    }
+
+    #[test]
+    fn unmatched_target_reads_unfiltered_only_when_explicitly_allowed() {
+        // The pre-#1359 behaviour remains reachable, but only by asking for it.
+        let policy =
+            policy_with_rule(cacheable_owner_rule()).with_unmatched(UnmatchedTarget::Allow);
+        let context = make_context("user1", vec!["viewer"], None);
+
+        let result = policy
+            .evaluate(&context, &RlsTarget::query("widgets", "Widget"))
+            .expect("Allow must not error");
+
+        assert!(result.is_none(), "UnmatchedTarget::Allow means no filter");
+    }
+
+    #[test]
+    fn deny_is_the_default_for_a_policy_built_by_new() {
+        // Kills a mutation that flips the default: if `new` produced Allow, the
+        // refusal test above would pass for the wrong reason on a later refactor.
+        let policy = policy_with_rule(cacheable_owner_rule());
+        assert_eq!(
+            policy.on_unmatched,
+            UnmatchedTarget::Deny,
+            "an unmatched read must fail closed unless the embedder opts out",
+        );
+    }
+
+    #[test]
+    fn a_default_rule_still_answers_for_an_unmatched_target() {
+        // Deny applies only when there is nothing at all to apply — a policy with a
+        // default rule keeps its previous behaviour.
+        let mut rules_by_type = std::collections::HashMap::new();
+        rules_by_type.insert("Post".to_string(), vec![cacheable_owner_rule()]);
+        let policy = CompiledRLSPolicy::new(rules_by_type, Some(cacheable_owner_rule()));
+        let context = make_context("user1", vec!["viewer"], None);
+
+        let result = policy
+            .evaluate(&context, &RlsTarget::query("widgets", "Widget"))
+            .expect("a default rule must still apply");
+
+        assert!(result.is_some(), "the default rule must produce a filter");
+    }
+
+    #[test]
+    fn a_rule_resolves_under_whichever_name_the_deployment_keyed_it_by() {
+        // The three kinds of key that were in use across the seven call sites. All
+        // three must resolve, or upgrading silently unfilters one transport.
+        let context = make_context("user1", vec!["viewer"], None);
+
+        for (key, target, kind) in [
+            ("Post", RlsTarget::query("posts", "Post"), "type name"),
+            ("posts", RlsTarget::query("posts", "Post"), "query name"),
+            ("tb_post", RlsTarget::fact_table("postStats", "tb_post"), "table name"),
+        ] {
+            let mut rules_by_type = std::collections::HashMap::new();
+            rules_by_type.insert(key.to_string(), vec![cacheable_owner_rule()]);
+            let policy = CompiledRLSPolicy::new(rules_by_type, None);
+
+            let result = policy
+                .evaluate(&context, &target)
+                .unwrap_or_else(|e| panic!("a policy keyed by {kind} must resolve: {e}"));
+
+            assert!(result.is_some(), "a policy keyed by {kind} must produce its filter");
+        }
+    }
+
+    #[test]
+    fn the_cache_is_keyed_by_the_name_that_selected_the_rule() {
+        // Two targets that resolve different rules must not share a cache entry.
+        // Keying the cache on the query name while the type name selected the rule
+        // would serve one type's filter for another.
+        let mut rules_by_type = std::collections::HashMap::new();
+        rules_by_type.insert("Post".to_string(), vec![cacheable_owner_rule()]);
+        rules_by_type.insert(
+            "Comment".to_string(),
+            vec![RLSRule {
+                name:              "tenant_only".to_string(),
+                expression:        "user.tenant_id == object.tenant_id".to_string(),
+                cacheable:         true,
+                cache_ttl_seconds: Some(300),
+            }],
+        );
+        let policy = CompiledRLSPolicy::new(rules_by_type, None);
+        let context = make_context("user1", vec!["viewer"], Some("org42"));
+
+        // Same query name, different types — the shape that would collide.
+        let post = policy
+            .evaluate(&context, &RlsTarget::query("feed", "Post"))
+            .expect("Post must resolve");
+        let comment = policy
+            .evaluate(&context, &RlsTarget::query("feed", "Comment"))
+            .expect("Comment must resolve");
+
+        assert_ne!(
+            format!("{post:?}"),
+            format!("{comment:?}"),
+            "two types sharing a query name must not share a cached filter",
+        );
+    }
+
     // ── DefaultRLSPolicy ─────────────────────────────────────────────────────
 
     #[test]
@@ -2879,7 +3008,10 @@ mod rls_policy_tests {
 
         // Verify the custom field name appears in the generated WHERE clause
         let context = make_context("user1", vec!["viewer"], Some("org42"));
-        let result = policy.evaluate(&context, "Post").unwrap().unwrap();
+        let result = policy
+            .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
+            .unwrap()
+            .unwrap();
         let sql = format!("{:?}", result.into_where_clause());
         assert!(sql.contains("org_id"), "custom tenant field must appear in WHERE clause: {sql}");
         assert!(!sql.contains("\"tenant_id\""), "default field name must not appear: {sql}");
@@ -2894,7 +3026,10 @@ mod rls_policy_tests {
 
         // Verify the custom field appears in the generated WHERE clause
         let context = make_context("user1", vec!["viewer"], None);
-        let result = policy.evaluate(&context, "Post").unwrap().unwrap();
+        let result = policy
+            .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
+            .unwrap()
+            .unwrap();
         let sql = format!("{:?}", result.into_where_clause());
         assert!(
             sql.contains("creator_id"),
@@ -2907,7 +3042,9 @@ mod rls_policy_tests {
     fn test_default_rls_policy_admin_bypass() {
         let policy = DefaultRLSPolicy::new();
         let context = make_context("user123", vec!["admin"], Some("tenant1"));
-        let result = policy.evaluate(&context, "Post").unwrap();
+        let result = policy
+            .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
+            .unwrap();
         assert_eq!(result, None, "Admins should bypass RLS");
     }
 
@@ -2915,7 +3052,9 @@ mod rls_policy_tests {
     fn test_default_rls_policy_tenant_isolation() {
         let policy = DefaultRLSPolicy::new();
         let context = make_context("user123", vec!["user"], Some("tenant1"));
-        let result = policy.evaluate(&context, "Post").unwrap();
+        let result = policy
+            .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
+            .unwrap();
         assert!(result.is_some(), "Non-admin users should have RLS filter applied");
     }
 
@@ -2923,7 +3062,9 @@ mod rls_policy_tests {
     fn test_no_rls_policy() {
         let policy = NoRLSPolicy;
         let context = make_context("user123", vec![], None);
-        let result = policy.evaluate(&context, "Post").unwrap();
+        let result = policy
+            .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
+            .unwrap();
         assert_eq!(result, None, "NoRLSPolicy should never apply filters");
     }
 
@@ -2941,7 +3082,9 @@ mod rls_policy_tests {
         let context = make_context("user1", vec!["viewer"], Some("t1"));
 
         // First evaluation populates cache
-        policy.evaluate(&context, "Post").unwrap();
+        policy
+            .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
+            .unwrap();
 
         let cache = policy.cache.read();
         let entry =
@@ -2962,7 +3105,9 @@ mod rls_policy_tests {
         let context = make_context("user1", vec!["viewer"], Some("t1"));
 
         // Populate cache at T
-        policy.evaluate(&context, "Post").unwrap();
+        policy
+            .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
+            .unwrap();
         let first_expires_at = policy.cache.read().get("user1:Post").unwrap().expires_at;
         assert_eq!(first_expires_at, t0 + 300);
 
@@ -2970,7 +3115,9 @@ mod rls_policy_tests {
         clock.advance(std::time::Duration::from_secs(299));
 
         // Should hit cache, NOT re-calculate expiry
-        policy.evaluate(&context, "Post").unwrap();
+        policy
+            .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
+            .unwrap();
         let second_expires_at = policy.cache.read().get("user1:Post").unwrap().expires_at;
         assert_eq!(
             second_expires_at, first_expires_at,
@@ -2990,13 +3137,17 @@ mod rls_policy_tests {
         let context = make_context("user1", vec!["viewer"], Some("t1"));
 
         // Populate cache at T → expires_at = T+300
-        policy.evaluate(&context, "Post").unwrap();
+        policy
+            .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
+            .unwrap();
 
         // Advance 301 seconds — clearly past expiry
         clock.advance(std::time::Duration::from_secs(301));
 
         // Cache miss: re-evaluates and re-caches with new expiry = (T+301)+300 = T+601
-        policy.evaluate(&context, "Post").unwrap();
+        policy
+            .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
+            .unwrap();
         let new_expires = policy.cache.read().get("user1:Post").unwrap().expires_at;
         assert_eq!(
             new_expires,
@@ -3017,14 +3168,18 @@ mod rls_policy_tests {
         let context = make_context("user1", vec!["viewer"], Some("t1"));
 
         // Populate cache at T → expires_at = T+300
-        policy.evaluate(&context, "Post").unwrap();
+        policy
+            .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
+            .unwrap();
 
         // Advance to EXACTLY the expiry second
         clock.advance(std::time::Duration::from_mins(5));
         assert_eq!(clock.now_secs(), t0 + 300);
 
         // At exactly expires_at, the entry must be considered expired (now < expires_at is false)
-        policy.evaluate(&context, "Post").unwrap();
+        policy
+            .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
+            .unwrap();
         let refreshed_expires = policy.cache.read().get("user1:Post").unwrap().expires_at;
         assert_eq!(
             refreshed_expires,
@@ -3181,7 +3336,9 @@ mod rls_policy_tests {
         });
 
         let context = make_context("specific_user_42", vec!["viewer"], None);
-        let result = policy.evaluate(&context, "Post").unwrap();
+        let result = policy
+            .evaluate(&context, &crate::security::rls_policy::RlsTarget::query("posts", "Post"))
+            .unwrap();
 
         let clause = result.expect("non-admin user must receive an RLS filter").into_where_clause();
         match clause {

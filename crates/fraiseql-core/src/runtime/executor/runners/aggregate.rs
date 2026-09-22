@@ -7,7 +7,7 @@ use crate::{
     backend::WhereClause,
     error::{FraiseQLError, Result},
     runtime::suggest_similar,
-    security::{RlsWhereClause, SecurityContext},
+    security::{RlsWhereClause, SecurityContext, rls_policy::RlsTarget},
 };
 
 /// Runner for aggregate and window analytics queries.
@@ -203,17 +203,18 @@ impl AggregateRunner {
         // 1b. Evaluate RLS policy and compose with user-supplied WHERE.
         //     RLS WHERE is always AND-composed first so it cannot be bypassed.
         if let Some(ctx) = security_context {
-            let rls_where: Option<RlsWhereClause> =
-                if let Some(ref policy) = self.ctx.config.rls_policy {
-                    // SECURITY (#795): look the policy up by the fact table the root field
-                    // resolved, never the client's `table` key. This runs *before* the
-                    // planner's reconciliation check, so it must be correct on its own:
-                    // an unpolicied name returns `None`, which composed no WHERE clause at
-                    // all and silently dropped the tenant filter.
-                    policy.evaluate(ctx, &metadata.table_name)?
-                } else {
-                    None
-                };
+            let rls_where: Option<RlsWhereClause> = if let Some(ref policy) =
+                self.ctx.config.rls_policy
+            {
+                // SECURITY (#795): look the policy up by the fact table the root field
+                // resolved, never the client's `table` key. This runs *before* the
+                // planner's reconciliation check, so it must be correct on its own:
+                // an unpolicied name returns `None`, which composed no WHERE clause at
+                // all and silently dropped the tenant filter.
+                policy.evaluate(ctx, &RlsTarget::fact_table(query_name, &metadata.table_name))?
+            } else {
+                None
+            };
             request.where_clause = match (
                 rls_where.map(RlsWhereClause::into_where_clause),
                 request.where_clause.take(),
@@ -417,17 +418,18 @@ impl AggregateRunner {
         // 1b. Evaluate RLS policy and compose with user-supplied WHERE.
         //     RLS WHERE is always AND-composed first so it cannot be bypassed.
         if let Some(ctx) = security_context {
-            let rls_where: Option<RlsWhereClause> =
-                if let Some(ref policy) = self.ctx.config.rls_policy {
-                    // SECURITY (#795): look the policy up by the fact table the root field
-                    // resolved, never the client's `table` key. This runs *before* the
-                    // planner's reconciliation check, so it must be correct on its own:
-                    // an unpolicied name returns `None`, which composed no WHERE clause at
-                    // all and silently dropped the tenant filter.
-                    policy.evaluate(ctx, &metadata.table_name)?
-                } else {
-                    None
-                };
+            let rls_where: Option<RlsWhereClause> = if let Some(ref policy) =
+                self.ctx.config.rls_policy
+            {
+                // SECURITY (#795): look the policy up by the fact table the root field
+                // resolved, never the client's `table` key. This runs *before* the
+                // planner's reconciliation check, so it must be correct on its own:
+                // an unpolicied name returns `None`, which composed no WHERE clause at
+                // all and silently dropped the tenant filter.
+                policy.evaluate(ctx, &RlsTarget::fact_table(query_name, &metadata.table_name))?
+            } else {
+                None
+            };
             request.where_clause = match (
                 rls_where.map(RlsWhereClause::into_where_clause),
                 request.where_clause.take(),
