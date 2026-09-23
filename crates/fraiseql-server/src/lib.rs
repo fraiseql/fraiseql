@@ -59,6 +59,10 @@ pub mod federation;
 mod function_metrics;
 pub mod logging;
 pub mod middleware;
+// Mutual exclusion for the server-owned DDL the subsystems run at startup. The module
+// carries its own `//!` documentation; an outer doc comment here would make rustdoc
+// resolve that documentation's intra-doc links in this scope instead of the module's.
+pub mod migration_lock;
 /// The shared `fraiseql_query` bridge (`RunAsQueryExecutor`).
 ///
 /// Used by every background dispatch path — scheduled sources and event-dispatched

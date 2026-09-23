@@ -58,10 +58,11 @@ impl PgCronState {
     ///
     /// Returns the sqlx error if the DDL cannot be applied.
     pub async fn init(&self) -> Result<(), sqlx::Error> {
-        sqlx::raw_sql(fraiseql_functions::migrations::cron_migration_sql())
-            .execute(&self.pool)
-            .await
-            .map(|_| ())
+        crate::migration_lock::run_migration(
+            &self.pool,
+            fraiseql_functions::migrations::cron_migration_sql(),
+        )
+        .await
     }
 
     /// Read back the last recorded firing for one `(function, expression)` pair.

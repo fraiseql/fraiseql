@@ -6,10 +6,14 @@
 use chrono::Utc;
 use serde_json::json;
 
-use super::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest};
+use super::{
+    FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest, selection_set_has_nested_gated_field,
+    selection_set_selects_gated_field,
+};
 use crate::{
     error::{FraiseQLError, Result},
-    schema::FieldDenyPolicy,
+    graphql::FieldSelection,
+    schema::{CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, TypeDefinition},
     security::SecurityContext,
     types::UserId,
 };
@@ -281,5 +285,193 @@ fn an_inline_argument_is_unaffected_by_resolution() {
         gated[0].arguments.as_ref().unwrap(),
         &json!({"mask": "full"}),
         "an inline literal must pass through untouched"
+    );
+}
+
+// ── The nested-gate detector (#423) ────────────────────────────────────────────
+//
+// `selection_set_has_nested_gated_field` is the guard three read paths fail closed
+// on — `apply_dynamic_field_authorizer` (query_regular.rs:855), `row_field_gate`
+// (query_regular.rs:1412) and the mutation projection (mutation/mod.rs:78). Per-row
+// enforcement covers the top-level entity row only, so a gated field reached through
+// a materialised nested object is refused rather than adjudicated, and the refusal is
+// only as good as this detector's ability to *see* the field.
+//
+// It had no tests. The tests below pin the three ways it resolves a nested type,
+// because each is a way it could quietly answer `false` — which is not a refusal that
+// fails, it is a gated field served without adjudication, under a 200.
+
+/// A plain, ungated field.
+fn plain(name: &str, field_type: FieldType) -> FieldDefinition {
+    FieldDefinition::new(name, field_type)
+}
+
+/// A field carrying the dynamic `authorize` gate.
+fn gated(name: &str, field_type: FieldType) -> FieldDefinition {
+    FieldDefinition {
+        authorize: true,
+        ..FieldDefinition::new(name, field_type)
+    }
+}
+
+/// An object type with the given fields. `sql_source` is irrelevant here — the
+/// detector reads `fields` and `field_type` only.
+fn object(name: &str, fields: Vec<FieldDefinition>) -> TypeDefinition {
+    TypeDefinition {
+        fields,
+        ..TypeDefinition::new(name, "v_unused")
+    }
+}
+
+/// A selection, with or without a sub-selection.
+fn select(name: &str, nested: Vec<FieldSelection>) -> FieldSelection {
+    FieldSelection {
+        name:          name.to_string(),
+        alias:         None,
+        arguments:     Vec::new(),
+        nested_fields: nested,
+        directives:    Vec::new(),
+    }
+}
+
+fn schema_of(types: Vec<TypeDefinition>) -> CompiledSchema {
+    CompiledSchema {
+        types,
+        ..CompiledSchema::default()
+    }
+}
+
+#[test]
+fn a_gated_field_on_a_nested_object_is_seen() {
+    let schema = schema_of(vec![
+        object(
+            "Post",
+            vec![
+                plain("title", FieldType::String),
+                plain("author", FieldType::Object("Author".to_string())),
+            ],
+        ),
+        object(
+            "Author",
+            vec![
+                plain("name", FieldType::String),
+                gated("salary", FieldType::Int),
+            ],
+        ),
+    ]);
+    let selection = vec![select("author", vec![select("salary", vec![])])];
+
+    assert!(
+        selection_set_has_nested_gated_field(&schema, "Post", &selection),
+        "`author {{ salary }}` gates on Author, not on Post: the detector must resolve the \
+         nested field's own type to find it"
+    );
+}
+
+#[test]
+fn a_gated_field_inside_a_list_of_nested_objects_is_seen() {
+    let schema = schema_of(vec![
+        object(
+            "Post",
+            vec![
+                plain("title", FieldType::String),
+                plain(
+                    "comments",
+                    FieldType::List(Box::new(FieldType::Object("Comment".to_string()))),
+                ),
+            ],
+        ),
+        object(
+            "Comment",
+            vec![
+                plain("body", FieldType::String),
+                gated("authorIp", FieldType::String),
+            ],
+        ),
+    ]);
+    let selection = vec![select("comments", vec![select("authorIp", vec![])])];
+
+    // The list wrapper, specifically. A `List(Object(_))` whose element type is not
+    // unwrapped names no type the schema knows, and the detector then reports "nothing
+    // gated below here" for every to-many nested selection in the schema.
+    assert!(
+        selection_set_has_nested_gated_field(&schema, "Post", &selection),
+        "a gated field on the element type of a list-valued nested selection must be seen"
+    );
+}
+
+#[test]
+fn a_gated_field_two_levels_down_is_seen() {
+    let schema = schema_of(vec![
+        object("Post", vec![plain("author", FieldType::Object("Author".to_string()))]),
+        object("Author", vec![plain("org", FieldType::Object("Org".to_string()))]),
+        object(
+            "Org",
+            vec![
+                plain("name", FieldType::String),
+                gated("revenue", FieldType::Int),
+            ],
+        ),
+    ]);
+    let selection = vec![select(
+        "author",
+        vec![select("org", vec![select("revenue", vec![])])],
+    )];
+
+    // Depth two, so the detector has to recurse rather than look one level down. A
+    // one-level check passes the previous two tests and admits this one.
+    assert!(
+        selection_set_has_nested_gated_field(&schema, "Post", &selection),
+        "the search must recurse to arbitrary depth, not inspect only the first level"
+    );
+}
+
+#[test]
+fn a_nested_selection_with_nothing_gated_is_not_flagged() {
+    let schema = schema_of(vec![
+        object("Post", vec![plain("author", FieldType::Object("Author".to_string()))]),
+        object(
+            "Author",
+            vec![
+                plain("name", FieldType::String),
+                gated("salary", FieldType::Int),
+            ],
+        ),
+    ]);
+    // `salary` is gated on Author but is *not selected*.
+    let selection = vec![select("author", vec![select("name", vec![])])];
+
+    // The negative control. Without it a detector stuck at `true` passes every test
+    // above, and every nested selection in every schema is refused — the guard would
+    // read as airtight while making the feature unusable.
+    assert!(
+        !selection_set_has_nested_gated_field(&schema, "Post", &selection),
+        "a gated field that exists on the nested type but is not selected gates nothing"
+    );
+}
+
+#[test]
+fn a_gated_field_at_the_top_level_is_not_reported_as_nested() {
+    let schema = schema_of(vec![object(
+        "Post",
+        vec![
+            plain("title", FieldType::String),
+            gated("draftNotes", FieldType::String),
+        ],
+    )]);
+    let selection = vec![select("title", vec![]), select("draftNotes", vec![])];
+
+    // The two detectors must not collapse into one. `selects_gated` decides whether the
+    // per-row authorizer runs at all; `has_nested` decides whether the request is
+    // refused instead. Reporting a top-level gated field as nested would refuse every
+    // gated read outright — the #423 behaviour `apply_dynamic_field_authorizer` exists
+    // to replace.
+    assert!(
+        selection_set_selects_gated_field(&schema, "Post", &selection),
+        "a top-level gated field is selected"
+    );
+    assert!(
+        !selection_set_has_nested_gated_field(&schema, "Post", &selection),
+        "a top-level gated field is adjudicated per row, not refused as nested"
     );
 }

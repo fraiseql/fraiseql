@@ -167,16 +167,18 @@ pub async fn build_drains(
             .to_string()
     })?;
 
-    sqlx::raw_sql(fraiseql_cdc_sinks::outbox_sink_state_migration_sql())
-        .execute(&pool)
-        .await
-        .map_err(|e| {
-            format!(
-                "[cdc_outbound] could not create the delivery-state table \
-                 (core.tb_cdc_sink_state): {e}. Refusing to boot rather than draining without \
-                 durable delivery state, which would re-publish every event on restart."
-            )
-        })?;
+    crate::migration_lock::run_migration(
+        &pool,
+        fraiseql_cdc_sinks::outbox_sink_state_migration_sql(),
+    )
+    .await
+    .map_err(|e| {
+        format!(
+            "[cdc_outbound] could not create the delivery-state table \
+             (core.tb_cdc_sink_state): {e}. Refusing to boot rather than draining without \
+             durable delivery state, which would re-publish every event on restart."
+        )
+    })?;
 
     let tick = Duration::from_secs(cfg.tick_interval_secs);
     let mut drains = Vec::with_capacity(cfg.sinks.len());

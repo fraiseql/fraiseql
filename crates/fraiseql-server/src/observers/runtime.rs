@@ -542,9 +542,11 @@ impl ObserverRuntime {
             state
         } else {
             {
-                sqlx::raw_sql(fraiseql_observers::checkpoint::migration_sql())
-                    .execute(&self.config.pool)
-                    .await
+                crate::migration_lock::run_migration(
+                    &self.config.pool,
+                    fraiseql_observers::checkpoint::migration_sql(),
+                )
+                .await
                     .map_err(|e| {
                         ServerError::ConfigError(format!(
                             "observer checkpoint table is missing and could not be created \

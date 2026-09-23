@@ -268,10 +268,12 @@ impl PgSendTracker {
     /// Returns [`FraiseQLError::Database`](fraiseql_error::FraiseQLError::Database)
     /// if the DDL fails.
     pub async fn init(&self) -> fraiseql_error::Result<()> {
-        sqlx::raw_sql(fraiseql_functions::migrations::send_tracking_migration_sql())
-            .execute(&self.pool)
-            .await
-            .map_err(|error| db_err("init", &error))?;
+        crate::migration_lock::run_migration(
+            &self.pool,
+            fraiseql_functions::migrations::send_tracking_migration_sql(),
+        )
+        .await
+        .map_err(|error| db_err("init", &error))?;
         Ok(())
     }
 }

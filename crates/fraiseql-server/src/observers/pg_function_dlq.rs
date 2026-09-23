@@ -58,10 +58,11 @@ impl PgFunctionDlq {
     ///
     /// Returns the driver error if the DDL cannot be applied.
     pub async fn init(&self) -> std::result::Result<(), sqlx::Error> {
-        sqlx::raw_sql(fraiseql_functions::migrations::dlq_migration_sql())
-            .execute(&self.pool)
-            .await
-            .map(|_| ())
+        crate::migration_lock::run_migration(
+            &self.pool,
+            fraiseql_functions::migrations::dlq_migration_sql(),
+        )
+        .await
     }
 
     /// Current stored record count (for the cap check and the `/metrics` gauge).
