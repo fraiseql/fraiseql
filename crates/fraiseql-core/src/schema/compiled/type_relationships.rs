@@ -36,6 +36,26 @@
 //! than a parse error), and two relationships sharing a name on one type, where the
 //! executor's `find` silently takes the first.
 //!
+//! # A to-one embed joins on a key that identifies one row
+//!
+//! `ManyToOne`/`OneToOne` promise the client **an object**, and the REST executor delivers
+//! one by resolving the target with `LIMIT max_page_size` and taking the first row of
+//! whatever comes back (`embedding::executor::embed_into_single`). If the join key does not
+//! identify at most one target row, "the" object is an arbitrary one — chosen by the plan's
+//! row order, stable only by luck, and served under a 200 either way. That is a wrong
+//! answer rather than a refusal, so it belongs with the four shapes above.
+//!
+//! The condition is checked where it can be *decided* — here, over the compiled schema —
+//! rather than discovered per request. A runtime "found two rows for a to-one" is then
+//! unreachable rather than a branch, which is the point: once a second row has been
+//! fetched there is nothing correct left to do with it, and no way to tell the client what
+//! happened that is not the refusal this check already had the information to make.
+//!
+//! [`FieldDefinition::is_unique_key`](crate::schema::FieldDefinition::is_unique_key) is the
+//! one reader of that fact; see it for why the entity identity needs no declaration and why
+//! `pk_<type>` does. `OneToMany` is unaffected — a collection is exactly what a non-unique
+//! key yields.
+//!
 //! Checked at load rather than only at compile because `fraiseql compile` refuses to
 //! *emit* such a document, which leaves the hand-edited artifact — the case a
 //! compile-time check cannot reach, and the reason this runs on the load path every entry
@@ -107,14 +127,30 @@ impl CompiledSchema {
                     ));
                 }
 
+                // Both target-side checks read the column through the *same* lookup, so
+                // the field a declaration is read off is the field the executor joins on.
+                // A second resolution path would accept exactly the schemas the executor
+                // cannot follow — `field_for_column`'s own documentation is about that trap.
                 let target_col = rel.target_join_column();
-                if target.field_for_column(target_col).is_none() {
-                    violations.push(format!(
+                match target.field_for_column(target_col) {
+                    None => violations.push(format!(
                         "relationship '{owner}.{name}' filters '{}' on '{target_col}', which \
                          declares no such field; the join predicate is composed against the \
                          published surface and would be refused by the `where` parser",
                         rel.target_type
-                    ));
+                    )),
+                    Some(field) if rel.cardinality.is_to_one() && !field.is_unique_key() => {
+                        violations.push(format!(
+                            "relationship '{owner}.{name}' is {:?} and joins on '{target_col}' \
+                             of '{}', which is not declared unique; a to-one embed answers \
+                             with one object, so it would serve an arbitrary row of however \
+                             many the key matches. Declare `unique = true` on that field if \
+                             the relation enforces uniqueness, or declare the relationship \
+                             OneToMany",
+                            rel.cardinality, rel.target_type
+                        ));
+                    },
+                    Some(_) => {},
                 }
 
                 if !self.queries.iter().any(|q| q.return_type == rel.target_type && q.returns_list)

@@ -55,6 +55,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 authorize:       false,
                 encryption:      None,
                 hierarchy:       None,
+                unique:          false,
             },
             FieldDefinition {
                 name:            "name".into(),
@@ -71,6 +72,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 authorize:       false,
                 encryption:      None,
                 hierarchy:       None,
+                unique:          false,
             },
             // Protected fields
             FieldDefinition {
@@ -88,6 +90,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 authorize:       false,
                 encryption:      None,
                 hierarchy:       None,
+                unique:          false,
             },
             FieldDefinition {
                 name:            "phone".into(),
@@ -104,6 +107,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 authorize:       false,
                 encryption:      None,
                 hierarchy:       None,
+                unique:          false,
             },
             // Admin-only fields
             FieldDefinition {
@@ -121,6 +125,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 authorize:       false,
                 encryption:      None,
                 hierarchy:       None,
+                unique:          false,
             },
             FieldDefinition {
                 name:            "ssn".into(),
@@ -137,6 +142,7 @@ fn create_user_type_with_scopes() -> TypeDefinition {
                 authorize:       false,
                 encryption:      None,
                 hierarchy:       None,
+                unique:          false,
             },
         ],
         description:         Some("User type with field-level scopes".to_string()),

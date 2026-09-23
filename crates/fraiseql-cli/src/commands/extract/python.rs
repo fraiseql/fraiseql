@@ -66,6 +66,7 @@ impl SchemaExtractor for PythonExtractor {
                         on_deny: None,
                         authorize: None,
                         hierarchy: None,
+                        unique: None,
                     });
                 }
             }

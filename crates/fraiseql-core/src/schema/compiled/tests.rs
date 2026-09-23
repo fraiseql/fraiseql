@@ -2030,13 +2030,13 @@ fn relationship_fixture() -> serde_json::Value {
     serde_json::json!({
       "types": [
         {"name": "Author", "sql_source": "v_author",
-         "fields": [{"name": "id", "field_type": "Int", "nullable": false},
+         "fields": [{"name": "id", "field_type": "ID", "nullable": false},
                     {"name": "name", "field_type": "String", "nullable": false}],
          "relationships": [{"name": "posts", "target_type": "Post",
                             "cardinality": "OneToMany",
                             "foreign_key": "fk_author", "referenced_key": "id"}]},
         {"name": "Post", "sql_source": "v_post",
-         "fields": [{"name": "id", "field_type": "Int", "nullable": false},
+         "fields": [{"name": "id", "field_type": "ID", "nullable": false},
                     {"name": "fk_author", "field_type": "Int", "nullable": false}]}
       ],
       "queries": [
@@ -2158,6 +2158,101 @@ fn a_join_column_resolves_against_a_camel_case_field_name() {
         {"name": "fkAuthor", "field_type": "Int", "nullable": false}));
     CompiledSchema::from_json(&doc.to_string(), false)
         .expect("`fk_author` is published as `fkAuthor`, which is the spelling the executor reads");
+}
+
+// ── A to-one embed joins on a key that identifies one row ────────────────────
+//
+// `ManyToOne`/`OneToOne` answer with one object, and the REST executor produces it by
+// taking the first row of a `LIMIT max_page_size` read. These five fix where that is
+// decided: in the compiled schema, so the runtime never has a second row to mishandle.
+//
+// Every case mutates one document, so what separates a refusal from a load is the single
+// thing each test names -- and the two that must *load* are what stops the check from
+// being "refuse every to-one".
+
+/// `Post.author` targets `Author` through `referenced_key`, which is the key the check
+/// asks about. `key` is the column on `Author` it joins to.
+fn to_one_fixture(key: &str) -> serde_json::Value {
+    let mut doc = relationship_fixture();
+    doc["types"][1]["relationships"] = serde_json::json!([{
+        "name": "author", "target_type": "Author", "cardinality": "ManyToOne",
+        "foreign_key": "fk_author", "referenced_key": key
+    }]);
+    doc
+}
+
+/// The defect, stated at the point it becomes decidable: `Author.name` is an ordinary
+/// column, so "the" author of a post is whichever row the plan happened to return first.
+#[test]
+fn a_to_one_joining_on_a_non_unique_key_is_refused_at_load() {
+    let err = CompiledSchema::from_json(&to_one_fixture("name").to_string(), false)
+        .expect_err("a to-one on a non-unique key must not load");
+    let message = err.to_string();
+    assert!(
+        message.contains("not declared unique"),
+        "the refusal names the missing fact rather than a downstream symptom: {message}"
+    );
+    assert!(message.contains("Post.author"), "and names the relationship: {message}");
+    assert!(
+        message.contains("unique = true"),
+        "and names the remedy, which is the whole reason this is a refusal and not a \
+         silent first-row: {message}"
+    );
+}
+
+/// The first of the two positive controls. Without it the check above passes just as
+/// happily when it refuses every to-one relationship ever declared.
+#[test]
+fn declaring_the_target_key_unique_makes_the_same_to_one_followable() {
+    let mut doc = to_one_fixture("name");
+    doc["types"][0]["fields"][1]["unique"] = true.into();
+    CompiledSchema::from_json(&doc.to_string(), false)
+        .expect("the author's `unique` declaration is the fact the check was missing");
+}
+
+/// The second. The entity identity carries no `unique` flag and never will -- ADR-0017
+/// makes `id: ID!` the one global identity, which Relay `Node`, federation `@key` and
+/// cache normalization already read as unique. Requiring a declaration here would refuse
+/// every conventional schema in existence, since `id` is *the* `referenced_key` for a
+/// to-one.
+#[test]
+fn the_entity_identity_needs_no_uniqueness_declaration() {
+    CompiledSchema::from_json(&to_one_fixture("id").to_string(), false)
+        .expect("`id: ID` is unique under ADR-0017 without being declared so");
+}
+
+/// And the line under that exemption: it reads the identity *contract*, not the spelling.
+/// `examples/basic` authors `id: Int`, which ADR-0017 explicitly declines to canonicalize
+/// to `ID` because exposing a serial pk as a global id is the thing the Trinity avoids --
+/// so an `Int` `id` is a column named like an identity that is not one, and gets no
+/// exemption. This is the test that keeps [`FieldDefinition::is_unique_key`] a reading of
+/// the contract rather than an inference from a name.
+#[test]
+fn a_field_merely_named_id_is_not_taken_for_the_entity_identity() {
+    let mut doc = to_one_fixture("id");
+    doc["types"][0]["fields"][0]["field_type"] = "Int".into();
+    let err = CompiledSchema::from_json(&doc.to_string(), false)
+        .expect_err("an Int `id` is not the ADR-0017 identity");
+    assert!(
+        err.to_string().contains("not declared unique"),
+        "the name alone buys no exemption: {err}"
+    );
+}
+
+/// The discriminator for the scope of the whole check. A collection is exactly what a
+/// non-unique key yields, so `OneToMany` must be untouched by it -- and this is the same
+/// column, on the same document, that the first test refuses.
+#[test]
+fn a_to_many_on_the_same_non_unique_key_still_loads() {
+    let mut doc = to_one_fixture("name");
+    doc["types"][1]["relationships"][0]["cardinality"] = "OneToMany".into();
+    // `OneToMany` swaps which side each key is read from: the declaring type `Post` is
+    // now read on `referenced_key` and the target `Author` filtered on `foreign_key`,
+    // so the columns have to swap with it for the document to be followable at all.
+    doc["types"][1]["relationships"][0]["referenced_key"] = "fk_author".into();
+    doc["types"][1]["relationships"][0]["foreign_key"] = "name".into();
+    CompiledSchema::from_json(&doc.to_string(), false)
+        .expect("a to-many on a non-unique key is a collection, which is the point of one");
 }
 
 // ── #1303 the compiled pagination order, on the wire ─────────────────────────

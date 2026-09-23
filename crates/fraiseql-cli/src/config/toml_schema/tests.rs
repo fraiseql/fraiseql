@@ -858,6 +858,45 @@ referenced_key = "id"
         assert_eq!(from_schema[0]["foreign_key"], "fk_user");
     }
 
+    /// `unique = true` reaches the IR, which is where the compiler reads it from. The
+    /// key is what a to-one relationship joining on a non-identity column needs in order
+    /// to load at all, and an emitter that dropped it would refuse the author's schema
+    /// while their `fraiseql.toml` plainly declares the fact.
+    #[test]
+    fn a_unique_field_emits_the_key() {
+        let schema: TomlSchema = toml::from_str(
+            r#"
+[schema]
+name = "app"
+version = "1.0.0"
+database_target = "postgresql"
+
+[types.User]
+sql_source = "v_user"
+fields.id = { type = "ID" }
+fields.identifier = { type = "String", unique = true }
+fields.name = { type = "String" }
+"#,
+        )
+        .expect("`unique` must be an accepted field key");
+
+        let json = schema.types["User"].to_intermediate_json("User");
+        let fields = json["fields"].as_array().expect("fields is an array");
+        let find = |name: &str| {
+            fields
+                .iter()
+                .find(|f| f["name"] == name)
+                .unwrap_or_else(|| panic!("{name} is emitted"))
+                .clone()
+        };
+
+        assert_eq!(find("identifier")["unique"], serde_json::json!(true), "{json}");
+        // Absent rather than `false`, so a document round-tripped through this emitter
+        // does not grow a `unique` key on every field in the schema.
+        assert!(find("name").get("unique").is_none(), "an ordinary field emits no key: {json}");
+        assert!(find("id").get("unique").is_none(), "nor does the identity: {json}");
+    }
+
     /// A type declaring none emits no key at all, so its document is byte-identical to
     /// what this emitter produced before the block existed.
     #[test]

@@ -485,6 +485,7 @@ impl SchemaConverter {
             authorize: intermediate.authorize.unwrap_or(false),
             encryption: None,
             hierarchy: intermediate.hierarchy,
+            unique: intermediate.unique.unwrap_or(false),
         })
     }
 

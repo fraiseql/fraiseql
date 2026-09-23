@@ -956,6 +956,7 @@ mod field_filter_tests {
             authorize:       false,
             encryption:      None,
             hierarchy:       None,
+            unique:          false,
         }
     }
 
@@ -1083,6 +1084,7 @@ mod field_filter_tests {
             authorize: false,
             encryption: None,
             hierarchy: None,
+            unique: false,
         }
     }
 

@@ -707,6 +707,29 @@ pub enum Cardinality {
     OneToOne,
 }
 
+impl Cardinality {
+    /// Whether an embed of this cardinality answers with **one object** rather than a
+    /// collection.
+    ///
+    /// The two object cardinalities are the ones whose join key must identify at most one
+    /// target row, because there is no second row for the answer to carry; see
+    /// [`relationship_violations`](crate::schema::CompiledSchema::relationship_violations).
+    ///
+    /// Stated here for the reason [`Relationship::parent_join_column`] is: a caller
+    /// keeping its own copy of which variants are "to-one" would classify a future variant
+    /// silently, and the two opinions would drift.
+    #[must_use]
+    #[allow(clippy::match_like_matches_macro)] // Reason: an exhaustive match makes a new
+    // variant a compile error at this site, which `matches!` would absorb into `false` —
+    // the same tripwire `parent_join_column` relies on and `SubSelect::split` documents.
+    pub const fn is_to_one(self) -> bool {
+        match self {
+            Self::ManyToOne | Self::OneToOne => true,
+            Self::OneToMany => false,
+        }
+    }
+}
+
 /// A relationship between two schema types for REST resource embedding.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Relationship {

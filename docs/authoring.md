@@ -152,6 +152,28 @@ undeclared `target_type`, a join column no field of that side publishes, a `targ
 returned by no list query, an empty key, or one name declared twice. The compiled schema is
 checked again when it loads, so a hand-edited artifact cannot carry one either.
 
+**A to-one joins on a key that identifies one row.** `ManyToOne` and `OneToOne` answer with
+a single object, so the key they filter the target on — `referenced_key` — must match at
+most one target row. If it does not, "the" object is whichever row came back first, served
+under a `200`. That is refused rather than answered, at compile time and again at load.
+
+The entity identity needs no declaration: `id: ID` is unique under the identity contract
+(ADR-0017), which is what Relay `Node`, federation `@key` and cache normalization already
+read it as, and it is the conventional `referenced_key` for a to-one. Any **other** column
+must say so:
+
+```toml
+[types.User.fields.identifier]
+type = "String"
+unique = true
+```
+
+A FraiseQL type is usually a view, and the catalogue reports no uniqueness for a view — so
+this is your assertion about the relation, held to the same standard as a declared
+pagination ordering key. Declaring `unique` on a column the relation does not enforce
+reintroduces the arbitrary row it exists to prevent. If the key genuinely matches several
+rows, the relationship is a `OneToMany`.
+
 The same declaration in `fraiseql.toml`, for a TOML-declared type:
 
 ```toml

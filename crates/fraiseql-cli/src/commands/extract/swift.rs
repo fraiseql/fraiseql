@@ -60,6 +60,7 @@ impl SchemaExtractor for SwiftExtractor {
                         on_deny: None,
                         authorize: None,
                         hierarchy: None,
+                        unique: None,
                     });
                 }
             }

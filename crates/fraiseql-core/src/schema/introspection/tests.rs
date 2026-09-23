@@ -264,6 +264,7 @@ fn test_deprecated_field_introspection() {
                 authorize:       false,
                 encryption:      None,
                 hierarchy:       None,
+                unique:          false,
             },
             FieldDefinition::new("sku", FieldType::String),
         ],

@@ -2204,6 +2204,7 @@ mod optimizer_tests {
                         authorize:       false,
                         encryption:      None,
                         hierarchy:       None,
+                        unique:          false,
                     })
                     .collect(),
                 description:         None,
@@ -2267,6 +2268,7 @@ mod optimizer_tests {
                         authorize:       false,
                         encryption:      None,
                         hierarchy:       None,
+                        unique:          false,
                     })
                     .collect(),
                 description:         None,
@@ -2340,6 +2342,7 @@ mod optimizer_tests {
                         authorize:       false,
                         encryption:      None,
                         hierarchy:       None,
+                        unique:          false,
                     })
                     .collect(),
                 description:         None,

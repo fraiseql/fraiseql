@@ -298,6 +298,7 @@ fn convert_field_maps_authorize_true() {
         on_deny:         None,
         authorize:       Some(true),
         hierarchy:       None,
+        unique:          None,
     };
     let compiled = SchemaConverter::convert_field(
         intermediate,
@@ -324,6 +325,7 @@ fn convert_field_authorize_absent_defaults_false() {
         on_deny:         None,
         authorize:       None,
         hierarchy:       None,
+        unique:          None,
     };
     let compiled = SchemaConverter::convert_field(
         intermediate,
@@ -331,6 +333,71 @@ fn convert_field_authorize_absent_defaults_false() {
     )
     .unwrap();
     assert!(!compiled.authorize, "absent authorize must compile to authorize == false");
+}
+
+/// The authoring hop the load-time to-one check depends on. `unique` is declared on a
+/// field and consumed by `relationship_violations`, two crates away, so a converter that
+/// dropped it would compile a schema whose to-one relationships are all refused — with
+/// nothing pointing at the converter.
+#[test]
+fn convert_field_maps_unique_true() {
+    let intermediate = IntermediateField {
+        function: None,
+
+        deprecated:      None,
+        vector_config:   None,
+        vector_distance: None,
+        name:            "identifier".to_string(),
+        field_type:      "String".to_string(),
+        nullable:        false,
+        description:     None,
+        directives:      None,
+        requires_scope:  None,
+        on_deny:         None,
+        authorize:       None,
+        hierarchy:       None,
+        unique:          Some(true),
+    };
+    let compiled = SchemaConverter::convert_field(
+        intermediate,
+        &crate::schema::converter::DeclaredTypeNames::default(),
+    )
+    .unwrap();
+    assert!(compiled.unique, "unique: Some(true) must compile to unique == true");
+    assert!(
+        compiled.is_unique_key(),
+        "and must satisfy the predicate the to-one check actually reads"
+    );
+}
+
+/// Absent is `false`, not "unknown": a field says nothing about uniqueness unless it says
+/// `unique`, and the to-one check refuses on that silence rather than guessing.
+#[test]
+fn convert_field_unique_absent_defaults_false() {
+    let intermediate = IntermediateField {
+        function: None,
+
+        deprecated:      None,
+        vector_config:   None,
+        vector_distance: None,
+        name:            "name".to_string(),
+        field_type:      "String".to_string(),
+        nullable:        false,
+        description:     None,
+        directives:      None,
+        requires_scope:  None,
+        on_deny:         None,
+        authorize:       None,
+        hierarchy:       None,
+        unique:          None,
+    };
+    let compiled = SchemaConverter::convert_field(
+        intermediate,
+        &crate::schema::converter::DeclaredTypeNames::default(),
+    )
+    .unwrap();
+    assert!(!compiled.unique, "absent unique must compile to unique == false");
+    assert!(!compiled.is_unique_key(), "and an ordinary column is not an identity");
 }
 
 // ── #434: list field types must compile to FieldType::List ──────────────
@@ -445,6 +512,7 @@ fn convert_field_list_type_compiles_to_list() {
         on_deny:         None,
         authorize:       None,
         hierarchy:       None,
+        unique:          None,
     };
     let compiled = SchemaConverter::convert_field(
         intermediate,
@@ -484,6 +552,7 @@ fn test_convert_type_with_fields() {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 },
                 IntermediateField {
                     function: None,
@@ -500,6 +569,7 @@ fn test_convert_type_with_fields() {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 },
             ],
             description:            Some("User type".to_string()),
@@ -930,6 +1000,7 @@ fn test_convert_field_with_deprecated_directive() {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 },
                 IntermediateField {
                     function: None,
@@ -946,6 +1017,7 @@ fn test_convert_field_with_deprecated_directive() {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 },
             ],
             description:            None,
@@ -1315,6 +1387,7 @@ fn test_convert_interface() {
                 on_deny:         None,
                 authorize:       None,
                 hierarchy:       None,
+                unique:          None,
             }],
             description: Some("An object with a globally unique ID".to_string()),
         }],
@@ -1386,6 +1459,7 @@ fn test_convert_type_implements_interface() {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 },
                 IntermediateField {
                     function: None,
@@ -1402,6 +1476,7 @@ fn test_convert_type_implements_interface() {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 },
             ],
             description:            None,
@@ -1435,6 +1510,7 @@ fn test_convert_type_implements_interface() {
                 on_deny:         None,
                 authorize:       None,
                 hierarchy:       None,
+                unique:          None,
             }],
             description: None,
         }],
@@ -1505,6 +1581,7 @@ fn test_validate_unknown_interface() {
                 on_deny:         None,
                 authorize:       None,
                 hierarchy:       None,
+                unique:          None,
             }],
             description:            None,
             implements:             vec!["UnknownInterface".to_string()],
@@ -1584,6 +1661,7 @@ fn test_validate_missing_interface_field() {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 },
             ],
             description:            None,
@@ -1617,6 +1695,7 @@ fn test_validate_missing_interface_field() {
                 on_deny:         None,
                 authorize:       None,
                 hierarchy:       None,
+                unique:          None,
             }],
             description: None,
         }],
@@ -1682,6 +1761,7 @@ fn test_convert_union() {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 }],
                 description:            None,
                 implements:             vec![],
@@ -1713,6 +1793,7 @@ fn test_convert_union() {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 }],
                 description:            None,
                 implements:             vec![],
@@ -1801,6 +1882,7 @@ fn test_convert_field_requires_scope() {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 },
                 IntermediateField {
                     function: None,
@@ -1817,6 +1899,7 @@ fn test_convert_field_requires_scope() {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 },
                 IntermediateField {
                     function: None,
@@ -1833,6 +1916,7 @@ fn test_convert_field_requires_scope() {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 },
                 IntermediateField {
                     function: None,
@@ -1849,6 +1933,7 @@ fn test_convert_field_requires_scope() {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 },
             ],
             description:            None,
@@ -2023,6 +2108,7 @@ mod tenancy_tests {
             on_deny:         None,
             authorize:       None,
             hierarchy:       None,
+            unique:          None,
         }
     }
 
@@ -2045,6 +2131,7 @@ mod tenancy_tests {
             on_deny:         None,
             authorize:       None,
             hierarchy:       None,
+            unique:          None,
         }
     }
 
@@ -3045,6 +3132,7 @@ mod changelog_cascade_conformance_tests {
             on_deny:         None,
             authorize:       None,
             hierarchy:       None,
+            unique:          None,
         }
     }
 

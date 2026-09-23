@@ -126,6 +126,7 @@ pub(super) fn extract_java_record_fields(body: &str) -> Vec<IntermediateField> {
             on_deny: None,
             authorize: None,
             hierarchy: None,
+            unique: None,
         });
     }
     fields

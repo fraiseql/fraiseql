@@ -168,6 +168,21 @@ pub struct FieldDefinition {
     /// is the distance the `nearest` search ordered by.
     #[serde(default)]
     pub vector_distance: Option<String>,
+    /// Whether this field's column is unique over the type's relation.
+    ///
+    /// Authored as `unique = true`. Needed to declare a **to-one** relationship
+    /// (`ManyToOne`/`OneToOne`) that joins on this field, because such an embed answers
+    /// with one object and a non-unique key would make it an arbitrary one; the schema is
+    /// otherwise refused at load. The entity identity (`id: ID`) needs no declaration —
+    /// see
+    /// [`FieldDefinition::is_unique_key`](fraiseql_core::schema::FieldDefinition::is_unique_key).
+    ///
+    /// A FraiseQL type is usually a view, where the catalogue reports no uniqueness, so
+    /// this is the author's assertion about the relation rather than something the
+    /// compiler can confirm — the same standing as the ordering key in
+    /// [`PaginationOrder::Column`](fraiseql_core::schema::PaginationOrder::Column).
+    #[serde(default)]
+    pub unique:          bool,
 }
 
 impl FieldDefinition {
@@ -201,6 +216,9 @@ impl FieldDefinition {
         }
         if let Some(ref measures) = self.vector_distance {
             field["vector_distance"] = serde_json::Value::String(measures.clone());
+        }
+        if self.unique {
+            field["unique"] = serde_json::Value::Bool(true);
         }
         field
     }

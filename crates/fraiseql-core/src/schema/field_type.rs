@@ -392,6 +392,7 @@ pub enum FieldDenyPolicy {
 ///     authorize: false,
 ///     encryption: None,
 ///     hierarchy: None,
+///     unique: false,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -466,6 +467,7 @@ pub struct FieldDefinition {
     ///     authorize: false,
     ///     encryption: None,
     ///     hierarchy: None,
+    ///     unique: false,
     /// };
     /// ```
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -509,6 +511,31 @@ pub struct FieldDefinition {
     /// which provides the table and ltree path column for subquery generation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hierarchy: Option<String>,
+
+    /// Whether this field's column is **unique** over the type's relation.
+    ///
+    /// A compiled fact, not a runtime observation. It exists so a *to-one* embed
+    /// (`ManyToOne`/`OneToOne`) can be refused at load when its join key does not
+    /// identify at most one target row — see
+    /// [`relationship_violations`](crate::schema::CompiledSchema::relationship_violations).
+    /// Without it the REST embed resolves the target with `LIMIT max_page_size` and
+    /// takes the **first** row returned, calling an arbitrary one "the" object.
+    ///
+    /// Read [`FieldDefinition::is_unique_key`] rather than this flag directly: the
+    /// entity identity (`id: ID`) is unique under ADR-0017 and does not carry it.
+    ///
+    /// Nothing in the catalog reports uniqueness for a **view**, which is what a
+    /// FraiseQL type usually is — so where the relation is a view this is the author's
+    /// assertion, taken on the same trust as
+    /// [`PaginationOrder::Column`](crate::schema::PaginationOrder::Column), whose
+    /// ordering key has the identical problem and the identical resolution. A
+    /// `--database` compile can introspect it for a table (`pg_index.indisunique`);
+    /// that path is not yet wired.
+    ///
+    /// Defaults to `false` and is not serialized when `false`, so compiled schemas that
+    /// predate it deserialize unchanged.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub unique: bool,
 }
 
 /// Encryption configuration for a field in the compiled schema.
@@ -581,6 +608,7 @@ impl FieldDefinition {
             authorize: false,
             encryption: None,
             hierarchy: None,
+            unique: false,
         }
     }
 
@@ -602,6 +630,7 @@ impl FieldDefinition {
             authorize: false,
             encryption: None,
             hierarchy: None,
+            unique: false,
         }
     }
 
@@ -631,6 +660,7 @@ impl FieldDefinition {
             authorize:       false,
             encryption:      None,
             hierarchy:       None,
+            unique:          false,
         }
     }
 
@@ -836,6 +866,30 @@ impl FieldDefinition {
     #[must_use]
     pub fn is_primary_key(&self) -> bool {
         self.name.as_str() == "id" || self.name.as_str().starts_with("pk_")
+    }
+
+    /// Whether this field identifies **at most one row** of its type's relation.
+    ///
+    /// True when the author declared [`unique`](Self::unique), and true for the entity
+    /// identity without a declaration: ADR-0017 makes `id: ID!` the one global identity
+    /// every queryable entity exposes, and Relay `Node` resolution, Apollo Federation
+    /// `@key(fields: "id")` and cache normalization already read it as unique. A schema
+    /// whose `id` did not identify a row would be answering those three wrongly before
+    /// an embed ever asked.
+    ///
+    /// The identity arm tests the **type** as well as the name, so a field merely
+    /// *called* `id` — `examples/basic` authors `id: Int`, which ADR-0017 deliberately
+    /// declines to canonicalize — is not mistaken for one. That keeps this a reading of
+    /// the identity contract rather than an inference from a spelling, which is the
+    /// difference between a fact and a guess.
+    ///
+    /// Deliberately **not** extended to `pk_<type>`: [`is_primary_key`](Self::is_primary_key)
+    /// accepts that prefix, but it is a naming convention rather than a contract, and the
+    /// Trinity pattern's `pk_entity` is documented as an internal join key that is never
+    /// exposed. A type that does publish one declares `unique` like any other column.
+    #[must_use]
+    pub fn is_unique_key(&self) -> bool {
+        self.unique || (self.name.as_str() == "id" && self.field_type == FieldType::Id)
     }
 }
 

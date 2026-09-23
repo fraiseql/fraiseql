@@ -126,6 +126,7 @@ pub(super) fn extract_scala_fields(body: &str) -> Vec<IntermediateField> {
             on_deny: None,
             authorize: None,
             hierarchy: None,
+            unique: None,
         });
     }
     fields

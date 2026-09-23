@@ -532,6 +532,7 @@ mod schema_validator_tests {
             on_deny:         None,
             authorize:       None,
             hierarchy:       None,
+            unique:          None,
         }
     }
 

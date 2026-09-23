@@ -43,6 +43,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 },
                 IntermediateField {
                     function: None,
@@ -59,6 +60,7 @@ fn relay_intermediate_schema() -> IntermediateSchema {
                     on_deny:         None,
                     authorize:       None,
                     hierarchy:       None,
+                    unique:          None,
                 },
             ],
             description:            None,

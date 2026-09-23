@@ -190,6 +190,21 @@ pub(super) async fn embed_into_single(
             },
             Cardinality::ManyToOne | Cardinality::OneToOne => {
                 // Single object or null.
+                //
+                // Taking the first row is sound because there cannot be a second: a
+                // to-one relationship whose join key is not unique on the target is
+                // refused when the schema loads
+                // (`CompiledSchema::relationship_violations`), so by the time a request
+                // reaches this line the key matches at most one row. Before that check
+                // this line was the defect — the read is issued with
+                // `LIMIT max_page_size`, so a non-unique key returned a page and this
+                // served whichever row the plan ordered first, under a 200, calling an
+                // arbitrary object "the" one.
+                //
+                // It is deliberately not written as a runtime "found two rows" branch.
+                // There is nothing correct to do with the second row once it has been
+                // fetched, and nothing to tell the client that is not the refusal the
+                // compiled schema already had the information to make.
                 let val = match embedded_data {
                     Some(serde_json::Value::Array(mut a)) if !a.is_empty() => a.remove(0),
                     Some(other) => other,

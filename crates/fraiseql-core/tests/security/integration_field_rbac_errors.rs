@@ -47,6 +47,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 authorize:       false,
                 encryption:      None,
                 hierarchy:       None,
+                unique:          false,
             },
             FieldDefinition {
                 name:            "publicInfo".into(),
@@ -63,6 +64,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 authorize:       false,
                 encryption:      None,
                 hierarchy:       None,
+                unique:          false,
             },
             FieldDefinition {
                 name:            "email".into(),
@@ -79,6 +81,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 authorize:       false,
                 encryption:      None,
                 hierarchy:       None,
+                unique:          false,
             },
             FieldDefinition {
                 name:            "phone".into(),
@@ -95,6 +98,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 authorize:       false,
                 encryption:      None,
                 hierarchy:       None,
+                unique:          false,
             },
             FieldDefinition {
                 name:            "ssn".into(),
@@ -111,6 +115,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 authorize:       false,
                 encryption:      None,
                 hierarchy:       None,
+                unique:          false,
             },
             FieldDefinition {
                 name:            "bankAccount".into(),
@@ -127,6 +132,7 @@ fn create_schema_with_mixed_fields() -> CompiledSchema {
                 authorize:       false,
                 encryption:      None,
                 hierarchy:       None,
+                unique:          false,
             },
         ],
         description:         Some("User with mixed access levels".to_string()),

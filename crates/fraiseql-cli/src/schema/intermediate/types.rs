@@ -336,6 +336,31 @@ pub struct IntermediateField {
     /// References a key in the `hierarchies` config map.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub hierarchy: Option<String>,
+
+    /// Whether this field's column is unique over the type's relation.
+    ///
+    /// Declares the fact a **to-one** relationship joining on this field needs, and
+    /// without which the schema is refused at load; see
+    /// [`FieldDefinition::is_unique_key`](fraiseql_core::schema::FieldDefinition::is_unique_key)
+    /// for why the entity identity is exempt and `pk_<type>` is not.
+    ///
+    /// `Option<bool>` rather than `bool` for the reason [`authorize`](Self::authorize) is:
+    /// absent and `false` reach the converter as the same compiled value, but the key is
+    /// then omitted from a re-emitted document rather than written back as `false` on
+    /// every field in the schema.
+    ///
+    /// # Example
+    ///
+    /// ```json
+    /// {
+    ///   "name": "identifier",
+    ///   "type": "String",
+    ///   "nullable": false,
+    ///   "unique": true
+    /// }
+    /// ```
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub unique: Option<bool>,
 }
 
 // =============================================================================
