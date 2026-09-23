@@ -470,3 +470,70 @@ fn a_nested_count_requires_the_parent_join_key_be_projected() {
     let none_at_all = required_join_keys(&schema, "Post", &[], &[]);
     assert!(none_at_all.is_empty(), "the argument the call site used to pass");
 }
+
+/// The arithmetic of the aggregate bound. What these cannot reach — whether one tally is
+/// *shared* by every level and both passes of a request — is asserted through a served
+/// request in `rest_embedding_read_budget_e2e_pg`, because a per-level budget is
+/// indistinguishable from a shared one at this granularity.
+mod read_budget {
+    use axum::http::StatusCode;
+
+    use crate::routes::rest::embedding::budget::EmbedReadBudget;
+
+    /// The limit is the number of reads admitted, not the number refused: a budget of
+    /// three serves three. An off-by-one here would refuse the last row of a page that
+    /// the operator sized the bound for exactly.
+    #[test]
+    fn a_budget_admits_exactly_its_limit() {
+        let budget = EmbedReadBudget::new(3);
+        for i in 1..=3 {
+            assert!(budget.charge().is_ok(), "read {i} is within a budget of three");
+        }
+        assert_eq!(budget.spent(), 3);
+    }
+
+    /// And refuses the next one, with the status and code the wire contract names.
+    #[test]
+    fn the_read_that_would_cross_the_ceiling_is_refused() {
+        let budget = EmbedReadBudget::new(2);
+        assert!(budget.charge().is_ok());
+        assert!(budget.charge().is_ok());
+
+        let err = budget.charge().expect_err("the third read crosses a budget of two");
+        assert_eq!(err.status, StatusCode::PAYLOAD_TOO_LARGE);
+        assert_eq!(err.code, "TOO_MANY_EMBEDDED_READS");
+        assert!(
+            err.message.contains("max_embedded_reads"),
+            "the message names the knob an operator would raise: {}",
+            err.message
+        );
+    }
+
+    /// Once crossed, it stays crossed — a later charge is not admitted because the
+    /// counter happened to be read differently.
+    #[test]
+    fn a_crossed_budget_refuses_every_later_read() {
+        let budget = EmbedReadBudget::new(1);
+        assert!(budget.charge().is_ok());
+        assert!(budget.charge().is_err());
+        assert!(budget.charge().is_err(), "still refused");
+    }
+
+    /// `0` is the documented no-bound setting, matching `sse_max_replay_events`.
+    #[test]
+    fn a_zero_limit_is_unbounded() {
+        let budget = EmbedReadBudget::new(0);
+        for _ in 0..10_000 {
+            assert!(budget.charge().is_ok());
+        }
+    }
+
+    /// An unbounded budget does not tally, so `spent` is not a read counter an operator
+    /// could mistake for one when the bound is off.
+    #[test]
+    fn an_unbounded_budget_does_not_tally() {
+        let budget = EmbedReadBudget::new(0);
+        budget.charge().unwrap();
+        assert_eq!(budget.spent(), 0);
+    }
+}

@@ -4,9 +4,19 @@
 //! entries from the `?select=` parameter. Supports `OneToMany` (array),
 //! `ManyToOne` (single object), and `OneToOne` (object or null) cardinalities.
 //!
-//! For PostgreSQL, generates sub-queries with `jsonb_agg` / `jsonb_build_object`.
 //! Empty collections return `[]`, not null. Single absent objects return `null`.
+//!
+//! **How an embed is resolved.** One sub-query per parent row, in Rust: the join key is
+//! read off each already-projected parent row and
+//! [`Executor::execute_query_direct`](fraiseql_core::runtime::Executor::execute_query_direct)
+//! is called for it, with the recursion running per row. This module's documentation
+//! used to say it "generates sub-queries with `jsonb_agg` / `jsonb_build_object`" — it
+//! does not, and never did; that is a description of composing the fan-out into one SQL
+//! statement, which is the shape this path should eventually take and does not have.
+//! The reads therefore multiply with the page size at each level, which is what
+//! [`budget::EmbedReadBudget`] is here to bound.
 
+pub mod budget;
 pub mod executor;
 
 #[cfg(test)]
@@ -14,6 +24,7 @@ mod tests;
 
 use std::{collections::HashMap, sync::Arc};
 
+use budget::EmbedReadBudget;
 use executor::{EmbedCtx, count_related, declared_key, embed_into_rows, embed_into_single};
 use fraiseql_core::{
     schema::{CompiledSchema, RestConfig},
@@ -37,6 +48,12 @@ pub struct EmbeddingRequest<'a> {
     pub parent_type_name: &'a str,
     /// Security context for RLS enforcement.
     pub security_context: Option<&'a SecurityContext>,
+    /// The request's remaining allowance of embedded sub-reads.
+    ///
+    /// Borrowed rather than owned because the nested [`EmbeddingRequest`]s the recursion
+    /// builds must charge the **same** tally as the level above them; see
+    /// [`EmbedReadBudget`].
+    pub reads:            &'a EmbedReadBudget,
 }
 
 /// The parent-row keys an embedded selection needs projected, in the spelling the
@@ -209,6 +226,7 @@ pub async fn execute_embeddings(
         config:           req.config,
         parent_type:      req.parent_type_name,
         security_context: req.security_context,
+        reads:            req.reads,
     };
 
     for spec in embeddings {
@@ -293,6 +311,9 @@ pub async fn execute_embeddings(
                 config:           req.config,
                 parent_type_name: &rel.target_type,
                 security_context: req.security_context,
+                // The same tally, not a fresh one: the product of the levels is the
+                // quantity being bounded, so a per-level budget would bound nothing.
+                reads:            req.reads,
             };
             let no_filters = HashMap::new();
 
@@ -394,6 +415,7 @@ pub async fn execute_embedding_counts(
         config:           req.config,
         parent_type:      req.parent_type_name,
         security_context: req.security_context,
+        reads:            req.reads,
     };
 
     for count_rel_name in count_fields {

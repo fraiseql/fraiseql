@@ -1822,6 +1822,15 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// producer, every embed request against a compiled schema was a 400 reading
 		// "Available: none" — so the four fixes above were made in code no user reached.
 		"cargo test -p fraiseql-server --features rest --test rest_embedding_compiled_schema_e2e_pg -- --test-threads=1",
+		// #1351/#379: embedding resolves one sub-read per parent row and recurses per
+		// row, so a request's reads are the *product* of the page sizes at each level
+		// while every individual sub-read stays cheap enough to pass the cost gate, the
+		// page-size clamp and the bytes ceiling alike. `[rest] max_embedded_reads` bounds
+		// that product. Needs a database because what the unit tests cannot reach is
+		// whether the tally is genuinely *shared* across levels and across the rows and
+		// counts passes — a per-level budget is indistinguishable from a shared one until
+		// a request is actually served. Drops and recreates its own schema per rig.
+		"cargo test -p fraiseql-server --features rest --test rest_embedding_read_budget_e2e_pg -- --test-threads=1",
 		// #1271: a declared field name and the stored JSONB key it reads are two
 		// different strings. The REST runner reads the whole `data` document and
 		// projects in Rust, and that projector took the declared name verbatim

@@ -685,6 +685,22 @@ pub struct ServerConfig {
     ///
     /// **Recommendation**: set to `60` for production deployments.
     ///
+    /// # Why this is not defaulted
+    ///
+    /// Its only consumer is a `TimeoutLayer` applied to the **whole** application
+    /// (`server::routing::middleware`), so a default here would also cap the responses
+    /// that are long-lived by design: the NDJSON, CSV and XLSX exports, and every SSE
+    /// stream. A deployment that set it to bound a runaway read would be truncating its
+    /// own exports as the price, and an export cut at the timeout is a partial file
+    /// delivered under a `200` — the failure this codebase refuses elsewhere by
+    /// refusing up front (`RESUME_TOO_FAR_BEHIND`, `TOO_MANY_EMBEDDED_READS`).
+    ///
+    /// So it stays opt-in, and a read loop that needs bounding is bounded where the loop
+    /// is: `[rest] max_embedded_reads` is the aggregate ceiling on `?select=` embedding,
+    /// which was the runaway this note was written for. Defaulting this knob would
+    /// require moving the layer off the global router and onto the non-streaming routes
+    /// first.
+    ///
     /// # Example (TOML)
     ///
     /// ```toml

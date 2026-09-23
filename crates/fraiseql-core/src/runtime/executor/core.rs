@@ -83,6 +83,7 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
 /// | `[validation] max_page_size` | yes — `enforce_max_page_size` | yes | yes |
 /// | `[validation] max_response_bytes` | yes — charged on the returned rows | yes | yes, per frame when streamed |
 /// | `[rest] max_embedding_depth` | n/a | yes — `parse_select_with_embeddings` | n/a |
+/// | `[rest] max_embedded_reads` | n/a | yes — `EmbedReadBudget`, per request | n/a |
 ///
 /// The two "no" cells are not gaps to be closed by routing more paths through
 /// `run_gate1`. Depth and complexity score a document because a document is where
@@ -91,6 +92,14 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
 /// bytes it returns. Scoring it by the document's multiply-per-level arithmetic
 /// would model an execution engine this framework does not have. See
 /// [`ResponseBudget`](crate::security::ResponseBudget).
+///
+/// What none of the per-read rows above can state is the **aggregate** of one request.
+/// REST `?select=` embedding issues one sub-read per parent row per level, so a request's
+/// reads are the product of the page sizes at each level while every individual sub-read
+/// stays cheap enough to pass the cost gate, the page-size clamp and the bytes ceiling
+/// alike. That product is bounded by `[rest] max_embedded_reads`, which counts the
+/// sub-reads actually issued rather than estimating them from the request — the last row
+/// of the table, and the only one that is not a per-read control.
 ///
 /// Derivation enforces exactly what the schema declares: an undeclared depth or
 /// complexity limit stays unbounded rather than acquiring a new default, and a

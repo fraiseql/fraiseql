@@ -8,6 +8,7 @@ use fraiseql_core::{
     security::SecurityContext,
 };
 
+use super::budget::EmbedReadBudget;
 use crate::routes::rest::handler::RestError;
 
 /// Shared context for embedding execution, reducing argument count.
@@ -22,6 +23,9 @@ pub(super) struct EmbedCtx<'a> {
     /// had only the relationship's storage column to go on.
     pub parent_type:      &'a str,
     pub security_context: Option<&'a SecurityContext>,
+    /// The request's allowance of embedded sub-reads, shared with every other level and
+    /// relationship of the same request. See [`EmbedReadBudget`].
+    pub reads:            &'a EmbedReadBudget,
 }
 
 /// The spelling `type_name` publishes for the storage column `column`.
@@ -154,6 +158,11 @@ pub(super) async fn embed_into_single(
 
     let variables = serde_json::json!({});
     let vars_ref = Some(&variables);
+
+    // Charged here rather than on entry: the two early returns above answer from the
+    // parent row alone and read nothing, so charging them would spend a request's
+    // allowance on rows that never reach the database.
+    ctx.reads.charge()?;
 
     let result = ctx
         .executor
@@ -315,6 +324,12 @@ pub(super) async fn count_related(
 
     let variables = serde_json::json!({});
     let vars_ref = Some(&variables);
+
+    // A count is a read of the same relation on behalf of the same request, so it is
+    // charged against the same tally as the rows; `?select=posts(id),posts.count` issues
+    // two sub-reads per parent, and a budget that saw only one of them would be bounded
+    // in name only.
+    ctx.reads.charge()?;
 
     let count = ctx
         .executor

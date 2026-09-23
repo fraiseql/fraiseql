@@ -725,12 +725,21 @@ impl RestHandler<'_> {
         let has_embeddings = !params.embeddings.is_empty() || !params.embedding_counts.is_empty();
         if has_embeddings {
             if let Some(data) = body.get_mut("data") {
+                // One tally for the whole request: every relationship, every parent row,
+                // every nesting level and both passes below charge against it. The reads
+                // an embed performs are the product of the page sizes at each level, and
+                // no per-read control can see that product — each sub-read is cheap
+                // (`[rest].max_embedded_reads`).
+                let reads = super::super::embedding::budget::EmbedReadBudget::new(
+                    self.config.max_embedded_reads,
+                );
                 let embed_req = super::super::embedding::EmbeddingRequest {
                     executor: self.executor,
                     schema: self.schema,
                     config: self.config,
                     parent_type_name: &query_match.query_def.return_type,
                     security_context,
+                    reads: &reads,
                 };
 
                 super::super::embedding::execute_embeddings(
