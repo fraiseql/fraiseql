@@ -1545,7 +1545,7 @@ mod search_relevance {
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
         let executor = Executor::new(test_schema(), adapter.clone());
 
-        executor.execute_query_direct(&users_match(), None, None).await.unwrap();
+        executor.execute_query_direct(&users_match(), None, None, None).await.unwrap();
 
         assert_eq!(adapter.captured_order_by(), None);
     }
@@ -1557,7 +1557,7 @@ mod search_relevance {
         let executor = Executor::new(test_schema(), adapter.clone());
         let qm = users_match().with_search_relevance(relevance());
 
-        executor.execute_query_direct(&qm, None, None).await.unwrap();
+        executor.execute_query_direct(&qm, None, None, None).await.unwrap();
 
         let captured = adapter.captured_order_by().expect("the read must be ordered");
         assert_eq!(captured.len(), 1, "one ordering, the rank: {captured:?}");
@@ -1585,7 +1585,7 @@ mod search_relevance {
             serde_json::json!([{ "field": "name", "direction": "ASC" }]),
         );
 
-        executor.execute_query_direct(&qm, None, None).await.unwrap();
+        executor.execute_query_direct(&qm, None, None, None).await.unwrap();
 
         let captured = adapter.captured_order_by().expect("the read must be ordered");
         assert_eq!(captured.len(), 1);
@@ -1637,7 +1637,7 @@ mod pagination_order {
         for (k, v) in args {
             qm.arguments.insert((*k).to_string(), v.clone());
         }
-        executor.execute_query_direct(&qm, None, None).await.unwrap();
+        executor.execute_query_direct(&qm, None, None, None).await.unwrap();
         adapter.captured_order_by()
     }
 
@@ -1742,7 +1742,7 @@ mod pagination_order {
         let qm = users_match(&[("limit", serde_json::json!(2))]);
         let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
         let executor = Executor::new(test_schema(), adapter.clone());
-        executor.execute_query_direct(&qm, None, None).await.unwrap();
+        executor.execute_query_direct(&qm, None, None, None).await.unwrap();
 
         assert!(adapter.captured_order_by().is_some(), "the read was ordered");
         assert!(
@@ -2827,7 +2827,7 @@ mod row_read {
             .match_query("{ users { id name } }", None)
             .unwrap();
 
-        let err = executor.execute_query_direct(&qm, None, None).await.unwrap_err();
+        let err = executor.execute_query_direct(&qm, None, None, None).await.unwrap_err();
 
         match err {
             crate::FraiseQLError::ResponseTooLarge { bytes, limit } => {
@@ -2849,7 +2849,7 @@ mod row_read {
             .unwrap();
 
         executor
-            .execute_query_direct(&qm, None, None)
+            .execute_query_direct(&qm, None, None, None)
             .await
             .expect("exactly at the ceiling");
     }

@@ -778,6 +778,7 @@ impl Executor {
         query_match: &QueryMatch,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
+        request_budget: Option<&crate::security::ResponseBudget>,
     ) -> Result<serde_json::Value> {
         // #1336 backstop: REST reads enter here rather than through the GraphQL
         // document path, so the guard cannot live in `execute_with_timeout` alone.
@@ -787,8 +788,29 @@ impl Executor {
         )?;
 
         self.query_runner()
-            .execute_query_direct(query_match, variables, security_context)
+            .execute_query_direct(query_match, variables, security_context, request_budget)
             .await
+    }
+
+    /// A response-bytes budget for **one request**, to be shared by every read that
+    /// request issues.
+    ///
+    /// A transport that answers one request with several reads — the REST `?select=`
+    /// embed, which resolves one sub-read per parent row per level — builds one of these
+    /// and passes it by reference to each
+    /// [`execute_query_direct`](Self::execute_query_direct). Without it each sub-read
+    /// gets a budget of its own, so `[validation] max_response_bytes` bounds each
+    /// sub-read and not the response they add up to.
+    ///
+    /// Built here rather than in the transport so the ceiling is read from the compiled
+    /// configuration in the one place that owns it, and a transport cannot supply a
+    /// budget with a ceiling of its own choosing.
+    ///
+    /// `None` when the operator declared no ceiling — the same shape, for the same
+    /// reason, that `ResponseBudget::new` returns for that case.
+    #[must_use]
+    pub fn request_response_budget(&self) -> Option<crate::security::ResponseBudget> {
+        crate::security::ResponseBudget::new(self.ctx.config.max_response_bytes)
     }
 
     /// The same read as [`execute_query_direct`](Self::execute_query_direct),

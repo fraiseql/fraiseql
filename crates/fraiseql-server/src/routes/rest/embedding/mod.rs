@@ -54,6 +54,15 @@ pub struct EmbeddingRequest<'a> {
     /// builds must charge the **same** tally as the level above them; see
     /// [`EmbedReadBudget`].
     pub reads:            &'a EmbedReadBudget,
+    /// The request's remaining response-bytes allowance, or `None` when the operator
+    /// declared no ceiling.
+    ///
+    /// Borrowed for the same reason `reads` is, and shared with the **parent** read as
+    /// well: the response this bounds is the parent rows plus everything embedded into
+    /// them, so a budget that saw only the sub-reads would bound the wrong quantity. The
+    /// ceiling itself comes from the engine (`Executor::request_response_budget`), not
+    /// from this transport.
+    pub response_bytes:   Option<&'a fraiseql_core::security::ResponseBudget>,
 }
 
 /// The parent-row keys an embedded selection needs projected, in the spelling the
@@ -227,6 +236,7 @@ pub async fn execute_embeddings(
         parent_type:      req.parent_type_name,
         security_context: req.security_context,
         reads:            req.reads,
+        response_bytes:   req.response_bytes,
     };
 
     for spec in embeddings {
@@ -314,6 +324,8 @@ pub async fn execute_embeddings(
                 // The same tally, not a fresh one: the product of the levels is the
                 // quantity being bounded, so a per-level budget would bound nothing.
                 reads:            req.reads,
+                // And the same bytes ceiling, for the same reason one level up.
+                response_bytes:   req.response_bytes,
             };
             let no_filters = HashMap::new();
 
@@ -416,6 +428,7 @@ pub async fn execute_embedding_counts(
         parent_type:      req.parent_type_name,
         security_context: req.security_context,
         reads:            req.reads,
+        response_bytes:   req.response_bytes,
     };
 
     for count_rel_name in count_fields {

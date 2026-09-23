@@ -199,6 +199,12 @@ impl RestError {
             StatusCode::CONFLICT => "CONFLICT",
             StatusCode::REQUEST_TIMEOUT => "REQUEST_TIMEOUT",
             StatusCode::TOO_MANY_REQUESTS => "RATE_LIMITED",
+            // `ResponseTooLarge` is the only variant that carries a 413, and without this
+            // arm it fell to the wildcard and was reported as `INTERNAL_SERVER_ERROR`
+            // beside a 413 status — a body contradicting its own status line, telling the
+            // client a server fault where the variant's own documentation says
+            // "permanent for the request as issued ... the caller narrows `?select=`".
+            StatusCode::PAYLOAD_TOO_LARGE => "RESPONSE_TOO_LARGE",
             StatusCode::NOT_IMPLEMENTED => "NOT_IMPLEMENTED",
             StatusCode::SERVICE_UNAVAILABLE => "SERVICE_UNAVAILABLE",
             StatusCode::BAD_REQUEST => "BAD_REQUEST",

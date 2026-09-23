@@ -696,7 +696,7 @@ impl QueryRunner {
         // whatever its nesting, and its cost is the bytes it returns. Charged here so
         // the same ceiling means the same thing whether the request arrived as a
         // document or as a REST read.
-        if let Some(mut budget) =
+        if let Some(budget) =
             crate::security::ResponseBudget::new(self.ctx.config.max_response_bytes)
         {
             budget.charge_jsonb_rows(&results)?;
@@ -1135,7 +1135,7 @@ impl QueryRunner {
         // whole ceiling exists: a control that binds on one entry point and not its
         // twin is the defect this closes, one level down. An unauthenticated read is
         // also the one a deployment most wants bounded.
-        if let Some(mut budget) =
+        if let Some(budget) =
             crate::security::ResponseBudget::new(self.ctx.config.max_response_bytes)
         {
             budget.charge_jsonb_rows(&results)?;
@@ -1199,6 +1199,7 @@ impl QueryRunner {
         query_match: &crate::runtime::matcher::QueryMatch,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
+        request_budget: Option<&crate::security::ResponseBudget>,
     ) -> Result<serde_json::Value> {
         let resolved = self.resolve_direct_read(
             query_match,
@@ -1220,14 +1221,22 @@ impl QueryRunner {
 
         // The response-bytes ceiling, charged on what came back.
         //
-        // This is the buffered REST read and, through it, every embedded sub-read:
-        // `embed_into_single` resolves each one through `execute_query_direct`. Each
-        // sub-read is therefore bounded on its own — which is what this function can
-        // bound, since it sees one read and the embedding fan-out is a loop above it.
-        // Bounding the *aggregate* of an embed is not possible from here and is not
-        // claimed: see the note on `stream_query_direct` and the standing issue on
-        // the embedding executor.
-        if let Some(mut budget) = resolved.budget() {
+        // `request_budget` is the caller's, and it is present when the caller is a
+        // transport that issues **several** reads to answer one request: a REST
+        // `?select=` embed resolves one sub-read per parent row per level, so a budget
+        // built here would bound each sub-read and leave their aggregate — the quantity
+        // that decides whether the response is too large — unbounded. It is borrowed
+        // rather than owned for exactly that reason; see the rule on `ResponseBudget`.
+        //
+        // Absent one, this read *is* the whole response and owns its own budget, which
+        // is the same ceiling over the same bytes. One charge site either way, so the
+        // two cases cannot come to mean different things.
+        let own_budget = if request_budget.is_none() {
+            resolved.budget()
+        } else {
+            None
+        };
+        if let Some(budget) = request_budget.or(own_budget.as_ref()) {
             budget.charge_jsonb_rows(&results)?;
         }
 
@@ -1489,7 +1498,7 @@ impl QueryRunner {
         // The response-bytes ceiling, charged after adjudication: masking can only
         // shrink a row (`ColumnValue::Null`), so charging before it would bill the
         // caller for bytes the gate withheld.
-        if let Some(mut budget) = plan.resolved.budget() {
+        if let Some(budget) = plan.resolved.budget() {
             for row in &rows {
                 budget.charge_column_row(row)?;
             }
@@ -1563,14 +1572,14 @@ impl QueryRunner {
         let budget = plan.resolved.budget();
         let stream = match (plan.gate, budget) {
             (None, None) => stream,
-            (gate, mut budget) => {
+            (gate, budget) => {
                 let columns = plan.columns.clone();
                 Box::pin(stream.map(move |row| {
                     let mut row = row?;
                     if let Some(ref gate) = gate {
                         gate.adjudicate_row(&columns, &mut row)?;
                     }
-                    if let Some(ref mut budget) = budget {
+                    if let Some(ref budget) = budget {
                         budget.charge_column_row(&row)?;
                     }
                     Ok(row)
@@ -1980,11 +1989,11 @@ impl QueryRunner {
         // export is the largest read this engine serves on purpose, so the ceiling
         // has to cut it where it crosses rather than let it run: `max_page_size`
         // does not bound a stream, which is the point of a stream.
-        let mut budget = resolved.budget();
+        let budget = resolved.budget();
         let access = resolved.access;
         Ok(Box::pin(rows.map(move |row| {
             let row = row?;
-            if let Some(ref mut budget) = budget {
+            if let Some(ref budget) = budget {
                 budget.charge(crate::security::json_bytes(row.as_value()))?;
             }
             // Projected as a one-element list so the row goes through the list

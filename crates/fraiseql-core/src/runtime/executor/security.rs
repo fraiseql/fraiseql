@@ -683,7 +683,9 @@ mod enrichment_entry_point_tests {
             .match_query("{ orders { id } }", None)
             .expect("the fixture query matches");
 
-        let read = executor.execute_query_direct(&query_match, None, Some(&unresolved())).await;
+        let read = executor
+            .execute_query_direct(&query_match, None, Some(&unresolved()), None)
+            .await;
         assert!(
             read.as_ref().err().is_some_and(is_refusal),
             "execute_query_direct must refuse; got: {read:?}"

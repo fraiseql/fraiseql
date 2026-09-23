@@ -3206,10 +3206,13 @@ mod operation_authz {
         );
         let qm = users_match();
         // Authenticated REST read.
-        let err = executor.execute_query_direct(&qm, None, Some(&ctx("u1"))).await.unwrap_err();
+        let err = executor
+            .execute_query_direct(&qm, None, Some(&ctx("u1")), None)
+            .await
+            .unwrap_err();
         assert!(is_authz(&err), "REST direct read deny → 403: {err:?}");
         // Anonymous REST read (principal None) is gated too.
-        let err = executor.execute_query_direct(&qm, None, None).await.unwrap_err();
+        let err = executor.execute_query_direct(&qm, None, None, None).await.unwrap_err();
         assert!(is_authz(&err), "anonymous REST direct read deny → 403: {err:?}");
     }
 
@@ -3233,7 +3236,8 @@ mod operation_authz {
             RuntimeConfig::default().with_authorizer(Arc::new(AllowAll)),
         );
         let qm = users_match();
-        let result = executor.execute_query_direct(&qm, None, Some(&ctx("u1"))).await.unwrap();
+        let result =
+            executor.execute_query_direct(&qm, None, Some(&ctx("u1")), None).await.unwrap();
         assert!(result["users"].is_array() || result.get("data").is_some(), "allowed: {result}");
     }
 
@@ -3281,7 +3285,7 @@ mod rls_fail_closed {
     #[tokio::test]
     async fn rest_direct_read_without_context_fails_closed_under_rls() {
         let qm = users_match();
-        let err = rls_executor().execute_query_direct(&qm, None, None).await.unwrap_err();
+        let err = rls_executor().execute_query_direct(&qm, None, None, None).await.unwrap_err();
         assert!(
             matches!(err, FraiseQLError::Validation { .. }),
             "REST direct read without a context under an RLS policy must fail closed, got {err:?}"
@@ -3318,7 +3322,7 @@ mod rls_fail_closed {
             display_name:     None,
         };
         let qm = users_match();
-        let result = rls_executor().execute_query_direct(&qm, None, Some(&ctx)).await;
+        let result = rls_executor().execute_query_direct(&qm, None, Some(&ctx), None).await;
         assert!(result.is_ok(), "authenticated REST read must still serve: {result:?}");
     }
 }

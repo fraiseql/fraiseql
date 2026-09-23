@@ -1,4 +1,9 @@
-//! `[rest] max_embedded_reads` — the aggregate bound on what one `?select=` request reads.
+//! The **aggregate** bounds on one `?select=` request: `[rest] max_embedded_reads` on the
+//! sub-reads it performs, and `[validation] max_response_bytes` on the bytes they return.
+//!
+//! Two controls, one defect class, so one suite: a per-read control cannot bound a
+//! fan-out, and the only way to tell a shared budget from a per-read one is to serve a
+//! request and look at the answer.
 //!
 //! Embedding resolves a relationship with **one sub-read per parent row**, recursing per
 //! row, so the reads one request performs are the *product* of the page sizes at each
@@ -21,6 +26,14 @@
 //! * `every_nesting_level_charges_the_same_tally` fails if the nested request gets its own budget
 //!
 //! Both were confirmed to fail under exactly those mutations — see the commit body.
+//!
+//! The bytes ceiling has the same shape and one more sharing edge, because the response it
+//! bounds is the parent rows **plus** everything embedded into them: the parent read and
+//! every sub-read must charge one budget.
+//! `the_parent_read_and_its_embeds_share_one_bytes_ceiling` fails if any of them gets its
+//! own, and it establishes its own window rather than hard-coding one — it asserts, at the
+//! same ceiling, that the parent read alone is served and that a read *larger than either
+//! sub-read* is served, so the only thing left to refuse the embed is the aggregate.
 //!
 //! The refusal is a `413`, before the response is assembled, rather than a short answer:
 //! an embed served in part is indistinguishable from a parent that genuinely has fewer
@@ -68,14 +81,21 @@ const SCHEMA: &str = "p1351_budget";
 /// | `?select=id,orders.count` | 2 — one per user |
 /// | `?select=id,orders(id),orders.count` | 4 — both passes, one each per user |
 /// | `?select=id,orders(id,user(name))` | 6 — 2 for the orders, then one per order |
-fn fraiseql_toml(max_embedded_reads: u64) -> String {
+fn fraiseql_toml(max_embedded_reads: u64, max_response_bytes: Option<u64>) -> String {
+    // Omitted rather than set to a sentinel when absent: "no ceiling declared" is the
+    // shape the engine distinguishes, and a rig that always wrote a number could not
+    // exercise it.
+    let validation = match max_response_bytes {
+        Some(bytes) => format!("\n[validation]\nmax_response_bytes = {bytes}\n"),
+        None => String::new(),
+    };
     format!(
         r#"
 [schema]
 name = "budget-1351"
 version = "1.0.0"
 database_target = "postgresql"
-
+{validation}
 [rest]
 enabled = true
 max_embedded_reads = {max_embedded_reads}
@@ -173,13 +193,19 @@ impl Rig {
 /// defect class this control belongs to is a knob an operator can write, that parses, and
 /// that does nothing. A rig that set the field directly would pass against exactly that.
 async fn rig(max_embedded_reads: u64) -> Option<Rig> {
+    rig_with(max_embedded_reads, None).await
+}
+
+/// The rig, with a `[validation] max_response_bytes` ceiling as well.
+async fn rig_with(max_embedded_reads: u64, max_response_bytes: Option<u64>) -> Option<Rig> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
     seed(&adapter).await;
 
     let temp_dir = TempDir::new().expect("temp dir");
     let toml_path = temp_dir.path().join("fraiseql.toml");
-    std::fs::write(&toml_path, fraiseql_toml(max_embedded_reads)).expect("write fraiseql.toml");
+    std::fs::write(&toml_path, fraiseql_toml(max_embedded_reads, max_response_bytes))
+        .expect("write fraiseql.toml");
 
     let (compiled, _) = compile_to_schema(CompileOptions {
         skip_hash: true,
@@ -195,7 +221,14 @@ async fn rig(max_embedded_reads: u64) -> Option<Rig> {
     .expect("the compiler's own output must survive load");
     schema.build_indexes();
 
-    let executor = Arc::new(Executor::new(schema.clone(), adapter));
+    // The schema-derived runtime config, not the default one. `Executor::new` takes
+    // `RuntimeConfig::default()`, whose `max_response_bytes` is `None` however the
+    // document declared it — so a rig built that way asserts a bytes ceiling that is not
+    // in force, and passes just as happily with the charging removed altogether. Same
+    // reason this rig compiles the document instead of hand-building a `RestConfig`.
+    let runtime_config = fraiseql_core::runtime::RuntimeConfig::from_compiled_schema(&schema)
+        .expect("the compiled document must yield a runtime config");
+    let executor = Arc::new(Executor::with_config(schema.clone(), adapter, runtime_config));
     let state = AppState::new(executor);
     let router = rest_query_router(&state, &RestMountConfig::default()).expect("REST router");
 
@@ -333,4 +366,90 @@ async fn a_zero_budget_is_unbounded() {
         Some("alice"),
         "the second level really executed: {body}"
     );
+}
+
+// ── `[validation] max_response_bytes`, on the request rather than on each read ──
+
+/// The refusal a crossed bytes ceiling owes the client.
+fn assert_too_large(status: StatusCode, body: &Value) {
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "expected the bytes refusal: {body}");
+    assert_eq!(
+        body.get("error").and_then(|e| e.get("code")).and_then(Value::as_str),
+        Some("RESPONSE_TOO_LARGE"),
+        "the code agrees with the status rather than reporting a server fault: {body}"
+    );
+    assert!(
+        body.get("error")
+            .and_then(|e| e.get("message"))
+            .and_then(Value::as_str)
+            .is_some_and(|m| m.contains("max_response_bytes")),
+        "the message names the knob an operator would raise: {body}"
+    );
+}
+
+/// **The parent read and every embedded sub-read charge one bytes ceiling.**
+///
+/// `[validation] max_response_bytes` bounds *a response*, and this representation's
+/// response is the parent rows plus everything embedded into them. Charged per read
+/// instead, a `?select=` answered with a large body in many individually small sub-reads
+/// crosses the ceiling as often as it likes and is refused never.
+///
+/// **The ceiling is not a magic number: the test establishes its own window.** At 400
+/// bytes it first asserts two requests are *served* —
+///
+/// * `users?select=id` — the parent read on its own;
+/// * `orders?select=id,total` — all four orders in **one** read, which is strictly larger than
+///   either of the two-order sub-reads the embed issues;
+///
+/// — so 400 is known to exceed the parent read and every sub-read individually. The embed
+/// request is then refused, and the aggregate is the only quantity left that could refuse
+/// it. A budget rebuilt per read serves it `200`.
+///
+/// (For the record, on this fixture: a user row is charged 43 and 41 bytes, an order row
+/// 88. Parent 84 + two sub-reads of 176 = 436 > 400, while the largest single read is the
+/// 352 of `orders`. The assertions above are what the test relies on; these figures are
+/// why 400 was chosen.)
+#[tokio::test]
+async fn the_parent_read_and_its_embeds_share_one_bytes_ceiling() {
+    let Some(rig) = rig_with(0, Some(400)).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/users?select=id").await;
+    assert_eq!(status, StatusCode::OK, "the parent read alone is under the ceiling: {body}");
+
+    let (status, body) = rig.get("/rest/v1/orders?select=id,total").await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "one read of all four orders — larger than either sub-read — is under it too: {body}"
+    );
+
+    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,total)").await;
+    assert_too_large(status, &body);
+}
+
+/// The accepted half. A ceiling the whole request fits under serves every parent's orders
+/// in full — so the shared budget bounds the response rather than truncating it, which is
+/// #1230's shape under a `200`.
+#[tokio::test]
+async fn an_embed_inside_the_bytes_ceiling_is_served_in_full() {
+    let Some(rig) = rig_with(0, Some(10_000)).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+
+    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,total)").await;
+    assert_eq!(status, StatusCode::OK, "436 bytes against a ceiling of 10 000: {body}");
+
+    let rows = body.get("data").and_then(Value::as_array).unwrap();
+    assert_eq!(rows.len(), 2, "both users: {body}");
+    for row in rows {
+        assert_eq!(
+            row.get("orders").and_then(Value::as_array).map(Vec::len),
+            Some(2),
+            "every parent's orders are all there: {body}"
+        );
+    }
 }

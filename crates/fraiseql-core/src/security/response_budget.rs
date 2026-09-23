@@ -43,6 +43,8 @@
 //! is the point of doing it on the stream at all: it is the only arm where the
 //! server would otherwise keep producing after the answer is already too big.
 
+use std::sync::atomic::{AtomicU64, Ordering};
+
 use fraiseql_db::types::{ColumnValue, JsonbValue};
 
 use crate::error::{FraiseQLError, Result};
@@ -138,13 +140,29 @@ pub const fn column_bytes(value: &ColumnValue) -> u64 {
 
 /// A running total of delivered bytes, against the ceiling the read resolved.
 ///
-/// Held by value and charged as rows arrive. A streamed read keeps one across its
-/// whole lifetime — that is what makes the ceiling bound the *response* rather than
-/// each frame independently.
-#[derive(Debug, Clone)]
+/// Charged as rows arrive. **Whoever holds one decides what the ceiling bounds**, and
+/// the rule is the same at every scale: the budget is kept for as long as the thing
+/// being bounded lasts.
+///
+/// * a buffered read owns one for the length of that read, so the ceiling bounds the read;
+/// * a streamed read keeps one across its whole lifetime, so the ceiling bounds the response rather
+///   than each frame independently;
+/// * a request whose transport issues **several** reads on its behalf — a REST `?select=` embed
+///   resolves one sub-read per parent row per level — passes one *borrowed* budget to all of them,
+///   so the ceiling bounds the request rather than each sub-read independently.
+///
+/// That last case is why `used` is atomic and [`charge`](Self::charge) takes `&self`:
+/// sharing a budget is holding it by reference, not a second type with a second copy of
+/// the rule. A budget rebuilt per read bounds each read and leaves their aggregate
+/// unbounded, which is a ceiling that reads as enforced and is not.
+///
+/// Deliberately **not** `Clone`. A clone is an unshared copy with its own zeroed total,
+/// which is precisely the mistake the paragraph above describes, and it would compile
+/// silently.
+#[derive(Debug)]
 pub struct ResponseBudget {
     limit: u64,
-    used:  u64,
+    used:  AtomicU64,
 }
 
 impl ResponseBudget {
@@ -156,15 +174,18 @@ impl ResponseBudget {
     #[must_use]
     pub const fn new(limit: Option<u64>) -> Option<Self> {
         match limit {
-            Some(limit) => Some(Self { limit, used: 0 }),
+            Some(limit) => Some(Self {
+                limit,
+                used: AtomicU64::new(0),
+            }),
             None => None,
         }
     }
 
     /// Bytes charged so far.
     #[must_use]
-    pub const fn used(&self) -> u64 {
-        self.used
+    pub fn used(&self) -> u64 {
+        self.used.load(Ordering::Relaxed)
     }
 
     /// The ceiling this budget enforces.
@@ -183,11 +204,16 @@ impl ResponseBudget {
     ///
     /// [`FraiseQLError::ResponseTooLarge`] once the accumulated total exceeds the
     /// ceiling.
-    pub const fn charge(&mut self, bytes: u64) -> Result<()> {
-        self.used = self.used.saturating_add(bytes);
-        if self.used > self.limit {
+    pub fn charge(&self, bytes: u64) -> Result<()> {
+        // `fetch_add` returns the previous total, so the figure compared — and reported —
+        // is the one this charge produced. `Relaxed` is the whole ordering requirement:
+        // the reads sharing a budget are sequential, so there is never contention, and
+        // the atomic is here to allow `&self` across a `Send` future rather than to
+        // synchronise anything.
+        let used = self.used.fetch_add(bytes, Ordering::Relaxed).saturating_add(bytes);
+        if used > self.limit {
             return Err(FraiseQLError::ResponseTooLarge {
-                bytes: self.used,
+                bytes: used,
                 limit: self.limit,
             });
         }
@@ -199,7 +225,7 @@ impl ResponseBudget {
     /// # Errors
     ///
     /// [`FraiseQLError::ResponseTooLarge`] when the rows exceed the ceiling.
-    pub fn charge_jsonb_rows(&mut self, rows: &[JsonbValue]) -> Result<()> {
+    pub fn charge_jsonb_rows(&self, rows: &[JsonbValue]) -> Result<()> {
         for row in rows {
             self.charge(json_bytes(row.as_value()))?;
         }
@@ -212,7 +238,7 @@ impl ResponseBudget {
     ///
     /// [`FraiseQLError::ResponseTooLarge`] when the frame takes the response over
     /// the ceiling.
-    pub fn charge_column_row(&mut self, row: &[ColumnValue]) -> Result<()> {
+    pub fn charge_column_row(&self, row: &[ColumnValue]) -> Result<()> {
         let bytes = row.iter().map(column_bytes).fold(0u64, u64::saturating_add);
         self.charge(bytes)
     }

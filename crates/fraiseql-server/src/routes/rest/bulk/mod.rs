@@ -286,7 +286,7 @@ impl<'a> BulkHandler<'a> {
         // scanning the whole view (#862).
         let filter_result = self
             .executor
-            .execute_query_direct(&query_match, None, security_context)
+            .execute_query_direct(&query_match, None, security_context, None)
             .await
             .map_err(RestError::from)?;
 

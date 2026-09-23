@@ -26,6 +26,9 @@ pub(super) struct EmbedCtx<'a> {
     /// The request's allowance of embedded sub-reads, shared with every other level and
     /// relationship of the same request. See [`EmbedReadBudget`].
     pub reads:            &'a EmbedReadBudget,
+    /// The request's response-bytes allowance, shared with every other sub-read *and*
+    /// with the parent read, or `None` when no ceiling is configured.
+    pub response_bytes:   Option<&'a fraiseql_core::security::ResponseBudget>,
 }
 
 /// The spelling `type_name` publishes for the storage column `column`.
@@ -166,7 +169,7 @@ pub(super) async fn embed_into_single(
 
     let result = ctx
         .executor
-        .execute_query_direct(&query_match, vars_ref, ctx.security_context)
+        .execute_query_direct(&query_match, vars_ref, ctx.security_context, ctx.response_bytes)
         .await
         .map_err(RestError::from)?;
 

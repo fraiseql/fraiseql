@@ -636,7 +636,7 @@ impl QueryRunner {
         // The response-bytes ceiling, on the `node(id:)` lookup. One row, but one
         // row of a materialised document is exactly the shape whose size the request
         // cannot predict.
-        if let Some(mut budget) =
+        if let Some(budget) =
             crate::security::ResponseBudget::new(self.ctx.config.max_response_bytes)
         {
             budget.charge_jsonb_rows(&rows)?;

@@ -1370,7 +1370,7 @@ async fn the_rest_filter_surface_enforces_the_same_rule() {
     };
 
     let err = exec
-        .execute_query_direct(&rest_match, None, None)
+        .execute_query_direct(&rest_match, None, None, None)
         .await
         .expect_err("REST must refuse the same undeclared `where` key as /graphql");
     assert!(err.to_string().contains("bogusKey"), "got: {err}");
@@ -1408,7 +1408,7 @@ async fn the_rest_filter_surface_still_serves_a_declared_key() {
         parsed_query: fraiseql_core::graphql::ParsedQuery::default(),
     };
 
-    exec.execute_query_direct(&rest_match, None, None)
+    exec.execute_query_direct(&rest_match, None, None, None)
         .await
         .expect("a declared key must still serve over REST");
     assert!(
@@ -1534,7 +1534,7 @@ async fn the_rest_sort_surface_enforces_the_same_rule() {
     };
 
     let err = exec
-        .execute_query_direct(&rest_match, None, None)
+        .execute_query_direct(&rest_match, None, None, None)
         .await
         .expect_err("REST must refuse the same unknown sort key as /graphql");
     assert!(err.to_string().contains("totallyBogusField"), "got: {err}");
