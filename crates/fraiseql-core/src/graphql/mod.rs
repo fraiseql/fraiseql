@@ -110,9 +110,9 @@ pub mod stream_split;
 // ============================================================================
 
 pub use complexity::{
-    ComplexityConfig, ComplexityValidationError, DEFAULT_MAX_ALIASES, MAX_VARIABLES_COUNT,
-    QueryMetrics, RequestValidator, estimate_direct_read_cost, estimate_query_cost,
-    parse_graphql_document,
+    ComplexityConfig, ComplexityValidationError, DEFAULT_MAX_ALIASES, DirectReadProjection,
+    MAX_VARIABLES_COUNT, QueryMetrics, RequestValidator, estimate_direct_read_cost,
+    estimate_query_cost, parse_graphql_document,
 };
 pub use defer::DeferredPayload;
 pub use directive_evaluator::{

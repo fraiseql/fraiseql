@@ -692,6 +692,67 @@ pub fn estimate_query_cost<'a, S: std::hash::BuildHasher>(
     analyzer.document_cost(document, root_cost_weights)
 }
 
+/// A direct read's projection, in the shape the cost estimator scores it.
+///
+/// The leaf fields this level materialises, the page it materialises them over, and
+/// every level composed **into the same statement** beneath it.
+///
+/// Every read this codebase issues today is [`flat`](Self::flat) — leaves, a page, no
+/// nesting — and scores exactly what a bare field count scored before this type
+/// existed. The nesting is here because the REST `?select=` fan-out is to be composed
+/// into the parent statement with `LATERAL`, and a composed statement materialises its
+/// embedded levels itself. Handed to a flat estimator it would be charged for the
+/// parent's own columns alone, and `per_request_max` would loosen by whatever the embed
+/// adds — silently, because the number the operator wrote would not have changed.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct DirectReadProjection {
+    /// Scalar fields projected at this level.
+    pub leaf_fields: usize,
+    /// The page this level is read over. `None` is an unpaginated read and scores a
+    /// multiplier of 1, for the reason given on [`estimate_direct_read_cost`].
+    pub limit:       Option<u32>,
+    /// The levels composed into the same statement beneath this one, each with its
+    /// own page — which is the point of `LATERAL`: the embedded `ORDER BY`/`LIMIT`
+    /// live inside the subquery, so a nested level's page is genuinely its own and
+    /// not a share of the parent's.
+    pub nested:      Vec<DirectReadProjection>,
+}
+
+impl DirectReadProjection {
+    /// A projection with nothing composed beneath it.
+    ///
+    /// `leaf_fields` scalars over one page — the shape of every direct read today.
+    #[must_use]
+    pub const fn flat(leaf_fields: usize, limit: Option<u32>) -> Self {
+        Self {
+            leaf_fields,
+            limit,
+            nested: Vec::new(),
+        }
+    }
+
+    /// This level's complexity, and its subtree's.
+    ///
+    /// `DocumentAnalyzer::field_complexity`'s arithmetic, reached through a projection
+    /// rather than an AST: a level with nothing under it scores 1, and otherwise
+    /// `1 + subtree × page`, where the subtree is this level's own scalars plus the
+    /// score of each level composed beneath it.
+    ///
+    /// Sharing the arithmetic is the whole point — see [`estimate_direct_read_cost`].
+    fn complexity(&self) -> usize {
+        let inner = self
+            .nested
+            .iter()
+            .fold(self.leaf_fields, |acc, level| acc.saturating_add(level.complexity()));
+        if inner == 0 {
+            return 1;
+        }
+        let multiplier =
+            self.limit.map_or(1, |l| (l as usize).clamp(1, PAGINATION_MULTIPLIER_CEILING));
+        1usize.saturating_add(inner.saturating_mul(multiplier))
+    }
+}
+
 /// Estimate the cost of a **resolved direct read** — one that never had a GraphQL
 /// document to parse (#1351).
 ///
@@ -708,13 +769,13 @@ pub fn estimate_query_cost<'a, S: std::hash::BuildHasher>(
 /// which transport a client will pick. Scoring a direct read on a different scale
 /// would make the same cap refuse different requests depending on how they arrived —
 /// which is the defect class this is fixing, one layer up. So the arithmetic is the
-/// document path's, for the degenerate document a direct read *is*: a single root
-/// field with a flat scalar selection.
+/// document path's, for the document a direct read *is*: a single root field over the
+/// projection it materialises.
 ///
 /// - A query whose name carries an `@cost` weight contributes exactly that weight, subtree unwalked
 ///   — as a root field does in `DocumentAnalyzer::root_cost`.
-/// - Otherwise `1 + selected_field_count × multiplier`, the flat-selection case of
-///   `DocumentAnalyzer::field_complexity`, where each selected scalar contributes 1.
+/// - Otherwise `1 + subtree × multiplier`, the case of `DocumentAnalyzer::field_complexity`, where
+///   each projected scalar contributes 1 and each composed level contributes its own score.
 /// - `multiplier` is the page size clamped to `[1, 100]`, as `extract_limit_multiplier` clamps
 ///   `first`/`limit`/`take`/`last`.
 ///
@@ -722,21 +783,32 @@ pub fn estimate_query_cost<'a, S: std::hash::BuildHasher>(
 /// carrying no pagination argument. That is inherited permissiveness, not a decision
 /// taken here: an unbounded list read is the most expensive one either path can issue,
 /// and it scores lowest on both. `max_page_size` (#421) is what bounds it today.
+///
+/// # Why the projection is a tree
+///
+/// Because the `?select=` fan-out is to become one composed statement, and the score
+/// has to survive that change without the ceiling moving. It does, exactly: for a
+/// parent of `p` scalars over a page of `M` with one embed of `c` scalars over a page
+/// of `m`, today's fan-out charges `1 + p·M` for the parent read and up to `M`
+/// sub-reads of `1 + c·m`, which is `1 + M·(p + 1 + c·m)` — and that is the number
+/// this function returns for the composed projection. The identity is not a
+/// coincidence and it is not arranged: it is what `field_complexity` already computed
+/// for the same shape, which is why the document path is the right formula to borrow
+/// rather than a second one to invent.
+///
+/// `a_composed_embed_scores_what_its_fan_out_charges` is that identity as a test, and
+/// `the_composed_score_is_the_document_paths_score` pins it against
+/// [`estimate_query_cost`] itself rather than against a restatement of it.
 #[must_use]
 pub fn estimate_direct_read_cost<S: std::hash::BuildHasher>(
     query_name: &str,
     root_cost_weights: &HashMap<String, usize, S>,
-    selected_field_count: usize,
-    limit: Option<u32>,
+    projection: &DirectReadProjection,
 ) -> usize {
     if let Some(weight) = root_cost_weights.get(query_name) {
         return *weight;
     }
-    if selected_field_count == 0 {
-        return 1;
-    }
-    let multiplier = limit.map_or(1, |l| (l as usize).clamp(1, PAGINATION_MULTIPLIER_CEILING));
-    1usize.saturating_add(selected_field_count.saturating_mul(multiplier))
+    projection.complexity()
 }
 
 /// The top-level selection set of any operation kind.
@@ -822,3 +894,7 @@ fn extract_limit_multiplier(
     }
     1
 }
+
+#[cfg(test)]
+#[path = "complexity_tests.rs"]
+mod complexity_tests;

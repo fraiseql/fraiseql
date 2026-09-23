@@ -1831,11 +1831,16 @@ impl QueryRunner {
             .and_then(crate::security::RequestBudget::cost)
             .or(own_cost.as_ref())
         {
+            // The projection is `flat` because this read *is* flat: the `?select=`
+            // fan-out resolves its embedded levels in Rust, one sub-read per parent
+            // row, and each of those arrives here as a read of its own. A composed
+            // `LATERAL` statement materialises those levels itself, and hands this
+            // estimator the nested projection instead — scoring, by construction, the
+            // number the fan-out accumulates here today.
             let cost = crate::graphql::estimate_direct_read_cost(
                 &query_match.query_def.name,
                 &self.ctx.schema.operation_cost_weights,
-                plan.projection_fields.len(),
-                limit,
+                &crate::graphql::DirectReadProjection::flat(plan.projection_fields.len(), limit),
             ) as u64;
             budget.charge(cost)?;
         }

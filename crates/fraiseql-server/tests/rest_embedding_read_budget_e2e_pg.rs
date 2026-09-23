@@ -50,6 +50,15 @@
 //! one is a separate change and needs its own answer to what a `COUNT(*)` over a filtered
 //! view is worth; under `estimate_direct_read_cost` it would score 1.
 //!
+//! `the_composed_score_is_what_the_fan_out_charges` is the fourth, and it is about the
+//! change that has not landed yet: the score a composed `LATERAL` statement will be
+//! charged has to be the one the fan-out accumulates today, or the ceiling moves when the
+//! execution shape does. It measures the fan-out's total through the wire — by the ceiling
+//! at which the request flips from served to refused — and asserts
+//! `estimate_direct_read_cost` predicts exactly that number from the nested projection.
+//! The unit tests beside the estimator assert the identity algebraically at every depth;
+//! this one is what says the algebra describes the running system.
+//!
 //! The refusal is a `413`, before the response is assembled, rather than a short answer:
 //! an embed served in part is indistinguishable from a parent that genuinely has fewer
 //! related rows, which is #1230's failure shape under a `200`. The cost refusal is a `400`
@@ -65,12 +74,15 @@
 #![cfg(feature = "rest")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code
 
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 
 use axum::body::Body;
 use fraiseql_cli::commands::compile::{CompileOptions, compile_to_schema};
 use fraiseql_core::{
-    db::postgres::PostgresAdapter, prelude::DatabaseAdapter as _, runtime::Executor,
+    db::postgres::PostgresAdapter,
+    graphql::{DirectReadProjection, estimate_direct_read_cost},
+    prelude::DatabaseAdapter as _,
+    runtime::Executor,
     schema::CompiledSchema,
 };
 use fraiseql_server::routes::{
@@ -607,4 +619,72 @@ async fn an_embed_inside_the_cost_ceiling_is_served_in_full() {
         Some("alice"),
         "the second level really executed: {body}"
     );
+}
+
+/// **The score a composed statement will carry is the one the fan-out charges today.**
+///
+/// The standing ruling is to compose the `?select=` fan-out into the parent statement
+/// with `LATERAL` + `jsonb_agg`. When that lands, the embedded levels arrive in **one**
+/// read, and `resolve_direct_read` charges that read once. Scored as a flat projection it
+/// would be charged for the parent's own columns alone — 3, here — and
+/// `[security.cost_budget] per_request_max` would quietly stop bounding the embed at all,
+/// without the number the operator wrote having changed.
+///
+/// So the estimator scores a **nested** projection, with the document path's arithmetic,
+/// and the property that makes that the right arithmetic rather than a chosen one is
+/// measured here: for a parent of `p` scalars over a page of `M` with an embed of `c`
+/// scalars over a page of `m`, the fan-out charges `1 + p·M` for the parent read and one
+/// sub-read of `1 + c·m` per parent row — `1 + M·(p + 1 + c·m)` at a full page — and that
+/// is exactly what `field_complexity` scores for the composed shape.
+///
+/// `?limit=2` against a fixture holding exactly two users is what makes the page **full**,
+/// so the model's worst case is the measured case and the two numbers are comparable at
+/// all. At any larger page the fan-out charges less than the composed statement will,
+/// because it stops at the rows that exist; the composed score is the bound, and a bound
+/// is what the ceiling is for.
+///
+/// Nothing here is hard-coded from the arithmetic: the total is read off the running
+/// fixture by bracketing the ceiling — served at exactly the predicted score, refused one
+/// below it — which pins the number from both sides. The child's page of 100 is the REST
+/// default rather than the parent's `?limit=`, and the bracket is what would falsify that
+/// if it were otherwise.
+#[tokio::test]
+async fn the_composed_score_is_what_the_fan_out_charges() {
+    // `users?select=id,orders(id,total)&limit=2` as one composed statement.
+    let composed = DirectReadProjection {
+        leaf_fields: 1,
+        limit:       Some(2),
+        nested:      vec![DirectReadProjection::flat(2, Some(100))],
+    };
+    let predicted = u64::try_from(estimate_direct_read_cost(
+        "users",
+        &HashMap::<String, usize>::new(),
+        &composed,
+    ))
+    .expect("a cost fits in u64");
+    assert_eq!(
+        predicted, 405,
+        "parent 1 + 1x2 = 3, plus two sub-reads of 1 + 2x100 = 201; stated as well as \
+         derived, so a change that moved both sides of the identity still fails something"
+    );
+
+    let uri = "/rest/v1/users?select=id,orders(id,total)&limit=2";
+
+    let Some(rig) = rig_cost(predicted).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let (status, body) = rig.get(uri).await;
+    assert_eq!(
+        status,
+        StatusCode::OK,
+        "the fan-out's total is exactly the composed score, so it fits under it: {body}"
+    );
+
+    let Some(rig) = rig_cost(predicted - 1).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let (status, body) = rig.get(uri).await;
+    assert_cost_refused(status, &body);
 }
