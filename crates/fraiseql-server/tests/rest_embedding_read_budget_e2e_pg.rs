@@ -102,7 +102,7 @@ max_embedded_reads = {max_embedded_reads}
 
 [types.User]
 sql_source = "{SCHEMA}.v_user"
-fields.id = {{ type = "Int" }}
+fields.id = {{ type = "ID" }}
 fields.name = {{ type = "String" }}
 
 [types.User.relationships.orders]
