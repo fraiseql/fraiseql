@@ -2239,6 +2239,447 @@ mod row_read {
             "the session variable must reach the read's connection"
         );
     }
+
+    // ---- the dynamic field authorizer, per row (#423) --------------------
+    //
+    // Before #1351's second half the row path called `deny_if_gated_field_selected`,
+    // which refused a gated field for *every* principal. The pair below is the one the
+    // issue asks for and the one a blanket refusal cannot pass: rejected → the field
+    // comes back null, accepted → the field comes back with its value. A test that only
+    // asserted the refusal would have stayed green against the placeholder.
+
+    /// Reveals `salary` only to `owner`; masks it for anyone else.
+    struct SalaryForOwnerOnly;
+    impl crate::security::FieldAuthorizer for SalaryForOwnerOnly {
+        fn authorize_field(
+            &self,
+            req: &crate::security::FieldAuthzRequest<'_>,
+        ) -> crate::error::Result<crate::security::FieldAuthzDecision> {
+            if req.principal.user_id.as_str() == "owner" {
+                Ok(crate::security::FieldAuthzDecision::Allow)
+            } else {
+                Ok(crate::security::FieldAuthzDecision::Deny {
+                    code:    "not_owner".to_string(),
+                    on_deny: FieldDenyPolicy::Mask,
+                })
+            }
+        }
+    }
+
+    /// Rejects `salary` outright, whoever asks.
+    struct SalaryRejected;
+    impl crate::security::FieldAuthorizer for SalaryRejected {
+        fn authorize_field(
+            &self,
+            _req: &crate::security::FieldAuthzRequest<'_>,
+        ) -> crate::error::Result<crate::security::FieldAuthzDecision> {
+            Ok(crate::security::FieldAuthzDecision::Deny {
+                code:    "never".to_string(),
+                on_deny: FieldDenyPolicy::Reject,
+            })
+        }
+    }
+
+    fn with_field_authorizer(authz: Arc<dyn crate::security::FieldAuthorizer>) -> RuntimeConfig {
+        RuntimeConfig {
+            field_authorizer: Some(authz),
+            ..RuntimeConfig::default()
+        }
+    }
+
+    fn principal_named(user_id: &str) -> SecurityContext {
+        SecurityContext {
+            user_id: user_id.into(),
+            ..principal()
+        }
+    }
+
+    /// `ColumnValue` is a wire type in `fraiseql-db` and carries no `PartialEq`, so
+    /// these cases compare its `Debug` rendering. That distinguishes a value from
+    /// `Null` and from a different value, which is all they turn on — and it is
+    /// cheaper than widening another crate's public API for a test.
+    fn shown(v: &ColumnValue) -> String {
+        format!("{v:?}")
+    }
+
+    /// Three columns, so the masked slot's position is observable.
+    fn salary_rows() -> Vec<Vec<ColumnValue>> {
+        vec![vec![
+            ColumnValue::Text("1".into()),
+            ColumnValue::Text("Alice".into()),
+            ColumnValue::Int32(90_000),
+        ]]
+    }
+
+    /// Rejected principal: the read runs, and the gated slot comes back `Null`.
+    ///
+    /// The row is still served — `Deny { on_deny: Mask }` is a statement about the
+    /// value, not about the operation — so the assertions are positional: `id` and
+    /// `name` keep their values and only index 2 is nulled. A masking bug that nulled
+    /// the wrong slot would pass a "salary is null" assertion on its own.
+    #[tokio::test]
+    async fn a_gated_field_the_authorizer_rejects_comes_back_null() {
+        let schema = gated_schema();
+        let qm = match_on(&schema, "{ users { id name salary } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(salary_rows()));
+        let executor = Executor::with_config(
+            schema,
+            adapter.clone(),
+            with_field_authorizer(Arc::new(SalaryForOwnerOnly)),
+        );
+
+        let ctx = principal_named("stranger");
+        let out = executor
+            .execute_row_read(&qm, None, Some(&ctx), &cols(&["id", "name", "salary"]))
+            .await
+            .expect("a Mask decision serves the row");
+
+        assert_eq!(out.columns.len(), 3, "the spec list is not narrowed per row");
+        assert_eq!(shown(&out.rows[0][0]), r#"Text("1")"#);
+        assert_eq!(shown(&out.rows[0][1]), r#"Text("Alice")"#);
+        assert_eq!(shown(&out.rows[0][2]), "Null", "the gated slot is masked");
+    }
+
+    /// Accepted principal: the same read, the same schema, the value present.
+    ///
+    /// This is the half #1351 calls for and the placeholder could never satisfy.
+    #[tokio::test]
+    async fn the_same_gated_field_is_present_for_a_principal_the_authorizer_accepts() {
+        let schema = gated_schema();
+        let qm = match_on(&schema, "{ users { id name salary } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(salary_rows()));
+        let executor = Executor::with_config(
+            schema,
+            adapter.clone(),
+            with_field_authorizer(Arc::new(SalaryForOwnerOnly)),
+        );
+
+        let ctx = principal_named("owner");
+        let out = executor
+            .execute_row_read(&qm, None, Some(&ctx), &cols(&["id", "name", "salary"]))
+            .await
+            .expect("an Allow decision serves the value");
+
+        assert_eq!(
+            shown(&out.rows[0][2]),
+            "Int32(90000)",
+            "an accepted principal must see the gated value"
+        );
+    }
+
+    /// A `Reject` policy refuses the whole read, and no row is served.
+    #[tokio::test]
+    async fn a_reject_decision_refuses_the_whole_row_read() {
+        let schema = gated_schema();
+        let qm = match_on(&schema, "{ users { id name salary } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(salary_rows()));
+        let executor = Executor::with_config(
+            schema,
+            adapter.clone(),
+            with_field_authorizer(Arc::new(SalaryRejected)),
+        );
+
+        let ctx = principal_named("owner");
+        let err = executor
+            .execute_row_read(&qm, None, Some(&ctx), &cols(&["id", "name", "salary"]))
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(err, crate::FraiseQLError::Authorization { .. }),
+            "expected Authorization, got {err:?}"
+        );
+    }
+
+    /// No principal, a gated field selected, an authorizer configured: refused.
+    ///
+    /// A per-row policy decision needs someone to decide about. The anonymous caller is
+    /// exactly who must not be served, so this stays fail-closed even though the path
+    /// can now adjudicate.
+    #[tokio::test]
+    async fn a_gated_field_with_no_principal_is_refused_even_with_an_authorizer() {
+        let schema = gated_schema();
+        let qm = match_on(&schema, "{ users { id name salary } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(salary_rows()));
+        let executor = Executor::with_config(
+            schema,
+            adapter.clone(),
+            with_field_authorizer(Arc::new(SalaryForOwnerOnly)),
+        );
+
+        let err = executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name", "salary"]))
+            .await
+            .unwrap_err();
+
+        assert!(
+            matches!(err, crate::FraiseQLError::Authorization { .. }),
+            "expected Authorization, got {err:?}"
+        );
+        assert!(adapter.captured_row_read().is_none(), "refused before dispatch");
+    }
+
+    // ---- the same pair on the streaming arm ------------------------------
+    //
+    // #1348 found these two arms disagreeing about a failing RLS evaluation, so every
+    // gate is asserted on both. The streaming arm is also where a missing decision costs
+    // the most: it is the arm with no bound on how many frames it emits.
+
+    /// Drain a streamed row read into rows.
+    async fn drain(
+        read: crate::runtime::StreamedRowRead,
+    ) -> crate::error::Result<Vec<Vec<ColumnValue>>> {
+        use futures::StreamExt as _;
+        let mut stream = read.stream;
+        let mut out = Vec::new();
+        while let Some(row) = stream.next().await {
+            out.push(row?);
+        }
+        Ok(out)
+    }
+
+    /// Rejected principal, streaming: the frame carries a masked slot.
+    #[tokio::test]
+    async fn a_streamed_gated_field_the_authorizer_rejects_comes_back_null() {
+        let schema = gated_schema();
+        let qm = match_on(&schema, "{ users { id name salary } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(salary_rows()));
+        let executor = Executor::with_config(
+            schema,
+            adapter.clone(),
+            with_field_authorizer(Arc::new(SalaryForOwnerOnly)),
+        );
+
+        let ctx = principal_named("stranger");
+        let read = executor
+            .stream_row_read(&qm, None, Some(&ctx), &cols(&["id", "name", "salary"]))
+            .await
+            .expect("a Mask decision serves the stream");
+        let rows = drain(read).await.expect("no frame errors");
+
+        assert_eq!(rows.len(), 1);
+        assert_eq!(shown(&rows[0][1]), r#"Text("Alice")"#);
+        assert_eq!(shown(&rows[0][2]), "Null", "the gated slot is masked per frame");
+    }
+
+    /// Accepted principal, streaming: the value is in the frame.
+    #[tokio::test]
+    async fn the_same_streamed_gated_field_is_present_for_an_accepted_principal() {
+        let schema = gated_schema();
+        let qm = match_on(&schema, "{ users { id name salary } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(salary_rows()));
+        let executor = Executor::with_config(
+            schema,
+            adapter.clone(),
+            with_field_authorizer(Arc::new(SalaryForOwnerOnly)),
+        );
+
+        let ctx = principal_named("owner");
+        let read = executor
+            .stream_row_read(&qm, None, Some(&ctx), &cols(&["id", "name", "salary"]))
+            .await
+            .expect("an Allow decision serves the stream");
+        let rows = drain(read).await.expect("no frame errors");
+
+        assert_eq!(
+            shown(&rows[0][2]),
+            "Int32(90000)",
+            "an accepted principal must see the gated value on the streaming arm too"
+        );
+    }
+
+    /// A `Reject` policy ends the stream with an error rather than emitting the frame.
+    #[tokio::test]
+    async fn a_reject_decision_fails_the_stream() {
+        let schema = gated_schema();
+        let qm = match_on(&schema, "{ users { id name salary } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(salary_rows()));
+        let executor = Executor::with_config(
+            schema,
+            adapter.clone(),
+            with_field_authorizer(Arc::new(SalaryRejected)),
+        );
+
+        let ctx = principal_named("owner");
+        let read = executor
+            .stream_row_read(&qm, None, Some(&ctx), &cols(&["id", "name", "salary"]))
+            .await
+            .expect("the refusal is per frame, so opening the stream succeeds");
+        let err = drain(read).await.unwrap_err();
+
+        assert!(
+            matches!(err, crate::FraiseQLError::Authorization { .. }),
+            "expected Authorization, got {err:?}"
+        );
+    }
+
+    // ---- the compiled cost ceiling (#379) --------------------------------
+    //
+    // `per_request_max` was enforced only in `run_gate1`, which scores a parsed GraphQL
+    // document. A direct read has none, so neither gRPC arm nor any REST read was
+    // scored. #1351's table marked this ✅ for the engine read path; it was not, which
+    // is why routing the arms through the engine did not deliver it.
+
+    fn with_cost_cap(cap: u64) -> RuntimeConfig {
+        RuntimeConfig {
+            max_operation_cost: Some(cap),
+            ..RuntimeConfig::default()
+        }
+    }
+
+    /// Over the ceiling: refused, and the database is never reached.
+    ///
+    /// Two selected fields at `limit: 50` scores `1 + 2 × 50 = 101`, so a cap of 100
+    /// refuses it — the same arithmetic `estimate_query_cost` applies to the equivalent
+    /// document, which is the point of scoring it this way rather than inventing a scale.
+    #[tokio::test]
+    async fn a_row_read_over_the_compiled_cost_ceiling_is_refused() {
+        let schema = user_schema();
+        let qm = match_with(&schema, "{ users { id name } }", &serde_json::json!({"limit": 50}));
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::with_config(schema, adapter.clone(), with_cost_cap(100));
+
+        let err = executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .unwrap_err();
+
+        match err {
+            crate::FraiseQLError::CostExceeded { cost, limit, .. } => {
+                assert_eq!(cost, 101, "1 + 2 fields x 50 rows");
+                assert_eq!(limit, 100);
+            },
+            other => panic!("expected CostExceeded, got {other:?}"),
+        }
+        assert!(adapter.captured_row_read().is_none(), "an over-budget read must not run");
+    }
+
+    /// Under the ceiling: read. Without this half the case above would pass against a
+    /// path that refused every read.
+    #[tokio::test]
+    async fn a_row_read_under_the_compiled_cost_ceiling_is_read() {
+        let schema = user_schema();
+        let qm = match_with(&schema, "{ users { id name } }", &serde_json::json!({"limit": 49}));
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::with_config(schema, adapter.clone(), with_cost_cap(100));
+
+        executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .expect("1 + 2 x 49 = 99, under the cap");
+
+        assert!(adapter.captured_row_read().is_some(), "an in-budget read must run");
+    }
+
+    /// The streaming arm is scored too — the arm where an unbounded read costs most.
+    #[tokio::test]
+    async fn a_streamed_row_read_over_the_compiled_cost_ceiling_is_refused() {
+        let schema = user_schema();
+        let qm = match_with(&schema, "{ users { id name } }", &serde_json::json!({"limit": 50}));
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::with_config(schema, adapter.clone(), with_cost_cap(100));
+
+        // `StreamedRowRead` holds a stream and carries no `Debug`, so the Result
+        // cannot be `unwrap_err`'d.
+        let Err(err) = executor.stream_row_read(&qm, None, None, &cols(&["id", "name"])).await
+        else {
+            panic!("an over-budget stream must not open")
+        };
+
+        assert!(
+            matches!(err, crate::FraiseQLError::CostExceeded { .. }),
+            "expected CostExceeded, got {err:?}"
+        );
+        assert!(adapter.captured_row_read().is_none(), "the stream must never open");
+    }
+
+    /// And the permitted twin on the streaming arm.
+    #[tokio::test]
+    async fn a_streamed_row_read_under_the_compiled_cost_ceiling_is_read() {
+        let schema = user_schema();
+        let qm = match_with(&schema, "{ users { id name } }", &serde_json::json!({"limit": 49}));
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::with_config(schema, adapter.clone(), with_cost_cap(100));
+
+        let read = executor
+            .stream_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .expect("under the cap");
+        let rows = drain(read).await.expect("no frame errors");
+
+        assert_eq!(rows.len(), 1);
+    }
+
+    /// An `@cost` weight on the query name is the whole score, subtree unwalked.
+    ///
+    /// The declared-weight branch, which the arithmetic cases above never reach. It is
+    /// the branch that matters most for parity: `root_cost` gives a weighted root field
+    /// exactly its weight and does not walk it, so a direct read must too — otherwise
+    /// the same query scores one number as a document and another as a REST or gRPC read.
+    #[tokio::test]
+    async fn a_declared_cost_weight_is_the_whole_score() {
+        let mut schema = user_schema();
+        schema.operation_cost_weights.insert("users".to_string(), 500);
+        let qm = match_with(&schema, "{ users { id name } }", &serde_json::json!({"limit": 2}));
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::with_config(schema, adapter.clone(), with_cost_cap(100));
+
+        let err = executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .unwrap_err();
+
+        match err {
+            crate::FraiseQLError::CostExceeded { cost, .. } => {
+                // 1 + 2 fields x 2 rows = 5 would be well under the cap. The weight wins.
+                assert_eq!(cost, 500, "the declared weight is the score, not the field count");
+            },
+            other => panic!("expected CostExceeded, got {other:?}"),
+        }
+    }
+
+    /// The page multiplier clamps at 100, as it does for a document.
+    ///
+    /// `limit: 500` scores `1 + 2 x 100`, not `1 + 2 x 500` — the same ceiling
+    /// `extract_limit_multiplier` applies. Pinned because an unclamped direct read would
+    /// refuse pages a document of the same shape is served, which is the asymmetry this
+    /// change exists to remove.
+    #[tokio::test]
+    async fn the_page_multiplier_clamps_at_a_hundred() {
+        let schema = user_schema();
+        let qm = match_with(&schema, "{ users { id name } }", &serde_json::json!({"limit": 500}));
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::with_config(schema, adapter.clone(), with_cost_cap(200));
+
+        let err = executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .unwrap_err();
+
+        match err {
+            crate::FraiseQLError::CostExceeded { cost, .. } => {
+                assert_eq!(cost, 201, "1 + 2 fields x 100 (clamped), not x 500");
+            },
+            other => panic!("expected CostExceeded, got {other:?}"),
+        }
+    }
+
+    /// A read with no cap configured is not scored at all — the gate is the operator's
+    /// declaration, not a default ceiling this change introduces.
+    #[tokio::test]
+    async fn a_deployment_with_no_declared_ceiling_is_unscored() {
+        let schema = user_schema();
+        let qm = match_with(&schema, "{ users { id name } }", &serde_json::json!({"limit": 1000}));
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .expect("no cap declared, so nothing to exceed");
+
+        assert!(adapter.captured_row_read().is_some());
+    }
 }
 
 // ── mod enum_membership: the read path's call site is load-bearing (#1362) ────

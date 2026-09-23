@@ -692,6 +692,53 @@ pub fn estimate_query_cost<'a, S: std::hash::BuildHasher>(
     analyzer.document_cost(document, root_cost_weights)
 }
 
+/// Estimate the cost of a **resolved direct read** — one that never had a GraphQL
+/// document to parse (#1351).
+///
+/// `[security.cost_budget] per_request_max` was enforced only in `run_gate1`, which
+/// takes a query string and scores its AST. Every read that does not carry a document
+/// — the whole REST direct-read surface and both gRPC read arms — therefore reached
+/// the database without the ceiling the operator compiled in. It was never a gRPC gap:
+/// routing gRPC through the engine could not fix it, because the engine's own
+/// direct-read path did not have it either.
+///
+/// # Why this mirrors the document scoring rather than inventing a formula
+///
+/// `per_request_max` is one number, written once by an operator who does not know
+/// which transport a client will pick. Scoring a direct read on a different scale
+/// would make the same cap refuse different requests depending on how they arrived —
+/// which is the defect class this is fixing, one layer up. So the arithmetic is the
+/// document path's, for the degenerate document a direct read *is*: a single root
+/// field with a flat scalar selection.
+///
+/// - A query whose name carries an `@cost` weight contributes exactly that weight, subtree unwalked
+///   — as a root field does in `DocumentAnalyzer::root_cost`.
+/// - Otherwise `1 + selected_field_count × multiplier`, the flat-selection case of
+///   `DocumentAnalyzer::field_complexity`, where each selected scalar contributes 1.
+/// - `multiplier` is the page size clamped to `[1, 100]`, as `extract_limit_multiplier` clamps
+///   `first`/`limit`/`take`/`last`.
+///
+/// `limit: None` scores 1, which is what the document path scores for a list field
+/// carrying no pagination argument. That is inherited permissiveness, not a decision
+/// taken here: an unbounded list read is the most expensive one either path can issue,
+/// and it scores lowest on both. `max_page_size` (#421) is what bounds it today.
+#[must_use]
+pub fn estimate_direct_read_cost<S: std::hash::BuildHasher>(
+    query_name: &str,
+    root_cost_weights: &HashMap<String, usize, S>,
+    selected_field_count: usize,
+    limit: Option<u32>,
+) -> usize {
+    if let Some(weight) = root_cost_weights.get(query_name) {
+        return *weight;
+    }
+    if selected_field_count == 0 {
+        return 1;
+    }
+    let multiplier = limit.map_or(1, |l| (l as usize).clamp(1, PAGINATION_MULTIPLIER_CEILING));
+    1usize.saturating_add(selected_field_count.saturating_mul(multiplier))
+}
+
 /// The top-level selection set of any operation kind.
 const fn operation_selection_set<'a>(
     op: &'a OperationDefinition<'a, String>,
@@ -734,15 +781,19 @@ fn collect_fragments<'a>(
 }
 
 /// Extract pagination limit from field arguments to use as a cost multiplier.
+/// Upper clamp for the pagination multiplier — also the fail-closed score
+/// for a variable-valued pagination argument that cannot be resolved
+/// (#869): scoring it 1 is what let `first: $n` bypass `max_complexity`.
+///
+/// Module-level since #1351, because the direct-read estimator has to clamp the same
+/// way the document estimator does: a cap the operator wrote once must mean the same
+/// number whether or not the request arrived as a GraphQL document.
+const PAGINATION_MULTIPLIER_CEILING: usize = 100;
+
 fn extract_limit_multiplier(
     arguments: &[(String, graphql_parser::query::Value<String>)],
     variables: Option<&serde_json::Map<String, serde_json::Value>>,
 ) -> usize {
-    /// Upper clamp for the pagination multiplier — also the fail-closed score
-    /// for a variable-valued pagination argument that cannot be resolved
-    /// (#869): scoring it 1 is what let `first: $n` bypass `max_complexity`.
-    const MULTIPLIER_CEILING: usize = 100;
-
     for (name, value) in arguments {
         if matches!(name.as_str(), "first" | "limit" | "take" | "last") {
             match value {
@@ -751,18 +802,18 @@ fn extract_limit_multiplier(
                     // Reason: value is clamped to [1, 100] immediately after; truncation and
                     // sign loss are safe
                     let limit = n.as_i64().unwrap_or(10) as usize;
-                    return limit.clamp(1, MULTIPLIER_CEILING);
+                    return limit.clamp(1, PAGINATION_MULTIPLIER_CEILING);
                 },
                 graphql_parser::query::Value::Variable(var) => {
                     return variables
                         .and_then(|vars| vars.get(var))
                         .and_then(serde_json::Value::as_i64)
-                        .map_or(MULTIPLIER_CEILING, |n| {
+                        .map_or(PAGINATION_MULTIPLIER_CEILING, |n| {
                             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                             // Reason: value is clamped to [1, 100] immediately after; truncation
                             // and sign loss are safe
                             let limit = n as usize;
-                            limit.clamp(1, MULTIPLIER_CEILING)
+                            limit.clamp(1, PAGINATION_MULTIPLIER_CEILING)
                         });
                 },
                 _ => {},

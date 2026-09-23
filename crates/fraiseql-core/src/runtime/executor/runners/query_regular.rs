@@ -30,6 +30,30 @@ use crate::{
     },
 };
 
+/// What a direct read's caller can do with a selected policy-gated field (#423, #1351).
+///
+/// #423 is a per-row decision, so where it is enforced depends on whether the caller
+/// still has the rows in hand when it can be asked. This names that capability instead
+/// of letting `resolve_direct_read` test which transport is calling — a transport check
+/// is what a new transport gets wrong, and #1351 exists because one did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum GatedFieldHandling {
+    /// Refuse the read outright when a gated field is selected.
+    ///
+    /// The JSON projection path: it resolves before the read and projects afterwards
+    /// through a path that does not carry the authorizer, so a gated field has never
+    /// been servable there. Fail-closed, unchanged since #423.
+    RefuseAsUnsupported,
+    /// Adjudicate each row against the authorizer after the read.
+    ///
+    /// The row-shaped path. The caller **must** apply the [`RowReadPlan::gate`] the
+    /// resolve hands back; the gate is on the plan rather than rebuilt per arm so that
+    /// obligation travels with the thing it applies to.
+    ///
+    /// [`RowReadPlan::gate`]: RowReadPlan#structfield.gate
+    AdjudicatePerRow,
+}
+
 /// A direct read resolved down to the statement it will run (#958).
 ///
 /// Produced by [`QueryRunner::resolve_direct_read`] and consumed by both the
@@ -100,6 +124,13 @@ struct RowReadPlan {
     where_sql: Option<String>,
     /// The resolved ordering, lowered to SQL.
     order_sql: Option<String>,
+    /// Per-row #423 adjudication, or `None` when this read is not gated (#1351).
+    ///
+    /// Carried on the plan rather than recomputed by each row entry, so the buffered
+    /// and streamed arms cannot disagree about whether a read is gated — the drift
+    /// #1348 found between exactly these two arms, and the reason
+    /// `resolve_direct_read` is a function.
+    gate:      Option<crate::security::field_authorizer::RowFieldGate>,
 }
 
 /// A row-shaped read and the projection it was actually read with (#1351).
@@ -1128,7 +1159,12 @@ impl QueryRunner {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
-        let resolved = self.resolve_direct_read(query_match, variables, security_context)?;
+        let resolved = self.resolve_direct_read(
+            query_match,
+            variables,
+            security_context,
+            GatedFieldHandling::RefuseAsUnsupported,
+        )?;
         let session_pairs = resolved.session_pairs();
 
         let results = self
@@ -1182,7 +1218,12 @@ impl QueryRunner {
         security_context: Option<&SecurityContext>,
         columns: &[fraiseql_db::types::ColumnSpec],
     ) -> Result<RowReadPlan> {
-        let resolved = self.resolve_direct_read(query_match, variables, security_context)?;
+        let resolved = self.resolve_direct_read(
+            query_match,
+            variables,
+            security_context,
+            GatedFieldHandling::AdjudicatePerRow,
+        )?;
 
         // The **row-shaped** view, not the query's own `sql_source`.
         //
@@ -1254,13 +1295,95 @@ impl QueryRunner {
             None => None,
         };
 
+        let gate = self.row_field_gate(query_match, security_context, &narrowed)?;
+
         Ok(RowReadPlan {
             resolved,
             view,
             columns: narrowed,
             where_sql,
             order_sql,
+            gate,
         })
+    }
+
+    /// Build the per-row #423 gate for a columnar read, or fail closed (#1351).
+    ///
+    /// The row path's replacement for `deny_if_gated_field_selected`, which refused a
+    /// gated field for every principal — including one the authorizer accepts, which is
+    /// the half of #1351's verification gate a refusal-only path cannot pass.
+    ///
+    /// The three refusals are the ones `apply_dynamic_field_authorizer` already makes on
+    /// the JSON path, in the same order and with the same messages, because a deployment
+    /// must not get a different answer per shape for the same misconfiguration:
+    ///
+    /// - a gated field is selected and **no authorizer is configured** — the operator declared a
+    ///   gate and installed nothing to decide it;
+    /// - a gated field sits **inside a sub-selection** — not supported on either shape;
+    /// - a gated field is selected and there is **no principal** — a per-row policy decision needs
+    ///   one, and the anonymous caller is exactly who must not be served.
+    ///
+    /// Returns `None` when the read is not gated, which is every read on a schema that
+    /// declares no `authorize` field — the common case, and it costs one index lookup.
+    ///
+    /// # Errors
+    ///
+    /// [`FraiseQLError::Authorization`] on any of the three refusals above.
+    fn row_field_gate(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        security_context: Option<&SecurityContext>,
+        columns: &[fraiseql_db::types::ColumnSpec],
+    ) -> Result<Option<crate::security::field_authorizer::RowFieldGate>> {
+        use crate::security::field_authorizer as authz;
+
+        let return_type = &query_match.query_def.return_type;
+        let root_fields: &[crate::graphql::FieldSelection] =
+            query_match.selections.first().map_or(&[], |r| r.nested_fields.as_slice());
+
+        if !authz::selection_set_selects_gated_field(&self.ctx.schema, return_type, root_fields) {
+            return Ok(None);
+        }
+
+        let Some(authorizer) = self.ctx.config.field_authorizer.as_ref() else {
+            return Err(FraiseQLError::Authorization {
+                message:  format!(
+                    "Field-level authorization is required for a selected field on type \
+                     '{return_type}' but no field authorizer is configured"
+                ),
+                action:   Some("read".to_string()),
+                resource: Some(return_type.clone()),
+            });
+        };
+        if authz::selection_set_has_nested_gated_field(&self.ctx.schema, return_type, root_fields) {
+            return Err(FraiseQLError::Authorization {
+                message:  format!(
+                    "Field-level authorization of nested fields on type '{return_type}' is not \
+                     supported in this version"
+                ),
+                action:   Some("read".to_string()),
+                resource: Some(return_type.clone()),
+            });
+        }
+        let Some(principal) = security_context else {
+            return Err(FraiseQLError::Authorization {
+                message:  format!(
+                    "Field-level authorization is required for a selected field on type \
+                     '{return_type}' but the request carries no principal"
+                ),
+                action:   Some("read".to_string()),
+                resource: Some(return_type.clone()),
+            });
+        };
+
+        let gated = authz::collect_top_level_gated_fields(
+            &self.ctx.schema,
+            return_type,
+            root_fields,
+            &query_match.arguments,
+        )?;
+
+        Ok(authz::RowFieldGate::new(authorizer, principal, return_type, gated, columns))
     }
 
     /// Execute a row-shaped read through the direct-read chokepoint (#1351).
@@ -1287,7 +1410,7 @@ impl QueryRunner {
         let plan = self.resolve_row_read(query_match, variables, security_context, columns)?;
         let session_pairs = plan.resolved.session_pairs();
 
-        let rows = self
+        let mut rows = self
             .ctx
             .adapter
             .execute_row_query_with_session(
@@ -1300,6 +1423,14 @@ impl QueryRunner {
                 &session_pairs,
             )
             .await?;
+
+        // #423 per row (#1351). A `Reject` or a policy error refuses the whole read, so
+        // no row of it is encoded; a `Mask` nulls that field on that row only.
+        if let Some(ref gate) = plan.gate {
+            for row in &mut rows {
+                gate.adjudicate_row(&plan.columns, row)?;
+            }
+        }
 
         Ok(RowRead {
             columns: plan.columns,
@@ -1344,6 +1475,30 @@ impl QueryRunner {
             )
             .await?;
 
+        // #423 per frame, wrapped **here** rather than left to the transport (#1351).
+        //
+        // The frames are adjudicated as they pass through the engine, so the transport
+        // receives rows it may encode verbatim and never holds a policy decision of its
+        // own. That is the property that stopped the two arms drifting: a streaming arm
+        // that enforced in its own loop is a second enforcement site, and #1348 found
+        // these exact two arms disagreeing about a failing RLS evaluation.
+        //
+        // A refusal mid-stream ends the stream with that error — the frames already sent
+        // are the rows that were allowed, and the client sees the failure in the
+        // trailers. There is no way to un-send a frame, which is the argument for the
+        // ceilings that bound how many there can be (#421, and #379 as of this change).
+        let stream = match plan.gate {
+            Some(gate) => {
+                let columns = plan.columns.clone();
+                Box::pin(stream.map(move |row| {
+                    let mut row = row?;
+                    gate.adjudicate_row(&columns, &mut row)?;
+                    Ok(row)
+                })) as fraiseql_db::ColumnRowStream
+            },
+            None => stream,
+        };
+
         Ok(StreamedRowRead {
             columns: plan.columns,
             stream,
@@ -1377,6 +1532,7 @@ impl QueryRunner {
         query_match: &crate::runtime::matcher::QueryMatch,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
+        gated_fields: GatedFieldHandling,
     ) -> Result<ResolvedDirectRead> {
         // #422: operation-level authorization for the REST direct-read chokepoint.
         //       Every REST read (GET/count/streaming/embedding) and the in-core
@@ -1416,16 +1572,25 @@ impl QueryRunner {
             security_context,
         )?;
 
-        // #423: the REST direct projection path does not run per-row field
-        // authorization; fail closed if a policy-gated field is selected.
-        let root_fields =
-            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice());
-        crate::security::field_authorizer::deny_if_gated_field_selected(
-            &self.ctx.schema,
-            &query_match.query_def.return_type,
-            root_fields,
-            "REST",
-        )?;
+        // #423: what happens to a selected policy-gated field, which depends on what
+        // the caller can encode rather than on which transport it is.
+        //
+        // The JSON projection path cannot adjudicate here — the decision is per row and
+        // the rows are not read yet — so it fails closed, as it has since #423. The
+        // row-shaped path *can*: it adjudicates after the read, against the row it is
+        // about to encode, so it declares `AdjudicatePerRow` and this refusal is skipped
+        // for it. The choice is a parameter and not a transport check because a second
+        // shape that can adjudicate should say so, not be recognised by name.
+        if matches!(gated_fields, GatedFieldHandling::RefuseAsUnsupported) {
+            let root_fields =
+                query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice());
+            crate::security::field_authorizer::deny_if_gated_field_selected(
+                &self.ctx.schema,
+                &query_match.query_def.return_type,
+                root_fields,
+                "REST",
+            )?;
+        }
 
         // Evaluate RLS policy if present. Fail closed (#784) when a policy is
         // configured but there is no principal to evaluate it for — the same
@@ -1526,6 +1691,46 @@ impl QueryRunner {
         } else {
             (limit, order_by_clauses)
         };
+
+        // #379: the compiled `[security.cost_budget] per_request_max`, on a read that
+        // never had a document.
+        //
+        // The ceiling used to be enforced in exactly one place — `run_gate1`, which
+        // takes a query *string*, parses it and scores the AST. `run_gate1` has two
+        // callers and both are document entries, so every read arriving through this
+        // function reached the database without it: the whole REST direct-read surface
+        // (the GET resolver, the three exports, the embedding sub-query, the bulk row
+        // selection) and, since #1351 routed them here, both gRPC read arms.
+        //
+        // #1351 filed this as a gRPC gap and marked the engine read path ✅. That was
+        // wrong, and it mattered: moving the gRPC arms onto the engine could not have
+        // delivered this gate, because the engine's direct-read path did not have it
+        // either. `RuntimeConfig::max_operation_cost` says as much — "binds on every
+        // transport that executes a GraphQL document".
+        //
+        // Enforced here rather than at each entry for the reason `resolve_direct_read`
+        // exists: a control attached to an entry point is one a new transport can
+        // forget, and this codebase has paid for that four times (#1336, #1348, #1351,
+        // #1359). Scored *before* the database, so an over-budget read never runs.
+        if let Some(cap) = self.ctx.config.max_operation_cost {
+            let cost = crate::graphql::estimate_direct_read_cost(
+                &query_match.query_def.name,
+                &self.ctx.schema.operation_cost_weights,
+                plan.projection_fields.len(),
+                limit,
+            ) as u64;
+            if cost > cap {
+                return Err(FraiseQLError::CostExceeded {
+                    message: format!(
+                        "operation cost {cost} exceeds the schema-wide per-request maximum of \
+                         {cap} ([security.cost_budget] per_request_max)"
+                    ),
+                    cost,
+                    limit: cap,
+                    retry_after_secs: None,
+                });
+            }
+        }
 
         // Full-text relevance (#1284): a `?search=` request with no sort of its
         // own is ranked by `ts_rank`, which is what the OpenAPI document this
@@ -1672,8 +1877,12 @@ impl QueryRunner {
         variables: Option<serde_json::Value>,
         security_context: Option<SecurityContext>,
     ) -> Result<crate::runtime::JsonRowStream> {
-        let resolved =
-            self.resolve_direct_read(&query_match, variables.as_ref(), security_context.as_ref())?;
+        let resolved = self.resolve_direct_read(
+            &query_match,
+            variables.as_ref(),
+            security_context.as_ref(),
+            GatedFieldHandling::RefuseAsUnsupported,
+        )?;
         let rows = {
             let session_pairs = resolved.session_pairs();
             self.ctx

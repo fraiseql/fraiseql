@@ -30,8 +30,9 @@
 //! [`with_field_authorizer`](crate::runtime::RuntimeConfig::with_field_authorizer),
 //! exactly parallel to [`with_rls_policy`](crate::runtime::RuntimeConfig::with_rls_policy).
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc};
 
+use fraiseql_db::types::{ColumnSpec, ColumnValue};
 use serde_json::Value as JsonValue;
 
 use crate::{
@@ -457,39 +458,224 @@ fn enforce_row(
         if statically_masked.iter().any(|m| m == &gf.field_name) {
             continue;
         }
-        let req = FieldAuthzRequest {
-            principal,
-            type_name,
-            field_name: &gf.field_name,
-            parent,
-            arguments: gf.arguments.as_ref(),
-        };
-        match authorizer.authorize_field(&req) {
-            Ok(FieldAuthzDecision::Allow) => {},
-            Ok(FieldAuthzDecision::Deny {
-                on_deny: FieldDenyPolicy::Mask,
-                ..
-            }) => {
-                map.insert(projected_key, JsonValue::Null);
-            },
-            Ok(FieldAuthzDecision::Deny {
-                code,
-                on_deny: FieldDenyPolicy::Reject,
-            }) => {
-                return Err(field_authz_error(type_name, &gf.field_name, &code));
-            },
-            Err(_) => {
-                // Fail-closed: any policy error is a hard deny. The underlying error is
-                // not surfaced to the client (no information leak).
-                return Err(field_authz_error(
-                    type_name,
-                    &gf.field_name,
-                    "field_authorization_failed",
-                ));
-            },
+        if adjudicate_field(authorizer, principal, type_name, gf, parent)?
+            == FieldDisposition::Masked
+        {
+            map.insert(projected_key, JsonValue::Null);
         }
     }
     Ok(())
+}
+
+/// What the engine decided about one gated field on one row.
+///
+/// The first piece of a disposition-carrying result: the adjudication says what may be
+/// served, and each shape encodes that in its own way — a JSON object nulls the key, a
+/// columnar row nulls the positional slot. Separating the two is what keeps #423 from
+/// needing a second implementation per transport, which is how #1351 started.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum FieldDisposition {
+    /// Serve the value as read.
+    Present,
+    /// Serve `null` in the field's place — `Deny { on_deny: Mask }`.
+    Masked,
+}
+
+/// Ask the authorizer about one gated field on one row, and translate the answer into a
+/// [`FieldDisposition`].
+///
+/// The single decision site for #423. Both enforcement shapes call it — the JSON
+/// projection (`enforce_row`) and the columnar row ([`RowFieldGate`]) — so a `Reject`,
+/// a policy `Err` and the mask policy cannot come to mean different things on different
+/// transports. Fail-closed: a `Reject` or any policy error is an `Authorization` error
+/// and the value is never served.
+///
+/// # Errors
+///
+/// [`FraiseQLError::Authorization`] on a `Reject` decision or any policy error.
+fn adjudicate_field(
+    authorizer: &dyn FieldAuthorizer,
+    principal: &SecurityContext,
+    type_name: &str,
+    gf: &GatedField,
+    parent: Option<&JsonValue>,
+) -> Result<FieldDisposition> {
+    let req = FieldAuthzRequest {
+        principal,
+        type_name,
+        field_name: &gf.field_name,
+        parent,
+        arguments: gf.arguments.as_ref(),
+    };
+    match authorizer.authorize_field(&req) {
+        Ok(FieldAuthzDecision::Allow) => Ok(FieldDisposition::Present),
+        Ok(FieldAuthzDecision::Deny {
+            on_deny: FieldDenyPolicy::Mask,
+            ..
+        }) => Ok(FieldDisposition::Masked),
+        Ok(FieldAuthzDecision::Deny {
+            code,
+            on_deny: FieldDenyPolicy::Reject,
+        }) => Err(field_authz_error(type_name, &gf.field_name, &code)),
+        Err(_) => {
+            // Fail-closed: any policy error is a hard deny. The underlying error is
+            // not surfaced to the client (no information leak).
+            Err(field_authz_error(type_name, &gf.field_name, "field_authorization_failed"))
+        },
+    }
+}
+
+/// Per-row #423 enforcement for a **columnar** read, owned so it can outlive the
+/// resolve and travel into a stream (#1351).
+///
+/// # Why this exists rather than a blanket refusal
+///
+/// The row path used to call [`deny_if_gated_field_selected`], whose own doc calls it a
+/// placeholder. That refused a gated field for *every* principal, including one the
+/// authorizer would have allowed — so a control the operator configured was, from the
+/// client's side, indistinguishable from a broken read. #1351 asked for the pair: absent
+/// for a principal the authorizer rejects, **present** for one it accepts.
+///
+/// # Why the gate is owned
+///
+/// The streaming arm adjudicates per frame, after `resolve_row_read` has returned and
+/// while the transport is polling. Borrowing the schema and the config across that would
+/// tie the stream to the resolve's lifetime, so the gate clones what it needs once per
+/// read: an `Arc` of the authorizer, the principal, and the gated field list. The
+/// per-row cost is then the policy call itself, which is the irreducible part.
+///
+/// # Masking a positional row
+///
+/// A JSON object nulls a key. A columnar row has no key — the values are positional
+/// against a `ColumnSpec` list that is fixed for the whole response, and on the
+/// streaming arm for every frame after the first. So a `Mask` writes
+/// [`ColumnValue::Null`] into the field's slot and leaves the spec list alone. Dropping
+/// the column instead — what static RBAC (#886) does, because it can decide before the
+/// read — is not available here: the decision is per row, and a per-row column list
+/// would shift every later frame against the descriptor the client is decoding with.
+///
+/// `ColumnValue::Null` is indistinguishable from a genuine SQL NULL to the client. That
+/// is the same ambiguity the JSON path has had since #423 (a masked key and a null
+/// column both project `null`), so this is parity, not a new loss. Carrying the
+/// disposition out of band is the follow-up that would fix it on both shapes at once.
+pub(crate) struct RowFieldGate {
+    /// The configured authorizer.
+    authorizer: Arc<dyn FieldAuthorizer>,
+    /// The principal every row is adjudicated for.
+    principal:  SecurityContext,
+    /// The GraphQL type that owns the rows.
+    type_name:  String,
+    /// The selected gated fields, paired with the positional slot each one occupies in
+    /// the read's column list. Resolved once, so no per-row name lookup.
+    slots:      Vec<(usize, GatedField)>,
+}
+
+impl RowFieldGate {
+    /// Build the gate for a columnar read, or `None` when there is nothing to enforce.
+    ///
+    /// `None` means the read is not gated at all — no selected field carries
+    /// `authorize`, or none of the gated ones survived static RBAC narrowing (#886
+    /// already withheld them, and AND-composition makes a second refusal redundant).
+    /// A gated field with no authorizer configured is **not** `None`: that is the
+    /// caller's fail-closed case, handled before this is reached.
+    pub(crate) fn new(
+        authorizer: &Arc<dyn FieldAuthorizer>,
+        principal: &SecurityContext,
+        type_name: &str,
+        gated: Vec<GatedField>,
+        columns: &[ColumnSpec],
+    ) -> Option<Self> {
+        let slots: Vec<(usize, GatedField)> = gated
+            .into_iter()
+            .filter_map(|gf| columns.iter().position(|c| c.name == gf.field_name).map(|i| (i, gf)))
+            .collect();
+        if slots.is_empty() {
+            return None;
+        }
+        Some(Self {
+            authorizer: Arc::clone(authorizer),
+            principal: principal.clone(),
+            type_name: type_name.to_string(),
+            slots,
+        })
+    }
+
+    /// Adjudicate one row in place, masking each gated slot the policy denies.
+    ///
+    /// # Errors
+    ///
+    /// [`FraiseQLError::Authorization`] on a `Reject` decision or any policy error — the
+    /// row is never served, on either arm.
+    pub(crate) fn adjudicate_row(
+        &self,
+        columns: &[ColumnSpec],
+        row: &mut [ColumnValue],
+    ) -> Result<()> {
+        // The policy's `parent` is this row, as the fetched columns.
+        //
+        // The JSON path hands the authorizer the *complete* fetched document, so a
+        // policy may key on a column the client did not select. A columnar read fetches
+        // only the columns it projects, so `parent` here carries exactly those. On the
+        // gRPC arms that is the whole scalar surface of the type — the protobuf
+        // descriptor is the projection, so every scalar field is requested — which is
+        // why the two shapes agree in practice. It is not a guarantee: a column that
+        // static RBAC withheld (#886) is absent from `parent` where the JSON path would
+        // still have shown it to the policy. A policy keying on a withheld column sees
+        // `null` rather than the value, and decides on that.
+        let parent = row_parent_json(columns, row);
+        for (slot, gf) in &self.slots {
+            if *slot >= row.len() {
+                continue;
+            }
+            if adjudicate_field(
+                self.authorizer.as_ref(),
+                &self.principal,
+                &self.type_name,
+                gf,
+                Some(&parent),
+            )? == FieldDisposition::Masked
+            {
+                row[*slot] = ColumnValue::Null;
+            }
+        }
+        Ok(())
+    }
+}
+
+/// Render a columnar row as the JSON object a [`FieldAuthorizer`] takes as `parent`.
+///
+/// Keys are the GraphQL field names from the specs, so a policy written against the
+/// JSON path's parent reads the same names here.
+fn row_parent_json(columns: &[ColumnSpec], row: &[ColumnValue]) -> JsonValue {
+    let mut map = serde_json::Map::with_capacity(columns.len());
+    for (spec, value) in columns.iter().zip(row.iter()) {
+        map.insert(spec.name.clone(), column_value_to_json(value));
+    }
+    JsonValue::Object(map)
+}
+
+/// One `ColumnValue` as JSON, for the authorizer's `parent`.
+///
+/// A `Json` column is re-parsed so a policy can address inside it; text that does not
+/// parse travels as the string it is, because an authorization input must be what the
+/// database returned and not an error substituted for it.
+fn column_value_to_json(value: &ColumnValue) -> JsonValue {
+    match value {
+        ColumnValue::Text(s)
+        | ColumnValue::Uuid(s)
+        | ColumnValue::Timestamptz(s)
+        | ColumnValue::Date(s) => JsonValue::String(s.clone()),
+        ColumnValue::Int32(i) => JsonValue::from(*i),
+        ColumnValue::Int64(i) => JsonValue::from(*i),
+        ColumnValue::Float64(f) => {
+            serde_json::Number::from_f64(*f).map_or(JsonValue::Null, JsonValue::Number)
+        },
+        ColumnValue::Boolean(b) => JsonValue::Bool(*b),
+        ColumnValue::Json(raw) => {
+            serde_json::from_str(raw).unwrap_or_else(|_| JsonValue::String(raw.clone()))
+        },
+        ColumnValue::Null => JsonValue::Null,
+    }
 }
 
 #[cfg(test)]
