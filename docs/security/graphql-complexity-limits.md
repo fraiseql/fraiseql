@@ -79,9 +79,20 @@ levels:
 
 | Level | Config | Rejection | Scope |
 |-------|--------|-----------|-------|
-| Schema-wide per-request ceiling | `[security.cost_budget] per_request_max` | `OPERATION_COST_EXCEEDED` (200 + `errors[]`, not retryable) | **Inside the executor** — every transport that executes a GraphQL document (`/graphql` POST/GET/QUERY, MCP, the functions bridge, direct embedders) |
+| Schema-wide per-request ceiling | `[security.cost_budget] per_request_max` | `OPERATION_COST_EXCEEDED` (200 + `errors[]`, not retryable); `BAD_REQUEST` 400 over REST | **Inside the executor** — every transport that executes a GraphQL document (`/graphql` POST/GET/QUERY, MCP, the functions bridge, direct embedders), **and** every direct read that never had a document (the REST read surface, both gRPC read arms) |
 | Per-tenant per-request budget | tenant-quota admin API `cost_budget` | `OPERATION_COST_EXCEEDED` | `/graphql`, at the shared tenant-dispatch seam |
 | Per-tenant rolling minute window | tenant-quota admin API `cost_budget_per_minute`, defaulted by `[security.cost_budget] per_tenant_per_minute_default` | `COST_BUDGET_EXHAUSTED` (429 + `Retry-After`) | `/graphql`, same seam |
+
+It is a ceiling on **one request**, not on one read. A GraphQL document states
+its whole shape and is scored whole. A REST `?select=` does not: it is answered
+with the parent read plus one sub-read per parent row per level, so its total is
+accumulated as those reads resolve and the request is refused at the read that
+crosses the ceiling — before that read runs. Scored per read instead, a request
+made of many individually cheap sub-reads passes the ceiling once per read and
+crosses it never.
+
+The `.count` pass of a `?select=` is the exception, and a known gap: it is
+answered through a second read chokepoint that carries no cost gate at all.
 
 Declared `[validation]` depth/complexity limits likewise bind **inside the
 executor** (derived at construction), so a bound declared in the compiled

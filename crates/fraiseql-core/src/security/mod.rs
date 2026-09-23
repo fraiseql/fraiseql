@@ -37,6 +37,7 @@ pub mod mutation_gate;
 pub mod oidc;
 pub mod profiles;
 pub mod query_validator;
+pub mod request_budget;
 pub mod response_budget;
 pub mod rls_policy;
 pub mod role_gate;
@@ -82,6 +83,7 @@ pub use mutation_gate::{BeforeMutationGate, BeforeMutationOutcome, BeforeMutatio
 pub use oidc::{OidcConfig, OidcValidator};
 pub use profiles::SecurityProfile;
 pub use query_validator::{QueryValidator, QueryValidatorConfig};
+pub use request_budget::{CostBudget, RequestBudget};
 pub use response_budget::{ResponseBudget, column_bytes, json_bytes};
 pub use rls_policy::{CompiledRLSPolicy, DefaultRLSPolicy, NoRLSPolicy, RLSPolicy, RlsWhereClause};
 pub use security_context::{

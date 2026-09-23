@@ -1199,13 +1199,14 @@ impl QueryRunner {
         query_match: &crate::runtime::matcher::QueryMatch,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
-        request_budget: Option<&crate::security::ResponseBudget>,
+        request_budget: Option<&crate::security::RequestBudget>,
     ) -> Result<serde_json::Value> {
         let resolved = self.resolve_direct_read(
             query_match,
             variables,
             security_context,
             GatedFieldHandling::RefuseAsUnsupported,
+            request_budget,
         )?;
         let session_pairs = resolved.session_pairs();
 
@@ -1236,7 +1237,10 @@ impl QueryRunner {
         } else {
             None
         };
-        if let Some(budget) = request_budget.or(own_budget.as_ref()) {
+        if let Some(budget) = request_budget
+            .and_then(crate::security::RequestBudget::bytes)
+            .or(own_budget.as_ref())
+        {
             budget.charge_jsonb_rows(&results)?;
         }
 
@@ -1286,6 +1290,7 @@ impl QueryRunner {
             variables,
             security_context,
             GatedFieldHandling::AdjudicatePerRow,
+            None,
         )?;
 
         // The **row-shaped** view, not the query's own `sql_source`.
@@ -1621,6 +1626,7 @@ impl QueryRunner {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
         gated_fields: GatedFieldHandling,
+        request_budget: Option<&crate::security::RequestBudget>,
     ) -> Result<ResolvedDirectRead> {
         // #422: operation-level authorization for the REST direct-read chokepoint.
         //       Every REST read (GET/count/streaming/embedding) and the in-core
@@ -1800,24 +1806,38 @@ impl QueryRunner {
         // exists: a control attached to an entry point is one a new transport can
         // forget, and this codebase has paid for that four times (#1336, #1348, #1351,
         // #1359). Scored *before* the database, so an over-budget read never runs.
-        if let Some(cap) = self.ctx.config.max_operation_cost {
+        //
+        // Charged against a running total rather than compared to the ceiling, because
+        // `per_request_max` is a bound on a *request* and a `?select=` embed answers one
+        // request with the parent read plus one sub-read per parent row per level. Scored
+        // one read at a time, a request made of ten thousand individually cheap sub-reads
+        // passed the ceiling ten thousand times and crossed it never — the same defect
+        // `a09bc0dae` fixed for `max_response_bytes`, which is the other half of what
+        // `request_budget` carries.
+        //
+        // `request_budget` is the caller's, and it is present when the caller is a
+        // transport that issues several reads to answer one request. Absent one, this
+        // read *is* the request and resolves a budget of its own from the same compiled
+        // ceiling — one charge site either way, so the two cases cannot come to mean
+        // different things.
+        //
+        // Still scored before the database, so the read that crosses the ceiling is
+        // refused without running. Only which reads count against it has changed.
+        let own_cost = match request_budget {
+            Some(_) => None,
+            None => crate::security::CostBudget::new(self.ctx.config.max_operation_cost),
+        };
+        if let Some(budget) = request_budget
+            .and_then(crate::security::RequestBudget::cost)
+            .or(own_cost.as_ref())
+        {
             let cost = crate::graphql::estimate_direct_read_cost(
                 &query_match.query_def.name,
                 &self.ctx.schema.operation_cost_weights,
                 plan.projection_fields.len(),
                 limit,
             ) as u64;
-            if cost > cap {
-                return Err(FraiseQLError::CostExceeded {
-                    message: format!(
-                        "operation cost {cost} exceeds the schema-wide per-request maximum of \
-                         {cap} ([security.cost_budget] per_request_max)"
-                    ),
-                    cost,
-                    limit: cap,
-                    retry_after_secs: None,
-                });
-            }
+            budget.charge(cost)?;
         }
 
         // Full-text relevance (#1284): a `?search=` request with no sort of its
@@ -1971,6 +1991,7 @@ impl QueryRunner {
             variables.as_ref(),
             security_context.as_ref(),
             GatedFieldHandling::RefuseAsUnsupported,
+            None,
         )?;
         let rows = {
             let session_pairs = resolved.session_pairs();

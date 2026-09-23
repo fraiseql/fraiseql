@@ -632,21 +632,23 @@ impl RestHandler<'_> {
             Some(variables_json)
         };
 
-        // One response-bytes ceiling for the whole request, built before the first read
-        // and charged by all of them: the parent read here, and every embedded sub-read
-        // the block below issues.
+        // One set of per-request allowances for the whole request, built before the first
+        // read and charged by all of them: the parent read here, and every embedded
+        // sub-read the block below issues.
         //
-        // `[validation] max_response_bytes` is a bound on *the response*, and this
+        // Both ceilings it carries are named for a request and were enforced on something
+        // smaller. `[validation] max_response_bytes` bounds *the response*, and this
         // representation's response is the parent rows **plus** everything embedded into
-        // them. Left to itself, `execute_query_direct` builds a budget per read, so a
+        // them; `[security.cost_budget] per_request_max` bounds what *a request* asks for,
+        // and this one asks for the parent read plus a sub-read per parent row per level.
+        // Left to itself, `execute_query_direct` resolves both per read, so a
         // `?select=a(b(c))` answered with a gigabyte in ten thousand cheap sub-reads
-        // passed the ceiling ten thousand times over and crossed it once — the ceiling
-        // bounding each sub-read rather than the body they add up to.
+        // passed each ceiling ten thousand times over and crossed neither.
         //
-        // This is also the control that survives composing the fan-out into one SQL
-        // statement: the same bytes then arrive in one read and the same budget bounds
-        // them, unchanged.
-        let response_bytes = self.executor.request_response_budget();
+        // These are also the controls that survive composing the fan-out into one SQL
+        // statement: the same bytes and the same work then arrive in one read, and the
+        // same budget bounds them, unchanged.
+        let request_budget = self.executor.request_budget();
 
         let (result, total, count_applied) = match prefer.count_preference() {
             Some(CountPreference::Exact) => {
@@ -655,7 +657,7 @@ impl RestHandler<'_> {
                         query_match,
                         vars_ref,
                         security_context,
-                        response_bytes.as_ref()
+                        Some(&request_budget)
                     ),
                     self.executor.count_rows(query_match, vars_ref, security_context),
                 );
@@ -668,7 +670,7 @@ impl RestHandler<'_> {
                         query_match,
                         vars_ref,
                         security_context,
-                        response_bytes.as_ref()
+                        Some(&request_budget)
                     ),
                     self.executor.count_rows(query_match, vars_ref, security_context),
                 );
@@ -681,7 +683,7 @@ impl RestHandler<'_> {
                         query_match,
                         vars_ref,
                         security_context,
-                        response_bytes.as_ref()
+                        Some(&request_budget)
                     ),
                     self.executor.count_rows(query_match, vars_ref, security_context),
                 );
@@ -694,7 +696,7 @@ impl RestHandler<'_> {
                         query_match,
                         vars_ref,
                         security_context,
-                        response_bytes.as_ref(),
+                        Some(&request_budget),
                     )
                     .await?;
                 (r, None, None)
@@ -776,7 +778,7 @@ impl RestHandler<'_> {
                     parent_type_name: &query_match.query_def.return_type,
                     security_context,
                     reads: &reads,
-                    response_bytes: response_bytes.as_ref(),
+                    request_budget: &request_budget,
                 };
 
                 super::super::embedding::execute_embeddings(

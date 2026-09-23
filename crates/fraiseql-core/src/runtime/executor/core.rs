@@ -79,7 +79,7 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
 /// | control | GraphQL document | REST direct read | gRPC row read |
 /// |---|---|---|---|
 /// | `[validation] max_query_depth` / `max_query_complexity` | yes — `run_gate1` | no | no |
-/// | `[security.cost_budget] per_request_max` | yes — `run_gate1` | yes — `resolve_direct_read` | yes — via `resolve_direct_read` |
+/// | `[security.cost_budget] per_request_max` | yes — `run_gate1`, whole document | yes — `resolve_direct_read`, summed over the request's reads | yes — via `resolve_direct_read` |
 /// | `[validation] max_page_size` | yes — `enforce_max_page_size` | yes | yes |
 /// | `[validation] max_response_bytes` | yes — charged on the returned rows | yes | yes, per frame when streamed |
 /// | `[rest] max_embedding_depth` | n/a | yes — `parse_select_with_embeddings` | n/a |
@@ -92,6 +92,17 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
 /// bytes it returns. Scoring it by the document's multiply-per-level arithmetic
 /// would model an execution engine this framework does not have. See
 /// [`ResponseBudget`](crate::security::ResponseBudget).
+///
+/// The two per-request ceilings — `per_request_max` and `max_response_bytes` — are
+/// charged against **one budget per request**, not per read, because the REST
+/// `?select=` representation answers one request with the parent read plus one
+/// sub-read per parent row per level. A document states its whole shape and is
+/// scored whole; a `?select=` does not, so its total is accumulated as the reads
+/// resolve. See [`RequestBudget`](crate::security::RequestBudget).
+///
+/// The `.count` pass is the one read of such a request that carries neither: it
+/// goes through `count_rows`, a second chokepoint that has never had a cost gate
+/// at all.
 ///
 /// What none of the per-read rows above can state is the **aggregate** of one request.
 /// REST `?select=` embedding issues one sub-read per parent row per level, so a request's
@@ -778,7 +789,7 @@ impl Executor {
         query_match: &QueryMatch,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
-        request_budget: Option<&crate::security::ResponseBudget>,
+        request_budget: Option<&crate::security::RequestBudget>,
     ) -> Result<serde_json::Value> {
         // #1336 backstop: REST reads enter here rather than through the GraphQL
         // document path, so the guard cannot live in `execute_with_timeout` alone.
@@ -792,25 +803,32 @@ impl Executor {
             .await
     }
 
-    /// A response-bytes budget for **one request**, to be shared by every read that
-    /// request issues.
+    /// The allowances **one request** holds, to be shared by every read that request
+    /// issues.
     ///
     /// A transport that answers one request with several reads — the REST `?select=`
     /// embed, which resolves one sub-read per parent row per level — builds one of these
     /// and passes it by reference to each
     /// [`execute_query_direct`](Self::execute_query_direct). Without it each sub-read
-    /// gets a budget of its own, so `[validation] max_response_bytes` bounds each
-    /// sub-read and not the response they add up to.
+    /// gets allowances of its own, and then `[validation] max_response_bytes` bounds
+    /// each sub-read rather than the response they add up to, and `[security.cost_budget]
+    /// per_request_max` scores each sub-read rather than the request they are all part
+    /// of — two ceilings named for a request and enforced on something smaller.
     ///
-    /// Built here rather than in the transport so the ceiling is read from the compiled
-    /// configuration in the one place that owns it, and a transport cannot supply a
-    /// budget with a ceiling of its own choosing.
+    /// Built here rather than in the transport so the ceilings are read from the compiled
+    /// configuration in the one place that owns them, and a transport cannot supply a
+    /// budget with ceilings of its own choosing.
     ///
-    /// `None` when the operator declared no ceiling — the same shape, for the same
-    /// reason, that `ResponseBudget::new` returns for that case.
+    /// Always a budget, never an `Option`: the two ceilings are declared independently
+    /// and either may be absent, which is a distinction
+    /// [`RequestBudget`](crate::security::RequestBudget) keeps internally rather than
+    /// collapsing into "no budget".
     #[must_use]
-    pub fn request_response_budget(&self) -> Option<crate::security::ResponseBudget> {
-        crate::security::ResponseBudget::new(self.ctx.config.max_response_bytes)
+    pub fn request_budget(&self) -> crate::security::RequestBudget {
+        crate::security::RequestBudget::new(
+            self.ctx.config.max_response_bytes,
+            self.ctx.config.max_operation_cost,
+        )
     }
 
     /// The same read as [`execute_query_direct`](Self::execute_query_direct),

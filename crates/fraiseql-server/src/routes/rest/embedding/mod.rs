@@ -54,15 +54,15 @@ pub struct EmbeddingRequest<'a> {
     /// builds must charge the **same** tally as the level above them; see
     /// [`EmbedReadBudget`].
     pub reads:            &'a EmbedReadBudget,
-    /// The request's remaining response-bytes allowance, or `None` when the operator
-    /// declared no ceiling.
+    /// The request's remaining per-request allowances: response bytes, and the
+    /// operation cost of the reads it has issued so far.
     ///
     /// Borrowed for the same reason `reads` is, and shared with the **parent** read as
-    /// well: the response this bounds is the parent rows plus everything embedded into
-    /// them, so a budget that saw only the sub-reads would bound the wrong quantity. The
-    /// ceiling itself comes from the engine (`Executor::request_response_budget`), not
-    /// from this transport.
-    pub response_bytes:   Option<&'a fraiseql_core::security::ResponseBudget>,
+    /// well: what these bound is the parent read plus everything embedded into it, so a
+    /// budget that saw only the sub-reads would bound the wrong quantity. The ceilings
+    /// themselves come from the engine (`Executor::request_budget`), not from this
+    /// transport.
+    pub request_budget:   &'a fraiseql_core::security::RequestBudget,
 }
 
 /// The parent-row keys an embedded selection needs projected, in the spelling the
@@ -236,7 +236,7 @@ pub async fn execute_embeddings(
         parent_type:      req.parent_type_name,
         security_context: req.security_context,
         reads:            req.reads,
-        response_bytes:   req.response_bytes,
+        request_budget:   req.request_budget,
     };
 
     for spec in embeddings {
@@ -324,8 +324,8 @@ pub async fn execute_embeddings(
                 // The same tally, not a fresh one: the product of the levels is the
                 // quantity being bounded, so a per-level budget would bound nothing.
                 reads:            req.reads,
-                // And the same bytes ceiling, for the same reason one level up.
-                response_bytes:   req.response_bytes,
+                // And the same per-request allowances, for the same reason one level up.
+                request_budget:   req.request_budget,
             };
             let no_filters = HashMap::new();
 
@@ -428,7 +428,7 @@ pub async fn execute_embedding_counts(
         parent_type:      req.parent_type_name,
         security_context: req.security_context,
         reads:            req.reads,
-        response_bytes:   req.response_bytes,
+        request_budget:   req.request_budget,
     };
 
     for count_rel_name in count_fields {
