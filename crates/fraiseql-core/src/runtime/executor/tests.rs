@@ -78,6 +78,7 @@ mod query {
             jsonb_optimization:   JsonbOptimizationOptions::default(),
             query_validation:     None,
             max_operation_cost:   None,
+            max_response_bytes:   None,
             audit_mutations:      false,
             changelog_enabled:    true,
             dry_run_mutations:    false,
@@ -1250,6 +1251,7 @@ mod config {
             jsonb_optimization:   JsonbOptimizationOptions::default(),
             query_validation:     None,
             max_operation_cost:   None,
+            max_response_bytes:   None,
             audit_mutations:      false,
             changelog_enabled:    true,
             dry_run_mutations:    false,
@@ -1282,6 +1284,7 @@ mod config {
             jsonb_optimization:   custom_options,
             query_validation:     None,
             max_operation_cost:   None,
+            max_response_bytes:   None,
             audit_mutations:      false,
             changelog_enabled:    true,
             dry_run_mutations:    false,
@@ -1600,6 +1603,7 @@ mod gate1_schema_derived {
             max_query_depth:      depth,
             max_query_complexity: complexity,
             max_page_size:        None,
+            max_response_bytes:   None,
         });
         schema
     }

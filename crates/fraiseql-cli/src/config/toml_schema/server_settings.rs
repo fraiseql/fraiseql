@@ -68,6 +68,14 @@ pub struct ValidationConfig {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_query_complexity: Option<u32>,
 
+    /// Maximum bytes a single read may deliver, measured on the rows returned.
+    ///
+    /// Depth and complexity score the request; this bounds the answer, which is
+    /// the only cost a read from a materialised view actually has. `None` leaves
+    /// reads unbounded by size.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_response_bytes: Option<u64>,
+
     /// Maximum rows a top-level `first`/`last`/`limit` argument may request,
     /// guarding against unbounded-pagination denial of service (#421). `None`
     /// uses the server default (1000); the server also honours the

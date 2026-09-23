@@ -59,6 +59,19 @@ pub(super) fn executor_runtime_config(
             });
         }
     }
+
+    // The response-bytes ceiling takes the same runtime-over-compiled precedence as
+    // the limits above it. `from_compiled_schema` has already installed the compiled
+    // value, so this only has to apply an override that exists — but it has to apply
+    // it, because `ServerConfig::validation` is the *same* `ValidationConfig` struct
+    // the schema carries. Without this an operator could write
+    // `[validation] max_response_bytes` in the runtime TOML, have it parse, and have
+    // it do nothing: a control configured, accepted and not in force, which is the
+    // defect class this whole change is closing.
+    if let Some(bytes) = config.validation.as_ref().and_then(|v| v.max_response_bytes) {
+        rt.max_response_bytes = Some(bytes);
+    }
+
     Ok(rt)
 }
 

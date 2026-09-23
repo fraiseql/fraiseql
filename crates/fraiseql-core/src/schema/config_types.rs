@@ -376,6 +376,29 @@ pub struct ValidationConfig {
     /// Maximum allowed query complexity score.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_query_complexity: Option<u32>,
+    /// Maximum bytes a single read may deliver, measured on the rows that come
+    /// back.
+    ///
+    /// `max_query_depth` and `max_query_complexity` score a *document* — they are
+    /// the guard for fields resolved at runtime, where the work grows with the
+    /// shape of the request. They say nothing about a read served from a
+    /// materialised view, which is one row read whatever its nesting depth, and
+    /// whose cost is the bytes those rows weigh.
+    ///
+    /// That is the quantity this bounds, and it is the only one that means the
+    /// same thing on every transport: a GraphQL document, a REST `?select=`, a
+    /// gRPC column read and an NDJSON export all end in rows, and none of them
+    /// can be scored for size before the database has answered. So this is
+    /// enforced on the delivered rows rather than on the request — resolved once
+    /// at the read chokepoint, charged wherever the rows arrive.
+    ///
+    /// A streamed read is cut at the frame that crosses the ceiling rather than
+    /// being read to the end, so the bytes in the error are the running total at
+    /// refusal, not the size of the whole answer.
+    ///
+    /// `None` leaves reads unbounded by size, which is the previous behaviour.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_response_bytes:   Option<u64>,
     /// Maximum number of rows a top-level `first`/`last`/`limit` argument may
     /// request, guarding against unbounded-pagination denial of service (#421).
     /// When unset, the runtime default (1000) applies; set to a large value to

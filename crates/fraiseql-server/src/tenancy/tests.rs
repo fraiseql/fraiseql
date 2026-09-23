@@ -787,6 +787,7 @@ mod runtime_config_drift {
             jsonb_optimization,
             query_validation,
             max_operation_cost,
+            max_response_bytes,
             audit_mutations,
             changelog_enabled,
             dry_run_mutations,
@@ -848,6 +849,9 @@ mod runtime_config_drift {
         if *max_operation_cost != tenant.max_operation_cost {
             out.push("max_operation_cost");
         }
+        if *max_response_bytes != tenant.max_response_bytes {
+            out.push("max_response_bytes");
+        }
         if *audit_mutations != tenant.audit_mutations {
             out.push("audit_mutations");
         }
@@ -872,6 +876,7 @@ mod runtime_config_drift {
             enable_tracing: true,
             query_timeout_ms: 4321,
             max_operation_cost: Some(99),
+            max_response_bytes: Some(4096),
             audit_mutations: true,
             changelog_enabled: false,
             dry_run_mutations: true,
@@ -887,6 +892,7 @@ mod runtime_config_drift {
             "dry_run_mutations",
             "max_page_size",
             "max_operation_cost",
+            "max_response_bytes",
             "audit_mutations",
             "changelog_enabled",
         ] {

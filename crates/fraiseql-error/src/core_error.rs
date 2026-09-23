@@ -211,6 +211,31 @@ pub enum FraiseQLError {
         retry_after_secs: Option<u64>,
     },
 
+    /// The bytes a read would deliver exceed `[validation] max_response_bytes`.
+    ///
+    /// Distinct from [`CostExceeded`](Self::CostExceeded), which scores what a
+    /// request *asks for* before the database runs. This one measures what came
+    /// back. A materialised read costs what its documents weigh, and that is not
+    /// recoverable from the request: the same query against the same view returns
+    /// a kilobyte for one tenant and a gigabyte for another.
+    ///
+    /// Permanent for the request as issued — retrying it cannot succeed — so it is
+    /// a 4xx with no `retry_after`. The caller narrows `?select=` or lowers its
+    /// page size.
+    #[error(
+        "Response exceeds the maximum of {limit} bytes: {bytes} bytes delivered ([validation] \
+         max_response_bytes)"
+    )]
+    ResponseTooLarge {
+        /// Bytes measured when the ceiling was crossed. This is the running total
+        /// at the moment of refusal, not the full size of the untruncated
+        /// response — a stream is cut as soon as it goes over rather than being
+        /// read to the end to find out how far over it was.
+        bytes: u64,
+        /// The configured ceiling.
+        limit: u64,
+    },
+
     // ========================================================================
     // Resource Errors
     // ========================================================================
@@ -511,6 +536,11 @@ impl FraiseQLError {
                 retry_after_secs: None,
                 ..
             } => 400,
+            // The response the caller asked for is larger than the operator
+            // allows. 413 rather than 400 to match how this codebase already
+            // spells "what you asked for is too big": `sse_max_replay_events`
+            // answers `413 RESUME_TOO_FAR_BEHIND` for the same shape of refusal.
+            Self::ResponseTooLarge { .. } => 413,
             Self::Timeout { .. } | Self::Cancelled { .. } => 408,
             Self::Database { .. }
             | Self::ConnectionPool { .. }

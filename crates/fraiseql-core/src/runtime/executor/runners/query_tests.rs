@@ -2680,6 +2680,243 @@ mod row_read {
 
         assert!(adapter.captured_row_read().is_some());
     }
+
+    // ---- the response-bytes ceiling ([validation] max_response_bytes) ----
+    //
+    // Depth and complexity score a document and bind only where one exists. Neither
+    // knows what a row weighs, and a read from a materialised view is one fetch
+    // whatever its nesting — so what bounds it is the bytes it returns. This is the
+    // one control in the table on `resolve_gate1` that means the same thing on every
+    // transport, so every transport is pinned here.
+
+    fn with_response_bytes(cap: u64) -> RuntimeConfig {
+        RuntimeConfig {
+            max_response_bytes: Some(cap),
+            ..RuntimeConfig::default()
+        }
+    }
+
+    /// Three frames of `rows()`, which is `Text("1") + Text("Alice")` = 6 bytes each.
+    fn three_rows() -> Vec<Vec<ColumnValue>> {
+        vec![
+            vec![
+                ColumnValue::Text("1".into()),
+                ColumnValue::Text("Alice".into()),
+            ],
+            vec![
+                ColumnValue::Text("2".into()),
+                ColumnValue::Text("Bobby".into()),
+            ],
+            vec![
+                ColumnValue::Text("3".into()),
+                ColumnValue::Text("Carol".into()),
+            ],
+        ]
+    }
+
+    /// Over the ceiling: refused once the delivered bytes cross it.
+    #[tokio::test]
+    async fn a_row_read_over_the_response_byte_ceiling_is_refused() {
+        let schema = user_schema();
+        let qm = match_on(&schema, "{ users { id name } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::with_config(schema, adapter.clone(), with_response_bytes(5));
+
+        let err = executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .unwrap_err();
+
+        match err {
+            crate::FraiseQLError::ResponseTooLarge { bytes, limit } => {
+                assert_eq!(bytes, 6, "`1` + `Alice`");
+                assert_eq!(limit, 5);
+            },
+            other => panic!("expected ResponseTooLarge, got {other:?}"),
+        }
+    }
+
+    /// Under it: served. Without this half the case above would pass against an arm
+    /// that refused every read — the pair #1351's verification gate asks for.
+    #[tokio::test]
+    async fn a_row_read_under_the_response_byte_ceiling_is_read() {
+        let schema = user_schema();
+        let qm = match_on(&schema, "{ users { id name } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::with_config(schema, adapter.clone(), with_response_bytes(6));
+
+        let out = executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .expect("exactly at the ceiling is under it");
+
+        assert_eq!(out.rows.len(), 1);
+    }
+
+    /// **One budget for the whole stream, not one per frame.**
+    ///
+    /// Three 6-byte frames against a 12-byte ceiling: two are delivered and the third
+    /// is refused. This is the case that makes the streaming wrap load-bearing — a
+    /// budget rebuilt per frame would let all three through, because no single frame
+    /// is over 12 bytes, and the response would be unbounded however many frames it
+    /// had. That is the shape a stream is uniquely able to get wrong.
+    #[tokio::test]
+    async fn a_streamed_read_charges_one_budget_across_frames() {
+        use futures::StreamExt as _;
+
+        let schema = user_schema();
+        let qm = match_on(&schema, "{ users { id name } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(three_rows()));
+        let executor = Executor::with_config(schema, adapter.clone(), with_response_bytes(12));
+
+        let read = executor
+            .stream_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .expect("the ceiling is charged per frame, so opening the stream succeeds");
+
+        let mut stream = read.stream;
+        let mut delivered = 0usize;
+        let mut last = None;
+        while let Some(frame) = stream.next().await {
+            match frame {
+                Ok(_) => delivered += 1,
+                Err(e) => {
+                    last = Some(e);
+                    break;
+                },
+            }
+        }
+
+        assert_eq!(delivered, 2, "6 + 6 fits under 12; the third crosses it");
+        match last {
+            Some(crate::FraiseQLError::ResponseTooLarge { bytes, limit }) => {
+                assert_eq!(bytes, 18, "the running total at refusal, not the frame size");
+                assert_eq!(limit, 12);
+            },
+            other => panic!("expected the third frame to be refused, got {other:?}"),
+        }
+    }
+
+    /// The whole stream fits: every frame is delivered and none errors.
+    #[tokio::test]
+    async fn a_streamed_read_within_the_ceiling_delivers_every_frame() {
+        let schema = user_schema();
+        let qm = match_on(&schema, "{ users { id name } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(three_rows()));
+        let executor = Executor::with_config(schema, adapter.clone(), with_response_bytes(18));
+
+        let read = executor
+            .stream_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .expect("under the ceiling");
+        let frames = drain(read).await.expect("no frame errors");
+
+        assert_eq!(frames.len(), 3);
+    }
+
+    /// The REST direct read — the JSON arm, and through it every embedded sub-read.
+    ///
+    /// `mock_user_results()` is `{"id":"1","name":"Alice"}` (26 bytes estimated) and
+    /// `{"id":"2","name":"Bob"}` (24), so 50 together.
+    #[tokio::test]
+    async fn a_direct_json_read_over_the_response_byte_ceiling_is_refused() {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor =
+            Executor::with_config(test_schema(), adapter.clone(), with_response_bytes(40));
+        let qm = crate::runtime::QueryMatcher::new(test_schema())
+            .match_query("{ users { id name } }", None)
+            .unwrap();
+
+        let err = executor.execute_query_direct(&qm, None, None).await.unwrap_err();
+
+        match err {
+            crate::FraiseQLError::ResponseTooLarge { bytes, limit } => {
+                assert_eq!(bytes, 50, "26 + 24");
+                assert_eq!(limit, 40);
+            },
+            other => panic!("expected ResponseTooLarge, got {other:?}"),
+        }
+    }
+
+    /// And its permitted twin.
+    #[tokio::test]
+    async fn a_direct_json_read_under_the_response_byte_ceiling_is_read() {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor =
+            Executor::with_config(test_schema(), adapter.clone(), with_response_bytes(50));
+        let qm = crate::runtime::QueryMatcher::new(test_schema())
+            .match_query("{ users { id name } }", None)
+            .unwrap();
+
+        executor
+            .execute_query_direct(&qm, None, None)
+            .await
+            .expect("exactly at the ceiling");
+    }
+
+    /// The document path is charged too, so the same declared number means the same
+    /// thing whether the request arrived as a GraphQL document or as a REST read.
+    /// That parity is the whole point — the defect this closes was one ceiling
+    /// meaning two different things depending on how the client connected.
+    #[tokio::test]
+    async fn a_document_read_over_the_response_byte_ceiling_is_refused() {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor =
+            Executor::with_config(test_schema(), adapter.clone(), with_response_bytes(40));
+
+        let err = executor.execute("{ users { id name } }", None).await.unwrap_err();
+
+        assert!(
+            matches!(err, crate::FraiseQLError::ResponseTooLarge { .. }),
+            "expected ResponseTooLarge, got {err:?}"
+        );
+    }
+
+    /// The document twin under the ceiling.
+    #[tokio::test]
+    async fn a_document_read_under_the_response_byte_ceiling_is_read() {
+        let adapter = Arc::new(CapturingMockAdapter::new(mock_user_results()));
+        let executor =
+            Executor::with_config(test_schema(), adapter.clone(), with_response_bytes(50));
+
+        executor.execute("{ users { id name } }", None).await.expect("at the ceiling");
+    }
+
+    /// No ceiling declared, nothing charged — the control is the operator's
+    /// declaration, not a default this change imposes on existing deployments.
+    #[tokio::test]
+    async fn a_deployment_with_no_declared_byte_ceiling_is_uncharged() {
+        let schema = user_schema();
+        let qm = match_on(&schema, "{ users { id name } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(three_rows()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let out = executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name"]))
+            .await
+            .expect("no ceiling declared, so nothing to exceed");
+
+        assert_eq!(out.rows.len(), 3);
+    }
+
+    /// The ceiling is the compiled `[validation] max_response_bytes`, derived from the
+    /// schema like every other schema-owned limit — not something only a programmatic
+    /// embedder can set. Without this, the knob could be wired to nothing and every
+    /// case above would still pass.
+    #[test]
+    fn the_ceiling_is_derived_from_the_compiled_schema() {
+        let mut schema = user_schema();
+        schema.validation_config = Some(crate::schema::ValidationConfig {
+            max_response_bytes: Some(4_096),
+            ..crate::schema::ValidationConfig::default()
+        });
+
+        let config = RuntimeConfig::default()
+            .with_compiled_schema(&schema)
+            .expect("the schema compiles");
+
+        assert_eq!(config.max_response_bytes, Some(4_096));
+    }
 }
 
 // ── mod enum_membership: the read path's call site is load-bearing (#1362) ────

@@ -10,6 +10,7 @@
 //! - Authentication middleware (JWT, Auth0, Clerk)
 //! - OIDC/JWKS support for any OIDC-compliant provider
 //! - Query validation (depth, complexity)
+//! - The response-bytes ceiling (what a read delivers, not what it asks for)
 //! - Audit logging
 //! - TLS enforcement
 //! - Introspection control
@@ -36,6 +37,7 @@ pub mod mutation_gate;
 pub mod oidc;
 pub mod profiles;
 pub mod query_validator;
+pub mod response_budget;
 pub mod rls_policy;
 pub mod role_gate;
 pub mod security_context;
@@ -80,6 +82,7 @@ pub use mutation_gate::{BeforeMutationGate, BeforeMutationOutcome, BeforeMutatio
 pub use oidc::{OidcConfig, OidcValidator};
 pub use profiles::SecurityProfile;
 pub use query_validator::{QueryValidator, QueryValidatorConfig};
+pub use response_budget::{ResponseBudget, column_bytes, json_bytes};
 pub use rls_policy::{CompiledRLSPolicy, DefaultRLSPolicy, NoRLSPolicy, RLSPolicy, RlsWhereClause};
 pub use security_context::{
     BoxFuture, EnrichmentMark, EnrichmentOutcome, IdentityEnricher, SecurityContext,

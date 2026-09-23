@@ -326,6 +326,7 @@ fn test_executor_runtime_config_with_field_filter() {
         jsonb_optimization:   JsonbOptimizationOptions::default(),
         query_validation:     None,
         max_operation_cost:   None,
+        max_response_bytes:   None,
         audit_mutations:      false,
         changelog_enabled:    true,
         dry_run_mutations:    false,

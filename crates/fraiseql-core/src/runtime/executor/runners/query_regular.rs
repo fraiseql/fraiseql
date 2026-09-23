@@ -78,12 +78,29 @@ pub(in super::super) struct ResolvedDirectRead {
     /// Projection for the computed fields this read selects (#959), or `None`
     /// when it selects none — see [`Self::projection_request`].
     projection:     Option<crate::backend::SqlProjectionHint>,
+    /// The `[validation] max_response_bytes` ceiling in force for this read, or
+    /// `None` when the operator declared none.
+    ///
+    /// Resolved here, with every other decision that belongs to the read rather
+    /// than to its delivery, and charged by whichever arm delivers the rows. The
+    /// value cannot be checked at this point — what a read weighs is not knowable
+    /// until it has run — so what travels is the ceiling, not a verdict.
+    response_bytes: Option<u64>,
 }
 
 impl ResolvedDirectRead {
     /// Borrow the session variables in the shape the adapter takes.
     fn session_pairs(&self) -> Vec<(&str, &str)> {
         self.session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect()
+    }
+
+    /// A fresh budget for this read, or `None` when no ceiling is configured.
+    ///
+    /// One per read, not one per frame: a streamed arm keeps the returned value for
+    /// the whole stream so the ceiling bounds the response rather than each frame
+    /// independently.
+    const fn budget(&self) -> Option<crate::security::ResponseBudget> {
+        crate::security::ResponseBudget::new(self.response_bytes)
     }
 
     /// The adapter call shape for this read.
@@ -673,6 +690,18 @@ impl QueryRunner {
             )
             .await?;
 
+        // The response-bytes ceiling (`[validation] max_response_bytes`), on the
+        // document path. GATE-1 already scored this request's depth and complexity,
+        // but neither knows what a row weighs: a materialised read is one fetch
+        // whatever its nesting, and its cost is the bytes it returns. Charged here so
+        // the same ceiling means the same thing whether the request arrived as a
+        // document or as a REST read.
+        if let Some(mut budget) =
+            crate::security::ResponseBudget::new(self.ctx.config.max_response_bytes)
+        {
+            budget.charge_jsonb_rows(&results)?;
+        }
+
         // 10. Apply field-level RBAC filtering (reject / mask / allow)
         let access = super::super::support::security::apply_field_rbac_filtering(
             &self.ctx.schema,
@@ -1100,6 +1129,18 @@ impl QueryRunner {
             })
             .await?;
 
+        // The response-bytes ceiling, on the anonymous document entry.
+        //
+        // Charged on this arm as well as the authenticated one for the reason the
+        // whole ceiling exists: a control that binds on one entry point and not its
+        // twin is the defect this closes, one level down. An unauthenticated read is
+        // also the one a deployment most wants bounded.
+        if let Some(mut budget) =
+            crate::security::ResponseBudget::new(self.ctx.config.max_response_bytes)
+        {
+            budget.charge_jsonb_rows(&results)?;
+        }
+
         // 4. Project results — masked fields stay in the projection so the response still carries
         //    the key in its requested position, then get nulled below (same as the authenticated
         //    path).
@@ -1176,6 +1217,19 @@ impl QueryRunner {
                 query_match.query_def.read_routing,
             )
             .await?;
+
+        // The response-bytes ceiling, charged on what came back.
+        //
+        // This is the buffered REST read and, through it, every embedded sub-read:
+        // `embed_into_single` resolves each one through `execute_query_direct`. Each
+        // sub-read is therefore bounded on its own — which is what this function can
+        // bound, since it sees one read and the embedding fan-out is a loop above it.
+        // Bounding the *aggregate* of an embed is not possible from here and is not
+        // claimed: see the note on `stream_query_direct` and the standing issue on
+        // the embedding executor.
+        if let Some(mut budget) = resolved.budget() {
+            budget.charge_jsonb_rows(&results)?;
+        }
 
         let projected = self.project_direct_rows(
             query_match,
@@ -1432,6 +1486,15 @@ impl QueryRunner {
             }
         }
 
+        // The response-bytes ceiling, charged after adjudication: masking can only
+        // shrink a row (`ColumnValue::Null`), so charging before it would bill the
+        // caller for bytes the gate withheld.
+        if let Some(mut budget) = plan.resolved.budget() {
+            for row in &rows {
+                budget.charge_column_row(row)?;
+            }
+        }
+
         Ok(RowRead {
             columns: plan.columns,
             rows,
@@ -1487,16 +1550,32 @@ impl QueryRunner {
         // are the rows that were allowed, and the client sees the failure in the
         // trailers. There is no way to un-send a frame, which is the argument for the
         // ceilings that bound how many there can be (#421, and #379 as of this change).
-        let stream = match plan.gate {
-            Some(gate) => {
+        //
+        // The response-bytes ceiling rides in the same wrap, for the same reason: one
+        // budget for the whole stream, so the ceiling bounds the response and not each
+        // frame on its own. This is the arm where it earns the most — a stream is the
+        // only shape that can keep producing after the answer is already too big, and
+        // cutting it at the frame that crosses the line is the difference between a
+        // bounded refusal and an unbounded send.
+        //
+        // Charged after adjudication, because masking can only shrink a row and the
+        // caller should not be billed for bytes the gate withheld.
+        let budget = plan.resolved.budget();
+        let stream = match (plan.gate, budget) {
+            (None, None) => stream,
+            (gate, mut budget) => {
                 let columns = plan.columns.clone();
                 Box::pin(stream.map(move |row| {
                     let mut row = row?;
-                    gate.adjudicate_row(&columns, &mut row)?;
+                    if let Some(ref gate) = gate {
+                        gate.adjudicate_row(&columns, &mut row)?;
+                    }
+                    if let Some(ref mut budget) = budget {
+                        budget.charge_column_row(&row)?;
+                    }
                     Ok(row)
                 })) as fraiseql_db::ColumnRowStream
             },
-            None => stream,
         };
 
         Ok(StreamedRowRead {
@@ -1846,6 +1925,7 @@ impl QueryRunner {
             session_vars,
             access,
             projection,
+            response_bytes: self.ctx.config.max_response_bytes,
         })
     }
 
@@ -1896,9 +1976,17 @@ impl QueryRunner {
         };
 
         let runner = Self::new(Arc::clone(&self.ctx));
+        // One budget for the whole export, kept across frames. An NDJSON/CSV/XLSX
+        // export is the largest read this engine serves on purpose, so the ceiling
+        // has to cut it where it crosses rather than let it run: `max_page_size`
+        // does not bound a stream, which is the point of a stream.
+        let mut budget = resolved.budget();
         let access = resolved.access;
         Ok(Box::pin(rows.map(move |row| {
             let row = row?;
+            if let Some(ref mut budget) = budget {
+                budget.charge(crate::security::json_bytes(row.as_value()))?;
+            }
             // Projected as a one-element list so the row goes through the list
             // element path — the same one a buffered list read uses, including
             // `project_entity`'s `__typename` stamping.

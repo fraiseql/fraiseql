@@ -264,6 +264,22 @@ pub struct RuntimeConfig {
     /// GraphQL document — not only on `/graphql`.
     pub max_operation_cost: Option<u64>,
 
+    /// Hard ceiling on the bytes a single read may deliver.
+    ///
+    /// **Schema-derived** — recomputed from the compiled `[validation]
+    /// max_response_bytes` on every
+    /// [`with_compiled_schema`](Self::with_compiled_schema), never set by the
+    /// caller.
+    ///
+    /// Unlike [`max_operation_cost`](Self::max_operation_cost) this is not scored
+    /// before the database runs: what a read weighs is not recoverable from the
+    /// request. It is resolved at the read chokepoint and charged on the rows that
+    /// come back, so it binds on every transport that returns rows — documents,
+    /// REST reads and exports, and both gRPC arms — and not only on the ones that
+    /// carry a document to score. See
+    /// [`ResponseBudget`](crate::security::ResponseBudget).
+    pub max_response_bytes: Option<u64>,
+
     /// Emit structured `tracing` events for every successfully-executed mutation.
     ///
     /// When `true`, a `tracing::info!` event with target `"fraiseql::mutation_audit"` is
@@ -385,6 +401,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("jsonb_optimization", &self.jsonb_optimization)
             .field("query_validation", &self.query_validation)
             .field("max_operation_cost", &self.max_operation_cost)
+            .field("max_response_bytes", &self.max_response_bytes)
             .field("audit_mutations", &self.audit_mutations)
             .field("changelog_enabled", &self.changelog_enabled)
             .field("dry_run_mutations", &self.dry_run_mutations)
@@ -409,6 +426,7 @@ impl Default for RuntimeConfig {
             jsonb_optimization:      JsonbOptimizationOptions::default(),
             query_validation:        None,
             max_operation_cost:      None,
+            max_response_bytes:      None,
             audit_mutations:         false,
             changelog_enabled:       true,
             dry_run_mutations:       false,
@@ -685,6 +703,13 @@ impl RuntimeConfig {
             .and_then(|s| s.cost_budget.as_ref())
             .and_then(|c| c.per_request_max);
 
+        // The response-bytes ceiling is declared in the compiled [validation] and
+        // owned by the schema, exactly as the cost ceiling above is owned by
+        // [security.cost_budget]. Both are recomputed here rather than carried
+        // through, so a hot reload cannot leave a stale ceiling in force.
+        let max_response_bytes =
+            schema.validation_config.as_ref().and_then(|v| v.max_response_bytes);
+
         let Self {
             cache_query_plans,
             max_page_size: _, // schema-derived
@@ -697,6 +722,7 @@ impl RuntimeConfig {
             jsonb_optimization,
             query_validation,
             max_operation_cost: _, // schema-derived
+            max_response_bytes: _, // schema-derived
             audit_mutations: _,    // schema-derived
             changelog_enabled: _,  // schema-derived
             dry_run_mutations,
@@ -717,6 +743,7 @@ impl RuntimeConfig {
             jsonb_optimization,
             query_validation,
             max_operation_cost,
+            max_response_bytes,
             audit_mutations,
             changelog_enabled,
             dry_run_mutations,

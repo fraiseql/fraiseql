@@ -17,6 +17,7 @@ mod executor_gate_config_tests {
                 max_query_depth:      depth,
                 max_query_complexity: complexity,
                 max_page_size:        None,
+                max_response_bytes:   None,
             }),
             ..CompiledSchema::default()
         }
@@ -49,6 +50,7 @@ mod executor_gate_config_tests {
                 max_query_depth:      None,
                 max_query_complexity: Some(500),
                 max_page_size:        None,
+                max_response_bytes:   None,
             }),
             ..ServerConfig::default()
         };
@@ -74,6 +76,7 @@ mod executor_gate_config_tests {
                 max_query_depth:      None,
                 max_query_complexity: Some(500),
                 max_page_size:        None,
+                max_response_bytes:   None,
             }),
             ..ServerConfig::default()
         };

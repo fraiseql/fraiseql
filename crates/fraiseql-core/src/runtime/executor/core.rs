@@ -53,10 +53,44 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
 ///
 /// The embedder-installed `RuntimeConfig::query_validation` wins (it is the
 /// programmatic API, preserved across hot-reloads). Otherwise the compiled
-/// schema's declared `[validation]` limits are derived into a gate so the
-/// operator's declared bound binds on **every** transport that reaches the
-/// executor — MCP, the functions bridge, direct embedders — not only on the
-/// `/graphql` HTTP stage, which applies the same limits independently.
+/// schema's declared `[validation]` depth and complexity limits are derived into
+/// a gate.
+///
+/// # Which transports this binds on
+///
+/// Every transport that executes a **GraphQL document** — `/graphql`, MCP, the
+/// functions bridge, direct embedders — because the gate is applied by `run_gate1`
+/// and `run_gate1` takes a query string. The `/graphql` HTTP stage applies the
+/// same limits independently, so a document reaching the executor by any other
+/// route is scored here rather than not at all.
+///
+/// It does **not** bind on a read that never had a document: the REST direct-read
+/// surface (the GET resolver, the three exports, the embedding sub-query, the bulk
+/// row selection) and both gRPC read arms resolve through
+/// `QueryRunner::resolve_direct_read`, which does not call `run_gate1` and cannot
+/// — there is no query string to score.
+///
+/// This doc previously said the derived gate binds on "every transport that
+/// reaches the executor". It does not, it never did, and the claim is the reason
+/// #1351 recorded the engine read path as covered when no direct read could reach
+/// the gate at all. What follows is the written answer to "which transports does
+/// this control bind on", so the next reader does not have to re-derive it.
+///
+/// | control | GraphQL document | REST direct read | gRPC row read |
+/// |---|---|---|---|
+/// | `[validation] max_query_depth` / `max_query_complexity` | yes — `run_gate1` | no | no |
+/// | `[security.cost_budget] per_request_max` | yes — `run_gate1` | yes — `resolve_direct_read` | yes — via `resolve_direct_read` |
+/// | `[validation] max_page_size` | yes — `enforce_max_page_size` | yes | yes |
+/// | `[validation] max_response_bytes` | yes — charged on the returned rows | yes | yes, per frame when streamed |
+/// | `[rest] max_embedding_depth` | n/a | yes — `parse_select_with_embeddings` | n/a |
+///
+/// The two "no" cells are not gaps to be closed by routing more paths through
+/// `run_gate1`. Depth and complexity score a document because a document is where
+/// runtime-resolved work is described; a direct read of a materialised view is one
+/// row fetch whatever its nesting, and what bounds it is the page size and the
+/// bytes it returns. Scoring it by the document's multiply-per-level arithmetic
+/// would model an execution engine this framework does not have. See
+/// [`ResponseBudget`](crate::security::ResponseBudget).
 ///
 /// Derivation enforces exactly what the schema declares: an undeclared depth or
 /// complexity limit stays unbounded rather than acquiring a new default, and a
