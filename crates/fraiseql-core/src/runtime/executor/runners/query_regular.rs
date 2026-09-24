@@ -2305,3 +2305,7 @@ impl QueryRunner {
             .await
     }
 }
+
+#[cfg(test)]
+#[path = "query_nested_gates_tests.rs"]
+mod query_nested_gates_tests;

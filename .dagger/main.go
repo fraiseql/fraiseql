@@ -1838,6 +1838,12 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// predicate to that level's own view — which only the rows it returns reveal.
 		// Creates and drops its own schema.
 		"cargo test -p fraiseql-server --features rest --test rest_embedding_composed_gates_e2e_pg -- --test-threads=1",
+		// A GraphQL selection into a nested type — `users { orders { ... } }`, served from
+		// the parent view's `data` — against the nested type's own field RBAC and RLS
+		// policy. The reproductions are `#[ignore]`d until the fix lands; what runs here
+		// are their controls (the same reads at the root, which are gated) and the one
+		// case the view composition already covers. Creates and drops its own schema.
+		"cargo test -p fraiseql-server --test graphql_nested_type_gates_e2e_pg -- --test-threads=1",
 		// #1271: a declared field name and the stored JSONB key it reads are two
 		// different strings. The REST runner reads the whole `data` document and
 		// projects in Rust, and that projector took the declared name verbatim
