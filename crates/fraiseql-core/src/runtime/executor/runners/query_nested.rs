@@ -256,6 +256,17 @@ pub(in super::super) enum NestedRowGate {
     },
 }
 
+impl NestedRowGate {
+    /// The type's read whose policy target and `inject_params` apply.
+    fn query(&self) -> &str {
+        match self {
+            Self::Project { query, .. } | Self::Join { query, .. } | Self::Refuse { query } => {
+                query
+            },
+        }
+    }
+}
+
 /// Every nested object field whose rows its type scopes, and how — built once, with the
 /// executor. A field absent from it is ungated: its type has no SQL-backed read of its
 /// own (a value object, part of its parent's row and gated by its parent's predicate), or
@@ -513,6 +524,55 @@ impl QueryRunner {
             });
         }
         Ok(embeds)
+    }
+
+    /// Refuse a selection, for a read that cannot carry a composed level, when any nested
+    /// level of it reaches a type whose row predicate applies to this caller: a Relay
+    /// connection's keyset page, and the federation resolver's entity lookup. `surface`
+    /// names the read in the refusal.
+    ///
+    /// A level whose type's predicate is empty for this caller is served as embedded,
+    /// as [`Self::plan_nested_reads`] would leave it flat.
+    ///
+    /// # Errors
+    ///
+    /// `FraiseQLError::Authorization` for a nested level whose type's predicate applies;
+    /// what [`Self::plan_nested_reads`] returns for a predicate it cannot evaluate.
+    pub(in super::super) fn refuse_row_gated_levels(
+        &self,
+        parent_type: &str,
+        selections: &[FieldSelection],
+        security_context: Option<&SecurityContext>,
+        surface: &str,
+    ) -> Result<()> {
+        let schema = &self.ctx.schema;
+        let Some(parent_def) = schema.find_type(parent_type) else {
+            return Ok(());
+        };
+        for sel in effective_selections(selections, parent_type, schema) {
+            let Some(field) = parent_def.fields.iter().find(|f| f.name == sel.name) else {
+                continue;
+            };
+            let Some(target) = object_type_of(&field.field_type) else {
+                continue;
+            };
+            if let Some(gate) = self.ctx.nested_row_gates.get(parent_type, field.name.as_str()) {
+                if self.nested_predicate(gate.query(), target, security_context)?.is_some() {
+                    return Err(FraiseQLError::Authorization {
+                        message:  format!(
+                            "{surface} cannot apply the row security of '{target}' to the \
+                             '{target}' rows '{parent_type}.{}' embeds; refusing rather than \
+                             serving them unfiltered",
+                            field.name
+                        ),
+                        action:   Some("read".to_string()),
+                        resource: Some(target.to_string()),
+                    });
+                }
+            }
+            self.refuse_row_gated_levels(target, &sel.nested_fields, security_context, surface)?;
+        }
+        Ok(())
     }
 
     /// The row predicate a read of `target` through `query` carries: the policy's, AND-ed

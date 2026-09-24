@@ -166,6 +166,30 @@ impl QueryRunner {
             }
         };
 
+        // Field-level RBAC over what each edge's `node` selects, at every level, each
+        // against its own type — and each nested level's `requires_role` /
+        // `requires_actor` (`query_nested`). Before the read, so a `Reject` anywhere never
+        // reaches the database. A connection used to serve each row's stored `data` as its
+        // `node`: every stored key, selected or not, the gated ones included.
+        let node_fields = connection_node_fields(query_match);
+        let selection_access = super::query_nested::SelectionAccess::classify(
+            &self.ctx.schema,
+            &query_def.return_type,
+            &node_fields,
+            Vec::new(),
+            security_context,
+        )?;
+
+        // A nested level whose type scopes its rows would need the keyset page read as the
+        // root of a composed statement, which it cannot be yet: refused, not served as the
+        // view embedded it.
+        self.refuse_row_gated_levels(
+            &query_def.return_type,
+            &node_fields,
+            security_context,
+            "a Relay connection",
+        )?;
+
         // Extract relay pagination arguments from the matcher's merged argument map
         // (#904). Reading the raw request `variables` instead dropped every argument
         // written inline in the document — silently, because the query still returned
@@ -377,9 +401,21 @@ impl QueryRunner {
             }
             end_cursor_str = Some(cursor_str.clone());
 
+            let mut node = crate::runtime::project_entity(
+                data,
+                &query_def.return_type,
+                &node_fields,
+                &self.ctx.schema,
+            );
+            selection_access.null_masked(
+                &mut node,
+                &query_def.return_type,
+                &node_fields,
+                &self.ctx.schema,
+            );
             edges.push(serde_json::json!({
                 "cursor": cursor_str,
-                "node": data,
+                "node": node,
             }));
         }
 
@@ -714,4 +750,32 @@ impl QueryRunner {
         }
         Ok(())
     }
+}
+
+/// What a connection's `node` selects: the sub-selection of every `node` under every
+/// `edges` the connection field selects, inline fragments included. The response always
+/// writes `edges` and `node` under those names, so their selections are merged.
+fn connection_node_fields(
+    query_match: &crate::runtime::matcher::QueryMatch,
+) -> Vec<FieldSelection> {
+    let connection = query_match
+        .selections
+        .iter()
+        .find(|sel| sel.name == query_match.query_def.name)
+        .map_or(&[][..], |sel| sel.nested_fields.as_slice());
+    let edges = sub_selections_named(connection, "edges");
+    sub_selections_named(&edges, "node")
+}
+
+/// The sub-selections of every field named `name`, looking through inline fragments.
+fn sub_selections_named(selections: &[FieldSelection], name: &str) -> Vec<FieldSelection> {
+    let mut out = Vec::new();
+    for sel in selections {
+        if sel.name == name {
+            out.extend(sel.nested_fields.iter().cloned());
+        } else if sel.name.starts_with("...") {
+            out.extend(sub_selections_named(&sel.nested_fields, name));
+        }
+    }
+    out
 }

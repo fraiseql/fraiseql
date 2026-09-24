@@ -718,13 +718,15 @@ async fn a_streamed_rest_selection_of_a_gated_nested_object_is_refused() {
 // ---------------------------------------------------------------------------
 //
 // Both Relay runners compose the root's RLS and `inject_params` into their WHERE, and
-// neither ran field-level RBAC: a connection serves each row's stored `data` as its
+// neither ran field-level RBAC: a connection served each row's stored `data` as its
 // `node`, whatever the selection; `node(id:)` projected the selection, unclassified, and
 // a nested object whole. So `Order`'s scopes did not reach an `Order` read through either,
 // at the root or nested, and `Order`'s policy did not reach the orders a `User` embeds.
 // Each reproduction sits beside a control showing the same runner applies the root's row
-// gate. `node(id:)` is now read as the GraphQL root is — classified at every level, and
-// composed when a nested level is row-gated; the connection's reproductions stand.
+// gate. Now `node(id:)` is read as the GraphQL root is — classified at every level, and
+// composed when a nested level is row-gated — and a connection projects and classifies
+// each `node`, and refuses a nested level whose type scopes its rows: a keyset page
+// cannot carry a composed level yet.
 
 /// `schema`, with a Relay connection over each list: `ordersPage` and `usersPage`.
 fn relay_schema(user_view: &str) -> CompiledSchema {
@@ -775,17 +777,6 @@ fn relay_nodes(response: &Value, field: &str) -> Vec<Value> {
         .collect()
 }
 
-/// The ids of the orders every `node` of `usersPage` embeds, sorted.
-fn relay_nested_order_ids(response: &Value) -> Vec<i64> {
-    let mut ids: Vec<i64> = relay_nodes(response, "usersPage")
-        .iter()
-        .flat_map(|u| u["orders"].as_array().cloned().unwrap_or_default())
-        .map(|o| o["id"].as_i64().unwrap())
-        .collect();
-    ids.sort_unstable();
-    ids
-}
-
 /// Control: a connection over `Order` is read under `Order`'s owner policy.
 #[tokio::test]
 async fn control_a_relay_connection_applies_its_types_policy() {
@@ -803,7 +794,6 @@ async fn control_a_relay_connection_applies_its_types_policy() {
 
 /// **Reproduction.** `Order.margin` through a connection over `Order`.
 #[tokio::test]
-#[ignore = "reproduction: a Relay connection runs no field-level RBAC"]
 async fn a_relay_node_margin_is_masked() {
     let executor = relay_rig_or_skip!("v_user_fk", Policy::None);
     let out = graphql(&executor, "{ ordersPage(first: 10) { edges { node { id margin } } } }")
@@ -819,7 +809,6 @@ async fn a_relay_node_margin_is_masked() {
 
 /// **Reproduction.** `Order.cost_price` (Reject) through a connection over `Order`.
 #[tokio::test]
-#[ignore = "reproduction: a Relay connection runs no field-level RBAC"]
 async fn a_relay_node_cost_price_is_refused() {
     let executor = relay_rig_or_skip!("v_user_fk", Policy::None);
     let result =
@@ -833,7 +822,6 @@ async fn a_relay_node_cost_price_is_refused() {
 /// **Reproduction.** A `node` carries what was selected — not the stored document, whose
 /// other keys include every gated field the caller never asked for.
 #[tokio::test]
-#[ignore = "reproduction: a Relay connection serves the stored document as its node"]
 async fn a_relay_node_serves_only_its_selection() {
     let executor = relay_rig_or_skip!("v_user_fk", Policy::None);
     let out = graphql(&executor, "{ ordersPage(first: 10) { edges { node { id } } } }")
@@ -847,22 +835,36 @@ async fn a_relay_node_serves_only_its_selection() {
     }
 }
 
-/// **Reproduction.** A connection over `User` serves the orders `v_user_fk` embeds under
-/// no `Order` policy: mallory's order 11 reaches alice.
+/// **Reproduction.** A connection over `User` served the orders `v_user_fk` embeds under
+/// no `Order` policy: mallory's order 11 reached alice. A keyset page cannot yet carry a
+/// composed level, so a connection reaching a row-gated nested level is refused.
 #[tokio::test]
-#[ignore = "reproduction: a Relay connection applies no nested row gate"]
-async fn relay_nested_orders_follow_the_owner_policy() {
+async fn relay_nested_orders_under_an_owner_policy_are_refused() {
     let executor = relay_rig_or_skip!("v_user_fk", Policy::Owner);
-    let out =
+    let result =
         graphql(&executor, "{ usersPage(first: 10) { edges { node { id orders { id } } } } }")
-            .await
-            .unwrap();
-    assert_eq!(relay_nested_order_ids(&out), [10, 12], "{out}");
+            .await;
+    assert!(
+        matches!(result, Err(FraiseQLError::Authorization { .. })),
+        "Order rows served through a connection under no Order policy: {result:?}"
+    );
+}
+
+/// A connection that stops above the row-gated level is served: the refusal is the
+/// nested level's, not the connection's.
+#[tokio::test]
+async fn a_relay_connection_that_stops_above_a_row_gated_level_is_served() {
+    let executor = relay_rig_or_skip!("v_user_fk", Policy::Owner);
+    let out = graphql(&executor, "{ usersPage(first: 10) { edges { node { id name } } } }")
+        .await
+        .unwrap();
+    let nodes = relay_nodes(&out, "usersPage");
+    assert_eq!(nodes.len(), 1, "{out}");
+    assert_eq!(nodes[0]["name"], "alice", "{out}");
 }
 
 /// **Reproduction.** `Order.margin` nested under a connection over `User`.
 #[tokio::test]
-#[ignore = "reproduction: a Relay connection runs no field-level RBAC"]
 async fn a_relay_nested_margin_is_masked() {
     let executor = relay_rig_or_skip!("v_user_fk", Policy::None);
     let out = graphql(
