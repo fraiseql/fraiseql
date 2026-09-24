@@ -33,7 +33,7 @@ use fraiseql_core::{
     db::postgres::PostgresAdapter,
     error::{FraiseQLError, Result},
     prelude::{DatabaseAdapter as _, UserId},
-    runtime::{Executor, RuntimeConfig},
+    runtime::{Executor, QueryMatch, RuntimeConfig},
     schema::{
         Cardinality, CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, QueryDefinition,
         Relationship, RoleDefinition, SecurityConfig, TypeDefinition,
@@ -107,22 +107,23 @@ async fn seed(adapter: &PostgresAdapter) {
         // tenant B's.
         format!(
             "CREATE TABLE {SCHEMA}.tb_team (id bigint PRIMARY KEY, tenant_id text NOT NULL, name \
-             text NOT NULL)"
+             text NOT NULL, budget bigint NOT NULL)"
         ),
         format!(
             "CREATE TABLE {SCHEMA}.tb_member (id bigint PRIMARY KEY, tenant_id text NOT NULL, \
              fk_team bigint NOT NULL REFERENCES {SCHEMA}.tb_team(id))"
         ),
-        format!("INSERT INTO {SCHEMA}.tb_team VALUES (1, 'A', 'red'), (2, 'B', 'blue')"),
+        format!("INSERT INTO {SCHEMA}.tb_team VALUES (1, 'A', 'red', 500), (2, 'B', 'blue', 700)"),
         format!("INSERT INTO {SCHEMA}.tb_member VALUES (1, 'A', 1), (2, 'A', 2)"),
         format!(
             "CREATE VIEW {SCHEMA}.v_team AS SELECT id, jsonb_build_object('id', id, 'tenant_id', \
-             tenant_id, 'name', name) AS data FROM {SCHEMA}.tb_team"
+             tenant_id, 'name', name, 'budget', budget) AS data FROM {SCHEMA}.tb_team"
         ),
         format!(
             "CREATE VIEW {SCHEMA}.v_member AS SELECT m.id, jsonb_build_object('id', m.id, \
              'tenant_id', m.tenant_id, 'fk_team', m.fk_team, 'team', (SELECT \
-             jsonb_build_object('id', t.id, 'tenant_id', t.tenant_id, 'name', t.name) FROM \
+             jsonb_build_object('id', t.id, 'tenant_id', t.tenant_id, 'name', t.name, 'budget', \
+             t.budget) FROM \
              {SCHEMA}.tb_team t WHERE t.id = m.fk_team)) AS data FROM {SCHEMA}.tb_member m"
         ),
     ];
@@ -171,6 +172,7 @@ fn schema(user_view: &str) -> CompiledSchema {
         FieldDefinition::new("id", FieldType::Int),
         FieldDefinition::new("tenant_id", FieldType::String),
         FieldDefinition::new("name", FieldType::String),
+        scoped("budget", "read:budget", FieldDenyPolicy::Mask),
     ];
     schema.types.push(team);
     let mut member = TypeDefinition::new("Member", format!("{SCHEMA}.v_member"));
@@ -586,5 +588,100 @@ async fn a_nested_to_one_across_tenants_is_null() {
             serde_json::json!([{"id": 1, "team": {"id": 1, "name": "red"}}, {"id": 2, "team": null}]),
             "{how}: {out}"
         );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// REST: a plain `?select=` of a declared nested-object field
+// ---------------------------------------------------------------------------
+//
+// `members?select=id,team`, with `team` a field of `Member` rather than an embedded
+// relationship, is a leaf selection, read through `execute_query_direct` — the engine
+// entry the REST GET resolver calls. A to-one comes back as the stored sub-object and a
+// list as one empty object per stored element: neither is read as `Team` or `Order`.
+
+/// `<query>?select=<fields>` as alice.
+async fn rest_select(executor: &Executor, query: &str, fields: &[&str]) -> Result<Value> {
+    let schema = executor.schema();
+    let definition = schema.queries.iter().find(|q| q.name == query).unwrap().clone();
+    let return_type = definition.return_type.clone();
+    let query_match = QueryMatch::from_operation(
+        definition,
+        fields.iter().map(ToString::to_string).collect(),
+        HashMap::new(),
+        schema.find_type(&return_type),
+    )
+    .unwrap();
+    executor.execute_query_direct(&query_match, None, Some(&alice()), None).await
+}
+
+/// A GraphQL counterpart, not a reproduction: `Team.budget` under `members { team }`.
+#[tokio::test]
+async fn a_nested_to_one_masked_field_is_masked() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let out = graphql(&executor, "{ members { id team { id budget } } }").await.unwrap();
+    assert_eq!(
+        out["data"]["members"],
+        serde_json::json!([{"id": 1, "team": {"id": 1, "budget": null}}, {"id": 2, "team": {"id": 2, "budget": null}}]),
+        "{out}"
+    );
+}
+
+/// **Reproduction (REST, to-one, tenant).** Tenant A's member 2 belongs to tenant B's
+/// team; `members?select=id,team` must not serve it.
+#[tokio::test]
+#[ignore = "reproduction: a REST leaf selection of a nested object is not read as its type"]
+async fn a_rest_selection_of_a_to_one_object_applies_its_tenant_policy() {
+    let executor = rig_or_skip!("v_user_fk", Policy::Tenant);
+    let out = rest_select(&executor, "members", &["id", "team"]).await;
+    if let Ok(out) = &out {
+        let teams: Vec<&Value> =
+            out["data"]["members"].as_array().unwrap().iter().map(|m| &m["team"]).collect();
+        assert!(
+            teams.iter().all(|t| t.is_null() || t["tenant_id"] == "A"),
+            "tenant B's team served to tenant A through members?select=team: {out}"
+        );
+    }
+}
+
+/// **Reproduction (REST, to-one, Mask).** `Team.budget` requires `read:budget`.
+#[tokio::test]
+#[ignore = "reproduction: a REST leaf selection of a nested object is not read as its type"]
+async fn a_rest_selection_of_a_to_one_object_masks_its_masked_field() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let out = rest_select(&executor, "members", &["id", "team"]).await;
+    if let Ok(out) = &out {
+        let budgets: Vec<Value> = out["data"]["members"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|m| m["team"].get("budget").cloned())
+            .collect();
+        assert!(
+            budgets.iter().all(Value::is_null),
+            "Team.budget served through members?select=team: {out}"
+        );
+    }
+}
+
+/// Not a reproduction, as it stands: a list selected as a leaf is one empty object per
+/// stored element, so no `Order` value is served…
+#[tokio::test]
+async fn a_rest_selection_of_a_nested_list_serves_no_value_of_its_elements() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let out = rest_select(&executor, "users", &["id", "orders"]).await.unwrap();
+    assert_eq!(out["data"]["users"][0]["orders"], serde_json::json!([{}, {}, {}]), "{out}");
+}
+
+/// **Reproduction (REST, list, owner).** …but one element per *stored* order: alice is
+/// told she has three orders under her user, one of them mallory's.
+#[tokio::test]
+#[ignore = "reproduction: a REST leaf selection of a nested object is not read as its type"]
+async fn a_rest_selection_of_a_nested_list_counts_only_what_the_policy_admits() {
+    let executor = rig_or_skip!("v_user_fk", Policy::Owner);
+    let out = rest_select(&executor, "users", &["id", "orders"]).await;
+    if let Ok(out) = &out {
+        let served = out["data"]["users"][0]["orders"].as_array().map_or(0, Vec::len);
+        assert!(served <= 2, "an element per order alice may not read: {out}");
     }
 }
