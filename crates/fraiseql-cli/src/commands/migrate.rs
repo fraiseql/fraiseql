@@ -84,10 +84,10 @@ pub fn run(action: &MigrateAction, formatter: &OutputFormatter) -> Result<()> {
             dir,
             steps,
         } => run_down(database_url, dir, *steps, formatter),
-        MigrateAction::Status { database_url, dir } => run_status(database_url, dir),
+        MigrateAction::Status { database_url, dir } => run_status(database_url, dir, formatter),
         MigrateAction::Create { name, dir } => run_create(name, dir, formatter),
         MigrateAction::Generate { name, dir } => run_generate(name, dir, formatter),
-        MigrateAction::Validate { dir } => run_validate(dir),
+        MigrateAction::Validate { dir } => run_validate(dir, formatter),
         MigrateAction::Preflight { dir } => run_preflight(dir, formatter),
     }
 }
@@ -199,6 +199,16 @@ pub fn resolve_migration_dir(explicit: Option<&str>) -> String {
     "db/0_schema".to_string()
 }
 
+/// `--format json` when the CLI runs under `--json`, so confiture's report is the JSON
+/// document on stdout; nothing otherwise (confiture's default is its table/text form).
+fn format_args(formatter: &OutputFormatter) -> &'static [&'static str] {
+    if formatter.is_json() {
+        &["--format", "json"]
+    } else {
+        &[]
+    }
+}
+
 fn is_confiture_installed() -> bool {
     Command::new("confiture")
         .arg("--version")
@@ -225,7 +235,8 @@ fn run_up(database_url: &str, dir: &str, formatter: &OutputFormatter) -> Result<
     // SECURITY: Pass database URL via environment variable, not argv, so it
     // is not visible to other users via `ps aux` or `/proc/<pid>/cmdline`.
     let status = Command::new("confiture")
-        .args(["up", "--source", dir])
+        .args(["migrate", "up", "--migrations-dir", dir])
+        .args(format_args(formatter))
         .env("DATABASE_URL", database_url)
         .status()
         .context("Failed to execute confiture")?;
@@ -244,7 +255,15 @@ fn run_down(database_url: &str, dir: &str, steps: u32, formatter: &OutputFormatt
 
     let steps_str = steps.to_string();
     let status = Command::new("confiture")
-        .args(["down", "--source", dir, "--steps", &steps_str])
+        .args([
+            "migrate",
+            "down",
+            "--migrations-dir",
+            dir,
+            "--steps",
+            &steps_str,
+        ])
+        .args(format_args(formatter))
         .env("DATABASE_URL", database_url)
         .status()
         .context("Failed to execute confiture")?;
@@ -257,11 +276,12 @@ fn run_down(database_url: &str, dir: &str, steps: u32, formatter: &OutputFormatt
     }
 }
 
-fn run_status(database_url: &str, dir: &str) -> Result<()> {
+fn run_status(database_url: &str, dir: &str, formatter: &OutputFormatter) -> Result<()> {
     info!("Checking migration status for {dir}");
 
     let status = Command::new("confiture")
-        .args(["status", "--source", dir])
+        .args(["migrate", "status", "--migrations-dir", dir])
+        .args(format_args(formatter))
         .env("DATABASE_URL", database_url)
         .status()
         .context("Failed to execute confiture")?;
@@ -280,7 +300,8 @@ fn run_create(name: &str, dir: &str, formatter: &OutputFormatter) -> Result<()> 
     std::fs::create_dir_all(dir).context(format!("Failed to create migration directory: {dir}"))?;
 
     let status = Command::new("confiture")
-        .args(["create", name, "--source", dir])
+        .args(["migrate", "generate", name, "--migrations-dir", dir])
+        .args(format_args(formatter))
         .status()
         .context("Failed to execute confiture")?;
 
@@ -303,6 +324,7 @@ fn run_generate(name: &str, dir: &str, formatter: &OutputFormatter) -> Result<()
     // SECURITY: No database URL involved — generation is a pure file operation.
     let status = Command::new("confiture")
         .args(["migrate", "generate", name, "--migrations-dir", dir])
+        .args(format_args(formatter))
         .status()
         .context("Failed to execute confiture")?;
 
@@ -314,11 +336,12 @@ fn run_generate(name: &str, dir: &str, formatter: &OutputFormatter) -> Result<()
     }
 }
 
-fn run_validate(dir: &str) -> Result<()> {
+fn run_validate(dir: &str, formatter: &OutputFormatter) -> Result<()> {
     info!("Validating migrations in {dir}");
 
     let status = Command::new("confiture")
-        .args(["migrate", "validate", "--source", dir])
+        .args(["migrate", "validate", "--migrations-dir", dir])
+        .args(format_args(formatter))
         .status()
         .context("Failed to execute confiture")?;
 
@@ -335,6 +358,7 @@ fn run_preflight(dir: &str, formatter: &OutputFormatter) -> Result<()> {
 
     let status = Command::new("confiture")
         .args(["migrate", "preflight", "--migrations-dir", dir])
+        .args(format_args(formatter))
         .status()
         .context("Failed to execute confiture")?;
 

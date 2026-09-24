@@ -28,6 +28,12 @@ impl OutputFormatter {
         }
     }
 
+    /// Whether output is JSON (the `--json` flag).
+    #[must_use]
+    pub const fn is_json(&self) -> bool {
+        self.json_mode
+    }
+
     /// Format a command result for output
     pub fn format(&self, result: &CommandResult) -> String {
         match (self.json_mode, self.quiet_mode) {
