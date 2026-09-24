@@ -324,6 +324,14 @@ impl DatabaseAdapter for FraiseWireAdapter {
         false
     }
 
+    /// Stated rather than inherited, with the reason: a composed read carries every
+    /// embedded level's RLS predicate in its `WHERE`, and this adapter binds no parameters —
+    /// it escapes values into literal SQL. Composing here would run authorization
+    /// predicates through string escaping; binding parameters comes first.
+    fn supports_composed_reads(&self) -> bool {
+        false
+    }
+
     async fn health_check(&self) -> Result<()> {
         // fraiseql-wire's FraiseClient contains non-Send types (raw pointers in TLS),
         // which makes it incompatible with the async_trait Send requirement.

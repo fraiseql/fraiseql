@@ -22,7 +22,25 @@
 //! name with a stored key, and the engine projects the document before it attaches the
 //! embeds; keeping the two apart means neither can overwrite the other on the way.
 
+use fraiseql_error::FraiseQLError;
+
 use crate::{OrderByClause, ScalarFieldType, WhereClause};
+
+/// The refusal a composed read of `view` gets from an adapter that cannot compose.
+///
+/// One constructor for both places that refuse — the trait's default
+/// `execute_composed_with_session` and the engine, which refuses from
+/// `supports_composed_reads()` before it would call it — so the two cannot word it
+/// differently. `Unsupported` is a `501`.
+#[must_use]
+pub fn composed_read_unsupported(view: &str) -> FraiseQLError {
+    FraiseQLError::Unsupported {
+        message: format!(
+            "Embedding related resources into a read of '{view}' needs a composed read, which \
+             this database adapter does not implement"
+        ),
+    }
+}
 
 /// The key under which a composed row carries its level's document.
 pub const COMPOSED_DOCUMENT_KEY: &str = "d";

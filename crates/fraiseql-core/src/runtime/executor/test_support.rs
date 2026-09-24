@@ -54,6 +54,9 @@ pub struct CapturingMockAdapter {
     /// The composed read (`?select=` embedding) handed to the adapter, answered with
     /// `mock_results` — which a composed-read test therefore fills with composed rows.
     pub captured_composed:               std::sync::Mutex<Option<crate::backend::ComposedLevel>>,
+    /// What `supports_composed_reads` answers; `true` unless built
+    /// [`without_composed_reads`](Self::without_composed_reads).
+    pub composes_reads:                  bool,
 }
 
 /// The arguments a row-shaped read reached the adapter with (#1351).
@@ -89,7 +92,16 @@ impl CapturingMockAdapter {
             mock_row_results: Vec::new(),
             captured_row_read: std::sync::Mutex::new(None),
             captured_composed: std::sync::Mutex::new(None),
+            composes_reads: true,
         }
+    }
+
+    /// The same double, claiming no composed-read capability — an adapter like the wire
+    /// backend, which serves plain reads and cannot compose.
+    #[must_use]
+    pub fn without_composed_reads(mut self) -> Self {
+        self.composes_reads = false;
+        self
     }
 
     /// Rows for the parameterized-aggregate path (the federation `_entities` read).
@@ -197,6 +209,10 @@ impl DatabaseAdapter for CapturingMockAdapter {
         *self.captured_offset.lock().unwrap() = offset;
         *self.captured_order_by.lock().unwrap() = order_by.map(<[OrderByClause]>::to_vec);
         Ok(self.mock_results.clone())
+    }
+
+    fn supports_composed_reads(&self) -> bool {
+        self.composes_reads
     }
 
     async fn execute_composed_with_session(

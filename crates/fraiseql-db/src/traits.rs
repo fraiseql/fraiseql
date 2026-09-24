@@ -14,7 +14,8 @@ use std::sync::Arc;
 pub use adapter_types::*;
 use async_trait::async_trait;
 pub use composed_read::{
-    COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedLevel, EmbedShape, LevelKeys,
+    COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedLevel, EmbedShape,
+    LevelKeys, composed_read_unsupported,
 };
 use fraiseql_error::{FraiseQLError, Result};
 pub use mutations::SupportsMutations;
@@ -895,6 +896,22 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         false
     }
 
+    /// Whether this adapter implements
+    /// [`execute_composed_with_session`](Self::execute_composed_with_session) — whether a
+    /// read can have related resources composed into it (the REST `?select=` embed).
+    ///
+    /// Asked twice, of one answer: when the REST transport is mounted, so a deployment
+    /// whose adapter cannot serve embeds is told at boot rather than by its first embed;
+    /// and by the engine before a composed read is sent, so the `501` a request gets is
+    /// that same fact rather than a second one.
+    ///
+    /// **Implementing `execute_composed_with_session` obliges you to override this too**,
+    /// and a wrapping adapter must forward both. Defaults to `false`: a capability is not
+    /// something a backend should acquire by omission.
+    fn supports_composed_reads(&self) -> bool {
+        false
+    }
+
     /// Bump fact table version counters after a successful mutation.
     ///
     /// Called by the executor when a mutation definition declares
@@ -1369,13 +1386,7 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         _session_vars: &[(&str, &str)],
         _routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        Err(FraiseQLError::Unsupported {
-            message: format!(
-                "Embedding related resources into a read of '{}' needs a composed read, \
-                 which this database adapter does not implement",
-                read.view
-            ),
-        })
+        Err(composed_read_unsupported(&read.view))
     }
 
     /// The same read as [`execute_row_query`](Self::execute_row_query), delivered

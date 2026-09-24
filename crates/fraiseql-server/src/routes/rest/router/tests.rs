@@ -374,3 +374,39 @@ mod database_text_is_sanitized_on_rest {
         assert!(body_of(resp).await.contains("must be an integer"));
     }
 }
+
+/// Mounting REST over an adapter that cannot compose reads warns, once, at mount — not on
+/// the first embed. `FailingAdapter` implements no composed read.
+#[test]
+fn mounting_over_an_adapter_that_cannot_compose_warns() {
+    use std::sync::Mutex;
+
+    #[derive(Clone, Default)]
+    struct Captured(Arc<Mutex<Vec<u8>>>);
+    impl std::io::Write for Captured {
+        fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+            self.0.lock().unwrap().extend_from_slice(buf);
+            Ok(buf.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    let captured = Captured::default();
+    let writer = captured.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(move || writer.clone())
+        .with_ansi(false)
+        .finish();
+    let state = make_app_state(TestSchemaBuilder::new().build());
+
+    assert!(!state.executor().supports_composed_reads());
+    tracing::subscriber::with_default(subscriber, || {
+        super::warn_if_embeds_are_refused(&state.executor());
+    });
+
+    let log = String::from_utf8(captured.0.lock().unwrap().clone()).unwrap();
+    assert!(log.contains("WARN") && log.contains("501 Not Implemented"), "{log}");
+}

@@ -18,6 +18,25 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A `wire-backend` build refuses `?select=` embeds with `501`, and says so at boot.**
+
+  An embed is one composed statement (`LATERAL`, one level per embed), which only the
+  PostgreSQL adapter implements. A server built with `--features wire-backend,rest` still
+  serves every plain REST read over `FraiseWireAdapter`, and now answers `?select=` embeds
+  and `rel.count` with `501 Not Implemented` where it used to fan out sub-reads. No released
+  binary is built this way.
+
+  Database adapters gain `DatabaseAdapter::supports_composed_reads()` (default `false`;
+  `true` for PostgreSQL, forwarded by `CachedDatabaseAdapter`, and `Executor` exposes it).
+  The REST mount reads it and logs a warning at startup when embeds will be refused, and the
+  engine derives the `501` from the same flag, so the boot message and the response cannot
+  disagree. An out-of-tree adapter that implements `execute_composed_with_session` must also
+  override `supports_composed_reads`.
+
+  Embeds over the wire backend are not planned: that adapter escapes values into literal SQL
+  rather than binding parameters, and a composed read carries every level's RLS predicate.
+  Binding parameters would come first.
+
 - **`[rest]` refuses keys it does not know.**
 
   The section accepted anything, so a misspelled key — or a removed one — compiled and was

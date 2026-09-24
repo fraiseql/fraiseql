@@ -120,6 +120,8 @@ fn derive_rest_context(
         },
     };
 
+    warn_if_embeds_are_refused(&executor);
+
     let route_table = match RestRouteTable::from_compiled_schema(schema) {
         Ok(rt) => Arc::new(rt),
         Err(e) => {
@@ -165,6 +167,22 @@ fn derive_rest_context(
     };
 
     Some((base_path, route_table, rest_state))
+}
+
+/// Say at mount time what the first `?select=` embed would otherwise discover.
+///
+/// Plain reads are served whatever the adapter, so the configuration is not refused; what
+/// an adapter without
+/// [`supports_composed_reads`](fraiseql_core::runtime::Executor::supports_composed_reads)
+/// cannot serve is an embed, which the engine refuses with `501` from the same flag.
+pub fn warn_if_embeds_are_refused(executor: &fraiseql_core::runtime::Executor) {
+    if !executor.supports_composed_reads() {
+        tracing::warn!(
+            "REST is mounted over a database adapter that cannot compose reads: `?select=` \
+             embeds and `rel.count` will be refused with 501 Not Implemented. Plain reads are \
+             unaffected. Embedding needs the PostgreSQL backend."
+        );
+    }
 }
 
 /// Build an axum [`Router`] for read-only REST endpoints (GET queries and SSE

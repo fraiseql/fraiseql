@@ -78,3 +78,10 @@ fn wire_adapter_refuses_mutations_at_the_runtime_gate() {
          default, which refuses. The authoritative runtime gate must say so too."
     );
 }
+
+/// A `wire-backend` build serves plain REST reads over this adapter and refuses embeds;
+/// the REST mount reads this to say so at boot.
+#[test]
+fn it_does_not_claim_composed_reads() {
+    assert!(!FraiseWireAdapter::new("postgres://localhost/test").supports_composed_reads());
+}

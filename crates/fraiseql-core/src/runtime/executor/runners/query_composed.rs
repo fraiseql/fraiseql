@@ -125,6 +125,12 @@ impl QueryRunner {
         let read = plan.lower(&self.ctx.schema);
         let session_pairs = plan.resolved.session_pairs();
 
+        // Refused from the capability the REST mount warned from, not from the adapter's
+        // default method: the two answers are one flag. After every gate, so a caller the
+        // gates refuse is told that first.
+        if !self.ctx.adapter.supports_composed_reads() {
+            return Err(crate::backend::composed_read_unsupported(&read.view));
+        }
         let rows = self
             .ctx
             .adapter

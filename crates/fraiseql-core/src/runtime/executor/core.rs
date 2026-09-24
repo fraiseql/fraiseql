@@ -799,6 +799,16 @@ impl Executor {
             .await
     }
 
+    /// Whether this executor's database adapter can compose related resources into a read
+    /// ([`execute_query_composed`](Self::execute_query_composed)).
+    ///
+    /// The REST mount reads it to warn at boot; `execute_query_composed` refuses from it with
+    /// `501`. One answer for both, so the boot and the request cannot disagree.
+    #[must_use]
+    pub fn supports_composed_reads(&self) -> bool {
+        self.ctx.adapter.supports_composed_reads()
+    }
+
     /// Execute a pre-resolved query match with related resources composed into it —
     /// the REST `?select=` embed.
     ///

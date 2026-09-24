@@ -946,6 +946,12 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.supports_mutations()
     }
 
+    // Forwarded with `execute_composed_with_session`, which it describes: the server wraps
+    // every adapter in this one, so a default here would refuse embeds for all of them.
+    fn supports_composed_reads(&self) -> bool {
+        self.adapter.supports_composed_reads()
+    }
+
     async fn count_where_query(
         &self,
         view: &str,

@@ -554,3 +554,46 @@ async fn the_statement_is_charged_once_for_the_tree_before_it_is_sent() {
         );
     }
 }
+
+// ---------------------------------------------------------------------------
+// An adapter that cannot compose
+// ---------------------------------------------------------------------------
+
+/// The `501` comes from `supports_composed_reads()`, the flag the REST mount warns from,
+/// and nothing is sent. The double *implements* the composed read, so only the flag can
+/// refuse here: an engine that asked the adapter instead would be served.
+#[tokio::test]
+async fn an_adapter_without_the_capability_is_refused_from_the_flag_before_sending() {
+    let schema = schema();
+    let qm = users(&schema, &["id"], None);
+    let adapter = Arc::new(CapturingMockAdapter::new(vec![]).without_composed_reads());
+    let executor =
+        Executor::read_only_with_config(schema, adapter.clone(), RuntimeConfig::default());
+
+    assert!(!executor.supports_composed_reads(), "the flag the mount reads");
+    let result = executor
+        .execute_query_composed(&qm, &[orders(&["id"])], &[], None, Some(&principal()), None)
+        .await;
+
+    assert!(matches!(result, Err(FraiseQLError::Unsupported { .. })), "{result:?}");
+    assert!(adapter.captured_composed().is_none(), "nothing is sent");
+}
+
+/// The server wraps every adapter in the cache, so the wrapper answers for the capability
+/// of what it wraps — not its own default, which would refuse every embed.
+#[test]
+fn the_composed_read_capability_is_the_wrapped_adapters() {
+    use crate::{
+        backend::DatabaseAdapter as _,
+        cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
+    };
+
+    let cached = |inner: CapturingMockAdapter| {
+        CachedDatabaseAdapter::new(inner, QueryResultCache::new(CacheConfig::enabled()), "1".into())
+    };
+    assert!(cached(CapturingMockAdapter::new(vec![])).supports_composed_reads());
+    assert!(
+        !cached(CapturingMockAdapter::new(vec![]).without_composed_reads())
+            .supports_composed_reads()
+    );
+}
