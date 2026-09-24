@@ -50,7 +50,8 @@ impl SelectionAccess {
     /// # Errors
     ///
     /// `FraiseQLError::Authorization` for a selected field, at any depth, that requires a
-    /// scope the caller lacks and whose `on_deny` is `Reject`.
+    /// scope the caller lacks and whose `on_deny` is `Reject`; and for a nested level of a
+    /// type whose read requires a role or an actor type the caller lacks.
     pub(super) fn classify(
         schema: &CompiledSchema,
         root_type: &str,
@@ -129,8 +130,50 @@ fn classify_level(
             .find(|f| f.name == sel.name)
             .and_then(|f| object_type_of(&f.field_type));
         if let Some(child) = child {
+            enforce_level_read_gates(schema, type_name, &sel.name, child, security_context)?;
             classify_level(schema, child, &sel.nested_fields, security_context, masked)?;
         }
+    }
+    Ok(())
+}
+
+/// Refuse a nested level of `target` unless the caller may read `target` at all: the
+/// `requires_role` and `requires_actor` of the read it is gated as ([`own_read`]), and the
+/// type's own `requires_role` — which #677 lowers onto every read of the type, and which a
+/// type no query returns still declares.
+///
+/// A refusal, not a masked `null`: these gate reading the type, not one of its fields. And
+/// a `403` rather than the root's enumeration-hiding "not found" — the caller named a field
+/// of a type it may read, so the nested type's existence is not what the answer discloses.
+fn enforce_level_read_gates(
+    schema: &CompiledSchema,
+    parent_type: &str,
+    field: &str,
+    target: &str,
+    security_context: Option<&SecurityContext>,
+) -> Result<()> {
+    let read = own_read(schema, target);
+    let denied = |why: &str| FraiseQLError::Authorization {
+        message:  format!("'{parent_type}.{field}' reads '{target}', {why}"),
+        action:   Some("read".to_string()),
+        resource: Some(target.to_string()),
+    };
+    let role = read
+        .and_then(|q| q.requires_role.as_deref())
+        .or_else(|| schema.find_type(target).and_then(|t| t.requires_role.as_deref()));
+    if let Some(role) = role {
+        if !security_context.is_some_and(|ctx| ctx.roles.iter().any(|r| r == role)) {
+            return Err(denied("whose read requires a role the request does not hold"));
+        }
+    }
+    if let Some(read) = read {
+        crate::security::actor_type::enforce_requires_actor(
+            "Query",
+            &read.name,
+            &read.requires_actor,
+            security_context,
+        )
+        .map_err(|_| denied("whose read is restricted to actor types the request is not"))?;
     }
     Ok(())
 }

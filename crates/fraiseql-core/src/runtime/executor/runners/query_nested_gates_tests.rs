@@ -839,6 +839,133 @@ async fn a_composed_rest_read_selecting_a_gated_nested_object_is_refused() {
 }
 
 // ---------------------------------------------------------------------------
+// (c) The nested type's `requires_role` / `requires_actor`
+// ---------------------------------------------------------------------------
+//
+// They gate reading the type: a caller the `orders` query refuses must not read `Order`
+// rows through `users { orders }`. A nested level refuses with a 403 — the root answers
+// "not found", hiding the operation; the nested field is one the caller could name.
+
+/// `schema()`, with `gate` applied to the `orders` query.
+fn gated_orders(gate: impl FnOnce(&mut QueryDefinition)) -> CompiledSchema {
+    let mut schema = schema();
+    gate(schema.queries.iter_mut().find(|q| q.name == "orders").unwrap());
+    schema.build_indexes();
+    schema
+}
+
+fn clerk_only(query: &mut QueryDefinition) {
+    query.requires_role = Some("clerk".to_string());
+}
+
+fn service_accounts_only(query: &mut QueryDefinition) {
+    query.requires_actor = vec![crate::security::ActorType::ServiceAccount];
+}
+
+fn clerk() -> SecurityContext {
+    SecurityContext {
+        roles: vec!["clerk".to_string()],
+        ..principal()
+    }
+}
+
+async fn run_gated(
+    schema: CompiledSchema,
+    query: &str,
+    caller: Option<&SecurityContext>,
+) -> Result<Value> {
+    let config = RuntimeConfig::from_compiled_schema(&schema).unwrap();
+    run(schema, user_rows(), config, query, caller).await.0
+}
+
+/// Control: the root read of a role-gated `orders` is "not found" to a caller without it.
+#[tokio::test]
+async fn control_a_role_gated_root_order_read_is_hidden() {
+    let result = run_gated(gated_orders(clerk_only), "{ orders { id } }", Some(&principal())).await;
+    assert!(matches!(result, Err(FraiseQLError::Validation { .. })), "{result:?}");
+}
+
+#[tokio::test]
+async fn a_nested_level_of_a_role_gated_type_refuses() {
+    let result =
+        run_gated(gated_orders(clerk_only), "{ users { id orders { id } } }", Some(&principal()))
+            .await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+}
+
+#[tokio::test]
+async fn an_anonymous_nested_level_of_a_role_gated_type_refuses() {
+    let result = run_gated(gated_orders(clerk_only), "{ users { id orders { id } } }", None).await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+}
+
+/// A caller holding the role is served the nested level: the gate is the role, not nesting.
+#[tokio::test]
+async fn a_nested_level_of_a_role_gated_type_is_served_to_the_role() {
+    let out = run_gated(gated_orders(clerk_only), "{ users { id orders { id } } }", Some(&clerk()))
+        .await
+        .unwrap();
+    assert_eq!(served_orders(&out, &["users"]).len(), 2, "{out}");
+}
+
+/// A type-level `requires_role` gates the type where no query declares it.
+#[tokio::test]
+async fn a_nested_level_of_a_type_level_role_gated_type_refuses() {
+    let mut schema = schema();
+    schema.types.iter_mut().find(|t| t.name == "Order").unwrap().requires_role =
+        Some("clerk".to_string());
+    schema.build_indexes();
+    let result = run_gated(schema, "{ users { id orders { id } } }", Some(&principal())).await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+}
+
+/// Two levels down: `Item`'s read is role-gated, and `users { orders { items } }` reaches it.
+#[tokio::test]
+async fn a_role_gated_type_two_levels_down_refuses() {
+    let mut schema = schema();
+    let mut items = list_query("items", "Item", "v_item");
+    items.requires_role = Some("clerk".to_string());
+    schema.queries.push(items);
+    schema.build_indexes();
+    let result =
+        run_gated(schema, "{ users { id orders { id items { id } } } }", Some(&principal())).await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+}
+
+/// Not selecting the gated level is not refused.
+#[tokio::test]
+async fn a_selection_that_stops_above_a_role_gated_type_is_served() {
+    let out = run_gated(gated_orders(clerk_only), "{ users { id name } }", Some(&principal()))
+        .await
+        .unwrap();
+    assert_eq!(out["data"]["users"][0]["id"], json!(1), "{out}");
+}
+
+#[tokio::test]
+async fn a_nested_level_of_an_actor_restricted_type_refuses() {
+    let result = run_gated(
+        gated_orders(service_accounts_only),
+        "{ users { id orders { id } } }",
+        Some(&principal()),
+    )
+    .await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+}
+
+#[tokio::test]
+async fn a_nested_level_of_an_actor_restricted_type_is_served_to_that_actor() {
+    let service = principal().with_actor_type(crate::security::ActorType::ServiceAccount);
+    let out = run_gated(
+        gated_orders(service_accounts_only),
+        "{ users { id orders { id } } }",
+        Some(&service),
+    )
+    .await
+    .unwrap();
+    assert_eq!(served_orders(&out, &["users"]).len(), 2, "{out}");
+}
+
+// ---------------------------------------------------------------------------
 // A function-backed field reads nested levels through the gated bridge
 // ---------------------------------------------------------------------------
 //
