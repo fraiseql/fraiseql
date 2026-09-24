@@ -361,6 +361,10 @@ impl TomlSchema {
     /// skips the rest of `validate()` (queries may reference types from `types.json`),
     /// but these sections are self-contained and must be rejected there too.
     pub(crate) fn reject_accepted_but_unconsumed_config(&self) -> Result<()> {
+        // A removed `[rest]` key, refused with its replacement named rather than as the
+        // `unknown field` the section's `deny_unknown_fields` would otherwise report.
+        self.rest.reject_retired_keys()?;
+
         // #4 (security-shaped, highest-stakes): declared authorization the runtime does
         // not enforce. `RuntimeConfig::from_compiled_schema` pins the operation- and
         // field-authorizers to None, so any access boundary these blocks imply does not

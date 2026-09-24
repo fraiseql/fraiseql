@@ -82,3 +82,21 @@ fn test_delete_response_serde_roundtrip() {
         DeleteResponseToml::Entity,
     );
 }
+
+/// A misspelled `[rest]` key is refused, not silently the default.
+#[test]
+fn an_unknown_rest_key_is_refused() {
+    let err = toml::from_str::<RestTomlConfig>("max_pag_size = 10").unwrap_err();
+    assert!(err.to_string().contains("max_pag_size"), "{err}");
+}
+
+/// The retired key parses only so that it can be refused with its replacement named.
+#[test]
+fn the_retired_embed_read_tally_is_refused_naming_its_replacement() {
+    let config: RestTomlConfig = toml::from_str("max_embedded_reads = 10000").unwrap();
+    let err = config.reject_retired_keys().unwrap_err().to_string();
+    assert!(err.contains("max_embedded_reads was removed"), "{err}");
+    assert!(err.contains("[security.cost_budget] per_request_max"), "{err}");
+
+    assert!(RestTomlConfig::default().reject_retired_keys().is_ok());
+}

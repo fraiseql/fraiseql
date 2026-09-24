@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`[rest]` refuses keys it does not know.**
+
+  The section accepted anything, so a misspelled key — or a removed one — compiled and was
+  silently the default. It is now `deny_unknown_fields`, like the rest of the document.
+  `max_embedded_reads`, removed with the embed fan-out, is refused by name with its
+  replacement: an embed is one composed statement, bounded by
+  `[security.cost_budget] per_request_max` (and `[validation] max_response_bytes`), with each
+  level paged by `[rest] default_embed_page_size`. Delete the key.
+
 - **An embedded level has its own default page, and a client sets it with `?rel.limit=`.**
 
   A `?select=` embed with no page took `[rest] max_page_size` as its page for every parent

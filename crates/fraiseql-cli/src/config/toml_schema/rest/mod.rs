@@ -7,8 +7,11 @@ use serde::{Deserialize, Serialize};
 ///
 /// All fields have defaults matching `RestConfig::default()` in `fraiseql-core`.
 /// When `enabled` is `false` (the default), the REST transport is not mounted.
+///
+/// Unknown keys are refused. `[rest]` used to accept anything, so a retired key — or a
+/// misspelled one — compiled and was silently the default.
 #[derive(Debug, Clone, Deserialize, Serialize)]
-#[serde(default)]
+#[serde(default, deny_unknown_fields)]
 pub struct RestTomlConfig {
     /// Whether the REST transport is enabled.
     pub enabled:                 bool,
@@ -50,6 +53,35 @@ pub struct RestTomlConfig {
     pub etag:                    bool,
     /// TTL in seconds for idempotency key deduplication.
     pub idempotency_ttl_seconds: u64,
+    /// Declarable **only to be refused**, with its replacement named.
+    ///
+    /// The key bounded `?select=`'s fan-out of sub-reads, and there are no sub-reads left:
+    /// an embed is one composed statement, bounded by the request's cost ceiling. Denied as
+    /// an unknown field it would read `unknown field max_embedded_reads`, which tells an
+    /// operator what is wrong but not what to write instead.
+    #[serde(skip_serializing)]
+    pub max_embedded_reads:      Option<serde::de::IgnoredAny>,
+}
+
+impl RestTomlConfig {
+    /// Refuse a `[rest]` key that was removed, naming what replaced it.
+    ///
+    /// # Errors
+    ///
+    /// When `max_embedded_reads` is set.
+    pub fn reject_retired_keys(&self) -> anyhow::Result<()> {
+        if self.max_embedded_reads.is_some() {
+            anyhow::bail!(
+                "[rest] max_embedded_reads was removed: a `?select=` embed is no longer a \
+                 sub-read per parent row but one composed statement, and there are no sub-reads \
+                 left to count. It is bounded by the request's cost ceiling — set \
+                 [security.cost_budget] per_request_max (and [validation] max_response_bytes \
+                 for its bytes) — and each embedded level's page by [rest] \
+                 default_embed_page_size. Remove the key."
+            );
+        }
+        Ok(())
+    }
 }
 
 /// DELETE response mode for TOML configuration.
@@ -87,6 +119,7 @@ impl Default for RestTomlConfig {
             exclude:                 Vec::new(),
             etag:                    true,
             idempotency_ttl_seconds: 300,
+            max_embedded_reads:      None,
         }
     }
 }

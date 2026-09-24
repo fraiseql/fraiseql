@@ -912,3 +912,28 @@ fields.name = { type = "String" }
         );
     }
 }
+
+mod retired_rest_keys {
+    use super::super::*;
+
+    /// The document fails to compile on a retired `[rest]` key, through the validation both
+    /// compile paths run — not only when the section is deserialized on its own.
+    #[test]
+    fn a_document_setting_the_retired_embed_read_tally_is_refused() {
+        let schema = TomlSchema::parse_toml(
+            r#"
+    [schema]
+    name = "app"
+    version = "1.0.0"
+    database_target = "postgresql"
+
+    [rest]
+    enabled = true
+    max_embedded_reads = 10000
+    "#,
+        )
+        .expect("the key parses so that it can be refused with a sentence");
+        let err = schema.reject_accepted_but_unconsumed_config().unwrap_err().to_string();
+        assert!(err.contains("[security.cost_budget] per_request_max"), "{err}");
+    }
+}
