@@ -569,6 +569,24 @@ impl QueryRunner {
             None => None,
         };
 
+        // 3c. Field-level RBAC at every level of the selection, each against its own type,
+        //     and each nested level's `requires_role` / `requires_actor` — the classifier
+        //     the GraphQL root runs (`query_nested`). Before the read, so a `Reject`
+        //     anywhere never reaches the database.
+        let selection_access = super::query_nested::SelectionAccess::classify(
+            &self.ctx.schema,
+            &type_name,
+            selections,
+            Vec::new(),
+            security_context,
+        )?;
+
+        // 3d. The nested levels whose type scopes its rows, each read with that type's
+        //     predicate. The node is one row by id: the same composed document read as the
+        //     GraphQL root, rooted at that row.
+        let nested_reads =
+            self.plan_nested_reads(&type_name, selections, security_context, &selection_access)?;
+
         // 4. Build WHERE clause: data->>'id' = uuid, AND'd under the security filter (which always
         //    comes first so it cannot be bypassed).
         let id_where = WhereClause::Field {
@@ -581,77 +599,119 @@ impl QueryRunner {
             None => id_where,
         };
 
-        // 5. Build projection hint from selections (mirrors regular query path).
+        // 5. Read the row (limit 1), pinning session variables to the read's connection so a
+        //    PostgreSQL `current_setting()`-backed RLS policy constrains the node lookup the same
+        //    way it constrains regular queries and Relay pages (#610). The FraiseQL `rls_policy`
+        //    and `inject_params` gates are enforced above as an explicit WHERE filter.
         //
-        //    `selections` was reduced above to exactly what the client asked for.
-        //    Every branch here must project it; there is deliberately no path
-        //    that returns the untouched row. The two that used to exist were the
-        //    reason #827 was an over-disclosure bug rather than a plain
-        //    wrong-field-set one: an empty selection left `projection_hint` as
-        //    `None`, and a projection-generation failure fell back to the literal
-        //    `"data"` — both of which serve every column in the view.
-        let typed_fields =
-            build_typed_projection_fields(selections, &self.ctx.schema, &type_name, 0);
-        let generator = PostgresProjectionGenerator::new();
-        let projection_sql =
-            generator.generate_typed_projection_sql(&typed_fields).map_err(|e| {
-                FraiseQLError::Internal {
+        //    `selections` was reduced above to exactly what the client asked for, and every
+        //    branch projects it; there is deliberately no path that returns the untouched row.
+        //    The two that used to exist were the reason #827 was an over-disclosure bug rather
+        //    than a plain wrong-field-set one: an empty selection left `projection_hint` as
+        //    `None`, and a projection-generation failure fell back to the literal `"data"` —
+        //    both of which serve every column in the view.
+        let resolved_session_vars = self.resolve_session_vars(security_context)?;
+        let session_pairs: Vec<(&str, &str)> =
+            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let mut node_value = if nested_reads.is_empty() {
+            // Flat: projected in SQL (mirrors the regular query path), then the nested
+            // lists the SQL projection left as their stored sub-blob — every stored key,
+            // whatever the sub-selection named — re-projected at their own type.
+            let typed_fields =
+                build_typed_projection_fields(selections, &self.ctx.schema, &type_name, 0);
+            let projection_sql = PostgresProjectionGenerator::new()
+                .generate_typed_projection_sql(&typed_fields)
+                .map_err(|e| FraiseQLError::Internal {
                     message: format!(
                         "node query: could not build a projection for type '{type_name}': {e}"
                     ),
                     source:  None,
-                }
-            })?;
-        let projection_hint = Some(SqlProjectionHint::new(
-            self.ctx.adapter.database_type(),
-            projection_sql,
-            compute_projection_reduction(typed_fields.len()),
-        ));
-
-        // 6. Execute the query (limit 1) with projection, pinning session variables to
-        // the read's connection so a PostgreSQL `current_setting()`-backed RLS policy
-        // constrains the node lookup the same way it constrains regular queries and Relay
-        // pages (#610). The FraiseQL `rls_policy` and `inject_params` gates are enforced
-        // above as an explicit WHERE filter.
-        let resolved_session_vars = self.resolve_session_vars(security_context)?;
-        let session_pairs: Vec<(&str, &str)> =
-            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
-        let rows = self
-            .ctx
-            .adapter
-            .execute_with_projection_arc_with_session(
-                &crate::backend::ProjectionRequest {
-                    view:         &sql_source,
-                    projection:   projection_hint.as_ref(),
-                    where_clause: Some(&where_clause),
-                    order_by:     None,
-                    limit:        Some(1),
-                    offset:       None,
-                },
-                &session_pairs,
-                node_qdef.read_routing,
+                })?;
+            let projection_hint = SqlProjectionHint::new(
+                self.ctx.adapter.database_type(),
+                projection_sql,
+                compute_projection_reduction(typed_fields.len()),
+            );
+            let rows = self
+                .ctx
+                .adapter
+                .execute_with_projection_arc_with_session(
+                    &crate::backend::ProjectionRequest {
+                        view:         &sql_source,
+                        projection:   Some(&projection_hint),
+                        where_clause: Some(&where_clause),
+                        order_by:     None,
+                        limit:        Some(1),
+                        offset:       None,
+                    },
+                    &session_pairs,
+                    node_qdef.read_routing,
+                )
+                .await?;
+            self.charge_node_budget(&rows)?;
+            // When the Arc is exclusively owned (uncached path, refcount = 1) the data is
+            // moved out; when the cache also holds it, this one row is cloned.
+            let mut value = Arc::try_unwrap(rows).map_or_else(
+                |arc| arc.first().map_or(serde_json::Value::Null, |row| row.data.clone()),
+                |v| v.into_iter().next().map_or(serde_json::Value::Null, |row| row.data),
+            );
+            crate::runtime::project_nested_lists(
+                &mut value,
+                &type_name,
+                selections,
+                &self.ctx.schema,
+            );
+            crate::runtime::stamp_nested_typenames(
+                &mut value,
+                &type_name,
+                selections,
+                &self.ctx.schema,
+            );
+            value
+        } else {
+            // Composed: the same document read as the GraphQL root, rooted at this row,
+            // its gated levels merged in and projected in Rust at every depth.
+            let rows = self
+                .execute_composed_document_read(
+                    crate::backend::ComposedLevel {
+                        view:         sql_source.to_string(),
+                        projection:   None,
+                        where_clause: Some(where_clause),
+                        order_by:     None,
+                        limit:        Some(1),
+                        offset:       None,
+                        keys:         super::query_nested::root_keys(&nested_reads),
+                        embeds:       nested_reads,
+                    },
+                    &session_pairs,
+                    node_qdef.read_routing,
+                )
+                .await?;
+            self.charge_node_budget(&rows)?;
+            super::query_nested::project_documents(
+                &rows,
+                &type_name,
+                selections,
+                &self.ctx.schema,
+                false,
             )
-            .await?;
+        };
 
-        // The response-bytes ceiling, on the `node(id:)` lookup. One row, but one
-        // row of a materialised document is exactly the shape whose size the request
-        // cannot predict.
-        if let Some(budget) =
-            crate::security::ResponseBudget::new(self.ctx.config.max_response_bytes)
-        {
-            budget.charge_jsonb_rows(&rows)?;
-        }
-
-        // 7. Return the first matching row (or null).
-        // When the Arc is exclusively owned (uncached path, refcount = 1) we can move the
-        // data out without copying.  When the cache also holds a reference (refcount ≥ 2)
-        // we clone the single `serde_json::Value` for this one-row lookup.
-        let node_value = Arc::try_unwrap(rows).map_or_else(
-            |arc| arc.first().map_or(serde_json::Value::Null, |row| row.data.clone()),
-            |v| v.into_iter().next().map_or(serde_json::Value::Null, |row| row.data),
-        );
+        // 6. Null what field-level RBAC masked, at every level.
+        selection_access.null_masked(&mut node_value, &type_name, selections, &self.ctx.schema);
 
         let response = ResultProjector::wrap_in_data_envelope(node_value, "node");
         Ok(response)
+    }
+
+    /// The response-bytes ceiling, on the `node(id:)` lookup. One row, but one row of a
+    /// materialised document is exactly the shape whose size the request cannot predict.
+    fn charge_node_budget(&self, rows: &[crate::backend::JsonbValue]) -> Result<()> {
+        if let Some(budget) =
+            crate::security::ResponseBudget::new(self.ctx.config.max_response_bytes)
+        {
+            budget.charge_jsonb_rows(rows)?;
+        }
+        Ok(())
     }
 }

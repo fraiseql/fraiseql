@@ -718,11 +718,13 @@ async fn a_streamed_rest_selection_of_a_gated_nested_object_is_refused() {
 // ---------------------------------------------------------------------------
 //
 // Both Relay runners compose the root's RLS and `inject_params` into their WHERE, and
-// neither runs field-level RBAC: a connection serves each row's stored `data` as its
-// `node`, whatever the selection; `node(id:)` projects the selection, unclassified. So
-// `Order`'s scopes do not reach an `Order` read through either, at the root or nested,
-// and `Order`'s policy does not reach the orders a `User` embeds. Each reproduction sits
-// beside a control showing the same runner applies the root's row gate.
+// neither ran field-level RBAC: a connection serves each row's stored `data` as its
+// `node`, whatever the selection; `node(id:)` projected the selection, unclassified, and
+// a nested object whole. So `Order`'s scopes did not reach an `Order` read through either,
+// at the root or nested, and `Order`'s policy did not reach the orders a `User` embeds.
+// Each reproduction sits beside a control showing the same runner applies the root's row
+// gate. `node(id:)` is now read as the GraphQL root is — classified at every level, and
+// composed when a nested level is row-gated; the connection's reproductions stand.
 
 /// `schema`, with a Relay connection over each list: `ordersPage` and `usersPage`.
 fn relay_schema(user_view: &str) -> CompiledSchema {
@@ -895,7 +897,6 @@ async fn control_a_node_lookup_applies_its_types_policy() {
 
 /// **Reproduction.** `Order.margin` through `node(id:)`.
 #[tokio::test]
-#[ignore = "reproduction: node(id:) runs no field-level RBAC"]
 async fn a_node_margin_is_masked() {
     let executor = rig_or_skip!("v_user_fk", Policy::None);
     let out = graphql(&executor, &node_query("Order", "10", "id margin")).await.unwrap();
@@ -905,7 +906,6 @@ async fn a_node_margin_is_masked() {
 
 /// **Reproduction.** `Order.cost_price` (Reject) through `node(id:)`.
 #[tokio::test]
-#[ignore = "reproduction: node(id:) runs no field-level RBAC"]
 async fn a_node_cost_price_is_refused() {
     let executor = rig_or_skip!("v_user_fk", Policy::None);
     let result = graphql(&executor, &node_query("Order", "10", "id cost_price")).await;
@@ -917,7 +917,6 @@ async fn a_node_cost_price_is_refused() {
 
 /// **Reproduction.** A `User` resolved by `node(id:)` embeds mallory's order 11.
 #[tokio::test]
-#[ignore = "reproduction: node(id:) applies no nested row gate"]
 async fn node_nested_orders_follow_the_owner_policy() {
     let executor = rig_or_skip!("v_user_fk", Policy::Owner);
     let out = graphql(&executor, &node_query("User", "1", "id orders { id }")).await.unwrap();
@@ -933,7 +932,6 @@ async fn node_nested_orders_follow_the_owner_policy() {
 
 /// **Reproduction.** `Order.margin` nested in a `User` resolved by `node(id:)`.
 #[tokio::test]
-#[ignore = "reproduction: node(id:) runs no field-level RBAC"]
 async fn a_node_nested_margin_is_masked() {
     let executor = rig_or_skip!("v_user_fk", Policy::None);
     let out = graphql(&executor, &node_query("User", "1", "id orders { id margin }"))
@@ -944,4 +942,33 @@ async fn a_node_nested_margin_is_masked() {
         .unwrap_or_else(|| panic!("no orders: {out}"));
     assert_eq!(orders.len(), 3, "{out}");
     assert!(orders.iter().all(|o| o["margin"].is_null()), "{out}");
+}
+
+/// A nested object is projected through its sub-selection, not served whole: the orders a
+/// `User` node embeds carry `id` and nothing else they store.
+#[tokio::test]
+async fn a_node_nested_object_serves_only_its_selection() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let out = graphql(&executor, &node_query("User", "1", "id orders { id }")).await.unwrap();
+    let orders = out["data"]["node"]["orders"]
+        .as_array()
+        .unwrap_or_else(|| panic!("no orders: {out}"));
+    assert_eq!(orders.len(), 3, "{out}");
+    for order in orders {
+        let keys: Vec<&String> = order.as_object().unwrap().keys().collect();
+        assert_eq!(keys, ["id"], "owner, tenant_id, margin, cost_price served unselected: {out}");
+    }
+}
+
+/// …and so is a nested to-one: the team a `Member` node embeds carries what was selected,
+/// not its stored `budget` (Mask) or `audit` (declared nowhere).
+#[tokio::test]
+async fn a_node_nested_to_one_serves_only_its_selection() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let out = graphql(&executor, &node_query("Member", "1", "id team { id }")).await.unwrap();
+    let team = out["data"]["node"]["team"]
+        .as_object()
+        .unwrap_or_else(|| panic!("no team: {out}"));
+    let keys: Vec<&String> = team.keys().collect();
+    assert_eq!(keys, ["id"], "{out}");
 }
