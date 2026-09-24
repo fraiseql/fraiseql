@@ -1,0 +1,47 @@
+# Pinned install of confiture for the `integration (postgres)` leg, where
+# `crates/fraiseql-cli/tests/migrate_against_confiture.rs` runs `fraiseql migrate` against it.
+#
+# `fraiseql migrate` is a wrapper: every verb shells `confiture migrate <verb> …`. The wrapper
+# shipped for two releases calling `confiture status --source DIR` — a command and an option
+# no confiture release has had — because its only tests self-skipped whenever confiture was
+# present. The leg installs THIS confiture and runs the wrapper against it, so the call shape
+# is checked against a version that is named here rather than against whatever PyPI serves on
+# the day of the run (tools/check-ci-install-pins.sh: every install in CI names a version).
+#
+# Every version is exact, transitive ones included, for the same reason
+# tools/scim-conformance-requirements.txt gives: the verdict is produced by third-party code,
+# and an unpinned resolver hands someone else's release day the power to redden an untouched
+# tree. Bumping is a deliberate commit that names the confiture whose CLI the wrapper was
+# checked against. Regenerate with:
+#
+#     uv venv --python 3.11 /tmp/confiture
+#     uv pip install --python /tmp/confiture/bin/python fraiseql-confiture==<version>
+#     uv pip freeze --python /tmp/confiture/bin/python
+#
+# Keep the interpreter at 3.11: the Dagger integration base is `rust:1.94.1`, i.e. Debian 12.
+# The CLI reference this pin was checked against is confiture's docs/reference/cli.md at tag
+# v0.44.0 (github.com/fraiseql/confiture); the wrapper's doc comment in
+# crates/fraiseql-cli/src/commands/migrate.rs names the same tag.
+
+annotated-doc==0.0.5
+annotated-types==0.8.0
+cffi==2.1.1
+cryptography==50.0.1
+fraiseql-confiture==0.44.0
+markdown-it-py==4.2.0
+mdurl==0.1.2
+psycopg==3.3.6
+psycopg-binary==3.3.6
+psycopg-pool==3.3.3
+pycparser==3.0
+pydantic==2.13.5
+pydantic-core==2.46.5
+pygments==2.21.0
+pyyaml==6.0.3
+rich==15.0.0
+shellingham==1.5.4
+sqlglot==30.19.0
+sqlparse==0.6.0
+typer==0.27.2
+typing-extensions==4.16.0
+typing-inspection==0.4.4
