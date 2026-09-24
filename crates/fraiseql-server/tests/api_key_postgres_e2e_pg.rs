@@ -276,7 +276,7 @@ const ADMIN_TOKEN: &str = "p26-admin-token-at-least-32-chars-long";
 async fn server_mounts_management_api_and_the_managed_keys_authenticate() {
     use std::sync::Arc;
 
-    use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
+    use fraiseql_core::db::postgres::PostgresAdapter;
     use fraiseql_server::{Server, server_config::ServerConfig};
 
     let Some(url) = database_url_or_skip("server_mounts_management_api") else {
@@ -286,16 +286,7 @@ async fn server_mounts_management_api_and_the_managed_keys_authenticate() {
     let pool = scratch_pool(&url, db).await;
     let scratch_url = with_database(&url, db);
 
-    let schema: CompiledSchema = serde_json::from_value(serde_json::json!({
-        "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
-        "types": [],
-        "queries": [],
-        "mutations": [],
-        "security": {
-            "api_keys": { "enabled": true, "storage": "postgres" }
-        },
-    }))
-    .expect("compiled schema");
+    let schema = api_keys_schema();
 
     let config = ServerConfig {
         // #874: production validate() refuses cors_enabled=true + empty origins
@@ -390,4 +381,32 @@ async fn server_mounts_management_api_and_the_managed_keys_authenticate() {
     let _ = tx.send(());
     let _ = handle.await;
     drop_scratch(&url, db).await;
+}
+
+/// The compiled document the server test mounts: postgres-backed API keys, nothing else.
+fn api_keys_schema() -> fraiseql_core::schema::CompiledSchema {
+    serde_json::from_value(serde_json::json!({
+        "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
+        "types": [],
+        "queries": [],
+        "mutations": [],
+        "security": {
+            "api_keys": { "enabled": true, "storage": "postgres" }
+        },
+    }))
+    .expect("compiled schema")
+}
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here reaches the document only after it has found a database, so in
+/// a run without one they skip before it is built and a load-time refusal of it reports
+/// as a pass (`2b843cd27`: 12 tests red for a session under a green preflight).
+/// This one needs nothing but the loader, so that refusal cannot hide.
+///
+/// This document is deserialised with `from_value` and never meets `finish_load`, so
+/// what can refuse it is deserialisation: an unknown key, a missing field, a type.
+#[test]
+fn the_document_loads_without_a_database() {
+    api_keys_schema();
 }

@@ -608,3 +608,17 @@ fn sp_key_pair() -> (Vec<u8>, Vec<u8>, Vec<u8>) {
         cert.to_der().unwrap(),
     )
 }
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here reaches the document only after it has found a database, so in
+/// a run without one they skip before it is built and a load-time refusal of it reports
+/// as a pass (`2b843cd27`: 12 tests red for a session under a green preflight).
+/// This one needs nothing but the loader, so that refusal cannot hide.
+///
+/// This document is deserialised with `from_value` and never meets `finish_load`, so
+/// what can refuse it is deserialisation: an unknown key, a missing field, a type.
+#[test]
+fn the_document_loads_without_a_database() {
+    empty_schema();
+}

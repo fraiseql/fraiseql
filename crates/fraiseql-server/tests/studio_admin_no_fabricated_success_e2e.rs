@@ -518,13 +518,7 @@ async fn revoke_actually_revokes_when_a_store_is_configured() {
     else {
         return;
     };
-    let schema = schema_json(Some(json!({
-        "enabled": true,
-        "backend": "postgres",
-        "require_jti": false,
-        "fail_open": false,
-        "revoke_all_ttl_secs": 3600,
-    })));
+    let schema = schema_json(Some(token_revocation()));
     let server = StudioServer::start(&url, "fraiseql_p05_studio_revoke", schema).await;
 
     let sub = "compromised-user";
@@ -556,4 +550,31 @@ async fn revoke_actually_revokes_when_a_store_is_configured() {
     );
 
     server.shutdown().await;
+}
+
+/// The `[security.token_revocation]` section the revocation test declares.
+fn token_revocation() -> Value {
+    json!({
+        "enabled": true,
+        "backend": "postgres",
+        "require_jti": false,
+        "fail_open": false,
+        "revoke_all_ttl_secs": 3600,
+    })
+}
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here reaches the document only after it has found a database, so in
+/// a run without one they skip before it is built and a load-time refusal of it reports
+/// as a pass (`2b843cd27`: 12 tests red for a session under a green preflight).
+/// This one needs nothing but the loader, so that refusal cannot hide.
+///
+/// Deserialised with `from_value`, as `StudioServer::start` does, in both shapes the
+/// tests write: without and with `[security.token_revocation]`.
+#[test]
+fn the_document_loads_without_a_database() {
+    for document in [schema_json(None), schema_json(Some(token_revocation()))] {
+        let _: CompiledSchema = serde_json::from_value(document).expect("compiled schema");
+    }
 }

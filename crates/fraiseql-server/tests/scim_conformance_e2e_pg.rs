@@ -88,10 +88,7 @@ async fn third_party_scim_client_finds_the_surface_conformant() {
     let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("PostgresAdapter::new"));
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind ephemeral port");
     let port = listener.local_addr().expect("local addr").port();
-    let schema: CompiledSchema = serde_json::from_value(json!({
-        "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION, "types": [], "queries": [], "mutations": [],
-    }))
-    .expect("compiled schema");
+    let schema = empty_schema();
 
     let server = Box::pin(Server::new(config, schema, adapter, Some(pool.clone())))
         .await
@@ -159,4 +156,29 @@ async fn third_party_scim_client_finds_the_surface_conformant() {
         output.status.success(),
         "the third-party SCIM client found the surface non-conformant:\n{stdout}\n{stderr}"
     );
+}
+
+/// The compiled document the conformance run mounts: empty, SCIM is the server's own.
+fn empty_schema() -> CompiledSchema {
+    serde_json::from_value(json!({
+        "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
+        "types": [],
+        "queries": [],
+        "mutations": [],
+    }))
+    .expect("compiled schema")
+}
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here reaches the document only after it has found a database, so in
+/// a run without one they skip before it is built and a load-time refusal of it reports
+/// as a pass (`2b843cd27`: 12 tests red for a session under a green preflight).
+/// This one needs nothing but the loader, so that refusal cannot hide.
+///
+/// This document is deserialised with `from_value` and never meets `finish_load`, so
+/// what can refuse it is deserialisation: an unknown key, a missing field, a type.
+#[test]
+fn the_document_loads_without_a_database() {
+    empty_schema();
 }

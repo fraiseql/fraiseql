@@ -533,3 +533,22 @@ async fn saas_example_enforces_its_intra_account_write_rules() {
     drop(admin);
     drop_example_database(&url, DB_SAAS_WRITES).await;
 }
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here reaches the document only after `try_database_url()`, so in a
+/// run without a database they skip before it is compiled and a load-time refusal of
+/// it reports as a pass (`2b843cd27`: 12 tests red for a session under a green preflight).
+/// This one needs nothing but the compiler, so that refusal cannot hide.
+///
+/// Also through `to_json`/`from_json`, which the tests above skip: that is the path
+/// a compiled example takes when it is served, and the one carrying `finish_load`.
+#[test]
+fn the_document_loads_without_a_database() {
+    for name in ["multitenant", "saas"] {
+        let compiled = compile_example(name);
+        let json = compiled.to_json().expect("serialize the compiled example");
+        CompiledSchema::from_json(&json, false)
+            .unwrap_or_else(|e| panic!("the compiled {name} example must load: {e}"));
+    }
+}

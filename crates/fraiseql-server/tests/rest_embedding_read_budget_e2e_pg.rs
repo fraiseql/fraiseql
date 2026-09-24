@@ -248,6 +248,35 @@ async fn rig_with(
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
     seed(&adapter).await;
 
+    let (schema, temp_dir) =
+        compile_document(max_embedded_reads, max_response_bytes, per_request_max).await;
+
+    // The schema-derived runtime config, not the default one. `Executor::new` takes
+    // `RuntimeConfig::default()`, whose `max_response_bytes` is `None` however the
+    // document declared it — so a rig built that way asserts a bytes ceiling that is not
+    // in force, and passes just as happily with the charging removed altogether. Same
+    // reason this rig compiles the document instead of hand-building a `RestConfig`.
+    let runtime_config = fraiseql_core::runtime::RuntimeConfig::from_compiled_schema(&schema)
+        .expect("the compiled document must yield a runtime config");
+    let executor = Arc::new(Executor::with_config(schema, adapter, runtime_config));
+    let state = AppState::new(executor);
+    let router = rest_query_router(&state, &RestMountConfig::default()).expect("REST router");
+
+    Some(Rig {
+        router,
+        _temp_dir: temp_dir,
+    })
+}
+
+/// Compile the document above and load it the way a served artifact is loaded.
+///
+/// Its own function, and free of the database, so that
+/// `the_document_loads_without_a_database` loads exactly what `rig_with` serves.
+async fn compile_document(
+    max_embedded_reads: u64,
+    max_response_bytes: Option<u64>,
+    per_request_max: Option<u64>,
+) -> (CompiledSchema, TempDir) {
     let temp_dir = TempDir::new().expect("temp dir");
     let toml_path = temp_dir.path().join("fraiseql.toml");
     std::fs::write(
@@ -269,22 +298,7 @@ async fn rig_with(
     )
     .expect("the compiler's own output must survive load");
     schema.build_indexes();
-
-    // The schema-derived runtime config, not the default one. `Executor::new` takes
-    // `RuntimeConfig::default()`, whose `max_response_bytes` is `None` however the
-    // document declared it — so a rig built that way asserts a bytes ceiling that is not
-    // in force, and passes just as happily with the charging removed altogether. Same
-    // reason this rig compiles the document instead of hand-building a `RestConfig`.
-    let runtime_config = fraiseql_core::runtime::RuntimeConfig::from_compiled_schema(&schema)
-        .expect("the compiled document must yield a runtime config");
-    let executor = Arc::new(Executor::with_config(schema.clone(), adapter, runtime_config));
-    let state = AppState::new(executor);
-    let router = rest_query_router(&state, &RestMountConfig::default()).expect("REST router");
-
-    Some(Rig {
-        router,
-        _temp_dir: temp_dir,
-    })
+    (schema, temp_dir)
 }
 
 /// The refusal a crossed budget owes the client.
@@ -687,4 +701,18 @@ async fn the_composed_score_is_what_the_fan_out_charges() {
     };
     let (status, body) = rig.get(uri).await;
     assert_cost_refused(status, &body);
+}
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here reaches the document only after `try_database_url()`, so in a
+/// run without a database they skip before it is compiled and a load-time refusal of
+/// it reports as a pass (`2b843cd27`: 12 tests red for a session under a green preflight).
+/// This one needs nothing but the compiler, so that refusal cannot hide.
+///
+/// Both shapes the rigs write: every optional section absent, and every one declared.
+#[tokio::test]
+async fn the_document_loads_without_a_database() {
+    compile_document(0, None, None).await;
+    compile_document(2, Some(10_000), Some(1000)).await;
 }

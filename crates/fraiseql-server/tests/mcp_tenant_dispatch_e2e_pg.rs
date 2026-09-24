@@ -392,3 +392,14 @@ async fn an_unregistered_tenant_key_is_refused_not_silently_defaulted() {
 
     teardown(&admin).await;
 }
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here reaches the document only after `try_database_url()`, so in a
+/// run without a database they skip before it is compiled and a load-time refusal of
+/// it reports as a pass (`2b843cd27`: 12 tests red for a session under a green preflight).
+/// This one needs nothing but the compiler, so that refusal cannot hide.
+#[test]
+fn the_document_loads_without_a_database() {
+    compiled_schema();
+}

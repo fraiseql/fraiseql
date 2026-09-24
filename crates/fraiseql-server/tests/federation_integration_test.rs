@@ -357,3 +357,16 @@ async fn entities_returns_null_for_missing_entity() {
         resp["data"]["_entities"][0]
     );
 }
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here reaches the document only after it has found a database, so in
+/// a run without one they skip before it is built and a load-time refusal of it reports
+/// as a pass (`2b843cd27`: 12 tests red for a session under a green preflight).
+/// This one needs nothing but the loader, so that refusal cannot hide.
+#[test]
+fn the_document_loads_without_a_database() {
+    user_schema_with_federation();
+    CompiledSchema::from_json(include_str!("fixtures/federation/schema_reviews.json"), false)
+        .expect("reviews schema must be valid");
+}

@@ -575,3 +575,25 @@ async fn non_schema_mode_tenants_keep_the_default_search_path() {
         "row-mode tenancy resolves against the default search path"
     );
 }
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here reaches the document only after `try_database_url()`, so in a
+/// run without a database they skip before it is compiled and a load-time refusal of
+/// it reports as a pass (`2b843cd27`: 12 tests red for a session under a green preflight).
+/// This one needs nothing but the compiler, so that refusal cannot hide.
+///
+/// The document is loaded inside the tenant factory, which then opens a pool, so this
+/// performs the factory's two pre-pool steps (`create_tenant_executor_with_adapter`):
+/// `from_json`, then `validate_producer_version`.
+#[test]
+fn the_document_loads_without_a_database() {
+    for mode in ["schema", "row"] {
+        let schema =
+            fraiseql_core::schema::CompiledSchema::from_json(&schema_json_for(mode), false)
+                .unwrap_or_else(|e| panic!("the {mode}-mode document must load: {e}"));
+        schema
+            .validate_producer_version()
+            .unwrap_or_else(|e| panic!("the {mode}-mode document must be accepted: {e}"));
+    }
+}

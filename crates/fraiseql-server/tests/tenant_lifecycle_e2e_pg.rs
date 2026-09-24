@@ -309,3 +309,20 @@ async fn a_failed_purge_leaves_the_tenant_registered() {
     assert!(body.contains("purged"), "retry after the lock cleared: {body}");
     assert!(!schema_exists(&admin, &format!("tenant_{TENANT_KEY}")).await);
 }
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here reaches the document only after `try_database_url()`, so in a
+/// run without a database they skip before it is compiled and a load-time refusal of
+/// it reports as a pass (`2b843cd27`: 12 tests red for a session under a green preflight).
+/// This one needs nothing but the compiler, so that refusal cannot hide.
+///
+/// The document is loaded inside the tenant factory, which then opens a pool, so this
+/// performs the factory's two pre-pool steps (`create_tenant_executor_with_adapter`):
+/// `from_json`, then `validate_producer_version`.
+#[test]
+fn the_document_loads_without_a_database() {
+    let json = serde_json::to_string(&tenancy_schema_json()).expect("serialize the document");
+    let schema = CompiledSchema::from_json(&json, false).expect("the document must load");
+    schema.validate_producer_version().expect("the document must be accepted");
+}

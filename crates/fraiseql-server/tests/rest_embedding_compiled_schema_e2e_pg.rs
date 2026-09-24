@@ -170,16 +170,11 @@ impl Rig {
     }
 }
 
-/// Compile the document above with the real compiler and mount the REST router on it.
+/// Compile the document above and load it through `to_json`/`from_json`.
 ///
-/// The compiled schema goes through `to_json`/`from_json` on the way, which is the load
-/// path a served artifact takes — and the path carrying `finish_load`'s relationship
-/// check, so this rig proves the compiler's output survives its own load-time refusal.
-async fn rig() -> Option<Rig> {
-    let url = try_database_url()?;
-    let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
-    seed(&adapter).await;
-
+/// Its own function, and free of the database, so that
+/// `the_document_loads_without_a_database` loads exactly what `rig` serves.
+async fn compile_document() -> (CompiledSchema, TempDir) {
     let temp_dir = TempDir::new().expect("temp dir");
     let toml_path = temp_dir.path().join("fraiseql.toml");
     std::fs::write(&toml_path, fraiseql_toml()).expect("write fraiseql.toml");
@@ -197,6 +192,20 @@ async fn rig() -> Option<Rig> {
     )
     .expect("the compiler's own output must survive the load-time relationship check");
     schema.build_indexes();
+    (schema, temp_dir)
+}
+
+/// Compile the document above with the real compiler and mount the REST router on it.
+///
+/// The compiled schema goes through `to_json`/`from_json` on the way, which is the load
+/// path a served artifact takes — and the path carrying `finish_load`'s relationship
+/// check, so this rig proves the compiler's output survives its own load-time refusal.
+async fn rig() -> Option<Rig> {
+    let url = try_database_url()?;
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
+    seed(&adapter).await;
+
+    let (schema, temp_dir) = compile_document().await;
 
     let executor = Arc::new(Executor::new(schema.clone(), adapter));
     let state = AppState::new(executor);
@@ -360,4 +369,15 @@ async fn the_served_openapi_document_advertises_the_embed() {
         order["$ref"], "#/components/schemas/User",
         "a ManyToOne embed is advertised as the object itself: {doc}"
     );
+}
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here reaches the document only after `try_database_url()`, so in a
+/// run without a database they skip before it is compiled and a load-time refusal of
+/// it reports as a pass (`2b843cd27`: 12 tests red for a session under a green preflight).
+/// This one needs nothing but the compiler, so that refusal cannot hide.
+#[tokio::test]
+async fn the_document_loads_without_a_database() {
+    compile_document().await;
 }

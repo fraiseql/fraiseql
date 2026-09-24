@@ -328,19 +328,13 @@ const ADMIN_TOKEN: &str = "p05-admin-token-at-least-32-chars-long";
 
 impl RbacServer {
     async fn start(admin_url: &str, db: &'static str) -> Self {
-        use fraiseql_core::{db::postgres::PostgresAdapter, schema::CompiledSchema};
+        use fraiseql_core::db::postgres::PostgresAdapter;
         use fraiseql_server::{Server, server_config::ServerConfig};
 
         let pool = scratch_pool(admin_url, db).await;
         let scratch_url = with_database(admin_url, db);
 
-        let schema: CompiledSchema = serde_json::from_value(serde_json::json!({
-            "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
-            "types": [],
-            "queries": [],
-            "mutations": [],
-        }))
-        .expect("compiled schema");
+        let schema = empty_schema();
 
         let config = ServerConfig {
             // #874: production validate() refuses cors_enabled=true + empty origins
@@ -820,4 +814,29 @@ async fn every_declared_audit_event_type_has_a_producer() {
     }
 
     server.shutdown().await;
+}
+
+/// The compiled document `RbacServer` mounts: empty, because RBAC is the server's own.
+fn empty_schema() -> fraiseql_core::schema::CompiledSchema {
+    serde_json::from_value(serde_json::json!({
+        "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
+        "types": [],
+        "queries": [],
+        "mutations": [],
+    }))
+    .expect("compiled schema")
+}
+
+/// The document this suite serves loads, checked with no database.
+///
+/// Every other test here reaches the document only after it has found a database, so in
+/// a run without one they skip before it is built and a load-time refusal of it reports
+/// as a pass (`2b843cd27`: 12 tests red for a session under a green preflight).
+/// This one needs nothing but the loader, so that refusal cannot hide.
+///
+/// This document is deserialised with `from_value` and never meets `finish_load`, so
+/// what can refuse it is deserialisation: an unknown key, a missing field, a type.
+#[test]
+fn the_document_loads_without_a_database() {
+    empty_schema();
 }
