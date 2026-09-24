@@ -11,7 +11,7 @@ use crate::{
 };
 
 /// Result of classifying requested fields against RBAC policies.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FieldAccessResult {
     /// Every field to project, **in the order the client requested them**.
     ///

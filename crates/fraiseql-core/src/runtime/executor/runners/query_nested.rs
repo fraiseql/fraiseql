@@ -667,3 +667,150 @@ pub(super) fn project_documents(
         documents.first().map_or(serde_json::Value::Null, project)
     }
 }
+
+// ── A REST leaf selection of an object field ─────────────────────────────────
+//
+// `members?select=id,team` names `team`, a field of `Member` rather than an embedded
+// relationship, and REST's selections are leaves: the field used to be projected with no
+// sub-selection, so a to-one came back as the stored sub-object — none of `Team`'s gates
+// applied — and a list as one `{}` per stored element. A leaf object field means the
+// whole object: every field its type declares, each classified, masked and row-gated as
+// the GraphQL selection of the same fields is.
+
+/// How deep a leaf object selection is expanded — the entity projector's own depth. An
+/// object field below it is not selected, so not served.
+const MAX_LEAF_OBJECT_DEPTH: usize = 4;
+
+/// `query_match` with each leaf selection of an object field expanded to every field its
+/// type declares, recursively. Borrowed unchanged when there is none.
+pub(super) fn expand_leaf_objects<'a>(
+    schema: &CompiledSchema,
+    query_match: &'a crate::runtime::QueryMatch,
+) -> std::borrow::Cow<'a, crate::runtime::QueryMatch> {
+    let root_type = &query_match.query_def.return_type;
+    let Some(type_def) = schema.find_type(root_type) else {
+        return std::borrow::Cow::Borrowed(query_match);
+    };
+    let root_fields =
+        query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice());
+    let is_leaf_object = |sel: &FieldSelection| {
+        sel.nested_fields.is_empty()
+            && type_def
+                .fields
+                .iter()
+                .find(|f| f.name == sel.name)
+                .is_some_and(|f| object_type_of(&f.field_type).is_some())
+    };
+    if !root_fields.iter().any(is_leaf_object) {
+        return std::borrow::Cow::Borrowed(query_match);
+    }
+
+    let mut expanded = query_match.clone();
+    if let Some(root) = expanded.selections.first_mut() {
+        for sel in &mut root.nested_fields {
+            if is_leaf_object(sel) {
+                let child = type_def
+                    .fields
+                    .iter()
+                    .find(|f| f.name == sel.name)
+                    .and_then(|f| object_type_of(&f.field_type));
+                if let Some(child) = child {
+                    sel.nested_fields = whole_object(schema, child, 1);
+                }
+            }
+        }
+    }
+    std::borrow::Cow::Owned(expanded)
+}
+
+/// Every field `type_name` declares, as a selection, object fields expanded in turn.
+fn whole_object(schema: &CompiledSchema, type_name: &str, depth: usize) -> Vec<FieldSelection> {
+    let Some(type_def) = schema.find_type(type_name) else {
+        return Vec::new();
+    };
+    type_def
+        .fields
+        .iter()
+        .filter_map(|field| {
+            let nested_fields = match object_type_of(&field.field_type) {
+                None => Vec::new(),
+                Some(_) if depth >= MAX_LEAF_OBJECT_DEPTH => return None,
+                Some(child) => whole_object(schema, child, depth + 1),
+            };
+            Some(FieldSelection {
+                name: field.name.to_string(),
+                alias: None,
+                arguments: Vec::new(),
+                nested_fields,
+                directives: Vec::new(),
+            })
+        })
+        .collect()
+}
+
+/// Re-project each root object field that carries a sub-selection from the stored row, at
+/// its own type: the flat projector returns a nested object verbatim, keys and all.
+pub(super) fn project_object_fields(
+    projected: &mut serde_json::Value,
+    rows: &[crate::backend::JsonbValue],
+    root_type: &str,
+    root_fields: &[FieldSelection],
+    schema: &CompiledSchema,
+) {
+    let Some(type_def) = schema.find_type(root_type) else {
+        return;
+    };
+    let objects: Vec<(&FieldSelection, &str)> =
+        effective_selections(root_fields, root_type, schema)
+            .into_iter()
+            .filter(|sel| !sel.nested_fields.is_empty())
+            .filter_map(|sel| {
+                type_def
+                    .fields
+                    .iter()
+                    .find(|f| f.name == sel.name)
+                    .and_then(|f| object_type_of(&f.field_type))
+                    .map(|child| (sel, child))
+            })
+            .collect();
+    if objects.is_empty() {
+        return;
+    }
+    let reproject = |item: &mut serde_json::Value, row: &crate::backend::JsonbValue| {
+        let Some(object) = item.as_object_mut() else {
+            return;
+        };
+        for (sel, child) in &objects {
+            let (stored, fallback) = crate::runtime::stored_key_candidates(&sel.name);
+            let raw = row.data.get(&stored).or_else(|| fallback.and_then(|k| row.data.get(&k)));
+            let value = match raw {
+                Some(serde_json::Value::Array(elements)) => serde_json::Value::Array(
+                    elements
+                        .iter()
+                        .map(|el| {
+                            crate::runtime::project_entity(el, child, &sel.nested_fields, schema)
+                        })
+                        .collect(),
+                ),
+                Some(value) => {
+                    crate::runtime::project_entity(value, child, &sel.nested_fields, schema)
+                },
+                None => continue,
+            };
+            object.insert(sel.response_key().to_string(), value);
+        }
+    };
+    match projected {
+        serde_json::Value::Array(items) => {
+            for (item, row) in items.iter_mut().zip(rows) {
+                reproject(item, row);
+            }
+        },
+        item @ serde_json::Value::Object(_) => {
+            if let Some(row) = rows.first() {
+                reproject(item, row);
+            }
+        },
+        _ => {},
+    }
+}

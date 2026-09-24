@@ -6,7 +6,7 @@ use futures::StreamExt as _;
 use tracing::debug;
 
 use super::{
-    super::{null_masked_fields, resolve_inject_value},
+    super::resolve_inject_value,
     query::QueryRunner,
     query_params::{
         apply_pagination_order, client_where_argument, coerce_pagination_arg,
@@ -93,8 +93,10 @@ pub(in super::super) struct ResolvedDirectRead {
     /// How many fields the read projects — what the cost estimate counts as this
     /// level's scalars.
     pub(super) leaf_fields:    usize,
-    /// Field-level RBAC classification for the projection (#886).
+    /// Field-level RBAC classification for the projection (#886): the root level.
     pub access:                crate::runtime::field_filter::FieldAccessResult,
+    /// The same classification at every level of the selection (`query_nested`).
+    pub(super) selection:      super::query_nested::SelectionAccess,
     /// Projection for the computed fields this read selects (#959), or `None`
     /// when it selects none — see [`Self::projection_request`].
     pub(super) projection:     Option<crate::backend::SqlProjectionHint>,
@@ -1300,6 +1302,9 @@ impl QueryRunner {
         security_context: Option<&SecurityContext>,
         request_budget: Option<&crate::security::RequestBudget>,
     ) -> Result<serde_json::Value> {
+        // A leaf selection of an object field is the whole object, read as its type.
+        let expanded = super::query_nested::expand_leaf_objects(&self.ctx.schema, query_match);
+        let query_match = &*expanded;
         let resolved = self.resolve_direct_read(
             query_match,
             variables,
@@ -1309,15 +1314,43 @@ impl QueryRunner {
         )?;
         let session_pairs = resolved.session_pairs();
 
-        let results = self
-            .ctx
-            .adapter
-            .execute_with_projection_arc_with_session(
-                &resolved.projection_request(),
+        // A nested level its type scopes is read with that type's predicate, as for
+        // GraphQL: the same read, as the root of a composed statement carrying it.
+        let nested_reads = self.plan_nested_reads(
+            &query_match.query_def.return_type,
+            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
+            security_context,
+            &resolved.selection,
+        )?;
+        let results = if nested_reads.is_empty() {
+            self.ctx
+                .adapter
+                .execute_with_projection_arc_with_session(
+                    &resolved.projection_request(),
+                    &session_pairs,
+                    query_match.query_def.read_routing,
+                )
+                .await?
+        } else {
+            self.execute_composed_document_read(
+                crate::backend::ComposedLevel {
+                    view:         resolved.sql_source.clone(),
+                    projection:   resolved
+                        .projection
+                        .as_ref()
+                        .map(|h| h.projection_template.clone()),
+                    where_clause: resolved.composed_where.clone(),
+                    order_by:     resolved.order_by.clone(),
+                    limit:        resolved.limit,
+                    offset:       resolved.offset,
+                    keys:         super::query_nested::root_keys(&nested_reads),
+                    embeds:       nested_reads,
+                },
                 &session_pairs,
                 query_match.query_def.read_routing,
             )
-            .await?;
+            .await?
+        };
 
         // The response-bytes ceiling, charged on what came back.
         //
@@ -1345,7 +1378,7 @@ impl QueryRunner {
 
         let projected = self.project_direct_rows(
             query_match,
-            &resolved.access,
+            &resolved.selection,
             &results,
             query_match.query_def.returns_list,
         )?;
@@ -1862,12 +1895,17 @@ impl QueryRunner {
         // `plan.projection_fields` verbatim — so a field carrying `requires_scope` was
         // served in full over REST to a caller without the scope. Classifying *before*
         // the read means a `Reject` never reaches the database.
-        let access = super::super::support::security::classify_fields_for_read(
+        //
+        // At every level of the selection, by field name (`query_nested`): a REST leaf
+        // selection of an object field reaches here expanded to its type's fields.
+        let selection = super::query_nested::SelectionAccess::classify(
             &self.ctx.schema,
             &query_match.query_def.return_type,
+            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
             plan.projection_fields.clone(),
             security_context,
         )?;
+        let access = selection.root.clone();
 
         // The client's filter, refused rather than dropped when this query does not
         // accept one (#1283). Every REST read arrives here — the GET resolver, the
@@ -2081,6 +2119,7 @@ impl QueryRunner {
             session_vars,
             leaf_fields: plan.projection_fields.len(),
             access,
+            selection,
             projection,
             response_bytes: self.ctx.config.max_response_bytes,
         })
@@ -2114,6 +2153,8 @@ impl QueryRunner {
         variables: Option<serde_json::Value>,
         security_context: Option<SecurityContext>,
     ) -> Result<crate::runtime::JsonRowStream> {
+        let query_match =
+            super::query_nested::expand_leaf_objects(&self.ctx.schema, &query_match).into_owned();
         let resolved = self.resolve_direct_read(
             &query_match,
             variables.as_ref(),
@@ -2121,6 +2162,25 @@ impl QueryRunner {
             GatedFieldHandling::RefuseAsUnsupported,
             DirectReadCost::Flat(None),
         )?;
+        // A nested level its type scopes needs a composed statement, which a stream does
+        // not read: refused rather than streamed ungated.
+        if !self
+            .plan_nested_reads(
+                &query_match.query_def.return_type,
+                query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
+                security_context.as_ref(),
+                &resolved.selection,
+            )?
+            .is_empty()
+        {
+            return Err(FraiseQLError::Unsupported {
+                message: format!(
+                    "a streamed read of '{}' selects a nested object whose type scopes its \
+                     rows, which only a buffered read can gate; select fewer fields",
+                    query_match.query_def.name
+                ),
+            });
+        }
         let rows = {
             let session_pairs = resolved.session_pairs();
             self.ctx
@@ -2139,7 +2199,7 @@ impl QueryRunner {
         // has to cut it where it crosses rather than let it run: `max_page_size`
         // does not bound a stream, which is the point of a stream.
         let budget = resolved.budget();
-        let access = resolved.access;
+        let access = resolved.selection;
         Ok(Box::pin(rows.map(move |row| {
             let row = row?;
             if let Some(ref budget) = budget {
@@ -2175,10 +2235,13 @@ impl QueryRunner {
     pub(super) fn project_direct_rows(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
-        access: &crate::runtime::field_filter::FieldAccessResult,
+        selection: &super::query_nested::SelectionAccess,
         rows: &[crate::backend::types::JsonbValue],
         returns_list: bool,
     ) -> Result<serde_json::Value> {
+        let access = &selection.root;
+        let root_fields =
+            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice());
         // Masked fields stay in the projection, in their requested position, and are
         // nulled below — the response keeps the key and withholds only the value, as
         // both GraphQL paths do.
@@ -2209,10 +2272,24 @@ impl QueryRunner {
             &self.ctx.schema,
         );
 
-        // #886: null out fields denied to this caller under `on_deny = Mask`.
-        if !access.masked.is_empty() {
-            null_masked_fields(&mut projected, &access.masked);
-        }
+        // A root object field with a sub-selection — a REST leaf selection expanded to its
+        // type's fields — projected from the stored row at its own type, not verbatim.
+        super::query_nested::project_object_fields(
+            &mut projected,
+            rows,
+            &query_match.query_def.return_type,
+            root_fields,
+            &self.ctx.schema,
+        );
+
+        // #886: null out fields denied to this caller under `on_deny = Mask`, at every
+        // level.
+        selection.null_masked(
+            &mut projected,
+            &query_match.query_def.return_type,
+            root_fields,
+            &self.ctx.schema,
+        );
 
         Ok(projected)
     }

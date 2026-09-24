@@ -104,7 +104,8 @@ async fn seed(adapter: &PostgresAdapter) {
         embed("v_user_fk"),
         embed("v_user_tenant"),
         // A to-one: each member embeds its team. Member 2 is tenant A's, and its team is
-        // tenant B's.
+        // tenant B's. The embedded team also carries `audit`, which `Team` does not
+        // declare: a key the view stored and no selection names.
         format!(
             "CREATE TABLE {SCHEMA}.tb_team (id bigint PRIMARY KEY, tenant_id text NOT NULL, name \
              text NOT NULL, budget bigint NOT NULL)"
@@ -123,7 +124,7 @@ async fn seed(adapter: &PostgresAdapter) {
             "CREATE VIEW {SCHEMA}.v_member AS SELECT m.id, jsonb_build_object('id', m.id, \
              'tenant_id', m.tenant_id, 'fk_team', m.fk_team, 'team', (SELECT \
              jsonb_build_object('id', t.id, 'tenant_id', t.tenant_id, 'name', t.name, 'budget', \
-             t.budget) FROM \
+             t.budget, 'audit', 'internal') FROM \
              {SCHEMA}.tb_team t WHERE t.id = m.fk_team)) AS data FROM {SCHEMA}.tb_member m"
         ),
     ];
@@ -199,6 +200,7 @@ fn schema(user_view: &str) -> CompiledSchema {
     // A principal with no role holds no scope; `analyst` holds `read:margin`.
     let mut security = SecurityConfig::default();
     security.add_role(RoleDefinition::new("analyst", vec!["read:margin".to_string()]));
+    security.add_role(RoleDefinition::new("costing", vec!["read:cost".to_string()]));
     schema.security = Some(security);
     schema.build_indexes();
     schema
@@ -596,26 +598,33 @@ async fn a_nested_to_one_across_tenants_is_null() {
 // ---------------------------------------------------------------------------
 //
 // `members?select=id,team`, with `team` a field of `Member` rather than an embedded
-// relationship, is a leaf selection, read through `execute_query_direct` — the engine
-// entry the REST GET resolver calls. A to-one comes back as the stored sub-object and a
-// list as one empty object per stored element: neither is read as `Team` or `Order`.
+// relationship, reads the whole object — every field `Team` declares — as `Team`: its
+// field RBAC and its row security, as the GraphQL selection of the same fields. Read
+// through `execute_query_direct`, the engine entry the REST GET resolver calls.
+//
+// The first three began as reproductions: a to-one came back as the stored sub-object,
+// ungated, and a list as one `{}` per *stored* element.
 
-/// `<query>?select=<fields>` as alice.
-async fn rest_select(executor: &Executor, query: &str, fields: &[&str]) -> Result<Value> {
+/// `<query>?select=<fields>`, as alice.
+fn rest_match(executor: &Executor, query: &str, fields: &[&str]) -> QueryMatch {
     let schema = executor.schema();
     let definition = schema.queries.iter().find(|q| q.name == query).unwrap().clone();
     let return_type = definition.return_type.clone();
-    let query_match = QueryMatch::from_operation(
+    QueryMatch::from_operation(
         definition,
         fields.iter().map(ToString::to_string).collect(),
         HashMap::new(),
         schema.find_type(&return_type),
     )
-    .unwrap();
+    .unwrap()
+}
+
+async fn rest_select(executor: &Executor, query: &str, fields: &[&str]) -> Result<Value> {
+    let query_match = rest_match(executor, query, fields);
     executor.execute_query_direct(&query_match, None, Some(&alice()), None).await
 }
 
-/// A GraphQL counterpart, not a reproduction: `Team.budget` under `members { team }`.
+/// A GraphQL counterpart: `Team.budget` under `members { team }`.
 #[tokio::test]
 async fn a_nested_to_one_masked_field_is_masked() {
     let executor = rig_or_skip!("v_user_fk", Policy::None);
@@ -627,61 +636,74 @@ async fn a_nested_to_one_masked_field_is_masked() {
     );
 }
 
-/// **Reproduction (REST, to-one, tenant).** Tenant A's member 2 belongs to tenant B's
-/// team; `members?select=id,team` must not serve it.
+/// Tenant A's member 2 belongs to tenant B's team: `null`.
 #[tokio::test]
-#[ignore = "reproduction: a REST leaf selection of a nested object is not read as its type"]
 async fn a_rest_selection_of_a_to_one_object_applies_its_tenant_policy() {
     let executor = rig_or_skip!("v_user_fk", Policy::Tenant);
-    let out = rest_select(&executor, "members", &["id", "team"]).await;
-    if let Ok(out) = &out {
-        let teams: Vec<&Value> =
-            out["data"]["members"].as_array().unwrap().iter().map(|m| &m["team"]).collect();
-        assert!(
-            teams.iter().all(|t| t.is_null() || t["tenant_id"] == "A"),
-            "tenant B's team served to tenant A through members?select=team: {out}"
-        );
-    }
+    let out = rest_select(&executor, "members", &["id", "team"]).await.unwrap();
+    assert_eq!(
+        out["data"]["members"],
+        serde_json::json!([
+            {"id": 1, "team": {"id": 1, "tenant_id": "A", "name": "red", "budget": null}},
+            {"id": 2, "team": null}
+        ]),
+        "{out}"
+    );
 }
 
-/// **Reproduction (REST, to-one, Mask).** `Team.budget` requires `read:budget`.
+/// `Team.budget` requires `read:budget`, and the object is `Team`'s declared fields — not
+/// the stored sub-object, whose undeclared `audit` no selection names.
 #[tokio::test]
-#[ignore = "reproduction: a REST leaf selection of a nested object is not read as its type"]
 async fn a_rest_selection_of_a_to_one_object_masks_its_masked_field() {
     let executor = rig_or_skip!("v_user_fk", Policy::None);
-    let out = rest_select(&executor, "members", &["id", "team"]).await;
-    if let Ok(out) = &out {
-        let budgets: Vec<Value> = out["data"]["members"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .filter_map(|m| m["team"].get("budget").cloned())
-            .collect();
-        assert!(
-            budgets.iter().all(Value::is_null),
-            "Team.budget served through members?select=team: {out}"
-        );
-    }
+    let out = rest_select(&executor, "members", &["id", "team"]).await.unwrap();
+    assert_eq!(
+        out["data"]["members"],
+        serde_json::json!([
+            {"id": 1, "team": {"id": 1, "tenant_id": "A", "name": "red", "budget": null}},
+            {"id": 2, "team": {"id": 2, "tenant_id": "B", "name": "blue", "budget": null}}
+        ]),
+        "{out}"
+    );
 }
 
-/// Not a reproduction, as it stands: a list selected as a leaf is one empty object per
-/// stored element, so no `Order` value is served…
+/// A list: alice's orders only, each read as an `Order`.
 #[tokio::test]
-async fn a_rest_selection_of_a_nested_list_serves_no_value_of_its_elements() {
-    let executor = rig_or_skip!("v_user_fk", Policy::None);
-    let out = rest_select(&executor, "users", &["id", "orders"]).await.unwrap();
-    assert_eq!(out["data"]["users"][0]["orders"], serde_json::json!([{}, {}, {}]), "{out}");
-}
-
-/// **Reproduction (REST, list, owner).** …but one element per *stored* order: alice is
-/// told she has three orders under her user, one of them mallory's.
-#[tokio::test]
-#[ignore = "reproduction: a REST leaf selection of a nested object is not read as its type"]
-async fn a_rest_selection_of_a_nested_list_counts_only_what_the_policy_admits() {
+async fn a_rest_selection_of_a_nested_list_applies_its_owner_policy() {
     let executor = rig_or_skip!("v_user_fk", Policy::Owner);
     let out = rest_select(&executor, "users", &["id", "orders"]).await;
-    if let Ok(out) = &out {
-        let served = out["data"]["users"][0]["orders"].as_array().map_or(0, Vec::len);
-        assert!(served <= 2, "an element per order alice may not read: {out}");
-    }
+    // `cost_price` is Reject and is one of Order's declared fields: the whole object
+    // includes it, as a REST read of `orders` with no `?select=` does.
+    assert!(matches!(out, Err(FraiseQLError::Authorization { .. })), "{out:?}");
+
+    let cleared = SecurityContext {
+        roles: vec!["costing".to_string()],
+        ..alice()
+    };
+    let query_match = rest_match(&executor, "users", &["id", "orders"]);
+    let out = executor
+        .execute_query_direct(&query_match, None, Some(&cleared), None)
+        .await
+        .unwrap();
+    let orders = out["data"]["users"][0]["orders"].as_array().unwrap();
+    let ids: Vec<i64> = orders.iter().map(|o| o["id"].as_i64().unwrap()).collect();
+    assert_eq!(ids, [10, 12], "{out}");
+    assert!(
+        orders.iter().all(|o| o["margin"].is_null() && o["cost_price"].is_i64()),
+        "{out}"
+    );
+}
+
+/// Streamed, a gated nested level is refused rather than streamed ungated.
+#[tokio::test]
+async fn a_streamed_rest_selection_of_a_gated_nested_object_is_refused() {
+    let executor = rig_or_skip!("v_user_fk", Policy::Tenant);
+    let query_match = rest_match(&executor, "members", &["id", "team"]);
+    let result = executor.stream_query_direct(query_match, None, Some(alice())).await;
+    assert!(matches!(result, Err(FraiseQLError::Unsupported { .. })), "{:?}", result.err());
+
+    // Ungated, the same selection streams.
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let query_match = rest_match(&executor, "members", &["id", "team"]);
+    assert!(executor.stream_query_direct(query_match, None, Some(alice())).await.is_ok());
 }

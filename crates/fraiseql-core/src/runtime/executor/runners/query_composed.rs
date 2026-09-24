@@ -114,6 +114,8 @@ impl QueryRunner {
         security_context: Option<&SecurityContext>,
         request_budget: Option<&crate::security::RequestBudget>,
     ) -> Result<serde_json::Value> {
+        let expanded = super::query_nested::expand_leaf_objects(&self.ctx.schema, query_match);
+        let query_match = &*expanded;
         let plan = self.resolve_composed_read(
             query_match,
             embeds,
@@ -122,6 +124,7 @@ impl QueryRunner {
             security_context,
             request_budget,
         )?;
+        plan.refuse_gated_leaf_objects(self, security_context)?;
         let read = plan.lower(&self.ctx.schema);
         let session_pairs = plan.resolved.session_pairs();
 
@@ -301,7 +304,7 @@ impl QueryRunner {
             .collect();
         let mut projected = self.project_direct_rows(
             &plan.query_match,
-            &plan.resolved.access,
+            &plan.resolved.selection,
             &documents,
             returns_list,
         )?;
@@ -358,6 +361,46 @@ impl QueryRunner {
 }
 
 impl ComposedPlan {
+    /// Refuse a level, at any depth, selecting a nested object whose type scopes its rows.
+    ///
+    /// Such a level would need a gated level of its own inside this one, and this plan
+    /// composes relationship embeds only: refused rather than served ungated.
+    fn refuse_gated_leaf_objects(
+        &self,
+        runner: &QueryRunner,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<()> {
+        let fields = self
+            .query_match
+            .selections
+            .first()
+            .map_or(&[][..], |r| r.nested_fields.as_slice());
+        if !runner
+            .plan_nested_reads(
+                &self.query_match.query_def.return_type,
+                fields,
+                security_context,
+                &self.resolved.selection,
+            )?
+            .is_empty()
+        {
+            return Err(FraiseQLError::Unsupported {
+                message: format!(
+                    "'{}' selects a nested object whose type scopes its rows alongside an \
+                     embedded relationship, which this read cannot compose; select it without \
+                     the embed, or embed it through its relationship",
+                    self.query_match.query_def.return_type
+                ),
+            });
+        }
+        for embed in &self.embeds {
+            if let EmbedTarget::Rows(child) = &embed.target {
+                child.refuse_gated_leaf_objects(runner, security_context)?;
+            }
+        }
+        Ok(())
+    }
+
     /// The level's projection, as the cost estimator scores it.
     ///
     /// A count is a level projecting nothing over no page, which scores 1 — so a count
@@ -551,12 +594,14 @@ fn level_query_match(
     if let Some(limit) = limit {
         arguments.insert("limit".to_string(), serde_json::json!(limit));
     }
-    QueryMatch::from_operation(
+    let level = QueryMatch::from_operation(
         target_query.clone(),
         fields,
         arguments,
         schema.find_type(&target_query.return_type),
-    )
+    )?;
+    // A leaf object field of the level is the whole object, read as its type.
+    Ok(super::query_nested::expand_leaf_objects(schema, &level).into_owned())
 }
 
 #[cfg(test)]

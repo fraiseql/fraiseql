@@ -316,6 +316,11 @@ pub(in crate::runtime::executor) fn root_type_name(operation_type: &str) -> &'st
 ///
 /// Walks the result (which may be a single object or an array of objects)
 /// and sets each masked field's value to `null`.
+///
+/// The federation `_entities` resolver's, which masks its entity rows' top level. Every
+/// query path masks through `SelectionAccess` (`runners/query_nested`), at every level and
+/// by response key, so without `federation` this has no caller.
+#[cfg_attr(not(feature = "federation"), allow(dead_code))]
 fn null_masked_fields(value: &mut serde_json::Value, masked: &[String]) {
     match value {
         serde_json::Value::Object(map) => {

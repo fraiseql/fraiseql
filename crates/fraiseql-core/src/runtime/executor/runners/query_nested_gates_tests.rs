@@ -57,7 +57,7 @@ fn list_query(name: &str, return_type: &str, view: &str) -> QueryDefinition {
 /// `User.orders` is a list of `Order` documents embedded in `v_user`'s `data`. `Order`
 /// gates `margin` (Mask) and `cost_price` (Reject); `User` gates nothing. Each order embeds
 /// its `items`, whose `note` is masked — a gate two levels below the root. The `analyst`
-/// role holds `read:margin`.
+/// role holds `read:margin`, `costing` holds `read:cost`.
 fn schema() -> CompiledSchema {
     let mut schema = CompiledSchema::default();
     schema.types.push(TypeDefinition {
@@ -97,6 +97,7 @@ fn schema() -> CompiledSchema {
     // principal holding no role holds no scope.
     let mut security = SecurityConfig::default();
     security.add_role(RoleDefinition::new("analyst", vec!["read:margin".to_string()]));
+    security.add_role(RoleDefinition::new("costing", vec!["read:cost".to_string()]));
     schema.security = Some(security);
     schema.build_indexes();
     schema
@@ -782,6 +783,56 @@ async fn a_gated_nested_level_over_an_adapter_that_cannot_compose_is_refused() {
     );
     let result = executor
         .execute_with_security("{ users { id orders { id } } }", None, &principal())
+        .await;
+    assert!(matches!(result, Err(FraiseQLError::Unsupported { .. })), "{result:?}");
+    assert!(adapter.captured_composed().is_none());
+}
+
+// ---------------------------------------------------------------------------
+// REST: a leaf selection of a nested object, alongside an embed
+// ---------------------------------------------------------------------------
+
+/// `users?select=id,orders,orders(id)`-shaped: a leaf `orders` field whose type scopes
+/// its rows, in a read that also embeds a relationship. The composed plan embeds
+/// relationships only, so the leaf object is refused rather than served ungated.
+#[tokio::test]
+async fn a_composed_rest_read_selecting_a_gated_nested_object_is_refused() {
+    let schema = joinable_schema();
+    let users = schema.queries.iter().find(|q| q.name == "users").unwrap().clone();
+    let query_match = crate::runtime::QueryMatch::from_operation(
+        users,
+        vec!["id".to_string(), "orders".to_string()],
+        std::collections::HashMap::new(),
+        schema.find_type("User"),
+    )
+    .unwrap();
+    let embed = crate::runtime::EmbedSelection {
+        relationship: "orders".to_string(),
+        output_key: "embedded".to_string(),
+        fields: vec!["id".to_string()],
+        limit: Some(10),
+        ..crate::runtime::EmbedSelection::default()
+    };
+    let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+    let executor = Executor::read_only_with_config(
+        schema,
+        adapter.clone(),
+        with_policy(OwnerPolicy::declared(&["Order"])),
+    );
+    let result = executor
+        // Holding `read:cost`: the whole `Order` includes `cost_price`, whose Reject would
+        // refuse first, and for another reason.
+        .execute_query_composed(
+            &query_match,
+            &[embed],
+            &[],
+            None,
+            Some(&SecurityContext {
+                roles: vec!["costing".to_string()],
+                ..principal()
+            }),
+            None,
+        )
         .await;
     assert!(matches!(result, Err(FraiseQLError::Unsupported { .. })), "{result:?}");
     assert!(adapter.captured_composed().is_none());
