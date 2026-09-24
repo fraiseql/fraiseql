@@ -1157,6 +1157,9 @@ pub(crate) enum MigrateCommands {
     },
 
     /// Create a new migration file
+    ///
+    /// Delegates to `confiture migrate generate`, like `generate`; kept as the
+    /// verb the examples above use.
     Create {
         /// Migration name
         #[arg(value_name = "NAME")]
