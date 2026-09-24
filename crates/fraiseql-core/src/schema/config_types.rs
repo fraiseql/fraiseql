@@ -829,45 +829,6 @@ pub struct RestConfig {
     pub sse_max_replay_events:   u64,
     /// Maximum depth for resource embedding (`?select=posts(comments)`).
     pub max_embedding_depth:     u32,
-    /// How many embedded sub-reads one request may perform, across every relationship,
-    /// every parent row and every nesting level (`0` = no bound).
-    ///
-    /// `?select=` embedding resolves a relationship by reading the join key off each
-    /// **already-projected parent row** and issuing one sub-query for it
-    /// (`embedding::executor::embed_into_single`). There is no batching, and the
-    /// recursion runs per row, so the reads a request performs are the *product* of the
-    /// page sizes at each level, not their sum:
-    ///
-    /// ```text
-    /// GET /rest/v1/x?select=a(b(c))&limit=1000   ->  1000 + 1000² + 1000³ sub-reads
-    /// ```
-    ///
-    /// — sequential, each holding a pool connection, with
-    /// [`max_embedding_depth`](Self::max_embedding_depth) bounding only the exponent and
-    /// [`max_page_size`](Self::max_page_size) only the base.
-    ///
-    /// **Why this is counted rather than scored.** The per-read controls do not compose
-    /// into a bound on the whole: the cost gate and `[validation] max_response_bytes`
-    /// each see one sub-read, and every individual sub-read here is cheap. Estimating the
-    /// aggregate up front from the request would mean multiplying page sizes per level —
-    /// the arithmetic the GraphQL document path uses — which over-states a materialised
-    /// read by orders of magnitude, because a nested field on a materialised view is
-    /// already inside the parent document and is only projected, at one read for any
-    /// depth. So this is not an estimate: it is a tally of the sub-reads actually issued,
-    /// and the request is refused at the one that would cross the ceiling.
-    ///
-    /// Refused (`413 TOO_MANY_EMBEDDED_READS`) rather than truncated, because an embed
-    /// served in part is indistinguishable from a parent that genuinely has fewer
-    /// related rows — the #1230 failure shape, under a `200`.
-    ///
-    /// The default admits a full `max_page_size` page carrying several embeds and their
-    /// counts, and refuses the squared and cubed cases above.
-    ///
-    /// `0` means **no bound**, matching
-    /// [`sse_max_replay_events`](Self::sse_max_replay_events). It is the permissive
-    /// setting: on a REST resource reachable without a credential it hands an anonymous
-    /// client a read whose size it chooses.
-    pub max_embedded_reads:      u64,
     /// Whitelist of type names to expose as REST resources (empty = all).
     pub include:                 Vec<String>,
     /// Blacklist of type names to exclude from REST resources.
@@ -895,7 +856,6 @@ impl Default for RestConfig {
             sse_heartbeat_seconds:   30,
             sse_max_replay_events:   10_000,
             max_embedding_depth:     3,
-            max_embedded_reads:      10_000,
             include:                 Vec::new(),
             exclude:                 Vec::new(),
             etag:                    true,

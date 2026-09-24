@@ -2,401 +2,19 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use fraiseql_core::schema::{
-    Cardinality, CompiledSchema, FieldDefinition, FieldType, Relationship, TypeDefinition,
-};
+use std::collections::HashMap;
 
-use super::{
-    SubSelect,
-    executor::{
-        declared_key, extract_join_key, extract_query_data, find_list_query_for_type,
-        set_empty_embedding,
-    },
-    project_missing_join_keys, required_join_keys, strip_projected_keys,
-};
+use serde_json::json;
+
+use super::{SubSelect, selections};
 use crate::routes::rest::params::{EmbeddedSpec, SelectEntry};
 
-fn schema_declaring(type_name: &str, fields: &[&str]) -> CompiledSchema {
-    let mut schema = CompiledSchema::new();
-    let mut td = TypeDefinition::new(type_name, "v_post");
-    td.fields = fields
-        .iter()
-        .map(|f| FieldDefinition::new(*f, FieldType::parse("ID")))
-        .collect();
-    schema.types.push(td);
-    schema
-}
-
-fn rel(name: &str, target: &str, cardinality: Cardinality) -> Relationship {
-    Relationship {
-        name: name.to_string(),
-        target_type: target.to_string(),
-        cardinality,
-        foreign_key: "fk_user".to_string(),
-        referenced_key: "id".to_string(),
-    }
-}
-
-fn embed(relationship: &str) -> EmbeddedSpec {
+fn embedded(name: &str) -> EmbeddedSpec {
     EmbeddedSpec {
-        relationship: relationship.to_string(),
+        relationship: name.to_string(),
         rename:       None,
-        fields:       Vec::new(),
+        fields:       vec![],
     }
-}
-
-mod declared_spelling {
-    use super::{Cardinality, declared_key, extract_join_key, rel, schema_declaring};
-
-    /// **The collision this exists to prevent.** A relationship names SQL
-    /// columns (`fk_user`), but since 2.15.0 `where` accepts only the declared
-    /// spelling. Handing the raw column to the parser would make the server
-    /// refuse its own parent-scoping predicate, and every embedded list would
-    /// come back empty — or worse, unscoped.
-    #[test]
-    fn a_storage_column_is_translated_to_the_declared_spelling() {
-        let schema = schema_declaring("Post", &["id", "fkUser"]);
-        assert_eq!(declared_key(&schema, "Post", "fk_user"), "fkUser");
-    }
-
-    /// A schema that declares the column as-written keeps it — the rule is
-    /// "use what is declared", not "`camelCase` everything".
-    #[test]
-    fn a_column_the_schema_declares_verbatim_is_unchanged() {
-        let schema = schema_declaring("Post", &["id", "fk_user"]);
-        assert_eq!(declared_key(&schema, "Post", "fk_user"), "fk_user");
-    }
-
-    /// Fail-open: an unknown type, or one declaring nothing that matches, is
-    /// passed through rather than guessed at (#939).
-    #[test]
-    fn an_unnameable_target_passes_the_column_through() {
-        let schema = schema_declaring("Post", &["id"]);
-        assert_eq!(declared_key(&schema, "Post", "fk_user"), "fk_user");
-        assert_eq!(declared_key(&schema, "Nonexistent", "fk_user"), "fk_user");
-    }
-
-    /// The **parent** side obeys the same rule, and used not to: the projected row
-    /// is keyed by the declared name, so a schema under `camelCase` handed
-    /// `extract_join_key` a `fk_user` that no row ever carries. The embed then
-    /// resolved to null even for a client that *had* selected the key.
-    #[test]
-    fn a_parent_row_is_read_under_the_declared_spelling() {
-        let schema = schema_declaring("Post", &["id", "fkUser"]);
-        let row = serde_json::json!({"id": 3, "fkUser": 7});
-
-        assert_eq!(
-            extract_join_key(&schema, "Post", &row, &rel("author", "User", Cardinality::ManyToOne)),
-            Some(serde_json::json!(7)),
-            "the relationship names the column `fk_user`; the row carries `fkUser`"
-        );
-    }
-}
-
-#[test]
-fn extract_join_key_one_to_many() {
-    let schema = schema_declaring("User", &["pk_user", "name"]);
-    let mut rel = rel("posts", "Post", Cardinality::OneToMany);
-    rel.referenced_key = "pk_user".to_string();
-    let row = serde_json::json!({"pk_user": 42, "name": "Alice"});
-    assert_eq!(extract_join_key(&schema, "User", &row, &rel), Some(serde_json::json!(42)));
-}
-
-#[test]
-fn extract_join_key_many_to_one() {
-    let schema = schema_declaring("Post", &["fk_user", "title"]);
-    let row = serde_json::json!({"fk_user": 7, "title": "Hello"});
-    assert_eq!(
-        extract_join_key(&schema, "Post", &row, &rel("author", "User", Cardinality::ManyToOne)),
-        Some(serde_json::json!(7))
-    );
-}
-
-#[test]
-fn extract_join_key_null_returns_none() {
-    let schema = schema_declaring("Post", &["fk_user", "title"]);
-    let row = serde_json::json!({"fk_user": null, "title": "Hello"});
-    assert!(
-        extract_join_key(&schema, "Post", &row, &rel("author", "User", Cardinality::ManyToOne))
-            .is_none()
-    );
-}
-
-#[test]
-fn extract_join_key_missing_field_returns_none() {
-    let schema = schema_declaring("User", &["pk_user", "name"]);
-    let mut rel = rel("posts", "Post", Cardinality::OneToMany);
-    rel.referenced_key = "pk_user".to_string();
-    let row = serde_json::json!({"name": "Alice"});
-    assert!(extract_join_key(&schema, "User", &row, &rel).is_none());
-}
-
-// ---------------------------------------------------------------------------
-// #1230 — the projection carries the join key, and the response does not
-// ---------------------------------------------------------------------------
-
-/// The two sides of a relationship, stated once each. `ManyToOne` reads the parent's
-/// **foreign key** — the column a client asking for `author` has no reason to select,
-/// which is what made #1230 invisible on the `OneToMany` direction.
-#[test]
-fn the_parent_and_target_columns_are_opposite_ends_of_the_same_relationship() {
-    let many_to_one = rel("author", "User", Cardinality::ManyToOne);
-    assert_eq!(many_to_one.parent_join_column(), "fk_user");
-    assert_eq!(many_to_one.target_join_column(), "id");
-
-    let one_to_many = rel("posts", "Post", Cardinality::OneToMany);
-    assert_eq!(one_to_many.parent_join_column(), "id");
-    assert_eq!(one_to_many.target_join_column(), "fk_user");
-
-    let one_to_one = rel("profile", "Profile", Cardinality::OneToOne);
-    assert_eq!(one_to_one.parent_join_column(), "fk_user");
-    assert_eq!(one_to_one.target_join_column(), "id");
-}
-
-/// #1230: `?select=id,author(name)` must project `fk_user`, because the embed is
-/// resolved by reading that key off the parent row that comes back.
-#[test]
-fn a_many_to_one_embed_requires_the_foreign_key_in_the_parent_projection() {
-    let mut schema = schema_declaring("Post", &["id", "fk_user", "title"]);
-    schema.types[0].relationships = vec![rel("author", "User", Cardinality::ManyToOne)];
-
-    assert_eq!(required_join_keys(&schema, "Post", &[embed("author")], &[]), vec!["fk_user"]);
-}
-
-/// A count reads the identical key, so `?select=name,posts.count` needs it too —
-/// it counted zero for every parent otherwise.
-#[test]
-fn a_count_requires_the_same_key_an_embed_would() {
-    let mut schema = schema_declaring("User", &["id", "name"]);
-    schema.types[0].relationships = vec![rel("posts", "Post", Cardinality::OneToMany)];
-
-    assert_eq!(
-        required_join_keys(&schema, "User", &[], &["posts".to_string()]),
-        vec!["id"],
-        "the OneToMany parent side is `referenced_key`"
-    );
-}
-
-/// Two relationships over one column, and an embed plus a count over the same
-/// relationship, ask for the key once.
-#[test]
-fn a_key_two_selections_share_is_required_once() {
-    let mut schema = schema_declaring("User", &["id", "name"]);
-    schema.types[0].relationships = vec![
-        rel("posts", "Post", Cardinality::OneToMany),
-        rel("comments", "Comment", Cardinality::OneToMany),
-    ];
-
-    assert_eq!(
-        required_join_keys(
-            &schema,
-            "User",
-            &[embed("posts"), embed("comments")],
-            &["posts".to_string()],
-        ),
-        vec!["id"]
-    );
-}
-
-/// The required key is the **declared** spelling, since that is what the projection
-/// and the returned row both speak.
-#[test]
-fn the_required_key_is_the_declared_spelling() {
-    let mut schema = schema_declaring("Post", &["id", "fkUser"]);
-    schema.types[0].relationships = vec![rel("author", "User", Cardinality::ManyToOne)];
-
-    assert_eq!(required_join_keys(&schema, "Post", &[embed("author")], &[]), vec!["fkUser"]);
-}
-
-/// An unknown relationship or type yields nothing: refusing the request is the
-/// parameter extractor's job, and inventing a projection key here would turn a clean
-/// 400 into a confusing one.
-#[test]
-fn an_unknown_relationship_or_type_requires_nothing() {
-    let mut schema = schema_declaring("Post", &["id", "fk_user"]);
-    schema.types[0].relationships = vec![rel("author", "User", Cardinality::ManyToOne)];
-
-    assert!(required_join_keys(&schema, "Post", &[embed("nope")], &[]).is_empty());
-    assert!(required_join_keys(&schema, "Nonexistent", &[embed("author")], &[]).is_empty());
-}
-
-/// Only what was missing is added, and only what was added is reported — the report
-/// is what gets stripped, so a key the client selected must not appear in it.
-#[test]
-fn only_the_keys_the_client_did_not_select_are_added_and_reported() {
-    let mut projection = vec!["id".to_string(), "fk_user".to_string()];
-    let added =
-        project_missing_join_keys(&mut projection, &["fk_user".to_string(), "fk_team".to_string()]);
-
-    assert_eq!(added, vec!["fk_team"], "`fk_user` was already selected by the client");
-    assert_eq!(projection, vec!["id", "fk_user", "fk_team"]);
-}
-
-#[test]
-fn a_projection_already_carrying_every_key_is_untouched() {
-    let mut projection = vec!["id".to_string()];
-    assert!(project_missing_join_keys(&mut projection, &["id".to_string()]).is_empty());
-    assert_eq!(projection, vec!["id"]);
-}
-
-/// The strip runs over both response shapes — a list read and a single-resource GET.
-#[test]
-fn stripping_removes_the_named_keys_from_rows_and_from_a_single_object() {
-    let keys = vec!["fk_user".to_string()];
-
-    let mut rows = serde_json::json!([
-        {"id": 1, "fk_user": 7, "author": {"name": "alice"}},
-        {"id": 2, "fk_user": null, "author": null},
-    ]);
-    strip_projected_keys(&mut rows, &keys);
-    assert_eq!(
-        rows,
-        serde_json::json!([
-            {"id": 1, "author": {"name": "alice"}},
-            {"id": 2, "author": null},
-        ]),
-        "including the row whose key was NULL — the client asked for neither"
-    );
-
-    let mut single = serde_json::json!({"id": 1, "fk_user": 7});
-    strip_projected_keys(&mut single, &keys);
-    assert_eq!(single, serde_json::json!({"id": 1}));
-}
-
-/// Nothing to strip, nothing touched — the path every request without an embed
-/// takes.
-#[test]
-fn stripping_nothing_leaves_the_document_alone() {
-    let mut rows = serde_json::json!([{"id": 1, "fk_user": 7}]);
-    strip_projected_keys(&mut rows, &[]);
-    assert_eq!(rows, serde_json::json!([{"id": 1, "fk_user": 7}]));
-
-    let mut scalar = serde_json::json!(3);
-    strip_projected_keys(&mut scalar, &["fk_user".to_string()]);
-    assert_eq!(scalar, serde_json::json!(3));
-}
-
-#[test]
-fn set_empty_embedding_one_to_many() {
-    let mut row = serde_json::json!({"id": 1});
-    set_empty_embedding(&mut row, "posts", Cardinality::OneToMany);
-    assert_eq!(row["posts"], serde_json::json!([]));
-}
-
-#[test]
-fn set_empty_embedding_many_to_one() {
-    let mut row = serde_json::json!({"id": 1});
-    set_empty_embedding(&mut row, "author", Cardinality::ManyToOne);
-    assert!(row["author"].is_null());
-}
-
-#[test]
-fn set_empty_embedding_one_to_one() {
-    let mut row = serde_json::json!({"id": 1});
-    set_empty_embedding(&mut row, "profile", Cardinality::OneToOne);
-    assert!(row["profile"].is_null());
-}
-
-#[test]
-fn extract_query_data_standard_envelope() {
-    let parsed = serde_json::json!({
-        "data": {
-            "posts": [
-                {"id": 1, "title": "Hello"},
-                {"id": 2, "title": "World"},
-            ]
-        }
-    });
-    let data = extract_query_data(&parsed, "posts").unwrap();
-    assert!(data.is_array());
-    assert_eq!(data.as_array().unwrap().len(), 2);
-}
-
-#[test]
-fn extract_query_data_missing_query_returns_none() {
-    let parsed = serde_json::json!({"data": {}});
-    assert!(extract_query_data(&parsed, "posts").is_none());
-}
-
-#[test]
-fn find_list_query_for_type_returns_list_query() {
-    use fraiseql_core::schema::{CompiledSchema, QueryDefinition};
-
-    let mut schema = CompiledSchema::default();
-    schema.queries.push(QueryDefinition {
-        name: "post".to_string(),
-        return_type: "Post".to_string(),
-        returns_list: false,
-        ..QueryDefinition::new("post", "Post")
-    });
-    schema.queries.push(QueryDefinition {
-        name: "posts".to_string(),
-        return_type: "Post".to_string(),
-        returns_list: true,
-        ..QueryDefinition::new("posts", "Post")
-    });
-
-    let found = find_list_query_for_type(&schema, "Post");
-    assert!(found.is_some());
-    assert_eq!(found.unwrap().name, "posts");
-}
-
-/// #1329: a function-backed list query is not an embeddable target.
-///
-/// This resolver reads `schema.queries` directly, so it is the one REST path that can
-/// reach a query the derived route table excluded. Feeding one to
-/// `execute_query_direct` would answer "Query has no SQL source" — a 500 on an
-/// embedding request. The SQL-backed sibling is picked instead, and it is declared
-/// **second** on purpose: a resolver that took the first match would pass this test
-/// with the filter deleted.
-#[test]
-fn find_list_query_for_type_skips_a_function_backed_query() {
-    use fraiseql_core::schema::{CompiledSchema, QueryDefinition};
-
-    let mut schema = CompiledSchema::default();
-    schema.queries.push(
-        QueryDefinition::new("postPreviews", "Post")
-            .returning_list()
-            .with_function("preview_posts"),
-    );
-    schema
-        .queries
-        .push(QueryDefinition::new("posts", "Post").returning_list().with_sql_source("v_post"));
-
-    let found = find_list_query_for_type(&schema, "Post").expect("the SQL-backed sibling");
-    assert_eq!(
-        found.name, "posts",
-        "a function-backed query has no relation to embed from; got: {}",
-        found.name
-    );
-}
-
-/// A type whose **only** list query is function-backed embeds nothing.
-///
-/// The counterweight: without it the test above would pass for a resolver that simply
-/// preferred the last query, and this is the case that must return `None` rather than
-/// fall back to something unembeddable.
-#[test]
-fn find_list_query_for_type_returns_none_when_only_a_function_backed_query_exists() {
-    use fraiseql_core::schema::{CompiledSchema, QueryDefinition};
-
-    let mut schema = CompiledSchema::default();
-    schema.queries.push(
-        QueryDefinition::new("postPreviews", "Post")
-            .returning_list()
-            .with_function("preview_posts"),
-    );
-
-    assert!(
-        find_list_query_for_type(&schema, "Post").is_none(),
-        "a function-backed query is not an embeddable target"
-    );
-}
-
-#[test]
-fn find_list_query_for_type_no_match() {
-    let schema = fraiseql_core::schema::CompiledSchema::default();
-    assert!(find_list_query_for_type(&schema, "Post").is_none());
 }
 
 // ---------------------------------------------------------------------------
@@ -407,14 +25,6 @@ fn find_list_query_for_type_no_match() {
 // only runs in the integration shard — so without these, a regression would
 // reach `dev` through a green required leg.
 // ---------------------------------------------------------------------------
-
-fn embedded(name: &str) -> EmbeddedSpec {
-    EmbeddedSpec {
-        relationship: name.to_string(),
-        rename:       None,
-        fields:       vec![],
-    }
-}
 
 #[test]
 fn a_sub_select_separates_fields_embeds_and_counts() {
@@ -435,9 +45,6 @@ fn a_sub_select_separates_fields_embeds_and_counts() {
 
 #[test]
 fn a_count_only_sub_select_yields_a_count_and_no_fields() {
-    // The shape that also decides the recursion gate: there is no nested embed
-    // here, so a gate testing only `embeds` would skip the count *and* skip the
-    // strip of the join key projected for it.
     let split = SubSelect::split(&[SelectEntry::Count("comments".to_string())]);
 
     assert!(split.fields.is_empty());
@@ -450,90 +57,86 @@ fn an_empty_sub_select_yields_nothing() {
     assert_eq!(SubSelect::split(&[]), SubSelect::default());
 }
 
-#[test]
-fn a_nested_count_requires_the_parent_join_key_be_projected() {
-    // `required_join_keys` already took counts (#1230) and the nested call site
-    // passed `&[]`, so the key a nested count reads was never projected. This
-    // pins the argument that call site now supplies.
-    let mut schema = schema_declaring("Post", &["id", "title"]);
-    schema.types[0].relationships = vec![Relationship {
-        name:           "comments".to_string(),
-        target_type:    "Comment".to_string(),
-        cardinality:    Cardinality::OneToMany,
-        foreign_key:    "fk_post".to_string(),
-        referenced_key: "id".to_string(),
-    }];
+// ---------------------------------------------------------------------------
+// The request handed to the engine
+// ---------------------------------------------------------------------------
 
-    let via_count = required_join_keys(&schema, "Post", &[], &["comments".to_string()]);
-    assert_eq!(via_count, vec!["id".to_string()], "a count needs the parent side's key");
-
-    let none_at_all = required_join_keys(&schema, "Post", &[], &[]);
-    assert!(none_at_all.is_empty(), "the argument the call site used to pass");
+/// `?select=id,posts(id,comments(id),comments.count),posts.count`
+fn posts_with_comments() -> (Vec<EmbeddedSpec>, Vec<String>) {
+    let posts = EmbeddedSpec {
+        relationship: "posts".to_string(),
+        rename:       None,
+        fields:       vec![
+            SelectEntry::Field("id".to_string()),
+            SelectEntry::Embedded(EmbeddedSpec {
+                relationship: "comments".to_string(),
+                rename:       None,
+                fields:       vec![SelectEntry::Field("id".to_string())],
+            }),
+            SelectEntry::Count("comments".to_string()),
+        ],
+    };
+    (vec![posts], vec!["posts".to_string()])
 }
 
-/// The arithmetic of the aggregate bound. What these cannot reach — whether one tally is
-/// *shared* by every level and both passes of a request — is asserted through a served
-/// request in `rest_embedding_read_budget_e2e_pg`, because a per-level budget is
-/// indistinguishable from a shared one at this granularity.
-mod read_budget {
-    use axum::http::StatusCode;
+#[test]
+fn a_nested_selection_reaches_the_engine_whole() {
+    let (embeds, counts) = posts_with_comments();
 
-    use crate::routes::rest::embedding::budget::EmbedReadBudget;
+    let (embeds, counts) = selections(&embeds, &counts, &HashMap::new(), Some(50));
 
-    /// The limit is the number of reads admitted, not the number refused: a budget of
-    /// three serves three. An off-by-one here would refuse the last row of a page that
-    /// the operator sized the bound for exactly.
-    #[test]
-    fn a_budget_admits_exactly_its_limit() {
-        let budget = EmbedReadBudget::new(3);
-        for i in 1..=3 {
-            assert!(budget.charge().is_ok(), "read {i} is within a budget of three");
-        }
-        assert_eq!(budget.spent(), 3);
-    }
+    assert_eq!(embeds.len(), 1);
+    let posts = &embeds[0];
+    assert_eq!(posts.fields, vec!["id".to_string()]);
+    assert_eq!(posts.embeds.len(), 1, "the nested embed (#864)");
+    assert_eq!(posts.embeds[0].relationship, "comments");
+    assert_eq!(posts.counts.len(), 1, "the nested count (#1267)");
+    assert_eq!(posts.counts[0].output_key, "comments_count");
+    assert_eq!(counts.len(), 1);
+    assert_eq!(counts[0].output_key, "posts_count");
+    assert_eq!(
+        (posts.limit, posts.embeds[0].limit),
+        (Some(50), Some(50)),
+        "every level gets the page an embed always had"
+    );
+}
 
-    /// And refuses the next one, with the status and code the wire contract names.
-    #[test]
-    fn the_read_that_would_cross_the_ceiling_is_refused() {
-        let budget = EmbedReadBudget::new(2);
-        assert!(budget.charge().is_ok());
-        assert!(budget.charge().is_ok());
+#[test]
+fn a_top_level_filter_narrows_the_embed_and_its_count_alike() {
+    // #1285: one filter, read by every reader of the relation it names.
+    let (embeds, counts) = posts_with_comments();
+    let filters = HashMap::from([("posts".to_string(), json!({"status": {"eq": "published"}}))]);
 
-        let err = budget.charge().expect_err("the third read crosses a budget of two");
-        assert_eq!(err.status, StatusCode::PAYLOAD_TOO_LARGE);
-        assert_eq!(err.code, "TOO_MANY_EMBEDDED_READS");
-        assert!(
-            err.message.contains("max_embedded_reads"),
-            "the message names the knob an operator would raise: {}",
-            err.message
-        );
-    }
+    let (embeds, counts) = selections(&embeds, &counts, &filters, None);
 
-    /// Once crossed, it stays crossed — a later charge is not admitted because the
-    /// counter happened to be read differently.
-    #[test]
-    fn a_crossed_budget_refuses_every_later_read() {
-        let budget = EmbedReadBudget::new(1);
-        assert!(budget.charge().is_ok());
-        assert!(budget.charge().is_err());
-        assert!(budget.charge().is_err(), "still refused");
-    }
+    assert_eq!(embeds[0].filter, Some(json!({"status": {"eq": "published"}})));
+    assert_eq!(counts[0].filter, embeds[0].filter);
+}
 
-    /// `0` is the documented no-bound setting, matching `sse_max_replay_events`.
-    #[test]
-    fn a_zero_limit_is_unbounded() {
-        let budget = EmbedReadBudget::new(0);
-        for _ in 0..10_000 {
-            assert!(budget.charge().is_ok());
-        }
-    }
+#[test]
+fn a_nested_level_is_given_no_filter_even_one_named_like_it() {
+    // The syntax is one segment deep, so `?comments.x=` can only mean a top-level
+    // `comments`. Handing it to a nested `comments` would filter a relation the
+    // client did not name.
+    let (embeds, counts) = posts_with_comments();
+    let filters = HashMap::from([("comments".to_string(), json!({"id": {"eq": 1}}))]);
 
-    /// An unbounded budget does not tally, so `spent` is not a read counter an operator
-    /// could mistake for one when the bound is off.
-    #[test]
-    fn an_unbounded_budget_does_not_tally() {
-        let budget = EmbedReadBudget::new(0);
-        budget.charge().unwrap();
-        assert_eq!(budget.spent(), 0);
-    }
+    let (embeds, _) = selections(&embeds, &counts, &filters, None);
+
+    assert_eq!(embeds[0].embeds[0].filter, None);
+    assert_eq!(embeds[0].counts[0].filter, None);
+}
+
+#[test]
+fn a_rename_is_the_output_key() {
+    let spec = EmbeddedSpec {
+        relationship: "fk_user".to_string(),
+        rename:       Some("author".to_string()),
+        fields:       Vec::new(),
+    };
+
+    let (embeds, _) = selections(&[spec], &[], &HashMap::new(), None);
+
+    assert_eq!(embeds[0].relationship, "fk_user");
+    assert_eq!(embeds[0].output_key, "author");
 }

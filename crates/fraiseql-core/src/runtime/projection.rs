@@ -71,7 +71,7 @@ pub struct FieldMapping {
 /// the `camelCase` spelling second, for stored rows built with the surface
 /// casing. A single-word name yields the same string twice, so it has no
 /// fallback.
-fn stored_key_candidates(field_name: &str) -> (String, Option<String>) {
+pub fn stored_key_candidates(field_name: &str) -> (String, Option<String>) {
     let snake = to_snake_case(field_name);
     let camel = to_camel_case(field_name);
     let fallback = (camel != snake).then_some(camel);

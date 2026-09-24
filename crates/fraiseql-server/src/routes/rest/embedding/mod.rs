@@ -1,165 +1,31 @@
-//! Nested resource embedding executor.
+//! Nested resource embedding: `?select=` sub-selects, in the engine's terms.
 //!
-//! Executes embedded resource sub-queries based on parsed [`EmbeddedSpec`]
-//! entries from the `?select=` parameter. Supports `OneToMany` (array),
-//! `ManyToOne` (single object), and `OneToOne` (object or null) cardinalities.
+//! Supports `OneToMany` (array), `ManyToOne` (single object) and `OneToOne` (object or
+//! null) relationships, and `rel.count` totals. Empty collections return `[]`, not null;
+//! absent single objects return `null`.
 //!
-//! Empty collections return `[]`, not null. Single absent objects return `null`.
+//! **How an embed is resolved.** In one SQL statement, by the engine:
+//! [`Executor::execute_query_composed`](fraiseql_core::runtime::Executor::execute_query_composed)
+//! joins each embedded level into its parent's statement as a correlated `LATERAL`
+//! subquery with its own ordering and page, and gates every level as the read of its own
+//! target it replaces. This module only translates the parsed `?select=` into that
+//! request ([`EmbedSelection`], [`CountSelection`]); it reads nothing itself.
 //!
-//! **How an embed is resolved.** One sub-query per parent row, in Rust: the join key is
-//! read off each already-projected parent row and
-//! [`Executor::execute_query_direct`](fraiseql_core::runtime::Executor::execute_query_direct)
-//! is called for it, with the recursion running per row. This module's documentation
-//! used to say it "generates sub-queries with `jsonb_agg` / `jsonb_build_object`" — it
-//! does not, and never did; that is a description of composing the fan-out into one SQL
-//! statement, which is the shape this path should eventually take and does not have.
-//! The reads therefore multiply with the page size at each level, which is what
-//! [`budget::EmbedReadBudget`] is here to bound.
+//! It used to read everything itself: one sub-read per parent row per level, with the
+//! join key read off each already-projected parent row. The reads multiplied with the
+//! page size at each level, which is what `[rest] max_embedded_reads` existed to bound,
+//! and the join key had to be projected for the server and stripped again (#1230). Both
+//! are gone with the fan-out: the correlation is a column reference in SQL, and the
+//! statement is bounded by the request's cost and bytes ceilings like any other read.
 
-pub mod budget;
-pub mod executor;
+use std::collections::HashMap;
+
+use fraiseql_core::runtime::{CountSelection, EmbedSelection};
+
+use super::params::{EmbeddedSpec, SelectEntry};
 
 #[cfg(test)]
 mod tests;
-
-use std::{collections::HashMap, sync::Arc};
-
-use budget::EmbedReadBudget;
-use executor::{EmbedCtx, count_related, declared_key, embed_into_rows, embed_into_single};
-use fraiseql_core::{
-    schema::{CompiledSchema, RestConfig},
-    security::SecurityContext,
-};
-
-use super::{
-    handler::RestError,
-    params::{EmbeddedSpec, SelectEntry},
-};
-
-/// Parameters for embedding execution, grouping shared context.
-pub struct EmbeddingRequest<'a> {
-    /// Query executor.
-    pub executor:         &'a Arc<fraiseql_core::runtime::Executor>,
-    /// Compiled schema for type/query lookup.
-    pub schema:           &'a CompiledSchema,
-    /// REST configuration (page size limits, etc.).
-    pub config:           &'a RestConfig,
-    /// Parent type name for relationship lookup.
-    pub parent_type_name: &'a str,
-    /// Security context for RLS enforcement.
-    pub security_context: Option<&'a SecurityContext>,
-    /// The request's remaining allowance of embedded sub-reads.
-    ///
-    /// Borrowed rather than owned because the nested [`EmbeddingRequest`]s the recursion
-    /// builds must charge the **same** tally as the level above them; see
-    /// [`EmbedReadBudget`].
-    pub reads:            &'a EmbedReadBudget,
-    /// The request's remaining per-request allowances: response bytes, and the
-    /// operation cost of the reads it has issued so far.
-    ///
-    /// Borrowed for the same reason `reads` is, and shared with the **parent** read as
-    /// well: what these bound is the parent read plus everything embedded into it, so a
-    /// budget that saw only the sub-reads would bound the wrong quantity. The ceilings
-    /// themselves come from the engine (`Executor::request_budget`), not from this
-    /// transport.
-    pub request_budget:   &'a fraiseql_core::security::RequestBudget,
-}
-
-/// The parent-row keys an embedded selection needs projected, in the spelling the
-/// projected row will carry.
-///
-/// An embed is resolved by reading a join key off the **already-projected** parent
-/// row, so a key the projection omits is a key the embed cannot follow. That was
-/// #1230: `?select=id,author(name)` never projected `fk_author`, `extract_join_key`
-/// found nothing, and every post came back `"author": null` under a 200 —
-/// indistinguishable from a post that genuinely has no author. Selecting the foreign
-/// key made the same request work, so the *shape of the request* silently decided the
-/// *content of the response*.
-///
-/// The projection is the server's decision and the join key is an implementation
-/// detail of the embed, so the server adds what it needs and
-/// [`strip_projected_keys`] takes it back out again. Refusing the request instead
-/// ("select `fk_author` to embed `author`") would put the same detail into the
-/// client's contract permanently.
-///
-/// Counts are included: `count_related` extracts the identical key, so
-/// `?select=name,posts.count` counted zero for every parent.
-///
-/// Returns declared spellings, deduplicated, in selection order. Empty when the
-/// parent type is unknown or nothing is embedded.
-#[must_use]
-pub fn required_join_keys(
-    schema: &CompiledSchema,
-    parent_type_name: &str,
-    embeddings: &[EmbeddedSpec],
-    embedding_counts: &[String],
-) -> Vec<String> {
-    let Some(parent_type) = schema.find_type(parent_type_name) else {
-        return Vec::new();
-    };
-
-    let mut keys: Vec<String> = Vec::new();
-    let named = embeddings
-        .iter()
-        .map(|e| e.relationship.as_str())
-        .chain(embedding_counts.iter().map(String::as_str));
-
-    for rel_name in named {
-        // An unknown relationship is the parameter extractor's 400 to raise, not
-        // this function's; it is skipped rather than guessed at.
-        let Some(rel) = parent_type.relationships.iter().find(|r| r.name == rel_name) else {
-            continue;
-        };
-        let key = declared_key(schema, parent_type_name, rel.parent_join_column());
-        if !keys.contains(&key) {
-            keys.push(key);
-        }
-    }
-
-    keys
-}
-
-/// Extend `projection` with every key in `required` it does not already carry, and
-/// return exactly the keys added.
-///
-/// The return value is what [`strip_projected_keys`] must remove afterwards, so it
-/// names the server's additions and nothing else: a key the client selected itself is
-/// already present, is therefore not added, and is therefore never stripped.
-#[must_use]
-pub fn project_missing_join_keys(projection: &mut Vec<String>, required: &[String]) -> Vec<String> {
-    let mut added = Vec::new();
-    for key in required {
-        if !projection.iter().any(|f| f == key) {
-            projection.push(key.clone());
-            added.push(key.clone());
-        }
-    }
-    added
-}
-
-/// Remove keys the server projected for its own use from a response document.
-///
-/// `data` is either an array of rows or a single row; anything else is left alone.
-/// A no-op for the common case of an empty `keys`.
-pub fn strip_projected_keys(data: &mut serde_json::Value, keys: &[String]) {
-    if keys.is_empty() {
-        return;
-    }
-
-    let strip_row = |row: &mut serde_json::Value| {
-        if let Some(obj) = row.as_object_mut() {
-            for key in keys {
-                obj.remove(key.as_str());
-            }
-        }
-    };
-
-    match data {
-        serde_json::Value::Array(rows) => rows.iter_mut().for_each(strip_row),
-        serde_json::Value::Object(_) => strip_row(data),
-        _ => {},
-    }
-}
 
 /// A sub-select's entries, separated by kind.
 ///
@@ -204,266 +70,58 @@ impl SubSelect {
     }
 }
 
-/// Execute embedded resource sub-queries and merge results into parent rows.
-///
-/// For each [`EmbeddedSpec`] in the select, finds the matching relationship
-/// on the parent type, queries the related resource, and merges the results
-/// into the parent response JSON.
-///
-/// # Errors
-///
-/// Returns `RestError` if a relationship is not found, a sub-query fails,
-/// or the parent data cannot be parsed.
-#[allow(clippy::implicit_hasher)] // Reason: generic BuildHasher makes future non-Send
-pub async fn execute_embeddings(
-    req: &EmbeddingRequest<'_>,
-    parent_data: &mut serde_json::Value,
-    embeddings: &[EmbeddedSpec],
-    embedding_filters: &HashMap<String, serde_json::Value>,
-) -> Result<(), RestError> {
-    if embeddings.is_empty() {
-        return Ok(());
-    }
-
-    let parent_type = req.schema.find_type(req.parent_type_name).ok_or_else(|| {
-        RestError::internal(format!("Parent type not found: {}", req.parent_type_name))
-    })?;
-
-    let ctx = EmbedCtx {
-        executor:         req.executor,
-        schema:           req.schema,
-        config:           req.config,
-        parent_type:      req.parent_type_name,
-        security_context: req.security_context,
-        reads:            req.reads,
-        request_budget:   req.request_budget,
-    };
-
-    for spec in embeddings {
-        let rel = parent_type
-            .relationships
-            .iter()
-            .find(|r| r.name == spec.relationship)
-            .ok_or_else(|| {
-                RestError::bad_request(format!(
-                    "Type '{}' has no relationship '{}'",
-                    req.parent_type_name, spec.relationship
-                ))
-            })?;
-
-        let embedded_filter = embedding_filters.get(&spec.relationship);
-
-        // Determine output field name (renamed or relationship name).
-        let output_name = spec.rename.as_deref().unwrap_or(&spec.relationship);
-
-        // Every kind of entry the sub-select carries, separated in one exhaustive
-        // pass. See [`SubSelect`] for why this is not three `filter_map`s.
-        let SubSelect {
-            fields: mut sub_field_names,
-            embeds: nested,
-            counts: nested_counts,
-        } = SubSelect::split(&spec.fields);
-
-        // A nested embedding joins on a key of the *child* row, so that key has to be
-        // projected even when the client did not ask for it. Without this the recursion
-        // below would find no join value and set every nested collection empty — the
-        // same defect one level down.
-        //
-        // #1230: it also has to be taken back out. #864 added the key and returned it,
-        // so `posts(title,author(name))` answered with an `fk_author` nobody named —
-        // the response shape depending on which relationships the schema declares
-        // rather than on what was asked for. Same rule as the root projection, same
-        // pair of helpers, so the two levels cannot drift.
-        let injected = project_missing_join_keys(
-            &mut sub_field_names,
-            &required_join_keys(req.schema, &rel.target_type, &nested, &nested_counts),
-        );
-
-        // Execute embedding based on parent data shape (array or single object).
-        match parent_data {
-            serde_json::Value::Array(rows) => {
-                embed_into_rows(&ctx, rel, output_name, &sub_field_names, embedded_filter, rows)
-                    .await?;
-            },
-            serde_json::Value::Object(_) => {
-                embed_into_single(
-                    &ctx,
-                    rel,
-                    output_name,
-                    &sub_field_names,
-                    embedded_filter,
-                    parent_data,
-                )
-                .await?;
-            },
-            _ => {
-                // Non-object/array data — skip embedding silently.
-            },
-        }
-
-        // #864: recurse into the embedded rows so a validated depth actually executes.
-        // The parser builds arbitrarily nested `EmbeddedSpec`s and
-        // `validate_embedding_depth` bounds them by `max_embedding_depth`, so the depth
-        // reached here is already the validated one — validator and executor now agree by
-        // construction rather than by two separate opinions.
-        //
-        // Nested filters are not addressable in the `?rel.field=value` syntax (it is flat,
-        // one segment deep), so the recursion passes an empty filter map rather than
-        // silently reusing the parent's.
-        // #1267: the condition is `nested` OR `nested_counts`. Gating on `nested`
-        // alone would leave a count-only sub-select unexecuted *and* leak the join
-        // key this level injected for it — `strip_projected_keys` lives inside this
-        // block, so a branch that skips the recursion also skips the cleanup.
-        if !nested.is_empty() || !nested_counts.is_empty() {
-            let nested_req = EmbeddingRequest {
-                executor:         req.executor,
-                schema:           req.schema,
-                config:           req.config,
-                parent_type_name: &rel.target_type,
-                security_context: req.security_context,
-                // The same tally, not a fresh one: the product of the levels is the
-                // quantity being bounded, so a per-level budget would bound nothing.
-                reads:            req.reads,
-                // And the same per-request allowances, for the same reason one level up.
-                request_budget:   req.request_budget,
-            };
-            let no_filters = HashMap::new();
-
-            // Each parent row holds its own embedded collection, so the recursion runs
-            // per row over the value just written. The join keys this level injected
-            // are stripped only *after* the recursion and the counts have read them:
-            // `count_related` extracts the identical key, so stripping between the two
-            // would reintroduce #1230 for counts alone.
-            match parent_data {
-                serde_json::Value::Array(rows) => {
-                    for row in rows.iter_mut() {
-                        if let Some(child) = row.get_mut(output_name) {
-                            Box::pin(execute_embeddings(&nested_req, child, &nested, &no_filters))
-                                .await?;
-                            Box::pin(execute_embedding_counts(
-                                &nested_req,
-                                child,
-                                &nested_counts,
-                                &no_filters,
-                            ))
-                            .await?;
-                            strip_projected_keys(child, &injected);
-                        }
-                    }
-                },
-                serde_json::Value::Object(_) => {
-                    if let Some(child) = parent_data.get_mut(output_name) {
-                        Box::pin(execute_embeddings(&nested_req, child, &nested, &no_filters))
-                            .await?;
-                        Box::pin(execute_embedding_counts(
-                            &nested_req,
-                            child,
-                            &nested_counts,
-                            &no_filters,
-                        ))
-                        .await?;
-                        strip_projected_keys(child, &injected);
-                    }
-                },
-                _ => {},
-            }
-        }
-    }
-
-    Ok(())
+/// The key a `rel.count` total is written under.
+#[must_use]
+pub fn count_output_key(relationship: &str) -> String {
+    format!("{relationship}_count")
 }
 
-/// Execute count-only embeddings and merge counts into parent rows.
+/// The embeds and counts a request selected, as the engine takes them.
 ///
-/// For each count field (e.g., `posts.count`), adds a `{rel}_count` field
-/// to each parent row with the count of related resources — narrowed by the client's
-/// `?rel.field=value` filter for that relationship, if it sent one.
+/// `filters` is the request's `?rel.field=value` map. It is read for the **top level
+/// only**, by relationship name, and by an embed and a count of the same relationship
+/// alike — so `?select=posts(id),posts.count&posts.status=published` lists and counts
+/// the same rows (#1285). The syntax is flat, one segment deep, so no filter can name a
+/// nested selection, and the nested levels are given none rather than the parent's.
 ///
-/// # Why the count reads the same filter map as the rows
-///
-/// It did not, until #1285, and a request naming both answered with a body that
-/// contradicted itself:
-///
-/// ```text
-/// ?select=id,posts(id,title),posts.count&posts.title[eq]=a-one
-/// -> {"id":1,"posts":[{"id":10,"title":"a-one"}],"posts_count":2}
-/// ```
-///
-/// One post listed, two counted, from one filter over one relationship. That is #739's
-/// shape — a total that disagrees with the rows it is a total of — and the fix is the
-/// same: one filter, read by every reader of the relation it names, rather than applied
-/// on whichever path happened to be written to look for it.
-///
-/// It also settles what `?select=posts.count&posts.status=published` means. The parameter
-/// was accepted and validated and then not applied, so the answer was the count of *all*
-/// related rows under a `200`; the client cannot tell that from a filter that matched
-/// them all.
-///
-/// Nested counts are passed an empty map by `execute_embeddings`, as nested embeds are:
-/// the `?rel.field=` syntax is flat, one segment deep, so a filter can only ever name a
-/// top-level selection.
-///
-/// # Errors
-///
-/// Returns `RestError` if a relationship is not found or a count query fails.
-#[allow(clippy::implicit_hasher)] // Reason: generic BuildHasher makes future non-Send
-pub async fn execute_embedding_counts(
-    req: &EmbeddingRequest<'_>,
-    parent_data: &mut serde_json::Value,
-    count_fields: &[String],
-    embedding_filters: &HashMap<String, serde_json::Value>,
-) -> Result<(), RestError> {
-    if count_fields.is_empty() {
-        return Ok(());
-    }
-
-    let parent_type = req.schema.find_type(req.parent_type_name).ok_or_else(|| {
-        RestError::internal(format!("Parent type not found: {}", req.parent_type_name))
-    })?;
-
-    let ctx = EmbedCtx {
-        executor:         req.executor,
-        schema:           req.schema,
-        config:           req.config,
-        parent_type:      req.parent_type_name,
-        security_context: req.security_context,
-        reads:            req.reads,
-        request_budget:   req.request_budget,
-    };
-
-    for count_rel_name in count_fields {
-        let rel = parent_type
-            .relationships
-            .iter()
-            .find(|r| r.name == *count_rel_name)
-            .ok_or_else(|| {
-                RestError::bad_request(format!(
-                    "Type '{}' has no relationship '{count_rel_name}'",
-                    req.parent_type_name
-                ))
-            })?;
-
-        let count_key = format!("{count_rel_name}_count");
-        let embedded_filter = embedding_filters.get(count_rel_name);
-
-        match parent_data {
-            serde_json::Value::Array(rows) => {
-                for row in rows.iter_mut() {
-                    let count = count_related(&ctx, rel, row, embedded_filter).await?;
-                    if let Some(obj) = row.as_object_mut() {
-                        obj.insert(count_key.clone(), serde_json::json!(count));
-                    }
-                }
-            },
-            serde_json::Value::Object(_) => {
-                let count = count_related(&ctx, rel, parent_data, embedded_filter).await?;
-                if let Some(obj) = parent_data.as_object_mut() {
-                    obj.insert(count_key, serde_json::json!(count));
-                }
-            },
-            _ => {},
-        }
-    }
-
-    Ok(())
+/// `page` is the page each parent row gets of related rows: the deployment's
+/// `max_page_size`, as it always was for an embed.
+#[must_use]
+#[allow(clippy::implicit_hasher)] // Reason: the one caller holds a std `HashMap`
+pub fn selections(
+    embeddings: &[EmbeddedSpec],
+    counts: &[String],
+    filters: &HashMap<String, serde_json::Value>,
+    page: Option<u32>,
+) -> (Vec<EmbedSelection>, Vec<CountSelection>) {
+    let no_filters = HashMap::new();
+    let embeds = embeddings
+        .iter()
+        .map(|spec| {
+            let SubSelect {
+                fields,
+                embeds: nested,
+                counts: nested_counts,
+            } = SubSelect::split(&spec.fields);
+            let (embeds, counts) = selections(&nested, &nested_counts, &no_filters, page);
+            EmbedSelection {
+                relationship: spec.relationship.clone(),
+                output_key: spec.rename.clone().unwrap_or_else(|| spec.relationship.clone()),
+                fields,
+                filter: filters.get(&spec.relationship).cloned(),
+                limit: page,
+                embeds,
+                counts,
+            }
+        })
+        .collect();
+    let counts = counts
+        .iter()
+        .map(|relationship| CountSelection {
+            relationship: relationship.clone(),
+            output_key:   count_output_key(relationship),
+            filter:       filters.get(relationship).cloned(),
+        })
+        .collect();
+    (embeds, counts)
 }

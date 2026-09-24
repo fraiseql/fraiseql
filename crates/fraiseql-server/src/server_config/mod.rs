@@ -693,13 +693,13 @@ pub struct ServerConfig {
     /// stream. A deployment that set it to bound a runaway read would be truncating its
     /// own exports as the price, and an export cut at the timeout is a partial file
     /// delivered under a `200` — the failure this codebase refuses elsewhere by
-    /// refusing up front (`RESUME_TOO_FAR_BEHIND`, `TOO_MANY_EMBEDDED_READS`).
+    /// refusing up front (`RESUME_TOO_FAR_BEHIND`).
     ///
-    /// So it stays opt-in, and a read loop that needs bounding is bounded where the loop
-    /// is: `[rest] max_embedded_reads` is the aggregate ceiling on `?select=` embedding,
-    /// which was the runaway this note was written for. Defaulting this knob would
-    /// require moving the layer off the global router and onto the non-streaming routes
-    /// first.
+    /// So it stays opt-in, and work that needs bounding is bounded where it is decided:
+    /// `?select=` embedding, the runaway this note was written for, is one composed
+    /// statement scored by `[security.cost_budget] per_request_max` before it is sent.
+    /// Defaulting this knob would require moving the layer off the global router and
+    /// onto the non-streaming routes first.
     ///
     /// # Example (TOML)
     ///

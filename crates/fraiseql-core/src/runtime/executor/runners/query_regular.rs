@@ -37,7 +37,7 @@ use crate::{
 /// of letting `resolve_direct_read` test which transport is calling — a transport check
 /// is what a new transport gets wrong, and #1351 exists because one did.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum GatedFieldHandling {
+pub(super) enum GatedFieldHandling {
     /// Refuse the read outright when a gated field is selected.
     ///
     /// The JSON projection path: it resolves before the read and projects afterwards
@@ -54,6 +54,23 @@ enum GatedFieldHandling {
     AdjudicatePerRow,
 }
 
+/// Who scores a direct read against `[security.cost_budget] per_request_max`, and when.
+///
+/// A read is either a statement of its own, scored flat and charged as it resolves, or
+/// one level of a composed statement — which is scored as the tree it is part of, once,
+/// by whoever composes it. Charging each level flat as well would charge the composed
+/// statement twice, and charging it only per level would score a nested level without
+/// the page it is multiplied by (`DirectReadProjection`).
+#[derive(Debug, Clone, Copy)]
+pub(super) enum DirectReadCost<'a> {
+    /// Score this read flat and charge it: against the caller's request budget when it
+    /// lends one, against a budget of this read's own otherwise.
+    Flat(Option<&'a crate::security::RequestBudget>),
+    /// This read is one level of a composed statement. Its composer scores the whole
+    /// tree and charges it once, before the statement is sent.
+    Composed,
+}
+
 /// A direct read resolved down to the statement it will run (#958).
 ///
 /// Produced by [`QueryRunner::resolve_direct_read`] and consumed by both the
@@ -62,22 +79,25 @@ enum GatedFieldHandling {
 /// that built it.
 pub(in super::super) struct ResolvedDirectRead {
     /// The view to read.
-    sql_source:     String,
+    pub(super) sql_source:     String,
     /// Security conditions (RLS + `inject_params`) AND-ed with the client filter.
-    composed_where: Option<WhereClause>,
+    pub(super) composed_where: Option<WhereClause>,
     /// Enriched ORDER BY, or `None` for the view's own order.
-    order_by:       Option<Vec<crate::backend::OrderByClause>>,
+    pub(super) order_by:       Option<Vec<crate::backend::OrderByClause>>,
     /// Page size, already capped by `max_page_size` (#421).
-    limit:          Option<u32>,
+    pub(super) limit:          Option<u32>,
     /// Page offset.
-    offset:         Option<u32>,
+    pub(super) offset:         Option<u32>,
     /// Session variables to pin to the read's connection (#329).
-    session_vars:   Vec<(String, String)>,
+    pub(super) session_vars:   Vec<(String, String)>,
+    /// How many fields the read projects — what the cost estimate counts as this
+    /// level's scalars.
+    pub(super) leaf_fields:    usize,
     /// Field-level RBAC classification for the projection (#886).
-    pub access:     crate::runtime::field_filter::FieldAccessResult,
+    pub access:                crate::runtime::field_filter::FieldAccessResult,
     /// Projection for the computed fields this read selects (#959), or `None`
     /// when it selects none — see [`Self::projection_request`].
-    projection:     Option<crate::backend::SqlProjectionHint>,
+    pub(super) projection:     Option<crate::backend::SqlProjectionHint>,
     /// The `[validation] max_response_bytes` ceiling in force for this read, or
     /// `None` when the operator declared none.
     ///
@@ -85,12 +105,12 @@ pub(in super::super) struct ResolvedDirectRead {
     /// than to its delivery, and charged by whichever arm delivers the rows. The
     /// value cannot be checked at this point — what a read weighs is not knowable
     /// until it has run — so what travels is the ceiling, not a verdict.
-    response_bytes: Option<u64>,
+    response_bytes:            Option<u64>,
 }
 
 impl ResolvedDirectRead {
     /// Borrow the session variables in the shape the adapter takes.
-    fn session_pairs(&self) -> Vec<(&str, &str)> {
+    pub(super) fn session_pairs(&self) -> Vec<(&str, &str)> {
         self.session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect()
     }
 
@@ -99,7 +119,7 @@ impl ResolvedDirectRead {
     /// One per read, not one per frame: a streamed arm keeps the returned value for
     /// the whole stream so the ceiling bounds the response rather than each frame
     /// independently.
-    const fn budget(&self) -> Option<crate::security::ResponseBudget> {
+    pub(super) const fn budget(&self) -> Option<crate::security::ResponseBudget> {
         crate::security::ResponseBudget::new(self.response_bytes)
     }
 
@@ -1206,7 +1226,7 @@ impl QueryRunner {
             variables,
             security_context,
             GatedFieldHandling::RefuseAsUnsupported,
-            request_budget,
+            DirectReadCost::Flat(request_budget),
         )?;
         let session_pairs = resolved.session_pairs();
 
@@ -1290,7 +1310,7 @@ impl QueryRunner {
             variables,
             security_context,
             GatedFieldHandling::AdjudicatePerRow,
-            None,
+            DirectReadCost::Flat(None),
         )?;
 
         // The **row-shaped** view, not the query's own `sql_source`.
@@ -1598,6 +1618,40 @@ impl QueryRunner {
         })
     }
 
+    /// Charge a direct read's projection against `[security.cost_budget]
+    /// per_request_max` — the caller's request budget when it lends one, a budget of
+    /// this read's own otherwise.
+    ///
+    /// One charge site for a flat read and a composed one, so the two cannot come to
+    /// score the same projection differently.
+    ///
+    /// # Errors
+    ///
+    /// Returns the cost budget's refusal when this charge crosses the ceiling.
+    pub(super) fn charge_direct_read_cost(
+        &self,
+        query_name: &str,
+        projection: &crate::graphql::DirectReadProjection,
+        request_budget: Option<&crate::security::RequestBudget>,
+    ) -> Result<()> {
+        let own_cost = match request_budget {
+            Some(_) => None,
+            None => crate::security::CostBudget::new(self.ctx.config.max_operation_cost),
+        };
+        if let Some(budget) = request_budget
+            .and_then(crate::security::RequestBudget::cost)
+            .or(own_cost.as_ref())
+        {
+            let cost = crate::graphql::estimate_direct_read_cost(
+                query_name,
+                &self.ctx.schema.operation_cost_weights,
+                projection,
+            ) as u64;
+            budget.charge(cost)?;
+        }
+        Ok(())
+    }
+
     /// Resolve a direct read down to the SQL it will run and the field access it
     /// will project with — everything that happens *before* the database, in one
     /// place (#958).
@@ -1620,13 +1674,13 @@ impl QueryRunner {
     /// has no SQL source, when a policy or `inject_params` is configured but there is
     /// no principal to evaluate it for (fail closed, #784), or when an argument does
     /// not parse.
-    fn resolve_direct_read(
+    pub(super) fn resolve_direct_read(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
         gated_fields: GatedFieldHandling,
-        request_budget: Option<&crate::security::RequestBudget>,
+        cost: DirectReadCost<'_>,
     ) -> Result<ResolvedDirectRead> {
         // #422: operation-level authorization for the REST direct-read chokepoint.
         //       Every REST read (GET/count/streaming/embedding) and the in-core
@@ -1823,26 +1877,15 @@ impl QueryRunner {
         //
         // Still scored before the database, so the read that crosses the ceiling is
         // refused without running. Only which reads count against it has changed.
-        let own_cost = match request_budget {
-            Some(_) => None,
-            None => crate::security::CostBudget::new(self.ctx.config.max_operation_cost),
-        };
-        if let Some(budget) = request_budget
-            .and_then(crate::security::RequestBudget::cost)
-            .or(own_cost.as_ref())
-        {
-            // The projection is `flat` because this read *is* flat: the `?select=`
-            // fan-out resolves its embedded levels in Rust, one sub-read per parent
-            // row, and each of those arrives here as a read of its own. A composed
-            // `LATERAL` statement materialises those levels itself, and hands this
-            // estimator the nested projection instead — scoring, by construction, the
-            // number the fan-out accumulates here today.
-            let cost = crate::graphql::estimate_direct_read_cost(
+        //
+        // A level of a composed statement is not charged here: the statement is scored
+        // as the tree it is, once, by `resolve_composed_read` — see `DirectReadCost`.
+        if let DirectReadCost::Flat(request_budget) = cost {
+            self.charge_direct_read_cost(
                 &query_match.query_def.name,
-                &self.ctx.schema.operation_cost_weights,
                 &crate::graphql::DirectReadProjection::flat(plan.projection_fields.len(), limit),
-            ) as u64;
-            budget.charge(cost)?;
+                request_budget,
+            )?;
         }
 
         // Full-text relevance (#1284): a `?search=` request with no sort of its
@@ -1957,6 +2000,7 @@ impl QueryRunner {
             limit,
             offset,
             session_vars,
+            leaf_fields: plan.projection_fields.len(),
             access,
             projection,
             response_bytes: self.ctx.config.max_response_bytes,
@@ -1996,7 +2040,7 @@ impl QueryRunner {
             variables.as_ref(),
             security_context.as_ref(),
             GatedFieldHandling::RefuseAsUnsupported,
-            None,
+            DirectReadCost::Flat(None),
         )?;
         let rows = {
             let session_pairs = resolved.session_pairs();
@@ -2049,7 +2093,7 @@ impl QueryRunner {
     /// projection order, nested-list recasing, `__typename` stamping and mask
     /// nulling are what a *row* looks like in a response, and a streamed row that
     /// skipped any of them would be a second answer to the same question.
-    fn project_direct_rows(
+    pub(super) fn project_direct_rows(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
         access: &crate::runtime::field_filter::FieldAccessResult,

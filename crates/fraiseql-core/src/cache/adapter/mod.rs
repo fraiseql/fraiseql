@@ -1051,6 +1051,22 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.stream_with_projection(request, session_vars, routing).await
     }
 
+    /// Forwarded to the inner adapter, **uncached**.
+    ///
+    /// A composed read spans every view its embedded levels name, and this cache
+    /// invalidates by the view a read targets. A cached tree would therefore survive a
+    /// write to any view but the root's — serving related rows that no longer exist.
+    /// Caching it correctly needs invalidation by every view in the tree, which is a
+    /// change to the cache, not to this forwarder.
+    async fn execute_composed_with_session(
+        &self,
+        read: &fraiseql_db::ComposedLevel,
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        self.adapter.execute_composed_with_session(read, session_vars, routing).await
+    }
+
     /// Forwarded to the inner adapter — see
     /// [`stream_with_projection`](Self::stream_with_projection). The row-shaped
     /// read was never cached in the first place.

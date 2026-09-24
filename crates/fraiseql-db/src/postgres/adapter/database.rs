@@ -12,13 +12,15 @@ use tokio_postgres::{
 
 use super::{
     PostgresAdapter, build_projection_select_sql, build_where_select_sql,
-    build_where_select_sql_ordered, jsonb_cell, numeric::PgNumericText,
+    build_where_select_sql_ordered, composed::build_composed_select_sql, jsonb_cell,
+    numeric::PgNumericText,
 };
 use crate::{
     identifier::quote_postgres_identifier,
     postgres::pg_detail,
     traits::{
-        ColumnRowStream, DatabaseAdapter, JsonbRowStream, ProjectionRequest, SupportsMutations,
+        ColumnRowStream, ComposedLevel, DatabaseAdapter, JsonbRowStream, ProjectionRequest,
+        SupportsMutations,
     },
     types::{
         DatabaseType, JsonbValue, PoolMetrics, QueryParam, ReadRouting,
@@ -1292,6 +1294,26 @@ impl DatabaseAdapter for PostgresAdapter {
     /// streamed export and a buffered read of the same query cannot select
     /// different rows — the drift that made `execute_query_direct` disagree with
     /// `count_rows` about a tenant filter (#739).
+    async fn execute_composed_with_session(
+        &self,
+        read: &ComposedLevel,
+        session_vars: &[(&str, &str)],
+        routing: ReadRouting,
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        let (sql, typed_params) = build_composed_select_sql(read)?;
+        let param_refs = crate::types::as_sql_param_refs(&typed_params);
+
+        // See `execute_where_query_arc_with_session`: the session-free path has to
+        // carry the routing too.
+        if session_vars.is_empty() {
+            return self.execute_raw(&sql, &param_refs, routing).await.map(Arc::new);
+        }
+
+        self.execute_raw_with_session(&sql, &param_refs, session_vars, routing)
+            .await
+            .map(Arc::new)
+    }
+
     async fn stream_with_projection(
         &self,
         request: &ProjectionRequest<'_>,

@@ -1,69 +1,40 @@
-//! The **aggregate** bounds on one `?select=` request: `[rest] max_embedded_reads` on the
-//! sub-reads it performs, `[validation] max_response_bytes` on the bytes they return, and
-//! `[security.cost_budget] per_request_max` on the work they ask for.
+//! The per-request bounds on one `?select=` request: `[validation] max_response_bytes` on
+//! the bytes it returns and `[security.cost_budget] per_request_max` on the work it asks
+//! for.
 //!
-//! Three controls, one defect class, so one suite: a per-read control cannot bound a
-//! fan-out, and the only way to tell a shared budget from a per-read one is to serve a
-//! request and look at the answer.
+//! **One statement.** An embed is composed into the parent's statement — each embedded
+//! level a correlated `LATERAL` subquery with its own page — so a request is one read,
+//! and the two ceilings bound it the way they bound any read. Until this change it was a
+//! parent read plus one sub-read per parent row per level, and this suite's job was to
+//! prove that three budgets (those two and `[rest] max_embedded_reads`, a tally of the
+//! sub-reads) were *shared* by every read of the request. There is nothing left to share
+//! a budget with, and the tally is retired with the fan-out it counted.
 //!
-//! Embedding resolves a relationship with **one sub-read per parent row**, recursing per
-//! row, so the reads one request performs are the *product* of the page sizes at each
-//! level. Every control that existed before this one sees a single sub-read — the cost
-//! gate scores one, `[validation] max_response_bytes` charges one, `[rest] max_page_size`
-//! clamps one — and each sub-read here is individually cheap, so the product was
-//! unbounded: `?select=a(b(c))&limit=1000` is ~10⁹ sequential sub-reads, each holding a
-//! pool connection.
+//! What remains to prove is that the one read is charged for **everything it composes**:
 //!
-//! **Why a real database, and why this file exists at all.** The budget's arithmetic is
-//! unit-tested next to the type. What cannot be unit-tested is the thing that actually
-//! goes wrong: whether one tally is *shared* by every level and both passes of a request.
-//! `EmbeddingRequest` is rebuilt for each nested level (`embedding/mod.rs`) and
-//! `EmbedCtx` is rebuilt for the rows pass and again for the counts pass, and a budget
-//! rebuilt along with either of them would bound each piece and leave their product
-//! unbounded — a control that reads as enforced and is not. Only a served request can
-//! tell the two apart, so the sharing is asserted here, through the wire:
+//! * the cost of the whole tree, scored before the statement is sent — every nesting level, and
+//!   every embedded `.count`, which the fan-out's `count_rows` never charged;
+//! * the bytes of the embedded rows, not only the parent's.
 //!
-//! * `rows_and_counts_of_one_request_share_one_tally` fails if the counts pass gets its own budget
-//! * `every_nesting_level_charges_the_same_tally` fails if the nested request gets its own budget
+//! **Every figure is bracketed.** Each ceiling test serves the request at exactly the
+//! predicted charge and refuses it one below, so the number is pinned from both sides and
+//! read off the running system rather than restated from the arithmetic that predicted it.
 //!
-//! Both were confirmed to fail under exactly those mutations — see the commit body.
+//! **The composed score is a bound, not a measurement.** A composed statement is charged
+//! its full page at every level, whatever rows exist. The fan-out stopped at the rows
+//! that existed, so on a small table it charged less: `users?select=id,orders(id,total)`
+//! over this fixture's two users was charged 503 and is now charged 20 201 — the charge
+//! for a full default page of 100 users. At a **full** page the two are equal by
+//! construction (`4369e56e2`), which `the_composed_statement_is_charged_what_the_fan_out_was`
+//! reads off the fixture; `an_unpaged_embed_is_charged_its_full_page` states the other
+//! half, so the change in what a deployment's ceiling admits is pinned rather than
+//! discovered.
 //!
-//! The bytes ceiling has the same shape and one more sharing edge, because the response it
-//! bounds is the parent rows **plus** everything embedded into them: the parent read and
-//! every sub-read must charge one budget.
-//! `the_parent_read_and_its_embeds_share_one_bytes_ceiling` fails if any of them gets its
-//! own, and it establishes its own window rather than hard-coding one — it asserts, at the
-//! same ceiling, that the parent read alone is served and that a read *larger than either
-//! sub-read* is served, so the only thing left to refuse the embed is the aggregate.
-//!
-//! The cost ceiling is the third of the same kind, and the one the composed `LATERAL`
-//! statement keeps: `per_request_max` is a bound on what *a request* asks for, and
-//! `resolve_direct_read` scored each read against it alone.
-//! `the_parent_read_and_its_embeds_share_one_cost_ceiling` and
-//! `every_nesting_level_charges_the_same_cost_tally` each establish their own window, the
-//! same way the bytes test does.
-//!
-//! **What this suite does not cover, deliberately.** The `.count` pass is charged against
-//! the reads tally and not against the cost ceiling, because it goes through
-//! `Executor::count_rows` — a second read chokepoint that has never carried a cost gate at
-//! all (the same "second chokepoint" class as #1122 and #1166 on that function). Giving it
-//! one is a separate change and needs its own answer to what a `COUNT(*)` over a filtered
-//! view is worth; under `estimate_direct_read_cost` it would score 1.
-//!
-//! `the_composed_score_is_what_the_fan_out_charges` is the fourth, and it is about the
-//! change that has not landed yet: the score a composed `LATERAL` statement will be
-//! charged has to be the one the fan-out accumulates today, or the ceiling moves when the
-//! execution shape does. It measures the fan-out's total through the wire — by the ceiling
-//! at which the request flips from served to refused — and asserts
-//! `estimate_direct_read_cost` predicts exactly that number from the nested projection.
-//! The unit tests beside the estimator assert the identity algebraically at every depth;
-//! this one is what says the algebra describes the running system.
-//!
-//! The refusal is a `413`, before the response is assembled, rather than a short answer:
+//! The cost refusal is a `400` for the reason its variant documents — a per-request
+//! ceiling is permanent for the request as issued, where a spent rolling window would be
+//! a retryable `429`. The bytes refusal is a `413`, before the response is assembled:
 //! an embed served in part is indistinguishable from a parent that genuinely has fewer
-//! related rows, which is #1230's failure shape under a `200`. The cost refusal is a `400`
-//! for the reason its variant documents — a per-request ceiling is permanent for the
-//! request as issued, where a spent rolling window would be a retryable `429`.
+//! related rows, which is #1230's failure shape under a `200`.
 //!
 //! Self-skips when no `DATABASE_URL` is set (no `#[ignore]`), so it is inert in the
 //! database-free `test` leg and runs in the Dagger `integration: server` suite.
@@ -100,21 +71,10 @@ const SCHEMA: &str = "p1351_budget";
 /// Two users with two orders each, and relationships declared in both directions.
 ///
 /// The second direction is what makes a two-level embed reachable at all:
-/// `users?select=orders(user(...))` walks `User -> Order -> User`, which is the shape
-/// whose read count is a product rather than a sum. The fixture's sizes are chosen so
-/// every request below has an exactly known cost:
-///
-/// | request | sub-reads |
-/// |---|---|
-/// | `?select=id,orders(id)` | 2 — one per user |
-/// | `?select=id,orders.count` | 2 — one per user |
-/// | `?select=id,orders(id),orders.count` | 4 — both passes, one each per user |
-/// | `?select=id,orders(id,user(name))` | 6 — 2 for the orders, then one per order |
-fn fraiseql_toml(
-    max_embedded_reads: u64,
-    max_response_bytes: Option<u64>,
-    per_request_max: Option<u64>,
-) -> String {
+/// `users?select=orders(user(...))` walks `User -> Order -> User`. Two users is what
+/// makes `?limit=2` a **full** page, where the composed charge is exact rather than a
+/// bound.
+fn fraiseql_toml(max_response_bytes: Option<u64>, per_request_max: Option<u64>) -> String {
     // Omitted rather than set to a sentinel when absent: "no ceiling declared" is the
     // shape the engine distinguishes, and a rig that always wrote a number could not
     // exercise it.
@@ -135,7 +95,6 @@ database_target = "postgresql"
 {validation}{cost_budget}
 [rest]
 enabled = true
-max_embedded_reads = {max_embedded_reads}
 
 [types.User]
 sql_source = "{SCHEMA}.v_user"
@@ -224,32 +183,23 @@ impl Rig {
     }
 }
 
-/// Compile the document above with the real compiler and mount the REST router on it.
-///
-/// Goes through the compiler rather than hand-building a `RestConfig` deliberately: the
-/// defect class this control belongs to is a knob an operator can write, that parses, and
-/// that does nothing. A rig that set the field directly would pass against exactly that.
-async fn rig(max_embedded_reads: u64) -> Option<Rig> {
-    rig_with(max_embedded_reads, None, None).await
-}
-
 /// The rig, with a `[security.cost_budget] per_request_max` ceiling and no other bound.
 async fn rig_cost(per_request_max: u64) -> Option<Rig> {
-    rig_with(0, None, Some(per_request_max)).await
+    rig_with(None, Some(per_request_max)).await
 }
 
-/// The rig, with whichever of the two aggregate ceilings the caller declares.
-async fn rig_with(
-    max_embedded_reads: u64,
-    max_response_bytes: Option<u64>,
-    per_request_max: Option<u64>,
-) -> Option<Rig> {
+/// The rig, with whichever of the two ceilings the caller declares.
+///
+/// Compiles the document with the real compiler rather than hand-building a config
+/// deliberately: the defect class these controls belong to is a knob an operator can
+/// write, that parses, and that does nothing. A rig that set the field directly would pass
+/// against exactly that.
+async fn rig_with(max_response_bytes: Option<u64>, per_request_max: Option<u64>) -> Option<Rig> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
     seed(&adapter).await;
 
-    let (schema, temp_dir) =
-        compile_document(max_embedded_reads, max_response_bytes, per_request_max).await;
+    let (schema, temp_dir) = compile_document(max_response_bytes, per_request_max).await;
 
     // The schema-derived runtime config, not the default one. `Executor::new` takes
     // `RuntimeConfig::default()`, whose `max_response_bytes` is `None` however the
@@ -273,17 +223,13 @@ async fn rig_with(
 /// Its own function, and free of the database, so that
 /// `the_document_loads_without_a_database` loads exactly what `rig_with` serves.
 async fn compile_document(
-    max_embedded_reads: u64,
     max_response_bytes: Option<u64>,
     per_request_max: Option<u64>,
 ) -> (CompiledSchema, TempDir) {
     let temp_dir = TempDir::new().expect("temp dir");
     let toml_path = temp_dir.path().join("fraiseql.toml");
-    std::fs::write(
-        &toml_path,
-        fraiseql_toml(max_embedded_reads, max_response_bytes, per_request_max),
-    )
-    .expect("write fraiseql.toml");
+    std::fs::write(&toml_path, fraiseql_toml(max_response_bytes, per_request_max))
+        .expect("write fraiseql.toml");
 
     let (compiled, _) = compile_to_schema(CompileOptions {
         skip_hash: true,
@@ -301,137 +247,38 @@ async fn compile_document(
     (schema, temp_dir)
 }
 
-/// The refusal a crossed budget owes the client.
-fn assert_refused(status: StatusCode, body: &Value) {
-    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE, "expected the budget refusal: {body}");
-    assert_eq!(
-        body.get("error").and_then(|e| e.get("code")).and_then(Value::as_str),
-        Some("TOO_MANY_EMBEDDED_READS"),
-        "refused by the budget rather than by something else: {body}"
-    );
-    assert!(
-        body.get("error")
-            .and_then(|e| e.get("message"))
-            .and_then(Value::as_str)
-            .is_some_and(|m| m.contains("max_embedded_reads")),
-        "the message names the knob an operator would raise: {body}"
-    );
-}
-
-/// The accepted half of the pair. A budget that refused every embed would pass a test
-/// that only asserted the refusal, so the same request under a sufficient budget is
-/// asserted to serve the *right rows* — not merely a 200.
+/// Both levels of a two-level embed execute, and each serves the right rows — the
+/// correctness baseline the ceilings below are asserted against.
 #[tokio::test]
-async fn an_embed_within_its_budget_is_served_in_full() {
-    let Some(rig) = rig(2).await else {
+async fn a_nested_embed_is_served_in_full() {
+    let Some(rig) = rig_with(None, None).await else {
         eprintln!("skipping: DATABASE_URL not set");
         return;
     };
 
-    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,total)").await;
-    assert_eq!(status, StatusCode::OK, "two reads against a budget of two: {body}");
+    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,user(name))").await;
+    assert_eq!(status, StatusCode::OK, "no ceiling declared: {body}");
 
     let rows = body.get("data").and_then(Value::as_array).unwrap();
     assert_eq!(rows.len(), 2, "both users: {body}");
-    for row in rows {
-        assert_eq!(
-            row.get("orders").and_then(Value::as_array).map(Vec::len),
-            Some(2),
-            "every parent's orders are all there — a budget must not truncate: {body}"
-        );
+    for (user, name) in [(1, "alice"), (2, "bob")] {
+        let row = rows
+            .iter()
+            .find(|r| r.get("id").and_then(Value::as_i64) == Some(user))
+            .unwrap_or_else(|| panic!("user {user}: {body}"));
+        let orders = row.get("orders").and_then(Value::as_array).unwrap();
+        assert_eq!(orders.len(), 2, "every parent's orders, and only its own: {body}");
+        for order in orders {
+            assert_eq!(
+                order.get("user").and_then(|u| u.get("name")).and_then(Value::as_str),
+                Some(name),
+                "the second level resolved against its own parent row: {body}"
+            );
+        }
     }
 }
 
-/// The rejected half. One read fewer than the request needs, and it is refused rather
-/// than answered with the one parent that fitted.
-#[tokio::test]
-async fn an_embed_that_would_cross_its_budget_is_refused() {
-    let Some(rig) = rig(1).await else {
-        eprintln!("skipping: DATABASE_URL not set");
-        return;
-    };
-
-    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,total)").await;
-    assert_refused(status, &body);
-}
-
-/// **The counts pass charges the same tally as the rows pass.**
-///
-/// Four sub-reads against a budget of two. Each pass on its own would fit, so this is
-/// refused only if they share one budget — which is the point: they are reads issued
-/// against the same pool on behalf of the same request. A `RestHandler` that built a
-/// second budget for `execute_embedding_counts` answers `200` here.
-#[tokio::test]
-async fn rows_and_counts_of_one_request_share_one_tally() {
-    let Some(rig) = rig(2).await else {
-        eprintln!("skipping: DATABASE_URL not set");
-        return;
-    };
-
-    // Each pass alone fits in two.
-    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id)").await;
-    assert_eq!(status, StatusCode::OK, "the rows pass alone fits: {body}");
-    let (status, body) = rig.get("/rest/v1/users?select=id,orders.count").await;
-    assert_eq!(status, StatusCode::OK, "the counts pass alone fits: {body}");
-
-    // Together they are four, and four does not.
-    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id),orders.count").await;
-    assert_refused(status, &body);
-}
-
-/// **Every nesting level charges the same tally.**
-///
-/// Six sub-reads against a budget of **four**: two for the users' orders, then one per
-/// order for its user.
-///
-/// The budget is four rather than two on purpose, and the number is the whole test.
-/// Each level fits in four on its own — level one needs two, level two needs four — so
-/// only a tally *shared across levels* refuses this request. At a budget of two the test
-/// would pass against a budget rebuilt per level too, since level two alone would already
-/// exceed it; that version was written first and confirmed to survive the mutation, which
-/// is what this comment exists to stop someone re-introducing.
-#[tokio::test]
-async fn every_nesting_level_charges_the_same_tally() {
-    let Some(rig) = rig(4).await else {
-        eprintln!("skipping: DATABASE_URL not set");
-        return;
-    };
-
-    // Level one on its own is two reads, well inside four.
-    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id)").await;
-    assert_eq!(status, StatusCode::OK, "one level alone fits in four: {body}");
-
-    // Both levels are six, and six does not.
-    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,user(name))").await;
-    assert_refused(status, &body);
-}
-
-/// `0` is the documented no-bound setting, and it has to actually mean it: the six-read
-/// request above is served in full, nested embed included.
-#[tokio::test]
-async fn a_zero_budget_is_unbounded() {
-    let Some(rig) = rig(0).await else {
-        eprintln!("skipping: DATABASE_URL not set");
-        return;
-    };
-
-    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,user(name))").await;
-    assert_eq!(status, StatusCode::OK, "zero means no bound: {body}");
-
-    let rows = body.get("data").and_then(Value::as_array).unwrap();
-    let alice = rows
-        .iter()
-        .find(|r| r.get("id").and_then(Value::as_i64) == Some(1))
-        .unwrap_or_else(|| panic!("alice: {body}"));
-    let first_order = alice.get("orders").and_then(Value::as_array).unwrap().first().unwrap();
-    assert_eq!(
-        first_order.get("user").and_then(|u| u.get("name")).and_then(Value::as_str),
-        Some("alice"),
-        "the second level really executed: {body}"
-    );
-}
-
-// ── `[validation] max_response_bytes`, on the request rather than on each read ──
+// ── `[validation] max_response_bytes` ──
 
 /// The refusal a crossed bytes ceiling owes the client.
 fn assert_too_large(status: StatusCode, body: &Value) {
@@ -450,46 +297,36 @@ fn assert_too_large(status: StatusCode, body: &Value) {
     );
 }
 
-/// **The parent read and every embedded sub-read charge one bytes ceiling.**
+/// **The embedded rows are charged, not only the parent's.**
 ///
 /// `[validation] max_response_bytes` bounds *a response*, and this representation's
-/// response is the parent rows plus everything embedded into them. Charged per read
-/// instead, a `?select=` answered with a large body in many individually small sub-reads
-/// crosses the ceiling as often as it likes and is refused never.
+/// response is the parent rows plus everything embedded into them. On this fixture the
+/// parent rows alone are charged 84 bytes and the composed statement 424 — the parent's
+/// documents plus each order's `id` and `total`. Served at exactly 424 and refused at 423,
+/// with the parent read alone served at that same 423: a statement charged for anything
+/// less than its embeds fits under it.
 ///
-/// **The ceiling is not a magic number: the test establishes its own window.** At 400
-/// bytes it first asserts two requests are *served* —
-///
-/// * `users?select=id` — the parent read on its own;
-/// * `orders?select=id,total` — all four orders in **one** read, which is strictly larger than
-///   either of the two-order sub-reads the embed issues;
-///
-/// — so 400 is known to exceed the parent read and every sub-read individually. The embed
-/// request is then refused, and the aggregate is the only quantity left that could refuse
-/// it. A budget rebuilt per read serves it `200`.
-///
-/// (For the record, on this fixture: a user row is charged 43 and 41 bytes, an order row
-/// 88. Parent 84 + two sub-reads of 176 = 436 > 400, while the largest single read is the
-/// 352 of `orders`. The assertions above are what the test relies on; these figures are
-/// why 400 was chosen.)
+/// (The fan-out this replaces was charged 436 for the same answer: each sub-read returned
+/// the whole order document, `fk_user` included. An embedded level now returns the keys
+/// selected and nothing else.)
 #[tokio::test]
-async fn the_parent_read_and_its_embeds_share_one_bytes_ceiling() {
-    let Some(rig) = rig_with(0, Some(400), None).await else {
+async fn the_embedded_rows_are_charged_with_the_parent_rows() {
+    let uri = "/rest/v1/users?select=id,orders(id,total)";
+
+    let Some(rig) = rig_with(Some(424), None).await else {
         eprintln!("skipping: DATABASE_URL not set");
         return;
     };
+    let (status, body) = rig.get(uri).await;
+    assert_eq!(status, StatusCode::OK, "424 bytes fit under 424: {body}");
 
+    let Some(rig) = rig_with(Some(423), None).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
     let (status, body) = rig.get("/rest/v1/users?select=id").await;
-    assert_eq!(status, StatusCode::OK, "the parent read alone is under the ceiling: {body}");
-
-    let (status, body) = rig.get("/rest/v1/orders?select=id,total").await;
-    assert_eq!(
-        status,
-        StatusCode::OK,
-        "one read of all four orders — larger than either sub-read — is under it too: {body}"
-    );
-
-    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,total)").await;
+    assert_eq!(status, StatusCode::OK, "the parent rows alone fit under 423: {body}");
+    let (status, body) = rig.get(uri).await;
     assert_too_large(status, &body);
 }
 
@@ -498,13 +335,13 @@ async fn the_parent_read_and_its_embeds_share_one_bytes_ceiling() {
 /// #1230's shape under a `200`.
 #[tokio::test]
 async fn an_embed_inside_the_bytes_ceiling_is_served_in_full() {
-    let Some(rig) = rig_with(0, Some(10_000), None).await else {
+    let Some(rig) = rig_with(Some(10_000), None).await else {
         eprintln!("skipping: DATABASE_URL not set");
         return;
     };
 
     let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,total)").await;
-    assert_eq!(status, StatusCode::OK, "436 bytes against a ceiling of 10 000: {body}");
+    assert_eq!(status, StatusCode::OK, "424 bytes against a ceiling of 10 000: {body}");
 
     let rows = body.get("data").and_then(Value::as_array).unwrap();
     assert_eq!(rows.len(), 2, "both users: {body}");
@@ -517,7 +354,7 @@ async fn an_embed_inside_the_bytes_ceiling_is_served_in_full() {
     }
 }
 
-// ── `[security.cost_budget] per_request_max`, on the request rather than on each read ──
+// ── `[security.cost_budget] per_request_max` ──
 
 /// The refusal a crossed cost ceiling owes the client.
 fn assert_cost_refused(status: StatusCode, body: &Value) {
@@ -536,135 +373,35 @@ fn assert_cost_refused(status: StatusCode, body: &Value) {
     );
 }
 
-/// **The parent read and every embedded sub-read charge one cost ceiling.**
-///
-/// `[security.cost_budget] per_request_max` bounds what *a request* asks for. This
-/// representation's request is the parent read plus one sub-read per parent row per
-/// level, and `resolve_direct_read` scored each of them against the ceiling on its own —
-/// so a request made of many individually cheap sub-reads passed the ceiling once per
-/// read and crossed it never.
-///
-/// **The ceiling is not a magic number: the test establishes its own window.** At 350 it
-/// first asserts two requests are *served* —
-///
-/// * `users?select=id` — the parent read on its own, which scores `1 + 1 field x 100`;
-/// * `orders?select=id,total,fk_user&limit=100` — one read of three fields at the same page size,
-///   scoring `1 + 3 x 100`, which is **strictly more** than either sub-read the embed issues.
-///
-/// — so 350 is known to exceed the parent read and every sub-read individually. The embed
-/// request is then refused, and the aggregate is the only quantity left that could refuse
-/// it. Scored per read, the same ceiling serves all three.
-///
-/// (For the record, on this fixture: parent 101, each `orders(id,total)` sub-read 201,
-/// total 503; the control read is 301. The assertions above are what the test relies on;
-/// these figures are why 350 was chosen.)
-#[tokio::test]
-async fn the_parent_read_and_its_embeds_share_one_cost_ceiling() {
-    let Some(rig) = rig_cost(350).await else {
+/// Serve `uri` at a cost ceiling of exactly `charge` and refuse it at one below.
+async fn assert_charged(uri: &str, charge: u64) {
+    let Some(rig) = rig_cost(charge).await else {
         eprintln!("skipping: DATABASE_URL not set");
         return;
     };
+    let (status, body) = rig.get(uri).await;
+    assert_eq!(status, StatusCode::OK, "{uri} fits under its own charge of {charge}: {body}");
 
-    let (status, body) = rig.get("/rest/v1/users?select=id").await;
-    assert_eq!(status, StatusCode::OK, "the parent read alone is under the ceiling: {body}");
-
-    let (status, body) = rig.get("/rest/v1/orders?select=id,total,fk_user&limit=100").await;
-    assert_eq!(
-        status,
-        StatusCode::OK,
-        "one read scoring more than either sub-read is under it too: {body}"
-    );
-
-    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,total)").await;
+    let Some(rig) = rig_cost(charge - 1).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let (status, body) = rig.get(uri).await;
     assert_cost_refused(status, &body);
 }
 
-/// **Every nesting level charges the same cost tally.**
+/// **The composed statement is charged what the fan-out it replaces was.**
 ///
-/// The ceiling is 600 and the number is the whole test. `?select=id,orders(id,user(name))`
-/// scores 907 in total, and it is refused. But the level that refuses it is the *second*
-/// one: the parent read and the whole first level together score 503, which is inside 600.
-///
-/// So a budget rebuilt for the nested `EmbeddingRequest` — the one mutation this file
-/// exists to catch, since `embedding/mod.rs` rebuilds that struct per level — answers
-/// `200` here: 503 on the first budget, 404 on the second, neither over 600. Only a tally
-/// carried across levels refuses it.
-///
-/// The control is level one on its own (303), served, so the ceiling is known not to be
-/// refusing the shape rather than the total.
-#[tokio::test]
-async fn every_nesting_level_charges_the_same_cost_tally() {
-    let Some(rig) = rig_cost(600).await else {
-        eprintln!("skipping: DATABASE_URL not set");
-        return;
-    };
-
-    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id)").await;
-    assert_eq!(status, StatusCode::OK, "one level alone scores 303, inside 600: {body}");
-
-    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,user(name))").await;
-    assert_cost_refused(status, &body);
-}
-
-/// The accepted half. A ceiling the whole request fits under serves every level in full —
-/// so the shared tally bounds the request rather than truncating it, which is #1230's
-/// shape under a `200`. Without this, the two tests above would pass against a budget that
-/// refused everything.
-#[tokio::test]
-async fn an_embed_inside_the_cost_ceiling_is_served_in_full() {
-    let Some(rig) = rig_cost(1000).await else {
-        eprintln!("skipping: DATABASE_URL not set");
-        return;
-    };
-
-    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,user(name))").await;
-    assert_eq!(status, StatusCode::OK, "907 against a ceiling of 1000: {body}");
-
-    let rows = body.get("data").and_then(Value::as_array).unwrap();
-    assert_eq!(rows.len(), 2, "both users: {body}");
-    let alice = rows
-        .iter()
-        .find(|r| r.get("id").and_then(Value::as_i64) == Some(1))
-        .unwrap_or_else(|| panic!("alice: {body}"));
-    let orders = alice.get("orders").and_then(Value::as_array).unwrap();
-    assert_eq!(orders.len(), 2, "every parent's orders are all there: {body}");
-    assert_eq!(
-        orders[0].get("user").and_then(|u| u.get("name")).and_then(Value::as_str),
-        Some("alice"),
-        "the second level really executed: {body}"
-    );
-}
-
-/// **The score a composed statement will carry is the one the fan-out charges today.**
-///
-/// The standing ruling is to compose the `?select=` fan-out into the parent statement
-/// with `LATERAL` + `jsonb_agg`. When that lands, the embedded levels arrive in **one**
-/// read, and `resolve_direct_read` charges that read once. Scored as a flat projection it
-/// would be charged for the parent's own columns alone — 3, here — and
-/// `[security.cost_budget] per_request_max` would quietly stop bounding the embed at all,
-/// without the number the operator wrote having changed.
-///
-/// So the estimator scores a **nested** projection, with the document path's arithmetic,
-/// and the property that makes that the right arithmetic rather than a chosen one is
-/// measured here: for a parent of `p` scalars over a page of `M` with an embed of `c`
-/// scalars over a page of `m`, the fan-out charges `1 + p·M` for the parent read and one
-/// sub-read of `1 + c·m` per parent row — `1 + M·(p + 1 + c·m)` at a full page — and that
-/// is exactly what `field_complexity` scores for the composed shape.
+/// `4369e56e2` measured the fan-out's total for this request through the wire — 405, a
+/// parent read of `1 + 1×2` and two sub-reads of `1 + 2×100` — and showed that the
+/// document path's arithmetic scores the composed shape at the same number. This is that
+/// measurement repeated against the statement that replaced the fan-out: the ceiling an
+/// operator wrote means the same request it did.
 ///
 /// `?limit=2` against a fixture holding exactly two users is what makes the page **full**,
-/// so the model's worst case is the measured case and the two numbers are comparable at
-/// all. At any larger page the fan-out charges less than the composed statement will,
-/// because it stops at the rows that exist; the composed score is the bound, and a bound
-/// is what the ceiling is for.
-///
-/// Nothing here is hard-coded from the arithmetic: the total is read off the running
-/// fixture by bracketing the ceiling — served at exactly the predicted score, refused one
-/// below it — which pins the number from both sides. The child's page of 100 is the REST
-/// default rather than the parent's `?limit=`, and the bracket is what would falsify that
-/// if it were otherwise.
+/// the case in which the two are equal.
 #[tokio::test]
-async fn the_composed_score_is_what_the_fan_out_charges() {
-    // `users?select=id,orders(id,total)&limit=2` as one composed statement.
+async fn the_composed_statement_is_charged_what_the_fan_out_was() {
     let composed = DirectReadProjection {
         leaf_fields: 1,
         limit:       Some(2),
@@ -682,25 +419,69 @@ async fn the_composed_score_is_what_the_fan_out_charges() {
          derived, so a change that moved both sides of the identity still fails something"
     );
 
-    let uri = "/rest/v1/users?select=id,orders(id,total)&limit=2";
+    assert_charged("/rest/v1/users?select=id,orders(id,total)&limit=2", predicted).await;
+}
 
-    let Some(rig) = rig_cost(predicted).await else {
+/// **Every nesting level is in the score.**
+///
+/// `users?select=id,orders(id,user(name))&limit=2` is charged 20 405: two users, each
+/// with a page of 100 orders, each with a page of 100 users. The first level alone is
+/// 205, so a score that dropped the second level — or charged each level on its own —
+/// serves this request at 20 404.
+#[tokio::test]
+async fn every_nesting_level_is_in_the_score() {
+    assert_charged("/rest/v1/users?select=id,orders(id,user(name))&limit=2", 20_405).await;
+}
+
+/// **An embedded count is charged with the statement.**
+///
+/// A count is a level projecting nothing, which scores 1, so it adds one per parent row:
+/// 207 where the same request without it is 205. The fan-out never charged it — counts
+/// went through `count_rows`, which has no cost gate — and composed into the statement,
+/// the work is the statement's.
+#[tokio::test]
+async fn an_embedded_count_is_charged_with_the_statement() {
+    assert_charged("/rest/v1/users?select=id,orders(id),orders.count&limit=2", 207).await;
+}
+
+/// **An unpaged embed is charged its full page.**
+///
+/// The behavioural change this composition makes, pinned rather than discovered. Without
+/// `?limit=` the parent page is the REST default of 100, and the composed statement is
+/// charged for 100 parents whatever the table holds: 20 201, where the fan-out over this
+/// fixture's two users was charged 503. The ceiling is a bound, so the composed statement
+/// is charged the most the request could read — never less than the fan-out was.
+#[tokio::test]
+async fn an_unpaged_embed_is_charged_its_full_page() {
+    assert_charged("/rest/v1/users?select=id,orders(id,total)", 20_201).await;
+}
+
+/// The accepted half. A ceiling the whole request fits under serves every level in full —
+/// so the charge bounds the request rather than truncating it, which is #1230's shape
+/// under a `200`.
+#[tokio::test]
+async fn an_embed_inside_the_cost_ceiling_is_served_in_full() {
+    let Some(rig) = rig_cost(20_405).await else {
         eprintln!("skipping: DATABASE_URL not set");
         return;
     };
-    let (status, body) = rig.get(uri).await;
+
+    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,user(name))&limit=2").await;
+    assert_eq!(status, StatusCode::OK, "20 405 against a ceiling of 20 405: {body}");
+
+    let rows = body.get("data").and_then(Value::as_array).unwrap();
+    assert_eq!(rows.len(), 2, "both users: {body}");
+    let alice = rows
+        .iter()
+        .find(|r| r.get("id").and_then(Value::as_i64) == Some(1))
+        .unwrap_or_else(|| panic!("alice: {body}"));
+    let orders = alice.get("orders").and_then(Value::as_array).unwrap();
+    assert_eq!(orders.len(), 2, "every parent's orders are all there: {body}");
     assert_eq!(
-        status,
-        StatusCode::OK,
-        "the fan-out's total is exactly the composed score, so it fits under it: {body}"
+        orders[0].get("user").and_then(|u| u.get("name")).and_then(Value::as_str),
+        Some("alice"),
+        "the second level really executed: {body}"
     );
-
-    let Some(rig) = rig_cost(predicted - 1).await else {
-        eprintln!("skipping: DATABASE_URL not set");
-        return;
-    };
-    let (status, body) = rig.get(uri).await;
-    assert_cost_refused(status, &body);
 }
 
 /// The document this suite serves loads, checked with no database.
@@ -713,6 +494,6 @@ async fn the_composed_score_is_what_the_fan_out_charges() {
 /// Both shapes the rigs write: every optional section absent, and every one declared.
 #[tokio::test]
 async fn the_document_loads_without_a_database() {
-    compile_document(0, None, None).await;
-    compile_document(2, Some(10_000), Some(1000)).await;
+    compile_document(None, None).await;
+    compile_document(Some(10_000), Some(1000)).await;
 }

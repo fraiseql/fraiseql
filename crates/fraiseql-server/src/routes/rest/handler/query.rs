@@ -9,7 +9,7 @@ use serde_json::json;
 use super::{
     RestHandler,
     headers::{set_preference_applied, set_request_id},
-    prefer::{CountPreference, PreferHeader},
+    prefer::PreferHeader,
     response::{RestError, RestResponse},
     routing::ResolvedGetQuery,
     search::plan_search,
@@ -590,9 +590,6 @@ impl RestHandler<'_> {
             query_match,
             variables: variables_json,
             params,
-            // Widened by `with_embed_join_keys` on the JSON path only; see
-            // `ResolvedGetQuery::server_projected_keys`.
-            server_projected_keys: Vec::new(),
         })
     }
 
@@ -609,15 +606,7 @@ impl RestHandler<'_> {
         headers: &HeaderMap,
         security_context: Option<&SecurityContext>,
     ) -> Result<RestResponse, RestError> {
-        // #1230: an embed is resolved by reading a join key off the already-projected
-        // parent row, so the projection has to carry that key even when the client did
-        // not select it — and give it back afterwards. Applied here rather than inside
-        // `resolve_get_query` because this is the representation that executes
-        // embeddings; the streaming exports resolve through the same function and
-        // would emit the extra column.
-        let resolved_query = self
-            .resolve_get_query(relative_path, query_pairs, headers)?
-            .with_embed_join_keys(self.schema)?;
+        let resolved_query = self.resolve_get_query(relative_path, query_pairs, headers)?;
         let query_match = &resolved_query.query_match;
         let variables_json = &resolved_query.variables;
         let params = &resolved_query.params;
@@ -632,75 +621,64 @@ impl RestHandler<'_> {
             Some(variables_json)
         };
 
-        // One set of per-request allowances for the whole request, built before the first
-        // read and charged by all of them: the parent read here, and every embedded
-        // sub-read the block below issues.
-        //
-        // Both ceilings it carries are named for a request and were enforced on something
-        // smaller. `[validation] max_response_bytes` bounds *the response*, and this
-        // representation's response is the parent rows **plus** everything embedded into
-        // them; `[security.cost_budget] per_request_max` bounds what *a request* asks for,
-        // and this one asks for the parent read plus a sub-read per parent row per level.
-        // Left to itself, `execute_query_direct` resolves both per read, so a
-        // `?select=a(b(c))` answered with a gigabyte in ten thousand cheap sub-reads
-        // passed each ceiling ten thousand times over and crossed neither.
-        //
-        // These are also the controls that survive composing the fan-out into one SQL
-        // statement: the same bytes and the same work then arrive in one read, and the
-        // same budget bounds them, unchanged.
+        // #1285: a dotted filter this request embedded nothing to apply is refused before
+        // anything is read, because the most common spelling of the mistake is a filter
+        // with no `?select=` at all — which leaves both selection lists empty.
+        refuse_unapplied_embedding_filters(
+            &params.embeddings,
+            &params.embedding_counts,
+            &params.embedding_filters,
+            prefer.handling == Some(super::prefer::HandlingPreference::Lenient),
+        )?;
+
+        // The request's per-request allowances, charged by its one read: the cost of
+        // everything it composes, before the statement is sent, and the bytes of what the
+        // statement returns. Built by the engine so the ceilings are the compiled ones.
         let request_budget = self.executor.request_budget();
 
-        let (result, total, count_applied) = match prefer.count_preference() {
-            Some(CountPreference::Exact) => {
-                let (r, c) = tokio::join!(
-                    self.executor.execute_query_direct(
+        // One statement, whether or not it embeds. An embed is composed into the parent's
+        // statement by the engine, which gates every embedded level as a read of its own
+        // target — see `embedding` for the fan-out this replaces.
+        let has_embeddings = !params.embeddings.is_empty() || !params.embedding_counts.is_empty();
+        let (embeds, counts) = super::super::embedding::selections(
+            &params.embeddings,
+            &params.embedding_counts,
+            &params.embedding_filters,
+            Some(u32::try_from(self.config.max_page_size).unwrap_or(u32::MAX)),
+        );
+        let read = async {
+            if has_embeddings {
+                self.executor
+                    .execute_query_composed(
                         query_match,
+                        &embeds,
+                        &counts,
                         vars_ref,
                         security_context,
-                        Some(&request_budget)
-                    ),
-                    self.executor.count_rows(query_match, vars_ref, security_context),
-                );
-                (r?, Some(c?), Some("count=exact"))
-            },
-            Some(CountPreference::Planned) => {
-                // count=planned falls back to count=exact on non-PostgreSQL
-                let (r, c) = tokio::join!(
-                    self.executor.execute_query_direct(
-                        query_match,
-                        vars_ref,
-                        security_context,
-                        Some(&request_budget)
-                    ),
-                    self.executor.count_rows(query_match, vars_ref, security_context),
-                );
-                (r?, Some(c?), Some("count=exact"))
-            },
-            Some(CountPreference::Estimated) => {
-                // count=estimated falls back to count=exact on non-PostgreSQL
-                let (r, c) = tokio::join!(
-                    self.executor.execute_query_direct(
-                        query_match,
-                        vars_ref,
-                        security_context,
-                        Some(&request_budget)
-                    ),
-                    self.executor.count_rows(query_match, vars_ref, security_context),
-                );
-                (r?, Some(c?), Some("count=exact"))
-            },
-            None => {
-                let r = self
-                    .executor
+                        Some(&request_budget),
+                    )
+                    .await
+            } else {
+                self.executor
                     .execute_query_direct(
                         query_match,
                         vars_ref,
                         security_context,
                         Some(&request_budget),
                     )
-                    .await?;
-                (r, None, None)
-            },
+                    .await
+            }
+        };
+
+        // count=planned and count=estimated fall back to count=exact on non-PostgreSQL.
+        let (result, total, count_applied) = if prefer.count_preference().is_some() {
+            let (r, c) = tokio::join!(
+                read,
+                self.executor.count_rows(query_match, vars_ref, security_context),
+            );
+            (r?, Some(c?), Some("count=exact"))
+        } else {
+            (read.await?, None, None)
         };
 
         // Build response
@@ -746,69 +724,7 @@ impl RestHandler<'_> {
             },
         );
 
-        let mut body = build_query_response(&result, total, &params.pagination)?;
-
-        // #1285: a dotted filter this request embedded nothing to apply is refused here,
-        // where the representation is known — before the gate below, because the most
-        // common spelling of the mistake is a filter with no `?select=` at all, which
-        // leaves both selection lists empty and never reaches an embed pass.
-        refuse_unapplied_embedding_filters(
-            &params.embeddings,
-            &params.embedding_counts,
-            &params.embedding_filters,
-            prefer.handling == Some(super::prefer::HandlingPreference::Lenient),
-        )?;
-
-        // Execute embedded resource sub-queries.
-        let has_embeddings = !params.embeddings.is_empty() || !params.embedding_counts.is_empty();
-        if has_embeddings {
-            if let Some(data) = body.get_mut("data") {
-                // One tally for the whole request: every relationship, every parent row,
-                // every nesting level and both passes below charge against it. The reads
-                // an embed performs are the product of the page sizes at each level, and
-                // no per-read control can see that product — each sub-read is cheap
-                // (`[rest].max_embedded_reads`).
-                let reads = super::super::embedding::budget::EmbedReadBudget::new(
-                    self.config.max_embedded_reads,
-                );
-                let embed_req = super::super::embedding::EmbeddingRequest {
-                    executor: self.executor,
-                    schema: self.schema,
-                    config: self.config,
-                    parent_type_name: &query_match.query_def.return_type,
-                    security_context,
-                    reads: &reads,
-                    request_budget: &request_budget,
-                };
-
-                super::super::embedding::execute_embeddings(
-                    &embed_req,
-                    data,
-                    &params.embeddings,
-                    &params.embedding_filters,
-                )
-                .await?;
-
-                // The same filter map the embed pass read. A request naming both
-                // `posts(...)` and `posts.count` with one `?posts.status=` used to answer
-                // with a narrowed list beside a total of everything — a body contradicting
-                // itself, the #739 shape (#1285).
-                super::super::embedding::execute_embedding_counts(
-                    &embed_req,
-                    data,
-                    &params.embedding_counts,
-                    &params.embedding_filters,
-                )
-                .await?;
-
-                // Both embed passes have read the join keys; the client asked for
-                // neither, so neither survives into the response (#1230).
-                super::super::embedding::strip_projected_keys(
-                    data,
-                    &resolved_query.server_projected_keys,
-                );
-            }
-        }
+        let body = build_query_response(&result, total, &params.pagination)?;
 
         // #873.3: `RestConfig::etag` finally has a consumer on the live path.
         //

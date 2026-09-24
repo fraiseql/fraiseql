@@ -83,7 +83,6 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
 /// | `[validation] max_page_size` | yes — `enforce_max_page_size` | yes | yes |
 /// | `[validation] max_response_bytes` | yes — charged on the returned rows | yes | yes, per frame when streamed |
 /// | `[rest] max_embedding_depth` | n/a | yes — `parse_select_with_embeddings` | n/a |
-/// | `[rest] max_embedded_reads` | n/a | yes — `EmbedReadBudget`, per request | n/a |
 ///
 /// The two "no" cells are not gaps to be closed by routing more paths through
 /// `run_gate1`. Depth and complexity score a document because a document is where
@@ -94,23 +93,20 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
 /// [`ResponseBudget`](crate::security::ResponseBudget).
 ///
 /// The two per-request ceilings — `per_request_max` and `max_response_bytes` — are
-/// charged against **one budget per request**, not per read, because the REST
-/// `?select=` representation answers one request with the parent read plus one
-/// sub-read per parent row per level. A document states its whole shape and is
-/// scored whole; a `?select=` does not, so its total is accumulated as the reads
-/// resolve. See [`RequestBudget`](crate::security::RequestBudget).
+/// charged against **one budget per request**, which a transport lends to every read it
+/// issues for that request. See [`RequestBudget`](crate::security::RequestBudget).
 ///
-/// The `.count` pass is the one read of such a request that carries neither: it
-/// goes through `count_rows`, a second chokepoint that has never had a cost gate
-/// at all.
+/// A REST `?select=` embed is **one** read: its embedded levels are composed into the
+/// parent's statement (`execute_query_composed`), and the statement is scored as the tree
+/// it is — a nested `DirectReadProjection`, which charges exactly what the old
+/// one-sub-read-per-parent-row fan-out accumulated — before it is sent. So the per-read
+/// rows above bound an embed whole, and the aggregate control the fan-out needed
+/// (`[rest] max_embedded_reads`, a tally of sub-reads issued) is gone with the fan-out.
+/// An embedded `.count` is part of that statement and is charged with it.
 ///
-/// What none of the per-read rows above can state is the **aggregate** of one request.
-/// REST `?select=` embedding issues one sub-read per parent row per level, so a request's
-/// reads are the product of the page sizes at each level while every individual sub-read
-/// stays cheap enough to pass the cost gate, the page-size clamp and the bytes ceiling
-/// alike. That product is bounded by `[rest] max_embedded_reads`, which counts the
-/// sub-reads actually issued rather than estimating them from the request — the last row
-/// of the table, and the only one that is not a per-read control.
+/// The `Prefer: count=exact` total is the one read of a REST request that carries
+/// neither ceiling: it goes through `count_rows`, a second chokepoint that has never had
+/// a cost gate at all.
 ///
 /// Derivation enforces exactly what the schema declares: an undeclared depth or
 /// complexity limit stays unbounded rather than acquiring a new default, and a
@@ -800,6 +796,52 @@ impl Executor {
 
         self.query_runner()
             .execute_query_direct(query_match, variables, security_context, request_budget)
+            .await
+    }
+
+    /// Execute a pre-resolved query match with related resources composed into it —
+    /// the REST `?select=` embed.
+    ///
+    /// One statement, not one read per parent row per level: each embedded level is a
+    /// correlated subquery joined into the parent's, and every level is gated as the read
+    /// of its own target it replaces — the target query's authorization and role gates,
+    /// its RLS predicate, and field-level RBAC against the target type, all decided before
+    /// anything is sent. See `runners::query_composed`.
+    ///
+    /// `request_budget` is charged exactly as by
+    /// [`execute_query_direct`](Self::execute_query_direct): the cost of the whole tree
+    /// once, before the statement, and the bytes of what it returns.
+    ///
+    /// # Errors
+    ///
+    /// Everything [`execute_query_direct`](Self::execute_query_direct) returns, for the
+    /// root and for every embedded level; `FraiseQLError::Validation` for a relationship
+    /// the parent type does not declare; `FraiseQLError::Unsupported` from a database
+    /// adapter that cannot compose a read.
+    pub async fn execute_query_composed(
+        &self,
+        query_match: &QueryMatch,
+        embeds: &[crate::runtime::EmbedSelection],
+        counts: &[crate::runtime::CountSelection],
+        variables: Option<&serde_json::Value>,
+        security_context: Option<&SecurityContext>,
+        request_budget: Option<&crate::security::RequestBudget>,
+    ) -> Result<serde_json::Value> {
+        // #1336 backstop, as on every direct-read entry.
+        crate::runtime::executor::support::security::enforce_enrichment_resolved(
+            &self.ctx.schema,
+            security_context,
+        )?;
+
+        self.query_runner()
+            .execute_query_composed(
+                query_match,
+                embeds,
+                counts,
+                variables,
+                security_context,
+                request_budget,
+            )
             .await
     }
 

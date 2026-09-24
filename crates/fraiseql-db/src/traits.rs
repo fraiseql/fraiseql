@@ -5,6 +5,7 @@
 //! the `adapter_types` submodule.
 
 mod adapter_types;
+mod composed_read;
 mod mutations;
 mod relay;
 
@@ -12,6 +13,9 @@ use std::sync::Arc;
 
 pub use adapter_types::*;
 use async_trait::async_trait;
+pub use composed_read::{
+    COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedLevel, EmbedShape, LevelKeys,
+};
 use fraiseql_error::{FraiseQLError, Result};
 pub use mutations::SupportsMutations;
 pub use relay::RelayDatabaseAdapter;
@@ -1335,6 +1339,43 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         // read above just built it) so replaying the buffer costs no deep clone.
         let rows = Arc::try_unwrap(rows).unwrap_or_else(|shared| (*shared).clone());
         Ok(Box::pin(futures::stream::iter(rows.into_iter().map(Ok))))
+    }
+
+    /// Execute a read that composes its embedded levels into **one** statement.
+    ///
+    /// The REST `?select=` embed used to be a parent read plus one sub-read per parent
+    /// row per level; this is the same answer in one round trip, one snapshot and one
+    /// pooled connection. See [`ComposedLevel`] for the call shape and for the
+    /// `{"d": …, "e": …}` rows it returns.
+    ///
+    /// Session variables and routing mean what they mean for
+    /// [`execute_with_projection_arc_with_session`](Self::execute_with_projection_arc_with_session).
+    ///
+    /// # Default implementation
+    ///
+    /// Refuses. Composing needs correlated `LATERAL` subqueries and JSON aggregation,
+    /// which an adapter has to render for its own dialect; answering with anything
+    /// else — the root rows without their embeds, say — would be a partial response
+    /// indistinguishable from a parent with no related rows. A wrapping adapter must
+    /// forward this method explicitly.
+    ///
+    /// # Errors
+    ///
+    /// `FraiseQLError::Unsupported` from the default; otherwise the errors of
+    /// [`execute_with_projection_arc_with_session`](Self::execute_with_projection_arc_with_session).
+    async fn execute_composed_with_session(
+        &self,
+        read: &ComposedLevel,
+        _session_vars: &[(&str, &str)],
+        _routing: ReadRouting,
+    ) -> Result<Arc<Vec<JsonbValue>>> {
+        Err(FraiseQLError::Unsupported {
+            message: format!(
+                "Embedding related resources into a read of '{}' needs a composed read, \
+                 which this database adapter does not implement",
+                read.view
+            ),
+        })
     }
 
     /// The same read as [`execute_row_query`](Self::execute_row_query), delivered

@@ -1,10 +1,8 @@
 //! Route matching and resolution for REST handlers.
 
-use fraiseql_core::{runtime::QueryMatch, schema::CompiledSchema};
+use fraiseql_core::runtime::QueryMatch;
 
 use crate::routes::rest::{
-    embedding,
-    handler::RestError,
     params::ExtractedParams,
     resource::{HttpMethod, RestResource, RestRoute, RestRouteTable},
 };
@@ -26,79 +24,13 @@ pub struct ResolvedRoute<'a> {
 /// `handle_get` (JSON envelope) and NDJSON streaming.
 pub struct ResolvedGetQuery {
     /// Name of the matched query.
-    pub query_name:            String,
+    pub query_name:  String,
     /// Pre-built query match with field selection and arguments.
-    pub query_match:           QueryMatch,
+    pub query_match: QueryMatch,
     /// Variables for relay pagination.
-    pub variables:             serde_json::Value,
+    pub variables:   serde_json::Value,
     /// Extracted request parameters (pagination, embeddings, etc.).
-    pub params:                ExtractedParams,
-    /// Keys added to the projection for the **server's** use, which the response
-    /// must not carry.
-    ///
-    /// Populated only by [`Self::with_embed_join_keys`], and empty otherwise — a
-    /// representation that does not execute embeddings never asks for them, so it
-    /// has nothing to take back out. Whoever populates this is responsible for
-    /// passing it to [`embedding::strip_projected_keys`] before serialising.
-    ///
-    /// The export representations are the "otherwise": since #1268 they *refuse* a
-    /// request naming an embed rather than dropping it, so a `ResolvedGetQuery` they
-    /// produce carries no `embeddings` and no `embedding_counts` — nothing to widen for
-    /// and nothing to strip. That is a stronger guarantee than the one this field was
-    /// written under, where the widening had to be withheld from a path that would
-    /// otherwise have emitted the extra column as a CSV header.
-    pub server_projected_keys: Vec<String>,
-}
-
-impl ResolvedGetQuery {
-    /// Add the parent-row keys this request's embeds join on to the projection.
-    ///
-    /// Applied by the JSON representation only, because it is the only one that
-    /// executes embeddings. Keeping this a step the caller applies — rather than folding
-    /// it into [`super::RestHandler::resolve_get_query`] — is what lets
-    /// [`super::RestHandler::resolve_streaming_get_query`] keep resolving through the
-    /// same function (#958) without inheriting a projection it cannot undo, and keeps
-    /// the widening adjacent to the [`embedding::strip_projected_keys`] call that is its
-    /// other half.
-    ///
-    /// When this was written the exports *dropped* `?select=` embeds, so widening for
-    /// them would have emitted a column the client never named — as a CSV header, no
-    /// less. Since #1268 they refuse such a request outright, so there is no longer a
-    /// path that could inherit the widening at all: `required_join_keys` over the empty
-    /// selections an export is allowed to carry returns nothing, and this method is an
-    /// identity.
-    ///
-    /// See [`embedding::required_join_keys`] for why the server projects a key the
-    /// client did not ask for (#1230).
-    ///
-    /// # Errors
-    ///
-    /// Returns `RestError` if the widened projection cannot be rebuilt into a
-    /// `QueryMatch` — the same failure `resolve_get_query` reports for the original.
-    pub fn with_embed_join_keys(mut self, schema: &CompiledSchema) -> Result<Self, RestError> {
-        let return_type = self.query_match.query_def.return_type.clone();
-        let required = embedding::required_join_keys(
-            schema,
-            &return_type,
-            &self.params.embeddings,
-            &self.params.embedding_counts,
-        );
-
-        let mut fields = self.query_match.fields.clone();
-        let added = embedding::project_missing_join_keys(&mut fields, &required);
-        if added.is_empty() {
-            return Ok(self);
-        }
-
-        self.query_match = QueryMatch::from_operation(
-            self.query_match.query_def.clone(),
-            fields,
-            self.query_match.arguments.clone(),
-            schema.find_type(&return_type),
-        )?;
-        self.server_projected_keys = added;
-        Ok(self)
-    }
+    pub params:      ExtractedParams,
 }
 
 impl RestRouteTable {

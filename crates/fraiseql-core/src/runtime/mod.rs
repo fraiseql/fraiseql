@@ -52,6 +52,7 @@ mod argument_validation;
 /// Argument-value validation for a root field (GraphQL § 5.6.1, § 5.8.5, § 6.1.2).
 mod argument_value_validation;
 pub mod cascade;
+mod embed_selection;
 mod executor;
 mod explain;
 pub mod field_filter;
@@ -85,6 +86,7 @@ pub use argument_value_validation::{
     validate_argument_values, validate_enum_argument_literals, validate_enum_argument_values,
     validate_enum_variable_values, validate_variable_values,
 };
+pub use embed_selection::{CountSelection, EmbedSelection};
 pub(crate) use executor::field_type_to_where_type;
 pub use executor::{
     Executor,
@@ -108,6 +110,7 @@ pub use field_filter::{FieldAccessResult, can_access_field, classify_field_acces
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
 pub use matcher::{QueryMatch, QueryMatcher, suggest_similar};
 pub use planner::{ExecutionPlan, QueryPlanner};
+pub(crate) use projection::stored_key_candidates;
 pub use projection::{
     FieldMapping, ProjectionMapper, ResultProjector, project_entity, project_nested_lists,
     stamp_nested_typenames,

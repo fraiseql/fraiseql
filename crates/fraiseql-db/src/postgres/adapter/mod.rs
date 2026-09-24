@@ -1,12 +1,15 @@
 //! PostgreSQL database adapter implementation.
 
 mod admin_sql;
+mod composed;
 mod database;
 mod numeric;
 mod query_stats;
 mod relay;
 mod streaming;
 
+#[cfg(test)]
+mod composed_tests;
 #[cfg(test)]
 mod tests;
 

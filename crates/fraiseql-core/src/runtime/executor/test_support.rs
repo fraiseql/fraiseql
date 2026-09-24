@@ -51,6 +51,9 @@ pub struct CapturingMockAdapter {
     pub mock_row_results:                Vec<Vec<crate::backend::types::ColumnValue>>,
     /// What the last row-shaped read asked the adapter for.
     pub captured_row_read:               std::sync::Mutex<Option<CapturedRowRead>>,
+    /// The composed read (`?select=` embedding) handed to the adapter, answered with
+    /// `mock_results` — which a composed-read test therefore fills with composed rows.
+    pub captured_composed:               std::sync::Mutex<Option<crate::backend::ComposedLevel>>,
 }
 
 /// The arguments a row-shaped read reached the adapter with (#1351).
@@ -85,6 +88,7 @@ impl CapturingMockAdapter {
             captured_aggregate_session_vars: std::sync::Mutex::new(None),
             mock_row_results: Vec::new(),
             captured_row_read: std::sync::Mutex::new(None),
+            captured_composed: std::sync::Mutex::new(None),
         }
     }
 
@@ -153,6 +157,10 @@ impl CapturingMockAdapter {
     pub fn captured_row_read(&self) -> Option<CapturedRowRead> {
         self.captured_row_read.lock().unwrap().clone()
     }
+
+    pub fn captured_composed(&self) -> Option<crate::backend::ComposedLevel> {
+        self.captured_composed.lock().unwrap().clone()
+    }
 }
 
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
@@ -189,6 +197,16 @@ impl DatabaseAdapter for CapturingMockAdapter {
         *self.captured_offset.lock().unwrap() = offset;
         *self.captured_order_by.lock().unwrap() = order_by.map(<[OrderByClause]>::to_vec);
         Ok(self.mock_results.clone())
+    }
+
+    async fn execute_composed_with_session(
+        &self,
+        read: &crate::backend::ComposedLevel,
+        _session_vars: &[(&str, &str)],
+        _routing: crate::backend::types::ReadRouting,
+    ) -> Result<std::sync::Arc<Vec<JsonbValue>>> {
+        *self.captured_composed.lock().unwrap() = Some(read.clone());
+        Ok(std::sync::Arc::new(self.mock_results.clone()))
     }
 
     async fn health_check(&self) -> Result<()> {

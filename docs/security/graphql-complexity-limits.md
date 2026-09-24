@@ -84,14 +84,19 @@ levels:
 | Per-tenant rolling minute window | tenant-quota admin API `cost_budget_per_minute`, defaulted by `[security.cost_budget] per_tenant_per_minute_default` | `COST_BUDGET_EXHAUSTED` (429 + `Retry-After`) | `/graphql`, same seam |
 
 It is a ceiling on **one request**, not on one read. A GraphQL document states
-its whole shape and is scored whole. A REST `?select=` does not: it is answered
-with the parent read plus one sub-read per parent row per level, so its total is
-accumulated as those reads resolve and the request is refused at the read that
-crosses the ceiling — before that read runs. Scored per read instead, a request
-made of many individually cheap sub-reads passes the ceiling once per read and
-crosses it never.
+its whole shape and is scored whole. A REST `?select=` embed is scored whole too:
+its embedded levels are composed into the parent's SQL statement (one correlated
+`LATERAL` subquery per level, each with its own page), and the statement is
+scored as the tree it is — every level's fields multiplied by every page above
+it — before it is sent. An embedded `rel.count` is part of that statement and
+adds one per parent row.
 
-The `.count` pass of a `?select=` is the exception, and a known gap: it is
+The score is a **bound**: each level is charged its full page, whatever rows
+exist. `users?select=id,orders(id,total)` with the default page of 100 is
+charged `1 + 100 × (1 + 1 + 2 × 100)` = 20 201 on a table of two users. Pass
+`?limit=` to be charged for the page you read.
+
+The `Prefer: count=exact` total is the exception, and a known gap: it is
 answered through a second read chokepoint that carries no cost gate at all.
 
 Declared `[validation]` depth/complexity limits likewise bind **inside the

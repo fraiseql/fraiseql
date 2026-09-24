@@ -39,10 +39,6 @@ pub struct RestTomlConfig {
     pub sse_max_replay_events:   u64,
     /// Maximum depth for resource embedding (`?select=posts(comments)`).
     pub max_embedding_depth:     u32,
-    /// How many embedded sub-reads one request may perform, across every relationship,
-    /// every parent row and every nesting level (0 = no bound; see
-    /// `RestConfig::max_embedded_reads`).
-    pub max_embedded_reads:      u64,
     /// Allowlist of type names to expose as REST resources (empty = all).
     pub include:                 Vec<String>,
     /// Denylist of type names to exclude from REST resources.
@@ -83,7 +79,6 @@ impl Default for RestTomlConfig {
             sse_heartbeat_seconds:   30,
             sse_max_replay_events:   10_000,
             max_embedding_depth:     3,
-            max_embedded_reads:      10_000,
             include:                 Vec::new(),
             exclude:                 Vec::new(),
             etag:                    true,
@@ -118,7 +113,6 @@ impl From<RestTomlConfig> for RestConfig {
             sse_heartbeat_seconds:   toml.sse_heartbeat_seconds,
             sse_max_replay_events:   toml.sse_max_replay_events,
             max_embedding_depth:     toml.max_embedding_depth,
-            max_embedded_reads:      toml.max_embedded_reads,
             include:                 toml.include,
             exclude:                 toml.exclude,
             etag:                    toml.etag,
