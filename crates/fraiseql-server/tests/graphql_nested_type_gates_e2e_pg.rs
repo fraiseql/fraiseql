@@ -288,6 +288,7 @@ fn owner_policy() -> DefaultRLSPolicy {
         .with_owner_field("owner".to_string())
 }
 
+#[derive(Clone, Copy)]
 enum Policy {
     Owner,
     Tenant,
@@ -305,15 +306,19 @@ async fn rig_over(schema: CompiledSchema, policy: Policy) -> Option<Executor> {
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
     seed(&adapter).await;
 
-    let config = RuntimeConfig::from_compiled_schema(&schema).expect("runtime config");
-    let config = match policy {
+    let config = policy_config(&schema, policy);
+    Some(Executor::with_config(schema, adapter, config))
+}
+
+fn policy_config(schema: &CompiledSchema, policy: Policy) -> RuntimeConfig {
+    let config = RuntimeConfig::from_compiled_schema(schema).expect("runtime config");
+    match policy {
         Policy::Owner => config.with_rls_policy(Arc::new(owner_policy())),
         Policy::Tenant => config.with_rls_policy(Arc::new(tenant_policy())),
         Policy::OpaqueOwner => config.with_rls_policy(Arc::new(Opaque(owner_policy()))),
         Policy::OpaqueTenant => config.with_rls_policy(Arc::new(Opaque(tenant_policy()))),
         Policy::None => config,
-    };
-    Some(Executor::with_config(schema, adapter, config))
+    }
 }
 
 async fn graphql(executor: &Executor, query: &str) -> Result<Value> {
@@ -706,4 +711,237 @@ async fn a_streamed_rest_selection_of_a_gated_nested_object_is_refused() {
     let executor = rig_or_skip!("v_user_fk", Policy::None);
     let query_match = rest_match(&executor, "members", &["id", "team"]);
     assert!(executor.stream_query_direct(query_match, None, Some(alice())).await.is_ok());
+}
+
+// ---------------------------------------------------------------------------
+// Relay connections and `node(id:)`
+// ---------------------------------------------------------------------------
+//
+// Both Relay runners compose the root's RLS and `inject_params` into their WHERE, and
+// neither runs field-level RBAC: a connection serves each row's stored `data` as its
+// `node`, whatever the selection; `node(id:)` projects the selection, unclassified. So
+// `Order`'s scopes do not reach an `Order` read through either, at the root or nested,
+// and `Order`'s policy does not reach the orders a `User` embeds. Each reproduction sits
+// beside a control showing the same runner applies the root's row gate.
+
+/// `schema`, with a Relay connection over each list: `ordersPage` and `usersPage`.
+fn relay_schema(user_view: &str) -> CompiledSchema {
+    let mut schema = schema(user_view);
+    for (name, return_type, view) in [
+        ("ordersPage", "Order", "v_order"),
+        ("usersPage", "User", user_view),
+    ] {
+        let mut query = QueryDefinition::new(name, return_type)
+            .returning_list()
+            .with_sql_source(format!("{SCHEMA}.{view}"));
+        query.relay = true;
+        query.relay_cursor_column = Some("id".to_string());
+        schema.queries.push(query);
+    }
+    schema.build_indexes();
+    schema
+}
+
+async fn relay_rig(user_view: &str, policy: Policy) -> Option<Executor> {
+    let url = try_database_url()?;
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
+    seed(&adapter).await;
+    let schema = relay_schema(user_view);
+    let config = policy_config(&schema, policy);
+    Some(Executor::with_config_and_relay(schema, adapter, config))
+}
+
+macro_rules! relay_rig_or_skip {
+    ($view:expr, $policy:expr) => {
+        match relay_rig($view, $policy).await {
+            Some(executor) => executor,
+            None => {
+                eprintln!("skipping: DATABASE_URL not set");
+                return;
+            },
+        }
+    };
+}
+
+/// Every `node` of the connection at `data.<field>`.
+fn relay_nodes(response: &Value, field: &str) -> Vec<Value> {
+    response["data"][field]["edges"]
+        .as_array()
+        .unwrap_or_else(|| panic!("no edges: {response}"))
+        .iter()
+        .map(|edge| edge["node"].clone())
+        .collect()
+}
+
+/// The ids of the orders every `node` of `usersPage` embeds, sorted.
+fn relay_nested_order_ids(response: &Value) -> Vec<i64> {
+    let mut ids: Vec<i64> = relay_nodes(response, "usersPage")
+        .iter()
+        .flat_map(|u| u["orders"].as_array().cloned().unwrap_or_default())
+        .map(|o| o["id"].as_i64().unwrap())
+        .collect();
+    ids.sort_unstable();
+    ids
+}
+
+/// Control: a connection over `Order` is read under `Order`'s owner policy.
+#[tokio::test]
+async fn control_a_relay_connection_applies_its_types_policy() {
+    let executor = relay_rig_or_skip!("v_user_fk", Policy::Owner);
+    let out = graphql(&executor, "{ ordersPage(first: 10) { edges { node { id } } } }")
+        .await
+        .unwrap();
+    let mut ids: Vec<i64> = relay_nodes(&out, "ordersPage")
+        .iter()
+        .map(|o| o["id"].as_i64().unwrap())
+        .collect();
+    ids.sort_unstable();
+    assert_eq!(ids, [10, 12], "{out}");
+}
+
+/// **Reproduction.** `Order.margin` through a connection over `Order`.
+#[tokio::test]
+#[ignore = "reproduction: a Relay connection runs no field-level RBAC"]
+async fn a_relay_node_margin_is_masked() {
+    let executor = relay_rig_or_skip!("v_user_fk", Policy::None);
+    let out = graphql(&executor, "{ ordersPage(first: 10) { edges { node { id margin } } } }")
+        .await
+        .unwrap();
+    let nodes = relay_nodes(&out, "ordersPage");
+    assert_eq!(nodes.len(), 3, "{out}");
+    assert!(
+        nodes.iter().all(|o| o["margin"].is_null()),
+        "Order.margin served in full: {out}"
+    );
+}
+
+/// **Reproduction.** `Order.cost_price` (Reject) through a connection over `Order`.
+#[tokio::test]
+#[ignore = "reproduction: a Relay connection runs no field-level RBAC"]
+async fn a_relay_node_cost_price_is_refused() {
+    let executor = relay_rig_or_skip!("v_user_fk", Policy::None);
+    let result =
+        graphql(&executor, "{ ordersPage(first: 10) { edges { node { id cost_price } } } }").await;
+    assert!(
+        matches!(result, Err(FraiseQLError::Authorization { .. })),
+        "Order.cost_price served through a connection: {result:?}"
+    );
+}
+
+/// **Reproduction.** A `node` carries what was selected — not the stored document, whose
+/// other keys include every gated field the caller never asked for.
+#[tokio::test]
+#[ignore = "reproduction: a Relay connection serves the stored document as its node"]
+async fn a_relay_node_serves_only_its_selection() {
+    let executor = relay_rig_or_skip!("v_user_fk", Policy::None);
+    let out = graphql(&executor, "{ ordersPage(first: 10) { edges { node { id } } } }")
+        .await
+        .unwrap();
+    let nodes = relay_nodes(&out, "ordersPage");
+    assert_eq!(nodes.len(), 3, "{out}");
+    for node in &nodes {
+        let keys: Vec<&String> = node.as_object().unwrap().keys().collect();
+        assert_eq!(keys, ["id"], "margin and cost_price served unselected: {out}");
+    }
+}
+
+/// **Reproduction.** A connection over `User` serves the orders `v_user_fk` embeds under
+/// no `Order` policy: mallory's order 11 reaches alice.
+#[tokio::test]
+#[ignore = "reproduction: a Relay connection applies no nested row gate"]
+async fn relay_nested_orders_follow_the_owner_policy() {
+    let executor = relay_rig_or_skip!("v_user_fk", Policy::Owner);
+    let out =
+        graphql(&executor, "{ usersPage(first: 10) { edges { node { id orders { id } } } } }")
+            .await
+            .unwrap();
+    assert_eq!(relay_nested_order_ids(&out), [10, 12], "{out}");
+}
+
+/// **Reproduction.** `Order.margin` nested under a connection over `User`.
+#[tokio::test]
+#[ignore = "reproduction: a Relay connection runs no field-level RBAC"]
+async fn a_relay_nested_margin_is_masked() {
+    let executor = relay_rig_or_skip!("v_user_fk", Policy::None);
+    let out = graphql(
+        &executor,
+        "{ usersPage(first: 10) { edges { node { id orders { id margin } } } } }",
+    )
+    .await
+    .unwrap();
+    let orders: Vec<Value> = relay_nodes(&out, "usersPage")
+        .iter()
+        .flat_map(|u| u["orders"].as_array().cloned().unwrap_or_default())
+        .collect();
+    assert_eq!(orders.len(), 3, "{out}");
+    assert!(orders.iter().all(|o| o["margin"].is_null()), "{out}");
+}
+
+fn node_query(type_name: &str, id: &str, selection: &str) -> String {
+    let node_id = fraiseql_core::runtime::relay::encode_node_id(type_name, id);
+    format!(r#"{{ node(id: "{node_id}") {{ ... on {type_name} {{ {selection} }} }} }}"#)
+}
+
+/// Control: `node(id:)` resolves an `Order` under `Order`'s owner policy — mallory's
+/// order 11 is not found for alice, her order 10 is.
+#[tokio::test]
+async fn control_a_node_lookup_applies_its_types_policy() {
+    let executor = rig_or_skip!("v_user_fk", Policy::Owner);
+    let theirs = graphql(&executor, &node_query("Order", "11", "id")).await.unwrap();
+    assert!(theirs["data"]["node"].is_null(), "{theirs}");
+    let hers = graphql(&executor, &node_query("Order", "10", "id")).await.unwrap();
+    assert_eq!(hers["data"]["node"]["id"], 10, "{hers}");
+}
+
+/// **Reproduction.** `Order.margin` through `node(id:)`.
+#[tokio::test]
+#[ignore = "reproduction: node(id:) runs no field-level RBAC"]
+async fn a_node_margin_is_masked() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let out = graphql(&executor, &node_query("Order", "10", "id margin")).await.unwrap();
+    assert_eq!(out["data"]["node"]["id"], 10, "{out}");
+    assert!(out["data"]["node"]["margin"].is_null(), "Order.margin served in full: {out}");
+}
+
+/// **Reproduction.** `Order.cost_price` (Reject) through `node(id:)`.
+#[tokio::test]
+#[ignore = "reproduction: node(id:) runs no field-level RBAC"]
+async fn a_node_cost_price_is_refused() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let result = graphql(&executor, &node_query("Order", "10", "id cost_price")).await;
+    assert!(
+        matches!(result, Err(FraiseQLError::Authorization { .. })),
+        "Order.cost_price served through node(id:): {result:?}"
+    );
+}
+
+/// **Reproduction.** A `User` resolved by `node(id:)` embeds mallory's order 11.
+#[tokio::test]
+#[ignore = "reproduction: node(id:) applies no nested row gate"]
+async fn node_nested_orders_follow_the_owner_policy() {
+    let executor = rig_or_skip!("v_user_fk", Policy::Owner);
+    let out = graphql(&executor, &node_query("User", "1", "id orders { id }")).await.unwrap();
+    let mut ids: Vec<i64> = out["data"]["node"]["orders"]
+        .as_array()
+        .unwrap_or_else(|| panic!("no orders: {out}"))
+        .iter()
+        .map(|o| o["id"].as_i64().unwrap())
+        .collect();
+    ids.sort_unstable();
+    assert_eq!(ids, [10, 12], "{out}");
+}
+
+/// **Reproduction.** `Order.margin` nested in a `User` resolved by `node(id:)`.
+#[tokio::test]
+#[ignore = "reproduction: node(id:) runs no field-level RBAC"]
+async fn a_node_nested_margin_is_masked() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let out = graphql(&executor, &node_query("User", "1", "id orders { id margin }"))
+        .await
+        .unwrap();
+    let orders = out["data"]["node"]["orders"]
+        .as_array()
+        .unwrap_or_else(|| panic!("no orders: {out}"));
+    assert_eq!(orders.len(), 3, "{out}");
+    assert!(orders.iter().all(|o| o["margin"].is_null()), "{out}");
 }

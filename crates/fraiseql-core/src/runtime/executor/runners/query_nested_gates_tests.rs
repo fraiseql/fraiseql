@@ -837,3 +837,218 @@ async fn a_composed_rest_read_selecting_a_gated_nested_object_is_refused() {
     assert!(matches!(result, Err(FraiseQLError::Unsupported { .. })), "{result:?}");
     assert!(adapter.captured_composed().is_none());
 }
+
+// ---------------------------------------------------------------------------
+// A function-backed field reads nested levels through the gated bridge
+// ---------------------------------------------------------------------------
+//
+// The engine does not RLS-filter what a function returns, at the root or below it: a
+// function issues no statement for a predicate to lower into. What it reads, it reads
+// through the caller-scoped bridge, as a GraphQL read — and a nested level of that read
+// is gated as any other is. This pins that the bridge is the gated read.
+
+/// A resolver that reads `document` through the bridge and answers with nothing.
+struct BridgeReader {
+    document: &'static str,
+}
+
+impl crate::runtime::QueryFunctionResolver for BridgeReader {
+    fn resolve<'a>(
+        &'a self,
+        request: crate::runtime::QueryFunctionRequest<'a>,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<Value>> + Send + 'a>> {
+        let reader = Arc::clone(&request.reader);
+        let document = self.document;
+        Box::pin(async move {
+            reader.query(document, None).await?;
+            Ok(json!([]))
+        })
+    }
+}
+
+#[tokio::test]
+async fn a_functions_bridge_read_of_nested_orders_asks_the_order_policy() {
+    let mut schema = schema();
+    let mut report = QueryDefinition::new("report", "User");
+    report.returns_list = true;
+    report.function = Some("report_users".to_string());
+    schema.queries.push(report);
+    schema.build_indexes();
+
+    let policy = Arc::new(RecordingPolicy::default());
+    let config = RuntimeConfig::from_compiled_schema(&schema)
+        .unwrap()
+        .with_rls_policy(policy.clone())
+        .with_query_function_resolver(Arc::new(BridgeReader {
+            document: "{ users { id orders { id } } }",
+        }));
+    let (result, adapter) =
+        run(schema, vec![], config, "{ report { id } }", Some(&principal())).await;
+    result.unwrap();
+
+    let asked = policy.asked.lock().unwrap().clone();
+    assert!(asked.iter().any(|t| t == "Order"), "{asked:?}");
+    let read = adapter.captured_composed().expect("the bridge read is composed");
+    assert_eq!(
+        only_embed(&read).level.where_clause,
+        Some(owner_is("u-alice")),
+        "the function's read of nested orders carries Order's predicate"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// Federation `_entities`: the entity's nested levels
+// ---------------------------------------------------------------------------
+//
+// `_entities` classifies a flattened list of every field name in the document against
+// each representation's type, and masks the entity's top level. A field of a *nested*
+// type is classified against the entity's type, which does not declare it, so it passes;
+// and nothing beneath the top level is masked or row-gated. Each reproduction sits beside
+// a control resolving `Order` itself as the entity.
+
+#[cfg(feature = "federation")]
+mod federation {
+    use std::collections::HashMap;
+
+    use super::*;
+    use crate::schema::{FederationConfig, FederationEntity};
+
+    /// `schema()`, federated: `User` and `Order` are entities keyed by `id`.
+    fn federated(mut schema: CompiledSchema) -> CompiledSchema {
+        let entity = |name: &str| FederationEntity {
+            name: name.to_string(),
+            key_fields: vec!["id".to_string()],
+            ..Default::default()
+        };
+        schema.federation = Some(FederationConfig {
+            enabled: true,
+            version: Some("v2".to_string()),
+            entities: vec![entity("User"), entity("Order")],
+            ..Default::default()
+        });
+        schema.build_indexes();
+        schema
+    }
+
+    /// The rows the resolver reads, keyed by field name as its projection aliases them.
+    fn entity_rows(rows: Vec<Value>) -> Vec<HashMap<String, Value>> {
+        rows.into_iter().map(|row| serde_json::from_value(row).unwrap()).collect()
+    }
+
+    async fn entities(
+        schema: CompiledSchema,
+        rows: Vec<Value>,
+        typename: &str,
+        id: i64,
+        selection: &str,
+    ) -> (Result<Value>, Arc<CapturingMockAdapter>) {
+        let adapter =
+            Arc::new(CapturingMockAdapter::new(Vec::new()).with_aggregate_rows(entity_rows(rows)));
+        let executor = Executor::new(schema, adapter.clone());
+        let query = format!(
+            r#"{{ _entities(representations: [{{ __typename: "{typename}", id: {id} }}]) {{ ... on {typename} {{ {selection} }} }} }}"#
+        );
+        let variables = json!({"representations": [{"__typename": typename, "id": id}]});
+        let result = executor.execute_with_security(&query, Some(&variables), &principal()).await;
+        (result, adapter)
+    }
+
+    fn entity_orders(response: &Value) -> Vec<Value> {
+        response["data"]["_entities"][0]["orders"]
+            .as_array()
+            .cloned()
+            .unwrap_or_else(|| panic!("no orders: {response}"))
+    }
+
+    /// Control: `Order.margin`, on an `Order` entity, is masked.
+    #[tokio::test]
+    async fn control_an_order_entitys_masked_field_is_null() {
+        let (result, _) =
+            entities(federated(schema()), order_rows(), "Order", 10, "id margin").await;
+        let out = result.unwrap();
+        assert_eq!(out["data"]["_entities"][0]["id"], json!(10), "{out}");
+        assert!(out["data"]["_entities"][0]["margin"].is_null(), "{out}");
+    }
+
+    /// **Reproduction.** The same field, nested in a `User` entity's orders.
+    #[tokio::test]
+    #[ignore = "reproduction: _entities masks the entity's top level only"]
+    async fn a_masked_field_of_orders_nested_in_an_entity_is_null() {
+        let (result, _) =
+            entities(federated(schema()), user_rows(), "User", 1, "id orders { id margin }").await;
+        let out = result.unwrap();
+        let orders = entity_orders(&out);
+        assert_eq!(orders.len(), 2, "{out}");
+        assert!(
+            orders.iter().all(|o| o["margin"].is_null()),
+            "Order.margin requires read:margin wherever Order is served: {out}"
+        );
+    }
+
+    /// Control: `Order.cost_price` (Reject), on an `Order` entity, refuses before the read.
+    #[tokio::test]
+    async fn control_an_order_entitys_rejected_field_refuses() {
+        let (result, adapter) =
+            entities(federated(schema()), order_rows(), "Order", 10, "id cost_price").await;
+        assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+        assert!(adapter.captured_aggregate_sql().is_none());
+    }
+
+    /// **Reproduction.** Nested in a `User` entity's orders, it must refuse the same way.
+    #[tokio::test]
+    #[ignore = "reproduction: _entities classifies nested fields against the entity's type"]
+    async fn a_rejected_field_of_orders_nested_in_an_entity_refuses() {
+        let (result, _) =
+            entities(federated(schema()), user_rows(), "User", 1, "id orders { id cost_price }")
+                .await;
+        assert!(
+            matches!(result, Err(FraiseQLError::Authorization { .. })),
+            "Order.cost_price is Reject wherever Order is served: {result:?}"
+        );
+    }
+
+    /// `Order`'s read is scoped to the orders the principal owns.
+    fn owner_scoped(mut schema: CompiledSchema) -> CompiledSchema {
+        schema
+            .queries
+            .iter_mut()
+            .find(|q| q.name == "orders")
+            .unwrap()
+            .inject_params
+            .insert("owner".to_string(), InjectedParamSource::Jwt("sub".to_string()));
+        federated(schema)
+    }
+
+    /// Control: an `Order` entity is resolved under `Order`'s `inject_params`.
+    #[tokio::test]
+    async fn control_an_order_entity_is_read_under_its_inject_params() {
+        let (result, adapter) =
+            entities(owner_scoped(schema()), order_rows(), "Order", 10, "id").await;
+        result.unwrap();
+        let sql = adapter.captured_aggregate_sql().expect("the entity read");
+        let params = adapter.captured_aggregate_params().unwrap_or_default();
+        assert!(sql.contains("owner"), "{sql}");
+        assert!(params.contains(&json!("u-alice")), "{params:?}");
+    }
+
+    /// **Reproduction.** The orders a `User` entity embeds are `Order` rows: mallory's
+    /// order must not reach alice through them, whether the fix filters it or refuses.
+    #[tokio::test]
+    #[ignore = "reproduction: _entities applies no row gate to an entity's nested levels"]
+    async fn orders_nested_in_an_entity_follow_orders_inject_params() {
+        let (result, _) =
+            entities(owner_scoped(schema()), user_rows(), "User", 1, "id orders { id owner }")
+                .await;
+        match result {
+            Ok(out) => {
+                assert!(
+                    !entity_orders(&out).iter().any(|o| o["owner"] == "u-mallory"),
+                    "Order is scoped to its owner wherever Order is served: {out}"
+                );
+            },
+            Err(error) => {
+                assert!(matches!(error, FraiseQLError::Authorization { .. }), "{error:?}");
+            },
+        }
+    }
+}
