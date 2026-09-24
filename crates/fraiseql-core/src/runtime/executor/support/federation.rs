@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use indexmap::IndexMap;
 
-use super::super::Executor;
+use super::super::{Executor, runners::query_nested::SelectionAccess};
 use crate::{
     error::{FraiseQLError, Result},
     schema::InjectedParamSource,
@@ -154,6 +154,18 @@ impl Executor {
         let masked_by_type =
             self.classify_entities_fields(&representations, &selection, security_context)?;
 
+        // Every level beneath the entity, against its own type. The flat list above is
+        // classified against the entity's type alone, where a nested type's field is an
+        // undeclared name and passes: `... on User { orders { margin } }` served
+        // `Order.margin` in full. The router's real selection, with its depth, goes
+        // through the query path's `SelectionAccess` — which also refuses a nested level
+        // the caller's role or actor type may not read — and a nested level whose type
+        // scopes its rows is refused: the resolver's lookup is built in
+        // `fraiseql-federation` and cannot carry a composed level. Before the read.
+        let entity_fields = entities_selection(query, variables)?;
+        let nested_access =
+            self.classify_entities_levels(&representations, &entity_fields, security_context)?;
+
         // Phase 03 (C1b/R1): compose per-row enforcement for authenticated requests.
         //  * `row_filters` — per entity type, the `inject_params` (tenant/owner) scoping rendered
         //    as a columnar predicate ANDed onto the key lookup, so a direct `_entities` hit with
@@ -230,7 +242,17 @@ impl Executor {
         //
         // The projector is the query path's, at the entity's own type, so the two
         // surfaces cannot disagree about what a selection set means.
-        self.project_entities_selection(query, variables, &representations, &mut entities);
+        self.project_entities_selection(&entity_fields, &representations, &mut entities);
+
+        // …and null what the nested classification masked, at every level, under the key
+        // the response carries it.
+        for (entity, rep) in entities.iter_mut().zip(representations.iter()) {
+            if let (Some(entity), Some(access)) =
+                (entity.as_mut(), nested_access.get(&rep.typename))
+            {
+                access.null_masked(entity, &rep.typename, &entity_fields, &self.ctx.schema);
+            }
+        }
 
         // Return federation response format
         let response = serde_json::json!({
@@ -243,45 +265,19 @@ impl Executor {
     }
 
     /// Narrow each loaded entity to the fields the router actually selected,
-    /// nested objects included (#1196).
-    ///
-    /// Re-parses the document with the real GraphQL parser rather than reusing
-    /// the flat scanner: only a parse that keeps *depth* can tell `orders { id }`
-    /// from a request for `orders` and `id` side by side. Fragment spreads are
-    /// expanded and `@skip`/`@include` evaluated first, so a router that sends
-    /// its selection as a named fragment projects identically to one that inlines
-    /// it.
+    /// nested objects included (#1196), as [`entities_selection`] parsed them.
     ///
     /// `__typename` is re-attached after projection when the resolver injected
     /// one: the federation spec has the subgraph return it whether or not the
     /// document names it, and dropping it here would break entity resolution at
     /// the router for a reason unrelated to this fix.
-    ///
-    /// A document that does not parse leaves the entities untouched. It cannot
-    /// happen — the same string parsed on the way in — and silently returning
-    /// unprojected rows is the defect, so this is a floor rather than a fallback.
     fn project_entities_selection(
         &self,
-        query: &str,
-        variables: Option<&serde_json::Value>,
+        entity_fields: &[crate::graphql::FieldSelection],
         representations: &[crate::federation::EntityRepresentation],
         entities: &mut [Option<serde_json::Value>],
     ) {
-        let Ok(parsed) = crate::graphql::parse_query(query) else {
-            return;
-        };
-        let vars = crate::graphql::selection_set::variables_map(variables);
-        let Ok(resolved) = crate::graphql::selection_set::resolve_and_filter(
-            &parsed.selections,
-            &parsed.fragments,
-            &vars,
-        ) else {
-            return;
-        };
-        let Some(root) = resolved.first() else {
-            return;
-        };
-        if root.nested_fields.is_empty() {
+        if entity_fields.is_empty() {
             return;
         }
 
@@ -293,7 +289,7 @@ impl Executor {
             let mut projected = crate::runtime::project_entity(
                 entity,
                 &rep.typename,
-                &root.nested_fields,
+                entity_fields,
                 &self.ctx.schema,
             );
             if let (Some(obj), Some(typename)) = (projected.as_object_mut(), injected_typename) {
@@ -347,6 +343,43 @@ impl Executor {
             masked_by_type.insert(rep.typename.clone(), access.masked);
         }
         Ok(masked_by_type)
+    }
+
+    /// Classify every level of `entity_fields` for each requested entity type, and refuse
+    /// a nested level whose type's row predicate applies to the caller.
+    ///
+    /// # Errors
+    ///
+    /// `FraiseQLError::Authorization` for a `Reject` field at any depth, a nested level of
+    /// a type the caller's role or actor type may not read, or a row-gated nested level.
+    fn classify_entities_levels(
+        &self,
+        representations: &[crate::federation::EntityRepresentation],
+        entity_fields: &[crate::graphql::FieldSelection],
+        security_context: Option<&SecurityContext>,
+    ) -> Result<std::collections::HashMap<String, SelectionAccess>> {
+        let runner = self.query_runner();
+        let mut by_type = std::collections::HashMap::new();
+        for rep in representations {
+            if by_type.contains_key(&rep.typename) {
+                continue;
+            }
+            let access = SelectionAccess::classify(
+                &self.ctx.schema,
+                &rep.typename,
+                entity_fields,
+                Vec::new(),
+                security_context,
+            )?;
+            runner.refuse_row_gated_levels(
+                &rep.typename,
+                entity_fields,
+                security_context,
+                "federation _entities",
+            )?;
+            by_type.insert(rep.typename.clone(), access);
+        }
+        Ok(by_type)
     }
 
     /// Fail-closed authorization gate for the federation `_entities` path (Phase 03 C1b).
@@ -579,6 +612,41 @@ impl Executor {
 
         Ok(filters)
     }
+}
+
+/// The router's selection under `_entities`, with depth (#1196).
+///
+/// Parsed with the real GraphQL parser rather than the flat scanner: only a parse that
+/// keeps *depth* can tell `orders { id }` from a request for `orders` and `id` side by
+/// side. Fragment spreads are expanded and `@skip`/`@include` evaluated first, so a router
+/// that sends its selection as a named fragment is read identically to one that inlines
+/// it.
+///
+/// # Errors
+///
+/// `FraiseQLError::Validation` for a document that does not parse. It cannot happen — the
+/// same string parsed on the way in — and the nested levels' gates are read from this
+/// selection, so an unparsed one is refused rather than served ungated.
+fn entities_selection(
+    query: &str,
+    variables: Option<&serde_json::Value>,
+) -> Result<Vec<crate::graphql::FieldSelection>> {
+    let parsed = crate::graphql::parse_query(query).map_err(|e| FraiseQLError::Validation {
+        message: format!("_entities: the selection could not be parsed: {e}"),
+        path:    None,
+    })?;
+    let vars = crate::graphql::selection_set::variables_map(variables);
+    let resolved = crate::graphql::selection_set::resolve_and_filter(
+        &parsed.selections,
+        &parsed.fragments,
+        &vars,
+    )?;
+    Ok(resolved
+        .iter()
+        .find(|sel| sel.name == "_entities")
+        .or_else(|| resolved.first())
+        .map(|root| root.nested_fields.clone())
+        .unwrap_or_default())
 }
 
 /// The fail-closed `_entities` denial: a 403 that does not echo the requested ids.

@@ -1027,11 +1027,13 @@ async fn a_functions_bridge_read_of_nested_orders_asks_the_order_policy() {
 // Federation `_entities`: the entity's nested levels
 // ---------------------------------------------------------------------------
 //
-// `_entities` classifies a flattened list of every field name in the document against
-// each representation's type, and masks the entity's top level. A field of a *nested*
-// type is classified against the entity's type, which does not declare it, so it passes;
-// and nothing beneath the top level is masked or row-gated. Each reproduction sits beside
-// a control resolving `Order` itself as the entity.
+// `_entities` classified a flattened list of every field name in the document against
+// each representation's type, and masked the entity's top level. A field of a *nested*
+// type was classified against the entity's type, which does not declare it, so it passed;
+// and nothing beneath the top level was masked or row-gated. Each reproduction sits beside
+// a control resolving `Order` itself as the entity. Now every level is classified and
+// masked through `SelectionAccess`, and a row-gated nested level is refused: the
+// resolver's lookup cannot carry a composed level.
 
 #[cfg(feature = "federation")]
 mod federation {
@@ -1099,7 +1101,6 @@ mod federation {
 
     /// **Reproduction.** The same field, nested in a `User` entity's orders.
     #[tokio::test]
-    #[ignore = "reproduction: _entities masks the entity's top level only"]
     async fn a_masked_field_of_orders_nested_in_an_entity_is_null() {
         let (result, _) =
             entities(federated(schema()), user_rows(), "User", 1, "id orders { id margin }").await;
@@ -1123,7 +1124,6 @@ mod federation {
 
     /// **Reproduction.** Nested in a `User` entity's orders, it must refuse the same way.
     #[tokio::test]
-    #[ignore = "reproduction: _entities classifies nested fields against the entity's type"]
     async fn a_rejected_field_of_orders_nested_in_an_entity_refuses() {
         let (result, _) =
             entities(federated(schema()), user_rows(), "User", 1, "id orders { id cost_price }")
@@ -1159,9 +1159,9 @@ mod federation {
     }
 
     /// **Reproduction.** The orders a `User` entity embeds are `Order` rows: mallory's
-    /// order must not reach alice through them, whether the fix filters it or refuses.
+    /// order must not reach alice through them, whether the fix filters it or refuses. The
+    /// resolver's lookup cannot carry a composed level, so it refuses.
     #[tokio::test]
-    #[ignore = "reproduction: _entities applies no row gate to an entity's nested levels"]
     async fn orders_nested_in_an_entity_follow_orders_inject_params() {
         let (result, _) =
             entities(owner_scoped(schema()), user_rows(), "User", 1, "id orders { id owner }")
@@ -1177,5 +1177,69 @@ mod federation {
                 assert!(matches!(error, FraiseQLError::Authorization { .. }), "{error:?}");
             },
         }
+    }
+
+    /// Refused before the read: the entity lookup never runs.
+    #[tokio::test]
+    async fn a_row_gated_nested_level_of_an_entity_refuses_before_the_read() {
+        let (result, adapter) =
+            entities(owner_scoped(schema()), user_rows(), "User", 1, "id orders { id }").await;
+        assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+        assert!(adapter.captured_aggregate_sql().is_none());
+    }
+
+    /// An entity selection that stops above the row-gated level is served.
+    #[tokio::test]
+    async fn an_entity_selection_that_stops_above_a_row_gated_level_is_served() {
+        let (result, _) = entities(owner_scoped(schema()), user_rows(), "User", 1, "id name").await;
+        let out = result.unwrap();
+        assert_eq!(out["data"]["_entities"][0]["name"], json!("alice"), "{out}");
+    }
+
+    /// Masked under the key the response carries it, nested: `m: margin`.
+    #[tokio::test]
+    async fn an_aliased_masked_field_of_orders_nested_in_an_entity_is_null() {
+        let (result, _) =
+            entities(federated(schema()), user_rows(), "User", 1, "id orders { id m: margin }")
+                .await;
+        let out = result.unwrap();
+        let orders = entity_orders(&out);
+        assert_eq!(orders.len(), 2, "{out}");
+        assert!(orders.iter().all(|o| o["m"].is_null()), "{out}");
+    }
+
+    /// Two levels down: `Item.note`, under a `User` entity's `orders { items }`.
+    #[tokio::test]
+    async fn a_masked_field_two_levels_below_an_entity_is_null() {
+        let (result, _) = entities(
+            federated(schema()),
+            user_rows(),
+            "User",
+            1,
+            "id orders { id items { id note } }",
+        )
+        .await;
+        let out = result.unwrap();
+        let items: Vec<Value> = entity_orders(&out)
+            .iter()
+            .flat_map(|o| o["items"].as_array().cloned().unwrap_or_default())
+            .collect();
+        assert_eq!(items.len(), 1, "{out}");
+        assert!(items[0]["note"].is_null(), "{out}");
+    }
+
+    /// A nested level of a type the caller's role may not read refuses, as it does on
+    /// the query path.
+    #[tokio::test]
+    async fn a_nested_level_of_a_role_gated_type_in_an_entity_refuses() {
+        let (result, _) = entities(
+            federated(gated_orders(clerk_only)),
+            user_rows(),
+            "User",
+            1,
+            "id orders { id }",
+        )
+        .await;
+        assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
     }
 }

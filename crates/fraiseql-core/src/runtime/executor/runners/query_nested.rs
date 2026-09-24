@@ -33,7 +33,7 @@ use crate::{
 };
 
 /// What field-level RBAC decided for a whole selection tree.
-pub(super) struct SelectionAccess {
+pub(in super::super) struct SelectionAccess {
     /// The root level, in the shape the projector takes: the projection's response keys,
     /// and the masked ones among them.
     pub(super) root: FieldAccessResult,
@@ -52,7 +52,7 @@ impl SelectionAccess {
     /// `FraiseQLError::Authorization` for a selected field, at any depth, that requires a
     /// scope the caller lacks and whose `on_deny` is `Reject`; and for a nested level of a
     /// type whose read requires a role or an actor type the caller lacks.
-    pub(super) fn classify(
+    pub(in super::super) fn classify(
         schema: &CompiledSchema,
         root_type: &str,
         root_fields: &[FieldSelection],
@@ -78,7 +78,7 @@ impl SelectionAccess {
 
     /// Null every masked field of a projected result, at every level, under the key the
     /// response carries it.
-    pub(super) fn null_masked(
+    pub(in super::super) fn null_masked(
         &self,
         value: &mut serde_json::Value,
         root_type: &str,
