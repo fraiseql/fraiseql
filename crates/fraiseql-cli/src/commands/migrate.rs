@@ -1,7 +1,14 @@
 //! `fraiseql migrate` - Database migration wrapper
 //!
-//! Wraps confiture for database migrations, providing a unified CLI
-//! experience without requiring users to install confiture separately.
+//! Wraps confiture for database migrations: every verb is one `confiture migrate <verb> …`
+//! invocation, assembled by `ConfitureCommand` from the option table its doc comment
+//! holds. Confiture must be installed and on `PATH`; `run` says so and stops when it is not.
+//!
+//! The call shape follows confiture's CLI reference, `docs/reference/cli.md` in
+//! <https://github.com/fraiseql/confiture> at tag `v0.44.0`, section "`confiture migrate`".
+//! That is the confiture the `integration (postgres)` leg installs from
+//! `tools/confiture-requirements.txt` and runs `tests/migrate_against_confiture.rs` against;
+//! a bump of that pin is where a change to the table gets checked (#1376).
 
 use std::{path::Path, process::Command};
 
