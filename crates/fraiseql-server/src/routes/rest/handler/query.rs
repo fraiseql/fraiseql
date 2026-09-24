@@ -125,6 +125,8 @@ pub fn refuse_unstreamable_request(
         embeddings,
         // Refused below (#1275).
         embedding_filters,
+        // Refused below, with the embeds whose page they would set.
+        embedding_pages,
         // Refused below (#1268).
         embedding_counts,
     } = params;
@@ -219,7 +221,57 @@ pub fn refuse_unstreamable_request(
         )));
     }
 
+    if !embedding_pages.is_empty() {
+        let named = quoted_list(embedding_pages.keys().map(|path| format!("{path}.limit")));
+        return Err(RestError::bad_request(format!(
+            "embedded-level pages are not available for export responses: {named}. A \
+             `rel.limit` pages an embedded relationship, and an export carries no embed to \
+             page. Bound the exported rows themselves with `?limit=`, or request \
+             `Accept: application/json` to embed."
+        )));
+    }
+
     Ok(())
+}
+
+/// Refuse a `?rel.limit=n` whose path names no level this request embeds.
+///
+/// The page twin of [`refuse_unapplied_embedding_filters`], for the same reason: accepted and
+/// dropped, `?orders.limit=500` on a request that only counts `orders` would answer `200`
+/// with nothing to say the parameter did nothing. A `rel.count` has no page, so it does not
+/// make `rel.limit` applied. Honours `Prefer: handling=lenient` as the filter refusal does.
+pub(super) fn refuse_unapplied_embedding_pages(
+    embeddings: &[super::super::params::EmbeddedSpec],
+    embedding_pages: &std::collections::BTreeMap<String, u32>,
+    lenient: bool,
+) -> Result<(), RestError> {
+    if embedding_pages.is_empty() {
+        return Ok(());
+    }
+    let embedded = super::super::embedding::embedded_level_paths(embeddings);
+    let unapplied: Vec<String> = embedding_pages
+        .keys()
+        .filter(|path| !embedded.contains(path))
+        .map(|path| format!("{path}.limit"))
+        .collect();
+    if unapplied.is_empty() {
+        return Ok(());
+    }
+    let named = quoted_list(unapplied.iter());
+    if lenient {
+        tracing::debug!(
+            parameters = %named,
+            "ignoring embedded-level pages with no embed to apply them to \
+             (Prefer: handling=lenient)"
+        );
+        return Ok(());
+    }
+    Err(RestError::bad_request(format!(
+        "pages were sent for levels this request did not embed: {named}. `rel.limit` pages \
+         the rows of an embedded relationship — embed it in `?select=` (a nested level by its \
+         dotted path, `?orders.items.limit=` for `orders(items(...))`), or drop the parameter. \
+         `Prefer: handling=lenient` ignores such a page instead."
+    )))
 }
 
 /// Refuse a `?rel.field=value` filter the **JSON** representation has nothing to apply it to
@@ -630,6 +682,11 @@ impl RestHandler<'_> {
             &params.embedding_filters,
             prefer.handling == Some(super::prefer::HandlingPreference::Lenient),
         )?;
+        refuse_unapplied_embedding_pages(
+            &params.embeddings,
+            &params.embedding_pages,
+            prefer.handling == Some(super::prefer::HandlingPreference::Lenient),
+        )?;
 
         // The request's per-request allowances, charged by its one read: the cost of
         // everything it composes, before the statement is sent, and the bytes of what the
@@ -644,7 +701,8 @@ impl RestHandler<'_> {
             &params.embeddings,
             &params.embedding_counts,
             &params.embedding_filters,
-            Some(u32::try_from(self.config.max_page_size).unwrap_or(u32::MAX)),
+            &params.embedding_pages,
+            super::super::embedding::default_embed_page(self.config),
         );
         let read = async {
             if has_embeddings {

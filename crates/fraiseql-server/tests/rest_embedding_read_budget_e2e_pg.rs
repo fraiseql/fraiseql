@@ -23,12 +23,12 @@
 //! **The composed score is a bound, not a measurement.** A composed statement is charged
 //! its full page at every level, whatever rows exist. The fan-out stopped at the rows
 //! that existed, so on a small table it charged less: `users?select=id,orders(id,total)`
-//! over this fixture's two users was charged 503 and is now charged 20 201 — the charge
-//! for a full default page of 100 users. At a **full** page the two are equal by
-//! construction (`4369e56e2`), which `the_composed_statement_is_charged_what_the_fan_out_was`
-//! reads off the fixture; `an_unpaged_embed_is_charged_its_full_page` states the other
-//! half, so the change in what a deployment's ceiling admits is pinned rather than
-//! discovered.
+//! over this fixture's two users was charged 503 and is now charged 10 201 — a full
+//! default page of 100 users, each with a full `default_embed_page_size` page of 50
+//! orders. At a **full** page the two are equal by construction (`4369e56e2`), which
+//! `the_composed_statement_is_charged_what_the_fan_out_was` reads off the fixture;
+//! `an_unpaged_embed_is_charged_its_full_page` states the other half, so the change in
+//! what a deployment's ceiling admits is pinned rather than discovered.
 //!
 //! The cost refusal is a `400` for the reason its variant documents — a per-request
 //! ceiling is permanent for the request as issued, where a spent rolling window would be
@@ -399,7 +399,9 @@ async fn assert_charged(uri: &str, charge: u64) {
 /// operator wrote means the same request it did.
 ///
 /// `?limit=2` against a fixture holding exactly two users is what makes the page **full**,
-/// the case in which the two are equal.
+/// the case in which the two are equal. The fan-out's sub-reads were charged a page of 100
+/// (the scorer caps a page's multiplier there), so the embed asks for that page,
+/// `?orders.limit=100`; without it the level takes `default_embed_page_size`.
 #[tokio::test]
 async fn the_composed_statement_is_charged_what_the_fan_out_was() {
     let composed = DirectReadProjection {
@@ -419,41 +421,90 @@ async fn the_composed_statement_is_charged_what_the_fan_out_was() {
          derived, so a change that moved both sides of the identity still fails something"
     );
 
-    assert_charged("/rest/v1/users?select=id,orders(id,total)&limit=2", predicted).await;
+    assert_charged("/rest/v1/users?select=id,orders(id,total)&limit=2&orders.limit=100", predicted)
+        .await;
 }
 
 /// **Every nesting level is in the score.**
 ///
-/// `users?select=id,orders(id,user(name))&limit=2` is charged 20 405: two users, each
-/// with a page of 100 orders, each with a page of 100 users. The first level alone is
-/// 205, so a score that dropped the second level — or charged each level on its own —
-/// serves this request at 20 404.
+/// `users?select=id,orders(id,user(name))&limit=2` is charged 5 205: two users, each with
+/// a default page of 50 orders, each with a default page of 50 users. The first level
+/// alone is 105, so a score that dropped the second level — or charged each level on its
+/// own — serves this request at 5 204.
 #[tokio::test]
 async fn every_nesting_level_is_in_the_score() {
-    assert_charged("/rest/v1/users?select=id,orders(id,user(name))&limit=2", 20_405).await;
+    assert_charged("/rest/v1/users?select=id,orders(id,user(name))&limit=2", 5_205).await;
 }
 
 /// **An embedded count is charged with the statement.**
 ///
 /// A count is a level projecting nothing, which scores 1, so it adds one per parent row:
-/// 207 where the same request without it is 205. The fan-out never charged it — counts
+/// 107 where the same request without it is 105. The fan-out never charged it — counts
 /// went through `count_rows`, which has no cost gate — and composed into the statement,
 /// the work is the statement's.
 #[tokio::test]
 async fn an_embedded_count_is_charged_with_the_statement() {
-    assert_charged("/rest/v1/users?select=id,orders(id),orders.count&limit=2", 207).await;
+    assert_charged("/rest/v1/users?select=id,orders(id),orders.count&limit=2", 107).await;
 }
 
 /// **An unpaged embed is charged its full page.**
 ///
 /// The behavioural change this composition makes, pinned rather than discovered. Without
-/// `?limit=` the parent page is the REST default of 100, and the composed statement is
-/// charged for 100 parents whatever the table holds: 20 201, where the fan-out over this
-/// fixture's two users was charged 503. The ceiling is a bound, so the composed statement
-/// is charged the most the request could read — never less than the fan-out was.
+/// `?limit=` the parent page is the REST default of 100, and without `?orders.limit=` each
+/// parent's embed is `default_embed_page_size`, 50; the composed statement is charged for
+/// both pages whatever the table holds: `1 + 100 × (1 + 1 + 2 × 50)` = 10 201, where the
+/// fan-out over this fixture's two users was charged 503. The ceiling is a bound, so the
+/// composed statement is charged the most the request could read.
+///
+/// Before the embed had a default of its own it took `max_page_size`, and this request
+/// was charged 20 201 — a full page of related rows for every parent, which no client
+/// asked for.
 #[tokio::test]
 async fn an_unpaged_embed_is_charged_its_full_page() {
-    assert_charged("/rest/v1/users?select=id,orders(id,total)", 20_201).await;
+    assert_charged("/rest/v1/users?select=id,orders(id,total)", 10_201).await;
+}
+
+/// **A client that wants a bigger embed page asks for it, and is charged for it.**
+///
+/// `?orders.limit=100` pages the embed at 100: `1 + 100 × (1 + 1 + 2 × 100)` = 20 201.
+/// The parent's `?limit=` is not the embed's page, so this is the only way to reach it.
+#[tokio::test]
+async fn an_embed_page_the_client_asks_for_is_charged() {
+    assert_charged("/rest/v1/users?select=id,orders(id,total)&orders.limit=100", 20_201).await;
+}
+
+/// **The parent's `?limit=` does not page its embeds.**
+///
+/// `?limit=2` pages the users; each user's orders are still the default page of 50:
+/// `1 + 2 × (1 + 1 + 2 × 50)` = 205. A `?limit=` that also paged the embed would charge
+/// `1 + 2 × (1 + 1 + 2 × 2)` = 13 — and serve two orders per user to a client that asked
+/// for two users.
+#[tokio::test]
+async fn the_parents_limit_does_not_page_its_embeds() {
+    assert_charged("/rest/v1/users?select=id,orders(id,total)&limit=2", 205).await;
+}
+
+/// **Above the ceiling, an embed page is refused, not clamped.**
+///
+/// `[rest] max_page_size` is 1 000 here (the default). A clamp would serve 1 000 rows to
+/// a client that asked for 1 001 under a `200`, indistinguishable from a relation that
+/// has 1 000.
+#[tokio::test]
+async fn an_embed_page_above_the_ceiling_is_refused() {
+    let Some(rig) = rig_with(None, None).await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id)&orders.limit=1001").await;
+    assert_eq!(status, StatusCode::BAD_REQUEST, "{body}");
+    assert!(
+        body.to_string()
+            .contains("`orders.limit` 1001 exceeds the maximum page size of 1000"),
+        "{body}"
+    );
+
+    let (status, body) = rig.get("/rest/v1/users?select=id,orders(id)&orders.limit=1000").await;
+    assert_eq!(status, StatusCode::OK, "at the ceiling is served: {body}");
 }
 
 /// The accepted half. A ceiling the whole request fits under serves every level in full —
@@ -461,13 +512,13 @@ async fn an_unpaged_embed_is_charged_its_full_page() {
 /// under a `200`.
 #[tokio::test]
 async fn an_embed_inside_the_cost_ceiling_is_served_in_full() {
-    let Some(rig) = rig_cost(20_405).await else {
+    let Some(rig) = rig_cost(5_205).await else {
         eprintln!("skipping: DATABASE_URL not set");
         return;
     };
 
     let (status, body) = rig.get("/rest/v1/users?select=id,orders(id,user(name))&limit=2").await;
-    assert_eq!(status, StatusCode::OK, "20 405 against a ceiling of 20 405: {body}");
+    assert_eq!(status, StatusCode::OK, "5 205 against a ceiling of 5 205: {body}");
 
     let rows = body.get("data").and_then(Value::as_array).unwrap();
     assert_eq!(rows.len(), 2, "both users: {body}");

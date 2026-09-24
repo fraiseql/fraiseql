@@ -8,6 +8,11 @@ fn test_rest_toml_defaults_match_core() {
     assert_eq!(toml_defaults.path, "/rest/v1");
     assert_eq!(toml_defaults.max_page_size, 1_000);
     assert_eq!(toml_defaults.default_page_size, 100);
+    assert_eq!(toml_defaults.default_embed_page_size, 50);
+    assert_eq!(
+        toml_defaults.default_embed_page_size,
+        RestConfig::default().default_embed_page_size
+    );
     assert_eq!(toml_defaults.sse_heartbeat_seconds, 30);
     assert_eq!(toml_defaults.sse_max_replay_events, 10_000);
     assert!(toml_defaults.etag);
@@ -56,6 +61,14 @@ fn the_replay_bound_reaches_the_compiled_schema() {
         compiled.sse_max_replay_events, 42,
         "the operator's bound must survive the conversion the compiler performs"
     );
+}
+
+/// The same, for the embed page: declared in `[rest]`, carried into the compiled schema.
+#[test]
+fn the_embed_page_default_reaches_the_compiled_schema() {
+    let config: RestTomlConfig = toml::from_str("default_embed_page_size = 75").unwrap();
+    let compiled: RestConfig = config.into();
+    assert_eq!(compiled.default_embed_page_size, 75);
 }
 
 #[test]

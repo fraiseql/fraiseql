@@ -470,6 +470,12 @@ impl<'a> BulkHandler<'a> {
                  field filter.",
             ));
         }
+        if !params.embedding_pages.is_empty() {
+            return Err(RestError::bad_request(
+                "Embedded-level pages (`rel.limit=n`) are not supported on bulk operations — \
+                 a bulk operation embeds nothing. Use an explicit field filter.",
+            ));
+        }
 
         let mut arguments = std::collections::HashMap::new();
         arguments.insert("where".to_string(), where_clause);

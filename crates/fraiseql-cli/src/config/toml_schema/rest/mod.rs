@@ -18,6 +18,9 @@ pub struct RestTomlConfig {
     pub max_page_size:           u64,
     /// Default page size when no `?limit=` is specified.
     pub default_page_size:       u64,
+    /// Page each parent row gets of an embedded relationship when the request names none
+    /// (`?rel.limit=`). Applied at most at `max_page_size`.
+    pub default_embed_page_size: u64,
     /// Batch size for NDJSON streaming responses.
     pub ndjson_batch_size:       u64,
     /// Maximum affected rows for bulk PATCH/DELETE.
@@ -69,6 +72,7 @@ impl Default for RestTomlConfig {
             path:                    "/rest/v1".to_string(),
             max_page_size:           1_000,
             default_page_size:       100,
+            default_embed_page_size: 50,
             ndjson_batch_size:       500,
             max_bulk_affected:       10_000,
             max_filter_bytes:        4_096,
@@ -103,6 +107,7 @@ impl From<RestTomlConfig> for RestConfig {
             path:                    toml.path,
             max_page_size:           toml.max_page_size,
             default_page_size:       toml.default_page_size,
+            default_embed_page_size: toml.default_embed_page_size,
             ndjson_batch_size:       toml.ndjson_batch_size,
             max_bulk_affected:       toml.max_bulk_affected,
             max_filter_bytes:        toml.max_filter_bytes,

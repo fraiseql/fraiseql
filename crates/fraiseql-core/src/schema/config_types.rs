@@ -792,6 +792,14 @@ pub struct RestConfig {
     pub max_page_size:           u64,
     /// Default page size when no `?limit=` is specified.
     pub default_page_size:       u64,
+    /// The page each parent row gets of an embedded relationship when the request names
+    /// none (`?select=orders(id)` without `?orders.limit=`).
+    ///
+    /// Distinct from [`max_page_size`](Self::max_page_size), which is the ceiling a client
+    /// may ask up to, and applied at most at that ceiling. An embedded level is charged
+    /// its page for every parent row, so defaulting it to the ceiling charged an unpaged
+    /// embed as if every parent had a full page of related rows.
+    pub default_embed_page_size: u64,
     /// Batch size for NDJSON streaming responses.
     pub ndjson_batch_size:       u64,
     /// Maximum affected rows for bulk PATCH/DELETE.
@@ -846,6 +854,7 @@ impl Default for RestConfig {
             path:                    "/rest/v1".to_string(),
             max_page_size:           1_000,
             default_page_size:       100,
+            default_embed_page_size: 50,
             ndjson_batch_size:       500,
             max_bulk_affected:       10_000,
             max_filter_bytes:        4_096,

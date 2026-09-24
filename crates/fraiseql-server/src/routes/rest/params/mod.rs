@@ -14,7 +14,7 @@ pub mod select;
 #[cfg(test)]
 mod tests;
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 pub use bracket::parse_bracket_key;
 pub use coerce::coerce_to_type;
@@ -79,6 +79,26 @@ const RESERVED_PARAMS: &[&str] = &[
     "or", "and", "not",
 ];
 
+/// The names a dotted parameter's **last** segment may not take as a field filter, because
+/// they address the embedded level itself: `?orders.limit=20`, `?orders.items.limit=5`.
+///
+/// Only `limit` is honoured. The others are reserved so that when a level gains its own
+/// offset or ordering, `?orders.sort=` does not change meaning from "filter the field
+/// `sort`" to "order the level" under a client that was already sending it. A field that
+/// carries one of these names is still filtered by the bracket form, `?orders.limit[eq]=5`,
+/// which is unambiguous.
+const EMBED_LEVEL_PARAMS: &[&str] = &["limit", "offset", "order", "sort"];
+
+/// A plain (non-bracket) dotted key addressing an embedded level rather than filtering it:
+/// `(relationship path, parameter)`, e.g. `("orders.items", "limit")`.
+fn embed_level_parameter(key: &str) -> Option<(&str, &str)> {
+    if parse_bracket_key(key).is_some() {
+        return None;
+    }
+    let (path, name) = key.rsplit_once('.')?;
+    (!path.is_empty() && EMBED_LEVEL_PARAMS.contains(&name)).then_some((path, name))
+}
+
 /// Parse one numeric pagination parameter, naming it in the refusal.
 ///
 /// The four numeric parameters had four hand-written copies of this, differing only in the
@@ -130,6 +150,11 @@ pub struct ExtractedParams {
     pub embeddings:           Vec<EmbeddedSpec>,
     /// Embedded resource filters (from `?rel.field[op]=value` syntax).
     pub embedding_filters:    HashMap<String, serde_json::Value>,
+    /// The page an embedded level asked for (from `?rel.limit=n`, `?rel.nested.limit=n`),
+    /// keyed by the dotted relationship path. Positive and at most `max_page_size`: a value
+    /// above the ceiling is refused, not clamped. A level absent here gets
+    /// `default_embed_page_size`.
+    pub embedding_pages:      BTreeMap<String, u32>,
     /// Count-only embeddings (from `?select=id,posts.count`).
     pub embedding_counts:     Vec<String>,
 }
@@ -544,8 +569,9 @@ impl<'a> RestParamExtractor<'a> {
             )));
         }
 
-        // 9. Extract embedding filters (dot-prefixed query params).
+        // 9. Extract embedding filters and per-level pages (dot-prefixed query params).
         let embedding_filters = self.extract_embedding_filters(query_pairs)?;
+        let embedding_pages = self.extract_embedding_pages(query_pairs)?;
 
         Ok(ExtractedParams {
             path_params,
@@ -557,6 +583,7 @@ impl<'a> RestParamExtractor<'a> {
             search_query,
             embeddings,
             embedding_filters,
+            embedding_pages,
             embedding_counts,
         })
     }
@@ -764,6 +791,11 @@ impl<'a> RestParamExtractor<'a> {
                 }
             }
 
+            // `?posts.limit=` addresses the level, not a field of it.
+            if embed_level_parameter(key).is_some() {
+                continue;
+            }
+
             // Check for dot-prefixed simple: posts.status=published
             if let Some(dot_pos) = key.find('.') {
                 if !RESERVED_PARAMS.contains(&key) {
@@ -783,6 +815,50 @@ impl<'a> RestParamExtractor<'a> {
         }
 
         Ok(filters)
+    }
+
+    /// The page each embedded level asked for: `?orders.limit=20`, `?orders.items.limit=5`.
+    ///
+    /// The spelling is the one a level's filter already has (`?orders.status=x`), extended to
+    /// a dotted path so a nested level can be reached. The value is refused, not clamped,
+    /// above `max_page_size` — a client that asked for 5 000 rows and silently got 1 000 cannot
+    /// tell a short relation from a truncated one — and refused at zero, which `rel.count`
+    /// answers without reading rows. Whether the path names a level this request embedded is
+    /// decided with the `?select=` in hand (`refuse_unapplied_embedding_pages`).
+    fn extract_embedding_pages(
+        &self,
+        query_pairs: &[(&str, &str)],
+    ) -> Result<BTreeMap<String, u32>, FraiseQLError> {
+        let mut pages = BTreeMap::new();
+        for &(key, value) in query_pairs {
+            let Some((path, name)) = embed_level_parameter(key) else {
+                continue;
+            };
+            let root = path.split('.').next().unwrap_or(path);
+            if !self.embedding_relationship_is_known(key, root)? {
+                continue;
+            }
+            if name != "limit" {
+                return Err(validation_error(format!(
+                    "`{key}` is not supported: an embedded level takes `{path}.limit` and \
+                     nothing else. `offset`, `order` and `sort` are reserved in that position; \
+                     to filter a field with that name use the bracket form, `?{key}[eq]=...`."
+                )));
+            }
+            let limit = parse_page_number(Some(value), key, "a positive integer")?.unwrap_or(0);
+            if limit == 0 {
+                return Err(validation_error(format!(
+                    "Invalid `{key}` value: '{value}'. Expected a positive integer; \
+                     `{path}.count` in `select` counts the related rows without reading them."
+                )));
+            }
+            let max = self.config.max_page_size;
+            let page = u32::try_from(limit).ok().filter(|_| limit <= max).ok_or_else(|| {
+                validation_error(format!("`{key}` {limit} exceeds the maximum page size of {max}"))
+            })?;
+            pages.insert(path.to_string(), page);
+        }
+        Ok(pages)
     }
 
     // -----------------------------------------------------------------------

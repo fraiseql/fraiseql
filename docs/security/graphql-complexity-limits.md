@@ -92,9 +92,12 @@ it — before it is sent. An embedded `rel.count` is part of that statement and
 adds one per parent row.
 
 The score is a **bound**: each level is charged its full page, whatever rows
-exist. `users?select=id,orders(id,total)` with the default page of 100 is
-charged `1 + 100 × (1 + 1 + 2 × 100)` = 20 201 on a table of two users. Pass
-`?limit=` to be charged for the page you read.
+exist. An embedded level's page is `?rel.limit=` when the client names one
+(`?orders.items.limit=` for a nested level; refused above `[rest] max_page_size`),
+and `[rest] default_embed_page_size` (50) otherwise.
+`users?select=id,orders(id,total)` with the default parent page of 100 is charged
+`1 + 100 × (1 + 1 + 2 × 50)` = 10 201 on a table of two users. Pass `?limit=` and
+`?orders.limit=` to be charged for the pages you read.
 
 The `Prefer: count=exact` total is the exception, and a known gap: it is
 answered through a second read chokepoint that carries no cost gate at all.

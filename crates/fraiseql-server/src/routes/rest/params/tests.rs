@@ -1523,3 +1523,77 @@ fn a_filter_on_an_unselected_relationship_is_accepted_by_the_extractor() {
         .expect("a filter on a selected embed is the supported request");
     assert_eq!(ok.embedding_filters.len(), 1);
 }
+
+// -----------------------------------------------------------------------
+// `?rel.limit=n`: an embedded level's page
+// -----------------------------------------------------------------------
+
+fn extract_embed_page(pairs: &[(&str, &str)]) -> Result<ExtractedParams, FraiseQLError> {
+    let config = test_config();
+    let qd = list_query_def();
+    let td = user_type_with_relationships();
+    let mut query = vec![("select", "id,posts(id,comments(id))")];
+    query.extend_from_slice(pairs);
+    extractor_list(&config, &qd, &td).extract(&[], &query)
+}
+
+/// `?posts.limit=` is the level's page, not a filter on a field called `limit` — which is
+/// what it was parsed as before the level had a page to set.
+#[test]
+fn an_embed_limit_is_a_page_not_a_filter() {
+    let params = extract_embed_page(&[("posts.limit", "20")]).unwrap();
+    assert_eq!(params.embedding_pages, BTreeMap::from([("posts".to_string(), 20)]));
+    assert!(params.embedding_filters.is_empty(), "{:?}", params.embedding_filters);
+}
+
+/// A nested level is reached by its dotted relationship path.
+#[test]
+fn a_nested_embed_limit_is_keyed_by_its_path() {
+    let params = extract_embed_page(&[("posts.comments.limit", "5")]).unwrap();
+    assert_eq!(params.embedding_pages, BTreeMap::from([("posts.comments".to_string(), 5)]));
+}
+
+/// Above the ceiling is refused, naming the parameter — not clamped, which would serve 100
+/// rows to a client that asked for 101 and could not tell a short relation from a cut one.
+/// At the ceiling is served.
+#[test]
+fn an_embed_limit_above_the_ceiling_is_refused_not_clamped() {
+    let err = extract_embed_page(&[("posts.limit", "101")]).unwrap_err();
+    assert!(
+        err.to_string()
+            .contains("`posts.limit` 101 exceeds the maximum page size of 100"),
+        "{err}"
+    );
+    let params = extract_embed_page(&[("posts.limit", "100")]).unwrap();
+    assert_eq!(params.embedding_pages.get("posts"), Some(&100));
+}
+
+/// Zero is refused and points at `.count`, which answers "how many" without rows.
+#[test]
+fn an_embed_limit_of_zero_is_refused() {
+    let err = extract_embed_page(&[("posts.limit", "0")]).unwrap_err();
+    assert!(err.to_string().contains("Expected a positive integer"), "{err}");
+    assert!(err.to_string().contains("`posts.count`"), "{err}");
+}
+
+/// `offset`, `order` and `sort` are reserved at the level's position rather than read as
+/// filters, so giving a level its own ordering later changes no request's meaning.
+#[test]
+fn offset_order_and_sort_are_reserved_at_the_level() {
+    for name in ["offset", "order", "sort"] {
+        let key = format!("posts.{name}");
+        let err = extract_embed_page(&[(key.as_str(), "1")]).unwrap_err();
+        assert!(err.to_string().contains("reserved"), "{key}: {err}");
+    }
+}
+
+/// The bracket form still filters a field with a reserved name.
+#[test]
+fn the_bracket_form_still_filters_a_field_named_limit() {
+    let params = extract_embed_page(&[("posts.limit[eq]", "5")]).unwrap();
+    assert!(params.embedding_pages.is_empty());
+    assert_eq!(
+        params.embedding_filters.get("posts"),
+        Some(&serde_json::json!({"limit": {"eq": "5"}}))
+    );
+}

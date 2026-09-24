@@ -990,6 +990,7 @@ mod export_refusal {
             search_query:         None,
             embeddings:           Vec::new(),
             embedding_filters:    std::collections::HashMap::new(),
+            embedding_pages:      std::collections::BTreeMap::new(),
             embedding_counts:     Vec::new(),
         }
     }
@@ -1409,6 +1410,18 @@ mod export_refusal {
         );
     }
 
+    /// An export carries no embed, so it has no level for `?rel.limit=` to page.
+    #[test]
+    fn an_embedding_page_is_refused_by_name() {
+        let params = ExtractedParams {
+            embedding_pages: std::collections::BTreeMap::from([("author".to_string(), 5)]),
+            ..acceptable()
+        };
+        let err = refuse_unstreamable_request(&PreferHeader::default(), &params).unwrap_err();
+        assert_eq!(err.status, StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("`author.limit`"), "{}", err.message);
+    }
+
     /// The rendered list is sorted, and the assertion is on the whole of it.
     ///
     /// `embedding_filters` is a `HashMap`, so it carries no order and the refusal has to
@@ -1730,5 +1743,74 @@ mod unapplied_embedding_filters {
             refuse_unapplied_embedding_filters(&[embed("posts")], &[], &HashMap::new(), false)
                 .is_ok()
         );
+    }
+}
+
+// ---------------------------------------------------------------------------
+// A page needs a level to apply it to
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod unapplied_embedding_pages {
+    use std::collections::BTreeMap;
+
+    use super::super::query::refuse_unapplied_embedding_pages;
+    use crate::routes::rest::params::{EmbeddedSpec, SelectEntry};
+
+    fn pages(paths: &[&str]) -> BTreeMap<String, u32> {
+        paths.iter().map(|p| ((*p).to_string(), 5)).collect()
+    }
+
+    fn embed(relationship: &str, fields: Vec<SelectEntry>) -> EmbeddedSpec {
+        EmbeddedSpec {
+            relationship: relationship.to_string(),
+            rename: None,
+            fields,
+        }
+    }
+
+    /// `posts(id,comments(id))` embeds two levels, `posts` and `posts.comments`.
+    fn posts_with_comments() -> Vec<EmbeddedSpec> {
+        vec![embed(
+            "posts",
+            vec![
+                SelectEntry::Field("id".to_string()),
+                SelectEntry::Embedded(embed(
+                    "comments",
+                    vec![SelectEntry::Field("id".to_string())],
+                )),
+            ],
+        )]
+    }
+
+    #[test]
+    fn a_page_on_an_embedded_level_is_accepted_at_any_depth() {
+        let embeds = posts_with_comments();
+        assert!(refuse_unapplied_embedding_pages(&embeds, &pages(&["posts"]), false).is_ok());
+        assert!(
+            refuse_unapplied_embedding_pages(&embeds, &pages(&["posts.comments"]), false).is_ok()
+        );
+    }
+
+    /// A nested relationship's bare name is not its path: `comments.limit` names a
+    /// top-level `comments` this request does not embed.
+    #[test]
+    fn a_page_on_a_level_not_embedded_is_refused_by_its_path() {
+        let err =
+            refuse_unapplied_embedding_pages(&posts_with_comments(), &pages(&["comments"]), false)
+                .unwrap_err();
+        assert_eq!(err.status, axum::http::StatusCode::BAD_REQUEST);
+        assert!(err.message.contains("`comments.limit`"), "{}", err.message);
+    }
+
+    /// A count has no rows to page, so `posts.count` does not apply `posts.limit`.
+    #[test]
+    fn a_count_does_not_apply_a_page() {
+        assert!(refuse_unapplied_embedding_pages(&[], &pages(&["posts"]), false).is_err());
+    }
+
+    #[test]
+    fn lenient_handling_ignores_it() {
+        assert!(refuse_unapplied_embedding_pages(&[], &pages(&["posts"]), true).is_ok());
     }
 }

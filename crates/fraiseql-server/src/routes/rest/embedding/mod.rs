@@ -18,9 +18,12 @@
 //! are gone with the fan-out: the correlation is a column reference in SQL, and the
 //! statement is bounded by the request's cost and bytes ceilings like any other read.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
-use fraiseql_core::runtime::{CountSelection, EmbedSelection};
+use fraiseql_core::{
+    runtime::{CountSelection, EmbedSelection},
+    schema::RestConfig,
+};
 
 use super::params::{EmbeddedSpec, SelectEntry};
 
@@ -70,6 +73,43 @@ impl SubSelect {
     }
 }
 
+/// The dotted path of the level `relationship` under the level at `prefix` — the key a
+/// `?orders.items.limit=` parameter is stored under.
+#[must_use]
+pub fn level_path(prefix: &str, relationship: &str) -> String {
+    if prefix.is_empty() {
+        relationship.to_string()
+    } else {
+        format!("{prefix}.{relationship}")
+    }
+}
+
+/// Every level path a `?select=` embeds, rows only — a `rel.count` has no page.
+#[must_use]
+pub fn embedded_level_paths(embeddings: &[EmbeddedSpec]) -> Vec<String> {
+    fn walk(prefix: &str, embeddings: &[EmbeddedSpec], out: &mut Vec<String>) {
+        for spec in embeddings {
+            let path = level_path(prefix, &spec.relationship);
+            walk(&path, &SubSelect::split(&spec.fields).embeds, out);
+            out.push(path);
+        }
+    }
+    let mut out = Vec::new();
+    walk("", embeddings, &mut out);
+    out
+}
+
+/// The page an embedded level gets when the request names none: `default_embed_page_size`,
+/// applied at most at `max_page_size`.
+///
+/// Capped rather than refused because nobody asked for it: a deployment that lowers the
+/// ceiling below the default has not asked every unpaged embed to fail, and a client's own
+/// `?rel.limit=` above the ceiling is refused where it is parsed.
+#[must_use]
+pub fn default_embed_page(config: &RestConfig) -> u32 {
+    u32::try_from(config.default_embed_page_size.min(config.max_page_size)).unwrap_or(u32::MAX)
+}
+
 /// The key a `rel.count` total is written under.
 #[must_use]
 pub fn count_output_key(relationship: &str) -> String {
@@ -84,15 +124,31 @@ pub fn count_output_key(relationship: &str) -> String {
 /// the same rows (#1285). The syntax is flat, one segment deep, so no filter can name a
 /// nested selection, and the nested levels are given none rather than the parent's.
 ///
-/// `page` is the page each parent row gets of related rows: the deployment's
-/// `max_page_size`, as it always was for an embed.
+/// `pages` is the page each level asked for, keyed by its dotted relationship path
+/// (`?orders.limit=`, `?orders.items.limit=`); a level it does not name gets
+/// `default_page`, the deployment's `default_embed_page_size`. Unlike a filter, a page
+/// reaches nested levels, because its path names them — and the parent's `?limit=` is
+/// never one: it pages the parent.
 #[must_use]
 #[allow(clippy::implicit_hasher)] // Reason: the one caller holds a std `HashMap`
 pub fn selections(
     embeddings: &[EmbeddedSpec],
     counts: &[String],
     filters: &HashMap<String, serde_json::Value>,
-    page: Option<u32>,
+    pages: &BTreeMap<String, u32>,
+    default_page: u32,
+) -> (Vec<EmbedSelection>, Vec<CountSelection>) {
+    selections_at("", embeddings, counts, filters, pages, default_page)
+}
+
+/// [`selections`] for the levels under `prefix`, the dotted path of their parent level.
+fn selections_at(
+    prefix: &str,
+    embeddings: &[EmbeddedSpec],
+    counts: &[String],
+    filters: &HashMap<String, serde_json::Value>,
+    pages: &BTreeMap<String, u32>,
+    default_page: u32,
 ) -> (Vec<EmbedSelection>, Vec<CountSelection>) {
     let no_filters = HashMap::new();
     let embeds = embeddings
@@ -103,13 +159,15 @@ pub fn selections(
                 embeds: nested,
                 counts: nested_counts,
             } = SubSelect::split(&spec.fields);
-            let (embeds, counts) = selections(&nested, &nested_counts, &no_filters, page);
+            let path = level_path(prefix, &spec.relationship);
+            let (embeds, counts) =
+                selections_at(&path, &nested, &nested_counts, &no_filters, pages, default_page);
             EmbedSelection {
                 relationship: spec.relationship.clone(),
                 output_key: spec.rename.clone().unwrap_or_else(|| spec.relationship.clone()),
                 fields,
                 filter: filters.get(&spec.relationship).cloned(),
-                limit: page,
+                limit: Some(pages.get(&path).copied().unwrap_or(default_page)),
                 embeds,
                 counts,
             }

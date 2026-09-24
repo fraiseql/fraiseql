@@ -18,6 +18,26 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **An embedded level has its own default page, and a client sets it with `?rel.limit=`.**
+
+  A `?select=` embed with no page took `[rest] max_page_size` as its page for every parent
+  row, and is charged its page: `users?select=id,orders(id,total)` cost 20 201 on the default
+  config, a full page of related rows per parent that nobody asked for. An unpaged level now
+  takes `[rest] default_embed_page_size` (default **50**, applied at most at
+  `max_page_size`), and the same request costs 10 201.
+
+  A client that wants more asks per level, in the spelling a level's filter already has:
+  `?orders.limit=200`, and `?orders.items.limit=5` for a nested level. Above
+  `max_page_size` it is **refused** (`` `orders.limit` 5000 exceeds the maximum page size of
+  1000 ``), not clamped; zero is refused. The parent's `?limit=` never pages an embed. A page
+  for a level the request does not embed is refused like an unapplied filter (lenient
+  handling ignores it); exports and bulk operations refuse it.
+
+  Breaking for a client that filtered an embedded field named `limit`, `offset`, `order` or
+  `sort` with the plain form (`?orders.limit=5`): that key now addresses the level —
+  `limit` is its page, and the other three are reserved and refused. The bracket form,
+  `?orders.limit[eq]=5`, still filters the field.
+
 - **A mutation the field authorizer rejects no longer happens (#1353).**
 
   The #423 field authorizer was post-write enforcement. Its contract takes the resolved
