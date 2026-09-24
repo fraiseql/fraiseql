@@ -29,7 +29,7 @@ use crate::{
     runtime::{Executor, RuntimeConfig, executor::test_support::CapturingMockAdapter},
     schema::{
         CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, QueryDefinition,
-        SecurityConfig, TypeDefinition,
+        RoleDefinition, SecurityConfig, TypeDefinition,
     },
     security::{RLSPolicy, RlsWhereClause, SecurityContext, rls_policy::RlsTarget},
 };
@@ -53,7 +53,9 @@ fn list_query(name: &str, return_type: &str, view: &str) -> QueryDefinition {
 }
 
 /// `User.orders` is a list of `Order` documents embedded in `v_user`'s `data`. `Order`
-/// gates `margin` (Mask) and `cost_price` (Reject); `User` gates nothing.
+/// gates `margin` (Mask) and `cost_price` (Reject); `User` gates nothing. Each order embeds
+/// its `items`, whose `note` is masked — a gate two levels below the root. The `analyst`
+/// role holds `read:margin`.
 fn schema() -> CompiledSchema {
     let mut schema = CompiledSchema::default();
     schema.types.push(TypeDefinition {
@@ -73,14 +75,27 @@ fn schema() -> CompiledSchema {
             FieldDefinition::new("owner", FieldType::String),
             scoped("margin", "read:margin", FieldDenyPolicy::Mask),
             scoped("cost_price", "read:cost", FieldDenyPolicy::Reject),
+            FieldDefinition::new(
+                "items",
+                FieldType::List(Box::new(FieldType::Object("Item".to_string()))),
+            ),
         ],
         ..TypeDefinition::new("Order", "v_order")
+    });
+    schema.types.push(TypeDefinition {
+        fields: vec![
+            FieldDefinition::new("id", FieldType::Int),
+            scoped("note", "read:note", FieldDenyPolicy::Mask),
+        ],
+        ..TypeDefinition::new("Item", "v_item")
     });
     schema.queries.push(list_query("users", "User", "v_user"));
     schema.queries.push(list_query("orders", "Order", "v_order"));
     // Field-level RBAC is inert without a security section; with the default one, a
     // principal holding no role holds no scope.
-    schema.security = Some(SecurityConfig::default());
+    let mut security = SecurityConfig::default();
+    security.add_role(RoleDefinition::new("analyst", vec!["read:margin".to_string()]));
+    schema.security = Some(security);
     schema.build_indexes();
     schema
 }
@@ -104,7 +119,10 @@ fn principal() -> SecurityContext {
 }
 
 fn alices_order() -> Value {
-    json!({"id": 10, "owner": "u-alice", "margin": 7, "cost_price": 90})
+    json!({
+        "id": 10, "owner": "u-alice", "margin": 7, "cost_price": 90,
+        "items": [{"id": 100, "note": "fragile"}]
+    })
 }
 
 fn mallorys_order() -> Value {
@@ -121,10 +139,30 @@ fn order_rows() -> Vec<Value> {
 }
 
 async fn execute(rows: Vec<Value>, config: RuntimeConfig, query: &str) -> Result<Value> {
+    execute_as(rows, config, query, Some(&principal())).await
+}
+
+/// `execute`, as `caller` — or anonymously, through the unauthenticated entry point.
+async fn execute_as(
+    rows: Vec<Value>,
+    config: RuntimeConfig,
+    query: &str,
+    caller: Option<&SecurityContext>,
+) -> Result<Value> {
     let adapter =
         Arc::new(CapturingMockAdapter::new(rows.into_iter().map(JsonbValue::new).collect()));
     let executor = Executor::read_only_with_config(schema(), adapter, config);
-    executor.execute_with_security(query, None, &principal()).await
+    match caller {
+        Some(caller) => executor.execute_with_security(query, None, caller).await,
+        None => executor.execute(query, None).await,
+    }
+}
+
+fn analyst() -> SecurityContext {
+    SecurityContext {
+        roles: vec!["analyst".to_string()],
+        ..principal()
+    }
 }
 
 fn config() -> RuntimeConfig {
@@ -164,7 +202,6 @@ async fn control_a_masked_field_of_a_root_order_is_null() {
 /// **Reproduction (a), Mask.** The same field, selected through `users { orders { … } }`,
 /// must be masked the same way.
 #[tokio::test]
-#[ignore = "reproduction: a nested selection is not classified against its own type"]
 async fn a_masked_field_of_a_nested_order_is_null() {
     let out = execute(user_rows(), config(), "{ users { id orders { id margin } } }")
         .await
@@ -187,13 +224,103 @@ async fn control_a_rejected_field_of_a_root_order_refuses() {
 /// **Reproduction (a), Reject.** Selected through `users { orders { … } }`, it must refuse
 /// the request the same way.
 #[tokio::test]
-#[ignore = "reproduction: a nested selection is not classified against its own type"]
 async fn a_rejected_field_of_a_nested_order_refuses() {
     let result = execute(user_rows(), config(), "{ users { id orders { id cost_price } } }").await;
     assert!(
         matches!(result, Err(FraiseQLError::Authorization { .. })),
         "Order.cost_price is Reject wherever Order is served: {result:?}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// (a) By field, at every level, on every entry point
+// ---------------------------------------------------------------------------
+
+/// A principal holding `read:margin` is served the nested value: the level is classified
+/// against its own type, not denied for being nested.
+#[tokio::test]
+async fn a_nested_field_the_caller_may_read_is_served() {
+    let out = execute_as(
+        user_rows(),
+        config(),
+        "{ users { id orders { id margin } } }",
+        Some(&analyst()),
+    )
+    .await
+    .unwrap();
+    let margins: Vec<Value> =
+        served_orders(&out, &["users"]).iter().map(|o| o["margin"].clone()).collect();
+    assert_eq!(margins, [json!(7), json!(8)], "{out}");
+}
+
+/// An alias is an output key, not another field: `c: cost_price` is `cost_price`.
+#[tokio::test]
+async fn an_aliased_rejected_field_of_a_root_order_refuses() {
+    let result = execute(order_rows(), config(), "{ orders { id c: cost_price } }").await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+}
+
+#[tokio::test]
+async fn an_aliased_rejected_field_of_a_nested_order_refuses() {
+    let result =
+        execute(user_rows(), config(), "{ users { id orders { id c: cost_price } } }").await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+}
+
+/// Masked under the key the response carries it: the alias.
+#[tokio::test]
+async fn an_aliased_masked_field_of_a_nested_order_is_null() {
+    let out = execute(user_rows(), config(), "{ users { id orders { id m: margin } } }")
+        .await
+        .unwrap();
+    let orders = served_orders(&out, &["users"]);
+    assert_eq!(orders.len(), 2, "{out}");
+    assert!(orders.iter().all(|o| o.get("m") == Some(&Value::Null)), "{out}");
+}
+
+/// A field selected through an inline fragment is selected.
+#[tokio::test]
+async fn a_rejected_field_in_a_nested_inline_fragment_refuses() {
+    let result = execute(
+        user_rows(),
+        config(),
+        "{ users { id orders { id ... on Order { cost_price } } } }",
+    )
+    .await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+}
+
+/// Two levels below the root: `Item.note`, under `users { orders { items } }`.
+#[tokio::test]
+async fn a_masked_field_two_levels_down_is_null() {
+    let out = execute(user_rows(), config(), "{ users { orders { id items { id note } } } }")
+        .await
+        .unwrap();
+    let items: Vec<Value> = served_orders(&out, &["users"])
+        .iter()
+        .flat_map(|o| o["items"].as_array().cloned().unwrap_or_default())
+        .collect();
+    assert_eq!(items.len(), 1, "{out}");
+    assert_eq!(items[0]["id"], json!(100), "{out}");
+    assert!(items[0]["note"].is_null(), "Item.note requires read:note: {out}");
+}
+
+/// The unauthenticated entry point classifies nested levels too.
+#[tokio::test]
+async fn an_anonymous_nested_masked_field_is_null() {
+    let out = execute_as(user_rows(), config(), "{ users { id orders { id margin } } }", None)
+        .await
+        .unwrap();
+    let orders = served_orders(&out, &["users"]);
+    assert_eq!(orders.len(), 2, "{out}");
+    assert!(orders.iter().all(|o| o["margin"].is_null()), "{out}");
+}
+
+#[tokio::test]
+async fn an_anonymous_nested_rejected_field_refuses() {
+    let result =
+        execute_as(user_rows(), config(), "{ users { id orders { id cost_price } } }", None).await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
 }
 
 // ---------------------------------------------------------------------------

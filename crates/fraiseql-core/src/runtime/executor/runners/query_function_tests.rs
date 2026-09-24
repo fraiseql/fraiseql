@@ -868,3 +868,83 @@ async fn the_same_schema_answers_when_no_gated_field_is_selected() {
         .unwrap();
     assert_eq!(response["data"]["quotePreview"]["id"], "q-1");
 }
+
+// ── Field-level RBAC reaches the documents nested in a function result ───────
+//
+// A function returns documents of the declared type, and what it nests in them are
+// documents of *their* declared types: classified as the SQL path classifies a nested
+// level, each against its own type.
+
+/// `Quote.lines` is a list of `Line`, whose `cost` is masked and whose `margin` refuses.
+fn nested_scoped_quote_schema() -> CompiledSchema {
+    let scoped = |name: &str, scope: &str, on_deny: crate::schema::FieldDenyPolicy| {
+        let mut field = FieldDefinition::new(name, FieldType::Int);
+        field.requires_scope = Some(scope.to_string());
+        field.on_deny = on_deny;
+        field
+    };
+    let mut schema = quote_schema();
+    schema
+        .types
+        .iter_mut()
+        .find(|t| t.name == "Quote")
+        .unwrap()
+        .fields
+        .push(FieldDefinition::new(
+            "lines",
+            FieldType::List(Box::new(FieldType::Object("Line".to_string()))),
+        ));
+    schema.types.push(TypeDefinition {
+        fields: vec![
+            FieldDefinition::new("sku", FieldType::String),
+            scoped("cost", "read:cost", crate::schema::FieldDenyPolicy::Mask),
+            scoped("margin", "read:margin", crate::schema::FieldDenyPolicy::Reject),
+        ],
+        ..TypeDefinition::new("Line", "")
+    });
+    schema.security = Some(crate::schema::SecurityConfig::default());
+    schema.build_indexes();
+    schema
+}
+
+fn quote_with_lines() -> serde_json::Value {
+    serde_json::json!({"id": "q-1", "total": 4200, "lines": [{"sku": "a", "cost": 5, "margin": 2}]})
+}
+
+#[tokio::test]
+async fn a_masked_field_nested_in_a_function_result_is_null() {
+    let resolver = StubResolver::answering(quote_with_lines());
+    let executor = executor_with(nested_scoped_quote_schema(), Some(Arc::clone(&resolver)));
+
+    let response = executor
+        .execute_with_security(
+            r#"{ quotePreview(sku: "ABC-1") { id lines { sku cost } } }"#,
+            None,
+            &principal("alice"),
+        )
+        .await
+        .unwrap();
+    let line = &response["data"]["quotePreview"]["lines"][0];
+    assert_eq!(line["sku"], "a", "{response}");
+    assert!(line["cost"].is_null(), "Line.cost requires read:cost: {response}");
+}
+
+#[tokio::test]
+async fn a_rejected_field_nested_in_a_function_result_refuses_before_the_invocation() {
+    let resolver = StubResolver::answering(quote_with_lines());
+    let executor = executor_with(nested_scoped_quote_schema(), Some(Arc::clone(&resolver)));
+
+    let result = executor
+        .execute_with_security(
+            r#"{ quotePreview(sku: "ABC-1") { id lines { margin } } }"#,
+            None,
+            &principal("alice"),
+        )
+        .await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+    assert!(
+        resolver.calls().is_empty(),
+        "refused before the isolate: {:?}",
+        resolver.calls()
+    );
+}

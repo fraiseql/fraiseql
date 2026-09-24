@@ -162,20 +162,17 @@ impl QueryRunner {
         // field never spends an isolate. `Mask` needs the value to exist before it can
         // null a key, so its half is applied after the projection below — the same
         // split the SQL path makes.
+        // At every level of the selection, by field name (`query_nested`): a function
+        // returns documents of the declared type, nested ones included.
         let plan = self.ctx.planner.plan(query_match)?;
-        let access = match security_context {
-            Some(ctx) => super::super::support::security::apply_field_rbac_filtering(
-                &self.ctx.schema,
-                &query_def.return_type,
-                plan.projection_fields.clone(),
-                ctx,
-            )?,
-            None => super::super::support::security::apply_anonymous_field_rbac_filtering(
-                &self.ctx.schema,
-                &query_def.return_type,
-                &plan.projection_fields,
-            )?,
-        };
+        let selection_access = super::query_nested::SelectionAccess::classify(
+            &self.ctx.schema,
+            &query_def.return_type,
+            root_fields,
+            plan.projection_fields,
+            security_context,
+        )?;
+        let access = &selection_access.root;
 
         // The caller-scoped read bridge (#1328), built from this executor and this
         // principal — the same object a `before:mutation` hook reads through, and
@@ -251,16 +248,19 @@ impl QueryRunner {
             root_fields,
             &self.ctx.schema,
         );
-        if !access.masked.is_empty() {
-            super::super::null_masked_fields(&mut projected, &access.masked);
-        }
+        selection_access.null_masked(
+            &mut projected,
+            &query_def.return_type,
+            root_fields,
+            &self.ctx.schema,
+        );
 
         // The dynamic authorizer runs last, over the rows the function returned, and
         // AND-composes with the static gate above — a field is shown only if both
         // allow. The anonymous arm never reaches here: it was refused before the
         // invocation.
         if let (true, Some(ctx)) = (gated_present, security_context) {
-            self.apply_dynamic_field_authorizer(query_match, ctx, &access, &rows, &mut projected)?;
+            self.apply_dynamic_field_authorizer(query_match, ctx, access, &rows, &mut projected)?;
         }
 
         let response =

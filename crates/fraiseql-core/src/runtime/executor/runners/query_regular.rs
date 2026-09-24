@@ -533,6 +533,17 @@ impl QueryRunner {
         // 3. Create execution plan
         let plan = self.ctx.planner.plan(&query_match)?;
 
+        // 3a. Field-level RBAC at every level of the selection, each against its own type
+        //     and by field name (`query_nested`). Before the read, so a `Reject` anywhere
+        //     in the tree never reaches the database.
+        let selection_access = super::query_nested::SelectionAccess::classify(
+            &self.ctx.schema,
+            &query_match.query_def.return_type,
+            root_fields,
+            plan.projection_fields.clone(),
+            Some(security_context),
+        )?;
+
         // 4. Evaluate RLS policy and build WHERE clause filter. The return type is
         //    Option<RlsWhereClause> — a compile-time proof that the clause passed through RLS
         //    evaluation.
@@ -722,13 +733,8 @@ impl QueryRunner {
             budget.charge_jsonb_rows(&results)?;
         }
 
-        // 10. Apply field-level RBAC filtering (reject / mask / allow)
-        let access = super::super::support::security::apply_field_rbac_filtering(
-            &self.ctx.schema,
-            &query_match.query_def.return_type,
-            plan.projection_fields,
-            security_context,
-        )?;
+        // 10. Field-level RBAC, classified at 3a.
+        let access = &selection_access.root;
 
         // 11. Project results. Masked fields stay in the projection, in their requested position,
         //     and are nulled below — GraphQL requires the response's field order to follow the
@@ -764,10 +770,13 @@ impl QueryRunner {
             &self.ctx.schema,
         );
 
-        // 11. Null out masked fields in the projected result
-        if !access.masked.is_empty() {
-            null_masked_fields(&mut projected, &access.masked);
-        }
+        // 11. Null out masked fields in the projected result, at every level.
+        selection_access.null_masked(
+            &mut projected,
+            &query_match.query_def.return_type,
+            root_fields,
+            &self.ctx.schema,
+        );
 
         // 11c. Apply the dynamic field authorizer (#423) per row. The static gate (step
         //      10) ran first — AND-composition: a field shown only if both allow. Fail-closed:
@@ -776,7 +785,7 @@ impl QueryRunner {
             self.apply_dynamic_field_authorizer(
                 &query_match,
                 security_context,
-                &access,
+                access,
                 &results,
                 &mut projected,
             )?;
@@ -1029,12 +1038,16 @@ impl QueryRunner {
         //     selected field carrying `requires_scope` is denied per its own on_deny
         //     policy — exactly what an authenticated-but-unscoped principal gets from
         //     apply_field_rbac_filtering. Classifying here (not after the read) means a
-        //     Reject never reaches the database.
-        let access = super::super::support::security::apply_anonymous_field_rbac_filtering(
+        //     Reject never reaches the database. At every level, as the authenticated
+        //     path does (`query_nested`).
+        let selection_access = super::query_nested::SelectionAccess::classify(
             &self.ctx.schema,
             &query_match.query_def.return_type,
-            &plan.projection_fields,
+            root_fields,
+            plan.projection_fields.clone(),
+            None,
         )?;
+        let access = &selection_access.root;
 
         // 3. Execute SQL query
         let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {
@@ -1193,9 +1206,12 @@ impl QueryRunner {
         );
 
         // 4a. #743: null out fields denied to the anonymous caller under on_deny=Mask.
-        if !access.masked.is_empty() {
-            null_masked_fields(&mut projected, &access.masked);
-        }
+        selection_access.null_masked(
+            &mut projected,
+            &query_match.query_def.return_type,
+            root_fields,
+            &self.ctx.schema,
+        );
 
         // 5. Wrap in GraphQL data envelope
         let response =

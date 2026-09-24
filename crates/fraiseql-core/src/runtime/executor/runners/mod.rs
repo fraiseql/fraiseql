@@ -9,6 +9,7 @@ pub(super) mod mutation;
 pub(super) mod query;
 pub(super) mod query_composed;
 pub(super) mod query_function;
+pub(super) mod query_nested;
 pub(super) mod query_params;
 pub(super) mod query_projection;
 pub(super) mod query_regular;

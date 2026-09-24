@@ -33,7 +33,7 @@ use fraiseql_core::{
     runtime::{Executor, RuntimeConfig},
     schema::{
         CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, QueryDefinition,
-        SecurityConfig, TypeDefinition,
+        RoleDefinition, SecurityConfig, TypeDefinition,
     },
     security::{CompiledRLSPolicy, DefaultRLSPolicy, SecurityContext, rls_policy::RLSRule},
     types::TenantId,
@@ -147,8 +147,10 @@ fn schema(user_view: &str) -> CompiledSchema {
         );
     }
 
-    // A principal with no role holds no scope.
-    schema.security = Some(SecurityConfig::default());
+    // A principal with no role holds no scope; `analyst` holds `read:margin`.
+    let mut security = SecurityConfig::default();
+    security.add_role(RoleDefinition::new("analyst", vec!["read:margin".to_string()]));
+    schema.security = Some(security);
     schema.build_indexes();
     schema
 }
@@ -213,6 +215,16 @@ async fn graphql(executor: &Executor, query: &str) -> Result<Value> {
     executor.execute_with_security(query, None, &alice()).await
 }
 
+/// The margins served under every user's orders, in order-id order.
+fn nested_values(response: &Value, key: &str) -> Vec<Value> {
+    let users = response["data"]["users"].as_array().unwrap_or_else(|| panic!("{response}"));
+    users
+        .iter()
+        .flat_map(|u| u["orders"].as_array().unwrap().iter())
+        .map(|o| o.get(key).cloned().unwrap_or_else(|| panic!("no `{key}` in {o}")))
+        .collect()
+}
+
 /// The ids of the orders served — at the root (`orders`) or under every user (`users`).
 fn order_ids(response: &Value) -> Vec<i64> {
     let data = response.get("data").unwrap_or_else(|| panic!("no data: {response}"));
@@ -259,7 +271,6 @@ async fn control_a_root_margin_is_masked() {
 
 /// **Reproduction (a), Mask**, as PostgreSQL serves it.
 #[tokio::test]
-#[ignore = "reproduction: a nested selection is not classified against its own type"]
 async fn a_nested_margin_is_masked() {
     let executor = rig_or_skip!("v_user_fk", Policy::None);
     let out = graphql(&executor, "{ users { id orders { id margin } } }").await.unwrap();
@@ -281,7 +292,6 @@ async fn control_a_root_cost_price_is_refused() {
 
 /// **Reproduction (a), Reject**, as PostgreSQL serves it.
 #[tokio::test]
-#[ignore = "reproduction: a nested selection is not classified against its own type"]
 async fn a_nested_cost_price_is_refused() {
     let executor = rig_or_skip!("v_user_fk", Policy::None);
     let result = graphql(&executor, "{ users { id orders { id cost_price } } }").await;
@@ -289,6 +299,65 @@ async fn a_nested_cost_price_is_refused() {
         matches!(result, Err(FraiseQLError::Authorization { .. })),
         "Order.cost_price served through users {{ orders }}: {result:?}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// (a) By field, on the SQL projection path, on both entry points
+// ---------------------------------------------------------------------------
+
+/// The typed SQL projection reads `margin` and writes it under `m`, so an alias is the
+/// field it names: masked at the root as it is unaliased.
+#[tokio::test]
+async fn an_aliased_root_margin_is_masked() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let out = graphql(&executor, "{ orders { id m: margin } }").await.unwrap();
+    let orders = out["data"]["orders"].as_array().unwrap();
+    assert_eq!(orders.len(), 3, "{out}");
+    assert!(orders.iter().all(|o| o.get("m") == Some(&Value::Null)), "{out}");
+}
+
+#[tokio::test]
+async fn an_aliased_root_cost_price_is_refused() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let result = graphql(&executor, "{ orders { id c: cost_price } }").await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+}
+
+#[tokio::test]
+async fn an_aliased_nested_margin_is_masked() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let out = graphql(&executor, "{ users { id orders { id m: margin } } }").await.unwrap();
+    assert_eq!(nested_values(&out, "m"), [Value::Null, Value::Null, Value::Null], "{out}");
+}
+
+/// The level is classified against `Order`, not refused for being nested: a principal
+/// holding `read:margin` is served it.
+#[tokio::test]
+async fn a_nested_margin_is_served_to_a_principal_holding_its_scope() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let analyst = SecurityContext {
+        roles: vec!["analyst".to_string()],
+        ..alice()
+    };
+    let out = executor
+        .execute_with_security("{ users { id orders { id margin } } }", None, &analyst)
+        .await
+        .unwrap();
+    assert_eq!(nested_values(&out, "margin"), [7, 8, 9], "{out}");
+}
+
+#[tokio::test]
+async fn an_anonymous_nested_margin_is_masked() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let out = executor.execute("{ users { id orders { id margin } } }", None).await.unwrap();
+    assert_eq!(nested_values(&out, "margin"), [Value::Null, Value::Null, Value::Null], "{out}");
+}
+
+#[tokio::test]
+async fn an_anonymous_nested_cost_price_is_refused() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let result = executor.execute("{ users { id orders { id cost_price } } }", None).await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
 }
 
 // ---------------------------------------------------------------------------
