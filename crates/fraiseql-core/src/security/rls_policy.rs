@@ -101,6 +101,24 @@ impl<'a> RlsTarget<'a> {
     }
 }
 
+/// Which stored keys a policy's predicate for a target may read.
+///
+/// Asked once per type, when the executor is built, to decide how a GraphQL selection
+/// into that type is gated when another type's view has embedded it: by evaluating the
+/// type's predicate over the embedded documents, or by reading the type's own view. The
+/// first is only sound when the predicate reads nothing the embedded documents do not
+/// carry, which only the policy can say.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ConstrainedPaths {
+    /// The policy does not say. A nested selection of the type is read from the type's own
+    /// view, joined through a declared relationship — or refused, when there is none.
+    Opaque,
+    /// Every predicate the policy returns for the target reads only these top-level stored
+    /// keys (none: it never returns one). A predicate that reads anything else is refused
+    /// when it is returned.
+    Declared(Vec<String>),
+}
+
 /// What [`CompiledRLSPolicy`] does when no rule matches a target.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize, Default)]
 pub enum UnmatchedTarget {
@@ -252,6 +270,17 @@ pub trait RLSPolicy: Send + Sync {
     fn cache_result(&self, _cache_key: &str, _result: &Option<WhereClause>) {
         // Default: no caching. Implementers can override.
     }
+
+    /// The stored keys every predicate this policy returns for `target` reads.
+    ///
+    /// Optional, and [`ConstrainedPaths::Opaque`] by default: a policy that does not
+    /// declare its paths is never evaluated over documents another view embedded, only
+    /// over rows of the type's own view. Declaring them lets a GraphQL selection into the
+    /// type be gated in place, over the documents its parent's view materialised — and is
+    /// a promise: a predicate that reads an undeclared key is refused, not served.
+    fn constrained_paths(&self, _target: &RlsTarget<'_>) -> ConstrainedPaths {
+        ConstrainedPaths::Opaque
+    }
 }
 
 /// Default RLS policy that enforces tenant isolation and owner-based access.
@@ -312,6 +341,16 @@ impl Default for DefaultRLSPolicy {
 }
 
 impl RLSPolicy for DefaultRLSPolicy {
+    /// The tenant field when isolation is on, and the owner field — whatever the target.
+    fn constrained_paths(&self, _target: &RlsTarget<'_>) -> ConstrainedPaths {
+        let mut paths = Vec::with_capacity(2);
+        if self.enable_tenant_isolation {
+            paths.push(self.tenant_field.clone());
+        }
+        paths.push(self.owner_field.clone());
+        ConstrainedPaths::Declared(paths)
+    }
+
     fn evaluate(
         &self,
         context: &SecurityContext,
@@ -358,6 +397,10 @@ impl RLSPolicy for DefaultRLSPolicy {
 pub struct NoRLSPolicy;
 
 impl RLSPolicy for NoRLSPolicy {
+    fn constrained_paths(&self, _target: &RlsTarget<'_>) -> ConstrainedPaths {
+        ConstrainedPaths::Declared(Vec::new())
+    }
+
     fn evaluate(
         &self,
         _context: &SecurityContext,
@@ -464,6 +507,19 @@ pub struct RLSRule {
 }
 
 impl RLSPolicy for CompiledRLSPolicy {
+    /// The keys the rule `evaluate` would select for `target` can read, from the rule's
+    /// expression; none when no rule matches, which `evaluate` answers with a refusal or
+    /// full access and never with a predicate.
+    fn constrained_paths(&self, target: &RlsTarget<'_>) -> ConstrainedPaths {
+        let rule = target
+            .keys()
+            .find_map(|key| self.rules_by_type.get(key).and_then(|r| r.first()))
+            .or(self.default_rule.as_ref());
+        ConstrainedPaths::Declared(
+            rule.map_or_else(Vec::new, |r| rls_expression_paths(&r.expression)),
+        )
+    }
+
     fn evaluate(
         &self,
         context: &SecurityContext,
@@ -633,6 +689,31 @@ fn evaluate_rls_expression(
         message: format!("Unrecognised RLS expression: '{expr}'"),
         path:    None,
     })
+}
+
+/// The stored keys a predicate [`evaluate_rls_expression`] builds from `expression` reads.
+///
+/// Follows the evaluator's patterns in its order: an equality against `object.<key>`
+/// reads that key and the evaluator returns there; a literal comparison reads the
+/// placeholder key it writes; a role test reads nothing; the tenant fallback reads
+/// `tenant_id`. Anything else the evaluator refuses, so it reads nothing.
+fn rls_expression_paths(expression: &str) -> Vec<String> {
+    let expr = expression.trim();
+    if let Some((left, right)) = expr.split_once("==") {
+        let (left, right) = (left.trim(), right.trim());
+        if left.starts_with("user.") {
+            if let Some(object_field) = right.strip_prefix("object.") {
+                return vec![object_field.to_string()];
+            }
+            if serde_json::from_str::<serde_json::Value>(right).is_ok() {
+                return vec!["_literal_".to_string()];
+            }
+        }
+    }
+    if expr.contains("tenant_id") && expr.contains("==") {
+        return vec!["tenant_id".to_string()];
+    }
+    Vec::new()
 }
 
 /// Extract a value from user context by field name

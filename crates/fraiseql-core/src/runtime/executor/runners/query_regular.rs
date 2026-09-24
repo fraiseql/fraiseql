@@ -544,6 +544,15 @@ impl QueryRunner {
             Some(security_context),
         )?;
 
+        // 3b. The nested levels whose type scopes its rows, each read with that type's
+        //     predicate (`query_nested`). None: the read is flat, as it always was.
+        let nested_reads = self.plan_nested_reads(
+            &query_match.query_def.return_type,
+            root_fields,
+            Some(security_context),
+            &selection_access,
+        )?;
+
         // 4. Evaluate RLS policy and build WHERE clause filter. The return type is
         //    Option<RlsWhereClause> — a compile-time proof that the clause passed through RLS
         //    evaluation.
@@ -687,10 +696,12 @@ impl QueryRunner {
         // 8c. Generate the SQL projection for the requested fields, after the
         //     `nearest` lowering so a selected distance field can be projected
         //     from the clause that ordered the rows.
+        // A composed read returns the stored document whole and is projected in Rust,
+        // below, because its nested levels are merged into it first.
         let projection_hint = self.build_projection_hint(
             &query_match,
             &plan,
-            gated_present,
+            gated_present || !nested_reads.is_empty(),
             order_by_clauses.as_ref().and_then(|c| c.first()),
         )?;
 
@@ -703,23 +714,42 @@ impl QueryRunner {
             apply_pagination_order(order_by_clauses, &query_match.query_def, limit, offset);
 
         // 9. Execute query with combined WHERE clause filter, pinning session variables to the
-        //    read's connection (fixes #329 for RLS).
-        let results = self
-            .ctx
-            .adapter
-            .execute_with_projection_arc_with_session(
-                &crate::backend::ProjectionRequest {
-                    view: sql_source,
-                    projection: projection_hint.as_ref(),
-                    where_clause: combined_where.as_ref(),
-                    order_by: order_by_clauses.as_deref(),
+        //    read's connection (fixes #329 for RLS). With nested levels to gate, the same read is
+        //    the root of a composed statement carrying them.
+        let composed = !nested_reads.is_empty();
+        let results = if composed {
+            self.execute_composed_document_read(
+                crate::backend::ComposedLevel {
+                    view: sql_source.clone(),
+                    projection: projection_hint.as_ref().map(|h| h.projection_template.clone()),
+                    where_clause: combined_where,
+                    order_by: order_by_clauses,
                     limit,
                     offset,
+                    keys: super::query_nested::root_keys(&nested_reads),
+                    embeds: nested_reads,
                 },
                 &session_pairs,
                 query_match.query_def.read_routing,
             )
-            .await?;
+            .await?
+        } else {
+            self.ctx
+                .adapter
+                .execute_with_projection_arc_with_session(
+                    &crate::backend::ProjectionRequest {
+                        view: sql_source,
+                        projection: projection_hint.as_ref(),
+                        where_clause: combined_where.as_ref(),
+                        order_by: order_by_clauses.as_deref(),
+                        limit,
+                        offset,
+                    },
+                    &session_pairs,
+                    query_match.query_def.read_routing,
+                )
+                .await?
+        };
 
         // The response-bytes ceiling (`[validation] max_response_bytes`), on the
         // document path. GATE-1 already scored this request's depth and complexity,
@@ -739,36 +769,50 @@ impl QueryRunner {
         // 11. Project results. Masked fields stay in the projection, in their requested position,
         //     and are nulled below — GraphQL requires the response's field order to follow the
         //     query's.
-        let projector = ResultProjector::new(access.projected.clone())
-            // #1192: a `String` field whose text parses as JSON must stay a string.
-            .with_declared_scalars(&self.ctx.schema, &query_match.query_def.return_type)
-            .configure_typename_from_selections(
-                &query_match.selections,
+        let mut projected = if composed {
+            // Stored documents with their gated levels merged in: projected the way a
+            // nested list element always was, at every depth — aliases, recasing and
+            // `__typename` included.
+            super::query_nested::project_documents(
+                &results,
                 &query_match.query_def.return_type,
+                root_fields,
+                &self.ctx.schema,
+                query_match.query_def.returns_list,
+            )
+        } else {
+            let projector = ResultProjector::new(access.projected.clone())
+                // #1192: a `String` field whose text parses as JSON must stay a string.
+                .with_declared_scalars(&self.ctx.schema, &query_match.query_def.return_type)
+                .configure_typename_from_selections(
+                    &query_match.selections,
+                    &query_match.query_def.return_type,
+                );
+            let mut projected =
+                projector.project_results(&results, query_match.query_def.returns_list)?;
+
+            // 11a. #489: recase + project nested list-of-object fields the SQL projection
+            //      left as the raw stored sub-blob (snake_case keys, unselected keys). The
+            //      SQL side already projected top-level fields and nested single objects.
+            crate::runtime::project_nested_lists(
+                &mut projected,
+                &query_match.query_def.return_type,
+                root_fields,
+                &self.ctx.schema,
             );
-        let mut projected =
-            projector.project_results(&results, query_match.query_def.returns_list)?;
 
-        // 11a. #489: recase + project nested list-of-object fields the SQL projection
-        //      left as the raw stored sub-blob (snake_case keys, unselected keys). The
-        //      SQL side already projected top-level fields and nested single objects.
-        crate::runtime::project_nested_lists(
-            &mut projected,
-            &query_match.query_def.return_type,
-            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
-            &self.ctx.schema,
-        );
-
-        // #912: `__typename` is stripped from the SQL projection at every depth (it
-        //       is a meta-field, not a JSONB key — projecting it emits a literal
-        //       NULL). The root object is stamped by the projector and list elements
-        //       by `project_entity`; nested single objects have no other owner.
-        crate::runtime::stamp_nested_typenames(
-            &mut projected,
-            &query_match.query_def.return_type,
-            query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
-            &self.ctx.schema,
-        );
+            // #912: `__typename` is stripped from the SQL projection at every depth (it
+            //       is a meta-field, not a JSONB key — projecting it emits a literal
+            //       NULL). The root object is stamped by the projector and list elements
+            //       by `project_entity`; nested single objects have no other owner.
+            crate::runtime::stamp_nested_typenames(
+                &mut projected,
+                &query_match.query_def.return_type,
+                root_fields,
+                &self.ctx.schema,
+            );
+            projected
+        };
 
         // 11. Null out masked fields in the projected result, at every level.
         selection_access.null_masked(
@@ -1048,6 +1092,25 @@ impl QueryRunner {
             None,
         )?;
         let access = &selection_access.root;
+
+        // No nested level can need its type's predicate here: a policy refused this
+        // request above, and a nested type scoped by `inject_params` is refused by the
+        // planner for want of a principal. Planned anyway, for that refusal.
+        let nested_reads = self.plan_nested_reads(
+            &query_match.query_def.return_type,
+            root_fields,
+            None,
+            &selection_access,
+        )?;
+        if !nested_reads.is_empty() {
+            return Err(FraiseQLError::Internal {
+                message: format!(
+                    "an unauthenticated read of '{}' planned a gated nested level",
+                    query_match.query_def.name
+                ),
+                source:  None,
+            });
+        }
 
         // 3. Execute SQL query
         let sql_source = query_match.query_def.sql_source.as_ref().ok_or_else(|| {

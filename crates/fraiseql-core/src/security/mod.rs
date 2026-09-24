@@ -85,7 +85,9 @@ pub use profiles::SecurityProfile;
 pub use query_validator::{QueryValidator, QueryValidatorConfig};
 pub use request_budget::{CostBudget, RequestBudget};
 pub use response_budget::{ResponseBudget, column_bytes, json_bytes};
-pub use rls_policy::{CompiledRLSPolicy, DefaultRLSPolicy, NoRLSPolicy, RLSPolicy, RlsWhereClause};
+pub use rls_policy::{
+    CompiledRLSPolicy, ConstrainedPaths, DefaultRLSPolicy, NoRLSPolicy, RLSPolicy, RlsWhereClause,
+};
 pub use security_context::{
     BoxFuture, EnrichmentMark, EnrichmentOutcome, IdentityEnricher, SecurityContext,
 };

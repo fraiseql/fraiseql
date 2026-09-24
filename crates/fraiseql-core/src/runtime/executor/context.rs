@@ -51,6 +51,10 @@ pub(super) struct ExecutorContext {
     /// instead, where the schema is already fixed behind the `Arc` and cannot go stale.
     pub(super) schema_has_gated_field: bool,
 
+    /// How each nested object field's rows are gated by its type's row security —
+    /// decided once, here, from the schema and the RLS policy's declared paths.
+    pub(super) nested_row_gates: super::runners::query_nested::NestedRowGates,
+
     /// Shared database adapter for query execution.
     pub(super) adapter: Arc<dyn DatabaseAdapter>,
 

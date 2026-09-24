@@ -11,7 +11,7 @@ use serde_json::json;
 use super::composed::build_composed_select_sql;
 use crate::{
     WhereOperator,
-    traits::{ComposedEmbed, ComposedLevel, EmbedShape, LevelKeys},
+    traits::{ComposedEmbed, ComposedLevel, EmbedShape, EmbedSource, LevelKeys},
     types::{QueryParam, sql_hints::ScalarFieldType},
     where_clause::WhereClause,
 };
@@ -37,14 +37,35 @@ fn field_eq(key: &str, value: serde_json::Value) -> WhereClause {
     }
 }
 
+fn correlated(target_key: &str, parent_key: &str, key_type: ScalarFieldType) -> EmbedSource {
+    EmbedSource::Correlated {
+        target_key: vec![target_key.to_string()],
+        parent_key: vec![parent_key.to_string()],
+        key_type,
+    }
+}
+
 fn embed(output_key: &str, shape: EmbedShape, level: ComposedLevel) -> ComposedEmbed {
     ComposedEmbed {
         output_key: output_key.to_string(),
         shape,
-        target_key: vec!["user_id".to_string()],
-        parent_key: vec!["id".to_string()],
-        key_type: ScalarFieldType::Text,
+        source: correlated("user_id", "id", ScalarFieldType::Text),
         level,
+    }
+}
+
+/// `embed`, read from the parent's own document under `keys` instead of a view.
+fn materialised(
+    output_key: &str,
+    shape: EmbedShape,
+    keys: &[&str],
+    level: ComposedLevel,
+) -> ComposedEmbed {
+    ComposedEmbed {
+        source: EmbedSource::Materialised {
+            keys: keys.iter().map(|k| (*k).to_string()).collect(),
+        },
+        ..embed(output_key, shape, level)
     }
 }
 
@@ -143,7 +164,7 @@ fn a_correlation_names_its_own_parent_at_every_depth() {
     let items = level("v_item");
     let mut orders = level("v_order");
     orders.embeds.push(ComposedEmbed {
-        target_key: vec!["order_id".to_string()],
+        source: correlated("order_id", "id", ScalarFieldType::Text),
         ..embed("items", EmbedShape::Many, items)
     });
     let mut root = level("v_user");
@@ -164,8 +185,7 @@ fn a_to_one_embed_is_one_row_and_a_count_is_a_count() {
     let mut author = level("v_user");
     author.limit = Some(1000);
     root.embeds.push(ComposedEmbed {
-        target_key: vec!["id".to_string()],
-        parent_key: vec!["fk_author".to_string()],
+        source: correlated("id", "fk_author", ScalarFieldType::Text),
         ..embed("author", EmbedShape::One, author)
     });
     let mut comments = level("v_comment");
@@ -229,7 +249,7 @@ fn an_embedded_level_returns_only_its_kept_keys_and_nulls_its_masked_ones() {
 fn a_typed_key_is_cast_on_both_sides() {
     let mut root = level("v_user");
     root.embeds.push(ComposedEmbed {
-        key_type: ScalarFieldType::Integer,
+        source: correlated("user_id", "id", ScalarFieldType::Integer),
         ..embed("orders", EmbedShape::Many, level("v_order"))
     });
 
@@ -252,4 +272,125 @@ fn keys_and_output_names_are_quoted_as_literals() {
 
     assert!(sql.contains("IN ('o''k')"), "{sql}");
     assert!(sql.contains("jsonb_build_object('it''s', _l0_e0.v)"), "{sql}");
+}
+
+// ---------------------------------------------------------------------------
+// A level read from its parent's document
+// ---------------------------------------------------------------------------
+
+/// The elements under the parent's key are the level's rows, named `data` like a view's,
+/// so the level's own unqualified predicate binds to each element — and the parent is
+/// named only in the source expression, the one qualified reference.
+#[test]
+fn a_materialised_level_filters_its_parents_elements_as_its_own_rows() {
+    let mut orders = level("v_order");
+    orders.where_clause = Some(field_eq("owner", json!("u-alice")));
+    orders.keys = LevelKeys::Only {
+        kept:   vec!["id".to_string()],
+        masked: vec!["margin".to_string()],
+    };
+    let mut root = level("v_user");
+    root.embeds.push(materialised("orders", EmbedShape::Many, &["orders"], orders));
+
+    let (sql, params) = build_composed_select_sql(&root).unwrap();
+    let inner = lateral(&sql, "_l0_e0");
+
+    assert!(
+        inner.contains(
+            "jsonb_array_elements(CASE WHEN jsonb_typeof(COALESCE(_l0.data->'orders')) = 'array' \
+             THEN COALESCE(_l0.data->'orders') ELSE '[]'::jsonb END) WITH ORDINALITY AS \
+             _l2(data, \"_o\")"
+        ),
+        "{inner}"
+    );
+    assert!(
+        inner.contains(
+            "WHERE data->>'owner' = $1 AND jsonb_typeof(data) = 'object' ORDER BY \"_o\""
+        ),
+        "the level's predicate, unqualified, over each object element: {inner}"
+    );
+    assert!(!inner.contains("\"v_order\""), "the level's view is not read: {inner}");
+    assert!(inner.contains("'margin', NULL"), "masked as for a view's rows: {inner}");
+    assert_eq!(bound(&params), r#"[Text("u-alice")]"#);
+}
+
+/// Every stored spelling of the key is tried, in order.
+#[test]
+fn a_materialised_to_one_is_the_parents_object_under_the_first_key_it_holds() {
+    let mut root = level("v_order");
+    root.embeds
+        .push(materialised("user", EmbedShape::One, &["user", "User"], level("v_user")));
+
+    let (sql, _) = build_composed_select_sql(&root).unwrap();
+    let inner = lateral(&sql, "_l0_e0");
+
+    assert!(
+        inner.contains(
+            "FROM (SELECT COALESCE(_l0.data->'user', _l0.data->'User') AS data, 1::bigint AS \
+             \"_o\") AS _l2 WHERE jsonb_typeof(data) = 'object'"
+        ),
+        "{inner}"
+    );
+    assert!(inner.ends_with(r#"ORDER BY _c."_o" LIMIT 1"#), "{inner}");
+}
+
+/// A native column is not in a document, and an unqualified column name there would
+/// resolve outward: refused, never rendered.
+#[test]
+fn a_materialised_level_refuses_a_predicate_on_a_column() {
+    let mut orders = level("v_order");
+    orders.where_clause = Some(WhereClause::And(vec![
+        field_eq("owner", json!("u-alice")),
+        WhereClause::NativeField {
+            column:   "tenant_id".to_string(),
+            pg_cast:  String::new(),
+            operator: WhereOperator::Eq,
+            value:    json!("A"),
+        },
+    ]));
+    let mut root = level("v_user");
+    root.embeds.push(materialised("orders", EmbedShape::Many, &["orders"], orders));
+
+    let error = build_composed_select_sql(&root).unwrap_err().to_string();
+    assert!(error.contains("may only read the document"), "{error}");
+}
+
+#[test]
+fn a_materialised_level_cannot_be_counted_ordered_or_projected() {
+    let refused = |embed: ComposedEmbed| {
+        let mut root = level("v_user");
+        root.embeds.push(embed);
+        build_composed_select_sql(&root).unwrap_err().to_string()
+    };
+    assert!(
+        refused(materialised("n", EmbedShape::Count, &["orders"], level("v_order")))
+            .contains("counted")
+    );
+
+    let mut ordered = level("v_order");
+    ordered.order_by = Some(Vec::new());
+    assert!(refused(materialised("o", EmbedShape::Many, &["orders"], ordered)).contains("order"));
+
+    let mut projected = level("v_order");
+    projected.projection = Some("data".to_string());
+    assert!(
+        refused(materialised("p", EmbedShape::Many, &["orders"], projected)).contains("projection")
+    );
+}
+
+/// The root, less the stored keys its embeds replace: the value the parent's view stored
+/// there was never filtered by the embedded level's predicate.
+#[test]
+fn a_root_can_return_its_document_less_the_keys_embedded_in_their_place() {
+    let mut root = level("v_user");
+    root.keys = LevelKeys::Without(vec!["orders".to_string(), "it's".to_string()]);
+    root.embeds
+        .push(materialised("orders", EmbedShape::Many, &["orders"], level("v_order")));
+
+    let (sql, _) = build_composed_select_sql(&root).unwrap();
+
+    assert!(
+        sql.contains("jsonb_build_object('d', (_l0.data - ARRAY['orders', 'it''s']::text[]), 'e',"),
+        "{sql}"
+    );
 }

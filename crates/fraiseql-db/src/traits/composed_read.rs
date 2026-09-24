@@ -10,6 +10,15 @@
 //! predicate), which keys it may return, and in what order are decided by the engine
 //! before this type is built; an adapter renders what it is given and decides nothing.
 //!
+//! # Where an embedded level's rows come from
+//!
+//! Either from its own view, correlated to the parent row ([`EmbedSource::Correlated`]),
+//! or from the parent row itself ([`EmbedSource::Materialised`]): the objects a view has
+//! already embedded in its document, read one by one as the level's rows. The second is
+//! how a GraphQL selection into a nested type is gated — its type's predicate filters the
+//! elements the parent's view materialised, exactly as it filters rows of the type's own
+//! view — without a join the schema may not be able to express.
+//!
 //! # What a composed read returns
 //!
 //! Every row, at every level, is the object
@@ -82,6 +91,12 @@ pub enum LevelKeys {
     /// The whole document. The root's shape: it is projected afterwards exactly as a flat
     /// read of the same query is, so it reads what a flat read reads.
     Whole,
+    /// The whole document, less these keys.
+    ///
+    /// The root's shape when some of its stored keys are embedded in their own place:
+    /// the embedded value is the gated one, and the stored one — which the level's
+    /// predicate never filtered — does not leave the database.
+    Without(Vec<String>),
     /// Only these keys, and these keys as `null`.
     ///
     /// An embedded level's shape. A key the caller may not see never leaves the
@@ -110,21 +125,44 @@ pub enum EmbedShape {
     Count,
 }
 
-/// An embedded level and the correlation that attaches it to its parent's rows.
+/// An embedded level and where its rows come from.
 #[derive(Debug, Clone, PartialEq)]
 pub struct ComposedEmbed {
     /// The key the embedded value is written under in the parent row's `embeds` object.
     pub output_key: String,
     /// Array, object or count.
     pub shape:      EmbedShape,
-    /// The stored path on the **embedded** row that must equal the parent's key.
-    pub target_key: Vec<String>,
-    /// The stored path on the **parent** row it is compared with.
-    pub parent_key: Vec<String>,
-    /// The declared scalar type both keys are compared as — the cast a filter on the
-    /// embedded key would take, so the correlation matches the rows a predicate
-    /// `target_key = <the parent's value>` matched when it was a flat sub-read.
-    pub key_type:   ScalarFieldType,
+    /// The level's rows: its own view's, correlated, or its parent document's.
+    pub source:     EmbedSource,
     /// The embedded level itself.
     pub level:      ComposedLevel,
+}
+
+/// Where an embedded level's rows come from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EmbedSource {
+    /// Rows of the level's view whose `target_key` equals the parent row's `parent_key`.
+    Correlated {
+        /// The stored path on the **embedded** row that must equal the parent's key.
+        target_key: Vec<String>,
+        /// The stored path on the **parent** row it is compared with.
+        parent_key: Vec<String>,
+        /// The declared scalar type both keys are compared as — the cast a filter on the
+        /// embedded key would take, so the correlation matches the rows a predicate
+        /// `target_key = <the parent's value>` matched when it was a flat sub-read.
+        key_type:   ScalarFieldType,
+    },
+    /// The value the parent row's own document holds under the first of `keys` it has:
+    /// each object element of it for [`EmbedShape::Many`], the object itself for
+    /// [`EmbedShape::One`]. The level's view is not read.
+    ///
+    /// The level's predicate is evaluated against each element as if it were a row of the
+    /// level's view, so it may only read the element's document: a native-column condition
+    /// has no column to read here, and is refused rather than rendered. A count, an
+    /// ordering and a projection are refused too — the elements keep the order the parent
+    /// stored them in.
+    Materialised {
+        /// The parent's stored spellings of the key, in the order they are tried.
+        keys: Vec<String>,
+    },
 }

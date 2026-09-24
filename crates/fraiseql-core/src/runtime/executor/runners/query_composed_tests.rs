@@ -413,10 +413,14 @@ async fn the_correlation_joins_the_declared_keys_as_their_declared_type() {
     let read = run.adapter.captured_composed().unwrap();
     let embed = only_embed(&read);
     assert_eq!(
-        (embed.target_key.as_slice(), embed.parent_key.as_slice()),
-        (&["fk_user".to_string()][..], &["id".to_string()][..])
+        embed.source,
+        crate::backend::EmbedSource::Correlated {
+            target_key: vec!["fk_user".to_string()],
+            parent_key: vec!["id".to_string()],
+            key_type:   ScalarFieldType::Integer,
+        },
+        "Order.fk_user is an Int"
     );
-    assert_eq!(embed.key_type, ScalarFieldType::Integer, "Order.fk_user is an Int");
     assert_eq!(embed.shape, EmbedShape::Many);
     assert_eq!(embed.level.limit, Some(100), "the embed's own page");
     assert!(read.where_clause.is_none(), "no correlation leaks into the root");

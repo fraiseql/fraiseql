@@ -27,13 +27,17 @@
 //!   reference in the statement. Everything the where generator renders is unqualified `data`,
 //!   which resolves to the innermost relation — the level's own view — so a level's security
 //!   predicate cannot bind to its parent's row by accident.
+//! * **A materialised level's rows are named `data` too.** Its elements are read from the parent's
+//!   document (`jsonb_array_elements(_lN.data->'key') … AS _mK(data, "_o")`), so the same
+//!   unqualified predicate binds to the element — never to the parent it came from. The parent
+//!   reference is the source expression, qualified, and the only one.
 //!
 //! Aliases are numbered across the whole statement rather than per depth, so a correlation
 //! names exactly one relation however deep it sits.
 
 use std::fmt::Write;
 
-use fraiseql_error::Result;
+use fraiseql_error::{FraiseQLError, Result};
 
 use super::super::where_generator::PostgresWhereGenerator;
 use crate::{
@@ -43,7 +47,7 @@ use crate::{
     path_escape::escape_postgres_jsonb_segment,
     traits::{
         COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedLevel, EmbedShape,
-        LevelKeys,
+        EmbedSource, LevelKeys,
     },
     types::{DatabaseType, QueryParam},
 };
@@ -62,7 +66,7 @@ pub(in super::super) fn build_composed_select_sql(
     root: &ComposedLevel,
 ) -> Result<(String, Vec<QueryParam>)> {
     let mut renderer = Renderer::default();
-    let level = renderer.level(root, None)?;
+    let level = renderer.level(root, LevelFrom::View(None))?;
     Ok((
         format!("SELECT _r.data FROM ({level}) AS _r ORDER BY _r.{ORDINAL}"),
         renderer.params,
@@ -158,27 +162,107 @@ impl Renderer {
         Ok(sql)
     }
 
-    /// A level: its page, its document, and its embeds joined `LATERAL`.
-    fn level(
+    /// A materialised level's rows: the parent document's elements under `keys`, as a
+    /// relation with the columns a view's page has — `data` and `"_o"`.
+    fn materialised_page(
         &mut self,
         level: &ComposedLevel,
-        correlation: Option<&Correlation<'_>>,
+        parent_alias: &str,
+        keys: &[String],
+        shape: EmbedShape,
     ) -> Result<String> {
+        if level.order_by.is_some() || level.projection.is_some() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "a level read from its parent's document keeps the order it was stored \
+                     in and carries no projection ('{}')",
+                    level.view
+                ),
+                path:    None,
+            });
+        }
+        if level.where_clause.as_ref().is_some_and(reads_a_column) {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "a level read from its parent's document has no columns, so its predicate \
+                     may only read the document ('{}')",
+                    level.view
+                ),
+                path:    None,
+            });
+        }
+
+        if keys.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!("a materialised level names no key ('{}')", level.view),
+                path:    None,
+            });
+        }
+        let tried = keys
+            .iter()
+            .map(|k| format!("{parent_alias}.data->{}", literal(k)))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let stored = format!("COALESCE({tried})");
+        let source = self.alias();
+        let from = match shape {
+            // A non-array value materialises no rows rather than failing the statement.
+            EmbedShape::Many => format!(
+                "jsonb_array_elements(CASE WHEN jsonb_typeof({stored}) = 'array' THEN {stored} \
+                 ELSE '[]'::jsonb END) WITH ORDINALITY AS {source}(data, {ORDINAL})"
+            ),
+            EmbedShape::One => {
+                format!("(SELECT {stored} AS data, 1::bigint AS {ORDINAL}) AS {source}")
+            },
+            EmbedShape::Count => {
+                return Err(FraiseQLError::Validation {
+                    message: format!(
+                        "a level read from its parent's document cannot be counted ('{}')",
+                        level.view
+                    ),
+                    path:    None,
+                });
+            },
+        };
+
+        // Only objects are rows: a `null` or a scalar element has no document to gate.
+        let mut where_sql = self.where_sql(level, None)?;
+        where_sql = if where_sql.is_empty() {
+            " WHERE jsonb_typeof(data) = 'object'".to_string()
+        } else {
+            format!("{where_sql} AND jsonb_typeof(data) = 'object'")
+        };
+        let mut sql = format!("SELECT data, {ORDINAL} FROM {from}{where_sql} ORDER BY {ORDINAL}");
+        if let Some(limit) = level.limit {
+            let p = self.bind(QueryParam::BigInt(i64::from(limit)));
+            // Reason (expect below): fmt::Write for String is infallible.
+            write!(sql, " LIMIT {p}").expect("write to String");
+        }
+        if let Some(offset) = level.offset {
+            let p = self.bind(QueryParam::BigInt(i64::from(offset)));
+            write!(sql, " OFFSET {p}").expect("write to String");
+        }
+        Ok(sql)
+    }
+
+    /// A level: its page, its document, and its embeds joined `LATERAL`.
+    fn level(&mut self, level: &ComposedLevel, from: LevelFrom<'_>) -> Result<String> {
         let alias = self.alias();
-        let page = self.page(level, correlation)?;
+        let page = match from {
+            LevelFrom::View(correlation) => self.page(level, correlation)?,
+            LevelFrom::Parent {
+                alias: parent,
+                keys,
+                shape,
+            } => self.materialised_page(level, parent, keys, shape)?,
+        };
         let document = document_sql(&alias, &level.keys);
 
         let mut joins = String::new();
         let mut embeds = Vec::with_capacity(level.embeds.len());
         for (i, embed) in level.embeds.iter().enumerate() {
             let embed_alias = format!("{alias}_e{i}");
-            let correlation = Correlation {
-                target_key:   &embed.target_key,
-                parent_alias: &alias,
-                parent_key:   &embed.parent_key,
-                key_type:     embed.key_type,
-            };
-            let sql = self.embed(embed, &correlation)?;
+            let sql = self.embed(embed, &alias)?;
             // Reason (expect below): fmt::Write for String is infallible.
             write!(joins, " LEFT JOIN LATERAL ({sql}) AS {embed_alias} ON true")
                 .expect("write to String");
@@ -196,10 +280,31 @@ impl Renderer {
 
     /// One embedded level, as the subquery its parent joins `LATERAL`. Returns one row
     /// with one column, `v`.
-    fn embed(&mut self, embed: &ComposedEmbed, correlation: &Correlation<'_>) -> Result<String> {
+    fn embed(&mut self, embed: &ComposedEmbed, parent_alias: &str) -> Result<String> {
+        let correlation;
+        let from = match &embed.source {
+            EmbedSource::Correlated {
+                target_key,
+                parent_key,
+                key_type,
+            } => {
+                correlation = Correlation {
+                    target_key,
+                    parent_alias,
+                    parent_key,
+                    key_type: *key_type,
+                };
+                LevelFrom::View(Some(&correlation))
+            },
+            EmbedSource::Materialised { keys } => LevelFrom::Parent {
+                alias: parent_alias,
+                keys,
+                shape: embed.shape,
+            },
+        };
         match embed.shape {
             EmbedShape::Many => {
-                let level = self.level(&embed.level, Some(correlation))?;
+                let level = self.level(&embed.level, from)?;
                 Ok(format!(
                     "SELECT COALESCE(jsonb_agg(_c.data ORDER BY _c.{ORDINAL}), '[]'::jsonb) AS v \
                      FROM ({level}) AS _c"
@@ -208,13 +313,22 @@ impl Renderer {
             EmbedShape::One => {
                 // No row joins as NULL (`LEFT JOIN … ON true`), which `jsonb_build_object`
                 // writes as JSON `null` — the to-one absent value.
-                let level = self.level(&embed.level, Some(correlation))?;
+                let level = self.level(&embed.level, from)?;
                 Ok(format!(
                     "SELECT _c.data AS v FROM ({level}) AS _c ORDER BY _c.{ORDINAL} LIMIT 1"
                 ))
             },
             EmbedShape::Count => {
-                let where_sql = self.where_sql(&embed.level, Some(correlation))?;
+                let LevelFrom::View(correlation) = from else {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "a level read from its parent's document cannot be counted ('{}')",
+                            embed.level.view
+                        ),
+                        path:    None,
+                    });
+                };
+                let where_sql = self.where_sql(&embed.level, correlation)?;
                 Ok(format!(
                     "SELECT COUNT(*) AS v FROM {}{where_sql}",
                     quote_postgres_identifier(&embed.level.view)
@@ -224,10 +338,40 @@ impl Renderer {
     }
 }
 
+/// Where a level's rows come from, as the renderer threads it.
+#[derive(Clone, Copy)]
+enum LevelFrom<'a> {
+    /// The level's own view, correlated to the parent row when it has one.
+    View(Option<&'a Correlation<'a>>),
+    /// The parent row's own document, under the first of `keys` it holds.
+    Parent {
+        alias: &'a str,
+        keys:  &'a [String],
+        shape: EmbedShape,
+    },
+}
+
+/// Whether `clause` reads a column rather than the document — which a materialised
+/// level, whose rows are documents and nothing else, cannot evaluate.
+fn reads_a_column(clause: &crate::WhereClause) -> bool {
+    use crate::WhereClause as W;
+    match clause {
+        W::Field { .. } => false,
+        W::NativeField { .. } => true,
+        W::And(all) | W::Or(all) => all.iter().any(reads_a_column),
+        W::Not(inner) | W::Typed { inner, .. } => reads_a_column(inner),
+    }
+}
+
 /// A level's document, read off its page alias.
 fn document_sql(alias: &str, keys: &LevelKeys) -> String {
     match keys {
         LevelKeys::Whole => format!("{alias}.data"),
+        LevelKeys::Without(dropped) if dropped.is_empty() => format!("{alias}.data"),
+        LevelKeys::Without(dropped) => {
+            let list = dropped.iter().map(|k| literal(k)).collect::<Vec<_>>().join(", ");
+            format!("({alias}.data - ARRAY[{list}]::text[])")
+        },
         LevelKeys::Only { kept, masked } => {
             // The kept keys are read with `jsonb_each` rather than named one by one, so a
             // key the document does not hold stays absent instead of arriving as `null`:

@@ -408,10 +408,15 @@ impl Executor {
         let schema_has_gated_field = schema.has_any_authorize_field();
 
         let gate1 = resolve_gate1(&config, &schema);
+        let nested_row_gates = super::runners::query_nested::NestedRowGates::build(
+            &schema,
+            config.rls_policy.as_deref(),
+        );
         let ctx = Arc::new(ExecutorContext {
             schema,
             schema_version,
             schema_has_gated_field,
+            nested_row_gates,
             adapter,
             writer,
             relay,

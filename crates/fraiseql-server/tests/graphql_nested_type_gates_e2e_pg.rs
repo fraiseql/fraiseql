@@ -1,4 +1,4 @@
-//! A GraphQL selection into a nested type, against PostgreSQL — reproductions.
+//! A GraphQL selection into a nested type, against PostgreSQL.
 //!
 //! `{ users { orders { … } } }` is served from the `users` view's `data`, which embeds the
 //! `Order` documents the view's SQL joined in. This suite asks, in the rows PostgreSQL
@@ -8,13 +8,16 @@
 //! * **(b)** `Order`'s RLS policy — two realistic policies over two realistic view compositions: an
 //!   **owner** policy (a principal reads the orders it owns), and a **tenant** policy over a view
 //!   that joins orders to their user by foreign key alone, and over one that also joins on the
-//!   tenant.
+//!   tenant — evaluated over the embedded documents when the policy declares its keys, and over
+//!   `Order`'s own view, joined, when it does not.
 //!
-//! Every reproduction is `#[ignore]`d and fails when run (`-- --ignored`). Beside each is a
-//! control — the same rows read at the root, where the gate applies — that passes, so the
-//! rig is shown to gate. One case is expected to pass as it stands, and is not ignored: a
-//! view whose join carries the tenant cannot embed another tenant's order, so it implies a
-//! tenant policy. It implies nothing about an owner policy, which no view can see.
+//! `a_nested_margin_is_masked`, `a_nested_cost_price_is_refused`,
+//! `owner_policy_scopes_nested_orders` and
+//! `tenant_policy_scopes_nested_orders_over_a_foreign_key_view` began as the reproductions of
+//! the defect, `#[ignore]`d until the fix. Beside each is a control — the same rows read at
+//! the root — so the rig is shown to gate. `a_tenant_joined_view_implies_the_tenant_policy`
+//! passed before the fix as well: a view whose join carries the tenant cannot embed another
+//! tenant's order. It implies nothing about an owner policy, which no view can see.
 //!
 //! Self-skips when no `DATABASE_URL` is set.
 //!
@@ -32,10 +35,13 @@ use fraiseql_core::{
     prelude::{DatabaseAdapter as _, UserId},
     runtime::{Executor, RuntimeConfig},
     schema::{
-        CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, QueryDefinition,
-        RoleDefinition, SecurityConfig, TypeDefinition,
+        Cardinality, CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, QueryDefinition,
+        Relationship, RoleDefinition, SecurityConfig, TypeDefinition,
     },
-    security::{CompiledRLSPolicy, DefaultRLSPolicy, SecurityContext, rls_policy::RLSRule},
+    security::{
+        CompiledRLSPolicy, DefaultRLSPolicy, RLSPolicy, RlsWhereClause, SecurityContext,
+        rls_policy::{RLSRule, RlsTarget},
+    },
     types::TenantId,
 };
 use fraiseql_test_support::try_database_url;
@@ -97,6 +103,28 @@ async fn seed(adapter: &PostgresAdapter) {
         ),
         embed("v_user_fk"),
         embed("v_user_tenant"),
+        // A to-one: each member embeds its team. Member 2 is tenant A's, and its team is
+        // tenant B's.
+        format!(
+            "CREATE TABLE {SCHEMA}.tb_team (id bigint PRIMARY KEY, tenant_id text NOT NULL, name \
+             text NOT NULL)"
+        ),
+        format!(
+            "CREATE TABLE {SCHEMA}.tb_member (id bigint PRIMARY KEY, tenant_id text NOT NULL, \
+             fk_team bigint NOT NULL REFERENCES {SCHEMA}.tb_team(id))"
+        ),
+        format!("INSERT INTO {SCHEMA}.tb_team VALUES (1, 'A', 'red'), (2, 'B', 'blue')"),
+        format!("INSERT INTO {SCHEMA}.tb_member VALUES (1, 'A', 1), (2, 'A', 2)"),
+        format!(
+            "CREATE VIEW {SCHEMA}.v_team AS SELECT id, jsonb_build_object('id', id, 'tenant_id', \
+             tenant_id, 'name', name) AS data FROM {SCHEMA}.tb_team"
+        ),
+        format!(
+            "CREATE VIEW {SCHEMA}.v_member AS SELECT m.id, jsonb_build_object('id', m.id, \
+             'tenant_id', m.tenant_id, 'fk_team', m.fk_team, 'team', (SELECT \
+             jsonb_build_object('id', t.id, 'tenant_id', t.tenant_id, 'name', t.name) FROM \
+             {SCHEMA}.tb_team t WHERE t.id = m.fk_team)) AS data FROM {SCHEMA}.tb_member m"
+        ),
     ];
     for stmt in stmts {
         let _: Vec<HashMap<String, Value>> =
@@ -138,8 +166,27 @@ fn schema(user_view: &str) -> CompiledSchema {
     ];
     schema.types.push(order);
 
-    for (name, return_type, view) in [("users", "User", user_view), ("orders", "Order", "v_order")]
-    {
+    let mut team = TypeDefinition::new("Team", format!("{SCHEMA}.v_team"));
+    team.fields = vec![
+        FieldDefinition::new("id", FieldType::Int),
+        FieldDefinition::new("tenant_id", FieldType::String),
+        FieldDefinition::new("name", FieldType::String),
+    ];
+    schema.types.push(team);
+    let mut member = TypeDefinition::new("Member", format!("{SCHEMA}.v_member"));
+    member.fields = vec![
+        FieldDefinition::new("id", FieldType::Int),
+        FieldDefinition::new("tenant_id", FieldType::String),
+        FieldDefinition::new("team", FieldType::Object("Team".to_string())),
+    ];
+    schema.types.push(member);
+
+    for (name, return_type, view) in [
+        ("users", "User", user_view),
+        ("orders", "Order", "v_order"),
+        ("teams", "Team", "v_team"),
+        ("members", "Member", "v_member"),
+    ] {
         schema.queries.push(
             QueryDefinition::new(name, return_type)
                 .returning_list()
@@ -186,26 +233,80 @@ fn alice() -> SecurityContext {
     }
 }
 
+/// `schema`, with `User.orders` and `Member.team` declared as the relationships they are.
+fn joinable(mut schema: CompiledSchema) -> CompiledSchema {
+    let declare = |schema: &mut CompiledSchema, on: &str, rel: Relationship| {
+        schema.types.iter_mut().find(|t| t.name == on).unwrap().relationships.push(rel);
+    };
+    declare(
+        &mut schema,
+        "User",
+        Relationship {
+            name:           "orders".to_string(),
+            target_type:    "Order".to_string(),
+            cardinality:    Cardinality::OneToMany,
+            foreign_key:    "fk_user".to_string(),
+            referenced_key: "id".to_string(),
+        },
+    );
+    declare(
+        &mut schema,
+        "Member",
+        Relationship {
+            name:           "team".to_string(),
+            target_type:    "Team".to_string(),
+            cardinality:    Cardinality::ManyToOne,
+            foreign_key:    "fk_team".to_string(),
+            referenced_key: "id".to_string(),
+        },
+    );
+    schema.build_indexes();
+    schema
+}
+
+/// A policy that does not declare the keys it reads — every out-of-tree policy written
+/// before `constrained_paths` existed.
+struct Opaque<P>(P);
+
+impl<P: RLSPolicy> RLSPolicy for Opaque<P> {
+    fn evaluate(
+        &self,
+        context: &SecurityContext,
+        target: &RlsTarget<'_>,
+    ) -> Result<Option<RlsWhereClause>> {
+        self.0.evaluate(context, target)
+    }
+}
+
+fn owner_policy() -> DefaultRLSPolicy {
+    DefaultRLSPolicy::new()
+        .with_single_tenant()
+        .with_owner_field("owner".to_string())
+}
+
 enum Policy {
     Owner,
     Tenant,
     None,
+    OpaqueOwner,
+    OpaqueTenant,
 }
 
 async fn rig(user_view: &str, policy: Policy) -> Option<Executor> {
+    rig_over(schema(user_view), policy).await
+}
+
+async fn rig_over(schema: CompiledSchema, policy: Policy) -> Option<Executor> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
     seed(&adapter).await;
 
-    let schema = schema(user_view);
     let config = RuntimeConfig::from_compiled_schema(&schema).expect("runtime config");
     let config = match policy {
-        Policy::Owner => config.with_rls_policy(Arc::new(
-            DefaultRLSPolicy::new()
-                .with_single_tenant()
-                .with_owner_field("owner".to_string()),
-        )),
+        Policy::Owner => config.with_rls_policy(Arc::new(owner_policy())),
         Policy::Tenant => config.with_rls_policy(Arc::new(tenant_policy())),
+        Policy::OpaqueOwner => config.with_rls_policy(Arc::new(Opaque(owner_policy()))),
+        Policy::OpaqueTenant => config.with_rls_policy(Arc::new(Opaque(tenant_policy()))),
         Policy::None => config,
     };
     Some(Executor::with_config(schema, adapter, config))
@@ -246,6 +347,15 @@ fn order_ids(response: &Value) -> Vec<i64> {
 macro_rules! rig_or_skip {
     ($view:expr, $policy:expr) => {
         match rig($view, $policy).await {
+            Some(executor) => executor,
+            None => {
+                eprintln!("skipping: DATABASE_URL not set");
+                return;
+            },
+        }
+    };
+    (over $schema:expr, $policy:expr) => {
+        match rig_over($schema, $policy).await {
             Some(executor) => executor,
             None => {
                 eprintln!("skipping: DATABASE_URL not set");
@@ -376,7 +486,6 @@ async fn control_b_owner_policy_scopes_root_orders() {
 /// view can imply an owner policy — the view is composed for no principal — so this is
 /// reachable over the tenant-joined view as much as the foreign-key one.
 #[tokio::test]
-#[ignore = "reproduction: a nested selection does not apply its own type's RLS policy"]
 async fn owner_policy_scopes_nested_orders() {
     let mut served = Vec::new();
     for view in ["v_user_fk", "v_user_tenant"] {
@@ -406,7 +515,6 @@ async fn control_b_tenant_policy_scopes_root_orders() {
 /// order 12 points at a tenant-`A` user, so the view embeds it under a row tenant `A`
 /// may read.
 #[tokio::test]
-#[ignore = "reproduction: a nested selection does not apply its own type's RLS policy"]
 async fn tenant_policy_scopes_nested_orders_over_a_foreign_key_view() {
     let executor = rig_or_skip!("v_user_fk", Policy::Tenant);
     let out = graphql(&executor, "{ users { id orders { id } } }").await.unwrap();
@@ -425,4 +533,58 @@ async fn a_tenant_joined_view_implies_the_tenant_policy() {
     let executor = rig_or_skip!("v_user_tenant", Policy::Tenant);
     let out = graphql(&executor, "{ users { id orders { id } } }").await.unwrap();
     assert_eq!(order_ids(&out), [10, 11], "{out}");
+}
+
+// ---------------------------------------------------------------------------
+// (b) Joined, refused, and to-one
+// ---------------------------------------------------------------------------
+
+/// A policy that does not declare its keys is read over `Order`'s own view, joined by
+/// `User.orders` — over either user view, since neither is then consulted for orders.
+#[tokio::test]
+async fn an_opaque_owner_policy_joins_the_order_view_through_the_relationship() {
+    for view in ["v_user_fk", "v_user_tenant"] {
+        let executor = rig_or_skip!(over joinable(schema(view)), Policy::OpaqueOwner);
+        let out = graphql(&executor, "{ users { id orders { id } } }").await.unwrap();
+        assert_eq!(order_ids(&out), [10, 12], "{view}: {out}");
+    }
+}
+
+/// Opaque, and no relationship to join through: refused, not served unfiltered.
+#[tokio::test]
+async fn an_opaque_policy_with_no_relationship_is_refused() {
+    let executor = rig_or_skip!("v_user_fk", Policy::OpaqueOwner);
+    let result = graphql(&executor, "{ users { id orders { id } } }").await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+}
+
+/// Aliases and a masked field, through the composed read: the gated rows, each projected
+/// as the client named it, `margin` null.
+#[tokio::test]
+async fn a_gated_nested_level_is_projected_as_selected() {
+    let executor = rig_or_skip!("v_user_fk", Policy::Owner);
+    let out = graphql(&executor, "{ users { uid: id os: orders { oid: id m: margin } } }")
+        .await
+        .unwrap();
+    assert_eq!(
+        out["data"]["users"],
+        serde_json::json!([{"uid": 1, "os": [{"oid": 10, "m": null}, {"oid": 12, "m": null}]}]),
+        "{out}"
+    );
+}
+
+/// A to-one: tenant A's member 2 belongs to tenant B's team, which tenant A may not read
+/// — `null`, whether the team is read from the member's document or joined.
+#[tokio::test]
+async fn a_nested_to_one_across_tenants_is_null() {
+    let materialised = rig_or_skip!("v_user_fk", Policy::Tenant);
+    let joined = rig_or_skip!(over joinable(schema("v_user_fk")), Policy::OpaqueTenant);
+    for (how, executor) in [("materialised", materialised), ("joined", joined)] {
+        let out = graphql(&executor, "{ members { id team { id name } } }").await.unwrap();
+        assert_eq!(
+            out["data"]["members"],
+            serde_json::json!([{"id": 1, "team": {"id": 1, "name": "red"}}, {"id": 2, "team": null}]),
+            "{how}: {out}"
+        );
+    }
 }

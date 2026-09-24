@@ -55,7 +55,7 @@ use super::{
 use crate::{
     backend::{
         COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedLevel, EmbedShape,
-        JsonbValue, LevelKeys, ScalarFieldType,
+        EmbedSource, JsonbValue, LevelKeys, ScalarFieldType,
     },
     error::{FraiseQLError, Result},
     graphql::DirectReadProjection,
@@ -439,24 +439,36 @@ impl PlannedEmbed {
             ),
         };
 
-        let target_field = schema
-            .find_type(&rel.target_type)
-            .and_then(|t| t.field_for_column(rel.target_join_column()));
-        let key_type = target_field
-            .map_or(ScalarFieldType::Text, |field| field_type_to_where_type(&field.field_type));
-
         Some(ComposedEmbed {
             output_key: self.output_key.clone(),
             shape,
-            target_key: vec![stored_key(
-                schema,
-                &rel.target_type,
-                rel.target_join_column(),
-            )],
-            parent_key: vec![stored_key(schema, parent_type, rel.parent_join_column())],
-            key_type,
+            source: correlated_source(schema, rel, parent_type),
             level,
         })
+    }
+}
+
+/// The correlation that attaches `rel`'s target rows to a row of `parent_type`: the two
+/// join columns' stored keys, compared as the target key's declared type. REST's embeds
+/// and a GraphQL selection joined through its relationship attach by this one rule.
+pub(super) fn correlated_source(
+    schema: &CompiledSchema,
+    rel: &Relationship,
+    parent_type: &str,
+) -> EmbedSource {
+    let target_field = schema
+        .find_type(&rel.target_type)
+        .and_then(|t| t.field_for_column(rel.target_join_column()));
+    let key_type = target_field
+        .map_or(ScalarFieldType::Text, |field| field_type_to_where_type(&field.field_type));
+    EmbedSource::Correlated {
+        target_key: vec![stored_key(
+            schema,
+            &rel.target_type,
+            rel.target_join_column(),
+        )],
+        parent_key: vec![stored_key(schema, parent_type, rel.parent_join_column())],
+        key_type,
     }
 }
 
