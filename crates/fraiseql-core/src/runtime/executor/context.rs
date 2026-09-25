@@ -39,7 +39,7 @@ pub(super) struct ExecutorContext {
     /// handle). A per-deployment constant — it changes on any schema change.
     pub(super) schema_version: Arc<str>,
 
-    /// Whether a write could be refused after its function ran (`core::write_may_refuse`):
+    /// Whether a write could be refused after its function ran (`core::write_refusal_gate`):
     /// an `authorize` field, a read gate, the #422 authorizer or row security anywhere in
     /// the schema and configuration. Computed **once** here at construction.
     ///
@@ -59,6 +59,10 @@ pub(super) struct ExecutorContext {
     /// Shared database adapter for query execution.
     pub(super) adapter: Arc<dyn DatabaseAdapter>,
 
+    /// The adapter's type, named by the constructor that still knew it — the erased
+    /// `adapter` cannot say — and carried over by a rebuild with the adapter itself.
+    pub(super) adapter_name: &'static str,
+
     /// Type-erased **write** capability slot.
     ///
     /// `Some` only when both capability gates agreed at construction: the executor
@@ -76,6 +80,15 @@ pub(super) struct ExecutorContext {
     /// reach the database and forget to consult it. It is the shape `relay` next door
     /// already uses.
     pub(super) writer: Option<Arc<dyn DatabaseAdapter>>,
+
+    /// Why the write grant above is not handed out, when it is not: the schema can refuse a
+    /// write after its function ran, and the adapter cannot run the write whose commit waits
+    /// for that decision (ruling X 2). Decided once, at construction, and refused with by
+    /// [`Self::writer`] — so the refusal every mutation gets is the one the boot logged.
+    ///
+    /// Kept beside the grant rather than instead of it, because a rebuild recomputes this
+    /// from the new schema and carries the grant over.
+    pub(super) writes_refused: Option<String>,
 
     /// Type-erased relay capability slot.
     ///
@@ -140,8 +153,21 @@ impl ExecutorContext {
     ///
     /// # Errors
     ///
-    /// [`FraiseQLError::Validation`] naming the mutation and both gates.
+    /// [`FraiseQLError::Unsupported`] (`501`) when the executor refused mutations at build
+    /// (`writes_refused`) — without the adapter or the gate, which were logged then and are
+    /// not the caller's to learn; otherwise [`FraiseQLError::Validation`] naming the
+    /// mutation and both capability gates.
     pub(super) fn writer(&self, mutation_name: &str) -> Result<&dyn DatabaseAdapter> {
+        if self.writes_refused.is_some() {
+            return Err(crate::error::FraiseQLError::Unsupported {
+                message: format!(
+                    "Mutation '{mutation_name}' cannot be executed: mutations are not mounted \
+                     on this server, because its database adapter cannot roll back a write \
+                     the schema can refuse after it ran. The adapter and the gate were \
+                     logged when the executor was built."
+                ),
+            });
+        }
         self.writer.as_deref().ok_or_else(|| crate::error::FraiseQLError::Validation {
             message: format!(
                 "Mutation '{mutation_name}' cannot be executed: the configured database \

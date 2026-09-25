@@ -63,11 +63,38 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
 /// stamped type is not known before the write, and over-approximating is the only safe
 /// direction. Without any of these, a payload cannot be refused and the write keeps the
 /// ungated fast path.
-pub(super) fn write_may_refuse(schema: &CompiledSchema, config: &RuntimeConfig) -> bool {
-    schema.has_any_authorize_field()
-        || schema.has_any_read_gate()
-        || config.authorizer.is_some()
-        || config.rls_policy.is_some()
+///
+/// Returns the first such gate, named, or `None`. The name is what the executor says when
+/// its adapter cannot take a refusal back and it refuses to mount mutations (ruling X 2).
+pub(super) fn write_refusal_gate(
+    schema: &CompiledSchema,
+    config: &RuntimeConfig,
+) -> Option<String> {
+    schema
+        .types
+        .iter()
+        .find_map(|t| {
+            t.fields
+                .iter()
+                .find(|f| f.authorize)
+                .map(|f| format!("the `authorize` field `{}.{}`", t.name, f.name))
+        })
+        .or_else(|| schema.first_read_gate())
+        .or_else(|| config.authorizer.is_some().then(|| "the #422 authorizer".to_string()))
+        .or_else(|| config.rls_policy.is_some().then(|| "the row-security policy".to_string()))
+}
+
+/// Why an executor over `adapter_name` does not mount mutations: its schema can refuse a
+/// write after the write's function ran (`gate`), and the adapter cannot run a write whose
+/// commit waits for that decision (`DatabaseAdapter::supports_gated_writes`).
+fn writes_refused_message(adapter_name: &str, gate: &str) -> String {
+    format!(
+        "Mutations are not mounted: this schema can refuse a write after its function ran \
+         ({gate}), which needs the write to run in a transaction the refusal rolls back, and \
+         the database adapter `{adapter_name}` does not implement the commit-gated write \
+         (`supports_gated_writes()` is false). Serving the write without the gate would \
+         keep a refused write; the PostgreSQL adapter implements it."
+    )
 }
 
 /// Resolve the GATE-1 validator for an executor (#379).
@@ -336,7 +363,7 @@ impl Executor {
     ) -> Self {
         let adapter: Arc<dyn DatabaseAdapter> = adapter;
         let writer = Self::resolve_writer(&adapter, &Writes::Permitted);
-        Self::build(schema, adapter, config, None, writer)
+        Self::build(schema, adapter, std::any::type_name::<A>(), config, None, writer)
     }
 
     /// Create a new executor that cannot write.
@@ -371,7 +398,7 @@ impl Executor {
     ) -> Self {
         let adapter: Arc<dyn DatabaseAdapter> = adapter;
         let writer = Self::resolve_writer(&adapter, &Writes::Refused);
-        Self::build(schema, adapter, config, None, writer)
+        Self::build(schema, adapter, std::any::type_name::<A>(), config, None, writer)
     }
 
     /// Resolve the write slot as the *intersection* of the two capability gates.
@@ -398,10 +425,19 @@ impl Executor {
     ///
     /// `relay` is passed in rather than built here because constructing a
     /// `RelayDispatchImpl` needs a `RelayDatabaseAdapter` bound that this impl block
-    /// deliberately does not carry.
+    /// deliberately does not carry. `adapter_name` is the adapter's type, named by the
+    /// constructor that still knows it, for the one diagnostic that has to say which
+    /// adapter it means.
+    ///
+    /// `writer` is the write grant the two capability gates resolved. It is not always the
+    /// write handle: a schema that can refuse a write after its function ran, over an
+    /// adapter that cannot take that refusal back, gets no mutations (ruling X 2). That is
+    /// decided here, where the schema, the configuration and the adapter first meet — so
+    /// at boot and again at every rebuild, since a reload can bring the gate.
     fn build(
         schema: CompiledSchema,
         adapter: Arc<dyn DatabaseAdapter>,
+        adapter_name: &'static str,
         config: RuntimeConfig,
         relay: Option<Arc<dyn RelayDispatch>>,
         writer: Option<Arc<dyn DatabaseAdapter>>,
@@ -434,7 +470,20 @@ impl Executor {
 
         // Likewise once: the mutation runner asks this per write (#1353) and the scan
         // is linear in the whole schema.
-        let write_may_refuse = write_may_refuse(&schema, &config);
+        let write_refusal_gate = write_refusal_gate(&schema, &config);
+        let write_may_refuse = write_refusal_gate.is_some();
+
+        // Ruling X 2: a write this schema can refuse after its function ran needs the
+        // commit-gated write. An adapter without it gets no mutations, decided here and
+        // said once, rather than a refusal per request or a write served without the gate.
+        let writes_refused = match (&writer, write_refusal_gate) {
+            (Some(_), Some(gate)) if !adapter.supports_gated_writes() => {
+                let message = writes_refused_message(adapter_name, &gate);
+                tracing::error!(adapter = adapter_name, gate = %gate, "{message}");
+                Some(message)
+            },
+            _ => None,
+        };
 
         let nested_row_gates = super::runners::query_nested::NestedRowGates::build(
             &schema,
@@ -446,7 +495,9 @@ impl Executor {
             write_may_refuse,
             nested_row_gates,
             adapter,
+            adapter_name,
             writer,
+            writes_refused,
             relay,
             matcher,
             planner,
@@ -502,6 +553,17 @@ impl Executor {
     #[must_use]
     pub fn relay_enabled(&self) -> bool {
         self.ctx.relay.is_some()
+    }
+
+    /// Why this executor does not mount mutations although its adapter can write, or
+    /// `None` when it does, or when it could not write anyway.
+    ///
+    /// `Some` when the schema can refuse a write after its function ran and the adapter
+    /// does not implement the commit-gated write (ruling X 2): the message names both.
+    /// Decided when the executor was built, and every mutation is refused with it (`501`).
+    #[must_use]
+    pub fn writes_refused(&self) -> Option<&str> {
+        self.ctx.writes_refused.as_deref()
     }
 
     /// Which backend this executor is bound to.
@@ -653,16 +715,19 @@ impl Executor {
     /// downgrade a relay executor to a non-relay one, because there is no longer a
     /// step that could omit it.
     ///
-    /// The write slot is carried over for the same reason and in the same way. It is
+    /// The write grant is carried over for the same reason and in the same way. It is
     /// resolved from the adapter, and the adapter is unchanged, so recomputing it could
     /// only ever agree — but a rebuild that *recomputed* a capability is precisely the
     /// step #750 showed can omit one. Carrying it makes a downgrade unrepresentable
-    /// rather than merely unlikely.
+    /// rather than merely unlikely. What is recomputed is whether the new schema lets
+    /// this adapter use it: a reload that brings a gate the adapter cannot honour
+    /// refuses mutations as a boot would (ruling X 2).
     #[must_use]
     pub fn rebuild_with(&self, schema: CompiledSchema, config: RuntimeConfig) -> Self {
         Self::build(
             schema,
             Arc::clone(&self.ctx.adapter),
+            self.ctx.adapter_name,
             config,
             self.ctx.relay.clone(),
             self.ctx.writer.clone(),
@@ -1098,6 +1163,13 @@ impl Executor {
             Arc::new(RelayDispatchImpl(Arc::clone(&adapter)));
         let adapter: Arc<dyn DatabaseAdapter> = adapter;
         let writer = Self::resolve_writer(&adapter, &Writes::Permitted);
-        Self::build(schema, adapter, config, Some(relay_dispatch), writer)
+        Self::build(
+            schema,
+            adapter,
+            std::any::type_name::<A>(),
+            config,
+            Some(relay_dispatch),
+            writer,
+        )
     }
 }

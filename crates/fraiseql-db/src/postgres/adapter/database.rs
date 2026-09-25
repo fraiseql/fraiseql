@@ -772,6 +772,11 @@ impl DatabaseAdapter for PostgresAdapter {
         true
     }
 
+    /// `execute_function_call_gated` is implemented below.
+    fn supports_gated_writes(&self) -> bool {
+        true
+    }
+
     async fn health_check(&self) -> Result<()> {
         // Use retry logic for health check to avoid false negatives during pool exhaustion
         let client = self.acquire_connection_with_retry().await?;

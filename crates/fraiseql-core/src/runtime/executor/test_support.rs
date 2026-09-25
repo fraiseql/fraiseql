@@ -351,6 +351,12 @@ pub struct MockAdapter {
     /// nothing ran, rather than inferring it from the returned error — an error and
     /// an executed statement are not mutually exclusive.
     pub captured_raw_sql: std::sync::Mutex<Vec<String>>,
+    /// Whether it implements the commit-gated write: `false` unless built
+    /// [`with_gated_writes`](Self::with_gated_writes). Without it, an executor over a schema
+    /// that can refuse a write after its function ran does not mount mutations (ruling X 2)
+    /// — which is what the capability tests need, and what a test of an operation gate
+    /// in front of the write does not.
+    pub gates_writes:     bool,
 }
 
 impl MockAdapter {
@@ -360,7 +366,16 @@ impl MockAdapter {
             mock_results,
             view_responses: std::collections::HashMap::new(),
             captured_raw_sql: std::sync::Mutex::new(Vec::new()),
+            gates_writes: false,
         }
+    }
+
+    /// Implement the commit-gated write: put the (empty) function call's rows to
+    /// the gate and return them — the PostgreSQL adapter's contract, minus durability.
+    #[must_use]
+    pub const fn with_gated_writes(mut self) -> Self {
+        self.gates_writes = true;
+        self
     }
 
     /// The statements `execute_raw_query` saw, in order.
@@ -383,6 +398,30 @@ impl DatabaseAdapter for MockAdapter {
     // Writes: opted in, because both capability gates default to refusing.
     fn supports_mutations(&self) -> bool {
         true
+    }
+
+    fn supports_gated_writes(&self) -> bool {
+        self.gates_writes
+    }
+
+    // The function call answers no rows (`execute_function_call` below); put those to the
+    // gate, as the PostgreSQL adapter puts the function's rows to it before committing.
+    async fn execute_function_call_gated(
+        &self,
+        _function_name: &str,
+        _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
+        _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
+        gate: fraiseql_db::MutationRowGate<'_>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        if !self.gates_writes {
+            return Err(crate::error::FraiseQLError::Unsupported {
+                message: "MockAdapter was built without with_gated_writes()".to_string(),
+            });
+        }
+        let rows = Vec::new();
+        gate(&rows)?;
+        Ok(rows)
     }
 
     async fn execute_with_projection(

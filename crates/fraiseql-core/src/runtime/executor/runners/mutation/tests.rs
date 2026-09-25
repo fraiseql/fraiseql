@@ -3315,6 +3315,12 @@ mod field_authz {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for GatedEntityAdapter {
+        // Declared with the gated write below: an executor over a gated schema refuses
+        // mutations at build on an adapter that does not say it has one (ruling X 2).
+        fn supports_gated_writes(&self) -> bool {
+            true
+        }
+
         /// The commit gate (#1353), for a test double with no durable state.
         ///
         /// Since this schema declares a policy-gated field, the runner routes its
@@ -3480,6 +3486,33 @@ mod field_authz {
         .execute_with_security("mutation { createUser { id email } }", None, &ctx())
         .await
         .expect_err("adjudication failed, so the mutation must fail")
+    }
+
+    // Ruling X 2, the converse of `boundary::a_gated_schema_over_an_adapter_without_gated_
+    // writes_refuses_mutations_at_build`: an adapter that declares the gated write mounts
+    // mutations over the same kind of schema, so the refusal there is about the adapter.
+    #[test]
+    fn a_gated_schema_over_an_adapter_with_gated_writes_mounts_mutations() {
+        let executor = Executor::with_config(
+            schema(),
+            Arc::new(GatedEntityAdapter::default()),
+            RuntimeConfig::default(),
+        );
+        assert_eq!(executor.writes_refused(), None);
+    }
+
+    // The server wraps every adapter in the caching one, so it has to forward the
+    // capability, or every gated schema would lose its mutations behind it.
+    #[test]
+    fn the_caching_adapter_forwards_gated_writes() {
+        use crate::cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache};
+        let cached = CachedDatabaseAdapter::new(
+            GatedEntityAdapter::default(),
+            QueryResultCache::new(CacheConfig::enabled()),
+            "1.0.0".to_string(),
+        );
+        let executor = Executor::with_config(schema(), Arc::new(cached), RuntimeConfig::default());
+        assert_eq!(executor.writes_refused(), None);
     }
 
     // A `Reject` decision refuses the operation, not just the value: the write the
@@ -3984,6 +4017,11 @@ mod cascade {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for CannedMutationAdapter {
+        // Declared with the gated write below (ruling X 2).
+        fn supports_gated_writes(&self) -> bool {
+            true
+        }
+
         /// The commit gate (#1353) — see `field_authz::GatedEntityAdapter` for why a
         /// double on a policy-gated schema has to implement this rather than inherit
         /// the refusing default.
@@ -5142,6 +5180,30 @@ mod before_mutation_read_bridge {
             true
         }
 
+        // The row security these tests read under also makes a write refusable after its
+        // function ran, so the executor mounts mutations only over the gated write (ruling
+        // X 2). A write the gate refuses is not logged: it did not stand.
+        fn supports_gated_writes(&self) -> bool {
+            true
+        }
+
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            let rows = self.execute_function_call(function_name, args).await?;
+            if let Err(refused) = gate(&rows) {
+                // The call above logged it; the refusal takes it back.
+                self.writes.lock().unwrap().pop();
+                return Err(refused);
+            }
+            Ok(rows)
+        }
+
         async fn execute_function_call(
             &self,
             function_name: &str,
@@ -5538,6 +5600,11 @@ mod rest_write_body {
 
     #[async_trait]
     impl DatabaseAdapter for ArgLog {
+        // Declared with the gated write below (ruling X 2).
+        fn supports_gated_writes(&self) -> bool {
+            true
+        }
+
         /// The commit gate (#1353) — see `field_authz::GatedEntityAdapter` for why a
         /// double on a policy-gated schema has to implement this rather than inherit
         /// the refusing default.

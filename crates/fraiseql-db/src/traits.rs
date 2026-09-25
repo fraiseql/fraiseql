@@ -912,6 +912,25 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         false
     }
 
+    /// Whether this adapter implements
+    /// [`execute_function_call_gated`](Self::execute_function_call_gated) — whether a
+    /// write's commit can wait for a decision taken over the rows it returned, so that a
+    /// refusal there takes the write with it.
+    ///
+    /// Asked once, when an executor is built. A schema on which a write can be refused
+    /// after its function ran (an `authorize` field, a read gate its payload meets, the
+    /// #422 authorizer, row security), over an adapter that answers `false`, does not
+    /// mount mutations: the executor says so at boot, naming the adapter and the gate, and
+    /// refuses every mutation with `501`. Never a write run without the gate, and never a
+    /// refusal the first write discovers.
+    ///
+    /// **Implementing `execute_function_call_gated` obliges you to override this too**, and
+    /// a wrapping adapter must forward both. Defaults to `false`: a capability is not
+    /// something a backend should acquire by omission.
+    fn supports_gated_writes(&self) -> bool {
+        false
+    }
+
     /// Bump fact table version counters after a successful mutation.
     ///
     /// Called by the executor when a mutation definition declares
@@ -1191,6 +1210,8 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     /// Only the PostgreSQL adapter overrides this today. The default below returns
     /// `Unsupported` rather than committing an ungated write: an adapter that
     /// cannot roll back must not be the one to decide that a refusal is survivable.
+    /// An executor does not reach it on such an adapter: it refuses mutations when it is
+    /// built ([`supports_gated_writes`](Self::supports_gated_writes)). Override both.
     ///
     /// # Errors
     ///

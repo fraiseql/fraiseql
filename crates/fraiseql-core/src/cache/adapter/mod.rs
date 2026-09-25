@@ -952,6 +952,12 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.supports_composed_reads()
     }
 
+    // Forwarded with `execute_function_call_gated`, for the same reason: a default here
+    // would refuse mutations on every gated schema the server serves.
+    fn supports_gated_writes(&self) -> bool {
+        self.adapter.supports_gated_writes()
+    }
+
     async fn count_where_query(
         &self,
         view: &str,

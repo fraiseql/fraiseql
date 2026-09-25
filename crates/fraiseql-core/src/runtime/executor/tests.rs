@@ -3142,7 +3142,7 @@ mod operation_authz {
     async fn mutation_via_execute_with_security_deny() {
         let executor = Executor::with_config(
             schema_with_mutation(),
-            Arc::new(MockAdapter::new(vec![])),
+            Arc::new(MockAdapter::new(vec![]).with_gated_writes()),
             RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
         );
         let err = executor
@@ -3157,7 +3157,7 @@ mod operation_authz {
     async fn mutation_via_anonymous_graphql_deny() {
         let executor = Executor::with_config(
             schema_with_mutation(),
-            Arc::new(MockAdapter::new(vec![])),
+            Arc::new(MockAdapter::new(vec![]).with_gated_writes()),
             RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
         );
         let err = executor.execute("mutation { createUser { id } }", None).await.unwrap_err();
@@ -3171,7 +3171,7 @@ mod operation_authz {
     async fn mutation_via_direct_api_deny_closes_anon_rest_bypass() {
         let executor = Executor::with_config(
             schema_with_mutation(),
-            Arc::new(MockAdapter::new(vec![])),
+            Arc::new(MockAdapter::new(vec![]).with_gated_writes()),
             RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
         );
         let err = executor
@@ -3189,7 +3189,7 @@ mod operation_authz {
     async fn mutation_raise_fails_closed() {
         let executor = Executor::with_config(
             schema_with_mutation(),
-            Arc::new(MockAdapter::new(vec![])),
+            Arc::new(MockAdapter::new(vec![]).with_gated_writes()),
             RuntimeConfig::default().with_authorizer(Arc::new(Raising)),
         );
         let err = executor
@@ -3205,7 +3205,7 @@ mod operation_authz {
     async fn mutation_allow_passes_the_gate() {
         let executor = Executor::with_config(
             schema_with_mutation(),
-            Arc::new(MockAdapter::new(vec![])),
+            Arc::new(MockAdapter::new(vec![]).with_gated_writes()),
             RuntimeConfig::default().with_authorizer(Arc::new(AllowAll)),
         );
         let result = executor.execute_mutation("createUser", None, any_write_selections()).await;
@@ -3221,7 +3221,7 @@ mod operation_authz {
     async fn unknown_mutation_keeps_not_found_with_authorizer() {
         let executor = Executor::with_config(
             schema_with_mutation(),
-            Arc::new(MockAdapter::new(vec![])),
+            Arc::new(MockAdapter::new(vec![]).with_gated_writes()),
             RuntimeConfig::default().with_authorizer(Arc::new(DenyAll)),
         );
         let err = executor
@@ -3296,10 +3296,11 @@ mod operation_authz {
 
     // Every gate a payload could meet only once the row exists makes the write
     // transactional, so a refusal there takes the write with it (rulings W 1); with none,
-    // the write keeps the ungated fast path.
+    // the write keeps the ungated fast path. Each is named, for the boot refusal of an
+    // adapter that cannot take the refusal back (ruling X 2).
     #[test]
     fn a_write_may_be_refused_by_any_gate_a_late_payload_meets() {
-        use super::super::core::write_may_refuse;
+        use super::super::core::write_refusal_gate;
         use crate::security::{ActorType, DefaultRLSPolicy};
 
         // `test_schema`'s `users` read, over a `User` type with no gate.
@@ -3314,7 +3315,7 @@ mod operation_authz {
             schema
         };
         let plain = RuntimeConfig::default;
-        assert!(!write_may_refuse(&ungated(), &plain()), "no gate, no transaction");
+        assert_eq!(write_refusal_gate(&ungated(), &plain()), None, "no gate, no transaction");
 
         let mut scoped = ungated();
         scoped.types[0].fields[1] = FieldDefinition::nullable("email", FieldType::String)
@@ -3329,25 +3330,26 @@ mod operation_authz {
         let mut authorize = ungated();
         authorize.types[0].fields[1] =
             FieldDefinition::nullable("email", FieldType::String).with_authorize(true);
-        for (why, schema) in [
-            ("requires_scope", scoped),
-            ("a type's requires_role", type_role),
-            ("a read's requires_role", read_role),
-            ("a read's requires_actor", read_actor),
-            ("an authorize field", authorize),
+        for (named, schema) in [
+            ("the `requires_scope` of `User.email`", scoped),
+            ("the `requires_role` of type `User`", type_role),
+            ("the `requires_role` of query `users`", read_role),
+            ("the `requires_actor` of query `users`", read_actor),
+            ("the `authorize` field `User.email`", authorize),
         ] {
-            assert!(write_may_refuse(&schema, &plain()), "{why}");
+            assert_eq!(write_refusal_gate(&schema, &plain()).as_deref(), Some(named));
         }
-        assert!(
-            write_may_refuse(&ungated(), &plain().with_authorizer(Arc::new(AllowAll))),
-            "the #422 authorizer"
+        assert_eq!(
+            write_refusal_gate(&ungated(), &plain().with_authorizer(Arc::new(AllowAll))).as_deref(),
+            Some("the #422 authorizer")
         );
-        assert!(
-            write_may_refuse(
+        assert_eq!(
+            write_refusal_gate(
                 &ungated(),
                 &plain().with_rls_policy(Arc::new(DefaultRLSPolicy::new()))
-            ),
-            "row security"
+            )
+            .as_deref(),
+            Some("the row-security policy")
         );
     }
 }
@@ -3726,6 +3728,13 @@ mod boundary {
         assert!(!msg.contains("User.email"), "a request is not told the gate: {msg}");
     }
 
+    /// What the operator is told when the executor is built: the adapter and the gate.
+    fn assert_names_adapter_and_gate(executor: &Executor) {
+        let why = executor.writes_refused().expect("mutations refused at build");
+        assert!(why.contains("MockAdapter"), "names the adapter: {why}");
+        assert!(why.contains("the `authorize` field `User.email`"), "names the gate: {why}");
+    }
+
     /// Control: over a schema nothing can refuse after the write, `MockAdapter` — which
     /// states `supports_mutations()` and does not implement the commit-gated write — runs
     /// the write, and fails only downstream, on the rows it did not return.
@@ -3736,6 +3745,7 @@ mod boundary {
             Arc::new(MockAdapter::new(vec![])),
             RuntimeConfig::default(),
         );
+        assert_eq!(executor.writes_refused(), None);
         let err = touch(&executor).await;
         assert!(err.to_string().contains("returned no rows"), "reached the adapter: {err:?}");
     }
@@ -3745,28 +3755,43 @@ mod boundary {
     /// the adapter and is refused there, per request, and nothing said so when the
     /// executor was built. It should be refused once, at build.
     #[tokio::test]
-    #[ignore = "reproduces ruling X 2; the next commit fixes it"]
     async fn a_gated_schema_over_an_adapter_without_gated_writes_refuses_mutations_at_build() {
         let executor = Executor::with_config(
             write_schema(true),
             Arc::new(MockAdapter::new(vec![])),
             RuntimeConfig::default(),
         );
+        assert_names_adapter_and_gate(&executor);
         assert_refused_at_build(&touch(&executor).await);
     }
 
     /// **Reproduction, ruling X 2, hot-reload.** The same refusal when the gate arrives
     /// with a rebuild rather than at boot.
     #[tokio::test]
-    #[ignore = "reproduces ruling X 2; the next commit fixes it"]
     async fn a_rebuild_onto_a_gated_schema_refuses_mutations_at_build() {
         let executor = Executor::with_config(
             write_schema(false),
             Arc::new(MockAdapter::new(vec![])),
             RuntimeConfig::default(),
         );
+        assert_eq!(executor.writes_refused(), None, "precondition: mounted");
         let rebuilt = executor.rebuild_with(write_schema(true), RuntimeConfig::default());
+        assert_names_adapter_and_gate(&rebuilt);
         assert_refused_at_build(&touch(&rebuilt).await);
+        // And back: the grant was carried, not lost, so a reload that drops the gate
+        // mounts mutations again.
+        let ungated = rebuilt.rebuild_with(write_schema(false), RuntimeConfig::default());
+        assert_eq!(ungated.writes_refused(), None);
+        let err = touch(&ungated).await;
+        assert!(err.to_string().contains("returned no rows"), "reached the adapter: {err:?}");
+    }
+
+    /// A read-only executor has no mutations to refuse for the gate: it refuses them as
+    /// read-only, which is the older and truer reason.
+    #[test]
+    fn a_read_only_executor_is_not_refused_for_the_gate() {
+        let executor = Executor::read_only(write_schema(true), Arc::new(MockAdapter::new(vec![])));
+        assert_eq!(executor.writes_refused(), None);
     }
 
     /// #750's property, now structural.

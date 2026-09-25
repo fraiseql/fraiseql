@@ -18,7 +18,7 @@
 //! that is safe. An entity the write stamps with a type no position anticipated is
 //! classified when it arrives ([`PayloadGates::late`]). A refusal then still takes the write
 //! with it: a schema or configuration with any gate `late` could meet runs every write in a
-//! transaction (`core::write_may_refuse`), and one with none cannot refuse there.
+//! transaction (`core::write_refusal_gate`), and one with none cannot refuse there.
 //!
 //! The root entity is not row-filtered: the write function is the authority over what it
 //! returns. Masking and the row filter run after the write, on the returned document.
