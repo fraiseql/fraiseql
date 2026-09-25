@@ -3168,9 +3168,33 @@ disagreed, and the promise was the part that was wrong.
   (`tools/confiture-requirements.txt`, 1.19.0) and runs the wrapper against it with no
   skip; five unit pins keep `--source` and the top-level verbs from coming back.
 
-  **Still open:** the DSN reaches confiture as an ambient `DATABASE_URL` with no
-  `--no-config`, which confiture ignores for `status` and refuses for `up`/`down`
-  (`CONFIG_010`). That fix, and the `migrate --help` precedence text, follow separately.
+  The DSN handoff, which this left as an ambient `DATABASE_URL` confiture ignores for
+  `status` and refuses for `up`/`down`, and the `migrate --help` precedence text are #1378,
+  next.
+
+- **`fraiseql migrate` hands confiture the DSN it resolved, not an ambient variable (#1378).**
+
+  `fraiseql migrate up|down|status` resolve a database URL — `--database`, else
+  `[database].url` in `fraiseql.toml`, else `DATABASE_URL` — and exported it to confiture as
+  `DATABASE_URL` with no `--no-config`. Confiture's connection ladder treats that variable as
+  ambient by design: `status` never connected and reported every migration "unknown (no
+  config)" with exit 0, and `up`/`down` refused with `CONFIG_010`. A mutating run could not
+  proceed, and the status read that would have shown it looked like success.
+
+  The DSN now reaches confiture as `CONFITURE_DATABASE_URL`, its canonical variable, with
+  `--no-config`, under which the environment is the sole DSN source: the URL fraiseql
+  resolved is the one confiture connects with, and a `confiture.yaml` or
+  `db/environments/*.yaml` in the working directory no longer shadows it. `preflight`, which
+  is handed no DSN, keeps confiture's own discovery. `fraiseql migrate --help` now states the
+  order the code implements (`--database` > `fraiseql.toml` > `DATABASE_URL`, unchanged) and
+  names the handoff; `fraiseql setup --help`, which resolves through the same function, no
+  longer lists the environment first. The `integration (postgres)` leg proves the handoff
+  end to end: `up` → `status` reports `applied` → `down` → `status` reports `pending`,
+  against the pinned confiture and a real database.
+
+  Observed, not changed: confiture's `migrate status` exits 1 when migrations are pending and
+  2 when the tracking table is absent; the wrapper reports both as "Failed to get migration
+  status." with exit 1.
 
 - **Two schema roundtrip properties no longer generate the duplicate names the load path
   refuses (#1367).**
