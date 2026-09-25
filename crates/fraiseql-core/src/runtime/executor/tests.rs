@@ -3688,6 +3688,87 @@ mod response_cache_key {
 mod boundary {
     use super::*;
 
+    /// `test_schema`'s `users` read over a `User` type, and a `touchUser` write returning
+    /// one. `email` is an `authorize` field when `gated`: the #1353 field authorizer decides
+    /// over the written row, so on that schema a write can be refused after its function
+    /// ran, whatever the selection's other gates.
+    fn write_schema(gated: bool) -> CompiledSchema {
+        let mut schema = test_schema();
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::Int),
+            FieldDefinition::nullable("email", FieldType::String).with_authorize(gated),
+        ];
+        schema.types.push(user);
+        let mut touch = crate::schema::MutationDefinition::new("touchUser", "User");
+        touch.sql_source = Some("fn_touch_user".to_string());
+        schema.mutations.push(touch);
+        schema.build_indexes();
+        schema
+    }
+
+    /// What a mutation over `executor` answers when it is refused before it runs.
+    async fn touch(executor: &Executor) -> crate::error::FraiseQLError {
+        executor
+            .execute("mutation { touchUser { id } }", None)
+            .await
+            .expect_err("MockAdapter returns no rows, so no write can succeed here")
+    }
+
+    /// The refusal ruling X 2 asks for: the executor's own, decided when it was built, a
+    /// `501` saying mutations are not mounted — not the adapter's refusal of one write. The
+    /// adapter and the gate are named where the operator reads them, at build; a request
+    /// is not told which gate the schema carries.
+    fn assert_refused_at_build(err: &crate::error::FraiseQLError) {
+        let msg = err.to_string();
+        assert!(matches!(err, crate::error::FraiseQLError::Unsupported { .. }), "{err:?}");
+        assert!(msg.contains("not mounted"), "the executor refused, not the adapter: {msg}");
+        assert!(!msg.contains("User.email"), "a request is not told the gate: {msg}");
+    }
+
+    /// Control: over a schema nothing can refuse after the write, `MockAdapter` — which
+    /// states `supports_mutations()` and does not implement the commit-gated write — runs
+    /// the write, and fails only downstream, on the rows it did not return.
+    #[tokio::test]
+    async fn an_ungated_write_over_an_adapter_without_gated_writes_runs() {
+        let executor = Executor::with_config(
+            write_schema(false),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default(),
+        );
+        let err = touch(&executor).await;
+        assert!(err.to_string().contains("returned no rows"), "reached the adapter: {err:?}");
+    }
+
+    /// **Reproduction, ruling X 2.** A schema on which a write can be refused after its
+    /// function ran, over an adapter without the commit-gated write: every mutation reaches
+    /// the adapter and is refused there, per request, and nothing said so when the
+    /// executor was built. It should be refused once, at build.
+    #[tokio::test]
+    #[ignore = "reproduces ruling X 2; the next commit fixes it"]
+    async fn a_gated_schema_over_an_adapter_without_gated_writes_refuses_mutations_at_build() {
+        let executor = Executor::with_config(
+            write_schema(true),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default(),
+        );
+        assert_refused_at_build(&touch(&executor).await);
+    }
+
+    /// **Reproduction, ruling X 2, hot-reload.** The same refusal when the gate arrives
+    /// with a rebuild rather than at boot.
+    #[tokio::test]
+    #[ignore = "reproduces ruling X 2; the next commit fixes it"]
+    async fn a_rebuild_onto_a_gated_schema_refuses_mutations_at_build() {
+        let executor = Executor::with_config(
+            write_schema(false),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default(),
+        );
+        let rebuilt = executor.rebuild_with(write_schema(true), RuntimeConfig::default());
+        assert_refused_at_build(&touch(&rebuilt).await);
+    }
+
     /// #750's property, now structural.
     ///
     /// A hot-reload used to rebuild through a closure the booting constructor had
