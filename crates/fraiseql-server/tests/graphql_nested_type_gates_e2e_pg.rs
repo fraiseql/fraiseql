@@ -22,6 +22,10 @@
 //! The depth section asks the same at every depth, over a chain of `Folder` to-ones: no
 //! stored document leaves unprojected, however deep the selection that reaches it.
 //!
+//! The mutation section asks it of a mutation's result selection: `touchUser` returns the
+//! same `User` document `users` reads, and `touchOrder` an `Order`. The `#[ignore]`d tests
+//! there are reproductions, each beside a control that passes.
+//!
 //! Self-skips when no `DATABASE_URL` is set.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
@@ -38,8 +42,9 @@ use fraiseql_core::{
     prelude::{DatabaseAdapter as _, UserId},
     runtime::{Executor, QueryMatch, RuntimeConfig},
     schema::{
-        Cardinality, CompiledSchema, FieldDefinition, FieldDenyPolicy, FieldType, QueryDefinition,
-        Relationship, RoleDefinition, SecurityConfig, TypeDefinition,
+        ArgumentDefinition, Cardinality, CompiledSchema, FieldDefinition, FieldDenyPolicy,
+        FieldType, MutationDefinition, MutationOperation, QueryDefinition, Relationship,
+        RoleDefinition, SecurityConfig, TypeDefinition,
     },
     security::{
         Authorizer, AuthzDecision, AuthzRequest, CompiledRLSPolicy, DefaultRLSPolicy, RLSPolicy,
@@ -68,6 +73,16 @@ const SCHEMA: &str = "p_nested_gates";
 /// Two user views: `v_user_fk` embeds a user's orders by `fk_user` alone; `v_user_tenant`
 /// also requires the order's tenant to be the user's.
 async fn seed(adapter: &PostgresAdapter) {
+    // `fn_touch_<table>(id)`: rewrite the row unchanged, and return it as `view` serves it.
+    let touch = |table: &str, entity_type: &str, view: &str| {
+        format!(
+            "CREATE FUNCTION {SCHEMA}.fn_touch_{table}(p_id bigint) RETURNS app.mutation_response \
+             LANGUAGE plpgsql AS $$ DECLARE v app.mutation_response; BEGIN UPDATE \
+             {SCHEMA}.tb_{table} SET id = id WHERE id = p_id; v.succeeded := true; \
+             v.state_changed := true; v.message := 'touched'; v.entity_type := '{entity_type}'; \
+             v.entity := (SELECT data FROM {SCHEMA}.{view} WHERE id = p_id); RETURN v; END $$"
+        )
+    };
     let embed = |join: &str| {
         format!(
             "CREATE VIEW {SCHEMA}.{join} AS SELECT u.id, jsonb_build_object('id', u.id, 'name', \
@@ -155,6 +170,22 @@ async fn seed(adapter: &PostgresAdapter) {
             "CREATE VIEW {SCHEMA}.v_folder AS SELECT id, {SCHEMA}.folder_doc(id, 59) AS data FROM \
              {SCHEMA}.tb_folder"
         ),
+        // The `app.mutation_response` contract, provisioned idempotently as the other
+        // mutation suites do, and two writes that return what a read of their row serves:
+        // `touchUser` the `v_user_fk` document, with every order it embeds.
+        "CREATE SCHEMA IF NOT EXISTS app".to_string(),
+        "DO $$ BEGIN CREATE TYPE app.mutation_error_class AS ENUM ('validation','conflict',\
+         'not_found','unauthorized','forbidden','internal','transaction_failed','timeout',\
+         'rate_limited','service_unavailable'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+            .to_string(),
+        "DO $$ BEGIN CREATE TYPE app.mutation_response AS (succeeded BOOLEAN, state_changed \
+         BOOLEAN, error_class app.mutation_error_class, status_detail TEXT, http_status \
+         SMALLINT, message TEXT, entity_id UUID, entity_type TEXT, entity JSONB, \
+         updated_fields TEXT[], cascade JSONB, error_detail JSONB, metadata JSONB); \
+         EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+            .to_string(),
+        touch("user", "User", "v_user_fk"),
+        touch("order", "Order", "v_order"),
     ];
     for stmt in stmts {
         let _: Vec<HashMap<String, Value>> =
@@ -1364,4 +1395,249 @@ async fn a_rest_leaf_object_deeper_than_its_expansion_is_refused() {
         .await
         .unwrap();
     assert_eq!(out["data"]["members"][0]["team"]["name"], "red", "{out}");
+}
+
+// ---------------------------------------------------------------------------
+// (m) A mutation's result selection
+// ---------------------------------------------------------------------------
+//
+// A mutation's payload is projected by `project_entity` and put to the #423 field
+// authorizer, and nothing else: it is not classified through `SelectionAccess`, so neither
+// the root level nor any nested one meets `requires_scope`, the nested type's RLS, its
+// read's role, or the #422 authorizer. Each reproduction below is the read-path test of the
+// same gate, asked of `touchUser` / `touchOrder`; the read-path test is its control.
+
+/// `schema` with the two writes, over `v_user_fk`.
+fn mutation_schema() -> CompiledSchema {
+    let mut schema = schema("v_user_fk");
+    for (name, return_type, table) in [
+        ("touchUser", "User", "user"),
+        ("touchOrder", "Order", "order"),
+    ] {
+        let mut mutation = MutationDefinition::new(name, return_type);
+        mutation.sql_source = Some(format!("{SCHEMA}.fn_touch_{table}"));
+        mutation.operation = MutationOperation::Update {
+            table: format!("tb_{table}"),
+        };
+        mutation.arguments = vec![ArgumentDefinition::new("id", FieldType::Int)];
+        schema.mutations.push(mutation);
+    }
+    schema.build_indexes();
+    schema
+}
+
+/// The orders `touchUser` served.
+fn touched_orders(response: &Value) -> &Vec<Value> {
+    response["data"]["touchUser"]["orders"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"))
+}
+
+fn ids(orders: &[Value]) -> Vec<i64> {
+    let mut ids: Vec<i64> = orders.iter().map(|o| o["id"].as_i64().unwrap()).collect();
+    ids.sort_unstable();
+    ids
+}
+
+const TOUCH_USER_ORDERS: &str = "mutation { touchUser(id: 1) { id orders { id } } }";
+
+/// Control: with no gate in play, a mutation serves the orders its row embeds — all three.
+/// Without it a reproduction below could pass on a rig that serves no order at all.
+#[tokio::test]
+async fn control_m_a_mutation_serves_its_nested_orders() {
+    let executor = rig_or_skip!(over mutation_schema(), Policy::None);
+    let out = graphql(&executor, TOUCH_USER_ORDERS).await.unwrap();
+    assert_eq!(ids(touched_orders(&out)), [10, 11, 12], "{out}");
+}
+
+/// Control: a principal holding `read:margin` reads it through a mutation, at the root and
+/// nested. A fix that refused every scoped field on a write would fail here.
+#[tokio::test]
+async fn control_m_a_mutation_serves_margin_to_a_principal_holding_its_scope() {
+    let executor = rig_or_skip!(over mutation_schema(), Policy::None);
+    let analyst = SecurityContext {
+        roles: vec!["analyst".to_string()],
+        ..alice()
+    };
+    let root = executor
+        .execute_with_security("mutation { touchOrder(id: 10) { id margin } }", None, &analyst)
+        .await
+        .unwrap();
+    assert_eq!(root["data"]["touchOrder"]["margin"], 7, "{root}");
+    let nested = executor
+        .execute_with_security(
+            "mutation { touchUser(id: 1) { id orders { id margin } } }",
+            None,
+            &analyst,
+        )
+        .await
+        .unwrap();
+    let margins: Vec<&Value> = touched_orders(&nested).iter().map(|o| &o["margin"]).collect();
+    assert_eq!(margins, [7, 8, 9], "{nested}");
+}
+
+/// **Reproduction (m), root Mask.** Control: `control_a_root_margin_is_masked`.
+#[tokio::test]
+#[ignore = "reproduction: a mutation's result is not classified by requires_scope"]
+async fn a_mutation_root_margin_is_masked() {
+    let executor = rig_or_skip!(over mutation_schema(), Policy::None);
+    let out = graphql(&executor, "mutation { touchOrder(id: 10) { id margin } }")
+        .await
+        .unwrap();
+    assert!(
+        out["data"]["touchOrder"]["margin"].is_null(),
+        "Order.margin served in full through touchOrder: {out}"
+    );
+}
+
+/// **Reproduction (m), root Reject.** Control: `control_a_root_cost_price_is_refused`.
+#[tokio::test]
+#[ignore = "reproduction: a mutation's result is not classified by requires_scope"]
+async fn a_mutation_root_cost_price_is_refused() {
+    let executor = rig_or_skip!(over mutation_schema(), Policy::None);
+    let result = graphql(&executor, "mutation { touchOrder(id: 10) { id cost_price } }").await;
+    assert!(
+        matches!(result, Err(FraiseQLError::Authorization { .. })),
+        "Order.cost_price served through touchOrder: {result:?}"
+    );
+}
+
+/// **Reproduction (m), nested Mask.** Control: `a_nested_margin_is_masked`.
+#[tokio::test]
+#[ignore = "reproduction: a mutation's nested level is not classified by requires_scope"]
+async fn a_mutation_nested_margin_is_masked() {
+    let executor = rig_or_skip!(over mutation_schema(), Policy::None);
+    let out = graphql(&executor, "mutation { touchUser(id: 1) { id orders { id margin } } }")
+        .await
+        .unwrap();
+    assert!(
+        touched_orders(&out).iter().all(|o| o["margin"].is_null()),
+        "Order.margin served in full through touchUser {{ orders }}: {out}"
+    );
+}
+
+/// **Reproduction (m), nested Reject.** Control: `a_nested_cost_price_is_refused`.
+#[tokio::test]
+#[ignore = "reproduction: a mutation's nested level is not classified by requires_scope"]
+async fn a_mutation_nested_cost_price_is_refused() {
+    let executor = rig_or_skip!(over mutation_schema(), Policy::None);
+    let result =
+        graphql(&executor, "mutation { touchUser(id: 1) { id orders { id cost_price } } }").await;
+    assert!(
+        matches!(result, Err(FraiseQLError::Authorization { .. })),
+        "Order.cost_price served through touchUser {{ orders }}: {result:?}"
+    );
+}
+
+/// **Reproduction (m), owner RLS.** Control: `owner_policy_scopes_nested_orders`.
+#[tokio::test]
+#[ignore = "reproduction: a mutation's nested level is not read under its type's RLS"]
+async fn a_mutation_nested_orders_follow_the_owner_policy() {
+    let executor = rig_or_skip!(over mutation_schema(), Policy::Owner);
+    let out = graphql(&executor, TOUCH_USER_ORDERS).await.unwrap();
+    assert_eq!(
+        ids(touched_orders(&out)),
+        [10, 12],
+        "mallory's order 11 served to alice through touchUser {{ orders }}: {out}"
+    );
+}
+
+/// **Reproduction (m), tenant RLS.** Control:
+/// `tenant_policy_scopes_nested_orders_over_a_foreign_key_view`.
+#[tokio::test]
+#[ignore = "reproduction: a mutation's nested level is not read under its type's RLS"]
+async fn a_mutation_nested_orders_follow_the_tenant_policy() {
+    let executor = rig_or_skip!(over mutation_schema(), Policy::Tenant);
+    let out = graphql(&executor, TOUCH_USER_ORDERS).await.unwrap();
+    assert_eq!(
+        ids(touched_orders(&out)),
+        [10, 11],
+        "tenant B's order 12 served to tenant A through touchUser {{ orders }}: {out}"
+    );
+}
+
+/// `mutation_schema`, with `Order`'s read gated by a type-level role alice does not hold.
+fn clerk_only_orders() -> CompiledSchema {
+    let mut schema = mutation_schema();
+    schema.types.iter_mut().find(|t| t.name == "Order").unwrap().requires_role =
+        Some("clerk".to_string());
+    schema.build_indexes();
+    schema
+}
+
+/// Control: the read path refuses `users { orders }` when `Order`'s read requires a role
+/// alice does not hold, and a mutation that does not select `orders` is served.
+#[tokio::test]
+async fn control_m_a_role_gated_nested_type_refuses_the_read() {
+    let executor = rig_or_skip!(over clerk_only_orders(), Policy::None);
+    let read = graphql(&executor, "{ users { id orders { id } } }").await;
+    assert!(matches!(read, Err(FraiseQLError::Authorization { .. })), "{read:?}");
+    let out = graphql(&executor, "mutation { touchUser(id: 1) { id } }").await.unwrap();
+    assert_eq!(out["data"]["touchUser"]["id"], 1, "{out}");
+}
+
+/// **Reproduction (m), role.** Control: `control_m_a_role_gated_nested_type_refuses_the_read`.
+#[tokio::test]
+#[ignore = "reproduction: a mutation's nested level does not meet its type's read role"]
+async fn a_mutation_nested_level_follows_its_types_role() {
+    let executor = rig_or_skip!(over clerk_only_orders(), Policy::None);
+    let result = graphql(&executor, TOUCH_USER_ORDERS).await;
+    assert!(
+        matches!(result, Err(FraiseQLError::Authorization { .. })),
+        "Order read through touchUser {{ orders }} without its role: {result:?}"
+    );
+}
+
+/// An authorizer that denies every read of `Order`, and admits everything else.
+struct DenyOrderReads;
+
+impl Authorizer for DenyOrderReads {
+    fn authorize(&self, req: &AuthzRequest<'_>) -> Result<AuthzDecision> {
+        Ok(if req.target_type == Some("Order") && req.nesting.is_some() {
+            AuthzDecision::Deny {
+                reason: "no orders".to_string(),
+            }
+        } else {
+            AuthzDecision::Allow
+        })
+    }
+}
+
+async fn deny_order_reads_rig() -> Option<Executor> {
+    let url = try_database_url()?;
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
+    seed(&adapter).await;
+    let schema = mutation_schema();
+    let config = policy_config(&schema, Policy::None).with_authorizer(Arc::new(DenyOrderReads));
+    Some(Executor::with_config(schema, adapter, config))
+}
+
+/// Control: the #422 authorizer denies the read path's nested `Order` level, and admits a
+/// mutation that does not select it.
+#[tokio::test]
+async fn control_m_the_authorizer_denies_a_nested_order_read() {
+    let Some(executor) = deny_order_reads_rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let read = graphql(&executor, "{ users { id orders { id } } }").await;
+    assert!(matches!(read, Err(FraiseQLError::Authorization { .. })), "{read:?}");
+    let out = graphql(&executor, "mutation { touchUser(id: 1) { id } }").await.unwrap();
+    assert_eq!(out["data"]["touchUser"]["id"], 1, "{out}");
+}
+
+/// **Reproduction (m), #422 per level.** Control:
+/// `control_m_the_authorizer_denies_a_nested_order_read`.
+#[tokio::test]
+#[ignore = "reproduction: a mutation's nested level is not put to the #422 authorizer"]
+async fn a_mutation_nested_level_is_put_to_the_authorizer() {
+    let Some(executor) = deny_order_reads_rig().await else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let result = graphql(&executor, TOUCH_USER_ORDERS).await;
+    assert!(
+        matches!(result, Err(FraiseQLError::Authorization { .. })),
+        "the authorizer was not asked of touchUser {{ orders }}: {result:?}"
+    );
 }
