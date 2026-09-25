@@ -8,11 +8,13 @@
 //! [`Executor`](super::super::core::Executor).
 
 mod invalidation;
+mod payload_gates;
 
 use std::sync::Arc;
 
 use fraiseql_db::{ChangeLogWrite, ViewName};
 
+use self::payload_gates::{PayloadGates, PayloadPosition};
 use super::{
     super::{context::ExecutorContext, mutation::WriteSelections, resolve_inject_value},
     query_projection::selections_contain_field,
@@ -23,7 +25,6 @@ use crate::{
     runtime::{
         ResultProjector,
         mutation_result::{MutationOutcome, parse_mutation_row},
-        project_entity,
         projection::effective_selections,
         suggest_similar,
     },
@@ -41,6 +42,10 @@ use crate::{
 /// - a `Reject` decision or any policy error → 403.
 ///
 /// No-op (and zero authorizer calls) when the selection set has no gated field.
+// Reason: the principal, the entity and its projection, the selection, its variables and
+// what the static gate masked are each a separate input to one decision; a struct would
+// only relocate them.
+#[allow(clippy::too_many_arguments)]
 fn enforce_mutation_field_authz(
     ctx: &ExecutorContext,
     security_ctx: Option<&SecurityContext>,
@@ -49,6 +54,7 @@ fn enforce_mutation_field_authz(
     entity: &serde_json::Value,
     projected: &mut serde_json::Value,
     variables: &std::collections::HashMap<String, serde_json::Value>,
+    statically_masked: &[String],
 ) -> Result<()> {
     use crate::security::field_authorizer as authz;
 
@@ -92,10 +98,46 @@ fn enforce_mutation_field_authz(
         principal,
         type_name,
         gated: &gated,
-        // The mutation path has no static requires_scope gate, so nothing is pre-masked.
-        statically_masked: &[],
+        // AND-composition with the static `requires_scope` gate (`payload_gates`), as on the
+        // query path: a field it already masked is not put to the authorizer.
+        statically_masked,
     };
     authz::apply_field_authorizer_to_entity(&pass, entity, projected)
+}
+
+/// Serve one entity of a payload: projected through `selections` as a `type_name` at
+/// `position` under the payload's read gates (`payload_gates`), then put to the #423 field
+/// authorizer.
+///
+/// # Errors
+///
+/// What the read gates refuse of a type no position anticipated, and what
+/// [`enforce_mutation_field_authz`] refuses.
+// Reason: the entity, where it sits, and the request's principal, gates and variables are
+// each a separate input to one decision; a struct would only relocate them.
+#[allow(clippy::too_many_arguments)]
+fn serve_entity(
+    ctx: &ExecutorContext,
+    security_ctx: Option<&SecurityContext>,
+    gates: &PayloadGates,
+    position: PayloadPosition,
+    type_name: &str,
+    selections: &[FieldSelection],
+    entity: &serde_json::Value,
+    variables: &std::collections::HashMap<String, serde_json::Value>,
+) -> Result<serde_json::Value> {
+    let mut gated = gates.project(ctx, security_ctx, position, type_name, selections, entity)?;
+    enforce_mutation_field_authz(
+        ctx,
+        security_ctx,
+        type_name,
+        selections,
+        &gated.source,
+        &mut gated.projected,
+        variables,
+        &gated.masked,
+    )?;
+    Ok(gated.projected)
 }
 
 // ── Typed cascade payload projection ─────────────────────────────────────────
@@ -182,6 +224,7 @@ fn payload_entity_type(payload_type: &str, schema: &CompiledSchema) -> Option<St
 fn build_cascade_payload(
     ctx: &ExecutorContext,
     security_ctx: Option<&SecurityContext>,
+    gates: &PayloadGates,
     payload_type: &str,
     entity_type: &str,
     entity: &serde_json::Value,
@@ -200,15 +243,14 @@ fn build_cascade_payload(
                 );
             },
             "entity" => {
-                let mut projected =
-                    project_entity(entity, entity_type, &sel.nested_fields, &ctx.schema);
-                enforce_mutation_field_authz(
+                let projected = serve_entity(
                     ctx,
                     security_ctx,
+                    gates,
+                    PayloadPosition::CascadeEntity,
                     entity_type,
                     &sel.nested_fields,
                     entity,
-                    &mut projected,
                     variables,
                 )?;
                 out.insert(sel.response_key().to_string(), projected);
@@ -217,6 +259,7 @@ fn build_cascade_payload(
                 let built = build_cascade_updates(
                     ctx,
                     security_ctx,
+                    gates,
                     cascade,
                     &sel.nested_fields,
                     variables,
@@ -244,6 +287,7 @@ fn build_cascade_payload(
 fn build_cascade_updates(
     ctx: &ExecutorContext,
     security_ctx: Option<&SecurityContext>,
+    gates: &PayloadGates,
     cascade: Option<&serde_json::Value>,
     selections: &[FieldSelection],
     variables: &std::collections::HashMap<String, serde_json::Value>,
@@ -288,6 +332,7 @@ fn build_cascade_updates(
                 let arr = build_updated_entities(
                     ctx,
                     security_ctx,
+                    gates,
                     updated,
                     &sel.nested_fields,
                     variables,
@@ -447,6 +492,7 @@ fn build_invalidations(
 fn build_updated_entities(
     ctx: &ExecutorContext,
     security_ctx: Option<&SecurityContext>,
+    gates: &PayloadGates,
     entries: &[serde_json::Value],
     selections: &[FieldSelection],
     variables: &std::collections::HashMap<String, serde_json::Value>,
@@ -534,15 +580,14 @@ fn build_updated_entities(
                 "entity" => {
                     let entity_blob =
                         entry_obj.get("entity").cloned().unwrap_or(serde_json::Value::Null);
-                    let mut projected =
-                        project_entity(&entity_blob, typename, &sel.nested_fields, &ctx.schema);
-                    enforce_mutation_field_authz(
+                    let projected = serve_entity(
                         ctx,
                         security_ctx,
+                        gates,
+                        PayloadPosition::UpdatedEntity,
                         typename,
                         &sel.nested_fields,
                         &entity_blob,
-                        &mut projected,
                         variables,
                     )?;
                     item.insert(sel.response_key().to_string(), projected);
@@ -853,9 +898,13 @@ pub struct MutationExecution {
 /// selected policy-gated field (or cannot be consulted), and
 /// [`FraiseQLError::Internal`] when a gated field's arguments cannot be read. On the
 /// gated path the caller rolls the write back on any error, whatever its variant.
+// Reason: the outcome, the mutation's shape, and the request's principal, gates, selection
+// and variables are each a separate input; a struct would only relocate them.
+#[allow(clippy::too_many_arguments)]
 fn build_mutation_result(
     ctx: &ExecutorContext,
     security_ctx: Option<&SecurityContext>,
+    gates: &PayloadGates,
     outcome: MutationOutcome,
     mutation_return_type: &str,
     is_cascade: bool,
@@ -883,6 +932,7 @@ fn build_mutation_result(
             build_cascade_payload(
                 ctx,
                 security_ctx,
+                gates,
                 &payload_type,
                 &entity_type_name,
                 &entity,
@@ -918,18 +968,18 @@ fn build_mutation_result(
             // Project the entity through the single canonical projector — the same
             // snake_case source keys, surface output keys, depth-aware recursion and
             // selection-gated __typename as the query path — so a mutation's success
-            // payload and a query over the same entity return an identical shape.
-            let mut projected = project_entity(&entity, &typename, selections, &ctx.schema);
-
-            // Enforce the dynamic field authorizer (#423) on the success entity, per
-            // the resolved concrete type, before surfacing it. Fail-closed.
-            enforce_mutation_field_authz(
+            // payload and a query over the same entity return an identical shape. Served
+            // under the read gates a query of the same entity meets (`payload_gates`), then
+            // the dynamic field authorizer (#423), per the resolved concrete type.
+            // Fail-closed.
+            let mut projected = serve_entity(
                 ctx,
                 security_ctx,
+                gates,
+                PayloadPosition::Root,
                 &typename,
                 selections,
                 &entity,
-                &mut projected,
                 authz_variables,
             )?;
 
@@ -1017,8 +1067,20 @@ fn build_mutation_result(
             // schema declares a matching error type. Otherwise emit just __typename
             // (only when selected, matching the query contract); status is attached
             // below in both cases.
+            // Served under the read gates of the error type (`payload_gates`) and the
+            // dynamic field authorizer (#423), so a scoped or gated field on an error type
+            // cannot leak through the error arm.
             let mut result = if let Some(td) = error_type {
-                project_entity(&source, td.name.as_str(), selections, &ctx.schema)
+                serve_entity(
+                    ctx,
+                    security_ctx,
+                    gates,
+                    PayloadPosition::Root,
+                    td.name.as_str(),
+                    selections,
+                    &source,
+                    authz_variables,
+                )?
             } else {
                 let mut map = serde_json::Map::new();
                 // Scan recursively: `__typename` may be nested inside an inline
@@ -1031,20 +1093,6 @@ fn build_mutation_result(
                 }
                 serde_json::Value::Object(map)
             };
-
-            // Enforce the dynamic field authorizer (#423) on error metadata too, so a
-            // gated field on an error type cannot leak through the error arm.
-            if let Some(td) = error_type {
-                enforce_mutation_field_authz(
-                    ctx,
-                    security_ctx,
-                    td.name.as_str(),
-                    selections,
-                    &source,
-                    &mut result,
-                    authz_variables,
-                )?;
-            }
 
             // Inject the synthetic `status` field — not part of the type definition,
             // but required by clients to discriminate error outcomes.
@@ -1572,6 +1620,21 @@ pub(in super::super) async fn execute_mutation_impl(
         })?;
     let selections: &[FieldSelection] = &filtered_selections;
 
+    // 4a. The payload selection meets the read gates a query of the same entities meets —
+    //      `requires_scope` at every level, a nested level's read role, actor type and #422
+    //      authorizer, and its row security over the returned document (`payload_gates`).
+    //      Everything that can refuse is decided here, before the write, so a refused
+    //      selection never runs the function; masking and the row filter follow it. On the
+    //      post-directive selection, as the query path classifies.
+    let payload_gates = PayloadGates::classify(
+        ctx,
+        security_ctx,
+        variables,
+        &mutation_def.return_type,
+        mutation_def.cascade,
+        selections,
+    )?;
+
     // Can the field authorizer refuse anything at all on this write? It is consulted
     // only for a selected field the compiled schema marks `authorize`, so a schema
     // that declares none cannot produce a refusal — and a write that cannot be refused
@@ -1682,6 +1745,7 @@ pub(in super::super) async fn execute_mutation_impl(
             let result_json = build_mutation_result(
                 ctx,
                 security_ctx,
+                &payload_gates,
                 outcome,
                 &mutation_return_type,
                 is_cascade,

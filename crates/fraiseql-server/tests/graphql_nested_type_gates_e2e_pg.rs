@@ -23,10 +23,11 @@
 //! stored document leaves unprojected, however deep the selection that reaches it.
 //!
 //! The mutation section asks it of a mutation's result selection: `touchUser` returns the
-//! same `User` document `users` reads, and `touchOrder` an `Order`. The `#[ignore]`d tests
-//! there are reproductions, each beside a control that passes. The cascade section asks it of
-//! a cascade payload's `entity`, and of each entity its `cascade.updated` reports.
-//! The error section asks it of an error payload, projected from the write's `error_detail`.
+//! same `User` document `users` reads, and `touchOrder` an `Order`. The cascade section asks
+//! it of a cascade payload's `entity`, and of each entity its `cascade.updated` reports; the
+//! error section of an error payload, projected from the write's `error_detail`. Their
+//! reproductions began `#[ignore]`d, each beside a control; a refusal there is decided before
+//! the write, which `tb_write` shows never ran.
 //!
 //! Self-skips when no `DATABASE_URL` is set.
 //!
@@ -1431,11 +1432,12 @@ async fn a_rest_leaf_object_deeper_than_its_expansion_is_refused() {
 // (m) A mutation's result selection
 // ---------------------------------------------------------------------------
 //
-// A mutation's payload is projected by `project_entity` and put to the #423 field
-// authorizer, and nothing else: it is not classified through `SelectionAccess`, so neither
-// the root level nor any nested one meets `requires_scope`, the nested type's RLS, its
-// read's role, or the #422 authorizer. Each reproduction below is the read-path test of the
-// same gate, asked of `touchUser` / `touchOrder`; the read-path test is its control.
+// A mutation's payload was projected by `project_entity` and put to the #423 field
+// authorizer, and nothing else: neither the root level nor any nested one met
+// `requires_scope`, the nested type's RLS, its read's role, or the #422 authorizer. Each
+// reproduction below is the read-path test of the same gate, asked of `touchUser` /
+// `touchOrder`; the read-path test is its control. The payload is now classified through the
+// read path's classifier before the write (`runners/mutation/payload_gates`).
 
 /// `schema` with the two writes, over `v_user_fk`.
 fn mutation_schema() -> CompiledSchema {
@@ -1508,7 +1510,6 @@ async fn control_m_a_mutation_serves_margin_to_a_principal_holding_its_scope() {
 
 /// **Reproduction (m), root Mask.** Control: `control_a_root_margin_is_masked`.
 #[tokio::test]
-#[ignore = "reproduction: a mutation's result is not classified by requires_scope"]
 async fn a_mutation_root_margin_is_masked() {
     let executor = rig_or_skip!(over mutation_schema(), Policy::None);
     let out = graphql(&executor, "mutation { touchOrder(id: 10) { id margin } }")
@@ -1522,7 +1523,6 @@ async fn a_mutation_root_margin_is_masked() {
 
 /// **Reproduction (m), root Reject.** Control: `control_a_root_cost_price_is_refused`.
 #[tokio::test]
-#[ignore = "reproduction: a mutation's result is not classified by requires_scope"]
 async fn a_mutation_root_cost_price_is_refused() {
     let executor = rig_or_skip!(over mutation_schema(), Policy::None);
     let result = graphql(&executor, "mutation { touchOrder(id: 10) { id cost_price } }").await;
@@ -1534,7 +1534,6 @@ async fn a_mutation_root_cost_price_is_refused() {
 
 /// **Reproduction (m), nested Mask.** Control: `a_nested_margin_is_masked`.
 #[tokio::test]
-#[ignore = "reproduction: a mutation's nested level is not classified by requires_scope"]
 async fn a_mutation_nested_margin_is_masked() {
     let executor = rig_or_skip!(over mutation_schema(), Policy::None);
     let out = graphql(&executor, "mutation { touchUser(id: 1) { id orders { id margin } } }")
@@ -1548,7 +1547,6 @@ async fn a_mutation_nested_margin_is_masked() {
 
 /// **Reproduction (m), nested Reject.** Control: `a_nested_cost_price_is_refused`.
 #[tokio::test]
-#[ignore = "reproduction: a mutation's nested level is not classified by requires_scope"]
 async fn a_mutation_nested_cost_price_is_refused() {
     let executor = rig_or_skip!(over mutation_schema(), Policy::None);
     let result =
@@ -1561,7 +1559,6 @@ async fn a_mutation_nested_cost_price_is_refused() {
 
 /// **Reproduction (m), owner RLS.** Control: `owner_policy_scopes_nested_orders`.
 #[tokio::test]
-#[ignore = "reproduction: a mutation's nested level is not read under its type's RLS"]
 async fn a_mutation_nested_orders_follow_the_owner_policy() {
     let executor = rig_or_skip!(over mutation_schema(), Policy::Owner);
     let out = graphql(&executor, TOUCH_USER_ORDERS).await.unwrap();
@@ -1575,7 +1572,6 @@ async fn a_mutation_nested_orders_follow_the_owner_policy() {
 /// **Reproduction (m), tenant RLS.** Control:
 /// `tenant_policy_scopes_nested_orders_over_a_foreign_key_view`.
 #[tokio::test]
-#[ignore = "reproduction: a mutation's nested level is not read under its type's RLS"]
 async fn a_mutation_nested_orders_follow_the_tenant_policy() {
     let executor = rig_or_skip!(over mutation_schema(), Policy::Tenant);
     let out = graphql(&executor, TOUCH_USER_ORDERS).await.unwrap();
@@ -1608,7 +1604,6 @@ async fn control_m_a_role_gated_nested_type_refuses_the_read() {
 
 /// **Reproduction (m), role.** Control: `control_m_a_role_gated_nested_type_refuses_the_read`.
 #[tokio::test]
-#[ignore = "reproduction: a mutation's nested level does not meet its type's read role"]
 async fn a_mutation_nested_level_follows_its_types_role() {
     let executor = rig_or_skip!(over clerk_only_orders(), Policy::None);
     let result = graphql(&executor, TOUCH_USER_ORDERS).await;
@@ -1659,7 +1654,6 @@ async fn control_m_the_authorizer_denies_a_nested_order_read() {
 /// **Reproduction (m), #422 per level.** Control:
 /// `control_m_the_authorizer_denies_a_nested_order_read`.
 #[tokio::test]
-#[ignore = "reproduction: a mutation's nested level is not put to the #422 authorizer"]
 async fn a_mutation_nested_level_is_put_to_the_authorizer() {
     let Some(executor) = deny_order_reads_rig().await else {
         eprintln!("skipping: DATABASE_URL not set");
@@ -1677,8 +1671,8 @@ async fn a_mutation_nested_level_is_put_to_the_authorizer() {
 // ---------------------------------------------------------------------------
 //
 // A `cascade = true` mutation answers `{ entity, cascade { updated { entity } } }`, and each
-// `entity` there goes through the same projector and the same #423 pass as the plain
-// payload above, and nothing else.
+// `entity` there went through the same projector and the same #423 pass as the plain
+// payload above, and nothing else. Each is now served as the plain payload is.
 
 /// `mutation_schema` with `touchUserCascade`: the `touchUser` write as a cascade mutation.
 /// Its payload's `entity` is the `User`, and `cascade.updated` reports the user and each of
@@ -1730,7 +1724,6 @@ async fn control_c_a_cascade_serves_its_entity_and_its_updated_entities() {
 
 /// **Reproduction (c), nested Mask.** Control: `a_nested_margin_is_masked`.
 #[tokio::test]
-#[ignore = "reproduction: a cascade payload's entity is not classified by requires_scope"]
 async fn a_cascade_entity_nested_margin_is_masked() {
     let executor = rig_or_skip!(over cascade_schema(), Policy::None);
     let out = graphql(
@@ -1747,7 +1740,6 @@ async fn a_cascade_entity_nested_margin_is_masked() {
 
 /// **Reproduction (c), nested Reject.** Control: `a_nested_cost_price_is_refused`.
 #[tokio::test]
-#[ignore = "reproduction: a cascade payload's entity is not classified by requires_scope"]
 async fn a_cascade_entity_nested_cost_price_is_refused() {
     let executor = rig_or_skip!(over cascade_schema(), Policy::None);
     let result = graphql(
@@ -1763,7 +1755,6 @@ async fn a_cascade_entity_nested_cost_price_is_refused() {
 
 /// **Reproduction (c), owner RLS.** Control: `owner_policy_scopes_nested_orders`.
 #[tokio::test]
-#[ignore = "reproduction: a cascade payload's nested level is not read under its type's RLS"]
 async fn a_cascade_entity_nested_orders_follow_the_owner_policy() {
     let executor = rig_or_skip!(over cascade_schema(), Policy::Owner);
     let out = graphql(
@@ -1792,7 +1783,6 @@ fn updated_entities(response: &Value) -> Vec<&Value> {
 
 /// **Reproduction (c), updated Mask.** Control: `control_a_root_margin_is_masked`.
 #[tokio::test]
-#[ignore = "reproduction: a cascade's updated entity is not classified by requires_scope"]
 async fn an_updated_orders_margin_is_masked() {
     let executor = rig_or_skip!(over cascade_schema(), Policy::None);
     let out = graphql(
@@ -1811,7 +1801,6 @@ async fn an_updated_orders_margin_is_masked() {
 
 /// **Reproduction (c), updated Reject.** Control: `control_a_root_cost_price_is_refused`.
 #[tokio::test]
-#[ignore = "reproduction: a cascade's updated entity is not classified by requires_scope"]
 async fn an_updated_orders_cost_price_is_refused() {
     let executor = rig_or_skip!(over cascade_schema(), Policy::None);
     let result = graphql(
@@ -1829,8 +1818,6 @@ async fn an_updated_orders_cost_price_is_refused() {
 /// **Reproduction (c), updated nested owner RLS.** Control:
 /// `owner_policy_scopes_nested_orders`.
 #[tokio::test]
-#[ignore = "reproduction: a cascade's updated entity's nested level is not read under its \
-            type's RLS"]
 async fn an_updated_users_orders_follow_the_owner_policy() {
     let executor = rig_or_skip!(over cascade_schema(), Policy::Owner);
     let out = graphql(
@@ -1853,7 +1840,7 @@ async fn an_updated_users_orders_follow_the_owner_policy() {
 // ---------------------------------------------------------------------------
 //
 // An error outcome is projected from the function's `error_detail` as its declared error
-// type, through the same projector and #423 pass, and nothing else.
+// type, through the same projector and #423 pass — and, now, the same read gates.
 
 /// `mutation_schema` with `failOrder`, which returns `OrderConflict`: an error type whose
 /// detail carries the order's `margin` and `cost_price`, scoped as `Order` scopes them.
@@ -1912,7 +1899,6 @@ async fn control_e_an_error_payload_serves_its_detail() {
 
 /// **Reproduction (e), Mask.** Control: `control_a_root_margin_is_masked`.
 #[tokio::test]
-#[ignore = "reproduction: a mutation's error payload is not classified by requires_scope"]
 async fn an_error_payloads_margin_is_masked() {
     let executor = rig_or_skip!(over error_schema(), Policy::None);
     let out = graphql(
@@ -1930,7 +1916,6 @@ async fn an_error_payloads_margin_is_masked() {
 
 /// **Reproduction (e), Reject.** Control: `control_a_root_cost_price_is_refused`.
 #[tokio::test]
-#[ignore = "reproduction: a mutation's error payload is not classified by requires_scope"]
 async fn an_error_payloads_cost_price_is_refused() {
     let executor = rig_or_skip!(over error_schema(), Policy::None);
     let result = graphql(
@@ -1942,4 +1927,116 @@ async fn an_error_payloads_cost_price_is_refused() {
         matches!(result, Err(FraiseQLError::Authorization { .. })),
         "OrderConflict.cost_price served through failOrder: {result:?}"
     );
+}
+
+// ---------------------------------------------------------------------------
+// (w) When a payload refusal is decided
+// ---------------------------------------------------------------------------
+
+/// The writes `fn_touch_*` / `fn_cascade_user` ran, as `(table, id)`.
+async fn writes() -> Vec<(String, i64)> {
+    let url = try_database_url().unwrap();
+    let adapter = PostgresAdapter::new(&url).await.expect("connect");
+    let rows: Vec<HashMap<String, Value>> = adapter
+        .execute_raw_query(&format!("SELECT tbl, id FROM {SCHEMA}.tb_write ORDER BY tbl, id"))
+        .await
+        .unwrap();
+    rows.iter()
+        .map(|r| (r["tbl"].as_str().unwrap().to_string(), r["id"].as_i64().unwrap()))
+        .collect()
+}
+
+/// Control: a write the payload gates admit runs, and is logged — a masked field and a
+/// row-filtered nested level do not refuse it.
+#[tokio::test]
+async fn control_w_an_admitted_payload_runs_the_write() {
+    let executor = rig_or_skip!(over mutation_schema(), Policy::Owner);
+    graphql(&executor, "mutation { touchUser(id: 1) { id orders { id margin } } }")
+        .await
+        .unwrap();
+    assert_eq!(writes().await, [("user".to_string(), 1)]);
+}
+
+/// A `Reject` at any level refuses before the write: the function never runs.
+#[tokio::test]
+async fn a_rejected_payload_field_never_runs_the_write() {
+    let executor = rig_or_skip!(over cascade_schema(), Policy::None);
+    for mutation in [
+        "mutation { touchOrder(id: 10) { id cost_price } }",
+        "mutation { touchUser(id: 1) { id orders { id cost_price } } }",
+        "mutation { touchUserCascade(id: 1) { cascade { updated { entity { ... on Order { \
+         cost_price } } } } } }",
+    ] {
+        let result = graphql(&executor, mutation).await;
+        assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+    }
+    assert_eq!(writes().await, [], "a refused selection ran its write");
+}
+
+/// A nested level whose type's policy does not declare its keys cannot be evaluated over the
+/// returned document: refused, before the write — with no relationship to read it through,
+/// and with one (joining through it would be a read after the write, which the payload
+/// does not make).
+#[tokio::test]
+async fn an_opaque_policy_over_a_payloads_nested_level_refuses_before_the_write() {
+    for schema in [mutation_schema(), joinable(mutation_schema())] {
+        let executor = rig_or_skip!(over schema, Policy::OpaqueOwner);
+        let result = graphql(&executor, TOUCH_USER_ORDERS).await;
+        assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+        assert_eq!(writes().await, [], "a refused selection ran its write");
+        let out = graphql(&executor, "mutation { touchUser(id: 1) { id } }").await.unwrap();
+        assert_eq!(out["data"]["touchUser"]["id"], 1, "{out}");
+    }
+}
+
+/// The entities a write reports are the write's to report: like the payload's own entity,
+/// an updated entity is not row-filtered at its root — mallory's order 11 was updated, and
+/// is reported — while the levels nested in it are (`an_updated_users_orders_…`).
+#[tokio::test]
+async fn an_updated_entity_is_the_writes_to_report() {
+    let executor = rig_or_skip!(over cascade_schema(), Policy::Owner);
+    let out = graphql(
+        &executor,
+        "mutation { touchUserCascade(id: 1) { cascade { updated { entity { ... on Order { id \
+         } } } } } }",
+    )
+    .await
+    .unwrap();
+    let orders: Vec<i64> =
+        updated_entities(&out)[1..].iter().map(|o| o["id"].as_i64().unwrap()).collect();
+    assert_eq!(orders, [10, 11, 12], "{out}");
+}
+
+/// `cascade_schema` with `touchOrderLoose`: `fn_touch_order`, declared as returning
+/// `OrderRecord`, a type the schema does not know — so the `Order` the write stamps is a type
+/// no payload position anticipated.
+fn loose_schema() -> CompiledSchema {
+    let mut schema = cascade_schema();
+    let mut mutation = MutationDefinition::new("touchOrderLoose", "OrderRecord");
+    mutation.sql_source = Some(format!("{SCHEMA}.fn_touch_order"));
+    mutation.operation = MutationOperation::Update {
+        table: "tb_order".to_string(),
+    };
+    mutation.arguments = vec![ArgumentDefinition::new("id", FieldType::Int)];
+    schema.mutations.push(mutation);
+    schema.build_indexes();
+    schema
+}
+
+/// An entity stamped with a type the payload did not anticipate is classified when it
+/// arrives: its `Mask` masks and its `Reject` refuses. A refusal there comes after the
+/// function ran, and on a write with no transaction to take it back — no `authorize` field
+/// anywhere in the schema — the write stands: `tb_write` records it. That is the residual
+/// of classifying before the write against the types a payload declares.
+#[tokio::test]
+async fn a_type_no_payload_position_anticipated_is_classified_when_it_arrives() {
+    let executor = rig_or_skip!(over loose_schema(), Policy::None);
+    let out = graphql(&executor, "mutation { touchOrderLoose(id: 10) { id margin } }")
+        .await
+        .unwrap();
+    assert_eq!(out["data"]["touchOrderLoose"]["id"], 10, "{out}");
+    assert!(out["data"]["touchOrderLoose"]["margin"].is_null(), "{out}");
+    let result = graphql(&executor, "mutation { touchOrderLoose(id: 11) { id cost_price } }").await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+    assert_eq!(writes().await, [("order".to_string(), 10), ("order".to_string(), 11)]);
 }

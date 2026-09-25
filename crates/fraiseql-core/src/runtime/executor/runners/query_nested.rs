@@ -17,7 +17,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use super::query::QueryRunner;
+use super::{super::context::ExecutorContext, query::QueryRunner};
 use crate::{
     backend::{
         COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedLevel, EmbedShape,
@@ -102,6 +102,48 @@ impl SelectionAccess {
         })
     }
 
+    /// Classify every `(type, selections)` in `roots` as [`Self::classify`] classifies one,
+    /// as one classification: a nested path shared by two roots is put to the authorizer
+    /// once. [`Self::root`] is empty — a caller of this reads each root's masks through
+    /// [`Self::masked_fields`].
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::classify`], for any root.
+    pub(in super::super) fn classify_roots(
+        schema: &CompiledSchema,
+        roots: &[(&str, &[FieldSelection])],
+        security_context: Option<&SecurityContext>,
+        authz: Option<LevelAuthz<'_>>,
+    ) -> Result<Self> {
+        let mut masked = HashSet::new();
+        let mut level = Level {
+            schema,
+            security_context,
+            authz,
+            asked: HashSet::new(),
+        };
+        for (root_type, root_fields) in roots {
+            classify_level(&mut level, root_type, root_fields, "", &mut masked)?;
+        }
+        Ok(Self {
+            root: FieldAccessResult {
+                projected: Vec::new(),
+                masked:    Vec::new(),
+            },
+            masked,
+        })
+    }
+
+    /// The fields of `type_name` this classification masks, by field name.
+    pub(in super::super) fn masked_fields(&self, type_name: &str) -> Vec<String> {
+        self.masked
+            .iter()
+            .filter(|(t, _)| t == type_name)
+            .map(|(_, field)| field.clone())
+            .collect()
+    }
+
     /// Null every masked field of a projected result, at every level, under the key the
     /// response carries it.
     pub(in super::super) fn null_masked(
@@ -131,9 +173,11 @@ struct Level<'a> {
     schema:           &'a CompiledSchema,
     security_context: Option<&'a SecurityContext>,
     authz:            Option<LevelAuthz<'a>>,
-    /// The paths already put to the authorizer: `a: orders { id } b: orders { total }` is
-    /// one read of `orders`, asked once.
-    asked:            HashSet<String>,
+    /// The levels already put to the authorizer, by parent type and path: `a: orders { id }
+    /// b: orders { total }` is one read of `orders`, asked once. The parent type is part of
+    /// the key because one classification can hold several roots (a write's payload), and
+    /// the same path under two of them is two reads.
+    asked:            HashSet<(String, String)>,
 }
 
 /// Classify one level's selections against `type_name`, then every level beneath it.
@@ -177,7 +221,7 @@ fn classify_level(
                 format!("{path}.{}", sel.name)
             };
             if let Some(authz) = level_ctx.authz {
-                if level_ctx.asked.insert(child_path.clone()) {
+                if level_ctx.asked.insert((type_name.to_string(), child_path.clone())) {
                     ask_level_authorizer(
                         authz,
                         schema,
@@ -341,7 +385,6 @@ pub(in super::super) enum NestedRowGate {
 
 impl NestedRowGate {
     /// The type's read whose policy target and `inject_params` apply.
-    #[cfg(feature = "federation")]
     fn query(&self) -> &str {
         match self {
             Self::Project { query, .. } | Self::Join { query, .. } | Self::Refuse { query } => {
@@ -662,59 +705,71 @@ impl QueryRunner {
         Ok(())
     }
 
-    /// The row predicate a read of `target` through `query` carries: the policy's, AND-ed
-    /// with the query's `inject_params` — what a root read of that query composes.
+    /// The row predicate a read of `target` through `query` carries: see [`level_predicate`].
     fn nested_predicate(
         &self,
         query: &str,
         target: &str,
         security_context: Option<&SecurityContext>,
     ) -> Result<Option<WhereClause>> {
-        let Some(read) = self.ctx.schema.queries.iter().find(|q| q.name == query) else {
-            return Ok(None);
-        };
-        let mut conditions = Vec::new();
-        match (&self.ctx.config.rls_policy, security_context) {
-            (Some(policy), Some(ctx)) => {
-                if let Some(clause) = policy.evaluate(ctx, &RlsTarget::query(&read.name, target))? {
-                    conditions.push(clause.into_where_clause());
-                }
-            },
-            // Fail closed (#784), as a root read with a policy and no principal does.
-            (Some(_), None) => {
-                return Err(FraiseQLError::Validation {
-                    message: format!("Query '{}' not found in schema", read.name),
-                    path:    None,
-                });
-            },
-            (None, _) => {},
-        }
-        if !read.inject_params.is_empty() {
-            let Some(ctx) = security_context else {
-                return Err(FraiseQLError::Validation {
-                    message: format!(
-                        "Type '{target}' is scoped by the inject params of query '{}', which a \
-                         request without a security context cannot resolve",
-                        read.name
-                    ),
-                    path:    None,
-                });
-            };
-            for (column, source) in &read.inject_params {
-                let value = super::super::resolve_inject_value(column, source, ctx)?;
-                conditions.push(super::query_params::inject_param_where_clause(
-                    column,
-                    value,
-                    &read.native_columns,
-                ));
-            }
-        }
-        Ok(match conditions.len() {
-            0 => None,
-            1 => conditions.pop(),
-            _ => Some(WhereClause::And(conditions)),
-        })
+        level_predicate(&self.ctx, query, target, security_context)
     }
+}
+
+/// The row predicate a read of `target` through `query` carries: the policy's, AND-ed with
+/// the query's `inject_params` — what a root read of that query composes.
+fn level_predicate(
+    ctx: &ExecutorContext,
+    query: &str,
+    target: &str,
+    security_context: Option<&SecurityContext>,
+) -> Result<Option<WhereClause>> {
+    let Some(read) = ctx.schema.queries.iter().find(|q| q.name == query) else {
+        return Ok(None);
+    };
+    let mut conditions = Vec::new();
+    match (&ctx.config.rls_policy, security_context) {
+        (Some(policy), Some(principal)) => {
+            if let Some(clause) =
+                policy.evaluate(principal, &RlsTarget::query(&read.name, target))?
+            {
+                conditions.push(clause.into_where_clause());
+            }
+        },
+        // Fail closed (#784), as a root read with a policy and no principal does.
+        (Some(_), None) => {
+            return Err(FraiseQLError::Validation {
+                message: format!("Query '{}' not found in schema", read.name),
+                path:    None,
+            });
+        },
+        (None, _) => {},
+    }
+    if !read.inject_params.is_empty() {
+        let Some(principal) = security_context else {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "Type '{target}' is scoped by the inject params of query '{}', which a \
+                     request without a security context cannot resolve",
+                    read.name
+                ),
+                path:    None,
+            });
+        };
+        for (column, source) in &read.inject_params {
+            let value = super::super::resolve_inject_value(column, source, principal)?;
+            conditions.push(super::query_params::inject_param_where_clause(
+                column,
+                value,
+                &read.native_columns,
+            ));
+        }
+    }
+    Ok(match conditions.len() {
+        0 => None,
+        1 => conditions.pop(),
+        _ => Some(WhereClause::And(conditions)),
+    })
 }
 
 /// Whether `clause` reads only the top-level stored keys in `paths`.
@@ -1025,3 +1080,195 @@ pub(super) fn project_object_fields(
         _ => {},
     }
 }
+
+// ── Row security over a document a write returned ────────────────────────────
+//
+// A mutation's payload is the document its function returned, not a read of a view: there
+// is no statement to carry a composed level, and the root entity is the function's to
+// report. A nested level of it is still a read of its own type, so the type's predicate
+// applies to the documents embedded there — evaluated in memory, over the returned
+// document, where the policy declares the keys it reads (`NestedRowGate::Project`) and the
+// predicate is a conjunction of equalities. Anything else refuses, before the write:
+// joining through a relationship would be a read after the write (not done yet), and a
+// predicate the evaluator below cannot decide is not one to guess at.
+//
+// The evaluator is stricter than SQL, never looser: two JSON values are equal only when
+// they are the same value, and `null` equals nothing. A document whose key PostgreSQL would
+// cast to match — a numeric string against a number, an upper-cased UUID — is dropped, and
+// no document SQL would drop is kept.
+
+/// One equality a nested level's documents must meet: the stored path, and the value.
+type DocumentCondition = (Vec<String>, serde_json::Value);
+
+/// The conditions each row-gated nested level of a returned document must meet, by
+/// `(parent type, field)` — built before the write, applied after it.
+#[derive(Debug, Default)]
+pub(in super::super) struct DocumentRowFilter {
+    by_field: HashMap<(String, String), Vec<DocumentCondition>>,
+}
+
+impl DocumentRowFilter {
+    /// Plan the row security of every nested level of `selections` at `root_type`, merged
+    /// into this filter. The root is not filtered.
+    ///
+    /// # Errors
+    ///
+    /// `FraiseQLError::Authorization` for a nested level whose type's predicate applies to
+    /// this caller and cannot be evaluated over the returned document: a policy that does
+    /// not declare its keys, a predicate that reads a key it did not declare, or one that is
+    /// not a conjunction of equalities. What [`level_predicate`] returns.
+    pub(in super::super) fn plan(
+        &mut self,
+        ctx: &ExecutorContext,
+        root_type: &str,
+        selections: &[FieldSelection],
+        security_context: Option<&SecurityContext>,
+    ) -> Result<()> {
+        let schema = &ctx.schema;
+        let Some(parent_def) = schema.find_type(root_type) else {
+            return Ok(());
+        };
+        for sel in effective_selections(selections, root_type, schema) {
+            let Some(field) = parent_def.fields.iter().find(|f| f.name == sel.name) else {
+                continue;
+            };
+            let Some(target) = object_type_of(&field.field_type) else {
+                continue;
+            };
+            let key = (root_type.to_string(), field.name.to_string());
+            if let std::collections::hash_map::Entry::Vacant(slot) = self.by_field.entry(key) {
+                if let Some(gate) = ctx.nested_row_gates.get(root_type, field.name.as_str()) {
+                    let predicate = level_predicate(ctx, gate.query(), target, security_context)?;
+                    if let Some(clause) = predicate {
+                        let refuse = |why: &str| FraiseQLError::Authorization {
+                            message:  format!(
+                                "'{root_type}.{}' embeds '{target}' in the document the write \
+                                 returned, and {why}; refusing before the write rather than \
+                                 serving '{target}' rows unfiltered",
+                                field.name
+                            ),
+                            action:   Some("read".to_string()),
+                            resource: Some(target.to_string()),
+                        };
+                        let NestedRowGate::Project { paths, .. } = gate else {
+                            return Err(refuse(
+                                "the row-security policy of that type does not declare the \
+                                 keys it reads, so it cannot be evaluated over that document",
+                            ));
+                        };
+                        if !reads_only(&clause, paths) {
+                            return Err(refuse(
+                                "its row-security predicate reads a key its policy does not \
+                                 declare",
+                            ));
+                        }
+                        let mut conditions = Vec::new();
+                        if !equalities(&clause, &mut conditions) {
+                            return Err(refuse(
+                                "its row-security predicate is not a conjunction of \
+                                 equalities, the only shape evaluated over a returned document",
+                            ));
+                        }
+                        slot.insert(conditions);
+                    }
+                }
+            }
+            self.plan(ctx, target, &sel.nested_fields, security_context)?;
+        }
+        Ok(())
+    }
+
+    /// Whether no nested level is filtered.
+    pub(in super::super) fn is_empty(&self) -> bool {
+        self.by_field.is_empty()
+    }
+
+    /// Drop, from the stored `document` of a `root_type`, every embedded document a nested
+    /// level of `selections` reaches that its type's predicate excludes: from a list, the
+    /// element; a to-one, `null`.
+    pub(in super::super) fn apply(
+        &self,
+        document: &mut serde_json::Value,
+        root_type: &str,
+        selections: &[FieldSelection],
+        schema: &CompiledSchema,
+    ) {
+        if self.by_field.is_empty() {
+            return;
+        }
+        let Some(parent_def) = schema.find_type(root_type) else {
+            return;
+        };
+        let serde_json::Value::Object(object) = document else {
+            return;
+        };
+        for sel in effective_selections(selections, root_type, schema) {
+            let Some(field) = parent_def.fields.iter().find(|f| f.name == sel.name) else {
+                continue;
+            };
+            let Some(target) = object_type_of(&field.field_type) else {
+                continue;
+            };
+            let (stored, fallback) = crate::runtime::stored_key_candidates(field.name.as_str());
+            let key = if object.contains_key(&stored) {
+                stored
+            } else if let Some(fallback) = fallback.filter(|k| object.contains_key(k)) {
+                fallback
+            } else {
+                continue;
+            };
+            let conditions = self.by_field.get(&(root_type.to_string(), field.name.to_string()));
+            let Some(value) = object.get_mut(&key) else {
+                continue;
+            };
+            match value {
+                serde_json::Value::Array(elements) => {
+                    if let Some(conditions) = conditions {
+                        elements.retain(|el| meets(el, conditions));
+                    }
+                    for element in elements {
+                        self.apply(element, target, &sel.nested_fields, schema);
+                    }
+                },
+                serde_json::Value::Null => {},
+                embedded => {
+                    if conditions.is_some_and(|c| !meets(embedded, c)) {
+                        *embedded = serde_json::Value::Null;
+                    } else {
+                        self.apply(embedded, target, &sel.nested_fields, schema);
+                    }
+                },
+            }
+        }
+    }
+}
+
+/// Collect `clause` as a conjunction of equalities into `out`; `false` when it is not one.
+fn equalities(clause: &WhereClause, out: &mut Vec<DocumentCondition>) -> bool {
+    match clause {
+        WhereClause::Field {
+            path,
+            operator: crate::backend::WhereOperator::Eq,
+            value,
+        } => {
+            out.push((path.clone(), value.clone()));
+            true
+        },
+        WhereClause::And(all) => all.iter().all(|c| equalities(c, out)),
+        // The declared types steer SQL's casts; the comparison below casts nothing.
+        WhereClause::Typed { inner, .. } => equalities(inner, out),
+        _ => false,
+    }
+}
+
+/// Whether `document` holds every condition's value at its path. `null` meets nothing.
+fn meets(document: &serde_json::Value, conditions: &[DocumentCondition]) -> bool {
+    conditions.iter().all(|(path, expected)| {
+        let actual = path.iter().try_fold(document, |at, key| at.get(key));
+        !expected.is_null() && actual == Some(expected)
+    })
+}
+
+#[cfg(test)]
+#[path = "query_nested_document_tests.rs"]
+mod document_tests;

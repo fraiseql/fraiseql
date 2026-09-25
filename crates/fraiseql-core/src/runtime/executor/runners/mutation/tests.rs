@@ -3731,6 +3731,34 @@ mod field_authz {
         }
     }
 
+    // The static `requires_scope` gate and the #423 authorizer AND-compose on a write's
+    // payload as they do on a read (`payload_gates`): a field the static gate already
+    // masked is not put to the authorizer, so a `Reject` it would have returned cannot
+    // refuse a write whose value was never going to be served. The field is masked, and
+    // the write stands.
+    #[tokio::test]
+    async fn a_statically_masked_payload_field_is_not_put_to_the_field_authorizer() {
+        let mut schema = schema();
+        let user = schema.types.iter_mut().find(|t| t.name == "User").unwrap();
+        let email = user.fields.iter_mut().find(|f| f.name == "email").unwrap();
+        email.requires_scope = Some("read:email".to_string());
+        email.on_deny = FieldDenyPolicy::Mask;
+        schema.security = Some(crate::schema::SecurityConfig::default());
+        schema.build_indexes();
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let out = Executor::with_config(
+            schema,
+            Arc::clone(&adapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
+        )
+        .execute_with_security("mutation { createUser { id email } }", None, &ctx())
+        .await
+        .unwrap();
+        assert_eq!(out["data"]["createUser"]["id"], "123", "{out}");
+        assert!(out["data"]["createUser"]["email"].is_null(), "{out}");
+        assert!(adapter.committed(), "a masked field does not refuse the write");
+    }
+
     // A raising policy on a gated mutation field denies the whole mutation (403).
     #[tokio::test]
     async fn mutation_raising_policy_denies() {
