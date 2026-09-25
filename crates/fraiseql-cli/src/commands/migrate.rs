@@ -339,12 +339,33 @@ fn ensure_migrations_dir(dir: &str) -> Result<()> {
     std::fs::create_dir_all(dir).context(format!("Failed to create migration directory: {dir}"))
 }
 
-/// Resolve the database URL: use explicit flag, or fall back to fraiseql.toml
+/// The long help of `fraiseql migrate`. It lives beside the resolver whose order it states
+/// and the builder whose handoff it describes, so a change to either is a change here; a
+/// unit test holds the text to the resolver's order.
+pub(crate) const MIGRATE_LONG_ABOUT: &str = "Run database migrations\n\n\
+    Wraps confiture: every verb is one `confiture migrate <verb>` call. The database URL is \
+    resolved in this order: the --database flag, then [database].url in fraiseql.toml, then \
+    the DATABASE_URL environment variable. The result reaches confiture as \
+    CONFITURE_DATABASE_URL with --no-config, so confiture's own config files never override \
+    it.";
+
+/// Resolves the database URL for the commands that connect: the explicit `--database`
+/// flag, else `[database].url` in `fraiseql.toml`, else the `DATABASE_URL` environment
+/// variable.
+///
+/// `fraiseql.toml` is placed above the environment because it is the project's own file,
+/// while `DATABASE_URL` is whatever the shell happens to hold; an explicit flag beats both.
+/// This is fraiseql's ladder, not confiture's. Confiture has one of its own — its
+/// `docs/reference/cli.md`, §"Connection source and precedence" — in which a present config
+/// file beats an ambient `DATABASE_URL` and a mutating verb refuses an ambient variable
+/// outright. The wrapper does not let the two ladders compete: the URL this function
+/// settles on is handed to confiture under `--no-config`, which makes that URL the sole
+/// source (`ConfitureCommand`, below).
 ///
 /// # Errors
 ///
-/// Returns an error if `fraiseql.toml` exists but cannot be read or parsed, or
-/// if no database URL can be found from any source (flag, TOML, or `DATABASE_URL`).
+/// Returns an error if `fraiseql.toml` exists but cannot be read or parsed, or if no
+/// source provides a URL.
 pub fn resolve_database_url(explicit: Option<&str>) -> Result<String> {
     resolve_database(explicit).map(|db| db.url)
 }
@@ -415,8 +436,6 @@ pub fn resolve_configured_database(explicit: Option<&str>) -> Result<Option<Reso
             }));
         }
     }
-
-    // Try DATABASE_URL env var
     if let Ok(url) = std::env::var("DATABASE_URL") {
         info!("Using DATABASE_URL environment variable");
         return Ok(Some(ResolvedDatabase {
