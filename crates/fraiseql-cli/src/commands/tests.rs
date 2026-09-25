@@ -2292,6 +2292,79 @@ mod migrate_tests {
         assert!(debug.contains("<redacted>"), "Debug must say a DSN is present: {debug}");
     }
 
+    /// The variables a command sets on the confiture process, as `(name, value)` pairs.
+    fn exported(command: &ConfitureCommand) -> Vec<(String, Option<String>)> {
+        command
+            .command()
+            .get_envs()
+            .map(|(name, value)| {
+                (
+                    name.to_string_lossy().into_owned(),
+                    value.map(|v| v.to_string_lossy().into_owned()),
+                )
+            })
+            .collect()
+    }
+
+    /// The DSN reaches confiture as `CONFITURE_DATABASE_URL`, its canonical variable, with
+    /// `--no-config` on argv — confiture's "environment is the sole DSN source" mode. Never
+    /// as the ambient `DATABASE_URL`, which confiture ignores for `status` and refuses for
+    /// `up`/`down` (`CONFIG_010`).
+    #[test]
+    fn a_dsn_is_exported_as_confiture_database_url_and_argv_carries_no_config() {
+        for verb in [
+            ConfitureVerb::Up,
+            ConfitureVerb::Down,
+            ConfitureVerb::Status,
+        ] {
+            let command =
+                ConfitureCommand::new(verb, "d", &text()).database_url("postgres://db/app");
+            assert_eq!(
+                exported(&command),
+                [("CONFITURE_DATABASE_URL".to_string(), Some("postgres://db/app".to_string()))],
+                "{verb:?} must export the DSN as CONFITURE_DATABASE_URL and nothing else"
+            );
+            assert!(
+                command.argv().iter().any(|a| a == "--no-config"),
+                "{verb:?} must pass --no-config with the DSN: {:?}",
+                command.argv()
+            );
+        }
+    }
+
+    /// With no DSN to hand over, nothing is exported and `--no-config` stays off argv:
+    /// confiture's own config discovery remains in force for those calls.
+    #[test]
+    fn without_a_dsn_nothing_is_exported_and_no_config_is_not_passed() {
+        for verb in ALL_VERBS {
+            let command = ConfitureCommand::new(verb, "d", &text());
+            assert!(exported(&command).is_empty(), "{verb:?}: {:?}", exported(&command));
+            assert!(
+                !command.argv().iter().any(|a| a == "--no-config"),
+                "{verb:?} must not pass --no-config without a DSN: {:?}",
+                command.argv()
+            );
+        }
+    }
+
+    /// `--no-config` is an option of exactly the verbs confiture 1.19.0's
+    /// `confiture migrate <verb> --help` lists it for.
+    #[test]
+    fn no_config_is_an_option_of_up_down_status_and_preflight_only() {
+        let accepting: Vec<ConfitureVerb> =
+            ALL_VERBS.into_iter().filter(|verb| verb.accepts_no_config()).collect();
+        assert_eq!(
+            accepting,
+            [
+                ConfitureVerb::Up,
+                ConfitureVerb::Down,
+                ConfitureVerb::Status,
+                ConfitureVerb::Preflight
+            ],
+            "measured against confiture 1.19.0"
+        );
+    }
+
     #[test]
     fn test_resolve_migration_dir_explicit() {
         assert_eq!(resolve_migration_dir(Some("custom/dir")), "custom/dir");
@@ -2343,6 +2416,103 @@ mod migrate_tests {
         });
 
         std::env::set_current_dir(original).unwrap();
+    }
+
+    /// The ladder `resolve_database_url` walks: the explicit flag, then `[database].url` in
+    /// `fraiseql.toml`, then the `DATABASE_URL` environment variable. `--help` must state
+    /// this order, so this pin and the help test below name the same one.
+    #[test]
+    fn resolve_database_url_prefers_the_flag_then_fraiseql_toml_then_the_environment() {
+        let _guard = GLOBAL_STATE_LOCK
+            .lock()
+            .expect("GLOBAL_STATE_LOCK poisoned; a previous test panicked mid-migration");
+
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("fraiseql.toml"),
+            "[database]\nurl = \"postgres://toml/app\"\n",
+        )
+        .unwrap();
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        temp_env::with_vars([("DATABASE_URL", Some("postgres://env/app"))], || {
+            assert_eq!(
+                resolve_database_url(None).unwrap(),
+                "postgres://toml/app",
+                "fraiseql.toml must beat the DATABASE_URL environment variable"
+            );
+            assert_eq!(
+                resolve_database_url(Some("postgres://flag/app")).unwrap(),
+                "postgres://flag/app",
+                "the --database flag must beat both"
+            );
+        });
+
+        std::env::set_current_dir(original).unwrap();
+    }
+
+    /// The DSN sources as `--help` names them, in the order `resolve_database_url` walks
+    /// them (the pin above proves that is the code's order).
+    const DATABASE_URL_SOURCES: [&str; 3] = ["--database", "fraiseql.toml", "DATABASE_URL"];
+
+    /// Asserts that `text` names every token in `tokens` and names them in that order.
+    fn assert_names_in_resolver_order(what: &str, text: &str, tokens: &[&str]) {
+        let positions: Vec<usize> = tokens
+            .iter()
+            .map(|token| {
+                text.find(token)
+                    .unwrap_or_else(|| panic!("{what} must name {token:?}; it says: {text}"))
+            })
+            .collect();
+        assert!(
+            positions.windows(2).all(|pair| pair[0] < pair[1]),
+            "{what} must name the DSN sources in the order the resolver walks them, \
+             {tokens:?}; it says: {text}"
+        );
+    }
+
+    /// `fraiseql migrate --help` is `MIGRATE_LONG_ABOUT`, which states the DSN sources as an
+    /// order, and in the order `resolve_database_url` walks them (`DATABASE_URL_SOURCES`;
+    /// the pin above proves that is the code's order). `fraiseql setup --help` resolves
+    /// through the same function and must agree.
+    #[test]
+    fn help_states_the_database_url_order_the_resolver_implements() {
+        use clap::CommandFactory;
+
+        let cli = crate::cli::Cli::command();
+
+        let migrate = cli.find_subcommand("migrate").expect("`migrate` is a subcommand");
+        assert_eq!(
+            migrate.get_about().map(ToString::to_string).as_deref(),
+            Some("Run database migrations"),
+            "the one-line about shown in `fraiseql --help` must survive the explicit long_about"
+        );
+        let about = migrate.get_long_about().expect("`migrate` has a long about").to_string();
+        assert_eq!(
+            about, MIGRATE_LONG_ABOUT,
+            "migrate --help must be the text kept beside the resolver"
+        );
+        assert!(
+            about.contains("in this order"),
+            "migrate --help must state that the DSN sources are a precedence, not \
+             alternatives; it says: {about}"
+        );
+        assert_names_in_resolver_order("migrate --help", &about, &DATABASE_URL_SOURCES);
+
+        let setup = cli.find_subcommand("setup").expect("`setup` is a subcommand");
+        let database = setup
+            .get_arguments()
+            .find(|arg| arg.get_id().as_str() == "database")
+            .expect("`setup` has a --database flag");
+        let flag_help = database.get_help().expect("setup --database has help text").to_string();
+        assert_names_in_resolver_order(
+            "setup --database help",
+            &flag_help,
+            &DATABASE_URL_SOURCES[1..],
+        );
+        let examples = setup.get_after_help().expect("`setup` has EXAMPLES").to_string();
+        assert_names_in_resolver_order("setup EXAMPLES", &examples, &DATABASE_URL_SOURCES[1..]);
     }
 }
 

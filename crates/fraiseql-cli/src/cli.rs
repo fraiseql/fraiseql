@@ -470,8 +470,9 @@ EXAMPLES:
 
     /// Run database migrations
     ///
-    /// Wraps confiture for a unified migration experience.
-    /// Reads database URL from --database, fraiseql.toml, or DATABASE_URL env var.
+    /// The long help is `commands::migrate::MIGRATE_LONG_ABOUT`: it states the order the
+    /// database URL is resolved in, so it lives beside the resolver.
+    #[command(long_about = crate::commands::migrate::MIGRATE_LONG_ABOUT)]
     #[command(after_help = "\
 EXAMPLES:
     fraiseql migrate up --database postgres://localhost/mydb
@@ -624,10 +625,10 @@ EXAMPLES:
 EXAMPLES:
     fraiseql setup --database postgres://localhost/mydb
     fraiseql setup --dry-run
-    fraiseql setup  # Uses DATABASE_URL or [database].url from fraiseql.toml")]
+    fraiseql setup  # Uses [database].url from fraiseql.toml, else DATABASE_URL")]
     Setup {
-        /// Database connection URL (or use DATABASE_URL env var, or [database].url in
-        /// fraiseql.toml)
+        /// Database connection URL (else [database].url in fraiseql.toml, else the
+        /// DATABASE_URL env var)
         #[arg(long, value_name = "DATABASE_URL")]
         database: Option<String>,
 

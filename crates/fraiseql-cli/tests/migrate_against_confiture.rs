@@ -65,7 +65,9 @@ fn confiture_version() -> String {
     }
 }
 
-/// Seeds `<root>/db/migrations` with one well-formed SQL migration; returns the directory.
+/// Seeds `<root>/db/migrations` with one well-formed, reversible SQL migration; returns the
+/// directory. The `.down.sql` sibling is what lets `migrate down` undo `migrate up`, so the
+/// database this leg binds is left as it was found.
 fn seed_migrations(root: &Path) -> PathBuf {
     let dir = root.join("db").join("migrations");
     fs::create_dir_all(&dir).unwrap();
@@ -74,7 +76,35 @@ fn seed_migrations(root: &Path) -> PathBuf {
         "CREATE TABLE IF NOT EXISTS tb_migrate_against_confiture_probe (id integer);\n",
     )
     .unwrap();
+    fs::write(
+        dir.join(format!("{MIGRATION_VERSION}_{MIGRATION_NAME}.down.sql")),
+        "DROP TABLE IF EXISTS tb_migrate_against_confiture_probe;\n",
+    )
+    .unwrap();
     dir
+}
+
+/// The `status` field confiture's status report gives the seeded migration.
+fn seeded_migration_status(report: &serde_json::Value) -> String {
+    report["migrations"]
+        .as_array()
+        .unwrap_or_else(|| panic!("status report has no `migrations` array: {report}"))
+        .iter()
+        .find(|m| m["version"].as_str() == Some(MIGRATION_VERSION))
+        .and_then(|m| m["status"].as_str())
+        .unwrap_or_else(|| {
+            panic!("status report must list the seeded migration {MIGRATION_VERSION}: {report}")
+        })
+        .to_string()
+}
+
+/// Runs `fraiseql --json migrate <verb_args…> --dir <migrations>` from `cwd`, with the DSN
+/// in `DATABASE_URL` and nothing else — the way every rig and most shells hand it over.
+fn migrate(cwd: &Path, url: &str, migrations: &Path, verb_args: &[&str]) -> Output {
+    let mut args = vec!["--json", "migrate"];
+    args.extend_from_slice(verb_args);
+    args.extend_from_slice(&["--dir", migrations.to_str().unwrap()]);
+    cli().current_dir(cwd).args(args).env("DATABASE_URL", url).output().unwrap()
 }
 
 fn assert_exit_zero(out: &Output, what: &str, confiture: &str) {
@@ -94,41 +124,58 @@ fn parse_report(out: &Output, what: &str) -> serde_json::Value {
     })
 }
 
-/// `fraiseql --json migrate status` exits 0 and prints confiture's status report, which
-/// lists the seeded migration by version.
+/// With only `DATABASE_URL` set — the way every rig and most shells hand a DSN over —
+/// `fraiseql migrate up` applies the seeded migration, `status` then reports it `applied`,
+/// `down` rolls it back, and `status` reports it `pending` again. The first three exit 0;
+/// the last exits 1, confiture's "pending migrations exist".
+///
+/// The DSN fraiseql resolves must be the one confiture connects with. Handed over as an
+/// ambient `DATABASE_URL` with no `--no-config`, confiture's own connection ladder never
+/// takes it: `status` reports every migration "unknown (no config)" and exits 0, which
+/// looks like success, and `up`/`down` refuse with `CONFIG_010`. Only a mutating verb
+/// followed by a status read proves a connection was made.
 #[test]
-fn migrate_status_runs_against_the_pinned_confiture() {
-    let Some(url) = database_url_or_skip("migrate_status_runs_against_the_pinned_confiture") else {
+fn migrate_up_then_status_reports_the_seeded_migration_applied() {
+    let Some(url) =
+        database_url_or_skip("migrate_up_then_status_reports_the_seeded_migration_applied")
+    else {
         return;
     };
     let confiture = confiture_version();
     let tmp = tempfile::tempdir().unwrap();
     let migrations = seed_migrations(tmp.path());
+    let run = |verb_args: &[&str]| migrate(tmp.path(), &url, &migrations, verb_args);
 
-    let out = cli()
-        .current_dir(tmp.path())
-        .args([
-            "--json",
-            "migrate",
-            "status",
-            "--dir",
-            migrations.to_str().unwrap(),
-        ])
-        .env("DATABASE_URL", &url)
-        .output()
-        .unwrap();
+    let up = run(&["up"]);
+    assert_exit_zero(&up, "fraiseql --json migrate up", &confiture);
 
-    assert_exit_zero(&out, "fraiseql --json migrate status", &confiture);
-    let report = parse_report(&out, "fraiseql migrate status");
-    let versions: Vec<&str> = report["migrations"]
-        .as_array()
-        .unwrap_or_else(|| panic!("status report has no `migrations` array: {report}"))
-        .iter()
-        .filter_map(|m| m["version"].as_str())
-        .collect();
-    assert!(
-        versions.contains(&MIGRATION_VERSION),
-        "status report must list the seeded migration {MIGRATION_VERSION}; got {versions:?}"
+    let status = run(&["status"]);
+    assert_exit_zero(&status, "fraiseql --json migrate status after up", &confiture);
+    assert_eq!(
+        seeded_migration_status(&parse_report(&status, "fraiseql migrate status")),
+        "applied",
+        "after `migrate up`, status must report the seeded migration applied — \
+         \"unknown\" means confiture never connected to the DSN fraiseql resolved"
+    );
+
+    let down = run(&["down", "--steps", "1"]);
+    assert_exit_zero(&down, "fraiseql --json migrate down --steps 1", &confiture);
+
+    // Confiture's `migrate status` exits 1 when migrations are pending — its reference,
+    // §"confiture migrate status", "Exit Codes" — and the wrapper passes a non-zero exit
+    // through as its own 1. The report is still confiture's, and it must say `pending`.
+    let status = run(&["status"]);
+    let report = parse_report(&status, "fraiseql migrate status after down");
+    assert_eq!(
+        seeded_migration_status(&report),
+        "pending",
+        "after `migrate down`, status must report the seeded migration pending again"
+    );
+    assert_eq!(
+        status.status.code(),
+        Some(1),
+        "confiture {confiture} exits 1 on a pending set (\"pending migrations exist\") and \
+         the wrapper passes that through; a different exit means the contract moved:\n{report}"
     );
 }
 
@@ -145,19 +192,7 @@ fn migrate_create_writes_a_migration_through_confiture() {
     let tmp = tempfile::tempdir().unwrap();
     let migrations = seed_migrations(tmp.path());
 
-    let out = cli()
-        .current_dir(tmp.path())
-        .args([
-            "--json",
-            "migrate",
-            "create",
-            "add_probe_column",
-            "--dir",
-            migrations.to_str().unwrap(),
-        ])
-        .env("DATABASE_URL", &url)
-        .output()
-        .unwrap();
+    let out = migrate(tmp.path(), &url, &migrations, &["create", "add_probe_column"]);
 
     assert_exit_zero(&out, "fraiseql --json migrate create", &confiture);
     let created: Vec<String> = fs::read_dir(&migrations)
@@ -184,18 +219,7 @@ fn migrate_validate_runs_against_the_pinned_confiture() {
     let tmp = tempfile::tempdir().unwrap();
     let migrations = seed_migrations(tmp.path());
 
-    let out = cli()
-        .current_dir(tmp.path())
-        .args([
-            "--json",
-            "migrate",
-            "validate",
-            "--dir",
-            migrations.to_str().unwrap(),
-        ])
-        .env("DATABASE_URL", &url)
-        .output()
-        .unwrap();
+    let out = migrate(tmp.path(), &url, &migrations, &["validate"]);
 
     assert_exit_zero(&out, "fraiseql --json migrate validate", &confiture);
     let report = parse_report(&out, "fraiseql migrate validate");

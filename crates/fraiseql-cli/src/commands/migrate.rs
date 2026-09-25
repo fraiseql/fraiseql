@@ -194,6 +194,12 @@ impl ConfitureVerb {
             Self::Preflight => "preflight",
         }
     }
+
+    /// Whether the verb has a `--no-config` option: `up`, `down`, `status` and `preflight`
+    /// do, `generate` and `validate` do not (`confiture migrate <verb> --help`, 1.19.0).
+    pub(crate) const fn accepts_no_config(self) -> bool {
+        matches!(self, Self::Up | Self::Down | Self::Status | Self::Preflight)
+    }
 }
 
 /// One `confiture migrate <verb>` invocation.
@@ -201,17 +207,28 @@ impl ConfitureVerb {
 /// Every option this wrapper passes is a row of this table, and every row was checked
 /// against `confiture migrate <verb> --help`:
 ///
-/// | argv                          | verbs         | source                              |
-/// |-------------------------------|---------------|-------------------------------------|
-/// | `--migrations-dir <dir>`      | all six       | the resolved migration directory    |
-/// | `<name>` (positional)         | `generate`    | the migration name                  |
-/// | `--steps <n>`                 | `down`        | how many migrations to roll back    |
-/// | `--format json`               | all six       | the CLI's global `--json`           |
+/// | argv                          | verbs                      | source                           |
+/// |-------------------------------|----------------------------|----------------------------------|
+/// | `--migrations-dir <dir>`      | all six                    | the resolved migration directory |
+/// | `<name>` (positional)         | `generate`                 | the migration name               |
+/// | `--steps <n>`                 | `down`                     | how many migrations to roll back |
+/// | `--no-config`                 | `up`, `down`, `status`     | accompanies the DSN (below)      |
+/// | `--format json`               | all six                    | the CLI's global `--json`        |
 ///
 /// No verb takes a schema directory (`validate` has `--ddl-dir`/`--schema`; the rest have
-/// no schema path at all), so none is passed. The DSN never travels on argv: it is
-/// exported as an environment variable, so it is not visible in `ps aux` or
-/// `/proc/<pid>/cmdline`.
+/// no schema path at all), so none is passed.
+///
+/// The DSN never travels on argv, where `ps aux` and `/proc/<pid>/cmdline` would show it.
+/// It is exported as `CONFITURE_DATABASE_URL`, confiture's canonical variable, together
+/// with `--no-config`. Under that flag confiture's connection ladder (its
+/// `docs/reference/cli.md`, §"Connection source and precedence") reads the environment as
+/// the sole DSN source and skips config-file discovery, so the DSN [`resolve_database_url`]
+/// settled on is the one confiture connects with; no `confiture.yaml` or
+/// `db/environments/*.yaml` in the working directory can shadow it. The same ladder is why
+/// the ambient `DATABASE_URL` is never used for the handoff: confiture ignores it for
+/// `status` (every migration "unknown (no config)", exit 0) and refuses it for `up` and
+/// `down` (`CONFIG_010`). `preflight` also has `--no-config`, but the wrapper hands it no
+/// DSN, so it runs under confiture's own discovery.
 #[derive(Clone)]
 pub(crate) struct ConfitureCommand {
     verb:           ConfitureVerb,
@@ -251,8 +268,14 @@ impl ConfitureCommand {
         self
     }
 
-    /// The DSN confiture connects with, exported as an environment variable.
+    /// The DSN confiture connects with: exported as `CONFITURE_DATABASE_URL`, with
+    /// `--no-config` on argv. Only a verb that has `--no-config` can be handed one.
     pub(crate) fn database_url(mut self, url: &str) -> Self {
+        debug_assert!(
+            self.verb.accepts_no_config(),
+            "confiture migrate {} has no --no-config, so it cannot take a DSN this way",
+            self.verb.as_str()
+        );
         self.database_url = Some(url.to_string());
         self
     }
@@ -269,6 +292,9 @@ impl ConfitureCommand {
             argv.push("--steps".to_string());
             argv.push(steps.to_string());
         }
+        if self.database_url.is_some() {
+            argv.push("--no-config".to_string());
+        }
         if self.json {
             argv.push("--format".to_string());
             argv.push("json".to_string());
@@ -276,14 +302,20 @@ impl ConfitureCommand {
         argv
     }
 
-    /// Runs confiture with stdio inherited and reports whether it exited 0.
-    fn succeeds(&self) -> Result<bool> {
+    /// The process to spawn: `confiture` with [`Self::argv`], and `CONFITURE_DATABASE_URL`
+    /// set when a DSN was handed over. Nothing else in the environment is touched.
+    pub(crate) fn command(&self) -> Command {
         let mut command = Command::new("confiture");
         command.args(self.argv());
         if let Some(url) = &self.database_url {
-            command.env("DATABASE_URL", url);
+            command.env("CONFITURE_DATABASE_URL", url);
         }
-        let status = command.status().context("Failed to execute confiture")?;
+        command
+    }
+
+    /// Runs confiture with stdio inherited and reports whether it exited 0.
+    fn succeeds(&self) -> Result<bool> {
+        let status = self.command().status().context("Failed to execute confiture")?;
         Ok(status.success())
     }
 }
@@ -306,44 +338,64 @@ fn ensure_migrations_dir(dir: &str) -> Result<()> {
     std::fs::create_dir_all(dir).context(format!("Failed to create migration directory: {dir}"))
 }
 
-/// Resolve the database URL: use explicit flag, or fall back to fraiseql.toml
+/// The long help of `fraiseql migrate`. It lives beside the resolver whose order it states
+/// and the builder whose handoff it describes, so a change to either is a change here; a
+/// unit test holds the text to the resolver's order.
+pub(crate) const MIGRATE_LONG_ABOUT: &str = "Run database migrations\n\n\
+    Wraps confiture: every verb is one `confiture migrate <verb>` call. The database URL is \
+    resolved in this order: the --database flag, then [database].url in fraiseql.toml, then \
+    the DATABASE_URL environment variable. The result reaches confiture as \
+    CONFITURE_DATABASE_URL with --no-config, so confiture's own config files never override \
+    it.";
+
+/// Resolves the database URL for the commands that connect: the explicit `--database`
+/// flag, else `[database].url` in `fraiseql.toml`, else the `DATABASE_URL` environment
+/// variable.
+///
+/// `fraiseql.toml` is placed above the environment because it is the project's own file,
+/// while `DATABASE_URL` is whatever the shell happens to hold; an explicit flag beats both.
+/// This is fraiseql's ladder, not confiture's. Confiture has one of its own — its
+/// `docs/reference/cli.md`, §"Connection source and precedence" — in which a present config
+/// file beats an ambient `DATABASE_URL` and a mutating verb refuses an ambient variable
+/// outright. The wrapper does not let the two ladders compete: the URL this function
+/// settles on is handed to confiture under `--no-config`, which makes that URL the sole
+/// source (`ConfitureCommand`, below).
 ///
 /// # Errors
 ///
-/// Returns an error if `fraiseql.toml` exists but cannot be read or parsed, or
-/// if no database URL can be found from any source (flag, TOML, or `DATABASE_URL`).
+/// Returns an error if `fraiseql.toml` exists but cannot be read or parsed, or if no
+/// source provides a URL.
 pub fn resolve_database_url(explicit: Option<&str>) -> Result<String> {
     if let Some(url) = explicit {
         return Ok(url.to_string());
     }
-
-    // Try loading from fraiseql.toml
-    let toml_path = Path::new("fraiseql.toml");
-    if toml_path.exists() {
-        let content = std::fs::read_to_string(toml_path).context("Failed to read fraiseql.toml")?;
-        let parsed: toml::Value =
-            toml::from_str(&content).context("Failed to parse fraiseql.toml")?;
-
-        if let Some(url) = parsed
-            .get("database")
-            .and_then(|db| db.get("url"))
-            .and_then(toml::Value::as_str)
-        {
-            info!("Using database URL from fraiseql.toml");
-            return Ok(url.to_string());
-        }
+    if let Some(url) = fraiseql_toml_database_url()? {
+        info!("Using database URL from fraiseql.toml");
+        return Ok(url);
     }
-
-    // Try DATABASE_URL env var
     if let Ok(url) = std::env::var("DATABASE_URL") {
         info!("Using DATABASE_URL environment variable");
         return Ok(url);
     }
-
     anyhow::bail!(
         "No database URL provided. Use --database, set [database].url in fraiseql.toml, \
          or set DATABASE_URL environment variable."
     )
+}
+
+/// `[database].url` from the `fraiseql.toml` in the working directory, if both exist.
+fn fraiseql_toml_database_url() -> Result<Option<String>> {
+    let toml_path = Path::new("fraiseql.toml");
+    if !toml_path.exists() {
+        return Ok(None);
+    }
+    let content = std::fs::read_to_string(toml_path).context("Failed to read fraiseql.toml")?;
+    let parsed: toml::Value = toml::from_str(&content).context("Failed to parse fraiseql.toml")?;
+    Ok(parsed
+        .get("database")
+        .and_then(|db| db.get("url"))
+        .and_then(toml::Value::as_str)
+        .map(str::to_string))
 }
 
 /// Resolve the migration directory: use explicit flag, or auto-discover
