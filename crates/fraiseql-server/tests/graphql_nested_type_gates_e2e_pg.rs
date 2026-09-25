@@ -26,6 +26,7 @@
 //! same `User` document `users` reads, and `touchOrder` an `Order`. The `#[ignore]`d tests
 //! there are reproductions, each beside a control that passes. The cascade section asks it of
 //! a cascade payload's `entity`, and of each entity its `cascade.updated` reports.
+//! The error section asks it of an error payload, projected from the write's `error_detail`.
 //!
 //! Self-skips when no `DATABASE_URL` is set.
 //!
@@ -45,7 +46,7 @@ use fraiseql_core::{
     schema::{
         ArgumentDefinition, Cardinality, CompiledSchema, FieldDefinition, FieldDenyPolicy,
         FieldType, MutationDefinition, MutationOperation, QueryDefinition, Relationship,
-        RoleDefinition, SecurityConfig, TypeDefinition,
+        RoleDefinition, SecurityConfig, TypeDefinition, UnionDefinition,
     },
     security::{
         Authorizer, AuthzDecision, AuthzRequest, CompiledRLSPolicy, DefaultRLSPolicy, RLSPolicy,
@@ -205,6 +206,15 @@ async fn seed(adapter: &PostgresAdapter) {
              'operation', 'UPDATED', 'entity', o.data) ORDER BY o.id) FROM {SCHEMA}.v_order o \
              WHERE (o.data->>'fk_user')::bigint = p_id), '[]'::jsonb), 'deleted', \
              '[]'::jsonb); RETURN v; END $$"
+        ),
+        // `failOrder`: a refused write, whose error detail carries the order's scoped fields.
+        format!(
+            "CREATE FUNCTION {SCHEMA}.fn_fail_order(p_id bigint) RETURNS app.mutation_response \
+             LANGUAGE plpgsql AS $$ DECLARE v app.mutation_response; BEGIN v.succeeded := \
+             false; v.state_changed := false; v.error_class := 'conflict'; v.message := \
+             'order is locked'; v.entity_type := 'OrderConflict'; v.error_detail := (SELECT \
+             jsonb_build_object('order_id', id, 'margin', margin, 'cost_price', cost_price) \
+             FROM {SCHEMA}.tb_order WHERE id = p_id); RETURN v; END $$"
         ),
     ];
     for stmt in stmts {
@@ -1835,5 +1845,101 @@ async fn an_updated_users_orders_follow_the_owner_policy() {
         ids(user["orders"].as_array().unwrap_or_else(|| panic!("{out}"))),
         [10, 12],
         "mallory's order 11 served to alice under cascade.updated's User: {out}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// (e) A mutation's error payload
+// ---------------------------------------------------------------------------
+//
+// An error outcome is projected from the function's `error_detail` as its declared error
+// type, through the same projector and #423 pass, and nothing else.
+
+/// `mutation_schema` with `failOrder`, which returns `OrderConflict`: an error type whose
+/// detail carries the order's `margin` and `cost_price`, scoped as `Order` scopes them.
+fn error_schema() -> CompiledSchema {
+    let mut schema = mutation_schema();
+    let mut conflict = TypeDefinition::new("OrderConflict", "");
+    conflict.is_error = true;
+    conflict.fields = vec![
+        FieldDefinition::new("order_id", FieldType::Int),
+        FieldDefinition::new("message", FieldType::String),
+        scoped("margin", "read:margin", FieldDenyPolicy::Mask),
+        scoped("cost_price", "read:cost", FieldDenyPolicy::Reject),
+    ];
+    schema.types.push(conflict);
+    schema.unions.push(
+        UnionDefinition::new("FailOrderResult")
+            .with_members(vec!["Order".to_string(), "OrderConflict".to_string()]),
+    );
+    let mut mutation = MutationDefinition::new("failOrder", "FailOrderResult");
+    mutation.sql_source = Some(format!("{SCHEMA}.fn_fail_order"));
+    mutation.operation = MutationOperation::Update {
+        table: "tb_order".to_string(),
+    };
+    mutation.arguments = vec![ArgumentDefinition::new("id", FieldType::Int)];
+    schema.mutations.push(mutation);
+    schema.build_indexes();
+    schema
+}
+
+/// Control: the error payload serves its unscoped detail, and `margin` to a principal that
+/// holds `read:margin`.
+#[tokio::test]
+async fn control_e_an_error_payload_serves_its_detail() {
+    let executor = rig_or_skip!(over error_schema(), Policy::None);
+    let out = graphql(
+        &executor,
+        "mutation { failOrder(id: 10) { ... on OrderConflict { order_id message } } }",
+    )
+    .await
+    .unwrap();
+    assert_eq!(out["data"]["failOrder"]["order_id"], 10, "{out}");
+    let analyst = SecurityContext {
+        roles: vec!["analyst".to_string()],
+        ..alice()
+    };
+    let out = executor
+        .execute_with_security(
+            "mutation { failOrder(id: 10) { ... on OrderConflict { order_id margin } } }",
+            None,
+            &analyst,
+        )
+        .await
+        .unwrap();
+    assert_eq!(out["data"]["failOrder"]["margin"], 7, "{out}");
+}
+
+/// **Reproduction (e), Mask.** Control: `control_a_root_margin_is_masked`.
+#[tokio::test]
+#[ignore = "reproduction: a mutation's error payload is not classified by requires_scope"]
+async fn an_error_payloads_margin_is_masked() {
+    let executor = rig_or_skip!(over error_schema(), Policy::None);
+    let out = graphql(
+        &executor,
+        "mutation { failOrder(id: 10) { ... on OrderConflict { order_id margin } } }",
+    )
+    .await
+    .unwrap();
+    assert_eq!(out["data"]["failOrder"]["order_id"], 10, "{out}");
+    assert!(
+        out["data"]["failOrder"]["margin"].is_null(),
+        "OrderConflict.margin served in full through failOrder: {out}"
+    );
+}
+
+/// **Reproduction (e), Reject.** Control: `control_a_root_cost_price_is_refused`.
+#[tokio::test]
+#[ignore = "reproduction: a mutation's error payload is not classified by requires_scope"]
+async fn an_error_payloads_cost_price_is_refused() {
+    let executor = rig_or_skip!(over error_schema(), Policy::None);
+    let result = graphql(
+        &executor,
+        "mutation { failOrder(id: 10) { ... on OrderConflict { order_id cost_price } } }",
+    )
+    .await;
+    assert!(
+        matches!(result, Err(FraiseQLError::Authorization { .. })),
+        "OrderConflict.cost_price served through failOrder: {result:?}"
     );
 }
