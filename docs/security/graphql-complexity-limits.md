@@ -38,6 +38,13 @@ fraiseql.toml override:
 A query exceeding the depth limit is rejected with a `QueryTooDeep` error before reaching
 the database.
 
+A REST leaf `?select=` of an object field (`members?select=id,team`) means the whole
+object: every field its type declares, each gated as a read of that type. That expansion
+follows the schema, not a selection, so it is bounded on its own: it goes at most **4 object
+levels** down. A type that reaches itself (`Folder.parent`), or any object nested deeper,
+answers **400** rather than being truncated or served as stored. To read deeper, name the
+fields you want through GraphQL, whose sub-selections are bounded by `max_query_depth`.
+
 ### Top-Level Page Size (Default 1000, Configurable)
 
 The `first`/`last`/`limit` argument on a **root** query is capped before it reaches SQL
