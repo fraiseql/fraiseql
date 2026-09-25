@@ -161,12 +161,21 @@ fn migrate_up_then_status_reports_the_seeded_migration_applied() {
     let down = migrate(&["down", "--steps", "1"]);
     assert_exit_zero(&down, "fraiseql --json migrate down --steps 1", &confiture);
 
+    // Confiture's `migrate status` exits 1 when migrations are pending — its reference,
+    // §"confiture migrate status", "Exit Codes" — and the wrapper passes a non-zero exit
+    // through as its own 1. The report is still confiture's, and it must say `pending`.
     let status = migrate(&["status"]);
-    assert_exit_zero(&status, "fraiseql --json migrate status after down", &confiture);
+    let report = parse_report(&status, "fraiseql migrate status after down");
     assert_eq!(
-        seeded_migration_status(&parse_report(&status, "fraiseql migrate status")),
+        seeded_migration_status(&report),
         "pending",
         "after `migrate down`, status must report the seeded migration pending again"
+    );
+    assert_eq!(
+        status.status.code(),
+        Some(1),
+        "confiture {confiture} exits 1 on a pending set (\"pending migrations exist\") and \
+         the wrapper passes that through; a different exit means the contract moved:\n{report}"
     );
 }
 
