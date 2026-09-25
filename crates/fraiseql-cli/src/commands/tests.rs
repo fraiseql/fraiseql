@@ -2292,6 +2292,79 @@ mod migrate_tests {
         assert!(debug.contains("<redacted>"), "Debug must say a DSN is present: {debug}");
     }
 
+    /// The variables a command sets on the confiture process, as `(name, value)` pairs.
+    fn exported(command: &ConfitureCommand) -> Vec<(String, Option<String>)> {
+        command
+            .command()
+            .get_envs()
+            .map(|(name, value)| {
+                (
+                    name.to_string_lossy().into_owned(),
+                    value.map(|v| v.to_string_lossy().into_owned()),
+                )
+            })
+            .collect()
+    }
+
+    /// The DSN reaches confiture as `CONFITURE_DATABASE_URL`, its canonical variable, with
+    /// `--no-config` on argv — confiture's "environment is the sole DSN source" mode. Never
+    /// as the ambient `DATABASE_URL`, which confiture ignores for `status` and refuses for
+    /// `up`/`down` (`CONFIG_010`).
+    #[test]
+    fn a_dsn_is_exported_as_confiture_database_url_and_argv_carries_no_config() {
+        for verb in [
+            ConfitureVerb::Up,
+            ConfitureVerb::Down,
+            ConfitureVerb::Status,
+        ] {
+            let command =
+                ConfitureCommand::new(verb, "d", &text()).database_url("postgres://db/app");
+            assert_eq!(
+                exported(&command),
+                [("CONFITURE_DATABASE_URL".to_string(), Some("postgres://db/app".to_string()))],
+                "{verb:?} must export the DSN as CONFITURE_DATABASE_URL and nothing else"
+            );
+            assert!(
+                command.argv().iter().any(|a| a == "--no-config"),
+                "{verb:?} must pass --no-config with the DSN: {:?}",
+                command.argv()
+            );
+        }
+    }
+
+    /// With no DSN to hand over, nothing is exported and `--no-config` stays off argv:
+    /// confiture's own config discovery remains in force for those calls.
+    #[test]
+    fn without_a_dsn_nothing_is_exported_and_no_config_is_not_passed() {
+        for verb in ALL_VERBS {
+            let command = ConfitureCommand::new(verb, "d", &text());
+            assert!(exported(&command).is_empty(), "{verb:?}: {:?}", exported(&command));
+            assert!(
+                !command.argv().iter().any(|a| a == "--no-config"),
+                "{verb:?} must not pass --no-config without a DSN: {:?}",
+                command.argv()
+            );
+        }
+    }
+
+    /// `--no-config` is an option of exactly the verbs confiture 1.19.0's
+    /// `confiture migrate <verb> --help` lists it for.
+    #[test]
+    fn no_config_is_an_option_of_up_down_status_and_preflight_only() {
+        let accepting: Vec<ConfitureVerb> =
+            ALL_VERBS.into_iter().filter(|verb| verb.accepts_no_config()).collect();
+        assert_eq!(
+            accepting,
+            [
+                ConfitureVerb::Up,
+                ConfitureVerb::Down,
+                ConfitureVerb::Status,
+                ConfitureVerb::Preflight
+            ],
+            "measured against confiture 1.19.0"
+        );
+    }
+
     #[test]
     fn test_resolve_migration_dir_explicit() {
         assert_eq!(resolve_migration_dir(Some("custom/dir")), "custom/dir");
