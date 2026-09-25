@@ -42,7 +42,8 @@ use fraiseql_core::{
         Relationship, RoleDefinition, SecurityConfig, TypeDefinition,
     },
     security::{
-        CompiledRLSPolicy, DefaultRLSPolicy, RLSPolicy, RlsWhereClause, SecurityContext,
+        Authorizer, AuthzDecision, AuthzRequest, CompiledRLSPolicy, DefaultRLSPolicy, RLSPolicy,
+        RlsWhereClause, SecurityContext,
         rls_policy::{RLSRule, RlsTarget},
     },
     types::TenantId,
@@ -984,6 +985,42 @@ async fn a_node_nested_margin_is_masked() {
         .unwrap_or_else(|| panic!("no orders: {out}"));
     assert_eq!(orders.len(), 3, "{out}");
     assert!(orders.iter().all(|o| o["margin"].is_null()), "{out}");
+}
+
+/// #422: `node(id:)` is put to the authorizer at the operation gate as `node`, before the
+/// id says what it reads; once it does, the read is asked again as a read of that type. A
+/// rule on `target_type` holds an `Order` read through `node` as through `orders`, and a
+/// `User` node's nested orders as a nested read.
+#[tokio::test]
+async fn a_node_lookup_is_put_to_the_authorizer_as_its_type() {
+    struct DenyOrders;
+    impl Authorizer for DenyOrders {
+        fn authorize(&self, req: &AuthzRequest<'_>) -> Result<AuthzDecision> {
+            Ok(if req.target_type == Some("Order") {
+                AuthzDecision::Deny {
+                    reason: "no orders".to_string(),
+                }
+            } else {
+                AuthzDecision::Allow
+            })
+        }
+    }
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping: DATABASE_URL not set");
+        return;
+    };
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
+    seed(&adapter).await;
+    let schema = relay_schema("v_user_fk");
+    let config = policy_config(&schema, Policy::None).with_authorizer(Arc::new(DenyOrders));
+    let executor = Executor::with_config_and_relay(schema, adapter, config);
+
+    let order = graphql(&executor, &node_query("Order", "10", "id")).await;
+    assert!(matches!(order, Err(FraiseQLError::Authorization { .. })), "{order:?}");
+    let user = graphql(&executor, &node_query("User", "1", "id")).await.unwrap();
+    assert_eq!(user["data"]["node"]["id"], 1, "{user}");
+    let nested = graphql(&executor, &node_query("User", "1", "id orders { id }")).await;
+    assert!(matches!(nested, Err(FraiseQLError::Authorization { .. })), "{nested:?}");
 }
 
 /// A nested object is projected through its sub-selection, not served whole: the orders a

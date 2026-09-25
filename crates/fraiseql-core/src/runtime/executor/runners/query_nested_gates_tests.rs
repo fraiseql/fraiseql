@@ -1131,6 +1131,46 @@ mod federation {
             .unwrap_or_else(|| panic!("no orders: {response}"))
     }
 
+    /// #422: `_entities` is put to the authorizer at the operation gate; each
+    /// representation is then asked as a read of its own type, so a rule on
+    /// `target_type` holds an `Order` resolved by the router as one read by `orders`.
+    #[tokio::test]
+    async fn an_entity_is_put_to_the_authorizer_as_its_type() {
+        struct DenyOrders;
+        impl crate::security::Authorizer for DenyOrders {
+            fn authorize(
+                &self,
+                req: &crate::security::AuthzRequest<'_>,
+            ) -> Result<crate::security::AuthzDecision> {
+                Ok(if req.target_type == Some("Order") {
+                    crate::security::AuthzDecision::Deny {
+                        reason: "no orders".to_string(),
+                    }
+                } else {
+                    crate::security::AuthzDecision::Allow
+                })
+            }
+        }
+        let resolve = |typename: &'static str, id: i64, rows: Vec<Value>| async move {
+            let schema = federated(schema());
+            let config = RuntimeConfig::from_compiled_schema(&schema)
+                .unwrap()
+                .with_authorizer(Arc::new(DenyOrders));
+            let adapter = Arc::new(
+                CapturingMockAdapter::new(Vec::new()).with_aggregate_rows(entity_rows(rows)),
+            );
+            let executor = Executor::with_config(schema, adapter, config);
+            let query = format!(
+                r#"{{ _entities(representations: [{{ __typename: "{typename}", id: {id} }}]) {{ ... on {typename} {{ id }} }} }}"#
+            );
+            let variables = json!({"representations": [{"__typename": typename, "id": id}]});
+            executor.execute_with_security(&query, Some(&variables), &principal()).await
+        };
+        let order = resolve("Order", 10, order_rows()).await;
+        assert!(matches!(order, Err(FraiseQLError::Authorization { .. })), "{order:?}");
+        resolve("User", 1, user_rows()).await.unwrap();
+    }
+
     /// Control: `Order.margin`, on an `Order` entity, is masked.
     #[tokio::test]
     async fn control_an_order_entitys_masked_field_is_null() {

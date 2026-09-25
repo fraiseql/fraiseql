@@ -6,7 +6,10 @@
 use chrono::Utc;
 use serde_json::json;
 
-use super::{Authorizer, AuthzDecision, AuthzRequest, OperationKind, enforce_authz};
+use super::{
+    Authorizer, AuthzDecision, AuthzNesting, AuthzOperation, AuthzRequest, OperationKind,
+    enforce_authz,
+};
 use crate::{
     error::{FraiseQLError, Result},
     security::SecurityContext,
@@ -77,10 +80,12 @@ fn ctx(user_id: &str) -> SecurityContext {
 #[test]
 fn allow_all_allows() {
     let req = AuthzRequest {
-        principal: None,
-        operation: OperationKind::Query,
-        name:      "users",
-        input:     None,
+        principal:   None,
+        operation:   OperationKind::Query,
+        name:        "users",
+        input:       None,
+        target_type: None,
+        nesting:     None,
     };
     assert!(matches!(AllowAll.authorize(&req).unwrap(), AuthzDecision::Allow));
 }
@@ -88,10 +93,12 @@ fn allow_all_allows() {
 #[test]
 fn deny_all_denies_with_reason() {
     let req = AuthzRequest {
-        principal: None,
-        operation: OperationKind::Mutation,
-        name:      "createUser",
-        input:     None,
+        principal:   None,
+        operation:   OperationKind::Mutation,
+        name:        "createUser",
+        input:       None,
+        target_type: None,
+        nesting:     None,
     };
     match DenyAll.authorize(&req).unwrap() {
         AuthzDecision::Deny { reason } => assert_eq!(reason, "denied"),
@@ -110,14 +117,18 @@ fn operation_kind_labels() {
 
 #[test]
 fn enforce_allow_is_ok() {
-    let ops = [(OperationKind::Query, "users".to_string())];
+    let ops = [AuthzOperation::root(OperationKind::Query, "users", None)];
     assert!(enforce_authz(&AllowAll, None, &ops, None).is_ok());
 }
 
 #[test]
 fn enforce_deny_is_authorization_403() {
     let principal = ctx("u1");
-    let ops = [(OperationKind::Mutation, "createUser".to_string())];
+    let ops = [AuthzOperation::root(
+        OperationKind::Mutation,
+        "createUser",
+        None,
+    )];
     let err = enforce_authz(&DenyAll, Some(&principal), &ops, None).unwrap_err();
     match err {
         FraiseQLError::Authorization {
@@ -137,7 +148,7 @@ fn enforce_deny_is_authorization_403() {
 #[test]
 fn enforce_raising_fails_closed_to_403() {
     // A raising policy must DENY (403), never silently allow. Load-bearing honesty test.
-    let ops = [(OperationKind::Query, "users".to_string())];
+    let ops = [AuthzOperation::root(OperationKind::Query, "users", None)];
     let err = enforce_authz(&RaisingAuthorizer, None, &ops, None).unwrap_err();
     assert!(
         matches!(err, FraiseQLError::Authorization { .. }),
@@ -156,8 +167,8 @@ fn enforce_raising_fails_closed_to_403() {
 fn enforce_multi_root_denies_on_any() {
     // Multi-root: deny on the SECOND root denies the whole request (no partial pass).
     let ops = [
-        (OperationKind::Query, "public".to_string()),
-        (OperationKind::Query, "secret".to_string()),
+        AuthzOperation::root(OperationKind::Query, "public", None),
+        AuthzOperation::root(OperationKind::Query, "secret", None),
     ];
     let err = enforce_authz(&DenySecret, None, &ops, None).unwrap_err();
     match err {
@@ -187,8 +198,47 @@ fn enforce_passes_input_and_principal() {
         }
     }
     let principal = ctx("u1");
-    let ops = [(OperationKind::Query, "users".to_string())];
+    let ops = [AuthzOperation::root(OperationKind::Query, "users", None)];
     let input = json!({ "ok": true });
     assert!(enforce_authz(&NeedsInput, Some(&principal), &ops, Some(&input)).is_ok());
     assert!(enforce_authz(&NeedsInput, None, &ops, Some(&input)).is_err());
+}
+
+/// A nested level reaches the authorizer with its type and where it sits, and a denial
+/// names the path rather than an operation the client never wrote.
+#[test]
+fn a_nested_level_carries_its_type_and_path() {
+    struct DenyNestedOrders;
+    impl Authorizer for DenyNestedOrders {
+        fn authorize(&self, req: &AuthzRequest<'_>) -> Result<AuthzDecision> {
+            if req.target_type == Some("Order") && req.nesting.is_some() {
+                Ok(AuthzDecision::Deny {
+                    reason: "orders only through the account".to_string(),
+                })
+            } else {
+                Ok(AuthzDecision::Allow)
+            }
+        }
+    }
+    let root = [AuthzOperation::root(
+        OperationKind::Query,
+        "orders",
+        Some("Order"),
+    )];
+    assert!(enforce_authz(&DenyNestedOrders, None, &root, None).is_ok());
+
+    let nested = [AuthzOperation::nested(
+        "orders",
+        "Order",
+        AuthzNesting::new("User", "orders"),
+    )];
+    match enforce_authz(&DenyNestedOrders, None, &nested, None).unwrap_err() {
+        FraiseQLError::Authorization {
+            message, resource, ..
+        } => {
+            assert!(message.contains("'Order' at 'User.orders'"), "{message}");
+            assert_eq!(resource.as_deref(), Some("orders"));
+        },
+        other => panic!("expected Authorization, got {other:?}"),
+    }
 }

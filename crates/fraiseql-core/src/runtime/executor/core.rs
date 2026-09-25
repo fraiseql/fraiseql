@@ -724,7 +724,11 @@ impl Executor {
         //       (the GraphQL aggregate path is gated at the chokepoint, not here, to
         //       avoid double-gating). Fail-closed → 403.
         if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
-            let ops = [(crate::security::OperationKind::Query, query_name.to_string())];
+            let ops = [super::support::authz::root_operation(
+                &self.ctx.schema,
+                crate::security::OperationKind::Query,
+                query_name,
+            )];
             crate::security::authorizer::enforce_authz(
                 authorizer.as_ref(),
                 None,
@@ -753,7 +757,11 @@ impl Executor {
         //       (the GraphQL window path is gated at the chokepoint, not here).
         //       Fail-closed → 403.
         if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
-            let ops = [(crate::security::OperationKind::Query, query_name.to_string())];
+            let ops = [super::support::authz::root_operation(
+                &self.ctx.schema,
+                crate::security::OperationKind::Query,
+                query_name,
+            )];
             crate::security::authorizer::enforce_authz(
                 authorizer.as_ref(),
                 None,

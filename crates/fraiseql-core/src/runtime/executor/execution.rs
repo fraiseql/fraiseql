@@ -375,7 +375,11 @@ impl Executor {
         //     Mutations are gated downstream at `execute_mutation_impl`.
         //     Fail-closed: a `Deny` or any policy error → 403.
         if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
-            let ops = support::authz::collect_authz_ops(&query_type, maybe_parsed.as_ref());
+            let ops = support::authz::collect_authz_ops(
+                &query_type,
+                maybe_parsed.as_ref(),
+                &self.ctx.schema,
+            );
             crate::security::authorizer::enforce_authz(
                 authorizer.as_ref(),
                 security_context,

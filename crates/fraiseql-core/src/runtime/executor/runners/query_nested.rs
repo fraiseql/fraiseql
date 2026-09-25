@@ -32,6 +32,24 @@ use crate::{
     security::{ConstrainedPaths, RLSPolicy, SecurityContext, rls_policy::RlsTarget},
 };
 
+/// The #422 authorizer and the input it is asked with, for the nested levels of a
+/// selection: each level is put to it as a read of its own type, once per request per path.
+#[derive(Clone, Copy)]
+pub(in super::super) struct LevelAuthz<'a> {
+    authorizer: &'a dyn crate::security::Authorizer,
+    input:      Option<&'a serde_json::Value>,
+}
+
+impl<'a> LevelAuthz<'a> {
+    /// The configured authorizer, if there is one, asked with `input`.
+    pub(in super::super) fn from_config(
+        config: &'a crate::runtime::RuntimeConfig,
+        input: Option<&'a serde_json::Value>,
+    ) -> Option<Self> {
+        config.authorizer.as_deref().map(|authorizer| Self { authorizer, input })
+    }
+}
+
 /// What field-level RBAC decided for a whole selection tree.
 pub(in super::super) struct SelectionAccess {
     /// The root level, in the shape the projector takes: the projection's response keys,
@@ -50,17 +68,25 @@ impl SelectionAccess {
     /// # Errors
     ///
     /// `FraiseQLError::Authorization` for a selected field, at any depth, that requires a
-    /// scope the caller lacks and whose `on_deny` is `Reject`; and for a nested level of a
-    /// type whose read requires a role or an actor type the caller lacks.
+    /// scope the caller lacks and whose `on_deny` is `Reject`; for a nested level of a
+    /// type whose read requires a role or an actor type the caller lacks; and for a nested
+    /// level the #422 authorizer (`authz`) denies.
     pub(in super::super) fn classify(
         schema: &CompiledSchema,
         root_type: &str,
         root_fields: &[FieldSelection],
         projection_keys: Vec<String>,
         security_context: Option<&SecurityContext>,
+        authz: Option<LevelAuthz<'_>>,
     ) -> Result<Self> {
         let mut masked = HashSet::new();
-        classify_level(schema, root_type, root_fields, security_context, &mut masked)?;
+        let mut level = Level {
+            schema,
+            security_context,
+            authz,
+            asked: HashSet::new(),
+        };
+        classify_level(&mut level, root_type, root_fields, "", &mut masked)?;
 
         let masked_keys = effective_selections(root_fields, root_type, schema)
             .into_iter()
@@ -100,14 +126,27 @@ pub(super) fn object_type_of(field_type: &FieldType) -> Option<&str> {
     }
 }
 
+/// What every level of one classification shares.
+struct Level<'a> {
+    schema:           &'a CompiledSchema,
+    security_context: Option<&'a SecurityContext>,
+    authz:            Option<LevelAuthz<'a>>,
+    /// The paths already put to the authorizer: `a: orders { id } b: orders { total }` is
+    /// one read of `orders`, asked once.
+    asked:            HashSet<String>,
+}
+
 /// Classify one level's selections against `type_name`, then every level beneath it.
+/// `path` is the field names from the root to this level, dot-separated (empty at the root).
 fn classify_level(
-    schema: &CompiledSchema,
+    level_ctx: &mut Level<'_>,
     type_name: &str,
     selections: &[FieldSelection],
-    security_context: Option<&SecurityContext>,
+    path: &str,
     masked: &mut HashSet<(String, String)>,
 ) -> Result<()> {
+    let schema = level_ctx.schema;
+    let security_context = level_ctx.security_context;
     let level: Vec<&FieldSelection> = effective_selections(selections, type_name, schema)
         .into_iter()
         .filter(|sel| sel.name != "__typename")
@@ -132,10 +171,53 @@ fn classify_level(
             .and_then(|f| object_type_of(&f.field_type));
         if let Some(child) = child {
             enforce_level_read_gates(schema, type_name, &sel.name, child, security_context)?;
-            classify_level(schema, child, &sel.nested_fields, security_context, masked)?;
+            let child_path = if path.is_empty() {
+                sel.name.clone()
+            } else {
+                format!("{path}.{}", sel.name)
+            };
+            if let Some(authz) = level_ctx.authz {
+                if level_ctx.asked.insert(child_path.clone()) {
+                    ask_level_authorizer(
+                        authz,
+                        schema,
+                        type_name,
+                        child,
+                        &child_path,
+                        security_context,
+                    )?;
+                }
+            }
+            classify_level(level_ctx, child, &sel.nested_fields, &child_path, masked)?;
         }
     }
     Ok(())
+}
+
+/// Put a nested level of `target` to the #422 authorizer, as a read of its own type: named
+/// by the type's canonical list query — REST's spelling for the same level — or by the type
+/// when it has none, with `nesting` saying where it sits.
+fn ask_level_authorizer(
+    authz: LevelAuthz<'_>,
+    schema: &CompiledSchema,
+    parent_type: &str,
+    target: &str,
+    path: &str,
+    security_context: Option<&SecurityContext>,
+) -> Result<()> {
+    let name = super::query_composed::list_query_for_type(schema, target)
+        .map_or(target, |q| q.name.as_str());
+    let op = crate::security::AuthzOperation::nested(
+        name,
+        target,
+        crate::security::AuthzNesting::new(parent_type, path),
+    );
+    crate::security::authorizer::enforce_authz(
+        authz.authorizer,
+        security_context,
+        &[op],
+        authz.input,
+    )
 }
 
 /// Refuse a nested level of `target` unless the caller may read `target` at all: the

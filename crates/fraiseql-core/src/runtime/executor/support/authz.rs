@@ -8,9 +8,38 @@
 //! in [`crate::security::authorizer`].
 
 use super::super::QueryType;
-use crate::{graphql::ParsedQuery, security::OperationKind};
+use crate::{
+    graphql::ParsedQuery,
+    schema::CompiledSchema,
+    security::{AuthzOperation, OperationKind},
+};
 
-/// Collect the `(kind, name)` of every root operation in a classified request.
+/// The type a root field of `kind` named `name` returns — `None` where the schema declares
+/// no such field (introspection, `node`, `_entities`, an unknown name the matcher refuses).
+pub(in crate::runtime::executor) fn root_target<'a>(
+    schema: &'a CompiledSchema,
+    kind: OperationKind,
+    name: &str,
+) -> Option<&'a str> {
+    match kind {
+        OperationKind::Query => schema.find_query(name).map(|q| q.return_type.as_str()),
+        OperationKind::Mutation => schema.find_mutation(name).map(|m| m.return_type.as_str()),
+        OperationKind::Subscription => {
+            schema.find_subscription(name).map(|s| s.return_type.as_str())
+        },
+    }
+}
+
+/// A root operation, with the type it returns.
+pub(in crate::runtime::executor) fn root_operation(
+    schema: &CompiledSchema,
+    kind: OperationKind,
+    name: &str,
+) -> AuthzOperation {
+    AuthzOperation::root(kind, name, root_target(schema, kind, name))
+}
+
+/// Collect every root operation in a classified request, with the type it returns.
 ///
 /// Uses the GraphQL **field name** (not the alias / response key), so the authorizer
 /// keys on the real operation name. A multi-root `Regular` query yields one entry per
@@ -24,21 +53,19 @@ use crate::{graphql::ParsedQuery, security::OperationKind};
 pub(in crate::runtime::executor) fn collect_authz_ops(
     query_type: &QueryType,
     parsed_for_regular: Option<&ParsedQuery>,
-) -> Vec<(OperationKind, String)> {
+    schema: &CompiledSchema,
+) -> Vec<AuthzOperation> {
+    let query = |name: &str| root_operation(schema, OperationKind::Query, name);
     match query_type {
         QueryType::Regular => parsed_for_regular.map_or_else(Vec::new, |parsed| {
-            parsed
-                .selections
-                .iter()
-                .map(|sel| (OperationKind::Query, sel.name.clone()))
-                .collect()
+            parsed.selections.iter().map(|sel| query(&sel.name)).collect()
         }),
         QueryType::Aggregate(name) | QueryType::Window(name) | QueryType::Federation(name) => {
-            vec![(OperationKind::Query, name.clone())]
+            vec![query(name)]
         },
-        QueryType::IntrospectionSchema => vec![(OperationKind::Query, "__schema".to_string())],
-        QueryType::IntrospectionType(_) => vec![(OperationKind::Query, "__type".to_string())],
-        QueryType::NodeQuery { .. } => vec![(OperationKind::Query, "node".to_string())],
+        QueryType::IntrospectionSchema => vec![query("__schema")],
+        QueryType::IntrospectionType(_) => vec![query("__type")],
+        QueryType::NodeQuery { .. } => vec![query("node")],
         // Both yield an empty op-list:
         // - `Mutation` is gated downstream at `execute_mutation_impl` (see fn-level docs).
         // - `TypeName` (`__typename`) is a GraphQL spec meta-field, always allowed.

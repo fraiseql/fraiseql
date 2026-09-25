@@ -50,7 +50,9 @@ use fraiseql_core::{
         },
     },
     schema::{CompiledSchema, OwnerCondition, SubscriptionPolicy},
-    security::{Authorizer, OperationKind, SecurityContext, authorizer::enforce_authz},
+    security::{
+        Authorizer, AuthzOperation, OperationKind, SecurityContext, authorizer::enforce_authz,
+    },
 };
 use futures::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
@@ -1212,7 +1214,18 @@ async fn handle_client_message(
             // (or `None` when anonymous). Fail-closed: a `Deny` or any policy error
             // rejects the subscription with a `FORBIDDEN` GraphQL-WS error.
             if let Some(authorizer) = state.authorizer.as_ref() {
-                let ops = [(OperationKind::Subscription, subscription_name.clone())];
+                // The type it delivers, from the schema serving now; `None` in a harness
+                // that mounts no schema.
+                let live = state.live_schema.as_ref().map(|f| f());
+                let target = live
+                    .as_deref()
+                    .and_then(|schema| schema.find_subscription(&subscription_name))
+                    .map(|sub| sub.return_type.clone());
+                let ops = [AuthzOperation::root(
+                    OperationKind::Subscription,
+                    subscription_name.clone(),
+                    target.as_deref(),
+                )];
                 if let Err(err) =
                     enforce_authz(authorizer.as_ref(), principal, &ops, Some(&variables_value))
                 {

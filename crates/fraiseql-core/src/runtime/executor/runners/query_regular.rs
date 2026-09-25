@@ -25,7 +25,7 @@ use crate::{
     schema::{FieldType, SqlProjectionHint},
     security::{
         RlsWhereClause, SecurityContext,
-        authorizer::{OperationKind, enforce_authz},
+        authorizer::{AuthzNesting, AuthzOperation, OperationKind, enforce_authz},
         rls_policy::RlsTarget,
     },
 };
@@ -433,7 +433,9 @@ impl QueryRunner {
         // `execute_regular_query_maybe_security`, which would have to match the query
         // a second time to see the binding; one function, two call sites.
         if query_match.query_def.function.is_some() {
-            return self.execute_function_backed_query(&query_match, Some(security_context)).await;
+            return self
+                .execute_function_backed_query(&query_match, variables, Some(security_context))
+                .await;
         }
 
         // Resolve session variables once. They are applied transaction-locally
@@ -447,7 +449,12 @@ impl QueryRunner {
         // Route relay queries to dedicated handler with security context.
         if query_match.query_def.relay {
             return self
-                .execute_relay_query(&query_match, Some(security_context), &session_pairs)
+                .execute_relay_query(
+                    &query_match,
+                    variables,
+                    Some(security_context),
+                    &session_pairs,
+                )
                 .await;
         }
 
@@ -543,6 +550,7 @@ impl QueryRunner {
             root_fields,
             plan.projection_fields.clone(),
             Some(security_context),
+            super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
         )?;
 
         // 3b. The nested levels whose type scopes its rows, each read with that type's
@@ -1039,7 +1047,7 @@ impl QueryRunner {
         // applies to that read, anonymously. See `query_function` for why that is the
         // honest behaviour rather than an exemption.
         if query_match.query_def.function.is_some() {
-            return self.execute_function_backed_query(&query_match, None).await;
+            return self.execute_function_backed_query(&query_match, variables, None).await;
         }
 
         // Guard (#784): an RLS-protected deployment must not serve unauthenticated
@@ -1055,7 +1063,7 @@ impl QueryRunner {
         // Route relay queries to dedicated handler.
         // No session vars: unauthenticated entrypoint (no SecurityContext). See #329.
         if query_match.query_def.relay {
-            return self.execute_relay_query(&query_match, None, &[]).await;
+            return self.execute_relay_query(&query_match, variables, None, &[]).await;
         }
 
         // Count siblings (#938), after the three guards above — a count of rows an
@@ -1091,6 +1099,7 @@ impl QueryRunner {
             root_fields,
             plan.projection_fields.clone(),
             None,
+            super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
         )?;
         let access = &selection_access.root;
 
@@ -1310,6 +1319,7 @@ impl QueryRunner {
             security_context,
             GatedFieldHandling::RefuseAsUnsupported,
             DirectReadCost::Flat(request_budget),
+            None,
         )?;
         let session_pairs = resolved.session_pairs();
 
@@ -1422,6 +1432,7 @@ impl QueryRunner {
             security_context,
             GatedFieldHandling::AdjudicatePerRow,
             DirectReadCost::Flat(None),
+            None,
         )?;
 
         // The **row-shaped** view, not the query's own `sql_source`.
@@ -1807,6 +1818,9 @@ impl QueryRunner {
     /// has no SQL source, when a policy or `inject_params` is configured but there is
     /// no principal to evaluate it for (fail closed, #784), or when an argument does
     /// not parse.
+    ///
+    /// `nesting` is where the read sits when it is an embedded level (`None` for a root
+    /// read): the authorizer is told, as it is for a GraphQL nested level.
     pub(super) fn resolve_direct_read(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
@@ -1814,13 +1828,19 @@ impl QueryRunner {
         security_context: Option<&SecurityContext>,
         gated_fields: GatedFieldHandling,
         cost: DirectReadCost<'_>,
+        nesting: Option<&AuthzNesting>,
     ) -> Result<ResolvedDirectRead> {
         // #422: operation-level authorization for the REST direct-read chokepoint.
         //       Every REST read (GET/count/streaming/embedding) and the in-core
         //       bulk-by-filter lookup funnel through this runner method, so gating
         //       here (not the `core.rs` wrapper) is leak-proof. Fail-closed → 403.
+        //       An embedded level is asked as a nested read of its type.
         if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
-            let ops = [(OperationKind::Query, query_match.query_def.name.clone())];
+            let (name, target) = (&query_match.query_def.name, &query_match.query_def.return_type);
+            let ops = [match nesting {
+                Some(nesting) => AuthzOperation::nested(name, target, nesting.clone()),
+                None => AuthzOperation::root(OperationKind::Query, name, Some(target.as_str())),
+            }];
             enforce_authz(authorizer.as_ref(), security_context, &ops, variables)?;
         }
 
@@ -1925,6 +1945,7 @@ impl QueryRunner {
             query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice()),
             plan.projection_fields.clone(),
             security_context,
+            super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
         )?;
         let access = selection.root.clone();
 
@@ -2182,6 +2203,7 @@ impl QueryRunner {
             security_context.as_ref(),
             GatedFieldHandling::RefuseAsUnsupported,
             DirectReadCost::Flat(None),
+            None,
         )?;
         // A nested level its type scopes needs a composed statement, which a stream does
         // not read: refused rather than streamed ungated.
@@ -2342,7 +2364,11 @@ impl QueryRunner {
         //       the embedding path, and alongside `execute_query_direct` for
         //       `Prefer: count=exact`). Fail-closed → 403.
         if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
-            let ops = [(OperationKind::Query, query_match.query_def.name.clone())];
+            let ops = [AuthzOperation::root(
+                OperationKind::Query,
+                &query_match.query_def.name,
+                Some(query_match.query_def.return_type.as_str()),
+            )];
             enforce_authz(authorizer.as_ref(), security_context, &ops, variables)?;
         }
 
@@ -2486,3 +2512,7 @@ impl QueryRunner {
 #[cfg(test)]
 #[path = "query_nested_gates_tests.rs"]
 mod query_nested_gates_tests;
+
+#[cfg(test)]
+#[path = "query_nested_authz_tests.rs"]
+mod query_nested_authz_tests;

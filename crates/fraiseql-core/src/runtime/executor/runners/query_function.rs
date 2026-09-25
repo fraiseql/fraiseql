@@ -57,6 +57,7 @@ impl QueryRunner {
     pub(in super::super) async fn execute_function_backed_query(
         &self,
         query_match: &QueryMatch,
+        variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
         let query_def = &query_match.query_def;
@@ -171,6 +172,7 @@ impl QueryRunner {
             root_fields,
             plan.projection_fields,
             security_context,
+            super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
         )?;
         let access = &selection_access.root;
 

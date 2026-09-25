@@ -181,9 +181,11 @@ impl QueryRunner {
             security_context,
             GatedFieldHandling::RefuseAsUnsupported,
             DirectReadCost::Composed,
+            None,
         )?;
         let embeds = self.plan_embeds(
             &query_match.query_def.return_type,
+            "",
             embeds,
             counts,
             variables,
@@ -207,6 +209,7 @@ impl QueryRunner {
     fn plan_embeds(
         &self,
         parent_type: &str,
+        path: &str,
         embeds: &[EmbedSelection],
         counts: &[CountSelection],
         variables: Option<&serde_json::Value>,
@@ -215,8 +218,19 @@ impl QueryRunner {
         let schema = &self.ctx.schema;
         let mut planned = Vec::with_capacity(embeds.len() + counts.len());
 
+        // Where each level sits, for the authorizer: the relationships from the root to it.
+        let nesting = |relationship: &str| {
+            let path = if path.is_empty() {
+                relationship.to_string()
+            } else {
+                format!("{path}.{relationship}")
+            };
+            crate::security::AuthzNesting::new(parent_type, path)
+        };
+
         for selection in embeds {
             let relationship = declared_relationship(schema, parent_type, &selection.relationship)?;
+            let nesting = nesting(&selection.relationship);
             let target = match list_query_for_type(schema, &relationship.target_type) {
                 None => EmbedTarget::Unreadable,
                 Some(target_query) => {
@@ -233,9 +247,11 @@ impl QueryRunner {
                         security_context,
                         GatedFieldHandling::RefuseAsUnsupported,
                         DirectReadCost::Composed,
+                        Some(&nesting),
                     )?;
                     let embeds = self.plan_embeds(
                         &relationship.target_type,
+                        &nesting.path,
                         &selection.embeds,
                         &selection.counts,
                         variables,
@@ -257,6 +273,7 @@ impl QueryRunner {
 
         for selection in counts {
             let relationship = declared_relationship(schema, parent_type, &selection.relationship)?;
+            let nesting = nesting(&selection.relationship);
             let target = match list_query_for_type(schema, &relationship.target_type) {
                 None => EmbedTarget::Unreadable,
                 Some(target_query) => {
@@ -273,6 +290,7 @@ impl QueryRunner {
                         security_context,
                         GatedFieldHandling::RefuseAsUnsupported,
                         DirectReadCost::Composed,
+                        Some(&nesting),
                     )?))
                 },
             };
@@ -563,12 +581,14 @@ fn declared_relationship(
     })
 }
 
-/// A SQL-backed list query returning `type_name`.
+/// A SQL-backed list query returning `type_name` — the first declared, so a type with
+/// several has one canonical read: the query an embedded level of it is read through, and
+/// the name the #422 authorizer is given for a nested level of it on every transport.
 ///
 /// A **function-backed** query has no relation to embed from, so it is skipped rather
 /// than chosen (#1329): a type may declare both, and this picks the one that can be
 /// read. A type whose only list query is function-backed embeds nothing.
-fn list_query_for_type<'a>(
+pub(super) fn list_query_for_type<'a>(
     schema: &'a CompiledSchema,
     type_name: &str,
 ) -> Option<&'a QueryDefinition> {

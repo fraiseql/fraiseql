@@ -1124,8 +1124,11 @@ pub(in super::super) async fn execute_mutation_impl(
     //     (no enumeration leak), and before `requires_role` (AND-composition).
     //     Fail-closed: a `Deny` or any policy error returns 403.
     if let Some(authorizer) = ctx.config.authorizer.as_ref() {
-        let ops =
-            [(crate::security::authorizer::OperationKind::Mutation, mutation_name.to_string())];
+        let ops = [crate::security::AuthzOperation::root(
+            crate::security::OperationKind::Mutation,
+            mutation_name,
+            Some(mutation_def.return_type.as_str()),
+        )];
         crate::security::authorizer::enforce_authz(
             authorizer.as_ref(),
             security_ctx,

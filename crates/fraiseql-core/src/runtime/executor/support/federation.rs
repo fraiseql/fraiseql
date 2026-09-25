@@ -163,8 +163,12 @@ impl Executor {
         // scopes its rows is refused: the resolver's lookup is built in
         // `fraiseql-federation` and cannot carry a composed level. Before the read.
         let entity_fields = entities_selection(query, variables, self.max_query_depth())?;
-        let nested_access =
-            self.classify_entities_levels(&representations, &entity_fields, security_context)?;
+        let nested_access = self.classify_entities_levels(
+            &representations,
+            &entity_fields,
+            variables,
+            security_context,
+        )?;
 
         // Phase 03 (C1b/R1): compose per-row enforcement for authenticated requests.
         //  * `row_filters` — per entity type, the `inject_params` (tenant/owner) scoping rendered
@@ -356,6 +360,7 @@ impl Executor {
         &self,
         representations: &[crate::federation::EntityRepresentation],
         entity_fields: &[crate::graphql::FieldSelection],
+        variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<std::collections::HashMap<String, SelectionAccess>> {
         let runner = self.query_runner();
@@ -364,12 +369,31 @@ impl Executor {
             if by_type.contains_key(&rep.typename) {
                 continue;
             }
+            // #422: `_entities` was put to the authorizer at the operation gate; each
+            // representation is a read of its own type, and is asked as one.
+            if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
+                let op = crate::security::AuthzOperation::root(
+                    crate::security::OperationKind::Query,
+                    "_entities",
+                    Some(rep.typename.as_str()),
+                );
+                crate::security::authorizer::enforce_authz(
+                    authorizer.as_ref(),
+                    security_context,
+                    &[op],
+                    variables,
+                )?;
+            }
             let access = SelectionAccess::classify(
                 &self.ctx.schema,
                 &rep.typename,
                 entity_fields,
                 Vec::new(),
                 security_context,
+                crate::runtime::executor::runners::query_nested::LevelAuthz::from_config(
+                    &self.ctx.config,
+                    variables,
+                ),
             )?;
             runner.refuse_row_gated_levels(
                 &rep.typename,

@@ -51,6 +51,7 @@ impl QueryRunner {
     pub(super) async fn execute_relay_query(
         &self,
         query_match: &crate::runtime::matcher::QueryMatch,
+        variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
         session_vars: &[(&str, &str)],
     ) -> Result<serde_json::Value> {
@@ -178,6 +179,7 @@ impl QueryRunner {
             &node_fields,
             Vec::new(),
             security_context,
+            super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
         )?;
 
         // A nested level whose type scopes its rows would need the keyset page read as the
@@ -609,12 +611,29 @@ impl QueryRunner {
         //     and each nested level's `requires_role` / `requires_actor` — the classifier
         //     the GraphQL root runs (`query_nested`). Before the read, so a `Reject`
         //     anywhere never reaches the database.
+        //
+        //     #422: `node` was put to the authorizer at the operation gate, before the id
+        //     was decoded. Now the type is known, the read is asked again as what it is.
+        if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
+            let op = crate::security::AuthzOperation::root(
+                crate::security::OperationKind::Query,
+                "node",
+                Some(type_name.as_str()),
+            );
+            crate::security::authorizer::enforce_authz(
+                authorizer.as_ref(),
+                security_context,
+                &[op],
+                variables,
+            )?;
+        }
         let selection_access = super::query_nested::SelectionAccess::classify(
             &self.ctx.schema,
             &type_name,
             selections,
             Vec::new(),
             security_context,
+            super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
         )?;
 
         // 3d. The nested levels whose type scopes its rows, each read with that type's

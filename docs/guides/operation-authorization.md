@@ -45,8 +45,15 @@ impl Authorizer for WritesNeedAuth {
   ones — the decision is the app's, not the engine's.
 - `operation: OperationKind` — `Query`, `Mutation`, or `Subscription`.
 - `name: &str` — the root operation field name (`"users"`, `"createUser"`, `"_entities"`,
-  `"__schema"`, …).
+  `"__schema"`, …); at a nested level, the name described [below](#nested-levels).
 - `input: Option<&serde_json::Value>` — the request's GraphQL variables / REST arguments.
+- `target_type: Option<&str>` — the type the request reads or writes: the root field's
+  return type at the root, the level's type at a nested level. `None` only where a root
+  names no single type (introspection, and `node` / `_entities` at the operation gate —
+  each is asked again with its type once it is known).
+- `nesting: Option<&AuthzNesting>` — `None` at the root; at a nested level, the
+  `parent_type` whose field reaches it and the `path` of field names from the root field
+  (`"orders"`, `"orders.items"`).
 
 ## Wiring it up
 
@@ -86,6 +93,38 @@ one policy type can serve operation- and field-level checks.
   the response cache is consulted, so it is *always* evaluated — a warm cache never replays
   an allow past a later deny. No cache bypass is required.
 
+## Nested levels
+
+A read reaches other types: the GraphQL selection `users { orders { id } }`, the REST embed
+`users?select=id,orders(id)`, a REST leaf `?select=team`. **By default each such level is
+put to the authorizer too**, as a read of its own type — once per request per path, never
+per row — with `nesting` set. The rule you wrote for reading `Order` ("orders only through
+an account the principal belongs to") therefore holds wherever `Order` is read, not only at
+`{ orders }`. Two selections of the same field (`a: orders { id } b: orders { total }`) are
+one read and one call; `node(id:)` and `_entities` are asked again as the type they
+resolve to.
+
+**Match on `target_type` to hold every read of a type**, whatever the transport or entry
+point. `name` keeps the spelling REST has always used: the root field at the root, and at a
+nested level the type's **canonical list query** — its *first declared* SQL-backed list
+query — or the type name if it has none. A type with several list queries (`orders`,
+`archivedOrders`) is therefore named `orders` at every nested level, and a rule on
+`name == "archivedOrders"` catches that root query only, never a nested read.
+
+**To gate operations only**, allow every request whose `nesting` is set:
+
+```rust
+fn authorize(&self, req: &AuthzRequest<'_>) -> Result<AuthzDecision> {
+    if req.nesting.is_some() {
+        return Ok(AuthzDecision::Allow); // operation-level rules only
+    }
+    // … your operation rules …
+}
+```
+
+A deny at a nested level is a 403 naming the level: *"Read of 'Order' at 'User.orders'
+denied: …"*.
+
 ## Path coverage
 
 A PEP is only as strong as its least-guarded entry path. The authorizer is enforced on
@@ -98,6 +137,7 @@ A PEP is only as strong as its least-guarded entry path. The authorizer is enfor
 | MCP tool calls (auth + anon) | Route through the GraphQL chokepoints |
 | Mutations — GraphQL, MCP, **authenticated and anonymous REST**, the direct API | The universal mutation chokepoint (`execute_mutation_impl`), covering the anonymous-REST write path that bypasses the `execute*`/`execute_with_security` chokepoints |
 | REST reads — GET, count, streaming (NDJSON/CSV/XLSX), embedding sub-queries, bulk-by-filter lookup | The shared read runner methods (`execute_query_direct` / `count_rows`) |
+| Nested levels — GraphQL selections (root, `node`, Relay, `_entities`, function-backed), REST embeds and leaf object selections | Where each level is classified: `SelectionAccess` for GraphQL, the per-level `resolve_direct_read` for REST (`nesting = Some`) |
 | Subscriptions (`graphql-transport-ws` / `graphql-ws`) | At subscribe-time, with the connection's principal — a deny rejects with a `FORBIDDEN` error frame |
 | **Tenant-keyed requests**, on every path above | The tenant's own executor, built from the **server's** `RuntimeConfig` (#1333) |
 
@@ -113,8 +153,6 @@ A PEP is only as strong as its least-guarded entry path. The authorizer is enfor
 - **`execute_with_scopes` principal fidelity.** That entry point carries scopes but not a
   full `SecurityContext`, so the authorizer sees it as anonymous (`None`). Use
   `execute_with_security` for principal-aware operation authorization.
-- **Federation `_entities` granularity.** The authorizer sees the operation name
-  `_entities`, not the per-`representation` entity types being resolved.
 - **`RLSPolicy::evaluate()` argument widening.** Row-filter injection already receives the
   operation name; widening it to also receive the operation arguments is a separate
   (breaking) change tracked independently.

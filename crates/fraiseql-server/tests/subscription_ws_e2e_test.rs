@@ -508,6 +508,50 @@ async fn ws_e2e_authorizer_allow_permits_subscription() {
     }
 }
 
+/// The subscription reaches the authorizer with the type it delivers (`target_type`),
+/// read from the schema serving now — so a rule written for reading `Order` holds for
+/// `orderCreated` as for `orders`.
+#[tokio::test]
+async fn ws_e2e_authorizer_sees_the_subscriptions_type() {
+    struct DenyOrders;
+    impl Authorizer for DenyOrders {
+        fn authorize(&self, req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
+            Ok(if req.target_type == Some("Order") {
+                AuthzDecision::Deny {
+                    reason: "no orders".into(),
+                }
+            } else {
+                AuthzDecision::Allow
+            })
+        }
+    }
+    let schema = Arc::new(schema_with_subscription("orderCreated", "Order"));
+    let manager = Arc::new(SubscriptionManager::new(schema.clone()));
+    let live: fraiseql_server::routes::subscriptions::LiveSchema = Arc::new(move || schema.clone());
+    let state = SubscriptionState::new(manager.clone())
+        .with_authorizer(Some(Arc::new(DenyOrders)))
+        .with_live_schema(Some(live));
+
+    let url = spawn_ws_server(state).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    assert_eq!(recv_json(&mut stream).await["type"], "connection_ack");
+    send_json(
+        &mut sink,
+        json!({
+            "type": "subscribe",
+            "id": "op_typed",
+            "payload": { "query": "subscription { orderCreated { id } }" }
+        }),
+    )
+    .await;
+
+    let frame = recv_json(&mut stream).await;
+    assert_eq!(frame["type"], "error", "a rule on Order must deny orderCreated: {frame}");
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert_eq!(manager.subscription_count(), 0);
+}
+
 // ---------------------------------------------------------------------------
 // #786: graphql-transport-ws conformance around connection_init
 // ---------------------------------------------------------------------------

@@ -21,6 +21,20 @@
 //!   AND — an operation runs only if *both* the static gate and the authorizer allow it. The
 //!   `requires_role` gate keeps its enumeration-hiding "not found in schema" response; the
 //!   authorizer denies with an explicit 403.
+//! - **Every level, by default**: a read that reaches a nested type — a GraphQL selection `users {
+//!   orders { … } }`, a REST embed `?select=orders(…)` — puts that level to the authorizer too,
+//!   once per request per path (never per row), with [`AuthzRequest::nesting`] set. The rule the
+//!   developer wrote for reading `Order` holds wherever `Order` is read. An authorizer that means
+//!   to gate operations only allows every request whose `nesting` is `Some`.
+//!
+//! # Matching a type or a name
+//!
+//! [`AuthzRequest::target_type`] is the type a request reads (or writes), on every call:
+//! root and nested, GraphQL and REST. Match on it to hold every read of `Order`, whatever
+//! the transport or the entry point. [`AuthzRequest::name`] is the root field at the
+//! root. At a nested level it is the type's **canonical list query**: its first declared
+//! SQL-backed list query, the spelling REST has always passed, or the type name when it
+//! has none. A rule on `name` therefore catches a nested read only through that one query.
 //!
 //! # Wiring
 //!
@@ -59,21 +73,91 @@ impl OperationKind {
     }
 }
 
+/// Where a nested level sits: the type it is reached through, and the path to it.
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthzNesting {
+    /// The type whose field reaches this level (`"User"` for `users { orders }`).
+    pub parent_type: String,
+    /// The field names from the root field to this level, dot-separated: `"orders"` for
+    /// `users { orders }`, `"orders.items"` one level further. REST names relationships.
+    pub path:        String,
+}
+
+impl AuthzNesting {
+    /// A nested level reached through `parent_type` at `path`.
+    #[must_use]
+    pub fn new(parent_type: impl Into<String>, path: impl Into<String>) -> Self {
+        Self {
+            parent_type: parent_type.into(),
+            path:        path.into(),
+        }
+    }
+}
+
+/// One operation or level to put to the [`Authorizer`] — what [`enforce_authz`] turns
+/// into an [`AuthzRequest`].
+#[non_exhaustive]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AuthzOperation {
+    /// [`AuthzRequest::operation`].
+    pub kind:        OperationKind,
+    /// [`AuthzRequest::name`].
+    pub name:        String,
+    /// [`AuthzRequest::target_type`].
+    pub target_type: Option<String>,
+    /// [`AuthzRequest::nesting`].
+    pub nesting:     Option<AuthzNesting>,
+}
+
+impl AuthzOperation {
+    /// A root operation: `name` is the root field, `target_type` the type it returns
+    /// (`None` where it names no single type — introspection, `node`, `_entities`).
+    #[must_use]
+    pub fn root(kind: OperationKind, name: impl Into<String>, target_type: Option<&str>) -> Self {
+        Self {
+            kind,
+            name: name.into(),
+            target_type: target_type.map(str::to_string),
+            nesting: None,
+        }
+    }
+
+    /// A nested read of `target_type`, named by its canonical list query (or the type).
+    #[must_use]
+    pub fn nested(name: impl Into<String>, target_type: &str, nesting: AuthzNesting) -> Self {
+        Self {
+            kind:        OperationKind::Query,
+            name:        name.into(),
+            target_type: Some(target_type.to_string()),
+            nesting:     Some(nesting),
+        }
+    }
+}
+
 /// An operation-level authorization request handed to an [`Authorizer`].
 ///
 /// Carries the principal (or `None` for an anonymous request), the operation kind
-/// and root field name, and the request input — the inputs a static role check lacks.
+/// and root field name, the type read, where a nested level sits, and the request
+/// input — the inputs a static role check lacks.
 #[non_exhaustive]
 pub struct AuthzRequest<'a> {
     /// The authenticated principal, or `None` for an unauthenticated (anonymous) request.
-    pub principal: Option<&'a SecurityContext>,
+    pub principal:   Option<&'a SecurityContext>,
     /// The kind of operation (query / mutation / subscription).
-    pub operation: OperationKind,
+    pub operation:   OperationKind,
     /// The root operation field name (e.g. `"users"`, `"createUser"`, `"_entities"`,
     /// `"__schema"`).
-    pub name:      &'a str,
+    pub name:        &'a str,
     /// The request input — GraphQL variables or REST arguments — when present.
-    pub input:     Option<&'a serde_json::Value>,
+    pub input:       Option<&'a serde_json::Value>,
+    /// The type this request reads or writes: the root field's return type at the root, the
+    /// level's type at a nested level. `None` only where the root names no single type
+    /// (introspection, `node` and `_entities` before their type is known — each is asked
+    /// again with it once it is).
+    pub target_type: Option<&'a str>,
+    /// `None` at the root; where a nested level sits otherwise.
+    pub nesting:     Option<&'a AuthzNesting>,
 }
 
 /// The decision an [`Authorizer`] returns for a single operation.
@@ -131,19 +215,26 @@ pub trait Authorizer: Send + Sync {
 
 /// The fail-closed deny error: a generic 403 that never echoes the underlying policy
 /// error (avoids leaking why, beyond the app-supplied `reason`).
-fn authz_deny_error(op: OperationKind, name: &str, reason: &str) -> FraiseQLError {
+fn authz_deny_error(op: &AuthzOperation, reason: &str) -> FraiseQLError {
+    let message = match (&op.nesting, &op.target_type) {
+        (Some(nesting), Some(target)) => format!(
+            "Read of '{target}' at '{}.{}' denied: {reason}",
+            nesting.parent_type, nesting.path
+        ),
+        _ => format!("Operation '{}' denied: {reason}", op.name),
+    };
     FraiseQLError::Authorization {
-        message:  format!("Operation '{name}' denied: {reason}"),
-        action:   Some(op.as_str().to_string()),
-        resource: Some(name.to_string()),
+        message,
+        action: Some(op.kind.as_str().to_string()),
+        resource: Some(op.name.clone()),
     }
 }
 
-/// Run the configured [`Authorizer`] over one or more root operations, fail-closed.
+/// Run the configured [`Authorizer`] over one or more operations or levels, fail-closed.
 ///
-/// A multi-root query yields one call per root. Any [`AuthzDecision::Deny`] or any
-/// `Err` returns [`FraiseQLError::Authorization`] (403) and the operation never
-/// executes. A `Deny`'s `reason` is folded into the message; a policy `Err` is not
+/// A multi-root query yields one call per root; a nested level, one call of its own. Any
+/// [`AuthzDecision::Deny`] or any `Err` returns [`FraiseQLError::Authorization`] (403) and the
+/// operation never executes. A `Deny`'s `reason` is folded into the message; a policy `Err` is not
 /// surfaced (no information leak).
 ///
 /// This is the canonical enforcement entry point. It is `pub` so transports that do
@@ -157,23 +248,25 @@ fn authz_deny_error(op: OperationKind, name: &str, reason: &str) -> FraiseQLErro
 pub fn enforce_authz(
     authorizer: &dyn Authorizer,
     principal: Option<&SecurityContext>,
-    operations: &[(OperationKind, String)],
+    operations: &[AuthzOperation],
     input: Option<&serde_json::Value>,
 ) -> Result<()> {
-    for (op, name) in operations {
+    for op in operations {
         let req = AuthzRequest {
             principal,
-            operation: *op,
-            name,
+            operation: op.kind,
+            name: &op.name,
             input,
+            target_type: op.target_type.as_deref(),
+            nesting: op.nesting.as_ref(),
         };
         match authorizer.authorize(&req) {
             Ok(AuthzDecision::Allow) => {},
-            Ok(AuthzDecision::Deny { reason }) => return Err(authz_deny_error(*op, name, &reason)),
+            Ok(AuthzDecision::Deny { reason }) => return Err(authz_deny_error(op, &reason)),
             Err(_) => {
                 // Fail-closed: any policy error is a hard deny. The underlying error is
                 // not surfaced to the client (no information leak).
-                return Err(authz_deny_error(*op, name, "authorization failed"));
+                return Err(authz_deny_error(op, "authorization failed"));
             },
         }
     }
