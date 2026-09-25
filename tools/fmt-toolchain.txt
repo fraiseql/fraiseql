@@ -1,0 +1,16 @@
+# The nightly rustfmt this workspace is formatted with.
+#
+# Pinned, not floating `nightly`. rustfmt's formatting is not stable across
+# nightlies: on 2026-09-25 the `nightly` of that morning broke a chain inside a
+# `macro_rules!` body that the previous one had left alone, so the Fmt gate
+# reported a diff in a file nobody had touched — on dev and therefore on every
+# open pull request at once, with no commit to bisect. Same lesson, same cure as
+# FUZZ_NIGHTLY in .github/workflows/fuzz.yml.
+#
+# This file is the single source: the Makefile's fmt targets, the Dagger Fmt
+# gate and the nightly installed into rustBase all read the same value, and
+# tools/check-fmt-toolchain.sh fails if they disagree.
+#
+# To bump: change the line below, run `make fmt`, and commit the reformat WITH
+# the bump — the two belong in one commit or the gate reddens.
+nightly-2026-09-25
