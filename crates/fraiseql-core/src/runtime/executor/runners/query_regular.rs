@@ -354,7 +354,6 @@ impl QueryRunner {
             root_fields,
             &self.ctx.schema,
             &query_match.query_def.return_type,
-            0,
         );
         merge_computed_fields(&mut typed_fields, distance_fields);
         // A projection that cannot be built is an error, not a licence to
@@ -1303,7 +1302,7 @@ impl QueryRunner {
         request_budget: Option<&crate::security::RequestBudget>,
     ) -> Result<serde_json::Value> {
         // A leaf selection of an object field is the whole object, read as its type.
-        let expanded = super::query_nested::expand_leaf_objects(&self.ctx.schema, query_match);
+        let expanded = super::query_nested::expand_leaf_objects(&self.ctx.schema, query_match)?;
         let query_match = &*expanded;
         let resolved = self.resolve_direct_read(
             query_match,
@@ -2176,7 +2175,7 @@ impl QueryRunner {
         security_context: Option<SecurityContext>,
     ) -> Result<crate::runtime::JsonRowStream> {
         let query_match =
-            super::query_nested::expand_leaf_objects(&self.ctx.schema, &query_match).into_owned();
+            super::query_nested::expand_leaf_objects(&self.ctx.schema, &query_match)?.into_owned();
         let resolved = self.resolve_direct_read(
             &query_match,
             variables.as_ref(),

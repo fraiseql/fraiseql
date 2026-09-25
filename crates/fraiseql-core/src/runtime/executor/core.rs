@@ -108,28 +108,31 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
 /// neither ceiling: it goes through `count_rows`, a second chokepoint that has never had
 /// a cost gate at all.
 ///
-/// Derivation enforces exactly what the schema declares: an undeclared depth or
-/// complexity limit stays unbounded rather than acquiring a new default, and a
-/// schema with no `[validation]` section derives no gate at all. An embedder
-/// that must disable validation despite declared schema limits can install an
-/// explicit all-`usize::MAX` config.
+/// Derivation enforces what the schema declares, with one default: an undeclared
+/// depth is [`DEFAULT_MAX_QUERY_DEPTH`](crate::schema::DEFAULT_MAX_QUERY_DEPTH), so
+/// every executor has a depth gate. The projectors follow the selection to any depth,
+/// and without a bound the selection is whatever the client sends. An undeclared
+/// complexity stays unbounded. An embedder that must disable validation can install
+/// an explicit all-`usize::MAX` config.
 fn resolve_gate1(
     config: &RuntimeConfig,
     schema: &CompiledSchema,
-) -> Option<crate::security::QueryValidator> {
-    let effective = config.query_validation.clone().or_else(|| {
-        let declared = schema.validation_config.as_ref()?;
-        if declared.max_query_depth.is_none() && declared.max_query_complexity.is_none() {
-            return None;
-        }
-        Some(crate::security::QueryValidatorConfig {
-            max_depth:      declared.max_query_depth.map_or(usize::MAX, |d| d as usize),
-            max_complexity: declared.max_query_complexity.map_or(usize::MAX, |c| c as usize),
+) -> crate::security::QueryValidator {
+    let effective = config.query_validation.clone().unwrap_or_else(|| {
+        let declared = schema.validation_config.as_ref();
+        let depth = declared
+            .and_then(|v| v.max_query_depth)
+            .unwrap_or(crate::schema::DEFAULT_MAX_QUERY_DEPTH);
+        crate::security::QueryValidatorConfig {
+            max_depth:      depth as usize,
+            max_complexity: declared
+                .and_then(|v| v.max_query_complexity)
+                .map_or(usize::MAX, |c| c as usize),
             max_size_bytes: usize::MAX,
             max_aliases:    usize::MAX,
-        })
-    })?;
-    Some(crate::security::QueryValidator::from_config(effective))
+        }
+    });
+    crate::security::QueryValidator::from_config(effective)
 }
 
 /// Maximum number of distinct query strings whose parsed ASTs are cached in memory.
@@ -382,7 +385,12 @@ impl Executor {
         relay: Option<Arc<dyn RelayDispatch>>,
         writer: Option<Arc<dyn DatabaseAdapter>>,
     ) -> Self {
-        let matcher = QueryMatcher::new(schema.clone());
+        let gate1 = resolve_gate1(&config, &schema);
+        // One depth bound: the resolver refuses at the gate's depth, so a document the
+        // gate admits is never refused by a second, fixed limit — and one it refuses is
+        // refused by the resolver too on the paths that classify before the gate runs.
+        let max_depth = u32::try_from(gate1.config().max_depth).unwrap_or(u32::MAX);
+        let matcher = QueryMatcher::new(schema.clone()).with_max_depth(max_depth);
         let planner = QueryPlanner::new(config.cache_query_plans);
         // Build introspection responses at startup (zero-cost at runtime),
         // with `@inaccessible` fields filtered out. Shared with the relay
@@ -407,7 +415,6 @@ impl Executor {
         // is linear in the whole schema.
         let schema_has_gated_field = schema.has_any_authorize_field();
 
-        let gate1 = resolve_gate1(&config, &schema);
         let nested_row_gates = super::runners::query_nested::NestedRowGates::build(
             &schema,
             config.rls_policy.as_deref(),
@@ -441,6 +448,15 @@ impl Executor {
     #[must_use]
     pub fn pool_metrics(&self) -> PoolMetrics {
         self.ctx.pool_metrics()
+    }
+
+    /// How deep a selection may nest on this executor: its depth gate's
+    /// `max_query_depth` — declared, installed, or `DEFAULT_MAX_QUERY_DEPTH`. Every
+    /// resolution of a document's selection set refuses past it, including the
+    /// transport's own (the SSE planner), so no path answers depth differently.
+    #[must_use]
+    pub fn max_query_depth(&self) -> u32 {
+        u32::try_from(self.ctx.gate1.config().max_depth).unwrap_or(u32::MAX)
     }
 
     /// Get the compiled schema.

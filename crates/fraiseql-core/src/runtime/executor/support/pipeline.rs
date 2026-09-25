@@ -196,6 +196,7 @@ impl Executor {
             &parsed.selections,
             &parsed.fragments,
             &crate::graphql::selection_set::variables_map(variables),
+            self.max_query_depth(),
         )?;
 
         // Root `__typename` resolves to the operation's root type name with no DB

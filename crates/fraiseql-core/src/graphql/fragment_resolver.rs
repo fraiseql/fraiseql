@@ -18,8 +18,9 @@ pub enum FragmentError {
     #[error("Fragment not found: {0}")]
     FragmentNotFound(String),
 
-    /// Indicates that fragment depth limit was exceeded.
-    #[error("Fragment depth exceeded (max: {0})")]
+    /// The selection nests deeper than the resolver's depth limit — through fields or
+    /// fragments alike. The engine sets the limit to the effective `max_query_depth`.
+    #[error("Selection nests deeper than the {0}-level limit")]
     FragmentDepthExceeded(u32),
 
     /// Indicates a circular reference was detected in fragments.

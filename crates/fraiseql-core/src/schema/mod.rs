@@ -74,11 +74,11 @@ pub use compiled::{
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, ChangelogConfig, CircuitBreakerConfig,
-    CrudNamingConfig, CrudNamingPreset, DebugConfig, DeleteResponse, EnterpriseSecurityConfig,
-    EntityCircuitBreakerOverride, FederationConfig, FederationEntity, FieldAuthRule, GrpcConfig,
-    McpConfig, NamingConvention, ObserversConfig, Relationship, RestConfig, SessionVariableMapping,
-    SessionVariableSource, SessionVariablesConfig, SubscriptionHooksConfig, SubscriptionsConfig,
-    ValidationConfig,
+    CrudNamingConfig, CrudNamingPreset, DEFAULT_MAX_QUERY_DEPTH, DebugConfig, DeleteResponse,
+    EnterpriseSecurityConfig, EntityCircuitBreakerOverride, FederationConfig, FederationEntity,
+    FieldAuthRule, GrpcConfig, McpConfig, NamingConvention, ObserversConfig, Relationship,
+    RestConfig, SessionVariableMapping, SessionVariableSource, SessionVariablesConfig,
+    SubscriptionHooksConfig, SubscriptionsConfig, ValidationConfig,
 };
 pub use dependency_graph::{ChangeImpact, CyclePath, SchemaDependencyGraph};
 pub use field_type::{

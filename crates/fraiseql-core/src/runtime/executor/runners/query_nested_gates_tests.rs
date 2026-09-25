@@ -1023,6 +1023,48 @@ async fn a_functions_bridge_read_of_nested_orders_asks_the_order_policy() {
     );
 }
 
+/// A leaf object selection expands to a depth and refuses past it — but an enum is a
+/// value, not a nested level: `Zone.kind`, four levels into `members?select=team`, is
+/// served, not refused.
+#[tokio::test]
+async fn an_enum_at_the_leaf_expansions_depth_is_a_value_not_a_level() {
+    let mut schema = CompiledSchema::default();
+    let object = |name: &str, field: &str, target: &str| TypeDefinition {
+        fields: vec![
+            FieldDefinition::new("id", FieldType::Int),
+            FieldDefinition::new(field, FieldType::Object(target.to_string())),
+        ],
+        ..TypeDefinition::new(name, format!("v_{}", name.to_lowercase()))
+    };
+    schema.types.push(object("Member", "team", "Team"));
+    schema.types.push(object("Team", "org", "Org"));
+    schema.types.push(object("Org", "region", "Region"));
+    schema.types.push(object("Region", "zone", "Zone"));
+    schema.types.push(TypeDefinition {
+        fields: vec![
+            FieldDefinition::new("id", FieldType::Int),
+            FieldDefinition::new("kind", FieldType::Enum("Kind".to_string())),
+        ],
+        ..TypeDefinition::new("Zone", "v_zone")
+    });
+    schema.queries.push(list_query("members", "Member", "v_member"));
+    schema.build_indexes();
+    let members = schema.queries[0].clone();
+    let query_match = crate::runtime::QueryMatch::from_operation(
+        members,
+        vec!["id".to_string(), "team".to_string()],
+        std::collections::HashMap::new(),
+        schema.find_type("Member"),
+    )
+    .unwrap();
+    let executor = Executor::new(schema, Arc::new(CapturingMockAdapter::new(vec![])));
+
+    let result = executor
+        .execute_query_direct(&query_match, None, Some(&principal()), None)
+        .await;
+    assert!(result.is_ok(), "{result:?}");
+}
+
 // ---------------------------------------------------------------------------
 // Federation `_entities`: the entity's nested levels
 // ---------------------------------------------------------------------------
@@ -1243,11 +1285,12 @@ mod federation {
         assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
     }
 
-    // ---- deeper than the projector goes -------------------------------------
+    // ---- at every depth ---------------------------------------------------------
     //
-    // `project_entity` recurses into a nested object only to `MAX_ENTITY_PROJECTION_DEPTH`;
-    // below it the stored sub-object passes through as it was stored. Every selected field
-    // is still classified at any depth, but what passes through was never selected.
+    // `project_entity` used to recurse into a nested object only to a depth of 4, and pass
+    // the stored sub-object below it through as stored: every selected field classified at
+    // any depth, and what passed through never selected. No stored document leaves
+    // unprojected now, at any depth the parser lets a selection reach.
 
     /// `Folder`, an entity whose `parent` is a `Folder`: a to-one chain of any depth.
     fn folders() -> CompiledSchema {
@@ -1262,6 +1305,10 @@ mod federation {
             ..TypeDefinition::new("Folder", "v_folder")
         });
         schema.queries.push(list_query("folders", "Folder", "v_folder"));
+        schema.validation_config = Some(crate::schema::ValidationConfig {
+            max_query_depth: Some(64),
+            ..Default::default()
+        });
         schema.federation = Some(FederationConfig {
             enabled: true,
             version: Some("v2".to_string()),
@@ -1312,14 +1359,54 @@ mod federation {
         assert_eq!(keys_at(&out["data"]["_entities"][0], 4), ["id"], "{out}");
     }
 
-    /// **Reproduction.** Five levels down, the ancestor is its stored document: `margin`
-    /// unmasked, `cost_price` unrefused, `audit`, and every ancestor beneath it.
+    /// Five levels down — was the reproduction: the ancestor was its stored document,
+    /// `margin` unmasked, `cost_price` unrefused, `audit`, and every ancestor beneath it.
     #[tokio::test]
-    #[ignore = "reproduction: below the projector's depth a nested object is served whole"]
     async fn an_entitys_ancestor_five_deep_serves_only_its_selection() {
         let (result, _) =
             entities(folders(), vec![folder_doc(8)], "Folder", 8, &ancestors(5, "id")).await;
         let out = result.unwrap();
         assert_eq!(keys_at(&out["data"]["_entities"][0], 5), ["id"], "{out}");
+    }
+
+    /// The invariant, ten and forty-four levels up: selecting `id`, the ancestor is `{id}`
+    /// and nothing stored reaches the response; `margin` selected is `null`; `cost_price`
+    /// selected refuses.
+    #[tokio::test]
+    async fn no_stored_document_of_an_entity_leaves_unprojected_at_any_depth() {
+        for depth in [10, 44] {
+            let (result, _) =
+                entities(folders(), vec![folder_doc(60)], "Folder", 60, &ancestors(depth, "id"))
+                    .await;
+            let out = result.unwrap();
+            let entity = &out["data"]["_entities"][0];
+            let ancestor = (0..depth).fold(entity, |level, _| &level["parent"]);
+            assert_eq!(ancestor, &json!({"id": 60 - depth}), "{out}");
+            let served = out.to_string();
+            assert!(!served.contains("audit") && !served.contains("margin"), "{out}");
+
+            let (result, _) = entities(
+                folders(),
+                vec![folder_doc(60)],
+                "Folder",
+                60,
+                &ancestors(depth, "id margin"),
+            )
+            .await;
+            let out = result.unwrap();
+            let ancestor =
+                (0..depth).fold(&out["data"]["_entities"][0], |level, _| &level["parent"]);
+            assert_eq!(ancestor, &json!({"id": 60 - depth, "margin": null}), "{out}");
+
+            let (result, _) = entities(
+                folders(),
+                vec![folder_doc(60)],
+                "Folder",
+                60,
+                &ancestors(depth, "id cost_price"),
+            )
+            .await;
+            assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+        }
     }
 }

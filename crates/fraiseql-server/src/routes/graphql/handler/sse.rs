@@ -90,8 +90,9 @@ pub(in super::super) async fn handle_sse(
     let operation_name = request.operation_name.clone();
     let op = operation_name.as_deref();
     let plan = plan_stream(&state, &query, request.variables.as_ref(), op)?;
-    let defer_plan = plan_defer(&query, request.variables.as_ref(), op);
-    let nested_stream_plan = plan_nested_stream(&query, request.variables.as_ref(), op);
+    let max_depth = state.executor.load().max_query_depth();
+    let defer_plan = plan_defer(&query, request.variables.as_ref(), op, max_depth);
+    let nested_stream_plan = plan_nested_stream(&query, request.variables.as_ref(), op, max_depth);
 
     if plan.is_some() && defer_plan.is_some() {
         return Err(ErrorResponse::from_error(GraphQLError::new(
@@ -295,11 +296,13 @@ fn plan_defer(
     query: &str,
     variables: Option<&Value>,
     operation_name: Option<&str>,
+    max_depth: u32,
 ) -> Option<Vec<FieldSelection>> {
     let parsed = parse_query_with_operation_name(query, operation_name).ok()?;
     let vars = variables_map(variables);
     let effective =
-        selection_set::resolve_and_filter(&parsed.selections, &parsed.fragments, &vars).ok()?;
+        selection_set::resolve_and_filter(&parsed.selections, &parsed.fragments, &vars, max_depth)
+            .ok()?;
     defer::contains_defer(&effective, &vars).then_some(effective)
 }
 
@@ -315,11 +318,13 @@ fn plan_nested_stream(
     query: &str,
     variables: Option<&Value>,
     operation_name: Option<&str>,
+    max_depth: u32,
 ) -> Option<Vec<FieldSelection>> {
     let parsed = parse_query_with_operation_name(query, operation_name).ok()?;
     let vars = variables_map(variables);
     let effective =
-        selection_set::resolve_and_filter(&parsed.selections, &parsed.fragments, &vars).ok()?;
+        selection_set::resolve_and_filter(&parsed.selections, &parsed.fragments, &vars, max_depth)
+            .ok()?;
     stream_split::contains_nested_stream(&effective, &vars).then_some(effective)
 }
 

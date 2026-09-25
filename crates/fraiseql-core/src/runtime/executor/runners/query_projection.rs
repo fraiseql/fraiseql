@@ -25,8 +25,11 @@ use crate::{
 /// List fields always fall back to `data->'field'` (full blob) because
 /// sub-projection inside aggregated JSONB arrays is out of scope.
 ///
-/// Recursion is capped at 4 levels, matching `MAX_PROJECTION_DEPTH` in the
-/// projection generator.
+/// An object field is projected through its sub-selection at every depth, and one with
+/// no sub-selection projects to `{}`: no depth or shape falls back to the stored
+/// sub-object. The recursion follows the selection, which `max_query_depth` bounds. A
+/// cap of 4 used to hand everything below it back as stored — every key of an object
+/// five levels down, gated or not.
 ///
 /// Filter `__typename` from SQL projection fields.
 /// `__typename` is a GraphQL meta-field not stored in JSONB.
@@ -37,10 +40,7 @@ pub fn build_typed_projection_fields(
     selections: &[FieldSelection],
     schema: &CompiledSchema,
     parent_type_name: &str,
-    depth: usize,
 ) -> Vec<ProjectionField> {
-    const MAX_DEPTH: usize = 4;
-
     let type_def = schema.find_type(parent_type_name);
     selections
         .iter()
@@ -53,7 +53,6 @@ pub fn build_typed_projection_fields(
                 type_def.and_then(|td| td.fields.iter().find(|f| f.name == sel.name.as_str()));
 
             let is_composite = field_def.is_some_and(|fd| !fd.field_type.is_scalar());
-            let is_list = field_def.is_some_and(|fd| fd.field_type.is_list());
             let is_text = field_def.is_some_and(|fd| {
                 matches!(
                     fd.field_type,
@@ -69,24 +68,22 @@ pub fn build_typed_projection_fields(
                 FieldKind::Native
             };
 
-            // Recurse into Object types only — List fields fall back to full blob
-            let sub_fields =
-                if is_composite && !is_list && !sel.nested_fields.is_empty() && depth < MAX_DEPTH {
-                    let child_type =
-                        field_def.and_then(|fd| fd.field_type.type_name()).unwrap_or("");
-                    if child_type.is_empty() {
-                        None
-                    } else {
-                        Some(build_typed_projection_fields(
-                            &sel.nested_fields,
-                            schema,
-                            child_type,
-                            depth + 1,
-                        ))
-                    }
-                } else {
-                    None
-                };
+            // Recurse into a single object — an enum is composite too, and is its stored
+            // value. A list falls back to its stored array, which `project_nested_lists`
+            // re-projects element by element.
+            let sub_fields = field_def
+                .filter(|fd| {
+                    matches!(
+                        fd.field_type,
+                        crate::schema::FieldType::Object(_)
+                            | crate::schema::FieldType::Interface(_)
+                            | crate::schema::FieldType::Union(_)
+                    )
+                })
+                .and_then(|fd| fd.field_type.type_name())
+                .map(|child_type| {
+                    build_typed_projection_fields(&sel.nested_fields, schema, child_type)
+                });
 
             ProjectionField {
                 // Output under the response key (alias when present)…

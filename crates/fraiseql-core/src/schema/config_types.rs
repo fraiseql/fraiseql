@@ -360,6 +360,17 @@ impl Default for DebugConfig {
     }
 }
 
+/// The query depth bound when `[validation] max_query_depth` is not declared.
+///
+/// A projector recurses as deep as the selection it follows, and the selection is the
+/// client's document, so the depth that document may reach is decided here — once, for
+/// the depth gate and the selection resolver alike. 11 is the depth GraphQL queries were
+/// held to before there was a default, by the resolver's own fixed limit; it is kept so
+/// that no deployment's accepted depth changes by default. Past about 49 a declared value
+/// cannot bind on GraphQL: `graphql-parser` refuses a document nested past 50 brackets.
+/// PostgreSQL 16 refuses a projection nested 2 044 `jsonb_build_object`s deep.
+pub const DEFAULT_MAX_QUERY_DEPTH: u32 = 11;
+
 /// Query validation limits (compiled from `[validation]` in `fraiseql.toml`).
 // #1337: this one has TWO producers — `ServerConfig.validation` (TOML) and
 // `CompiledSchema.validation_config` (the compiled artifact). Refusing unknown keys
@@ -370,7 +381,7 @@ impl Default for DebugConfig {
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct ValidationConfig {
-    /// Maximum allowed query nesting depth.
+    /// Maximum allowed query nesting depth; [`DEFAULT_MAX_QUERY_DEPTH`] when unset.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_query_depth:      Option<u32>,
     /// Maximum allowed query complexity score.

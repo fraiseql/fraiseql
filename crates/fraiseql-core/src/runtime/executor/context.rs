@@ -100,10 +100,10 @@ pub(super) struct ExecutorContext {
     /// GATE-1 query-structure validator (depth / complexity / alias / size),
     /// resolved once at construction: the embedder-installed
     /// `RuntimeConfig::query_validation` when set, otherwise derived from the
-    /// compiled schema's declared `[validation]` limits (#379). `None` only
-    /// when neither declares anything — a declared bound binds on every
-    /// transport that reaches the executor, not just the `/graphql` stage.
-    pub(super) gate1: Option<crate::security::QueryValidator>,
+    /// compiled schema's declared `[validation]` limits (#379), an undeclared
+    /// depth being `DEFAULT_MAX_QUERY_DEPTH`. Always present: a bound binds on
+    /// every transport that reaches the executor, not just the `/graphql` stage.
+    pub(super) gate1: crate::security::QueryValidator,
 
     /// Parsed GraphQL AST cache, keyed by xxHash64 of the query string.
     pub(super) parse_cache: MokaCache<u64, Arc<(QueryType, Option<ParsedQuery>)>>,

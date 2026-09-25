@@ -108,6 +108,32 @@ mod executor_gate_config_tests {
             "rejection must come from the depth gate, not the adapter: {err}"
         );
     }
+
+    /// Neither the runtime nor the compiled schema declares a depth: the gate a runtime
+    /// override installs carries the default, the one the executor derives on its own —
+    /// so the HTTP stage and the executor cannot disagree about an undeclared depth.
+    #[test]
+    fn an_undeclared_depth_is_the_default_on_both_enforcement_points() {
+        let schema = compiled_with(None, Some(100));
+        let config = ServerConfig {
+            validation: Some(ValidationConfig {
+                max_query_depth:      None,
+                max_query_complexity: Some(500),
+                max_page_size:        None,
+                max_response_bytes:   None,
+            }),
+            ..ServerConfig::default()
+        };
+        let rt = executor_runtime_config(&schema, &config).expect("valid schema");
+        let gate = rt.query_validation.expect("a runtime override must install the gate");
+        assert_eq!(gate.max_depth, fraiseql_core::schema::DEFAULT_MAX_QUERY_DEPTH as usize);
+
+        let (depth, _) = super::super::initialization::effective_validation_limits(
+            config.validation.as_ref(),
+            schema.validation_config.as_ref(),
+        );
+        assert_eq!(depth, Some(fraiseql_core::schema::DEFAULT_MAX_QUERY_DEPTH));
+    }
 }
 
 // ── initialization_tests ──────────────────────────────────────────────────────

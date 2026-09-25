@@ -5,7 +5,10 @@
 use serde_json::json;
 
 use super::*;
-use crate::graphql::{parse_query, types::FieldSelection};
+use crate::{
+    graphql::{parse_query, types::FieldSelection},
+    schema::DEFAULT_MAX_QUERY_DEPTH,
+};
 
 /// Response keys of the root field's children, in order.
 fn child_names(selections: &[FieldSelection]) -> Vec<String> {
@@ -18,8 +21,9 @@ fn child_names(selections: &[FieldSelection]) -> Vec<String> {
 fn resolved(query: &str, variables: &serde_json::Value) -> Vec<String> {
     let parsed = parse_query(query).expect("query must parse");
     let vars = variables_map(Some(variables));
-    let out = resolve_and_filter(&parsed.selections, &parsed.fragments, &vars)
-        .expect("selection set must resolve");
+    let out =
+        resolve_and_filter(&parsed.selections, &parsed.fragments, &vars, DEFAULT_MAX_QUERY_DEPTH)
+            .expect("selection set must resolve");
     child_names(&out)
 }
 
@@ -67,15 +71,20 @@ fn a_variable_condition_on_a_spread_is_evaluated() {
 fn an_undefined_variable_in_a_condition_is_an_error() {
     let parsed = parse_query("fragment F on User { name } { users { id ...F @skip(if: $nope) } }")
         .expect("query must parse");
-    let err = resolve_and_filter(&parsed.selections, &parsed.fragments, &variables_map(None))
-        .expect_err("an undefined condition variable must not silently include the fragment");
+    let err = resolve_and_filter(
+        &parsed.selections,
+        &parsed.fragments,
+        &variables_map(None),
+        DEFAULT_MAX_QUERY_DEPTH,
+    )
+    .expect_err("an undefined condition variable must not silently include the fragment");
     assert!(matches!(err, SelectionError::Directive(_)), "got: {err:?}");
 }
 
 #[test]
 fn an_undefined_fragment_is_an_error() {
     let parsed = parse_query("{ users { id ...Missing } }").expect("query must parse");
-    let err = resolve(&parsed.selections, &parsed.fragments)
+    let err = resolve(&parsed.selections, &parsed.fragments, DEFAULT_MAX_QUERY_DEPTH)
         .expect_err("a spread naming no fragment must be refused");
     assert!(matches!(err, SelectionError::Fragment(_)), "got: {err:?}");
 }
@@ -87,8 +96,8 @@ fn resolve_is_independent_of_variables() {
     // cached mutation selections leak one request's variables into the next.
     let parsed =
         parse_query("fragment F on User { name } { users { id ...F @skip(if: $x) } }").unwrap();
-    let a = resolve(&parsed.selections, &parsed.fragments).unwrap();
-    let b = resolve(&parsed.selections, &parsed.fragments).unwrap();
+    let a = resolve(&parsed.selections, &parsed.fragments, DEFAULT_MAX_QUERY_DEPTH).unwrap();
+    let b = resolve(&parsed.selections, &parsed.fragments, DEFAULT_MAX_QUERY_DEPTH).unwrap();
     assert_eq!(child_names(&a), child_names(&b));
     assert_eq!(child_names(&a), vec!["id", "name"], "expansion must not evaluate conditions");
 }
@@ -99,4 +108,17 @@ fn variables_map_treats_a_non_object_payload_as_empty() {
     assert!(variables_map(Some(&json!(null))).is_empty());
     assert!(variables_map(Some(&json!([1, 2]))).is_empty());
     assert_eq!(variables_map(Some(&json!({"a": 1}))).len(), 1);
+}
+
+/// The resolver refuses at the depth it is handed, not at a fixed one: the executor
+/// hands it its gate's `max_query_depth`, so the two are one bound.
+#[test]
+fn resolve_refuses_past_the_depth_it_is_handed() {
+    let nested = |levels: usize| {
+        format!("{{ users {}{{ id }}{} }}", "{ f ".repeat(levels), " }".repeat(levels))
+    };
+    let parsed = parse_query(&nested(30)).unwrap();
+    assert!(resolve(&parsed.selections, &parsed.fragments, 64).is_ok());
+    let err = resolve(&parsed.selections, &parsed.fragments, 20).expect_err("30 levels past 20");
+    assert!(err.to_string().contains("20-level limit"), "{err}");
 }

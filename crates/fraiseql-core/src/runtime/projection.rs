@@ -671,13 +671,6 @@ impl ResultProjector {
     }
 }
 
-/// Maximum nesting depth for entity projection.
-///
-/// Mirrors the SQL projection generator's depth cap so the Rust (mutation) and
-/// SQL (query) paths stop recursing at the same level and fall back to returning
-/// the stored sub-blob identically.
-const MAX_ENTITY_PROJECTION_DEPTH: usize = 4;
-
 /// Project an entity-shaped JSONB value into a GraphQL response object, mirroring
 /// the query path's SQL projection exactly.
 ///
@@ -691,10 +684,12 @@ const MAX_ENTITY_PROJECTION_DEPTH: usize = 4;
 /// - **source key** = [`to_snake_case`](crate::utils::casing::to_snake_case) of the field name (the
 ///   stored JSONB key), with a `camelCase` fallback for legacy metadata that used the surface
 ///   casing,
-/// - **single object fields** with a sub-selection are recursed (depth-capped at
-///   `MAX_ENTITY_PROJECTION_DEPTH`),
-/// - **list fields, scalar fields, sub-selection-less object fields and over-depth fields** pass
-///   through their stored value (matching the SQL side's full-sub-blob fallback),
+/// - **object fields**, single or listed, are projected through their sub-selection at **any
+///   depth**. The recursion follows the selection, which `max_query_depth` bounds, so there is no
+///   depth at which a stored sub-object passes through: that fall-through, at a cap of 4, served
+///   every stored key of an object five levels down, gated or not. An object field with no
+///   sub-selection selects none of its fields and projects to `{}`,
+/// - **scalar fields** pass through their stored value,
 /// - **`__typename`** is emitted only where the client selected it.
 ///
 /// `type_name` is the concrete GraphQL object type of `entity` (resolved by the
@@ -735,7 +730,7 @@ pub fn project_entity(
     if selections.is_empty() {
         return JsonValue::Object(Map::new());
     }
-    project_entity_at(entity, type_name, selections, schema, 0)
+    project_entity_at(entity, type_name, selections, schema)
 }
 
 fn project_entity_at(
@@ -743,7 +738,6 @@ fn project_entity_at(
     type_name: &str,
     selections: &[FieldSelection],
     schema: &CompiledSchema,
-    depth: usize,
 ) -> JsonValue {
     let JsonValue::Object(obj) = entity else {
         // Not an object (e.g. null) — nothing to project.
@@ -763,7 +757,7 @@ fn project_entity_at(
             // Absent stored key → omit (matches query/SQL behaviour: absent stays absent).
             continue;
         };
-        let projected = project_field_value(value, field_def, &sel.nested_fields, schema, depth);
+        let projected = project_field_value(value, field_def, &sel.nested_fields, schema);
         out.insert(sel.response_key().to_string(), projected);
     }
 
@@ -776,67 +770,51 @@ fn project_field_value(
     field_def: Option<&FieldDefinition>,
     nested: &[FieldSelection],
     schema: &CompiledSchema,
-    depth: usize,
 ) -> JsonValue {
-    // Recurse only into single (non-list) object fields that carry a sub-selection,
-    // within the depth cap — exactly as the SQL projector decides. Everything else
-    // (scalars, lists, sub-selection-less objects, over-depth) returns the stored
-    // value verbatim, matching the SQL full-sub-blob fallback.
-    if depth < MAX_ENTITY_PROJECTION_DEPTH && !nested.is_empty() {
-        if let Some(fd) = field_def {
-            if !fd.field_type.is_scalar() && !fd.field_type.is_list() {
-                if let Some(child_type) = fd.field_type.type_name() {
-                    match value {
-                        JsonValue::Object(_) => {
-                            return project_entity_at(value, child_type, nested, schema, depth + 1);
-                        },
-                        // The DB sometimes returns a nested object as a JSON string
-                        // (when extracted via `->>`). Re-parse and project it.
-                        JsonValue::String(s) => {
-                            if let Ok(parsed @ JsonValue::Object(_)) =
-                                serde_json::from_str::<JsonValue>(s)
-                            {
-                                return project_entity_at(
-                                    &parsed,
-                                    child_type,
-                                    nested,
-                                    schema,
-                                    depth + 1,
-                                );
-                            }
-                        },
-                        _ => {},
-                    }
+    // An object field is projected through its sub-selection at every depth, and an empty
+    // sub-selection projects nothing of it. Only a scalar returns its stored value.
+    if let Some(fd) = field_def {
+        if !fd.field_type.is_scalar() && !fd.field_type.is_list() {
+            if let Some(child_type) = fd.field_type.type_name() {
+                match value {
+                    JsonValue::Object(_) => {
+                        return project_entity_at(value, child_type, nested, schema);
+                    },
+                    // The DB sometimes returns a nested object as a JSON string
+                    // (when extracted via `->>`). Re-parse and project it.
+                    JsonValue::String(s) => {
+                        if let Ok(parsed @ JsonValue::Object(_)) =
+                            serde_json::from_str::<JsonValue>(s)
+                        {
+                            return project_entity_at(&parsed, child_type, nested, schema);
+                        }
+                    },
+                    _ => {},
                 }
-            } else if fd.field_type.is_list() {
-                // #489: a nested LIST-of-object field. The SQL/stored side returns the
-                // raw aggregated sub-blob (snake_case keys, unselected keys included);
-                // project every element at the element type — the same recasing +
-                // selection-set projection applied to single nested objects — so nested
-                // list output matches top-level and nested-object output.
-                if let Some(child_type) = fd.field_type.inner_type().and_then(FieldType::type_name)
-                {
-                    if let JsonValue::Array(arr) = value {
+            }
+        } else if fd.field_type.is_list() {
+            // #489: a nested LIST-of-object field. The SQL/stored side returns the
+            // raw aggregated sub-blob (snake_case keys, unselected keys included);
+            // project every element at the element type — the same recasing +
+            // selection-set projection applied to single nested objects — so nested
+            // list output matches top-level and nested-object output.
+            if let Some(child_type) = fd.field_type.inner_type().and_then(FieldType::type_name) {
+                if let JsonValue::Array(arr) = value {
+                    return JsonValue::Array(
+                        arr.iter()
+                            .map(|el| project_list_element(el, child_type, nested, schema))
+                            .collect(),
+                    );
+                }
+                // The DB sometimes returns the whole array as a JSON string
+                // (`->>` text extraction). Re-parse and project each element.
+                if let JsonValue::String(s) = value {
+                    if let Ok(JsonValue::Array(arr)) = serde_json::from_str::<JsonValue>(s) {
                         return JsonValue::Array(
                             arr.iter()
-                                .map(|el| {
-                                    project_list_element(el, child_type, nested, schema, depth)
-                                })
+                                .map(|el| project_list_element(el, child_type, nested, schema))
                                 .collect(),
                         );
-                    }
-                    // The DB sometimes returns the whole array as a JSON string
-                    // (`->>` text extraction). Re-parse and project each element.
-                    if let JsonValue::String(s) = value {
-                        if let Ok(JsonValue::Array(arr)) = serde_json::from_str::<JsonValue>(s) {
-                            return JsonValue::Array(
-                                arr.iter()
-                                    .map(|el| {
-                                        project_list_element(el, child_type, nested, schema, depth)
-                                    })
-                                    .collect(),
-                            );
-                        }
                     }
                 }
             }
@@ -852,14 +830,13 @@ fn project_list_element(
     child_type: &str,
     nested: &[FieldSelection],
     schema: &CompiledSchema,
-    depth: usize,
 ) -> JsonValue {
     match element {
-        JsonValue::Object(_) => project_entity_at(element, child_type, nested, schema, depth + 1),
+        JsonValue::Object(_) => project_entity_at(element, child_type, nested, schema),
         // An element itself text-encoded as a JSON object.
         JsonValue::String(s) => match serde_json::from_str::<JsonValue>(s) {
             Ok(parsed @ JsonValue::Object(_)) => {
-                project_entity_at(&parsed, child_type, nested, schema, depth + 1)
+                project_entity_at(&parsed, child_type, nested, schema)
             },
             _ => element.clone(),
         },
@@ -872,8 +849,8 @@ fn project_list_element(
 /// The query path projects top-level fields and nested single objects at the SQL level
 /// (`jsonb_build_object`), but list fields fall back to the raw stored sub-blob
 /// (`snake_case` keys, unselected keys included). This walks the already-projected
-/// `value` guided by the selection set and, for each list-of-object field (up to the
-/// projection depth cap), replaces its elements with the fully projected form via
+/// `value` guided by the selection set and, for each list-of-object field at any depth,
+/// replaces its elements with the fully projected form via
 /// [`project_entity`] at the element type. Non-list fields are left untouched — the SQL
 /// side already projected them; single-object fields are only recursed into to reach
 /// any lists nested inside them.
@@ -887,25 +864,12 @@ pub fn project_nested_lists(
     selections: &[FieldSelection],
     schema: &CompiledSchema,
 ) {
-    project_nested_lists_at(value, type_name, selections, schema, 0);
-}
-
-fn project_nested_lists_at(
-    value: &mut JsonValue,
-    type_name: &str,
-    selections: &[FieldSelection],
-    schema: &CompiledSchema,
-    depth: usize,
-) {
-    if depth >= MAX_ENTITY_PROJECTION_DEPTH {
-        return;
-    }
     match value {
         // A list-returning query: each element is an entity of `type_name` (the list
         // itself is not a nesting level).
         JsonValue::Array(arr) => {
             for el in arr.iter_mut() {
-                project_nested_lists_at(el, type_name, selections, schema, depth);
+                project_nested_lists(el, type_name, selections, schema);
             }
         },
         JsonValue::Object(obj) => {
@@ -939,13 +903,7 @@ fn project_nested_lists_at(
                     // Single object already projected by the SQL side — recurse to reach
                     // any lists nested inside it.
                     if let Some(child) = obj.get_mut(key) {
-                        project_nested_lists_at(
-                            child,
-                            child_type,
-                            &sel.nested_fields,
-                            schema,
-                            depth + 1,
-                        );
+                        project_nested_lists(child, child_type, &sel.nested_fields, schema);
                     }
                 }
             }
@@ -976,25 +934,12 @@ pub fn stamp_nested_typenames(
     selections: &[FieldSelection],
     schema: &CompiledSchema,
 ) {
-    stamp_nested_typenames_at(value, type_name, selections, schema, 0);
-}
-
-fn stamp_nested_typenames_at(
-    value: &mut JsonValue,
-    type_name: &str,
-    selections: &[FieldSelection],
-    schema: &CompiledSchema,
-    depth: usize,
-) {
-    if depth >= MAX_ENTITY_PROJECTION_DEPTH {
-        return;
-    }
     match value {
         // A list-returning query: each element is an entity of `type_name` (the
         // list itself is not a nesting level).
         JsonValue::Array(arr) => {
             for el in arr.iter_mut() {
-                stamp_nested_typenames_at(el, type_name, selections, schema, depth);
+                stamp_nested_typenames(el, type_name, selections, schema);
             }
         },
         JsonValue::Object(obj) => {
@@ -1026,7 +971,7 @@ fn stamp_nested_typenames_at(
                 if let JsonValue::Object(child_obj) = child {
                     reinsert_typename_in_order(child_obj, child_selections, child_type, schema);
                 }
-                stamp_nested_typenames_at(child, child_type, child_selections, schema, depth + 1);
+                stamp_nested_typenames(child, child_type, child_selections, schema);
             }
         },
         _ => {},

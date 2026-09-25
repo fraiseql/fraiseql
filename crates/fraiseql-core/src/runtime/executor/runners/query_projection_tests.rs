@@ -30,7 +30,7 @@ fn field(name: &str, alias: Option<&str>, nested: Vec<FieldSelection>) -> FieldS
 /// Run the selection set through the projection builder + the PostgreSQL
 /// `jsonb_build_object` generator and return the rendered SQL fragment.
 fn projection_sql(selections: &[FieldSelection], schema: &CompiledSchema, root: &str) -> String {
-    let typed = build_typed_projection_fields(selections, schema, root, 0);
+    let typed = build_typed_projection_fields(selections, schema, root);
     PostgresProjectionGenerator::new()
         .generate_typed_projection_sql(&typed)
         .unwrap()
@@ -149,4 +149,22 @@ fn vector_field_types_are_not_absorbed_by_the_wildcard() {
     assert_eq!(field_type_to_where_type(&FT::String), ScalarFieldType::Text);
     assert_eq!(field_type_to_where_type(&FT::Int), ScalarFieldType::Integer);
     assert_eq!(field_type_to_where_type(&FT::Id), ScalarFieldType::Uuid);
+}
+
+/// An enum is composite as far as `FieldType::is_scalar` goes, and it is its stored value:
+/// an enum field reads `data->'kind'`, never a nested object built from no sub-fields.
+#[test]
+fn an_enum_field_projects_its_stored_value() {
+    let mut schema = CompiledSchema::new();
+    schema.types.push(
+        TypeDefinition::new("Zone", "v_zone")
+            .with_field(FieldDefinition::new("id", FieldType::Int))
+            .with_field(FieldDefinition::new("kind", FieldType::Enum("Kind".to_string()))),
+    );
+
+    let sql =
+        projection_sql(&[field("id", None, vec![]), field("kind", None, vec![])], &schema, "Zone");
+
+    assert!(sql.contains("'kind', \"data\"->'kind'"), "{sql}");
+    assert!(!sql.contains("jsonb_build_object()"), "{sql}");
 }

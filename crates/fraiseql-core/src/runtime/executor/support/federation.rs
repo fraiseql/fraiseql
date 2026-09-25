@@ -162,7 +162,7 @@ impl Executor {
         // the caller's role or actor type may not read — and a nested level whose type
         // scopes its rows is refused: the resolver's lookup is built in
         // `fraiseql-federation` and cannot carry a composed level. Before the read.
-        let entity_fields = entities_selection(query, variables)?;
+        let entity_fields = entities_selection(query, variables, self.max_query_depth())?;
         let nested_access =
             self.classify_entities_levels(&representations, &entity_fields, security_context)?;
 
@@ -630,6 +630,7 @@ impl Executor {
 fn entities_selection(
     query: &str,
     variables: Option<&serde_json::Value>,
+    max_depth: u32,
 ) -> Result<Vec<crate::graphql::FieldSelection>> {
     let parsed = crate::graphql::parse_query(query).map_err(|e| FraiseQLError::Validation {
         message: format!("_entities: the selection could not be parsed: {e}"),
@@ -640,6 +641,7 @@ fn entities_selection(
         &parsed.selections,
         &parsed.fragments,
         &vars,
+        max_depth,
     )?;
     Ok(resolved
         .iter()

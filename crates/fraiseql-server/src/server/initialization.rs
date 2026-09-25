@@ -10,15 +10,18 @@ use super::{RateLimiter, Server, ServerError};
 
 /// Merge the effective query depth/complexity limits by the documented
 /// precedence: runtime TOML `[validation]` > compiled schema `[validation]`,
-/// **per field**. Shared by the HTTP stage validator and the executor gate so
-/// the two enforcement points cannot disagree about the effective limits.
+/// **per field** — and, for depth alone, >
+/// [`DEFAULT_MAX_QUERY_DEPTH`](fraiseql_core::schema::DEFAULT_MAX_QUERY_DEPTH), the bound the
+/// executor's own gate applies when neither declares one. Shared by the HTTP stage validator and
+/// the executor gate so the two enforcement points cannot disagree about the effective limits.
 pub(super) fn effective_validation_limits(
     runtime: Option<&fraiseql_core::schema::ValidationConfig>,
     compiled: Option<&fraiseql_core::schema::ValidationConfig>,
 ) -> (Option<u32>, Option<u32>) {
     let depth = runtime
         .and_then(|v| v.max_query_depth)
-        .or_else(|| compiled.and_then(|v| v.max_query_depth));
+        .or_else(|| compiled.and_then(|v| v.max_query_depth))
+        .or(Some(fraiseql_core::schema::DEFAULT_MAX_QUERY_DEPTH));
     let complexity = runtime
         .and_then(|v| v.max_query_complexity)
         .or_else(|| compiled.and_then(|v| v.max_query_complexity));

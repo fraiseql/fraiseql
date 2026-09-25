@@ -91,12 +91,13 @@ impl SelectionAccess {
     }
 }
 
-/// The object type a field holds — its element type for a list.
+/// The object type a field holds — its element type for a list. An enum is not one: it is
+/// a value of its field, with no fields or gates of its own.
 pub(super) fn object_type_of(field_type: &FieldType) -> Option<&str> {
-    if field_type.is_scalar() {
-        return None;
+    match field_type.inner_type().unwrap_or(field_type) {
+        FieldType::Object(name) | FieldType::Interface(name) | FieldType::Union(name) => Some(name),
+        _ => None,
     }
-    field_type.inner_type().unwrap_or(field_type).type_name()
 }
 
 /// Classify one level's selections against `type_name`, then every level beneath it.
@@ -780,19 +781,26 @@ pub(super) fn project_documents(
 // whole object: every field its type declares, each classified, masked and row-gated as
 // the GraphQL selection of the same fields is.
 
-/// How deep a leaf object selection is expanded — the entity projector's own depth. An
-/// object field below it is not selected, so not served.
+/// How deep a leaf object selection is expanded. The expansion follows the schema, not a
+/// selection, so a type that reaches itself would expand forever; an object field below
+/// this depth **refuses** the request. It is not dropped, which would answer a different
+/// question, and never served as stored, which is the leak the expansion exists to close.
 const MAX_LEAF_OBJECT_DEPTH: usize = 4;
 
 /// `query_match` with each leaf selection of an object field expanded to every field its
 /// type declares, recursively. Borrowed unchanged when there is none.
+///
+/// # Errors
+///
+/// `FraiseQLError::Validation` when the whole object nests an object field deeper than
+/// [`MAX_LEAF_OBJECT_DEPTH`].
 pub(super) fn expand_leaf_objects<'a>(
     schema: &CompiledSchema,
     query_match: &'a crate::runtime::QueryMatch,
-) -> std::borrow::Cow<'a, crate::runtime::QueryMatch> {
+) -> Result<std::borrow::Cow<'a, crate::runtime::QueryMatch>> {
     let root_type = &query_match.query_def.return_type;
     let Some(type_def) = schema.find_type(root_type) else {
-        return std::borrow::Cow::Borrowed(query_match);
+        return Ok(std::borrow::Cow::Borrowed(query_match));
     };
     let root_fields =
         query_match.selections.first().map_or(&[][..], |r| r.nested_fields.as_slice());
@@ -805,7 +813,7 @@ pub(super) fn expand_leaf_objects<'a>(
                 .is_some_and(|f| object_type_of(&f.field_type).is_some())
     };
     if !root_fields.iter().any(is_leaf_object) {
-        return std::borrow::Cow::Borrowed(query_match);
+        return Ok(std::borrow::Cow::Borrowed(query_match));
     }
 
     let mut expanded = query_match.clone();
@@ -818,29 +826,43 @@ pub(super) fn expand_leaf_objects<'a>(
                     .find(|f| f.name == sel.name)
                     .and_then(|f| object_type_of(&f.field_type));
                 if let Some(child) = child {
-                    sel.nested_fields = whole_object(schema, child, 1);
+                    sel.nested_fields = whole_object(schema, child, 1)?;
                 }
             }
         }
     }
-    std::borrow::Cow::Owned(expanded)
+    Ok(std::borrow::Cow::Owned(expanded))
 }
 
 /// Every field `type_name` declares, as a selection, object fields expanded in turn.
-fn whole_object(schema: &CompiledSchema, type_name: &str, depth: usize) -> Vec<FieldSelection> {
+fn whole_object(
+    schema: &CompiledSchema,
+    type_name: &str,
+    depth: usize,
+) -> Result<Vec<FieldSelection>> {
     let Some(type_def) = schema.find_type(type_name) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
     type_def
         .fields
         .iter()
-        .filter_map(|field| {
+        .map(|field| {
             let nested_fields = match object_type_of(&field.field_type) {
                 None => Vec::new(),
-                Some(_) if depth >= MAX_LEAF_OBJECT_DEPTH => return None,
-                Some(child) => whole_object(schema, child, depth + 1),
+                Some(child) if depth >= MAX_LEAF_OBJECT_DEPTH => {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "The whole object selected reaches '{type_name}.{}', a '{child}' \
+                             {depth} levels down; a leaf object selection expands at most \
+                             {MAX_LEAF_OBJECT_DEPTH} levels",
+                            field.name
+                        ),
+                        path:    None,
+                    });
+                },
+                Some(child) => whole_object(schema, child, depth + 1)?,
             };
-            Some(FieldSelection {
+            Ok(FieldSelection {
                 name: field.name.to_string(),
                 alias: None,
                 arguments: Vec::new(),

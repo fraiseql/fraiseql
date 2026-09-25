@@ -153,7 +153,11 @@ impl Executor {
         // what keeps this classification cacheable by query string alone.
         if parsed.operation_type == "query" && root_field == "node" {
             let raw = parsed.selections.first().map_or(&[][..], |s| s.nested_fields.as_slice());
-            let resolved = crate::graphql::selection_set::resolve(raw, &parsed.fragments)?;
+            let resolved = crate::graphql::selection_set::resolve(
+                raw,
+                &parsed.fragments,
+                self.max_query_depth(),
+            )?;
 
             // Flatten inline fragments: `node { ... on Booking { id startDate } }`.
             // Only `"...on "` entries carry their selections in `nested_fields`;
@@ -194,6 +198,7 @@ impl Executor {
                         selections:   crate::graphql::selection_set::resolve(
                             &root.nested_fields,
                             &parsed.fragments,
+                            self.max_query_depth(),
                         )?,
                         arguments:    root.arguments.clone(),
                     })

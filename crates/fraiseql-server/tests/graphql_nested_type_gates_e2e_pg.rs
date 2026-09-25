@@ -19,8 +19,8 @@
 //! passed before the fix as well: a view whose join carries the tenant cannot embed another
 //! tenant's order. It implies nothing about an owner policy, which no view can see.
 //!
-//! The depth section asks the same below the projectors' depth cap, over a chain of
-//! `Folder` to-ones; its reproductions are `#[ignore]`d until the fix.
+//! The depth section asks the same at every depth, over a chain of `Folder` to-ones: no
+//! stored document leaves unprojected, however deep the selection that reaches it.
 //!
 //! Self-skips when no `DATABASE_URL` is set.
 //!
@@ -130,9 +130,9 @@ async fn seed(adapter: &PostgresAdapter) {
              t.budget, 'audit', 'internal') FROM \
              {SCHEMA}.tb_team t WHERE t.id = m.fk_team)) AS data FROM {SCHEMA}.tb_member m"
         ),
-        // A chain of to-ones deeper than any projector's depth cap: folder `k`'s parent is
-        // folder `k - 1`, and each document embeds its ancestors seven deep. Folder 2 is
-        // mallory's, so it sits two levels under folder 4 and six under folder 8.
+        // A chain of to-ones as deep as a selection can reach: folder `k`'s parent is
+        // folder `k - 1`, and each document embeds every ancestor. Folder 2 is mallory's,
+        // so it sits six levels under folder 8.
         format!(
             "CREATE TABLE {SCHEMA}.tb_folder (id bigint PRIMARY KEY, fk_parent bigint \
              REFERENCES {SCHEMA}.tb_folder(id), tenant_id text NOT NULL, owner text NOT NULL, \
@@ -140,7 +140,7 @@ async fn seed(adapter: &PostgresAdapter) {
         ),
         format!(
             "INSERT INTO {SCHEMA}.tb_folder SELECT k, NULLIF(k - 1, 0), 'A', CASE k WHEN 2 THEN \
-             'u-mallory' ELSE 'u-alice' END, k, 100 + k FROM generate_series(1, 8) AS k"
+             'u-mallory' ELSE 'u-alice' END, k, 100 + k FROM generate_series(1, 60) AS k"
         ),
         format!(
             "CREATE FUNCTION {SCHEMA}.folder_doc(fid bigint, lvl int) RETURNS jsonb LANGUAGE \
@@ -151,7 +151,7 @@ async fn seed(adapter: &PostgresAdapter) {
              FROM {SCHEMA}.tb_folder f WHERE f.id = fid); END $$"
         ),
         format!(
-            "CREATE VIEW {SCHEMA}.v_folder AS SELECT id, {SCHEMA}.folder_doc(id, 7) AS data FROM \
+            "CREATE VIEW {SCHEMA}.v_folder AS SELECT id, {SCHEMA}.folder_doc(id, 59) AS data FROM \
              {SCHEMA}.tb_folder"
         ),
     ];
@@ -1016,27 +1016,33 @@ async fn a_node_nested_to_one_serves_only_its_selection() {
 }
 
 // ---------------------------------------------------------------------------
-// Deeper than the projectors go
+// At every depth
 // ---------------------------------------------------------------------------
 //
-// Both projectors recurse into a nested object only so deep — the SQL one to
+// Both projectors used to recurse into a nested object only so deep — the SQL one to
 // `MAX_PROJECTION_DEPTH`, the Rust one to `MAX_ENTITY_PROJECTION_DEPTH`, both 4 — and pass
-// what lies below through as it was stored. Every *selected* field is still classified,
-// masked and row-gated at any depth; what passes through was never selected. Folder 8's
-// ancestors are seven deep, and folder 2 is mallory's.
+// what lay below through as it was stored. Every *selected* field was still classified,
+// masked and row-gated at any depth; what passed through was never selected. The
+// invariant now: **no stored document leaves unprojected, at any depth.** The projectors
+// follow the selection, which `max_query_depth` bounds (`DEFAULT_MAX_QUERY_DEPTH` when
+// undeclared); a cap that survives refuses when it is hit.
 
 /// `parent { … }`, `depth` deep, around `leaf`.
 fn ancestors(depth: usize, leaf: &str) -> String {
     format!("{}{leaf}{}", "parent { ".repeat(depth), " }".repeat(depth))
 }
 
-/// Folder 8's ancestor `depth` levels up, out of `folders` as the response lists them.
-fn ancestor_of_8(folders: &Value, depth: usize) -> Value {
-    let eight = folders
+/// Folder `id`'s ancestor `depth` levels up, out of a list of folders.
+fn ancestor_of(folders: &Value, id: i64, depth: usize) -> Value {
+    let folder = folders
         .as_array()
-        .and_then(|all| all.iter().find(|f| f["id"] == 8))
-        .unwrap_or_else(|| panic!("no folder 8: {folders}"));
-    (0..depth).fold(eight.clone(), |level, _| level["parent"].clone())
+        .and_then(|all| all.iter().find(|f| f["id"] == id))
+        .unwrap_or_else(|| panic!("no folder {id}: {folders}"));
+    (0..depth).fold(folder.clone(), |level, _| level["parent"].clone())
+}
+
+fn ancestor_of_8(folders: &Value, depth: usize) -> Value {
+    ancestor_of(folders, 8, depth)
 }
 
 fn keys(object: &Value) -> Vec<&String> {
@@ -1045,6 +1051,23 @@ fn keys(object: &Value) -> Vec<&String> {
         .unwrap_or_else(|| panic!("not an object: {object}"))
         .keys()
         .collect()
+}
+
+/// Ten levels, and the deepest selection every entry can carry: `graphql-parser` refuses
+/// a document nested past 50 brackets, and a node or Relay selection spends a few of them
+/// above `parent`. Depth 50 itself is exercised on the projectors directly, which parse
+/// nothing (`project_entity_projects_an_object_at_every_depth`,
+/// `test_typed_projection_recurses_at_every_depth`).
+const DEPTHS: [usize; 2] = [10, 44];
+
+/// `schema`, declaring a `max_query_depth` the deepest selection fits under.
+fn deep(mut schema: CompiledSchema) -> CompiledSchema {
+    schema.validation_config = Some(fraiseql_core::schema::ValidationConfig {
+        max_query_depth: Some(64),
+        ..Default::default()
+    });
+    schema.build_indexes();
+    schema
 }
 
 /// Control: four levels down, an ancestor carries its selection and nothing else.
@@ -1058,11 +1081,9 @@ async fn control_an_ancestor_four_deep_serves_only_its_selection() {
     assert_eq!(keys(&fourth), ["id"], "{out}");
 }
 
-/// **Reproduction.** Five levels down, an ancestor is its stored document: `margin`
-/// unmasked, `cost_price` unrefused, `audit`, and every ancestor beneath it — mallory's
-/// folder 2 among them.
+/// Five levels down — was the reproduction: the ancestor was its stored document, `margin`
+/// unmasked, `cost_price` unrefused, `audit`, and every ancestor beneath it.
 #[tokio::test]
-#[ignore = "reproduction: below the projectors' depth a nested object is served whole"]
 async fn an_ancestor_five_deep_serves_only_its_selection() {
     let executor = rig_or_skip!("v_user_fk", Policy::None);
     let out = graphql(&executor, &format!("{{ folders {{ id {} }} }}", ancestors(5, "id")))
@@ -1072,9 +1093,8 @@ async fn an_ancestor_five_deep_serves_only_its_selection() {
     assert_eq!(keys(&fifth), ["id"], "{out}");
 }
 
-/// **Reproduction**, through `node(id:)`.
+/// …through `node(id:)` — was the reproduction.
 #[tokio::test]
-#[ignore = "reproduction: below the projectors' depth a nested object is served whole"]
 async fn a_node_ancestor_five_deep_serves_only_its_selection() {
     let executor = rig_or_skip!("v_user_fk", Policy::None);
     let query = node_query("Folder", "8", &format!("id {}", ancestors(5, "id")));
@@ -1083,9 +1103,8 @@ async fn a_node_ancestor_five_deep_serves_only_its_selection() {
     assert_eq!(keys(&fifth), ["id"], "{out}");
 }
 
-/// **Reproduction**, through a Relay connection.
+/// …through a Relay connection — was the reproduction.
 #[tokio::test]
-#[ignore = "reproduction: below the projectors' depth a nested object is served whole"]
 async fn a_relay_ancestor_five_deep_serves_only_its_selection() {
     let executor = relay_rig_or_skip!("v_user_fk", Policy::None);
     let query = format!(
@@ -1096,6 +1115,102 @@ async fn a_relay_ancestor_five_deep_serves_only_its_selection() {
     let nodes = Value::Array(relay_nodes(&out, "foldersPage"));
     let fifth = ancestor_of_8(&nodes, 5);
     assert_eq!(keys(&fifth), ["id"], "{out}");
+}
+
+/// Folder 60's ancestor `depth` levels up, selecting `leaf`, through each GraphQL entry
+/// that projects a stored document: the root, `node(id:)` and a Relay connection.
+async fn every_entry(depth: usize, leaf: &str) -> Option<Vec<(&'static str, Result<Value>)>> {
+    let root = rig_over(deep(schema("v_user_fk")), Policy::None).await?;
+    let url = try_database_url()?;
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("connect"));
+    let relay_schema = deep(relay_schema("v_user_fk"));
+    let config = policy_config(&relay_schema, Policy::None);
+    let relay = Executor::with_config_and_relay(relay_schema, adapter, config);
+
+    let chain = ancestors(depth, leaf);
+    let pick = |folders: &Value| ancestor_of(folders, 60, depth);
+    let mut out = Vec::new();
+    let r = graphql(&root, &format!("{{ folders {{ id {chain} }} }}")).await;
+    out.push(("root", r.map(|v| pick(&v["data"]["folders"]))));
+    let r = graphql(&root, &node_query("Folder", "60", &format!("id {chain}"))).await;
+    out.push((
+        "node",
+        r.map(|v| (0..depth).fold(v["data"]["node"].clone(), |l, _| l["parent"].clone())),
+    ));
+    let r = graphql(
+        &relay,
+        &format!("{{ foldersPage(first: 100) {{ edges {{ node {{ id {chain} }} }} }} }}"),
+    )
+    .await;
+    out.push(("relay", r.map(|v| pick(&Value::Array(relay_nodes(&v, "foldersPage"))))));
+    Some(out)
+}
+
+/// **The invariant, selecting `id`.** Ten and forty-four levels up, through every entry, the
+/// ancestor is `{"id": …}` and nothing stored reaches the response: no `margin`, no
+/// `cost_price`, no `audit`.
+#[tokio::test]
+async fn no_stored_document_leaves_unprojected_at_any_depth() {
+    for depth in DEPTHS {
+        let Some(entries) = every_entry(depth, "id").await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+        for (entry, result) in entries {
+            let ancestor = result.unwrap_or_else(|e| panic!("{entry} at {depth}: {e:?}"));
+            assert_eq!(ancestor, serde_json::json!({"id": 60 - depth}), "{entry} at {depth}");
+        }
+    }
+}
+
+/// **The invariant, Mask.** `margin` selected ten and forty-four levels up is `null`.
+#[tokio::test]
+async fn a_masked_field_is_null_at_any_depth() {
+    for depth in DEPTHS {
+        let Some(entries) = every_entry(depth, "id margin").await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+        for (entry, result) in entries {
+            let ancestor = result.unwrap_or_else(|e| panic!("{entry} at {depth}: {e:?}"));
+            assert_eq!(
+                ancestor,
+                serde_json::json!({"id": 60 - depth, "margin": null}),
+                "{entry} at {depth}"
+            );
+        }
+    }
+}
+
+/// **The invariant, Reject.** `cost_price` selected ten and forty-four levels up refuses.
+#[tokio::test]
+async fn a_rejected_field_refuses_at_any_depth() {
+    for depth in DEPTHS {
+        let Some(entries) = every_entry(depth, "id cost_price").await else {
+            eprintln!("skipping: DATABASE_URL not set");
+            return;
+        };
+        for (entry, result) in entries {
+            assert!(
+                matches!(result, Err(FraiseQLError::Authorization { .. })),
+                "{entry} at {depth}: {result:?}"
+            );
+        }
+    }
+}
+
+/// With no `max_query_depth` declared, the default bounds the selection: nine ancestors
+/// (depth 11, the default) are served, ten are refused by the depth gate.
+#[tokio::test]
+async fn an_undeclared_depth_is_bounded_by_the_default() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let within = format!("{{ folders {{ id {} }} }}", ancestors(9, "id"));
+    let out = graphql(&executor, &within).await.unwrap();
+    assert_eq!(ancestor_of(&out["data"]["folders"], 60, 9), serde_json::json!({"id": 51}));
+
+    let past = format!("{{ folders {{ id {} }} }}", ancestors(10, "id"));
+    let err = graphql(&executor, &past).await.expect_err("depth 12 past the default 11");
+    assert!(err.to_string().contains("(max: 11)"), "{err}");
 }
 
 /// Control: a row-gated level is composed at any depth — six levels up from folder 8 is
@@ -1110,19 +1225,25 @@ async fn control_an_owner_policy_reaches_an_ancestor_six_deep() {
     assert!(ancestor_of_8(&out["data"]["folders"], 6).is_null(), "{out}");
 }
 
-/// Control: a REST leaf `?select=parent` expands `Folder` only to the projector's depth,
-/// and serves nothing stored beneath it — no key `Folder` does not declare.
+/// A REST leaf `?select=parent` expands `Folder` as a whole object, which reaches itself:
+/// past the expansion's depth it **refuses** — it neither serves the stored ancestor nor
+/// silently stops.
 #[tokio::test]
-async fn control_a_rest_leaf_object_stops_at_the_projectors_depth() {
+async fn a_rest_leaf_object_deeper_than_its_expansion_is_refused() {
     let executor = rig_or_skip!("v_user_fk", Policy::None);
     let cleared = SecurityContext {
         roles: vec!["costing".to_string()],
         ..alice()
     };
     let query_match = rest_match(&executor, "folders", &["id", "parent"]);
+    let result = executor.execute_query_direct(&query_match, None, Some(&cleared), None).await;
+    assert!(matches!(result, Err(FraiseQLError::Validation { .. })), "{result:?}");
+
+    // A to-one that does not reach itself expands whole, as before.
+    let query_match = rest_match(&executor, "members", &["id", "team"]);
     let out = executor
         .execute_query_direct(&query_match, None, Some(&cleared), None)
         .await
         .unwrap();
-    assert!(!out.to_string().contains("audit"), "{out}");
+    assert_eq!(out["data"]["members"][0]["team"]["name"], "red", "{out}");
 }

@@ -3609,6 +3609,114 @@ mod projection_tests {
         assert_eq!(via_entity, via_mapper, "the two projectors must agree on one row");
         assert_eq!(via_mapper, json!({ "id": 10, "fkUser": 1 }));
     }
+
+    /// `Folder` whose `parent` is a `Folder`, and `folder_doc(n)` its stored document with
+    /// `n` ancestors, each carrying `margin` and `audit` that no selection of `id` names.
+    fn folders() -> crate::schema::CompiledSchema {
+        serde_json::from_value(json!({
+            "naming_convention": "camelCase",
+            "types": [{
+                "name": "Folder",
+                "sql_source": "v_folder",
+                "fields": [
+                    { "name": "id", "field_type": "Int" },
+                    { "name": "margin", "field_type": "Int" },
+                    { "name": "tags", "field_type": { "List": "String" } },
+                    { "name": "parent", "field_type": { "Object": "Folder" } },
+                    { "name": "children", "field_type": { "List": { "Object": "Folder" } } }
+                ]
+            }]
+        }))
+        .unwrap()
+    }
+
+    fn folder_doc(ancestors: usize) -> serde_json::Value {
+        let mut doc = serde_json::Value::Null;
+        for id in 0..=ancestors {
+            doc =
+                json!({ "id": id, "margin": 7, "audit": "internal", "tags": ["a"], "parent": doc });
+        }
+        doc
+    }
+
+    fn field(name: &str, nested: Vec<FieldSelection>) -> FieldSelection {
+        FieldSelection {
+            name:          name.to_string(),
+            alias:         None,
+            arguments:     vec![],
+            nested_fields: nested,
+            directives:    vec![],
+        }
+    }
+
+    /// `parent { … }`, `depth` deep, around `id`.
+    fn ancestors(depth: usize) -> Vec<FieldSelection> {
+        (0..depth).fold(vec![field("id", vec![])], |inner, _| vec![field("parent", inner)])
+    }
+
+    /// No depth at which the stored object passes through: `id`, ten and fifty ancestors
+    /// up, is `{"id": …}` — where a cap of 4 used to hand back everything stored from the
+    /// fifth.
+    #[test]
+    fn project_entity_projects_an_object_at_every_depth() {
+        for depth in [10, 50] {
+            let projected = crate::runtime::project_entity(
+                &folder_doc(60),
+                "Folder",
+                &ancestors(depth),
+                &folders(),
+            );
+            let deepest = (0..depth).fold(&projected, |level, _| &level["parent"]);
+            assert_eq!(deepest, &json!({ "id": 60 - depth }), "{projected}");
+            let served = projected.to_string();
+            assert!(!served.contains("audit") && !served.contains("margin"), "{projected}");
+        }
+    }
+
+    /// An object field with no sub-selection selects none of its fields: `{}`, never the
+    /// stored object — nor, for a list, one stored element each.
+    #[test]
+    fn project_entity_serves_nothing_of_an_object_with_no_sub_selection() {
+        let mut doc = folder_doc(1);
+        doc["children"] = json!([folder_doc(0)]);
+        let projected = crate::runtime::project_entity(
+            &doc,
+            "Folder",
+            &[
+                field("parent", vec![]),
+                field("children", vec![]),
+                field("tags", vec![]),
+            ],
+            &folders(),
+        );
+        assert_eq!(projected, json!({ "parent": {}, "children": [{}], "tags": ["a"] }));
+    }
+
+    /// A list nested below any depth is projected element by element, and so is a list's
+    /// nested object.
+    #[test]
+    fn project_nested_lists_reaches_a_list_at_every_depth() {
+        let mut doc = folder_doc(8);
+        let mut level = &mut doc;
+        for _ in 0..7 {
+            level = &mut level["parent"];
+        }
+        level["children"] = json!([folder_doc(3)]);
+        let selection = (0..7).fold(
+            vec![field(
+                "children",
+                vec![
+                    field("id", vec![]),
+                    field("parent", vec![field("id", vec![])]),
+                ],
+            )],
+            |inner, _| vec![field("parent", inner)],
+        );
+        let mut value = doc.clone();
+        crate::runtime::project_nested_lists(&mut value, "Folder", &selection, &folders());
+        let children = (0..7).fold(&value, |level, _| &level["parent"])["children"].clone();
+        assert_eq!(children, json!([{ "id": 3, "parent": { "id": 2 } }]), "{value}");
+    }
 }
 
 mod query_tracing_tests {

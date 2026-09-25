@@ -191,8 +191,10 @@ impl Server {
             validator = validator.with_max_depth(depth as usize);
             let source = if runtime_vc.and_then(|v| v.max_query_depth).is_some() {
                 "runtime toml"
-            } else {
+            } else if compiled_vc.and_then(|v| v.max_query_depth).is_some() {
                 "compiled schema"
+            } else {
+                "default"
             };
             info!(max_query_depth = depth, source, "Query depth limit configured");
         }

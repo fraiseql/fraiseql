@@ -62,12 +62,18 @@ impl From<SelectionError> for crate::error::FraiseQLError {
 /// # Errors
 ///
 /// Returns [`SelectionError::Fragment`] if a spread names an undefined fragment,
-/// the document is circular, or nesting exceeds the resolver's depth limit.
+/// the document is circular, or nesting exceeds `max_depth` — the executor's
+/// effective `max_query_depth`, so the resolver never refuses a document the
+/// depth gate admits, and never admits one it would refuse by more than the
+/// level or two it counts from.
 pub fn resolve(
     selections: &[FieldSelection],
     fragments: &[FragmentDefinition],
+    max_depth: u32,
 ) -> Result<Vec<FieldSelection>, SelectionError> {
-    Ok(FragmentResolver::new(fragments).resolve_spreads(selections)?)
+    Ok(FragmentResolver::new(fragments)
+        .with_max_depth(max_depth)
+        .resolve_spreads(selections)?)
 }
 
 /// Evaluate `@skip`/`@include` over an already-expanded selection set.
@@ -101,8 +107,9 @@ pub fn resolve_and_filter(
     selections: &[FieldSelection],
     fragments: &[FragmentDefinition],
     variables: &HashMap<String, JsonValue>,
+    max_depth: u32,
 ) -> Result<Vec<FieldSelection>, SelectionError> {
-    filter(&resolve(selections, fragments)?, variables)
+    filter(&resolve(selections, fragments, max_depth)?, variables)
 }
 
 /// Convert a request's `variables` payload into the map the directive evaluator

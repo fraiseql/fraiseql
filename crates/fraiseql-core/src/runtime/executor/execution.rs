@@ -119,14 +119,12 @@ impl Executor {
     /// threaded through so a variable-valued pagination argument is scored at
     /// its resolved value, not the fail-closed ceiling (#869).
     fn run_gate1(&self, query: &str, variables: Option<&serde_json::Value>) -> Result<()> {
-        if let Some(ref gate) = self.ctx.gate1 {
-            gate.validate_with_variables(query, variables).map_err(|e| {
-                FraiseQLError::Validation {
-                    message: e.to_string(),
-                    path:    Some("query".to_string()),
-                }
-            })?;
-        }
+        self.ctx.gate1.validate_with_variables(query, variables).map_err(|e| {
+            FraiseQLError::Validation {
+                message: e.to_string(),
+                path:    Some("query".to_string()),
+            }
+        })?;
 
         // #379: the compiled [security.cost_budget] per_request_max is enforced
         // here, at the one chokepoint every document-executing transport
@@ -182,9 +180,11 @@ impl Executor {
         let Some(root) = parsed.selections.first() else {
             return built.as_ref().clone();
         };
-        let Ok(selections) =
-            crate::graphql::selection_set::resolve(&root.nested_fields, &parsed.fragments)
-        else {
+        let Ok(selections) = crate::graphql::selection_set::resolve(
+            &root.nested_fields,
+            &parsed.fragments,
+            self.max_query_depth(),
+        ) else {
             return built.as_ref().clone();
         };
         if selections.is_empty() {

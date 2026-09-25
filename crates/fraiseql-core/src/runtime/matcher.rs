@@ -178,7 +178,11 @@ impl QueryMatch {
 /// Matches incoming GraphQL queries against the compiled schema to determine
 /// which pre-compiled SQL template to execute.
 pub struct QueryMatcher {
-    schema: CompiledSchema,
+    schema:    CompiledSchema,
+    /// How deep a selection may nest: the schema's declared `max_query_depth`, else
+    /// [`DEFAULT_MAX_QUERY_DEPTH`](crate::schema::DEFAULT_MAX_QUERY_DEPTH). The executor
+    /// replaces it with its effective one.
+    max_depth: u32,
 }
 
 impl QueryMatcher {
@@ -190,7 +194,19 @@ impl QueryMatcher {
     #[must_use]
     pub fn new(mut schema: CompiledSchema) -> Self {
         schema.build_indexes();
-        Self { schema }
+        let max_depth = schema
+            .validation_config
+            .as_ref()
+            .and_then(|v| v.max_query_depth)
+            .unwrap_or(crate::schema::DEFAULT_MAX_QUERY_DEPTH);
+        Self { schema, max_depth }
+    }
+
+    /// The same matcher, refusing a selection nested deeper than `max_depth`.
+    #[must_use]
+    pub const fn with_max_depth(mut self, max_depth: u32) -> Self {
+        self.max_depth = max_depth;
+        self
     }
 
     /// Match a GraphQL query to a compiled template.
@@ -275,7 +291,8 @@ impl QueryMatcher {
         //    two steps rather than `resolve_and_filter` so the *written* set survives: § 5.3.3
         //    below is anti-monotone under field removal and has to see the document as written,
         //    while § 5.3.1 and everything after it want the filtered set.
-        let written_selections = selection_set::resolve(&parsed.selections, &parsed.fragments)?;
+        let written_selections =
+            selection_set::resolve(&parsed.selections, &parsed.fragments, self.max_depth)?;
         let final_selections = selection_set::filter(&written_selections, &variables_map)?;
 
         // 5. Find matching query definition using root field

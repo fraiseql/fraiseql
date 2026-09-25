@@ -410,3 +410,35 @@ fn test_typed_projection_depth_2_recursion() {
     );
     assert!(sql.contains("'profile'->>'bio'"), "bio must use depth-2 path, got: {sql}");
 }
+
+/// Every depth is projected from its sub-fields: an object ten and fifty levels down is
+/// built as the one at the top is, never read whole as `data->'parent'->…` in their
+/// place — the fallback a cap of 4 used to take, serving every key stored below it.
+#[test]
+fn test_typed_projection_recurses_at_every_depth() {
+    for depth in [10, 50] {
+        let mut field = ProjectionField::composite_with_sub_fields(
+            "parent",
+            vec![ProjectionField::scalar("id")],
+        );
+        for _ in 1..depth {
+            field = ProjectionField::composite_with_sub_fields("parent", vec![field]);
+        }
+        let sql = PostgresProjectionGenerator::new()
+            .generate_typed_projection_sql(&[field])
+            .unwrap();
+        assert_eq!(sql.matches("jsonb_build_object(").count(), depth + 1, "{sql}");
+        let leaf = format!("\"data\"{}->>'id'", "->'parent'".repeat(depth));
+        assert!(sql.contains(&leaf), "{sql}");
+    }
+}
+
+/// An object with no sub-field selected projects nothing of it — not the stored object.
+#[test]
+fn test_typed_projection_of_an_object_with_no_sub_fields_is_empty() {
+    let field = ProjectionField::composite_with_sub_fields("author", vec![]);
+    let sql = PostgresProjectionGenerator::new()
+        .generate_typed_projection_sql(&[field])
+        .unwrap();
+    assert_eq!(sql, "jsonb_build_object('author', jsonb_build_object())");
+}

@@ -1661,6 +1661,34 @@ mod gate1_schema_derived {
         );
     }
 
+    /// The depth an embedder installs is the selection resolver's too: one bound. The
+    /// resolver used to hold every document to a fixed 10 levels whatever the gate said,
+    /// so an installed depth of 30 still refused at 12.
+    #[tokio::test]
+    async fn an_installed_depth_is_the_resolvers_depth_too() {
+        let mut schema = test_schema();
+        schema.validation_config = None;
+        let config = RuntimeConfig {
+            query_validation: Some(crate::security::QueryValidatorConfig {
+                max_depth: 30,
+                ..crate::security::QueryValidatorConfig::permissive()
+            }),
+            ..RuntimeConfig::default()
+        };
+        let executor =
+            Executor::with_config(schema, Arc::new(MockAdapter::new(mock_user_results())), config);
+        let nested = |depth: usize| {
+            format!("{{ users {}{{ f }}{} }}", "{ f ".repeat(depth - 2), " }".repeat(depth - 2))
+        };
+
+        executor
+            .execute(&nested(30), None)
+            .await
+            .unwrap_or_else(|e| panic!("depth 30 is within the installed 30: {e:?}"));
+        let err = executor.execute(&nested(31), None).await.expect_err("past the installed 30");
+        assert!(err.to_string().to_lowercase().contains("deep"), "{err:?}");
+    }
+
     /// A validator the embedder installed programmatically wins over the
     /// compiled schema's declared limits (the hot-reload preservation rule of
     /// `with_compiled_schema`).
@@ -1690,22 +1718,37 @@ mod gate1_schema_derived {
         );
     }
 
-    /// A schema that declares no `[validation]` limits imposes no executor
-    /// gate: paths that were unbounded stay unbounded rather than silently
-    /// acquiring new default limits.
+    /// A schema that declares no `max_query_depth` is bounded by
+    /// [`DEFAULT_MAX_QUERY_DEPTH`](crate::schema::DEFAULT_MAX_QUERY_DEPTH). The
+    /// projectors follow a selection to any depth, so with no bound a client's document
+    /// would nest until the parser or PostgreSQL gave out. An undeclared complexity
+    /// stays unbounded.
     #[tokio::test]
-    async fn undeclared_limits_impose_no_executor_gate() {
+    async fn an_undeclared_depth_is_the_default_and_an_undeclared_complexity_is_unbounded() {
         let mut schema = test_schema();
         schema.validation_config = None;
         let executor = executor_from_schema(schema);
+        let nested = |depth: usize| {
+            // `users`, then `depth - 1` nested fields.
+            format!("{{ users {}{{ f }}{} }}", "{ f ".repeat(depth - 2), " }".repeat(depth - 2))
+        };
+        let default = crate::schema::DEFAULT_MAX_QUERY_DEPTH as usize;
 
-        // Depth 6 — would trip any accidentally-derived default (10 is fine,
-        // but assert well past the strict profile's 5).
-        let query = "{ users { a { b { c { d { e } } } } } }";
         executor
-            .execute(query, None)
+            .execute(&nested(default), None)
             .await
-            .unwrap_or_else(|e| panic!("no declared limits must mean no executor gate: {e:?}"));
+            .unwrap_or_else(|e| panic!("depth {default} is within the default: {e:?}"));
+        let err = executor
+            .execute(&nested(default + 1), None)
+            .await
+            .expect_err("one level past the default must be refused");
+        assert!(err.to_string().to_lowercase().contains("deep"), "{err:?}");
+
+        assert_eq!(
+            executor.ctx.gate1.config().max_complexity,
+            usize::MAX,
+            "no declared complexity must mean none"
+        );
     }
 
     fn strict_base() -> crate::security::QueryValidatorConfig {

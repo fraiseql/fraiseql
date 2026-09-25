@@ -240,13 +240,6 @@ fn validate_field_name(field: &str) -> Result<()> {
 
 use crate::utils::to_snake_case;
 
-/// Maximum nesting depth for recursive JSONB projection.
-///
-/// Prevents pathological schemas from producing unbounded SQL. Fields at depth ≥ this
-/// value fall back to `data->'field'` (full composite blob), matching the pre-recursion
-/// behaviour.
-const MAX_PROJECTION_DEPTH: usize = 4;
-
 /// PostgreSQL SQL projection generator using jsonb_build_object.
 ///
 /// Generates efficient PostgreSQL SQL that projects only requested JSONB fields,
@@ -348,8 +341,13 @@ impl PostgresProjectionGenerator {
     ///
     /// When a composite field carries `sub_fields`, the generator recurses and
     /// emits a nested `jsonb_build_object(...)` that selects only the requested
-    /// sub-fields rather than returning the entire blob.  Recursion is capped at
-    /// `MAX_PROJECTION_DEPTH` levels; deeper fields fall back to `data->'field'`.
+    /// sub-fields rather than returning the entire blob, at every depth. `sub_fields` of
+    /// `Some(vec![])` selects nothing of the object and renders `jsonb_build_object()`.
+    /// There is no depth cap: the fields follow a selection, which the caller bounds
+    /// (`max_query_depth`), and a cap that fell back to `data->'field'` served every
+    /// stored key of the object below it. PostgreSQL 16's parser refuses a nest of 2 044
+    /// `jsonb_build_object` levels (`memory exhausted`), two orders of magnitude above
+    /// any bound a caller sets.
     ///
     /// # Arguments
     ///
@@ -373,7 +371,7 @@ impl PostgresProjectionGenerator {
         let path = format!("\"{}\"", self.jsonb_column);
         let field_pairs = fields
             .iter()
-            .map(|field| Self::render_field(field, &path, 0))
+            .map(|field| Self::render_field(field, &path))
             .collect::<Result<Vec<_>>>()?;
 
         Ok(format!("jsonb_build_object({})", field_pairs.join(",")))
@@ -399,7 +397,7 @@ impl PostgresProjectionGenerator {
         let path = format!("\"{}\"", self.jsonb_column);
         let pairs = computed
             .iter()
-            .map(|field| Self::render_field(field, &path, 0))
+            .map(|field| Self::render_field(field, &path))
             .collect::<Result<Vec<_>>>()?;
         Ok(format!("{path} || jsonb_build_object({})", pairs.join(",")))
     }
@@ -410,8 +408,7 @@ impl PostgresProjectionGenerator {
     /// * `field` — field to render
     /// * `path`  — JSONB path prefix built so far (e.g. `"data"` at depth 0, `"data"->'author'` at
     ///   depth 1)
-    /// * `depth` — current recursion depth (capped at `MAX_PROJECTION_DEPTH`)
-    fn render_field(field: &ProjectionField, path: &str, depth: usize) -> Result<String> {
+    fn render_field(field: &ProjectionField, path: &str) -> Result<String> {
         // Output key is the (possibly aliased) response key; the JSONB column is
         // derived from the *source* field name. For unaliased fields these are
         // the same, but an aliased field (`myName: fullName`) must read
@@ -425,18 +422,14 @@ impl PostgresProjectionGenerator {
         let jsonb_key = to_snake_case(&field.source);
         let safe_jsonb_key = Self::escape_sql_string(&jsonb_key);
 
-        // Recurse into Object sub-fields when available and within depth limit.
-        if depth < MAX_PROJECTION_DEPTH {
-            if let Some(subs) = &field.sub_fields {
-                if !subs.is_empty() {
-                    let nested_path = format!("{}->'{}'", path, safe_jsonb_key);
-                    let inner = subs
-                        .iter()
-                        .map(|sf| Self::render_field(sf, &nested_path, depth + 1))
-                        .collect::<Result<Vec<_>>>()?;
-                    return Ok(format!("'{}', jsonb_build_object({})", resp_key, inner.join(",")));
-                }
-            }
+        // An object's sub-fields, at any depth — never the stored object in their place.
+        if let Some(subs) = &field.sub_fields {
+            let nested_path = format!("{}->'{}'", path, safe_jsonb_key);
+            let inner = subs
+                .iter()
+                .map(|sf| Self::render_field(sf, &nested_path))
+                .collect::<Result<Vec<_>>>()?;
+            return Ok(format!("'{}', jsonb_build_object({})", resp_key, inner.join(",")));
         }
 
         // Text: ->> (text cast, for String/ID).

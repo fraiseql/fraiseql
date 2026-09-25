@@ -114,7 +114,7 @@ impl QueryRunner {
         security_context: Option<&SecurityContext>,
         request_budget: Option<&crate::security::RequestBudget>,
     ) -> Result<serde_json::Value> {
-        let expanded = super::query_nested::expand_leaf_objects(&self.ctx.schema, query_match);
+        let expanded = super::query_nested::expand_leaf_objects(&self.ctx.schema, query_match)?;
         let query_match = &*expanded;
         let plan = self.resolve_composed_read(
             query_match,
@@ -601,7 +601,7 @@ fn level_query_match(
         schema.find_type(&target_query.return_type),
     )?;
     // A leaf object field of the level is the whole object, read as its type.
-    Ok(super::query_nested::expand_leaf_objects(schema, &level).into_owned())
+    Ok(super::query_nested::expand_leaf_objects(schema, &level)?.into_owned())
 }
 
 #[cfg(test)]
