@@ -2344,6 +2344,92 @@ mod migrate_tests {
 
         std::env::set_current_dir(original).unwrap();
     }
+
+    /// The ladder `resolve_database_url` walks: the explicit flag, then `[database].url` in
+    /// `fraiseql.toml`, then the `DATABASE_URL` environment variable. `--help` must state
+    /// this order, so this pin and the help test below name the same one.
+    #[test]
+    fn resolve_database_url_prefers_the_flag_then_fraiseql_toml_then_the_environment() {
+        let _guard = GLOBAL_STATE_LOCK
+            .lock()
+            .expect("GLOBAL_STATE_LOCK poisoned; a previous test panicked mid-migration");
+
+        let tmp = tempfile::tempdir().unwrap();
+        std::fs::write(
+            tmp.path().join("fraiseql.toml"),
+            "[database]\nurl = \"postgres://toml/app\"\n",
+        )
+        .unwrap();
+        let original = std::env::current_dir().unwrap();
+        std::env::set_current_dir(tmp.path()).unwrap();
+
+        temp_env::with_vars([("DATABASE_URL", Some("postgres://env/app"))], || {
+            assert_eq!(
+                resolve_database_url(None).unwrap(),
+                "postgres://toml/app",
+                "fraiseql.toml must beat the DATABASE_URL environment variable"
+            );
+            assert_eq!(
+                resolve_database_url(Some("postgres://flag/app")).unwrap(),
+                "postgres://flag/app",
+                "the --database flag must beat both"
+            );
+        });
+
+        std::env::set_current_dir(original).unwrap();
+    }
+
+    /// The DSN sources as `--help` names them, in the order the resolver walks them.
+    const DATABASE_URL_SOURCES: [&str; 3] = ["--database", "fraiseql.toml", "DATABASE_URL"];
+
+    /// Asserts that `text` names every token in `tokens` and names them in that order.
+    fn assert_names_in_resolver_order(what: &str, text: &str, tokens: &[&str]) {
+        let positions: Vec<usize> = tokens
+            .iter()
+            .map(|token| {
+                text.find(token)
+                    .unwrap_or_else(|| panic!("{what} must name {token:?}; it says: {text}"))
+            })
+            .collect();
+        assert!(
+            positions.windows(2).all(|pair| pair[0] < pair[1]),
+            "{what} must name the DSN sources in the order the resolver walks them, \
+             {tokens:?}; it says: {text}"
+        );
+    }
+
+    /// `fraiseql migrate --help` states the DSN sources as an order, and in the order
+    /// `resolve_database_url` walks them. `fraiseql setup --help` resolves through the same
+    /// function and must agree.
+    #[test]
+    fn help_states_the_database_url_order_the_resolver_implements() {
+        use clap::CommandFactory;
+
+        let cli = crate::cli::Cli::command();
+
+        let migrate = cli.find_subcommand("migrate").expect("`migrate` is a subcommand");
+        let about = migrate.get_long_about().expect("`migrate` has a long about").to_string();
+        assert!(
+            about.contains("in this order"),
+            "migrate --help must state that the DSN sources are a precedence, not \
+             alternatives; it says: {about}"
+        );
+        assert_names_in_resolver_order("migrate --help", &about, &DATABASE_URL_SOURCES);
+
+        let setup = cli.find_subcommand("setup").expect("`setup` is a subcommand");
+        let database = setup
+            .get_arguments()
+            .find(|arg| arg.get_id().as_str() == "database")
+            .expect("`setup` has a --database flag");
+        let flag_help = database.get_help().expect("setup --database has help text").to_string();
+        assert_names_in_resolver_order(
+            "setup --database help",
+            &flag_help,
+            &DATABASE_URL_SOURCES[1..],
+        );
+        let examples = setup.get_after_help().expect("`setup` has EXAMPLES").to_string();
+        assert_names_in_resolver_order("setup EXAMPLES", &examples, &DATABASE_URL_SOURCES[1..]);
+    }
 }
 
 #[cfg(feature = "run-server")]
