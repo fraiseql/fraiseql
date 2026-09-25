@@ -1242,4 +1242,84 @@ mod federation {
         .await;
         assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
     }
+
+    // ---- deeper than the projector goes -------------------------------------
+    //
+    // `project_entity` recurses into a nested object only to `MAX_ENTITY_PROJECTION_DEPTH`;
+    // below it the stored sub-object passes through as it was stored. Every selected field
+    // is still classified at any depth, but what passes through was never selected.
+
+    /// `Folder`, an entity whose `parent` is a `Folder`: a to-one chain of any depth.
+    fn folders() -> CompiledSchema {
+        let mut schema = schema();
+        schema.types.push(TypeDefinition {
+            fields: vec![
+                FieldDefinition::new("id", FieldType::Int),
+                scoped("margin", "read:margin", FieldDenyPolicy::Mask),
+                scoped("cost_price", "read:cost", FieldDenyPolicy::Reject),
+                FieldDefinition::new("parent", FieldType::Object("Folder".to_string())),
+            ],
+            ..TypeDefinition::new("Folder", "v_folder")
+        });
+        schema.queries.push(list_query("folders", "Folder", "v_folder"));
+        schema.federation = Some(FederationConfig {
+            enabled: true,
+            version: Some("v2".to_string()),
+            entities: vec![FederationEntity {
+                name: "Folder".to_string(),
+                key_fields: vec!["id".to_string()],
+                ..Default::default()
+            }],
+            ..Default::default()
+        });
+        schema.build_indexes();
+        schema
+    }
+
+    /// Folder `id` as stored: its ancestors embedded to the root, each carrying what a
+    /// selection of `id` alone must not serve.
+    fn folder_doc(id: i64) -> Value {
+        json!({
+            "id": id, "margin": id, "cost_price": 100 + id, "audit": "internal",
+            "parent": if id > 1 { folder_doc(id - 1) } else { Value::Null },
+        })
+    }
+
+    /// `parent { … }`, `depth` deep, around `leaf`.
+    fn ancestors(depth: usize, leaf: &str) -> String {
+        format!("{}{leaf}{}", "parent { ".repeat(depth), " }".repeat(depth))
+    }
+
+    fn keys_at(entity: &Value, depth: usize) -> Vec<String> {
+        let mut level = entity;
+        for _ in 0..depth {
+            level = &level["parent"];
+        }
+        level
+            .as_object()
+            .unwrap_or_else(|| panic!("no object at {depth}: {entity}"))
+            .keys()
+            .cloned()
+            .collect()
+    }
+
+    /// Control: four levels down, the ancestor carries its selection and nothing else.
+    #[tokio::test]
+    async fn control_an_entitys_ancestor_four_deep_serves_only_its_selection() {
+        let (result, _) =
+            entities(folders(), vec![folder_doc(8)], "Folder", 8, &ancestors(4, "id")).await;
+        let out = result.unwrap();
+        assert_eq!(keys_at(&out["data"]["_entities"][0], 4), ["id"], "{out}");
+    }
+
+    /// **Reproduction.** Five levels down, the ancestor is its stored document: `margin`
+    /// unmasked, `cost_price` unrefused, `audit`, and every ancestor beneath it.
+    #[tokio::test]
+    #[ignore = "reproduction: below the projector's depth a nested object is served whole"]
+    async fn an_entitys_ancestor_five_deep_serves_only_its_selection() {
+        let (result, _) =
+            entities(folders(), vec![folder_doc(8)], "Folder", 8, &ancestors(5, "id")).await;
+        let out = result.unwrap();
+        assert_eq!(keys_at(&out["data"]["_entities"][0], 5), ["id"], "{out}");
+    }
 }

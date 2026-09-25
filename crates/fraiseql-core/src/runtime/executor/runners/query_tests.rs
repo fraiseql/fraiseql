@@ -2917,6 +2917,128 @@ mod row_read {
 
         assert_eq!(config.max_response_bytes, Some(4_096));
     }
+
+    // ---- a nested level named as a column ---------------------------------
+    //
+    // gRPC builds its columns from the type's scalar fields (`column_specs_from_type`
+    // drops every object and list), so the transport never names a nested level. The
+    // engine entry is public, though, and takes whatever columns it is handed: the
+    // selection it classifies is those names, at the root, and nothing beneath them.
+
+    /// `User` with a `Json` scalar and `team`, a nested `Team` whose `budget` masks.
+    fn nested_schema() -> CompiledSchema {
+        let mut schema = test_schema();
+        let mut budget = FieldDefinition::new("budget", FieldType::Int);
+        budget.requires_scope = Some("read:budget".to_string());
+        budget.on_deny = FieldDenyPolicy::Mask;
+        schema.types.push(TypeDefinition {
+            fields: vec![FieldDefinition::new("id", FieldType::Id), budget],
+            ..TypeDefinition::new("Team", "tb_teams")
+        });
+        schema.types.push(TypeDefinition {
+            fields: vec![
+                FieldDefinition::new("id", FieldType::Id),
+                FieldDefinition::new("meta", FieldType::Json),
+                FieldDefinition::new("team", FieldType::Object("Team".to_string())),
+            ],
+            ..TypeDefinition::new("User", "tb_users")
+        });
+        schema.security = Some(crate::schema::SecurityConfig::default());
+        schema.build_indexes();
+        schema
+    }
+
+    /// The match gRPC builds: the column names are the selection.
+    fn column_match(schema: &CompiledSchema, fields: &[&str]) -> crate::runtime::QueryMatch {
+        let query = schema.queries.iter().find(|q| q.name == "users").unwrap().clone();
+        crate::runtime::QueryMatch::from_operation(
+            query,
+            fields.iter().map(ToString::to_string).collect(),
+            HashMap::new(),
+            schema.find_type("User"),
+        )
+        .unwrap()
+    }
+
+    fn json_cols(names: &[&str]) -> Vec<ColumnSpec> {
+        names
+            .iter()
+            .map(|n| ColumnSpec {
+                name:        (*n).to_string(),
+                column_type: if *n == "id" {
+                    RowViewColumnType::Text
+                } else {
+                    RowViewColumnType::Json
+                },
+            })
+            .collect()
+    }
+
+    fn json_rows(value: &str) -> Vec<Vec<ColumnValue>> {
+        vec![vec![
+            ColumnValue::Text("1".into()),
+            ColumnValue::Json(value.into()),
+        ]]
+    }
+
+    /// Control: a `Json` scalar is a column like any other, and is served.
+    #[tokio::test]
+    async fn a_json_scalar_column_is_served_by_the_row_read() {
+        let schema = nested_schema();
+        let qm = column_match(&schema, &["id", "meta"]);
+        let adapter =
+            Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(json_rows(r#"{"k":1}"#)));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let out = executor
+            .execute_row_read(&qm, None, Some(&principal()), &json_cols(&["id", "meta"]))
+            .await
+            .unwrap();
+
+        assert_eq!(out.rows.len(), 1);
+        assert_eq!(out.columns.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(), ["id", "meta"]);
+    }
+
+    /// **Reproduction.** An object field named as a column is read as one: the stored
+    /// `Team`, `budget` and all, reaches the caller with none of `Team`'s gates — a row
+    /// has no key beneath a column to classify, mask or row-gate.
+    #[tokio::test]
+    #[ignore = "reproduction: the row read serves an object field named as a column ungated"]
+    async fn an_object_field_named_as_a_column_is_refused_by_the_row_read() {
+        let schema = nested_schema();
+        let qm = column_match(&schema, &["id", "team"]);
+        let adapter = Arc::new(
+            CapturingMockAdapter::new(vec![])
+                .with_row_results(json_rows(r#"{"id":"7","budget":900}"#)),
+        );
+        let executor = Executor::new(schema, adapter.clone());
+
+        let result = executor
+            .execute_row_read(&qm, None, Some(&principal()), &json_cols(&["id", "team"]))
+            .await;
+
+        assert!(result.is_err(), "Team served as a column: {:?}", result.map(|r| r.rows));
+        assert!(adapter.captured_row_read().is_none(), "nothing is read");
+    }
+
+    /// **Reproduction**, the streaming arm: the same column is streamed.
+    #[tokio::test]
+    #[ignore = "reproduction: the row read serves an object field named as a column ungated"]
+    async fn an_object_field_named_as_a_column_is_refused_by_the_streamed_row_read() {
+        let schema = nested_schema();
+        let qm = column_match(&schema, &["id", "team"]);
+        let adapter = Arc::new(
+            CapturingMockAdapter::new(vec![])
+                .with_row_results(json_rows(r#"{"id":"7","budget":900}"#)),
+        );
+        let executor = Executor::new(schema, adapter);
+
+        let opened = executor
+            .stream_row_read(&qm, None, Some(&principal()), &json_cols(&["id", "team"]))
+            .await;
+
+        assert!(opened.is_err(), "Team streamed as a column");
+    }
 }
 
 // ── mod enum_membership: the read path's call site is load-bearing (#1362) ────

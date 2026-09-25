@@ -19,6 +19,9 @@
 //! passed before the fix as well: a view whose join carries the tenant cannot embed another
 //! tenant's order. It implies nothing about an owner policy, which no view can see.
 //!
+//! The depth section asks the same below the projectors' depth cap, over a chain of
+//! `Folder` to-ones; its reproductions are `#[ignore]`d until the fix.
+//!
 //! Self-skips when no `DATABASE_URL` is set.
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
@@ -127,6 +130,30 @@ async fn seed(adapter: &PostgresAdapter) {
              t.budget, 'audit', 'internal') FROM \
              {SCHEMA}.tb_team t WHERE t.id = m.fk_team)) AS data FROM {SCHEMA}.tb_member m"
         ),
+        // A chain of to-ones deeper than any projector's depth cap: folder `k`'s parent is
+        // folder `k - 1`, and each document embeds its ancestors seven deep. Folder 2 is
+        // mallory's, so it sits two levels under folder 4 and six under folder 8.
+        format!(
+            "CREATE TABLE {SCHEMA}.tb_folder (id bigint PRIMARY KEY, fk_parent bigint \
+             REFERENCES {SCHEMA}.tb_folder(id), tenant_id text NOT NULL, owner text NOT NULL, \
+             margin bigint NOT NULL, cost_price bigint NOT NULL)"
+        ),
+        format!(
+            "INSERT INTO {SCHEMA}.tb_folder SELECT k, NULLIF(k - 1, 0), 'A', CASE k WHEN 2 THEN \
+             'u-mallory' ELSE 'u-alice' END, k, 100 + k FROM generate_series(1, 8) AS k"
+        ),
+        format!(
+            "CREATE FUNCTION {SCHEMA}.folder_doc(fid bigint, lvl int) RETURNS jsonb LANGUAGE \
+             plpgsql STABLE AS $$ BEGIN RETURN (SELECT jsonb_build_object('id', f.id, \
+             'fk_parent', f.fk_parent, 'tenant_id', f.tenant_id, 'owner', f.owner, 'margin', \
+             f.margin, 'cost_price', f.cost_price, 'audit', 'internal', 'parent', CASE WHEN lvl \
+             > 0 AND f.fk_parent IS NOT NULL THEN {SCHEMA}.folder_doc(f.fk_parent, lvl - 1) END) \
+             FROM {SCHEMA}.tb_folder f WHERE f.id = fid); END $$"
+        ),
+        format!(
+            "CREATE VIEW {SCHEMA}.v_folder AS SELECT id, {SCHEMA}.folder_doc(id, 7) AS data FROM \
+             {SCHEMA}.tb_folder"
+        ),
     ];
     for stmt in stmts {
         let _: Vec<HashMap<String, Value>> =
@@ -183,12 +210,23 @@ fn schema(user_view: &str) -> CompiledSchema {
         FieldDefinition::new("team", FieldType::Object("Team".to_string())),
     ];
     schema.types.push(member);
+    let mut folder = TypeDefinition::new("Folder", format!("{SCHEMA}.v_folder"));
+    folder.fields = vec![
+        FieldDefinition::new("id", FieldType::Int),
+        FieldDefinition::new("tenant_id", FieldType::String),
+        FieldDefinition::new("owner", FieldType::String),
+        scoped("margin", "read:margin", FieldDenyPolicy::Mask),
+        scoped("cost_price", "read:cost", FieldDenyPolicy::Reject),
+        FieldDefinition::new("parent", FieldType::Object("Folder".to_string())),
+    ];
+    schema.types.push(folder);
 
     for (name, return_type, view) in [
         ("users", "User", user_view),
         ("orders", "Order", "v_order"),
         ("teams", "Team", "v_team"),
         ("members", "Member", "v_member"),
+        ("folders", "Folder", "v_folder"),
     ] {
         schema.queries.push(
             QueryDefinition::new(name, return_type)
@@ -728,12 +766,14 @@ async fn a_streamed_rest_selection_of_a_gated_nested_object_is_refused() {
 // each `node`, and refuses a nested level whose type scopes its rows: a keyset page
 // cannot carry a composed level yet.
 
-/// `schema`, with a Relay connection over each list: `ordersPage` and `usersPage`.
+/// `schema`, with a Relay connection over each list: `ordersPage`, `usersPage` and
+/// `foldersPage`.
 fn relay_schema(user_view: &str) -> CompiledSchema {
     let mut schema = schema(user_view);
     for (name, return_type, view) in [
         ("ordersPage", "Order", "v_order"),
         ("usersPage", "User", user_view),
+        ("foldersPage", "Folder", "v_folder"),
     ] {
         let mut query = QueryDefinition::new(name, return_type)
             .returning_list()
@@ -973,4 +1013,116 @@ async fn a_node_nested_to_one_serves_only_its_selection() {
         .unwrap_or_else(|| panic!("no team: {out}"));
     let keys: Vec<&String> = team.keys().collect();
     assert_eq!(keys, ["id"], "{out}");
+}
+
+// ---------------------------------------------------------------------------
+// Deeper than the projectors go
+// ---------------------------------------------------------------------------
+//
+// Both projectors recurse into a nested object only so deep — the SQL one to
+// `MAX_PROJECTION_DEPTH`, the Rust one to `MAX_ENTITY_PROJECTION_DEPTH`, both 4 — and pass
+// what lies below through as it was stored. Every *selected* field is still classified,
+// masked and row-gated at any depth; what passes through was never selected. Folder 8's
+// ancestors are seven deep, and folder 2 is mallory's.
+
+/// `parent { … }`, `depth` deep, around `leaf`.
+fn ancestors(depth: usize, leaf: &str) -> String {
+    format!("{}{leaf}{}", "parent { ".repeat(depth), " }".repeat(depth))
+}
+
+/// Folder 8's ancestor `depth` levels up, out of `folders` as the response lists them.
+fn ancestor_of_8(folders: &Value, depth: usize) -> Value {
+    let eight = folders
+        .as_array()
+        .and_then(|all| all.iter().find(|f| f["id"] == 8))
+        .unwrap_or_else(|| panic!("no folder 8: {folders}"));
+    (0..depth).fold(eight.clone(), |level, _| level["parent"].clone())
+}
+
+fn keys(object: &Value) -> Vec<&String> {
+    object
+        .as_object()
+        .unwrap_or_else(|| panic!("not an object: {object}"))
+        .keys()
+        .collect()
+}
+
+/// Control: four levels down, an ancestor carries its selection and nothing else.
+#[tokio::test]
+async fn control_an_ancestor_four_deep_serves_only_its_selection() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let out = graphql(&executor, &format!("{{ folders {{ id {} }} }}", ancestors(4, "id")))
+        .await
+        .unwrap();
+    let fourth = ancestor_of_8(&out["data"]["folders"], 4);
+    assert_eq!(keys(&fourth), ["id"], "{out}");
+}
+
+/// **Reproduction.** Five levels down, an ancestor is its stored document: `margin`
+/// unmasked, `cost_price` unrefused, `audit`, and every ancestor beneath it — mallory's
+/// folder 2 among them.
+#[tokio::test]
+#[ignore = "reproduction: below the projectors' depth a nested object is served whole"]
+async fn an_ancestor_five_deep_serves_only_its_selection() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let out = graphql(&executor, &format!("{{ folders {{ id {} }} }}", ancestors(5, "id")))
+        .await
+        .unwrap();
+    let fifth = ancestor_of_8(&out["data"]["folders"], 5);
+    assert_eq!(keys(&fifth), ["id"], "{out}");
+}
+
+/// **Reproduction**, through `node(id:)`.
+#[tokio::test]
+#[ignore = "reproduction: below the projectors' depth a nested object is served whole"]
+async fn a_node_ancestor_five_deep_serves_only_its_selection() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let query = node_query("Folder", "8", &format!("id {}", ancestors(5, "id")));
+    let out = graphql(&executor, &query).await.unwrap();
+    let fifth = (0..5).fold(out["data"]["node"].clone(), |level, _| level["parent"].clone());
+    assert_eq!(keys(&fifth), ["id"], "{out}");
+}
+
+/// **Reproduction**, through a Relay connection.
+#[tokio::test]
+#[ignore = "reproduction: below the projectors' depth a nested object is served whole"]
+async fn a_relay_ancestor_five_deep_serves_only_its_selection() {
+    let executor = relay_rig_or_skip!("v_user_fk", Policy::None);
+    let query = format!(
+        "{{ foldersPage(first: 10) {{ edges {{ node {{ id {} }} }} }} }}",
+        ancestors(5, "id")
+    );
+    let out = graphql(&executor, &query).await.unwrap();
+    let nodes = Value::Array(relay_nodes(&out, "foldersPage"));
+    let fifth = ancestor_of_8(&nodes, 5);
+    assert_eq!(keys(&fifth), ["id"], "{out}");
+}
+
+/// Control: a row-gated level is composed at any depth — six levels up from folder 8 is
+/// mallory's folder 2, and it is `null`.
+#[tokio::test]
+async fn control_an_owner_policy_reaches_an_ancestor_six_deep() {
+    let executor = rig_or_skip!("v_user_fk", Policy::Owner);
+    let out = graphql(&executor, &format!("{{ folders {{ id {} }} }}", ancestors(6, "id")))
+        .await
+        .unwrap();
+    assert!(ancestor_of_8(&out["data"]["folders"], 5).is_object(), "{out}");
+    assert!(ancestor_of_8(&out["data"]["folders"], 6).is_null(), "{out}");
+}
+
+/// Control: a REST leaf `?select=parent` expands `Folder` only to the projector's depth,
+/// and serves nothing stored beneath it — no key `Folder` does not declare.
+#[tokio::test]
+async fn control_a_rest_leaf_object_stops_at_the_projectors_depth() {
+    let executor = rig_or_skip!("v_user_fk", Policy::None);
+    let cleared = SecurityContext {
+        roles: vec!["costing".to_string()],
+        ..alice()
+    };
+    let query_match = rest_match(&executor, "folders", &["id", "parent"]);
+    let out = executor
+        .execute_query_direct(&query_match, None, Some(&cleared), None)
+        .await
+        .unwrap();
+    assert!(!out.to_string().contains("audit"), "{out}");
 }
