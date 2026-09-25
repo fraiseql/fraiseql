@@ -2452,7 +2452,8 @@ mod migrate_tests {
         std::env::set_current_dir(original).unwrap();
     }
 
-    /// The DSN sources as `--help` names them, in the order the resolver walks them.
+    /// The DSN sources as `--help` names them, in the order `resolve_database_url` walks
+    /// them (the pin above proves that is the code's order).
     const DATABASE_URL_SOURCES: [&str; 3] = ["--database", "fraiseql.toml", "DATABASE_URL"];
 
     /// Asserts that `text` names every token in `tokens` and names them in that order.
@@ -2471,9 +2472,10 @@ mod migrate_tests {
         );
     }
 
-    /// `fraiseql migrate --help` states the DSN sources as an order, and in the order
-    /// `resolve_database_url` walks them. `fraiseql setup --help` resolves through the same
-    /// function and must agree.
+    /// `fraiseql migrate --help` is `MIGRATE_LONG_ABOUT`, which states the DSN sources as an
+    /// order, and in the order `resolve_database_url` walks them (`DATABASE_URL_SOURCES`;
+    /// the pin above proves that is the code's order). `fraiseql setup --help` resolves
+    /// through the same function and must agree.
     #[test]
     fn help_states_the_database_url_order_the_resolver_implements() {
         use clap::CommandFactory;
@@ -2481,7 +2483,16 @@ mod migrate_tests {
         let cli = crate::cli::Cli::command();
 
         let migrate = cli.find_subcommand("migrate").expect("`migrate` is a subcommand");
+        assert_eq!(
+            migrate.get_about().map(ToString::to_string).as_deref(),
+            Some("Run database migrations"),
+            "the one-line about shown in `fraiseql --help` must survive the explicit long_about"
+        );
         let about = migrate.get_long_about().expect("`migrate` has a long about").to_string();
+        assert_eq!(
+            about, MIGRATE_LONG_ABOUT,
+            "migrate --help must be the text kept beside the resolver"
+        );
         assert!(
             about.contains("in this order"),
             "migrate --help must state that the DSN sources are a precedence, not \

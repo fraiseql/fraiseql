@@ -470,11 +470,9 @@ EXAMPLES:
 
     /// Run database migrations
     ///
-    /// Wraps confiture: every verb is one `confiture migrate <verb>` call. The database URL
-    /// is resolved in this order: the --database flag, then [database].url in fraiseql.toml,
-    /// then the DATABASE_URL environment variable. The result reaches confiture as
-    /// CONFITURE_DATABASE_URL with --no-config, so confiture's own config files never
-    /// override it.
+    /// The long help is `commands::migrate::MIGRATE_LONG_ABOUT`: it states the order the
+    /// database URL is resolved in, so it lives beside the resolver.
+    #[command(long_about = crate::commands::migrate::MIGRATE_LONG_ABOUT)]
     #[command(after_help = "\
 EXAMPLES:
     fraiseql migrate up --database postgres://localhost/mydb

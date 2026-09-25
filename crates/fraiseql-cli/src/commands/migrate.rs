@@ -338,44 +338,64 @@ fn ensure_migrations_dir(dir: &str) -> Result<()> {
     std::fs::create_dir_all(dir).context(format!("Failed to create migration directory: {dir}"))
 }
 
-/// Resolve the database URL: use explicit flag, or fall back to fraiseql.toml
+/// The long help of `fraiseql migrate`. It lives beside the resolver whose order it states
+/// and the builder whose handoff it describes, so a change to either is a change here; a
+/// unit test holds the text to the resolver's order.
+pub(crate) const MIGRATE_LONG_ABOUT: &str = "Run database migrations\n\n\
+    Wraps confiture: every verb is one `confiture migrate <verb>` call. The database URL is \
+    resolved in this order: the --database flag, then [database].url in fraiseql.toml, then \
+    the DATABASE_URL environment variable. The result reaches confiture as \
+    CONFITURE_DATABASE_URL with --no-config, so confiture's own config files never override \
+    it.";
+
+/// Resolves the database URL for the commands that connect: the explicit `--database`
+/// flag, else `[database].url` in `fraiseql.toml`, else the `DATABASE_URL` environment
+/// variable.
+///
+/// `fraiseql.toml` is placed above the environment because it is the project's own file,
+/// while `DATABASE_URL` is whatever the shell happens to hold; an explicit flag beats both.
+/// This is fraiseql's ladder, not confiture's. Confiture has one of its own — its
+/// `docs/reference/cli.md`, §"Connection source and precedence" — in which a present config
+/// file beats an ambient `DATABASE_URL` and a mutating verb refuses an ambient variable
+/// outright. The wrapper does not let the two ladders compete: the URL this function
+/// settles on is handed to confiture under `--no-config`, which makes that URL the sole
+/// source (`ConfitureCommand`, below).
 ///
 /// # Errors
 ///
-/// Returns an error if `fraiseql.toml` exists but cannot be read or parsed, or
-/// if no database URL can be found from any source (flag, TOML, or `DATABASE_URL`).
+/// Returns an error if `fraiseql.toml` exists but cannot be read or parsed, or if no
+/// source provides a URL.
 pub fn resolve_database_url(explicit: Option<&str>) -> Result<String> {
     if let Some(url) = explicit {
         return Ok(url.to_string());
     }
-
-    // Try loading from fraiseql.toml
-    let toml_path = Path::new("fraiseql.toml");
-    if toml_path.exists() {
-        let content = std::fs::read_to_string(toml_path).context("Failed to read fraiseql.toml")?;
-        let parsed: toml::Value =
-            toml::from_str(&content).context("Failed to parse fraiseql.toml")?;
-
-        if let Some(url) = parsed
-            .get("database")
-            .and_then(|db| db.get("url"))
-            .and_then(toml::Value::as_str)
-        {
-            info!("Using database URL from fraiseql.toml");
-            return Ok(url.to_string());
-        }
+    if let Some(url) = fraiseql_toml_database_url()? {
+        info!("Using database URL from fraiseql.toml");
+        return Ok(url);
     }
-
-    // Try DATABASE_URL env var
     if let Ok(url) = std::env::var("DATABASE_URL") {
         info!("Using DATABASE_URL environment variable");
         return Ok(url);
     }
-
     anyhow::bail!(
         "No database URL provided. Use --database, set [database].url in fraiseql.toml, \
          or set DATABASE_URL environment variable."
     )
+}
+
+/// `[database].url` from the `fraiseql.toml` in the working directory, if both exist.
+fn fraiseql_toml_database_url() -> Result<Option<String>> {
+    let toml_path = Path::new("fraiseql.toml");
+    if !toml_path.exists() {
+        return Ok(None);
+    }
+    let content = std::fs::read_to_string(toml_path).context("Failed to read fraiseql.toml")?;
+    let parsed: toml::Value = toml::from_str(&content).context("Failed to parse fraiseql.toml")?;
+    Ok(parsed
+        .get("database")
+        .and_then(|db| db.get("url"))
+        .and_then(toml::Value::as_str)
+        .map(str::to_string))
 }
 
 /// Resolve the migration directory: use explicit flag, or auto-discover
