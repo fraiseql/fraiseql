@@ -14,8 +14,8 @@ use std::sync::Arc;
 pub use adapter_types::*;
 use async_trait::async_trait;
 pub use composed_read::{
-    COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedLevel, EmbedShape,
-    EmbedSource, LevelKeys, composed_read_unsupported,
+    COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedKeyset, ComposedLevel,
+    EmbedShape, EmbedSource, LevelKeys, composed_read_unsupported,
 };
 use fraiseql_error::{FraiseQLError, Result};
 pub use mutations::SupportsMutations;

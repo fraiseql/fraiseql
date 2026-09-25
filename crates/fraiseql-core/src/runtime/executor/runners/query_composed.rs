@@ -457,6 +457,7 @@ impl ComposedPlan {
             order_by: self.resolved.order_by.clone(),
             limit: self.resolved.limit,
             offset: self.resolved.offset,
+            keyset: None,
             keys,
             embeds: self
                 .embeds
@@ -491,6 +492,7 @@ impl PlannedEmbed {
                     order_by:     None,
                     limit:        None,
                     offset:       None,
+                    keyset:       None,
                     keys:         LevelKeys::Only {
                         kept:   Vec::new(),
                         masked: Vec::new(),

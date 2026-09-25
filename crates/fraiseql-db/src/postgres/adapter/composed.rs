@@ -46,8 +46,8 @@ use crate::{
     order_by::{Tiebreak, render_order_by_columns},
     path_escape::escape_postgres_jsonb_segment,
     traits::{
-        COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedLevel, EmbedShape,
-        EmbedSource, LevelKeys,
+        COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedKeyset, ComposedLevel,
+        CursorValue, EmbedShape, EmbedSource, LevelKeys,
     },
     types::{DatabaseType, QueryParam},
 };
@@ -124,6 +124,9 @@ impl Renderer {
         level: &ComposedLevel,
         correlation: Option<&Correlation<'_>>,
     ) -> Result<String> {
+        if let Some(keyset) = level.keyset.as_ref() {
+            return self.keyset_page(level, keyset, correlation);
+        }
         let document = level.projection.as_deref().unwrap_or("data");
         let mut sql = String::new();
         let where_sql = self.where_sql(level, correlation)?;
@@ -162,6 +165,89 @@ impl Renderer {
         Ok(sql)
     }
 
+    /// The root's relation paged by keyset, exactly as the relay page reads it
+    /// (`relay::run_relay_page`): past the cursor on the cursor column, ordered by the
+    /// level's ordering then that column (`Tiebreak::None` — nothing may sit between the
+    /// sort key and the column the next page resumes from, #1287), `limit` rows. A backward
+    /// page is read descending and numbered in ascending cursor order, so the statement
+    /// returns it the way the relay page does.
+    fn keyset_page(
+        &mut self,
+        level: &ComposedLevel,
+        keyset: &ComposedKeyset,
+        correlation: Option<&Correlation<'_>>,
+    ) -> Result<String> {
+        if correlation.is_some() || level.offset.is_some() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "only the root of a composed read is paged by keyset, and not with an \
+                     offset ('{}')",
+                    level.view
+                ),
+                path:    None,
+            });
+        }
+        crate::order_by::refuse_relevance_under_cursor_pagination(level.order_by.as_deref())?;
+
+        let document = level.projection.as_deref().unwrap_or("data");
+        let column = quote_postgres_identifier(&keyset.cursor_column);
+        let direction = if keyset.forward { "ASC" } else { "DESC" };
+
+        let mut conditions = Vec::new();
+        let where_sql = self.where_sql(level, None)?;
+        if let Some(predicate) = where_sql.strip_prefix(" WHERE ") {
+            conditions.push(format!("({predicate})"));
+        }
+        let comparison = if keyset.forward { ">" } else { "<" };
+        match &keyset.cursor {
+            None => {},
+            Some(CursorValue::Int64(pk)) => {
+                let p = self.bind(QueryParam::BigInt(*pk));
+                conditions.push(format!("{column} {comparison} {p}"));
+            },
+            Some(CursorValue::Uuid(uuid)) => {
+                let p = self.bind(QueryParam::Text(uuid.clone()));
+                conditions.push(format!("{column} {comparison} {p}::uuid"));
+            },
+        }
+        let where_sql = if conditions.is_empty() {
+            String::new()
+        } else {
+            format!(" WHERE {}", conditions.join(" AND "))
+        };
+
+        let order = match render_order_by_columns(
+            level.order_by.as_deref(),
+            DatabaseType::PostgreSQL,
+            self.params.len() + 1,
+            Tiebreak::None,
+        )? {
+            Some(rendered) => {
+                self.params.extend(rendered.params.into_iter().map(QueryParam::Text));
+                format!("{}, {column} {direction}", rendered.columns)
+            },
+            None => format!("{column} {direction}"),
+        };
+        let limit = match level.limit {
+            Some(limit) => format!(" LIMIT {}", self.bind(QueryParam::BigInt(i64::from(limit)))),
+            None => String::new(),
+        };
+        let view = quote_postgres_identifier(&level.view);
+
+        Ok(if keyset.forward {
+            format!(
+                "SELECT {document} AS data, row_number() OVER (ORDER BY {order}) AS {ORDINAL} \
+                 FROM {view}{where_sql} ORDER BY {ORDINAL}{limit}"
+            )
+        } else {
+            format!(
+                "SELECT _k.data AS data, row_number() OVER (ORDER BY _k._cursor ASC) AS {ORDINAL} \
+                 FROM (SELECT {document} AS data, {column} AS _cursor FROM {view}{where_sql} \
+                 ORDER BY {order}{limit}) AS _k"
+            )
+        })
+    }
+
     /// A materialised level's rows: the parent document's elements under `keys`, as a
     /// relation with the columns a view's page has — `data` and `"_o"`.
     fn materialised_page(
@@ -171,7 +257,7 @@ impl Renderer {
         keys: &[String],
         shape: EmbedShape,
     ) -> Result<String> {
-        if level.order_by.is_some() || level.projection.is_some() {
+        if level.order_by.is_some() || level.projection.is_some() || level.keyset.is_some() {
             return Err(FraiseQLError::Validation {
                 message: format!(
                     "a level read from its parent's document keeps the order it was stored \

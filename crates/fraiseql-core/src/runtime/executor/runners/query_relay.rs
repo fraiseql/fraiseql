@@ -182,14 +182,15 @@ impl QueryRunner {
             super::query_nested::LevelAuthz::from_config(&self.ctx.config, variables),
         )?;
 
-        // A nested level whose type scopes its rows would need the keyset page read as the
-        // root of a composed statement, which it cannot be yet: refused, not served as the
-        // view embedded it.
-        self.refuse_row_gated_levels(
+        // The nested levels whose type scopes its rows (`query_nested`), each read with that
+        // type's predicate as a level of a composed statement whose root is the keyset page
+        // below — the page is cut before any level is joined to it. None: the page is read
+        // by the relay adapter, as it always was.
+        let nested_reads = self.plan_nested_reads(
             &query_def.return_type,
             &node_fields,
             security_context,
-            "a Relay connection",
+            &selection_access,
         )?;
 
         // Extract relay pagination arguments from the matcher's merged argument map
@@ -336,26 +337,74 @@ impl QueryRunner {
 
         // Pin session variables to the page/count queries' connection so
         // RLS-protected relay pagination returns the correct tenant's rows (#329).
-        let result = relay
-            .execute_relay_page_with_session(
-                sql_source,
-                cursor_column,
-                after_pk,
-                before_pk,
-                fetch_limit,
-                forward,
-                combined_where.as_ref(),
-                order_by.as_deref(),
-                include_total_count,
-                session_vars,
-                query_def.read_routing,
-            )
-            .await?;
+        let (page, result_total_count) = if nested_reads.is_empty() {
+            let result = relay
+                .execute_relay_page_with_session(
+                    sql_source,
+                    cursor_column,
+                    after_pk,
+                    before_pk,
+                    fetch_limit,
+                    forward,
+                    combined_where.as_ref(),
+                    order_by.as_deref(),
+                    include_total_count,
+                    session_vars,
+                    query_def.read_routing,
+                )
+                .await?;
+            let total = result.total_count();
+            (result.into_rows(), total)
+        } else {
+            // The same page — cursor, ordering, direction, `fetch_limit` — as the root of a
+            // composed read, so each row-gated level carries its type's predicate. An
+            // adapter that cannot compose refuses (501) rather than serving them ungated.
+            let root = crate::backend::ComposedLevel {
+                view:         sql_source.to_string(),
+                projection:   None,
+                where_clause: combined_where.clone(),
+                order_by:     order_by.clone(),
+                limit:        Some(fetch_limit),
+                offset:       None,
+                keyset:       Some(crate::backend::ComposedKeyset {
+                    cursor_column: cursor_column.to_string(),
+                    cursor: if forward { after_pk } else { before_pk },
+                    forward,
+                }),
+                keys:         super::query_nested::root_keys(&nested_reads),
+                embeds:       nested_reads,
+            };
+            let documents = self
+                .execute_composed_document_read(root, session_vars, query_def.read_routing)
+                .await?;
+            // `totalCount` ignores the cursor (Relay): the relay adapter's own count, asked
+            // for with an empty page, so it is the count the flat path returns.
+            let total = if include_total_count {
+                relay
+                    .execute_relay_page_with_session(
+                        sql_source,
+                        cursor_column,
+                        None,
+                        None,
+                        0,
+                        forward,
+                        combined_where.as_ref(),
+                        order_by.as_deref(),
+                        true,
+                        session_vars,
+                        query_def.read_routing,
+                    )
+                    .await?
+                    .total_count()
+            } else {
+                None
+            };
+            (std::sync::Arc::unwrap_or_clone(documents), total)
+        };
 
         // Detect whether there are more pages.
-        let has_extra = result.rows().len() > page_size as usize;
-        let result_total_count = result.total_count();
-        let rows: Vec<_> = result.into_rows().into_iter().take(page_size as usize).collect();
+        let has_extra = page.len() > page_size as usize;
+        let rows: Vec<_> = page.into_iter().take(page_size as usize).collect();
 
         let (has_next_page, has_previous_page) = if forward {
             (has_extra, had_after)
@@ -735,6 +784,7 @@ impl QueryRunner {
                         order_by:     None,
                         limit:        Some(1),
                         offset:       None,
+                        keyset:       None,
                         keys:         super::query_nested::root_keys(&nested_reads),
                         embeds:       nested_reads,
                     },

@@ -11,7 +11,10 @@ use serde_json::json;
 use super::composed::build_composed_select_sql;
 use crate::{
     WhereOperator,
-    traits::{ComposedEmbed, ComposedLevel, EmbedShape, EmbedSource, LevelKeys},
+    traits::{
+        ComposedEmbed, ComposedKeyset, ComposedLevel, CursorValue, EmbedShape, EmbedSource,
+        LevelKeys,
+    },
     types::{QueryParam, sql_hints::ScalarFieldType},
     where_clause::WhereClause,
 };
@@ -24,6 +27,7 @@ fn level(view: &str) -> ComposedLevel {
         order_by:     None,
         limit:        None,
         offset:       None,
+        keyset:       None,
         keys:         LevelKeys::Whole,
         embeds:       Vec::new(),
     }
@@ -393,4 +397,103 @@ fn a_root_can_return_its_document_less_the_keys_embedded_in_their_place() {
         sql.contains("jsonb_build_object('d', (_l0.data - ARRAY['orders', 'it''s']::text[]), 'e',"),
         "{sql}"
     );
+}
+
+// ── A root paged by keyset (a Relay connection) ──────────────────────────────────────
+
+fn keyset_root(cursor: Option<CursorValue>, forward: bool) -> ComposedLevel {
+    ComposedLevel {
+        where_clause: Some(field_eq("tenant_id", json!("A"))),
+        limit: Some(6),
+        keyset: Some(ComposedKeyset {
+            cursor_column: "pk_user".to_string(),
+            cursor,
+            forward,
+        }),
+        embeds: vec![embed("orders", EmbedShape::Many, level("v_order"))],
+        ..level("v_user")
+    }
+}
+
+/// Forward: past the cursor on its native column, numbered in that column's order, and
+/// cut before anything is joined — the relay page, as a composed root.
+#[test]
+fn a_forward_keyset_root_is_paged_past_its_cursor_before_it_is_joined() {
+    let (sql, params) =
+        build_composed_select_sql(&keyset_root(Some(CursorValue::Int64(41)), true)).unwrap();
+
+    let page_end = sql.find(") AS _l0").unwrap();
+    let page = &sql[..page_end];
+    assert!(page.contains(r#"row_number() OVER (ORDER BY "pk_user" ASC) AS "_o""#), "{sql}");
+    assert!(
+        page.contains(r#"AND "pk_user" > $2"#),
+        "the cursor, AND-ed after the predicate: {sql}"
+    );
+    assert!(page.contains(r#"ORDER BY "_o" LIMIT $3"#), "{sql}");
+    assert!(
+        !sql[page_end..].contains("LIMIT $3"),
+        "the page is cut inside, not after the join"
+    );
+    assert!(bound(&params).starts_with(r#"[Text("A"), BigInt(41), BigInt(6)"#), "{params:?}");
+}
+
+/// Backward: read descending past a `uuid` cursor, and numbered in ascending cursor order —
+/// the relay page's re-sort — so the statement returns the page in the order it does.
+#[test]
+fn a_backward_keyset_root_is_read_descending_and_returned_ascending() {
+    let cursor = CursorValue::Uuid("00000000-0000-0000-0000-000000000007".to_string());
+    let (sql, _) = build_composed_select_sql(&keyset_root(Some(cursor), false)).unwrap();
+
+    assert!(sql.contains(r#""pk_user" < $2::uuid"#), "{sql}");
+    assert!(sql.contains(r#"ORDER BY "pk_user" DESC LIMIT $3"#), "{sql}");
+    assert!(sql.contains(r#"row_number() OVER (ORDER BY _k._cursor ASC) AS "_o""#), "{sql}");
+}
+
+/// No cursor: the first page, ordered and cut the same way.
+#[test]
+fn a_keyset_root_with_no_cursor_is_the_first_page() {
+    let (sql, _) = build_composed_select_sql(&keyset_root(None, true)).unwrap();
+    assert!(!sql.contains(r#""pk_user" >"#), "{sql}");
+    assert!(sql.contains(r#"ORDER BY "pk_user" ASC"#), "{sql}");
+}
+
+/// Keyset paging is the root's alone, and never with an offset.
+#[test]
+fn a_keyset_is_refused_below_the_root_and_beside_an_offset() {
+    let with_offset = ComposedLevel {
+        offset: Some(5),
+        ..keyset_root(None, true)
+    };
+    assert!(build_composed_select_sql(&with_offset).is_err());
+
+    let nested = ComposedLevel {
+        embeds: vec![embed("orders", EmbedShape::Many, keyset_root(None, true))],
+        ..level("v_user")
+    };
+    assert!(build_composed_select_sql(&nested).is_err());
+}
+
+/// With an ordering, the cursor column follows the sort key directly — nothing between
+/// them (`Tiebreak::None`): the next page resumes from exactly that pair (#1287), as the
+/// relay page does.
+#[test]
+fn a_keyset_roots_order_is_its_sort_key_then_the_cursor_column() {
+    let root = ComposedLevel {
+        order_by: Some(vec![crate::OrderByClause::new(
+            "name".to_string(),
+            crate::OrderDirection::Asc,
+        )]),
+        ..keyset_root(None, true)
+    };
+    let (sql, _) = build_composed_select_sql(&root).unwrap();
+    let rendered = crate::order_by::render_order_by_columns(
+        root.order_by.as_deref(),
+        crate::DatabaseType::PostgreSQL,
+        1,
+        crate::order_by::Tiebreak::None,
+    )
+    .unwrap()
+    .unwrap();
+    let window = format!(r#"row_number() OVER (ORDER BY {}, "pk_user" ASC)"#, rendered.columns);
+    assert!(sql.contains(&window), "expected {window} in: {sql}");
 }

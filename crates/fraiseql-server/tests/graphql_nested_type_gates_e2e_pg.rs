@@ -763,18 +763,19 @@ async fn a_streamed_rest_selection_of_a_gated_nested_object_is_refused() {
 // at the root or nested, and `Order`'s policy did not reach the orders a `User` embeds.
 // Each reproduction sits beside a control showing the same runner applies the root's row
 // gate. Now `node(id:)` is read as the GraphQL root is — classified at every level, and
-// composed when a nested level is row-gated — and a connection projects and classifies
-// each `node`, and refuses a nested level whose type scopes its rows: a keyset page
-// cannot carry a composed level yet.
+// composed when a nested level is row-gated — and so is a connection: it projects and
+// classifies each `node`, and a nested level whose type scopes its rows is read as a
+// level of a composed statement whose root is the keyset page itself.
 
-/// `schema`, with a Relay connection over each list: `ordersPage`, `usersPage` and
-/// `foldersPage`.
+/// `schema`, with a Relay connection over each list: `ordersPage`, `usersPage`,
+/// `foldersPage` and `membersPage`.
 fn relay_schema(user_view: &str) -> CompiledSchema {
     let mut schema = schema(user_view);
     for (name, return_type, view) in [
         ("ordersPage", "Order", "v_order"),
         ("usersPage", "User", user_view),
         ("foldersPage", "Folder", "v_folder"),
+        ("membersPage", "Member", "v_member"),
     ] {
         let mut query = QueryDefinition::new(name, return_type)
             .returning_list()
@@ -876,19 +877,99 @@ async fn a_relay_node_serves_only_its_selection() {
     }
 }
 
-/// **Reproduction.** A connection over `User` served the orders `v_user_fk` embeds under
-/// no `Order` policy: mallory's order 11 reached alice. A keyset page cannot yet carry a
-/// composed level, so a connection reaching a row-gated nested level is refused.
+/// A connection's nested orders follow `Order`'s owner policy: alice's orders 10 and 12,
+/// not mallory's 11. `v_user_fk` embeds all three and the view knows nothing of the
+/// principal. Was refused (403) while a keyset page could not carry a composed level.
 #[tokio::test]
-async fn relay_nested_orders_under_an_owner_policy_are_refused() {
+async fn relay_nested_orders_follow_the_owner_policy() {
     let executor = relay_rig_or_skip!("v_user_fk", Policy::Owner);
-    let result =
+    let out =
         graphql(&executor, "{ usersPage(first: 10) { edges { node { id orders { id } } } } }")
-            .await;
-    assert!(
-        matches!(result, Err(FraiseQLError::Authorization { .. })),
-        "Order rows served through a connection under no Order policy: {result:?}"
+            .await
+            .unwrap();
+    let nodes = relay_nodes(&out, "usersPage");
+    let ids: Vec<i64> = nodes[0]["orders"]
+        .as_array()
+        .unwrap_or_else(|| panic!("no orders: {out}"))
+        .iter()
+        .map(|o| o["id"].as_i64().unwrap())
+        .collect();
+    assert_eq!(ids, [10, 12], "{out}");
+}
+
+/// …and so does a to-one: under a tenant policy, the team tenant A's member 2 embeds is
+/// tenant B's, and it is `null`.
+#[tokio::test]
+async fn a_relay_nested_to_one_follows_its_tenant_policy() {
+    let executor = relay_rig_or_skip!("v_user_fk", Policy::Tenant);
+    let out = graphql(
+        &executor,
+        "{ membersPage(first: 10) { edges { node { id team { id name } } } } }",
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        Value::Array(relay_nodes(&out, "membersPage")),
+        serde_json::json!([{"id": 1, "team": {"id": 1, "name": "red"}}, {"id": 2, "team": null}]),
+        "{out}"
     );
+}
+
+/// The page, its cursors, `pageInfo` and `totalCount` are the relay adapter's, whichever
+/// read serves them: selecting a row-gated level (`parent`, under `Folder`'s owner policy)
+/// reads the keyset page as a composed root, selecting `id` alone reads it flat, and the
+/// two agree forward and backward, from the start and past a cursor. Folder 2 is mallory's
+/// and is on neither page; folder 3's parent is, and is `null`.
+#[tokio::test]
+async fn a_composed_relay_page_is_the_page_the_flat_read_returns() {
+    let executor = relay_rig_or_skip!("v_user_fk", Policy::Owner);
+    let page = |args: &str, node: &str| {
+        format!(
+            "{{ foldersPage({args}) {{ totalCount pageInfo {{ hasNextPage hasPreviousPage \
+             startCursor endCursor }} edges {{ cursor node {{ {node} }} }} }} }}"
+        )
+    };
+    let cursors = |out: &Value| -> Vec<String> {
+        out["data"]["foldersPage"]["edges"]
+            .as_array()
+            .unwrap_or_else(|| panic!("no edges: {out}"))
+            .iter()
+            .map(|e| e["cursor"].as_str().unwrap().to_string())
+            .collect()
+    };
+    let first = graphql(&executor, &page("first: 5", "id")).await.unwrap();
+    let third = cursors(&first)[2].clone();
+    let last = graphql(&executor, &page("last: 5", "id")).await.unwrap();
+    let third_last = cursors(&last)[2].clone();
+
+    for args in [
+        "first: 5".to_string(),
+        format!(r#"first: 5, after: "{third}""#),
+        "last: 5".to_string(),
+        format!(r#"last: 5, before: "{third_last}""#),
+    ] {
+        let flat = graphql(&executor, &page(&args, "id")).await.unwrap();
+        let composed = graphql(&executor, &page(&args, "id parent { id }")).await.unwrap();
+        let (f, c) = (&flat["data"]["foldersPage"], &composed["data"]["foldersPage"]);
+        assert_eq!(f["totalCount"], c["totalCount"], "{args}: {composed}");
+        assert_eq!(f["pageInfo"], c["pageInfo"], "{args}: {composed}");
+        assert_eq!(cursors(&flat), cursors(&composed), "{args}: {composed}");
+        let ids = |v: &Value| -> Vec<Value> {
+            v["edges"].as_array().unwrap().iter().map(|e| e["node"]["id"].clone()).collect()
+        };
+        assert_eq!(ids(f), ids(c), "{args}: {composed}");
+        assert!(!ids(c).contains(&serde_json::json!(2)), "mallory's folder: {composed}");
+    }
+
+    let from_start = graphql(&executor, &page("first: 5", "id parent { id }")).await.unwrap();
+    let three = Value::Array(relay_nodes(&from_start, "foldersPage"))
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|n| n["id"] == 3)
+        .cloned()
+        .unwrap_or_else(|| panic!("no folder 3: {from_start}"));
+    assert!(three["parent"].is_null(), "folder 3's parent is mallory's: {from_start}");
 }
 
 /// A connection that stops above the row-gated level is served: the refusal is the

@@ -341,6 +341,7 @@ pub(in super::super) enum NestedRowGate {
 
 impl NestedRowGate {
     /// The type's read whose policy target and `inject_params` apply.
+    #[cfg(feature = "federation")]
     fn query(&self) -> &str {
         match self {
             Self::Project { query, .. } | Self::Join { query, .. } | Self::Refuse { query } => {
@@ -601,6 +602,7 @@ impl QueryRunner {
                     order_by: None,
                     limit: None,
                     offset: None,
+                    keyset: None,
                     keys,
                     embeds: children,
                 },
@@ -610,9 +612,10 @@ impl QueryRunner {
     }
 
     /// Refuse a selection, for a read that cannot carry a composed level, when any nested
-    /// level of it reaches a type whose row predicate applies to this caller: a Relay
-    /// connection's keyset page, and the federation resolver's entity lookup. `surface`
-    /// names the read in the refusal.
+    /// level of it reaches a type whose row predicate applies to this caller: the
+    /// federation resolver's entity lookup, built in `fraiseql-federation`. (A Relay
+    /// connection's keyset page is a composed root now.) `surface` names the read in the
+    /// refusal.
     ///
     /// A level whose type's predicate is empty for this caller is served as embedded,
     /// as [`Self::plan_nested_reads`] would leave it flat.
@@ -621,6 +624,7 @@ impl QueryRunner {
     ///
     /// `FraiseQLError::Authorization` for a nested level whose type's predicate applies;
     /// what [`Self::plan_nested_reads`] returns for a predicate it cannot evaluate.
+    #[cfg(feature = "federation")]
     pub(in super::super) fn refuse_row_gated_levels(
         &self,
         parent_type: &str,

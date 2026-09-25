@@ -33,7 +33,7 @@
 
 use fraiseql_error::FraiseQLError;
 
-use crate::{OrderByClause, ScalarFieldType, WhereClause};
+use crate::{CursorValue, OrderByClause, ScalarFieldType, WhereClause};
 
 /// The refusal a composed read of `view` gets from an adapter that cannot compose.
 ///
@@ -79,10 +79,29 @@ pub struct ComposedLevel {
     pub limit:        Option<u32>,
     /// This level's page offset.
     pub offset:       Option<u32>,
+    /// A keyset page in place of an offset one: how a Relay connection pages. Only the
+    /// root can carry one, and not with an `offset`; the renderer refuses anything else.
+    pub keyset:       Option<ComposedKeyset>,
     /// What this level's document is allowed to carry.
     pub keys:         LevelKeys,
     /// The levels embedded into each row of this one.
     pub embeds:       Vec<ComposedEmbed>,
+}
+
+/// A root level paged by keyset, as a Relay connection pages.
+///
+/// The rows past `cursor` on `cursor_column`, in `order_by` then `cursor_column`, forward
+/// or backward, `limit` of them — `RelayDatabaseAdapter::execute_relay_page`'s page. A
+/// backward page is read descending and returned in ascending `cursor_column` order, as
+/// the relay page is, so a connection answers the same page whichever of the two reads it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComposedKeyset {
+    /// The native column the page is keyed on (`relay_cursor_column`).
+    pub cursor_column: String,
+    /// The cursor the page starts past: `after` when forward, `before` when backward.
+    pub cursor:        Option<CursorValue>,
+    /// `true` for `first`/`after`, `false` for `last`/`before`.
+    pub forward:       bool,
 }
 
 /// Which keys of a stored document a composed level returns.
