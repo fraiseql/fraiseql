@@ -24,7 +24,8 @@
 //!
 //! The mutation section asks it of a mutation's result selection: `touchUser` returns the
 //! same `User` document `users` reads, and `touchOrder` an `Order`. The `#[ignore]`d tests
-//! there are reproductions, each beside a control that passes.
+//! there are reproductions, each beside a control that passes. The cascade section asks it of
+//! a cascade payload's `entity`, and of each entity its `cascade.updated` reports.
 //!
 //! Self-skips when no `DATABASE_URL` is set.
 //!
@@ -73,12 +74,14 @@ const SCHEMA: &str = "p_nested_gates";
 /// Two user views: `v_user_fk` embeds a user's orders by `fk_user` alone; `v_user_tenant`
 /// also requires the order's tenant to be the user's.
 async fn seed(adapter: &PostgresAdapter) {
-    // `fn_touch_<table>(id)`: rewrite the row unchanged, and return it as `view` serves it.
+    // `fn_touch_<table>(id)`: rewrite the row unchanged, log the write in `tb_write`, and
+    // return the row as `view` serves it.
     let touch = |table: &str, entity_type: &str, view: &str| {
         format!(
             "CREATE FUNCTION {SCHEMA}.fn_touch_{table}(p_id bigint) RETURNS app.mutation_response \
              LANGUAGE plpgsql AS $$ DECLARE v app.mutation_response; BEGIN UPDATE \
-             {SCHEMA}.tb_{table} SET id = id WHERE id = p_id; v.succeeded := true; \
+             {SCHEMA}.tb_{table} SET id = id WHERE id = p_id; INSERT INTO {SCHEMA}.tb_write \
+             VALUES ('{table}', p_id); v.succeeded := true; \
              v.state_changed := true; v.message := 'touched'; v.entity_type := '{entity_type}'; \
              v.entity := (SELECT data FROM {SCHEMA}.{view} WHERE id = p_id); RETURN v; END $$"
         )
@@ -184,8 +187,25 @@ async fn seed(adapter: &PostgresAdapter) {
          updated_fields TEXT[], cascade JSONB, error_detail JSONB, metadata JSONB); \
          EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
             .to_string(),
+        format!("CREATE TABLE {SCHEMA}.tb_write (tbl text NOT NULL, id bigint NOT NULL)"),
         touch("user", "User", "v_user_fk"),
         touch("order", "Order", "v_order"),
+        // `touchUserCascade`: the `touchUser` write, whose cascade reports the user and each
+        // of its orders as updated — every entity as its own view serves it.
+        format!(
+            "CREATE FUNCTION {SCHEMA}.fn_cascade_user(p_id bigint) RETURNS app.mutation_response \
+             LANGUAGE plpgsql AS $$ DECLARE v app.mutation_response; BEGIN UPDATE \
+             {SCHEMA}.tb_user SET id = id WHERE id = p_id; INSERT INTO {SCHEMA}.tb_write VALUES \
+             ('user', p_id); v.succeeded := true; v.state_changed := true; v.message := \
+             'touched'; v.entity_type := 'User'; v.entity := (SELECT data FROM \
+             {SCHEMA}.v_user_fk WHERE id = p_id); v.cascade := jsonb_build_object('updated', \
+             (SELECT jsonb_build_object('__typename', 'User', 'id', u.id, 'operation', \
+             'UPDATED', 'entity', u.data) FROM {SCHEMA}.v_user_fk u WHERE u.id = p_id) || \
+             COALESCE((SELECT jsonb_agg(jsonb_build_object('__typename', 'Order', 'id', o.id, \
+             'operation', 'UPDATED', 'entity', o.data) ORDER BY o.id) FROM {SCHEMA}.v_order o \
+             WHERE (o.data->>'fk_user')::bigint = p_id), '[]'::jsonb), 'deleted', \
+             '[]'::jsonb); RETURN v; END $$"
+        ),
     ];
     for stmt in stmts {
         let _: Vec<HashMap<String, Value>> =
@@ -1639,5 +1659,112 @@ async fn a_mutation_nested_level_is_put_to_the_authorizer() {
     assert!(
         matches!(result, Err(FraiseQLError::Authorization { .. })),
         "the authorizer was not asked of touchUser {{ orders }}: {result:?}"
+    );
+}
+
+// ---------------------------------------------------------------------------
+// (c) A cascade mutation's payload
+// ---------------------------------------------------------------------------
+//
+// A `cascade = true` mutation answers `{ entity, cascade { updated { entity } } }`, and each
+// `entity` there goes through the same projector and the same #423 pass as the plain
+// payload above, and nothing else.
+
+/// `mutation_schema` with `touchUserCascade`: the `touchUser` write as a cascade mutation.
+/// Its payload's `entity` is the `User`, and `cascade.updated` reports the user and each of
+/// its orders.
+fn cascade_schema() -> CompiledSchema {
+    let mut schema = mutation_schema();
+    for t in &mut schema.types {
+        if t.name == "User" || t.name == "Order" {
+            t.implements = vec!["CascadeNode".to_string()];
+        }
+    }
+    let mut mutation = MutationDefinition::new("touchUserCascade", "TouchUserCascadePayload");
+    mutation.sql_source = Some(format!("{SCHEMA}.fn_cascade_user"));
+    mutation.operation = MutationOperation::Update {
+        table: "tb_user".to_string(),
+    };
+    mutation.arguments = vec![ArgumentDefinition::new("id", FieldType::Int)];
+    mutation.cascade = true;
+    schema.mutations.push(mutation);
+    schema.build_indexes();
+    schema
+}
+
+/// The orders a cascade payload's `entity` served.
+fn cascade_entity_orders(response: &Value) -> &Vec<Value> {
+    response["data"]["touchUserCascade"]["entity"]["orders"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"))
+}
+
+/// Control: with no gate in play, a cascade serves its entity's orders, all three, and all
+/// four updated entities.
+#[tokio::test]
+async fn control_c_a_cascade_serves_its_entity_and_its_updated_entities() {
+    let executor = rig_or_skip!(over cascade_schema(), Policy::None);
+    let out = graphql(
+        &executor,
+        "mutation { touchUserCascade(id: 1) { entity { id orders { id } } cascade { updated { \
+         id entity { ... on User { id } ... on Order { id } } } } } }",
+    )
+    .await
+    .unwrap();
+    assert_eq!(ids(cascade_entity_orders(&out)), [10, 11, 12], "{out}");
+    let updated = out["data"]["touchUserCascade"]["cascade"]["updated"].as_array().unwrap();
+    let updated_ids: Vec<i64> =
+        updated.iter().map(|u| u["entity"]["id"].as_i64().unwrap()).collect();
+    assert_eq!(updated_ids, [1, 10, 11, 12], "{out}");
+}
+
+/// **Reproduction (c), nested Mask.** Control: `a_nested_margin_is_masked`.
+#[tokio::test]
+#[ignore = "reproduction: a cascade payload's entity is not classified by requires_scope"]
+async fn a_cascade_entity_nested_margin_is_masked() {
+    let executor = rig_or_skip!(over cascade_schema(), Policy::None);
+    let out = graphql(
+        &executor,
+        "mutation { touchUserCascade(id: 1) { entity { id orders { id margin } } } }",
+    )
+    .await
+    .unwrap();
+    assert!(
+        cascade_entity_orders(&out).iter().all(|o| o["margin"].is_null()),
+        "Order.margin served in full through a cascade payload's entity: {out}"
+    );
+}
+
+/// **Reproduction (c), nested Reject.** Control: `a_nested_cost_price_is_refused`.
+#[tokio::test]
+#[ignore = "reproduction: a cascade payload's entity is not classified by requires_scope"]
+async fn a_cascade_entity_nested_cost_price_is_refused() {
+    let executor = rig_or_skip!(over cascade_schema(), Policy::None);
+    let result = graphql(
+        &executor,
+        "mutation { touchUserCascade(id: 1) { entity { id orders { id cost_price } } } }",
+    )
+    .await;
+    assert!(
+        matches!(result, Err(FraiseQLError::Authorization { .. })),
+        "Order.cost_price served through a cascade payload's entity: {result:?}"
+    );
+}
+
+/// **Reproduction (c), owner RLS.** Control: `owner_policy_scopes_nested_orders`.
+#[tokio::test]
+#[ignore = "reproduction: a cascade payload's nested level is not read under its type's RLS"]
+async fn a_cascade_entity_nested_orders_follow_the_owner_policy() {
+    let executor = rig_or_skip!(over cascade_schema(), Policy::Owner);
+    let out = graphql(
+        &executor,
+        "mutation { touchUserCascade(id: 1) { entity { id orders { id } } } }",
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        ids(cascade_entity_orders(&out)),
+        [10, 12],
+        "mallory's order 11 served to alice through a cascade payload's entity: {out}"
     );
 }
