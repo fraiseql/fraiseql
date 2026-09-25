@@ -1,10 +1,12 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-//! Integration tests for `fraiseql migrate`.
+//! Integration tests for `fraiseql migrate` where confiture is absent.
 //!
-//! The `migrate` command wraps the external `confiture` tool.  In CI (where
-//! confiture is not installed) these tests verify the CLI's error path and
-//! the help output.  The `create` sub-command is also tested in isolation
-//! because it only requires file-system access.
+//! The `migrate` command wraps the external `confiture` tool. These tests cover
+//! the help output and the error path when confiture is not on `PATH`, which is
+//! the workspace test leg's state; each confiture-dependent test returns early
+//! when the tool is present. The calls the wrapper makes to a real confiture are
+//! pinned by `migrate_against_confiture.rs` in the `integration (postgres)` leg,
+//! which installs confiture and does not skip.
 //!
 //! **Execution engine:** none (CLI binary only)
 //! **Infrastructure:** none (filesystem only; confiture not required)

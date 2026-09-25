@@ -3151,6 +3151,27 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`fraiseql migrate` calls the confiture verbs and options that exist (#1376).**
+
+  Every verb shelled a shape no confiture release has had: `confiture status|up|down|create
+  … --source DIR` and `confiture migrate validate --source DIR`. Confiture's migration verbs
+  live under `confiture migrate`, the directory option on each is `--migrations-dir`, and
+  the verb that writes a migration file is `migrate generate`; only `generate` and
+  `preflight` were called correctly. Nothing noticed because the wrapper's only tests
+  self-skipped whenever confiture was present.
+
+  Each verb now runs `confiture migrate <verb> --migrations-dir DIR` (`create` →
+  `migrate generate NAME`; `down` keeps `--steps N`), every option checked against
+  `confiture migrate <verb> --help`, and one `ConfitureCommand` builder holds the table.
+  Under the CLI's global `--json`, confiture gets `--format json`, so its report is the one
+  JSON document on stdout. The `integration (postgres)` leg installs a pinned confiture
+  (`tools/confiture-requirements.txt`, 1.19.0) and runs the wrapper against it with no
+  skip; five unit pins keep `--source` and the top-level verbs from coming back.
+
+  **Still open:** the DSN reaches confiture as an ambient `DATABASE_URL` with no
+  `--no-config`, which confiture ignores for `status` and refuses for `up`/`down`
+  (`CONFIG_010`). That fix, and the `migrate --help` precedence text, follow separately.
+
 - **Two schema roundtrip properties no longer generate the duplicate names the load path
   refuses (#1367).**
 

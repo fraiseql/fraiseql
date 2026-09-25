@@ -2223,6 +2223,75 @@ mod migrate_tests {
 
     static GLOBAL_STATE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
+    use crate::output::OutputFormatter;
+
+    const ALL_VERBS: [ConfitureVerb; 6] = [
+        ConfitureVerb::Up,
+        ConfitureVerb::Down,
+        ConfitureVerb::Status,
+        ConfitureVerb::Generate,
+        ConfitureVerb::Validate,
+        ConfitureVerb::Preflight,
+    ];
+
+    fn text() -> OutputFormatter {
+        OutputFormatter::new(false, false)
+    }
+
+    /// Every verb is a `confiture migrate` subcommand carrying `--migrations-dir`, and none
+    /// carries the `--source` option (or the top-level verb) the wrapper shipped with.
+    #[test]
+    fn every_verb_is_a_migrate_subcommand_with_migrations_dir() {
+        for verb in ALL_VERBS {
+            let argv = ConfitureCommand::new(verb, "db/migrations", &text()).argv();
+            assert_eq!(&argv[..2], ["migrate", verb.as_str()], "{verb:?}: {argv:?}");
+            assert!(
+                argv.windows(2).any(|w| w == ["--migrations-dir", "db/migrations"]),
+                "{verb:?} must pass --migrations-dir: {argv:?}"
+            );
+            assert!(!argv.iter().any(|a| a == "--source"), "{verb:?} passes --source: {argv:?}");
+        }
+    }
+
+    #[test]
+    fn generate_takes_the_name_positionally_before_the_options() {
+        let argv = ConfitureCommand::new(ConfitureVerb::Generate, "d", &text())
+            .name("add_posts")
+            .argv();
+        assert_eq!(argv, ["migrate", "generate", "add_posts", "--migrations-dir", "d"]);
+    }
+
+    #[test]
+    fn down_carries_steps() {
+        let argv = ConfitureCommand::new(ConfitureVerb::Down, "d", &text()).steps(3).argv();
+        assert_eq!(argv, ["migrate", "down", "--migrations-dir", "d", "--steps", "3"]);
+    }
+
+    #[test]
+    fn json_mode_adds_format_json_and_text_mode_does_not() {
+        let json = OutputFormatter::new(true, false);
+        for verb in ALL_VERBS {
+            let with = ConfitureCommand::new(verb, "d", &json).argv();
+            assert!(
+                with.ends_with(&["--format".to_string(), "json".to_string()]),
+                "{verb:?}: {with:?}"
+            );
+            let without = ConfitureCommand::new(verb, "d", &text()).argv();
+            assert!(!without.iter().any(|a| a == "--format"), "{verb:?}: {without:?}");
+        }
+    }
+
+    /// The DSN is exported as an environment variable, never placed on argv or in Debug.
+    #[test]
+    fn database_url_is_kept_off_argv_and_out_of_debug() {
+        let command = ConfitureCommand::new(ConfitureVerb::Up, "d", &text())
+            .database_url("postgres://user:secret@db/app");
+        assert!(!command.argv().iter().any(|a| a.contains("secret")), "{:?}", command.argv());
+        let debug = format!("{command:?}");
+        assert!(!debug.contains("secret"), "Debug must redact the DSN: {debug}");
+        assert!(debug.contains("<redacted>"), "Debug must say a DSN is present: {debug}");
+    }
+
     #[test]
     fn test_resolve_migration_dir_explicit() {
         assert_eq!(resolve_migration_dir(Some("custom/dir")), "custom/dir");

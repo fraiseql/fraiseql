@@ -264,6 +264,9 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-cli --features test-postgres --test runtime_smoke -- --test-threads=1
 	@cargo test -p fraiseql-cli --features test-postgres --test perf_against_db -- --test-threads=1
 	@echo ""
+	@echo "### fraiseql migrate against the confiture on PATH (CI pins it: tools/confiture-requirements.txt)"
+	@cargo test -p fraiseql-cli --features test-postgres --test migrate_against_confiture -- --test-threads=1
+	@echo ""
 	@echo "### seed-fixture integrity (runs last: names any clobber a suite above left)"
 	@cargo test -p fraiseql-db --features postgres,wire-backend,test-postgres --test seed_fixture_integrity -- --test-threads=1
 	@echo ""

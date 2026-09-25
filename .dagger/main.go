@@ -1553,6 +1553,20 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-cli --features test-postgres --test validate_sql_sources_gate -- --test-threads=1",
 		"cargo test -p fraiseql-cli --features test-postgres --test runtime_smoke -- --test-threads=1",
 		"cargo test -p fraiseql-cli --features test-postgres --test perf_against_db -- --test-threads=1",
+		// `fraiseql migrate` is a wrapper around confiture, and for two releases every verb it
+		// shelled (`confiture status --source DIR`) was a command and an option no confiture
+		// release has had. Its only tests self-skipped whenever confiture was present, so the
+		// wrapper was tested exactly where the wrapped tool was absent. This leg installs
+		// confiture from an exact pin set (transitive versions included; the file carries the
+		// regeneration command) and runs the wrapper against it. The suite fails, rather
+		// than skips, when DATABASE_URL is bound and confiture is not on PATH.
+		"apt-get install -y --no-install-recommends python3-venv >/dev/null",
+		"python3 -m venv /tmp/confiture",
+		"/tmp/confiture/bin/pip install --quiet -r /src/tools/confiture-requirements.txt",
+		"export PATH=/tmp/confiture/bin:$PATH",
+		"echo \"### confiture: $(confiture --version)\"",
+		"echo '### cargo test -p fraiseql-cli --test migrate_against_confiture (fraiseql migrate → confiture call shape)'",
+		"cargo test -p fraiseql-cli --features test-postgres --test migrate_against_confiture -- --test-threads=1",
 		// #936: the seed-fixture integrity gate runs LAST — any clobber a suite
 		// above introduced fails here, naming the fixture.
 		"echo '### cargo test -p fraiseql-db --test seed_fixture_integrity (#936 gate, runs last)'",
