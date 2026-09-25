@@ -1768,3 +1768,72 @@ async fn a_cascade_entity_nested_orders_follow_the_owner_policy() {
         "mallory's order 11 served to alice through a cascade payload's entity: {out}"
     );
 }
+
+/// The entities a cascade's `updated` served, in the order the write reported them: the
+/// user, then orders 10, 11 and 12.
+fn updated_entities(response: &Value) -> Vec<&Value> {
+    response["data"]["touchUserCascade"]["cascade"]["updated"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"))
+        .iter()
+        .map(|u| &u["entity"])
+        .collect()
+}
+
+/// **Reproduction (c), updated Mask.** Control: `control_a_root_margin_is_masked`.
+#[tokio::test]
+#[ignore = "reproduction: a cascade's updated entity is not classified by requires_scope"]
+async fn an_updated_orders_margin_is_masked() {
+    let executor = rig_or_skip!(over cascade_schema(), Policy::None);
+    let out = graphql(
+        &executor,
+        "mutation { touchUserCascade(id: 1) { cascade { updated { entity { ... on Order { id \
+         margin } } } } } }",
+    )
+    .await
+    .unwrap();
+    let orders = &updated_entities(&out)[1..];
+    assert!(
+        orders.iter().all(|o| o["id"].is_i64() && o["margin"].is_null()),
+        "Order.margin served in full through cascade.updated: {out}"
+    );
+}
+
+/// **Reproduction (c), updated Reject.** Control: `control_a_root_cost_price_is_refused`.
+#[tokio::test]
+#[ignore = "reproduction: a cascade's updated entity is not classified by requires_scope"]
+async fn an_updated_orders_cost_price_is_refused() {
+    let executor = rig_or_skip!(over cascade_schema(), Policy::None);
+    let result = graphql(
+        &executor,
+        "mutation { touchUserCascade(id: 1) { cascade { updated { entity { ... on Order { id \
+         cost_price } } } } } }",
+    )
+    .await;
+    assert!(
+        matches!(result, Err(FraiseQLError::Authorization { .. })),
+        "Order.cost_price served through cascade.updated: {result:?}"
+    );
+}
+
+/// **Reproduction (c), updated nested owner RLS.** Control:
+/// `owner_policy_scopes_nested_orders`.
+#[tokio::test]
+#[ignore = "reproduction: a cascade's updated entity's nested level is not read under its \
+            type's RLS"]
+async fn an_updated_users_orders_follow_the_owner_policy() {
+    let executor = rig_or_skip!(over cascade_schema(), Policy::Owner);
+    let out = graphql(
+        &executor,
+        "mutation { touchUserCascade(id: 1) { cascade { updated { entity { ... on User { id \
+         orders { id } } } } } } }",
+    )
+    .await
+    .unwrap();
+    let user = updated_entities(&out)[0];
+    assert_eq!(
+        ids(user["orders"].as_array().unwrap_or_else(|| panic!("{out}"))),
+        [10, 12],
+        "mallory's order 11 served to alice under cascade.updated's User: {out}"
+    );
+}
