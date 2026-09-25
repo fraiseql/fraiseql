@@ -53,7 +53,11 @@ fn database_url_or_skip(test: &str) -> Option<String> {
 /// recreate the gap that let the wrapper shell non-existent commands for two releases.
 fn confiture_version() -> String {
     match Command::new("confiture").arg("--version").output() {
-        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout).trim().to_string(),
+        Ok(out) if out.status.success() => String::from_utf8_lossy(&out.stdout)
+            .lines()
+            .next()
+            .unwrap_or_default()
+            .to_string(),
         other => panic!(
             "DATABASE_URL is bound, so this leg must also put confiture on PATH \
              (tools/confiture-requirements.txt); `confiture --version` gave {other:?}"
@@ -128,8 +132,9 @@ fn migrate_status_runs_against_the_pinned_confiture() {
     );
 }
 
-/// `fraiseql --json migrate create NAME` exits 0 and a migration named NAME appears in the
-/// directory — confiture's verb for this is `migrate generate`.
+/// `fraiseql --json migrate create NAME` exits 0 and one migration module named NAME appears
+/// in the directory — confiture's verb for this is `migrate generate`. Since 1.19.0 generate
+/// also writes a `NAME.verify.sql` sidecar next to the module; the sidecar is not the module.
 #[test]
 fn migrate_create_writes_a_migration_through_confiture() {
     let Some(url) = database_url_or_skip("migrate_create_writes_a_migration_through_confiture")
@@ -158,12 +163,12 @@ fn migrate_create_writes_a_migration_through_confiture() {
     let created: Vec<String> = fs::read_dir(&migrations)
         .unwrap()
         .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
-        .filter(|name| name.contains("add_probe_column"))
+        .filter(|name| name.contains("add_probe_column") && !name.ends_with(".verify.sql"))
         .collect();
     assert_eq!(
         created.len(),
         1,
-        "exactly one migration named add_probe_column must be created; found {created:?}"
+        "exactly one migration module named add_probe_column must be created; found {created:?}"
     );
 }
 
