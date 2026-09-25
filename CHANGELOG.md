@@ -7793,7 +7793,7 @@ Lockfile and patch-level pin changes only; no source changed. The runtime crates
   `confiture migrate <verb> --help`, and one `ConfitureCommand` builder holds the table.
   Under the CLI's global `--json`, confiture gets `--format json`, so its report is the one
   JSON document on stdout. The `integration (postgres)` leg installs a pinned confiture
-  (`tools/confiture-requirements.txt`, 0.44.0) and runs the wrapper against it with no
+  (`tools/confiture-requirements.txt`, 1.19.0) and runs the wrapper against it with no
   skip; five unit pins keep `--source` and the top-level verbs from coming back.
 
   **Still open:** the DSN reaches confiture as an ambient `DATABASE_URL` with no

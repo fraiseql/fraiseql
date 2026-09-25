@@ -20,20 +20,18 @@
 #
 # Keep the interpreter at 3.11: the Dagger integration base is `rust:1.94.1`, i.e. Debian 12.
 # The CLI reference this pin was checked against is confiture's docs/reference/cli.md at tag
-# v0.44.0 (github.com/fraiseql/confiture); the wrapper's doc comment in
+# v1.19.0 (github.com/fraiseql/confiture); the wrapper's doc comment in
 # crates/fraiseql-cli/src/commands/migrate.rs names the same tag.
 
 annotated-doc==0.0.5
 annotated-types==0.8.0
-cffi==2.1.1
-cryptography==50.0.1
-fraiseql-confiture==0.44.0
+fraiseql-confiture==1.19.0
 markdown-it-py==4.2.0
 mdurl==0.1.2
+pglast==8.4
 psycopg==3.3.6
 psycopg-binary==3.3.6
 psycopg-pool==3.3.3
-pycparser==3.0
 pydantic==2.13.5
 pydantic-core==2.46.5
 pygments==2.21.0
@@ -41,7 +39,6 @@ pyyaml==6.0.3
 rich==15.0.0
 shellingham==1.5.4
 sqlglot==30.19.0
-sqlparse==0.6.0
 typer==0.27.2
 typing-extensions==4.16.0
 typing-inspection==0.4.4
