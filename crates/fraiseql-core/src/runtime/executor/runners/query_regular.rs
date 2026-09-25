@@ -22,7 +22,7 @@ use crate::{
     backend::{WhereClause, projection_generator::PostgresProjectionGenerator},
     error::{FraiseQLError, Result},
     runtime::{JsonbStrategy, ResultProjector},
-    schema::SqlProjectionHint,
+    schema::{FieldType, SqlProjectionHint},
     security::{
         RlsWhereClause, SecurityContext,
         authorizer::{OperationKind, enforce_authz},
@@ -1448,6 +1448,28 @@ impl QueryRunner {
                 }
             })?;
         let view = format!("vr_{}", type_def.sql_source);
+
+        // A column is a leaf. An object or list field named as one would be read as the
+        // value its view stores — a nested level with none of its type's gates, since a
+        // row has no key beneath a column to classify, mask or row-gate. The transport
+        // never names one (`column_specs_from_type` keeps scalars); this entry is public.
+        if let Some(nested) = columns.iter().find(|c| {
+            type_def.find_field(&c.name).is_some_and(|f| {
+                f.field_type.is_list()
+                    || matches!(
+                        f.field_type,
+                        FieldType::Object(_) | FieldType::Interface(_) | FieldType::Union(_)
+                    )
+            })
+        }) {
+            return Err(FraiseQLError::Unsupported {
+                message: format!(
+                    "Field '{}.{}' is a nested level, which the row-shaped read cannot carry; \
+                     it is not available on this transport",
+                    type_def.name, nested.name
+                ),
+            });
+        }
 
         if resolved.projection.is_some() {
             return Err(FraiseQLError::Unsupported {

@@ -3003,7 +3003,6 @@ mod row_read {
     /// `Team`, `budget` and all, reaches the caller with none of `Team`'s gates — a row
     /// has no key beneath a column to classify, mask or row-gate.
     #[tokio::test]
-    #[ignore = "reproduction: the row read serves an object field named as a column ungated"]
     async fn an_object_field_named_as_a_column_is_refused_by_the_row_read() {
         let schema = nested_schema();
         let qm = column_match(&schema, &["id", "team"]);
@@ -3023,7 +3022,6 @@ mod row_read {
 
     /// **Reproduction**, the streaming arm: the same column is streamed.
     #[tokio::test]
-    #[ignore = "reproduction: the row read serves an object field named as a column ungated"]
     async fn an_object_field_named_as_a_column_is_refused_by_the_streamed_row_read() {
         let schema = nested_schema();
         let qm = column_match(&schema, &["id", "team"]);
