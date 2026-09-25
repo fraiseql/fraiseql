@@ -2040,3 +2040,22 @@ async fn a_type_no_payload_position_anticipated_is_classified_when_it_arrives() 
     assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
     assert_eq!(writes().await, [("order".to_string(), 10), ("order".to_string(), 11)]);
 }
+
+/// A refusal that arrives after the write takes the write with it: a schema with a read gate
+/// the payload could meet (`Order.cost_price`'s `requires_scope`) runs every write in a
+/// transaction, so the `Order` no payload position anticipated, refused when it arrives,
+/// leaves no write behind — though no `authorize` field anywhere in the schema asked for one
+/// (rulings W 1).
+#[tokio::test]
+#[ignore = "reproduction: a late refusal on a schema with no authorize field leaves its write"]
+async fn a_late_refusal_takes_the_write_with_it() {
+    let executor = rig_or_skip!(over loose_schema(), Policy::None);
+    let result = graphql(&executor, "mutation { touchOrderLoose(id: 11) { id cost_price } }").await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+    assert_eq!(writes().await, [], "a refused payload's write stood");
+    let out = graphql(&executor, "mutation { touchOrderLoose(id: 10) { id margin } }")
+        .await
+        .unwrap();
+    assert_eq!(out["data"]["touchOrderLoose"]["id"], 10, "{out}");
+    assert_eq!(writes().await, [("order".to_string(), 10)], "an admitted write did not stand");
+}
