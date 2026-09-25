@@ -176,6 +176,22 @@ impl CompiledSchema {
         self.types.iter().any(|t| t.fields.iter().any(|f| f.authorize))
     }
 
+    /// Whether anything in the schema gates the read of an entity: a field's
+    /// `requires_scope`, a type's `requires_role`, or a query's `requires_role` or
+    /// `requires_actor` — which a read of its type meets at a nested level.
+    ///
+    /// Used by the mutation runner, whose payload is served as a read of whatever type the
+    /// database stamps on it, to decide whether serving it could refuse after the write.
+    #[must_use]
+    pub fn has_any_read_gate(&self) -> bool {
+        self.types.iter().any(|t| {
+            t.requires_role.is_some() || t.fields.iter().any(|f| f.requires_scope.is_some())
+        }) || self
+            .queries
+            .iter()
+            .any(|q| q.requires_role.is_some() || !q.requires_actor.is_empty())
+    }
+
     /// Find an enum definition by name.
     #[must_use]
     pub fn find_enum(&self, name: &str) -> Option<&EnumDefinition> {

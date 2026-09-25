@@ -2024,10 +2024,8 @@ fn loose_schema() -> CompiledSchema {
 }
 
 /// An entity stamped with a type the payload did not anticipate is classified when it
-/// arrives: its `Mask` masks and its `Reject` refuses. A refusal there comes after the
-/// function ran, and on a write with no transaction to take it back — no `authorize` field
-/// anywhere in the schema — the write stands: `tb_write` records it. That is the residual
-/// of classifying before the write against the types a payload declares.
+/// arrives: its `Mask` masks and its `Reject` refuses. That refusal comes after the function
+/// ran; `a_late_refusal_takes_the_write_with_it` shows the write does not stand.
 #[tokio::test]
 async fn a_type_no_payload_position_anticipated_is_classified_when_it_arrives() {
     let executor = rig_or_skip!(over loose_schema(), Policy::None);
@@ -2038,7 +2036,6 @@ async fn a_type_no_payload_position_anticipated_is_classified_when_it_arrives() 
     assert!(out["data"]["touchOrderLoose"]["margin"].is_null(), "{out}");
     let result = graphql(&executor, "mutation { touchOrderLoose(id: 11) { id cost_price } }").await;
     assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
-    assert_eq!(writes().await, [("order".to_string(), 10), ("order".to_string(), 11)]);
 }
 
 /// A refusal that arrives after the write takes the write with it: a schema with a read gate
@@ -2047,7 +2044,6 @@ async fn a_type_no_payload_position_anticipated_is_classified_when_it_arrives() 
 /// leaves no write behind — though no `authorize` field anywhere in the schema asked for one
 /// (rulings W 1).
 #[tokio::test]
-#[ignore = "reproduction: a late refusal on a schema with no authorize field leaves its write"]
 async fn a_late_refusal_takes_the_write_with_it() {
     let executor = rig_or_skip!(over loose_schema(), Policy::None);
     let result = graphql(&executor, "mutation { touchOrderLoose(id: 11) { id cost_price } }").await;

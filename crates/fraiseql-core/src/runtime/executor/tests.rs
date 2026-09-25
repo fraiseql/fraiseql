@@ -3293,6 +3293,63 @@ mod operation_authz {
     // route and require a full `FactTableMetadata` fixture to invoke; the GraphQL
     // aggregate path (which routes through the chokepoint) is covered by
     // `aggregate_is_gated` above, and the embedder gate is structurally identical.
+
+    // Every gate a payload could meet only once the row exists makes the write
+    // transactional, so a refusal there takes the write with it (rulings W 1); with none,
+    // the write keeps the ungated fast path.
+    #[test]
+    fn a_write_may_be_refused_by_any_gate_a_late_payload_meets() {
+        use super::super::core::write_may_refuse;
+        use crate::security::{ActorType, DefaultRLSPolicy};
+
+        // `test_schema`'s `users` read, over a `User` type with no gate.
+        let ungated = || {
+            let mut schema = test_schema();
+            let mut user = TypeDefinition::new("User", "v_user");
+            user.fields = vec![
+                FieldDefinition::new("id", FieldType::Int),
+                FieldDefinition::nullable("email", FieldType::String),
+            ];
+            schema.types.push(user);
+            schema
+        };
+        let plain = RuntimeConfig::default;
+        assert!(!write_may_refuse(&ungated(), &plain()), "no gate, no transaction");
+
+        let mut scoped = ungated();
+        scoped.types[0].fields[1] = FieldDefinition::nullable("email", FieldType::String)
+            .with_requires_scope("read:User.email")
+            .with_on_deny(FieldDenyPolicy::Mask);
+        let mut type_role = ungated();
+        type_role.types[0].requires_role = Some("admin".to_string());
+        let mut read_role = ungated();
+        read_role.queries[0].requires_role = Some("admin".to_string());
+        let mut read_actor = ungated();
+        read_actor.queries[0].requires_actor = vec![ActorType::HumanUser];
+        let mut authorize = ungated();
+        authorize.types[0].fields[1] =
+            FieldDefinition::nullable("email", FieldType::String).with_authorize(true);
+        for (why, schema) in [
+            ("requires_scope", scoped),
+            ("a type's requires_role", type_role),
+            ("a read's requires_role", read_role),
+            ("a read's requires_actor", read_actor),
+            ("an authorize field", authorize),
+        ] {
+            assert!(write_may_refuse(&schema, &plain()), "{why}");
+        }
+        assert!(
+            write_may_refuse(&ungated(), &plain().with_authorizer(Arc::new(AllowAll))),
+            "the #422 authorizer"
+        );
+        assert!(
+            write_may_refuse(
+                &ungated(),
+                &plain().with_rls_policy(Arc::new(DefaultRLSPolicy::new()))
+            ),
+            "row security"
+        );
+    }
 }
 
 // ── mod rls_fail_closed: #784 uniform RLS trust boundary ─────────────────

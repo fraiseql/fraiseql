@@ -49,6 +49,27 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
     introspection
 }
 
+/// Whether a write could be refused after its function ran, and so needs the transaction
+/// that lets the refusal take it back.
+///
+/// Two things are decided only once the row exists. The #1353 field authorizer takes the
+/// resolved entity as its `parent`, so an `authorize` field anywhere in the schema can
+/// refuse. And the payload is served as a read of the type the database stamps on it: a
+/// type no payload position anticipated is classified when it arrives
+/// (`PayloadGates::late`), where a read gate — `requires_scope`, `requires_role`,
+/// `requires_actor` — the #422 authorizer, or row security can refuse it.
+///
+/// Asked of the whole schema and configuration, not of one mutation's return type: the
+/// stamped type is not known before the write, and over-approximating is the only safe
+/// direction. Without any of these, a payload cannot be refused and the write keeps the
+/// ungated fast path.
+pub(super) fn write_may_refuse(schema: &CompiledSchema, config: &RuntimeConfig) -> bool {
+    schema.has_any_authorize_field()
+        || schema.has_any_read_gate()
+        || config.authorizer.is_some()
+        || config.rls_policy.is_some()
+}
+
 /// Resolve the GATE-1 validator for an executor (#379).
 ///
 /// The embedder-installed `RuntimeConfig::query_validation` wins (it is the
@@ -413,7 +434,7 @@ impl Executor {
 
         // Likewise once: the mutation runner asks this per write (#1353) and the scan
         // is linear in the whole schema.
-        let schema_has_gated_field = schema.has_any_authorize_field();
+        let write_may_refuse = write_may_refuse(&schema, &config);
 
         let nested_row_gates = super::runners::query_nested::NestedRowGates::build(
             &schema,
@@ -422,7 +443,7 @@ impl Executor {
         let ctx = Arc::new(ExecutorContext {
             schema,
             schema_version,
-            schema_has_gated_field,
+            write_may_refuse,
             nested_row_gates,
             adapter,
             writer,

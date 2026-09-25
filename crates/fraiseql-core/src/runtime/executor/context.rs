@@ -39,17 +39,18 @@ pub(super) struct ExecutorContext {
     /// handle). A per-deployment constant — it changes on any schema change.
     pub(super) schema_version: Arc<str>,
 
-    /// Whether the compiled schema declares **any** policy-gated (`authorize`) field,
-    /// computed **once** here at construction.
+    /// Whether a write could be refused after its function ran (`core::write_may_refuse`):
+    /// an `authorize` field, a read gate, the #422 authorizer or row security anywhere in
+    /// the schema and configuration. Computed **once** here at construction.
     ///
-    /// The mutation runner asks this on every write, to decide whether the field
-    /// authorizer could refuse and therefore whether the write needs the transaction
-    /// that lets a refusal roll it back (#1353). `has_any_authorize_field()` scans every
-    /// type's every field — measured at ~29µs on a 500-type / 30-field schema with none
-    /// gated, which is the worst case because there is nothing to short-circuit on. That
-    /// is a double-digit percentage of a local write's round trip, so it is answered here
-    /// instead, where the schema is already fixed behind the `Arc` and cannot go stale.
-    pub(super) schema_has_gated_field: bool,
+    /// The mutation runner asks this on every write, to decide whether the write needs the
+    /// transaction that lets a refusal roll it back (#1353). The schema scans are linear
+    /// in every type's every field — `has_any_authorize_field()` alone measured at ~29µs on
+    /// a 500-type / 30-field schema with none gated, which is the worst case because there
+    /// is nothing to short-circuit on. That is a double-digit percentage of a local write's
+    /// round trip, so it is answered here instead, where the schema and the configuration
+    /// are already fixed behind the `Arc` and cannot go stale.
+    pub(super) write_may_refuse: bool,
 
     /// How each nested object field's rows are gated by its type's row security —
     /// decided once, here, from the schema and the RLS policy's declared paths.

@@ -1635,17 +1635,19 @@ pub(in super::super) async fn execute_mutation_impl(
         selections,
     )?;
 
-    // Can the field authorizer refuse anything at all on this write? It is consulted
-    // only for a selected field the compiled schema marks `authorize`, so a schema
-    // that declares none cannot produce a refusal — and a write that cannot be refused
-    // does not need the transaction the gated path below takes.
+    // Can anything refuse this write after its function ran? The field authorizer is
+    // consulted only for a selected field the compiled schema marks `authorize`, and a
+    // payload entity of a type `payload_gates` did not anticipate meets its read gates
+    // only when it arrives — so a schema and configuration that declare neither cannot
+    // produce a late refusal, and a write that cannot be refused does not need the
+    // transaction the gated path below takes.
     //
     // Deliberately asked of the whole schema rather than of this mutation's return
     // type: the concrete entity type is stamped by the database on the row the
     // function returns, so it is not known until after the write. Over-approximating
     // here is the only direction that is safe. Answered from the context, which
     // computed it once at construction — the scan is linear in the schema.
-    let may_refuse = ctx.schema_has_gated_field;
+    let may_refuse = ctx.write_may_refuse;
 
     let (envelope, result_json) = {
         // 3b. Resolve session variables once and pass them to the adapter call so
@@ -1815,11 +1817,11 @@ pub(in super::super) async fn execute_mutation_impl(
                 source:  None,
             })?
         } else {
-            // No policy-gated field anywhere in the schema, so the authorizer cannot
-            // be consulted and cannot refuse — see `may_refuse`. Keep the ungated
-            // call, which keeps `execute_function_call_with_session`'s no-session
-            // fast path (no explicit transaction) for the mutations that never needed
-            // one.
+            // No policy-gated field, read gate, authorizer or row security anywhere, so
+            // nothing can refuse the payload once the row exists — see `may_refuse`.
+            // Keep the ungated call, which keeps `execute_function_call_with_session`'s
+            // no-session fast path (no explicit transaction) for the mutations that
+            // never needed one.
             let rows = writer
                 .execute_function_call_with_changelog(
                     sql_source,
