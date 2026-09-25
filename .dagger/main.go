@@ -38,6 +38,14 @@ const (
 	sccacheVersion = "v0.8.2"
 	// rustMsrv mirrors Cargo.toml workspace rust-version and rust-toolchain.toml channel.
 	rustMsrv = "1.94.1"
+	// fmtNightly pins the nightly rustfmt this workspace is formatted with, because
+	// rustfmt's output is not stable across nightlies: a bare `nightly` made the Fmt
+	// gate enforce whatever published that morning, and on 2026-09-25 that reddened
+	// dev — and every open PR — over a macro body no commit had touched. The value
+	// is duplicated nowhere: tools/fmt-toolchain.txt is the source and
+	// tools/check-fmt-toolchain.sh fails if this const drifts from it.
+	// (Same lesson as FUZZ_NIGHTLY in .github/workflows/fuzz.yml.)
+	fmtNightly = "nightly-2026-09-25"
 
 	// SYNC:* feature sets — this file is the single authority since the legacy
 	// ci.yml was retired (#951); the SYNC tags mark every use site in this file.
@@ -259,9 +267,9 @@ func (m *FraiseqlCi) Preflight(
 	return report.String(), nil
 }
 
-// Fmt: `cargo +nightly fmt --all -- --check`. rustfmt's
+// Fmt: `cargo +<fmtNightly> fmt --all -- --check`. rustfmt's
 // advanced options need nightly (rust-toolchain.toml pins stable to the MSRV), so
-// rustBase carries a minimal nightly with only the rustfmt component.
+// rustBase carries that pinned nightly with only the rustfmt component.
 func (m *FraiseqlCi) Fmt(
 	ctx context.Context,
 	// +ignore=["target", "**/target", ".git"]
@@ -270,7 +278,7 @@ func (m *FraiseqlCi) Fmt(
 	return m.rustBase().
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
-		WithExec([]string{"cargo", "+nightly", "fmt", "--all", "--", "--check"}).
+		WithExec([]string{"cargo", "+" + fmtNightly, "fmt", "--all", "--", "--check"}).
 		Stdout(ctx)
 }
 
@@ -464,6 +472,9 @@ func (m *FraiseqlCi) ShellGates(
 		// returns nothing. The gate runs in changelog-check.yml and in
 		// release.yml's validate-release, both with fetch-depth: 0 (#1127).
 		"make test-changelog-gate",
+		// The nightly rustfmt is pinned and pinned once: a bare `nightly` makes the
+		// Fmt gate depend on the day it runs (2026-09-25 red dev this way).
+		"bash tools/check-fmt-toolchain.sh",
 		"bash tools/check-test-imports.sh",
 		"bash tools/check-route-syntax.sh",
 		"bash tools/check-guard-parity.sh",
@@ -786,9 +797,9 @@ func (m *FraiseqlCi) rustBase() *dagger.Container {
 		}).
 		// rustfmt + clippy on the pinned stable, plus rust-analyzer to satisfy
 		// rust-toolchain.toml (avoids a mid-run auto-install); a minimal nightly
-		// carrying only rustfmt for `cargo +nightly fmt`.
+		// carrying only rustfmt, pinned by fmtNightly.
 		WithExec([]string{"rustup", "component", "add", "clippy", "rustfmt", "rust-analyzer"}).
-		WithExec([]string{"rustup", "toolchain", "install", "nightly", "--profile", "minimal", "--component", "rustfmt"}).
+		WithExec([]string{"rustup", "toolchain", "install", fmtNightly, "--profile", "minimal", "--component", "rustfmt"}).
 		WithExec([]string{"bash", "-c", installSccache}).
 		WithEnvVariable("CARGO_TERM_COLOR", "always").
 		WithEnvVariable("RUST_BACKTRACE", "1").

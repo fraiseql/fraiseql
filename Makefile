@@ -1482,13 +1482,17 @@ preflight: fmt-check lint-sdk-dead-surface lint-tests-layout lint-expect lint-as
 	@echo "   cargo check (no clippy lints). Before pushing anything under a"
 	@echo "   #[cfg(feature = ...)], run: make lint-feature-matrix   (#1227)"
 
-# Format code (nightly rustfmt for advanced formatting options)
+# Format code (nightly rustfmt for advanced formatting options).
+# The nightly is PINNED in tools/fmt-toolchain.txt — rustfmt's output is not
+# stable across nightlies, and the Dagger Fmt gate reads the same file, so a
+# bare `+nightly` here would format differently than CI checks.
+FMT_TOOLCHAIN := $(shell tail -1 tools/fmt-toolchain.txt)
 fmt:
-	cargo +nightly fmt --all
+	cargo +$(FMT_TOOLCHAIN) fmt --all
 
 # Check formatting
 fmt-check:
-	cargo +nightly fmt --all -- --check
+	cargo +$(FMT_TOOLCHAIN) fmt --all -- --check
 
 # Run all checks
 check: fmt-check clippy test
