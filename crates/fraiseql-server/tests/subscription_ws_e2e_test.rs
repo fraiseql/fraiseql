@@ -20,7 +20,10 @@ use std::sync::Arc;
 
 use fraiseql_core::{
     runtime::subscription::{SubscriptionEvent, SubscriptionManager, SubscriptionOperation},
-    schema::{CompiledSchema, SubscriptionDefinition},
+    schema::{
+        CompiledSchema, FieldDefinition, FieldType, SecurityConfig, SubscriptionDefinition,
+        TypeDefinition,
+    },
 };
 use fraiseql_server::routes::subscriptions::{SubscriptionState, subscription_handler};
 use futures::{SinkExt, StreamExt};
@@ -646,4 +649,56 @@ async fn malformed_subscribe_closes_4400() {
     send_json(&mut sink, json!({"type": "subscribe", "id": "1"})).await;
 
     assert_eq!(recv_close_code(&mut stream).await, 4400, "malformed subscribe payload");
+}
+
+/// A subscription is a read of its type, delivered by push: the read gates a query of the
+/// same type meets apply to it. Here an anonymous subscriber selects `{ id }` of an `Order`
+/// whose `secret` requires a scope (with a `security` section, so the query path enforces
+/// it). A query would neither select nor serve `secret`; the `next` frame must not carry it.
+#[ignore = "reproduction: a subscription delivers the whole after-image, read gates unapplied"]
+#[tokio::test]
+async fn ws_e2e_a_subscription_does_not_deliver_a_scoped_field_to_an_anonymous_subscriber() {
+    let mut schema = schema_with_subscription("orderCreated", "Order");
+    let mut order = TypeDefinition::new("Order", "v_order");
+    order.fields = vec![
+        FieldDefinition::new("id", FieldType::Id),
+        FieldDefinition::nullable("secret", FieldType::String).with_requires_scope("read:secret"),
+    ];
+    schema.types.push(order);
+    schema.security = Some(SecurityConfig::default());
+    schema.build_indexes();
+    let manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
+    let url = spawn_ws_server(SubscriptionState::new(manager.clone())).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    assert_eq!(recv_json(&mut stream).await["type"], "connection_ack");
+    send_json(
+        &mut sink,
+        json!({
+            "type": "subscribe",
+            "id": "op_1",
+            "payload": { "query": "subscription { orderCreated { id } }" }
+        }),
+    )
+    .await;
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+    while manager.subscription_count() != 1 {
+        assert!(tokio::time::Instant::now() < deadline, "subscription should be registered");
+        tokio::task::yield_now().await;
+    }
+
+    let event = SubscriptionEvent::new(
+        "Order",
+        "order_42",
+        SubscriptionOperation::Create,
+        json!({"id": "order_42", "secret": "s3cr3t"}),
+    );
+    assert_eq!(manager.publish_event(event), 1, "event should match exactly one subscription");
+
+    let next_frame = recv_json(&mut stream).await;
+    assert!(
+        !next_frame.to_string().contains("s3cr3t"),
+        "a field the subscriber neither selected nor may read was delivered: {next_frame}"
+    );
 }
