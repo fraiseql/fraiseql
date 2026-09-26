@@ -471,6 +471,47 @@ fn a_query_and_its_type_disagreeing_on_an_inject_column_is_refused_at_load() {
     assert!(msg.contains("users"), "the message must name the query, got: {msg}");
 }
 
+/// Ruling Y 7: a scope is granted only by a role definition, and those live in the
+/// `security` section. A schema that declares `requires_scope` without one declares a gate
+/// no principal can pass and, until now, one the runtime silently switched off. Refused at
+/// load, naming the field and the scope.
+#[ignore = "reproduction: ruling Y 7, requires_scope without a security section loads"]
+#[test]
+fn a_scoped_field_without_a_security_section_is_refused_at_load() {
+    let json = r#"{
+        "types": [{
+            "name":"User","sql_source":"v_user",
+            "fields":[
+                {"name":"id","field_type":"ID"},
+                {"name":"salary","field_type":"Int","requires_scope":"read:salary"}
+            ]
+        }],
+        "queries": [], "mutations": [], "subscriptions": []
+    }"#;
+    let err = CompiledSchema::from_json(json, false).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("User.salary"), "the message must name the field, got: {msg}");
+    assert!(msg.contains("read:salary"), "the message must name the scope, got: {msg}");
+}
+
+/// Control: the same field with a `security` section loads.
+#[test]
+fn a_scoped_field_with_a_security_section_loads() {
+    let json = r#"{
+        "types": [{
+            "name":"User","sql_source":"v_user",
+            "fields":[
+                {"name":"id","field_type":"ID"},
+                {"name":"salary","field_type":"Int","requires_scope":"read:salary"}
+            ]
+        }],
+        "queries": [], "mutations": [], "subscriptions": [],
+        "security": {}
+    }"#;
+    let schema = CompiledSchema::from_json(json, false).unwrap();
+    assert!(schema.security.is_some());
+}
+
 /// Control: the same column from the *same* source is the redundant-but-consistent
 /// case, and must load — otherwise the check would refuse every schema that states its
 /// scoping in both places.
