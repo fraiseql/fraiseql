@@ -83,7 +83,12 @@ pub async fn handle_ndjson_get(
     // — count, pagination, and the `?select=` embeds and counts of #1268 — is applied by
     // `resolve_streaming_get_query`, so a handler cannot serve a request the others
     // refuse.
-    let resolved = handler.resolve_streaming_get_query(relative_path, query_pairs, headers)?;
+    let resolved = handler.resolve_streaming_get_query(
+        relative_path,
+        query_pairs,
+        headers,
+        security_context,
+    )?;
 
     let ResolvedGetQuery {
         query_match,

@@ -628,6 +628,7 @@ impl QueryRunner {
             &self.ctx.schema,
             &query_match.query_def,
             &query_match.arguments,
+            Some(security_context),
         )?;
         let combined_where: Option<WhereClause> = match (combined_where, user_where) {
             (None, None) => None,
@@ -679,6 +680,7 @@ impl QueryRunner {
                         &self.ctx.schema,
                         &query_match.query_def.return_type,
                         &query_match.query_def.native_columns,
+                        Some(security_context),
                     )
                 })
                 .transpose()?
@@ -693,6 +695,7 @@ impl QueryRunner {
             &query_match.arguments,
             &self.ctx.schema,
             &query_match.query_def,
+            Some(security_context),
         )? {
             (
                 enforce_max_page_size(Some(k), self.ctx.config.max_page_size, "nearest.k")?,
@@ -1136,6 +1139,7 @@ impl QueryRunner {
             &self.ctx.schema,
             &query_match.query_def,
             &query_match.arguments,
+            None,
         )?;
 
         // 3c. Convert explicit query arguments (e.g. id, slug) to WHERE conditions.
@@ -1180,6 +1184,7 @@ impl QueryRunner {
                         &self.ctx.schema,
                         &query_match.query_def.return_type,
                         &query_match.query_def.native_columns,
+                        None,
                     )
                 })
                 .transpose()?
@@ -1194,6 +1199,7 @@ impl QueryRunner {
             &query_match.arguments,
             &self.ctx.schema,
             &query_match.query_def,
+            None,
         )? {
             (
                 enforce_max_page_size(Some(k), self.ctx.config.max_page_size, "nearest.k")?,
@@ -1960,6 +1966,7 @@ impl QueryRunner {
             &self.ctx.schema,
             &query_match.query_def,
             &query_match.arguments,
+            security_context,
         )?;
 
         // The top-level page size is capped (#421: unbounded-pagination DoS guard).
@@ -1982,6 +1989,7 @@ impl QueryRunner {
                     &self.ctx.schema,
                     &query_match.query_def.return_type,
                     &query_match.query_def.native_columns,
+                    security_context,
                 )
             })
             .transpose()?;
@@ -1992,6 +2000,7 @@ impl QueryRunner {
             &query_match.arguments,
             &self.ctx.schema,
             &query_match.query_def,
+            security_context,
         )? {
             (
                 enforce_max_page_size(Some(k), self.ctx.config.max_page_size, "nearest.k")?,
@@ -2478,6 +2487,7 @@ impl QueryRunner {
             &self.ctx.schema,
             &query_match.query_def,
             &query_match.arguments,
+            security_context,
         )?;
         let combined_where: Option<WhereClause> = match (combined_where, user_where) {
             (None, None) => None,

@@ -75,7 +75,7 @@ fn resolve(query_pairs: &[(&str, &str)]) -> ResolvedGetQuery {
     let rest_config = schema.rest_config.clone().unwrap();
     let handler = RestHandler::new(&executor, &schema, &rest_config, &route_table);
     handler
-        .resolve_get_query("/docs", query_pairs, &HeaderMap::new())
+        .resolve_get_query("/docs", query_pairs, &HeaderMap::new(), None)
         .expect("the documented default path of `?search=` must resolve")
 }
 
@@ -150,7 +150,6 @@ fn a_read_without_a_search_carries_no_ranking() {
 /// matches and ranks over the searchable fields; a `bodyText` the caller holds no scope for
 /// must be neither — or which rows match a word, and in what order, answers a question
 /// about it. (Anonymous here: an anonymous caller holds no scope.)
-#[ignore = "reproduction: ruling AA 3, ?search= matches and ranks a scoped field"]
 #[test]
 fn a_search_neither_matches_nor_ranks_a_field_the_caller_may_not_read() {
     let mut schema = docs_schema();
@@ -166,7 +165,7 @@ fn a_search_neither_matches_nor_ranks_a_field_the_caller_may_not_read() {
     let rest_config = schema.rest_config.clone().unwrap();
     let handler = RestHandler::new(&executor, &schema, &rest_config, &route_table);
     let resolved = handler
-        .resolve_get_query("/docs", &[("search", "ada")], &HeaderMap::new())
+        .resolve_get_query("/docs", &[("search", "ada")], &HeaderMap::new(), None)
         .expect("a search over the readable fields still resolves");
 
     let relevance = resolved.query_match.search_relevance.as_ref().expect("ranked");
@@ -182,4 +181,28 @@ fn a_search_neither_matches_nor_ranks_a_field_the_caller_may_not_read() {
         .expect("a search filters")
         .to_string();
     assert!(!filter.contains("bodyText"), "matches only what the caller may read: {filter}");
+}
+
+/// …and a search with no searchable field the caller may read is refused: answering it as
+/// "no search" would serve the unfiltered relation.
+#[test]
+fn a_search_with_nothing_the_caller_may_read_is_refused() {
+    let mut schema = docs_schema();
+    let doc = schema.types.iter_mut().find(|t| t.name == "Doc").unwrap();
+    for field in doc.fields.iter_mut().filter(|f| f.name != "id") {
+        field.requires_scope = Some("read:doc".to_string());
+    }
+    schema.security = Some(fraiseql_core::schema::SecurityConfig::default());
+    schema.build_indexes();
+
+    let adapter = Arc::new(FailingAdapter::new());
+    let executor = Arc::new(Executor::new(schema.clone(), adapter));
+    let route_table = RestRouteTable::from_compiled_schema(&schema).unwrap();
+    let rest_config = schema.rest_config.clone().unwrap();
+    let handler = RestHandler::new(&executor, &schema, &rest_config, &route_table);
+    let err = handler
+        .resolve_get_query("/docs", &[("search", "ada")], &HeaderMap::new(), None)
+        .err()
+        .expect("a search over nothing readable must not resolve to an unfiltered read");
+    assert_eq!(err.status, http::StatusCode::FORBIDDEN);
 }

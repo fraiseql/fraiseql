@@ -28,7 +28,7 @@ fn the_predicate_and_the_ranking_cover_the_same_fields() {
         ("title", FieldType::String),
         ("bodyText", FieldType::String),
     ]);
-    let plan = plan_search("ada lovelace", Some(&td)).unwrap();
+    let plan = plan_search("ada lovelace", Some(&td), None, None).unwrap();
 
     let or = plan.where_clause["_or"].as_array().unwrap();
     let searched: Vec<&str> = or
@@ -48,7 +48,7 @@ fn the_predicate_and_the_ranking_cover_the_same_fields() {
 #[test]
 fn a_single_searchable_field_yields_a_bare_clause_and_a_rank() {
     let td = type_with(&[("id", FieldType::Int), ("label", FieldType::String)]);
-    let plan = plan_search("row-42", Some(&td)).unwrap();
+    let plan = plan_search("row-42", Some(&td), None, None).unwrap();
 
     assert!(plan.where_clause.get("_or").is_none(), "no wrapper: {}", plan.where_clause);
     assert_eq!(plan.where_clause["label"]["websearch_query"], "row-42");
@@ -60,6 +60,6 @@ fn a_single_searchable_field_yields_a_bare_clause_and_a_rank() {
 #[test]
 fn a_type_with_no_searchable_field_has_no_plan() {
     let td = type_with(&[("id", FieldType::Int), ("count", FieldType::Int)]);
-    assert!(plan_search("x", Some(&td)).is_none());
-    assert!(plan_search("x", None).is_none());
+    assert!(plan_search("x", Some(&td), None, None).is_none());
+    assert!(plan_search("x", None, None, None).is_none());
 }

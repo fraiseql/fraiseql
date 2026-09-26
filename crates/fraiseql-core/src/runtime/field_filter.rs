@@ -120,6 +120,36 @@ pub fn filter_fields<'a>(
         .collect()
 }
 
+/// Whether a request may *reference* `field`: filter, order, rank or search by it.
+///
+/// A reference answers a question about the value by another route than reading it (ruling
+/// AA 3): which rows come back, and in what order. So it needs what reading needs, and a
+/// masked value is no better than a refused one — a filter probes it all the same:
+///
+/// * an `authorize` field: never. Its decision is per row, taken after the read; no reference to it
+///   can be judged before one;
+/// * a `requires_scope` field: only when the caller holds the scope, whatever its `on_deny`. A
+///   request with no principal holds none (#743), and a schema with no `security` section grants
+///   none (ruling Y 7).
+///
+/// The one rule every read path asks — the engine's filter and order checks and REST's
+/// `?search=` planning — so the paths cannot disagree about what may be referenced.
+#[must_use]
+pub fn can_reference_field(
+    security_config: Option<&SecurityConfig>,
+    field: &FieldDefinition,
+    context: Option<&SecurityContext>,
+) -> bool {
+    if field.authorize {
+        return false;
+    }
+    let Some(scope) = field.requires_scope.as_deref() else {
+        return true;
+    };
+    let no_roles = SecurityConfig::default();
+    context.is_some_and(|ctx| ctx.can_access_scope(security_config.unwrap_or(&no_roles), scope))
+}
+
 /// Check if user can access a specific field.
 ///
 /// Returns true if:

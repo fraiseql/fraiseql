@@ -3872,7 +3872,6 @@ mod gated_filters {
         schema
     }
 
-    #[ignore = "reproduction: a where on a masked field reaches the adapter"]
     #[tokio::test]
     async fn a_filter_on_a_field_the_caller_may_not_read_is_refused() {
         let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
@@ -3887,7 +3886,6 @@ mod gated_filters {
         assert!(adapter.captured_where().is_none(), "the filter must not reach the database");
     }
 
-    #[ignore = "reproduction: an orderBy on a masked field reaches the adapter"]
     #[tokio::test]
     async fn ordering_by_a_field_the_caller_may_not_read_is_refused() {
         let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
@@ -3914,6 +3912,85 @@ mod gated_filters {
     }
 
     /// A principal with no role, so no scope (the `security` section defines none).
+    /// `User.orders: [Order]`, whose `margin` masks for want of a scope, and an `Account` type
+    /// gated on the role `finance`, reached as `User.account` — for the relation walk.
+    fn relation_schema() -> CompiledSchema {
+        let mut schema = schema();
+        let user = schema.types.iter_mut().find(|t| t.name == "User").unwrap();
+        user.fields.push(FieldDefinition::new(
+            "orders",
+            FieldType::List(Box::new(FieldType::Object("Order".to_string()))),
+        ));
+        user.fields
+            .push(FieldDefinition::nullable("account", FieldType::Object("Account".to_string())));
+        let mut order = TypeDefinition::new("Order", "v_order");
+        order.fields = vec![
+            FieldDefinition::new("id", FieldType::Int),
+            FieldDefinition::nullable("margin", FieldType::Int)
+                .with_requires_scope("read:margin")
+                .with_on_deny(FieldDenyPolicy::Mask),
+        ];
+        schema.types.push(order);
+        let mut account = TypeDefinition::new("Account", "v_account");
+        account.fields = vec![FieldDefinition::nullable("balance", FieldType::Int)];
+        account.requires_role = Some("finance".to_string());
+        schema.types.push(account);
+        schema.build_indexes();
+        schema
+    }
+
+    fn condition(path: &[&str]) -> crate::db::WhereClause {
+        crate::db::WhereClause::Field {
+            path:     path.iter().map(|s| (*s).to_string()).collect(),
+            operator: crate::db::WhereOperator::Gt,
+            value:    serde_json::json!(1),
+        }
+    }
+
+    // Filtering by `orders.margin` asks about each order's margin: every field on the path
+    // is a reference, not only the first.
+    #[test]
+    fn a_filter_through_a_relation_to_a_field_the_caller_may_not_read_is_refused() {
+        let err = super::super::support::security::refuse_unreadable_where(
+            &relation_schema(),
+            "User",
+            &condition(&["orders", "margin"]),
+            Some(&principal()),
+        )
+        .expect_err("`Order.margin` masks for this caller");
+        assert!(format!("{err}").contains("Order.margin"), "{err}");
+        super::super::support::security::refuse_unreadable_where(
+            &relation_schema(),
+            "User",
+            &condition(&["orders", "id"]),
+            Some(&principal()),
+        )
+        .expect("`Order.id` is readable");
+    }
+
+    // A filter through a relation reads the target type: one whose own role the caller
+    // lacks may not be filtered into.
+    #[test]
+    fn a_filter_into_a_type_whose_role_the_caller_lacks_is_refused() {
+        let err = super::super::support::security::refuse_unreadable_where(
+            &relation_schema(),
+            "User",
+            &condition(&["account", "balance"]),
+            Some(&principal()),
+        )
+        .expect_err("`Account` requires `finance`");
+        assert!(format!("{err}").contains("Account"), "{err}");
+        let mut finance = principal();
+        finance.roles = vec!["finance".to_string()];
+        super::super::support::security::refuse_unreadable_where(
+            &relation_schema(),
+            "User",
+            &condition(&["account", "balance"]),
+            Some(&finance),
+        )
+        .expect("the role holder may filter by it");
+    }
+
     fn principal() -> SecurityContext {
         SecurityContext {
             user_id:          "user-aa3".into(),
@@ -3934,7 +4011,6 @@ mod gated_filters {
 
     // The authenticated path classifies and filters separately (`execute_regular_query_
     // with_security`); the same rule holds there.
-    #[ignore = "reproduction: an authenticated where on a masked field reaches the adapter"]
     #[tokio::test]
     async fn an_authenticated_filter_on_a_field_the_caller_may_not_read_is_refused() {
         let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
@@ -3952,7 +4028,6 @@ mod gated_filters {
 
     // An `authorize` field is decided per row, after the read: no filter on it can be judged
     // safe before the read, so none is accepted, whoever asks.
-    #[ignore = "reproduction: a where on an authorize field reaches the adapter"]
     #[tokio::test]
     async fn a_filter_on_an_authorize_field_is_refused() {
         let mut schema = schema();

@@ -106,7 +106,9 @@ pub use executor::{
     security::resolve_session_variables,
 };
 pub use explain::{ExplainPlan, ExplainResult};
-pub use field_filter::{FieldAccessResult, can_access_field, classify_field_access, filter_fields};
+pub use field_filter::{
+    FieldAccessResult, can_access_field, can_reference_field, classify_field_access, filter_fields,
+};
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
 pub use matcher::{QueryMatch, QueryMatcher, suggest_similar};
 pub use planner::{ExecutionPlan, QueryPlanner};

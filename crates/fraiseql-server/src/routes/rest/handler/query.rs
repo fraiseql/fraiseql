@@ -449,8 +449,10 @@ impl RestHandler<'_> {
         relative_path: &str,
         query_pairs: &[(&str, &str)],
         headers: &http::HeaderMap,
+        security_context: Option<&SecurityContext>,
     ) -> Result<ResolvedGetQuery, RestError> {
-        let resolved = self.resolve_get_query(relative_path, query_pairs, headers)?;
+        let resolved =
+            self.resolve_get_query(relative_path, query_pairs, headers, security_context)?;
 
         let streamable = self
             .schema
@@ -486,6 +488,7 @@ impl RestHandler<'_> {
         relative_path: &str,
         query_pairs: &[(&str, &str)],
         headers: &http::HeaderMap,
+        security_context: Option<&SecurityContext>,
     ) -> Result<ResolvedGetQuery, RestError> {
         let resolved = self
             .route_table
@@ -557,7 +560,19 @@ impl RestHandler<'_> {
         //
         // The plan carries the ORDER BY too (#1284): the rows a search matches
         // and the order they come back in are one decision over one field list.
-        let search = params.search_query.as_deref().and_then(|query| plan_search(query, type_def));
+        let search = match params.search_query.as_deref() {
+            None => None,
+            Some(query) => Some(
+                plan_search(query, type_def, self.schema.security.as_ref(), security_context)
+                    .ok_or_else(|| RestError {
+                        status:  http::StatusCode::FORBIDDEN,
+                        code:    "FORBIDDEN",
+                        message: "`?search=` has no field this request may read to search"
+                            .to_string(),
+                        details: None,
+                    })?,
+            ),
+        };
         let fts_where = search.as_ref().map(|plan| plan.where_clause.clone());
 
         match (&params.where_clause, &fts_where) {
@@ -658,7 +673,8 @@ impl RestHandler<'_> {
         headers: &HeaderMap,
         security_context: Option<&SecurityContext>,
     ) -> Result<RestResponse, RestError> {
-        let resolved_query = self.resolve_get_query(relative_path, query_pairs, headers)?;
+        let resolved_query =
+            self.resolve_get_query(relative_path, query_pairs, headers, security_context)?;
         let query_match = &resolved_query.query_match;
         let variables_json = &resolved_query.variables;
         let params = &resolved_query.params;

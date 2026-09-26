@@ -7,15 +7,18 @@
 
 use fraiseql_core::{
     db::{RelevanceOrder, to_snake_case},
-    schema::TypeDefinition,
+    runtime::can_reference_field,
+    schema::{SecurityConfig, TypeDefinition},
+    security::SecurityContext,
 };
 use serde_json::json;
 
 /// The WHERE clause and the ORDER BY a `?search=` request implies.
 ///
-/// `None` when the type has no searchable fields — the extractor already refuses
-/// `?search=` in that case, so this is the shape of "nothing to search", not a
-/// silent drop.
+/// `None` when no searchable field is one the caller may reference. The extractor already
+/// refuses `?search=` on a type with no searchable field at all, so `None` here means every
+/// one is gated for this caller — which the caller must refuse, not read as "no search":
+/// that would answer with the unfiltered relation.
 pub(super) struct SearchPlan {
     /// `{"_or": [{"field": {"websearch_query": "query"}}, …]}`, or the single
     /// clause when the type has one searchable field.
@@ -32,9 +35,26 @@ pub(super) struct SearchPlan {
 /// The predicate's field names are lowered to `snake_case` JSONB storage keys by
 /// `WhereClause::from_graphql_json`, and rendered as `data->>'key'`. The rank has
 /// to extract the same expression, so it carries the keys already lowered.
-pub(super) fn plan_search(query: &str, type_def: Option<&TypeDefinition>) -> Option<SearchPlan> {
+///
+/// # Only what the caller may read
+///
+/// A field the caller may not read may not influence the response (ruling AA 3): which rows
+/// match a word, and in what order, answers a question about every field searched. So both
+/// halves run over the searchable fields [`can_reference_field`] allows this caller — the
+/// same rule the engine applies to a filter — and a caller holding the scope still searches
+/// the scoped field.
+pub(super) fn plan_search(
+    query: &str,
+    type_def: Option<&TypeDefinition>,
+    security: Option<&SecurityConfig>,
+    security_context: Option<&SecurityContext>,
+) -> Option<SearchPlan> {
     let td = type_def?;
-    let fields = td.searchable_fields();
+    let fields: Vec<_> = td
+        .searchable_fields()
+        .into_iter()
+        .filter(|f| can_reference_field(security, f, security_context))
+        .collect();
     if fields.is_empty() {
         return None;
     }

@@ -2281,7 +2281,6 @@ mod row_read {
     /// Ruling AA 3: the row read (the gRPC path) drops a masked column from what it reads —
     /// and must not filter by it either: which rows come back answers a question about the
     /// value the caller may not read.
-    #[ignore = "reproduction: ruling AA 3, the row read filters by a masked column"]
     #[tokio::test]
     async fn the_row_read_refuses_a_filter_on_a_masked_field() {
         let mut schema = test_schema();

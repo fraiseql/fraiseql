@@ -253,9 +253,13 @@ fn args(json: &serde_json::Value) -> std::collections::HashMap<String, serde_jso
 
 #[test]
 fn nearest_absent_is_none() {
-    let got =
-        nearest_order_and_limit(&args(&serde_json::json!({})), &vector_schema(), &list_query_def())
-            .unwrap();
+    let got = nearest_order_and_limit(
+        &args(&serde_json::json!({})),
+        &vector_schema(),
+        &list_query_def(),
+        None,
+    )
+    .unwrap();
     assert!(got.is_none());
 }
 
@@ -265,6 +269,7 @@ fn nearest_lowers_to_vector_order_and_k() {
         &args(&serde_json::json!({"nearest": {"vector": [1.0, 0.0, 0.25], "k": 5}})),
         &vector_schema(),
         &list_query_def(),
+        None,
     )
     .unwrap()
     .expect("plan");
@@ -282,6 +287,7 @@ fn nearest_metric_override_and_defaults() {
         &args(&serde_json::json!({"nearest": {"vector": [1, 2, 3], "k": 2, "metric": "l2"}})),
         &vector_schema(),
         &list_query_def(),
+        None,
     )
     .unwrap()
     .expect("plan");
@@ -294,6 +300,7 @@ fn nearest_dimension_mismatch_is_refused() {
         &args(&serde_json::json!({"nearest": {"vector": [1.0, 2.0], "k": 2}})),
         &vector_schema(),
         &list_query_def(),
+        None,
     )
     .unwrap_err()
     .to_string();
@@ -315,7 +322,7 @@ fn nearest_conflicts_with_limit_and_order_by() {
             },
             extra,
         );
-        let err = nearest_order_and_limit(&a, &vector_schema(), &list_query_def())
+        let err = nearest_order_and_limit(&a, &vector_schema(), &list_query_def(), None)
             .unwrap_err()
             .to_string();
         assert!(err.contains(needle), "got: {err}");
@@ -334,6 +341,7 @@ fn nearest_on_a_type_without_vector_fields_is_refused() {
         &args(&serde_json::json!({"nearest": {"vector": [1], "k": 1}})),
         &schema,
         &list_query_def(),
+        None,
     )
     .unwrap_err()
     .to_string();
@@ -353,10 +361,14 @@ fn nearest_rejects_unknown_keys_zero_k_and_bad_metric() {
         ),
         (serde_json::json!({"vector": [1, "x", 3], "k": 2}), "finite numbers"),
     ] {
-        let err =
-            nearest_order_and_limit(&args(&serde_json::json!({"nearest": nearest})), &schema, &q)
-                .unwrap_err()
-                .to_string();
+        let err = nearest_order_and_limit(
+            &args(&serde_json::json!({"nearest": nearest})),
+            &schema,
+            &q,
+            None,
+        )
+        .unwrap_err()
+        .to_string();
         assert!(err.contains(needle), "expected '{needle}' in: {err}");
     }
 }
@@ -398,6 +410,7 @@ fn nearest_field_selects_among_several_vector_fields() {
         })),
         &two_vector_schema(),
         &list_query_def(),
+        None,
     )
     .unwrap()
     .expect("plan");
@@ -422,6 +435,7 @@ fn nearest_checks_the_selected_fields_dimensions() {
         })),
         &two_vector_schema(),
         &list_query_def(),
+        None,
     )
     .unwrap_err()
     .to_string();
@@ -440,6 +454,7 @@ fn nearest_without_a_field_on_a_multi_vector_type_is_refused() {
         &args(&serde_json::json!({"nearest": {"vector": [1.0, 2.0, 3.0], "k": 2}})),
         &two_vector_schema(),
         &list_query_def(),
+        None,
     )
     .unwrap_err()
     .to_string();
@@ -457,6 +472,7 @@ fn nearest_without_a_field_on_a_single_vector_type_still_works() {
         &args(&serde_json::json!({"nearest": {"vector": [1.0, 0.0, 0.25], "k": 5}})),
         &vector_schema(),
         &list_query_def(),
+        None,
     )
     .unwrap();
     assert!(got.is_some());
@@ -472,6 +488,7 @@ fn nearest_field_naming_a_non_vector_field_is_refused() {
         })),
         &two_vector_schema(),
         &list_query_def(),
+        None,
     )
     .unwrap_err()
     .to_string();
@@ -517,6 +534,7 @@ fn nearest_on_a_bit_vector_lowers_to_a_bit_literal_and_operator() {
         })),
         &bit_vector_schema(),
         &list_query_def(),
+        None,
     )
     .unwrap()
     .expect("plan");
@@ -541,6 +559,7 @@ fn nearest_metric_override_selects_jaccard_on_a_bit_vector() {
         })),
         &bit_vector_schema(),
         &list_query_def(),
+        None,
     )
     .unwrap()
     .expect("plan");
@@ -558,6 +577,7 @@ fn nearest_bit_width_mismatch_is_refused() {
         })),
         &bit_vector_schema(),
         &list_query_def(),
+        None,
     )
     .unwrap_err()
     .to_string();
@@ -578,6 +598,7 @@ fn nearest_bit_operand_must_be_a_string_of_zeroes_and_ones() {
             })),
             &schema,
             &q,
+            None,
         )
         .unwrap_err()
         .to_string();
@@ -599,6 +620,7 @@ fn a_metric_of_the_other_vector_kind_is_refused() {
         })),
         &schema,
         &q,
+        None,
     )
     .unwrap_err()
     .to_string();
@@ -613,6 +635,7 @@ fn a_metric_of_the_other_vector_kind_is_refused() {
         })),
         &schema,
         &q,
+        None,
     )
     .unwrap_err()
     .to_string();
@@ -646,6 +669,7 @@ fn a_filter_a_query_accepts_is_parsed() {
         &crate::schema::CompiledSchema::new(),
         &filterable(true),
         &a_filter(),
+        None,
     )
     .expect("an accepted `where` argument parses")
     .expect("and yields a clause");
@@ -660,6 +684,7 @@ fn a_filter_a_query_does_not_accept_is_refused_not_dropped() {
         &crate::schema::CompiledSchema::new(),
         &filterable(false),
         &a_filter(),
+        None,
     )
     .expect_err("a filter that cannot be applied is refused");
 
@@ -687,10 +712,31 @@ fn no_filter_is_accepted_whatever_the_flag_says() {
     let empty = HashMap::new();
     for accepts in [true, false] {
         assert!(
-            client_where_argument(&schema, &filterable(accepts), &empty)
+            client_where_argument(&schema, &filterable(accepts), &empty, None)
                 .expect("no filter, nothing to refuse")
                 .is_none(),
             "has_where = {accepts}"
         );
     }
+}
+
+/// Ruling AA 3: ranking by similarity to a vector field is a reference to it. A vector the
+/// caller may not read — here scoped, and no principal holds a scope — may not order rows.
+#[test]
+fn nearest_refuses_a_vector_field_the_caller_may_not_read() {
+    let mut schema = vector_schema();
+    let doc = schema.types.iter_mut().find(|t| t.name == "Doc").unwrap();
+    let embedding = doc.fields.iter_mut().find(|f| f.name == "embedding").unwrap();
+    embedding.requires_scope = Some("read:embedding".to_string());
+    schema.security = Some(crate::schema::SecurityConfig::default());
+    schema.build_indexes();
+
+    let err = nearest_order_and_limit(
+        &args(&serde_json::json!({"nearest": {"vector": [1.0, 0.0, 0.25], "k": 5}})),
+        &schema,
+        &list_query_def(),
+        None,
+    )
+    .expect_err("a scoped vector must not rank rows for a caller without the scope");
+    assert!(matches!(err, crate::FraiseQLError::Authorization { .. }), "{err:?}");
 }

@@ -323,6 +323,114 @@ pub(in super::super) fn classify_fields_for_read(
     }
 }
 
+/// Refuse a client's reference to `field` of `type_name` — to `usage` it: filter, order or
+/// search by it — that [`can_reference_field`](crate::runtime::can_reference_field) does not
+/// allow (ruling AA 3).
+///
+/// # Errors
+///
+/// [`FraiseQLError::Authorization`] naming the field and the use.
+pub(in super::super) fn refuse_unreadable_reference(
+    schema: &CompiledSchema,
+    type_name: &str,
+    field: &crate::schema::FieldDefinition,
+    security_context: Option<&SecurityContext>,
+    usage: &str,
+) -> Result<()> {
+    if crate::runtime::can_reference_field(schema.security.as_ref(), field, security_context) {
+        return Ok(());
+    }
+    Err(FraiseQLError::Authorization {
+        message:  format!(
+            "Access denied: '{type_name}.{}' cannot be used to {usage}: the request may not \
+             read it",
+            field.name
+        ),
+        action:   Some("read".to_string()),
+        resource: Some(format!("{type_name}.{}", field.name)),
+    })
+}
+
+/// Refuse a client filter over `type_name` that references a field the caller may not
+/// read, at any depth (ruling AA 3).
+///
+/// Walks the parsed clause. Each condition's path runs through relation and object fields
+/// to the field it compares, and every field on the way is a reference: filtering by
+/// `orders.margin` asks about each order's margin, and about which users have orders at
+/// all. A step into a type whose own `requires_role` the caller lacks is refused likewise —
+/// the filter reads that type. Native-column conditions come from arguments the schema
+/// author declared, not from the client's filter, and are not walked.
+///
+/// # Errors
+///
+/// [`FraiseQLError::Authorization`] for the first such reference.
+pub(in super::super) fn refuse_unreadable_where(
+    schema: &CompiledSchema,
+    type_name: &str,
+    clause: &crate::db::WhereClause,
+    security_context: Option<&SecurityContext>,
+) -> Result<()> {
+    use crate::db::WhereClause;
+    match clause {
+        WhereClause::And(clauses) | WhereClause::Or(clauses) => clauses
+            .iter()
+            .try_for_each(|c| refuse_unreadable_where(schema, type_name, c, security_context)),
+        WhereClause::Not(inner) | WhereClause::Typed { inner, .. } => {
+            refuse_unreadable_where(schema, type_name, inner, security_context)
+        },
+        WhereClause::Field { path, .. } => {
+            refuse_unreadable_path(schema, type_name, path, security_context)
+        },
+        _ => Ok(()),
+    }
+}
+
+/// [`refuse_unreadable_where`] for one condition's storage-key path.
+fn refuse_unreadable_path(
+    schema: &CompiledSchema,
+    type_name: &str,
+    path: &[String],
+    security_context: Option<&SecurityContext>,
+) -> Result<()> {
+    let mut current = type_name.to_string();
+    for (depth, segment) in path.iter().enumerate() {
+        let Some(type_def) = schema.find_type(&current) else {
+            return Ok(());
+        };
+        let Some(field) = type_def
+            .fields
+            .iter()
+            .find(|f| crate::utils::to_snake_case(f.name.as_str()) == *segment)
+        else {
+            // A key inside a JSON value the schema does not type: nothing to classify.
+            return Ok(());
+        };
+        refuse_unreadable_reference(schema, &current, field, security_context, "filter by")?;
+        if depth + 1 == path.len() {
+            return Ok(());
+        }
+        let Some(child) = field.field_type.inner_type().unwrap_or(&field.field_type).type_name()
+        else {
+            return Ok(());
+        };
+        if let Some(role) = schema.find_type(child).and_then(|t| t.requires_role.as_deref()) {
+            if !security_context.is_some_and(|ctx| ctx.roles.iter().any(|r| r == role)) {
+                return Err(FraiseQLError::Authorization {
+                    message:  format!(
+                        "Access denied: '{current}.{}' cannot be used to filter by: it reads \
+                         '{child}', whose read requires a role the request does not hold",
+                        field.name
+                    ),
+                    action:   Some("read".to_string()),
+                    resource: Some(child.to_string()),
+                });
+            }
+        }
+        current = child.to_string();
+    }
+    Ok(())
+}
+
 // ── #1336: the backstop for a transport that never resolved ────────────────
 #[cfg(test)]
 mod enrichment_backstop_tests {

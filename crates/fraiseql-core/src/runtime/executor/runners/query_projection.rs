@@ -261,6 +261,7 @@ pub fn enrich_order_by_clauses(
     schema: &CompiledSchema,
     return_type: &str,
     native_columns: &std::collections::HashMap<String, String>,
+    security_context: Option<&crate::security::SecurityContext>,
 ) -> crate::error::Result<Vec<OrderByClause>> {
     let type_def = schema.find_type(return_type);
     // The schema can adjudicate only when the type was found *and* carries
@@ -280,6 +281,14 @@ pub fn enrich_order_by_clauses(
         // Look up the field type from the schema definition.
         if let Some(td) = type_def {
             if let Some(field_def) = td.find_field(&clause.field) {
+                // Ordering by a field the caller may not read ranks rows by it (ruling AA 3).
+                super::super::support::security::refuse_unreadable_reference(
+                    schema,
+                    return_type,
+                    field_def,
+                    security_context,
+                    "order by",
+                )?;
                 clause.field_type = field_type_to_order_by_type(&field_def.field_type);
             }
         }
@@ -543,6 +552,7 @@ mod order_by_validation {
             &schema_with_order(),
             "Order",
             &HashMap::new(),
+            None,
         )
         .expect_err("an unknown sort key silently ordered nothing");
         let msg = err.to_string();
@@ -557,6 +567,7 @@ mod order_by_validation {
             &schema_with_order(),
             "Order",
             &HashMap::new(),
+            None,
         )
         .expect_err("a typo must be refused");
         assert!(err.to_string().contains("Did you mean 'reference'?"), "got: {err}");
@@ -569,6 +580,7 @@ mod order_by_validation {
             &schema_with_order(),
             "Order",
             &HashMap::new(),
+            None,
         )
         .expect("a declared field is a legitimate sort key");
         assert_eq!(
@@ -585,9 +597,14 @@ mod order_by_validation {
     fn a_native_column_that_is_not_a_type_field_passes() {
         let mut native = HashMap::new();
         native.insert("pk_order".to_string(), "int4".to_string());
-        let enriched =
-            enrich_order_by_clauses(clause("pk_order"), &schema_with_order(), "Order", &native)
-                .expect("a native column is a legitimate sort key");
+        let enriched = enrich_order_by_clauses(
+            clause("pk_order"),
+            &schema_with_order(),
+            "Order",
+            &native,
+            None,
+        )
+        .expect("a native column is a legitimate sort key");
         assert_eq!(
             enriched[0].native_column.as_deref(),
             Some("pk_order"),
@@ -602,6 +619,7 @@ mod order_by_validation {
             &schema_with_order(),
             "NoSuchType",
             &HashMap::new(),
+            None,
         )
         .expect("no type information — a rejection cannot be justified");
     }
@@ -610,7 +628,7 @@ mod order_by_validation {
     fn a_type_with_no_fields_cannot_adjudicate_and_passes() {
         let mut schema = CompiledSchema::default();
         schema.types.push(TypeDefinition::new("Order", "v_order"));
-        enrich_order_by_clauses(clause("anything"), &schema, "Order", &HashMap::new())
+        enrich_order_by_clauses(clause("anything"), &schema, "Order", &HashMap::new(), None)
             .expect("an empty field list is absence of evidence, not evidence of absence");
     }
 }

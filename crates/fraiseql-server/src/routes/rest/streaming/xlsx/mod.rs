@@ -89,7 +89,12 @@ pub async fn handle_xlsx_get(
     // Count, pagination and the `?select=` embeds and counts of #1268 are all refused by
     // `resolve_streaming_get_query`, the one function every export representation
     // resolves through.
-    let resolved = handler.resolve_streaming_get_query(relative_path, query_pairs, headers)?;
+    let resolved = handler.resolve_streaming_get_query(
+        relative_path,
+        query_pairs,
+        headers,
+        security_context,
+    )?;
 
     let ResolvedGetQuery {
         query_name,

@@ -49,6 +49,7 @@ pub fn nearest_order_and_limit(
     arguments: &std::collections::HashMap<String, serde_json::Value>,
     schema: &crate::schema::CompiledSchema,
     query_def: &crate::schema::QueryDefinition,
+    security_context: Option<&crate::security::SecurityContext>,
 ) -> Result<Option<(crate::backend::OrderByClause, u32)>> {
     let Some(raw) = arguments.get("nearest") else {
         return Ok(None);
@@ -89,6 +90,14 @@ pub fn nearest_order_and_limit(
     }
 
     let field = select_vector_field(type_def, obj.get("field"))?;
+    // Ranking by similarity to a field is a reference to it (ruling AA 3).
+    super::super::support::security::refuse_unreadable_reference(
+        schema,
+        &query_def.return_type,
+        field,
+        security_context,
+        "order by similarity",
+    )?;
     let k = obj
         .get("k")
         .and_then(serde_json::Value::as_u64)
@@ -502,6 +511,7 @@ pub fn client_where_argument(
     schema: &crate::schema::CompiledSchema,
     query_def: &crate::schema::QueryDefinition,
     arguments: &std::collections::HashMap<String, serde_json::Value>,
+    security_context: Option<&crate::security::SecurityContext>,
 ) -> Result<Option<WhereClause>> {
     // Absent is the common case, and the one that must stay free: with `has_where`
     // on by default, every list query would otherwise pay for a map it never reads.
@@ -525,7 +535,16 @@ pub fn client_where_argument(
     }
 
     let types = super::query_projection::where_field_types(schema, &query_def.return_type);
-    WhereClause::from_graphql_json(raw, &types).map(Some)
+    let clause = WhereClause::from_graphql_json(raw, &types)?;
+    // A field the caller may not read may not decide which rows come back (ruling AA 3).
+    // Here, where every read path's client filter is parsed, so no path can skip it.
+    super::super::support::security::refuse_unreadable_where(
+        schema,
+        &query_def.return_type,
+        &clause,
+        security_context,
+    )?;
+    Ok(Some(clause))
 }
 
 /// Convert explicit query arguments (e.g. `id`, `slug`, `email`) into
