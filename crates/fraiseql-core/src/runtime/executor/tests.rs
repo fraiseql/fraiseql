@@ -3912,4 +3912,64 @@ mod gated_filters {
             .expect("an ungated filter is served");
         assert!(adapter.captured_where().is_some());
     }
+
+    /// A principal with no role, so no scope (the `security` section defines none).
+    fn principal() -> SecurityContext {
+        SecurityContext {
+            user_id:          "user-aa3".into(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       HashMap::default(),
+            request_id:       "req-aa3".to_string(),
+            ip_address:       None,
+            expires_at:       Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        }
+    }
+
+    // The authenticated path classifies and filters separately (`execute_regular_query_
+    // with_security`); the same rule holds there.
+    #[ignore = "reproduction: an authenticated where on a masked field reaches the adapter"]
+    #[tokio::test]
+    async fn an_authenticated_filter_on_a_field_the_caller_may_not_read_is_refused() {
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+        let res = Executor::new(schema(), Arc::clone(&adapter))
+            .execute_with_security(
+                r"{ users(where: { salary: { gt: 100000 } }) { id } }",
+                None,
+                &principal(),
+            )
+            .await;
+
+        assert!(matches!(res, Err(crate::error::FraiseQLError::Authorization { .. })), "{res:?}");
+        assert!(adapter.captured_where().is_none(), "the filter must not reach the database");
+    }
+
+    // An `authorize` field is decided per row, after the read: no filter on it can be judged
+    // safe before the read, so none is accepted, whoever asks.
+    #[ignore = "reproduction: a where on an authorize field reaches the adapter"]
+    #[tokio::test]
+    async fn a_filter_on_an_authorize_field_is_refused() {
+        let mut schema = schema();
+        let user = schema.types.iter_mut().find(|t| t.name == "User").unwrap();
+        user.fields
+            .push(FieldDefinition::nullable("note", FieldType::String).with_authorize(true));
+        schema.build_indexes();
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+        let res = Executor::new(schema, Arc::clone(&adapter))
+            .execute_with_security(
+                r#"{ users(where: { note: { eq: "x" } }) { id } }"#,
+                None,
+                &principal(),
+            )
+            .await;
+
+        assert!(matches!(res, Err(crate::error::FraiseQLError::Authorization { .. })), "{res:?}");
+        assert!(adapter.captured_where().is_none(), "the filter must not reach the database");
+    }
 }

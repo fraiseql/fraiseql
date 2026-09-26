@@ -145,3 +145,41 @@ fn a_read_without_a_search_carries_no_ranking() {
     assert!(resolved.query_match.search_relevance.is_none());
     assert!(!resolved.query_match.arguments.contains_key("orderBy"));
 }
+
+/// Ruling AA 3: a field the caller may not read may not influence the response. `?search=`
+/// matches and ranks over the searchable fields; a `bodyText` the caller holds no scope for
+/// must be neither — or which rows match a word, and in what order, answers a question
+/// about it. (Anonymous here: an anonymous caller holds no scope.)
+#[ignore = "reproduction: ruling AA 3, ?search= matches and ranks a scoped field"]
+#[test]
+fn a_search_neither_matches_nor_ranks_a_field_the_caller_may_not_read() {
+    let mut schema = docs_schema();
+    let doc = schema.types.iter_mut().find(|t| t.name == "Doc").unwrap();
+    let body = doc.fields.iter_mut().find(|f| f.name == "bodyText").unwrap();
+    body.requires_scope = Some("read:body".to_string());
+    schema.security = Some(fraiseql_core::schema::SecurityConfig::default());
+    schema.build_indexes();
+
+    let adapter = Arc::new(FailingAdapter::new());
+    let executor = Arc::new(Executor::new(schema.clone(), adapter));
+    let route_table = RestRouteTable::from_compiled_schema(&schema).unwrap();
+    let rest_config = schema.rest_config.clone().unwrap();
+    let handler = RestHandler::new(&executor, &schema, &rest_config, &route_table);
+    let resolved = handler
+        .resolve_get_query("/docs", &[("search", "ada")], &HeaderMap::new())
+        .expect("a search over the readable fields still resolves");
+
+    let relevance = resolved.query_match.search_relevance.as_ref().expect("ranked");
+    assert_eq!(
+        relevance.fields,
+        vec!["title".to_string()],
+        "ranks only what the caller may read"
+    );
+    let filter = resolved
+        .query_match
+        .arguments
+        .get("where")
+        .expect("a search filters")
+        .to_string();
+    assert!(!filter.contains("bodyText"), "matches only what the caller may read: {filter}");
+}

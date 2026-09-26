@@ -2278,6 +2278,42 @@ mod row_read {
         );
     }
 
+    /// Ruling AA 3: the row read (the gRPC path) drops a masked column from what it reads —
+    /// and must not filter by it either: which rows come back answers a question about the
+    /// value the caller may not read.
+    #[ignore = "reproduction: ruling AA 3, the row read filters by a masked column"]
+    #[tokio::test]
+    async fn the_row_read_refuses_a_filter_on_a_masked_field() {
+        let mut schema = test_schema();
+        let mut salary = FieldDefinition::new("salary", FieldType::Int);
+        salary.requires_scope = Some("read:salary".to_string());
+        salary.on_deny = FieldDenyPolicy::Mask;
+        schema.types.push(TypeDefinition {
+            fields: vec![
+                FieldDefinition::new("id", FieldType::Id),
+                FieldDefinition::new("name", FieldType::String),
+                salary,
+            ],
+            ..TypeDefinition::new("User", "tb_users")
+        });
+        schema.security = Some(crate::schema::SecurityConfig::default());
+        schema.build_indexes();
+
+        let qm = match_on(&schema, "{ users(where: { salary: { gt: 100000 } }) { id name } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        let res = executor
+            .execute_row_read(&qm, None, Some(&principal()), &cols(&["id", "name"]))
+            .await;
+        assert!(
+            matches!(res, Err(crate::error::FraiseQLError::Authorization { .. })),
+            "a filter on a masked column answers a question about its value: {:?}",
+            res.map(|_| ())
+        );
+        assert!(adapter.captured_row_read().is_none(), "the read must not reach the database");
+    }
+
     // ---- session variables reach the read (#329) -------------------------
 
     /// A resolved session variable travels to the adapter.
