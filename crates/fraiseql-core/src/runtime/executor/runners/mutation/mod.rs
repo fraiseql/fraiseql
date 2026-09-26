@@ -932,8 +932,8 @@ pub struct MutationExecution {
 ///
 /// Returns [`FraiseQLError::Authorization`] when the field authorizer refuses a
 /// selected policy-gated field (or cannot be consulted), and
-/// [`FraiseQLError::Internal`] when a gated field's arguments cannot be read. On the
-/// gated path the caller rolls the write back on any error, whatever its variant.
+/// [`FraiseQLError::Internal`] when a gated field's arguments cannot be read. The caller
+/// rolls the write back on any error, whatever its variant.
 // Reason: the outcome, the mutation's shape, and the request's principal, gates, selection
 // and variables are each a separate input; a struct would only relocate them.
 #[allow(clippy::too_many_arguments)]
@@ -1671,20 +1671,6 @@ pub(in super::super) async fn execute_mutation_impl(
         selections,
     )?;
 
-    // Can anything refuse this write after its function ran? The field authorizer is
-    // consulted only for a selected field the compiled schema marks `authorize`, and a
-    // payload entity of a type `payload_gates` did not anticipate meets its read gates
-    // only when it arrives — so a schema and configuration that declare neither cannot
-    // produce a late refusal, and a write that cannot be refused does not need the
-    // transaction the gated path below takes.
-    //
-    // Deliberately asked of the whole schema rather than of this mutation's return
-    // type: the concrete entity type is stamped by the database on the row the
-    // function returns, so it is not known until after the write. Over-approximating
-    // here is the only direction that is safe. Answered from the context, which
-    // computed it once at construction — the scan is linear in the schema.
-    let may_refuse = ctx.write_may_refuse;
-
     let (envelope, result_json) = {
         // 3b. Resolve session variables once and pass them to the adapter call so
         //     they are applied on the same connection / transaction as the function
@@ -1803,30 +1789,31 @@ pub(in super::super) async fn execute_mutation_impl(
             let rows =
                 writer.execute_function_call_dry_run(sql_source, &args, &session_pairs).await?;
             adjudicate(&rows)?
-        } else if may_refuse {
-            // #1353: the field authorizer's contract takes the resolved entity as
-            // `parent`, so it cannot be asked before the row exists. Every gate that
-            // *can* be asked earlier already runs pre-dispatch (the operation
-            // `Authorizer`, `requires_role`, `requires_actor`, `before:mutation`), so
-            // this is the one refusal that arrived too late to mean anything: the
-            // caller was refused the field and kept the side effect.
+        } else {
+            // Every write commits only once it has been adjudicated (ruling Z 1): the
+            // response is built from the row inside the write's transaction, and its
+            // verdict decides the commit.
             //
-            // So run the projection — authorizer included — inside the write's own
-            // transaction, and let its verdict decide the commit. A `Reject` or a
-            // fail-closed policy error now takes the write with it.
+            // #1353 is why a refusal must be able to take the write with it: the field
+            // authorizer's contract takes the resolved entity as `parent`, so it cannot be
+            // asked before the row exists, and a caller it refused used to lose the field
+            // and keep the side effect. Everything that *can* be asked earlier already ran
+            // before the write (the operation `Authorizer`, `requires_role`,
+            // `requires_actor`, `before:mutation`, and the payload's static gates above).
             //
-            // The write commits only if adjudication completed without refusal:
-            // `adjudicate` returned `Ok`. That is not the same as every field being
-            // allowed — a `Mask` decision nulls one field on one row and returns `Ok`,
-            // because it is a statement about the value, not the operation.
+            // But building the response can fail on any schema, gated or not — no rows, a
+            // row that is not a `mutation_response`, a malformed cascade entry, the cascade
+            // size ceiling. A write that committed and then failed told its caller it failed
+            // while it had landed, and stored no idempotency record, so a retry ran it again.
+            // So it is not only a refusal that decides: every write takes this path. With the
+            // change-log outbox on (the default) the write is in this transaction anyway; the
+            // gate only moves the adjudication before `COMMIT`.
             //
-            // Any `Err` rolls back, and is returned unchanged. The variant is not
-            // consulted: a `Reject`, a policy error (already failed closed to
-            // `Authorization` by the #423 contract), unreadable gated arguments
-            // (`Internal`), an unparseable `mutation_response` or a function that
-            // returned no rows all mean the write was never adjudicated, and a write
-            // that was never adjudicated must not land while the client is told it
-            // failed.
+            // The write commits only if adjudication completed without error: `adjudicate`
+            // returned `Ok`. That is not the same as every field being allowed — a `Mask`
+            // decision nulls one field on one row and returns `Ok`, because it is a statement
+            // about the value, not the operation. Any `Err` rolls back and is returned
+            // unchanged, whatever its variant.
             let built = std::sync::OnceLock::new();
             let gate = |rows: &[std::collections::HashMap<String, serde_json::Value>]| {
                 drop(built.set(adjudicate(rows)?));
@@ -1852,21 +1839,6 @@ pub(in super::super) async fn execute_mutation_impl(
                 ),
                 source:  None,
             })?
-        } else {
-            // No policy-gated field, read gate, authorizer or row security anywhere, so
-            // nothing can refuse the payload once the row exists — see `may_refuse`.
-            // Keep the ungated call, which keeps `execute_function_call_with_session`'s
-            // no-session fast path (no explicit transaction) for the mutations that
-            // never needed one.
-            let rows = writer
-                .execute_function_call_with_changelog(
-                    sql_source,
-                    &args,
-                    &session_pairs,
-                    changelog.as_ref(),
-                )
-                .await?;
-            adjudicate(&rows)?
         }
     };
 

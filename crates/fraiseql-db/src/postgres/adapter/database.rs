@@ -33,10 +33,10 @@ use crate::{
 /// change-log outbox row in the same statement and optionally letting a caller-supplied
 /// gate decide whether that transaction commits.
 ///
-/// The three callers differ only in those two options:
-/// - `execute_function_call_with_changelog` → `Some(changelog)`, no gate (commit always);
+/// The callers differ only in those two options:
 /// - `execute_function_call_gated` → whatever changelog the mutation asked for, plus the gate that
-///   can roll the write back (#1353);
+///   can roll the write back (#1353). The mutation runner takes it for every write (ruling Z 1);
+/// - `execute_function_call_with_changelog` → `Some(changelog)`, no gate (commit always);
 /// - neither → `execute_function_call_with_session`, which keeps its own no-txn fast path and never
 ///   arrives here.
 ///
@@ -1161,7 +1161,7 @@ impl DatabaseAdapter for PostgresAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         // Deliberately no fast path: a gate that may roll back needs a transaction
         // it can roll back, even when there are no session variables and no outbox
-        // row. The caller reaches here only when a refusal is actually possible.
+        // row. Every write's response can fail to build, so every write comes here.
         run_function_in_txn(self, function_name, args, session_vars, changelog, Some(gate)).await
     }
 

@@ -202,6 +202,26 @@ impl DatabaseAdapter for RecordingAdapter {
         }
         Ok(vec![mutation_success_row()])
     }
+
+    // Every write commits only once it is adjudicated (ruling Z 1). This double
+    // has nothing durable to roll back: it runs the call, puts the rows to the gate
+    // and returns them.
+    fn supports_gated_writes(&self) -> bool {
+        true
+    }
+
+    async fn execute_function_call_gated(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
+        _changelog: Option<&fraiseql_core::db::traits::ChangeLogWrite<'_>>,
+        gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        let rows = self.execute_function_call(function_name, args).await?;
+        gate(&rows)?;
+        Ok(rows)
+    }
 }
 
 impl SupportsMutations for RecordingAdapter {}

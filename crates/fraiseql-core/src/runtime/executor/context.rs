@@ -39,19 +39,6 @@ pub(super) struct ExecutorContext {
     /// handle). A per-deployment constant — it changes on any schema change.
     pub(super) schema_version: Arc<str>,
 
-    /// Whether a write could be refused after its function ran (`core::write_refusal_gate`):
-    /// an `authorize` field, a read gate, the #422 authorizer or row security anywhere in
-    /// the schema and configuration. Computed **once** here at construction.
-    ///
-    /// The mutation runner asks this on every write, to decide whether the write needs the
-    /// transaction that lets a refusal roll it back (#1353). The schema scans are linear
-    /// in every type's every field — `has_any_authorize_field()` alone measured at ~29µs on
-    /// a 500-type / 30-field schema with none gated, which is the worst case because there
-    /// is nothing to short-circuit on. That is a double-digit percentage of a local write's
-    /// round trip, so it is answered here instead, where the schema and the configuration
-    /// are already fixed behind the `Arc` and cannot go stale.
-    pub(super) write_may_refuse: bool,
-
     /// How each nested object field's rows are gated by its type's row security —
     /// decided once, here, from the schema and the RLS policy's declared paths.
     pub(super) nested_row_gates: super::runners::query_nested::NestedRowGates,
@@ -81,13 +68,13 @@ pub(super) struct ExecutorContext {
     /// already uses.
     pub(super) writer: Option<Arc<dyn DatabaseAdapter>>,
 
-    /// Why the write grant above is not handed out, when it is not: the schema can refuse a
-    /// write after its function ran, and the adapter cannot run the write whose commit waits
-    /// for that decision (ruling X 2). Decided once, at construction, and refused with by
+    /// Why the write grant above is not handed out, when it is not: every write's commit
+    /// waits for its response, and the adapter cannot run a write whose commit waits
+    /// (rulings X 2, Z 1). Decided once, at construction, and refused with by
     /// [`Self::writer`] — so the refusal every mutation gets is the one the boot logged.
     ///
     /// Kept beside the grant rather than instead of it, because a rebuild recomputes this
-    /// from the new schema and carries the grant over.
+    /// and carries the grant over.
     pub(super) writes_refused: Option<String>,
 
     /// Type-erased relay capability slot.
@@ -154,17 +141,17 @@ impl ExecutorContext {
     /// # Errors
     ///
     /// [`FraiseQLError::Unsupported`] (`501`) when the executor refused mutations at build
-    /// (`writes_refused`) — without the adapter or the gate, which were logged then and are
-    /// not the caller's to learn; otherwise [`FraiseQLError::Validation`] naming the
+    /// (`writes_refused`) — without the adapter, which was logged then and is not the
+    /// caller's to learn; otherwise [`FraiseQLError::Validation`] naming the
     /// mutation and both capability gates.
     pub(super) fn writer(&self, mutation_name: &str) -> Result<&dyn DatabaseAdapter> {
         if self.writes_refused.is_some() {
             return Err(crate::error::FraiseQLError::Unsupported {
                 message: format!(
                     "Mutation '{mutation_name}' cannot be executed: mutations are not mounted \
-                     on this server, because its database adapter cannot roll back a write \
-                     the schema can refuse after it ran. The adapter and the gate were \
-                     logged when the executor was built."
+                     on this server, because its database adapter cannot hold a write's \
+                     commit until the write's response is built. The adapter was logged \
+                     when the executor was built."
                 ),
             });
         }

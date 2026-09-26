@@ -176,40 +176,6 @@ impl CompiledSchema {
         self.types.iter().any(|t| t.fields.iter().any(|f| f.authorize))
     }
 
-    /// The first thing in the schema that gates the read of an entity, named: a field's
-    /// `requires_scope`, a type's `requires_role`, or a query's `requires_role` or
-    /// `requires_actor` — which a read of its type meets at a nested level. `None` when
-    /// nothing does.
-    ///
-    /// Used by the mutation runner, whose payload is served as a read of whatever type the
-    /// database stamps on it, to decide whether serving it could refuse after the write —
-    /// and, when the adapter cannot take a refusal back, to say which gate is why.
-    #[must_use]
-    pub fn first_read_gate(&self) -> Option<String> {
-        self.types
-            .iter()
-            .find_map(|t| {
-                if t.requires_role.is_some() {
-                    return Some(format!("the `requires_role` of type `{}`", t.name));
-                }
-                t.fields
-                    .iter()
-                    .find(|f| f.requires_scope.is_some())
-                    .map(|f| format!("the `requires_scope` of `{}.{}`", t.name, f.name))
-            })
-            .or_else(|| {
-                self.queries.iter().find_map(|q| {
-                    if q.requires_role.is_some() {
-                        Some(format!("the `requires_role` of query `{}`", q.name))
-                    } else if !q.requires_actor.is_empty() {
-                        Some(format!("the `requires_actor` of query `{}`", q.name))
-                    } else {
-                        None
-                    }
-                })
-            })
-    }
-
     /// Find an enum definition by name.
     #[must_use]
     pub fn find_enum(&self, name: &str) -> Option<&EnumDefinition> {

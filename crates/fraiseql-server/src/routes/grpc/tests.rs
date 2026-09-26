@@ -678,6 +678,26 @@ mod chokepoint {
             row.insert("entity_id".to_string(), JsonValue::String(ENTITY_ID.to_string()));
             Ok(vec![row])
         }
+
+        // Every write commits only once it is adjudicated (ruling Z 1). This double
+        // has nothing durable to roll back: it runs the call, puts the rows to the gate
+        // and returns them.
+        fn supports_gated_writes(&self) -> bool {
+            true
+        }
+
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[JsonValue],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&fraiseql_core::db::traits::ChangeLogWrite<'_>>,
+            gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+        ) -> FraiseQLResult<Vec<HashMap<String, JsonValue>>> {
+            let rows = self.execute_function_call(function_name, args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
     }
 
     impl SupportsMutations for RecordingAdapter {}

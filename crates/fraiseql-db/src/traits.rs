@@ -917,12 +917,13 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     /// write's commit can wait for a decision taken over the rows it returned, so that a
     /// refusal there takes the write with it.
     ///
-    /// Asked once, when an executor is built. A schema on which a write can be refused
-    /// after its function ran (an `authorize` field, a read gate its payload meets, the
-    /// #422 authorizer, row security), over an adapter that answers `false`, does not
-    /// mount mutations: the executor says so at boot, naming the adapter and the gate, and
-    /// refuses every mutation with `501`. Never a write run without the gate, and never a
-    /// refusal the first write discovers.
+    /// Asked once, when an executor is built. Every write commits only once its response
+    /// has been built from the rows its function returned — so a refusal there (an
+    /// `authorize` field, a read gate the payload meets) or a failure (no rows, a row that
+    /// is not a `mutation_response`) rolls it back. An executor over an adapter that answers
+    /// `false` does not mount mutations: it says so at boot, naming the adapter, and refuses
+    /// every mutation with `501`. Never a write committed before it was adjudicated, and
+    /// never a refusal the first write discovers.
     ///
     /// **Implementing `execute_function_call_gated` obliges you to override this too**, and
     /// a wrapping adapter must forward both. Defaults to `false`: a capability is not
@@ -1197,15 +1198,18 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     /// one keyed on the row the function produced. The field-level authorizer
     /// (#423) is exactly that: its contract takes the resolved entity as `parent`,
     /// so before #1353 it could only refuse the *result* of a write that had
-    /// already committed. Running it here lets it refuse the write itself.
+    /// already committed. Running it here lets it refuse the write itself. Every write
+    /// takes it, so that building the response — which can fail on any schema — decides
+    /// the commit too (ruling Z 1).
     ///
     /// `gate` returning `Err` rolls the transaction back; that error is what the
     /// caller receives. `Ok(())` commits, exactly as the ungated method would.
     ///
-    /// Callers must reach this only when a gate can actually refuse — it always
-    /// takes an explicit transaction, so it gives up the no-session fast path that
-    /// [`execute_function_call_with_session`](Self::execute_function_call_with_session)
-    /// keeps.
+    /// It always takes an explicit transaction, so it gives up the no-session fast path
+    /// that [`execute_function_call_with_session`](Self::execute_function_call_with_session)
+    /// keeps. With the change-log outbox on (the default) the ungated write takes the same
+    /// transaction; the fast path only ever applied with the outbox off, no session
+    /// variables and no mutation timing.
     ///
     /// Only the PostgreSQL adapter overrides this today. The default below returns
     /// `Unsupported` rather than committing an ungated write: an adapter that

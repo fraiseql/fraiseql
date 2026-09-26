@@ -351,11 +351,10 @@ pub struct MockAdapter {
     /// nothing ran, rather than inferring it from the returned error — an error and
     /// an executed statement are not mutually exclusive.
     pub captured_raw_sql: std::sync::Mutex<Vec<String>>,
-    /// Whether it implements the commit-gated write: `false` unless built
-    /// [`with_gated_writes`](Self::with_gated_writes). Without it, an executor over a schema
-    /// that can refuse a write after its function ran does not mount mutations (ruling X 2)
-    /// — which is what the capability tests need, and what a test of an operation gate
-    /// in front of the write does not.
+    /// Whether it implements the commit-gated write: `true` unless built
+    /// [`without_gated_writes`](Self::without_gated_writes). Without it, an executor does
+    /// not mount mutations (rulings X 2, Z 1) — which is what the capability tests need,
+    /// and what every other test of a write does not.
     pub gates_writes:     bool,
 }
 
@@ -366,15 +365,15 @@ impl MockAdapter {
             mock_results,
             view_responses: std::collections::HashMap::new(),
             captured_raw_sql: std::sync::Mutex::new(Vec::new()),
-            gates_writes: false,
+            gates_writes: true,
         }
     }
 
-    /// Implement the commit-gated write: put the (empty) function call's rows to
-    /// the gate and return them — the PostgreSQL adapter's contract, minus durability.
+    /// Do not implement the commit-gated write: the adapter a capability test needs, over
+    /// which an executor mounts no mutations.
     #[must_use]
-    pub const fn with_gated_writes(mut self) -> Self {
-        self.gates_writes = true;
+    pub const fn without_gated_writes(mut self) -> Self {
+        self.gates_writes = false;
         self
     }
 
@@ -416,7 +415,7 @@ impl DatabaseAdapter for MockAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         if !self.gates_writes {
             return Err(crate::error::FraiseQLError::Unsupported {
-                message: "MockAdapter was built without with_gated_writes()".to_string(),
+                message: "MockAdapter was built without_gated_writes()".to_string(),
             });
         }
         let rows = Vec::new();

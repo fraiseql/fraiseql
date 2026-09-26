@@ -277,6 +277,17 @@ impl FailingAdapter {
         self.fail_config.lock().unwrap().error = Some(err);
     }
 
+    /// What the SQL function `function_name` returns: the configured rows, or none, after
+    /// the failure check. Shared by the ungated and the commit-gated write.
+    fn function_rows(
+        &self,
+        function_name: &str,
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        self.check_failure(function_name)?;
+        let responses = self.function_responses.lock().unwrap();
+        Ok(responses.get(function_name).cloned().unwrap_or_default())
+    }
+
     /// Check if the current query should fail, returning the error if so.
     fn check_failure(&self, view: &str) -> Result<()> {
         let current = self.query_count.fetch_add(1, Ordering::SeqCst);
@@ -411,12 +422,28 @@ impl DatabaseAdapter for FailingAdapter {
         function_name: &str,
         _args: &[serde_json::Value],
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-        self.check_failure(function_name)?;
-        let responses = self.function_responses.lock().unwrap();
-        if let Some(data) = responses.get(function_name) {
-            return Ok(data.clone());
-        }
-        Ok(vec![])
+        self.function_rows(function_name)
+    }
+
+    // Every write commits only once it is adjudicated: the runner takes the commit-gated
+    // write for all of them. This adapter has nothing durable to roll back, so it puts the
+    // configured rows to the gate and returns them — the PostgreSQL adapter's contract,
+    // minus durability.
+    fn supports_gated_writes(&self) -> bool {
+        true
+    }
+
+    async fn execute_function_call_gated(
+        &self,
+        function_name: &str,
+        _args: &[serde_json::Value],
+        _session_vars: &[(&str, &str)],
+        _changelog: Option<&fraiseql_core::db::traits::ChangeLogWrite<'_>>,
+        gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        let rows = self.function_rows(function_name)?;
+        gate(&rows)?;
+        Ok(rows)
     }
 
     async fn execute_row_query(

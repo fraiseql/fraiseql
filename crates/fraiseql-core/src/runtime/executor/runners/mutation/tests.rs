@@ -65,6 +65,26 @@ mod mutation {
             Ok(vec![row])
         }
 
+        // Every write commits only once it is adjudicated (ruling Z 1). This double
+        // has nothing durable to roll back: it runs the call, puts the rows to the gate
+        // and returns them.
+        fn supports_gated_writes(&self) -> bool {
+            true
+        }
+
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            let rows = self.execute_function_call(function_name, args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -154,6 +174,26 @@ mod mutation {
             row.insert("entity_type".to_string(), json!("User"));
             row.insert("message".to_string(), json!(""));
             Ok(vec![row])
+        }
+
+        // Every write commits only once it is adjudicated (ruling Z 1). This double
+        // has nothing durable to roll back: it runs the call, puts the rows to the gate
+        // and returns them.
+        fn supports_gated_writes(&self) -> bool {
+            true
+        }
+
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            let rows = self.execute_function_call(function_name, args).await?;
+            gate(&rows)?;
+            Ok(rows)
         }
 
         async fn execute_with_projection(
@@ -739,6 +779,26 @@ mod mutation {
             Ok(vec![row])
         }
 
+        // Every write commits only once it is adjudicated (ruling Z 1). This double
+        // has nothing durable to roll back: it runs the call, puts the rows to the gate
+        // and returns them.
+        fn supports_gated_writes(&self) -> bool {
+            true
+        }
+
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            let rows = self.execute_function_call(function_name, args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -1149,21 +1209,31 @@ mod mutation {
             Ok(vec![row])
         }
 
-        async fn execute_function_call_with_changelog(
+        // Every write commits only once it is adjudicated (ruling Z 1), so this is the
+        // entry every write takes, carrying the change-log descriptor.
+        fn supports_gated_writes(&self) -> bool {
+            true
+        }
+
+        async fn execute_function_call_gated(
             &self,
             function_name: &str,
             args: &[serde_json::Value],
             _session_vars: &[(&str, &str)],
             changelog: Option<&ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             // Capture the DML verb the executor derived from the mutation's
             // `operation` so a test can assert the Change Spine records the
             // real verb (not a blanket UPDATE). Then delegate so `args` are
-            // captured by `execute_function_call` exactly as the real path does.
+            // captured by `execute_function_call` exactly as the real path does,
+            // and put the rows to the gate as the PostgreSQL adapter does.
             *self.captured_modification_type.lock().unwrap() =
                 changelog.map(|c| c.modification_type.to_string());
             *self.captured_pre_image.lock().unwrap() = changelog.map(|c| c.pre_image);
-            self.execute_function_call(function_name, args).await
+            let rows = self.execute_function_call(function_name, args).await?;
+            gate(&rows)?;
+            Ok(rows)
         }
 
         async fn execute_with_projection(
@@ -2942,6 +3012,26 @@ mod mutation_audit {
             Ok(vec![row])
         }
 
+        // Every write commits only once it is adjudicated (ruling Z 1). This double
+        // has nothing durable to roll back: it runs the call, puts the rows to the gate
+        // and returns them.
+        fn supports_gated_writes(&self) -> bool {
+            true
+        }
+
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            let rows = self.execute_function_call(function_name, args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -3336,14 +3426,13 @@ mod field_authz {
 
         /// The commit gate (#1353), for a test double with no durable state.
         ///
-        /// Since this schema declares a policy-gated field, the runner routes its
-        /// write through `execute_function_call_gated` so the field authorizer can
-        /// refuse the write and not merely its result. The trait default refuses
-        /// outright — an adapter that cannot roll back must not be the one to decide
-        /// a refused write is survivable — so a double on a gated schema has to say
-        /// what it does. This one has nothing to roll back (its "write" is a canned
-        /// row), so running the call and then adjudicating it is exactly what the
-        /// PostgreSQL adapter does, minus the durability.
+        /// The runner routes every write through `execute_function_call_gated` (ruling
+        /// Z 1), so the field authorizer can refuse the write and not merely its result,
+        /// and a response that cannot be built takes the write with it. The trait default
+        /// refuses outright — an adapter that cannot roll back must not be the one to
+        /// decide a refused write is survivable. This one has nothing to roll back (its
+        /// "write" is a canned row), so running the call and then adjudicating it is
+        /// exactly what the PostgreSQL adapter does, minus the durability.
         async fn execute_function_call_gated(
             &self,
             function_name: &str,
@@ -3372,7 +3461,9 @@ mod field_authz {
             _function_name: &str,
             _args: &[serde_json::Value],
         ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            // The ungated path: whatever the function did, it stands.
+            // The ungated path: whatever the function did, it stands. The runner no longer
+            // takes it (ruling Z 1); kept so a runner that regressed to it is caught
+            // committing what it should have adjudicated.
             self.mark_ran();
             self.mark_committed();
             Ok(self.rows.clone())
@@ -3827,7 +3918,6 @@ mod field_authz {
         s
     }
 
-    #[ignore = "reproduction: ruling Z 1, an ungated write commits before adjudication"]
     #[tokio::test]
     async fn an_ungated_write_returning_no_rows_does_not_commit() {
         let adapter = Arc::new(GatedEntityAdapter::returning(vec![]));
@@ -3841,7 +3931,6 @@ mod field_authz {
         assert!(!adapter.committed(), "a write with no row to adjudicate must not stand");
     }
 
-    #[ignore = "reproduction: ruling Z 1, an ungated write commits before adjudication"]
     #[tokio::test]
     async fn an_ungated_write_with_an_unparseable_response_does_not_commit() {
         let mut row = HashMap::new();
@@ -4776,6 +4865,26 @@ mod before_mutation_enforcement {
             row.insert("entity_type".to_string(), json!("User"));
             row.insert("message".to_string(), json!(""));
             Ok(vec![row])
+        }
+
+        // Every write commits only once it is adjudicated (ruling Z 1). This double
+        // has nothing durable to roll back: it runs the call, puts the rows to the gate
+        // and returns them.
+        fn supports_gated_writes(&self) -> bool {
+            true
+        }
+
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            let rows = self.execute_function_call(function_name, args).await?;
+            gate(&rows)?;
+            Ok(rows)
         }
 
         async fn execute_function_call_with_changelog(
