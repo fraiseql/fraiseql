@@ -70,7 +70,9 @@ fn mutation_success_row() -> HashMap<String, serde_json::Value> {
         "entity".to_string(),
         json!({"id": ALICE_UUID, "email": "alice@example.com", "name": "Alice"}),
     );
-    row.insert("entity_type".to_string(), json!("User"));
+    // No `entity_type`: this row answers mutations returning `User` and the union
+    // `CreateUserResult`, and a stamp must name the type each returns (ruling AA 1).
+    // Unstamped, it resolves to the one type a success can be.
     row
 }
 

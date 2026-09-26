@@ -2009,7 +2009,7 @@ async fn an_updated_entity_is_the_writes_to_report() {
 
 /// `cascade_schema` with `touchOrderLoose`: `fn_touch_order`, declared as returning
 /// `OrderRecord`, a type the schema does not know — so the `Order` the write stamps is a type
-/// no payload position anticipated.
+/// its payload cannot hold.
 fn loose_schema() -> CompiledSchema {
     let mut schema = cascade_schema();
     let mut mutation = MutationDefinition::new("touchOrderLoose", "OrderRecord");
@@ -2023,35 +2023,31 @@ fn loose_schema() -> CompiledSchema {
     schema
 }
 
-/// An entity stamped with a type the payload did not anticipate is classified when it
-/// arrives: its `Mask` masks and its `Reject` refuses. That refusal comes after the function
-/// ran; `a_late_refusal_takes_the_write_with_it` shows the write does not stand.
+/// An entity stamped with a type its mutation cannot hold broke the function's contract
+/// (ruling AA 1): `touchOrderLoose` returns `OrderRecord`, and its function stamps `Order`.
+/// It is refused with a contract error naming the stamp — whatever the selection, gated or
+/// not — rather than classified on arrival and served.
 #[tokio::test]
-async fn a_type_no_payload_position_anticipated_is_classified_when_it_arrives() {
+async fn an_entity_stamped_with_a_type_its_mutation_cannot_hold_is_a_contract_error() {
     let executor = rig_or_skip!(over loose_schema(), Policy::None);
-    let out = graphql(&executor, "mutation { touchOrderLoose(id: 10) { id margin } }")
-        .await
-        .unwrap();
-    assert_eq!(out["data"]["touchOrderLoose"]["id"], 10, "{out}");
-    assert!(out["data"]["touchOrderLoose"]["margin"].is_null(), "{out}");
-    let result = graphql(&executor, "mutation { touchOrderLoose(id: 11) { id cost_price } }").await;
-    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
+    for query in [
+        "mutation { touchOrderLoose(id: 10) { id margin } }",
+        "mutation { touchOrderLoose(id: 11) { id cost_price } }",
+    ] {
+        let result = graphql(&executor, query).await;
+        let Err(FraiseQLError::Validation { message, .. }) = &result else {
+            panic!("a contract error, not {result:?}");
+        };
+        assert!(message.contains("'Order'"), "names the stamp: {message}");
+    }
 }
 
-/// A refusal that arrives after the write takes the write with it: a schema with a read gate
-/// the payload could meet (`Order.cost_price`'s `requires_scope`) runs every write in a
-/// transaction, so the `Order` no payload position anticipated, refused when it arrives,
-/// leaves no write behind — though no `authorize` field anywhere in the schema asked for one
-/// (rulings W 1).
+/// The contract error takes the write with it: every write is adjudicated inside its
+/// transaction (ruling Z 1), so neither attempt above leaves a row behind.
 #[tokio::test]
-async fn a_late_refusal_takes_the_write_with_it() {
+async fn a_contract_error_takes_the_write_with_it() {
     let executor = rig_or_skip!(over loose_schema(), Policy::None);
-    let result = graphql(&executor, "mutation { touchOrderLoose(id: 11) { id cost_price } }").await;
-    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
-    assert_eq!(writes().await, [], "a refused payload's write stood");
-    let out = graphql(&executor, "mutation { touchOrderLoose(id: 10) { id margin } }")
-        .await
-        .unwrap();
-    assert_eq!(out["data"]["touchOrderLoose"]["id"], 10, "{out}");
-    assert_eq!(writes().await, [("order".to_string(), 10)], "an admitted write did not stand");
+    let result = graphql(&executor, "mutation { touchOrderLoose(id: 10) { id margin } }").await;
+    assert!(matches!(result, Err(FraiseQLError::Validation { .. })), "{result:?}");
+    assert_eq!(writes().await, [], "a write that broke its contract stood");
 }

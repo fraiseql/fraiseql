@@ -1144,6 +1144,10 @@ mod mutation {
         /// (`ChangeLogWrite.pre_image`), captured to exercise the
         /// `changelog_pre_image` path. `None` if no change-log row was written.
         captured_pre_image:         std::sync::Mutex<Option<bool>>,
+        /// The `object_type` fallback the executor handed the Change Spine on the last call
+        /// (the type recorded when the function stamps none), or `None` if no change-log row
+        /// was written.
+        captured_object_type:       std::sync::Mutex<Option<String>>,
     }
 
     impl CapturingFunctionCallAdapter {
@@ -1153,6 +1157,7 @@ mod mutation {
                 updated_fields:             serde_json::Value::Null,
                 captured_modification_type: std::sync::Mutex::new(None),
                 captured_pre_image:         std::sync::Mutex::new(None),
+                captured_object_type:       std::sync::Mutex::new(None),
             }
         }
 
@@ -1178,6 +1183,11 @@ mod mutation {
         fn pre_image(&self) -> Option<bool> {
             *self.captured_pre_image.lock().unwrap()
         }
+
+        /// The change-log `object_type` fallback of the last call.
+        fn object_type(&self) -> Option<String> {
+            self.captured_object_type.lock().unwrap().clone()
+        }
     }
 
     #[async_trait]
@@ -1199,7 +1209,8 @@ mod mutation {
             row.insert("succeeded".to_string(), json!(true));
             row.insert("state_changed".to_string(), json!(true));
             row.insert("entity".to_string(), json!({"id": "1"}));
-            row.insert("entity_type".to_string(), json!("User"));
+            // No `entity_type`: this double serves mutations of many return types, and a stamp
+            // must name the one each returns (ruling AA 1). Unstamped, it resolves to it.
             // Only emit the column when set, so the default row stays unchanged for
             // the many existing tests that read `captured_args` and ignore the row.
             if !self.updated_fields.is_null() {
@@ -1231,6 +1242,8 @@ mod mutation {
             *self.captured_modification_type.lock().unwrap() =
                 changelog.map(|c| c.modification_type.to_string());
             *self.captured_pre_image.lock().unwrap() = changelog.map(|c| c.pre_image);
+            *self.captured_object_type.lock().unwrap() =
+                changelog.map(|c| c.object_type.to_string());
             let rows = self.execute_function_call(function_name, args).await?;
             gate(&rows)?;
             Ok(rows)
@@ -2328,6 +2341,42 @@ mod mutation {
             Some(true),
             "changelog_pre_image=true must reach the ChangeLogWrite"
         );
+    }
+
+    /// Ruling AA 1: the change-log records the type the write produced. When the function
+    /// stamps none, that is the one type a success can be — `User` for a mutation returning
+    /// `User | ValidationError` — never the union's name, which is no entity type.
+    #[tokio::test]
+    async fn the_change_log_records_the_type_an_unstamped_success_is() {
+        use crate::schema::{
+            FieldDefinition, FieldType, MutationDefinition, TypeDefinition, UnionDefinition,
+        };
+        let mut schema = CompiledSchema::new();
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields = vec![FieldDefinition::new("id", FieldType::Id)];
+        schema.types.push(user);
+        schema.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![FieldDefinition::new("message", FieldType::String)],
+            ..TypeDefinition::new("ValidationError", "")
+        });
+        schema.unions.push(
+            UnionDefinition::new("CreateUserResult")
+                .with_members(vec!["User".to_string(), "ValidationError".to_string()]),
+        );
+        schema.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createUser", "CreateUserResult")
+        });
+        schema.build_indexes();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        Executor::new(schema, adapter)
+            .execute("mutation { createUser { ... on User { id } } }", None)
+            .await
+            .unwrap();
+
+        assert_eq!(adapter_ref.object_type().as_deref(), Some("User"));
     }
 
     /// Default / absent `changelog_pre_image` leaves the pre-image off — the
@@ -4120,7 +4169,6 @@ mod field_authz {
         (adapter, res)
     }
 
-    #[ignore = "reproduction: ruling AA 1, an off-contract stamp is served"]
     #[tokio::test]
     async fn a_stamp_the_return_type_cannot_hold_is_a_contract_error() {
         let (adapter, res) = stamped_write(
@@ -4135,7 +4183,6 @@ mod field_authz {
         assert!(!adapter.committed(), "a write that broke its contract does not stand");
     }
 
-    #[ignore = "reproduction: ruling AA 1, a stamp naming no type is served ungated"]
     #[tokio::test]
     async fn a_stamp_naming_no_type_is_a_contract_error() {
         let (adapter, res) = stamped_write(
@@ -4169,7 +4216,6 @@ mod field_authz {
         s
     }
 
-    #[ignore = "reproduction: ruling AA 1, a silent stamp picks a union member"]
     #[tokio::test]
     async fn an_unstamped_success_with_two_possible_types_is_a_contract_error() {
         let (adapter, res) = stamped_write(
@@ -4180,6 +4226,22 @@ mod field_authz {
         .await;
         let err = res.expect_err("the function did not say whether it produced a User or an Admin");
         assert!(matches!(err, FraiseQLError::Validation { .. }), "{err:?}");
+        assert!(!adapter.committed(), "a write that broke its contract does not stand");
+    }
+
+    // Error types are classified at the root for the error arm; a *success* stamped as one
+    // is still off-contract, and is refused where the stamp is resolved.
+    #[tokio::test]
+    async fn a_success_stamped_as_an_error_type_is_a_contract_error() {
+        let (adapter, res) = stamped_write(
+            schema_with_two_success_members(),
+            Some("ValidationError"),
+            "mutation { createUser { ... on User { id } } }",
+        )
+        .await;
+        let err = res.expect_err("a success is not a ValidationError");
+        assert!(matches!(err, FraiseQLError::Validation { .. }), "{err:?}");
+        assert!(format!("{err}").contains("'ValidationError'"), "names the stamp: {err}");
         assert!(!adapter.committed(), "a write that broke its contract does not stand");
     }
 
@@ -4231,7 +4293,6 @@ mod field_authz {
         s
     }
 
-    #[ignore = "reproduction: ruling AA 1, an interface's implementors are classified after the write"]
     #[tokio::test]
     async fn an_interface_return_is_classified_as_its_implementors_before_the_write() {
         let adapter = Arc::new(GatedEntityAdapter::default());
@@ -5096,6 +5157,31 @@ mod cascade {
         );
     }
 
+    // An unstamped cascade entity is the payload's declared entity type — the shape the
+    // compiler synthesises (`<Name>Payload { entity: T }`) and the helper's NULL default.
+    #[tokio::test]
+    async fn an_unstamped_cascade_entity_is_the_payloads_declared_entity_type() {
+        let mut schema = cascade_schema();
+        let mut payload = TypeDefinition::new("CreatePostPayload", "");
+        payload.fields = vec![FieldDefinition::new(
+            "entity",
+            FieldType::Object("Post".to_string()),
+        )];
+        schema.types.push(payload);
+        schema.build_indexes();
+        let mut adapter = CannedMutationAdapter::new(standard_cascade());
+        adapter.row.remove("entity_type");
+        let out = Executor::new(schema, Arc::new(adapter))
+            .execute_with_security(
+                "mutation { createPost { entity { id title } } }",
+                None,
+                &auth_ctx(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(out["data"]["createPost"]["entity"]["title"], "Hello", "{out}");
+    }
+
     // Ruling AA 1 (Z 3): a cascade's entity is the payload's declared entity type, or a
     // `CascadeNode`; an entity a cascade reports updated is a `CascadeNode`. `Plain` is
     // neither.
@@ -5108,7 +5194,6 @@ mod cascade {
         s
     }
 
-    #[ignore = "reproduction: ruling AA 1, a cascade entity stamped off-contract is served"]
     #[tokio::test]
     async fn a_cascade_entity_stamped_with_a_type_it_cannot_hold_is_a_contract_error() {
         let mut adapter = CannedMutationAdapter::new(standard_cascade());
@@ -5121,7 +5206,6 @@ mod cascade {
         assert!(format!("{err}").contains("'Plain'"), "names the stamp: {err}");
     }
 
-    #[ignore = "reproduction: ruling AA 1, an updated entity of an off-contract type is served"]
     #[tokio::test]
     async fn an_updated_entity_of_a_type_that_is_no_cascade_node_is_a_contract_error() {
         let cascade = json!({
@@ -6335,7 +6419,8 @@ mod rest_write_body {
             row.insert("succeeded".to_string(), json!(true));
             row.insert("state_changed".to_string(), json!(true));
             row.insert("entity".to_string(), self.entity.clone());
-            row.insert("entity_type".to_string(), json!("User"));
+            // No `entity_type`: this double serves mutations of many return types, and a stamp
+            // must name the one each returns (ruling AA 1). Unstamped, it resolves to it.
             row.insert("message".to_string(), json!(""));
             Ok(vec![row])
         }

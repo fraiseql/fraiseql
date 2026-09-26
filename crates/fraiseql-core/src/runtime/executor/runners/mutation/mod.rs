@@ -147,7 +147,8 @@ fn enforce_mutation_field_authz(
 ///
 /// # Errors
 ///
-/// What the read gates refuse of a type no position anticipated, and what
+/// A type `position` cannot hold (a contract error, ruling AA 1), a type whose role the
+/// caller lacks, and what
 /// [`enforce_mutation_field_authz`] refuses.
 // Reason: the entity, where it sits, and the request's principal, gates and variables are
 // each a separate input to one decision; a struct would only relocate them.
@@ -236,6 +237,32 @@ fn resolve_cascade_views(cascade: &serde_json::Value, schema: &CompiledSchema) -
         }
     }
     views
+}
+
+/// The one type an unstamped success of a mutation returning `return_type` can be, when there
+/// is exactly one: for a cascade mutation, its payload's declared entity type; otherwise the
+/// only non-error member of a returned union, the only implementor of a returned interface,
+/// or the returned type. `None` when a stamp is needed to tell (ruling AA 1).
+fn unstamped_type(schema: &CompiledSchema, return_type: &str, is_cascade: bool) -> Option<String> {
+    if is_cascade {
+        return payload_entity_type(&resolve_payload_type(return_type, schema), schema);
+    }
+    match payload_gates::success_types(schema, return_type).as_slice() {
+        [only] => Some(only.clone()),
+        _ => None,
+    }
+}
+
+/// The contract error for an unstamped success that could be several types.
+fn unstamped_ambiguity(return_type: &str, candidates: &[String]) -> FraiseQLError {
+    FraiseQLError::Validation {
+        message: format!(
+            "the mutation function did not stamp entity_type, and a '{return_type}' success can \
+             be any of: {} — stamp the one it produced; the write was rolled back",
+            candidates.join(", ")
+        ),
+        path:    Some("entity_type".to_string()),
+    }
 }
 
 /// The concrete entity type a payload wraps, read from its `entity` field type.
@@ -962,9 +989,19 @@ fn build_mutation_result(
             // concrete entity type is the DB-stamped `entity_type`, else the
             // payload's `entity` field type.
             let payload_type = resolve_payload_type(mutation_return_type, &ctx.schema);
-            let entity_type_name = entity_type
-                .or_else(|| payload_entity_type(&payload_type, &ctx.schema))
-                .unwrap_or_else(|| mutation_return_type.to_string());
+            // The stamp, else the payload's declared entity type (ruling AA 1). A stamp the
+            // cascade entity cannot hold is refused where it is served (`PayloadGates`).
+            let entity_type_name = match entity_type {
+                Some(stamp) => stamp,
+                None => {
+                    unstamped_type(&ctx.schema, mutation_return_type, true).ok_or_else(|| {
+                        unstamped_ambiguity(
+                            mutation_return_type,
+                            &payload_gates::cascade_node_types(&ctx.schema),
+                        )
+                    })?
+                },
+            };
             build_cascade_payload(
                 ctx,
                 security_ctx,
@@ -985,21 +1022,24 @@ fn build_mutation_result(
             updated_fields,
             ..
         } => {
-            // Resolve the concrete GraphQL type of the success entity: the
-            // mutation_response's entity_type, else the first non-error union
-            // member, else the declared return type.
-            let typename = entity_type
-                .or_else(|| {
-                    ctx.schema
-                        .find_union(mutation_return_type)
-                        .and_then(|u| {
-                            u.member_types
-                                .iter()
-                                .find(|t| ctx.schema.find_type(t).is_none_or(|td| !td.is_error))
-                        })
-                        .cloned()
-                })
-                .unwrap_or_else(|| mutation_return_type.to_string());
+            // Resolve the concrete GraphQL type of the success entity (ruling AA 1): the
+            // stamp, which must name a type a success can be — a non-error member of the
+            // returned union, an implementor of the returned interface, or the returned type —
+            // else, unstamped, the one type a success can be. Where there are several, the
+            // function's silence must not pick one: a contract error, and the write rolls back.
+            let successes = payload_gates::success_types(&ctx.schema, mutation_return_type);
+            let typename = match entity_type {
+                Some(stamp) if successes.contains(&stamp) => stamp,
+                Some(stamp) => {
+                    return Err(payload_gates::off_contract(
+                        PayloadPosition::Root,
+                        &stamp,
+                        &successes,
+                    ));
+                },
+                None => unstamped_type(&ctx.schema, mutation_return_type, false)
+                    .ok_or_else(|| unstamped_ambiguity(mutation_return_type, &successes))?,
+            };
 
             // Project the entity through the single canonical projector — the same
             // snake_case source keys, surface output keys, depth-aware recursion and
@@ -1740,8 +1780,15 @@ pub(in super::super) async fn execute_mutation_impl(
         // transport that stamps itself onto the SecurityContext (today: MCP);
         // NULL for the HTTP GraphQL path and unauthenticated mutations.
         let transport = security_ctx.and_then(SecurityContext::transport);
+        // The change-log records the type the write produced: its stamp (the CTE prefers it),
+        // else the one type an unstamped success can be — never a union's or a cascade
+        // payload's name (ruling AA 1). An off-contract or ambiguous stamp rolls the whole
+        // write back, change-log row included.
+        let changelog_object_type =
+            unstamped_type(&ctx.schema, &mutation_def.return_type, mutation_def.cascade)
+                .unwrap_or_else(|| mutation_def.return_type.clone());
         let changelog = write_changelog.then(|| {
-            ChangeLogWrite::new(&mutation_def.return_type, &modification_type)
+            ChangeLogWrite::new(&changelog_object_type, &modification_type)
                 .with_tenant_id(tenant_uuid)
                 .with_trace_id(trace_id)
                 .with_schema_version(Some(&ctx.schema_version))
