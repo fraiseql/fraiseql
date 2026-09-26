@@ -3266,10 +3266,14 @@ mod field_authz {
     /// only once the gate has agreed. A test that finds the flag clear after a refusal is finding
     /// the same thing the PostgreSQL integration test finds by counting rows.
     ///
+    /// `ran` records whether the SQL function was called at all, committed or not: a
+    /// refusal the selection and the principal already decide must leave it clear.
+    ///
     /// `rows` is what the SQL function returned: the canned `User` row by default, or
     /// whatever a test needs the gate to be handed — no rows, or a row that is not a
     /// `mutation_response`.
     struct GatedEntityAdapter {
+        ran:       std::sync::atomic::AtomicBool,
         committed: std::sync::atomic::AtomicBool,
         rows:      Vec<HashMap<String, serde_json::Value>>,
     }
@@ -3283,9 +3287,18 @@ mod field_authz {
     impl GatedEntityAdapter {
         fn returning(rows: Vec<HashMap<String, serde_json::Value>>) -> Self {
             Self {
+                ran: std::sync::atomic::AtomicBool::new(false),
                 committed: std::sync::atomic::AtomicBool::new(false),
                 rows,
             }
+        }
+
+        fn ran(&self) -> bool {
+            self.ran.load(std::sync::atomic::Ordering::SeqCst)
+        }
+
+        fn mark_ran(&self) {
+            self.ran.store(true, std::sync::atomic::Ordering::SeqCst);
         }
 
         fn committed(&self) -> bool {
@@ -3340,6 +3353,7 @@ mod field_authz {
             gate: fraiseql_db::MutationRowGate<'_>,
         ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
             let _ = (function_name, args, session_vars, changelog);
+            self.mark_ran();
             let rows = self.rows.clone();
             // The function has run; the transaction has not committed. A refusal
             // here returns without ever marking the write as having stood.
@@ -3359,6 +3373,7 @@ mod field_authz {
             _args: &[serde_json::Value],
         ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
             // The ungated path: whatever the function did, it stands.
+            self.mark_ran();
             self.mark_committed();
             Ok(self.rows.clone())
         }
@@ -3649,6 +3664,120 @@ mod field_authz {
             "the no-rows error is reported unchanged: {err}"
         );
         assert!(!adapter.committed(), "a write with no row to adjudicate must not stand");
+    }
+
+    // ── Ruling Y 2: what the selection already decides is decided before the write ──
+    //
+    // Of the #423 refusals, only a `Reject` needs the written row: it is the authorizer's
+    // decision over `parent`. The other four follow from the selection, the principal and
+    // the configuration — a gated field selected with no principal, with no authorizer
+    // configured, a gated field nested below the top level, a gated field whose arguments
+    // cannot be read. They used to be discovered while serving the written row. Now the
+    // function is never called: `ran` stays clear, not only `committed`.
+
+    /// `User` with a `profile: Profile` whose `secret` is policy-gated, for the nested case.
+    fn schema_with_nested_gated_field() -> CompiledSchema {
+        let mut s = schema();
+        let user = s.types.iter_mut().find(|t| t.name == "User").unwrap();
+        user.fields
+            .push(FieldDefinition::nullable("profile", FieldType::Object("Profile".to_string())));
+        let mut profile = TypeDefinition::new("Profile", "v_profile");
+        profile.fields = vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::nullable("secret", FieldType::String).with_authorize(true),
+        ];
+        s.types.push(profile);
+        s.build_indexes();
+        s
+    }
+
+    #[ignore = "reproduction: ruling Y 2, the refusal runs after the function"]
+    #[tokio::test]
+    async fn a_gated_field_without_a_principal_is_refused_before_the_write() {
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let err = Executor::with_config(
+            schema(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
+        )
+        .execute("mutation { createUser { id email } }", None)
+        .await
+        .expect_err("a gated field needs a principal");
+
+        assert!(format!("{err}").contains("not authenticated"), "{err}");
+        assert!(!adapter.ran(), "decided by the principal alone, so the function never runs");
+    }
+
+    #[ignore = "reproduction: ruling Y 2, the refusal runs after the function"]
+    #[tokio::test]
+    async fn a_gated_field_without_an_authorizer_is_refused_before_the_write() {
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let err = Executor::with_config(schema(), Arc::clone(&adapter), RuntimeConfig::default())
+            .execute_with_security("mutation { createUser { id email } }", None, &ctx())
+            .await
+            .expect_err("a gated field needs an authorizer");
+
+        assert!(format!("{err}").contains("no field authorizer is configured"), "{err}");
+        assert!(!adapter.ran(), "decided by the configuration alone, so the function never runs");
+    }
+
+    #[ignore = "reproduction: ruling Y 2, the refusal runs after the function"]
+    #[tokio::test]
+    async fn a_nested_gated_field_is_refused_before_the_write() {
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let err = Executor::with_config(
+            schema_with_nested_gated_field(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
+        )
+        .execute_with_security("mutation { createUser { id profile { secret } } }", None, &ctx())
+        .await
+        .expect_err("a nested gated field is not supported on a payload");
+
+        assert!(format!("{err}").contains("not supported in this version"), "{err}");
+        assert!(!adapter.ran(), "decided by the selection alone, so the function never runs");
+    }
+
+    #[ignore = "reproduction: ruling Y 2, the refusal runs after the function"]
+    #[tokio::test]
+    async fn unreadable_gated_arguments_are_refused_before_the_write() {
+        let field = |name: &str, arguments| FieldSelection {
+            name: name.to_string(),
+            alias: None,
+            arguments,
+            nested_fields: vec![],
+            directives: vec![],
+        };
+        let selections = vec![
+            field("id", vec![]),
+            field(
+                "email",
+                vec![GraphQLArgument {
+                    name:       "format".to_string(),
+                    value_type: "string".to_string(),
+                    value_json: "{not json".to_string(),
+                }],
+            ),
+        ];
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let err = Executor::with_config(
+            schema(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
+        )
+        .execute_mutation_detailed(
+            "createUser",
+            "createUser",
+            None,
+            Some(&ctx()),
+            WriteSelections::new(&selections).expect("two fields"),
+            &[],
+        )
+        .await
+        .expect_err("unreadable gated-field arguments must fail the mutation");
+
+        assert!(matches!(err, FraiseQLError::Internal { .. }), "{err:?}");
+        assert!(!adapter.ran(), "decided by the selection alone, so the function never runs");
     }
 
     // `Mask` is a statement about the value, not about the operation: the caller may
