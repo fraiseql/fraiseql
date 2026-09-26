@@ -4067,6 +4067,187 @@ mod field_authz {
         assert!(adapter.committed());
     }
 
+    // ── Ruling AA 1 (Z 3): the type a write's payload is served as is the contract's ─────
+    //
+    // A payload position holds an exact set of types, derived from the schema. A function
+    // stamping a type outside it — another type, or a name the schema does not know, which no
+    // gate can classify — broke its contract, and the write rolls back with a contract error
+    // naming the stamp. A NULL stamp stands for the one type the outcome can be; where there
+    // are several, the function's silence must not pick one. An interface return holds its
+    // implementors, classified before the write like a union's members.
+
+    /// The canned row, stamped `stamp` (or not stamped).
+    fn stamped(stamp: Option<&str>) -> Vec<HashMap<String, serde_json::Value>> {
+        let mut rows = GatedEntityAdapter::canned_row();
+        match stamp {
+            Some(s) => {
+                rows[0].insert("entity_type".to_string(), serde_json::json!(s));
+            },
+            None => {
+                rows[0].remove("entity_type");
+            },
+        }
+        rows
+    }
+
+    /// [`schema`] without its `authorize` field, plus an `Admin` type no payload position of
+    /// `createUser` holds.
+    fn schema_with_admin() -> CompiledSchema {
+        let mut s = schema();
+        let user = s.types.iter_mut().find(|t| t.name == "User").unwrap();
+        for field in &mut user.fields {
+            field.authorize = false;
+        }
+        let mut admin = TypeDefinition::new("Admin", "v_admin");
+        admin.fields = vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::nullable("name", FieldType::String),
+        ];
+        s.types.push(admin);
+        s.build_indexes();
+        s
+    }
+
+    async fn stamped_write(
+        schema: CompiledSchema,
+        stamp: Option<&str>,
+        query: &str,
+    ) -> (Arc<GatedEntityAdapter>, Result<serde_json::Value>) {
+        let adapter = Arc::new(GatedEntityAdapter::returning(stamped(stamp)));
+        let res = Executor::with_config(schema, Arc::clone(&adapter), RuntimeConfig::default())
+            .execute_with_security(query, None, &ctx())
+            .await;
+        (adapter, res)
+    }
+
+    #[ignore = "reproduction: ruling AA 1, an off-contract stamp is served"]
+    #[tokio::test]
+    async fn a_stamp_the_return_type_cannot_hold_is_a_contract_error() {
+        let (adapter, res) = stamped_write(
+            schema_with_admin(),
+            Some("Admin"),
+            "mutation { createUser { id name } }",
+        )
+        .await;
+        let err = res.expect_err("`createUser` returns `User`; its function stamped `Admin`");
+        assert!(matches!(err, FraiseQLError::Validation { .. }), "{err:?}");
+        assert!(format!("{err}").contains("'Admin'"), "names the stamp: {err}");
+        assert!(!adapter.committed(), "a write that broke its contract does not stand");
+    }
+
+    #[ignore = "reproduction: ruling AA 1, a stamp naming no type is served ungated"]
+    #[tokio::test]
+    async fn a_stamp_naming_no_type_is_a_contract_error() {
+        let (adapter, res) = stamped_write(
+            schema_with_admin(),
+            Some("tb_user"),
+            "mutation { createUser { id name } }",
+        )
+        .await;
+        let err = res.expect_err("`tb_user` is no GraphQL type: nothing could gate it");
+        assert!(matches!(err, FraiseQLError::Validation { .. }), "{err:?}");
+        assert!(format!("{err}").contains("'tb_user'"), "names the stamp: {err}");
+        assert!(!adapter.committed(), "a write that broke its contract does not stand");
+    }
+
+    /// `createUser` returning `User | Admin | ValidationError`: two success members.
+    fn schema_with_two_success_members() -> CompiledSchema {
+        use crate::schema::UnionDefinition;
+        let mut s = schema_with_admin();
+        s.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![FieldDefinition::new("message", FieldType::String)],
+            ..TypeDefinition::new("ValidationError", "")
+        });
+        s.unions.push(UnionDefinition::new("CreateUserResult").with_members(vec![
+            "User".to_string(),
+            "Admin".to_string(),
+            "ValidationError".to_string(),
+        ]));
+        s.mutations[0].return_type = "CreateUserResult".to_string();
+        s.build_indexes();
+        s
+    }
+
+    #[ignore = "reproduction: ruling AA 1, a silent stamp picks a union member"]
+    #[tokio::test]
+    async fn an_unstamped_success_with_two_possible_types_is_a_contract_error() {
+        let (adapter, res) = stamped_write(
+            schema_with_two_success_members(),
+            None,
+            "mutation { createUser { ... on User { id } ... on Admin { id } } }",
+        )
+        .await;
+        let err = res.expect_err("the function did not say whether it produced a User or an Admin");
+        assert!(matches!(err, FraiseQLError::Validation { .. }), "{err:?}");
+        assert!(!adapter.committed(), "a write that broke its contract does not stand");
+    }
+
+    // Control: an unstamped success with one possible type — the helper's default
+    // (`fraiseql.mutation_ok(entity)` stamps NULL) — is served as that type.
+    #[tokio::test]
+    async fn an_unstamped_success_with_one_possible_type_is_that_type() {
+        use crate::schema::UnionDefinition;
+        let mut s = schema_with_admin();
+        s.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![FieldDefinition::new("message", FieldType::String)],
+            ..TypeDefinition::new("ValidationError", "")
+        });
+        s.unions.push(
+            UnionDefinition::new("CreateUserResult")
+                .with_members(vec!["User".to_string(), "ValidationError".to_string()]),
+        );
+        s.mutations[0].return_type = "CreateUserResult".to_string();
+        s.build_indexes();
+        let (adapter, res) =
+            stamped_write(s, None, "mutation { createUser { ... on User { id name } } }").await;
+        let out = res.unwrap();
+        assert_eq!(out["data"]["createUser"]["name"], "Alice", "{out}");
+        assert!(adapter.committed());
+    }
+
+    /// `createNode` returning the interface `Node`, implemented by `User`, whose `email`
+    /// requires a scope the caller lacks and rejects.
+    fn schema_with_interface_return() -> CompiledSchema {
+        use crate::schema::{InterfaceDefinition, MutationDefinition};
+        let mut s = schema();
+        let user = s.types.iter_mut().find(|t| t.name == "User").unwrap();
+        user.implements = vec!["Node".to_string()];
+        for field in &mut user.fields {
+            field.authorize = false;
+            if field.name == "email" {
+                field.requires_scope = Some("read:email".to_string());
+                field.on_deny = FieldDenyPolicy::Reject;
+            }
+        }
+        s.interfaces.push(InterfaceDefinition::new("Node"));
+        s.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_user".to_string()),
+            ..MutationDefinition::new("createNode", "Node")
+        });
+        s.security = Some(crate::schema::SecurityConfig::default());
+        s.build_indexes();
+        s
+    }
+
+    #[ignore = "reproduction: ruling AA 1, an interface's implementors are classified after the write"]
+    #[tokio::test]
+    async fn an_interface_return_is_classified_as_its_implementors_before_the_write() {
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let err = Executor::with_config(
+            schema_with_interface_return(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default(),
+        )
+        .execute_with_security("mutation { createNode { ... on User { id email } } }", None, &ctx())
+        .await
+        .expect_err("`User.email` rejects a caller without `read:email`");
+
+        assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+        assert!(!adapter.ran(), "decidable before the write, so the function never runs");
+    }
+
     // `Mask` is a statement about the value, not about the operation: the caller may
     // do this, they just may not see that field. The write stands.
     #[tokio::test]
@@ -4913,6 +5094,54 @@ mod cascade {
             !format!("{err}").contains("a1-secret"),
             "the gated value must not appear: {err}"
         );
+    }
+
+    // Ruling AA 1 (Z 3): a cascade's entity is the payload's declared entity type, or a
+    // `CascadeNode`; an entity a cascade reports updated is a `CascadeNode`. `Plain` is
+    // neither.
+    fn cascade_schema_with_plain() -> CompiledSchema {
+        let mut s = cascade_schema();
+        let mut plain = TypeDefinition::new("Plain", "v_plain");
+        plain.fields = vec![FieldDefinition::new("id", FieldType::Id)];
+        s.types.push(plain);
+        s.build_indexes();
+        s
+    }
+
+    #[ignore = "reproduction: ruling AA 1, a cascade entity stamped off-contract is served"]
+    #[tokio::test]
+    async fn a_cascade_entity_stamped_with_a_type_it_cannot_hold_is_a_contract_error() {
+        let mut adapter = CannedMutationAdapter::new(standard_cascade());
+        adapter.row.insert("entity_type".to_string(), json!("Plain"));
+        let err = Executor::new(cascade_schema_with_plain(), Arc::new(adapter))
+            .execute_with_security("mutation { createPost { entity { id } } }", None, &auth_ctx())
+            .await
+            .expect_err("`Plain` is not a CascadeNode");
+        assert!(matches!(err, FraiseQLError::Validation { .. }), "{err:?}");
+        assert!(format!("{err}").contains("'Plain'"), "names the stamp: {err}");
+    }
+
+    #[ignore = "reproduction: ruling AA 1, an updated entity of an off-contract type is served"]
+    #[tokio::test]
+    async fn an_updated_entity_of_a_type_that_is_no_cascade_node_is_a_contract_error() {
+        let cascade = json!({
+            "updated": [
+                { "__typename": "Plain", "id": "x1", "operation": "UPDATED", "entity": { "id": "x1" } }
+            ]
+        });
+        let err = Executor::new(
+            cascade_schema_with_plain(),
+            Arc::new(CannedMutationAdapter::new(cascade)),
+        )
+        .execute_with_security(
+            "mutation { createPost { cascade { updated { entity { ... on Plain { id } } } } } }",
+            None,
+            &auth_ctx(),
+        )
+        .await
+        .expect_err("`Plain` is not a CascadeNode");
+        assert!(matches!(err, FraiseQLError::Validation { .. }), "{err:?}");
+        assert!(format!("{err}").contains("'Plain'"), "names the stamp: {err}");
     }
 }
 
