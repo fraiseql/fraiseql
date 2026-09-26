@@ -3765,6 +3765,22 @@ mod boundary {
         assert_refused_at_build(&touch(&executor).await);
     }
 
+    /// **Reproduction, ruling Z 1.** Every write's commit waits for its response, so an
+    /// adapter that cannot hold a write open for that decision cannot run any write: it
+    /// mounts no mutations, over any schema — here one nothing in it could refuse.
+    #[ignore = "reproduction: ruling Z 1, an ungated schema mounts mutations on MockAdapter"]
+    #[tokio::test]
+    async fn an_adapter_without_gated_writes_mounts_no_mutations_on_any_schema() {
+        let executor = Executor::with_config(
+            write_schema(false),
+            Arc::new(MockAdapter::new(vec![])),
+            RuntimeConfig::default(),
+        );
+        let why = executor.writes_refused().expect("mutations refused at build");
+        assert!(why.contains("MockAdapter"), "names the adapter: {why}");
+        assert_refused_at_build(&touch(&executor).await);
+    }
+
     /// **Reproduction, ruling X 2, hot-reload.** The same refusal when the gate arrives
     /// with a rebuild rather than at boot.
     #[tokio::test]

@@ -3807,6 +3807,73 @@ mod field_authz {
         assert!(!adapter.ran(), "decided by the principal alone, so the function never runs");
     }
 
+    // ── Ruling Z 1: every write is adjudicated before its commit ──────────────────
+    //
+    // Building the response from the row can fail on any schema, gated or not: no rows, a
+    // row that is not a `mutation_response`, a malformed cascade entry, an over-large
+    // cascade. On a schema nothing could refuse, the write used to commit first and fail
+    // after, so the client was told it failed while it had landed — and no idempotency
+    // record was stored, so a retry ran it again. The commit now waits for the response on
+    // every write, and these roll back as they do on a gated schema.
+
+    /// [`schema`] without the `authorize` field: nothing in it can refuse a payload.
+    fn ungated_schema() -> CompiledSchema {
+        let mut s = schema();
+        let user = s.types.iter_mut().find(|t| t.name == "User").unwrap();
+        for field in &mut user.fields {
+            field.authorize = false;
+        }
+        s.build_indexes();
+        s
+    }
+
+    #[ignore = "reproduction: ruling Z 1, an ungated write commits before adjudication"]
+    #[tokio::test]
+    async fn an_ungated_write_returning_no_rows_does_not_commit() {
+        let adapter = Arc::new(GatedEntityAdapter::returning(vec![]));
+        let err =
+            Executor::with_config(ungated_schema(), Arc::clone(&adapter), RuntimeConfig::default())
+                .execute_with_security("mutation { createUser { id } }", None, &ctx())
+                .await
+                .expect_err("no rows cannot be adjudicated");
+
+        assert!(format!("{err}").contains("function returned no rows"), "{err}");
+        assert!(!adapter.committed(), "a write with no row to adjudicate must not stand");
+    }
+
+    #[ignore = "reproduction: ruling Z 1, an ungated write commits before adjudication"]
+    #[tokio::test]
+    async fn an_ungated_write_with_an_unparseable_response_does_not_commit() {
+        let mut row = HashMap::new();
+        row.insert("succeeded".to_string(), serde_json::json!("not a boolean"));
+        let adapter = Arc::new(GatedEntityAdapter::returning(vec![row]));
+        let err =
+            Executor::with_config(ungated_schema(), Arc::clone(&adapter), RuntimeConfig::default())
+                .execute_with_security("mutation { createUser { id } }", None, &ctx())
+                .await
+                .expect_err("an unparseable mutation_response cannot be adjudicated");
+
+        assert!(format!("{err}").contains("failed to deserialize"), "{err}");
+        assert!(
+            !adapter.committed(),
+            "a write whose response could not be parsed must not stand"
+        );
+    }
+
+    // Control: the ungated write that adjudicates commits.
+    #[tokio::test]
+    async fn an_ungated_write_that_adjudicates_commits() {
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let out =
+            Executor::with_config(ungated_schema(), Arc::clone(&adapter), RuntimeConfig::default())
+                .execute_with_security("mutation { createUser { id email } }", None, &ctx())
+                .await
+                .unwrap();
+
+        assert_eq!(out["data"]["createUser"]["email"], "alice@x.com", "{out}");
+        assert!(adapter.committed());
+    }
+
     // `Mask` is a statement about the value, not about the operation: the caller may
     // do this, they just may not see that field. The write stands.
     #[tokio::test]
