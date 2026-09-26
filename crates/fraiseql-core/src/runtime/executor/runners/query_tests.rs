@@ -2207,7 +2207,6 @@ mod row_read {
     /// `security` section. A scope is granted only by a role definition, and a schema
     /// without the section defines none — so no principal holds `read:salary`, and the
     /// field is masked, not served.
-    #[ignore = "reproduction: ruling Y 7, requires_scope is off without a security section"]
     #[tokio::test]
     async fn a_scoped_field_is_masked_without_a_security_section() {
         let mut schema = test_schema();
@@ -2239,6 +2238,42 @@ mod row_read {
         assert!(
             !seen.columns.iter().any(|c| c == "salary"),
             "no role grants `read:salary`, so it must not be read: {:?}",
+            seen.columns
+        );
+    }
+
+    /// The same, with no principal: an anonymous read is denied every scope whether or not
+    /// the schema has a `security` section (#743), so the section's absence must not open it.
+    #[tokio::test]
+    async fn a_scoped_field_is_masked_for_an_anonymous_read_without_a_security_section() {
+        let mut schema = test_schema();
+        let mut salary = FieldDefinition::new("salary", FieldType::Int);
+        salary.requires_scope = Some("read:salary".to_string());
+        salary.on_deny = FieldDenyPolicy::Mask;
+        schema.types.push(TypeDefinition {
+            fields: vec![
+                FieldDefinition::new("id", FieldType::Id),
+                FieldDefinition::new("name", FieldType::String),
+                salary,
+            ],
+            ..TypeDefinition::new("User", "tb_users")
+        });
+        assert!(schema.security.is_none(), "precondition: no security section");
+        schema.build_indexes();
+
+        let qm = match_on(&schema, "{ users { id name salary } }");
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]).with_row_results(rows()));
+        let executor = Executor::new(schema, adapter.clone());
+
+        executor
+            .execute_row_read(&qm, None, None, &cols(&["id", "name", "salary"]))
+            .await
+            .unwrap();
+
+        let seen = adapter.captured_row_read().expect("the read must reach the adapter");
+        assert!(
+            !seen.columns.iter().any(|c| c == "salary"),
+            "an anonymous caller holds no scope, so it must not be read: {:?}",
             seen.columns
         );
     }

@@ -192,23 +192,28 @@ pub(in super::super) fn apply_field_rbac_filtering(
     projection_fields: Vec<String>,
     security_context: &SecurityContext,
 ) -> Result<FieldAccessResult> {
-    if let Some(security_config) = schema.security.as_ref() {
-        if let Some(type_def) = schema.types.iter().find(|t| t.name == return_type) {
-            return classify_field_access(
-                security_context,
-                security_config,
-                &type_def.fields,
-                projection_fields,
-            )
-            .map_err(|rejected_field| FraiseQLError::Authorization {
-                message:  format!(
-                    "Access denied: field '{rejected_field}' on type '{return_type}' \
-                     requires a scope you do not have"
-                ),
-                action:   Some("read".to_string()),
-                resource: Some(format!("{return_type}.{rejected_field}")),
-            });
-        }
+    // A scope is granted only by a role the `security` section defines. Without the
+    // section no role is defined, so no principal holds any scope: the gate still
+    // applies, and denies (ruling Y 7). It used to be skipped, serving every scoped field
+    // to every principal. A compiled schema in that shape is refused at load; this is the
+    // same answer for one built in code.
+    let no_roles = crate::schema::SecurityConfig::default();
+    let security_config = schema.security.as_ref().unwrap_or(&no_roles);
+    if let Some(type_def) = schema.types.iter().find(|t| t.name == return_type) {
+        return classify_field_access(
+            security_context,
+            security_config,
+            &type_def.fields,
+            projection_fields,
+        )
+        .map_err(|rejected_field| FraiseQLError::Authorization {
+            message:  format!(
+                "Access denied: field '{rejected_field}' on type '{return_type}' \
+                 requires a scope you do not have"
+            ),
+            action:   Some("read".to_string()),
+            resource: Some(format!("{return_type}.{rejected_field}")),
+        });
     }
 
     Ok(FieldAccessResult {
@@ -250,12 +255,6 @@ pub(in super::super) fn apply_anonymous_field_rbac_filtering(
         masked:    Vec::new(),
     };
 
-    // Mirror the authenticated path: without a SecurityConfig there are no role
-    // definitions, so it does not classify either. Diverging here would just
-    // re-open the gap in the opposite direction.
-    if schema.security.is_none() {
-        return Ok(allow_all());
-    }
     let Some(type_def) = schema.types.iter().find(|t| t.name == return_type) else {
         return Ok(allow_all());
     };

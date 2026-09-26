@@ -184,7 +184,8 @@ impl CompiledSchema {
     /// type-level and query-level scoping declarations contradict each other (#1142),
     /// one whose subscription row-visibility policy the delivery path cannot honour
     /// (#596/#1265), one whose subscription filter names an argument it does not
-    /// declare (#1262), and one declaring a relationship no embed can follow (#1266).
+    /// declare (#1262), one declaring `requires_scope` with no role able to grant it
+    /// (ruling Y 7), and one declaring a relationship no embed can follow (#1266).
     ///
     /// # Errors
     ///
@@ -248,6 +249,16 @@ impl CompiledSchema {
                     violations.join("\n  - ")
                 ),
                 path:    Some("subscriptions.filter".to_string()),
+            });
+        }
+        let violations = self.scope_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "field-level `requires_scope` cannot be enforced as declared:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("security.requires_scope".to_string()),
             });
         }
         let violations = self.relationship_violations();

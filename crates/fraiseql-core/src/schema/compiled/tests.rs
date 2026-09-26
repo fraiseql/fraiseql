@@ -475,7 +475,6 @@ fn a_query_and_its_type_disagreeing_on_an_inject_column_is_refused_at_load() {
 /// `security` section. A schema that declares `requires_scope` without one declares a gate
 /// no principal can pass and, until now, one the runtime silently switched off. Refused at
 /// load, naming the field and the scope.
-#[ignore = "reproduction: ruling Y 7, requires_scope without a security section loads"]
 #[test]
 fn a_scoped_field_without_a_security_section_is_refused_at_load() {
     let json = r#"{

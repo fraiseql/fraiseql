@@ -14,6 +14,7 @@ mod schema_serde;
 mod type_inject;
 mod type_relationships;
 mod type_roles;
+mod type_scopes;
 pub mod validation;
 
 #[cfg(test)]
