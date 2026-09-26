@@ -3,7 +3,8 @@
 # Update this line when bumping rust-version in Cargo.toml.
 #
 # Nightly is required only for rustfmt (some advanced formatting options).
-# Use `cargo +nightly fmt` or `make fmt` for formatting; all other commands
+# Use `make fmt` for formatting (it passes the nightly pinned in
+# tools/fmt-toolchain.txt); all other commands
 # (check, clippy, test, build) use this stable toolchain.
 channel = "1.94.1"
 components = ["rustfmt", "clippy", "rust-analyzer"]

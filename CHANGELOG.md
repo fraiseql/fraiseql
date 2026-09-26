@@ -3151,6 +3151,22 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The fmt gate no longer depends on the day it runs (#1380).**
+
+  `.dagger/main.go` installed a bare `nightly` and ran `cargo +nightly fmt --all -- --check`,
+  so the formatting the gate enforced was whatever nightly published that morning. rustfmt's
+  output is not stable across nightlies: 1.11.0-nightly breaks a method chain inside a
+  `macro_rules!` body that 1.9.0-nightly left on one line, and on 2026-09-25 that reddened
+  `preflight` on dev — and so on every open pull request — over a file no commit had touched.
+  There was no commit to bisect, because the change was upstream.
+
+  The nightly is now pinned in `tools/fmt-toolchain.txt`, read by the Makefile's `fmt` /
+  `fmt-check` targets and by the Dagger gate, with `tools/check-fmt-toolchain.sh` (in
+  preflight) failing if the two drift or if anything reverts to a bare `+nightly`. Bumping the
+  pin and committing the reformat now belong to one commit, which is the only way the gate
+  stays green. `FUZZ_NIGHTLY` in `.github/workflows/fuzz.yml` had already learned this in
+  July; the fmt gate had not.
+
 - **Two schema roundtrip properties no longer generate the duplicate names the load path
   refuses (#1367).**
 
