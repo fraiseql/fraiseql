@@ -3963,6 +3963,75 @@ mod field_authz {
         assert!(adapter.committed());
     }
 
+    // ── Ruling Y 6: a payload root's own type `requires_role` ─────────────────────
+    //
+    // A type's `requires_role` gates every read of the type (#677). It is lowered onto a
+    // mutation only when the mutation returns that exact type, and the payload gates check
+    // it only below the root. So a role-gated type served at a payload root by any other
+    // route — a union member, a cascade's entity, an entity a cascade reports as updated —
+    // was served to a caller without the role. Each is refused where it is served, inside
+    // the write's transaction, so the write goes with it.
+
+    /// [`schema`] with `User` gated on `admin` and `createUser` returning a union of it.
+    fn schema_with_role_gated_union_member() -> CompiledSchema {
+        use crate::schema::UnionDefinition;
+        let mut s = schema();
+        let user = s.types.iter_mut().find(|t| t.name == "User").unwrap();
+        user.requires_role = Some("admin".to_string());
+        for field in &mut user.fields {
+            field.authorize = false;
+        }
+        s.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![FieldDefinition::new("message", FieldType::String)],
+            ..TypeDefinition::new("ValidationError", "")
+        });
+        s.unions.push(
+            UnionDefinition::new("CreateUserResult")
+                .with_members(vec!["User".to_string(), "ValidationError".to_string()]),
+        );
+        s.mutations[0].return_type = "CreateUserResult".to_string();
+        s.build_indexes();
+        s
+    }
+
+    #[ignore = "reproduction: ruling Y 6, a role-gated union member is served without the role"]
+    #[tokio::test]
+    async fn a_role_gated_union_member_is_not_served_without_the_role() {
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let res = Executor::with_config(
+            schema_with_role_gated_union_member(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default(),
+        )
+        .execute_with_security("mutation { createUser { ... on User { id name } } }", None, &ctx())
+        .await;
+
+        let err = res.expect_err("`User` requires `admin`, which the caller does not hold");
+        assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+        assert!(!format!("{err}").contains("Alice"), "the gated value must not appear: {err}");
+        assert!(!adapter.committed(), "a refused payload takes its write with it");
+    }
+
+    // Control: the caller holding the role is served.
+    #[tokio::test]
+    async fn a_role_gated_union_member_is_served_with_the_role() {
+        let mut admin = ctx();
+        admin.roles = vec!["admin".to_string()];
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let out = Executor::with_config(
+            schema_with_role_gated_union_member(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default(),
+        )
+        .execute_with_security("mutation { createUser { ... on User { id name } } }", None, &admin)
+        .await
+        .unwrap();
+
+        assert_eq!(out["data"]["createUser"]["name"], "Alice", "{out}");
+        assert!(adapter.committed());
+    }
+
     // `Mask` is a statement about the value, not about the operation: the caller may
     // do this, they just may not see that field. The write stands.
     #[tokio::test]
@@ -4777,6 +4846,38 @@ mod cascade {
         assert!(
             msg.contains("EntityChangeLog") && msg.contains("internal"),
             "the error must legibly name the internal type, got: {msg}"
+        );
+    }
+
+    // Ruling Y 6: an entity a cascade reports as updated is served as a read of its
+    // type, so a role-gated `CascadeNode` implementor needs the role. `Account` is gated on
+    // `admin`; the caller holds no role.
+    #[ignore = "reproduction: ruling Y 6, a role-gated cascade entity is served without the role"]
+    #[tokio::test]
+    async fn a_role_gated_cascade_entity_is_not_served_without_the_role() {
+        let mut schema = cascade_schema();
+        let account = schema.types.iter_mut().find(|t| t.name == "Account").unwrap();
+        account.requires_role = Some("admin".to_string());
+        schema.build_indexes();
+        let cascade = json!({
+            "updated": [
+                { "__typename": "Account", "id": "a1", "operation": "UPDATED",
+                  "entity": { "id": "a1-secret" } }
+            ]
+        });
+        let res = Executor::new(schema, Arc::new(CannedMutationAdapter::new(cascade)))
+            .execute_with_security(
+                "mutation { createPost { cascade { updated { entity { ... on Account { id } } } } } }",
+                None,
+                &auth_ctx(),
+            )
+            .await;
+
+        let err = res.expect_err("`Account` requires `admin`, which the caller does not hold");
+        assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+        assert!(
+            !format!("{err}").contains("a1-secret"),
+            "the gated value must not appear: {err}"
         );
     }
 }
