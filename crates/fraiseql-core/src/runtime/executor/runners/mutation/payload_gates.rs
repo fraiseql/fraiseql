@@ -7,6 +7,8 @@
 //!
 //! * `requires_scope`, at every level, the root included — a `Mask` nulls the field, a `Reject`
 //!   refuses the request;
+//! * the type of every entity served, root included, its own `requires_role` — checked where the
+//!   entity is served, since the database stamps the type;
 //! * a nested level's read gates — its type's `requires_role` and `requires_actor`, and the #422
 //!   authorizer, asked of it as a read of its type;
 //! * a nested level's row security, over the documents the write returned ([`DocumentRowFilter`]);
@@ -148,7 +150,8 @@ impl PayloadGates {
     ///
     /// # Errors
     ///
-    /// What [`Self::late`] returns for a type no position anticipated.
+    /// `Authorization` when `type_name` requires a role the request does not hold, and what
+    /// [`Self::late`] returns for a type no position anticipated.
     pub(super) fn project<'e>(
         &self,
         ctx: &ExecutorContext,
@@ -158,6 +161,7 @@ impl PayloadGates {
         selections: &[FieldSelection],
         entity: &'e serde_json::Value,
     ) -> Result<GatedEntity<'e>> {
+        refuse_unless_type_readable(ctx, security_ctx, position, type_name)?;
         let late = self.late(ctx, security_ctx, position, type_name, selections)?;
         let gates = late.as_ref().unwrap_or(self);
         let mut source = Cow::Borrowed(entity);
@@ -172,6 +176,45 @@ impl PayloadGates {
             masked: gates.access.masked_fields(type_name),
         })
     }
+}
+
+/// Refuse to serve an entity of `type_name` at `position` unless the caller may read the
+/// type at all: its own `requires_role` (ruling Y 6).
+///
+/// #677 lowers a type's role onto an operation only when the operation returns exactly that
+/// type, and the classifier checks it only below the root. A payload root is served as a read
+/// of whatever type it holds — a union member, the type the function stamped, a cascade's
+/// entity, an entity a cascade reports as updated — so the type's role is checked where it
+/// is served. Every write is adjudicated in its transaction (ruling Z 1), so the refusal
+/// takes the write with it.
+///
+/// A `403`, as at a nested level: the caller named the operation, so the type's existence
+/// is not what the answer discloses.
+///
+/// # Errors
+///
+/// `FraiseQLError::Authorization` when the type requires a role the request does not hold.
+fn refuse_unless_type_readable(
+    ctx: &ExecutorContext,
+    security_ctx: Option<&SecurityContext>,
+    position: PayloadPosition,
+    type_name: &str,
+) -> Result<()> {
+    let Some(role) = ctx.schema.find_type(type_name).and_then(|t| t.requires_role.as_deref())
+    else {
+        return Ok(());
+    };
+    if security_ctx.is_some_and(|c| c.roles.iter().any(|r| r == role)) {
+        return Ok(());
+    }
+    Err(crate::error::FraiseQLError::Authorization {
+        message:  format!(
+            "the payload serves '{type_name}' ({position:?}), whose read requires a role the \
+             request does not hold"
+        ),
+        action:   Some("read".to_string()),
+        resource: Some(type_name.to_string()),
+    })
 }
 
 /// An entity projected through its payload position's gates.

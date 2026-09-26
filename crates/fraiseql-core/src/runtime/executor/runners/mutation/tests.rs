@@ -3995,7 +3995,6 @@ mod field_authz {
         s
     }
 
-    #[ignore = "reproduction: ruling Y 6, a role-gated union member is served without the role"]
     #[tokio::test]
     async fn a_role_gated_union_member_is_not_served_without_the_role() {
         let adapter = Arc::new(GatedEntityAdapter::default());
@@ -4010,6 +4009,42 @@ mod field_authz {
         let err = res.expect_err("`User` requires `admin`, which the caller does not hold");
         assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
         assert!(!format!("{err}").contains("Alice"), "the gated value must not appear: {err}");
+        assert!(!adapter.committed(), "a refused payload takes its write with it");
+    }
+
+    // No principal holds no role.
+    #[tokio::test]
+    async fn a_role_gated_union_member_is_not_served_to_an_anonymous_caller() {
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let err = Executor::with_config(
+            schema_with_role_gated_union_member(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default(),
+        )
+        .execute("mutation { createUser { ... on User { id name } } }", None)
+        .await
+        .expect_err("an anonymous caller holds no role");
+
+        assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+        assert!(!adapter.committed(), "a refused payload takes its write with it");
+    }
+
+    // Holding a role is not holding this one.
+    #[tokio::test]
+    async fn a_role_gated_union_member_is_not_served_for_another_role() {
+        let mut viewer = ctx();
+        viewer.roles = vec!["viewer".to_string()];
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let err = Executor::with_config(
+            schema_with_role_gated_union_member(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default(),
+        )
+        .execute_with_security("mutation { createUser { ... on User { id name } } }", None, &viewer)
+        .await
+        .expect_err("`viewer` is not `admin`");
+
+        assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
         assert!(!adapter.committed(), "a refused payload takes its write with it");
     }
 
@@ -4852,7 +4887,6 @@ mod cascade {
     // Ruling Y 6: an entity a cascade reports as updated is served as a read of its
     // type, so a role-gated `CascadeNode` implementor needs the role. `Account` is gated on
     // `admin`; the caller holds no role.
-    #[ignore = "reproduction: ruling Y 6, a role-gated cascade entity is served without the role"]
     #[tokio::test]
     async fn a_role_gated_cascade_entity_is_not_served_without_the_role() {
         let mut schema = cascade_schema();
