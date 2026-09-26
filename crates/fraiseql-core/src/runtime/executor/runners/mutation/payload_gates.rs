@@ -9,7 +9,9 @@
 //!   refuses the request;
 //! * a nested level's read gates — its type's `requires_role` and `requires_actor`, and the #422
 //!   authorizer, asked of it as a read of its type;
-//! * a nested level's row security, over the documents the write returned ([`DocumentRowFilter`]).
+//! * a nested level's row security, over the documents the write returned ([`DocumentRowFilter`]);
+//! * the #423 field authorizer's refusals that follow from the selection, the principal and the
+//!   configuration — its decision over the row is taken when the row is served.
 //!
 //! Everything that can refuse is decided **before the write**, from the selection and the
 //! principal: a refused selection never runs the function. The concrete type of an entity is
@@ -66,8 +68,9 @@ impl PayloadGates {
     /// # Errors
     ///
     /// `FraiseQLError::Authorization` for what the read path refuses — a `Reject` field, a
-    /// nested level whose read the caller may not make, one the #422 authorizer denies — and
-    /// for a nested level whose row security cannot be evaluated over the returned document.
+    /// nested level whose read the caller may not make, one the #422 authorizer denies — for
+    /// a nested level whose row security cannot be evaluated over the returned document, and
+    /// for a gated field the #423 authorizer cannot be asked about (`field_authz_inputs`).
     pub(super) fn classify(
         ctx: &ExecutorContext,
         security_ctx: Option<&SecurityContext>,
@@ -97,6 +100,14 @@ impl PayloadGates {
         let mut rows = DocumentRowFilter::default();
         for (_, type_name, sels) in roots {
             rows.plan(ctx, type_name, sels, security_ctx)?;
+        }
+        // The #423 field authorizer's refusals that do not need the row: no principal, no
+        // authorizer, a nested gated field, unreadable arguments. Its decision waits for
+        // the row; these do not. An argument's value decides none of them — a variable the
+        // request did not bind reads as null, never as an error — so none is bound here.
+        let unbound = std::collections::HashMap::new();
+        for (_, type_name, sels) in roots {
+            super::field_authz_inputs(ctx, security_ctx, type_name, sels, &unbound)?;
         }
         Ok(Self {
             access,

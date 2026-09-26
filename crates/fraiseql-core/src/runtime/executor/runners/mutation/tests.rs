@@ -3691,7 +3691,6 @@ mod field_authz {
         s
     }
 
-    #[ignore = "reproduction: ruling Y 2, the refusal runs after the function"]
     #[tokio::test]
     async fn a_gated_field_without_a_principal_is_refused_before_the_write() {
         let adapter = Arc::new(GatedEntityAdapter::default());
@@ -3708,7 +3707,6 @@ mod field_authz {
         assert!(!adapter.ran(), "decided by the principal alone, so the function never runs");
     }
 
-    #[ignore = "reproduction: ruling Y 2, the refusal runs after the function"]
     #[tokio::test]
     async fn a_gated_field_without_an_authorizer_is_refused_before_the_write() {
         let adapter = Arc::new(GatedEntityAdapter::default());
@@ -3721,7 +3719,6 @@ mod field_authz {
         assert!(!adapter.ran(), "decided by the configuration alone, so the function never runs");
     }
 
-    #[ignore = "reproduction: ruling Y 2, the refusal runs after the function"]
     #[tokio::test]
     async fn a_nested_gated_field_is_refused_before_the_write() {
         let adapter = Arc::new(GatedEntityAdapter::default());
@@ -3738,7 +3735,6 @@ mod field_authz {
         assert!(!adapter.ran(), "decided by the selection alone, so the function never runs");
     }
 
-    #[ignore = "reproduction: ruling Y 2, the refusal runs after the function"]
     #[tokio::test]
     async fn unreadable_gated_arguments_are_refused_before_the_write() {
         let field = |name: &str, arguments| FieldSelection {
@@ -3778,6 +3774,37 @@ mod field_authz {
 
         assert!(matches!(err, FraiseQLError::Internal { .. }), "{err:?}");
         assert!(!adapter.ran(), "decided by the selection alone, so the function never runs");
+    }
+
+    // The refusal is asked of every root the payload can be served as, not only the first:
+    // here the error types come first and the gated `User` is a union member after them.
+    #[tokio::test]
+    async fn a_gated_field_on_a_later_payload_root_is_refused_before_the_write() {
+        use crate::schema::UnionDefinition;
+        let mut s = schema();
+        s.types.push(TypeDefinition {
+            is_error: true,
+            fields: vec![FieldDefinition::new("message", FieldType::String)],
+            ..TypeDefinition::new("ValidationError", "")
+        });
+        s.unions.push(
+            UnionDefinition::new("CreateUserResult")
+                .with_members(vec!["ValidationError".to_string(), "User".to_string()]),
+        );
+        s.mutations[0].return_type = "CreateUserResult".to_string();
+        s.build_indexes();
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let err = Executor::with_config(
+            s,
+            Arc::clone(&adapter),
+            RuntimeConfig::default().with_field_authorizer(Arc::new(PanicIfCalled)),
+        )
+        .execute("mutation { createUser { ... on User { id email } } }", None)
+        .await
+        .expect_err("a gated field needs a principal, whichever root it is on");
+
+        assert!(format!("{err}").contains("not authenticated"), "{err}");
+        assert!(!adapter.ran(), "decided by the principal alone, so the function never runs");
     }
 
     // `Mask` is a statement about the value, not about the operation: the caller may

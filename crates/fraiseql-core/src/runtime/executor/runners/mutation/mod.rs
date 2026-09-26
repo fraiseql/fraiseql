@@ -32,34 +32,38 @@ use crate::{
     security::SecurityContext,
 };
 
-/// Enforce the dynamic field authorizer (#423) on a projected mutation payload.
+/// What the dynamic field authorizer (#423) needs to decide the gated fields a payload
+/// selection reaches on a `type_name`: who asks, who answers, and which fields.
+struct FieldAuthzInputs<'a> {
+    principal:  &'a SecurityContext,
+    authorizer: &'a dyn crate::security::FieldAuthorizer,
+    gated:      Vec<crate::security::field_authorizer::GatedField>,
+}
+
+/// Resolve the field authorizer's inputs for `selections` on a `type_name`, from the
+/// selection, the principal and the configuration alone. `None` when the selection reaches
+/// no gated field (and then the authorizer is never called).
 ///
-/// `entity` is the full projected-from value (the `parent`); `projected` is the
-/// response object, mutated in place. Fail-closed:
-/// - a gated field selected with no authenticated principal → 403,
-/// - a gated field selected with no authorizer configured → 403,
-/// - a gated field nested in a sub-selection → 403 (top-level enforced in v1),
-/// - a `Reject` decision or any policy error → 403.
+/// Everything here is known before the write, so the payload gates ask it then
+/// ([`PayloadGates::classify`]) and a refusal never runs the function. Only the
+/// authorizer's own decision needs the written row.
 ///
-/// No-op (and zero authorizer calls) when the selection set has no gated field.
-// Reason: the principal, the entity and its projection, the selection, its variables and
-// what the static gate masked are each a separate input to one decision; a struct would
-// only relocate them.
-#[allow(clippy::too_many_arguments)]
-fn enforce_mutation_field_authz(
-    ctx: &ExecutorContext,
-    security_ctx: Option<&SecurityContext>,
+/// # Errors
+///
+/// Fail-closed, `Authorization` (403): a gated field selected with no authenticated
+/// principal, with no authorizer configured, or nested in a sub-selection (top-level is
+/// enforced in v1). `Internal`: a gated field's arguments cannot be read.
+fn field_authz_inputs<'a>(
+    ctx: &'a ExecutorContext,
+    security_ctx: Option<&'a SecurityContext>,
     type_name: &str,
     selections: &[FieldSelection],
-    entity: &serde_json::Value,
-    projected: &mut serde_json::Value,
     variables: &std::collections::HashMap<String, serde_json::Value>,
-    statically_masked: &[String],
-) -> Result<()> {
+) -> Result<Option<FieldAuthzInputs<'a>>> {
     use crate::security::field_authorizer as authz;
 
     if !authz::selection_set_selects_gated_field(&ctx.schema, type_name, selections) {
-        return Ok(());
+        return Ok(None);
     }
     let Some(principal) = security_ctx else {
         return Err(FraiseQLError::Authorization {
@@ -93,16 +97,48 @@ fn enforce_mutation_field_authz(
     }
     let gated =
         authz::collect_top_level_gated_fields(&ctx.schema, type_name, selections, variables)?;
-    let pass = authz::FieldAuthzPass {
-        authorizer: authorizer.as_ref(),
+    Ok(Some(FieldAuthzInputs {
         principal,
+        authorizer: authorizer.as_ref(),
+        gated,
+    }))
+}
+
+/// Enforce the dynamic field authorizer (#423) on a projected mutation payload.
+///
+/// `entity` is the full projected-from value (the `parent`); `projected` is the
+/// response object, mutated in place. Fail-closed: a `Reject` decision or any policy
+/// error → 403, and what [`field_authz_inputs`] refuses.
+///
+/// No-op (and zero authorizer calls) when the selection set has no gated field.
+// Reason: the principal, the entity and its projection, the selection, its variables and
+// what the static gate masked are each a separate input to one decision; a struct would
+// only relocate them.
+#[allow(clippy::too_many_arguments)]
+fn enforce_mutation_field_authz(
+    ctx: &ExecutorContext,
+    security_ctx: Option<&SecurityContext>,
+    type_name: &str,
+    selections: &[FieldSelection],
+    entity: &serde_json::Value,
+    projected: &mut serde_json::Value,
+    variables: &std::collections::HashMap<String, serde_json::Value>,
+    statically_masked: &[String],
+) -> Result<()> {
+    let Some(inputs) = field_authz_inputs(ctx, security_ctx, type_name, selections, variables)?
+    else {
+        return Ok(());
+    };
+    let pass = crate::security::field_authorizer::FieldAuthzPass {
+        authorizer: inputs.authorizer,
+        principal: inputs.principal,
         type_name,
-        gated: &gated,
+        gated: &inputs.gated,
         // AND-composition with the static `requires_scope` gate (`payload_gates`), as on the
         // query path: a field it already masked is not put to the authorizer.
         statically_masked,
     };
-    authz::apply_field_authorizer_to_entity(&pass, entity, projected)
+    crate::security::field_authorizer::apply_field_authorizer_to_entity(&pass, entity, projected)
 }
 
 /// Serve one entity of a payload: projected through `selections` as a `type_name` at
