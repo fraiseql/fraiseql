@@ -3845,3 +3845,71 @@ mod boundary {
         }
     }
 }
+
+// ── mod gated_filters: a read gate must also gate what a caller may filter and order by ──
+//
+// A field the caller may not read is masked (`requires_scope` + `Mask`) or refused
+// (`Reject`) in the response. Filtering or ordering by it is a read of it by another route:
+// which rows come back, and in what order, answers a question about the masked value. The
+// query path passes the client's `where` and `orderBy` to the adapter unclassified.
+mod gated_filters {
+    use super::*;
+
+    /// `test_schema`'s `users` over a `User` whose `salary` requires `read:salary` and masks,
+    /// with a `security` section (so the gate is enforced) that defines no role granting it.
+    fn schema() -> CompiledSchema {
+        let mut schema = test_schema();
+        let mut user = TypeDefinition::new("User", "v_user");
+        user.fields = vec![
+            FieldDefinition::new("id", FieldType::Int),
+            FieldDefinition::nullable("salary", FieldType::Int)
+                .with_requires_scope("read:salary")
+                .with_on_deny(FieldDenyPolicy::Mask),
+        ];
+        schema.types.push(user);
+        schema.security = Some(crate::schema::SecurityConfig::default());
+        schema.build_indexes();
+        schema
+    }
+
+    #[ignore = "reproduction: a where on a masked field reaches the adapter"]
+    #[tokio::test]
+    async fn a_filter_on_a_field_the_caller_may_not_read_is_refused() {
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+        let res = Executor::new(schema(), Arc::clone(&adapter))
+            .execute(r"{ users(where: { salary: { gt: 100000 } }) { id } }", None)
+            .await;
+
+        assert!(
+            matches!(res, Err(crate::error::FraiseQLError::Authorization { .. })),
+            "a filter on a masked field answers a question about its value: {res:?}"
+        );
+        assert!(adapter.captured_where().is_none(), "the filter must not reach the database");
+    }
+
+    #[ignore = "reproduction: an orderBy on a masked field reaches the adapter"]
+    #[tokio::test]
+    async fn ordering_by_a_field_the_caller_may_not_read_is_refused() {
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+        let res = Executor::new(schema(), Arc::clone(&adapter))
+            .execute(r#"{ users(orderBy: [{field: "salary", direction: "DESC"}]) { id } }"#, None)
+            .await;
+
+        assert!(
+            matches!(res, Err(crate::error::FraiseQLError::Authorization { .. })),
+            "an order by a masked field ranks rows by its value: {res:?}"
+        );
+        assert!(adapter.captured_order_by().is_none(), "the order must not reach the database");
+    }
+
+    // Control: filtering by a field the caller may read still works.
+    #[tokio::test]
+    async fn a_filter_on_a_readable_field_reaches_the_adapter() {
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+        Executor::new(schema(), Arc::clone(&adapter))
+            .execute(r"{ users(where: { id: { eq: 1 } }) { id } }", None)
+            .await
+            .expect("an ungated filter is served");
+        assert!(adapter.captured_where().is_some());
+    }
+}
