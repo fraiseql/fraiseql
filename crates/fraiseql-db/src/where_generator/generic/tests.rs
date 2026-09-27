@@ -729,3 +729,63 @@ fn a_non_distance_operator_on_a_vector_field_keeps_the_jsonb_operand() {
     let (sql, _) = gen.generate(&clause).unwrap();
     assert_eq!(sql, "data->>'embedding' = $1");
 }
+
+// ── Ruling AH: a guarded relation reads its value through the guard ──────────
+
+/// `team.name = 'blue'`, its `team` documents visible only where `team.tenant_id = 'A'`.
+fn guarded_team_name(inner: WhereClause) -> WhereClause {
+    WhereClause::Guarded {
+        under: vec!["team".to_string()],
+        guard: Box::new(WhereClause::Field {
+            path:     vec!["team".to_string(), "tenant_id".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("A"),
+        }),
+        inner: Box::new(inner),
+    }
+}
+
+fn team_name(op: WhereOperator, value: serde_json::Value) -> WhereClause {
+    WhereClause::Field {
+        path: vec!["team".to_string(), "name".to_string()],
+        operator: op,
+        value,
+    }
+}
+
+#[test]
+fn a_guarded_path_reads_its_value_only_where_the_guard_holds() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = guarded_team_name(team_name(WhereOperator::Eq, json!("blue")));
+    let (sql, params) = gen.generate(&clause).unwrap();
+    assert_eq!(
+        sql,
+        "(CASE WHEN data->'team'->>'tenant_id' = $1 THEN data->'team'->>'name' END) = $2"
+    );
+    assert_eq!(params, [json!("A"), json!("blue")]);
+}
+
+/// Under `NOT` a hidden value must stay `NULL`, as an absent one is — guarding the
+/// condition instead (`name = 'blue' AND tenant = 'A'`) would turn it into `true`.
+#[test]
+fn a_guarded_path_under_not_negates_the_guarded_value_not_the_guard() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause =
+        guarded_team_name(WhereClause::Not(Box::new(team_name(WhereOperator::Eq, json!("blue")))));
+    let (sql, _) = gen.generate(&clause).unwrap();
+    assert_eq!(
+        sql,
+        "NOT ((CASE WHEN data->'team'->>'tenant_id' = $1 THEN data->'team'->>'name' END) = $2)"
+    );
+}
+
+/// A path that does not run through the guarded relation is untouched, byte for byte.
+#[test]
+fn a_path_outside_the_guarded_relation_is_unchanged() {
+    let plain = field("id", WhereOperator::Eq, json!(1));
+    let unguarded = GenericWhereGenerator::new(PostgresDialect).generate(&plain).unwrap();
+    let guarded = GenericWhereGenerator::new(PostgresDialect)
+        .generate(&guarded_team_name(plain))
+        .unwrap();
+    assert_eq!(guarded, unguarded);
+}

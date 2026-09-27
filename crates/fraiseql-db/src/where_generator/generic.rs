@@ -236,7 +236,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
     ) -> Result<(String, Vec<serde_json::Value>)> {
         self.counter.reset_to(0);
         let mut params = Vec::new();
-        let sql = self.visit_impl(clause, &mut params, Some(hierarchy_ctx), None)?;
+        let sql = self.visit_impl(clause, &mut params, Some(hierarchy_ctx), None, &[])?;
         Ok((sql, params))
     }
 
@@ -263,7 +263,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
     // ── Visitor ───────────────────────────────────────────────────────────────
 
     fn visit(&self, clause: &WhereClause, params: &mut Vec<serde_json::Value>) -> Result<String> {
-        self.visit_impl(clause, params, None, None)
+        self.visit_impl(clause, params, None, None, &[])
     }
 
     fn visit_impl(
@@ -272,6 +272,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         params: &mut Vec<serde_json::Value>,
         hierarchy_ctx: Option<&super::HierarchyContext>,
         types: Option<&FieldTypeMap>,
+        guards: &[(&[String], &WhereClause)],
     ) -> Result<String> {
         match clause {
             WhereClause::And(clauses) => {
@@ -280,7 +281,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 }
                 let parts: Result<Vec<_>> = clauses
                     .iter()
-                    .map(|c| self.visit_impl(c, params, hierarchy_ctx, types))
+                    .map(|c| self.visit_impl(c, params, hierarchy_ctx, types, guards))
                     .collect();
                 Ok(format!("({})", parts?.join(" AND ")))
             },
@@ -290,22 +291,33 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 }
                 let parts: Result<Vec<_>> = clauses
                     .iter()
-                    .map(|c| self.visit_impl(c, params, hierarchy_ctx, types))
+                    .map(|c| self.visit_impl(c, params, hierarchy_ctx, types, guards))
                     .collect();
                 Ok(format!("({})", parts?.join(" OR ")))
             },
-            WhereClause::Not(inner) => {
-                Ok(format!("NOT ({})", self.visit_impl(inner, params, hierarchy_ctx, types)?))
-            },
+            WhereClause::Not(inner) => Ok(format!(
+                "NOT ({})",
+                self.visit_impl(inner, params, hierarchy_ctx, types, guards)?
+            )),
             WhereClause::Typed {
                 types: subtree_types,
                 inner,
-            } => self.visit_impl(inner, params, hierarchy_ctx, Some(subtree_types)),
+            } => self.visit_impl(inner, params, hierarchy_ctx, Some(subtree_types), guards),
+            // Ruling AH: a path through `under` reads its value only where `guard` holds.
+            WhereClause::Guarded {
+                under,
+                guard,
+                inner,
+            } => {
+                let mut scoped = guards.to_vec();
+                scoped.push((under.as_slice(), guard.as_ref()));
+                self.visit_impl(inner, params, hierarchy_ctx, types, &scoped)
+            },
             WhereClause::Field {
                 path,
                 operator,
                 value,
-            } => self.visit_field(path, operator, value, params, hierarchy_ctx, types),
+            } => self.visit_field(path, operator, value, params, hierarchy_ctx, types, guards),
             WhereClause::NativeField {
                 column,
                 pg_cast,
@@ -382,6 +394,29 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         }
         let column = crate::utils::vector_storage_column(path.first()?).ok()?;
         Some(self.dialect.quote_identifier(&column))
+    }
+
+    /// `expr` read through every guard whose relation `path` runs through (ruling AH):
+    /// `(CASE WHEN <guards> THEN <expr> END)`, `NULL` where a guard fails — as the response
+    /// serves a related row the caller may not read. Unguarded, `expr` is unchanged, so the
+    /// SQL is byte-identical to a clause without guards.
+    fn guarded_expr(
+        &self,
+        expr: String,
+        path: &[String],
+        params: &mut Vec<serde_json::Value>,
+        guards: &[(&[String], &WhereClause)],
+    ) -> Result<String> {
+        let mut conditions = Vec::new();
+        for (under, guard) in guards {
+            if path.len() > under.len() && path.starts_with(under) {
+                conditions.push(self.visit_impl(guard, params, None, None, &[])?);
+            }
+        }
+        if conditions.is_empty() {
+            return Ok(expr);
+        }
+        Ok(format!("(CASE WHEN {} THEN {expr} END)", conditions.join(" AND ")))
     }
 
     fn resolve_field_expr(&self, path: &[String]) -> String {
@@ -608,8 +643,9 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         params: &mut Vec<serde_json::Value>,
         hierarchy_ctx: Option<&super::HierarchyContext>,
         types: Option<&FieldTypeMap>,
+        guards: &[(&[String], &WhereClause)],
     ) -> Result<String> {
-        let field_expr = self.resolve_field_expr(path);
+        let field_expr = self.guarded_expr(self.resolve_field_expr(path), path, params, guards)?;
 
         match operator {
             // ── Comparison ────────────────────────────────────────────────────

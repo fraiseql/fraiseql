@@ -60,26 +60,40 @@ impl WhereSqlGenerator {
     /// Returns `FraiseQLError::Validation` if the clause contains an unsupported
     /// operator or an invalid value for the given operator.
     pub fn to_sql(clause: &WhereClause) -> Result<String> {
-        Self::to_sql_typed(clause, None)
+        Self::to_sql_typed(clause, None, &[])
     }
 
-    fn to_sql_typed(clause: &WhereClause, types: Option<&FieldTypeMap>) -> Result<String> {
+    fn to_sql_typed(
+        clause: &WhereClause,
+        types: Option<&FieldTypeMap>,
+        guards: &[(&[String], &WhereClause)],
+    ) -> Result<String> {
         match clause {
             WhereClause::Typed {
                 types: subtree_types,
                 inner,
-            } => Self::to_sql_typed(inner, Some(subtree_types)),
+            } => Self::to_sql_typed(inner, Some(subtree_types), guards),
+            // Ruling AH: a path through `under` reads its value only where `guard` holds.
+            WhereClause::Guarded {
+                under,
+                guard,
+                inner,
+            } => {
+                let mut scoped = guards.to_vec();
+                scoped.push((under.as_slice(), guard.as_ref()));
+                Self::to_sql_typed(inner, types, &scoped)
+            },
             WhereClause::Field {
                 path,
                 operator,
                 value,
-            } => Self::generate_field_predicate(path, operator, value, types),
+            } => Self::generate_field_predicate(path, operator, value, types, guards),
             WhereClause::And(clauses) => {
                 if clauses.is_empty() {
                     return Ok("TRUE".to_string());
                 }
                 let parts: Result<Vec<_>> =
-                    clauses.iter().map(|c| Self::to_sql_typed(c, types)).collect();
+                    clauses.iter().map(|c| Self::to_sql_typed(c, types, guards)).collect();
                 Ok(format!("({})", parts?.join(" AND ")))
             },
             WhereClause::Or(clauses) => {
@@ -87,11 +101,11 @@ impl WhereSqlGenerator {
                     return Ok("FALSE".to_string());
                 }
                 let parts: Result<Vec<_>> =
-                    clauses.iter().map(|c| Self::to_sql_typed(c, types)).collect();
+                    clauses.iter().map(|c| Self::to_sql_typed(c, types, guards)).collect();
                 Ok(format!("({})", parts?.join(" OR ")))
             },
             WhereClause::Not(clause) => {
-                let inner = Self::to_sql_typed(clause, types)?;
+                let inner = Self::to_sql_typed(clause, types, guards)?;
                 Ok(format!("NOT ({inner})"))
             },
             WhereClause::NativeField {
@@ -116,8 +130,21 @@ impl WhereSqlGenerator {
         operator: &WhereOperator,
         value: &Value,
         types: Option<&FieldTypeMap>,
+        guards: &[(&[String], &WhereClause)],
     ) -> Result<String> {
         let json_path = Self::build_json_path(path)?;
+        // Ruling AH: read through every guard whose relation the path runs through.
+        let mut conditions = Vec::new();
+        for (under, guard) in guards {
+            if path.len() > under.len() && path.starts_with(under) {
+                conditions.push(Self::to_sql_typed(guard, None, &[])?);
+            }
+        }
+        let json_path = if conditions.is_empty() {
+            json_path
+        } else {
+            format!("(CASE WHEN {} THEN {json_path} END)", conditions.join(" AND "))
+        };
         if let WhereOperator::IsNull | WhereOperator::IsNotNull = operator {
             let negated = matches!(operator, WhereOperator::IsNotNull);
             let asserted = match value {

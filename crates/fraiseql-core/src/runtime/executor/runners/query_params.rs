@@ -511,6 +511,7 @@ pub fn client_where_argument(
     schema: &crate::schema::CompiledSchema,
     query_def: &crate::schema::QueryDefinition,
     arguments: &std::collections::HashMap<String, serde_json::Value>,
+    rls_policy: Option<&dyn crate::security::RLSPolicy>,
     security_context: Option<&crate::security::SecurityContext>,
 ) -> Result<Option<WhereClause>> {
     // Absent is the common case, and the one that must stay free: with `has_where`
@@ -540,6 +541,16 @@ pub fn client_where_argument(
     // Here, where every read path's client filter is parsed, so no path can skip it.
     super::super::support::security::refuse_unreadable_where(
         schema,
+        &query_def.return_type,
+        &clause,
+        security_context,
+    )?;
+    // A related row the caller may not read is, to the filter, as absent as it is to the
+    // response (ruling AH): every path through a row-gated relation reads its value
+    // through that type's row predicate.
+    let clause = super::query_nested::guard_relation_filters(
+        schema,
+        rls_policy,
         &query_def.return_type,
         &clause,
         security_context,

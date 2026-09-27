@@ -333,3 +333,26 @@ fn value_to_sql_rejects_oversized_jsonb_value() {
         Err(FraiseQLError::Validation { .. })
     ));
 }
+
+/// Ruling AH, the inline generator: a guarded relation reads its value through the guard.
+#[test]
+fn a_guarded_path_reads_its_value_only_where_the_guard_holds() {
+    let clause = WhereClause::Guarded {
+        under: vec!["team".to_string()],
+        guard: Box::new(WhereClause::Field {
+            path:     vec!["team".to_string(), "tenant_id".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("A"),
+        }),
+        inner: Box::new(WhereClause::Field {
+            path:     vec!["team".to_string(), "name".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("blue"),
+        }),
+    };
+    let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
+    assert_eq!(
+        sql,
+        "(CASE WHEN data#>'{team}'->>'tenant_id' = 'A' THEN data#>'{team}'->>'name' END) = 'blue'"
+    );
+}

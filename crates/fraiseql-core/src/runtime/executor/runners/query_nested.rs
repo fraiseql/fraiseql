@@ -724,11 +724,23 @@ fn level_predicate(
     target: &str,
     security_context: Option<&SecurityContext>,
 ) -> Result<Option<WhereClause>> {
-    let Some(read) = ctx.schema.queries.iter().find(|q| q.name == query) else {
+    row_predicate(&ctx.schema, ctx.config.rls_policy.as_deref(), query, target, security_context)
+}
+
+/// [`level_predicate`] over a schema and a policy, for a caller that holds no executor
+/// context (the client-filter chokepoint).
+fn row_predicate(
+    schema: &CompiledSchema,
+    policy: Option<&dyn RLSPolicy>,
+    query: &str,
+    target: &str,
+    security_context: Option<&SecurityContext>,
+) -> Result<Option<WhereClause>> {
+    let Some(read) = schema.queries.iter().find(|q| q.name == query) else {
         return Ok(None);
     };
     let mut conditions = Vec::new();
-    match (&ctx.config.rls_policy, security_context) {
+    match (policy, security_context) {
         (Some(policy), Some(principal)) => {
             if let Some(clause) =
                 policy.evaluate(principal, &RlsTarget::query(&read.name, target))?
@@ -770,6 +782,141 @@ fn level_predicate(
         1 => conditions.pop(),
         _ => Some(WhereClause::And(conditions)),
     })
+}
+
+/// A client filter over `root_type`, rewritten so that every path through a to-one relation
+/// into a row-gated type reads its value only where the caller may read the related row
+/// (ruling AH): a [`WhereClause::Guarded`] per crossing, carrying the predicate a read of
+/// that type composes — path (a)'s own derivation, over the embedded document. To the
+/// filter, a related row the caller may not read is as absent as it is to the response. A
+/// clause that crosses no row-gated relation for this caller comes back unchanged.
+///
+/// # Errors
+///
+/// `FraiseQLError::Authorization` for a relation into a type whose predicate applies to
+/// this caller and cannot be read off the embedded document (a policy that does not declare
+/// its keys, a native `inject_params` column); what [`row_predicate`] returns (a policy with
+/// no principal, #784).
+pub(in super::super) fn guard_relation_filters(
+    schema: &CompiledSchema,
+    policy: Option<&dyn RLSPolicy>,
+    root_type: &str,
+    clause: &WhereClause,
+    security_context: Option<&SecurityContext>,
+) -> Result<WhereClause> {
+    let guard =
+        |c: &WhereClause| guard_relation_filters(schema, policy, root_type, c, security_context);
+    Ok(match clause {
+        WhereClause::And(all) => WhereClause::And(all.iter().map(guard).collect::<Result<_>>()?),
+        WhereClause::Or(all) => WhereClause::Or(all.iter().map(guard).collect::<Result<_>>()?),
+        WhereClause::Not(inner) => WhereClause::Not(Box::new(guard(inner)?)),
+        WhereClause::Typed { types, inner } => WhereClause::Typed {
+            types: types.clone(),
+            inner: Box::new(guard(inner)?),
+        },
+        WhereClause::Field { path, .. } => {
+            relation_guards(schema, policy, root_type, path, security_context)?
+                .into_iter()
+                .rev()
+                .fold(clause.clone(), |inner, (under, guard)| WhereClause::Guarded {
+                    under,
+                    guard: Box::new(guard),
+                    inner: Box::new(inner),
+                })
+        },
+        // A native column is the root row's own; an already guarded subtree is final; and a
+        // shape this does not know is left to the generators, which refuse what they cannot
+        // render.
+        _ => clause.clone(),
+    })
+}
+
+/// The guard of every to-one relation `path` crosses into a type whose row predicate applies
+/// to this caller: the relation's path, and the predicate over absolute paths.
+fn relation_guards(
+    schema: &CompiledSchema,
+    policy: Option<&dyn RLSPolicy>,
+    root_type: &str,
+    path: &[String],
+    security_context: Option<&SecurityContext>,
+) -> Result<Vec<(Vec<String>, WhereClause)>> {
+    let mut guards = Vec::new();
+    let mut current = root_type.to_string();
+    // The last segment is the compared field; every one before it steps into a type.
+    for depth in 0..path.len().saturating_sub(1) {
+        let Some(parent) = schema.find_type(&current) else {
+            break;
+        };
+        let Some(field) = parent
+            .fields
+            .iter()
+            .find(|f| crate::utils::to_snake_case(f.name.as_str()) == path[depth])
+        else {
+            break;
+        };
+        let Some(target) = object_type_of(&field.field_type) else {
+            break;
+        };
+        // A list relation cannot be filtered through (`where` refuses it as a scalar);
+        // were it made filterable, it would need the per-element form (ruling AH 5).
+        if field.field_type.is_list() {
+            break;
+        }
+        if let Some(read) = own_read(schema, target) {
+            if let Some(predicate) =
+                row_predicate(schema, policy, &read.name, target, security_context)?
+            {
+                let under = path[..=depth].to_vec();
+                let over_document = match row_gate(schema, policy, parent, field, target) {
+                    Some(NestedRowGate::Project { paths, .. }) => reads_only(&predicate, &paths),
+                    _ => false,
+                };
+                if !over_document {
+                    return Err(FraiseQLError::Authorization {
+                        message:  format!(
+                            "Access denied: '{}.{}' cannot be used to filter by: which '{target}' \
+                             rows the request may read cannot be decided over the document the \
+                             view embeds (declare the policy's keys with \
+                             `RLSPolicy::constrained_paths`)",
+                            parent.name, field.name
+                        ),
+                        action:   Some("read".to_string()),
+                        resource: Some(target.to_string()),
+                    });
+                }
+                guards.push((under.clone(), under_path(&predicate, &under)));
+            }
+        }
+        current = target.to_string();
+    }
+    Ok(guards)
+}
+
+/// `clause` with every path prefixed by `under`: a predicate over a type's own document,
+/// read off the document embedded at `under`. Only called on a clause [`reads_only`]
+/// accepted, which holds nothing but `Field`s under `And` / `Or` / `Not` / `Typed`.
+fn under_path(clause: &WhereClause, under: &[String]) -> WhereClause {
+    match clause {
+        WhereClause::Field {
+            path,
+            operator,
+            value,
+        } => WhereClause::Field {
+            path:     under.iter().chain(path).cloned().collect(),
+            operator: operator.clone(),
+            value:    value.clone(),
+        },
+        WhereClause::And(all) => {
+            WhereClause::And(all.iter().map(|c| under_path(c, under)).collect())
+        },
+        WhereClause::Or(all) => WhereClause::Or(all.iter().map(|c| under_path(c, under)).collect()),
+        WhereClause::Not(inner) => WhereClause::Not(Box::new(under_path(inner, under))),
+        WhereClause::Typed { types, inner } => WhereClause::Typed {
+            types: types.clone(),
+            inner: Box::new(under_path(inner, under)),
+        },
+        other => other.clone(),
+    }
 }
 
 /// Whether `clause` reads only the top-level stored keys in `paths`.

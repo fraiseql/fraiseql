@@ -628,6 +628,7 @@ impl QueryRunner {
             &self.ctx.schema,
             &query_match.query_def,
             &query_match.arguments,
+            self.ctx.config.rls_policy.as_deref(),
             Some(security_context),
         )?;
         let combined_where: Option<WhereClause> = match (combined_where, user_where) {
@@ -1139,6 +1140,7 @@ impl QueryRunner {
             &self.ctx.schema,
             &query_match.query_def,
             &query_match.arguments,
+            self.ctx.config.rls_policy.as_deref(),
             None,
         )?;
 
@@ -1966,6 +1968,7 @@ impl QueryRunner {
             &self.ctx.schema,
             &query_match.query_def,
             &query_match.arguments,
+            self.ctx.config.rls_policy.as_deref(),
             security_context,
         )?;
 
@@ -2487,6 +2490,7 @@ impl QueryRunner {
             &self.ctx.schema,
             &query_match.query_def,
             &query_match.arguments,
+            self.ctx.config.rls_policy.as_deref(),
             security_context,
         )?;
         let combined_where: Option<WhereClause> = match (combined_where, user_where) {

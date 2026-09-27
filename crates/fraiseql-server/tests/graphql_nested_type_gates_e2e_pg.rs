@@ -2090,7 +2090,6 @@ fn assert_learns_nothing(result: &Result<Value>, key: &str, what: &str) {
 /// **Reproduction.** Tenant policy, a to-one: member 2 is tenant A's, its team `blue`
 /// tenant B's. Filtering members by team name asks about tenant B's team.
 #[tokio::test]
-#[ignore = "item 7 reproduction: a to-one relation filter matches a team the tenant policy hides"]
 async fn a_to_one_relation_filter_cannot_match_a_team_the_tenant_policy_hides() {
     let executor = rig_or_skip!(over filterable("v_user_fk"), Policy::Tenant);
     let result =
@@ -2101,7 +2100,6 @@ async fn a_to_one_relation_filter_cannot_match_a_team_the_tenant_policy_hides() 
 /// **Reproduction.** Owner policy, a to-one at depth one and two: folder 2 is mallory's,
 /// the parent of alice's folder 3 and the grandparent of her folder 4.
 #[tokio::test]
-#[ignore = "item 7 reproduction: a to-one relation filter matches a folder the owner policy hides"]
 async fn a_to_one_relation_filter_cannot_match_a_folder_the_owner_policy_hides() {
     let executor = rig_or_skip!(over filterable("v_user_fk"), Policy::Owner);
     for query in [
@@ -2161,4 +2159,31 @@ async fn control_without_a_policy_the_relation_filters_match() {
         let out = graphql(&executor, query).await.unwrap();
         assert_eq!(root_ids(&out, key), expected, "{query}: {out}");
     }
+}
+
+/// A hidden related row reads `NULL` to every operator, as an absent one does — not `false`:
+/// under `NOT`, member 2's hidden team is not "a team not named `blue`" (which would tell
+/// alice that member 2 has a team), and `isnull` sees the `null` the response serves.
+#[tokio::test]
+async fn a_hidden_related_row_reads_null_to_every_operator() {
+    let executor = rig_or_skip!(over filterable("v_user_fk"), Policy::Tenant);
+    let out =
+        graphql(&executor, r#"{ members(where: {_not: {team: {name: {eq: "blue"}}}}) { id } }"#)
+            .await
+            .unwrap();
+    assert_eq!(root_ids(&out, "members"), [1], "{out}");
+    let out = graphql(&executor, "{ members(where: {team: {name: {isnull: true}}}) { id } }")
+        .await
+        .unwrap();
+    assert_eq!(root_ids(&out, "members"), [2], "as the response serves `team: null`: {out}");
+}
+
+/// A policy that does not declare its keys cannot be read off the embedded document, so a
+/// filter through the relation is refused rather than evaluated unguarded (ruling AH 4).
+#[tokio::test]
+async fn a_relation_filter_whose_policy_cannot_be_read_off_the_document_is_refused() {
+    let executor = rig_or_skip!(over filterable("v_user_fk"), Policy::OpaqueTenant);
+    let result =
+        graphql(&executor, r#"{ members(where: {team: {name: {eq: "red"}}}) { id } }"#).await;
+    assert!(matches!(result, Err(FraiseQLError::Authorization { .. })), "{result:?}");
 }

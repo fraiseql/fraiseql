@@ -375,7 +375,9 @@ pub(in super::super) fn refuse_unreadable_where(
         WhereClause::And(clauses) | WhereClause::Or(clauses) => clauses
             .iter()
             .try_for_each(|c| refuse_unreadable_where(schema, type_name, c, security_context)),
-        WhereClause::Not(inner) | WhereClause::Typed { inner, .. } => {
+        WhereClause::Not(inner)
+        | WhereClause::Typed { inner, .. }
+        | WhereClause::Guarded { inner, .. } => {
             refuse_unreadable_where(schema, type_name, inner, security_context)
         },
         WhereClause::Field { path, .. } => {

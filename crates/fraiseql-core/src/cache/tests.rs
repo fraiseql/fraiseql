@@ -1818,6 +1818,33 @@ mod key_tests {
         assert_ne!(key_asc, key_desc, "Different order directions must produce different keys");
     }
 
+    /// Ruling AH: a guard carries the caller's row predicate over a related row, so two
+    /// filters that differ only in their guard — two callers who may read different related
+    /// rows — must not share an entry.
+    #[test]
+    fn test_view_key_differs_by_the_guard_of_a_relation_filter() {
+        use crate::db::{WhereClause, WhereOperator};
+
+        let guarded = |tenant: &str| WhereClause::Guarded {
+            under: vec!["team".to_string()],
+            guard: Box::new(WhereClause::Field {
+                path:     vec!["team".to_string(), "tenant_id".to_string()],
+                operator: WhereOperator::Eq,
+                value:    serde_json::json!(tenant),
+            }),
+            inner: Box::new(WhereClause::Field {
+                path:     vec!["team".to_string(), "name".to_string()],
+                operator: WhereOperator::Eq,
+                value:    serde_json::json!("blue"),
+            }),
+        };
+        let key = |tenant: &str| {
+            generate_view_query_key("v_member", Some(&guarded(tenant)), None, None, None, "v1")
+        };
+        assert_ne!(key("A"), key("B"), "callers with different guards must not share an entry");
+        assert_eq!(key("A"), key("A"));
+    }
+
     #[test]
     fn test_view_key_same_order_by_produces_same_key() {
         use crate::backend::{OrderByClause, OrderDirection};

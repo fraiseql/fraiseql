@@ -467,6 +467,22 @@ fn hash_where_clause(h: &mut impl Hasher, clause: &WhereClause) {
             h.write_u8(b'T');
             hash_where_clause(h, inner);
         },
+        // The guard carries the caller's row predicate (ruling AH): two callers whose
+        // predicates differ must not share an entry, so it is hashed in full.
+        WhereClause::Guarded {
+            under,
+            guard,
+            inner,
+        } => {
+            h.write_u8(b'G');
+            h.write_usize(under.len());
+            for segment in under {
+                h.write(segment.as_bytes());
+                h.write_u8(0);
+            }
+            hash_where_clause(h, guard);
+            hash_where_clause(h, inner);
+        },
         // WhereClause is #[non_exhaustive]; unknown variants get a distinct tag
         // plus their Debug representation as a conservative fallback.
         _ => {

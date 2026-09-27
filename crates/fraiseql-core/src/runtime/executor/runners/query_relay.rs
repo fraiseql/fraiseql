@@ -290,8 +290,13 @@ impl QueryRunner {
         // accept one (#1283). A relay query always declares `has_where`, so the refusal
         // is unreachable from here — the call is what keeps this path from being a
         // sixth private copy of the rule when that stops being true.
-        let user_where_clause =
-            client_where_argument(&self.ctx.schema, query_def, args, security_context)?;
+        let user_where_clause = client_where_argument(
+            &self.ctx.schema,
+            query_def,
+            args,
+            self.ctx.config.rls_policy.as_deref(),
+            security_context,
+        )?;
 
         // Compose final WHERE: security (RLS + inject) AND user-supplied WHERE.
         // Security conditions always come first so they cannot be bypassed.

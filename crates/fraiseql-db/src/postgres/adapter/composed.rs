@@ -446,6 +446,7 @@ fn reads_a_column(clause: &crate::WhereClause) -> bool {
         W::NativeField { .. } => true,
         W::And(all) | W::Or(all) => all.iter().any(reads_a_column),
         W::Not(inner) | W::Typed { inner, .. } => reads_a_column(inner),
+        W::Guarded { guard, inner, .. } => reads_a_column(guard) || reads_a_column(inner),
     }
 }
 

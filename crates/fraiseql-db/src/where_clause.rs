@@ -107,6 +107,25 @@ pub enum WhereClause {
         /// The annotated subtree.
         inner: Box<WhereClause>,
     },
+
+    /// A subtree whose values under `under` are visible only where `guard` holds.
+    ///
+    /// Every path in `inner` that runs through `under` reads its value through the guard —
+    /// `CASE WHEN <guard> THEN <value> END` — so where the guard fails the value is `NULL`:
+    /// exactly what the response serves for a related row the caller may not read. The
+    /// guard's paths are absolute (they start with `under`). The executor builds it for a
+    /// client filter through a relation into a row-gated type; like [`Typed`], it is a
+    /// node of the clause so that no seam the clause travels through can drop it.
+    ///
+    /// [`Typed`]: WhereClause::Typed
+    Guarded {
+        /// The path of the relation whose embedded documents the guard gates.
+        under: Vec<String>,
+        /// The row predicate the related document must meet, over absolute paths.
+        guard: Box<WhereClause>,
+        /// The guarded subtree.
+        inner: Box<WhereClause>,
+    },
 }
 
 impl WhereClause {
@@ -115,7 +134,7 @@ impl WhereClause {
     pub fn is_empty(&self) -> bool {
         match self {
             Self::And(clauses) | Self::Or(clauses) => clauses.is_empty(),
-            Self::Typed { inner, .. } => inner.is_empty(),
+            Self::Typed { inner, .. } | Self::Guarded { inner, .. } => inner.is_empty(),
             Self::Not(_) | Self::Field { .. } | Self::NativeField { .. } => false,
         }
     }
@@ -150,6 +169,10 @@ impl WhereClause {
                 }
             },
             Self::Not(inner) | Self::Typed { inner, .. } => inner.collect_native_column_names(out),
+            Self::Guarded { guard, inner, .. } => {
+                guard.collect_native_column_names(out);
+                inner.collect_native_column_names(out);
+            },
             Self::NativeField { column, .. } => out.push(column),
             Self::Field { .. } => {},
         }

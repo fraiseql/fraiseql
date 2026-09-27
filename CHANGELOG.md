@@ -18,6 +18,25 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A filter through a to-one relation sees only the related rows the caller may read.**
+
+  A `where` through a to-one relation (`members(where: {team: {name: {eq: "blue"}}})`) now
+  reads the related document the way the response serves it: where the caller's row policy
+  (and the target read's `inject_params`) would hide the related row, every value under it
+  reads `NULL` — to `eq`, `neq`, `_not`, `isnull` and every other operator alike, exactly as
+  an absent related row does. Before, the filter was evaluated over the document the view
+  embedded, before the related row's own policy applied, so it could match a row the
+  response would never show.
+
+  ⚠ **A policy that does not declare its keys** (`RLSPolicy::constrained_paths` returning
+  `Opaque`), or a target read whose `inject_params` names a native column, cannot be
+  evaluated over the embedded document: a filter through such a relation is now refused
+  (403) instead of evaluated unguarded. Declare the policy's keys to filter through it.
+  Filters that cross no row-gated relation produce byte-identical SQL.
+
+  Internally: `WhereClause::Guarded { under, guard, inner }` (new variant of a
+  `#[non_exhaustive]` enum) and `client_where_argument` takes the row policy.
+
 - **A mutation failure is served only as an error type its mutation can return; `fraiseql.mutation_err` takes the stamp.**
 
   ⚠ **Re-run `fraiseql setup`.** The helper library is now protocol `2.3.0`:
