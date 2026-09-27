@@ -1016,6 +1016,10 @@ struct ActiveOperation {
     /// The root field's alias when the client wrote one, else its name. Every
     /// `next` frame for this operation is keyed by it.
     response_key:      String,
+    /// The document and variables a planned operation was planned from, so a policy
+    /// reload can plan it again against the executor then serving (ruling AC 7). `None`
+    /// for an operation registered unplanned.
+    planned_from:      Option<(ParsedQuery, serde_json::Value)>,
 }
 
 /// Wait for the next policy-reload signal (#611). Returns `true` when the
@@ -1052,6 +1056,10 @@ async fn drain_signalled(rx: &mut Option<tokio::sync::watch::Receiver<bool>>) ->
 /// derivation now refuses is terminated with a `SUBSCRIPTION_REFUSED` error frame
 /// and unsubscribed, so a tightened policy can never be outlived by a
 /// pre-reload connection.
+///
+/// A planned operation (ruling AC 7) is also planned again, against the executor serving
+/// after the reload, and its new plan replaces the old one in place; a plan the reload
+/// refuses terminates it the same way.
 async fn rederive_operations_after_policy_reload(
     state: &SubscriptionState,
     codec: &ProtocolCodec,
@@ -1060,13 +1068,47 @@ async fn rederive_operations_after_policy_reload(
     connection_id: &str,
     principal: Option<&SecurityContext>,
 ) {
-    let ops: Vec<(String, SubscriptionId, String)> = active_operations
-        .iter()
-        .map(|(op_id, op)| (op_id.clone(), op.subscription_id, op.subscription_name.clone()))
-        .collect();
+    let ops: Vec<(String, SubscriptionId, String, Option<(ParsedQuery, serde_json::Value)>)> =
+        active_operations
+            .iter()
+            .map(|(op_id, op)| {
+                (
+                    op_id.clone(),
+                    op.subscription_id,
+                    op.subscription_name.clone(),
+                    op.planned_from.clone(),
+                )
+            })
+            .collect();
 
-    for (op_id, sub_id, name) in ops {
-        match resolve_subscription_rls(state, &name, principal).await {
+    for (op_id, sub_id, name, planned_from) in ops {
+        // Ruling AC 7: a planned operation is planned again against the executor serving
+        // now, with the same document, variables and principal. A plan the reload refuses
+        // ends the operation exactly as a refused row-visibility derivation does.
+        let replanned = match (planned_from, state.live_executor.as_ref()) {
+            (Some((document, variables)), Some(live)) => {
+                match live().plan_subscription(&document, Some(&variables), principal) {
+                    Ok(plan) => Some(Ok(Arc::new(plan))),
+                    Err(refusal) => Some(Err(refusal.to_string())),
+                }
+            },
+            _ => None,
+        };
+        let derived = match replanned {
+            Some(Err(reason)) => Err(reason),
+            Some(Ok(plan)) => resolve_subscription_rls(state, &name, principal)
+                .await
+                .map(|conditions| (conditions, Some(plan))),
+            None => resolve_subscription_rls(state, &name, principal)
+                .await
+                .map(|conditions| (conditions, None)),
+        };
+        match derived.and_then(|(conditions, plan)| {
+            if let Some(plan) = plan {
+                state.manager.replace_plan(sub_id, plan).map_err(|e| e.to_string())?;
+            }
+            Ok(conditions)
+        }) {
             Ok(conditions) => {
                 // Re-scope in place; `NotActive` means the op raced a disconnect.
                 if let Err(e) = state.manager.update_rls_conditions(sub_id, conditions) {
@@ -1489,6 +1531,7 @@ async fn handle_client_message(
             // Subscribe locally (field is owned by this subgraph). The server-owned
             // `rls_conditions` (#596) are enforced on every delivered event (AND
             // semantics) and cannot be overridden by client-supplied variables/filters.
+            let planned_from = plan.as_ref().map(|_| (parsed.clone(), variables_value.clone()));
             let registered = match plan {
                 Some(plan) => state.manager.subscribe_planned(
                     plan,
@@ -1510,9 +1553,10 @@ async fn handle_client_message(
                     active_operations.insert(
                         op_id.clone(),
                         ActiveOperation {
-                            subscription_id:   sub_id,
+                            subscription_id: sub_id,
                             subscription_name: subscription_name.clone(),
-                            response_key:      response_key.clone(),
+                            response_key: response_key.clone(),
+                            planned_from,
                         },
                     );
                     WS_SUBSCRIPTIONS_ACCEPTED.fetch_add(1, Ordering::Relaxed);

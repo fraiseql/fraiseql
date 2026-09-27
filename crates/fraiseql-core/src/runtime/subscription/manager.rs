@@ -394,6 +394,25 @@ impl SubscriptionManager {
         self.subscriptions.get(&id).map(|r| r.clone())
     }
 
+    /// Replace the plan every later event of subscription `id` is served through — a policy
+    /// reload re-plans a live subscription (ruling AC 7).
+    ///
+    /// # Errors
+    ///
+    /// [`SubscriptionError::NotActive`] when the subscription is gone.
+    pub fn replace_plan(
+        &self,
+        id: SubscriptionId,
+        plan: Arc<crate::runtime::SubscriptionPlan>,
+    ) -> Result<(), SubscriptionError> {
+        let mut subscription = self
+            .subscriptions
+            .get_mut(&id)
+            .ok_or_else(|| SubscriptionError::NotActive(id.to_string()))?;
+        subscription.plan = Some(plan);
+        Ok(())
+    }
+
     /// Replace the server-owned RLS conditions of a live subscription (#611).
     ///
     /// Used when a schema hot-reload changes the row-visibility policy behind an
