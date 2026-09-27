@@ -1053,6 +1053,20 @@ async fn rest_sse_handler(
                 );
             };
 
+            // Ruling AC 7: the stream is a read of its type. Planned once, from the
+            // reader's principal, as a `GET` of the resource with no `?select=`; every
+            // frame, live or replayed, is served through the plan. A refusal is the
+            // request's, before the stream opens.
+            let plan = match rest.executor.plan_type_stream(&entity_type, security_ctx.as_ref()) {
+                Ok(plan) => std::sync::Arc::new(plan),
+                Err(refusal) => {
+                    return rest_result_to_response(
+                        Err(super::handler::RestError::from(refusal)),
+                        &rest.error_sanitizer,
+                    );
+                },
+            };
+
             // A broadcast receiver, so this stream is a fan-out consumer and not a
             // competing one: it takes nothing from the observer executor, which sits
             // upstream of the bridge that publishes here (#1309).
@@ -1080,6 +1094,7 @@ async fn rest_sse_handler(
                 entity_type,
                 tenant,
                 resume,
+                plan,
             );
 
             // Merge entity events with heartbeat ticks.

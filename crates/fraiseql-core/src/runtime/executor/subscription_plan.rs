@@ -33,7 +33,10 @@ use std::{
 use super::{
     context::ExecutorContext,
     core::Executor,
-    runners::{query_nested::RootRowFilter, read_plan::ReadPlan},
+    runners::{
+        query_nested::{RootRowFilter, whole_object},
+        read_plan::ReadPlan,
+    },
     support::security::refuse_unreadable_where,
 };
 use crate::{
@@ -147,19 +150,7 @@ impl Executor {
 
         refuse_undeclared_selection(schema, type_name, &root.nested_fields)?;
         refuse_undelivered_selection(definition, &root.nested_fields)?;
-        if let Some(role) = schema.find_type(type_name).and_then(|t| t.requires_role.as_deref()) {
-            if !principal.is_some_and(|p| p.roles.iter().any(|r| r == role)) {
-                return Err(FraiseQLError::Authorization {
-                    message:  format!(
-                        "Subscription '{}' delivers '{type_name}', whose read requires a role \
-                         the request does not hold",
-                        definition.name
-                    ),
-                    action:   Some("read".to_string()),
-                    resource: Some(type_name.to_string()),
-                });
-            }
-        }
+        self.refuse_unless_readable(&definition.name, type_name, principal)?;
         for path in active_filter_paths(definition, &variables_map) {
             let condition = crate::db::WhereClause::Field {
                 path,
@@ -168,19 +159,82 @@ impl Executor {
             };
             refuse_unreadable_where(schema, type_name, &condition, principal)?;
         }
-        let root_rows = RootRowFilter::plan(ctx, &definition.name, type_name, principal)?;
-        let plan =
-            ReadPlan::classify(ctx, principal, variables, &[(type_name, &root.nested_fields)])?;
+        self.plan_read(
+            &definition.name,
+            type_name,
+            root.nested_fields.clone(),
+            variables_map,
+            principal,
+        )
+    }
 
+    /// Plan a stream of `type_name`'s change events for one reader — the REST
+    /// `/{resource}/stream` (ruling AC 7): a read of the type through the selection a `GET`
+    /// of the resource with no `?select=` reads, every field the type declares, object
+    /// fields expanded as their type.
+    ///
+    /// # Errors
+    ///
+    /// `Validation` for a type nesting an object deeper than a whole-object read expands;
+    /// `Authorization` for the type's role and whatever the read plan refuses — a `Reject`
+    /// field the reader may not read refuses the stream, as it refuses the `GET`.
+    pub fn plan_type_stream(
+        &self,
+        type_name: &str,
+        principal: Option<&SecurityContext>,
+    ) -> Result<SubscriptionPlan> {
+        let selections = whole_object(&self.ctx.schema, type_name, 0)?;
+        self.refuse_unless_readable(type_name, type_name, principal)?;
+        self.plan_read(type_name, type_name, selections, HashMap::new(), principal)
+    }
+
+    /// Refuse `type_name` to a reader lacking its own `requires_role`.
+    fn refuse_unless_readable(
+        &self,
+        read: &str,
+        type_name: &str,
+        principal: Option<&SecurityContext>,
+    ) -> Result<()> {
+        let Some(role) =
+            self.ctx.schema.find_type(type_name).and_then(|t| t.requires_role.as_deref())
+        else {
+            return Ok(());
+        };
+        if principal.is_some_and(|p| p.roles.iter().any(|r| r == role)) {
+            return Ok(());
+        }
+        Err(FraiseQLError::Authorization {
+            message:  format!(
+                "'{read}' delivers '{type_name}', whose read requires a role the request does \
+                 not hold"
+            ),
+            action:   Some("read".to_string()),
+            resource: Some(type_name.to_string()),
+        })
+    }
+
+    /// The row predicate and the read plan of `selections` over `type_name`, for `read`.
+    fn plan_read(
+        &self,
+        read: &str,
+        type_name: &str,
+        selections: Vec<FieldSelection>,
+        variables: HashMap<String, serde_json::Value>,
+        principal: Option<&SecurityContext>,
+    ) -> Result<SubscriptionPlan> {
+        let ctx = &self.ctx;
+        let root_rows = RootRowFilter::plan(ctx, read, type_name, principal)?;
+        let bound = serde_json::Value::Object(variables.clone().into_iter().collect());
+        let plan = ReadPlan::classify(ctx, principal, Some(&bound), &[(type_name, &selections)])?;
         Ok(SubscriptionPlan {
             ctx: Arc::clone(ctx),
             plan,
             root_rows,
             principal: principal.cloned(),
-            subscription: definition.name.clone(),
+            subscription: read.to_string(),
             type_name: type_name.to_string(),
-            selections: root.nested_fields.clone(),
-            variables: variables_map,
+            selections,
+            variables,
         })
     }
 }

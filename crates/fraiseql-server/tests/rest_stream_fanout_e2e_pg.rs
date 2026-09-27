@@ -455,7 +455,6 @@ async fn a_stream_does_not_carry_another_entitys_events() {
 /// the caller may not read is masked in each frame as a `GET` of the resource masks it —
 /// here `secret`, which requires a scope no role grants.
 #[tokio::test]
-#[ignore = "reproduction (AC 7): a REST stream serves the after-image whole"]
 async fn a_stream_masks_a_field_the_caller_may_not_read() {
     let test_id = Uuid::new_v4().simple().to_string();
     let pool = create_test_pool().await;

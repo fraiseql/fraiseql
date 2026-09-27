@@ -468,3 +468,31 @@ fn a_planned_payload_carries_only_the_served_document() {
     assert_eq!(payload.event.data, json!({"id": "o1"}), "the event a seam serialises");
     assert_eq!(payload.event.old_data, None, "no plan covers the before-image");
 }
+
+// ── AC 7: a REST stream is planned as a `GET` of its resource with no `?select=` ──
+
+#[test]
+fn a_type_stream_reads_every_declared_field_masking_what_the_reader_may_not_read() {
+    let mut schema = schema();
+    // No `Reject` field and no `authorize` field: a whole-type read of `Order` would
+    // otherwise be refused for this reader, as its `GET` is.
+    schema.types[0].fields.retain(|f| f.name == "id" || f.name == "note");
+    let exec = executor(schema, RuntimeConfig::default());
+    let planned = exec.plan_type_stream("Order", Some(&principal(&[]))).unwrap();
+    assert_eq!(planned.deliver(&event()), Some(json!({"id": "o1", "note": null})));
+}
+
+#[test]
+fn a_type_stream_is_refused_what_its_get_is_refused() {
+    let exec = executor(schema(), RuntimeConfig::default());
+    let err = exec.plan_type_stream("Order", Some(&principal(&[]))).unwrap_err();
+    assert!(matches!(err, FraiseQLError::Authorization { .. }), "a Reject field: {err:?}");
+    let mut role_gated = schema();
+    role_gated.types[0].fields.retain(|f| f.name == "id");
+    role_gated.types[0].requires_role = Some("finance".to_string());
+    let exec = executor(role_gated, RuntimeConfig::default());
+    let err = exec.plan_type_stream("Order", Some(&principal(&[]))).unwrap_err();
+    assert!(err.to_string().contains("requires a role"), "{err}");
+    exec.plan_type_stream("Order", Some(&principal(&["finance"])))
+        .expect("the role's holder may stream it");
+}

@@ -976,7 +976,7 @@ pub(super) fn expand_leaf_objects<'a>(
 }
 
 /// Every field `type_name` declares, as a selection, object fields expanded in turn.
-fn whole_object(
+pub(in super::super) fn whole_object(
     schema: &CompiledSchema,
     type_name: &str,
     depth: usize,
