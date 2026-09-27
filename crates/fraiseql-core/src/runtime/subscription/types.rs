@@ -75,6 +75,10 @@ impl std::fmt::Display for SubscriptionOperation {
 /// `next` payload's `extensions.changeSpine` slot; `None` fields are omitted, so a
 /// producer that stamped nothing yields an empty object (see [`Self::is_empty`],
 /// which callers use to skip emitting it entirely).
+///
+/// `seq` never reaches a subscriber (ruling AA 5): it is a server-wide position, and the
+/// manager clears it from every delivered event — each subscription carries its own
+/// delivery position in `sequence_number` instead.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChangeSpineEnvelope {
@@ -139,7 +143,8 @@ pub struct SubscriptionEvent {
     /// Event timestamp (from database).
     pub timestamp: chrono::DateTime<chrono::Utc>,
 
-    /// Monotonic sequence number for ordering.
+    /// Monotonic sequence number for ordering: the manager's global counter as published,
+    /// and, in a delivered payload, the subscription's own delivery position (ruling AA 5).
     pub sequence_number: u64,
 
     /// Event payload data (the row data as JSON).
@@ -253,6 +258,10 @@ pub struct ActiveSubscription {
     /// executor at subscribe time from the client's selection and principal. `None` for a
     /// subscription registered without one.
     pub plan: Option<Arc<crate::runtime::SubscriptionPlan>>,
+
+    /// Events delivered to this subscription so far (ruling AA 5): the next delivery's
+    /// position is one more. Shared by clones, so it counts each delivery once.
+    pub delivered: Arc<std::sync::atomic::AtomicU64>,
 }
 
 impl ActiveSubscription {
@@ -287,6 +296,7 @@ impl ActiveSubscription {
             rls_conditions: Vec::new(),
             tenant_id,
             plan: None,
+            delivered: Arc::default(),
         }
     }
 

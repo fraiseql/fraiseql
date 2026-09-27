@@ -329,7 +329,8 @@ async fn ws_e2e_next_frame_carries_change_spine_envelope() {
     assert_eq!(cs["actingFor"], "11111111-1111-1111-1111-111111111111");
     assert_eq!(cs["schemaVersion"], "v3");
     assert_eq!(cs["durationMs"], 12);
-    assert_eq!(cs["seq"], 42);
+    // Ruling AA 5: the durable `seq` is a server-wide position and stays server-side.
+    assert!(cs.get("seq").is_none(), "the Change-Spine seq never reaches a subscriber: {cs}");
     assert!(cs.get("tenantId").is_none(), "unset envelope fields are omitted");
 }
 

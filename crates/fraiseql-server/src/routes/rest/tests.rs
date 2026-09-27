@@ -562,19 +562,22 @@ mod stream_decisions {
 
     /// The defect #1113 found: the header was read into `_last_event_id` and dropped, so
     /// a reconnect silently skipped the gap on a stream that reported itself healthy.
-    /// It is now a resume point, read as the Change-Spine sequence the stream emits.
+    /// It is now a resume point: the token the stream emitted opens to the Change-Spine
+    /// sequence it sealed (ruling AA 5).
     #[test]
     fn a_resume_request_names_the_sequence_to_resume_after() {
+        let token = crate::routes::rest::stream_token::seal(41, "Order").unwrap();
         assert_eq!(
-            stream_resume_request(&headers_with("41")).expect("41 is an id this stream issues"),
-            ResumeRequest::From(41)
+            stream_resume_request(&headers_with(&token), "Order")
+                .expect("a token this stream issued"),
+            ResumeRequest::From { seq: 41, token }
         );
     }
 
     #[test]
     fn a_fresh_delivery_is_not_a_resume_request() {
         assert_eq!(
-            stream_resume_request(&HeaderMap::new()).expect("no header is no resume"),
+            stream_resume_request(&HeaderMap::new(), "Order").expect("no header is no resume"),
             ResumeRequest::Fresh
         );
     }
@@ -583,20 +586,35 @@ mod stream_decisions {
     /// an event. Nothing was missed, so there is nothing to resume.
     #[test]
     fn an_empty_last_event_id_is_not_a_resume_request() {
-        assert_eq!(stream_resume_request(&headers_with("")).unwrap(), ResumeRequest::Fresh);
-        assert_eq!(stream_resume_request(&headers_with("   ")).unwrap(), ResumeRequest::Fresh);
+        assert_eq!(
+            stream_resume_request(&headers_with(""), "Order").unwrap(),
+            ResumeRequest::Fresh
+        );
+        assert_eq!(
+            stream_resume_request(&headers_with("   "), "Order").unwrap(),
+            ResumeRequest::Fresh
+        );
     }
 
     /// An id this stream never issued. Refused rather than treated as a fresh delivery:
     /// the client believes it is resuming, and answering `200` from now on would hand it
     /// exactly the unseen gap this endpoint keeps being corrected for.
+    /// A raw sequence (the pre-AA 5 id), and a token sealed for another stream, are ids this
+    /// stream never issued too.
     #[test]
     fn an_id_this_stream_never_issues_is_refused() {
-        for value in ["not-a-number", "3f2a1b", "12.5", "9999999999999999999999"] {
-            let refusal = stream_resume_request(&headers_with(value))
-                .expect_err("a non-integer id is not a Change-Spine sequence");
-            assert_eq!(refusal.status, StatusCode::BAD_REQUEST);
-            assert_eq!(refusal.code, "RESUME_POINT_INVALID");
+        let other_stream = crate::routes::rest::stream_token::seal(41, "Invoice").unwrap();
+        for value in [
+            "41",
+            "not-a-number",
+            "3f2a1b",
+            "12.5",
+            other_stream.as_str(),
+        ] {
+            let refusal = stream_resume_request(&headers_with(value), "Order")
+                .expect_err("not a token this stream issued");
+            assert_eq!(refusal.status, StatusCode::GONE);
+            assert_eq!(refusal.code, "RESUME_POINT_UNKNOWN");
             assert!(
                 refusal.message.contains(value),
                 "the refusal must name the id it could not read: {}",
@@ -610,15 +628,15 @@ mod stream_decisions {
     /// pruned change log, a deployment that records nothing, and a client too far behind.
     #[test]
     fn each_refusal_names_its_own_reason_and_the_id() {
-        let unsupported = resumption_unsupported(41);
+        let unsupported = resumption_unsupported("41");
         assert_eq!(unsupported.status, StatusCode::NOT_IMPLEMENTED);
         assert_eq!(unsupported.code, "RESUMPTION_UNSUPPORTED");
 
-        let unknown = resume_point_unknown(41);
+        let unknown = resume_point_unknown("41");
         assert_eq!(unknown.status, StatusCode::GONE);
         assert_eq!(unknown.code, "RESUME_POINT_UNKNOWN");
 
-        let too_far = resume_too_far_behind(41, 10_000);
+        let too_far = resume_too_far_behind("41", 10_000);
         assert_eq!(too_far.status, StatusCode::PAYLOAD_TOO_LARGE);
         assert_eq!(too_far.code, "RESUME_TOO_FAR_BEHIND");
         assert!(

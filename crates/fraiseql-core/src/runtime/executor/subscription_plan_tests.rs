@@ -503,7 +503,6 @@ fn a_type_stream_is_refused_what_its_get_is_refused() {
 // (another owner's row) leaves no hole, and the Change-Spine `seq` — a server-wide position
 // that counts every change, including the ones withheld — never reaches the payload.
 #[test]
-#[ignore = "AA 5: per-subscription delivery position (fix pending)"]
 fn a_subscription_counts_its_own_deliveries_and_carries_no_server_position() {
     use crate::runtime::subscription::{
         ChangeSpineEnvelope, SubscriptionEvent, SubscriptionManager, SubscriptionOperation,

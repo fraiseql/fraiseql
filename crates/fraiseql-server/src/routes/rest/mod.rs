@@ -21,6 +21,7 @@ pub mod response;
 pub mod resumable_stream;
 mod router;
 pub mod sse;
+pub mod stream_token;
 pub mod streaming;
 
 #[cfg(test)]

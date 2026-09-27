@@ -506,6 +506,14 @@ impl SubscriptionManager {
                     delivered.data = data.clone();
                     delivered.old_data = None;
                 }
+                // Ruling AA 5: the subscriber sees its own delivery position, gap-free —
+                // never the manager's global counter or the Change-Spine `seq`, which count
+                // every change, those withheld from this subscriber included.
+                delivered.sequence_number =
+                    subscription.delivered.fetch_add(1, Ordering::SeqCst) + 1;
+                if let Some(envelope) = delivered.change_spine.as_mut() {
+                    envelope.seq = None;
+                }
                 let payload = SubscriptionPayload {
                     subscription_id: subscription.id,
                     subscription_name: subscription.subscription_name.clone(),

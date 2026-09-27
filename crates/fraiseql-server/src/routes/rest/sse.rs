@@ -207,30 +207,37 @@ pub fn stream_tenant_scope(
 /// `EventSource` reconnecting after a blip silently lost every event in the gap while
 /// the transport reported a healthy stream. #1310 makes it a resume.
 #[cfg(feature = "observers")]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ResumeRequest {
     /// No usable header: deliver from now on.
     Fresh,
     /// Resume after the event carrying this Change-Spine sequence.
-    From(i64),
+    From {
+        /// The sequence the client's token seals — server-side only, never echoed.
+        seq:   i64,
+        /// The token the client sent, which refusals name.
+        token: String,
+    },
 }
 
-/// Read the `Last-Event-ID` header as a resume point.
+/// Read the `Last-Event-ID` header as a resume point on `stream`'s stream.
 ///
-/// The id a stream emits is the Change-Spine `seq` and nothing else (#1113 chose it over
-/// the event UUID precisely so that this day could come), so a value that is not one is
-/// not a resume point this stream ever issued. It is refused rather than ignored: a
-/// client sending an id from another system, or a hand-typed one, is asking for
-/// something the server cannot give, and starting from now instead would hand it the
-/// silent gap in a new wrapper.
+/// The id a stream emits is an opaque token sealing the Change-Spine `seq` for that stream
+/// (`stream_token`, ruling AA 5), so a value that does not open is not a resume point this
+/// stream issued — another stream's, another process's, hand-typed. It is refused rather
+/// than ignored: starting from now instead would hand the client the silent gap in a new
+/// wrapper.
 ///
 /// An absent or blank header is a fresh delivery, not a resume.
 ///
 /// # Errors
 ///
-/// Returns `400 RESUME_POINT_INVALID` when the header is present and not an integer.
+/// Returns `410 RESUME_POINT_UNKNOWN` when the header is present and does not open.
 #[cfg(feature = "observers")]
-pub fn stream_resume_request(headers: &HeaderMap) -> Result<ResumeRequest, RestError> {
+pub fn stream_resume_request(
+    headers: &HeaderMap,
+    stream: &str,
+) -> Result<ResumeRequest, RestError> {
     let Some(raw) = extract_last_event_id(headers) else {
         return Ok(ResumeRequest::Fresh);
     };
@@ -238,18 +245,15 @@ pub fn stream_resume_request(headers: &HeaderMap) -> Result<ResumeRequest, RestE
     if trimmed.is_empty() {
         return Ok(ResumeRequest::Fresh);
     }
-
-    trimmed.parse::<i64>().map(ResumeRequest::From).map_err(|_| RestError {
-        status:  StatusCode::BAD_REQUEST,
-        code:    "RESUME_POINT_INVALID",
-        message: format!(
-            "Last-Event-ID {raw:?} is not an event id this stream issues. Every event \
-             carries `id: <seq>`, the Change-Spine sequence of the change, so a resume \
-             point is an integer. Reconnect without the header to receive events from \
-             now on."
-        ),
-        details: None,
-    })
+    super::stream_token::open(trimmed, stream).map_or_else(
+        || Err(resume_point_unknown(trimmed)),
+        |seq| {
+            Ok(ResumeRequest::From {
+                seq,
+                token: trimmed.to_string(),
+            })
+        },
+    )
 }
 
 /// The refusal owed to a client that asked to resume where nothing records what was
@@ -262,13 +266,13 @@ pub fn stream_resume_request(headers: &HeaderMap) -> Result<ResumeRequest, RestE
 /// carried.
 #[cfg(feature = "observers")]
 #[must_use]
-pub fn resumption_unsupported(seq: i64) -> RestError {
+pub fn resumption_unsupported(id: &str) -> RestError {
     RestError {
         status:  StatusCode::NOT_IMPLEMENTED,
         code:    "RESUMPTION_UNSUPPORTED",
         message: format!(
-            "Last-Event-ID {seq} cannot be honoured: this deployment keeps no record of \
-             what this stream delivered, so the events since {seq} cannot be \
+            "Last-Event-ID {id} cannot be honoured: this deployment keeps no record of \
+             what this stream delivered, so the events since {id} cannot be \
              established. Reconnect without the header to receive events from now on."
         ),
         details: None,
@@ -283,12 +287,12 @@ pub fn resumption_unsupported(seq: i64) -> RestError {
 /// carrying a partial replay would be the same silent gap in a new place.
 #[cfg(feature = "observers")]
 #[must_use]
-pub fn resume_point_unknown(seq: i64) -> RestError {
+pub fn resume_point_unknown(id: &str) -> RestError {
     RestError {
         status:  StatusCode::GONE,
         code:    "RESUME_POINT_UNKNOWN",
         message: format!(
-            "Last-Event-ID {seq} names no event on this stream: it has aged out of the \
+            "Last-Event-ID {id} names no event on this stream: it has aged out of the \
              change log, or it was issued by a different stream. What followed it \
              cannot be established, so it is refused rather than answered with a replay \
              that might skip. Reconnect without the header to receive events from now on."
@@ -305,12 +309,12 @@ pub fn resume_point_unknown(seq: i64) -> RestError {
 /// `[rest].sse_max_replay_events`.
 #[cfg(feature = "observers")]
 #[must_use]
-pub fn resume_too_far_behind(seq: i64, cap: u64) -> RestError {
+pub fn resume_too_far_behind(id: &str, cap: u64) -> RestError {
     RestError {
         status:  StatusCode::PAYLOAD_TOO_LARGE,
         code:    "RESUME_TOO_FAR_BEHIND",
         message: format!(
-            "Last-Event-ID {seq} is more than {cap} delivered events behind, which is \
+            "Last-Event-ID {id} is more than {cap} delivered events behind, which is \
              this deployment's replay bound (`[rest].sse_max_replay_events`). Refusing \
              rather than replaying part of the gap. Reconnect without the header to \
              receive events from now on, or raise the bound."

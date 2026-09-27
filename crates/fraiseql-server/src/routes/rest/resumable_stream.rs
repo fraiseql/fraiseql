@@ -114,11 +114,15 @@ fn replay_failed_payload(reason: &str) -> serde_json::Value {
 ///
 /// The document is served through the reader's plan (ruling AC 7): a stream is a read of its
 /// type. `None` — no frame — for an event the plan suppresses, as for one it cannot render.
-fn frame_for(event: &BridgeEvent, plan: &SubscriptionPlan) -> Option<SseEvent> {
+///
+/// Its `id:` seals the change's Change-Spine position for this stream (ruling AA 5): a
+/// resume point only this stream can open, never a server-wide position.
+fn frame_for(event: &BridgeEvent, plan: &SubscriptionPlan, stream: &str) -> Option<SseEvent> {
     let wire = StreamEvent::from_bridge_event(event);
     let served = plan.deliver(wire.data)?;
     let mut frame = SseEvent::default().event(wire.event_type);
-    if let Some(id) = wire.id {
+    let position = event.change_spine.as_ref().and_then(|envelope| envelope.seq);
+    if let Some(id) = position.and_then(|seq| super::stream_token::seal(seq, stream)) {
         frame = frame.id(id);
     }
     frame.json_data(served).ok()
@@ -216,7 +220,8 @@ pub fn resumable_event_stream(
                             {
                                 continue;
                             }
-                            let Some(frame) = frame_for(&event, &state.plan) else {
+                            let Some(frame) = frame_for(&event, &state.plan, &state.entity_type)
+                            else {
                                 continue;
                             };
                             return Some((frame, state));
@@ -272,7 +277,7 @@ fn queue_replayed(state: &mut Cursor, events: Vec<fraiseql_observers::listener::
         if let Some(seq) = event.change_spine.as_ref().and_then(|envelope| envelope.seq) {
             state.replayed.insert(seq);
         }
-        if let Some(frame) = frame_for(&event, &state.plan) {
+        if let Some(frame) = frame_for(&event, &state.plan, &state.entity_type) {
             state.pending.push_back(frame);
         }
     }

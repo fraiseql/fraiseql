@@ -866,12 +866,12 @@ async fn resume_state(
 ) -> Result<Option<super::resumable_stream::ResumeState>, super::handler::RestError> {
     use fraiseql_observers::listener::ResumeAnchor;
 
-    let super::sse::ResumeRequest::From(seq) = resume else {
+    let super::sse::ResumeRequest::From { seq, token } = resume else {
         return Ok(None);
     };
 
     let Some(reader) = rest.stream_replay.clone() else {
-        return Err(super::sse::resumption_unsupported(seq));
+        return Err(super::sse::resumption_unsupported(&token));
     };
 
     let scope = super::sse::replay_scope(entity_type, tenant);
@@ -881,7 +881,7 @@ async fn resume_state(
         super::handler::RestError::internal("Could not resolve the resume point")
     })?;
     let ResumeAnchor::Found(origin) = anchor else {
-        return Err(super::sse::resume_point_unknown(seq));
+        return Err(super::sse::resume_point_unknown(&token));
     };
 
     // `0` is "no bound", and is the permissive setting: every resume is served however
@@ -903,7 +903,7 @@ async fn resume_state(
                 super::handler::RestError::internal("Could not measure the resume backlog")
             })?;
         if backlog > cap || in_flight > cap {
-            return Err(super::sse::resume_too_far_behind(seq, cap));
+            return Err(super::sse::resume_too_far_behind(&token, cap));
         }
     }
 
@@ -1005,12 +1005,6 @@ async fn rest_sse_handler(
             // so a browser `EventSource` reconnecting after a blip silently lost the gap
             // while the transport reported a healthy stream. #1310 resumes it; a header
             // that is not an id this stream issues is still refused here.
-            let resume = match super::sse::stream_resume_request(&parts.headers) {
-                Ok(resume) => resume,
-                Err(refusal) => {
-                    return rest_result_to_response(Err(refusal), &rest.error_sanitizer);
-                },
-            };
 
             // Reading the header above is free; *resolving* it against the change log is
             // not, so the tenant gate sits between the two. An unauthorised caller is
@@ -1051,6 +1045,15 @@ async fn rest_sse_handler(
                     ))),
                     &rest.error_sanitizer,
                 );
+            };
+
+            // The resume token opens only for this stream's type (ruling AA 5), so it is read
+            // once the type is known; a token that does not open is refused here.
+            let resume = match super::sse::stream_resume_request(&parts.headers, &entity_type) {
+                Ok(resume) => resume,
+                Err(refusal) => {
+                    return rest_result_to_response(Err(refusal), &rest.error_sanitizer);
+                },
             };
 
             // Ruling AC 7: the stream is a read of its type. Planned once, from the

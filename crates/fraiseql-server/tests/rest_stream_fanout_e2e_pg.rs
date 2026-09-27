@@ -502,7 +502,6 @@ async fn a_stream_masks_a_field_the_caller_may_not_read() {
 /// A stream's `id:` is an opaque resumption token (ruling AA 5), not the Change-Spine
 /// `seq`: a server-wide position counts every change, those the stream withholds included.
 #[tokio::test]
-#[ignore = "reproduction (AA 5): the stream id is the Change-Spine seq"]
 async fn a_stream_id_is_an_opaque_token_not_a_server_position() {
     let test_id = Uuid::new_v4().simple().to_string();
     let pool = create_test_pool().await;
@@ -719,7 +718,9 @@ async fn an_unresumable_id_is_refused_rather_than_answered() {
     );
 
     let invalid = rig.stream_response(Some("not-an-id")).await;
-    assert_eq!(invalid.status(), 400, "an id this stream never issues is a bad request");
+    // Ruling AA 5: an id is a token this stream seals; one that does not open, whatever it
+    // looks like, names no event here and takes the same 410.
+    assert_eq!(invalid.status(), 410, "an id this stream never issued names nothing to resume");
 
     rig.stop().await;
     cleanup_test_data(&pool, &test_id).await.ok();
