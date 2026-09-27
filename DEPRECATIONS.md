@@ -16,6 +16,28 @@ This document tracks deprecated APIs and their migration paths. Deprecated items
 | `CacheStatus::RlsGuardOnly` | `fraiseql-server` | v2.2.0 | `CacheStatus::Active` or `CacheStatus::Disabled` | v3.0 |
 | `CacheStatus::from_cache_enabled` | `fraiseql-server` | v2.2.0 | `AppState::adapter_cache_enabled` | v3.0 |
 
+## Removed in the next release (no deprecation cycle — the write API)
+
+The write surface of `DatabaseAdapter` is replaced by the `Writer` trait in the same release
+as a security fix that needs every write to be adjudicated before its commit (see
+`CHANGELOG.md`, "One write API"). A deprecation cycle would keep a second way to write —
+one that can skip the gate — callable for a release, which is the hazard the change
+removes; the old methods are therefore deleted outright, and an adapter that writes fails
+to compile until it implements `Writer`.
+
+| Removed | Crate | Replacement |
+|---------|-------|-------------|
+| `DatabaseAdapter::execute_function_call` | `fraiseql-db` | `Writer::execute_write` |
+| `DatabaseAdapter::execute_function_call_with_session` | `fraiseql-db` | `Writer::execute_write` with `WriteRequest::with_session_vars` |
+| `DatabaseAdapter::execute_function_call_with_changelog` | `fraiseql-db` | `Writer::execute_write` with `WriteRequest::with_changelog` |
+| `DatabaseAdapter::execute_function_call_dry_run` | `fraiseql-db` | `Writer::execute_write` with `WriteMode::DryRun` |
+| `DatabaseAdapter::execute_function_call_gated` | `fraiseql-db` | `Writer::execute_write` (the gate is its second argument) |
+| `DatabaseAdapter::supports_mutations` | `fraiseql-db` | implement `Writer` |
+| `DatabaseAdapter::supports_gated_writes` | `fraiseql-db` | implement `Writer` |
+| `DatabaseAdapter::bump_fact_table_versions` | `fraiseql-db` | `Writer::bump_fact_table_versions` |
+| `SupportsMutations` (marker trait) | `fraiseql-db` | `Writer` |
+| `Executor::writes_refused` | `fraiseql-core` | none — the state it reported cannot be built |
+
 ## Removed in v2.3.0 (no deprecation cycle — vestigial types, zero callers)
 
 The following types were deleted outright in v2.3.0 as part of the error

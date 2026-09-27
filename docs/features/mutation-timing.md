@@ -6,8 +6,8 @@ without application-level instrumentation.
 
 ## How it works
 
-When enabled, `execute_function_call` wraps each mutation in a transaction and
-executes:
+When enabled, every write (`Writer::execute_write`, which runs each mutation in one
+transaction) executes, in that transaction and before the function:
 
 ```sql
 SELECT set_config('fraiseql.started_at', clock_timestamp()::text, true);

@@ -18,6 +18,51 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **One write API: `Writer::execute_write`, and a dry run is a mode of the write.**
+
+  ⚠ **If you implement `DatabaseAdapter` with writes, this is a compile error until you
+  update it.** The write surface was five methods and two flags —
+  `execute_function_call`, `_with_session`, `_with_changelog`, `_dry_run`, `_gated`,
+  `supports_mutations()`, `supports_gated_writes()` — plus the `SupportsMutations` marker,
+  and an adapter could satisfy the type system while refusing at run time, or the other way
+  round. They are replaced by one trait with one required method:
+
+  ```rust
+  #[async_trait]
+  impl Writer for MyAdapter {
+      async fn execute_write(
+          &self,
+          request: &WriteRequest<'_>,
+          gate: MutationRowGate<'_>,
+      ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+          // In ONE transaction: apply request.session_vars transaction-locally, run
+          // request.function(request.args) (with the change-log outbox row when
+          // request.changelog is Some), call gate(&rows) before the transaction ends,
+          // roll back and return the gate's error verbatim if it errs; otherwise commit
+          // in WriteMode::Commit and roll back in WriteMode::DryRun. Return the rows.
+      }
+  }
+  ```
+
+  Implementing `execute_write` is the write capability: `Executor::new` and
+  `Executor::with_config` take `A: Writer`; `Executor::read_only` takes any adapter. An
+  adapter that cannot hold a transaction open for the gate must not implement `Writer` — it
+  stays read-only, and handing it to a writing constructor is a compile error rather than a
+  `501` on every mutation. `Executor::writes_refused()` is gone with that state.
+  `WriteRequest` is `#[non_exhaustive]`: build it with `WriteRequest::new(function, args)`
+  and `with_session_vars` / `with_changelog` / `with_mode`. `CachedDatabaseAdapter<A>` is a
+  `Writer` exactly when `A` is, and forwards both modes. `bump_fact_table_versions` moves
+  from `DatabaseAdapter` to `Writer` (a provided method, a no-op by default).
+
+  **Dry runs.** `RuntimeConfig::dry_run_mutations` runs the same write in
+  `WriteMode::DryRun`: the same transaction, session variables, change-log outbox row,
+  timing stamp and gate, ending in a rollback — so a dry run answers exactly as the write
+  would. Nothing that follows a commit follows a dry run any more: it used to bump
+  fact-table versions (a real, committed `bump_tf_version` on a cache-wrapped adapter),
+  invalidate cached views, entities and responses, and emit `mutation.executed`, after a
+  write that had been rolled back. A dry run through the cache wrapper used to be
+  `Unsupported`; it is forwarded.
+
 - **A `wire-backend` build refuses `?select=` embeds with `501`, and says so at boot.**
 
   An embed is one composed statement (`LATERAL`, one level per embed), which only the
@@ -97,7 +142,8 @@ disagreed, and the promise was the part that was wrong.
   and takes the unchanged path; the check that decides this is a short-circuiting scan of the
   compiled schema, measured at well under the cost of the round-trip it guards.
 
-  **What breaks for adapter authors.** `DatabaseAdapter` gains
+  **What breaks for adapter authors.** (Superseded in this release by `Writer::execute_write`,
+  above, which carries the gate as a required argument.) `DatabaseAdapter` gains
   `execute_function_call_gated`, whose default returns `Unsupported`. An adapter that cannot
   roll back must not be the one to decide a refused write is survivable, so a gated mutation
   on such an adapter is refused rather than committed unadjudicated. `PostgresAdapter`
