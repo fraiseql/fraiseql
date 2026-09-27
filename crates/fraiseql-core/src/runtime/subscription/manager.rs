@@ -478,10 +478,19 @@ impl SubscriptionManager {
                 };
                 matched += 1;
 
+                // Every seam reads this payload — `/ws` its `data`, the Kafka mirror and the
+                // webhook adapter its `event` (ruling AC 7). For a planned subscription the
+                // event carries the served document and no before-image, which no plan
+                // covers: nothing downstream of the plan can see the raw after-image.
+                let mut delivered = event.clone();
+                if subscription.plan.is_some() {
+                    delivered.data = data.clone();
+                    delivered.old_data = None;
+                }
                 let payload = SubscriptionPayload {
                     subscription_id: subscription.id,
                     subscription_name: subscription.subscription_name.clone(),
-                    event: event.clone(),
+                    event: delivered,
                     data,
                 };
 

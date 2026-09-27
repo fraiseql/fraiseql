@@ -449,7 +449,6 @@ fn an_unplanned_subscription_reaching_a_role_or_a_nested_gate_is_refused() {
 // mirror and the webhook adapter serialise its `event`. For a planned subscription the
 // event must carry the served document, and no before-image (which no plan covers).
 #[test]
-#[ignore = "AC 7: a planned payload's event carries the raw after-image (fix pending)"]
 fn a_planned_payload_carries_only_the_served_document() {
     use crate::runtime::subscription::{
         SubscriptionEvent, SubscriptionManager, SubscriptionOperation,
