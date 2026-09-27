@@ -702,3 +702,101 @@ async fn ws_e2e_a_subscription_does_not_deliver_a_scoped_field_to_an_anonymous_s
         "a field the subscriber neither selected nor may read was delivered: {next_frame}"
     );
 }
+
+// ── AA 4: a subscription is planned at subscribe time from the client's selection ──
+
+/// `Order { id, status, secret }`, `secret` requiring `read:secret` (Reject, the default),
+/// with a `security` section granting nobody the scope; `orderCreated` may filter by
+/// `secret` (a declared argument), so only the read gate can refuse that filter.
+fn gated_order_manager() -> Arc<SubscriptionManager> {
+    let mut schema = schema_with_subscription("orderCreated", "Order");
+    let sub = schema.subscriptions.iter_mut().find(|s| s.name == "orderCreated").unwrap();
+    sub.arguments
+        .push(fraiseql_core::schema::ArgumentDefinition::optional("secret", FieldType::String));
+    sub.filter_fields = vec!["secret".to_string()];
+    let mut order = TypeDefinition::new("Order", "v_order");
+    order.fields = vec![
+        FieldDefinition::new("id", FieldType::Id),
+        FieldDefinition::nullable("status", FieldType::String),
+        FieldDefinition::nullable("secret", FieldType::String).with_requires_scope("read:secret"),
+    ];
+    schema.types.push(order);
+    schema.security = Some(SecurityConfig::default());
+    schema.build_indexes();
+    Arc::new(SubscriptionManager::new(Arc::new(schema)))
+}
+
+/// Subscribe `query` (with `variables`) as anonymous, publish one `Order` after-image, and
+/// return the first frame for the operation after the subscribe.
+async fn first_frame_after_publish(
+    manager: &Arc<SubscriptionManager>,
+    query: &str,
+    variables: serde_json::Value,
+) -> serde_json::Value {
+    let url = spawn_ws_server(SubscriptionState::new(manager.clone())).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    assert_eq!(recv_json(&mut stream).await["type"], "connection_ack", "handshake");
+    send_json(
+        &mut sink,
+        json!({"type": "subscribe", "id": "op_1",
+               "payload": {"query": query, "variables": variables}}),
+    )
+    .await;
+    // Either the subscription registers, or the server answers the subscribe at once.
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(500);
+    while manager.subscription_count() == 0 && tokio::time::Instant::now() < deadline {
+        tokio::task::yield_now().await;
+    }
+    manager.publish_event(SubscriptionEvent::new(
+        "Order",
+        "order_42",
+        SubscriptionOperation::Create,
+        json!({"id": "order_42", "status": "open", "secret": "s3cr3t"}),
+    ));
+    recv_json(&mut stream).await
+}
+
+/// A subscription serves its selection, as a query does: `status` is readable, but not
+/// selected.
+#[ignore = "reproduction (AA 4): a subscription delivers the whole after-image"]
+#[tokio::test]
+async fn ws_e2e_a_subscription_serves_only_its_selection() {
+    let frame = first_frame_after_publish(
+        &gated_order_manager(),
+        "subscription { orderCreated { id } }",
+        json!({}),
+    )
+    .await;
+    assert_eq!(frame["type"], "next", "{frame}");
+    assert_eq!(frame["payload"]["data"]["orderCreated"], json!({"id": "order_42"}), "{frame}");
+}
+
+/// Selecting a `Reject` field the subscriber may not read refuses the subscription, as it
+/// refuses a query.
+#[ignore = "reproduction (AA 4): a subscription applies no requires_scope"]
+#[tokio::test]
+async fn ws_e2e_selecting_a_rejected_field_refuses_the_subscription() {
+    let frame = first_frame_after_publish(
+        &gated_order_manager(),
+        "subscription { orderCreated { id secret } }",
+        json!({}),
+    )
+    .await;
+    assert_eq!(frame["type"], "error", "the subscription must be refused: {frame}");
+    assert!(!frame.to_string().contains("s3cr3t"), "{frame}");
+}
+
+/// Filtering by a field the subscriber may not read is refused (ruling AA 3): which events
+/// arrive would answer a question about its value.
+#[ignore = "reproduction (AA 4): a subscription filter on an unreadable field is applied"]
+#[tokio::test]
+async fn ws_e2e_filtering_by_a_field_the_subscriber_may_not_read_is_refused() {
+    let frame = first_frame_after_publish(
+        &gated_order_manager(),
+        "subscription($secret: String) { orderCreated(secret: $secret) { id } }",
+        json!({"secret": "s3cr3t"}),
+    )
+    .await;
+    assert_eq!(frame["type"], "error", "the filter must be refused: {frame}");
+}
