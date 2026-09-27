@@ -2496,3 +2496,78 @@ fn a_query_returning_an_enum_or_union_still_loads() {
          against types/enums/interfaces/unions or not at all, never against `types` alone",
     );
 }
+
+/// Ruling AB 1: a fact table linked to a type is read as that type, so every name it
+/// declares must be a field of it — a declared column the type lacks would be a column no
+/// gate can reach. Refused at load, naming the fact table, the type and the names.
+#[test]
+#[ignore = "AB 1: fact-table link validated at load (fix pending)"]
+fn a_fact_table_linked_to_a_type_lacking_one_of_its_columns_is_refused_at_load() {
+    let json = r#"{
+        "types": [{
+            "name":"Sale","sql_source":"v_sale",
+            "fields":[{"name":"revenue","field_type":"Float"}]
+        }],
+        "queries": [], "mutations": [], "subscriptions": [],
+        "fact_tables": {"tf_sales": {
+            "table_name":"tf_sales","type_name":"Sale",
+            "measures":[
+                {"name":"revenue","sql_type":"Decimal","nullable":false},
+                {"name":"margin","sql_type":"Decimal","nullable":true}
+            ],
+            "dimensions":{"name":"data","paths":[]},
+            "denormalized_filters":[]
+        }}
+    }"#;
+    let err = CompiledSchema::from_json(json, false).unwrap_err();
+    let msg = err.to_string();
+    assert!(msg.contains("tf_sales"), "the message must name the fact table, got: {msg}");
+    assert!(msg.contains("Sale"), "the message must name the type, got: {msg}");
+    assert!(msg.contains("margin"), "the message must name the missing field, got: {msg}");
+}
+
+/// Ruling AB 1: the linked type must exist.
+#[test]
+#[ignore = "AB 1: fact-table link validated at load (fix pending)"]
+fn a_fact_table_linked_to_an_unknown_type_is_refused_at_load() {
+    let json = r#"{
+        "types": [], "queries": [], "mutations": [], "subscriptions": [],
+        "fact_tables": {"tf_sales": {
+            "table_name":"tf_sales","type_name":"Sael",
+            "measures":[{"name":"revenue","sql_type":"Decimal","nullable":false}],
+            "dimensions":{"name":"data","paths":[]},
+            "denormalized_filters":[]
+        }}
+    }"#;
+    let msg = CompiledSchema::from_json(json, false).unwrap_err().to_string();
+    assert!(msg.contains("Sael"), "the message must name the type, got: {msg}");
+}
+
+/// Control: an unlinked fact table loads as before, and a complete link loads.
+#[test]
+fn an_unlinked_or_completely_linked_fact_table_loads() {
+    let json = r#"{
+        "types": [{
+            "name":"Sale","sql_source":"v_sale",
+            "fields":[{"name":"revenue","field_type":"Float"},{"name":"category","field_type":"String"}]
+        }],
+        "queries": [], "mutations": [], "subscriptions": [],
+        "fact_tables": {
+            "tf_sales": {
+                "table_name":"tf_sales","type_name":"Sale",
+                "measures":[{"name":"revenue","sql_type":"Decimal","nullable":false}],
+                "dimensions":{"name":"data","paths":[
+                    {"name":"category","json_path":"data->>'category'","data_type":"text"}
+                ]},
+                "denormalized_filters":[]
+            },
+            "tf_events": {
+                "table_name":"tf_events",
+                "measures":[{"name":"n","sql_type":"Int","nullable":false}],
+                "dimensions":{"name":"data","paths":[]},
+                "denormalized_filters":[]
+            }
+        }
+    }"#;
+    CompiledSchema::from_json(json, false).unwrap();
+}
