@@ -4,6 +4,7 @@ package fraiseql
 type FactTableBuilder struct {
 	name        string
 	tableName   string
+	typeName    string
 	measures    []MeasureDefinition
 	dimensions  []DimensionPathDefinition
 	filters     []FilterDefinition
@@ -23,6 +24,16 @@ func NewFactTable(name string) *FactTableBuilder {
 // TableName sets the underlying database table name for this fact table.
 func (b *FactTableBuilder) TableName(name string) *FactTableBuilder {
 	b.tableName = name
+	return b
+}
+
+// TypeName links the fact table to the type it is read as. Its measures, denormalized
+// filters and dimension paths are then fields of that type, and an aggregate or window over
+// the table is gated as a read of it: the type's `requires_scope` and `authorize` fields and
+// its `requires_role`. A schema whose linked type lacks one of the names the table declares
+// is refused when it loads. An unlinked fact table declares no field gate.
+func (b *FactTableBuilder) TypeName(name string) *FactTableBuilder {
+	b.typeName = name
 	return b
 }
 
@@ -71,6 +82,7 @@ func (b *FactTableBuilder) Description(desc string) *FactTableBuilder {
 func (b *FactTableBuilder) Register() error {
 	return RegisterFactTable(FactTableDefinition{
 		TableName: b.tableName,
+		TypeName:  b.typeName,
 		Measures:  b.measures,
 		Dimensions: DimensionsDefinition{
 			Name:  b.name,

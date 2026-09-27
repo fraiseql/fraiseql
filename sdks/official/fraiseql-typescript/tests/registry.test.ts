@@ -149,6 +149,31 @@ describe("SchemaRegistry", () => {
       expect(schema.fact_tables![0].table_name).toBe("tf_sales");
       expect(schema.fact_tables![0].measures).toHaveLength(2);
     });
+
+    it("emits type_name when the fact table is read as a type", () => {
+      SchemaRegistry.registerFactTable(
+        "tf_sales",
+        [{ name: "revenue", sql_type: "Float", nullable: false }],
+        { name: "data", paths: [] },
+        [],
+        { typeName: "Sale" }
+      );
+
+      const schema = SchemaRegistry.getSchema();
+      expect(schema.fact_tables![0].type_name).toBe("Sale");
+    });
+
+    it("omits type_name for an unlinked fact table", () => {
+      SchemaRegistry.registerFactTable(
+        "tf_sales",
+        [{ name: "revenue", sql_type: "Float", nullable: false }],
+        { name: "data", paths: [] },
+        []
+      );
+
+      const schema = SchemaRegistry.getSchema();
+      expect(schema.fact_tables![0]).not.toHaveProperty("type_name");
+    });
   });
 
   describe("registerSubscription", () => {

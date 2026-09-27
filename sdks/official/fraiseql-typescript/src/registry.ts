@@ -254,6 +254,8 @@ export interface DenormalizedFilter {
  */
 export interface FactTableDefinition {
   table_name: string;
+  /** The type the fact table is read as (see `registerFactTable`). */
+  type_name?: string;
   measures: Measure[];
   dimensions: Dimension;
   denormalized_filters: DenormalizedFilter[];
@@ -1090,19 +1092,27 @@ export class SchemaRegistry {
    * @param measures - List of measure definitions
    * @param dimensions - Dimension metadata
    * @param denormalizedFilters - List of denormalized filter definitions
+   * @param options.typeName - The type the fact table is read as. Its measures, denormalized
+   *   filters and dimension paths are then fields of that type, and an aggregate or window
+   *   over the table is gated as a read of it: the type's `requires_scope` and `authorize`
+   *   fields and its `requires_role`. A schema whose linked type lacks one of the names the
+   *   table declares is refused when it loads. An unlinked fact table declares no field gate.
    */
   static registerFactTable(
     tableName: string,
     measures: Measure[],
     dimensions: Dimension,
-    denormalizedFilters: DenormalizedFilter[]
+    denormalizedFilters: DenormalizedFilter[],
+    options?: { typeName?: string }
   ): void {
-    this.factTables.set(tableName, {
+    const factTable: FactTableDefinition = {
       table_name: tableName,
       measures,
       dimensions,
       denormalized_filters: denormalizedFilters,
-    });
+    };
+    if (options?.typeName) factTable.type_name = options.typeName;
+    this.factTables.set(tableName, factTable);
   }
 
   /**

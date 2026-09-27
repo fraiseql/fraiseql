@@ -174,12 +174,14 @@ type FilterDefinition struct {
 
 // FactTableDefinition represents a GraphQL fact table for analytics.
 //
-// The shape mirrors the compiler's `IntermediateFactTable`: `table_name`, object
-// `measures`, a `dimensions` group and `denormalized_filters`. It previously carried a
+// The shape mirrors the compiler's `IntermediateFactTable`: `table_name`, the optional
+// `type_name` it is read as, object `measures`, a `dimensions` group and
+// `denormalized_filters`. It previously carried a
 // `name` the compiler does not read and `dimension_paths` where the compiler reads a
 // `dimensions` object, on top of the `measures` mismatch above.
 type FactTableDefinition struct {
 	TableName           string               `json:"table_name"`
+	TypeName            string               `json:"type_name,omitempty"`
 	Measures            []MeasureDefinition  `json:"measures"`
 	Dimensions          DimensionsDefinition `json:"dimensions"`
 	DenormalizedFilters []FilterDefinition   `json:"denormalized_filters"`

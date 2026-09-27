@@ -223,6 +223,16 @@ of that type applies:
 
 (`type` is accepted for `type_name` in the intermediate schema.)
 
+The two SDKs that author fact tables emit it:
+
+```go
+fraiseql.NewFactTable("data").TableName("tf_sales").TypeName("Sale"). /* measures … */ Register()
+```
+
+```typescript
+SchemaRegistry.registerFactTable("tf_sales", measures, dimensions, filters, { typeName: "Sale" });
+```
+
 * Every measure, denormalized filter, dimension path and native-mapping key of the fact
   table must be a field of the type (matched by snake_case name). A link to a type that does
   not exist, or that lacks one of them, is refused when the schema loads.
