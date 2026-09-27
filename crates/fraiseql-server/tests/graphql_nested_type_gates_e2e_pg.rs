@@ -2051,3 +2051,114 @@ async fn a_contract_error_takes_the_write_with_it() {
     assert!(matches!(result, Err(FraiseQLError::Validation { .. })), "{result:?}");
     assert_eq!(writes().await, [], "a write that broke its contract stood");
 }
+
+// ---------------------------------------------------------------------------
+// Relation filters across a row-secured target type
+// ---------------------------------------------------------------------------
+//
+// A `where` through a to-one relation compiles into the root's SQL, as a path into the
+// document the root's view embedded (`data->'team'->>'name'`) — and the nested level's row
+// policy removes a related row the caller may not read only afterwards, in memory, on the
+// way out. So a filter can ask about a row the response would never show: whether a member
+// sits in another tenant's team named `blue`, whether a folder's parent is mallory's. Each
+// reproduction accepts either answer that leaks nothing — a refusal, or the answer the
+// caller's own rows give — and each has a control: over a readable related row, and with no
+// policy at all, the same filters match.
+
+/// `schema(view)` with `where` on every root query.
+fn filterable(view: &str) -> CompiledSchema {
+    let mut schema = schema(view);
+    for query in &mut schema.queries {
+        query.auto_params.has_where = true;
+    }
+    schema
+}
+
+/// The ids of the rows served at the root under `key`.
+fn root_ids(response: &Value, key: &str) -> Vec<i64> {
+    let rows = response["data"][key].as_array().unwrap_or_else(|| panic!("{response}"));
+    rows.iter().map(|r| r["id"].as_i64().unwrap()).collect()
+}
+
+/// A filter's answer leaks nothing when it is refused or serves no row.
+fn assert_learns_nothing(result: &Result<Value>, key: &str, what: &str) {
+    if let Ok(out) = result {
+        assert!(root_ids(out, key).is_empty(), "{what}: {out}");
+    }
+}
+
+/// **Reproduction.** Tenant policy, a to-one: member 2 is tenant A's, its team `blue`
+/// tenant B's. Filtering members by team name asks about tenant B's team.
+#[tokio::test]
+#[ignore = "item 7 reproduction: a to-one relation filter matches a team the tenant policy hides"]
+async fn a_to_one_relation_filter_cannot_match_a_team_the_tenant_policy_hides() {
+    let executor = rig_or_skip!(over filterable("v_user_fk"), Policy::Tenant);
+    let result =
+        graphql(&executor, r#"{ members(where: {team: {name: {eq: "blue"}}}) { id } }"#).await;
+    assert_learns_nothing(&result, "members", "matched tenant B's team by its name");
+}
+
+/// **Reproduction.** Owner policy, a to-one at depth one and two: folder 2 is mallory's,
+/// the parent of alice's folder 3 and the grandparent of her folder 4.
+#[tokio::test]
+#[ignore = "item 7 reproduction: a to-one relation filter matches a folder the owner policy hides"]
+async fn a_to_one_relation_filter_cannot_match_a_folder_the_owner_policy_hides() {
+    let executor = rig_or_skip!(over filterable("v_user_fk"), Policy::Owner);
+    for query in [
+        r#"{ folders(where: {parent: {owner: {eq: "u-mallory"}}}) { id } }"#,
+        r#"{ folders(where: {parent: {parent: {owner: {eq: "u-mallory"}}}}) { id } }"#,
+    ] {
+        let result = graphql(&executor, query).await;
+        assert_learns_nothing(&result, "folders", &format!("{query} matched mallory's folder 2"));
+    }
+}
+
+/// Not a reproduction: a list relation cannot be filtered through at all — `where` treats
+/// `User.orders` as a scalar and refuses the nested filter — so no filter can probe the
+/// orders a policy hides. Pinned because the fix relies on it: were list relations made
+/// filterable, the filter would have to carry the target's row predicate per element.
+#[tokio::test]
+async fn a_filter_through_a_list_relation_is_refused() {
+    let executor = rig_or_skip!(over filterable("v_user_fk"), Policy::None);
+    let result = graphql(&executor, "{ users(where: {orders: {id: {eq: 11}}}) { id } }").await;
+    assert!(matches!(result, Err(FraiseQLError::Validation { .. })), "{result:?}");
+}
+
+/// Control: a to-one relation filter over a related row the caller may read still matches
+/// — tenant A's team `red`, alice's folder 3.
+#[tokio::test]
+async fn control_a_relation_filter_over_a_readable_row_matches() {
+    let executor = rig_or_skip!(over filterable("v_user_fk"), Policy::Tenant);
+    let out = graphql(&executor, r#"{ members(where: {team: {name: {eq: "red"}}}) { id } }"#)
+        .await
+        .unwrap();
+    assert_eq!(root_ids(&out, "members"), [1], "{out}");
+
+    let executor = rig_or_skip!(over filterable("v_user_fk"), Policy::Owner);
+    let out = graphql(&executor, "{ folders(where: {parent: {id: {eq: 3}}}) { id } }")
+        .await
+        .unwrap();
+    assert_eq!(root_ids(&out, "folders"), [4], "{out}");
+}
+
+/// Control: with no row policy, the reproductions' filters match — the rig can see the rows.
+#[tokio::test]
+async fn control_without_a_policy_the_relation_filters_match() {
+    let executor = rig_or_skip!(over filterable("v_user_fk"), Policy::None);
+    for (query, key, expected) in [
+        (r#"{ members(where: {team: {name: {eq: "blue"}}}) { id } }"#, "members", vec![2]),
+        (
+            r#"{ folders(where: {parent: {owner: {eq: "u-mallory"}}}) { id } }"#,
+            "folders",
+            vec![3],
+        ),
+        (
+            r#"{ folders(where: {parent: {parent: {owner: {eq: "u-mallory"}}}}) { id } }"#,
+            "folders",
+            vec![4],
+        ),
+    ] {
+        let out = graphql(&executor, query).await.unwrap();
+        assert_eq!(root_ids(&out, key), expected, "{query}: {out}");
+    }
+}
