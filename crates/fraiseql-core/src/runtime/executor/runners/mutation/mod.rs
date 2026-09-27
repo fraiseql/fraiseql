@@ -32,115 +32,6 @@ use crate::{
     security::SecurityContext,
 };
 
-/// What the dynamic field authorizer (#423) needs to decide the gated fields a payload
-/// selection reaches on a `type_name`: who asks, who answers, and which fields.
-struct FieldAuthzInputs<'a> {
-    principal:  &'a SecurityContext,
-    authorizer: &'a dyn crate::security::FieldAuthorizer,
-    gated:      Vec<crate::security::field_authorizer::GatedField>,
-}
-
-/// Resolve the field authorizer's inputs for `selections` on a `type_name`, from the
-/// selection, the principal and the configuration alone. `None` when the selection reaches
-/// no gated field (and then the authorizer is never called).
-///
-/// Everything here is known before the write, so the payload gates ask it then
-/// ([`PayloadGates::classify`]) and a refusal never runs the function. Only the
-/// authorizer's own decision needs the written row.
-///
-/// # Errors
-///
-/// Fail-closed, `Authorization` (403): a gated field selected with no authenticated
-/// principal, with no authorizer configured, or nested in a sub-selection (top-level is
-/// enforced in v1). `Internal`: a gated field's arguments cannot be read.
-fn field_authz_inputs<'a>(
-    ctx: &'a ExecutorContext,
-    security_ctx: Option<&'a SecurityContext>,
-    type_name: &str,
-    selections: &[FieldSelection],
-    variables: &std::collections::HashMap<String, serde_json::Value>,
-) -> Result<Option<FieldAuthzInputs<'a>>> {
-    use crate::security::field_authorizer as authz;
-
-    if !authz::selection_set_selects_gated_field(&ctx.schema, type_name, selections) {
-        return Ok(None);
-    }
-    let Some(principal) = security_ctx else {
-        return Err(FraiseQLError::Authorization {
-            message:  format!(
-                "Field-level authorization is required for a selected field on type \
-                 '{type_name}' but the request is not authenticated"
-            ),
-            action:   Some("read".to_string()),
-            resource: Some(type_name.to_string()),
-        });
-    };
-    let Some(authorizer) = ctx.config.field_authorizer.as_ref() else {
-        return Err(FraiseQLError::Authorization {
-            message:  format!(
-                "Field-level authorization is required for a selected field on type \
-                 '{type_name}' but no field authorizer is configured"
-            ),
-            action:   Some("read".to_string()),
-            resource: Some(type_name.to_string()),
-        });
-    };
-    if authz::selection_set_has_nested_gated_field(&ctx.schema, type_name, selections) {
-        return Err(FraiseQLError::Authorization {
-            message:  format!(
-                "Field-level authorization of nested fields on type '{type_name}' is not \
-                 supported in this version"
-            ),
-            action:   Some("read".to_string()),
-            resource: Some(type_name.to_string()),
-        });
-    }
-    let gated =
-        authz::collect_top_level_gated_fields(&ctx.schema, type_name, selections, variables)?;
-    Ok(Some(FieldAuthzInputs {
-        principal,
-        authorizer: authorizer.as_ref(),
-        gated,
-    }))
-}
-
-/// Enforce the dynamic field authorizer (#423) on a projected mutation payload.
-///
-/// `entity` is the full projected-from value (the `parent`); `projected` is the
-/// response object, mutated in place. Fail-closed: a `Reject` decision or any policy
-/// error → 403, and what [`field_authz_inputs`] refuses.
-///
-/// No-op (and zero authorizer calls) when the selection set has no gated field.
-// Reason: the principal, the entity and its projection, the selection, its variables and
-// what the static gate masked are each a separate input to one decision; a struct would
-// only relocate them.
-#[allow(clippy::too_many_arguments)]
-fn enforce_mutation_field_authz(
-    ctx: &ExecutorContext,
-    security_ctx: Option<&SecurityContext>,
-    type_name: &str,
-    selections: &[FieldSelection],
-    entity: &serde_json::Value,
-    projected: &mut serde_json::Value,
-    variables: &std::collections::HashMap<String, serde_json::Value>,
-    statically_masked: &[String],
-) -> Result<()> {
-    let Some(inputs) = field_authz_inputs(ctx, security_ctx, type_name, selections, variables)?
-    else {
-        return Ok(());
-    };
-    let pass = crate::security::field_authorizer::FieldAuthzPass {
-        authorizer: inputs.authorizer,
-        principal: inputs.principal,
-        type_name,
-        gated: &inputs.gated,
-        // AND-composition with the static `requires_scope` gate (`payload_gates`), as on the
-        // query path: a field it already masked is not put to the authorizer.
-        statically_masked,
-    };
-    crate::security::field_authorizer::apply_field_authorizer_to_entity(&pass, entity, projected)
-}
-
 /// Serve one entity of a payload: projected through `selections` as a `type_name` at
 /// `position` under the payload's read gates (`payload_gates`), then put to the #423 field
 /// authorizer.
@@ -148,8 +39,7 @@ fn enforce_mutation_field_authz(
 /// # Errors
 ///
 /// A type `position` cannot hold (a contract error, ruling AA 1), a type whose role the
-/// caller lacks, and what
-/// [`enforce_mutation_field_authz`] refuses.
+/// caller lacks, and what the read plan refuses over the entity.
 // Reason: the entity, where it sits, and the request's principal, gates and variables are
 // each a separate input to one decision; a struct would only relocate them.
 #[allow(clippy::too_many_arguments)]
@@ -163,18 +53,7 @@ fn serve_entity(
     entity: &serde_json::Value,
     variables: &std::collections::HashMap<String, serde_json::Value>,
 ) -> Result<serde_json::Value> {
-    let mut gated = gates.project(ctx, security_ctx, position, type_name, selections, entity)?;
-    enforce_mutation_field_authz(
-        ctx,
-        security_ctx,
-        type_name,
-        selections,
-        &gated.source,
-        &mut gated.projected,
-        variables,
-        &gated.masked,
-    )?;
-    Ok(gated.projected)
+    gates.serve(ctx, security_ctx, position, type_name, selections, entity, variables)
 }
 
 // ── Typed cascade payload projection ─────────────────────────────────────────

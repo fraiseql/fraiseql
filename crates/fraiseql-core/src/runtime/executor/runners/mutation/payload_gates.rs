@@ -2,18 +2,10 @@
 //!
 //! A mutation's payload is the document its function returned, and every entity in it — the
 //! payload itself, a cascade payload's `entity`, each `cascade.updated[].entity`, an error
-//! outcome's detail — is served as a read of its type would serve it. The read path's gates
-//! apply, through the read path's classifier (`query_nested`):
-//!
-//! * `requires_scope`, at every level, the root included — a `Mask` nulls the field, a `Reject`
-//!   refuses the request;
-//! * the type of every entity served, root included, its own `requires_role` — checked where the
-//!   entity is served, since the database stamps the type;
-//! * a nested level's read gates — its type's `requires_role` and `requires_actor`, and the #422
-//!   authorizer, asked of it as a read of its type;
-//! * a nested level's row security, over the documents the write returned ([`DocumentRowFilter`]);
-//! * the #423 field authorizer's refusals that follow from the selection, the principal and the
-//!   configuration — its decision over the row is taken when the row is served.
+//! outcome's detail — is served as a read of its type would serve it: through the read plan
+//! (`read_plan`), which carries the read path's gates, and the type of every entity served,
+//! root included, its own `requires_role` — checked where the entity is served, since the
+//! database stamps the type.
 //!
 //! Everything that can refuse is decided **before the write**, from the selection and the
 //! principal: a refused selection never runs the function. The concrete type of an entity is
@@ -28,18 +20,12 @@
 //! The root entity is not row-filtered: the write function is the authority over what it
 //! returns. Masking and the row filter run after the write, on the returned document.
 
-use std::{borrow::Cow, collections::HashSet};
+use std::collections::HashSet;
 
-use super::super::{
-    super::context::ExecutorContext,
-    query_nested::{DocumentRowFilter, LevelAuthz, SelectionAccess},
-};
+use super::super::{super::context::ExecutorContext, read_plan::ReadPlan};
 use crate::{
-    error::Result,
-    graphql::FieldSelection,
-    runtime::{project_entity, projection::effective_selections},
-    schema::CompiledSchema,
-    security::SecurityContext,
+    error::Result, graphql::FieldSelection, runtime::projection::effective_selections,
+    schema::CompiledSchema, security::SecurityContext,
 };
 
 /// Where in a payload an entity sits. One type can sit at several, under different
@@ -56,8 +42,7 @@ pub(super) enum PayloadPosition {
 
 /// What the static gates decided for a payload selection, before the write.
 pub(super) struct PayloadGates {
-    access:     SelectionAccess,
-    rows:       DocumentRowFilter,
+    plan:       ReadPlan,
     /// The `(position, type)` pairs classified: exactly what each position can hold.
     classified: HashSet<(PayloadPosition, String)>,
 }
@@ -68,10 +53,7 @@ impl PayloadGates {
     ///
     /// # Errors
     ///
-    /// `FraiseQLError::Authorization` for what the read path refuses — a `Reject` field, a
-    /// nested level whose read the caller may not make, one the #422 authorizer denies — for
-    /// a nested level whose row security cannot be evaluated over the returned document, and
-    /// for a gated field the #423 authorizer cannot be asked about (`field_authz_inputs`).
+    /// What [`ReadPlan::classify`] refuses.
     pub(super) fn classify(
         ctx: &ExecutorContext,
         security_ctx: Option<&SecurityContext>,
@@ -83,64 +65,38 @@ impl PayloadGates {
         let roots = payload_roots(&ctx.schema, return_type, is_cascade, selections);
         let typed: Vec<(&str, &[FieldSelection])> =
             roots.iter().map(|(_, t, sels)| (t.as_str(), *sels)).collect();
-        let access = SelectionAccess::classify_roots(
-            &ctx.schema,
-            &typed,
-            security_ctx,
-            LevelAuthz::from_config(&ctx.config, variables),
-        )?;
-        let mut rows = DocumentRowFilter::default();
-        for (_, type_name, sels) in &roots {
-            rows.plan(ctx, type_name, sels, security_ctx)?;
-        }
-        // The #423 field authorizer's refusals that do not need the row: no principal, no
-        // authorizer, a nested gated field, unreadable arguments. Its decision waits for
-        // the row; these do not. An argument's value decides none of them — a variable the
-        // request did not bind reads as null, never as an error — so none is bound here.
-        let unbound = std::collections::HashMap::new();
-        for (_, type_name, sels) in &roots {
-            super::field_authz_inputs(ctx, security_ctx, type_name, sels, &unbound)?;
-        }
+        let plan = ReadPlan::classify(ctx, security_ctx, variables, &typed)?;
         Ok(Self {
-            access,
-            rows,
+            plan,
             classified: roots.iter().map(|(p, t, _)| (*p, t.clone())).collect(),
         })
     }
 
-    /// Project `entity`, a `type_name` at `position`, through `selections`: its nested
-    /// levels row-filtered, then masked. Returns the document projected from — the parent
-    /// the #423 authorizer decides over — the projection, and the fields statically masked.
+    /// Serve `entity`, a `type_name` at `position`, through `selections` under the read plan.
     ///
     /// # Errors
     ///
     /// `Validation` when `type_name` is not a type `position` can hold — the function broke its
     /// contract (ruling AA 1); `Authorization` when `type_name` requires a role the request
-    /// does not hold.
-    pub(super) fn project<'e>(
+    /// does not hold; what [`ReadPlan::serve`] refuses.
+    // Reason: the entity, where it sits, and the request's principal and variables are each
+    // a separate input to one decision; a struct would only relocate them.
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn serve(
         &self,
         ctx: &ExecutorContext,
         security_ctx: Option<&SecurityContext>,
         position: PayloadPosition,
         type_name: &str,
         selections: &[FieldSelection],
-        entity: &'e serde_json::Value,
-    ) -> Result<GatedEntity<'e>> {
+        entity: &serde_json::Value,
+        variables: &std::collections::HashMap<String, serde_json::Value>,
+    ) -> Result<serde_json::Value> {
         if !self.classified.contains(&(position, type_name.to_string())) {
             return Err(off_contract(position, type_name, &self.holdable(position)));
         }
         refuse_unless_type_readable(ctx, security_ctx, position, type_name)?;
-        let mut source = Cow::Borrowed(entity);
-        if !self.rows.is_empty() {
-            self.rows.apply(source.to_mut(), type_name, selections, &ctx.schema);
-        }
-        let mut projected = project_entity(&source, type_name, selections, &ctx.schema);
-        self.access.null_masked(&mut projected, type_name, selections, &ctx.schema);
-        Ok(GatedEntity {
-            source,
-            projected,
-            masked: self.access.masked_fields(type_name),
-        })
+        self.plan.serve(ctx, security_ctx, type_name, selections, entity, variables)
     }
 
     /// The types `position` can hold, sorted, for the contract error.
@@ -213,16 +169,6 @@ fn refuse_unless_type_readable(
         action:   Some("read".to_string()),
         resource: Some(type_name.to_string()),
     })
-}
-
-/// An entity projected through its payload position's gates.
-pub(super) struct GatedEntity<'e> {
-    /// The document projected from, nested levels row-filtered.
-    pub(super) source:    Cow<'e, serde_json::Value>,
-    /// The response value.
-    pub(super) projected: serde_json::Value,
-    /// The root fields `requires_scope` masked, by name.
-    pub(super) masked:    Vec<String>,
 }
 
 /// Every `(position, type, selections)` a payload selection can be served as.
