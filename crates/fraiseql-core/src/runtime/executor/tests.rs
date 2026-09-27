@@ -3659,87 +3659,44 @@ mod boundary {
             .expect_err("MockAdapter returns no rows, so no write can succeed here")
     }
 
-    /// The refusal rulings X 2 and Z 1 ask for: the executor's own, decided when it was
-    /// built, a `501` saying mutations are not mounted — not the adapter's refusal of one
-    /// write. The adapter is named where the operator reads it, at build, not to a request.
-    fn assert_refused_at_build(err: &crate::error::FraiseQLError) {
-        let msg = err.to_string();
-        assert!(matches!(err, crate::error::FraiseQLError::Unsupported { .. }), "{err:?}");
-        assert!(msg.contains("not mounted"), "the executor refused, not the adapter: {msg}");
-        assert!(!msg.contains("MockAdapter"), "a request is not told the adapter: {msg}");
-    }
-
-    /// What the operator is told when the executor is built: the adapter.
-    fn assert_names_adapter(executor: &Executor) {
-        let why = executor.writes_refused().expect("mutations refused at build");
-        assert!(why.contains("MockAdapter"), "names the adapter: {why}");
-    }
-
-    /// Control: an adapter with the commit-gated write mounts mutations over any schema;
-    /// the write runs, and fails only downstream, on the rows it did not return.
+    /// A `Writer` mounts mutations over any schema; the write runs, and fails only
+    /// downstream, on the rows it did not return. An adapter that cannot hold a write open
+    /// for its gate cannot be a `Writer` (ruling AA 6), so the converse is a compile error
+    /// — pinned by the constructor's `compile_fail` doctest — not a run-time state.
     #[tokio::test]
-    async fn an_adapter_with_gated_writes_mounts_mutations_on_any_schema() {
+    async fn a_writer_mounts_mutations_on_any_schema() {
         for gated in [false, true] {
             let executor = Executor::with_config(
                 write_schema(gated),
                 Arc::new(MockAdapter::new(vec![])),
                 RuntimeConfig::default(),
             );
-            assert_eq!(executor.writes_refused(), None);
             let err = touch(&executor).await;
             assert!(err.to_string().contains("returned no rows"), "reached the adapter: {err:?}");
         }
     }
 
-    /// **Ruling Z 1.** Every write's commit waits for its response, so an adapter that
-    /// cannot hold a write open for that decision cannot run any write: it mounts no
-    /// mutations, over any schema — one nothing in it could refuse included.
+    /// Hot-reload: a rebuild carries the write handle, so a writing executor keeps its
+    /// mutations.
     #[tokio::test]
-    async fn an_adapter_without_gated_writes_mounts_no_mutations_on_any_schema() {
-        for gated in [false, true] {
-            let executor = Executor::with_config(
-                write_schema(gated),
-                Arc::new(MockAdapter::new(vec![]).without_gated_writes()),
-                RuntimeConfig::default(),
-            );
-            assert_names_adapter(&executor);
-            assert_refused_at_build(&touch(&executor).await);
-        }
-    }
-
-    /// Hot-reload: a rebuild recomputes the refusal from the same adapter, so it agrees
-    /// with the boot — and carries the grant, so a capable adapter keeps its mutations.
-    #[tokio::test]
-    async fn a_rebuild_agrees_with_the_boot() {
-        let refused = Executor::with_config(
-            write_schema(false),
-            Arc::new(MockAdapter::new(vec![]).without_gated_writes()),
-            RuntimeConfig::default(),
-        )
-        .rebuild_with(write_schema(true), RuntimeConfig::default());
-        assert_names_adapter(&refused);
-        assert_refused_at_build(&touch(&refused).await);
-
+    async fn a_rebuild_keeps_the_write_handle() {
         let mounted = Executor::with_config(
             write_schema(false),
             Arc::new(MockAdapter::new(vec![])),
             RuntimeConfig::default(),
         )
         .rebuild_with(write_schema(true), RuntimeConfig::default());
-        assert_eq!(mounted.writes_refused(), None);
         let err = touch(&mounted).await;
         assert!(err.to_string().contains("returned no rows"), "reached the adapter: {err:?}");
     }
 
-    /// A read-only executor has no mutations to refuse for the capability: it refuses them
-    /// as read-only, which is the older and truer reason.
-    #[test]
-    fn a_read_only_executor_is_not_refused_for_the_capability() {
-        let executor = Executor::read_only(
-            write_schema(true),
-            Arc::new(MockAdapter::new(vec![]).without_gated_writes()),
-        );
-        assert_eq!(executor.writes_refused(), None);
+    /// A read-only executor holds no write handle: it refuses every mutation as read-only,
+    /// whatever its adapter could do.
+    #[tokio::test]
+    async fn a_read_only_executor_refuses_mutations() {
+        let executor = Executor::read_only(write_schema(true), Arc::new(MockAdapter::new(vec![])));
+        let err = touch(&executor).await;
+        assert!(err.to_string().contains("read-only"), "{err:?}");
     }
 
     /// #750's property, now structural.

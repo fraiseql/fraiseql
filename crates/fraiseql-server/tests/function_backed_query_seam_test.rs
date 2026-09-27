@@ -28,7 +28,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        DatabaseAdapter, DatabaseType, SupportsMutations, WhereClause,
+        DatabaseAdapter, DatabaseType, WhereClause,
         types::{JsonbValue, OrderByClause, PoolMetrics},
     },
     error::Result as FraiseQLResult,
@@ -41,11 +41,6 @@ struct NoopAdapter;
 
 #[async_trait]
 impl DatabaseAdapter for NoopAdapter {
-    // Writes: opted in, because both capability gates default to refusing.
-    fn supports_mutations(&self) -> bool {
-        true
-    }
-
     async fn execute_where_query(
         &self,
         _view: &str,
@@ -97,7 +92,23 @@ impl DatabaseAdapter for NoopAdapter {
     }
 }
 
-impl SupportsMutations for NoopAdapter {}
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait::async_trait]
+impl fraiseql_core::db::traits::Writer for NoopAdapter {
+    async fn execute_write(
+        &self,
+        request: &fraiseql_core::db::traits::WriteRequest<'_>,
+        gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+    ) -> std::result::Result<
+        Vec<std::collections::HashMap<String, serde_json::Value>>,
+        fraiseql_core::error::FraiseQLError,
+    > {
+        let _ = (request, gate);
+        Err(fraiseql_core::error::FraiseQLError::Unsupported {
+            message: "this test double does not write".to_string(),
+        })
+    }
+}
 
 /// A schema with one type and one function-backed root query field.
 ///

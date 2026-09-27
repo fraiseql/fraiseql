@@ -778,13 +778,35 @@ mod session_variables {
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }
+    }
 
+    // The writes this double answers, called by its `Writer` impl below.
+    impl SessionVarCapturingAdapter {
         async fn execute_function_call(
             &self,
             _function_name: &str,
             _args: &[serde_json::Value],
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
+        }
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl crate::backend::traits::Writer for SessionVarCapturingAdapter {
+        async fn execute_write(
+            &self,
+            request: &crate::backend::traits::WriteRequest<'_>,
+            gate: crate::backend::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            {
+                let rows = self.execute_function_call(request.function, request.args).await?;
+                gate(&rows)?;
+                Ok(rows)
+            }
         }
     }
 

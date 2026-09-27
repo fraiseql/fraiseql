@@ -18,7 +18,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use fraiseql_core::{
     db::{
-        traits::{DatabaseAdapter, SupportsMutations},
+        traits::DatabaseAdapter,
         types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -38,11 +38,6 @@ struct NoopAdapter;
 // its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for NoopAdapter {
-    // Writes: opted in, because both capability gates default to refusing.
-    fn supports_mutations(&self) -> bool {
-        true
-    }
-
     async fn execute_with_projection(
         &self,
         _view: &str,
@@ -97,7 +92,10 @@ impl DatabaseAdapter for NoopAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
+}
 
+// The writes this double answers, called by its `Writer` impl below.
+impl NoopAdapter {
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -107,7 +105,24 @@ impl DatabaseAdapter for NoopAdapter {
     }
 }
 
-impl SupportsMutations for NoopAdapter {}
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait::async_trait]
+impl fraiseql_core::db::traits::Writer for NoopAdapter {
+    async fn execute_write(
+        &self,
+        request: &fraiseql_core::db::traits::WriteRequest<'_>,
+        gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+    ) -> std::result::Result<
+        Vec<std::collections::HashMap<String, serde_json::Value>>,
+        fraiseql_core::error::FraiseQLError,
+    > {
+        {
+            let rows = self.execute_function_call(request.function, request.args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers

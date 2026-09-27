@@ -13,7 +13,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        traits::{CursorValue, DatabaseAdapter, RelayDatabaseAdapter, SupportsMutations},
+        traits::{CursorValue, DatabaseAdapter, RelayDatabaseAdapter},
         types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -75,11 +75,6 @@ impl RelayMockAdapter {
 // its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for RelayMockAdapter {
-    // Writes: opted in, because both capability gates default to refusing.
-    fn supports_mutations(&self) -> bool {
-        true
-    }
-
     async fn execute_where_query(
         &self,
         _view: &str,
@@ -153,7 +148,10 @@ impl DatabaseAdapter for RelayMockAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
+}
 
+// The writes this double answers, called by its `Writer` impl below.
+impl RelayMockAdapter {
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -163,7 +161,24 @@ impl DatabaseAdapter for RelayMockAdapter {
     }
 }
 
-impl SupportsMutations for RelayMockAdapter {}
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait::async_trait]
+impl fraiseql_core::db::traits::Writer for RelayMockAdapter {
+    async fn execute_write(
+        &self,
+        request: &fraiseql_core::db::traits::WriteRequest<'_>,
+        gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+    ) -> std::result::Result<
+        Vec<std::collections::HashMap<String, serde_json::Value>>,
+        fraiseql_core::error::FraiseQLError,
+    > {
+        {
+            let rows = self.execute_function_call(request.function, request.args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+    }
+}
 
 // Reason: `RelayDatabaseAdapter` is async because real adapters query a database.
 // A mock that answers from a fixture still has to present the awaited signature.
@@ -795,11 +810,6 @@ impl UuidRelayMockAdapter {
 // its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for UuidRelayMockAdapter {
-    // Writes: opted in, because both capability gates default to refusing.
-    fn supports_mutations(&self) -> bool {
-        true
-    }
-
     async fn execute_where_query(
         &self,
         _view: &str,
@@ -854,7 +864,10 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
+}
 
+// The writes this double answers, called by its `Writer` impl below.
+impl UuidRelayMockAdapter {
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -864,7 +877,24 @@ impl DatabaseAdapter for UuidRelayMockAdapter {
     }
 }
 
-impl SupportsMutations for UuidRelayMockAdapter {}
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait::async_trait]
+impl fraiseql_core::db::traits::Writer for UuidRelayMockAdapter {
+    async fn execute_write(
+        &self,
+        request: &fraiseql_core::db::traits::WriteRequest<'_>,
+        gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+    ) -> std::result::Result<
+        Vec<std::collections::HashMap<String, serde_json::Value>>,
+        fraiseql_core::error::FraiseQLError,
+    > {
+        {
+            let rows = self.execute_function_call(request.function, request.args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+    }
+}
 
 // Reason: `RelayDatabaseAdapter` is async because real adapters query a database.
 // A mock that answers from a fixture still has to present the awaited signature.
@@ -1217,11 +1247,6 @@ mod relay_security {
     // its transformed method signatures to satisfy the trait contract
     #[async_trait]
     impl DatabaseAdapter for RecordingRelayAdapter {
-        // Writes: opted in, because both capability gates default to refusing.
-        fn supports_mutations(&self) -> bool {
-            true
-        }
-
         async fn execute_where_query(
             &self,
             _view: &str,
@@ -1276,7 +1301,10 @@ mod relay_security {
         ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
             Ok(vec![])
         }
+    }
 
+    // The writes this double answers, called by its `Writer` impl below.
+    impl RecordingRelayAdapter {
         async fn execute_function_call(
             &self,
             _function_name: &str,
@@ -1286,7 +1314,24 @@ mod relay_security {
         }
     }
 
-    impl SupportsMutations for RecordingRelayAdapter {}
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl fraiseql_core::db::traits::Writer for RecordingRelayAdapter {
+        async fn execute_write(
+            &self,
+            request: &fraiseql_core::db::traits::WriteRequest<'_>,
+            gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            fraiseql_core::error::FraiseQLError,
+        > {
+            {
+                let rows = self.execute_function_call(request.function, request.args).await?;
+                gate(&rows)?;
+                Ok(rows)
+            }
+        }
+    }
 
     // Reason: `RelayDatabaseAdapter` is async because real adapters query a database.
     // A mock that answers from a fixture still has to present the awaited signature.

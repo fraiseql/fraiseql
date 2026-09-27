@@ -28,7 +28,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        traits::{DatabaseAdapter, SupportsMutations},
+        traits::DatabaseAdapter,
         types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -70,11 +70,6 @@ impl CapturingAdapter {
 // Reason: DatabaseAdapter is defined with #[async_trait]; implementations must match.
 #[async_trait]
 impl DatabaseAdapter for CapturingAdapter {
-    // Writes: opted in, because both capability gates default to refusing.
-    fn supports_mutations(&self) -> bool {
-        true
-    }
-
     async fn execute_with_projection(
         &self,
         view: &str,
@@ -131,7 +126,10 @@ impl DatabaseAdapter for CapturingAdapter {
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
+}
 
+// The writes this double answers, called by its `Writer` impl below.
+impl CapturingAdapter {
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -141,7 +139,24 @@ impl DatabaseAdapter for CapturingAdapter {
     }
 }
 
-impl SupportsMutations for CapturingAdapter {}
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait::async_trait]
+impl fraiseql_core::db::traits::Writer for CapturingAdapter {
+    async fn execute_write(
+        &self,
+        request: &fraiseql_core::db::traits::WriteRequest<'_>,
+        gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+    ) -> std::result::Result<
+        Vec<std::collections::HashMap<String, serde_json::Value>>,
+        fraiseql_core::error::FraiseQLError,
+    > {
+        {
+            let rows = self.execute_function_call(request.function, request.args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+    }
+}
 
 fn ctx_with_roles(roles: &[&str]) -> SecurityContext {
     SecurityContext::service_account(

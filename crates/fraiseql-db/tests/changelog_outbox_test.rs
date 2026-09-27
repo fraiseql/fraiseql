@@ -13,7 +13,7 @@
 //! the file with `--test-threads=1` (see CLAUDE.md) when in doubt.
 
 use fraiseql_db::{
-    ChangeLogWrite, DatabaseAdapter, PostgresAdapter,
+    ChangeLogWrite, PostgresAdapter, Writer as _,
     changelog::{CLOCK_TIMESTAMP_DIRECTIVE, STARTED_AT_VAR},
 };
 use serde_json::json;
@@ -106,11 +106,11 @@ async fn executor_writes_changelog_in_txn() {
     let id = uuid::Uuid::new_v4();
     let changelog = ChangeLogWrite::new(obj_type, "INSERT");
     let rows = adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_create",
-            &[json!(id.to_string())],
-            STARTED_AT,
-            Some(&changelog),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_outbox_create", &[json!(id.to_string())])
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&changelog)),
+            &|_| Ok(()),
         )
         .await
         .expect("mutation + outbox write");
@@ -159,11 +159,11 @@ async fn changelog_row_atomic_with_mutation() {
 
     let changelog = ChangeLogWrite::new(obj_type, "INSERT");
     let result = adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_boom",
-            &[],
-            STARTED_AT,
-            Some(&changelog),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_outbox_boom", &[])
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&changelog)),
+            &|_| Ok(()),
         )
         .await;
 
@@ -196,11 +196,11 @@ async fn started_at_visible_to_outbox_insert() {
     let id = uuid::Uuid::new_v4();
     let changelog = ChangeLogWrite::new(obj_type, "UPDATE");
     adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_slow",
-            &[json!(id.to_string())],
-            STARTED_AT,
-            Some(&changelog),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_outbox_slow", &[json!(id.to_string())])
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&changelog)),
+            &|_| Ok(()),
         )
         .await
         .unwrap();
@@ -240,11 +240,13 @@ async fn started_at_guaranteed_without_injected_session_var() {
     let id = uuid::Uuid::new_v4();
     let changelog = ChangeLogWrite::new(obj_type, "INSERT");
     adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_nosession",
-            &[json!(id.to_string())],
-            &[], // no session vars at all
-            Some(&changelog),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_outbox_nosession", &[json!(id.to_string())])
+                .with_changelog(
+                    // no session vars at all
+                    Some(&changelog),
+                ),
+            &|_| Ok(()),
         )
         .await
         .expect("outbox write succeeds without an injected started_at");
@@ -286,20 +288,20 @@ async fn noop_and_failed_mutations_write_no_changelog_row() {
         .unwrap();
 
     adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_noop",
-            &[],
-            STARTED_AT,
-            Some(&ChangeLogWrite::new("OutboxNoop", "UPDATE")),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_outbox_noop", &[])
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&ChangeLogWrite::new("OutboxNoop", "UPDATE"))),
+            &|_| Ok(()),
         )
         .await
         .unwrap();
     adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_fail",
-            &[],
-            STARTED_AT,
-            Some(&ChangeLogWrite::new("OutboxFail", "INSERT")),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_outbox_fail", &[])
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&ChangeLogWrite::new("OutboxFail", "INSERT"))),
+            &|_| Ok(()),
         )
         .await
         .unwrap();
@@ -329,11 +331,11 @@ async fn object_type_falls_back_to_return_type_when_entity_type_is_null() {
 
     let id = uuid::Uuid::new_v4();
     adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_noetype",
-            &[json!(id.to_string())],
-            STARTED_AT,
-            Some(&ChangeLogWrite::new(obj_type, "DELETE")),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_outbox_noetype", &[json!(id.to_string())])
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&ChangeLogWrite::new(obj_type, "DELETE"))),
+            &|_| Ok(()),
         )
         .await
         .unwrap();
@@ -376,11 +378,11 @@ async fn tenant_id_stamped_explicitly_from_the_envelope() {
     let id = uuid::Uuid::new_v4();
     let changelog = ChangeLogWrite::new(obj_type, "INSERT").with_tenant_id(Some(tenant));
     adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_tenant",
-            &[json!(id.to_string())],
-            STARTED_AT,
-            Some(&changelog),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_outbox_tenant", &[json!(id.to_string())])
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&changelog)),
+            &|_| Ok(()),
         )
         .await
         .unwrap();
@@ -409,11 +411,11 @@ async fn actor_type_and_acting_for_stamped_explicitly_from_the_envelope() {
         .with_actor_type(Some("ai_agent"))
         .with_acting_for(Some(human));
     adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_actor",
-            &[json!(id.to_string())],
-            STARTED_AT,
-            Some(&changelog),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_outbox_actor", &[json!(id.to_string())])
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&changelog)),
+            &|_| Ok(()),
         )
         .await
         .unwrap();
@@ -451,11 +453,11 @@ async fn trace_id_stamped_explicitly_from_the_envelope() {
     let id = uuid::Uuid::new_v4();
     let changelog = ChangeLogWrite::new(obj_type, "INSERT").with_trace_id(Some(trace));
     adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_trace",
-            &[json!(id.to_string())],
-            STARTED_AT,
-            Some(&changelog),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_outbox_trace", &[json!(id.to_string())])
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&changelog)),
+            &|_| Ok(()),
         )
         .await
         .unwrap();
@@ -483,11 +485,14 @@ async fn schema_version_stamped_explicitly_from_the_envelope() {
     let id = uuid::Uuid::new_v4();
     let changelog = ChangeLogWrite::new(obj_type, "INSERT").with_schema_version(Some(version));
     adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_schema_version",
-            &[json!(id.to_string())],
-            STARTED_AT,
-            Some(&changelog),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new(
+                "public.fn_outbox_schema_version",
+                &[json!(id.to_string())],
+            )
+            .with_session_vars(STARTED_AT)
+            .with_changelog(Some(&changelog)),
+            &|_| Ok(()),
         )
         .await
         .unwrap();
@@ -525,11 +530,14 @@ async fn trace_context_stamped_explicitly_from_the_envelope() {
     let changelog =
         ChangeLogWrite::new(obj_type, "INSERT").with_trace_context(Some(&trace_context_text));
     adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_trace_context",
-            &[json!(id.to_string())],
-            STARTED_AT,
-            Some(&changelog),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new(
+                "public.fn_outbox_trace_context",
+                &[json!(id.to_string())],
+            )
+            .with_session_vars(STARTED_AT)
+            .with_changelog(Some(&changelog)),
+            &|_| Ok(()),
         )
         .await
         .unwrap();
@@ -558,11 +566,11 @@ async fn tenant_id_is_null_when_unset() {
     let changelog = ChangeLogWrite::new(obj_type, "INSERT");
     assert_eq!(changelog.tenant_id, None);
     adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_no_tenant",
-            &[json!(id.to_string())],
-            STARTED_AT,
-            Some(&changelog),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_outbox_no_tenant", &[json!(id.to_string())])
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&changelog)),
+            &|_| Ok(()),
         )
         .await
         .unwrap();
@@ -587,11 +595,14 @@ async fn seq_is_monotonic_and_distinct_from_the_sequence_default() {
     // gets a monotonic value without the executor managing a counter.
     for _ in 0..3 {
         adapter
-            .execute_function_call_with_changelog(
-                "public.fn_outbox_seq",
-                &[json!(uuid::Uuid::new_v4().to_string())],
-                STARTED_AT,
-                Some(&ChangeLogWrite::new(obj_type, "INSERT")),
+            .execute_write(
+                &fraiseql_db::WriteRequest::new(
+                    "public.fn_outbox_seq",
+                    &[json!(uuid::Uuid::new_v4().to_string())],
+                )
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&ChangeLogWrite::new(obj_type, "INSERT"))),
+                &|_| Ok(()),
             )
             .await
             .unwrap();
@@ -632,11 +643,11 @@ async fn commit_time_stamped_and_deferred_envelope_columns_left_null() {
 
     let id = uuid::Uuid::new_v4();
     adapter
-        .execute_function_call_with_changelog(
-            "public.fn_outbox_envelope",
-            &[json!(id.to_string())],
-            STARTED_AT,
-            Some(&ChangeLogWrite::new(obj_type, "INSERT")),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_outbox_envelope", &[json!(id.to_string())])
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&ChangeLogWrite::new(obj_type, "INSERT"))),
+            &|_| Ok(()),
         )
         .await
         .unwrap();

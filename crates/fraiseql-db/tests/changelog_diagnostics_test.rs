@@ -14,7 +14,7 @@
 //! (the change-log table is shared, and one test drops it temporarily).
 
 use fraiseql_db::{
-    ChangeLogWrite, DatabaseAdapter, PostgresAdapter,
+    ChangeLogWrite, PostgresAdapter, Writer as _,
     changelog::{CLOCK_TIMESTAMP_DIRECTIVE, STARTED_AT_VAR},
 };
 const STARTED_AT: &[(&str, &str)] = &[(STARTED_AT_VAR, CLOCK_TIMESTAMP_DIRECTIVE)];
@@ -66,11 +66,11 @@ async fn missing_changelog_table_error_points_at_setup() {
 
     let changelog = ChangeLogWrite::new("Diag", "INSERT");
     let err = adapter
-        .execute_function_call_with_changelog(
-            "public.fn_diag569_ok",
-            &[],
-            STARTED_AT,
-            Some(&changelog),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_diag569_ok", &[])
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&changelog)),
+            &|_| Ok(()),
         )
         .await
         .expect_err("must fail without the change-log table");
@@ -106,11 +106,11 @@ async fn setof_view_function_error_explains_the_response_contract() {
 
     let changelog = ChangeLogWrite::new("Diag", "INSERT");
     let err = adapter
-        .execute_function_call_with_changelog(
-            "public.fn_diag569_setof",
-            &[],
-            STARTED_AT,
-            Some(&changelog),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_diag569_setof", &[])
+                .with_session_vars(STARTED_AT)
+                .with_changelog(Some(&changelog)),
+            &|_| Ok(()),
         )
         .await
         .expect_err("a SETOF-view function cannot satisfy the outbox CTE");

@@ -16,7 +16,7 @@ use async_trait::async_trait;
 use chrono::Utc;
 use fraiseql_core::{
     db::{
-        traits::{DatabaseAdapter, SupportsMutations},
+        traits::DatabaseAdapter,
         types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -109,11 +109,6 @@ impl RecordingMockAdapter {
 // its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for RecordingMockAdapter {
-    // Writes: opted in, because both capability gates default to refusing.
-    fn supports_mutations(&self) -> bool {
-        true
-    }
-
     async fn execute_with_projection(
         &self,
         _view: &str,
@@ -168,7 +163,10 @@ impl DatabaseAdapter for RecordingMockAdapter {
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
+}
 
+// The writes this double answers, called by its `Writer` impl below.
+impl RecordingMockAdapter {
     async fn execute_function_call(
         &self,
         function_name: &str,
@@ -177,13 +175,6 @@ impl DatabaseAdapter for RecordingMockAdapter {
         *self.called_fn.lock().unwrap() = Some(function_name.to_string());
         *self.called_args.lock().unwrap() = args.to_vec();
         Ok(vec![self.response_row.clone()])
-    }
-
-    // Every write commits only once it is adjudicated (ruling Z 1). This double
-    // has nothing durable to roll back: it runs the call, puts the rows to the gate
-    // and returns them.
-    fn supports_gated_writes(&self) -> bool {
-        true
     }
 
     async fn execute_function_call_gated(
@@ -200,7 +191,27 @@ impl DatabaseAdapter for RecordingMockAdapter {
     }
 }
 
-impl SupportsMutations for RecordingMockAdapter {}
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait::async_trait]
+impl fraiseql_core::db::traits::Writer for RecordingMockAdapter {
+    async fn execute_write(
+        &self,
+        request: &fraiseql_core::db::traits::WriteRequest<'_>,
+        gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+    ) -> std::result::Result<
+        Vec<std::collections::HashMap<String, serde_json::Value>>,
+        fraiseql_core::error::FraiseQLError,
+    > {
+        self.execute_function_call_gated(
+            request.function,
+            request.args,
+            request.session_vars,
+            request.changelog,
+            gate,
+        )
+        .await
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Mutation executor uses sql_source from compiled schema

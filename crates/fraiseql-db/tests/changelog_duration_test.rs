@@ -10,7 +10,7 @@
 //! 30250: the seconds-within-the-minute × 1000, truncating intervals ≥ 1 min).
 
 use fraiseql_db::{
-    DatabaseAdapter, PostgresAdapter,
+    PostgresAdapter, Writer as _,
     changelog::{CLOCK_TIMESTAMP_DIRECTIVE, STARTED_AT_VAR, duration_ms_sql},
 };
 
@@ -78,10 +78,10 @@ async fn started_at_directive_stamps_the_db_clock_through_the_adapter() {
     let adapter = PostgresAdapter::new(svc.url()).await.expect("build adapter");
 
     let rows = adapter
-        .execute_function_call_with_session(
-            "public.fn_echo_started_at",
-            &[],
-            &[(STARTED_AT_VAR, CLOCK_TIMESTAMP_DIRECTIVE)],
+        .execute_write(
+            &fraiseql_db::WriteRequest::new("public.fn_echo_started_at", &[])
+                .with_session_vars(&[(STARTED_AT_VAR, CLOCK_TIMESTAMP_DIRECTIVE)]),
+            &|_| Ok(()),
         )
         .await
         .expect("call echo function with the started_at directive");

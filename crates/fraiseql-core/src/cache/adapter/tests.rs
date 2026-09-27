@@ -40,11 +40,6 @@ impl MockAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl DatabaseAdapter for MockAdapter {
-    // Writes: opted in, because both capability gates default to refusing.
-    fn supports_mutations(&self) -> bool {
-        true
-    }
-
     async fn execute_with_projection(
         &self,
         _view: &str,
@@ -118,7 +113,10 @@ impl DatabaseAdapter for MockAdapter {
         row.insert("count".to_string(), json!(42));
         Ok(vec![row])
     }
+}
 
+// The writes this double answers, called by its `Writer` impl below.
+impl MockAdapter {
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -128,7 +126,24 @@ impl DatabaseAdapter for MockAdapter {
     }
 }
 
-impl SupportsMutations for MockAdapter {}
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait::async_trait]
+impl crate::backend::traits::Writer for MockAdapter {
+    async fn execute_write(
+        &self,
+        request: &crate::backend::traits::WriteRequest<'_>,
+        gate: crate::backend::traits::MutationRowGate<'_>,
+    ) -> std::result::Result<
+        Vec<std::collections::HashMap<String, serde_json::Value>>,
+        crate::error::FraiseQLError,
+    > {
+        {
+            let rows = self.execute_function_call(request.function, request.args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+    }
+}
 
 #[tokio::test]
 async fn test_cache_miss_then_hit() {
@@ -825,7 +840,10 @@ impl DatabaseAdapter for BumpAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
+}
 
+// The writes this double answers, called by its `Writer` impl below.
+impl BumpAdapter {
     async fn execute_function_call(
         &self,
         function_name: &str,
@@ -839,6 +857,25 @@ impl DatabaseAdapter for BumpAdapter {
             Ok(vec![row])
         } else {
             Ok(vec![])
+        }
+    }
+}
+
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait::async_trait]
+impl crate::backend::traits::Writer for BumpAdapter {
+    async fn execute_write(
+        &self,
+        request: &crate::backend::traits::WriteRequest<'_>,
+        gate: crate::backend::traits::MutationRowGate<'_>,
+    ) -> std::result::Result<
+        Vec<std::collections::HashMap<String, serde_json::Value>>,
+        crate::error::FraiseQLError,
+    > {
+        {
+            let rows = self.execute_function_call(request.function, request.args).await?;
+            gate(&rows)?;
+            Ok(rows)
         }
     }
 }
@@ -1282,13 +1319,35 @@ impl DatabaseAdapter for StreamSpyAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(Vec::new())
     }
+}
 
+// The writes this double answers, called by its `Writer` impl below.
+impl StreamSpyAdapter {
     async fn execute_function_call(
         &self,
         _function_name: &str,
         _args: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(Vec::new())
+    }
+}
+
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait::async_trait]
+impl crate::backend::traits::Writer for StreamSpyAdapter {
+    async fn execute_write(
+        &self,
+        request: &crate::backend::traits::WriteRequest<'_>,
+        gate: crate::backend::traits::MutationRowGate<'_>,
+    ) -> std::result::Result<
+        Vec<std::collections::HashMap<String, serde_json::Value>>,
+        crate::error::FraiseQLError,
+    > {
+        {
+            let rows = self.execute_function_call(request.function, request.args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
     }
 }
 

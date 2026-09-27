@@ -5,10 +5,12 @@
 
 use super::CachedDatabaseAdapter;
 use crate::{
-    cache::fact_table_version::FactTableVersionStrategy, db::DatabaseAdapter, error::Result,
+    backend::{WriteRequest, Writer},
+    cache::fact_table_version::FactTableVersionStrategy,
+    error::Result,
 };
 
-impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
+impl<A: Writer> CachedDatabaseAdapter<A> {
     /// Bump version counters for fact tables, enabling cache invalidation by version key.
     ///
     /// Only acts on tables using the [`FactTableVersionStrategy::VersionTable`] strategy.
@@ -16,8 +18,8 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     ///
     /// # Errors
     ///
-    /// Propagates errors from calling the `bump_tf_version` database function via
-    /// the underlying [`DatabaseAdapter::execute_function_call`].
+    /// Propagates errors from calling the `bump_tf_version` database function, a committing
+    /// write through the underlying [`Writer::execute_write`].
     pub(super) async fn bump_fact_table_versions_impl(&self, tables: &[String]) -> Result<()> {
         for table in tables {
             // Only act when this table uses the version-table strategy.
@@ -34,9 +36,10 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             // the new version.  The table name originates from
             // `MutationDefinition.invalidates_fact_tables`, which the CLI compiler
             // validates as a safe SQL identifier — no string interpolation needed.
+            let args = [serde_json::json!(table)];
             let rows = self
                 .adapter
-                .execute_function_call("bump_tf_version", &[serde_json::json!(table)])
+                .execute_write(&WriteRequest::new("bump_tf_version", &args), &|_| Ok(()))
                 .await?;
 
             // Extract the new version number from the function result.

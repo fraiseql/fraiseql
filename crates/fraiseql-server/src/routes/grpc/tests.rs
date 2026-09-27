@@ -551,7 +551,7 @@ mod chokepoint {
     use chrono::Utc;
     use fraiseql_core::{
         db::{
-            DatabaseAdapter, DatabaseType, SupportsMutations, WhereClause,
+            DatabaseAdapter, DatabaseType, WhereClause,
             types::{JsonbValue, OrderByClause, PoolMetrics},
         },
         error::Result as FraiseQLResult,
@@ -599,11 +599,6 @@ mod chokepoint {
     // match its transformed signatures.
     #[async_trait]
     impl DatabaseAdapter for RecordingAdapter {
-        // Writes: opted in, because both capability gates default to refusing.
-        fn supports_mutations(&self) -> bool {
-            true
-        }
-
         async fn execute_where_query(
             &self,
             _view: &str,
@@ -653,7 +648,10 @@ mod chokepoint {
         ) -> FraiseQLResult<Vec<HashMap<String, JsonValue>>> {
             Ok(vec![])
         }
+    }
 
+    // The writes this double answers, called by its `Writer` impl below.
+    impl RecordingAdapter {
         /// The one method that matters here: reaching it means every gate passed.
         async fn execute_function_call(
             &self,
@@ -679,13 +677,6 @@ mod chokepoint {
             Ok(vec![row])
         }
 
-        // Every write commits only once it is adjudicated (ruling Z 1). This double
-        // has nothing durable to roll back: it runs the call, puts the rows to the gate
-        // and returns them.
-        fn supports_gated_writes(&self) -> bool {
-            true
-        }
-
         async fn execute_function_call_gated(
             &self,
             function_name: &str,
@@ -700,7 +691,27 @@ mod chokepoint {
         }
     }
 
-    impl SupportsMutations for RecordingAdapter {}
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl fraiseql_core::db::traits::Writer for RecordingAdapter {
+        async fn execute_write(
+            &self,
+            request: &fraiseql_core::db::traits::WriteRequest<'_>,
+            gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            fraiseql_core::error::FraiseQLError,
+        > {
+            self.execute_function_call_gated(
+                request.function,
+                request.args,
+                request.session_vars,
+                request.changelog,
+                gate,
+            )
+            .await
+        }
+    }
 
     /// A schema with one `createUser` mutation, optionally gated.
     fn gated_schema(requires_role: Option<&str>, requires_actor: Vec<ActorType>) -> CompiledSchema {

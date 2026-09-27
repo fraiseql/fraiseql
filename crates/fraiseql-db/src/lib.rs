@@ -87,7 +87,7 @@ pub use traits::{
     COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ChangeLogWrite, ColumnRowStream, ComposedEmbed,
     ComposedKeyset, ComposedLevel, CursorValue, DatabaseAdapter, EmbedShape, EmbedSource,
     JsonbRowStream, LevelKeys, MutationRowGate, ProjectionRequest, RelayDatabaseAdapter,
-    RelayPageResult, ResultCacheStats, SupportsMutations, composed_read_unsupported,
+    RelayPageResult, ResultCacheStats, WriteMode, WriteRequest, Writer, composed_read_unsupported,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

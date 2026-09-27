@@ -18,7 +18,7 @@ use fraiseql_core::{
         validator::SchemaValidator,
     },
     db::{
-        traits::{DatabaseAdapter, SupportsMutations},
+        traits::DatabaseAdapter,
         types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::{WhereClause, WhereOperator},
     },
@@ -44,11 +44,6 @@ impl MockAdapter {
 // its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for MockAdapter {
-    // Writes: opted in, because both capability gates default to refusing.
-    fn supports_mutations(&self) -> bool {
-        true
-    }
-
     async fn execute_with_projection(
         &self,
         view: &str,
@@ -111,7 +106,10 @@ impl DatabaseAdapter for MockAdapter {
         result.insert("revenue_sum".to_string(), json!(1500.50));
         Ok(vec![result])
     }
+}
 
+// The writes this double answers, called by its `Writer` impl below.
+impl MockAdapter {
     async fn execute_function_call(
         &self,
         _function_name: &str,
@@ -121,7 +119,24 @@ impl DatabaseAdapter for MockAdapter {
     }
 }
 
-impl SupportsMutations for MockAdapter {}
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait::async_trait]
+impl fraiseql_core::db::traits::Writer for MockAdapter {
+    async fn execute_write(
+        &self,
+        request: &fraiseql_core::db::traits::WriteRequest<'_>,
+        gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+    ) -> std::result::Result<
+        Vec<std::collections::HashMap<String, serde_json::Value>>,
+        fraiseql_core::error::FraiseQLError,
+    > {
+        {
+            let rows = self.execute_function_call(request.function, request.args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+    }
+}
 
 /// Test that schema with fact tables can be parsed and validated
 #[test]

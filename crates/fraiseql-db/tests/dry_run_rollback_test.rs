@@ -14,7 +14,7 @@
 //! `--test '*'` integration leg, or a local spawn with `local-testcontainers`).
 //! Uniquely-named objects (`*_501`) keep it isolated from the shared database.
 
-use fraiseql_db::{DatabaseAdapter, PostgresAdapter};
+use fraiseql_db::{PostgresAdapter, Writer as _};
 use serde_json::json;
 
 /// Connect a raw client (for assertions) and build an adapter (under test).
@@ -79,10 +79,13 @@ async fn dry_run_executes_function_but_rolls_back() {
 
     let id = uuid::Uuid::new_v4();
     let rows = adapter
-        .execute_function_call_dry_run(
-            "public.fn_dry_run_insert_501",
-            &[json!(id.to_string()), json!("DryRunOnly")],
-            &[],
+        .execute_write(
+            &fraiseql_db::WriteRequest::new(
+                "public.fn_dry_run_insert_501",
+                &[json!(id.to_string()), json!("DryRunOnly")],
+            )
+            .with_mode(fraiseql_db::WriteMode::DryRun),
+            &|_| Ok(()),
         )
         .await
         .expect("dry-run executes the function");
@@ -104,9 +107,12 @@ async fn committing_call_persists_for_contrast() {
     // the `0` rows in the dry-run test come from the rollback, not a no-op function.
     let id = uuid::Uuid::new_v4();
     adapter
-        .execute_function_call(
-            "public.fn_dry_run_insert_501",
-            &[json!(id.to_string()), json!("Committed")],
+        .execute_write(
+            &fraiseql_db::WriteRequest::new(
+                "public.fn_dry_run_insert_501",
+                &[json!(id.to_string()), json!("Committed")],
+            ),
+            &|_| Ok(()),
         )
         .await
         .expect("committing call executes the function");

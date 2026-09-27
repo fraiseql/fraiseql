@@ -1,4 +1,4 @@
-//! `DatabaseAdapter` and `SupportsMutations` implementations for `PostgresAdapter`.
+//! `DatabaseAdapter` and `Writer` implementations for `PostgresAdapter`.
 
 use std::sync::Arc;
 
@@ -19,8 +19,7 @@ use crate::{
     identifier::quote_postgres_identifier,
     postgres::pg_detail,
     traits::{
-        ColumnRowStream, ComposedLevel, DatabaseAdapter, JsonbRowStream, ProjectionRequest,
-        SupportsMutations,
+        ColumnRowStream, ComposedLevel, DatabaseAdapter, JsonbRowStream, ProjectionRequest, Writer,
     },
     types::{
         DatabaseType, JsonbValue, PoolMetrics, QueryParam, ReadRouting,
@@ -29,30 +28,35 @@ use crate::{
     where_clause::WhereClause,
 };
 
-/// Run a mutation function inside one explicit transaction, optionally writing the
-/// change-log outbox row in the same statement and optionally letting a caller-supplied
-/// gate decide whether that transaction commits.
+/// The one write (ruling AA 6): run a write function inside one explicit transaction,
+/// with the change-log outbox row in the same statement when the request carries one, and
+/// let the gate decide the transaction's end.
 ///
-/// The callers differ only in those two options:
-/// - `execute_function_call_gated` → whatever changelog the mutation asked for, plus the gate that
-///   can roll the write back (#1353). The mutation runner takes it for every write (ruling Z 1);
-/// - `execute_function_call_with_changelog` → `Some(changelog)`, no gate (commit always);
-/// - neither → `execute_function_call_with_session`, which keeps its own no-txn fast path and never
-///   arrives here.
-///
-/// `gate` runs after the function has executed and before `COMMIT`, on the rows it
-/// returned. An `Err` from it rolls back and is returned to the caller verbatim, so a
-/// refusal that could only be decided from the written row still refuses the write.
+/// `gate` runs after the function has executed and before the transaction ends, on the
+/// rows it returned. An `Err` from it rolls back and is returned to the caller verbatim, so
+/// a refusal that could only be decided from the written row still refuses the write. In
+/// [`WriteMode::DryRun`] everything else happens exactly as in a commit — session
+/// variables, CDC marking, the timing stamp, the outbox row, the gate — and the transaction
+/// then rolls back: a dry run exercises the write it stands in for, and nothing persists.
 async fn run_function_in_txn(
     adapter: &PostgresAdapter,
-    function_name: &str,
-    args: &[serde_json::Value],
-    session_vars: &[(&str, &str)],
-    changelog: Option<&crate::traits::ChangeLogWrite<'_>>,
-    gate: Option<crate::traits::MutationRowGate<'_>>,
+    request: &crate::traits::WriteRequest<'_>,
+    gate: crate::traits::MutationRowGate<'_>,
 ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-    // Arm the read-your-writes pin (entry + post-commit) — #407.
-    adapter.mark_write();
+    let crate::traits::WriteRequest {
+        function: function_name,
+        args,
+        session_vars,
+        changelog,
+        mode,
+        ..
+    } = *request;
+    let commit = matches!(mode, crate::traits::WriteMode::Commit);
+    // Arm the read-your-writes pin (entry + post-commit) — #407. A dry run writes nothing
+    // for a later read to miss.
+    if commit {
+        adapter.mark_write();
+    }
     let quoted_fn = quote_postgres_identifier(function_name);
 
     // One statement when there is an outbox row: run the function once and INSERT
@@ -65,7 +69,10 @@ async fn run_function_in_txn(
         format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "))
     };
 
-    // See execute_function_call for why FlexParam is required here.
+    // Arguments bind as FlexParam: serde_json::Value only accepts JSON/JSONB types, and
+    // Option<String> only text-family types, and a function signature can mix JSONB, UUID,
+    // INT4 and TEXT. FlexParam accepts every PostgreSQL type and serialises each value in the
+    // binary wire format of the server-resolved parameter type.
     let mut flex_args: Vec<FlexParam> = args
         .iter()
         .map(|v| match v {
@@ -168,7 +175,7 @@ async fn run_function_in_txn(
     // every other path (e.g. an unauthenticated mutation that resolves no
     // session vars) so the duration computation never hits an unset
     // parameter and aborts the mutation. Only the outbox reads it, so the
-    // no-changelog path is left exactly as `execute_function_call_with_session`
+    // no-changelog path is left exactly as a plain call
     // leaves it.
     if changelog.is_some() {
         let started_at_set =
@@ -204,17 +211,24 @@ async fn run_function_in_txn(
     // only thing a per-row decision can be keyed on — while they are still
     // uncommitted, so a refusal takes the write with it rather than leaving the
     // caller refused and the side effect standing (#1353).
-    if let Some(gate) = gate {
-        if let Err(refusal) = gate(&results) {
-            txn.rollback().await.map_err(|e| FraiseQLError::Database {
-                message:   format!(
-                    "Failed to roll back refused mutation transaction: {}",
-                    pg_detail(&e)
-                ),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-            return Err(refusal);
-        }
+    if let Err(refusal) = gate(&results) {
+        txn.rollback().await.map_err(|e| FraiseQLError::Database {
+            message:   format!(
+                "Failed to roll back refused mutation transaction: {}",
+                pg_detail(&e)
+            ),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+        return Err(refusal);
+    }
+
+    if !commit {
+        // The whole point of a dry run: discard every write, the outbox row included.
+        txn.rollback().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("Failed to roll back dry-run transaction: {}", pg_detail(&e)),
+            sql_state: e.code().map(|c| c.code().to_string()),
+        })?;
+        return Ok(results);
     }
 
     txn.commit().await.map_err(|e| FraiseQLError::Database {
@@ -755,25 +769,8 @@ impl DatabaseAdapter for PostgresAdapter {
         DatabaseType::PostgreSQL
     }
 
-    /// The stored-function write path is this adapter's, so it opts in.
-    ///
-    /// Stated here as well as through the [`SupportsMutations`] marker below because the
-    /// two gates answer at different times — the marker at compile time, this at runtime
-    /// — and both now default to refusing. Implementing the marker without this would
-    /// leave the runtime gate saying "read-only" about an adapter that writes.
-    ///
-    /// [`SupportsMutations`]: crate::traits::SupportsMutations
-    fn supports_mutations(&self) -> bool {
-        true
-    }
-
     /// `execute_composed_with_session` is implemented below.
     fn supports_composed_reads(&self) -> bool {
-        true
-    }
-
-    /// `execute_function_call_gated` is implemented below.
-    fn supports_gated_writes(&self) -> bool {
         true
     }
 
@@ -884,286 +881,10 @@ impl DatabaseAdapter for PostgresAdapter {
         Ok(rows.iter().map(row_to_map).collect())
     }
 
-    async fn execute_function_call(
-        &self,
-        function_name: &str,
-        args: &[serde_json::Value],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Arm the read-your-writes pin at entry (a read racing a slow write
-        // already pins) and again after commit (lag counts from commit) — #407.
-        self.mark_write();
-        // Build: SELECT * FROM "fn_name"($1, $2, ...)
-        // Use the standard identifier quoting utility so that schema-qualified
-        // names like "benchmark.fn_update_user" are correctly split into
-        // "benchmark"."fn_update_user" instead of being wrapped as a single
-        // identifier.
-        let quoted_fn = quote_postgres_identifier(function_name);
-        let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
-        let sql = format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "));
-
-        let mut client = self.acquire_connection_with_retry().await?;
-
-        // Convert serde_json::Value arguments to FlexParam for binding.
-        //
-        // serde_json::Value only accepts JSON/JSONB types; Option<String> only accepts
-        // text-family types.  Neither works universally when the function signature
-        // contains a mix of JSONB, UUID, INT4, and TEXT parameters.  FlexParam accepts
-        // all PostgreSQL types and serialises each value in the correct binary wire
-        // format for the server-resolved parameter type.
-        let flex_args: Vec<FlexParam> = args
-            .iter()
-            .map(|v| match v {
-                serde_json::Value::Null => FlexParam::Null,
-                serde_json::Value::String(s) => FlexParam::Text(s.clone()),
-                _ => FlexParam::Text(v.to_string()),
-            })
-            .collect();
-        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
-            .iter()
-            .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
-            .collect();
-
-        // Parse/plan the statement once per connection and reuse it (deadpool's
-        // statement cache); prepared before any transaction so the owned Statement
-        // is usable inside it.
-        let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
-
-        if self.mutation_timing_enabled {
-            // Wrap in a transaction so SET LOCAL scopes the variable to this call only.
-            // `set_config(name, value, is_local)` with is_local=true is equivalent to
-            // SET LOCAL and is parameterized to avoid SQL injection.
-            let txn =
-                client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                    message:   format!(
-                        "Failed to start mutation timing transaction: {}",
-                        pg_detail(&e)
-                    ),
-                    sql_state: e.code().map(|c| c.code().to_string()),
-                })?;
-
-            txn.execute(
-                "SELECT set_config($1, clock_timestamp()::text, true)",
-                &[&self.timing_variable_name],
-            )
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to set mutation timing variable: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-
-            let rows: Vec<Row> =
-                txn.query(&stmt, params.as_slice()).await.map_err(|e| FraiseQLError::Database {
-                    message:   format!("Function call {function_name} failed: {}", pg_detail(&e)),
-                    sql_state: e.code().map(|c| c.code().to_string()),
-                })?;
-
-            txn.commit().await.map_err(|e| FraiseQLError::Database {
-                message:   format!(
-                    "Failed to commit mutation timing transaction: {}",
-                    pg_detail(&e)
-                ),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-            self.mark_write();
-
-            let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
-                rows.iter().map(row_to_map).collect();
-
-            Ok(results)
-        } else {
-            let rows: Vec<Row> = client.query(&stmt, params.as_slice()).await.map_err(|e| {
-                FraiseQLError::Database {
-                    message:   format!("Function call {function_name} failed: {}", pg_detail(&e)),
-                    sql_state: e.code().map(|c| c.code().to_string()),
-                }
-            })?;
-            self.mark_write();
-
-            let results: Vec<std::collections::HashMap<String, serde_json::Value>> =
-                rows.iter().map(row_to_map).collect();
-
-            Ok(results)
-        }
-    }
-
-    async fn execute_function_call_dry_run(
-        &self,
-        function_name: &str,
-        args: &[serde_json::Value],
-        session_vars: &[(&str, &str)],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Validate-bind-without-commit: run the mutation function inside a
-        // transaction we ROLL BACK unconditionally. The function executes for
-        // real (constraints, triggers, and the app.mutation_response shape are all
-        // exercised), but no writes persist. Mirrors execute_function_call's
-        // statement build + FlexParam binding; the only difference is rollback
-        // instead of commit, and no change-log outbox write.
-        let quoted_fn = quote_postgres_identifier(function_name);
-        let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
-        let sql = format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "));
-
-        // See execute_function_call for why FlexParam is required here.
-        let flex_args: Vec<FlexParam> = args
-            .iter()
-            .map(|v| match v {
-                serde_json::Value::Null => FlexParam::Null,
-                serde_json::Value::String(s) => FlexParam::Text(s.clone()),
-                _ => FlexParam::Text(v.to_string()),
-            })
-            .collect();
-        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
-            .iter()
-            .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
-            .collect();
-
-        let mut client = self.acquire_connection_with_retry().await?;
-        // Parse/plan once per connection (statement cache), before the txn.
-        let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
-        let txn =
-            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to start dry-run transaction: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-
-        // Apply the same transaction-local context a real call would see, so the
-        // dry-run exercises RLS / the function body identically (no-op when empty).
-        apply_session_vars(&txn, session_vars).await?;
-        // Suppress the fallback-capture trigger (#366) for parity with the real
-        // mutation path; the marker rolls back with everything else.
-        mark_cdc_mediated(&txn).await?;
-
-        let rows: Vec<Row> =
-            txn.query(&stmt, params.as_slice()).await.map_err(|e| FraiseQLError::Database {
-                message:   format!(
-                    "Dry-run function call {function_name} failed: {}",
-                    pg_detail(&e)
-                ),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-
-        // The whole point of dry-run: discard every write.
-        txn.rollback().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to roll back dry-run transaction: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
-        })?;
-
-        Ok(rows.iter().map(row_to_map).collect())
-    }
-
     // PostgreSQL session variables are applied connection-affinely by the
     // `*_with_session` methods below: `set_config(..., true)` and the operation
     // share one transaction on one connection, so transaction-local GUCs are
     // visible to the function / view (fixes #329).
-
-    async fn execute_function_call_with_session(
-        &self,
-        function_name: &str,
-        args: &[serde_json::Value],
-        session_vars: &[(&str, &str)],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Fast path: no session variables and no mutation timing => behave
-        // exactly like execute_function_call (no transaction overhead, and
-        // execute_function_call already opens its own txn when timing is on).
-        if session_vars.is_empty() && !self.mutation_timing_enabled {
-            return self.execute_function_call(function_name, args).await;
-        }
-
-        // Arm the read-your-writes pin (entry + post-commit) — #407.
-        self.mark_write();
-        let quoted_fn = quote_postgres_identifier(function_name);
-        let placeholders: Vec<String> = (1..=args.len()).map(|i| format!("${i}")).collect();
-        let sql = format!("SELECT * FROM {quoted_fn}({})", placeholders.join(", "));
-
-        // See execute_function_call for why FlexParam is required here.
-        let flex_args: Vec<FlexParam> = args
-            .iter()
-            .map(|v| match v {
-                serde_json::Value::Null => FlexParam::Null,
-                serde_json::Value::String(s) => FlexParam::Text(s.clone()),
-                _ => FlexParam::Text(v.to_string()),
-            })
-            .collect();
-        let params: Vec<&(dyn tokio_postgres::types::ToSql + Sync)> = flex_args
-            .iter()
-            .map(|v| v as &(dyn tokio_postgres::types::ToSql + Sync))
-            .collect();
-
-        let mut client = self.acquire_connection_with_retry().await?;
-        // Parse/plan once per connection (statement cache), before the txn.
-        let stmt = prepare_cached_stmt(&client, sql.as_str()).await?;
-        let txn =
-            client.build_transaction().start().await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to start session-var transaction: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-
-        // Apply session variables FIRST so the function body sees them.
-        apply_session_vars(&txn, session_vars).await?;
-
-        // Mark the txn FraiseQL-mediated (#366). Even on the no-outbox path
-        // (e.g. a `changelog=false` mutation), a mutation routed through the
-        // executor must suppress the fallback-capture trigger — the opt-out means
-        // "no change-log row," not "let the trigger write a degraded one."
-        mark_cdc_mediated(&txn).await?;
-
-        // If mutation timing is on, stamp the timing variable in the same txn.
-        if self.mutation_timing_enabled {
-            txn.execute(
-                "SELECT set_config($1, clock_timestamp()::text, true)",
-                &[&self.timing_variable_name],
-            )
-            .await
-            .map_err(|e| FraiseQLError::Database {
-                message:   format!("Failed to set mutation timing variable: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-        }
-
-        let rows: Vec<Row> =
-            txn.query(&stmt, params.as_slice()).await.map_err(|e| FraiseQLError::Database {
-                message:   format!("Function call {function_name} failed: {}", pg_detail(&e)),
-                sql_state: e.code().map(|c| c.code().to_string()),
-            })?;
-
-        txn.commit().await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to commit session-var transaction: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
-        })?;
-        self.mark_write();
-
-        Ok(rows.iter().map(row_to_map).collect())
-    }
-
-    async fn execute_function_call_with_changelog(
-        &self,
-        function_name: &str,
-        args: &[serde_json::Value],
-        session_vars: &[(&str, &str)],
-        changelog: Option<&crate::traits::ChangeLogWrite<'_>>,
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // No outbox write requested => identical to the session-affine path
-        // (and inherits its no-session/no-timing fast path).
-        let Some(changelog) = changelog else {
-            return self
-                .execute_function_call_with_session(function_name, args, session_vars)
-                .await;
-        };
-        run_function_in_txn(self, function_name, args, session_vars, Some(changelog), None).await
-    }
-
-    async fn execute_function_call_gated(
-        &self,
-        function_name: &str,
-        args: &[serde_json::Value],
-        session_vars: &[(&str, &str)],
-        changelog: Option<&crate::traits::ChangeLogWrite<'_>>,
-        gate: crate::traits::MutationRowGate<'_>,
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Deliberately no fast path: a gate that may roll back needs a transaction
-        // it can roll back, even when there are no session variables and no outbox
-        // row. Every write's response can fail to build, so every write comes here.
-        run_function_in_txn(self, function_name, args, session_vars, changelog, Some(gate)).await
-    }
 
     async fn execute_where_query_arc_with_session(
         &self,
@@ -1527,4 +1248,14 @@ impl DatabaseAdapter for PostgresAdapter {
     }
 }
 
-impl SupportsMutations for PostgresAdapter {}
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
+impl Writer for PostgresAdapter {
+    async fn execute_write(
+        &self,
+        request: &crate::traits::WriteRequest<'_>,
+        gate: crate::traits::MutationRowGate<'_>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        run_function_in_txn(self, request, gate).await
+    }
+}

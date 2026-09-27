@@ -224,7 +224,7 @@ pub struct PoolPrewarmConfig {
 /// through the adapter's structurally read-only methods (`execute_where_query*`,
 /// `execute_with_projection*`, `execute_parameterized_aggregate*`, `explain_*`,
 /// relay pagination), and those route to a replica selected round-robin. The
-/// mutation pipeline (`execute_function_call*`) and every mixed-use or
+/// mutation pipeline (`execute_write`) and every mixed-use or
 /// administrative surface (`execute_raw_query`, `execute_row_query`, query stats,
 /// health checks, schema DDL) always run on the primary — a surface that *can*
 /// write is never routed to a replica.
@@ -1307,9 +1307,9 @@ impl PostgresAdapter {
 
     /// Enable mutation timing injection.
     ///
-    /// When enabled, `execute_function_call` wraps each mutation in a transaction
-    /// and sets a session variable to `clock_timestamp()::text` before execution,
-    /// allowing SQL functions to compute their own duration.
+    /// When enabled, `execute_write` sets a session variable to `clock_timestamp()::text` in
+    /// each write's transaction before the call, allowing SQL functions to compute their own
+    /// duration.
     ///
     /// # Arguments
     ///

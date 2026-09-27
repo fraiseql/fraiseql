@@ -637,7 +637,7 @@ async fn dispatch_server(
     warn_revocation_requires_postgres(&schema, "wire-backend");
     let adapter = build_wire_adapter(&config).await?;
     // `FraiseWireAdapter` is read-only — it implements `DatabaseAdapter` and
-    // deliberately not `SupportsMutations` — so this server is built through the
+    // deliberately not `Writer` — so this server is built through the
     // constructor that says so rather than the one bounded on write capability.
     let server = Server::new_read_only(config, schema, adapter, None).await?;
     // #896: the functions section comes from the artifact we loaded, not from a
@@ -846,7 +846,7 @@ async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> 
 /// advertising every write path, so following the published contract earned a 405.
 ///
 /// The read-only backend needs no entry here: this helper is reached only from the
-/// non-`wire-backend` boot paths. It used to be bounded on `SupportsMutations` as well,
+/// non-`wire-backend` boot paths. It used to be bounded on the write capability as well,
 /// described as the type system keeping writes off `FraiseWireAdapter` — a claim that
 /// retired with the type parameter. The executor a wire-backend boot builds is
 /// constructed read-only, so mounting the write routes over it would mount routes that

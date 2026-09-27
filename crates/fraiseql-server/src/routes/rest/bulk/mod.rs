@@ -248,9 +248,9 @@ impl<'a> BulkHandler<'a> {
         // #914: `tx=rollback` was parsed, echoed in `Preference-Applied`, and never
         // honoured — a dry-run bulk DELETE committed while the response asserted the
         // rollback. Refusing is the honest answer until the preference is implemented:
-        // the adapter has `execute_function_call_dry_run` (run-in-transaction-then-
-        // rollback), but reaching it per request needs an execution mode threaded
-        // through `Executor::execute`, whose `RuntimeConfig` is shared across requests.
+        // a write has a dry-run mode (`WriteMode::DryRun`, run-in-transaction-then-
+        // rollback), but reaching it per request needs that mode threaded through
+        // `Executor::execute`, whose `RuntimeConfig` is shared across requests.
         if prefer.tx_rollback {
             return Err(RestError::bad_request(
                 "Prefer: tx=rollback is not supported on bulk operations. Omit the \

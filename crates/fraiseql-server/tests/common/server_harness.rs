@@ -10,10 +10,7 @@
 
 use std::sync::Arc;
 
-use fraiseql_core::{
-    db::traits::{DatabaseAdapter, SupportsMutations},
-    schema::CompiledSchema,
-};
+use fraiseql_core::{db::traits::Writer, schema::CompiledSchema};
 use fraiseql_server::{Server, server_config::ServerConfig};
 use tokio::{net::TcpListener, sync::oneshot};
 
@@ -36,7 +33,7 @@ impl TestServer {
     /// # Panics
     ///
     /// Panics if the listener cannot be bound or the server fails to start.
-    pub async fn start<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>(
+    pub async fn start<A: Writer + Clone + Send + Sync + 'static>(
         schema: CompiledSchema,
         adapter: Arc<A>,
     ) -> Self {
@@ -67,9 +64,7 @@ impl TestServer {
     /// # Panics
     ///
     /// Panics if the listener cannot be bound or the server fails to start.
-    pub async fn start_with_config<
-        A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
-    >(
+    pub async fn start_with_config<A: Writer + Clone + Send + Sync + 'static>(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
@@ -111,9 +106,7 @@ impl TestServer {
     /// # Panics
     ///
     /// Panics if the listener cannot be bound or the server fails to start.
-    pub async fn start_with_revocation<
-        A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
-    >(
+    pub async fn start_with_revocation<A: Writer + Clone + Send + Sync + 'static>(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
@@ -151,7 +144,7 @@ impl TestServer {
     /// the binary's PostgreSQL boot path does.
     ///
     /// This is a separate entry point rather than a flag because
-    /// `SupportsMutations` is not a bound on `Server`'s lifecycle — the write
+    /// `Writer` is not a bound on `Server`'s lifecycle — the write
     /// router can only be installed where the concrete adapter is known. A test that
     /// short-circuited this by merging `rest_router` itself would be exercising a
     /// router the binary never serves, which is exactly how #812 (no auth on the REST
@@ -167,12 +160,7 @@ impl TestServer {
         adapter: Arc<A>,
     ) -> Self
     where
-        A: DatabaseAdapter
-            + fraiseql_core::db::traits::SupportsMutations
-            + Clone
-            + Send
-            + Sync
-            + 'static,
+        A: fraiseql_core::db::traits::Writer + Clone + Send + Sync + 'static,
     {
         let listener = TcpListener::bind("127.0.0.1:0").await.expect("bind to ephemeral port");
         let port = listener.local_addr().expect("local addr").port();

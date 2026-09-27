@@ -556,7 +556,17 @@ lint-expect:
 # consult the runtime gate; no adapter already in the tree has that shape, because every one
 # of them states the pairing correctly. One real impl, of a `DatabaseAdapter` whose
 # signatures the macro fixes, so the impl has no choice.
-ASYNC_TRAIT_LIMIT := 207
+# 207 → 215: the write API (ruling AA 6). `Writer`, the one write capability, is a new
+# dyn-dispatched trait (`Arc<dyn Writer>` is the executor's write handle, as
+# `Arc<dyn DatabaseAdapter>` is its read handle), so the trait and every impl carry the
+# macro: the trait, `PostgresAdapter`, `CachedDatabaseAdapter`, `FailingAdapter`, the two
+# `test_support` mocks and two tenancy doubles (+9), less `MarkerWithoutOverride` and one
+# double whose only write method moved (-2). Stated so it is not mistaken for the whole
+# cost: the migration also gave 34 test doubles a `Writer` impl spelled
+# `#[async_trait::async_trait]`, which this grep has never counted (see above) — each one
+# replaces write methods that sat in that double's `DatabaseAdapter` impl, so no double
+# gained a dyn-dispatch trait it did not already implement.
+ASYNC_TRAIT_LIMIT := 215
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \

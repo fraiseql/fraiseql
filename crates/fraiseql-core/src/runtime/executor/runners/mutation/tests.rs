@@ -9,7 +9,6 @@ use fraiseql_db::ChangeLogWrite;
 
 use crate::{
     backend::{
-        SupportsMutations,
         traits::DatabaseAdapter,
         types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
         where_clause::WhereClause,
@@ -36,11 +35,64 @@ mod mutation {
 
     #[async_trait]
     impl DatabaseAdapter for SelectionSetFilterMockAdapter {
-        // Writes: opted in, because both capability gates default to refusing.
-        fn supports_mutations(&self) -> bool {
-            true
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
         }
 
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    // The writes this double answers, called by its `Writer` impl below.
+    impl SelectionSetFilterMockAdapter {
         async fn execute_function_call(
             &self,
             _function_name: &str,
@@ -65,13 +117,6 @@ mod mutation {
             Ok(vec![row])
         }
 
-        // Every write commits only once it is adjudicated (ruling Z 1). This double
-        // has nothing durable to roll back: it runs the call, puts the rows to the gate
-        // and returns them.
-        fn supports_gated_writes(&self) -> bool {
-            true
-        }
-
         async fn execute_function_call_gated(
             &self,
             function_name: &str,
@@ -84,7 +129,35 @@ mod mutation {
             gate(&rows)?;
             Ok(rows)
         }
+    }
 
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl crate::backend::traits::Writer for SelectionSetFilterMockAdapter {
+        async fn execute_write(
+            &self,
+            request: &crate::backend::traits::WriteRequest<'_>,
+            gate: crate::backend::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            self.execute_function_call_gated(
+                request.function,
+                request.args,
+                request.session_vars,
+                request.changelog,
+                gate,
+            )
+            .await
+        }
+    }
+
+    /// Mock adapter that returns a mutation response for empty selection set tests.
+    struct EmptySelectionMockAdapter;
+
+    #[async_trait]
+    impl DatabaseAdapter for EmptySelectionMockAdapter {
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -141,18 +214,8 @@ mod mutation {
         }
     }
 
-    impl SupportsMutations for SelectionSetFilterMockAdapter {}
-
-    /// Mock adapter that returns a mutation response for empty selection set tests.
-    struct EmptySelectionMockAdapter;
-
-    #[async_trait]
-    impl DatabaseAdapter for EmptySelectionMockAdapter {
-        // Writes: opted in, because both capability gates default to refusing.
-        fn supports_mutations(&self) -> bool {
-            true
-        }
-
+    // The writes this double answers, called by its `Writer` impl below.
+    impl EmptySelectionMockAdapter {
         async fn execute_function_call(
             &self,
             _function_name: &str,
@@ -176,13 +239,6 @@ mod mutation {
             Ok(vec![row])
         }
 
-        // Every write commits only once it is adjudicated (ruling Z 1). This double
-        // has nothing durable to roll back: it runs the call, puts the rows to the gate
-        // and returns them.
-        fn supports_gated_writes(&self) -> bool {
-            true
-        }
-
         async fn execute_function_call_gated(
             &self,
             function_name: &str,
@@ -195,64 +251,29 @@ mod mutation {
             gate(&rows)?;
             Ok(rows)
         }
-
-        async fn execute_with_projection(
-            &self,
-            _view: &str,
-            _projection: Option<&crate::schema::SqlProjectionHint>,
-            _where_clause: Option<&WhereClause>,
-            _limit: Option<u32>,
-            _offset: Option<u32>,
-            _order_by: Option<&[OrderByClause]>,
-        ) -> Result<Vec<JsonbValue>> {
-            Ok(vec![])
-        }
-
-        async fn execute_where_query(
-            &self,
-            _view: &str,
-            _where_clause: Option<&WhereClause>,
-            _limit: Option<u32>,
-            _offset: Option<u32>,
-            _order_by: Option<&[OrderByClause]>,
-        ) -> Result<Vec<JsonbValue>> {
-            Ok(vec![])
-        }
-
-        async fn health_check(&self) -> Result<()> {
-            Ok(())
-        }
-
-        fn database_type(&self) -> DatabaseType {
-            DatabaseType::PostgreSQL
-        }
-
-        fn pool_metrics(&self) -> PoolMetrics {
-            PoolMetrics {
-                total_connections:  1,
-                active_connections: 0,
-                idle_connections:   1,
-                waiting_requests:   0,
-            }
-        }
-
-        async fn execute_raw_query(
-            &self,
-            _sql: &str,
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            Ok(vec![])
-        }
-
-        async fn execute_parameterized_aggregate(
-            &self,
-            _sql: &str,
-            _params: &[serde_json::Value],
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            Ok(vec![])
-        }
     }
 
-    impl SupportsMutations for EmptySelectionMockAdapter {}
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl crate::backend::traits::Writer for EmptySelectionMockAdapter {
+        async fn execute_write(
+            &self,
+            request: &crate::backend::traits::WriteRequest<'_>,
+            gate: crate::backend::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            self.execute_function_call_gated(
+                request.function,
+                request.args,
+                request.session_vars,
+                request.changelog,
+                gate,
+            )
+            .await
+        }
+    }
 
     // Regression tests for issue #53 ──────────────────────────────────────
     //
@@ -317,155 +338,13 @@ mod mutation {
 
         let msg = err.to_string();
         assert!(msg.contains("read-only"), "expected a read-only diagnostic, got: {msg}");
-        // The message must tell an adapter author what to do about it, because since the
-        // default flipped to refusing, this is the error an out-of-tree adapter that
-        // simply never mentioned writes will hit.
+        // The message must tell an adapter author what to do about it: this is the error an
+        // out-of-tree adapter that never implemented the write capability will hit.
         assert!(
-            msg.contains("SupportsMutations") && msg.contains("supports_mutations()"),
-            "the diagnostic must name both gates, got: {msg}"
+            msg.contains("`Writer`") && msg.contains("execute_write"),
+            "the diagnostic must name the capability, got: {msg}"
         );
         assert!(msg.contains("createUser"), "error message should name the mutation, got: {msg}");
-    }
-
-    /// An adapter that carries the marker but never overrides `supports_mutations()`
-    /// must be refused by the **typed** write entries too.
-    ///
-    /// `SupportsMutations`' own documentation says the two gates are a pair and that
-    /// getting the pairing wrong fails safe: "Marker without the override: the runtime
-    /// guard refuses, so no write happens." That is true of `execute_mutation_query`
-    /// — `test_mutation_rejected_by_non_capable_adapter` above pins it — and it is the
-    /// *only* place the runtime guard is consulted. The five typed entries
-    /// (`execute_mutation`, `_as`, `_with_security`, `_batch`, `execute_bulk_by_ids`)
-    /// deliberately skip it, on the reasoning that the `SupportsMutations` bound has
-    /// already settled the question. The bound settles the *marker*; it cannot settle
-    /// the *override*, which is what `execute_function_call` is keyed on.
-    ///
-    /// So the claim is false on the typed path, and the cost is not academic: the
-    /// refusal that does eventually arrive comes from the trait's default
-    /// `execute_function_call`, at the far end of `execute_mutation_impl` — after the
-    /// operation authorizer, `requires_role`, `requires_actor`, argument validation
-    /// and the `before:mutation` chain have all run. `before:mutation` runs
-    /// app-authored rule code, and it sits where it does precisely so an unauthorized
-    /// caller never reaches it. This is the same defect `78f91c9e2` fixed for the
-    /// document path, still open on this one.
-    #[tokio::test]
-    async fn typed_write_entry_refuses_a_marker_without_the_override() {
-        use crate::schema::MutationDefinition;
-
-        /// Says nothing about writes at runtime — so `supports_mutations()` is the
-        /// trait default, which refuses. Carries the marker anyway, which is exactly
-        /// the "stated rather than enforced" pairing the trait doc warns about.
-        struct MarkerWithoutOverride {
-            reached: Arc<std::sync::atomic::AtomicBool>,
-        }
-
-        #[async_trait]
-        impl DatabaseAdapter for MarkerWithoutOverride {
-            // Deliberately no `supports_mutations()` override — the trait default refuses.
-            async fn execute_function_call(
-                &self,
-                _function_name: &str,
-                _args: &[serde_json::Value],
-            ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-                self.reached.store(true, std::sync::atomic::Ordering::SeqCst);
-                Ok(vec![])
-            }
-
-            async fn execute_function_call_with_changelog(
-                &self,
-                function_name: &str,
-                args: &[serde_json::Value],
-                _session_vars: &[(&str, &str)],
-                _changelog: Option<&ChangeLogWrite<'_>>,
-            ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-                self.execute_function_call(function_name, args).await
-            }
-
-            async fn execute_with_projection(
-                &self,
-                _view: &str,
-                _projection: Option<&crate::schema::SqlProjectionHint>,
-                _where_clause: Option<&WhereClause>,
-                _limit: Option<u32>,
-                _offset: Option<u32>,
-                _order_by: Option<&[OrderByClause]>,
-            ) -> Result<Vec<JsonbValue>> {
-                Ok(vec![])
-            }
-
-            async fn execute_where_query(
-                &self,
-                _view: &str,
-                _where_clause: Option<&WhereClause>,
-                _limit: Option<u32>,
-                _offset: Option<u32>,
-                _order_by: Option<&[OrderByClause]>,
-            ) -> Result<Vec<JsonbValue>> {
-                Ok(vec![])
-            }
-
-            async fn execute_raw_query(
-                &self,
-                _sql: &str,
-            ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-                Ok(vec![])
-            }
-
-            async fn execute_parameterized_aggregate(
-                &self,
-                _sql: &str,
-                _params: &[serde_json::Value],
-            ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-                Ok(vec![])
-            }
-
-            async fn health_check(&self) -> Result<()> {
-                Ok(())
-            }
-
-            fn database_type(&self) -> DatabaseType {
-                DatabaseType::PostgreSQL
-            }
-
-            fn pool_metrics(&self) -> PoolMetrics {
-                PoolMetrics {
-                    total_connections:  1,
-                    active_connections: 0,
-                    idle_connections:   1,
-                    waiting_requests:   0,
-                }
-            }
-        }
-
-        impl SupportsMutations for MarkerWithoutOverride {}
-
-        let mut schema = CompiledSchema::new();
-        schema.mutations.push(MutationDefinition {
-            sql_source: Some("fn_create_user".to_string()),
-            ..MutationDefinition::new("createUser", "User")
-        });
-
-        let reached = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let adapter = Arc::new(MarkerWithoutOverride {
-            reached: Arc::clone(&reached),
-        });
-        let executor = Executor::new(schema, adapter);
-
-        let result = executor.execute_mutation("createUser", None, any_write_selections()).await;
-
-        // The assertion that discriminates: not *whether* the call failed — it fails
-        // either way, because the stub returns no rows — but whether the dispatch was
-        // reached at all. A refusal that arrives after `before:mutation` has run is the
-        // defect, and only this flag can tell the two apart.
-        assert!(
-            !reached.load(std::sync::atomic::Ordering::SeqCst),
-            "the typed write entry dispatched to an adapter whose supports_mutations() \
-             is false; the capability gate was never consulted on this path"
-        );
-
-        let err = result.expect_err("a read-only-at-runtime adapter must be refused");
-        let msg = err.to_string();
-        assert!(msg.contains("read-only"), "expected a read-only diagnostic, got: {msg}");
     }
 
     /// The capability gate is adjudicated at step 0, before the gate that names the
@@ -756,49 +635,6 @@ mod mutation {
 
     #[async_trait]
     impl DatabaseAdapter for MutationErrorMockAdapter {
-        // Writes: opted in, because both capability gates default to refusing.
-        fn supports_mutations(&self) -> bool {
-            true
-        }
-
-        async fn execute_function_call(
-            &self,
-            _function_name: &str,
-            _args: &[serde_json::Value],
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            use serde_json::json;
-            let mut row = std::collections::HashMap::new();
-            row.insert("succeeded".to_string(), json!(false));
-            row.insert("state_changed".to_string(), json!(false));
-            row.insert("error_class".to_string(), json!("conflict"));
-            row.insert("message".to_string(), json!("already exists"));
-            row.insert("http_status".to_string(), json!(409));
-            if let Some(et) = self.entity_type {
-                row.insert("entity_type".to_string(), json!(et));
-            }
-            Ok(vec![row])
-        }
-
-        // Every write commits only once it is adjudicated (ruling Z 1). This double
-        // has nothing durable to roll back: it runs the call, puts the rows to the gate
-        // and returns them.
-        fn supports_gated_writes(&self) -> bool {
-            true
-        }
-
-        async fn execute_function_call_gated(
-            &self,
-            function_name: &str,
-            args: &[serde_json::Value],
-            _session_vars: &[(&str, &str)],
-            _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
-            gate: fraiseql_db::MutationRowGate<'_>,
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            let rows = self.execute_function_call(function_name, args).await?;
-            gate(&rows)?;
-            Ok(rows)
-        }
-
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -855,7 +691,61 @@ mod mutation {
         }
     }
 
-    impl SupportsMutations for MutationErrorMockAdapter {}
+    // The writes this double answers, called by its `Writer` impl below.
+    impl MutationErrorMockAdapter {
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            let mut row = std::collections::HashMap::new();
+            row.insert("succeeded".to_string(), json!(false));
+            row.insert("state_changed".to_string(), json!(false));
+            row.insert("error_class".to_string(), json!("conflict"));
+            row.insert("message".to_string(), json!("already exists"));
+            row.insert("http_status".to_string(), json!(409));
+            if let Some(et) = self.entity_type {
+                row.insert("entity_type".to_string(), json!(et));
+            }
+            Ok(vec![row])
+        }
+
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            let rows = self.execute_function_call(function_name, args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl crate::backend::traits::Writer for MutationErrorMockAdapter {
+        async fn execute_write(
+            &self,
+            request: &crate::backend::traits::WriteRequest<'_>,
+            gate: crate::backend::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            self.execute_function_call_gated(
+                request.function,
+                request.args,
+                request.session_vars,
+                request.changelog,
+                gate,
+            )
+            .await
+        }
+    }
 
     /// The mutation-error fallback (no matching error type declared in the return
     /// union) emits `__typename` only when the client selects it. That detection
@@ -1192,63 +1082,6 @@ mod mutation {
 
     #[async_trait]
     impl DatabaseAdapter for CapturingFunctionCallAdapter {
-        // Writes: opted in, because both capability gates default to refusing.
-        fn supports_mutations(&self) -> bool {
-            true
-        }
-
-        async fn execute_function_call(
-            &self,
-            _function_name: &str,
-            args: &[serde_json::Value],
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            use serde_json::json;
-            *self.captured_args.lock().unwrap() = args.to_vec();
-            let mut row = std::collections::HashMap::new();
-
-            row.insert("succeeded".to_string(), json!(true));
-            row.insert("state_changed".to_string(), json!(true));
-            row.insert("entity".to_string(), json!({"id": "1"}));
-            // No `entity_type`: this double serves mutations of many return types, and a stamp
-            // must name the one each returns (ruling AA 1). Unstamped, it resolves to it.
-            // Only emit the column when set, so the default row stays unchanged for
-            // the many existing tests that read `captured_args` and ignore the row.
-            if !self.updated_fields.is_null() {
-                row.insert("updated_fields".to_string(), self.updated_fields.clone());
-            }
-            row.insert("message".to_string(), json!(""));
-            Ok(vec![row])
-        }
-
-        // Every write commits only once it is adjudicated (ruling Z 1), so this is the
-        // entry every write takes, carrying the change-log descriptor.
-        fn supports_gated_writes(&self) -> bool {
-            true
-        }
-
-        async fn execute_function_call_gated(
-            &self,
-            function_name: &str,
-            args: &[serde_json::Value],
-            _session_vars: &[(&str, &str)],
-            changelog: Option<&ChangeLogWrite<'_>>,
-            gate: fraiseql_db::MutationRowGate<'_>,
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            // Capture the DML verb the executor derived from the mutation's
-            // `operation` so a test can assert the Change Spine records the
-            // real verb (not a blanket UPDATE). Then delegate so `args` are
-            // captured by `execute_function_call` exactly as the real path does,
-            // and put the rows to the gate as the PostgreSQL adapter does.
-            *self.captured_modification_type.lock().unwrap() =
-                changelog.map(|c| c.modification_type.to_string());
-            *self.captured_pre_image.lock().unwrap() = changelog.map(|c| c.pre_image);
-            *self.captured_object_type.lock().unwrap() =
-                changelog.map(|c| c.object_type.to_string());
-            let rows = self.execute_function_call(function_name, args).await?;
-            gate(&rows)?;
-            Ok(rows)
-        }
-
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -1305,7 +1138,76 @@ mod mutation {
         }
     }
 
-    impl SupportsMutations for CapturingFunctionCallAdapter {}
+    // The writes this double answers, called by its `Writer` impl below.
+    impl CapturingFunctionCallAdapter {
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            *self.captured_args.lock().unwrap() = args.to_vec();
+            let mut row = std::collections::HashMap::new();
+
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
+            row.insert("entity".to_string(), json!({"id": "1"}));
+            // No `entity_type`: this double serves mutations of many return types, and a stamp
+            // must name the one each returns (ruling AA 1). Unstamped, it resolves to it.
+            // Only emit the column when set, so the default row stays unchanged for
+            // the many existing tests that read `captured_args` and ignore the row.
+            if !self.updated_fields.is_null() {
+                row.insert("updated_fields".to_string(), self.updated_fields.clone());
+            }
+            row.insert("message".to_string(), json!(""));
+            Ok(vec![row])
+        }
+
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            changelog: Option<&ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            // Capture the DML verb the executor derived from the mutation's
+            // `operation` so a test can assert the Change Spine records the
+            // real verb (not a blanket UPDATE). Then delegate so `args` are
+            // captured by `execute_function_call` exactly as the real path does,
+            // and put the rows to the gate as the PostgreSQL adapter does.
+            *self.captured_modification_type.lock().unwrap() =
+                changelog.map(|c| c.modification_type.to_string());
+            *self.captured_pre_image.lock().unwrap() = changelog.map(|c| c.pre_image);
+            *self.captured_object_type.lock().unwrap() =
+                changelog.map(|c| c.object_type.to_string());
+            let rows = self.execute_function_call(function_name, args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl crate::backend::traits::Writer for CapturingFunctionCallAdapter {
+        async fn execute_write(
+            &self,
+            request: &crate::backend::traits::WriteRequest<'_>,
+            gate: crate::backend::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            self.execute_function_call_gated(
+                request.function,
+                request.args,
+                request.session_vars,
+                request.changelog,
+                gate,
+            )
+            .await
+        }
+    }
 
     fn schema_with_update_mutation() -> CompiledSchema {
         use crate::schema::{
@@ -3041,46 +2943,6 @@ mod mutation_audit {
 
     #[async_trait]
     impl DatabaseAdapter for AuditMockAdapter {
-        // Writes: opted in, because both capability gates default to refusing.
-        fn supports_mutations(&self) -> bool {
-            true
-        }
-
-        async fn execute_function_call(
-            &self,
-            _function_name: &str,
-            _args: &[serde_json::Value],
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            use serde_json::json;
-            let mut row = std::collections::HashMap::new();
-            row.insert("succeeded".to_string(), json!(true));
-            row.insert("state_changed".to_string(), json!(true));
-            row.insert("entity".to_string(), json!({"id": "1"}));
-            row.insert("entity_type".to_string(), json!("User"));
-            row.insert("message".to_string(), json!(""));
-            Ok(vec![row])
-        }
-
-        // Every write commits only once it is adjudicated (ruling Z 1). This double
-        // has nothing durable to roll back: it runs the call, puts the rows to the gate
-        // and returns them.
-        fn supports_gated_writes(&self) -> bool {
-            true
-        }
-
-        async fn execute_function_call_gated(
-            &self,
-            function_name: &str,
-            args: &[serde_json::Value],
-            _session_vars: &[(&str, &str)],
-            _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
-            gate: fraiseql_db::MutationRowGate<'_>,
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            let rows = self.execute_function_call(function_name, args).await?;
-            gate(&rows)?;
-            Ok(rows)
-        }
-
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -3137,7 +2999,58 @@ mod mutation_audit {
         }
     }
 
-    impl SupportsMutations for AuditMockAdapter {}
+    // The writes this double answers, called by its `Writer` impl below.
+    impl AuditMockAdapter {
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            let mut row = std::collections::HashMap::new();
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
+            row.insert("entity".to_string(), json!({"id": "1"}));
+            row.insert("entity_type".to_string(), json!("User"));
+            row.insert("message".to_string(), json!(""));
+            Ok(vec![row])
+        }
+
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            let rows = self.execute_function_call(function_name, args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl crate::backend::traits::Writer for AuditMockAdapter {
+        async fn execute_write(
+            &self,
+            request: &crate::backend::traits::WriteRequest<'_>,
+            gate: crate::backend::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            self.execute_function_call_gated(
+                request.function,
+                request.args,
+                request.session_vars,
+                request.changelog,
+                gate,
+            )
+            .await
+        }
+    }
 
     /// Tracing layer that captures events from the `fraiseql::mutation_audit` target.
     struct CapturingLayer {
@@ -3493,57 +3406,6 @@ mod field_authz {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for GatedEntityAdapter {
-        // Declared with the gated write below: an executor over a gated schema refuses
-        // mutations at build on an adapter that does not say it has one (ruling X 2).
-        fn supports_gated_writes(&self) -> bool {
-            true
-        }
-
-        /// The commit gate (#1353), for a test double with no durable state.
-        ///
-        /// The runner routes every write through `execute_function_call_gated` (ruling
-        /// Z 1), so the field authorizer can refuse the write and not merely its result,
-        /// and a response that cannot be built takes the write with it. The trait default
-        /// refuses outright — an adapter that cannot roll back must not be the one to
-        /// decide a refused write is survivable. This one has nothing to roll back (its
-        /// "write" is a canned row), so running the call and then adjudicating it is
-        /// exactly what the PostgreSQL adapter does, minus the durability.
-        async fn execute_function_call_gated(
-            &self,
-            function_name: &str,
-            args: &[serde_json::Value],
-            session_vars: &[(&str, &str)],
-            changelog: Option<&ChangeLogWrite<'_>>,
-            gate: fraiseql_db::MutationRowGate<'_>,
-        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            let _ = (function_name, args, session_vars, changelog);
-            self.mark_ran();
-            let rows = self.rows.clone();
-            // The function has run; the transaction has not committed. A refusal
-            // here returns without ever marking the write as having stood.
-            gate(&rows)?;
-            self.mark_committed();
-            Ok(rows)
-        }
-
-        // Writes: opted in, because both capability gates default to refusing.
-        fn supports_mutations(&self) -> bool {
-            true
-        }
-
-        async fn execute_function_call(
-            &self,
-            _function_name: &str,
-            _args: &[serde_json::Value],
-        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            // The ungated path: whatever the function did, it stands. The runner no longer
-            // takes it (ruling Z 1); kept so a runner that regressed to it is caught
-            // committing what it should have adjudicated.
-            self.mark_ran();
-            self.mark_committed();
-            Ok(self.rows.clone())
-        }
-
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -3600,7 +3462,57 @@ mod field_authz {
         }
     }
 
-    impl SupportsMutations for GatedEntityAdapter {}
+    // The writes this double answers, called by its `Writer` impl below.
+    impl GatedEntityAdapter {
+        /// The commit gate (#1353), for a test double with no durable state.
+        ///
+        /// The runner routes every write through `execute_function_call_gated` (ruling
+        /// Z 1), so the field authorizer can refuse the write and not merely its result,
+        /// and a response that cannot be built takes the write with it. The trait default
+        /// refuses outright — an adapter that cannot roll back must not be the one to
+        /// decide a refused write is survivable. This one has nothing to roll back (its
+        /// "write" is a canned row), so running the call and then adjudicating it is
+        /// exactly what the PostgreSQL adapter does, minus the durability.
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            session_vars: &[(&str, &str)],
+            changelog: Option<&ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            let _ = (function_name, args, session_vars, changelog);
+            self.mark_ran();
+            let rows = self.rows.clone();
+            // The function has run; the transaction has not committed. A refusal
+            // here returns without ever marking the write as having stood.
+            gate(&rows)?;
+            self.mark_committed();
+            Ok(rows)
+        }
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl crate::backend::traits::Writer for GatedEntityAdapter {
+        async fn execute_write(
+            &self,
+            request: &crate::backend::traits::WriteRequest<'_>,
+            gate: crate::backend::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            self.execute_function_call_gated(
+                request.function,
+                request.args,
+                request.session_vars,
+                request.changelog,
+                gate,
+            )
+            .await
+        }
+    }
 
     struct DenyMask;
     impl FieldAuthorizer for DenyMask {
@@ -3669,23 +3581,10 @@ mod field_authz {
         .expect_err("adjudication failed, so the mutation must fail")
     }
 
-    // Ruling X 2, the converse of `boundary::a_gated_schema_over_an_adapter_without_gated_
-    // writes_refuses_mutations_at_build`: an adapter that declares the gated write mounts
-    // mutations over the same kind of schema, so the refusal there is about the adapter.
+    // The server wraps every adapter in the caching one, so it has to be a `Writer`
+    // whenever the adapter it wraps is: this compiles only if it is (ruling AA 6).
     #[test]
-    fn a_gated_schema_over_an_adapter_with_gated_writes_mounts_mutations() {
-        let executor = Executor::with_config(
-            schema(),
-            Arc::new(GatedEntityAdapter::default()),
-            RuntimeConfig::default(),
-        );
-        assert_eq!(executor.writes_refused(), None);
-    }
-
-    // The server wraps every adapter in the caching one, so it has to forward the
-    // capability, or every gated schema would lose its mutations behind it.
-    #[test]
-    fn the_caching_adapter_forwards_gated_writes() {
+    fn the_caching_adapter_writes_when_its_adapter_does() {
         use crate::cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache};
         let cached = CachedDatabaseAdapter::new(
             GatedEntityAdapter::default(),
@@ -3693,7 +3592,7 @@ mod field_authz {
             "1.0.0".to_string(),
         );
         let executor = Executor::with_config(schema(), Arc::new(cached), RuntimeConfig::default());
-        assert_eq!(executor.writes_refused(), None);
+        drop(executor);
     }
 
     // A `Reject` decision refuses the operation, not just the value: the write the
@@ -4701,42 +4600,6 @@ mod cascade {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for CannedMutationAdapter {
-        // Declared with the gated write below (ruling X 2).
-        fn supports_gated_writes(&self) -> bool {
-            true
-        }
-
-        /// The commit gate (#1353) — see `field_authz::GatedEntityAdapter` for why a
-        /// double on a policy-gated schema has to implement this rather than inherit
-        /// the refusing default.
-        async fn execute_function_call_gated(
-            &self,
-            function_name: &str,
-            args: &[serde_json::Value],
-            session_vars: &[(&str, &str)],
-            changelog: Option<&ChangeLogWrite<'_>>,
-            gate: fraiseql_db::MutationRowGate<'_>,
-        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            let rows = self
-                .execute_function_call_with_changelog(function_name, args, session_vars, changelog)
-                .await?;
-            gate(&rows)?;
-            Ok(rows)
-        }
-
-        // Writes: opted in, because both capability gates default to refusing.
-        fn supports_mutations(&self) -> bool {
-            true
-        }
-
-        async fn execute_function_call(
-            &self,
-            _function_name: &str,
-            _args: &[serde_json::Value],
-        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            Ok(vec![self.row.clone()])
-        }
-
         async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
             let mut captured = self.invalidated_views.lock().unwrap();
             captured.extend(views.iter().map(|v| v.as_str().to_string()));
@@ -4799,7 +4662,81 @@ mod cascade {
         }
     }
 
-    impl SupportsMutations for CannedMutationAdapter {}
+    // The writes this double answers, called by its `Writer` impl below.
+    impl CannedMutationAdapter {
+        async fn execute_function_call(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![self.row.clone()])
+        }
+
+        async fn execute_function_call_with_session(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            self.execute_function_call(function_name, args).await
+        }
+
+        async fn execute_function_call_with_changelog(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            session_vars: &[(&str, &str)],
+            _changelog: Option<&crate::backend::traits::ChangeLogWrite<'_>>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            self.execute_function_call_with_session(function_name, args, session_vars).await
+        }
+
+        /// The commit gate (#1353) — see `field_authz::GatedEntityAdapter` for why a
+        /// double on a policy-gated schema has to implement this rather than inherit
+        /// the refusing default.
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            session_vars: &[(&str, &str)],
+            changelog: Option<&ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            let rows = self
+                .execute_function_call_with_changelog(function_name, args, session_vars, changelog)
+                .await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl crate::backend::traits::Writer for CannedMutationAdapter {
+        async fn execute_write(
+            &self,
+            request: &crate::backend::traits::WriteRequest<'_>,
+            gate: crate::backend::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            self.execute_function_call_gated(
+                request.function,
+                request.args,
+                request.session_vars,
+                request.changelog,
+                gate,
+            )
+            .await
+        }
+    }
 
     /// Field authorizer that masks (nulls) every gated field.
     struct MaskAll;
@@ -5320,57 +5257,6 @@ mod before_mutation_enforcement {
 
     #[async_trait]
     impl DatabaseAdapter for MutationCallLog {
-        // Writes: opted in, because both capability gates default to refusing.
-        fn supports_mutations(&self) -> bool {
-            true
-        }
-
-        async fn execute_function_call(
-            &self,
-            function_name: &str,
-            args: &[serde_json::Value],
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            use serde_json::json;
-            self.calls.lock().unwrap().push((function_name.to_string(), args.to_vec()));
-            let mut row = std::collections::HashMap::new();
-            row.insert("succeeded".to_string(), json!(true));
-            row.insert("state_changed".to_string(), json!(true));
-            row.insert("entity".to_string(), json!({ "id": "1" }));
-            row.insert("entity_type".to_string(), json!("User"));
-            row.insert("message".to_string(), json!(""));
-            Ok(vec![row])
-        }
-
-        // Every write commits only once it is adjudicated (ruling Z 1). This double
-        // has nothing durable to roll back: it runs the call, puts the rows to the gate
-        // and returns them.
-        fn supports_gated_writes(&self) -> bool {
-            true
-        }
-
-        async fn execute_function_call_gated(
-            &self,
-            function_name: &str,
-            args: &[serde_json::Value],
-            _session_vars: &[(&str, &str)],
-            _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
-            gate: fraiseql_db::MutationRowGate<'_>,
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            let rows = self.execute_function_call(function_name, args).await?;
-            gate(&rows)?;
-            Ok(rows)
-        }
-
-        async fn execute_function_call_with_changelog(
-            &self,
-            function_name: &str,
-            args: &[serde_json::Value],
-            _session_vars: &[(&str, &str)],
-            _changelog: Option<&ChangeLogWrite<'_>>,
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            self.execute_function_call(function_name, args).await
-        }
-
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -5427,7 +5313,59 @@ mod before_mutation_enforcement {
         }
     }
 
-    impl SupportsMutations for MutationCallLog {}
+    // The writes this double answers, called by its `Writer` impl below.
+    impl MutationCallLog {
+        async fn execute_function_call(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            self.calls.lock().unwrap().push((function_name.to_string(), args.to_vec()));
+            let mut row = std::collections::HashMap::new();
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
+            row.insert("entity".to_string(), json!({ "id": "1" }));
+            row.insert("entity_type".to_string(), json!("User"));
+            row.insert("message".to_string(), json!(""));
+            Ok(vec![row])
+        }
+
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            let rows = self.execute_function_call(function_name, args).await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl crate::backend::traits::Writer for MutationCallLog {
+        async fn execute_write(
+            &self,
+            request: &crate::backend::traits::WriteRequest<'_>,
+            gate: crate::backend::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            self.execute_function_call_gated(
+                request.function,
+                request.args,
+                request.session_vars,
+                request.changelog,
+                gate,
+            )
+            .await
+        }
+    }
 
     /// A gate that refuses exactly one mutation by name, records every mutation it
     /// was asked about in order, and records the arguments it was handed.
@@ -5981,61 +5919,6 @@ mod before_mutation_read_bridge {
 
     #[async_trait]
     impl DatabaseAdapter for ReadEchoAdapter {
-        // Writes: opted in, because both capability gates default to refusing.
-        fn supports_mutations(&self) -> bool {
-            true
-        }
-
-        // The row security these tests read under also makes a write refusable after its
-        // function ran, so the executor mounts mutations only over the gated write (ruling
-        // X 2). A write the gate refuses is not logged: it did not stand.
-        fn supports_gated_writes(&self) -> bool {
-            true
-        }
-
-        async fn execute_function_call_gated(
-            &self,
-            function_name: &str,
-            args: &[serde_json::Value],
-            _session_vars: &[(&str, &str)],
-            _changelog: Option<&ChangeLogWrite<'_>>,
-            gate: fraiseql_db::MutationRowGate<'_>,
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            let rows = self.execute_function_call(function_name, args).await?;
-            if let Err(refused) = gate(&rows) {
-                // The call above logged it; the refusal takes it back.
-                self.writes.lock().unwrap().pop();
-                return Err(refused);
-            }
-            Ok(rows)
-        }
-
-        async fn execute_function_call(
-            &self,
-            function_name: &str,
-            _args: &[serde_json::Value],
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            use serde_json::json;
-            self.writes.lock().unwrap().push(function_name.to_string());
-            let mut row = std::collections::HashMap::new();
-            row.insert("succeeded".to_string(), json!(true));
-            row.insert("state_changed".to_string(), json!(true));
-            row.insert("entity".to_string(), json!({ "id": "1" }));
-            row.insert("entity_type".to_string(), json!("User"));
-            row.insert("message".to_string(), json!(""));
-            Ok(vec![row])
-        }
-
-        async fn execute_function_call_with_changelog(
-            &self,
-            function_name: &str,
-            args: &[serde_json::Value],
-            _session_vars: &[(&str, &str)],
-            _changelog: Option<&ChangeLogWrite<'_>>,
-        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-            self.execute_function_call(function_name, args).await
-        }
-
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -6095,7 +5978,63 @@ mod before_mutation_read_bridge {
         }
     }
 
-    impl SupportsMutations for ReadEchoAdapter {}
+    // The writes this double answers, called by its `Writer` impl below.
+    impl ReadEchoAdapter {
+        async fn execute_function_call(
+            &self,
+            function_name: &str,
+            _args: &[serde_json::Value],
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            self.writes.lock().unwrap().push(function_name.to_string());
+            let mut row = std::collections::HashMap::new();
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
+            row.insert("entity".to_string(), json!({ "id": "1" }));
+            row.insert("entity_type".to_string(), json!("User"));
+            row.insert("message".to_string(), json!(""));
+            Ok(vec![row])
+        }
+
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            let rows = self.execute_function_call(function_name, args).await?;
+            if let Err(refused) = gate(&rows) {
+                // The call above logged it; the refusal takes it back.
+                self.writes.lock().unwrap().pop();
+                return Err(refused);
+            }
+            Ok(rows)
+        }
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl crate::backend::traits::Writer for ReadEchoAdapter {
+        async fn execute_write(
+            &self,
+            request: &crate::backend::traits::WriteRequest<'_>,
+            gate: crate::backend::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            self.execute_function_call_gated(
+                request.function,
+                request.args,
+                request.session_vars,
+                request.changelog,
+                gate,
+            )
+            .await
+        }
+    }
 
     /// `guarded(input: CreateUserInput!)` to write, `users` to read.
     fn schema_with_a_readable_query() -> CompiledSchema {
@@ -6406,61 +6345,6 @@ mod rest_write_body {
 
     #[async_trait]
     impl DatabaseAdapter for ArgLog {
-        // Declared with the gated write below (ruling X 2).
-        fn supports_gated_writes(&self) -> bool {
-            true
-        }
-
-        /// The commit gate (#1353) — see `field_authz::GatedEntityAdapter` for why a
-        /// double on a policy-gated schema has to implement this rather than inherit
-        /// the refusing default.
-        async fn execute_function_call_gated(
-            &self,
-            function_name: &str,
-            args: &[serde_json::Value],
-            session_vars: &[(&str, &str)],
-            changelog: Option<&ChangeLogWrite<'_>>,
-            gate: fraiseql_db::MutationRowGate<'_>,
-        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            let rows = self
-                .execute_function_call_with_changelog(function_name, args, session_vars, changelog)
-                .await?;
-            gate(&rows)?;
-            Ok(rows)
-        }
-
-        // Writes: opted in, because both capability gates default to refusing.
-        fn supports_mutations(&self) -> bool {
-            true
-        }
-
-        async fn execute_function_call(
-            &self,
-            function_name: &str,
-            args: &[serde_json::Value],
-        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            use serde_json::json;
-            self.calls.lock().unwrap().push((function_name.to_string(), args.to_vec()));
-            let mut row = HashMap::new();
-            row.insert("succeeded".to_string(), json!(true));
-            row.insert("state_changed".to_string(), json!(true));
-            row.insert("entity".to_string(), self.entity.clone());
-            // No `entity_type`: this double serves mutations of many return types, and a stamp
-            // must name the one each returns (ruling AA 1). Unstamped, it resolves to it.
-            row.insert("message".to_string(), json!(""));
-            Ok(vec![row])
-        }
-
-        async fn execute_function_call_with_changelog(
-            &self,
-            function_name: &str,
-            args: &[serde_json::Value],
-            _session_vars: &[(&str, &str)],
-            _changelog: Option<&ChangeLogWrite<'_>>,
-        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            self.execute_function_call(function_name, args).await
-        }
-
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -6517,7 +6401,75 @@ mod rest_write_body {
         }
     }
 
-    impl SupportsMutations for ArgLog {}
+    // The writes this double answers, called by its `Writer` impl below.
+    impl ArgLog {
+        async fn execute_function_call(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            use serde_json::json;
+            self.calls.lock().unwrap().push((function_name.to_string(), args.to_vec()));
+            let mut row = HashMap::new();
+            row.insert("succeeded".to_string(), json!(true));
+            row.insert("state_changed".to_string(), json!(true));
+            row.insert("entity".to_string(), self.entity.clone());
+            // No `entity_type`: this double serves mutations of many return types, and a stamp
+            // must name the one each returns (ruling AA 1). Unstamped, it resolves to it.
+            row.insert("message".to_string(), json!(""));
+            Ok(vec![row])
+        }
+
+        async fn execute_function_call_with_changelog(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+            _changelog: Option<&ChangeLogWrite<'_>>,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            self.execute_function_call(function_name, args).await
+        }
+
+        /// The commit gate (#1353) — see `field_authz::GatedEntityAdapter` for why a
+        /// double on a policy-gated schema has to implement this rather than inherit
+        /// the refusing default.
+        async fn execute_function_call_gated(
+            &self,
+            function_name: &str,
+            args: &[serde_json::Value],
+            session_vars: &[(&str, &str)],
+            changelog: Option<&ChangeLogWrite<'_>>,
+            gate: fraiseql_db::MutationRowGate<'_>,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            let rows = self
+                .execute_function_call_with_changelog(function_name, args, session_vars, changelog)
+                .await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl crate::backend::traits::Writer for ArgLog {
+        async fn execute_write(
+            &self,
+            request: &crate::backend::traits::WriteRequest<'_>,
+            gate: crate::backend::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            self.execute_function_call_gated(
+                request.function,
+                request.args,
+                request.session_vars,
+                request.changelog,
+                gate,
+            )
+            .await
+        }
+    }
 
     /// `createUser(input: CreateUserInput!)` — the nested shape, and
     /// `patchUser(id: ID!, input: CreateUserInput!)` for the by-ids bulk path, which
@@ -7164,29 +7116,6 @@ mod dry_run {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for DryRunAdapter {
-        fn supports_mutations(&self) -> bool {
-            true
-        }
-
-        fn supports_gated_writes(&self) -> bool {
-            true
-        }
-
-        async fn execute_function_call_dry_run(
-            &self,
-            _function_name: &str,
-            _args: &[serde_json::Value],
-            _session_vars: &[(&str, &str)],
-        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            self.dry_runs.fetch_add(1, Ordering::SeqCst);
-            Ok(vec![success_row()])
-        }
-
-        async fn bump_fact_table_versions(&self, _tables: &[String]) -> Result<()> {
-            self.bumps.fetch_add(1, Ordering::SeqCst);
-            Ok(())
-        }
-
         async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
             self.invalidation.fetch_add(1, Ordering::SeqCst);
             Ok(views.len() as u64)
@@ -7248,7 +7177,48 @@ mod dry_run {
         }
     }
 
-    impl SupportsMutations for DryRunAdapter {}
+    // The writes this double answers, called by its `Writer` impl below.
+    impl DryRunAdapter {
+        async fn execute_function_call_dry_run(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            self.dry_runs.fetch_add(1, Ordering::SeqCst);
+            Ok(vec![success_row()])
+        }
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait::async_trait]
+    impl crate::backend::traits::Writer for DryRunAdapter {
+        async fn execute_write(
+            &self,
+            request: &crate::backend::traits::WriteRequest<'_>,
+            gate: crate::backend::traits::MutationRowGate<'_>,
+        ) -> std::result::Result<
+            Vec<std::collections::HashMap<String, serde_json::Value>>,
+            crate::error::FraiseQLError,
+        > {
+            // Only the dry run answers; a commit is not what these tests are about.
+            if request.mode != crate::backend::traits::WriteMode::DryRun {
+                return Err(crate::error::FraiseQLError::Unsupported {
+                    message: "DryRunAdapter answers only dry runs".to_string(),
+                });
+            }
+            let rows = self
+                .execute_function_call_dry_run(request.function, request.args, request.session_vars)
+                .await?;
+            gate(&rows)?;
+            Ok(rows)
+        }
+
+        async fn bump_fact_table_versions(&self, _tables: &[String]) -> Result<()> {
+            self.bumps.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+    }
 
     /// `createPost: Post`, invalidating `v_post` and the fact table `tf_posts`.
     pub(super) fn schema() -> CompiledSchema {
@@ -7301,8 +7271,9 @@ mod dry_run {
             crate::cache::QueryResultCache::new(crate::cache::CacheConfig::enabled()),
             "1.0.0".to_string(),
         );
-        let rows = cached
-            .execute_function_call_dry_run("fn_create_post", &[], &[])
+        let request = crate::backend::WriteRequest::new("fn_create_post", &[])
+            .with_mode(crate::backend::WriteMode::DryRun);
+        let rows = crate::backend::Writer::execute_write(&cached, &request, &|_| Ok(()))
             .await
             .expect("a dry run reaches the wrapped writer");
         assert_eq!(rows.len(), 1);

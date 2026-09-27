@@ -76,8 +76,8 @@ use super::{
 };
 use crate::{
     backend::{
-        ChangeLogWrite, DatabaseAdapter, DatabaseType, PoolMetrics, SupportsMutations, WhereClause,
-        quote_postgres_identifier,
+        DatabaseAdapter, DatabaseType, MutationRowGate, PoolMetrics, WhereClause, WriteRequest,
+        Writer, quote_postgres_identifier,
         types::{JsonbValue, OrderByClause, ReadRouting},
     },
     cache::config::RlsEnforcement,
@@ -889,86 +889,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             .await
     }
 
-    async fn execute_function_call(
-        &self,
-        function_name: &str,
-        args: &[serde_json::Value],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Mutations are never cached — always delegate to the underlying adapter
-        self.adapter.execute_function_call(function_name, args).await
-    }
-
-    async fn execute_function_call_with_session(
-        &self,
-        function_name: &str,
-        args: &[serde_json::Value],
-        session_vars: &[(&str, &str)],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Mutations are never cached; pass through with session affinity.
-        self.adapter
-            .execute_function_call_with_session(function_name, args, session_vars)
-            .await
-    }
-
-    async fn execute_function_call_with_changelog(
-        &self,
-        function_name: &str,
-        args: &[serde_json::Value],
-        session_vars: &[(&str, &str)],
-        changelog: Option<&ChangeLogWrite<'_>>,
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Mutations are never cached; pass through so the in-txn outbox write
-        // reaches the underlying adapter (the Change Spine transactional outbox).
-        self.adapter
-            .execute_function_call_with_changelog(function_name, args, session_vars, changelog)
-            .await
-    }
-
-    async fn execute_function_call_dry_run(
-        &self,
-        function_name: &str,
-        args: &[serde_json::Value],
-        session_vars: &[(&str, &str)],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Pass through (ruling AD 4): the trait default refuses, so a cache-wrapped
-        // adapter that did not forward would make every dry run `Unsupported`.
-        self.adapter
-            .execute_function_call_dry_run(function_name, args, session_vars)
-            .await
-    }
-
-    async fn execute_function_call_gated(
-        &self,
-        function_name: &str,
-        args: &[serde_json::Value],
-        session_vars: &[(&str, &str)],
-        changelog: Option<&ChangeLogWrite<'_>>,
-        gate: fraiseql_db::MutationRowGate<'_>,
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Pass through, like every other write. Forwarding is load-bearing here:
-        // the trait default refuses (it cannot roll back), so a cache-wrapped
-        // PostgreSQL adapter that did not forward would turn every commit-gated
-        // mutation into an `Unsupported` error rather than a gated write (#1353).
-        self.adapter
-            .execute_function_call_gated(function_name, args, session_vars, changelog, gate)
-            .await
-    }
-
-    // Mutation-strategy delegation: a cache-wrapped adapter must report and use the
-    fn supports_mutations(&self) -> bool {
-        self.adapter.supports_mutations()
-    }
-
     // Forwarded with `execute_composed_with_session`, which it describes: the server wraps
     // every adapter in this one, so a default here would refuse embeds for all of them.
     fn supports_composed_reads(&self) -> bool {
         self.adapter.supports_composed_reads()
-    }
-
-    // Forwarded with `execute_function_call_gated`, for the same reason: a default here
-    // would refuse mutations on every gated schema the server serves.
-    fn supports_gated_writes(&self) -> bool {
-        self.adapter.supports_gated_writes()
     }
 
     async fn count_where_query(
@@ -1233,10 +1157,6 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         Ok(Some(before))
     }
 
-    async fn bump_fact_table_versions(&self, tables: &[String]) -> Result<()> {
-        self.bump_fact_table_versions_impl(tables).await
-    }
-
     async fn query_stats(&self, limit: u32) -> Result<Vec<fraiseql_db::QueryStatEntry>> {
         self.adapter.query_stats(limit).await
     }
@@ -1256,4 +1176,20 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
     }
 }
 
-impl<A: SupportsMutations + Send + Sync> SupportsMutations for CachedDatabaseAdapter<A> {}
+/// A cache-wrapped adapter writes exactly when the adapter it wraps does. Writes are never
+/// cached: every one passes through, in either mode (ruling AA 6).
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
+impl<A: Writer> Writer for CachedDatabaseAdapter<A> {
+    async fn execute_write(
+        &self,
+        request: &WriteRequest<'_>,
+        gate: MutationRowGate<'_>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        self.adapter.execute_write(request, gate).await
+    }
+
+    async fn bump_fact_table_versions(&self, tables: &[String]) -> Result<()> {
+        self.bump_fact_table_versions_impl(tables).await
+    }
+}

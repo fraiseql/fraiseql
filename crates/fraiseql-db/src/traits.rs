@@ -18,7 +18,7 @@ pub use composed_read::{
     EmbedShape, EmbedSource, LevelKeys, composed_read_unsupported,
 };
 use fraiseql_error::{FraiseQLError, Result};
-pub use mutations::SupportsMutations;
+pub use mutations::{WriteMode, WriteRequest, Writer};
 pub use relay::RelayDatabaseAdapter;
 
 use crate::{
@@ -33,9 +33,8 @@ use crate::{
 /// transaction that produced them and before it commits.
 ///
 /// `Ok(())` commits the transaction; `Err(e)` rolls it back and `e` reaches the
-/// caller. See
-/// [`execute_function_call_gated`](DatabaseAdapter::execute_function_call_gated)
-/// for why a write needs a decision seam this late (#1353).
+/// caller. See [`Writer::execute_write`] for why a write needs a decision seam this late
+/// (#1353).
 ///
 /// Synchronous by construction: the only decision taken here today is the field
 /// authorizer's, whose `authorize_field` is itself synchronous, and holding an open
@@ -51,8 +50,7 @@ pub type MutationRowGate<'a> = &'a (
 /// `app.mutation_response` row it already holds: the DML verb and a NOT-NULL
 /// `object_type` fallback. The changed-entity identity + payload (`object_id`,
 /// `object_data`, `updated_fields`, `cascade`) are read from the function's own
-/// returned row inside the same transaction (see
-/// [`DatabaseAdapter::execute_function_call_with_changelog`]).
+/// returned row inside the same transaction (see [`Writer::execute_write`]).
 ///
 /// This is the Change Spine transactional-outbox contract. Beyond the
 /// `object_type`/`modification_type` + changed-entity columns, it stamps the
@@ -811,9 +809,9 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     ///
     /// Applies `session_vars` transaction-locally on the same connection that
     /// runs the aggregate, so aggregate views backed by `current_setting()` RLS
-    /// observe the configured values (fixes #329 for the aggregate path). See
-    /// [`execute_function_call_with_session`](Self::execute_function_call_with_session)
-    /// for the non-PostgreSQL default behaviour.
+    /// observe the configured values (fixes #329 for the aggregate path). The default
+    /// ignores `session_vars`: a backend without transaction-local settings has none to
+    /// apply.
     ///
     /// # Errors
     ///
@@ -827,73 +825,6 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         _routing: ReadRouting,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         self.execute_parameterized_aggregate(sql, params).await
-    }
-
-    /// Execute a database function call and return all columns as rows.
-    ///
-    /// Builds `SELECT * FROM {function_name}($1, $2, ...)` with one positional placeholder per
-    /// argument, executes it with the provided JSON values, and returns each result row as a
-    /// `HashMap<column_name, json_value>`.
-    ///
-    /// Used by the mutation execution pathway to call stored procedures that return the
-    /// `app.mutation_response` composite type
-    /// `(status, message, entity_id, entity_type, entity jsonb, updated_fields text[],
-    ///   cascade jsonb, metadata jsonb)`.
-    ///
-    /// # Arguments
-    ///
-    /// * `function_name` - Fully-qualified function name (e.g. `fn_create_machine`)
-    /// * `args` - Positional JSON arguments passed as `$1, $2, …` bind parameters
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Database` on query execution failure.
-    /// Returns `FraiseQLError::Unsupported` on adapters that do not support mutations
-    /// (default implementation — see [`SupportsMutations`]).
-    async fn execute_function_call(
-        &self,
-        function_name: &str,
-        _args: &[serde_json::Value],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Err(FraiseQLError::Unsupported {
-            message: format!(
-                "Mutations via function calls are not supported by this adapter. \
-                 Function '{function_name}' cannot be executed. \
-                 Use the PostgreSQL adapter for mutation support."
-            ),
-        })
-    }
-
-    /// Returns `true` if this adapter supports GraphQL mutation operations.
-    ///
-    /// **This is the authoritative mutation gate.** The executor checks this method
-    /// before dispatching any mutation. Adapters that return `false` will cause
-    /// mutations to fail with a clear `FraiseQLError::Validation` diagnostic instead
-    /// of silently calling the unsupported `execute_function_call` default.
-    ///
-    /// Override to return `false` for read-only adapters — `FraiseWireAdapter` is the
-    /// one in this workspace. The compile-time [`SupportsMutations`] marker trait
-    /// complements this runtime check — see its documentation for the distinction.
-    ///
-    /// ⚠ The two layers are not equally safe, and the difference decides what a
-    /// forgetful adapter author gets. [`SupportsMutations`] is **opt-in**: an adapter
-    /// that says nothing cannot be used to construct a write-capable executor at all.
-    /// This method is **opt-out**: an adapter that says nothing is granted writes. So
-    /// this one is a backstop behind the marker rather than a replacement for it. Both
-    /// now fail closed: an adapter that implements neither is refused at construction by
-    /// the marker and, if it somehow reached one, at dispatch by this method — the
-    /// executor's write handle is populated only where the two agree.
-    ///
-    /// # Default
-    ///
-    /// Returns `false`. An adapter is assumed read-only until it says otherwise, so an
-    /// adapter that never considered writes is refused them rather than granted them.
-    ///
-    /// The default used to be `true`, which is how this gate came to be a no-op for
-    /// `FraiseWireAdapter` — the one adapter its own documentation told to override it.
-    /// A write capability is not something a backend should acquire by omission.
-    fn supports_mutations(&self) -> bool {
-        false
     }
 
     /// Whether this adapter implements
@@ -910,51 +841,6 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     /// something a backend should acquire by omission.
     fn supports_composed_reads(&self) -> bool {
         false
-    }
-
-    /// Whether this adapter implements
-    /// [`execute_function_call_gated`](Self::execute_function_call_gated) — whether a
-    /// write's commit can wait for a decision taken over the rows it returned, so that a
-    /// refusal there takes the write with it.
-    ///
-    /// Asked once, when an executor is built. Every write commits only once its response
-    /// has been built from the rows its function returned — so a refusal there (an
-    /// `authorize` field, a read gate the payload meets) or a failure (no rows, a row that
-    /// is not a `mutation_response`) rolls it back. An executor over an adapter that answers
-    /// `false` does not mount mutations: it says so at boot, naming the adapter, and refuses
-    /// every mutation with `501`. Never a write committed before it was adjudicated, and
-    /// never a refusal the first write discovers.
-    ///
-    /// **Implementing `execute_function_call_gated` obliges you to override this too**, and
-    /// a wrapping adapter must forward both. Defaults to `false`: a capability is not
-    /// something a backend should acquire by omission.
-    fn supports_gated_writes(&self) -> bool {
-        false
-    }
-
-    /// Bump fact table version counters after a successful mutation.
-    ///
-    /// Called by the executor when a mutation definition declares
-    /// `invalidates_fact_tables`. For each listed table the version counter is
-    /// incremented so that subsequent aggregation queries miss the cache and
-    /// re-fetch fresh data.
-    ///
-    /// The default implementation is a **no-op**: adapters that are not cache-
-    /// aware (e.g. `PostgresAdapter`) simply return `Ok(())`.
-    /// `CachedDatabaseAdapter` overrides this to call `bump_tf_version($1)` for
-    /// every `FactTableVersionStrategy::VersionTable` table and update the
-    /// in-process version cache.
-    ///
-    /// # Arguments
-    ///
-    /// * `tables` - Fact table names declared by the mutation (validated SQL identifiers; originate
-    ///   from `MutationDefinition.invalidates_fact_tables`)
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Database` if the version-bump SQL function fails.
-    async fn bump_fact_table_versions(&self, _tables: &[String]) -> Result<()> {
-        Ok(())
     }
 
     /// Invalidate cached query results for the specified views.
@@ -1069,182 +955,12 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         })
     }
 
-    /// Execute a database function call after pinning session variables on the
-    /// **same connection** within the **same transaction** as the call.
-    ///
-    /// This is the connection-affine variant of
-    /// [`execute_function_call`](Self::execute_function_call): the `set_config(..., true)`
-    /// calls and the `SELECT * FROM fn(...)` call share one pooled connection inside one
-    /// transaction, so transaction-local GUCs are visible to the function body (fixes #329).
-    ///
-    /// Adapters that do not support session variables (MySQL, SQLite, SQL
-    /// Server, mocks) inherit the default implementation, which silently drops
-    /// `session_vars` and delegates to [`execute_function_call`](Self::execute_function_call) —
-    /// safe, because those backends never applied session variables in the first
-    /// place.
-    ///
-    /// # Arguments
-    ///
-    /// * `function_name` - Fully-qualified function name
-    /// * `args` - Positional JSON arguments passed as `$1, $2, …`
-    /// * `session_vars` - `(setting_name, value)` pairs applied with `SELECT set_config(name,
-    ///   value, true)` before the function call. Pass `&[]` when no session variables are
-    ///   configured.
-    ///
-    /// # Errors
-    ///
-    /// Same as [`execute_function_call`](Self::execute_function_call); additionally returns
-    /// `FraiseQLError::Database` if `set_config` fails on any pair.
-    async fn execute_function_call_with_session(
-        &self,
-        function_name: &str,
-        args: &[serde_json::Value],
-        _session_vars: &[(&str, &str)],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Default: ignore session_vars and delegate. Safe for non-PostgreSQL
-        // adapters, which never applied session variables in the first place.
-        self.execute_function_call(function_name, args).await
-    }
-
-    /// Connection-affine variant of
-    /// [`execute_function_call_with_session`](Self::execute_function_call_with_session)
-    /// that **also writes one `core.tb_entity_change_log` row in the same
-    /// transaction** as the mutation function — the Change Spine transactional
-    /// outbox.
-    ///
-    /// When `changelog` is `Some`, the framework owns the change-log write: a
-    /// single statement runs the function and INSERTs the outbox row atomically
-    /// on the same connection, so `fraiseql.started_at` (set txn-locally for the
-    /// `duration_ms` computation) is visible and a crash leaves neither the
-    /// mutation nor the log row. The changed-entity columns are read from the
-    /// function's own `app.mutation_response` row; only the DML verb and a
-    /// NOT-NULL `object_type` fallback are threaded in via [`ChangeLogWrite`].
-    /// The row is written only for an effective change (`succeeded` AND
-    /// `state_changed`).
-    ///
-    /// When `changelog` is `None`, behaviour is identical to
-    /// [`execute_function_call_with_session`](Self::execute_function_call_with_session).
-    ///
-    /// PostgreSQL, MySQL, and SQL Server each override this with a real in-txn
-    /// write. PostgreSQL runs one `MATERIALIZED` CTE that calls the function and
-    /// INSERTs the outbox row atomically; MySQL and SQL Server cannot reference a
-    /// `CALL`/`EXEC` result set in a following `INSERT … SELECT`, so they open a
-    /// transaction, parse the `app.mutation_response` row in Rust, and INSERT the
-    /// outbox row (via [`crate::changelog::build_changelog_insert_sql`]) on the same
-    /// connection before commit. On those two dialects `duration_ms` / `started_at`
-    /// are legitimately NULL (no request-scoped DB clock).
-    ///
-    /// SQLite (read-only) and mocks inherit the default below, which drops
-    /// `changelog` and delegates — so those mutations still run, they just write no
-    /// outbox row.
-    ///
-    /// # Errors
-    ///
-    /// Same as
-    /// [`execute_function_call_with_session`](Self::execute_function_call_with_session);
-    /// additionally returns `FraiseQLError::Database` if the outbox INSERT fails
-    /// (e.g. the contract migration has not been applied).
-    async fn execute_function_call_with_changelog(
-        &self,
-        function_name: &str,
-        args: &[serde_json::Value],
-        session_vars: &[(&str, &str)],
-        _changelog: Option<&ChangeLogWrite<'_>>,
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        // Default: ignore the change-log write and delegate. SQLite (read-only) and
-        // mocks keep this no-op; PostgreSQL / MySQL / SQL Server override it.
-        self.execute_function_call_with_session(function_name, args, session_vars).await
-    }
-
-    /// Validate-bind-without-commit variant of
-    /// [`execute_function_call`](Self::execute_function_call): run the mutation
-    /// function inside a transaction that is **rolled back** instead of committed.
-    ///
-    /// The function binds and executes — so constraints, triggers, and the
-    /// `app.mutation_response` shape are all exercised — but no writes persist and
-    /// no change-log outbox row is emitted. Powers `fraiseql query --dry-run` and
-    /// the `doctor --runtime` mutation probes (driven by the executor's
-    /// `RuntimeConfig::dry_run_mutations` flag).
-    ///
-    /// Only the PostgreSQL adapter overrides this today; every other adapter keeps
-    /// the default below, which returns `Unsupported` rather than silently
-    /// committing.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Unsupported` on adapters that do not implement a
-    /// rollback path. PostgreSQL returns `FraiseQLError::Database` on execution
-    /// failure (mirroring [`execute_function_call`](Self::execute_function_call)).
-    async fn execute_function_call_dry_run(
-        &self,
-        _function_name: &str,
-        _args: &[serde_json::Value],
-        _session_vars: &[(&str, &str)],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Err(FraiseQLError::Unsupported {
-            message:
-                "--dry-run mutations (validate-bind-without-commit) are only supported by the \
-                      PostgreSQL adapter."
-                    .to_string(),
-        })
-    }
-
-    /// Commit-gated variant of
-    /// [`execute_function_call_with_changelog`](Self::execute_function_call_with_changelog):
-    /// run the mutation function (and its outbox write) in a transaction, hand the
-    /// rows it returned to `gate`, and commit only if `gate` agrees.
-    ///
-    /// This is the seam for a decision that *cannot* be made before the write —
-    /// one keyed on the row the function produced. The field-level authorizer
-    /// (#423) is exactly that: its contract takes the resolved entity as `parent`,
-    /// so before #1353 it could only refuse the *result* of a write that had
-    /// already committed. Running it here lets it refuse the write itself. Every write
-    /// takes it, so that building the response — which can fail on any schema — decides
-    /// the commit too (ruling Z 1).
-    ///
-    /// `gate` returning `Err` rolls the transaction back; that error is what the
-    /// caller receives. `Ok(())` commits, exactly as the ungated method would.
-    ///
-    /// It always takes an explicit transaction, so it gives up the no-session fast path
-    /// that [`execute_function_call_with_session`](Self::execute_function_call_with_session)
-    /// keeps. With the change-log outbox on (the default) the ungated write takes the same
-    /// transaction; the fast path only ever applied with the outbox off, no session
-    /// variables and no mutation timing.
-    ///
-    /// Only the PostgreSQL adapter overrides this today. The default below returns
-    /// `Unsupported` rather than committing an ungated write: an adapter that
-    /// cannot roll back must not be the one to decide that a refusal is survivable.
-    /// An executor does not reach it on such an adapter: it refuses mutations when it is
-    /// built ([`supports_gated_writes`](Self::supports_gated_writes)). Override both.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Unsupported` on adapters with no rollback path,
-    /// whatever `gate` returns on a refusal, or `FraiseQLError::Database` on
-    /// execution / transaction failure.
-    async fn execute_function_call_gated(
-        &self,
-        _function_name: &str,
-        _args: &[serde_json::Value],
-        _session_vars: &[(&str, &str)],
-        _changelog: Option<&ChangeLogWrite<'_>>,
-        _gate: MutationRowGate<'_>,
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Err(FraiseQLError::Unsupported {
-            message: "Commit-gated mutations (the seam that lets the field authorizer refuse \
-                      the write rather than only its result, #1353) are only supported by the \
-                      PostgreSQL adapter."
-                .to_string(),
-        })
-    }
-
     /// Connection-affine variant of [`execute_where_query_arc`](Self::execute_where_query_arc).
     ///
     /// Applies `session_vars` transaction-locally on the same connection that
     /// runs the read, so PostgreSQL Row-Level-Security policies backed by
-    /// `current_setting()` see the configured values (fixes #329). See
-    /// [`execute_function_call_with_session`](Self::execute_function_call_with_session) for the
-    /// rationale and the non-PostgreSQL default behaviour.
+    /// `current_setting()` see the configured values (fixes #329). The default ignores
+    /// `session_vars`: a backend without transaction-local settings has none to apply.
     ///
     /// # Errors
     ///

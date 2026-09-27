@@ -18,7 +18,7 @@
 //! `--test '*'` integration leg, or a local spawn with `local-testcontainers`).
 //! Uniquely-named objects (`*_1353`) keep it isolated from the shared database.
 
-use fraiseql_db::{DatabaseAdapter, PostgresAdapter};
+use fraiseql_db::{PostgresAdapter, Writer as _};
 use fraiseql_error::FraiseQLError;
 use serde_json::json;
 
@@ -114,11 +114,11 @@ async fn refusing_gate_rolls_the_write_back() {
         Err(refusal())
     };
     let err = adapter
-        .execute_function_call_gated(
-            "public.fn_commit_gate_refuse_1353",
-            &[json!(id.to_string()), json!("someone-else")],
-            &[],
-            None,
+        .execute_write(
+            &fraiseql_db::WriteRequest::new(
+                "public.fn_commit_gate_refuse_1353",
+                &[json!(id.to_string()), json!("someone-else")],
+            ),
             &gate,
         )
         .await
@@ -145,11 +145,11 @@ async fn allowing_gate_commits_the_write() {
     let id = uuid::Uuid::new_v4();
     let gate = |_rows: &[std::collections::HashMap<String, serde_json::Value>]| Ok(());
     let rows = adapter
-        .execute_function_call_gated(
-            "public.fn_commit_gate_allow_1353",
-            &[json!(id.to_string()), json!("owner-1")],
-            &[],
-            None,
+        .execute_write(
+            &fraiseql_db::WriteRequest::new(
+                "public.fn_commit_gate_allow_1353",
+                &[json!(id.to_string()), json!("owner-1")],
+            ),
             &gate,
         )
         .await
@@ -177,11 +177,12 @@ async fn refusing_gate_rolls_back_the_outbox_row_too() {
     let changelog = fraiseql_db::ChangeLogWrite::new("Thing", "INSERT");
     let gate = |_rows: &[std::collections::HashMap<String, serde_json::Value>]| Err(refusal());
     let err = adapter
-        .execute_function_call_gated(
-            "public.fn_commit_gate_outbox_1353",
-            &[json!(id.to_string()), json!("someone-else")],
-            &[],
-            Some(&changelog),
+        .execute_write(
+            &fraiseql_db::WriteRequest::new(
+                "public.fn_commit_gate_outbox_1353",
+                &[json!(id.to_string()), json!("someone-else")],
+            )
+            .with_changelog(Some(&changelog)),
             &gate,
         )
         .await

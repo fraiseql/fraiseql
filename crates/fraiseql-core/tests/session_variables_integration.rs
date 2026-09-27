@@ -24,7 +24,9 @@
 
 mod common;
 
-use fraiseql_core::db::{DatabaseAdapter, RelayDatabaseAdapter, postgres::PostgresAdapter};
+use fraiseql_core::db::{
+    DatabaseAdapter, RelayDatabaseAdapter, Writer as _, postgres::PostgresAdapter,
+};
 
 /// Connect a fresh adapter (its own pool) to the shared container and install a
 /// function `fn_show_tenant_<key>()` that echoes the GUC `app.tenant_id_<key>`.
@@ -52,10 +54,10 @@ async fn function_call_with_session_sees_set_config() {
     let adapter = adapter_with_echo_fn("fncall").await;
 
     let rows = adapter
-        .execute_function_call_with_session(
-            "fn_show_tenant_fncall",
-            &[],
-            &[("app.tenant_id_fncall", "tenant-abc")],
+        .execute_write(
+            &fraiseql_core::db::WriteRequest::new("fn_show_tenant_fncall", &[])
+                .with_session_vars(&[("app.tenant_id_fncall", "tenant-abc")]),
+            &|_| Ok(()),
         )
         .await
         .unwrap();

@@ -191,8 +191,8 @@ pub fn warn_if_embeds_are_refused(executor: &fraiseql_core::runtime::Executor) {
 /// Returns `None` if `rest_config` is absent or `enabled` is `false`, or if
 /// route derivation fails.
 ///
-/// Does **not** require `SupportsMutations` — suitable for read-only adapters such
-/// as `FraiseWireAdapter`.
+/// Does **not** require a `Writer` — suitable for read-only adapters such as
+/// `FraiseWireAdapter`.
 ///
 /// The returned router is *not* nested — the caller must merge it into the
 /// application router. Rate limiting, CORS, tracing and the body-size limit are
@@ -273,8 +273,8 @@ pub fn rest_query_router(state: &AppState, mount: &RestMountConfig) -> Option<Ro
 /// Returns `None` if `rest_config` is absent or `enabled` is `false`, or if
 /// route derivation fails.
 ///
-/// Requires `SupportsMutations` because mutation handlers call
-/// `Executor::execute_mutation()` which has the same compile-time bound.
+/// Its write handlers refuse unless the executor holds a write handle, which only a
+/// constructor bounded on `Writer` gives it.
 ///
 /// The returned router is *not* nested — the caller must merge it into the
 /// application router. Rate limiting, CORS, tracing and the body-size limit are

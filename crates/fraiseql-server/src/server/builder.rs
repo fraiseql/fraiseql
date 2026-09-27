@@ -6,7 +6,7 @@ use std::sync::Arc;
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
     cache::CachedDatabaseAdapter,
-    db::traits::{DatabaseAdapter, SupportsMutations},
+    db::traits::{DatabaseAdapter, Writer},
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
     security::{AuthConfig, AuthMiddleware, OidcValidator},
@@ -194,18 +194,18 @@ impl Server {
     /// let server = Server::new(config, schema, adapter, None).await?;
     /// server.serve().await?;
     /// ```
-    pub async fn new<A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static>(
+    pub async fn new<A: Writer + Clone + Send + Sync + 'static>(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,
         db_pool: Option<sqlx::PgPool>,
     ) -> Result<Self> {
-        // The write-capable arm: `Executor::with_config` is bounded on
-        // `SupportsMutations`, and naming it here is what requires this impl block's
-        // bound. `new_read_only` names the other constructor and carries no bound.
-        // Boxed here rather than at every call site: `new_inner` nests the whole
-        // subsystem-construction future inside this one, which puts it past clippy's
-        // 16-KiB `large_futures` threshold. One allocation at startup.
+        // The write-capable arm: `Executor::with_config` is bounded on `Writer`, and
+        // naming it here is what requires this impl block's bound. `new_read_only` names the other
+        // constructor and carries no bound. Boxed here rather than at every call site:
+        // `new_inner` nests the whole subsystem-construction future inside this one, which
+        // puts it past clippy's 16-KiB `large_futures` threshold. One allocation at
+        // startup.
         Box::pin(Self::new_inner(config, schema, adapter, db_pool, Executor::with_config)).await
     }
 }
@@ -213,13 +213,10 @@ impl Server {
 impl Server {
     /// Create a new server that cannot write.
     ///
-    /// The entry for a backend that does not declare
-    /// [`SupportsMutations`] — today
-    /// `FraiseWireAdapter`, which the `wire-backend` feature dispatches to. That
-    /// deployment has always been read-only; until now nothing in its construction said
-    /// so, and it relied on the write entries being unreachable for its adapter. It now
-    /// states it, and mutations are refused with a diagnostic naming both capability
-    /// gates instead of failing somewhere further in.
+    /// The entry for a backend that is not a [`Writer`] — today `FraiseWireAdapter`,
+    /// which the `wire-backend` feature dispatches to. That deployment has always been
+    /// read-only; its construction states it, and mutations are refused with a diagnostic
+    /// instead of failing somewhere further in.
     ///
     /// # Errors
     ///
@@ -1766,14 +1763,14 @@ impl Server {
 
 /// Builder methods for the REST **write** surface.
 ///
-/// This block used to be bounded on `SupportsMutations`, which is what kept the write
+/// This block used to be bounded on the write capability, which is what kept the write
 /// routes off a read-only adapter. The bound has nowhere left to sit: `Server` no
 /// longer names the adapter type, so there is no `A` to constrain here. What stands in
 /// its place is not a compile error at this call site — it is a refusal underneath
-/// every write path. The executor resolves its write handle once, at construction, as
-/// the intersection of both capability gates, and no dispatch can happen without that
-/// handle. Mounting these routes over a read-only executor therefore mounts routes
-/// that refuse, naming both gates, rather than routes that could not be mounted.
+/// every write path. The executor holds a write handle only when a constructor bounded
+/// on `Writer` built it, and no dispatch can happen without that handle. Mounting these routes over
+/// a read-only executor therefore mounts routes that refuse, naming both gates, rather than routes
+/// that could not be mounted.
 #[cfg(feature = "rest")]
 impl Server {
     /// Mount the REST **write** surface — `POST`/`PUT`/`PATCH`/`DELETE` on derived
@@ -1787,8 +1784,8 @@ impl Server {
     ///
     /// Call it from the boot path, before `serve`. Mounting it over an executor built
     /// by [`Executor::read_only`](fraiseql_core::runtime::Executor::read_only) — the
-    /// entry for `FraiseWireAdapter` and any other adapter that does not declare
-    /// `SupportsMutations` — is not an error: the routes mount and every one of them
+    /// entry for `FraiseWireAdapter` and any other adapter that is not a `Writer` — is not
+    /// an error: the routes mount and every one of them
     /// refuses at dispatch, because the executor holds no write handle to give them.
     ///
     /// The router still passes through `Server::attach_auth` at the shared mount site,

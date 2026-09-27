@@ -25,7 +25,7 @@ use serde_json::json;
 
 use super::*;
 use crate::{
-    WhereClause, WhereOperator,
+    WhereClause, WhereOperator, Writer as _,
     traits::{DatabaseAdapter, ProjectionRequest},
     types::DatabaseType,
 };
@@ -626,7 +626,9 @@ async fn test_execute_function_call_with_timing_disabled() {
 
     // Calling a nonexistent function should produce a Database error,
     // not a timing-related error — verifying the non-timing path is taken.
-    let result = adapter.execute_function_call("fn_nonexistent", &[]).await;
+    let result = adapter
+        .execute_write(&crate::WriteRequest::new("fn_nonexistent", &[]), &|_| Ok(()))
+        .await;
     assert!(
         matches!(result, Err(FraiseQLError::Database { .. })),
         "expected Database error for nonexistent function (timing disabled), got: {result:?}"
@@ -639,7 +641,9 @@ async fn test_execute_function_call_with_timing_enabled() {
 
     // Calling a nonexistent function should still produce a Database error,
     // but the timing transaction wrapping should not cause a different error type.
-    let result = adapter.execute_function_call("fn_nonexistent", &[]).await;
+    let result = adapter
+        .execute_write(&crate::WriteRequest::new("fn_nonexistent", &[]), &|_| Ok(()))
+        .await;
     assert!(
         matches!(result, Err(FraiseQLError::Database { .. })),
         "expected Database error for nonexistent function (timing enabled), got: {result:?}"
@@ -1422,7 +1426,10 @@ async fn writes_route_to_primary_with_replicas_configured() {
     let adapter = rr_adapter(&primary_url, &replica_url, std::time::Duration::from_secs(30)).await;
 
     adapter
-        .execute_function_call("fn_rr_insert", &[json!({"id": 2, "label": "written"})])
+        .execute_write(
+            &crate::WriteRequest::new("fn_rr_insert", &[json!({"id": 2, "label": "written"})]),
+            &|_| Ok(()),
+        )
         .await
         .expect("mutation through the replica-routed adapter");
 
@@ -1455,7 +1462,10 @@ async fn read_after_write_cannot_serve_the_stale_replica_row() {
     assert_eq!(rr_read_marker(&adapter).await, "from-replica");
 
     adapter
-        .execute_function_call("fn_rr_insert", &[json!({"id": 2, "label": "own-write"})])
+        .execute_write(
+            &crate::WriteRequest::new("fn_rr_insert", &[json!({"id": 2, "label": "own-write"})]),
+            &|_| Ok(()),
+        )
         .await
         .expect("mutation");
 
@@ -1492,7 +1502,10 @@ async fn reads_return_to_the_replica_after_the_pin_expires() {
         rr_adapter(&primary_url, &replica_url, std::time::Duration::from_millis(300)).await;
 
     adapter
-        .execute_function_call("fn_rr_insert", &[json!({"id": 2, "label": "written"})])
+        .execute_write(
+            &crate::WriteRequest::new("fn_rr_insert", &[json!({"id": 2, "label": "written"})]),
+            &|_| Ok(()),
+        )
         .await
         .expect("mutation");
 

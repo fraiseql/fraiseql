@@ -71,9 +71,7 @@ fn build_grpc_service_for_test(
 /// hand the policy to the handler as an argument; passing it through the executor is
 /// the same assertion made one layer closer to how a deployment actually configures it.
 fn executor_with_policy<
-    A: fraiseql_core::db::traits::DatabaseAdapter
-        + fraiseql_core::db::traits::SupportsMutations
-        + 'static,
+    A: fraiseql_core::db::traits::DatabaseAdapter + fraiseql_core::db::traits::Writer + 'static,
 >(
     schema: &CompiledSchema,
     adapter: Arc<A>,
@@ -1821,9 +1819,7 @@ impl fraiseql_core::security::Authorizer for GrpcAllowAll {
 }
 
 fn executor_with_runtime_config<
-    A: fraiseql_core::db::traits::DatabaseAdapter
-        + fraiseql_core::db::traits::SupportsMutations
-        + 'static,
+    A: fraiseql_core::db::traits::DatabaseAdapter + fraiseql_core::db::traits::Writer + 'static,
 >(
     schema: &CompiledSchema,
     adapter: Arc<A>,

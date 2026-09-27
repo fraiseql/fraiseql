@@ -52,30 +52,15 @@ pub(super) struct ExecutorContext {
 
     /// Type-erased **write** capability slot.
     ///
-    /// `Some` only when both capability gates agreed at construction: the executor
-    /// was built through a constructor bounded on [`SupportsMutations`] (compile
-    /// time, opt-in) *and* the adapter's
-    /// [`supports_mutations()`](DatabaseAdapter::supports_mutations) returned `true`
-    /// (runtime, opt-out backstop). Until now the two were, in the marker trait's own
-    /// words, "stated rather than enforced" — an adapter could carry the marker and
-    /// never override the method, and the typed write entries, which skipped the
-    /// runtime check *because* they had the bound, would dispatch it anyway. This slot
-    /// is their intersection, computed once, in one place.
+    /// The write handle: `Some` exactly when the executor was built through a constructor
+    /// bounded on [`Writer`](crate::backend::Writer) — implementing `execute_write` is the
+    /// capability (ruling AA 6).
     ///
     /// Every write dispatch takes its handle from here, so **obtaining the handle is
     /// the check**. That is the property a boolean does not have: there is no way to
     /// reach the database and forget to consult it. It is the shape `relay` next door
     /// already uses.
-    pub(super) writer: Option<Arc<dyn DatabaseAdapter>>,
-
-    /// Why the write grant above is not handed out, when it is not: every write's commit
-    /// waits for its response, and the adapter cannot run a write whose commit waits
-    /// (rulings X 2, Z 1). Decided once, at construction, and refused with by
-    /// [`Self::writer`] — so the refusal every mutation gets is the one the boot logged.
-    ///
-    /// Kept beside the grant rather than instead of it, because a rebuild recomputes this
-    /// and carries the grant over.
-    pub(super) writes_refused: Option<String>,
+    pub(super) writer: Option<Arc<dyn crate::backend::Writer>>,
 
     /// Type-erased relay capability slot.
     ///
@@ -140,29 +125,17 @@ impl ExecutorContext {
     ///
     /// # Errors
     ///
-    /// [`FraiseQLError::Unsupported`] (`501`) when the executor refused mutations at build
-    /// (`writes_refused`) — without the adapter, which was logged then and is not the
-    /// caller's to learn; otherwise [`FraiseQLError::Validation`] naming the
-    /// mutation and both capability gates.
-    pub(super) fn writer(&self, mutation_name: &str) -> Result<&dyn DatabaseAdapter> {
-        if self.writes_refused.is_some() {
-            return Err(crate::error::FraiseQLError::Unsupported {
-                message: format!(
-                    "Mutation '{mutation_name}' cannot be executed: mutations are not mounted \
-                     on this server, because its database adapter cannot hold a write's \
-                     commit until the write's response is built. The adapter was logged \
-                     when the executor was built."
-                ),
-            });
-        }
+    /// [`FraiseQLError::Validation`] naming the mutation when the executor was built
+    /// read-only.
+    pub(super) fn writer(&self, mutation_name: &str) -> Result<&dyn crate::backend::Writer> {
         self.writer.as_deref().ok_or_else(|| crate::error::FraiseQLError::Validation {
             message: format!(
                 "Mutation '{mutation_name}' cannot be executed: the configured database \
-                 adapter is read-only. A write-capable adapter implements the \
-                 `SupportsMutations` marker and returns `true` from \
-                 `supports_mutations()` — both default to refusing, and an executor is \
-                 write-capable only when both agree. `PostgresAdapter` does; \
-                 `FraiseWireAdapter` deliberately does not."
+                 adapter is read-only, so this executor runs no mutations. A write-capable \
+                 adapter implements `Writer` \
+                 (`execute_write`), and the executor is built with `Executor::new` or \
+                 `Executor::with_config`. `PostgresAdapter` does; `FraiseWireAdapter` \
+                 deliberately does not."
             ),
             path:    None,
         })

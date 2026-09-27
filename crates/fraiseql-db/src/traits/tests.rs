@@ -103,32 +103,6 @@ mod trait_defaults {
         ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
             Ok(Vec::new())
         }
-
-        async fn execute_function_call(
-            &self,
-            _function_name: &str,
-            _args: &[serde_json::Value],
-        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-            Ok(Vec::new())
-        }
-    }
-
-    /// An adapter that says nothing about mutations must not be granted them.
-    ///
-    /// `CollectOnlyAdapter` implements `DatabaseAdapter`, does **not** implement the
-    /// opt-in [`SupportsMutations`](crate::traits::SupportsMutations) marker, and does
-    /// not override `supports_mutations()`. That is the shape every new backend and
-    /// every test double has before anyone has thought about writes.
-    ///
-    /// It is a sharp witness because its `execute_function_call` returns `Ok`: under
-    /// the permissive default this adapter was handed a write *and reported success*.
-    #[test]
-    fn an_adapter_that_says_nothing_is_refused_mutations() {
-        let adapter = CollectOnlyAdapter { rows: Vec::new() };
-        assert!(
-            !adapter.supports_mutations(),
-            "silence must mean refused: this adapter never opted in to writes"
-        );
     }
 
     #[tokio::test]

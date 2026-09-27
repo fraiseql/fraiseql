@@ -325,9 +325,9 @@ pub struct RuntimeConfig {
     /// emitted. Powers the `fraiseql query --dry-run` CLI smoke check and the
     /// `doctor --runtime` mutation probes.
     ///
-    /// Currently honoured only by the PostgreSQL adapter; other adapters return
-    /// a `Validation` error from `execute_function_call_dry_run` rather than
-    /// silently committing. Queries are unaffected (they never commit).
+    /// A dry run is the same write in `WriteMode::DryRun` (ruling AA 6): the same
+    /// transaction, session variables, outbox row and gate, ending in a rollback, and
+    /// nothing that follows a commit follows it. Queries are unaffected (they never commit).
     pub dry_run_mutations: bool,
 
     /// Response-size guards for the typed cascade surface (graphql-cascade

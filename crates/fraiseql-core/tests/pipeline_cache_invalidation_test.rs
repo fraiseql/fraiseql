@@ -25,7 +25,7 @@ use fraiseql_core::{
         QueryResultCache,
     },
     db::{
-        traits::{DatabaseAdapter, SupportsMutations},
+        traits::DatabaseAdapter,
         types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -54,11 +54,6 @@ impl InnerMockAdapter {
 // its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for InnerMockAdapter {
-    // Writes: opted in, because both capability gates default to refusing.
-    fn supports_mutations(&self) -> bool {
-        true
-    }
-
     async fn execute_with_projection(
         &self,
         _view: &str,
@@ -113,7 +108,10 @@ impl DatabaseAdapter for InnerMockAdapter {
     ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
+}
 
+// The writes this double answers, called by its `Writer` impl below.
+impl InnerMockAdapter {
     async fn execute_function_call(
         &self,
         function_name: &str,
@@ -127,13 +125,6 @@ impl DatabaseAdapter for InnerMockAdapter {
             return Ok(vec![row]);
         }
         Ok(vec![self.mutation_row.clone()])
-    }
-
-    // Every write commits only once it is adjudicated (ruling Z 1). This double
-    // has nothing durable to roll back: it runs the call, puts the rows to the gate
-    // and returns them.
-    fn supports_gated_writes(&self) -> bool {
-        true
     }
 
     async fn execute_function_call_gated(
@@ -150,7 +141,27 @@ impl DatabaseAdapter for InnerMockAdapter {
     }
 }
 
-impl SupportsMutations for InnerMockAdapter {}
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait::async_trait]
+impl fraiseql_core::db::traits::Writer for InnerMockAdapter {
+    async fn execute_write(
+        &self,
+        request: &fraiseql_core::db::traits::WriteRequest<'_>,
+        gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+    ) -> std::result::Result<
+        Vec<std::collections::HashMap<String, serde_json::Value>>,
+        fraiseql_core::error::FraiseQLError,
+    > {
+        self.execute_function_call_gated(
+            request.function,
+            request.args,
+            request.session_vars,
+            request.changelog,
+            gate,
+        )
+        .await
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Helpers

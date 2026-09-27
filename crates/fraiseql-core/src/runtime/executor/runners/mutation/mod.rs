@@ -796,14 +796,15 @@ fn nested_input_type_name(field_type: &str, schema: &CompiledSchema) -> Option<S
 /// The caller is **not** responsible for establishing write capability. It used to be,
 /// by one of two means — a `SupportsMutations` bound or a `supports_mutations()` guard —
 /// and the first caller above met it with the bound, which speaks only for the marker.
-/// Step 0 below resolves the executor's write slot, which is the intersection of both
-/// gates, and the handle it returns is the only way to reach the database from here.
+/// Step 0 below resolves the executor's write handle — present exactly when a constructor
+/// bounded on `Writer` built it — and that handle is the only way to reach the database
+/// from here.
 ///
 /// # Errors
 ///
 /// * [`FraiseQLError::Validation`] — mutation not found, no `sql_source`, missing security context
 ///   for `inject` params, or database function returned no rows.
-/// * [`FraiseQLError::Database`] — the adapter's `execute_function_call` failed.
+/// * [`FraiseQLError::Database`] — the adapter's `execute_write` failed.
 ///
 /// `response_key` is the key the result appears under in `data` — the document's
 /// alias when it has one, otherwise `mutation_name`. Two roots calling the same
@@ -1705,67 +1706,61 @@ pub(in super::super) async fn execute_mutation_impl(
             Ok::<_, FraiseQLError>((envelope, result_json))
         };
 
-        if ctx.config.dry_run_mutations {
-            // Validate-bind-without-commit (#501): run the function inside a
-            // transaction the adapter rolls back, so nothing persists and no
-            // outbox row is written. The `changelog` descriptor above is unused
-            // on this path. PostgreSQL implements the rollback; other adapters
-            // return `Unsupported` rather than silently committing. Nothing here
-            // needs a commit gate — the commit never comes.
-            let rows =
-                writer.execute_function_call_dry_run(sql_source, &args, &session_pairs).await?;
-            adjudicate(&rows)?
+        // Every write commits only once it has been adjudicated (ruling Z 1): the
+        // response is built from the row inside the write's transaction, and its
+        // verdict decides the commit.
+        //
+        // #1353 is why a refusal must be able to take the write with it: the field
+        // authorizer's contract takes the resolved entity as `parent`, so it cannot be
+        // asked before the row exists, and a caller it refused used to lose the field
+        // and keep the side effect. Everything that *can* be asked earlier already ran
+        // before the write (the operation `Authorizer`, `requires_role`,
+        // `requires_actor`, `before:mutation`, and the payload's static gates above).
+        //
+        // But building the response can fail on any schema, gated or not — no rows, a
+        // row that is not a `mutation_response`, a malformed cascade entry, the cascade
+        // size ceiling. A write that committed and then failed told its caller it failed
+        // while it had landed, and stored no idempotency record, so a retry ran it again.
+        // So it is not only a refusal that decides: every write takes this path. With the
+        // change-log outbox on (the default) the write is in this transaction anyway; the
+        // gate only moves the adjudication before `COMMIT`.
+        //
+        // The write commits only if adjudication completed without error: `adjudicate`
+        // returned `Ok`. That is not the same as every field being allowed — a `Mask`
+        // decision nulls one field on one row and returns `Ok`, because it is a statement
+        // about the value, not the operation. Any `Err` rolls back and is returned
+        // unchanged, whatever its variant.
+        let built = std::sync::OnceLock::new();
+        let gate = |rows: &[std::collections::HashMap<String, serde_json::Value>]| {
+            drop(built.set(adjudicate(rows)?));
+            Ok(())
+        };
+        // A dry run (#501, `dry_run_mutations`) is the same write in
+        // `WriteMode::DryRun` (ruling AA 6): the same transaction, session variables,
+        // outbox row and gate, ending in a rollback — so it answers exactly as the write
+        // would, and nothing persists.
+        //
+        // The adapter returns the gate's error verbatim once the rollback has
+        // landed — so a refusal, a failed rollback and a failed commit all surface
+        // here, and a failed rollback surfaces as itself rather than as the error
+        // it was trying to honour.
+        let mode = if ctx.config.dry_run_mutations {
+            crate::backend::WriteMode::DryRun
         } else {
-            // Every write commits only once it has been adjudicated (ruling Z 1): the
-            // response is built from the row inside the write's transaction, and its
-            // verdict decides the commit.
-            //
-            // #1353 is why a refusal must be able to take the write with it: the field
-            // authorizer's contract takes the resolved entity as `parent`, so it cannot be
-            // asked before the row exists, and a caller it refused used to lose the field
-            // and keep the side effect. Everything that *can* be asked earlier already ran
-            // before the write (the operation `Authorizer`, `requires_role`,
-            // `requires_actor`, `before:mutation`, and the payload's static gates above).
-            //
-            // But building the response can fail on any schema, gated or not — no rows, a
-            // row that is not a `mutation_response`, a malformed cascade entry, the cascade
-            // size ceiling. A write that committed and then failed told its caller it failed
-            // while it had landed, and stored no idempotency record, so a retry ran it again.
-            // So it is not only a refusal that decides: every write takes this path. With the
-            // change-log outbox on (the default) the write is in this transaction anyway; the
-            // gate only moves the adjudication before `COMMIT`.
-            //
-            // The write commits only if adjudication completed without error: `adjudicate`
-            // returned `Ok`. That is not the same as every field being allowed — a `Mask`
-            // decision nulls one field on one row and returns `Ok`, because it is a statement
-            // about the value, not the operation. Any `Err` rolls back and is returned
-            // unchanged, whatever its variant.
-            let built = std::sync::OnceLock::new();
-            let gate = |rows: &[std::collections::HashMap<String, serde_json::Value>]| {
-                drop(built.set(adjudicate(rows)?));
-                Ok(())
-            };
-            // The adapter returns the gate's error verbatim once the rollback has
-            // landed — so a refusal, a failed rollback and a failed commit all surface
-            // here, and a failed rollback surfaces as itself rather than as the error
-            // it was trying to honour.
-            writer
-                .execute_function_call_gated(
-                    sql_source,
-                    &args,
-                    &session_pairs,
-                    changelog.as_ref(),
-                    &gate,
-                )
-                .await?;
-            built.into_inner().ok_or_else(|| FraiseQLError::Internal {
-                message: format!(
-                    "Mutation '{mutation_name}': the commit gate never ran, so the write \
+            crate::backend::WriteMode::Commit
+        };
+        let request = crate::backend::WriteRequest::new(sql_source, &args)
+            .with_session_vars(&session_pairs)
+            .with_changelog(changelog.as_ref())
+            .with_mode(mode);
+        writer.execute_write(&request, &gate).await?;
+        built.into_inner().ok_or_else(|| FraiseQLError::Internal {
+            message: format!(
+                "Mutation '{mutation_name}': the commit gate never ran, so the write \
                      committed unadjudicated"
-                ),
-                source:  None,
-            })?
-        }
+            ),
+            source:  None,
+        })?
     };
 
     // What follows a commit follows only a commit (ruling AD 3): a dry run rolled back,

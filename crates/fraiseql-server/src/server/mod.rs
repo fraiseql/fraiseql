@@ -288,7 +288,7 @@ pub struct Server {
     /// the collection-level bulk routes).
     ///
     /// Set by a boot path whose concrete adapter implements
-    /// [`SupportsMutations`](fraiseql_core::db::traits::SupportsMutations), via
+    /// [`Writer`](fraiseql_core::db::traits::Writer), via
     /// [`Server::with_rest_write_surface`]. `None` — the default — mounts only the
     /// read-only `rest_query_router`, which is the correct posture for adapters that
     /// cannot execute mutations at all.

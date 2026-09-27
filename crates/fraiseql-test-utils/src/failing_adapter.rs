@@ -15,9 +15,9 @@ use std::{
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        CursorValue, DatabaseAdapter, DatabaseType, RelayDatabaseAdapter, SupportsMutations,
-        WhereClause,
-        traits::RelayPageResult,
+        CursorValue, DatabaseAdapter, DatabaseType, RelayDatabaseAdapter, WhereClause,
+        WriteRequest, Writer,
+        traits::{MutationRowGate, RelayPageResult},
         types::{ColumnSpec, ColumnValue, JsonbValue, OrderByClause, PoolMetrics},
     },
     error::{FraiseQLError, Result},
@@ -347,11 +347,6 @@ impl Default for FailingAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl DatabaseAdapter for FailingAdapter {
-    // Writes: opted in, because both capability gates default to refusing.
-    fn supports_mutations(&self) -> bool {
-        true
-    }
-
     async fn execute_where_query(
         &self,
         view: &str,
@@ -417,35 +412,6 @@ impl DatabaseAdapter for FailingAdapter {
         Ok(vec![])
     }
 
-    async fn execute_function_call(
-        &self,
-        function_name: &str,
-        _args: &[serde_json::Value],
-    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-        self.function_rows(function_name)
-    }
-
-    // Every write commits only once it is adjudicated: the runner takes the commit-gated
-    // write for all of them. This adapter has nothing durable to roll back, so it puts the
-    // configured rows to the gate and returns them — the PostgreSQL adapter's contract,
-    // minus durability.
-    fn supports_gated_writes(&self) -> bool {
-        true
-    }
-
-    async fn execute_function_call_gated(
-        &self,
-        function_name: &str,
-        _args: &[serde_json::Value],
-        _session_vars: &[(&str, &str)],
-        _changelog: Option<&fraiseql_core::db::traits::ChangeLogWrite<'_>>,
-        gate: fraiseql_core::db::traits::MutationRowGate<'_>,
-    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
-        let rows = self.function_rows(function_name)?;
-        gate(&rows)?;
-        Ok(rows)
-    }
-
     async fn execute_row_query(
         &self,
         view_name: &str,
@@ -465,7 +431,22 @@ impl DatabaseAdapter for FailingAdapter {
     }
 }
 
-impl SupportsMutations for FailingAdapter {}
+// Every write commits only once it is adjudicated. This adapter has nothing durable to
+// roll back, so it puts the configured rows to the gate and returns them — the PostgreSQL
+// adapter's contract, minus durability — in either mode.
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
+impl Writer for FailingAdapter {
+    async fn execute_write(
+        &self,
+        request: &WriteRequest<'_>,
+        gate: MutationRowGate<'_>,
+    ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+        let rows = self.function_rows(request.function)?;
+        gate(&rows)?;
+        Ok(rows)
+    }
+}
 
 impl RelayDatabaseAdapter for FailingAdapter {
     // Reason: this adapter exists to fail fast without touching a database; the trait

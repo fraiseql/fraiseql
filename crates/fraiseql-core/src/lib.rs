@@ -131,7 +131,7 @@ pub mod db {
         // not as a way to reach the cache: the executor mediates every operation on it.
         traits::{
             self, ArcDatabaseAdapter, CursorValue, DatabaseAdapter, RelayDatabaseAdapter,
-            ResultCacheStats, SupportsMutations,
+            ResultCacheStats, WriteMode, WriteRequest, Writer,
         },
         types::{
             self, DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

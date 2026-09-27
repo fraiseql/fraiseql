@@ -55,10 +55,9 @@
 set -euo pipefail
 cd "$(git rev-parse --show-toplevel)"
 
-# The adapter layer IMPLEMENTS these methods, so it necessarily calls them: the trait's
-# own default impls, the PostgreSQL adapter's internal fallbacks, and the caching
-# adapter that wraps another adapter and forwards. None of them is a route — they sit
-# BELOW the chokepoint, not around it. `cache/adapter/mutation.rs` additionally calls
+# The adapter layer IMPLEMENTS the write, so it necessarily calls it: the caching adapter
+# wraps another adapter and forwards. None of it is a route — it sits BELOW the
+# chokepoint, not around it. `cache/adapter/mutation.rs` additionally writes
 # `bump_tf_version`, a cache-invalidation function, which is not a user mutation.
 ALLOWED_DIRS='crates/fraiseql-db/src/|crates/fraiseql-core/src/cache/adapter/'
 
@@ -69,13 +68,12 @@ CHOKEPOINT='crates/fraiseql-core/src/runtime/executor/runners/mutation/mod.rs'
 # Empty since #1330: every transport converges on the chokepoint.
 KNOWN=''
 
-# Every adapter method that performs a write: the `execute_function_call*` family, which is
-# the stored-function strategy and now the only one. `execute_direct_mutation` was the second
-# alternative here until the `DirectSql` strategy was deleted — no adapter had been able to
-# return it since #374, so the arm was unreachable and untested. A pattern naming a method
-# that no longer exists is the same stale claim this gate just stopped making about its own
-# allowlist: it reads as coverage and matches nothing.
-PATTERN='\.execute_function_call(_with_session|_with_changelog|_dry_run)?\s*\('
+# The adapter's one write method: `Writer::execute_write` (ruling AA 6), which replaced the
+# `execute_function_call*` family. That family's pattern had stopped at the three variants
+# it was written against and never matched `_gated`, the one every write took by then — a
+# pattern that reads as coverage and matches nothing. With one method there is one name to
+# match, and the old ones cannot come back: they no longer exist.
+PATTERN='\.execute_write\s*\('
 
 # Rule 2's two halves. A file matching BOTH constructs a write statement and dispatches it
 # outside the chokepoint. Deliberately not keyed on the builder function names alone: a raw

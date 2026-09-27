@@ -65,7 +65,7 @@ pub enum RpcKind {
         /// Row message descriptor (the entity type, e.g., `User`).
         row_descriptor: MessageDescriptor,
     },
-    /// A mutation that calls a database function via `execute_function_call()`.
+    /// A mutation that calls a database function through the engine's write path.
     Mutation {
         /// SQL function name (e.g., `"fn_create_user"`).
         function_name: String,
@@ -438,7 +438,7 @@ pub(super) fn grpc_query_match(
 
 /// Execute a gRPC mutation by calling the database function.
 ///
-/// Maps the `execute_function_call()` result to a protobuf `MutationResponse`
+/// Maps the mutation's result to a protobuf `MutationResponse`
 /// message with `success`, `id`, and `error` fields.
 ///
 /// # Errors

@@ -157,7 +157,7 @@ mod pool_factory_tests {
         db::{
             WhereClause,
             postgres::{PostgresTlsConfig, ReadReplicaPolicy},
-            traits::{DatabaseAdapter, SupportsMutations},
+            traits::DatabaseAdapter,
             types::{DatabaseType, JsonbValue, PoolMetrics},
         },
         error::Result as FraiseQLResult,
@@ -170,6 +170,21 @@ mod pool_factory_tests {
     /// Stub adapter that implements `FromPoolConfig` for testing.
     #[derive(Debug, Clone)]
     struct StubPoolAdapter;
+
+    // The tenant executor is built write-capable; this double refuses every write, as its missing
+    // override used to.
+    #[async_trait]
+    impl fraiseql_core::db::Writer for StubPoolAdapter {
+        async fn execute_write(
+            &self,
+            _request: &fraiseql_core::db::WriteRequest<'_>,
+            _gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+        ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Err(FraiseQLError::Unsupported {
+                message: "StubPoolAdapter does not write".to_string(),
+            })
+        }
+    }
 
     #[async_trait]
     impl DatabaseAdapter for StubPoolAdapter {
@@ -229,7 +244,6 @@ mod pool_factory_tests {
     // producer is not exercises a shape no tenant ever has. It does not override
     // `supports_mutations()`, so the executor these build still refuses writes;
     // these tests are about pool construction, not dispatch.
-    impl SupportsMutations for StubPoolAdapter {}
 
     #[async_trait]
     impl FromPoolConfig for StubPoolAdapter {
@@ -314,6 +328,21 @@ mod pool_factory_tests {
     #[derive(Debug, Clone)]
     struct FailingAdapter;
 
+    // The tenant executor is built write-capable; this double refuses every write, as its missing
+    // override used to.
+    #[async_trait]
+    impl fraiseql_core::db::Writer for FailingAdapter {
+        async fn execute_write(
+            &self,
+            _request: &fraiseql_core::db::WriteRequest<'_>,
+            _gate: fraiseql_core::db::traits::MutationRowGate<'_>,
+        ) -> FraiseQLResult<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+            Err(FraiseQLError::Unsupported {
+                message: "FailingAdapter does not write".to_string(),
+            })
+        }
+    }
+
     #[async_trait]
     impl DatabaseAdapter for FailingAdapter {
         async fn execute_where_query(
@@ -372,7 +401,6 @@ mod pool_factory_tests {
     // producer is not exercises a shape no tenant ever has. It does not override
     // `supports_mutations()`, so the executor these build still refuses writes;
     // these tests are about pool construction, not dispatch.
-    impl SupportsMutations for FailingAdapter {}
 
     #[async_trait]
     impl FromPoolConfig for FailingAdapter {

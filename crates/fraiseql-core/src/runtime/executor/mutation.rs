@@ -29,11 +29,11 @@ use crate::{
 /// runtime gate `execute_function_call` is keyed on, and these entries skipped that check
 /// on the strength of the bound. An adapter carrying one and not the other was dispatched.
 ///
-/// The question is now asked once, at step 0 of the chokepoint, against a slot resolved at
-/// construction from *both* gates. The compile-time refusal did not disappear: it moved to
-/// `Executor::new`, which is bounded on `SupportsMutations` and is where the
-/// `compile_fail` pair now lives. An adapter that declares nothing still cannot be built
-/// into a write-capable executor.
+/// The question is now asked once, at step 0 of the chokepoint, against the write handle
+/// the executor holds. The compile-time refusal did not disappear: it lives on
+/// `Executor::new`, which is bounded on `Writer` — implementing its one method is the
+/// capability (ruling AA 6) — and is where the `compile_fail` pair lives. An adapter that
+/// does not write cannot be built into a write-capable executor.
 impl Executor {
     /// Construct a mutation runner on demand.
     ///
@@ -46,8 +46,8 @@ impl Executor {
     ///
     /// Unlike `execute()`, which accepts a raw GraphQL string, this takes the mutation
     /// name and variables directly. Capability is settled by the executor's write slot:
-    /// an executor built by [`Executor::read_only`], or from an adapter whose
-    /// `supports_mutations()` returns `false`, refuses here before any other gate runs.
+    /// an executor built by [`Executor::read_only`] holds no write handle and refuses here
+    /// before any other gate runs.
     ///
     /// # Arguments
     ///
@@ -240,21 +240,21 @@ impl Executor {
     /// Execute a GraphQL mutation by calling the configured database function.
     ///
     /// This is the **runtime-guarded** entry point called from [`execute_internal`] when the
-    /// query is classified as a mutation. It checks `adapter.supports_mutations()` at runtime
-    /// (because `execute_internal` is bounded only on `DatabaseAdapter`) and delegates to the
-    /// shared [`execute_mutation_impl`](runners::mutation::execute_mutation_impl) function.
+    /// query is classified as a mutation. It delegates to the shared
+    /// [`execute_mutation_impl`](runners::mutation::execute_mutation_impl) function, which
+    /// refuses unless the executor holds a write handle.
     ///
     /// # Errors
     ///
     /// * [`FraiseQLError::Validation`] — the adapter does not support mutations, mutation name not
     ///   found in the compiled schema, no `sql_source` configured, or the database function
     ///   returned no rows.
-    /// * [`FraiseQLError::Database`] — the adapter's `execute_function_call` returned an error.
+    /// * [`FraiseQLError::Database`] — the adapter's `execute_write` returned an error.
     ///
     /// # Example
     ///
     /// ```no_run
-    /// // Requires: live database adapter with SupportsMutations implementation.
+    /// // Requires: a live database adapter implementing `Writer`.
     /// // See: tests/integration/ for runnable examples.
     /// # use fraiseql_core::db::postgres::PostgresAdapter;
     /// # use fraiseql_core::graphql::FieldSelection;

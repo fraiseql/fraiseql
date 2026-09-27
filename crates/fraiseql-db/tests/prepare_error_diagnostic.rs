@@ -15,7 +15,7 @@
 //! `integrationPostgres` leg, or a local spawn with the `local-testcontainers`
 //! feature). It touches no shared tables, so it is isolation-safe.
 
-use fraiseql_db::{DatabaseAdapter, PostgresAdapter};
+use fraiseql_db::{PostgresAdapter, Writer as _};
 use fraiseql_error::FraiseQLError;
 
 #[tokio::test]
@@ -29,7 +29,7 @@ async fn prepare_failure_surfaces_postgres_diagnostic() {
     // Parse time with SQLSTATE 42883 before any execution happens.
     let missing_fn = "fraiseql_test_nonexistent_fn_42883";
     let err = adapter
-        .execute_function_call(missing_fn, &[])
+        .execute_write(&fraiseql_db::WriteRequest::new(missing_fn, &[]), &|_| Ok(()))
         .await
         .expect_err("calling a non-existent function must fail");
 

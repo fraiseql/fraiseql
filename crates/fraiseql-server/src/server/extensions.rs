@@ -6,7 +6,7 @@ use std::sync::Arc;
 #[cfg(feature = "arrow")]
 use fraiseql_arrow::FraiseQLFlightService;
 use fraiseql_core::{
-    db::traits::{DatabaseAdapter, RelayDatabaseAdapter, SupportsMutations},
+    db::traits::{RelayDatabaseAdapter, Writer},
     runtime::{Executor, SubscriptionManager},
     schema::CompiledSchema,
 };
@@ -51,7 +51,7 @@ impl Server {
     /// server.serve().await?;
     /// ```
     pub async fn with_relay_pagination<
-        A: DatabaseAdapter + RelayDatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
+        A: Writer + RelayDatabaseAdapter + Clone + Send + Sync + 'static,
     >(
         config: ServerConfig,
         schema: CompiledSchema,
@@ -137,9 +137,7 @@ impl Server {
     /// reaches the mutation runner, so nothing invalidates the result cache for the views
     /// over the uploaded table and GraphQL reads would serve pre-upload rows until the TTL
     /// expired. Also returns an error if OIDC validator initialization fails.
-    pub async fn with_flight_service<
-        A: DatabaseAdapter + SupportsMutations + Clone + Send + Sync + 'static,
-    >(
+    pub async fn with_flight_service<A: Writer + Clone + Send + Sync + 'static>(
         config: ServerConfig,
         schema: CompiledSchema,
         adapter: Arc<A>,

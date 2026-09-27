@@ -12,7 +12,7 @@ use super::{
 use crate::{
     backend::{
         AdminSqlOutcome, AdminSqlRequest, RelayDatabaseAdapter, ResultCacheStats,
-        traits::{DatabaseAdapter, SupportsMutations},
+        traits::{DatabaseAdapter, Writer},
         types::{DatabaseType, PoolMetrics, QueryStatEntry},
     },
     cache::ViewName,
@@ -47,20 +47,6 @@ fn build_introspection(schema: &CompiledSchema) -> IntrospectionResponses {
     }
 
     introspection
-}
-
-/// Why an executor over `adapter_name` does not mount mutations: every write's commit
-/// waits for its response to be built from the row the function returned, and the adapter
-/// cannot run a write whose commit waits (`DatabaseAdapter::supports_gated_writes`).
-fn writes_refused_message(adapter_name: &str) -> String {
-    format!(
-        "Mutations are not mounted: every write commits only once its response has been \
-         built from the row its function returned, so that a refusal or a failure there \
-         rolls the write back, and the database adapter `{adapter_name}` does not \
-         implement the commit-gated write (`supports_gated_writes()` is false). Serving a \
-         write without it would commit writes whose callers are told they failed; the \
-         PostgreSQL adapter implements it."
-    )
 }
 
 /// Resolve the GATE-1 validator for an executor (#379).
@@ -181,9 +167,9 @@ const MAX_PG_IDENTIFIER_LEN: usize = 63;
 /// engine with.
 ///
 /// The capability that the type parameter used to carry is carried by a value instead.
-/// A constructor bounded on [`SupportsMutations`] resolves a write handle, and only if
-/// the adapter's `supports_mutations()` agrees; everything else gets `None` and refuses
-/// every write. See [`Executor::new`] and [`Executor::read_only`].
+/// A constructor bounded on [`Writer`] holds the adapter as its write handle; everything
+/// else holds `None` and refuses every write. See [`Executor::new`] and
+/// [`Executor::read_only`].
 ///
 /// # Ownership and Lifetimes
 ///
@@ -225,22 +211,11 @@ pub struct Executor {
     pub(super) ctx: Arc<ExecutorContext>,
 }
 
-/// Whether a constructor may hand the executor a write handle.
-///
-/// Private on purpose: the only way to obtain `Permitted` is to call a constructor
-/// bounded on [`SupportsMutations`], so the compile-time gate cannot be routed around
-/// from outside this module. Matched exhaustively at the one site that reads it, so a
-/// third state cannot be absorbed by a wildcard arm.
-enum Writes {
-    Permitted,
-    Refused,
-}
-
 /// Compile-time enforcement lives here, on the **constructor**.
 ///
 /// The bound on this block is what keeps a read-only adapter from ever being handed a
 /// write handle. Its witness is `FraiseWireAdapter`, which implements `DatabaseAdapter`
-/// and deliberately not `SupportsMutations`.
+/// and deliberately not `Writer`.
 ///
 /// ⚠ **The two blocks below are a pair, and only the pair is the assertion.** A
 /// `compile_fail` block is satisfied by *any* compile error, including one with nothing
@@ -274,15 +249,10 @@ enum Writes {
 impl Executor {
     /// Create a new write-capable executor.
     ///
-    /// Available only for adapters that declare [`SupportsMutations`]. For one that
-    /// does not — or one whose write capability you do not want to grant — use
-    /// [`read_only`](Executor::read_only), which is bounded only on `DatabaseAdapter`.
-    ///
-    /// Carrying the marker is necessary but not sufficient: the adapter's
-    /// [`supports_mutations()`](DatabaseAdapter::supports_mutations) must also return
-    /// `true`. An adapter that states one and not the other gets a read-only executor,
-    /// because the two gates are meant to be a pair and this is where the pairing stops
-    /// being merely stated.
+    /// Available only for adapters that implement [`Writer`] — implementing its one
+    /// method is the write capability (ruling AA 6). For one that does not — or one whose
+    /// write capability you do not want to grant — use [`read_only`](Executor::read_only),
+    /// which is bounded only on `DatabaseAdapter`.
     ///
     /// # Arguments
     ///
@@ -307,10 +277,7 @@ impl Executor {
     /// # Ok(()) }
     /// ```
     #[must_use]
-    pub fn new<A: DatabaseAdapter + SupportsMutations>(
-        schema: CompiledSchema,
-        adapter: Arc<A>,
-    ) -> Self {
+    pub fn new<A: Writer>(schema: CompiledSchema, adapter: Arc<A>) -> Self {
         Self::with_config(schema, adapter, RuntimeConfig::default())
     }
 
@@ -322,23 +289,22 @@ impl Executor {
     /// * `adapter` - Database adapter
     /// * `config` - Runtime configuration
     #[must_use]
-    pub fn with_config<A: DatabaseAdapter + SupportsMutations>(
+    pub fn with_config<A: Writer>(
         schema: CompiledSchema,
         adapter: Arc<A>,
         config: RuntimeConfig,
     ) -> Self {
+        let writer: Arc<dyn Writer> = Arc::clone(&adapter) as Arc<dyn Writer>;
         let adapter: Arc<dyn DatabaseAdapter> = adapter;
-        let writer = Self::resolve_writer(&adapter, &Writes::Permitted);
-        Self::build(schema, adapter, std::any::type_name::<A>(), config, None, writer)
+        Self::build(schema, adapter, std::any::type_name::<A>(), config, None, Some(writer))
     }
 
     /// Create a new executor that cannot write.
     ///
-    /// The entry for an adapter that does not declare [`SupportsMutations`] — a
-    /// read-replica handle, `FraiseWireAdapter`, a read-only test double — and for a
-    /// write-capable adapter you want to expose read-only. Mutations are refused with a
-    /// diagnostic naming both capability gates, on every transport, because the refusal
-    /// is the absence of a handle rather than a check somebody has to remember.
+    /// The entry for an adapter that is not a [`Writer`] — a read-replica handle,
+    /// `FraiseWireAdapter`, a read-only test double — and for a write-capable adapter you
+    /// want to expose read-only. Mutations are refused on every transport, because the
+    /// refusal is the absence of a handle rather than a check somebody has to remember.
     ///
     /// # Arguments
     ///
@@ -363,26 +329,7 @@ impl Executor {
         config: RuntimeConfig,
     ) -> Self {
         let adapter: Arc<dyn DatabaseAdapter> = adapter;
-        let writer = Self::resolve_writer(&adapter, &Writes::Refused);
-        Self::build(schema, adapter, std::any::type_name::<A>(), config, None, writer)
-    }
-
-    /// Resolve the write slot as the *intersection* of the two capability gates.
-    ///
-    /// Reaching this with `Writes::Permitted` already required a constructor bounded on
-    /// `SupportsMutations` — the compile-time, opt-in gate. `supports_mutations()` is
-    /// the runtime, opt-out backstop, and it has to agree. An adapter that carries the
-    /// marker and never overrode the method resolves to `None`: the trait documentation
-    /// calls that pairing "stated rather than enforced", and this is the one line that
-    /// enforces it.
-    fn resolve_writer(
-        adapter: &Arc<dyn DatabaseAdapter>,
-        writes: &Writes,
-    ) -> Option<Arc<dyn DatabaseAdapter>> {
-        match writes {
-            Writes::Permitted if adapter.supports_mutations() => Some(Arc::clone(adapter)),
-            Writes::Permitted | Writes::Refused => None,
-        }
+        Self::build(schema, adapter, std::any::type_name::<A>(), config, None, None)
     }
 
     /// The one construction path. Every public constructor and every rebuild funnels
@@ -395,17 +342,15 @@ impl Executor {
     /// constructor that still knows it, for the one diagnostic that has to say which
     /// adapter it means.
     ///
-    /// `writer` is the write grant the two capability gates resolved. It is not always the
-    /// write handle: every write commits only once its response is built, so an adapter
-    /// that cannot hold a commit for that gets no mutations (rulings X 2, Z 1). That is
-    /// decided here, at boot and again at every rebuild.
+    /// `writer` is the write handle: `Some` exactly when a constructor bounded on [`Writer`]
+    /// built the executor.
     fn build(
         schema: CompiledSchema,
         adapter: Arc<dyn DatabaseAdapter>,
         adapter_name: &'static str,
         config: RuntimeConfig,
         relay: Option<Arc<dyn RelayDispatch>>,
-        writer: Option<Arc<dyn DatabaseAdapter>>,
+        writer: Option<Arc<dyn Writer>>,
     ) -> Self {
         let gate1 = resolve_gate1(&config, &schema);
         // One depth bound: the resolver refuses at the gate's depth, so a document the
@@ -437,15 +382,6 @@ impl Executor {
         // every write needs the commit-gated write. An adapter without it gets no
         // mutations, decided here and said once, rather than a refusal per request or a
         // write committed before it was adjudicated.
-        let writes_refused = match &writer {
-            Some(_) if !adapter.supports_gated_writes() => {
-                let message = writes_refused_message(adapter_name);
-                tracing::error!(adapter = adapter_name, "{message}");
-                Some(message)
-            },
-            _ => None,
-        };
-
         let nested_row_gates = super::runners::query_nested::NestedRowGates::build(
             &schema,
             config.rls_policy.as_deref(),
@@ -457,7 +393,6 @@ impl Executor {
             adapter,
             adapter_name,
             writer,
-            writes_refused,
             relay,
             matcher,
             planner,
@@ -513,17 +448,6 @@ impl Executor {
     #[must_use]
     pub fn relay_enabled(&self) -> bool {
         self.ctx.relay.is_some()
-    }
-
-    /// Why this executor does not mount mutations although its adapter can write, or
-    /// `None` when it does, or when it could not write anyway.
-    ///
-    /// `Some` when the adapter does not implement the commit-gated write every write
-    /// takes (rulings X 2, Z 1): the message names the adapter. Decided when the executor
-    /// was built, and every mutation is refused with it (`501`).
-    #[must_use]
-    pub fn writes_refused(&self) -> Option<&str> {
-        self.ctx.writes_refused.as_deref()
     }
 
     /// Which backend this executor is bound to.
@@ -1100,9 +1024,7 @@ impl Executor {
     /// # Ok(()) }
     /// ```
     #[must_use]
-    pub fn new_with_relay<
-        A: DatabaseAdapter + RelayDatabaseAdapter + SupportsMutations + 'static,
-    >(
+    pub fn new_with_relay<A: Writer + RelayDatabaseAdapter + 'static>(
         schema: CompiledSchema,
         adapter: Arc<A>,
     ) -> Self {
@@ -1111,24 +1033,22 @@ impl Executor {
 
     /// Create a new executor with relay support and custom configuration.
     #[must_use]
-    pub fn with_config_and_relay<
-        A: DatabaseAdapter + RelayDatabaseAdapter + SupportsMutations + 'static,
-    >(
+    pub fn with_config_and_relay<A: Writer + RelayDatabaseAdapter + 'static>(
         schema: CompiledSchema,
         adapter: Arc<A>,
         config: RuntimeConfig,
     ) -> Self {
         let relay_dispatch: Arc<dyn RelayDispatch> =
             Arc::new(RelayDispatchImpl(Arc::clone(&adapter)));
+        let writer: Arc<dyn Writer> = Arc::clone(&adapter) as Arc<dyn Writer>;
         let adapter: Arc<dyn DatabaseAdapter> = adapter;
-        let writer = Self::resolve_writer(&adapter, &Writes::Permitted);
         Self::build(
             schema,
             adapter,
             std::any::type_name::<A>(),
             config,
             Some(relay_dispatch),
-            writer,
+            Some(writer),
         )
     }
 }

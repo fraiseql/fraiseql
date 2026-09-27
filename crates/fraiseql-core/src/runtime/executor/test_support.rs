@@ -14,7 +14,7 @@ use indexmap::IndexMap;
 
 use crate::{
     backend::{
-        CursorValue, RelayPageResult, SupportsMutations,
+        CursorValue, MutationRowGate, RelayPageResult, WriteRequest, Writer,
         traits::{DatabaseAdapter, RelayDatabaseAdapter},
         types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
         where_clause::WhereClause,
@@ -179,11 +179,6 @@ impl CapturingMockAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl DatabaseAdapter for CapturingMockAdapter {
-    // Writes: opted in, because both capability gates default to refusing.
-    fn supports_mutations(&self) -> bool {
-        true
-    }
-
     async fn execute_with_projection(
         &self,
         view: &str,
@@ -323,17 +318,23 @@ impl DatabaseAdapter for CapturingMockAdapter {
         // Delegate so SQL/params capture stays identical to the non-session path.
         self.execute_parameterized_aggregate(sql, params).await
     }
-
-    async fn execute_function_call(
-        &self,
-        _function_name: &str,
-        _args: &[serde_json::Value],
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Ok(vec![])
-    }
 }
 
-impl SupportsMutations for CapturingMockAdapter {}
+// Writes answer no rows; they are put to the gate, as the PostgreSQL adapter puts the
+// function's rows to it before its transaction ends.
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
+impl Writer for CapturingMockAdapter {
+    async fn execute_write(
+        &self,
+        _request: &WriteRequest<'_>,
+        gate: MutationRowGate<'_>,
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        let rows = Vec::new();
+        gate(&rows)?;
+        Ok(rows)
+    }
+}
 
 /// Mock database adapter for testing.
 ///
@@ -351,11 +352,6 @@ pub struct MockAdapter {
     /// nothing ran, rather than inferring it from the returned error — an error and
     /// an executed statement are not mutually exclusive.
     pub captured_raw_sql: std::sync::Mutex<Vec<String>>,
-    /// Whether it implements the commit-gated write: `true` unless built
-    /// [`without_gated_writes`](Self::without_gated_writes). Without it, an executor does
-    /// not mount mutations (rulings X 2, Z 1) — which is what the capability tests need,
-    /// and what every other test of a write does not.
-    pub gates_writes:     bool,
 }
 
 impl MockAdapter {
@@ -365,16 +361,7 @@ impl MockAdapter {
             mock_results,
             view_responses: std::collections::HashMap::new(),
             captured_raw_sql: std::sync::Mutex::new(Vec::new()),
-            gates_writes: true,
         }
-    }
-
-    /// Do not implement the commit-gated write: the adapter a capability test needs, over
-    /// which an executor mounts no mutations.
-    #[must_use]
-    pub const fn without_gated_writes(mut self) -> Self {
-        self.gates_writes = false;
-        self
     }
 
     /// The statements `execute_raw_query` saw, in order.
@@ -394,35 +381,6 @@ impl MockAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl DatabaseAdapter for MockAdapter {
-    // Writes: opted in, because both capability gates default to refusing.
-    fn supports_mutations(&self) -> bool {
-        true
-    }
-
-    fn supports_gated_writes(&self) -> bool {
-        self.gates_writes
-    }
-
-    // The function call answers no rows (`execute_function_call` below); put those to the
-    // gate, as the PostgreSQL adapter puts the function's rows to it before committing.
-    async fn execute_function_call_gated(
-        &self,
-        _function_name: &str,
-        _args: &[serde_json::Value],
-        _session_vars: &[(&str, &str)],
-        _changelog: Option<&fraiseql_db::ChangeLogWrite<'_>>,
-        gate: fraiseql_db::MutationRowGate<'_>,
-    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        if !self.gates_writes {
-            return Err(crate::error::FraiseQLError::Unsupported {
-                message: "MockAdapter was built without_gated_writes()".to_string(),
-            });
-        }
-        let rows = Vec::new();
-        gate(&rows)?;
-        Ok(rows)
-    }
-
     async fn execute_with_projection(
         &self,
         view: &str,
@@ -483,20 +441,24 @@ impl DatabaseAdapter for MockAdapter {
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
     }
+}
 
-    async fn execute_function_call(
+// Writes answer no rows; they are put to the gate, as the PostgreSQL adapter puts the
+// function's rows to it before its transaction ends.
+// async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+#[async_trait]
+impl Writer for MockAdapter {
+    async fn execute_write(
         &self,
-        _function_name: &str,
-        _args: &[serde_json::Value],
+        _request: &WriteRequest<'_>,
+        gate: MutationRowGate<'_>,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
-        Ok(vec![])
+        let rows = Vec::new();
+        gate(&rows)?;
+        Ok(rows)
     }
 }
 
-impl SupportsMutations for MockAdapter {}
-
-/// Read-only adapter that returns false from `supports_mutations()` —
-/// used to test the runtime mutation guard in `execute_mutation_query`.
 /// Relay dispatch over the mock, so a test can build a relay-capable executor.
 ///
 /// Returns an empty page: the tests that need this are about whether relay dispatch
@@ -518,6 +480,8 @@ impl RelayDatabaseAdapter for MockAdapter {
     }
 }
 
+/// Read-only adapter: not a `Writer`, so an executor over it is built read-only and refuses
+/// every mutation.
 pub struct ReadOnlyMockAdapter;
 
 // Reason: DatabaseAdapter is defined with #[async_trait]; all implementations must match
@@ -578,10 +542,6 @@ impl DatabaseAdapter for ReadOnlyMockAdapter {
         _params: &[serde_json::Value],
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
         Ok(vec![])
-    }
-
-    fn supports_mutations(&self) -> bool {
-        false
     }
 }
 
