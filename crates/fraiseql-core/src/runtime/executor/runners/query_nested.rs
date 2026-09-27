@@ -1243,6 +1243,103 @@ impl DocumentRowFilter {
     }
 }
 
+/// The row predicate of a type read as the root of a pushed document — a subscription's
+/// after-image (ruling AC 4): the type's policy AND its own read's `inject_params`, as a
+/// root read of the type composes, evaluated over the document in memory.
+#[derive(Debug)]
+pub(in super::super) struct RootRowFilter {
+    conditions: Vec<DocumentCondition>,
+}
+
+impl RootRowFilter {
+    /// Plan the predicate `principal` reads `type_name` under, as the root of
+    /// `subscription`'s documents. `None`: no predicate applies to this principal.
+    ///
+    /// # Errors
+    ///
+    /// `Validation` with no principal under a policy or `inject_params` (#784: refused as
+    /// a query is); `Authorization` for a predicate the document cannot answer — a policy
+    /// that does not declare its keys, one reading a key the type does not declare or a
+    /// native column, or one that is not a conjunction of equalities.
+    pub(in super::super) fn plan(
+        ctx: &ExecutorContext,
+        subscription: &str,
+        type_name: &str,
+        principal: Option<&SecurityContext>,
+    ) -> Result<Option<Self>> {
+        let schema = &ctx.schema;
+        let policy = ctx.config.rls_policy.as_deref();
+        let read = own_read(schema, type_name);
+        let target = read.map_or_else(
+            || RlsTarget::query(subscription, type_name),
+            |read| RlsTarget::query(&read.name, type_name),
+        );
+        let clause = match read {
+            Some(read) => level_predicate(ctx, &read.name, type_name, principal)?,
+            None => match (policy, principal) {
+                (Some(policy), Some(principal)) => policy
+                    .evaluate(principal, &target)?
+                    .map(crate::security::RlsWhereClause::into_where_clause),
+                (Some(_), None) => {
+                    return Err(FraiseQLError::Validation {
+                        message: format!("Subscription '{subscription}' not found in schema"),
+                        path:    None,
+                    });
+                },
+                (None, _) => None,
+            },
+        };
+        let Some(clause) = clause else {
+            return Ok(None);
+        };
+        let refuse = |why: &str| FraiseQLError::Authorization {
+            message:  format!(
+                "Subscription '{subscription}' delivers '{type_name}', whose row-security \
+                 predicate {why}; refusing the subscription rather than delivering rows \
+                 unfiltered"
+            ),
+            action:   Some("read".to_string()),
+            resource: Some(type_name.to_string()),
+        };
+        // The keys the predicate may read: the policy's, and each `inject_params` column —
+        // every one a key the type declares, since the after-image holds the type's keys.
+        let mut paths = match policy.map(|p| p.constrained_paths(&target)) {
+            None => Vec::new(),
+            Some(ConstrainedPaths::Declared(paths)) => paths,
+            Some(ConstrainedPaths::Opaque) => {
+                return Err(refuse("does not declare the keys it reads"));
+            },
+        };
+        for column in read.map(|r| r.inject_params.keys()).into_iter().flatten() {
+            if read.is_some_and(|r| r.native_columns.contains_key(column)) {
+                return Err(refuse("reads a native column, which a document does not hold"));
+            }
+            paths.push(crate::utils::to_snake_case(column));
+        }
+        let declared = schema.find_type(type_name);
+        let carried = paths.iter().all(|path| {
+            declared.is_some_and(|t| {
+                t.fields.iter().any(|f| crate::utils::to_snake_case(f.name.as_str()) == *path)
+            })
+        });
+        if !carried || !reads_only(&clause, &paths) {
+            return Err(refuse("reads a key the type does not declare"));
+        }
+        let mut conditions = Vec::new();
+        if !equalities(&clause, &mut conditions) {
+            return Err(refuse(
+                "is not a conjunction of equalities, the only shape evaluated over a document",
+            ));
+        }
+        Ok(Some(Self { conditions }))
+    }
+
+    /// Whether `document` is a row the predicate admits.
+    pub(in super::super) fn admits(&self, document: &serde_json::Value) -> bool {
+        meets(document, &self.conditions)
+    }
+}
+
 /// Collect `clause` as a conjunction of equalities into `out`; `false` when it is not one.
 fn equalities(clause: &WhereClause, out: &mut Vec<DocumentCondition>) -> bool {
     match clause {

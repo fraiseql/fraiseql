@@ -254,7 +254,6 @@ fn tenant_principal() -> SecurityContext {
 // A subscription is a read of its type: an after-image the subscriber's row policy excludes
 // is suppressed, as a query would not return that row.
 #[test]
-#[ignore = "AC 4: root row security of a subscription (fix pending)"]
 fn a_root_row_the_subscribers_policy_excludes_is_suppressed() {
     let exec = row_policy_executor();
     let planned = plan(
@@ -272,7 +271,6 @@ fn a_root_row_the_subscribers_policy_excludes_is_suppressed() {
 
 // No principal, no policy to evaluate (#784): refused as a query is.
 #[test]
-#[ignore = "AC 4: root row security of a subscription (fix pending)"]
 fn an_anonymous_subscription_under_a_row_policy_is_refused() {
     let exec = row_policy_executor();
     let res = plan(&exec, "subscription { orderCreated { id } }", &json!({}), None);
@@ -282,7 +280,6 @@ fn an_anonymous_subscription_under_a_row_policy_is_refused() {
 // A policy that reads a key the type does not declare cannot be evaluated over the
 // after-image: refused at subscribe, never delivered unfiltered.
 #[test]
-#[ignore = "AC 4: root row security of a subscription (fix pending)"]
 fn a_root_policy_the_after_image_cannot_answer_refuses_the_plan() {
     let config = RuntimeConfig::default()
         .with_rls_policy(Arc::new(crate::security::DefaultRLSPolicy::new()));
@@ -299,7 +296,6 @@ fn a_root_policy_the_after_image_cannot_answer_refuses_the_plan() {
 // ── AC 6: the manager delivers a gated type only through a plan ──
 
 #[test]
-#[ignore = "AC 6: unplanned subscription to a gated type (fix pending)"]
 fn an_unplanned_subscription_to_a_gated_type_is_refused() {
     use crate::runtime::subscription::SubscriptionManager;
     let manager = SubscriptionManager::new(Arc::new(schema()));
@@ -321,4 +317,128 @@ fn an_unplanned_subscription_to_an_ungated_type_is_accepted() {
     SubscriptionManager::new(Arc::new(schema))
         .subscribe("pinged", json!({}), json!({}), "c1")
         .expect("nothing to gate");
+}
+
+/// A policy over `Order` rows whose predicate and declared keys a test chooses.
+struct ChosenPolicy {
+    clause: crate::db::WhereClause,
+    paths:  crate::security::ConstrainedPaths,
+}
+
+impl crate::security::RLSPolicy for ChosenPolicy {
+    fn evaluate(
+        &self,
+        _context: &SecurityContext,
+        _target: &crate::security::rls_policy::RlsTarget<'_>,
+    ) -> Result<Option<crate::security::RlsWhereClause>> {
+        Ok(Some(crate::security::RlsWhereClause::new(self.clause.clone())))
+    }
+
+    fn constrained_paths(
+        &self,
+        _target: &crate::security::rls_policy::RlsTarget<'_>,
+    ) -> crate::security::ConstrainedPaths {
+        self.paths.clone()
+    }
+}
+
+fn eq(key: &str) -> crate::db::WhereClause {
+    crate::db::WhereClause::Field {
+        path:     vec![key.to_string()],
+        operator: crate::db::WhereOperator::Eq,
+        value:    json!("t1"),
+    }
+}
+
+fn plan_under(policy: ChosenPolicy) -> Result<super::SubscriptionPlan> {
+    let mut schema = schema();
+    let order = schema.types.iter_mut().find(|t| t.name == "Order").unwrap();
+    order.fields.push(FieldDefinition::nullable("tenant_id", FieldType::String));
+    order.fields.push(FieldDefinition::nullable("author_id", FieldType::String));
+    schema.build_indexes();
+    let exec = executor(schema, RuntimeConfig::default().with_rls_policy(Arc::new(policy)));
+    plan(
+        &exec,
+        "subscription { orderCreated { id } }",
+        &json!({}),
+        Some(&tenant_principal()),
+    )
+}
+
+// Each shape a document cannot answer refuses the subscription; the answerable one plans.
+#[test]
+fn a_root_policy_is_planned_only_in_the_shape_a_document_can_answer() {
+    use crate::security::ConstrainedPaths::{Declared, Opaque};
+    plan_under(ChosenPolicy {
+        clause: eq("tenant_id"),
+        paths:  Declared(vec!["tenant_id".to_string()]),
+    })
+    .expect("a declared equality over a declared key");
+    for (why, policy) in [
+        (
+            "undeclared keys",
+            ChosenPolicy {
+                clause: eq("tenant_id"),
+                paths:  Opaque,
+            },
+        ),
+        (
+            "a key outside its declaration",
+            ChosenPolicy {
+                clause: eq("author_id"),
+                paths:  Declared(vec!["tenant_id".to_string()]),
+            },
+        ),
+        (
+            "a disjunction",
+            ChosenPolicy {
+                clause: crate::db::WhereClause::Or(vec![eq("tenant_id"), eq("author_id")]),
+                paths:  Declared(vec!["tenant_id".to_string(), "author_id".to_string()]),
+            },
+        ),
+    ] {
+        let res = plan_under(policy);
+        assert!(matches!(res, Err(FraiseQLError::Authorization { .. })), "{why}: {res:?}");
+    }
+}
+
+// The gate the unplanned entries refuse is found at any level, and a type's role is one.
+#[test]
+fn an_unplanned_subscription_reaching_a_role_or_a_nested_gate_is_refused() {
+    use crate::runtime::subscription::SubscriptionManager;
+    let ungated = |name: &str, fields| TypeDefinition {
+        fields,
+        ..TypeDefinition::new(name, "v_x")
+    };
+    let mut role_gated = CompiledSchema::new();
+    role_gated.types.push(TypeDefinition {
+        requires_role: Some("finance".to_string()),
+        ..ungated("Ping", vec![FieldDefinition::new("id", FieldType::Id)])
+    });
+    role_gated.subscriptions.push(SubscriptionDefinition::new("pinged", "Ping"));
+    role_gated.build_indexes();
+    let mut nested = CompiledSchema::new();
+    nested.types.push(ungated(
+        "Ping",
+        vec![FieldDefinition::nullable(
+            "order",
+            FieldType::Object("Order".to_string()),
+        )],
+    ));
+    nested.types.push(schema().types.remove(0));
+    nested.subscriptions.push(SubscriptionDefinition::new("pinged", "Ping"));
+    nested.security = Some(SecurityConfig::default());
+    nested.build_indexes();
+    for (why, schema) in [
+        ("a role-gated type", role_gated),
+        ("a nested scoped field", nested),
+    ] {
+        let res = SubscriptionManager::new(Arc::new(schema)).subscribe(
+            "pinged",
+            json!({}),
+            json!({}),
+            "c1",
+        );
+        assert!(res.is_err(), "{why}: {res:?}");
+    }
 }

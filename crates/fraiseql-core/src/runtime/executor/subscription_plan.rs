@@ -13,7 +13,10 @@
 //! evaluated over the document, the #423 refusals that need no document), and a filter on a
 //! field the subscriber may not read (ruling AA 3).
 //!
-//! Per event ([`SubscriptionPlan::deliver`]): nested levels row-filtered, projected through
+//! Per event ([`SubscriptionPlan::deliver`]): the root after-image must be a row the type's
+//! own row policy admits for this subscriber (ruling AC 4 — a subscription is a read of its
+//! type; a policy the document cannot answer refuses the subscription instead); nested
+//! levels row-filtered, projected through
 //! the selection, masked, then put to the #423 authorizer. Whatever refuses the event
 //! suppresses it for this subscriber: no frame, nothing the subscriber can tell from no event
 //! at all. Suppressions are counted in one aggregate figure
@@ -28,7 +31,9 @@ use std::{
 };
 
 use super::{
-    context::ExecutorContext, core::Executor, runners::read_plan::ReadPlan,
+    context::ExecutorContext,
+    core::Executor,
+    runners::{query_nested::RootRowFilter, read_plan::ReadPlan},
     support::security::refuse_unreadable_where,
 };
 use crate::{
@@ -53,6 +58,7 @@ pub fn suppressed_subscription_events() -> u64 {
 pub struct SubscriptionPlan {
     ctx:          Arc<ExecutorContext>,
     plan:         ReadPlan,
+    root_rows:    Option<RootRowFilter>,
     principal:    Option<SecurityContext>,
     subscription: String,
     type_name:    String,
@@ -80,6 +86,10 @@ impl SubscriptionPlan {
     /// it.
     #[must_use]
     pub fn deliver(&self, after_image: &serde_json::Value) -> Option<serde_json::Value> {
+        if self.root_rows.as_ref().is_some_and(|rows| !rows.admits(after_image)) {
+            SUPPRESSED.fetch_add(1, Ordering::Relaxed);
+            return None;
+        }
         if let Ok(served) = self.plan.serve(
             &self.ctx,
             self.principal.as_ref(),
@@ -158,12 +168,14 @@ impl Executor {
             };
             refuse_unreadable_where(schema, type_name, &condition, principal)?;
         }
+        let root_rows = RootRowFilter::plan(ctx, &definition.name, type_name, principal)?;
         let plan =
             ReadPlan::classify(ctx, principal, variables, &[(type_name, &root.nested_fields)])?;
 
         Ok(SubscriptionPlan {
             ctx: Arc::clone(ctx),
             plan,
+            root_rows,
             principal: principal.cloned(),
             subscription: definition.name.clone(),
             type_name: type_name.to_string(),

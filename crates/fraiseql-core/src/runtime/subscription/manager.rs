@@ -207,6 +207,20 @@ impl SubscriptionManager {
         // the compiled schema was edited by hand.
         Self::check_filter_arguments(&definition)?;
 
+        // Ruling AC 6: a type with a read gate is delivered only through a plan, which the
+        // executor builds from the subscriber's selection and principal. Without one, the
+        // manager would serve every field of every after-image.
+        if plan.is_none() {
+            if let Some(gate) = self.read_gate(&definition.return_type) {
+                return Err(SubscriptionError::Forbidden(format!(
+                    "Subscription '{subscription_name}' delivers '{}', which {gate}: it is \
+                     delivered only through a plan built from the subscriber's selection \
+                     and principal (`Executor::plan_subscription`)",
+                    definition.return_type
+                )));
+            }
+        }
+
         // Create active subscription with RLS conditions
         let mut active = ActiveSubscription::new(
             subscription_name,
@@ -257,6 +271,35 @@ impl SubscriptionManager {
     ///
     /// Returns [`SubscriptionError::UnresolvableFilter`] naming every unresolvable
     /// reference and the arguments the subscription does declare.
+    /// The first read gate a document of `type_name` can meet, at any level: a type's
+    /// `requires_role`, a `requires_scope` field, an `authorize` field.
+    fn read_gate(&self, type_name: &str) -> Option<String> {
+        let mut seen = std::collections::HashSet::new();
+        let mut pending = vec![type_name.to_string()];
+        while let Some(current) = pending.pop() {
+            if !seen.insert(current.clone()) {
+                continue;
+            }
+            let Some(type_def) = self.schema.find_type(&current) else {
+                continue;
+            };
+            if type_def.requires_role.is_some() {
+                return Some(format!("reaches '{current}', whose read requires a role"));
+            }
+            for field in &type_def.fields {
+                if field.requires_scope.is_some() || field.authorize {
+                    return Some(format!("reaches the gated field '{current}.{}'", field.name));
+                }
+                if let Some(child) =
+                    field.field_type.inner_type().unwrap_or(&field.field_type).type_name()
+                {
+                    pending.push(child.to_string());
+                }
+            }
+        }
+        None
+    }
+
     fn check_filter_arguments(
         definition: &crate::schema::SubscriptionDefinition,
     ) -> Result<(), SubscriptionError> {
