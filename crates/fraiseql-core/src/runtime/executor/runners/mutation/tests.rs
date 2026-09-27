@@ -3218,6 +3218,32 @@ mod mutation_audit {
 
     // ── tracing event emission ────────────────────────────────────────────
 
+    // A dry run executed nothing, so there is nothing to audit (ruling AD 3).
+    #[tokio::test]
+    async fn no_audit_event_for_a_dry_run() {
+        let captured = Arc::new(Mutex::new(Vec::<String>::new()));
+        let layer = CapturingLayer {
+            events: captured.clone(),
+        };
+        let subscriber = Registry::default().with(layer);
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let config = RuntimeConfig {
+            audit_mutations: true,
+            dry_run_mutations: true,
+            ..RuntimeConfig::default()
+        };
+        Executor::with_config(
+            super::dry_run::schema(),
+            Arc::new(super::dry_run::DryRunAdapter::default()),
+            config,
+        )
+        .execute("mutation { createPost { id } }", None)
+        .await
+        .expect("the dry run answers");
+        assert!(captured.lock().unwrap().is_empty(), "audited: {:?}", captured.lock().unwrap());
+    }
+
     /// A-E1: Mutation audit event is emitted when `audit_mutations=true`.
     #[tokio::test]
     async fn audit_event_emitted_when_enabled() {
@@ -7119,7 +7145,7 @@ mod dry_run {
     /// A writer whose dry run returns one successful `Post` row, and which counts what the
     /// runner does after it.
     #[derive(Default)]
-    struct DryRunAdapter {
+    pub(super) struct DryRunAdapter {
         dry_runs:     AtomicUsize,
         bumps:        AtomicUsize,
         invalidation: AtomicUsize,
@@ -7225,7 +7251,7 @@ mod dry_run {
     impl SupportsMutations for DryRunAdapter {}
 
     /// `createPost: Post`, invalidating `v_post` and the fact table `tf_posts`.
-    fn schema() -> CompiledSchema {
+    pub(super) fn schema() -> CompiledSchema {
         let mut s = CompiledSchema::new();
         s.mutations.push(MutationDefinition {
             sql_source: Some("fn_create_post".to_string()),
@@ -7244,7 +7270,6 @@ mod dry_run {
     }
 
     #[tokio::test]
-    #[ignore = "AD 3: a dry run is followed by the post-commit effects (fix pending)"]
     async fn nothing_that_follows_a_commit_follows_a_dry_run() {
         let adapter = Arc::new(DryRunAdapter::default());
         let config = RuntimeConfig {
@@ -7270,7 +7295,6 @@ mod dry_run {
     }
 
     #[tokio::test]
-    #[ignore = "AD 4: the cache wrapper refuses a dry run (fix pending)"]
     async fn the_cache_wrapper_passes_a_dry_run_through() {
         let cached = crate::cache::CachedDatabaseAdapter::new(
             DryRunAdapter::default(),

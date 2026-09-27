@@ -1768,6 +1768,10 @@ pub(in super::super) async fn execute_mutation_impl(
         }
     };
 
+    // What follows a commit follows only a commit (ruling AD 3): a dry run rolled back,
+    // so no fact table moved, no cached read is stale, and nothing was executed to audit.
+    let committed = !ctx.config.dry_run_mutations;
+
     // 6a. Bump fact table versions after a successful mutation.
     //
     // This invalidates cached aggregation results for any fact tables listed
@@ -1775,7 +1779,8 @@ pub(in super::super) async fn execute_mutation_impl(
     // Success only — an Error outcome means no data was written, so caches
     // remain valid.  Non-cached adapters return Ok(()) from the default trait
     // implementation (no-op); only `CachedDatabaseAdapter` performs actual work.
-    if matches!(envelope, MutationOutcome::Success { .. })
+    if committed
+        && matches!(envelope, MutationOutcome::Success { .. })
         && !mutation_def.invalidates_fact_tables.is_empty()
     {
         // Through the write handle, like the dispatch above: this bumps a version row
@@ -1793,7 +1798,11 @@ pub(in super::super) async fn execute_mutation_impl(
     // than a list-vs-point classification (#741, #742, #763). Declared views,
     // the return type, the stamped entity type and cascade side-effects all
     // resolve in the same place, so no caller can reach a different answer.
-    let plan = invalidation::plan_invalidation(mutation_def, &envelope, &ctx.schema);
+    let plan = if committed {
+        invalidation::plan_invalidation(mutation_def, &envelope, &ctx.schema)
+    } else {
+        invalidation::InvalidationPlan::default()
+    };
     if !plan.views.is_empty() {
         ctx.adapter.invalidate_views(&plan.views).await?;
         if let Some(ref rc) = ctx.response_cache {
@@ -1811,7 +1820,7 @@ pub(in super::super) async fn execute_mutation_impl(
     // This is the single chokepoint for all mutation paths (GraphQL handler,
     // REST handler, typed execute_mutation, bulk filter). Zero-cost when disabled:
     // the branch is not taken and no string formatting or allocation occurs.
-    if ctx.config.audit_mutations {
+    if committed && ctx.config.audit_mutations {
         tracing::info!(
             target: "fraiseql::mutation_audit",
             mutation_name = mutation_name,

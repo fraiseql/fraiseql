@@ -924,6 +924,19 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             .await
     }
 
+    async fn execute_function_call_dry_run(
+        &self,
+        function_name: &str,
+        args: &[serde_json::Value],
+        session_vars: &[(&str, &str)],
+    ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        // Pass through (ruling AD 4): the trait default refuses, so a cache-wrapped
+        // adapter that did not forward would make every dry run `Unsupported`.
+        self.adapter
+            .execute_function_call_dry_run(function_name, args, session_vars)
+            .await
+    }
+
     async fn execute_function_call_gated(
         &self,
         function_name: &str,
