@@ -513,7 +513,37 @@ pub async fn compile_to_schema(
     // 5g. Refuse authorization declarations no enforcer reads (#983).
     refuse_unenforced_authz_declarations(&schema)?;
 
+    // 5h. Refuse a schema a server would refuse to load (ruling AF 4).
+    refuse_what_a_server_would_not_load(&schema)?;
+
     Ok((CompiledArtifact { schema, functions }, report))
+}
+
+/// Refuse a compiled schema that a server would refuse to load (ruling AF 4).
+///
+/// The load-time checks (`CompiledSchema::finish_load`: duplicate names, type roles and
+/// injects, subscription policies and filters, `requires_scope` without a `security`
+/// section, fact-table links, relationships) hold for every producer, so they live at load
+/// — and until now they ran only when a server started, on an artifact the compiler had
+/// already written. The schema is serialized as the writer serializes it, stamped with its
+/// content hash, and loaded exactly as a server loads it; a refusal fails the compile with
+/// the loader's own message.
+///
+/// # Errors
+///
+/// Returns the loader's refusal.
+fn refuse_what_a_server_would_not_load(schema: &CompiledSchema) -> Result<()> {
+    let body = serde_json::to_string(schema).context("Failed to serialize compiled schema")?;
+    let mut value: serde_json::Value = serde_json::from_str(&body)?;
+    let hash = content_hash_of(&value);
+    value
+        .as_object_mut()
+        .context("schema must serialise as JSON object")?
+        .insert("_content_hash".to_string(), serde_json::Value::String(hash));
+    CompiledSchema::from_json(&serde_json::to_string(&value)?, true).map_err(|e| {
+        anyhow::anyhow!("the compiled schema would be refused when a server loads it: {e}")
+    })?;
+    Ok(())
 }
 
 /// Refuse `security.rules`, `security.field_auth` and `security.default_policy` (#983).

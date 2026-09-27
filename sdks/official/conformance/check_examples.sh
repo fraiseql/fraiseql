@@ -27,9 +27,16 @@ failures=0
 compiled=0
 
 # Compile one emitted schema, or record a failure.
+#
+# The compiler reads `fraiseql.toml` from its working directory, and a project declares
+# there the roles that grant the scopes its schema uses: without one, no server loads a
+# scoped schema, and the compiler — which loads what it writes — refuses it. So each
+# schema compiles in a scratch project whose `fraiseql.toml` `project_toml.py` derives.
 compile_schema() {
-  local label="$1" path="$2"
-  if "$CLI" compile "$path" -o "$WORK/out.json" >"$WORK/compile.log" 2>&1; then
+  local label="$1" path="$2" project="$WORK/project"
+  rm -rf "$project" && mkdir -p "$project"
+  python3 "$SDK_ROOT/conformance/project_toml.py" "$path" >"$project/fraiseql.toml"
+  if (cd "$project" && "$CLI" compile "$path" -o "$WORK/out.json") >"$WORK/compile.log" 2>&1; then
     printf 'ok    %s\n' "$label"
     compiled=$((compiled + 1))
   else

@@ -65,7 +65,6 @@ async fn compile(schema_json: &str) -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-#[ignore = "AF 4 reproduction: compile writes what a server refuses to load"]
 async fn compile_refuses_what_the_server_would_refuse_to_load() {
     // A fact table declaring `cost`, which `Sale` lacks: the link cannot gate it.
     let incomplete = fact_table_schema(

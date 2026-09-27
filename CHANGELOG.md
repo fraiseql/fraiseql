@@ -18,6 +18,21 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql compile` refuses a schema a server would refuse to load.**
+
+  The load-time checks — duplicate names, type-level roles and inject params, subscription
+  policies and filters, `requires_scope` without a `security` section, fact-table links,
+  relationships — ran only when a server started, on an artifact the compiler had already
+  written. The compiler now loads what it writes, integrity included, and fails with the
+  loader's own message: a schema that cannot start a server does not compile.
+
+  ⚠ A project whose schema declares `requires_scope` must declare the roles that grant it
+  (`[[fraiseql.security.role_definitions]]` in the `fraiseql.toml` next to the schema).
+  Such a schema never loaded in a server; it now fails at compile instead of at boot. The
+  SDK conformance harness and examples gate compile each export as a project does, with a
+  `fraiseql.toml` derived from the scopes the export declares
+  (`sdks/official/conformance/project_toml.py`).
+
 - **A filter through a to-one relation sees only the related rows the caller may read.**
 
   A `where` through a to-one relation (`members(where: {team: {name: {eq: "blue"}}})`) now

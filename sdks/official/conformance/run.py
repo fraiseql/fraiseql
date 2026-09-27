@@ -41,6 +41,7 @@ import tempfile
 from pathlib import Path
 
 from project import CONSTRUCTS, project
+from project_toml import project_toml
 
 HERE = Path(__file__).resolve().parent
 SDK_ROOT = HERE.parent
@@ -89,13 +90,19 @@ def compile_schema(cli: Path, schema: Path, out: Path) -> dict:
     Raises `ConformanceFailure` on a non-zero exit, carrying the CLI's own diagnostic —
     which is the whole value of compiling rather than inspecting: the compiler names the
     offending key, and that message is what an SDK author would actually see.
+
+    The compiler reads `fraiseql.toml` from its working directory, so it runs in a scratch
+    project directory holding the one `project_toml` describes.
     """
-    result = subprocess.run(
-        [str(cli), "compile", str(schema), "-o", str(out)],
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    with tempfile.TemporaryDirectory() as project:
+        (Path(project) / "fraiseql.toml").write_text(project_toml(schema))
+        result = subprocess.run(
+            [str(cli.resolve()), "compile", str(schema.resolve()), "-o", str(out.resolve())],
+            capture_output=True,
+            text=True,
+            check=False,
+            cwd=project,
+        )
     if result.returncode != 0:
         raise ConformanceFailure(
             f"`fraiseql compile` rejected the export:\n"

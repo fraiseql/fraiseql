@@ -9,6 +9,14 @@
  *
  * Field metadata allows fine-grained control over who can access which fields,
  * API versioning through deprecation markers, and rich schema documentation.
+ *
+ * A scope is granted by a role, and roles are declared by the project, in the
+ * `fraiseql.toml` next to the exported schema — `fraiseql compile` refuses a scoped
+ * schema no role can grant, because no server could load it:
+ *
+ *   [[fraiseql.security.role_definitions]]
+ *   name = "hr"
+ *   scopes = ["read:User.salary", "pii:read"]
  */
 
 import * as fraiseql from "../src/index";
