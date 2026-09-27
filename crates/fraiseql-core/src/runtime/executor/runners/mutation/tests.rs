@@ -4234,6 +4234,181 @@ mod field_authz {
         assert!(!adapter.ran(), "decidable before the write, so the function never runs");
     }
 
+    // ── Ruling AG 2–3: the error arm holds an exact set of error types ──────────────────
+    //
+    // A failure is served as one of the error types its mutation can return: a union's (or
+    // an interface's) `is_error` members, or — for an object return, where nothing narrower
+    // is declared — the schema's error types. A stamp outside that set broke the function's
+    // contract; an unstamped failure among several error members must not pick one.
+
+    /// The failure row the SQL function returns, stamped `stamp` (or not stamped).
+    fn failure(stamp: Option<&str>) -> Vec<HashMap<String, serde_json::Value>> {
+        let mut row = HashMap::new();
+        row.insert("succeeded".to_string(), serde_json::json!(false));
+        row.insert("state_changed".to_string(), serde_json::json!(false));
+        row.insert("error_class".to_string(), serde_json::json!("conflict"));
+        row.insert("message".to_string(), serde_json::json!("duplicate"));
+        if let Some(s) = stamp {
+            row.insert("entity_type".to_string(), serde_json::json!(s));
+        }
+        vec![row]
+    }
+
+    /// An error type carrying `message`.
+    fn error_type(name: &str) -> TypeDefinition {
+        TypeDefinition {
+            is_error: true,
+            fields: vec![FieldDefinition::new("message", FieldType::String)],
+            ..TypeDefinition::new(name, "")
+        }
+    }
+
+    /// `createUser` returning `User | ValidationError | ConflictError`, plus `StrayError`,
+    /// an error type no member of that union.
+    fn schema_with_two_error_members() -> CompiledSchema {
+        use crate::schema::UnionDefinition;
+        let mut s = schema_with_admin();
+        for name in ["ValidationError", "ConflictError", "StrayError"] {
+            s.types.push(error_type(name));
+        }
+        s.unions.push(UnionDefinition::new("CreateUserResult").with_members(vec![
+            "User".to_string(),
+            "ValidationError".to_string(),
+            "ConflictError".to_string(),
+        ]));
+        s.mutations[0].return_type = "CreateUserResult".to_string();
+        s.build_indexes();
+        s
+    }
+
+    /// `createUser` returning `User | ValidationError`: one error member.
+    fn schema_with_one_error_member() -> CompiledSchema {
+        use crate::schema::UnionDefinition;
+        let mut s = schema_with_admin();
+        s.types.push(error_type("ValidationError"));
+        s.unions.push(
+            UnionDefinition::new("CreateUserResult")
+                .with_members(vec!["User".to_string(), "ValidationError".to_string()]),
+        );
+        s.mutations[0].return_type = "CreateUserResult".to_string();
+        s.build_indexes();
+        s
+    }
+
+    const ERROR_SELECTION: &str = "mutation { createUser { __typename \
+         ... on ValidationError { message } ... on ConflictError { message } } }";
+
+    async fn failed_write(
+        schema: CompiledSchema,
+        stamp: Option<&str>,
+        query: &str,
+    ) -> (Arc<GatedEntityAdapter>, Result<serde_json::Value>) {
+        let adapter = Arc::new(GatedEntityAdapter::returning(failure(stamp)));
+        let res = Executor::with_config(schema, Arc::clone(&adapter), RuntimeConfig::default())
+            .execute_with_security(query, None, &ctx())
+            .await;
+        (adapter, res)
+    }
+
+    fn assert_error_arm_contract_error(
+        adapter: &GatedEntityAdapter,
+        res: Result<serde_json::Value>,
+        stamp: Option<&str>,
+    ) {
+        let err = match res {
+            Ok(out) => panic!("a failure stamped {stamp:?} was served: {out}"),
+            Err(err) => err,
+        };
+        assert!(matches!(err, FraiseQLError::Validation { .. }), "{err:?}");
+        if let Some(stamp) = stamp {
+            assert!(format!("{err}").contains(&format!("'{stamp}'")), "names the stamp: {err}");
+        }
+        assert!(!adapter.committed(), "a write that broke its contract does not stand");
+    }
+
+    #[tokio::test]
+    #[ignore = "AG 3 reproduction: an error type outside the union is served"]
+    async fn a_failure_stamped_with_an_error_type_its_mutation_cannot_return_is_a_contract_error() {
+        let (adapter, res) =
+            failed_write(schema_with_two_error_members(), Some("StrayError"), ERROR_SELECTION)
+                .await;
+        assert_error_arm_contract_error(&adapter, res, Some("StrayError"));
+    }
+
+    #[tokio::test]
+    #[ignore = "AG 3 reproduction: a success stamp on a failure falls back to the first error member"]
+    async fn a_failure_stamped_with_a_success_type_is_a_contract_error() {
+        let (adapter, res) =
+            failed_write(schema_with_two_error_members(), Some("User"), ERROR_SELECTION).await;
+        assert_error_arm_contract_error(&adapter, res, Some("User"));
+    }
+
+    #[tokio::test]
+    #[ignore = "AG 3 reproduction: an unknown stamp on a failure falls back to the first error member"]
+    async fn a_failure_stamped_with_no_type_is_a_contract_error() {
+        let (adapter, res) =
+            failed_write(schema_with_two_error_members(), Some("tb_user"), ERROR_SELECTION).await;
+        assert_error_arm_contract_error(&adapter, res, Some("tb_user"));
+    }
+
+    #[tokio::test]
+    #[ignore = "AG 3 reproduction: an unstamped failure is served as the union's first error member"]
+    async fn an_unstamped_failure_with_two_possible_error_types_is_a_contract_error() {
+        let (adapter, res) =
+            failed_write(schema_with_two_error_members(), None, ERROR_SELECTION).await;
+        assert_error_arm_contract_error(&adapter, res, None);
+    }
+
+    #[tokio::test]
+    #[ignore = "AG 3 reproduction: an unknown stamp on an object return's failure is served untyped"]
+    async fn a_failure_of_an_object_return_stamped_with_no_type_is_a_contract_error() {
+        let mut s = schema_with_admin();
+        s.types.push(error_type("ValidationError"));
+        s.build_indexes();
+        let (adapter, res) = failed_write(
+            s,
+            Some("tb_user"),
+            "mutation { createUser { __typename ... on ValidationError { message } } }",
+        )
+        .await;
+        assert_error_arm_contract_error(&adapter, res, Some("tb_user"));
+    }
+
+    // Controls: what the contract admits.
+
+    #[tokio::test]
+    async fn a_failure_stamped_with_one_of_its_error_members_is_served_as_it() {
+        let (_, res) =
+            failed_write(schema_with_two_error_members(), Some("ConflictError"), ERROR_SELECTION)
+                .await;
+        let out = res.unwrap();
+        assert_eq!(out["data"]["createUser"]["__typename"], "ConflictError", "{out}");
+        assert_eq!(out["data"]["createUser"]["message"], "duplicate", "{out}");
+    }
+
+    #[tokio::test]
+    async fn an_unstamped_failure_with_one_possible_error_type_is_that_type() {
+        let (_, res) = failed_write(
+            schema_with_one_error_member(),
+            None,
+            "mutation { createUser { __typename ... on ValidationError { message } } }",
+        )
+        .await;
+        let out = res.unwrap();
+        assert_eq!(out["data"]["createUser"]["__typename"], "ValidationError", "{out}");
+    }
+
+    #[tokio::test]
+    async fn an_unstamped_failure_of_an_object_return_is_the_untyped_failure() {
+        let mut s = schema_with_admin();
+        s.types.push(error_type("ValidationError"));
+        s.build_indexes();
+        let (_, res) = failed_write(s, None, "mutation { createUser { __typename } }").await;
+        let out = res.unwrap();
+        assert_eq!(out["data"]["createUser"]["__typename"], "User", "{out}");
+        assert_eq!(out["data"]["createUser"]["status"], "conflict", "{out}");
+    }
+
     // `Mask` is a statement about the value, not about the operation: the caller may
     // do this, they just may not see that field. The write stands.
     #[tokio::test]

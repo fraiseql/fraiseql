@@ -120,3 +120,48 @@ async fn setup_installs_change_log_contract() {
         .get("n");
     assert_eq!(backbone, 2, "the change-log contract backbone columns must be present");
 }
+
+/// Ruling AG 1: `fraiseql.mutation_err` can say which declared error it produced. The stamp
+/// is its last parameter, so every call the four-argument helper accepted binds as before —
+/// and none becomes ambiguous against a second overload.
+#[tokio::test]
+#[ignore = "AG 1 reproduction: mutation_err has no p_entity_type"]
+async fn mutation_err_stamps_the_error_type_it_produced() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping AG 1 setup against-db test: DATABASE_URL not set");
+        return;
+    };
+    let out = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+        .args(["setup", "--database", &url])
+        .output()
+        .unwrap();
+    assert!(out.status.success(), "setup: {}", String::from_utf8_lossy(&out.stderr));
+    let (client, connection) = tokio_postgres::connect(&url, NoTls).await.unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+
+    let stamped: Option<String> = client
+        .query_one(
+            "SELECT entity_type FROM fraiseql.mutation_err('conflict', 'duplicate', \
+             p_entity_type => 'DuplicateEmailError')",
+            &[],
+        )
+        .await
+        .unwrap()
+        .get("entity_type");
+    assert_eq!(stamped.as_deref(), Some("DuplicateEmailError"));
+
+    for call in [
+        "fraiseql.mutation_err('not_found')",
+        "fraiseql.mutation_err('validation', 'bad')",
+        "fraiseql.mutation_err('validation', 'bad', '{\"field\": \"email\"}'::jsonb)",
+        "fraiseql.mutation_err('validation', 'bad', NULL, 422::smallint)",
+    ] {
+        let row = client.query_one(&format!("SELECT entity_type FROM {call}"), &[]).await;
+        assert!(row.is_ok(), "{call} must still bind: {row:?}");
+        let row = row.unwrap();
+        let entity_type: Option<String> = row.get("entity_type");
+        assert!(entity_type.is_none(), "{call} stamps nothing");
+    }
+}
