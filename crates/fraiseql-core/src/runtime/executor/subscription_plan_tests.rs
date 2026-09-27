@@ -228,3 +228,97 @@ fn the_manager_delivers_nothing_for_a_suppressed_event() {
     assert_eq!(delivered, 0);
     assert!(rx.try_recv().is_err(), "nothing was sent");
 }
+
+// ── AC 4: the subscription type's own row policy applies to the root after-image ──
+
+/// `schema()` with `Order` carrying the keys the default policy reads (`tenant_id`,
+/// `author_id`), under that policy.
+fn row_policy_executor() -> Executor {
+    let mut schema = schema();
+    let order = schema.types.iter_mut().find(|t| t.name == "Order").unwrap();
+    order.fields.push(FieldDefinition::nullable("tenant_id", FieldType::String));
+    order.fields.push(FieldDefinition::nullable("author_id", FieldType::String));
+    schema.build_indexes();
+    let config = RuntimeConfig::default()
+        .with_rls_policy(Arc::new(crate::security::DefaultRLSPolicy::new()));
+    executor(schema, config)
+}
+
+fn tenant_principal() -> SecurityContext {
+    SecurityContext {
+        tenant_id: Some("t1".into()),
+        ..principal(&[])
+    }
+}
+
+// A subscription is a read of its type: an after-image the subscriber's row policy excludes
+// is suppressed, as a query would not return that row.
+#[test]
+#[ignore = "AC 4: root row security of a subscription (fix pending)"]
+fn a_root_row_the_subscribers_policy_excludes_is_suppressed() {
+    let exec = row_policy_executor();
+    let planned = plan(
+        &exec,
+        "subscription { orderCreated { id } }",
+        &json!({}),
+        Some(&tenant_principal()),
+    )
+    .unwrap();
+    let others = json!({"id": "o2", "tenant_id": "t1", "author_id": "someone-else"});
+    assert_eq!(planned.deliver(&others), None, "another owner's order is not the subscriber's");
+    let own = json!({"id": "o1", "tenant_id": "t1", "author_id": "user-1"});
+    assert_eq!(planned.deliver(&own), Some(json!({"id": "o1"})));
+}
+
+// No principal, no policy to evaluate (#784): refused as a query is.
+#[test]
+#[ignore = "AC 4: root row security of a subscription (fix pending)"]
+fn an_anonymous_subscription_under_a_row_policy_is_refused() {
+    let exec = row_policy_executor();
+    let res = plan(&exec, "subscription { orderCreated { id } }", &json!({}), None);
+    assert!(res.is_err(), "{res:?}");
+}
+
+// A policy that reads a key the type does not declare cannot be evaluated over the
+// after-image: refused at subscribe, never delivered unfiltered.
+#[test]
+#[ignore = "AC 4: root row security of a subscription (fix pending)"]
+fn a_root_policy_the_after_image_cannot_answer_refuses_the_plan() {
+    let config = RuntimeConfig::default()
+        .with_rls_policy(Arc::new(crate::security::DefaultRLSPolicy::new()));
+    let exec = executor(schema(), config);
+    let res = plan(
+        &exec,
+        "subscription { orderCreated { id } }",
+        &json!({}),
+        Some(&tenant_principal()),
+    );
+    assert!(matches!(res, Err(FraiseQLError::Authorization { .. })), "{res:?}");
+}
+
+// ── AC 6: the manager delivers a gated type only through a plan ──
+
+#[test]
+#[ignore = "AC 6: unplanned subscription to a gated type (fix pending)"]
+fn an_unplanned_subscription_to_a_gated_type_is_refused() {
+    use crate::runtime::subscription::SubscriptionManager;
+    let manager = SubscriptionManager::new(Arc::new(schema()));
+    let res = manager.subscribe("orderCreated", json!({}), json!({}), "c1");
+    assert!(res.is_err(), "`Order` has scoped and authorize fields: {res:?}");
+}
+
+// Control: an ungated type still subscribes without a plan.
+#[test]
+fn an_unplanned_subscription_to_an_ungated_type_is_accepted() {
+    use crate::runtime::subscription::SubscriptionManager;
+    let mut schema = CompiledSchema::new();
+    schema.types.push(TypeDefinition {
+        fields: vec![FieldDefinition::new("id", FieldType::Id)],
+        ..TypeDefinition::new("Ping", "v_ping")
+    });
+    schema.subscriptions.push(SubscriptionDefinition::new("pinged", "Ping"));
+    schema.build_indexes();
+    SubscriptionManager::new(Arc::new(schema))
+        .subscribe("pinged", json!({}), json!({}), "c1")
+        .expect("nothing to gate");
+}
