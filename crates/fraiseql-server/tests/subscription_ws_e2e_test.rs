@@ -808,3 +808,72 @@ async fn ws_e2e_filtering_by_a_field_the_subscriber_may_not_read_is_refused() {
     .await;
     assert_eq!(frame["type"], "error", "the filter must be refused: {frame}");
 }
+
+/// A policy reload re-plans every live subscription (ruling AC 7): the executor serving
+/// after the reload decides what the next event is served as. Here `note` gains a scope no
+/// role grants; an event after the reload must carry it masked.
+#[ignore = "reproduction (AC 7): a reload does not re-plan a live subscription"]
+#[tokio::test]
+async fn ws_e2e_a_policy_reload_replans_a_live_subscription() {
+    let order = |gated: bool| {
+        let mut schema = schema_with_subscription("orderCreated", "Order");
+        let mut note = FieldDefinition::nullable("note", FieldType::String);
+        if gated {
+            note = note
+                .with_requires_scope("read:note")
+                .with_on_deny(fraiseql_core::schema::FieldDenyPolicy::Mask);
+            schema.security = Some(SecurityConfig::default());
+        }
+        let mut order = TypeDefinition::new("Order", "v_order");
+        order.fields = vec![FieldDefinition::new("id", FieldType::Id), note];
+        schema.types.push(order);
+        schema.build_indexes();
+        schema
+    };
+    let executor_for = |schema: CompiledSchema| {
+        Arc::new(fraiseql_core::runtime::Executor::new(
+            schema,
+            Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+        ))
+    };
+    let serving = Arc::new(std::sync::Mutex::new(executor_for(order(false))));
+    let live = Arc::clone(&serving);
+    let manager = Arc::new(SubscriptionManager::new(Arc::new(order(false))));
+    let (reload_tx, reload_rx) = tokio::sync::watch::channel(0_u64);
+    let state = SubscriptionState::new(manager.clone())
+        .with_live_executor(Some(Arc::new(move || Arc::clone(&live.lock().unwrap()))))
+        .with_policy_reload(Some(reload_rx));
+    let url = spawn_ws_server(state).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    assert_eq!(recv_json(&mut stream).await["type"], "connection_ack", "handshake");
+    send_json(
+        &mut sink,
+        json!({"type": "subscribe", "id": "op_1",
+               "payload": {"query": "subscription { orderCreated { id note } }"}}),
+    )
+    .await;
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+    while manager.subscription_count() != 1 {
+        assert!(tokio::time::Instant::now() < deadline, "subscription should be registered");
+        tokio::task::yield_now().await;
+    }
+
+    // The reload: the serving executor now masks `note`.
+    *serving.lock().unwrap() = executor_for(order(true));
+    reload_tx.send(1).unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+    manager.publish_event(SubscriptionEvent::new(
+        "Order",
+        "o1",
+        SubscriptionOperation::Create,
+        json!({"id": "o1", "note": "n"}),
+    ));
+    let frame = recv_json(&mut stream).await;
+    assert_eq!(
+        frame["payload"]["data"]["orderCreated"],
+        json!({"id": "o1", "note": null}),
+        "the plan in force is the one the reload derived: {frame}"
+    );
+}
