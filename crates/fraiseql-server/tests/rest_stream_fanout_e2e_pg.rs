@@ -499,6 +499,38 @@ async fn a_stream_masks_a_field_the_caller_may_not_read() {
     cleanup_test_data(&pool, &test_id).await.ok();
 }
 
+/// A stream's `id:` is an opaque resumption token (ruling AA 5), not the Change-Spine
+/// `seq`: a server-wide position counts every change, those the stream withholds included.
+#[tokio::test]
+#[ignore = "reproduction (AA 5): the stream id is the Change-Spine seq"]
+async fn a_stream_id_is_an_opaque_token_not_a_server_position() {
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+
+    let entity_type = format!("Order_{test_id}");
+    let rig = Rig::start(&pool, &entity_type).await;
+    let mut stream = rig.open_stream().await;
+    let order_id = Uuid::new_v4().to_string();
+    insert_change_log_entry(
+        &pool,
+        "INSERT",
+        &entity_type,
+        &order_id,
+        serde_json::json!({"id": order_id, "status": "pending"}),
+        None,
+    )
+    .await
+    .expect("insert change log row");
+
+    let received = stream.read_until(&order_id, FRAME_TIMEOUT).await;
+    let id = wire_id_of(&received, &order_id);
+    assert!(id.parse::<i64>().is_err(), "the id is a server-wide position: {id}");
+
+    rig.stop().await;
+    cleanup_test_data(&pool, &test_id).await.ok();
+}
+
 // ---------------------------------------------------------------------------
 // #1310 — resumption
 // ---------------------------------------------------------------------------

@@ -496,3 +496,60 @@ fn a_type_stream_is_refused_what_its_get_is_refused() {
     exec.plan_type_stream("Order", Some(&principal(&["finance"])))
         .expect("the role's holder may stream it");
 }
+
+// ── AA 5: a subscriber sees its own delivery position, never a server-wide one ──
+
+// Positions count what this subscription delivered, gap-free: an event its plan suppressed
+// (another owner's row) leaves no hole, and the Change-Spine `seq` — a server-wide position
+// that counts every change, including the ones withheld — never reaches the payload.
+#[test]
+#[ignore = "AA 5: per-subscription delivery position (fix pending)"]
+fn a_subscription_counts_its_own_deliveries_and_carries_no_server_position() {
+    use crate::runtime::subscription::{
+        ChangeSpineEnvelope, SubscriptionEvent, SubscriptionManager, SubscriptionOperation,
+    };
+    let exec = row_policy_executor();
+    let planned = plan(
+        &exec,
+        "subscription { orderCreated { id } }",
+        &json!({}),
+        Some(&tenant_principal()),
+    )
+    .unwrap();
+    let manager = SubscriptionManager::new(Arc::new(schema()));
+    let mut rx = manager.receiver();
+    manager
+        .subscribe_planned(Arc::new(planned), json!({}), json!({}), "c1", vec![])
+        .unwrap();
+    let publish = |id: &str, author: &str, seq: i64| {
+        manager.publish_event(
+            SubscriptionEvent::new(
+                "Order",
+                id,
+                SubscriptionOperation::Create,
+                json!({"id": id, "tenant_id": "t1", "author_id": author}),
+            )
+            .with_change_spine(ChangeSpineEnvelope {
+                seq: Some(seq),
+                ..ChangeSpineEnvelope::default()
+            }),
+        )
+    };
+    publish("o1", "user-1", 41);
+    publish("o2", "someone-else", 42);
+    publish("o3", "user-1", 43);
+    let first = rx.try_recv().unwrap();
+    let second = rx.try_recv().unwrap();
+    assert_eq!(
+        (first.event.sequence_number, second.event.sequence_number),
+        (1, 2),
+        "positions count this subscription's deliveries, without the suppressed one"
+    );
+    for payload in [&first, &second] {
+        assert!(
+            payload.event.change_spine.as_ref().is_none_or(|e| e.seq.is_none()),
+            "the Change-Spine seq is server-side: {:?}",
+            payload.event.change_spine
+        );
+    }
+}
