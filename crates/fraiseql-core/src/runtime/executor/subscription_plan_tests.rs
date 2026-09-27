@@ -442,3 +442,30 @@ fn an_unplanned_subscription_reaching_a_role_or_a_nested_gate_is_refused() {
         assert!(res.is_err(), "{why}: {res:?}");
     }
 }
+
+// ── AC 7: every push seam carries only what the plan served ──
+
+// The broadcast payload is what every seam consumes — `/ws` sends its `data`, the Kafka
+// mirror and the webhook adapter serialise its `event`. For a planned subscription the
+// event must carry the served document, and no before-image (which no plan covers).
+#[test]
+#[ignore = "AC 7: a planned payload's event carries the raw after-image (fix pending)"]
+fn a_planned_payload_carries_only_the_served_document() {
+    use crate::runtime::subscription::{
+        SubscriptionEvent, SubscriptionManager, SubscriptionOperation,
+    };
+    let exec = executor(schema(), RuntimeConfig::default());
+    let planned = plan(&exec, "subscription { orderCreated { id } }", &json!({}), None).unwrap();
+    let manager = SubscriptionManager::new(Arc::new(schema()));
+    let mut rx = manager.receiver();
+    manager
+        .subscribe_planned(Arc::new(planned), json!({}), json!({}), "c1", vec![])
+        .unwrap();
+    let mut event = SubscriptionEvent::new("Order", "o1", SubscriptionOperation::Update, event());
+    event.old_data = Some(json!({"id": "o1", "secret": "old"}));
+    assert_eq!(manager.publish_event(event), 1);
+    let payload = rx.try_recv().unwrap();
+    assert_eq!(payload.data, json!({"id": "o1"}));
+    assert_eq!(payload.event.data, json!({"id": "o1"}), "the event a seam serialises");
+    assert_eq!(payload.event.old_data, None, "no plan covers the before-image");
+}
