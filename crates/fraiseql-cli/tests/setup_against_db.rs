@@ -53,7 +53,7 @@ async fn setup_installs_dollar_quoted_helpers() {
         .await
         .unwrap()
         .get("v");
-    assert_eq!(version, "2.2.0", "library_version() must report the installed version");
+    assert_eq!(version, "2.3.0", "library_version() must report the installed version");
 
     // mutation_ok / mutation_err return the 13-column response and are callable.
     let ok_succeeded: bool = client
@@ -125,7 +125,6 @@ async fn setup_installs_change_log_contract() {
 /// is its last parameter, so every call the four-argument helper accepted binds as before —
 /// and none becomes ambiguous against a second overload.
 #[tokio::test]
-#[ignore = "AG 1 reproduction: mutation_err has no p_entity_type"]
 async fn mutation_err_stamps_the_error_type_it_produced() {
     let Some(url) = fraiseql_test_support::try_database_url() else {
         eprintln!("skipping AG 1 setup against-db test: DATABASE_URL not set");
@@ -164,4 +163,72 @@ async fn mutation_err_stamps_the_error_type_it_produced() {
         let entity_type: Option<String> = row.get("entity_type");
         assert!(entity_type.is_none(), "{call} stamps nothing");
     }
+}
+
+/// The 2.2.0 `fraiseql.mutation_err`, verbatim: four arguments, no stamp.
+const MUTATION_ERR_2_2_0: &str = r"
+CREATE SCHEMA IF NOT EXISTS fraiseql;
+DROP FUNCTION IF EXISTS fraiseql.mutation_err(TEXT, TEXT, JSONB, SMALLINT, TEXT);
+CREATE OR REPLACE FUNCTION fraiseql.mutation_err(
+    p_error_class TEXT,
+    p_message TEXT DEFAULT '',
+    p_error_detail JSONB DEFAULT NULL,
+    p_http_status SMALLINT DEFAULT NULL
+)
+RETURNS TABLE(
+    succeeded BOOLEAN, state_changed BOOLEAN, error_class TEXT, status_detail TEXT,
+    http_status SMALLINT, message TEXT, entity_id UUID, entity_type TEXT, entity JSONB,
+    updated_fields TEXT[], cascade JSONB, error_detail JSONB, metadata JSONB
+) AS $$
+BEGIN
+    RETURN QUERY SELECT FALSE, FALSE, p_error_class, NULL::TEXT, p_http_status,
+        COALESCE(p_message, ''), NULL::UUID, NULL::TEXT, NULL::JSONB, NULL::TEXT[],
+        NULL::JSONB, p_error_detail, NULL::JSONB;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+";
+
+/// Ruling AG 1: a database still on the 2.2.0 helpers upgrades in place. Its four-argument
+/// `mutation_err` is replaced, not overloaded — a five-argument overload beside it would
+/// make every call that omits the stamp ambiguous ("function … is not unique").
+///
+/// Runs the SQL `fraiseql setup` embeds, over a 2.2.0 install, inside one transaction that
+/// is rolled back: the shared `fraiseql` schema the sibling tests use never sees the old
+/// signature.
+#[tokio::test]
+async fn the_helpers_replace_a_2_2_0_mutation_err() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping AG 1 upgrade test: DATABASE_URL not set");
+        return;
+    };
+    let (mut client, connection) = tokio_postgres::connect(&url, NoTls).await.unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    let tx = client.transaction().await.unwrap();
+    tx.batch_execute(MUTATION_ERR_2_2_0).await.unwrap();
+    tx.batch_execute(include_str!("../sql/helpers/mutation_response.sql"))
+        .await
+        .unwrap();
+
+    for call in [
+        "fraiseql.mutation_err('not_found')",
+        "fraiseql.mutation_err('validation', 'bad')",
+        "fraiseql.mutation_err('validation', 'bad', NULL, 422::smallint)",
+        "fraiseql.mutation_err('conflict', 'dup', p_entity_type => 'DuplicateEmailError')",
+    ] {
+        let row = tx.query_one(&format!("SELECT entity_type FROM {call}"), &[]).await;
+        assert!(row.is_ok(), "{call} must bind after the upgrade: {row:?}");
+    }
+    let overloads: i64 = tx
+        .query_one(
+            "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace \
+             WHERE n.nspname = 'fraiseql' AND p.proname = 'mutation_err'",
+            &[],
+        )
+        .await
+        .unwrap()
+        .get(0);
+    assert_eq!(overloads, 1, "the 2.2.0 signature must be replaced, not overloaded");
+    tx.rollback().await.unwrap();
 }

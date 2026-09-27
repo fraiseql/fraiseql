@@ -179,10 +179,10 @@ fn payload_roots<'s>(
     selections: &'s [FieldSelection],
 ) -> Vec<(PayloadPosition, String, &'s [FieldSelection])> {
     let mut roots = Vec::new();
-    // An error outcome is served as the stamped error type, or the union's error member:
-    // any declared error type.
-    for error_type in schema.types.iter().filter(|t| t.is_error) {
-        push_root(&mut roots, (PayloadPosition::Root, error_type.name.to_string(), selections));
+    // An error outcome is served as one of the error types this mutation can return
+    // (ruling AG 2): classified here, so the classified set is the error arm's contract.
+    for error_type in error_types(schema, return_type) {
+        push_root(&mut roots, (PayloadPosition::Root, error_type, selections));
     }
     if is_cascade {
         let payload_type = super::resolve_payload_type(return_type, schema);
@@ -283,6 +283,27 @@ pub(super) fn success_types(schema: &CompiledSchema, return_type: &str) -> Vec<S
             .collect();
     }
     vec![return_type.to_string()]
+}
+
+/// The error types a failed mutation returning `return_type` can be served as (ruling AG 2):
+/// the `is_error` members of a union, the `is_error` implementors of an interface, or — for an
+/// object return, where nothing narrower is declared — every error type of the schema.
+pub(super) fn error_types(schema: &CompiledSchema, return_type: &str) -> Vec<String> {
+    if let Some(union) = schema.find_union(return_type) {
+        return union
+            .member_types
+            .iter()
+            .filter(|t| schema.find_type(t).is_some_and(|td| td.is_error))
+            .cloned()
+            .collect();
+    }
+    let implements = schema.find_interface(return_type).is_some();
+    schema
+        .types
+        .iter()
+        .filter(|t| t.is_error && (!implements || t.implements.iter().any(|i| i == return_type)))
+        .map(|t| t.name.to_string())
+        .collect()
 }
 
 /// The types a cascade's entity can be: every one implementing `CascadeNode`. A

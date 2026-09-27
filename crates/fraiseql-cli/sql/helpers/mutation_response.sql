@@ -10,6 +10,8 @@
 -- Then in mutation functions:
 --   RETURN QUERY SELECT * FROM fraiseql.mutation_ok(v_entity, v_id, 'User', v_changed, ARRAY['bio']);
 --   RETURN QUERY SELECT * FROM fraiseql.mutation_err('not_found', 'User not found');
+--   RETURN QUERY SELECT * FROM fraiseql.mutation_err('conflict', 'Email taken',
+--                                                    p_entity_type => 'DuplicateEmailError');
 --
 -- See: docs/architecture/mutation-response.md
 -- ============================================================================
@@ -31,7 +33,7 @@ COMMENT ON SCHEMA fraiseql IS
 CREATE OR REPLACE FUNCTION fraiseql.library_version()
 RETURNS TEXT AS $$
 BEGIN
-    RETURN '2.2.0';
+    RETURN '2.3.0';
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
@@ -128,6 +130,10 @@ Handles noop semantics via state_changed. See fraiseql.mutation_ok documentation
 --                                        Example: {"field": "email", "reason": "duplicate"}
 --   http_status      SMALLINT           - HTTP status code (optional, auto-mapped from
 --                                        error_class if omitted)
+--   entity_type      TEXT               - The declared error type this failure is (optional).
+--                                        Required when the mutation's result union has two or
+--                                        more error types: the runtime refuses to guess. Must
+--                                        be one of the error types the mutation can return.
 --
 -- Returns:
 --   All 13 columns of mutation_response: succeeded, state_changed, error_class,
@@ -139,16 +145,23 @@ Handles noop semantics via state_changed. See fraiseql.mutation_ok documentation
 --   - state_changed is always FALSE (mutation failed before any DB change)
 --   - error_class is set to p_error_class (required)
 --   - message is set to p_message if provided, else empty string
---   - All success columns (entity_id, entity_type, entity, updated_fields, cascade,
---     metadata) are NULL
+--   - entity_type is p_entity_type (NULL when omitted)
+--   - All success columns (entity_id, entity, updated_fields, cascade, metadata) are NULL
 --   - error_detail carries structured error data (e.g., field name, constraint)
 -- ============================================================================
+
+-- The stamp is the LAST parameter so every positional call binds unchanged. The 2.2.0
+-- four-argument signature is dropped first: CREATE OR REPLACE cannot change an argument
+-- list, and two overloads that both accept mutation_err('x', 'y') make that call ambiguous.
+-- PL/pgSQL callers bind at call time, so the drop breaks none of them.
+DROP FUNCTION IF EXISTS fraiseql.mutation_err(TEXT, TEXT, JSONB, SMALLINT);
 
 CREATE OR REPLACE FUNCTION fraiseql.mutation_err(
     p_error_class TEXT,
     p_message TEXT DEFAULT '',
     p_error_detail JSONB DEFAULT NULL,
-    p_http_status SMALLINT DEFAULT NULL
+    p_http_status SMALLINT DEFAULT NULL,
+    p_entity_type TEXT DEFAULT NULL
 )
 RETURNS TABLE(
     succeeded BOOLEAN,
@@ -174,7 +187,7 @@ BEGIN
         p_http_status::SMALLINT,       -- http_status (caller can omit)
         COALESCE(p_message, '')::TEXT, -- message (default to empty string)
         NULL::UUID,                    -- entity_id
-        NULL::TEXT,                    -- entity_type
+        p_entity_type::TEXT,           -- entity_type (the declared error type, if stamped)
         NULL::JSONB,                   -- entity (no entity on error)
         NULL::TEXT[],                  -- updated_fields
         NULL::JSONB,                   -- cascade
@@ -183,9 +196,10 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql IMMUTABLE;
 
-COMMENT ON FUNCTION fraiseql.mutation_err(TEXT, TEXT, JSONB, SMALLINT) IS
+COMMENT ON FUNCTION fraiseql.mutation_err(TEXT, TEXT, JSONB, SMALLINT, TEXT) IS
 'Build an error (succeeded=FALSE) mutation response with optional structured metadata.
-error_class is required; message, error_detail, and http_status are optional.
+error_class is required; message, error_detail, http_status and entity_type (the declared
+error type this failure is) are optional.
 See fraiseql.mutation_err documentation.';
 
 -- ============================================================================
@@ -199,7 +213,7 @@ See fraiseql.mutation_err documentation.';
 GRANT USAGE ON SCHEMA fraiseql TO PUBLIC;
 GRANT EXECUTE ON FUNCTION fraiseql.library_version() TO PUBLIC;
 GRANT EXECUTE ON FUNCTION fraiseql.mutation_ok(JSONB, UUID, TEXT, BOOLEAN, TEXT[], JSONB, JSONB) TO PUBLIC;
-GRANT EXECUTE ON FUNCTION fraiseql.mutation_err(TEXT, TEXT, JSONB, SMALLINT) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION fraiseql.mutation_err(TEXT, TEXT, JSONB, SMALLINT, TEXT) TO PUBLIC;
 
 -- ============================================================================
 -- Tests (run as: \i sql/helpers/mutation_response.sql)
@@ -208,8 +222,8 @@ GRANT EXECUTE ON FUNCTION fraiseql.mutation_err(TEXT, TEXT, JSONB, SMALLINT) TO 
 DO $$
 BEGIN
     -- Test library_version
-    ASSERT (SELECT fraiseql.library_version()) = '2.2.0',
-        'library_version should return 2.2.0';
+    ASSERT (SELECT fraiseql.library_version()) = '2.3.0',
+        'library_version should return 2.3.0';
 
     -- Test mutation_ok with all parameters
     DECLARE
@@ -291,6 +305,19 @@ BEGIN
         ASSERT v_row.error_class = 'not_found', 'mutation_err should accept error_class only';
         ASSERT v_row.message = '', 'mutation_err should default message to empty string';
         ASSERT v_row.http_status IS NULL, 'mutation_err should allow NULL http_status';
+        ASSERT v_row.entity_type IS NULL, 'mutation_err should stamp nothing by default';
+    END;
+
+    -- Test mutation_err stamping the declared error type it produced
+    DECLARE
+        v_row RECORD;
+    BEGIN
+        SELECT * INTO v_row FROM fraiseql.mutation_err(
+            'conflict', 'Email taken', p_entity_type => 'DuplicateEmailError');
+
+        ASSERT v_row.entity_type = 'DuplicateEmailError',
+            'mutation_err should stamp p_entity_type onto entity_type';
+        ASSERT v_row.entity IS NULL, 'a stamped mutation_err still has entity=NULL';
     END;
 
     RAISE NOTICE 'All mutation response tests passed!';

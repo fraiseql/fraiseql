@@ -18,6 +18,33 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A mutation failure is served only as an error type its mutation can return; `fraiseql.mutation_err` takes the stamp.**
+
+  ⚠ **Re-run `fraiseql setup`.** The helper library is now protocol `2.3.0`:
+  `fraiseql.mutation_err(error_class, message, error_detail, http_status, p_entity_type)`
+  gains a trailing, optional `p_entity_type` naming the declared error the failure is —
+  `fraiseql.mutation_err('conflict', 'Email taken', p_entity_type => 'DuplicateEmailError')`.
+  Every existing positional call binds unchanged; setup replaces the four-argument
+  signature (a second overload would make those calls ambiguous).
+
+  The error arm now follows the rule the success arm already did. A failure's `entity_type`
+  must be one of the error types the mutation can return — an error member of its result
+  union, an error implementor of its interface, or, for a plain object return, any declared
+  error type. Before, a stamp naming *any* error type in the schema was served as it, and
+  any other stamp (the entity type, an unknown name) or none fell back silently to the
+  union's first error member. Now:
+
+  * a stamp outside the set is a contract error naming the stamp and the set, and the write
+    is rolled back;
+  * an unstamped failure of a union with **two or more** error members is a contract error
+    listing them — stamp the one produced;
+  * an unstamped failure with one possible error type (every `auto_error_union` result) is
+    that type, and an unstamped failure of a plain object return is served untyped, both as
+    before.
+
+  Mutations are also classified only against their own error types, not every error type in
+  the schema.
+
 - **The federated subscription forwarder is removed; every `/ws` subscription is this
   server's own.**
 

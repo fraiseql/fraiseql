@@ -19,7 +19,7 @@ fn mask_password_without_credentials() {
 
 #[test]
 fn helpers_version_constant_exists() {
-    assert_eq!(HELPERS_VERSION, "2.2.0");
+    assert_eq!(HELPERS_VERSION, "2.3.0");
 }
 
 #[test]

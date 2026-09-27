@@ -83,7 +83,7 @@ emits the row.
 | `http_status`    | `SMALLINT`                  | 100..=599. First-class, not derived. Validated on ingest. |
 | `message`        | `TEXT`                      | Human-readable summary. Safe to show to end users. |
 | `entity_id`      | `UUID`                      | Primary key of the affected entity. Present for updates/deletes. |
-| `entity_type`    | `TEXT`                      | GraphQL type name (e.g. `"User"`). Used by cache invalidation. |
+| `entity_type`    | `TEXT`                      | The GraphQL type the outcome is served as — on success the entity's type (e.g. `"User"`, also used by cache invalidation), on failure the declared error type (e.g. `"DuplicateEmailError"`). See *The type an outcome is served as*. |
 | `entity`         | `JSONB`                     | Full entity payload. Populated even for noops (current row). |
 | `updated_fields` | `TEXT[]`                    | GraphQL field names that changed. Empty on noop. |
 | `cascade`        | `JSONB`                     | Cascade operations (see `graphql-cascade` spec). |
@@ -109,6 +109,30 @@ cascade spec, partial success is `succeeded=true + state_changed=true` with
 non-critical entries in `error_detail`. A row with `succeeded=false` must not
 have changed state — if it did, the mutation function has a transaction-
 boundary bug that the response shape is not the right place to paper over.
+
+### The type an outcome is served as
+
+`entity_type` must name a type the outcome can be, derived from the mutation's return type:
+
+* **Success**: a non-error member of the returned union, an implementor of the returned
+  interface, or the returned type itself.
+* **Failure**: an error (`is_error`) member of the returned union, an error implementor of
+  the returned interface, or — when the mutation returns a plain object type — any error
+  type the schema declares.
+
+A stamp outside that set is a contract error, and the mutation's write is rolled back. A
+`NULL` stamp is accepted where only one type is possible: `fraiseql.mutation_ok(entity)`
+for a single success type, `fraiseql.mutation_err('conflict')` for a union with a single
+error member (every `auto_error_union` result). Where there are several, the function must
+say which one it produced:
+
+```sql
+RETURN QUERY SELECT * FROM fraiseql.mutation_err(
+    'conflict', 'Email already registered', p_entity_type => 'DuplicateEmailError');
+```
+
+An unstamped failure of a mutation returning a plain object type has no member to choose
+between; it is served untyped (`__typename` of the return type, plus `status`).
 
 ### Noop
 

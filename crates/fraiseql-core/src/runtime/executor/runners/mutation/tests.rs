@@ -4327,7 +4327,6 @@ mod field_authz {
     }
 
     #[tokio::test]
-    #[ignore = "AG 3 reproduction: an error type outside the union is served"]
     async fn a_failure_stamped_with_an_error_type_its_mutation_cannot_return_is_a_contract_error() {
         let (adapter, res) =
             failed_write(schema_with_two_error_members(), Some("StrayError"), ERROR_SELECTION)
@@ -4336,7 +4335,6 @@ mod field_authz {
     }
 
     #[tokio::test]
-    #[ignore = "AG 3 reproduction: a success stamp on a failure falls back to the first error member"]
     async fn a_failure_stamped_with_a_success_type_is_a_contract_error() {
         let (adapter, res) =
             failed_write(schema_with_two_error_members(), Some("User"), ERROR_SELECTION).await;
@@ -4344,7 +4342,6 @@ mod field_authz {
     }
 
     #[tokio::test]
-    #[ignore = "AG 3 reproduction: an unknown stamp on a failure falls back to the first error member"]
     async fn a_failure_stamped_with_no_type_is_a_contract_error() {
         let (adapter, res) =
             failed_write(schema_with_two_error_members(), Some("tb_user"), ERROR_SELECTION).await;
@@ -4352,7 +4349,6 @@ mod field_authz {
     }
 
     #[tokio::test]
-    #[ignore = "AG 3 reproduction: an unstamped failure is served as the union's first error member"]
     async fn an_unstamped_failure_with_two_possible_error_types_is_a_contract_error() {
         let (adapter, res) =
             failed_write(schema_with_two_error_members(), None, ERROR_SELECTION).await;
@@ -4360,7 +4356,6 @@ mod field_authz {
     }
 
     #[tokio::test]
-    #[ignore = "AG 3 reproduction: an unknown stamp on an object return's failure is served untyped"]
     async fn a_failure_of_an_object_return_stamped_with_no_type_is_a_contract_error() {
         let mut s = schema_with_admin();
         s.types.push(error_type("ValidationError"));

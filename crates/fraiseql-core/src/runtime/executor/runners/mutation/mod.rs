@@ -144,6 +144,20 @@ fn unstamped_ambiguity(return_type: &str, candidates: &[String]) -> FraiseQLErro
     }
 }
 
+/// The contract error for an unstamped failure that could be several error types.
+fn unstamped_error_ambiguity(return_type: &str, candidates: &[String]) -> FraiseQLError {
+    FraiseQLError::Validation {
+        message: format!(
+            "the mutation function did not stamp entity_type on a failure, and a \
+             '{return_type}' failure can be any of: {} — stamp the one it produced \
+             (`fraiseql.mutation_err(…, p_entity_type => '<ErrorType>')`); the write was \
+             rolled back",
+            candidates.join(", ")
+        ),
+        path:    Some("entity_type".to_string()),
+    }
+}
+
 /// The concrete entity type a payload wraps, read from its `entity` field type.
 fn payload_entity_type(payload_type: &str, schema: &CompiledSchema) -> Option<String> {
     schema
@@ -996,28 +1010,34 @@ fn build_mutation_result(
                 .or_insert_with(|| serde_json::Value::String(status.to_string()));
             let source = serde_json::Value::Object(source_map);
 
-            // Resolve the concrete error type to project — symmetric with the
-            // success arm's typename resolution (#465). The function stamps the
-            // declared error type it produced onto `entity_type`, so prefer it when
-            // it names a known `is_error` type: this routes onto the *specific*
-            // error member (e.g. `DuplicateEmailError` vs `ValidationError`) and,
-            // crucially, surfaces the declared error type even when the mutation's
-            // return type is the bare success entity rather than a union (the
-            // `Entity`-return + declared-error-types pattern, where `find_union`
-            // finds nothing and the result previously leaked the success typename).
-            // Fall back to the return union's first `is_error` member otherwise.
-            let error_type = entity_type
-                .as_deref()
-                .and_then(|name| ctx.schema.find_type(name))
-                .filter(|td| td.is_error)
-                .or_else(|| {
-                    ctx.schema.find_union(mutation_return_type).and_then(|u| {
-                        u.member_types.iter().find_map(|t| {
-                            let td = ctx.schema.find_type(t)?;
-                            if td.is_error { Some(td) } else { None }
-                        })
-                    })
-                });
+            // Resolve the concrete error type to project (ruling AG 3), symmetric with the
+            // success arm: the stamp — `fraiseql.mutation_err(…, p_entity_type => …)` — must be
+            // one of the error types this mutation can return (a union's or an interface's
+            // error members; for an object return, the #465 pattern, any declared error type),
+            // routing onto the *specific* member (`DuplicateEmailError` vs `ValidationError`).
+            // Unstamped, a returned union or interface with one error member is that member;
+            // with several, the function's silence must not pick one: a contract error, and
+            // the write rolls back. An unstamped failure of an object return, or of a union
+            // with no error member, is the untyped failure: there is no member to pick.
+            let errors = payload_gates::error_types(&ctx.schema, mutation_return_type);
+            let returns_members = ctx.schema.find_union(mutation_return_type).is_some()
+                || ctx.schema.find_interface(mutation_return_type).is_some();
+            let error_type = match entity_type {
+                Some(stamp) if errors.contains(&stamp) => ctx.schema.find_type(&stamp),
+                Some(stamp) => {
+                    return Err(payload_gates::off_contract(
+                        PayloadPosition::Root,
+                        &stamp,
+                        &errors,
+                    ));
+                },
+                None if !returns_members => None,
+                None => match errors.as_slice() {
+                    [] => None,
+                    [only] => ctx.schema.find_type(only),
+                    _ => return Err(unstamped_error_ambiguity(mutation_return_type, &errors)),
+                },
+            };
 
             // Project the error source through the same canonical projector when the
             // schema declares a matching error type. Otherwise emit just __typename

@@ -617,7 +617,7 @@ EXAMPLES:
     /// Install FraiseQL mutation helper functions
     ///
     /// Installs SQL helper functions (fraiseql.mutation_ok, fraiseql.mutation_err, etc.)
-    /// to reduce boilerplate when writing mutation functions under the v2.2.0 protocol.
+    /// to reduce boilerplate when writing mutation functions under the v2.3.0 protocol.
     /// The helpers are installed in the `fraiseql` schema, which is owned by FraiseQL's
     /// database role.
     #[command(after_help = "\

@@ -53,8 +53,10 @@ fn names<'r>(
     out
 }
 
+/// A union payload is classified as its members, each once: `Missing`, an error type the
+/// union does not name, is no type a failure of this mutation can be (ruling AG 2).
 #[test]
-fn a_union_payload_is_classified_as_every_member_and_every_error_type_once() {
+fn a_union_payload_is_classified_as_its_members_once() {
     let schema = schema();
     let selections = [select("id", vec![])];
     let roots = payload_roots(&schema, "OrderResult", false, &selections);
@@ -62,12 +64,12 @@ fn a_union_payload_is_classified_as_every_member_and_every_error_type_once() {
         names(&roots),
         [
             (PayloadPosition::Root, "Locked"),
-            (PayloadPosition::Root, "Missing"),
-            (PayloadPosition::Root, "Order"),
+            (PayloadPosition::Root, "Order")
         ]
     );
 }
 
+/// A plain object return declares no narrower error set: a failure can be any error type.
 #[test]
 fn a_plain_payload_is_classified_as_its_type_and_every_error_type() {
     let schema = schema();

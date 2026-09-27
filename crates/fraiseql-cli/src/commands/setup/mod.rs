@@ -2,7 +2,7 @@
 //!
 //! Installs SQL helper functions (`fraiseql.mutation_ok`, `fraiseql.mutation_err`,
 //! etc.) to the target database. These helpers reduce boilerplate when writing
-//! mutation functions under the v2.2.0 protocol.
+//! mutation functions under the v2.3.0 protocol.
 
 use anyhow::{Context, Result};
 use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
@@ -12,7 +12,7 @@ use tracing::info;
 use crate::output::OutputFormatter;
 
 /// SQL helper library version (must match sql/helpers/mutation_response.sql)
-const HELPERS_VERSION: &str = "2.2.0";
+const HELPERS_VERSION: &str = "2.3.0";
 
 /// The SQL helper library content embedded as a const
 const MUTATION_RESPONSE_SQL: &str = include_str!("../../../sql/helpers/mutation_response.sql");
