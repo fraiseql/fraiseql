@@ -295,6 +295,7 @@ fn aggregate_sum_produces_correct_sql() {
 
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![MeasureColumn {
             name:     "amount".to_string(),
             sql_type: SqlType::Decimal,
@@ -362,6 +363,7 @@ fn aggregate_group_by_produces_correct_sql() {
 
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![MeasureColumn {
             name:     "amount".to_string(),
             sql_type: SqlType::Decimal,

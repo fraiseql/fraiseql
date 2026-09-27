@@ -133,6 +133,7 @@ fn test_schema_with_fact_tables_validation() {
         "tf_sales".to_string(),
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),
@@ -173,6 +174,7 @@ fn test_validator_rejects_invalid_fact_table_prefix() {
         "sales".to_string(),
         FactTableMetadata {
             table_name:               "sales".to_string(),
+            type_name:                None,
             measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
@@ -212,6 +214,7 @@ fn test_validator_rejects_fact_table_without_measures() {
         "tf_sales".to_string(),
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -362,6 +365,7 @@ async fn test_executor_classifies_aggregate_query() {
         "tf_sales".to_string(),
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
@@ -484,6 +488,7 @@ fn mock_user_results() -> Vec<JsonbValue> {
 fn create_test_fact_table_metadata() -> FactTableMetadata {
     FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![MeasureColumn {
             name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,

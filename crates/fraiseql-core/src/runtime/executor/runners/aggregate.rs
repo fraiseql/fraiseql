@@ -37,6 +37,28 @@ impl AggregateRunner {
         }
     }
 
+    /// Refuse a read with no principal when a row policy is configured (ruling AB 3).
+    ///
+    /// The policy cannot be evaluated without a principal, and the composition below applies
+    /// it only when there is one: an anonymous aggregate or window read every row. The regular
+    /// read has refused this since #784; this is the same refusal, worded the same way (the
+    /// read is not advertised to a caller who cannot make it). It sits in the two executors,
+    /// so the GraphQL dispatch and the public embedder entries — which pass no principal —
+    /// both meet it.
+    fn refuse_anonymous_under_a_row_policy(
+        &self,
+        query_name: &str,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<()> {
+        if security_context.is_none() && self.ctx.config.rls_policy.is_some() {
+            return Err(FraiseQLError::Validation {
+                message: format!("Query '{query_name}' not found in schema"),
+                path:    None,
+            });
+        }
+        Ok(())
+    }
+
     /// Execute an aggregate query dispatch.
     ///
     /// # Errors
@@ -191,6 +213,8 @@ impl AggregateRunner {
         metadata: &crate::compiler::fact_table::FactTableMetadata,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
+        self.refuse_anonymous_under_a_row_policy(query_name, security_context)?;
+
         // 1. Parse JSON query into AggregationRequest. Build native_columns from
         //    denormalized_filters so the parser can emit direct column references instead of JSONB
         //    extraction for native columns.
@@ -199,6 +223,16 @@ impl AggregateRunner {
         );
         let mut request =
             crate::runtime::AggregateQueryParser::parse(query_json, metadata, &native_columns)?;
+
+        // 1a. A linked fact table is read as its type (ruling AB 2): every name the request
+        //     references must be a field the caller may read. Before the policy is composed,
+        //     so its own predicate is never classified.
+        super::aggregate_gates::refuse_unreadable_aggregate(
+            &self.ctx.schema,
+            metadata,
+            &request,
+            security_context,
+        )?;
 
         // 1b. Evaluate RLS policy and compose with user-supplied WHERE.
         //     RLS WHERE is always AND-composed first so it cannot be bypassed.
@@ -412,8 +446,18 @@ impl AggregateRunner {
         metadata: &crate::compiler::fact_table::FactTableMetadata,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
+        self.refuse_anonymous_under_a_row_policy(query_name, security_context)?;
+
         // 1. Parse JSON query into WindowRequest
         let mut request = crate::runtime::WindowQueryParser::parse(query_json, metadata)?;
+
+        // 1a. A linked fact table is read as its type (ruling AB 2), as for an aggregate.
+        super::aggregate_gates::refuse_unreadable_window(
+            &self.ctx.schema,
+            metadata,
+            &request,
+            security_context,
+        )?;
 
         // 1b. Evaluate RLS policy and compose with user-supplied WHERE.
         //     RLS WHERE is always AND-composed first so it cannot be bypassed.

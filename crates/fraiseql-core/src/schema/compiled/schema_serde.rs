@@ -261,6 +261,16 @@ impl CompiledSchema {
                 path:    Some("security.requires_scope".to_string()),
             });
         }
+        let violations = self.fact_table_link_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "fact tables cannot be read as their types:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("fact_tables.type_name".to_string()),
+            });
+        }
         let violations = self.relationship_violations();
         if !violations.is_empty() {
             return Err(FraiseQLError::Validation {

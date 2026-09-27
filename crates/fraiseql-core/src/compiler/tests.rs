@@ -18,6 +18,7 @@ mod compiler_tests {
 
         let metadata = FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -864,6 +865,7 @@ mod validator_tests {
     fn make_fact_table(measures: Vec<MeasureColumn>, dim_name: &str) -> FactTableMetadata {
         FactTableMetadata {
             table_name: String::new(),
+            type_name: None,
             measures,
             dimensions: DimensionColumn {
                 name:  dim_name.to_string(),
@@ -1812,6 +1814,7 @@ mod aggregate_types_tests {
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),
@@ -1925,6 +1928,7 @@ mod aggregate_types_tests {
 
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
@@ -2005,6 +2009,7 @@ mod aggregate_types_tests {
 
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
@@ -2089,6 +2094,7 @@ mod aggregate_types_tests {
 
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
@@ -2180,6 +2186,7 @@ mod aggregate_types_tests {
 
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
@@ -2243,6 +2250,7 @@ mod window_allowlist_tests {
     fn test_metadata() -> FactTableMetadata {
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),
@@ -2371,6 +2379,7 @@ mod aggregation_tests {
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),
@@ -2749,6 +2758,7 @@ mod window_order_by_allowlist_tests {
     fn metadata() -> FactTableMetadata {
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
@@ -2898,6 +2908,7 @@ mod window_order_by_allowlist_tests {
     fn empty_metadata_cannot_adjudicate_and_still_executes() {
         let empty = FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![],
             dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),

@@ -60,6 +60,7 @@ fn schema_with_fact_table() -> crate::schema::CompiledSchema {
         "tf_sales".to_string(),
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
@@ -251,6 +252,7 @@ fn schema_with_partial_period() -> crate::schema::CompiledSchema {
         "tf_events".to_string(),
         FactTableMetadata {
             table_name:               "tf_events".to_string(),
+            type_name:                None,
             measures:                 vec![MeasureColumn {
                 name:     "volume".to_string(),
                 sql_type: SqlType::BigInt,
@@ -487,6 +489,9 @@ mod gated_fact_tables {
                 note,
                 FieldDefinition::new("tenant_id", FieldType::String),
                 FieldDefinition::new("occurred_at", FieldType::String),
+                FieldDefinition::nullable("closed_at", FieldType::String)
+                    .with_requires_scope("read:closed")
+                    .with_on_deny(FieldDenyPolicy::Mask),
             ],
             ..TypeDefinition::new("Sale", "v_sale")
         }
@@ -503,7 +508,7 @@ mod gated_fact_tables {
             "type_name": "Sale",
             "measures": [measure("revenue"), measure("margin"), measure("cost")],
             "dimensions": {"name": "data", "paths": [path("category"), path("segment"), path("note")]},
-            "denormalized_filters": [filter("tenant_id"), filter("occurred_at")]
+            "denormalized_filters": [filter("tenant_id"), filter("occurred_at"), filter("closed_at")]
         }))
         .unwrap()
     }
@@ -552,7 +557,6 @@ mod gated_fact_tables {
     }
 
     #[tokio::test]
-    #[ignore = "AA 3b: an aggregate reads its fact table's type (fix pending)"]
     async fn aggregating_a_measure_the_caller_may_not_read_is_refused() {
         assert_refused(
             serde_json::json!({"aggregates": [{"margin_sum": {}}]}),
@@ -569,7 +573,6 @@ mod gated_fact_tables {
     }
 
     #[tokio::test]
-    #[ignore = "AA 3b: an aggregate reads its fact table's type (fix pending)"]
     async fn grouping_by_a_dimension_the_caller_may_not_read_is_refused() {
         assert_refused(
             serde_json::json!({"groupBy": {"segment": true}, "aggregates": [{"count": {}}]}),
@@ -580,7 +583,6 @@ mod gated_fact_tables {
     }
 
     #[tokio::test]
-    #[ignore = "AA 3b: an aggregate reads its fact table's type (fix pending)"]
     async fn an_aggregate_filter_on_a_field_the_caller_may_not_read_is_refused() {
         assert_refused(
             serde_json::json!({"where": {"margin_gt": 10}, "aggregates": [{"count": {}}]}),
@@ -591,7 +593,6 @@ mod gated_fact_tables {
     }
 
     #[tokio::test]
-    #[ignore = "AA 3b: an aggregate reads its fact table's type (fix pending)"]
     async fn an_aggregate_order_by_a_field_the_caller_may_not_read_is_refused() {
         assert_refused(
             serde_json::json!({
@@ -606,7 +607,6 @@ mod gated_fact_tables {
     }
 
     #[tokio::test]
-    #[ignore = "AA 3b: an aggregate reads its fact table's type (fix pending)"]
     async fn an_aggregate_over_an_authorize_field_is_refused() {
         assert_refused(
             serde_json::json!({"groupBy": {"note": true}, "aggregates": [{"count": {}}]}),
@@ -617,7 +617,6 @@ mod gated_fact_tables {
     }
 
     #[tokio::test]
-    #[ignore = "AA 3b: a window reads its fact table's type (fix pending)"]
     async fn a_window_over_a_field_the_caller_may_not_read_is_refused() {
         assert_refused(
             serde_json::json!({
@@ -668,7 +667,6 @@ mod gated_fact_tables {
     }
 
     #[tokio::test]
-    #[ignore = "AA 3b: a linked fact table exposes only its type's fields (fix pending)"]
     async fn a_name_the_linked_type_does_not_declare_is_refused() {
         let vars =
             serde_json::json!({"where": {"salary_gt": 100_000}, "aggregates": [{"count": {}}]});
@@ -681,7 +679,6 @@ mod gated_fact_tables {
     }
 
     #[tokio::test]
-    #[ignore = "AA 3b: an aggregate reads its fact table's type (fix pending)"]
     async fn a_fact_table_of_a_role_gated_type_is_refused() {
         let mut schema = schema();
         schema.types.iter_mut().find(|t| t.name == "Sale").unwrap().requires_role =
@@ -694,6 +691,146 @@ mod gated_fact_tables {
             "`Sale` requires `finance`: {res:?}"
         );
         assert!(sql.is_none(), "the statement reached the database: {sql:?}");
+    }
+
+    // A temporal bucket reads its source column.
+    #[tokio::test]
+    async fn a_temporal_bucket_of_a_column_the_caller_may_not_read_is_refused() {
+        assert_refused(
+            serde_json::json!({"groupBy": {"closed_at_day": true}, "aggregates": [{"count": {}}]}),
+            "{ sales_aggregate }",
+            "a day bucket of a masked timestamp is the timestamp, truncated",
+        )
+        .await;
+    }
+
+    // A native dimension mapping is read as the dimension key it maps.
+    #[tokio::test]
+    async fn a_natively_mapped_dimension_the_caller_may_not_read_is_refused() {
+        let mut schema = schema();
+        schema
+            .fact_tables
+            .get_mut("tf_sales")
+            .unwrap()
+            .native_dimension_mapping
+            .insert("segment".to_string(), "segment_col".to_string());
+        let vars = serde_json::json!({"groupBy": {"segment": true}, "aggregates": [{"count": {}}]});
+        let (res, sql) = run(schema, "{ sales_aggregate }", &vars, &principal()).await;
+        assert!(
+            matches!(res, Err(crate::error::FraiseQLError::Authorization { .. })),
+            "`segment_col` holds `Sale.segment`: {res:?}"
+        );
+        assert!(sql.is_none(), "the statement reached the database: {sql:?}");
+    }
+
+    // The schema's registration of the table decides: an embedder handing in metadata
+    // without the link does not unlink it.
+    #[tokio::test]
+    async fn the_schemas_link_holds_for_metadata_handed_in_without_it() {
+        let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
+        let mut unlinked = linked_fact_table();
+        unlinked.type_name = None;
+        let res = Executor::new(schema(), adapter.clone())
+            .execute_aggregate_query(
+                &serde_json::json!({"table": "tf_sales", "aggregates": [{"margin_sum": {}}]}),
+                "sales_aggregate",
+                &unlinked,
+            )
+            .await;
+        assert!(
+            matches!(res, Err(crate::error::FraiseQLError::Authorization { .. })),
+            "the registered `tf_sales` is read as `Sale`: {res:?}"
+        );
+        assert!(adapter.captured_aggregate_sql().is_none());
+    }
+
+    // Value functions and the final order read their fields too.
+    #[tokio::test]
+    async fn a_window_value_function_or_final_order_over_a_gated_field_is_refused() {
+        assert_refused(
+            serde_json::json!({
+                "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
+                "windows": [{
+                    "function": {"type": "lag", "field": "cost"},
+                    "alias": "previous_cost",
+                    "orderBy": [{"field": "occurred_at", "direction": "ASC"}]
+                }]
+            }),
+            "{ sales_window }",
+            "the previous row's refused cost is its value",
+        )
+        .await;
+        assert_refused(
+            serde_json::json!({
+                "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
+                "windows": [],
+                "orderBy": [{"field": "margin", "direction": "DESC"}]
+            }),
+            "{ sales_window }",
+            "rows ordered by a masked measure are ranked by it",
+        )
+        .await;
+    }
+
+    // Control: a final order by a window alias references nothing new.
+    #[tokio::test]
+    async fn a_window_ordered_by_its_own_aliases_is_served() {
+        let vars = serde_json::json!({
+            "select": [{"type": "measure", "name": "revenue", "alias": "rev"}],
+            "windows": [{
+                "function": {"type": "row_number"},
+                "alias": "rank",
+                "orderBy": [{"field": "revenue", "direction": "DESC"}]
+            }],
+            "orderBy": [{"field": "rank", "direction": "ASC"}]
+        });
+        let (res, sql) = run(schema(), "{ sales_window }", &vars, &principal()).await;
+        res.expect("aliases of readable outputs are no new reference");
+        assert!(sql.is_some());
+    }
+
+    // A denormalized filter is a native column: its condition is a reference too.
+    #[tokio::test]
+    async fn a_filter_on_a_gated_native_column_is_refused() {
+        assert_refused(
+            serde_json::json!({"where": {"closed_at_gte": "2026-01-01"}, "aggregates": [{"count": {}}]}),
+            "{ sales_aggregate }",
+            "a count of rows closed after a date asks about the masked timestamp",
+        )
+        .await;
+    }
+
+    // Partitioning alone, and a window's own order alone, each read the field.
+    #[tokio::test]
+    async fn a_partition_or_a_window_order_over_a_gated_field_is_refused() {
+        assert_refused(
+            serde_json::json!({
+                "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
+                "windows": [{
+                    "function": {"type": "row_number"},
+                    "alias": "rank",
+                    "partitionBy": [{"type": "dimension", "path": "segment"}],
+                    "orderBy": [{"field": "revenue", "direction": "DESC"}]
+                }]
+            }),
+            "{ sales_window }",
+            "a rank per masked segment groups rows by it",
+        )
+        .await;
+        assert_refused(
+            serde_json::json!({
+                "select": [{"type": "measure", "name": "revenue", "alias": "revenue"}],
+                "windows": [{
+                    "function": {"type": "row_number"},
+                    "alias": "rank",
+                    "partitionBy": [{"type": "dimension", "path": "category"}],
+                    "orderBy": [{"field": "margin", "direction": "DESC"}]
+                }]
+            }),
+            "{ sales_window }",
+            "a rank by a masked measure ranks by it",
+        )
+        .await;
     }
 
     // Control: readable fields of a linked fact table are served.
@@ -738,7 +875,6 @@ mod anonymous_under_a_row_policy {
     }
 
     #[tokio::test]
-    #[ignore = "AB 3: anonymous aggregate under a row policy (fix pending)"]
     async fn an_anonymous_aggregate_is_refused() {
         let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
         let vars = serde_json::json!({"table": "tf_sales", "aggregates": [{"count": {}}]});
@@ -749,7 +885,6 @@ mod anonymous_under_a_row_policy {
     }
 
     #[tokio::test]
-    #[ignore = "AB 3: anonymous window under a row policy (fix pending)"]
     async fn an_anonymous_window_is_refused() {
         let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
         let vars = serde_json::json!({
@@ -764,7 +899,6 @@ mod anonymous_under_a_row_policy {
     }
 
     #[tokio::test]
-    #[ignore = "AB 3: the embedder entries pass no principal (fix pending)"]
     async fn the_embedder_entries_are_refused() {
         let adapter = Arc::new(CapturingMockAdapter::new(vec![]));
         let metadata = schema_with_fact_table().get_fact_table("tf_sales").unwrap().clone();

@@ -15,6 +15,10 @@ use serde::{Deserialize, Serialize};
 pub struct IntermediateFactTable {
     /// Name of the fact table
     pub table_name:               String,
+    /// The type the fact table is read as: its measures, filters and dimension paths are
+    /// fields of that type, gated as a read of it (accepts `type` too).
+    #[serde(default, alias = "type", skip_serializing_if = "Option::is_none")]
+    pub type_name:                Option<String>,
     /// Measure columns (numeric aggregates)
     pub measures:                 Vec<IntermediateMeasure>,
     /// Dimension metadata

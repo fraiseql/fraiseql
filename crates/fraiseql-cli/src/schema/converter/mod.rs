@@ -869,6 +869,7 @@ impl SchemaConverter {
     fn convert_fact_table(ft: IntermediateFactTable) -> FactTableMetadata {
         FactTableMetadata {
             table_name:               ft.table_name,
+            type_name:                ft.type_name,
             measures:                 ft
                 .measures
                 .into_iter()

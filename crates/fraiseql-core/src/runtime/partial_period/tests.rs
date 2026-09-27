@@ -496,6 +496,7 @@ mod should_use_tests {
     fn metadata_with_pp() -> FactTableMetadata {
         FactTableMetadata {
             table_name:               "v_events_month".into(),
+            type_name:                None,
             measures:                 vec![MeasureColumn {
                 name:     "volume".into(),
                 sql_type: SqlType::BigInt,

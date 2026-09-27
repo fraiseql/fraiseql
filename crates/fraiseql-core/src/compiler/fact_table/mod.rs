@@ -53,6 +53,14 @@ mod tests;
 pub struct FactTableMetadata {
     /// Table name (e.g., "`tf_sales`")
     pub table_name:               String,
+    /// The type the fact table is read as (ruling AB 1).
+    ///
+    /// Each measure, denormalized filter and dimension path is a field of it, so an aggregate
+    /// or a window over the table is gated as a read of that type: a field's `requires_scope`
+    /// and `authorize`, and the type's `requires_role`. `None`: the table declares no field
+    /// gate, and none applies.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub type_name:                Option<String>,
     /// Measures (aggregatable numeric columns)
     pub measures:                 Vec<MeasureColumn>,
     /// Dimension column (JSONB)

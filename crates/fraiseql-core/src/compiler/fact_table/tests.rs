@@ -18,6 +18,7 @@ fn test_is_fact_table() {
 fn test_validate_valid_fact_table() {
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![MeasureColumn {
             name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,
@@ -42,6 +43,7 @@ fn test_validate_valid_fact_table() {
 fn test_validate_missing_measures() {
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
@@ -63,6 +65,7 @@ fn test_validate_missing_measures() {
 fn test_validate_non_numeric_measure() {
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![MeasureColumn {
             name:     "category".to_string(),
             sql_type: SqlType::Text, // Wrong type for measure!
@@ -823,6 +826,7 @@ fn test_native_measures_backward_compat_absent() {
 fn test_native_measures_roundtrip() {
     let ft = FactTableMetadata {
         table_name:               "mv_daily_sales".to_string(),
+        type_name:                None,
         measures:                 vec![MeasureColumn {
             name:     "volume".to_string(),
             sql_type: SqlType::BigInt,
@@ -893,6 +897,7 @@ fn test_native_dimension_mapping_backward_compat_absent() {
 fn test_native_dimension_mapping_roundtrip() {
     let ft = FactTableMetadata {
         table_name:               "mv_daily_sales".to_string(),
+        type_name:                None,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),

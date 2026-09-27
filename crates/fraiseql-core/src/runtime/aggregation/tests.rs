@@ -11,6 +11,7 @@ fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableM
     use crate::compiler::fact_table::{DimensionColumn, FilterColumn, MeasureColumn, SqlType};
     crate::compiler::fact_table::FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![MeasureColumn {
             name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,
@@ -35,6 +36,7 @@ fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableM
 fn create_test_plan() -> AggregationPlan {
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![MeasureColumn {
             name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,
@@ -657,6 +659,7 @@ fn test_stringagg_delimiter_clean_value_unchanged() {
 fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -721,6 +724,7 @@ fn test_parameterized_postgres_placeholder_numbering() {
     let injection = "risky";
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![MeasureColumn {
             name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,
@@ -800,6 +804,7 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
     // WHERE status IN ("a","b","c") → WHERE status IN ($1,$2,$3) with 3 params
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -874,6 +879,7 @@ mod partial_period_builder_tests {
     fn test_metadata() -> FactTableMetadata {
         FactTableMetadata {
             table_name:               "v_events_month".to_string(),
+            type_name:                None,
             measures:                 vec![MeasureColumn {
                 name:     "volume".to_string(),
                 sql_type: SqlType::BigInt,
@@ -1183,6 +1189,7 @@ fn test_aggregation_plan_uses_native_measure() {
 
     let metadata = FactTableMetadata {
         table_name:               "mv_daily_sales".to_string(),
+        type_name:                None,
         measures:                 vec![MeasureColumn {
             name:     "volume".to_string(),
             sql_type: SqlType::BigInt,
@@ -1233,6 +1240,7 @@ fn test_native_measure_sql_uses_quoted_identifier() {
 
     let metadata = FactTableMetadata {
         table_name:               "mv_daily_sales".to_string(),
+        type_name:                None,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -1286,6 +1294,7 @@ fn test_non_native_measure_unchanged() {
 
     let metadata = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![MeasureColumn {
             name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,
@@ -1341,6 +1350,7 @@ fn test_native_dimension_mapping_sql_output() {
 
     let metadata = FactTableMetadata {
         table_name:               "mv_daily_sales".to_string(),
+        type_name:                None,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),

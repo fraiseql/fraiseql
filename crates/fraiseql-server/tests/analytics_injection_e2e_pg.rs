@@ -54,6 +54,7 @@ const FACT_TABLE: &str = "tf_injprobe";
 fn sales_metadata() -> FactTableMetadata {
     FactTableMetadata {
         table_name:               FACT_TABLE.to_string(),
+        type_name:                None,
         measures:                 vec![MeasureColumn {
             name:     "revenue".to_string(),
             sql_type: SqlType::Decimal,

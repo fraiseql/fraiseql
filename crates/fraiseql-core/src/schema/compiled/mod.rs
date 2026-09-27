@@ -5,6 +5,7 @@
 
 pub mod argument;
 pub mod directive;
+mod fact_table_links;
 pub mod mutation;
 pub mod query;
 pub mod schema;
@@ -22,6 +23,7 @@ mod tests;
 
 pub use argument::{ArgumentDefinition, AutoParams};
 pub use directive::{DirectiveDefinition, DirectiveLocationKind};
+pub use fact_table_links::fact_field;
 pub use mutation::{InputStyle, MutationDefinition, MutationOperation};
 pub use query::{CursorType, PaginationOrder, QueryDefinition};
 pub use schema::{

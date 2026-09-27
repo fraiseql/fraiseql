@@ -23,6 +23,7 @@ mod aggregate_parser_tests {
 
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),
@@ -392,6 +393,7 @@ mod aggregate_parser_tests {
     fn test_parser_resolves_native_measure_aggregate() {
         let metadata = FactTableMetadata {
             table_name:               "mv_daily_sales".to_string(),
+            type_name:                None,
             measures:                 vec![],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -438,6 +440,7 @@ mod aggregate_parser_tests {
     fn test_group_by_uses_dimension_mapping() {
         let metadata = FactTableMetadata {
             table_name:               "mv_daily_sales".to_string(),
+            type_name:                None,
             measures:                 vec![],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -476,6 +479,7 @@ mod aggregate_parser_tests {
     fn test_mapped_dimension_not_in_group_by_unless_selected() {
         let metadata = FactTableMetadata {
             table_name:               "mv_daily_sales".to_string(),
+            type_name:                None,
             measures:                 vec![MeasureColumn {
                 name:     "volume".to_string(),
                 sql_type: SqlType::BigInt,
@@ -535,6 +539,7 @@ mod aggregate_projector_tests {
 
         let metadata = FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![MeasureColumn {
                 name:     "revenue".to_string(),
                 sql_type: SqlType::Decimal,
@@ -4571,6 +4576,7 @@ mod window_parser_tests {
     fn create_test_metadata() -> FactTableMetadata {
         FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),

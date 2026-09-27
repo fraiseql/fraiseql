@@ -38,6 +38,7 @@ use serde_json::json;
 fn create_test_metadata() -> FactTableMetadata {
     FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![
             MeasureColumn {
                 name:     "revenue".to_string(),

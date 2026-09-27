@@ -44,6 +44,7 @@
 
 mod changelog;
 mod compiled;
+pub(crate) use compiled::fact_field;
 mod config_types;
 mod dependency_graph;
 pub mod derived_inputs;

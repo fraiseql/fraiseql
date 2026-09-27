@@ -113,7 +113,7 @@ and `make lint-write-selections` refuses a write path that invents one instead.
 | REST direct projection (read) | Fail closed |
 | Relay list / `node` lookup | Fail closed (type-level) |
 | Federation `_entities` | Fail closed (schema-level) |
-| Aggregate / window | Not applicable — these project synthetic aggregate result types, which never carry an entity's gated field |
+| Aggregate / window | A fact table linked to a type (`type_name`) is read as that type: a reference to an `authorize` field — grouped, aggregated, filtered, ordered, partitioned or selected — is refused (403), since the decision is per row and an aggregate has no row to decide on. An unlinked fact table declares no field gate. See [the fact-table module](../modules/fact-table.md#read-gates-the-type-a-fact-table-is-read-as) |
 
 > **On a mutation, a `Reject` refuses the write itself (#1353).** The authorizer takes the
 > resolved entity as `parent`, so on a write it can only be asked once the row exists. It is

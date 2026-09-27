@@ -192,6 +192,7 @@ impl FactTableDetector {
 
         let metadata = FactTableMetadata {
             table_name: table_name.to_string(),
+            type_name: None,
             measures,
             dimensions: dimension_column.unwrap_or(DimensionColumn {
                 name:  "dimensions".to_string(),
@@ -664,6 +665,7 @@ impl FactTableDetector {
 
         let metadata = FactTableMetadata {
             table_name,
+            type_name: None,
             measures,
             dimensions,
             denormalized_filters: filters,

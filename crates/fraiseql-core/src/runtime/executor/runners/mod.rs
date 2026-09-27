@@ -5,6 +5,7 @@
 //! all cross-runner coordination goes through [`Executor`].
 
 pub(super) mod aggregate;
+mod aggregate_gates;
 pub(super) mod mutation;
 pub(super) mod query;
 pub(super) mod query_composed;

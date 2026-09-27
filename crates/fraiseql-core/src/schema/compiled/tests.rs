@@ -835,6 +835,7 @@ fn fact_table_add_and_get() {
 
     let meta = FactTableMetadata {
         table_name:               "tf_sales".to_string(),
+        type_name:                None,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -859,6 +860,7 @@ fn list_fact_tables_returns_all_names() {
 
     let make_meta = |name: &str| FactTableMetadata {
         table_name:               name.to_string(),
+        type_name:                None,
         measures:                 vec![],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -2501,7 +2503,6 @@ fn a_query_returning_an_enum_or_union_still_loads() {
 /// declares must be a field of it — a declared column the type lacks would be a column no
 /// gate can reach. Refused at load, naming the fact table, the type and the names.
 #[test]
-#[ignore = "AB 1: fact-table link validated at load (fix pending)"]
 fn a_fact_table_linked_to_a_type_lacking_one_of_its_columns_is_refused_at_load() {
     let json = r#"{
         "types": [{
@@ -2528,7 +2529,6 @@ fn a_fact_table_linked_to_a_type_lacking_one_of_its_columns_is_refused_at_load()
 
 /// Ruling AB 1: the linked type must exist.
 #[test]
-#[ignore = "AB 1: fact-table link validated at load (fix pending)"]
 fn a_fact_table_linked_to_an_unknown_type_is_refused_at_load() {
     let json = r#"{
         "types": [], "queries": [], "mutations": [], "subscriptions": [],

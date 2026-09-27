@@ -2115,6 +2115,7 @@ mod introspect_facts_tests {
 
         let metadata = FactTableMetadata {
             table_name:               "tf_sales".to_string(),
+            type_name:                None,
             measures:                 vec![
                 MeasureColumn {
                     name:     "revenue".to_string(),
@@ -3220,6 +3221,7 @@ mod validate_facts_tests {
     ) -> FactTableMetadata {
         FactTableMetadata {
             table_name: "tf_sales".to_string(),
+            type_name: None,
             measures,
             dimensions: DimensionColumn {
                 name:  dim_name.to_string(),
