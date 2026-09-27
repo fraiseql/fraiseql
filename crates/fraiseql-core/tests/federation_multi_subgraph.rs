@@ -20,7 +20,7 @@ fn test_federation_postgres_to_postgres() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -48,7 +48,6 @@ fn test_federation_postgres_to_postgres() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Verify federation is enabled
@@ -69,7 +68,7 @@ fn test_federation_postgres_to_mysql() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -97,7 +96,6 @@ fn test_federation_postgres_to_mysql() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // In a real scenario:
@@ -115,7 +113,7 @@ fn test_federation_postgres_to_sqlserver() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "Product".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["sku".to_string()],
@@ -128,7 +126,6 @@ fn test_federation_postgres_to_sqlserver() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Verify federation structure supports SQL Server
@@ -142,7 +139,7 @@ fn test_federation_three_database_chain() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -183,7 +180,6 @@ fn test_federation_three_database_chain() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Verify all three types in metadata
@@ -206,7 +202,7 @@ fn test_federation_two_subgraph_simple() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -234,7 +230,6 @@ fn test_federation_two_subgraph_simple() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Verify federation structure
@@ -252,7 +247,7 @@ fn test_federation_three_subgraph_federation() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -293,7 +288,6 @@ fn test_federation_three_subgraph_federation() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     assert_eq!(metadata.types.len(), 3);
@@ -307,7 +301,7 @@ fn test_federation_chain_federation() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -348,7 +342,6 @@ fn test_federation_chain_federation() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Verify chain structure
@@ -373,7 +366,7 @@ fn test_federation_multi_tenant_composite_key() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "Order".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["tenant_id".to_string(), "id".to_string()],
@@ -386,7 +379,6 @@ fn test_federation_multi_tenant_composite_key() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Verify composite key structure
@@ -403,7 +395,7 @@ fn test_federation_multi_tenant_isolation() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -431,7 +423,6 @@ fn test_federation_multi_tenant_isolation() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Verify isolation structure
@@ -450,7 +441,7 @@ fn test_federation_circular_references_handling() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -478,7 +469,6 @@ fn test_federation_circular_references_handling() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Verify circular reference structure
@@ -496,7 +486,7 @@ fn test_federation_shared_entity_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -525,7 +515,6 @@ fn test_federation_shared_entity_fields() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Verify shared field structure
@@ -544,7 +533,7 @@ fn test_federation_batching_across_subgraphs() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -572,7 +561,6 @@ fn test_federation_batching_across_subgraphs() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Can batch 100+ entities across subgraphs
@@ -585,7 +573,7 @@ fn test_federation_parallel_subgraph_resolution() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -626,7 +614,6 @@ fn test_federation_parallel_subgraph_resolution() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Three independent subgraphs can be resolved in parallel
@@ -639,7 +626,7 @@ fn test_federation_large_batch_1000_entities() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "Entity".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -652,7 +639,6 @@ fn test_federation_large_batch_1000_entities() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Supports batching 1000+ entities
@@ -665,7 +651,7 @@ fn test_federation_concurrent_requests() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -678,7 +664,6 @@ fn test_federation_concurrent_requests() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Can handle concurrent requests from multiple clients
@@ -695,7 +680,7 @@ fn test_federation_subgraph_timeout() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "RemoteEntity".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -708,7 +693,6 @@ fn test_federation_subgraph_timeout() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Timeout handling configured
@@ -723,7 +707,7 @@ fn test_federation_subgraph_partial_failure() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "Order".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -736,7 +720,6 @@ fn test_federation_subgraph_partial_failure() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Supports partial failure scenarios
@@ -749,7 +732,7 @@ fn test_federation_entity_not_found() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -762,7 +745,6 @@ fn test_federation_entity_not_found() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Handles missing entities gracefully
@@ -775,7 +757,7 @@ fn test_federation_invalid_key_format() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -788,7 +770,6 @@ fn test_federation_invalid_key_format() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let user_type = metadata.types.iter().find(|t| t.name == "User").unwrap();
@@ -806,7 +787,7 @@ fn test_federation_apollo_router_composition() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -834,7 +815,6 @@ fn test_federation_apollo_router_composition() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Metadata structure compatible with Apollo Federation v2
@@ -848,7 +828,7 @@ fn test_federation_apollo_router_query_planning() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -876,7 +856,6 @@ fn test_federation_apollo_router_query_planning() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Query planning across multiple subgraphs
@@ -889,7 +868,7 @@ fn test_federation_apollo_router_variables() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "Query".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -902,7 +881,6 @@ fn test_federation_apollo_router_variables() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Variable passing supported
@@ -915,7 +893,7 @@ fn test_federation_apollo_router_mutations() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -928,7 +906,6 @@ fn test_federation_apollo_router_mutations() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Mutations through gateway supported
@@ -941,7 +918,7 @@ fn test_federation_apollo_router_subscriptions() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "Event".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -954,7 +931,6 @@ fn test_federation_apollo_router_subscriptions() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Subscription structure (placeholder for future implementation)

@@ -16,6 +16,20 @@ This document tracks deprecated APIs and their migration paths. Deprecated items
 | `CacheStatus::RlsGuardOnly` | `fraiseql-server` | v2.2.0 | `CacheStatus::Active` or `CacheStatus::Disabled` | v3.0 |
 | `CacheStatus::from_cache_enabled` | `fraiseql-server` | v2.2.0 | `AppState::adapter_cache_enabled` | v3.0 |
 
+## Removed in the next release (no deprecation cycle — the subscription forwarder)
+
+The federated subscription forwarder is deleted in the same release as a security fix (see
+`CHANGELOG.md`, "The federated subscription forwarder is removed"). It was reachable only
+through an embedder builder, and a forwarded subscription skipped this server's
+subscribe-time checks; keeping it callable for a release would keep that path open. There
+is no replacement inside FraiseQL: federate subscriptions at the router.
+
+| Removed | Crate | Replacement |
+|---------|-------|-------------|
+| `subscription_forwarder` module (`SubscriptionForwarder`, `ForwardError`, `ForwardedEvent`, `lookup_remote_subscription`, `extract_subscription_field_name`) | `fraiseql-federation` | none — the federation router |
+| `FederationMetadata::remote_subscription_fields` | `fraiseql-federation` | none |
+| `SubscriptionState::remote_subscription_fields`, `SubscriptionState::with_remote_subscription_fields` | `fraiseql-server` | none — the federation router |
+
 ## Removed in the next release (no deprecation cycle — the write API)
 
 The write surface of `DatabaseAdapter` is replaced by the `Writer` trait in the same release

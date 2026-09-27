@@ -63,7 +63,7 @@ fn test_key_directive_multiple_keys() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![
                 KeyDirective {
@@ -82,7 +82,6 @@ fn test_key_directive_multiple_keys() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let user_type = &metadata.types[0];
@@ -355,8 +354,7 @@ fn test_federation_metadata_version() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![],
     };
 
     assert_eq!(metadata.version, "v2");
@@ -368,15 +366,13 @@ fn test_federation_metadata_enabled_flag() {
     let enabled = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![],
     };
 
     let disabled = FederationMetadata {
         enabled: false,
         version: "v2".to_string(),
-        types: vec![],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![],
     };
 
     assert!(enabled.enabled);
@@ -388,7 +384,7 @@ fn test_federation_metadata_multiple_types() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -416,7 +412,6 @@ fn test_federation_metadata_multiple_types() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     assert_eq!(metadata.types.len(), 2);

@@ -70,7 +70,7 @@ mod wired {
         FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![FederatedType {
+            types:   vec![FederatedType {
                 name:                "Order".to_string(),
                 keys:                vec![KeyDirective {
                     fields:     vec!["id".to_string()],
@@ -83,7 +83,6 @@ mod wired {
                 field_directives:    std::collections::HashMap::new(),
                 type_shareable:      false,
             }],
-            remote_subscription_fields: std::collections::HashMap::new(),
         }
     }
 

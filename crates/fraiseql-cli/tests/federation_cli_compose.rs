@@ -262,7 +262,7 @@ fn test_compose_workflow_basic() {
     let users_schema = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![{
+        types:   vec![{
             let mut t = FederatedType::new("User".to_string());
             t.keys.push(KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -270,13 +270,12 @@ fn test_compose_workflow_basic() {
             });
             t
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let orders_schema = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![{
+        types:   vec![{
             let mut t = FederatedType::new("Order".to_string());
             t.keys.push(KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -284,7 +283,6 @@ fn test_compose_workflow_basic() {
             });
             t
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let subgraphs = vec![
@@ -321,8 +319,7 @@ fn test_compose_workflow_with_validation_errors() {
     let invalid_schema = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![],
     };
 
     let subgraphs = vec![SubgraphInput {
@@ -681,8 +678,7 @@ fn compose_federation_schemas(
         return Ok(FederationMetadata {
             enabled: false,
             version: "v2".to_string(),
-            types: vec![],
-            remote_subscription_fields: std::collections::HashMap::new(),
+            types:   vec![],
         });
     }
 
@@ -699,8 +695,7 @@ fn compose_federation_schemas(
     Ok(FederationMetadata {
         enabled: subgraphs.iter().any(|s| s.enabled),
         version: subgraphs.first().map_or_else(|| "v2".to_string(), |s| s.version.clone()),
-        types: composed_types,
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   composed_types,
     })
 }
 

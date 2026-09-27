@@ -14,7 +14,7 @@ fn create_test_metadata() -> FederationMetadata {
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -42,7 +42,6 @@ fn create_test_metadata() -> FederationMetadata {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     }
 }
 

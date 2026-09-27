@@ -19,7 +19,7 @@ fn test_single_database_single_subgraph() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -47,7 +47,6 @@ fn test_single_database_single_subgraph() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     assert!(metadata.enabled);
@@ -66,7 +65,7 @@ fn test_multiple_database_same_subgraph() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -94,7 +93,6 @@ fn test_multiple_database_same_subgraph() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Same subgraph owns both types
@@ -115,7 +113,7 @@ fn test_two_subgraph_federation() {
     let subgraph1 = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -128,14 +126,13 @@ fn test_two_subgraph_federation() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Subgraph 2 metadata
     let subgraph2 = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -163,7 +160,6 @@ fn test_two_subgraph_federation() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Verify Subgraph 1 owns User
@@ -181,7 +177,7 @@ fn test_three_subgraph_federation() {
     let users_subgraph = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -194,13 +190,12 @@ fn test_three_subgraph_federation() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let orders_subgraph = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -228,13 +223,12 @@ fn test_three_subgraph_federation() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let products_subgraph = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "Order".to_string(),
                 keys:                vec![KeyDirective {
@@ -262,7 +256,6 @@ fn test_three_subgraph_federation() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Verify ownership hierarchy
@@ -283,7 +276,7 @@ fn test_multi_tenant_federation() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "TenantUser".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["tenantId".to_string(), "userId".to_string()],
@@ -296,7 +289,6 @@ fn test_multi_tenant_federation() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let key = &metadata.types[0].keys[0];
@@ -353,7 +345,7 @@ fn test_user_order_relationship() {
     let user_metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -366,14 +358,13 @@ fn test_user_order_relationship() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Subgraph 2: owns Order, references User
     let order_metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -401,7 +392,6 @@ fn test_user_order_relationship() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // User is owned by subgraph 1
@@ -421,7 +411,7 @@ fn test_user_order_product_relationship() {
     let users_sg = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -434,13 +424,12 @@ fn test_user_order_product_relationship() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let orders_sg = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -468,13 +457,12 @@ fn test_user_order_product_relationship() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let products_sg = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "Order".to_string(),
                 keys:                vec![KeyDirective {
@@ -502,7 +490,6 @@ fn test_user_order_product_relationship() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Verify ownership chain: User (users_sg) -> Order (orders_sg) -> Product (products_sg)
@@ -523,7 +510,7 @@ fn test_shareable_field_resolution() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "Product".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -536,7 +523,6 @@ fn test_shareable_field_resolution() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let product_type = &metadata.types[0];
@@ -556,7 +542,7 @@ fn test_single_subgraph_query() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -569,7 +555,6 @@ fn test_single_subgraph_query() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // User is locally owned
@@ -587,7 +572,7 @@ fn test_two_subgraph_join_query() {
     let user_metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -600,13 +585,12 @@ fn test_two_subgraph_join_query() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let order_metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -634,7 +618,6 @@ fn test_two_subgraph_join_query() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Order is local in order_metadata

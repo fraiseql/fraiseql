@@ -940,23 +940,11 @@ async fn ws_e2e_a_reload_that_refuses_the_plan_ends_the_subscription() {
 
 // ── Ruling AE 1: every /ws subscribe answers to this server's gates ──
 //
-// `SubscriptionState::with_remote_subscription_fields` let an embedder map a subscription
-// name to a remote subgraph. /ws then forwarded the subscribe before the tenant check, the
-// suspended-tenant check and the #596 row policy, without a plan, and without the
-// subscriber's principal; a forward that failed answered nothing at all. The subgraph URL
-// below passes the SSRF guard and never resolves (RFC 6761 `.invalid`), so each test sees
-// only what this server answered.
-
-/// A subgraph URL the SSRF guard accepts and no resolver answers.
-const NEVER_RESOLVES: &str = "https://subgraph.invalid/graphql";
-
-/// Route `name` to [`NEVER_RESOLVES`], as an embedder federating that field would.
-fn routed_away(state: SubscriptionState, name: &str) -> SubscriptionState {
-    state.with_remote_subscription_fields(std::collections::HashMap::from([(
-        name.to_string(),
-        NEVER_RESOLVES.to_string(),
-    )]))
-}
+// An embedder could once route a subscription name to a remote subgraph
+// (`with_remote_subscription_fields`, removed); /ws then forwarded the subscribe before the
+// tenant check, the suspended-tenant check and the #596 row policy, without a plan and
+// without the subscriber's principal, and a failed forward answered nothing. The forwarder
+// is gone; these pin that each of those gates answers a /ws subscribe itself.
 
 /// Connect (with `headers`), hand-shake, send one subscribe, and return this server's
 /// answer to it: the first frame within two seconds, or `None`.
@@ -990,12 +978,11 @@ async fn answer_to_subscribe(
         .ok()
 }
 
-/// A name this server does not define is refused, wherever an embedder routed it.
+/// A name this server does not define is refused: nothing is forwarded.
 #[tokio::test]
-#[ignore = "AE 1 reproduction: /ws forwards a routed name and answers nothing"]
 async fn ws_ae1_a_subscription_this_server_does_not_define_is_refused() {
     let manager = Arc::new(SubscriptionManager::new(Arc::new(CompiledSchema::new())));
-    let state = routed_away(SubscriptionState::new(manager), "postCreated");
+    let state = SubscriptionState::new(manager);
     let answer =
         answer_to_subscribe(state, &[], "subscription { postCreated { id body } }", json!({}))
             .await;
@@ -1003,13 +990,12 @@ async fn ws_ae1_a_subscription_this_server_does_not_define_is_refused() {
     assert_eq!(frame["type"], "error", "{frame}");
 }
 
-/// A subscription is planned as a read of its type, wherever an embedder routed its name:
-/// selecting a `Reject` field the subscriber may not read is refused.
+/// A subscription is planned as a read of its type: selecting a `Reject` field the subscriber may
+/// not read is refused.
 #[tokio::test]
-#[ignore = "AE 1 reproduction: a routed name is never planned"]
 async fn ws_ae1_a_routed_subscription_is_still_planned() {
     let (manager, schema) = gated_order_manager();
-    let state = routed_away(planned_state(manager, schema), "orderCreated");
+    let state = planned_state(manager, schema);
     let answer =
         answer_to_subscribe(state, &[], "subscription { orderCreated { id secret } }", json!({}))
             .await;
@@ -1022,14 +1008,12 @@ async fn ws_ae1_a_routed_subscription_is_still_planned() {
     );
 }
 
-/// A client-supplied tenant that contradicts the server-resolved one is refused, wherever
-/// an embedder routed the name.
+/// A client-supplied tenant that contradicts the server-resolved one is refused.
 #[tokio::test]
-#[ignore = "AE 1 reproduction: a routed name skips the tenant check"]
 async fn ws_ae1_a_routed_subscription_still_answers_the_tenant_check() {
     let schema = Arc::new(schema_with_subscription("orderCreated", "Order"));
     let manager = Arc::new(SubscriptionManager::new(schema));
-    let state = routed_away(SubscriptionState::new(manager), "orderCreated");
+    let state = SubscriptionState::new(manager);
     let answer = answer_to_subscribe(
         state,
         &[("x-tenant-id", "tenant_a")],
@@ -1043,9 +1027,8 @@ async fn ws_ae1_a_routed_subscription_still_answers_the_tenant_check() {
 }
 
 /// A subscription whose type declares a row policy (#596) is refused to a subscriber whose
-/// identity the policy cannot resolve, wherever an embedder routed the name.
+/// identity the policy cannot resolve.
 #[tokio::test]
-#[ignore = "AE 1 reproduction: a routed name skips the #596 row policy"]
 async fn ws_ae1_a_routed_subscription_still_answers_the_row_policy() {
     let mut schema = CompiledSchema::new();
     schema
@@ -1061,10 +1044,7 @@ async fn ws_ae1_a_routed_subscription_still_answers_the_row_policy() {
     let policies =
         Arc::new(fraiseql_server::routes::subscriptions::build_subscription_policies(&schema));
     let manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
-    let state = routed_away(
-        SubscriptionState::new(manager).with_subscription_policies(policies),
-        "orderCreated",
-    );
+    let state = SubscriptionState::new(manager).with_subscription_policies(policies);
     let answer =
         answer_to_subscribe(state, &[], "subscription { orderCreated { id } }", json!({})).await;
     let frame = answer.expect("the row policy must refuse the subscribe");

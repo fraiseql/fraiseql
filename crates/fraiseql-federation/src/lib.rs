@@ -63,7 +63,6 @@ pub mod requires_provides_validator;
 pub mod selection_parser;
 pub mod service_sdl;
 pub mod sql_utils;
-pub mod subscription_forwarder;
 pub mod tls;
 pub mod tracing;
 pub mod types;
@@ -99,10 +98,6 @@ pub use selection_parser::*;
 pub use serde_json;
 use serde_json::{Value, json};
 pub use service_sdl::*;
-pub use subscription_forwarder::{
-    ForwardError, ForwardedEvent, SubscriptionForwarder, extract_subscription_field_name,
-    lookup_remote_subscription,
-};
 pub use types::*;
 /// The `uuid` this crate's public API is built against (#1198).
 pub use uuid;

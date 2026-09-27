@@ -34,8 +34,7 @@ fn test_requires_with_empty_representation() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     let repr = EntityRepresentation {
@@ -71,8 +70,7 @@ fn test_requires_with_only_key_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     let repr = EntityRepresentation {
@@ -108,8 +106,7 @@ fn test_requires_with_case_sensitivity() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     // Note: This test assumes case-sensitive matching
@@ -152,8 +149,7 @@ fn test_requires_with_special_characters_in_field_names() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![order_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![order_type],
     };
 
     let repr = EntityRepresentation {
@@ -195,8 +191,7 @@ fn test_requires_validation_error_includes_typename() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![product_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![product_type],
     };
 
     let repr = EntityRepresentation {
@@ -234,8 +229,7 @@ fn test_requires_validation_error_includes_field_name() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     let repr = EntityRepresentation {
@@ -277,8 +271,7 @@ fn test_requires_with_existing_extra_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     // Representation with extra fields beyond what's required
@@ -324,8 +317,7 @@ fn test_requires_different_typenames() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![order_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![order_type],
     };
 
     let repr = EntityRepresentation {
@@ -355,8 +347,7 @@ fn test_requires_enforcement_with_zero_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     let repr = EntityRepresentation {

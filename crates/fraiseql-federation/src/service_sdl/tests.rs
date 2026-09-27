@@ -8,8 +8,7 @@ fn enabled_metadata() -> FederationMetadata {
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: Vec::new(),
-        remote_subscription_fields: HashMap::new(),
+        types:   Vec::new(),
     }
 }
 
@@ -81,8 +80,7 @@ fn test_key_directives_emitted_inline() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type_with_key()],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user_type_with_key()],
     };
 
     let base_schema =
@@ -140,8 +138,7 @@ fn test_field_external_directive() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user],
     };
 
     let base_schema = "type User {\n  id: ID!\n  email: String!\n}";
@@ -164,8 +161,7 @@ fn test_field_requires_directive() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user],
     };
 
     let base_schema = "type User {\n  id: ID!\n  fullName: String!\n}";
@@ -191,8 +187,7 @@ fn test_field_requires_nested_path() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user],
     };
 
     let base_schema = "type User {\n  id: ID!\n  displayAge: Int!\n}";
@@ -218,8 +213,7 @@ fn test_field_provides_directive() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user],
     };
 
     let base_schema = "type User {\n  id: ID!\n  reviews: [Review!]!\n}";
@@ -240,8 +234,7 @@ fn test_field_shareable_directive() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user],
     };
 
     let base_schema = "type User {\n  id: ID!\n  name: String!\n}";
@@ -259,8 +252,7 @@ fn test_field_inaccessible_directive() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user],
     };
 
     let base_schema = "type User {\n  id: ID!\n  ssn: String!\n}";
@@ -283,8 +275,7 @@ fn test_field_override_directive() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user],
     };
 
     let base_schema = "type User {\n  id: ID!\n  price: Float!\n}";
@@ -317,8 +308,7 @@ fn test_multi_directive_field() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user],
     };
 
     let base_schema = "type User {\n  id: ID!\n  email: String!\n}";
@@ -350,8 +340,7 @@ fn test_extends_type_uses_extend_keyword() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user],
     };
 
     let base_schema = "type User {\n  id: ID!\n}";
@@ -386,8 +375,7 @@ fn test_type_level_shareable() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user],
     };
 
     let base_schema = "type User {\n  id: ID!\n}";
@@ -404,8 +392,7 @@ fn test_link_url_version_v2() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: Vec::new(),
-        remote_subscription_fields: HashMap::new(),
+        types:   Vec::new(),
     };
 
     let sdl = generate_service_sdl("type Query { x: Int }", &metadata);
@@ -417,8 +404,7 @@ fn test_link_url_version_v2_3() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2.3".to_string(),
-        types: Vec::new(),
-        remote_subscription_fields: HashMap::new(),
+        types:   Vec::new(),
     };
 
     let sdl = generate_service_sdl("type Query { x: Int }", &metadata);
@@ -458,8 +444,7 @@ fn test_cross_type_field_collision() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user, product],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user, product],
     };
 
     let base_schema = "\
@@ -492,8 +477,7 @@ fn test_input_type_fields_no_directives() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user],
     };
 
     let base_schema = "\
@@ -528,8 +512,7 @@ fn test_interface_entity_pattern() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![node],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![node],
     };
 
     let base_schema = "interface Node {\n  id: ID!\n}";
@@ -560,8 +543,7 @@ fn test_non_resolvable_key() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user],
     };
 
     let base_schema = "type User {\n  id: ID!\n}";
@@ -598,8 +580,7 @@ fn test_multiple_keys_on_one_type() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user],
     };
 
     let base_schema = "type User {\n  id: ID!\n  email: String!\n}";

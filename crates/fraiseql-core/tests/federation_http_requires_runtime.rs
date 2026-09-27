@@ -40,8 +40,7 @@ fn test_http_requires_validation_missing_field() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     // Entity representation missing email
@@ -85,8 +84,7 @@ fn test_http_requires_validation_field_present() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     // Entity representation has email
@@ -134,8 +132,7 @@ fn test_http_requires_validation_multiple_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![order_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![order_type],
     };
 
     // Has weight but missing dimensions
@@ -196,8 +193,7 @@ fn test_http_requires_batch_validation() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     let repr1 = EntityRepresentation {
@@ -278,8 +274,7 @@ fn test_http_query_includes_required_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![order_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![order_type],
     };
 
     // Build augmented field list
@@ -330,8 +325,7 @@ fn test_http_query_deduplicates_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![type_def],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![type_def],
     };
 
     let requested_fields = vec!["shippingEstimate".to_string(), "taxAmount".to_string()];

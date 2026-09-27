@@ -68,8 +68,7 @@ fn test_inaccessible_field_conflict_detected() {
             FederationMetadata {
                 enabled: true,
                 version: "v2".to_string(),
-                types: vec![users_type],
-                remote_subscription_fields: HashMap::new(),
+                types:   vec![users_type],
             },
         ),
         (
@@ -77,8 +76,7 @@ fn test_inaccessible_field_conflict_detected() {
             FederationMetadata {
                 enabled: true,
                 version: "v2".to_string(),
-                types: vec![users_type_b],
-                remote_subscription_fields: HashMap::new(),
+                types:   vec![users_type_b],
             },
         ),
     ];
@@ -129,8 +127,7 @@ fn test_override_field_conflict_detected() {
             FederationMetadata {
                 enabled: true,
                 version: "v2".to_string(),
-                types: vec![products_type_a],
-                remote_subscription_fields: HashMap::new(),
+                types:   vec![products_type_a],
             },
         ),
         (
@@ -138,8 +135,7 @@ fn test_override_field_conflict_detected() {
             FederationMetadata {
                 enabled: true,
                 version: "v2".to_string(),
-                types: vec![products_type_b],
-                remote_subscription_fields: HashMap::new(),
+                types:   vec![products_type_b],
             },
         ),
     ];
@@ -165,7 +161,6 @@ fn metadata_for(types: Vec<FederatedType>) -> FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
         types,
-        remote_subscription_fields: HashMap::new(),
     }
 }
 

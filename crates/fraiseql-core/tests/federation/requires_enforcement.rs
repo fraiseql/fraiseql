@@ -84,8 +84,7 @@ fn test_requires_enforcement_missing_field() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     // Entity representation missing email
@@ -129,8 +128,7 @@ fn test_requires_enforcement_field_present() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     // Entity representation has email
@@ -178,8 +176,7 @@ fn test_requires_enforcement_multiple_required_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![order_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![order_type],
     };
 
     // Has weight but missing dimensions
@@ -239,8 +236,7 @@ fn test_requires_enforcement_no_directives() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     // Minimal representation
@@ -277,8 +273,7 @@ fn test_requires_enforcement_error_message_context() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     let repr = EntityRepresentation {
@@ -330,8 +325,7 @@ fn test_requires_multiple_fields_mixed_results() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![user_type],
     };
 
     // Representation with email but not phone
@@ -392,8 +386,7 @@ fn test_requires_three_fields_all_present() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![order_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![order_type],
     };
 
     let repr = EntityRepresentation {
@@ -446,8 +439,7 @@ fn test_requires_three_fields_one_missing() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![order_type],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![order_type],
     };
 
     let repr = EntityRepresentation {

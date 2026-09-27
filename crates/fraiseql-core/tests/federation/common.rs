@@ -110,7 +110,7 @@ pub fn metadata_single_key(type_name: &str, key_field: &str) -> FederationMetada
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                type_name.to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec![key_field.to_string()],
@@ -123,7 +123,6 @@ pub fn metadata_single_key(type_name: &str, key_field: &str) -> FederationMetada
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     }
 }
 
@@ -137,7 +136,7 @@ pub fn metadata_extended_type(
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                type_name.to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec![key_field.to_string()],
@@ -150,7 +149,6 @@ pub fn metadata_extended_type(
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     }
 }
 
@@ -159,7 +157,7 @@ pub fn metadata_composite_key(type_name: &str, key_fields: &[&str]) -> Federatio
     FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                type_name.to_string(),
             keys:                vec![KeyDirective {
                 fields:     key_fields.iter().map(|s| (*s).to_string()).collect(),
@@ -172,7 +170,6 @@ pub fn metadata_composite_key(type_name: &str, key_fields: &[&str]) -> Federatio
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     }
 }
 

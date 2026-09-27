@@ -118,8 +118,8 @@ pub fn validate_subgraph_url(url: &str) -> fraiseql_error::Result<()> {
     //
     // That was reachable: every other caller pairs this with
     // `dns_resolve_and_check`, which would refuse those names once they resolved,
-    // but `SubscriptionForwarder::new` calls this ALONE and treats it as its whole
-    // SSRF control.
+    // but the subscription forwarder (removed by ruling AE 1) called this ALONE and
+    // treated it as its whole SSRF control.
     //
     // `blocked_host_reason` strips the brackets the `url` crate leaves around an
     // IPv6 literal in `host_str()`, and parses a host that carries a port, so the
@@ -501,8 +501,8 @@ mod corpus {
 
     // `is_ssrf_blocked_ip` takes an `IpAddr`, so no HOSTNAME can reach it and the
     // two tests above cannot answer for the hostname half at all (#1280).
-    // `validate_subgraph_url` is this crate's URL entry point — and the one
-    // `SubscriptionForwarder::new` uses as its whole SSRF control — so the corpus
+    // `validate_subgraph_url` is this crate's URL entry point — and the one a
+    // caller may use as its whole SSRF control — so the corpus
     // is pointed there too. It needs no network: the host rule runs before any
     // lookup, and `dns_resolve_and_check` is a separate function.
 

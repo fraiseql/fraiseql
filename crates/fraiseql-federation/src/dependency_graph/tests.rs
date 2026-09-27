@@ -21,8 +21,7 @@ fn test_empty_graph() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![],
     };
 
     let graph = DependencyGraph::build(&metadata).unwrap();

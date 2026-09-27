@@ -191,7 +191,6 @@ impl CompiledSchema {
                 enabled: fed.enabled,
                 version: fed.version.clone().unwrap_or_else(|| "v2".to_string()),
                 types,
-                remote_subscription_fields: HashMap::new(),
             }
         })
     }

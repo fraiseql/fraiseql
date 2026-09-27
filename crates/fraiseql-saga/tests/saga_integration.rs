@@ -188,7 +188,7 @@ mod wired_pg {
         FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![FederatedType {
+            types:   vec![FederatedType {
                 name:                typename.to_string(),
                 keys:                vec![KeyDirective {
                     fields:     vec!["id".to_string()],
@@ -201,7 +201,6 @@ mod wired_pg {
                 field_directives:    std::collections::HashMap::new(),
                 type_shareable:      false,
             }],
-            remote_subscription_fields: std::collections::HashMap::new(),
         }
     }
 
@@ -750,7 +749,7 @@ mod recovery_pg {
         FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![FederatedType {
+            types:   vec![FederatedType {
                 name:                typename.to_string(),
                 keys:                vec![KeyDirective {
                     fields:     vec!["id".to_string()],
@@ -763,7 +762,6 @@ mod recovery_pg {
                 field_directives:    std::collections::HashMap::new(),
                 type_shareable:      false,
             }],
-            remote_subscription_fields: std::collections::HashMap::new(),
         }
     }
 
@@ -1244,7 +1242,7 @@ mod coordinator_pg {
         FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![FederatedType {
+            types:   vec![FederatedType {
                 name:                typename.to_string(),
                 keys:                vec![KeyDirective {
                     fields:     vec!["id".to_string()],
@@ -1257,7 +1255,6 @@ mod coordinator_pg {
                 field_directives:    std::collections::HashMap::new(),
                 type_shareable:      false,
             }],
-            remote_subscription_fields: std::collections::HashMap::new(),
         }
     }
 
@@ -1606,7 +1603,7 @@ mod remote_dispatch_pg {
         FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![FederatedType {
+            types:   vec![FederatedType {
                 name:                typename.to_string(),
                 keys:                vec![KeyDirective {
                     fields:     vec!["id".to_string()],
@@ -1619,7 +1616,6 @@ mod remote_dispatch_pg {
                 field_directives:    std::collections::HashMap::new(),
                 type_shareable:      false,
             }],
-            remote_subscription_fields: std::collections::HashMap::new(),
         }
     }
 
@@ -1916,7 +1912,7 @@ mod prefetch_pg {
         FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![FederatedType {
+            types:   vec![FederatedType {
                 name:                typename.to_string(),
                 keys:                vec![KeyDirective {
                     fields:     vec!["id".to_string()],
@@ -1929,7 +1925,6 @@ mod prefetch_pg {
                 field_directives:    std::collections::HashMap::new(),
                 type_shareable:      false,
             }],
-            remote_subscription_fields: std::collections::HashMap::new(),
         }
     }
 
@@ -2234,7 +2229,7 @@ mod recovery_safety_pg {
         FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![FederatedType {
+            types:   vec![FederatedType {
                 name:                typename.to_string(),
                 keys:                vec![KeyDirective {
                     fields:     vec!["id".to_string()],
@@ -2247,7 +2242,6 @@ mod recovery_safety_pg {
                 field_directives:    std::collections::HashMap::new(),
                 type_shareable:      false,
             }],
-            remote_subscription_fields: std::collections::HashMap::new(),
         }
     }
 
@@ -2892,7 +2886,7 @@ mod compensation_honesty_pg {
         FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![FederatedType {
+            types:   vec![FederatedType {
                 name:                typename.to_string(),
                 keys:                vec![KeyDirective {
                     fields:     vec!["id".to_string()],
@@ -2905,7 +2899,6 @@ mod compensation_honesty_pg {
                 field_directives:    std::collections::HashMap::new(),
                 type_shareable:      false,
             }],
-            remote_subscription_fields: std::collections::HashMap::new(),
         }
     }
 
@@ -3274,7 +3267,7 @@ mod wired_execution_pg {
         FederationMetadata {
             enabled: true,
             version: "v2".to_string(),
-            types: vec![FederatedType {
+            types:   vec![FederatedType {
                 name:                typename.to_string(),
                 keys:                vec![KeyDirective {
                     fields:     vec!["id".to_string()],
@@ -3287,7 +3280,6 @@ mod wired_execution_pg {
                 field_directives:    std::collections::HashMap::new(),
                 type_shareable:      false,
             }],
-            remote_subscription_fields: std::collections::HashMap::new(),
         }
     }
 

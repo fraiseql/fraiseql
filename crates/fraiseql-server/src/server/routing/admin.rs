@@ -245,15 +245,6 @@ impl Server {
     }
 
     fn mount_subscriptions(&self, mut app: Router, state: &AppState) -> Router {
-        // Extract remote subscription fields from federation metadata (if enabled).
-        #[cfg(feature = "federation")]
-        let remote_sub_fields = self
-            .executor
-            .schema()
-            .federation_metadata()
-            .map(|m| m.remote_subscription_fields)
-            .unwrap_or_default();
-
         // Mirror the GraphQL handler's tenant dispatch on the subscription
         // upgrade: install the Host-domain registry and drive strict cross-source
         // validation from the schema's RLS configuration (#331).
@@ -287,7 +278,7 @@ impl Server {
             Arc::new(move || planner_swap.load_full());
 
         #[allow(unused_mut)]
-        // Reason: `mut` is needed when the federation/auth features are enabled
+        // Reason: `mut` is needed when the auth feature is enabled
         let mut subscription_state = SubscriptionState::new(self.subscription_manager.clone())
             .with_lifecycle(self.subscription_lifecycle.clone())
             .with_max_subscriptions(self.max_subscriptions_per_connection)
@@ -333,12 +324,6 @@ impl Server {
         {
             subscription_state =
                 subscription_state.with_identity_resolver(state.identity_resolver.clone());
-        }
-
-        #[cfg(feature = "federation")]
-        if !remote_sub_fields.is_empty() {
-            subscription_state =
-                subscription_state.with_remote_subscription_fields(remote_sub_fields);
         }
 
         let subscription_require_auth = self

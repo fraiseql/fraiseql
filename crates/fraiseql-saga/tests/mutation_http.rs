@@ -21,7 +21,7 @@ fn test_build_mutation_query_for_update() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -34,7 +34,6 @@ fn test_build_mutation_query_for_update() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let fed_type = &metadata.types[0];
@@ -60,7 +59,7 @@ fn test_mutation_query_excludes_external_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "Order".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["order_id".to_string()],
@@ -73,7 +72,6 @@ fn test_mutation_query_excludes_external_fields() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let fed_type = &metadata.types[0];

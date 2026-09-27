@@ -280,7 +280,7 @@ fn test_strategy_local_for_owned_entity() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -293,7 +293,6 @@ fn test_strategy_local_for_owned_entity() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // User type is not extended, so it should use local resolution
@@ -309,7 +308,7 @@ fn test_strategy_direct_db_when_available() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "Order".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -322,7 +321,6 @@ fn test_strategy_direct_db_when_available() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Order type is extended, so it should use DirectDB or HTTP
@@ -338,7 +336,7 @@ fn test_strategy_http_fallback() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -366,7 +364,6 @@ fn test_strategy_http_fallback() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Both types have resolvable keys, enabling HTTP fallback
@@ -505,8 +502,7 @@ fn test_federation_spec_version_2() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![],
     };
 
     assert!(metadata.enabled);
@@ -536,7 +532,7 @@ fn test_federation_directive_fields() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "User".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -549,7 +545,6 @@ fn test_federation_directive_fields() {
             field_directives:    std::collections::HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     let user_type = &metadata.types[0];

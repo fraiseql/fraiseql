@@ -18,6 +18,29 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The federated subscription forwarder is removed; every `/ws` subscription is this
+  server's own.**
+
+  `SubscriptionState::with_remote_subscription_fields` let an embedder route a subscription
+  name to another subgraph, which `/ws` then proxied over `graphql-transport-ws`. No schema,
+  SDK or CLI path ever populated it — `FederationMetadata::remote_subscription_fields` was
+  always empty in a compiled schema — so a server built by `fraiseql-server` never forwarded;
+  only an embedder calling the builder could. A forwarded subscription did not go through
+  this server's subscribe-time checks (the read plan, the tenant check, the row-visibility
+  policy) nor its stream lifecycle (authorization re-check, policy reload, drain,
+  `complete`), and the other subgraph received no identity for the subscriber.
+
+  FraiseQL is a federation *subgraph*: queries were never forwarded to other subgraphs, and
+  subscriptions now are not either. Federate subscriptions at your router, which owns
+  cross-subgraph routing and can forward identity each subgraph verifies. A subscription
+  name this server does not define is refused on `/ws` like any unknown field.
+
+  Removed: the `fraiseql_federation::subscription_forwarder` module (`SubscriptionForwarder`,
+  `ForwardError`, `ForwardedEvent`, `lookup_remote_subscription`,
+  `extract_subscription_field_name`), `FederationMetadata::remote_subscription_fields`, and
+  `SubscriptionState::{remote_subscription_fields, with_remote_subscription_fields}`.
+  `fraiseql-federation` no longer depends on `futures` or `tokio-tungstenite`.
+
 - **One write API: `Writer::execute_write`, and a dry run is a mode of the write.**
 
   ⚠ **If you implement `DatabaseAdapter` with writes, this is a compile error until you

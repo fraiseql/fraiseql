@@ -36,7 +36,6 @@ fn make_metadata(type_count: usize) -> FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
         types,
-        remote_subscription_fields: HashMap::new(),
     }
 }
 

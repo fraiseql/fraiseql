@@ -29,7 +29,6 @@ fn make_test_metadata() -> FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
         types,
-        remote_subscription_fields: HashMap::new(),
     }
 }
 
@@ -124,7 +123,7 @@ fn test_construct_composite_where_in_binds_values() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "OrderItem".to_string(),
             keys:                vec![KeyDirective {
                 fields:     vec!["order_id".to_string(), "product_id".to_string()],
@@ -137,7 +136,6 @@ fn test_construct_composite_where_in_binds_values() {
             field_directives:    HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: HashMap::new(),
     };
 
     let rep = EntityRepresentation {

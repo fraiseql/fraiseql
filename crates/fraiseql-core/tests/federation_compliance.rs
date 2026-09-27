@@ -83,7 +83,7 @@ fn test_sdl_entity_union_includes_all_types() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![
+        types:   vec![
             FederatedType {
                 name:                "User".to_string(),
                 keys:                vec![KeyDirective {
@@ -111,7 +111,6 @@ fn test_sdl_entity_union_includes_all_types() {
                 type_shareable:      false,
             },
         ],
-        remote_subscription_fields: std::collections::HashMap::new(),
     };
 
     // Both types have resolvable keys, so both should be in _Entity union
@@ -466,8 +465,7 @@ fn test_federation_v2_version_string() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![],
     };
 
     assert_eq!(metadata.version, "v2");
@@ -480,15 +478,13 @@ fn test_federation_enabled_flag() {
     let enabled = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![],
     };
 
     let disabled = FederationMetadata {
         enabled: false,
         version: "v2".to_string(),
-        types: vec![],
-        remote_subscription_fields: std::collections::HashMap::new(),
+        types:   vec![],
     };
 
     // Federation can be enabled or disabled per schema

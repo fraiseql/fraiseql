@@ -51,8 +51,7 @@ fn test_python_basic_federation_key() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user_type],
     };
 
     assert!(metadata.enabled);
@@ -89,8 +88,7 @@ fn test_python_multiple_federation_keys() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![account_type],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![account_type],
     };
 
     assert_eq!(metadata.types[0].keys.len(), 2);
@@ -118,8 +116,7 @@ fn test_python_composite_key() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![team_member],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![team_member],
     };
 
     assert_eq!(metadata.types[0].keys[0].fields.len(), 2);
@@ -157,8 +154,7 @@ fn test_python_extended_type() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user_type],
     };
 
     assert!(metadata.types[0].is_extends);
@@ -206,8 +202,7 @@ fn test_python_requires_directive() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![order_type],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![order_type],
     };
 
     let directives = metadata.types[0].get_field_directives("shippingEstimate");
@@ -250,8 +245,7 @@ fn test_python_multiple_requires() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![order_type],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![order_type],
     };
 
     let directives = metadata.types[0].get_field_directives("shippingCost");
@@ -291,8 +285,7 @@ fn test_python_provides_directive() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user_type],
     };
 
     let directives = metadata.types[0].get_field_directives("orders");
@@ -320,8 +313,7 @@ fn test_python_entity_resolution_basic() {
     let _federation_metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user_type],
     };
 
     let mut entity_fields = HashMap::new();
@@ -368,8 +360,7 @@ fn test_python_entity_resolution_with_requires() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user_type],
     };
 
     let mut entity_fields = HashMap::new();
@@ -424,8 +415,7 @@ fn test_python_cross_subgraph_reference() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type, order_type],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user_type, order_type],
     };
 
     assert_eq!(metadata.types.len(), 2);
@@ -458,8 +448,7 @@ fn test_python_federation_query_types() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![query_type],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![query_type],
     };
 
     let query = metadata.types.iter().find(|t| t.name == "Query");
@@ -505,8 +494,7 @@ fn test_python_schema_with_no_federation() {
     let federation_metadata = FederationMetadata {
         enabled: false,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user_type],
     };
 
     assert!(!federation_metadata.enabled);
@@ -533,8 +521,7 @@ fn test_python_schema_compilation_roundtrip() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user_type],
     };
 
     // Verify metadata is complete and consistent
@@ -562,8 +549,7 @@ fn test_python_multiple_types_in_schema() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![user_type, order_type, product_type],
-        remote_subscription_fields: HashMap::new(),
+        types:   vec![user_type, order_type, product_type],
     };
 
     assert_eq!(metadata.types.len(), 3);

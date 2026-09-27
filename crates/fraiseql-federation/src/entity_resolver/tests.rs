@@ -175,7 +175,7 @@ async fn database_errors_are_errors_not_null_entities() {
     let metadata = FederationMetadata {
         enabled: true,
         version: "v2".to_string(),
-        types: vec![FederatedType {
+        types:   vec![FederatedType {
             name:                "Product".to_string(),
             keys:                vec![crate::types::KeyDirective {
                 fields:     vec!["id".to_string()],
@@ -188,7 +188,6 @@ async fn database_errors_are_errors_not_null_entities() {
             field_directives:    HashMap::new(),
             type_shareable:      false,
         }],
-        remote_subscription_fields: HashMap::new(),
     };
     let fed_resolver = FederationResolver::new(metadata);
 
