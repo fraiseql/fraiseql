@@ -83,6 +83,15 @@ struct Rig {
 
 impl Rig {
     async fn start(pool: &sqlx::PgPool, entity_type: &str) -> Self {
+        Self::start_with(pool, entity_type, |_| {}).await
+    }
+
+    /// [`start`](Self::start), with `adjust` applied to the schema before anything reads it.
+    async fn start_with(
+        pool: &sqlx::PgPool,
+        entity_type: &str,
+        adjust: impl FnOnce(&mut fraiseql_core::schema::CompiledSchema),
+    ) -> Self {
         // A REST-enabled schema whose one type is named for the change-log rows this
         // test writes. The stream filters on the GraphQL TYPE name, so these must be
         // the same string — the pre-#1309 branch filtered on the resource name
@@ -112,6 +121,7 @@ impl Rig {
             enabled: true,
             ..RestConfig::default()
         });
+        adjust(&mut schema);
 
         let route_table =
             RestRouteTable::from_compiled_schema(&schema).expect("REST route derivation");
@@ -431,6 +441,59 @@ async fn a_stream_does_not_carry_another_entitys_events() {
     assert!(
         !received.contains(&invoice_id),
         "a stream for {entity_type} must not carry {other_type} events; received:\n{received}"
+    );
+
+    rig.stop().await;
+    cleanup_test_data(&pool, &test_id).await.ok();
+}
+
+// ---------------------------------------------------------------------------
+// AC 7 — a stream is a read of its type
+// ---------------------------------------------------------------------------
+
+/// A REST stream delivers its type's change events: it is a read of that type, and a field
+/// the caller may not read is masked in each frame as a `GET` of the resource masks it —
+/// here `secret`, which requires a scope no role grants.
+#[tokio::test]
+#[ignore = "reproduction (AC 7): a REST stream serves the after-image whole"]
+async fn a_stream_masks_a_field_the_caller_may_not_read() {
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+
+    let entity_type = format!("Order_{test_id}");
+    let rig = Rig::start_with(&pool, &entity_type, |schema| {
+        let order = schema.types.iter_mut().find(|t| t.name == entity_type.as_str()).unwrap();
+        order.fields.push(
+            fraiseql_core::schema::FieldDefinition::nullable(
+                "secret",
+                fraiseql_core::schema::FieldType::String,
+            )
+            .with_requires_scope("read:secret")
+            .with_on_deny(fraiseql_core::schema::FieldDenyPolicy::Mask),
+        );
+        schema.security = Some(fraiseql_core::schema::SecurityConfig::default());
+        schema.build_indexes();
+    })
+    .await;
+    let mut stream = rig.open_stream().await;
+
+    let order_id = Uuid::new_v4().to_string();
+    insert_change_log_entry(
+        &pool,
+        "INSERT",
+        &entity_type,
+        &order_id,
+        serde_json::json!({"id": order_id, "status": "pending", "secret": "s3cr3t"}),
+        None,
+    )
+    .await
+    .expect("insert change log row");
+
+    let received = stream.read_until(&order_id, FRAME_TIMEOUT).await;
+    assert!(
+        !received.contains("s3cr3t"),
+        "a field the caller may not read was streamed; received:\n{received}"
     );
 
     rig.stop().await;
