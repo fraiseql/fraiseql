@@ -40,6 +40,18 @@ fn schema_with_subscription(name: &str, return_type: &str) -> CompiledSchema {
 
 /// Spawn an axum server with just the `/ws` subscription endpoint and return
 /// its `ws://` URL.
+/// A state whose subscriptions are planned (ruling AA 4) by an executor over `schema` — the
+/// schema the manager serves. The executor reads nothing here: plans are applied to the
+/// published after-images.
+fn planned_state(manager: Arc<SubscriptionManager>, schema: CompiledSchema) -> SubscriptionState {
+    let executor = Arc::new(fraiseql_core::runtime::Executor::new(
+        schema,
+        Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+    ));
+    SubscriptionState::new(manager)
+        .with_live_executor(Some(Arc::new(move || Arc::clone(&executor))))
+}
+
 async fn spawn_ws_server(state: SubscriptionState) -> String {
     let app = axum::Router::new()
         .route("/ws", axum::routing::get(subscription_handler))
@@ -655,7 +667,6 @@ async fn malformed_subscribe_closes_4400() {
 /// same type meets apply to it. Here an anonymous subscriber selects `{ id }` of an `Order`
 /// whose `secret` requires a scope (with a `security` section, so the query path enforces
 /// it). A query would neither select nor serve `secret`; the `next` frame must not carry it.
-#[ignore = "reproduction: a subscription delivers the whole after-image, read gates unapplied"]
 #[tokio::test]
 async fn ws_e2e_a_subscription_does_not_deliver_a_scoped_field_to_an_anonymous_subscriber() {
     let mut schema = schema_with_subscription("orderCreated", "Order");
@@ -667,8 +678,8 @@ async fn ws_e2e_a_subscription_does_not_deliver_a_scoped_field_to_an_anonymous_s
     schema.types.push(order);
     schema.security = Some(SecurityConfig::default());
     schema.build_indexes();
-    let manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
-    let url = spawn_ws_server(SubscriptionState::new(manager.clone())).await;
+    let manager = Arc::new(SubscriptionManager::new(Arc::new(schema.clone())));
+    let url = spawn_ws_server(planned_state(manager.clone(), schema)).await;
     let (mut sink, mut stream) = connect_ws(&url).await;
 
     send_json(&mut sink, json!({"type": "connection_init"})).await;
@@ -708,7 +719,7 @@ async fn ws_e2e_a_subscription_does_not_deliver_a_scoped_field_to_an_anonymous_s
 /// `Order { id, status, secret }`, `secret` requiring `read:secret` (Reject, the default),
 /// with a `security` section granting nobody the scope; `orderCreated` may filter by
 /// `secret` (a declared argument), so only the read gate can refuse that filter.
-fn gated_order_manager() -> Arc<SubscriptionManager> {
+fn gated_order_manager() -> (Arc<SubscriptionManager>, CompiledSchema) {
     let mut schema = schema_with_subscription("orderCreated", "Order");
     let sub = schema.subscriptions.iter_mut().find(|s| s.name == "orderCreated").unwrap();
     sub.arguments
@@ -723,17 +734,17 @@ fn gated_order_manager() -> Arc<SubscriptionManager> {
     schema.types.push(order);
     schema.security = Some(SecurityConfig::default());
     schema.build_indexes();
-    Arc::new(SubscriptionManager::new(Arc::new(schema)))
+    (Arc::new(SubscriptionManager::new(Arc::new(schema.clone()))), schema)
 }
 
 /// Subscribe `query` (with `variables`) as anonymous, publish one `Order` after-image, and
 /// return the first frame for the operation after the subscribe.
 async fn first_frame_after_publish(
-    manager: &Arc<SubscriptionManager>,
+    (manager, schema): (Arc<SubscriptionManager>, CompiledSchema),
     query: &str,
     variables: serde_json::Value,
 ) -> serde_json::Value {
-    let url = spawn_ws_server(SubscriptionState::new(manager.clone())).await;
+    let url = spawn_ws_server(planned_state(manager.clone(), schema)).await;
     let (mut sink, mut stream) = connect_ws(&url).await;
     send_json(&mut sink, json!({"type": "connection_init"})).await;
     assert_eq!(recv_json(&mut stream).await["type"], "connection_ack", "handshake");
@@ -759,11 +770,10 @@ async fn first_frame_after_publish(
 
 /// A subscription serves its selection, as a query does: `status` is readable, but not
 /// selected.
-#[ignore = "reproduction (AA 4): a subscription delivers the whole after-image"]
 #[tokio::test]
 async fn ws_e2e_a_subscription_serves_only_its_selection() {
     let frame = first_frame_after_publish(
-        &gated_order_manager(),
+        gated_order_manager(),
         "subscription { orderCreated { id } }",
         json!({}),
     )
@@ -774,11 +784,10 @@ async fn ws_e2e_a_subscription_serves_only_its_selection() {
 
 /// Selecting a `Reject` field the subscriber may not read refuses the subscription, as it
 /// refuses a query.
-#[ignore = "reproduction (AA 4): a subscription applies no requires_scope"]
 #[tokio::test]
 async fn ws_e2e_selecting_a_rejected_field_refuses_the_subscription() {
     let frame = first_frame_after_publish(
-        &gated_order_manager(),
+        gated_order_manager(),
         "subscription { orderCreated { id secret } }",
         json!({}),
     )
@@ -789,11 +798,10 @@ async fn ws_e2e_selecting_a_rejected_field_refuses_the_subscription() {
 
 /// Filtering by a field the subscriber may not read is refused (ruling AA 3): which events
 /// arrive would answer a question about its value.
-#[ignore = "reproduction (AA 4): a subscription filter on an unreadable field is applied"]
 #[tokio::test]
 async fn ws_e2e_filtering_by_a_field_the_subscriber_may_not_read_is_refused() {
     let frame = first_frame_after_publish(
-        &gated_order_manager(),
+        gated_order_manager(),
         "subscription($secret: String) { orderCreated(secret: $secret) { id } }",
         json!({"secret": "s3cr3t"}),
     )

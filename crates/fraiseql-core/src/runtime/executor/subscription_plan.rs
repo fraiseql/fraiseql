@@ -1,0 +1,270 @@
+//! A subscription's read plan (ruling AA 4, settled in AC 2–5).
+//!
+//! A subscription is a read of its type delivered by push, so it meets the gates a read of
+//! that type through the same selection meets. The executor plans it at subscribe time, from
+//! the client's resolved selection and the subscriber's principal — the transport hands the
+//! document over and never classifies — and the plan is applied to every event's after-image
+//! (the document the write returned: the only source, nothing is fetched).
+//!
+//! At subscribe time ([`Executor::plan_subscription`]) the plan refuses what a read would
+//! refuse: a field the type does not declare, one outside the subscription's compile-time
+//! field list, the type's own `requires_role`, whatever the read plan refuses (a `Reject`
+//! field, a nested level's role, actor or #422 decision, a nested row policy that cannot be
+//! evaluated over the document, the #423 refusals that need no document), and a filter on a
+//! field the subscriber may not read (ruling AA 3).
+//!
+//! Per event ([`SubscriptionPlan::deliver`]): nested levels row-filtered, projected through
+//! the selection, masked, then put to the #423 authorizer. Whatever refuses the event
+//! suppresses it for this subscriber: no frame, nothing the subscriber can tell from no event
+//! at all. Suppressions are counted in one aggregate figure
+//! ([`suppressed_subscription_events`]).
+
+use std::{
+    collections::HashMap,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+};
+
+use super::{
+    context::ExecutorContext, core::Executor, runners::read_plan::ReadPlan,
+    support::security::refuse_unreadable_where,
+};
+use crate::{
+    error::{FraiseQLError, Result},
+    graphql::{FieldSelection, ParsedQuery},
+    runtime::projection::effective_selections,
+    schema::{CompiledSchema, SubscriptionDefinition},
+    security::SecurityContext,
+};
+
+/// Events a subscription plan suppressed, since the process started. One figure for the
+/// whole process: a per-subscriber or per-type count would tell who is refused what.
+static SUPPRESSED: AtomicU64 = AtomicU64::new(0);
+
+/// How many events subscription plans have suppressed since the process started.
+#[must_use]
+pub fn suppressed_subscription_events() -> u64 {
+    SUPPRESSED.load(Ordering::Relaxed)
+}
+
+/// A subscription planned for one subscriber: what each event is served as.
+pub struct SubscriptionPlan {
+    ctx:          Arc<ExecutorContext>,
+    plan:         ReadPlan,
+    principal:    Option<SecurityContext>,
+    subscription: String,
+    type_name:    String,
+    selections:   Vec<FieldSelection>,
+    variables:    HashMap<String, serde_json::Value>,
+}
+
+impl std::fmt::Debug for SubscriptionPlan {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SubscriptionPlan")
+            .field("subscription", &self.subscription)
+            .field("type_name", &self.type_name)
+            .finish_non_exhaustive()
+    }
+}
+
+impl SubscriptionPlan {
+    /// The subscription this plan serves.
+    #[must_use]
+    pub fn subscription_name(&self) -> &str {
+        &self.subscription
+    }
+
+    /// Serve one event's after-image to this subscriber, or `None` when the plan suppresses
+    /// it.
+    #[must_use]
+    pub fn deliver(&self, after_image: &serde_json::Value) -> Option<serde_json::Value> {
+        if let Ok(served) = self.plan.serve(
+            &self.ctx,
+            self.principal.as_ref(),
+            &self.type_name,
+            &self.selections,
+            after_image,
+            &self.variables,
+        ) {
+            Some(served)
+        } else {
+            SUPPRESSED.fetch_add(1, Ordering::Relaxed);
+            None
+        }
+    }
+}
+
+impl Executor {
+    /// Plan a subscription for one subscriber: `document` is the subscription operation as
+    /// the client sent it, `variables` its variables, `principal` the subscriber.
+    ///
+    /// # Errors
+    ///
+    /// `Validation` for a document that selects no subscription or more than one, an unknown
+    /// subscription, a field the type does not declare or the subscription does not deliver;
+    /// `Authorization` for the type's role, a filter on a field the subscriber may not read,
+    /// and whatever the read plan refuses.
+    pub fn plan_subscription(
+        &self,
+        document: &ParsedQuery,
+        variables: Option<&serde_json::Value>,
+        principal: Option<&SecurityContext>,
+    ) -> Result<SubscriptionPlan> {
+        let ctx = &self.ctx;
+        let schema = &ctx.schema;
+        let variables_map = crate::graphql::selection_set::variables_map(variables);
+        let resolved = crate::graphql::selection_set::resolve_and_filter(
+            &document.selections,
+            &document.fragments,
+            &variables_map,
+            self.max_query_depth(),
+        )?;
+        let mut roots = resolved.iter().filter(|s| s.name != "__typename");
+        let (Some(root), None) = (roots.next(), roots.next()) else {
+            return Err(FraiseQLError::Validation {
+                message: "a subscription operation selects exactly one root field".to_string(),
+                path:    None,
+            });
+        };
+        let definition =
+            schema.find_subscription(&root.name).ok_or_else(|| FraiseQLError::Validation {
+                message: format!("Subscription '{}' not found in schema", root.name),
+                path:    None,
+            })?;
+        let type_name = definition.return_type.as_str();
+
+        refuse_undeclared_selection(schema, type_name, &root.nested_fields)?;
+        refuse_undelivered_selection(definition, &root.nested_fields)?;
+        if let Some(role) = schema.find_type(type_name).and_then(|t| t.requires_role.as_deref()) {
+            if !principal.is_some_and(|p| p.roles.iter().any(|r| r == role)) {
+                return Err(FraiseQLError::Authorization {
+                    message:  format!(
+                        "Subscription '{}' delivers '{type_name}', whose read requires a role \
+                         the request does not hold",
+                        definition.name
+                    ),
+                    action:   Some("read".to_string()),
+                    resource: Some(type_name.to_string()),
+                });
+            }
+        }
+        for path in active_filter_paths(definition, &variables_map) {
+            let condition = crate::db::WhereClause::Field {
+                path,
+                operator: crate::db::WhereOperator::Eq,
+                value: serde_json::Value::Null,
+            };
+            refuse_unreadable_where(schema, type_name, &condition, principal)?;
+        }
+        let plan =
+            ReadPlan::classify(ctx, principal, variables, &[(type_name, &root.nested_fields)])?;
+
+        Ok(SubscriptionPlan {
+            ctx: Arc::clone(ctx),
+            plan,
+            principal: principal.cloned(),
+            subscription: definition.name.clone(),
+            type_name: type_name.to_string(),
+            selections: root.nested_fields.clone(),
+            variables: variables_map,
+        })
+    }
+}
+
+/// Refuse a selected field `type_name` does not declare, at every level, as `/graphql`
+/// validation does. A level whose type the schema does not describe as an object (a union or
+/// an interface, resolved per fragment) is left to its fragments.
+fn refuse_undeclared_selection(
+    schema: &CompiledSchema,
+    type_name: &str,
+    selections: &[FieldSelection],
+) -> Result<()> {
+    let Some(type_def) = schema.find_type(type_name) else {
+        return Ok(());
+    };
+    for sel in effective_selections(selections, type_name, schema) {
+        if sel.name == "__typename" {
+            continue;
+        }
+        let Some(field) = type_def.fields.iter().find(|f| f.name == sel.name) else {
+            return Err(FraiseQLError::Validation {
+                message: format!("Cannot query field '{}' on type '{type_name}'", sel.name),
+                path:    None,
+            });
+        };
+        if let Some(child) = field.field_type.inner_type().unwrap_or(&field.field_type).type_name()
+        {
+            refuse_undeclared_selection(schema, child, &sel.nested_fields)?;
+        }
+    }
+    Ok(())
+}
+
+/// Refuse a top-level field outside the subscription's compile-time field list, when it
+/// declares one: the list is an upper bound on what the subscription delivers.
+fn refuse_undelivered_selection(
+    definition: &SubscriptionDefinition,
+    selections: &[FieldSelection],
+) -> Result<()> {
+    if definition.fields.is_empty() {
+        return Ok(());
+    }
+    let delivered: Vec<&str> = definition
+        .fields
+        .iter()
+        .filter_map(|f| f.trim_start_matches('/').split(['/', '.']).next())
+        .collect();
+    match selections
+        .iter()
+        .find(|s| s.name != "__typename" && !delivered.contains(&s.name.as_str()))
+    {
+        Some(sel) => Err(FraiseQLError::Validation {
+            message: format!(
+                "Subscription '{}' does not deliver field '{}'",
+                definition.name, sel.name
+            ),
+            path:    None,
+        }),
+        None => Ok(()),
+    }
+}
+
+/// The stored-key paths the subscription's filters read for this subscriber: a
+/// `filter_fields` entry or an `argument_paths` entry whose argument the subscriber bound,
+/// and every static filter.
+fn active_filter_paths(
+    definition: &SubscriptionDefinition,
+    variables: &HashMap<String, serde_json::Value>,
+) -> Vec<Vec<String>> {
+    let bound = |argument: &str| variables.get(argument).is_some_and(|v| !v.is_null());
+    let segments = |path: &str| -> Vec<String> {
+        path.trim_start_matches('/')
+            .split(['/', '.'])
+            .filter(|s| !s.is_empty())
+            .map(crate::utils::to_snake_case)
+            .collect()
+    };
+    let mut paths: Vec<Vec<String>> = definition
+        .filter_fields
+        .iter()
+        .filter(|field| bound(field))
+        .map(|field| segments(field))
+        .collect();
+    if let Some(filter) = &definition.filter {
+        paths.extend(
+            filter
+                .argument_paths
+                .iter()
+                .filter(|(argument, _)| bound(argument))
+                .map(|(_, path)| segments(path)),
+        );
+        paths.extend(filter.static_filters.iter().map(|condition| segments(&condition.path)));
+    }
+    paths
+}
+
+#[cfg(test)]
+#[path = "subscription_plan_tests.rs"]
+mod tests;

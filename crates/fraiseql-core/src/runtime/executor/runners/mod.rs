@@ -15,4 +15,4 @@ pub(super) mod query_params;
 pub(super) mod query_projection;
 pub(super) mod query_regular;
 pub(super) mod query_relay;
-mod read_plan;
+pub(super) mod read_plan;

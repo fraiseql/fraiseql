@@ -185,7 +185,7 @@ pub type JsonRowStream =
 mod execution;
 pub mod mutation;
 mod runners;
-
+mod subscription_plan;
 /// One definition of "is this argument a row count", re-exported so every
 /// transport that reads `limit`/`offset`/`first`/`last` fails closed the same
 /// way (#1197). A second, lenient reading of the same argument is how the
@@ -196,6 +196,7 @@ pub use runners::query_params::coerce_pagination_arg;
 /// same function that types a top-level one (#1157). Two mappings would drift, and
 /// the drift would be silent: a filter that returns the wrong rows.
 pub use runners::query_projection::field_type_to_where_type;
+pub use subscription_plan::{SubscriptionPlan, suppressed_subscription_events};
 pub mod security;
 mod support;
 

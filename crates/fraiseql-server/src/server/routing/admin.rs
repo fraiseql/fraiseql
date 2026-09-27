@@ -281,6 +281,11 @@ impl Server {
         let live_schema: crate::routes::subscriptions::LiveSchema =
             Arc::new(move || Arc::new(schema_swap.load().schema().clone()));
 
+        // Ruling AA 4: the executor serving now plans each subscription.
+        let planner_swap = state.executor.clone();
+        let live_executor: crate::routes::subscriptions::LiveExecutor =
+            Arc::new(move || planner_swap.load_full());
+
         #[allow(unused_mut)]
         // Reason: `mut` is needed when the federation/auth features are enabled
         let mut subscription_state = SubscriptionState::new(self.subscription_manager.clone())
@@ -297,6 +302,8 @@ impl Server {
             // the schema that is actually serving, so § 5.8.2 on /ws follows a
             // hot-reload exactly as the policies above do.
             .with_live_schema(Some(live_schema))
+            // Ruling AA 4: every local subscription is planned as a read of its type.
+            .with_live_executor(Some(live_executor))
             // #611 (layer 2): notify already-connected subscriptions on hot-reload so
             // they re-derive against the new policies or are terminated fail-closed.
             .with_policy_reload(Some(state.subscribe_policy_reload()))

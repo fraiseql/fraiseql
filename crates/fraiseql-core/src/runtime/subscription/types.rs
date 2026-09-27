@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -246,6 +248,11 @@ pub struct ActiveSubscription {
     /// When set, only events with a matching `tenant_id` are delivered.
     /// Extracted from the subscriber's JWT `fk_customer_org` claim at subscribe time.
     pub tenant_id: Option<String>,
+
+    /// What each event is served as for this subscriber (ruling AA 4): planned by the
+    /// executor at subscribe time from the client's selection and principal. `None` for a
+    /// subscription registered without one.
+    pub plan: Option<Arc<crate::runtime::SubscriptionPlan>>,
 }
 
 impl ActiveSubscription {
@@ -279,6 +286,7 @@ impl ActiveSubscription {
             connection_id: connection_id.into(),
             rls_conditions: Vec::new(),
             tenant_id,
+            plan: None,
         }
     }
 
@@ -291,6 +299,13 @@ impl ActiveSubscription {
     #[must_use]
     pub fn with_rls_conditions(mut self, conditions: Vec<(String, serde_json::Value)>) -> Self {
         self.rls_conditions = conditions;
+        self
+    }
+
+    /// Serve every event through `plan` (ruling AA 4).
+    #[must_use]
+    pub fn with_plan(mut self, plan: Arc<crate::runtime::SubscriptionPlan>) -> Self {
+        self.plan = Some(plan);
         self
     }
 }

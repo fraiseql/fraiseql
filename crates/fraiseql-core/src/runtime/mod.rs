@@ -96,6 +96,8 @@ pub use executor::{
     // public item is invisible outside the crate until it is named here.
     RowRead,
     StreamedRowRead,
+    // A subscription's read plan (ruling AA 4).
+    SubscriptionPlan,
     coerce_pagination_arg,
     mutation::{WriteSelections, mutation_return_selections},
     pipeline::{extract_root_field_names, is_multi_root, multi_root_queries_total},
@@ -104,6 +106,7 @@ pub use executor::{
     // real query. A preview computed by a second implementation is a preview of
     // that implementation.
     security::resolve_session_variables,
+    suppressed_subscription_events,
 };
 pub use explain::{ExplainPlan, ExplainResult};
 pub use field_filter::{

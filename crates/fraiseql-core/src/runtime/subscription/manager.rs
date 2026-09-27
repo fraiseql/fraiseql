@@ -138,6 +138,45 @@ impl SubscriptionManager {
         connection_id: &str,
         rls_conditions: Vec<(String, serde_json::Value)>,
     ) -> Result<SubscriptionId, SubscriptionError> {
+        self.register(
+            subscription_name,
+            user_context,
+            variables,
+            connection_id,
+            rls_conditions,
+            None,
+        )
+    }
+
+    /// Subscribe a subscriber whose events are served through `plan` (ruling AA 4): the
+    /// executor planned it at subscribe time from the client's selection and principal
+    /// ([`Executor::plan_subscription`](crate::runtime::Executor::plan_subscription)). An event
+    /// the plan suppresses is not delivered, and nothing tells the subscriber it existed.
+    ///
+    /// # Errors
+    ///
+    /// As [`subscribe_with_rls`](Self::subscribe_with_rls).
+    pub fn subscribe_planned(
+        &self,
+        plan: Arc<crate::runtime::SubscriptionPlan>,
+        user_context: serde_json::Value,
+        variables: serde_json::Value,
+        connection_id: &str,
+        rls_conditions: Vec<(String, serde_json::Value)>,
+    ) -> Result<SubscriptionId, SubscriptionError> {
+        let name = plan.subscription_name().to_string();
+        self.register(&name, user_context, variables, connection_id, rls_conditions, Some(plan))
+    }
+
+    fn register(
+        &self,
+        subscription_name: &str,
+        user_context: serde_json::Value,
+        variables: serde_json::Value,
+        connection_id: &str,
+        rls_conditions: Vec<(String, serde_json::Value)>,
+        plan: Option<Arc<crate::runtime::SubscriptionPlan>>,
+    ) -> Result<SubscriptionId, SubscriptionError> {
         // Find subscription definition
         let mut definition = self
             .schema
@@ -169,7 +208,7 @@ impl SubscriptionManager {
         Self::check_filter_arguments(&definition)?;
 
         // Create active subscription with RLS conditions
-        let active = ActiveSubscription::new(
+        let mut active = ActiveSubscription::new(
             subscription_name,
             definition,
             user_context,
@@ -177,6 +216,9 @@ impl SubscriptionManager {
             connection_id,
         )
         .with_rls_conditions(rls_conditions);
+        if let Some(plan) = plan {
+            active = active.with_plan(plan);
+        }
 
         let id = active.id;
 
@@ -382,10 +424,16 @@ impl SubscriptionManager {
         // Find matching subscriptions
         for subscription in &self.subscriptions {
             if self.matches_subscription(&event, &subscription) {
+                // A planned subscription is served through its plan; an event the plan
+                // suppresses is not delivered, and counts as no match.
+                let data = match &subscription.plan {
+                    Some(plan) => match plan.deliver(&event.data) {
+                        Some(served) => served,
+                        None => continue,
+                    },
+                    None => self.project_event_data(&event, &subscription),
+                };
                 matched += 1;
-
-                // Project data for this subscription
-                let data = self.project_event_data(&event, &subscription);
 
                 let payload = SubscriptionPayload {
                     subscription_id: subscription.id,

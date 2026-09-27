@@ -139,6 +139,9 @@ pub type LiveSubscriptionPolicies =
 /// guessed.
 pub type LiveSchema = Arc<dyn Fn() -> Arc<CompiledSchema> + Send + Sync>;
 
+/// Reads the executor currently serving, which plans each subscription (ruling AA 4).
+pub type LiveExecutor = Arc<dyn Fn() -> Arc<fraiseql_core::runtime::Executor> + Send + Sync>;
+
 /// State for subscription `WebSocket` handler.
 #[derive(Clone)]
 pub struct SubscriptionState {
@@ -187,6 +190,10 @@ pub struct SubscriptionState {
     pub live_subscription_policies: Option<LiveSubscriptionPolicies>,
     /// Reads the current compiled schema for § 5.8.2 on the `/ws` surface.
     pub live_schema: Option<LiveSchema>,
+    /// The executor serving now: it plans each local subscription from the client's
+    /// selection and the connection's principal (ruling AA 4). `None` in a harness that
+    /// mounts no executor: subscriptions are then registered unplanned.
+    pub live_executor: Option<LiveExecutor>,
     /// Enriched-identity resolver (#539). When set, the connection's `SecurityContext`
     /// is enriched at subscribe time (only for policy-declaring subscriptions) so the
     /// `fraiseql.enriched.*` owner field is server-resolved, never client-asserted.
@@ -242,6 +249,7 @@ impl SubscriptionState {
             subscription_policies: Arc::new(HashMap::new()),
             live_subscription_policies: None,
             live_schema: None,
+            live_executor: None,
             #[cfg(feature = "auth")]
             identity_resolver: None,
             service_account_authenticator: None,
@@ -324,6 +332,14 @@ impl SubscriptionState {
     #[must_use]
     pub fn with_live_schema(mut self, live: Option<LiveSchema>) -> Self {
         self.live_schema = live;
+        self
+    }
+
+    /// Install the executor that plans each subscription (ruling AA 4): its selection is
+    /// classified and projected as a read of its type, per subscriber.
+    #[must_use]
+    pub fn with_live_executor(mut self, live: Option<LiveExecutor>) -> Self {
+        self.live_executor = live;
         self
     }
 
@@ -1181,12 +1197,15 @@ async fn handle_client_message(
             let document = extract_subscription_root(&payload.query).and_then(|(root, parsed)| {
                 let schema = state.live_schema.as_ref().map(|f| f());
                 validate_subscription_variables(&parsed, schema.as_deref())?;
-                Ok(root)
+                Ok((root, parsed))
             });
-            let SubscriptionRoot {
-                name: subscription_name,
-                response_key,
-            } = match document {
+            let (
+                SubscriptionRoot {
+                    name: subscription_name,
+                    response_key,
+                },
+                parsed,
+            ) = match document {
                 Ok(root) => root,
                 Err(refusal) => {
                     let error = ServerMessage::error(
@@ -1245,6 +1264,41 @@ async fn handle_client_message(
                     return Ok(());
                 }
             }
+
+            // Ruling AA 4: a local subscription is a read of its type. The executor plans it
+            // from the client's selection and this connection's principal — before any
+            // lifecycle side effect — and every event is served through the plan. A refusal
+            // is the subscription's error frame, as for a query. A field owned by a remote
+            // subgraph is not planned here: the subgraph serving it owns its type.
+            let plan = match state.live_executor.as_ref() {
+                Some(live)
+                    if !state.remote_subscription_fields.contains_key(&subscription_name) =>
+                {
+                    match live().plan_subscription(&parsed, Some(&variables_value), principal) {
+                        Ok(plan) => Some(Arc::new(plan)),
+                        Err(err) => {
+                            WS_SUBSCRIPTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
+                            let code = if matches!(
+                                err,
+                                fraiseql_core::error::FraiseQLError::Authorization { .. }
+                            ) {
+                                "FORBIDDEN"
+                            } else {
+                                "SUBSCRIPTION_REFUSED"
+                            };
+                            let error = ServerMessage::error(
+                                &op_id,
+                                vec![GraphQLError::with_code(err.to_string(), code)],
+                            );
+                            if let Err(e) = send_server_message(codec, sender, error).await {
+                                debug!(connection_id = %connection_id, error = %e, "Could not send subscription plan refusal to client");
+                            }
+                            return Ok(());
+                        },
+                    }
+                },
+                _ => None,
+            };
 
             if let Err(reason) = state
                 .lifecycle
@@ -1435,13 +1489,23 @@ async fn handle_client_message(
             // Subscribe locally (field is owned by this subgraph). The server-owned
             // `rls_conditions` (#596) are enforced on every delivered event (AND
             // semantics) and cannot be overridden by client-supplied variables/filters.
-            match state.manager.subscribe_with_rls(
-                &subscription_name,
-                context,
-                variables_value,
-                connection_id,
-                rls_conditions,
-            ) {
+            let registered = match plan {
+                Some(plan) => state.manager.subscribe_planned(
+                    plan,
+                    context,
+                    variables_value,
+                    connection_id,
+                    rls_conditions,
+                ),
+                None => state.manager.subscribe_with_rls(
+                    &subscription_name,
+                    context,
+                    variables_value,
+                    connection_id,
+                    rls_conditions,
+                ),
+            };
+            match registered {
                 Ok(sub_id) => {
                     active_operations.insert(
                         op_id.clone(),

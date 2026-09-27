@@ -31,7 +31,7 @@ use crate::{
 };
 
 /// What the static gates decided for a selection over one or more root types.
-pub(super) struct ReadPlan {
+pub(in super::super) struct ReadPlan {
     access: SelectionAccess,
     rows:   DocumentRowFilter,
 }
@@ -45,7 +45,7 @@ impl ReadPlan {
     /// nested level whose read the caller may not make, one the #422 authorizer denies — for
     /// a nested level whose row security cannot be evaluated over the document, and for a
     /// gated field the #423 authorizer cannot be asked about ([`field_authz_inputs`]).
-    pub(super) fn classify(
+    pub(in super::super) fn classify(
         ctx: &ExecutorContext,
         security_ctx: Option<&SecurityContext>,
         variables: Option<&serde_json::Value>,
@@ -78,7 +78,7 @@ impl ReadPlan {
     /// # Errors
     ///
     /// What the #423 authorizer refuses over the document ([`enforce_field_authz`]).
-    pub(super) fn serve(
+    pub(in super::super) fn serve(
         &self,
         ctx: &ExecutorContext,
         security_ctx: Option<&SecurityContext>,
