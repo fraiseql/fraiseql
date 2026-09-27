@@ -7094,3 +7094,193 @@ mod enum_membership {
         );
     }
 }
+
+// ── AA 6 (rulings AD 3, AD 4): a dry run commits nothing, and nothing follows it ──
+//
+// A dry run runs the function and rolls back. What follows a commit — the fact-table
+// version bump, view / entity / response-cache invalidation, the `mutation.executed` audit
+// event — must not follow it: nothing was written. And the cache wrapper, which every
+// server-side adapter is, must pass the dry run through rather than refuse it.
+mod dry_run {
+    use std::{
+        collections::HashMap,
+        sync::atomic::{AtomicUsize, Ordering},
+    };
+
+    use async_trait::async_trait;
+    use serde_json::json;
+
+    use super::*;
+    use crate::{
+        backend::types::{DatabaseType, PoolMetrics, sql_hints::OrderByClause},
+        schema::{FieldDefinition, FieldType, MutationDefinition, TypeDefinition},
+    };
+
+    /// A writer whose dry run returns one successful `Post` row, and which counts what the
+    /// runner does after it.
+    #[derive(Default)]
+    struct DryRunAdapter {
+        dry_runs:     AtomicUsize,
+        bumps:        AtomicUsize,
+        invalidation: AtomicUsize,
+    }
+
+    fn success_row() -> HashMap<String, serde_json::Value> {
+        HashMap::from([
+            ("succeeded".to_string(), json!(true)),
+            ("state_changed".to_string(), json!(true)),
+            ("entity".to_string(), json!({"id": "p1", "title": "Hello"})),
+            ("entity_type".to_string(), json!("Post")),
+            ("message".to_string(), json!("")),
+        ])
+    }
+
+    // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
+    #[async_trait]
+    impl DatabaseAdapter for DryRunAdapter {
+        fn supports_mutations(&self) -> bool {
+            true
+        }
+
+        fn supports_gated_writes(&self) -> bool {
+            true
+        }
+
+        async fn execute_function_call_dry_run(
+            &self,
+            _function_name: &str,
+            _args: &[serde_json::Value],
+            _session_vars: &[(&str, &str)],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            self.dry_runs.fetch_add(1, Ordering::SeqCst);
+            Ok(vec![success_row()])
+        }
+
+        async fn bump_fact_table_versions(&self, _tables: &[String]) -> Result<()> {
+            self.bumps.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+
+        async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
+            self.invalidation.fetch_add(1, Ordering::SeqCst);
+            Ok(views.len() as u64)
+        }
+
+        async fn execute_with_projection(
+            &self,
+            _view: &str,
+            _projection: Option<&crate::schema::SqlProjectionHint>,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn execute_where_query(
+            &self,
+            _view: &str,
+            _where_clause: Option<&WhereClause>,
+            _limit: Option<u32>,
+            _offset: Option<u32>,
+            _order_by: Option<&[OrderByClause]>,
+        ) -> Result<Vec<JsonbValue>> {
+            Ok(vec![])
+        }
+
+        async fn health_check(&self) -> Result<()> {
+            Ok(())
+        }
+
+        fn database_type(&self) -> DatabaseType {
+            DatabaseType::PostgreSQL
+        }
+
+        fn pool_metrics(&self) -> PoolMetrics {
+            PoolMetrics {
+                total_connections:  1,
+                active_connections: 0,
+                idle_connections:   1,
+                waiting_requests:   0,
+            }
+        }
+
+        async fn execute_raw_query(
+            &self,
+            _sql: &str,
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+
+        async fn execute_parameterized_aggregate(
+            &self,
+            _sql: &str,
+            _params: &[serde_json::Value],
+        ) -> Result<Vec<HashMap<String, serde_json::Value>>> {
+            Ok(vec![])
+        }
+    }
+
+    impl SupportsMutations for DryRunAdapter {}
+
+    /// `createPost: Post`, invalidating `v_post` and the fact table `tf_posts`.
+    fn schema() -> CompiledSchema {
+        let mut s = CompiledSchema::new();
+        s.mutations.push(MutationDefinition {
+            sql_source: Some("fn_create_post".to_string()),
+            invalidates_views: vec!["v_post".to_string()],
+            invalidates_fact_tables: vec!["tf_posts".to_string()],
+            ..MutationDefinition::new("createPost", "Post")
+        });
+        let mut post = TypeDefinition::new("Post", "v_post");
+        post.fields = vec![
+            FieldDefinition::new("id", FieldType::Id),
+            FieldDefinition::nullable("title", FieldType::String),
+        ];
+        s.types.push(post);
+        s.build_indexes();
+        s
+    }
+
+    #[tokio::test]
+    #[ignore = "AD 3: a dry run is followed by the post-commit effects (fix pending)"]
+    async fn nothing_that_follows_a_commit_follows_a_dry_run() {
+        let adapter = Arc::new(DryRunAdapter::default());
+        let config = RuntimeConfig {
+            dry_run_mutations: true,
+            ..RuntimeConfig::default()
+        };
+        let res = Executor::with_config(schema(), Arc::clone(&adapter), config)
+            .execute("mutation { createPost { id title } }", None)
+            .await
+            .expect("the dry run answers as the write would");
+        assert_eq!(res["data"]["createPost"]["id"], "p1");
+        assert_eq!(adapter.dry_runs.load(Ordering::SeqCst), 1);
+        assert_eq!(
+            adapter.bumps.load(Ordering::SeqCst),
+            0,
+            "no fact table moved: nothing committed"
+        );
+        assert_eq!(
+            adapter.invalidation.load(Ordering::SeqCst),
+            0,
+            "no cache holds anything the dry run changed"
+        );
+    }
+
+    #[tokio::test]
+    #[ignore = "AD 4: the cache wrapper refuses a dry run (fix pending)"]
+    async fn the_cache_wrapper_passes_a_dry_run_through() {
+        let cached = crate::cache::CachedDatabaseAdapter::new(
+            DryRunAdapter::default(),
+            crate::cache::QueryResultCache::new(crate::cache::CacheConfig::enabled()),
+            "1.0.0".to_string(),
+        );
+        let rows = cached
+            .execute_function_call_dry_run("fn_create_post", &[], &[])
+            .await
+            .expect("a dry run reaches the wrapped writer");
+        assert_eq!(rows.len(), 1);
+    }
+}
