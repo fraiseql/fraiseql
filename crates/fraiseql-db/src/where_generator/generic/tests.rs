@@ -779,6 +779,42 @@ fn a_guarded_path_under_not_negates_the_guarded_value_not_the_guard() {
     );
 }
 
+/// Ruling AL: a relation whose target is read from its own view guards the value with the
+/// related row's visibility there — the parent's key among the keys of the view's rows the
+/// predicate admits. Uncorrelated: the predicate reads the view's `data`, the key this row's;
+/// both keys cast as the target key's declared type; the view name quoted per component.
+#[test]
+fn a_view_guarded_path_reads_its_value_only_where_the_related_row_is_visible() {
+    let gen = GenericWhereGenerator::new(PostgresDialect);
+    let clause = WhereClause::Guarded {
+        under: vec!["team".to_string()],
+        guard: Box::new(team_key_in()),
+        inner: Box::new(team_name(WhereOperator::Eq, json!("blue"))),
+    };
+    let (sql, params) = gen.generate(&clause).unwrap();
+    assert_eq!(
+        sql,
+        "(CASE WHEN ((data->>'fk_team')::bigint IN (SELECT (data->>'id')::bigint FROM \
+         \"app\".\"v_team\" WHERE data->>'tenant_id' = $1)) THEN data->'team'->>'name' END) = $2"
+    );
+    assert_eq!(params, [json!("A"), json!("blue")]);
+}
+
+/// `member.fk_team` among the `id`s of `app.v_team`'s rows of tenant `A`.
+fn team_key_in() -> WhereClause {
+    WhereClause::KeyIn {
+        path:       vec!["fk_team".to_string()],
+        key_type:   crate::types::sql_hints::ScalarFieldType::Integer,
+        view:       "app.v_team".to_string(),
+        target_key: vec!["id".to_string()],
+        predicate:  Box::new(WhereClause::Field {
+            path:     vec!["tenant_id".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("A"),
+        }),
+    }
+}
+
 /// A path that does not run through the guarded relation is untouched, byte for byte.
 #[test]
 fn a_path_outside_the_guarded_relation_is_unchanged() {

@@ -126,6 +126,32 @@ pub enum WhereClause {
         /// The guarded subtree.
         inner: Box<WhereClause>,
     },
+
+    /// Whether the key stored at `path` is among the `target_key` values of the rows of
+    /// `view` that satisfy `predicate`, both compared as `key_type` (ruling AL).
+    ///
+    /// A related row's visibility, decided over the related type's own view: where a type's
+    /// row predicate cannot be read off the document its parent's view embedded, the related
+    /// level is read from its view through the declared relationship, and a filter through
+    /// the relation asks the same question here, as the `guard` of a [`Guarded`]. Rendered
+    /// as `<key> IN (SELECT <target key> FROM <view> WHERE <predicate>)` — uncorrelated, so
+    /// `predicate` reads the view's rows and `path` this row. Built by the executor, never
+    /// parsed from a client. `predicate` is over the view's rows: its native columns are the
+    /// view's, not this row's.
+    ///
+    /// [`Guarded`]: WhereClause::Guarded
+    KeyIn {
+        /// The stored path of the key on this row.
+        path:       Vec<String>,
+        /// The declared scalar type both keys are compared as.
+        key_type:   ScalarFieldType,
+        /// The related type's view.
+        view:       String,
+        /// The stored path of the key on the view's rows.
+        target_key: Vec<String>,
+        /// The related type's row predicate, over the view's rows.
+        predicate:  Box<WhereClause>,
+    },
 }
 
 impl WhereClause {
@@ -135,7 +161,9 @@ impl WhereClause {
         match self {
             Self::And(clauses) | Self::Or(clauses) => clauses.is_empty(),
             Self::Typed { inner, .. } | Self::Guarded { inner, .. } => inner.is_empty(),
-            Self::Not(_) | Self::Field { .. } | Self::NativeField { .. } => false,
+            Self::Not(_) | Self::Field { .. } | Self::NativeField { .. } | Self::KeyIn { .. } => {
+                false
+            },
         }
     }
 
@@ -174,7 +202,8 @@ impl WhereClause {
                 inner.collect_native_column_names(out);
             },
             Self::NativeField { column, .. } => out.push(column),
-            Self::Field { .. } => {},
+            // Its predicate's native columns are the related view's, not this row's.
+            Self::Field { .. } | Self::KeyIn { .. } => {},
         }
     }
 

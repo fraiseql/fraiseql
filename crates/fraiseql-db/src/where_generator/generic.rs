@@ -324,6 +324,31 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 operator,
                 value,
             } => self.visit_native_field(column, pg_cast, operator, value, params),
+            // Ruling AL: uncorrelated, so the predicate's unqualified `data` is the view's row
+            // and the key's is this one.
+            WhereClause::KeyIn {
+                path,
+                key_type,
+                view,
+                target_key,
+                predicate,
+            } => {
+                let key = self
+                    .dialect
+                    .cast_expr_as(&self.dialect.json_extract_scalar("data", path), *key_type)
+                    .into_owned();
+                let target = self
+                    .dialect
+                    .cast_expr_as(&self.dialect.json_extract_scalar("data", target_key), *key_type)
+                    .into_owned();
+                let view = view
+                    .split('.')
+                    .map(|part| self.dialect.quote_identifier(part))
+                    .collect::<Vec<_>>()
+                    .join(".");
+                let predicate = self.visit_impl(predicate, params, None, None, &[])?;
+                Ok(format!("({key} IN (SELECT {target} FROM {view} WHERE {predicate}))"))
+            },
         }
     }
 

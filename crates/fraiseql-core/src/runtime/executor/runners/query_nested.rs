@@ -862,29 +862,51 @@ fn relation_guards(
         if field.field_type.is_list() {
             break;
         }
-        if let Some(read) = own_read(schema, target) {
+        // The predicate is the one path (a) applies to this level: its gate's read's.
+        if let Some(gate) = row_gate(schema, policy, parent, field, target) {
             if let Some(predicate) =
-                row_predicate(schema, policy, &read.name, target, security_context)?
+                row_predicate(schema, policy, gate.query(), target, security_context)?
             {
                 let under = path[..=depth].to_vec();
-                let over_document = match row_gate(schema, policy, parent, field, target) {
-                    Some(NestedRowGate::Project { paths, .. }) => reads_only(&predicate, &paths),
-                    _ => false,
+                let guard = match &gate {
+                    NestedRowGate::Project { paths, .. } if reads_only(&predicate, paths) => {
+                        under_path(&predicate, &under)
+                    },
+                    // Ruling AL: the level path (a) reads from the target's own view through
+                    // the declared relationship — the filter asks the same question there.
+                    NestedRowGate::Join {
+                        view, relationship, ..
+                    } => {
+                        let (target_key, parent_key, key_type) =
+                            super::query_composed::correlation_keys(
+                                schema,
+                                relationship,
+                                parent.name.as_str(),
+                            );
+                        WhereClause::KeyIn {
+                            path: path[..depth].iter().chain(&parent_key).cloned().collect(),
+                            key_type,
+                            view: view.clone(),
+                            target_key,
+                            predicate: Box::new(predicate),
+                        }
+                    },
+                    _ => {
+                        return Err(FraiseQLError::Authorization {
+                            message:  format!(
+                                "Access denied: '{}.{}' cannot be used to filter by: which \
+                                 '{target}' rows the request may read cannot be decided over the \
+                                 document the view embeds (declare the policy's keys with \
+                                 `RLSPolicy::constrained_paths`, or declare '{}' as a \
+                                 relationship of '{}')",
+                                parent.name, field.name, field.name, parent.name
+                            ),
+                            action:   Some("read".to_string()),
+                            resource: Some(target.to_string()),
+                        });
+                    },
                 };
-                if !over_document {
-                    return Err(FraiseQLError::Authorization {
-                        message:  format!(
-                            "Access denied: '{}.{}' cannot be used to filter by: which '{target}' \
-                             rows the request may read cannot be decided over the document the \
-                             view embeds (declare the policy's keys with \
-                             `RLSPolicy::constrained_paths`)",
-                            parent.name, field.name
-                        ),
-                        action:   Some("read".to_string()),
-                        resource: Some(target.to_string()),
-                    });
-                }
-                guards.push((under.clone(), under_path(&predicate, &under)));
+                guards.push((under, guard));
             }
         }
         current = target.to_string();

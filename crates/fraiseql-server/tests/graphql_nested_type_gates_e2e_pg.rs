@@ -2195,7 +2195,6 @@ async fn a_relation_filter_whose_policy_cannot_be_read_off_the_document_is_refus
 /// every operator, exactly as `a_hidden_related_row_reads_null_to_every_operator` over a
 /// policy that declares its keys.
 #[tokio::test]
-#[ignore = "AL reproduction: a relation filter under an opaque policy is refused though the relation is declared"]
 async fn a_relation_filter_under_an_opaque_policy_reads_through_the_declared_relationship() {
     let executor = rig_or_skip!(over joinable(filterable("v_user_fk")), Policy::OpaqueTenant);
     for (query, expected) in [

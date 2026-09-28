@@ -88,6 +88,27 @@ impl WhereSqlGenerator {
                 operator,
                 value,
             } => Self::generate_field_predicate(path, operator, value, types, guards),
+            // Ruling AL: uncorrelated, so the predicate's unqualified `data` is the view's row
+            // and the key's is this one.
+            WhereClause::KeyIn {
+                path,
+                key_type,
+                view,
+                target_key,
+                predicate,
+            } => {
+                let key = PostgresDialect
+                    .cast_expr_as(&Self::build_json_path(path)?, *key_type)
+                    .into_owned();
+                let target = PostgresDialect
+                    .cast_expr_as(&Self::build_json_path(target_key)?, *key_type)
+                    .into_owned();
+                let predicate = Self::to_sql_typed(predicate, None, &[])?;
+                Ok(format!(
+                    "({key} IN (SELECT {target} FROM {} WHERE {predicate}))",
+                    crate::quote_postgres_identifier(view)
+                ))
+            },
             WhereClause::And(clauses) => {
                 if clauses.is_empty() {
                     return Ok("TRUE".to_string());

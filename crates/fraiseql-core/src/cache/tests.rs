@@ -1845,6 +1845,38 @@ mod key_tests {
         assert_eq!(key("A"), key("A"));
     }
 
+    /// Ruling AL: a guard over the related view carries the caller's predicate too — two
+    /// callers whose predicates differ must not share an entry.
+    #[test]
+    fn test_view_key_differs_by_the_view_guard_of_a_relation_filter() {
+        use crate::db::{WhereClause, WhereOperator};
+
+        let guarded = |tenant: &str| WhereClause::Guarded {
+            under: vec!["team".to_string()],
+            guard: Box::new(WhereClause::KeyIn {
+                path:       vec!["fk_team".to_string()],
+                key_type:   crate::db::types::sql_hints::ScalarFieldType::Integer,
+                view:       "v_team".to_string(),
+                target_key: vec!["id".to_string()],
+                predicate:  Box::new(WhereClause::Field {
+                    path:     vec!["tenant_id".to_string()],
+                    operator: WhereOperator::Eq,
+                    value:    serde_json::json!(tenant),
+                }),
+            }),
+            inner: Box::new(WhereClause::Field {
+                path:     vec!["team".to_string(), "name".to_string()],
+                operator: WhereOperator::Eq,
+                value:    serde_json::json!("blue"),
+            }),
+        };
+        let key = |tenant: &str| {
+            generate_view_query_key("v_member", Some(&guarded(tenant)), None, None, None, "v1")
+        };
+        assert_ne!(key("A"), key("B"), "callers with different predicates must not share an entry");
+        assert_eq!(key("A"), key("A"));
+    }
+
     #[test]
     fn test_view_key_same_order_by_produces_same_key() {
         use crate::backend::{OrderByClause, OrderDirection};

@@ -483,6 +483,28 @@ fn hash_where_clause(h: &mut impl Hasher, clause: &WhereClause) {
             hash_where_clause(h, guard);
             hash_where_clause(h, inner);
         },
+        // Ruling AL: every part, the predicate included — it is the caller's.
+        WhereClause::KeyIn {
+            path,
+            key_type,
+            view,
+            target_key,
+            predicate,
+        } => {
+            h.write_u8(b'K');
+            for segments in [path, target_key] {
+                h.write_usize(segments.len());
+                for segment in segments {
+                    h.write(segment.as_bytes());
+                    h.write_u8(0);
+                }
+            }
+            h.write(format!("{key_type:?}").as_bytes());
+            h.write_u8(0);
+            h.write(view.as_bytes());
+            h.write_u8(0);
+            hash_where_clause(h, predicate);
+        },
         // WhereClause is #[non_exhaustive]; unknown variants get a distinct tag
         // plus their Debug representation as a conservative fallback.
         _ => {

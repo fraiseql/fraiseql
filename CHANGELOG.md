@@ -55,14 +55,18 @@ disagreed, and the promise was the part that was wrong.
   embedded, before the related row's own policy applied, so it could match a row the
   response would never show.
 
-  ⚠ **A policy that does not declare its keys** (`RLSPolicy::constrained_paths` returning
+  **A policy that does not declare its keys** (`RLSPolicy::constrained_paths` returning
   `Opaque`), or a target read whose `inject_params` names a native column, cannot be
-  evaluated over the embedded document: a filter through such a relation is now refused
-  (403) instead of evaluated unguarded. Declare the policy's keys to filter through it.
-  Filters that cross no row-gated relation produce byte-identical SQL.
+  evaluated over the embedded document. Where the relation is a declared relationship, the
+  filter decides visibility over the target's own view instead — exactly as a nested
+  selection of it does: the value reads only where the parent's key is among the keys of
+  the view's rows the caller may read. ⚠ Without a declared relationship such a filter is
+  refused (403) rather than evaluated unguarded; declare the relationship, or the policy's
+  keys. Filters that cross no row-gated relation produce byte-identical SQL.
 
-  Internally: `WhereClause::Guarded { under, guard, inner }` (new variant of a
-  `#[non_exhaustive]` enum) and `client_where_argument` takes the row policy.
+  Internally: `WhereClause::Guarded { under, guard, inner }` and `WhereClause::KeyIn { path,
+  key_type, view, target_key, predicate }` (new variants of a `#[non_exhaustive]` enum), and
+  `client_where_argument` takes the row policy.
 
 - **A mutation failure is served only as an error type its mutation can return; `fraiseql.mutation_err` takes the stamp.**
 

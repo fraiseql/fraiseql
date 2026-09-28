@@ -519,20 +519,36 @@ pub(super) fn correlated_source(
     rel: &Relationship,
     parent_type: &str,
 ) -> EmbedSource {
+    let (target_key, parent_key, key_type) = correlation_keys(schema, rel, parent_type);
+    EmbedSource::Correlated {
+        target_key,
+        parent_key,
+        key_type,
+    }
+}
+
+/// The stored keys `rel` attaches its target rows by — `(target key, parent key)` — and the
+/// declared type both compare as: the target key's field type. One derivation for path (a)'s
+/// correlated level and a filter's relation guard over the target's view (ruling AL).
+pub(super) fn correlation_keys(
+    schema: &CompiledSchema,
+    rel: &Relationship,
+    parent_type: &str,
+) -> (Vec<String>, Vec<String>, ScalarFieldType) {
     let target_field = schema
         .find_type(&rel.target_type)
         .and_then(|t| t.field_for_column(rel.target_join_column()));
     let key_type = target_field
         .map_or(ScalarFieldType::Text, |field| field_type_to_where_type(&field.field_type));
-    EmbedSource::Correlated {
-        target_key: vec![stored_key(
+    (
+        vec![stored_key(
             schema,
             &rel.target_type,
             rel.target_join_column(),
         )],
-        parent_key: vec![stored_key(schema, parent_type, rel.parent_join_column())],
+        vec![stored_key(schema, parent_type, rel.parent_join_column())],
         key_type,
-    }
+    )
 }
 
 /// The keys an embedded level may return: every projected field's stored spellings,

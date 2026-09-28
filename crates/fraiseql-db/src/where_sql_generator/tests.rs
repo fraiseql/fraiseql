@@ -334,6 +334,38 @@ fn value_to_sql_rejects_oversized_jsonb_value() {
     ));
 }
 
+/// Ruling AL, the inline generator: a relation read from its target's own view guards the
+/// value with the related row's visibility there.
+#[test]
+fn a_view_guarded_path_reads_its_value_only_where_the_related_row_is_visible() {
+    let clause = WhereClause::Guarded {
+        under: vec!["team".to_string()],
+        guard: Box::new(WhereClause::KeyIn {
+            path:       vec!["fk_team".to_string()],
+            key_type:   crate::types::sql_hints::ScalarFieldType::Integer,
+            view:       "app.v_team".to_string(),
+            target_key: vec!["id".to_string()],
+            predicate:  Box::new(WhereClause::Field {
+                path:     vec!["tenant_id".to_string()],
+                operator: WhereOperator::Eq,
+                value:    json!("A"),
+            }),
+        }),
+        inner: Box::new(WhereClause::Field {
+            path:     vec!["team".to_string(), "name".to_string()],
+            operator: WhereOperator::Eq,
+            value:    json!("blue"),
+        }),
+    };
+    let sql = WhereSqlGenerator::to_sql(&clause).unwrap();
+    assert_eq!(
+        sql,
+        "(CASE WHEN ((data->>'fk_team')::bigint IN (SELECT (data->>'id')::bigint FROM \
+         \"app\".\"v_team\" WHERE data->>'tenant_id' = 'A')) THEN data#>'{team}'->>'name' END) \
+         = 'blue'"
+    );
+}
+
 /// Ruling AH, the inline generator: a guarded relation reads its value through the guard.
 #[test]
 fn a_guarded_path_reads_its_value_only_where_the_guard_holds() {
