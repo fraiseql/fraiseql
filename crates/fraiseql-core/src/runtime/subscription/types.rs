@@ -76,9 +76,11 @@ impl std::fmt::Display for SubscriptionOperation {
 /// producer that stamped nothing yields an empty object (see [`Self::is_empty`],
 /// which callers use to skip emitting it entirely).
 ///
-/// `seq` never reaches a subscriber (ruling AA 5): it is a server-wide position, and the
-/// manager clears it from every delivered event — each subscription carries its own
-/// delivery position in `sequence_number` instead.
+/// The full envelope stays server-side (change log, observers, audit). What a subscriber
+/// receives is [`Self::for_subscriber`]'s view of it (ruling AI): facts about the delivered
+/// event, and a principal only when that principal is the subscriber. `seq` never reaches a
+/// subscriber (ruling AA 5: it is a server-wide position — each subscription carries its own
+/// delivery position in `sequence_number` instead), nor does `duration_ms`.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ChangeSpineEnvelope {
@@ -88,7 +90,8 @@ pub struct ChangeSpineEnvelope {
     pub actor_type: Option<String>,
 
     /// For a delegated-agent request (RFC 8693 `act` claim), the public-facing UUID
-    /// of the underlying human the agent acts for (#390).
+    /// of the underlying human the agent acts for (#390). Another principal's identity:
+    /// delivered only to that principal (ruling AI).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub acting_for: Option<String>,
 
@@ -101,7 +104,8 @@ pub struct ChangeSpineEnvelope {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tenant_id: Option<String>,
 
-    /// Wall-clock duration of the originating mutation, in milliseconds.
+    /// Wall-clock duration of the originating mutation, in milliseconds. Never delivered to
+    /// a subscriber (ruling AI): rows the subscriber may not read shape it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub duration_ms: Option<i32>,
 
@@ -120,6 +124,31 @@ impl ChangeSpineEnvelope {
             && self.tenant_id.is_none()
             && self.duration_ms.is_none()
             && self.seq.is_none()
+    }
+
+    /// What a subscriber is told of this envelope (ruling AI), or `None` when nothing is
+    /// left — the frame is then the plain `next` of an unstamped event.
+    ///
+    /// Kept: `actor_type` and `schema_version`, which identify no one and read nothing the
+    /// subscriber cannot. `acting_for` only when it is `own_user` (compared as UUIDs: "my
+    /// agent did this"); otherwise it names another principal, which no schema gate governs.
+    /// `tenant_id` only when it is `own_tenant`. Never: `duration_ms`, which rows the
+    /// subscriber may not read shape (a cascade, a policy, a trigger), and `seq`, a
+    /// server-wide position (ruling AA 5).
+    #[must_use]
+    pub fn for_subscriber(&self, own_user: Option<Uuid>, own_tenant: Option<&str>) -> Option<Self> {
+        let names_the_subscriber = |acting_for: &String| {
+            own_user.is_some_and(|own| Uuid::parse_str(acting_for).is_ok_and(|u| u == own))
+        };
+        let view = Self {
+            actor_type:     self.actor_type.clone(),
+            acting_for:     self.acting_for.clone().filter(names_the_subscriber),
+            schema_version: self.schema_version.clone(),
+            tenant_id:      self.tenant_id.clone().filter(|tenant| own_tenant == Some(tenant)),
+            duration_ms:    None,
+            seq:            None,
+        };
+        (!view.is_empty()).then_some(view)
     }
 }
 

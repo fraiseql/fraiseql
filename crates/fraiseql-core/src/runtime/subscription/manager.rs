@@ -511,9 +511,12 @@ impl SubscriptionManager {
                 // every change, those withheld from this subscriber included.
                 delivered.sequence_number =
                     subscription.delivered.fetch_add(1, Ordering::SeqCst) + 1;
-                if let Some(envelope) = delivered.change_spine.as_mut() {
-                    envelope.seq = None;
-                }
+                // Ruling AI: the envelope names no principal but the subscriber and carries
+                // nothing rows it may not read shape (`seq` included).
+                let own_user = subscription.plan.as_ref().and_then(|plan| plan.subscriber_uuid());
+                delivered.change_spine = delivered.change_spine.as_ref().and_then(|envelope| {
+                    envelope.for_subscriber(own_user, subscription.tenant_id.as_deref())
+                });
                 let payload = SubscriptionPayload {
                     subscription_id: subscription.id,
                     subscription_name: subscription.subscription_name.clone(),

@@ -18,6 +18,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A subscription's `extensions.changeSpine` names no one but the subscriber.**
+
+  The Change-Spine envelope on `/ws` `next` frames now carries only what describes the
+  delivered event: `actorType` and `schemaVersion` as before; `actingFor` only when the
+  delegated human it names is the subscriber itself (its token's `sub`, compared as a UUID);
+  `tenantId` only when it is the subscription's own tenant. `durationMs` is no longer
+  delivered. Before, every subscriber that could read a row an agent wrote learned whom the
+  agent acted for — another user's identity, which no field gate could hide — and how long
+  the mutation took, which rows the subscriber cannot read influence. An envelope left with
+  nothing to say is omitted (the plain `next` frame of an unstamped event). The change log,
+  observers and audit keep the full envelope. New: `ChangeSpineEnvelope::for_subscriber`.
+
 - **`fraiseql compile` refuses a schema a server would refuse to load.**
 
   The load-time checks — duplicate names, type-level roles and inject params, subscription

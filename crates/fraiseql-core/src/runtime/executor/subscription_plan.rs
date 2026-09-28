@@ -85,6 +85,16 @@ impl SubscriptionPlan {
         &self.subscription
     }
 
+    /// The subscriber's own identity in the form a Change-Spine `acting_for` is stamped in
+    /// (a UUID `sub`, ruling AI): `None` for an anonymous plan or a subject that is not a
+    /// UUID, which no delegation can name.
+    #[must_use]
+    pub(crate) fn subscriber_uuid(&self) -> Option<uuid::Uuid> {
+        self.principal
+            .as_ref()
+            .and_then(|who| uuid::Uuid::parse_str(who.user_id.as_str()).ok())
+    }
+
     /// Serve one event's after-image to this subscriber, or `None` when the plan suppresses
     /// it.
     #[must_use]

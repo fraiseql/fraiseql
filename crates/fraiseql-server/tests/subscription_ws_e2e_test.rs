@@ -307,9 +307,7 @@ async fn ws_e2e_next_frame_carries_change_spine_envelope() {
     )
     .with_change_spine(ChangeSpineEnvelope {
         actor_type: Some("ai_agent".to_string()),
-        acting_for: Some("11111111-1111-1111-1111-111111111111".to_string()),
         schema_version: Some("v3".to_string()),
-        duration_ms: Some(12),
         seq: Some(42),
         ..Default::default()
     });
@@ -325,10 +323,10 @@ async fn ws_e2e_next_frame_carries_change_spine_envelope() {
 
     // Envelope rides in extensions.changeSpine, camelCase, unset fields omitted.
     let cs = &payload["extensions"]["changeSpine"];
+    // What a subscriber is told of `actingFor` and `durationMs` (ruling AI) is pinned by
+    // `ws_e2e_change_spine_names_no_principal_but_the_subscriber`.
     assert_eq!(cs["actorType"], "ai_agent");
-    assert_eq!(cs["actingFor"], "11111111-1111-1111-1111-111111111111");
     assert_eq!(cs["schemaVersion"], "v3");
-    assert_eq!(cs["durationMs"], 12);
     // Ruling AA 5: the durable `seq` is a server-wide position and stays server-side.
     assert!(cs.get("seq").is_none(), "the Change-Spine seq never reaches a subscriber: {cs}");
     assert!(cs.get("tenantId").is_none(), "unset envelope fields are omitted");
@@ -338,7 +336,6 @@ async fn ws_e2e_next_frame_carries_change_spine_envelope() {
 /// for, nor how long the mutation took. This connection is anonymous, so no delegation is
 /// its own; what describes the event (`actorType`, `schemaVersion`) still arrives.
 #[tokio::test]
-#[ignore = "AI reproduction: /ws changeSpine names another principal and carries the duration"]
 async fn ws_e2e_change_spine_names_no_principal_but_the_subscriber() {
     use fraiseql_core::runtime::subscription::ChangeSpineEnvelope;
 

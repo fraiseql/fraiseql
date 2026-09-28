@@ -593,7 +593,6 @@ fn order_event() -> crate::runtime::subscription::SubscriptionEvent {
 // type masking its author field would otherwise name the author here). Nor the mutation's
 // duration, which rows the subscriber cannot read shape. What describes the event stays.
 #[test]
-#[ignore = "AI reproduction: changeSpine names another principal and carries the duration"]
 fn a_subscriber_is_not_told_whom_another_principals_agent_acted_for() {
     use crate::runtime::subscription::ChangeSpineEnvelope;
     let who = SecurityContext {
@@ -643,7 +642,6 @@ fn a_subscriber_is_told_when_the_agent_acted_for_them() {
 // told the event's tenant, which is not its own; and an envelope left with nothing to say is
 // not sent at all — the plain `next` frame of an unstamped event.
 #[test]
-#[ignore = "AI reproduction: changeSpine carries another tenant's id and the duration"]
 fn a_subscriber_is_not_told_another_tenants_id_and_an_empty_envelope_is_not_sent() {
     use crate::runtime::subscription::ChangeSpineEnvelope;
     let event = order_event().with_tenant_id("t2").with_change_spine(ChangeSpineEnvelope {
