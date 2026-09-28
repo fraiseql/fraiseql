@@ -552,3 +552,104 @@ fn a_subscription_counts_its_own_deliveries_and_carries_no_server_position() {
         );
     }
 }
+
+// ── AI: the Change-Spine envelope names no principal but the subscriber ──
+
+const SUBSCRIBER: &str = "5a1e0000-0000-4000-8000-000000000001";
+const SOMEONE_ELSE: &str = "5a1e0000-0000-4000-8000-000000000002";
+
+/// Plans `orderCreated { id }` for `who`, subscribes it with `user_context` (the transport's
+/// view of the connection: its tenant), publishes `event` and returns the envelope the
+/// subscriber received — `None` when the frame carries none.
+fn delivered_envelope(
+    who: &SecurityContext,
+    user_context: serde_json::Value,
+    event: crate::runtime::subscription::SubscriptionEvent,
+) -> Option<crate::runtime::subscription::ChangeSpineEnvelope> {
+    use crate::runtime::subscription::SubscriptionManager;
+    let exec = executor(schema(), RuntimeConfig::default());
+    let planned =
+        plan(&exec, "subscription { orderCreated { id } }", &json!({}), Some(who)).unwrap();
+    let manager = SubscriptionManager::new(Arc::new(schema()));
+    let mut rx = manager.receiver();
+    manager
+        .subscribe_planned(Arc::new(planned), user_context, json!({}), "c1", vec![])
+        .unwrap();
+    assert_eq!(manager.publish_event(event), 1, "the subscriber may read the event");
+    rx.try_recv().unwrap().event.change_spine
+}
+
+fn order_event() -> crate::runtime::subscription::SubscriptionEvent {
+    crate::runtime::subscription::SubscriptionEvent::new(
+        "Order",
+        "o1",
+        crate::runtime::subscription::SubscriptionOperation::Create,
+        json!({"id": "o1"}),
+    )
+}
+
+// An agent acting for someone else wrote the row: the subscriber may read the row, not learn
+// who the agent acted for — another principal's identity, which no schema gate governs (a
+// type masking its author field would otherwise name the author here). Nor the mutation's
+// duration, which rows the subscriber cannot read shape. What describes the event stays.
+#[test]
+#[ignore = "AI reproduction: changeSpine names another principal and carries the duration"]
+fn a_subscriber_is_not_told_whom_another_principals_agent_acted_for() {
+    use crate::runtime::subscription::ChangeSpineEnvelope;
+    let who = SecurityContext {
+        user_id: SUBSCRIBER.into(),
+        tenant_id: Some("t1".into()),
+        ..principal(&[])
+    };
+    let event = order_event().with_tenant_id("t1").with_change_spine(ChangeSpineEnvelope {
+        actor_type:     Some("ai_agent".into()),
+        acting_for:     Some(SOMEONE_ELSE.into()),
+        schema_version: Some("v3".into()),
+        tenant_id:      Some("t1".into()),
+        duration_ms:    Some(12),
+        seq:            Some(42),
+    });
+    assert_eq!(
+        delivered_envelope(&who, json!({"tenant_id": "t1"}), event),
+        Some(ChangeSpineEnvelope {
+            actor_type: Some("ai_agent".into()),
+            schema_version: Some("v3".into()),
+            tenant_id: Some("t1".into()),
+            ..ChangeSpineEnvelope::default()
+        }),
+    );
+}
+
+// The agent acted for the subscriber: that names no one else, so it is kept — "my agent did
+// this". The identity is compared as a UUID, not as text.
+#[test]
+fn a_subscriber_is_told_when_the_agent_acted_for_them() {
+    use crate::runtime::subscription::ChangeSpineEnvelope;
+    let who = SecurityContext {
+        user_id: SUBSCRIBER.into(),
+        ..principal(&[])
+    };
+    let own = SUBSCRIBER.to_uppercase();
+    let event = order_event().with_change_spine(ChangeSpineEnvelope {
+        actor_type: Some("ai_agent".into()),
+        acting_for: Some(own.clone()),
+        ..ChangeSpineEnvelope::default()
+    });
+    let envelope = delivered_envelope(&who, json!({}), event).expect("an envelope");
+    assert_eq!(envelope.acting_for, Some(own));
+}
+
+// A subscriber with no tenant (single-tenant mode lets it read a tenant-stamped event) is not
+// told the event's tenant, which is not its own; and an envelope left with nothing to say is
+// not sent at all — the plain `next` frame of an unstamped event.
+#[test]
+#[ignore = "AI reproduction: changeSpine carries another tenant's id and the duration"]
+fn a_subscriber_is_not_told_another_tenants_id_and_an_empty_envelope_is_not_sent() {
+    use crate::runtime::subscription::ChangeSpineEnvelope;
+    let event = order_event().with_tenant_id("t2").with_change_spine(ChangeSpineEnvelope {
+        tenant_id: Some("t2".into()),
+        duration_ms: Some(5),
+        ..ChangeSpineEnvelope::default()
+    });
+    assert_eq!(delivered_envelope(&principal(&[]), json!({}), event), None);
+}

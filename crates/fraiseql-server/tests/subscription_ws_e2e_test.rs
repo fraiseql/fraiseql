@@ -334,6 +334,63 @@ async fn ws_e2e_next_frame_carries_change_spine_envelope() {
     assert!(cs.get("tenantId").is_none(), "unset envelope fields are omitted");
 }
 
+/// Ruling AI, on the wire: a subscriber is not told whom another principal's agent acted
+/// for, nor how long the mutation took. This connection is anonymous, so no delegation is
+/// its own; what describes the event (`actorType`, `schemaVersion`) still arrives.
+#[tokio::test]
+#[ignore = "AI reproduction: /ws changeSpine names another principal and carries the duration"]
+async fn ws_e2e_change_spine_names_no_principal_but_the_subscriber() {
+    use fraiseql_core::runtime::subscription::ChangeSpineEnvelope;
+
+    let schema = Arc::new(schema_with_subscription("orderCreated", "Order"));
+    let manager = Arc::new(SubscriptionManager::new(schema));
+    let url = spawn_ws_server(SubscriptionState::new(manager.clone())).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    assert_eq!(recv_json(&mut stream).await["type"], "connection_ack");
+    send_json(
+        &mut sink,
+        json!({
+            "type": "subscribe",
+            "id": "op_1",
+            "payload": { "query": "subscription { orderCreated { id } }" }
+        }),
+    )
+    .await;
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+    while manager.subscription_count() != 1 {
+        assert!(tokio::time::Instant::now() < deadline, "subscription should be registered");
+        tokio::task::yield_now().await;
+    }
+
+    let event = SubscriptionEvent::new(
+        "Order",
+        "order_42",
+        SubscriptionOperation::Create,
+        json!({"id": "order_42"}),
+    )
+    .with_change_spine(ChangeSpineEnvelope {
+        actor_type: Some("ai_agent".to_string()),
+        acting_for: Some("11111111-1111-1111-1111-111111111111".to_string()),
+        schema_version: Some("v3".to_string()),
+        duration_ms: Some(12),
+        ..Default::default()
+    });
+    assert_eq!(manager.publish_event(event), 1);
+
+    let next_frame = recv_json(&mut stream).await;
+    assert_eq!(next_frame["type"], "next", "expected next frame, got {next_frame}");
+    let cs = &next_frame["payload"]["extensions"]["changeSpine"];
+    assert!(cs.get("actingFor").is_none(), "another principal is never named: {cs}");
+    assert!(
+        cs.get("durationMs").is_none(),
+        "the mutation's duration stays server-side: {cs}"
+    );
+    assert_eq!(cs["actorType"], "ai_agent", "{cs}");
+    assert_eq!(cs["schemaVersion"], "v3", "{cs}");
+}
+
 /// Verify the `connection_init` -> `connection_ack` handshake in isolation.
 #[tokio::test]
 async fn ws_e2e_connection_init_ack_handshake() {
