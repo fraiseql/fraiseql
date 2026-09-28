@@ -224,7 +224,6 @@ async fn metrics_endpoint_multi_root_counter() {
 // event a subscriber's plan suppressed (AC 5) are each counted in core; both counters are
 // exported, always (even at zero), aggregate (no label).
 #[tokio::test]
-#[ignore = "AJ reproduction: /metrics exports neither the contract-error nor the suppression counter"]
 async fn metrics_endpoint_exports_contract_errors_and_suppressed_events() {
     let state = make_metrics_state();
     let router = metrics_router(state);

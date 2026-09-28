@@ -20,7 +20,10 @@
 //! The root entity is not row-filtered: the write function is the authority over what it
 //! returns. Masking and the row filter run after the write, on the returned document.
 
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use super::super::{super::context::ExecutorContext, read_plan::ReadPlan};
 use crate::{
@@ -166,24 +169,56 @@ impl PayloadGates {
     }
 }
 
+/// Contract errors raised since the process started (ruling AJ 3).
+static CONTRACT_ERRORS: AtomicU64 = AtomicU64::new(0);
+
+/// How many writes this process refused as a mutation contract error — an off-contract or
+/// ambiguous `entity_type` stamp, on either outcome (rulings AA 1, AG 3) — each rolled back.
+///
+/// Exported by the server as `fraiseql_mutation_contract_errors_total` (ruling AJ 3): a
+/// contract error is a bug in a mutation function, and this is where operators see it
+/// happen. Aggregate on purpose; the per-operation error counter names the operation.
+#[must_use]
+pub fn mutation_contract_errors() -> u64 {
+    CONTRACT_ERRORS.load(Ordering::Relaxed)
+}
+
+/// The `path` every contract error carries: the column the function got wrong.
+const CONTRACT_ERROR_PATH: &str = "entity_type";
+
+/// A contract error with `message`, counted (ruling AJ 3). Every contract error is built
+/// here, so the count and [`is_contract_error`] cannot miss one.
+pub(super) fn contract_error(message: String) -> crate::error::FraiseQLError {
+    CONTRACT_ERRORS.fetch_add(1, Ordering::Relaxed);
+    crate::error::FraiseQLError::Validation {
+        message,
+        path: Some(CONTRACT_ERROR_PATH.to_string()),
+    }
+}
+
+/// Whether `error` is a contract error built by [`contract_error`].
+pub(super) fn is_contract_error(error: &crate::error::FraiseQLError) -> bool {
+    matches!(
+        error,
+        crate::error::FraiseQLError::Validation { path: Some(path), .. } if path == CONTRACT_ERROR_PATH
+    )
+}
+
 /// The contract error for an entity stamped with a type its position cannot hold.
 pub(super) fn off_contract(
     position: PayloadPosition,
     stamp: &str,
     holdable: &[String],
 ) -> crate::error::FraiseQLError {
-    crate::error::FraiseQLError::Validation {
-        message: format!(
-            "the mutation function stamped '{stamp}' on a {position:?} entity, which that \
-             position cannot hold (it can hold: {}); the write was rolled back",
-            if holdable.is_empty() {
-                "nothing".to_string()
-            } else {
-                holdable.join(", ")
-            }
-        ),
-        path:    Some("entity_type".to_string()),
-    }
+    contract_error(format!(
+        "the mutation function stamped '{stamp}' on a {position:?} entity, which that position \
+         cannot hold (it can hold: {}); the write was rolled back",
+        if holdable.is_empty() {
+            "nothing".to_string()
+        } else {
+            holdable.join(", ")
+        }
+    ))
 }
 
 /// Refuse to serve an entity of `type_name` at `position` unless the caller may read the

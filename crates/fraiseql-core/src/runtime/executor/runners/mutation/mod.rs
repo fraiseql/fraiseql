@@ -13,7 +13,7 @@ mod payload_gates;
 use std::sync::Arc;
 
 use fraiseql_db::{ChangeLogWrite, ViewName};
-pub use payload_gates::StampContract;
+pub use payload_gates::{StampContract, mutation_contract_errors};
 
 use self::payload_gates::{PayloadGates, PayloadPosition};
 use super::{
@@ -135,28 +135,22 @@ fn unstamped_type(schema: &CompiledSchema, return_type: &str, is_cascade: bool) 
 
 /// The contract error for an unstamped success that could be several types.
 fn unstamped_ambiguity(return_type: &str, candidates: &[String]) -> FraiseQLError {
-    FraiseQLError::Validation {
-        message: format!(
-            "the mutation function did not stamp entity_type, and a '{return_type}' success can \
-             be any of: {} — stamp the one it produced; the write was rolled back",
-            candidates.join(", ")
-        ),
-        path:    Some("entity_type".to_string()),
-    }
+    payload_gates::contract_error(format!(
+        "the mutation function did not stamp entity_type, and a '{return_type}' success can be \
+         any of: {} — stamp the one it produced; the write was rolled back",
+        candidates.join(", ")
+    ))
 }
 
 /// The contract error for an unstamped failure that could be several error types.
 fn unstamped_error_ambiguity(return_type: &str, candidates: &[String]) -> FraiseQLError {
-    FraiseQLError::Validation {
-        message: format!(
-            "the mutation function did not stamp entity_type on a failure, and a \
-             '{return_type}' failure can be any of: {} — stamp the one it produced \
-             (`fraiseql.mutation_err(…, p_entity_type => '<ErrorType>')`); the write was \
-             rolled back",
-            candidates.join(", ")
-        ),
-        path:    Some("entity_type".to_string()),
-    }
+    payload_gates::contract_error(format!(
+        "the mutation function did not stamp entity_type on a failure, and a '{return_type}' \
+         failure can be any of: {} — stamp the one it produced \
+         (`fraiseql.mutation_err(…, p_entity_type => '<ErrorType>')`); the write was rolled \
+         back",
+        candidates.join(", ")
+    ))
 }
 
 /// The concrete entity type a payload wraps, read from its `entity` field type.
@@ -1719,7 +1713,19 @@ pub(in super::super) async fn execute_mutation_impl(
                 is_cascade,
                 selections,
                 &authz_variables,
-            )?;
+            )
+            .inspect_err(|e| {
+                // A contract error is a bug in the mutation function: say which one, where
+                // operators read (ruling AJ 3); it is also counted.
+                if payload_gates::is_contract_error(e) {
+                    tracing::warn!(
+                        mutation = %mutation_name,
+                        function = %sql_source,
+                        error = %e,
+                        "mutation contract error: the write was rolled back"
+                    );
+                }
+            })?;
             Ok::<_, FraiseQLError>((envelope, result_json))
         };
 

@@ -421,6 +421,31 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
         );
     }
 
+    // What the runtime refused or withheld (ruling AJ 3): mutation contract errors (a bug in a
+    // mutation function; the write was rolled back) and subscription events a subscriber's
+    // plan suppressed (AC 5). Aggregate, always present.
+    {
+        let contract_errors = fraiseql_core::runtime::mutation_contract_errors();
+        let suppressed = fraiseql_core::runtime::suppressed_subscription_events();
+        let _ = write!(
+            output,
+            concat!(
+                "\n# HELP fraiseql_mutation_contract_errors_total ",
+                "Mutation writes refused because the function stamped an entity_type its \
+                 mutation cannot return, or stamped none where several were possible\n",
+                "# TYPE fraiseql_mutation_contract_errors_total counter\n",
+                "fraiseql_mutation_contract_errors_total {contract_errors}\n",
+                "\n# HELP fraiseql_subscription_events_suppressed_total ",
+                "Subscription events not delivered because the subscriber's read plan \
+                 withheld them\n",
+                "# TYPE fraiseql_subscription_events_suppressed_total counter\n",
+                "fraiseql_subscription_events_suppressed_total {suppressed}\n",
+            ),
+            contract_errors = contract_errors,
+            suppressed = suppressed,
+        );
+    }
+
     // Append subscription counters.
     let subs = crate::routes::subscription_metrics();
     let _ = write!(

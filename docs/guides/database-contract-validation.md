@@ -45,6 +45,21 @@ function's return type:
   `http_status`, `entity`, …) have compatible types. `error_class` may be `text`
   or a project enum.
 
+**Literal stamps**
+
+- A literal `entity_type` the function body stamps must be a type the mutation can return
+  on that outcome — the same set the server enforces
+  ([mutation-response](../architecture/mutation-response.md#the-type-an-outcome-is-served-as)):
+  `fraiseql.mutation_ok(…, p_entity_type => 'User')` on a success,
+  `fraiseql.mutation_err(…, p_entity_type => 'DuplicateEmailError')` on a failure (by name
+  or position), and `result.entity_type := 'User'` against either. Any other literal is an
+  error: the server would refuse that write as a contract error and roll it back. Only
+  literals are read (a variable or an expression is left to the server); comments and
+  string contents are skipped; `plpgsql` and `sql` bodies only.
+
+The same check runs in `fraiseql compile --database` (failing the build) and
+`fraiseql doctor --against-db`.
+
 Error-severity findings fail the command (exit code 1) so it gates CI; warnings
 (e.g. an advisory inject-name mismatch, or a function whose response shape can't
 be introspected) do not. Add `--json` for a machine-readable report.

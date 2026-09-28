@@ -2,7 +2,10 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use super::{PayloadPosition, StampContract, payload_roots};
+use super::{
+    PayloadPosition, StampContract, is_contract_error, mutation_contract_errors, off_contract,
+    payload_roots,
+};
 use crate::{
     graphql::FieldSelection,
     schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition, UnionDefinition},
@@ -162,4 +165,19 @@ fn a_stamp_contract_is_derived_per_outcome_from_the_return_type() {
     );
     let cascade = StampContract::for_return(&schema, "TouchPayload", true);
     assert_eq!(cascade.success, vec!["Order".to_string(), "User".to_string()]);
+}
+
+/// Every contract error is counted where it is built (ruling AJ 3), and recognised as one so
+/// the runner can log it; another validation error is neither.
+#[test]
+fn a_contract_error_is_counted_and_recognised() {
+    let before = mutation_contract_errors();
+    let error = off_contract(PayloadPosition::Root, "Admin", &["User".to_string()]);
+    assert!(mutation_contract_errors() > before, "the contract error was not counted");
+    assert!(is_contract_error(&error), "{error}");
+    let other = crate::error::FraiseQLError::Validation {
+        message: "x".to_string(),
+        path:    Some("input".to_string()),
+    };
+    assert!(!is_contract_error(&other));
 }

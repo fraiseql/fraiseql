@@ -186,7 +186,7 @@ mod execution;
 pub mod mutation;
 mod runners;
 mod subscription_plan;
-pub use runners::mutation::StampContract;
+pub use runners::mutation::{StampContract, mutation_contract_errors};
 /// One definition of "is this argument a row count", re-exported so every
 /// transport that reads `limit`/`offset`/`first`/`last` fails closed the same
 /// way (#1197). A second, lenient reading of the same argument is how the

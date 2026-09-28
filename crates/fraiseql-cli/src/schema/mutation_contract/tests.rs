@@ -434,6 +434,7 @@ fn jsonb_update_call() -> ExpectedCall {
         inject_names:           vec!["tenant_id".to_string()],
         first_is_jsonb_payload: true,
         payload_keys:           vec![],
+        stamps:                 None,
     }
 }
 
@@ -538,6 +539,7 @@ fn flat_call() -> ExpectedCall {
         inject_names:           vec![],
         first_is_jsonb_payload: false,
         payload_keys:           vec![],
+        stamps:                 None,
     }
 }
 
@@ -668,6 +670,7 @@ fn payload_call(keys: &[&str]) -> ExpectedCall {
         inject_names:           vec![],
         first_is_jsonb_payload: true,
         payload_keys:           keys.iter().map(ToString::to_string).collect(),
+        stamps:                 None,
     }
 }
 
@@ -818,7 +821,6 @@ fn stamp_errors(body: &str) -> Vec<String> {
 // A success stamped with a type the mutation cannot return: the server refuses the write
 // (a contract error, rolled back); the lint says so before it ships.
 #[test]
-#[ignore = "AJ reproduction: the contract checker accepts a literal success stamp off the contract"]
 fn a_literal_success_stamp_outside_the_contract_is_an_error() {
     let errors = stamp_errors(
         "BEGIN RETURN fraiseql.mutation_ok(to_jsonb(v_user), v_user.id, \
@@ -830,7 +832,6 @@ fn a_literal_success_stamp_outside_the_contract_is_an_error() {
 // A failure stamped, by position, with the success type — the #465-era habit AG 3 made a
 // contract error.
 #[test]
-#[ignore = "AJ reproduction: the contract checker accepts a literal error stamp off the contract"]
 fn a_literal_error_stamp_outside_the_contract_is_an_error() {
     let errors = stamp_errors(
         "BEGIN RETURN fraiseql.mutation_err('conflict', 'Email taken', NULL, 409, 'User'); END",
@@ -840,7 +841,6 @@ fn a_literal_error_stamp_outside_the_contract_is_an_error() {
 
 // A stamp assigned to the result record names no type of the schema at all.
 #[test]
-#[ignore = "AJ reproduction: the contract checker accepts an assigned stamp off the contract"]
 fn an_assigned_stamp_outside_the_contract_is_an_error() {
     let errors = stamp_errors("BEGIN result.entity_type := 'tb_user'; RETURN result; END");
     assert!(errors.iter().any(|e| e.contains("'tb_user'")), "{errors:?}");
@@ -861,10 +861,76 @@ fn stamps_inside_the_contract_and_what_is_not_a_literal_stamp_are_clean() {
         // A comparison, not an assignment.
         "BEGIN PERFORM 1 FROM audit a WHERE a.entity_type = 'Admin'; RETURN r; END",
         // Commented out.
+        "BEGIN\n-- RETURN fraiseql.mutation_ok(e, i, 'Admin');\nRETURN r; END",
         "BEGIN -- p_entity_type => 'Admin'\n /* result.entity_type := 'Admin'; */ RETURN r; END",
+        // A helper's name inside a string, its parenthesis closed outside it: not a call.
+        "BEGIN PERFORM app.log('mutation_ok(', e, 'Admin'); RETURN r; END",
         // Another function's stamp argument.
         "BEGIN PERFORM app.log_event(p_entity_type => 'Admin'); RETURN r; END",
     ] {
         assert_eq!(stamp_errors(body), Vec::<String>::new(), "{body}");
     }
+}
+
+// The finding names the outcome, the stamp and exactly the set that outcome allows — the
+// runtime's own contract (`StampContract`); an assignment is judged against both outcomes.
+#[test]
+fn an_off_contract_stamp_names_its_outcome_and_the_set_it_allows() {
+    let (schema, m) = stamp_schema();
+    let call = expected_call(&m, &schema).expect("DB-backed mutation");
+    let run = |body: &str| {
+        let mut f = pg_function(&[], &[], full_response_columns());
+        f.source = body.to_string();
+        check_mutation(&call, &[f])
+    };
+    let errors = || {
+        vec![
+            "DuplicateEmailError".to_string(),
+            "ValidationError".to_string(),
+        ]
+    };
+    assert_eq!(
+        run("BEGIN RETURN fraiseql.mutation_ok(to_jsonb(v), v.id, p_entity_type => 'Admin'); END"),
+        vec![ContractViolation::OffContractStamp {
+            arm:     StampArm::Success,
+            stamp:   "Admin".to_string(),
+            allowed: vec!["User".to_string()],
+        }]
+    );
+    assert_eq!(
+        run("BEGIN RETURN fraiseql.mutation_err('conflict', 'x', NULL, 409, 'User'); END"),
+        vec![ContractViolation::OffContractStamp {
+            arm:     StampArm::Error,
+            stamp:   "User".to_string(),
+            allowed: errors(),
+        }]
+    );
+    let mut either = vec!["User".to_string()];
+    either.extend(errors());
+    assert_eq!(
+        run("BEGIN r.entity_type := 'it''s'; RETURN r; END"),
+        vec![ContractViolation::OffContractStamp {
+            arm:     StampArm::Either,
+            stamp:   "it's".to_string(),
+            allowed: either,
+        }]
+    );
+    // Upper-case helper names and a `::text` cast are the same call and the same literal; a
+    // stamp repeated in one body is reported once.
+    assert_eq!(
+        run("BEGIN IF x THEN RETURN FRAISEQL.MUTATION_OK(e, i, 'Admin'::text); END IF; \
+             RETURN fraiseql.mutation_ok(e, i, p_entity_type := 'Admin'); END")
+        .len(),
+        1
+    );
+    // A string that merely contains a call is not code.
+    assert_eq!(
+        run("BEGIN EXECUTE 'SELECT fraiseql.mutation_ok(e, i, ''Admin'')'; RETURN r; END"),
+        vec![]
+    );
+    // A function in another language: its source is a symbol, not SQL.
+    let mut c = pg_function(&[], &[], full_response_columns());
+    c.source = "mutation_ok(e, i, 'Admin')".to_string();
+    c.language = "c".to_string();
+    assert_eq!(check_mutation(&call, &[c]), vec![]);
 }

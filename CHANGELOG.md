@@ -2200,6 +2200,26 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **The mutation-contract check reads literal `entity_type` stamps.**
+
+  `fraiseql compile --database`, `fraiseql validate --against-db` and
+  `fraiseql doctor --against-db` now fail on a literal stamp the mutation cannot return on
+  that outcome — `fraiseql.mutation_ok(…, p_entity_type => 'T')`,
+  `fraiseql.mutation_err(…, 'T')` (by name or position), `result.entity_type := 'T'` — the
+  write the server would refuse as a contract error and roll back. The allowed set is the
+  server's own (`fraiseql_core::runtime::StampContract`). Only literals in `plpgsql` / `sql`
+  bodies are judged; comments and string contents are skipped. ⚠ A schema whose functions
+  stamp off-contract literals no longer compiles with `--database` (`--allow-drift` keeps
+  the old advisory behaviour).
+
+- **`/metrics`: `fraiseql_mutation_contract_errors_total` and
+  `fraiseql_subscription_events_suppressed_total`.**
+
+  Every mutation contract error (an off-contract or ambiguous stamp, either outcome) is
+  counted and logged at `warn` with the mutation and its function; subscription events a
+  subscriber's read plan withheld, counted since the subscription read plan landed, are now
+  exported. Both are aggregate counters, present at zero.
+
 - **`Executor::execute_row_read` and `Executor::stream_row_read`, the engine's row-shaped
   read (#1351).** A read answered as typed `ColumnValue` rows projected through a
   `ColumnSpec` list, rather than as GraphQL-shaped JSON against a selection set. It exists

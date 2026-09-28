@@ -16,18 +16,25 @@
 //! `fraiseql-core`'s mutation runner exactly; [`check_mutation`] is a pure
 //! comparison against catalog facts so it is unit-tested without a database.
 //!
+//! - **Literal stamps** — a literal `entity_type` the body stamps (`fraiseql.mutation_ok(…,
+//!   p_entity_type => 'T')`, `fraiseql.mutation_err(…, 'T')`, `result.entity_type := 'T'`) must be
+//!   a type the mutation can return on that outcome ([`StampContract`], the runtime's own
+//!   derivation): the server refuses any other as a contract error (rulings AA 1, AG 3, AJ 2).
+//!
 //! Out of scope (deliberate): the *behavioural* response invariants
 //! (`succeeded ⇒ error_class IS NULL`, `http_status ∈ 100..=599`, …) are
 //! properties of the function's runtime output, only observable by invoking it —
 //! which would have database side effects. This check stays static and
 //! read-only.
 
-use std::fmt;
+use std::{fmt, sync::LazyLock};
 
 use anyhow::Result;
-use fraiseql_core::schema::{
-    CompiledSchema, FieldType, InputStyle, MutationDefinition, MutationOperation,
+use fraiseql_core::{
+    runtime::StampContract,
+    schema::{CompiledSchema, FieldType, InputStyle, MutationDefinition, MutationOperation},
 };
+use regex::Regex;
 
 use crate::schema::pg_catalog::{PgCatalog, PgFunction};
 
@@ -65,6 +72,9 @@ pub struct ExpectedCall {
     /// single-JSONB path with a known input type; drives the payload-key
     /// consumption scan (#384 category 2).
     pub payload_keys:           Vec<String>,
+    /// What the function may stamp in `entity_type`, per outcome — the runtime's own
+    /// derivation (ruling AJ 1), read by the literal-stamp lint. `None` skips the lint.
+    pub stamps:                 Option<StampContract>,
 }
 
 impl ExpectedCall {
@@ -152,6 +162,38 @@ pub enum ContractViolation {
     /// The function returns a scalar / bare `record` — its response shape cannot
     /// be introspected.
     ResponseShapeUnverifiable,
+    /// The body stamps a literal `entity_type` this mutation cannot return on that outcome
+    /// (rulings AA 1, AG 3, AJ 2): the server refuses such a write as a contract error and
+    /// rolls it back.
+    OffContractStamp {
+        /// The outcome the stamp is written on.
+        arm:     StampArm,
+        /// The literal stamp.
+        stamp:   String,
+        /// The types that outcome can be stamped with.
+        allowed: Vec<String>,
+    },
+}
+
+/// The outcome a literal stamp is written on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StampArm {
+    /// `mutation_ok(…)`: a success.
+    Success,
+    /// `mutation_err(…)`: a failure.
+    Error,
+    /// An assignment to `entity_type`: either outcome.
+    Either,
+}
+
+impl fmt::Display for StampArm {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(match self {
+            Self::Success => "a success",
+            Self::Error => "a failure",
+            Self::Either => "the result",
+        })
+    }
 }
 
 impl ContractViolation {
@@ -164,7 +206,8 @@ impl ContractViolation {
             | Self::AmbiguousFunction { .. }
             | Self::PayloadNotJsonb { .. }
             | Self::MissingRequiredColumn { .. }
-            | Self::RequiredColumnWrongType { .. } => Severity::Error,
+            | Self::RequiredColumnWrongType { .. }
+            | Self::OffContractStamp { .. } => Severity::Error,
             Self::InjectNameMismatch { .. }
             | Self::OptionalColumnWrongType { .. }
             | Self::PayloadKeyUnreferenced { .. }
@@ -225,6 +268,21 @@ impl fmt::Display for ContractViolation {
             Self::ResponseShapeUnverifiable => {
                 write!(f, "function returns a scalar/record — response shape cannot be verified")
             },
+            Self::OffContractStamp {
+                arm,
+                stamp,
+                allowed,
+            } => write!(
+                f,
+                "the function stamps entity_type '{stamp}' on {arm}, which this mutation cannot \
+                 return (it can return: {}) — the server refuses such a write as a contract \
+                 error and rolls it back",
+                if allowed.is_empty() {
+                    "nothing".to_string()
+                } else {
+                    allowed.join(", ")
+                }
+            ),
         }
     }
 }
@@ -283,6 +341,7 @@ pub fn expected_call(
         inject_names: mutation.inject_params.keys().cloned().collect(),
         first_is_jsonb_payload,
         payload_keys,
+        stamps: Some(StampContract::of(schema, mutation)),
     })
 }
 
@@ -411,7 +470,263 @@ pub fn check_mutation(
     }
 
     check_response_shape(func, &mut violations);
+    check_literal_stamps(expected, func, &mut violations);
     violations
+}
+
+/// Judge every literal `entity_type` stamp in the function body against the mutation's
+/// [`StampContract`] (ruling AJ 2), emitting [`ContractViolation::OffContractStamp`] for one
+/// outside its outcome's set.
+///
+/// A text scan, conservative as the payload-key scan is: `plpgsql` / `sql` bodies only;
+/// comments are stripped and nothing inside a string literal is read as code; only a
+/// literal is judged (`NULL`, a variable or an expression is left to the runtime, which
+/// refuses an off-contract stamp whatever produced it); `=` is never read as an assignment,
+/// since it is also a comparison. Recognised: the stamp argument of `mutation_ok` (3rd) and
+/// `mutation_err` (5th), bare or `fraiseql.`-qualified, by name (`p_entity_type => …` or
+/// `:=`) or position; and `<var>.entity_type := '…'`.
+fn check_literal_stamps(
+    expected: &ExpectedCall,
+    func: &PgFunction,
+    violations: &mut Vec<ContractViolation>,
+) {
+    let Some(contract) = &expected.stamps else {
+        return;
+    };
+    if !matches!(func.language.as_str(), "plpgsql" | "sql") {
+        return;
+    }
+    let mut seen = Vec::new();
+    for (arm, stamp) in literal_stamps(&func.source) {
+        let allowed: Vec<String> = match arm {
+            StampArm::Success => contract.success.clone(),
+            StampArm::Error => contract.error.clone(),
+            StampArm::Either => {
+                let mut both = contract.success.clone();
+                both.extend(
+                    contract.error.iter().filter(|t| !contract.success.contains(t)).cloned(),
+                );
+                both
+            },
+        };
+        if allowed.contains(&stamp) || seen.contains(&(arm, stamp.clone())) {
+            continue;
+        }
+        seen.push((arm, stamp.clone()));
+        violations.push(ContractViolation::OffContractStamp {
+            arm,
+            stamp,
+            allowed,
+        });
+    }
+}
+
+/// A helper call whose stamp argument is read: `(name, stamp position, outcome)`.
+const STAMPING_HELPERS: &[(&str, usize, StampArm)] = &[
+    ("mutation_ok", 2, StampArm::Success),
+    ("mutation_err", 4, StampArm::Error),
+];
+
+/// A helper call's name, bare or `fraiseql.`-qualified, followed by its opening parenthesis.
+static HELPER_CALL: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(?:\bfraiseql\s*\.\s*|[^A-Za-z0-9_.$]|^)(mutation_ok|mutation_err)\s*\(")
+        .expect("helper call regex is valid")
+});
+
+/// An assignment of a literal to a record's `entity_type` (`:=` only).
+static STAMP_ASSIGNMENT: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)\b[A-Za-z_][A-Za-z0-9_$]*\s*\.\s*entity_type\s*:=\s*('(?:[^']|'')*')")
+        .expect("stamp assignment regex is valid")
+});
+
+/// The literal stamps in `source`, each with the outcome it is written on.
+fn literal_stamps(source: &str) -> Vec<(StampArm, String)> {
+    let (code, in_string) = mask_comments_and_strings(source);
+    let mut stamps = Vec::new();
+    for call in HELPER_CALL.captures_iter(&code) {
+        let (Some(name), Some(whole)) = (call.get(1), call.get(0)) else {
+            continue;
+        };
+        if in_string[name.start()] {
+            continue;
+        }
+        let Some(&(_, position, arm)) =
+            STAMPING_HELPERS.iter().find(|(h, ..)| h.eq_ignore_ascii_case(name.as_str()))
+        else {
+            continue;
+        };
+        let args = call_arguments(&code, &in_string, whole.end());
+        let stamp_arg =
+            args.iter().enumerate().find_map(|(index, arg)| match named_argument(arg) {
+                Some((param, value)) => {
+                    param.eq_ignore_ascii_case("p_entity_type").then_some(value)
+                },
+                None => (index == position).then_some(arg.as_str()),
+            });
+        if let Some(stamp) = stamp_arg.and_then(string_literal) {
+            stamps.push((arm, stamp));
+        }
+    }
+    for assignment in STAMP_ASSIGNMENT.captures_iter(&code) {
+        let Some(literal) = assignment.get(1) else {
+            continue;
+        };
+        let start = assignment.get(0).map_or(literal.start(), |m| m.start());
+        if in_string[start] {
+            continue;
+        }
+        if let Some(stamp) = string_literal(literal.as_str()) {
+            stamps.push((StampArm::Either, stamp));
+        }
+    }
+    stamps
+}
+
+/// `source` with every comment blanked out (same length, so offsets stay valid), and for
+/// each byte whether it lies inside a string literal (`'…'` with `''` escapes, or a
+/// dollar-quoted `$tag$…$tag$`). String contents are kept: the stamps are literals.
+fn mask_comments_and_strings(source: &str) -> (String, Vec<bool>) {
+    let bytes = source.as_bytes();
+    let mut code = bytes.to_vec();
+    let mut in_string = vec![false; bytes.len()];
+    let mut i = 0;
+    while i < bytes.len() {
+        match bytes[i] {
+            b'-' if bytes.get(i + 1) == Some(&b'-') => {
+                while i < bytes.len() && bytes[i] != b'\n' {
+                    code[i] = b' ';
+                    i += 1;
+                }
+            },
+            b'/' if bytes.get(i + 1) == Some(&b'*') => {
+                let mut depth = 0usize;
+                while i < bytes.len() {
+                    if bytes[i] == b'/' && bytes.get(i + 1) == Some(&b'*') {
+                        depth += 1;
+                        code[i] = b' ';
+                        code[i + 1] = b' ';
+                        i += 2;
+                    } else if bytes[i] == b'*' && bytes.get(i + 1) == Some(&b'/') {
+                        depth -= 1;
+                        code[i] = b' ';
+                        code[i + 1] = b' ';
+                        i += 2;
+                        if depth == 0 {
+                            break;
+                        }
+                    } else {
+                        if bytes[i] != b'\n' {
+                            code[i] = b' ';
+                        }
+                        i += 1;
+                    }
+                }
+            },
+            b'\'' => {
+                i += 1;
+                while i < bytes.len() {
+                    if bytes[i] == b'\'' {
+                        if bytes.get(i + 1) == Some(&b'\'') {
+                            in_string[i] = true;
+                            in_string[i + 1] = true;
+                            i += 2;
+                            continue;
+                        }
+                        i += 1;
+                        break;
+                    }
+                    in_string[i] = true;
+                    i += 1;
+                }
+            },
+            b'$' => {
+                let tag_end = bytes[i + 1..]
+                    .iter()
+                    .position(|b| !(b.is_ascii_alphanumeric() || *b == b'_'))
+                    .map(|n| i + 1 + n);
+                match tag_end {
+                    Some(end) if bytes[end] == b'$' => {
+                        let tag = &bytes[i..=end];
+                        let body_start = end + 1;
+                        let close = bytes[body_start..]
+                            .windows(tag.len())
+                            .position(|w| w == tag)
+                            .map_or(bytes.len(), |n| body_start + n);
+                        for flag in &mut in_string[body_start..close] {
+                            *flag = true;
+                        }
+                        i = (close + tag.len()).min(bytes.len());
+                    },
+                    _ => i += 1,
+                }
+            },
+            _ => i += 1,
+        }
+    }
+    // Only ASCII bytes were replaced (by ASCII spaces), so the text is still UTF-8.
+    (String::from_utf8(code).unwrap_or_else(|_| source.to_string()), in_string)
+}
+
+/// The top-level arguments of the call whose `(` ends at `open_end` in `code` (comments
+/// already blanked), trimmed; commas inside parentheses, brackets and string literals do not
+/// split.
+fn call_arguments(code: &str, in_string: &[bool], open_end: usize) -> Vec<String> {
+    let bytes = code.as_bytes();
+    let mut args = Vec::new();
+    let mut depth = 0usize;
+    let mut start = open_end;
+    let mut i = open_end;
+    while i < bytes.len() {
+        if !in_string[i] {
+            match bytes[i] {
+                b'(' | b'[' => depth += 1,
+                b')' | b']' if depth > 0 => depth -= 1,
+                b')' => {
+                    args.push(code[start..i].trim().to_string());
+                    break;
+                },
+                b',' if depth == 0 => {
+                    args.push(code[start..i].trim().to_string());
+                    start = i + 1;
+                },
+                _ => {},
+            }
+        }
+        i += 1;
+    }
+    args
+}
+
+/// `param => value` or `param := value` → `(param, value)`.
+fn named_argument(arg: &str) -> Option<(&str, &str)> {
+    let at = arg.find("=>").or_else(|| arg.find(":="))?;
+    let param = arg[..at].trim();
+    let is_identifier = !param.is_empty()
+        && param.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'$');
+    is_identifier.then(|| (param, arg[at + 2..].trim()))
+}
+
+/// The value of a plain string literal (`'T'`, `''` escapes, optionally `::text` /
+/// `::varchar`), else `None`.
+fn string_literal(expr: &str) -> Option<String> {
+    let rest = expr.trim().strip_prefix('\'')?;
+    let mut value = String::new();
+    let mut chars = rest.char_indices();
+    let close = loop {
+        let (at, c) = chars.next()?;
+        if c != '\'' {
+            value.push(c);
+        } else if rest[at + 1..].starts_with('\'') {
+            value.push('\'');
+            chars.next();
+        } else {
+            break at;
+        }
+    };
+    let tail = rest[close + 1..].trim().to_ascii_lowercase();
+    let plain = tail.is_empty()
+        || tail.strip_prefix("::").is_some_and(|t| matches!(t.trim(), "text" | "varchar"));
+    plain.then_some(value)
 }
 
 /// Scan the function body for each declared payload key (#384 category 2).

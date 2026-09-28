@@ -134,6 +134,12 @@ RETURN QUERY SELECT * FROM fraiseql.mutation_err(
 An unstamped failure of a mutation returning a plain object type has no member to choose
 between; it is served untyped (`__typename` of the return type, plus `status`).
 
+A literal stamp outside the set is caught before it ships: `fraiseql compile --database`,
+`fraiseql validate --against-db` and `fraiseql doctor --against-db` read the function body
+and fail on it ([database contract validation](../guides/database-contract-validation.md)).
+At runtime every contract error is logged at `warn` with the mutation and its function, and
+counted in `fraiseql_mutation_contract_errors_total`.
+
 ### Noop
 
 Idempotent calls are `succeeded=true, state_changed=false, entity={row}`.
