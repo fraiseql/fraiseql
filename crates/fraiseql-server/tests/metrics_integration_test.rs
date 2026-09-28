@@ -219,6 +219,21 @@ async fn metrics_endpoint_multi_root_counter() {
     assert!(body.contains("fraiseql_multi_root_queries_total"));
 }
 
+// Ruling AJ 3: what the runtime refuses or withholds is visible where operators look. A
+// mutation contract error (an off-contract or ambiguous stamp, rolled back) and a subscription
+// event a subscriber's plan suppressed (AC 5) are each counted in core; both counters are
+// exported, always (even at zero), aggregate (no label).
+#[tokio::test]
+#[ignore = "AJ reproduction: /metrics exports neither the contract-error nor the suppression counter"]
+async fn metrics_endpoint_exports_contract_errors_and_suppressed_events() {
+    let state = make_metrics_state();
+    let router = metrics_router(state);
+    let (_, body) = get_text(&router, "/metrics").await;
+
+    assert!(body.contains("\nfraiseql_mutation_contract_errors_total "), "{body}");
+    assert!(body.contains("\nfraiseql_subscription_events_suppressed_total "), "{body}");
+}
+
 // --- JSON metrics endpoint ---
 
 #[tokio::test]

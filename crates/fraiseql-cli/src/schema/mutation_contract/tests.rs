@@ -771,3 +771,100 @@ fn expected_call_has_no_payload_keys_for_unknown_input_type() {
     let call = expected_call(&m, &CompiledSchema::new()).expect("DB-backed mutation");
     assert!(call.payload_keys.is_empty());
 }
+
+// ─── check_mutation: literal entity_type stamps (rulings AA 1, AJ 2) ────────
+
+/// `createUser: CreateUserResult = User | DuplicateEmailError | ValidationError`, backed by
+/// `fn_create_user()`; `Admin` is a type of the schema no outcome of this mutation can be.
+fn stamp_schema() -> (CompiledSchema, MutationDefinition) {
+    use fraiseql_core::schema::{TypeDefinition, UnionDefinition};
+    let error = |name: &str| {
+        let mut t = TypeDefinition::new(name, "v_error");
+        t.is_error = true;
+        t
+    };
+    let schema = CompiledSchema {
+        types: vec![
+            TypeDefinition::new("User", "v_user"),
+            TypeDefinition::new("Admin", "v_admin"),
+            error("DuplicateEmailError"),
+            error("ValidationError"),
+        ],
+        unions: vec![UnionDefinition::new("CreateUserResult").with_members(vec![
+            "User".to_string(),
+            "DuplicateEmailError".to_string(),
+            "ValidationError".to_string(),
+        ])],
+        ..CompiledSchema::new()
+    };
+    let mut m = MutationDefinition::new("createUser", "CreateUserResult");
+    m.sql_source = Some("fn_create_user".to_string());
+    (schema, m)
+}
+
+/// The Error-grade findings `check_mutation` reports for `fn_create_user` with `body`.
+fn stamp_errors(body: &str) -> Vec<String> {
+    let (schema, m) = stamp_schema();
+    let call = expected_call(&m, &schema).expect("DB-backed mutation");
+    let mut f = pg_function(&[], &[], full_response_columns());
+    f.source = body.to_string();
+    check_mutation(&call, &[f])
+        .iter()
+        .filter(|v| v.severity() == Severity::Error)
+        .map(ToString::to_string)
+        .collect()
+}
+
+// A success stamped with a type the mutation cannot return: the server refuses the write
+// (a contract error, rolled back); the lint says so before it ships.
+#[test]
+#[ignore = "AJ reproduction: the contract checker accepts a literal success stamp off the contract"]
+fn a_literal_success_stamp_outside_the_contract_is_an_error() {
+    let errors = stamp_errors(
+        "BEGIN RETURN fraiseql.mutation_ok(to_jsonb(v_user), v_user.id, \
+         p_entity_type => 'Admin'); END",
+    );
+    assert!(errors.iter().any(|e| e.contains("'Admin'")), "{errors:?}");
+}
+
+// A failure stamped, by position, with the success type — the #465-era habit AG 3 made a
+// contract error.
+#[test]
+#[ignore = "AJ reproduction: the contract checker accepts a literal error stamp off the contract"]
+fn a_literal_error_stamp_outside_the_contract_is_an_error() {
+    let errors = stamp_errors(
+        "BEGIN RETURN fraiseql.mutation_err('conflict', 'Email taken', NULL, 409, 'User'); END",
+    );
+    assert!(errors.iter().any(|e| e.contains("'User'")), "{errors:?}");
+}
+
+// A stamp assigned to the result record names no type of the schema at all.
+#[test]
+#[ignore = "AJ reproduction: the contract checker accepts an assigned stamp off the contract"]
+fn an_assigned_stamp_outside_the_contract_is_an_error() {
+    let errors = stamp_errors("BEGIN result.entity_type := 'tb_user'; RETURN result; END");
+    assert!(errors.iter().any(|e| e.contains("'tb_user'")), "{errors:?}");
+}
+
+// Pins (pass before and after): what the lint must never judge.
+#[test]
+fn stamps_inside_the_contract_and_what_is_not_a_literal_stamp_are_clean() {
+    for body in [
+        // In the contract, each arm and the assignment.
+        "BEGIN RETURN fraiseql.mutation_ok(to_jsonb(v), v.id, p_entity_type => 'User'); END",
+        "BEGIN RETURN mutation_err('conflict', 'x', p_entity_type => 'DuplicateEmailError'); END",
+        "BEGIN RETURN fraiseql.mutation_err('invalid', 'x', NULL, 422, 'ValidationError'); END",
+        "BEGIN result.entity_type := 'User'; RETURN result; END",
+        // Not literals: the runtime is the backstop.
+        "BEGIN RETURN fraiseql.mutation_ok(to_jsonb(v), v.id, p_entity_type => v_type); END",
+        "BEGIN RETURN fraiseql.mutation_ok(to_jsonb(v), v.id, NULL); END",
+        // A comparison, not an assignment.
+        "BEGIN PERFORM 1 FROM audit a WHERE a.entity_type = 'Admin'; RETURN r; END",
+        // Commented out.
+        "BEGIN -- p_entity_type => 'Admin'\n /* result.entity_type := 'Admin'; */ RETURN r; END",
+        // Another function's stamp argument.
+        "BEGIN PERFORM app.log_event(p_entity_type => 'Admin'); RETURN r; END",
+    ] {
+        assert_eq!(stamp_errors(body), Vec::<String>::new(), "{body}");
+    }
+}
