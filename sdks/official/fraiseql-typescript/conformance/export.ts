@@ -283,6 +283,16 @@ function authorFull(): void {
     }
   );
 
+  // AF 3 / ruling AK: a fact table read as `Order`. The link is what gates an aggregate
+  // over the table as a read of the type; every name it declares is a field of `Order`.
+  SchemaRegistry.registerFactTable(
+    "tf_sale",
+    [{ name: "total", sql_type: "numeric", nullable: false }],
+    { name: "data", paths: [{ name: "status", json_path: "data->>'status'", data_type: "text" }] },
+    [{ name: "fk_user", sql_type: "uuid", indexed: true }],
+    { typeName: "Order" }
+  );
+
   // #1325: the function authoring path, through the decorator — the documented
   // surface. It is declared INSIDE this function on purpose: a class at module scope
   // would run its decorators at import time, before `SchemaRegistry.clear()` below,

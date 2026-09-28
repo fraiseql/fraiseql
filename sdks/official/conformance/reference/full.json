@@ -534,5 +534,35 @@
       "trigger": "request:query",
       "runtime": "Deno"
     }
+  ],
+  "fact_tables": [
+    {
+      "table_name": "tf_sale",
+      "type_name": "Order",
+      "measures": [
+        {
+          "name": "total",
+          "sql_type": "numeric",
+          "nullable": false
+        }
+      ],
+      "dimensions": {
+        "name": "data",
+        "paths": [
+          {
+            "name": "status",
+            "json_path": "data->>'status'",
+            "data_type": "text"
+          }
+        ]
+      },
+      "denormalized_filters": [
+        {
+          "name": "fk_user",
+          "sql_type": "uuid",
+          "indexed": true
+        }
+      ]
+    }
   ]
 }

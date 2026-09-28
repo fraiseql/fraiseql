@@ -183,6 +183,7 @@ CONSTRUCTS = (
     "mutation_arguments",
     "mutation_invalidates_views",
     "mutation_invalidates_fact_tables",
+    "fact_tables",
     "mutation_requires_role",
     "mutation_requires_actor",
     "subscriptions",
@@ -650,6 +651,51 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         if function_backed
         else {},
         "function": {"trigger": backing.get("trigger")} if backing else {},
+    }
+
+    # A fact table (AF 3, ruling AK 1): what it declares, and the type it is read as.
+    #
+    # `type_name` is asserted by value, not by presence, and it is the point of the
+    # construct: an unlinked fact table compiles and serves aggregates with no field gate
+    # (AB 1), so an SDK that drops the link produces a schema that works and is less safe.
+    # Its survival is also the compiler having acted on it — `compile` loads what it writes
+    # (AF 4), and the load refuses a link whose type lacks a name the table declares.
+    #
+    # Not filtered to the authored table, for the reason `function_definition` is not: an
+    # SDK that renames the table should project to what it actually emitted.
+    def _fact_table(table: dict[str, Any]) -> dict[str, Any]:
+        dimensions = table.get("dimensions") or {}
+        return {
+            "type_name": table.get("type_name"),
+            "measures": [
+                {"name": m.get("name"), "sql_type": m.get("sql_type"), "nullable": m.get("nullable")}
+                for m in table.get("measures", [])
+                if isinstance(m, dict)
+            ],
+            "dimensions": {
+                "name": dimensions.get("name"),
+                "paths": [
+                    {
+                        "name": p.get("name"),
+                        "json_path": p.get("json_path"),
+                        "data_type": p.get("data_type"),
+                    }
+                    for p in dimensions.get("paths", [])
+                    if isinstance(p, dict)
+                ],
+            },
+            "denormalized_filters": [
+                {"name": f.get("name"), "sql_type": f.get("sql_type"), "indexed": f.get("indexed")}
+                for f in table.get("denormalized_filters", [])
+                if isinstance(f, dict)
+            ],
+        }
+
+    fact_tables = compiled.get("fact_tables") or {}
+    observations["fact_tables"] = {
+        name: _fact_table(table)
+        for name, table in sorted(fact_tables.items())
+        if isinstance(table, dict)
     }
 
     missing = set(CONSTRUCTS) - set(observations)

@@ -242,6 +242,18 @@ func authorFull() error {
 		return err
 	}
 
+	// AF 3 / ruling AK: a fact table read as `Order`. The link is what gates an aggregate
+	// over the table as a read of the type; every name it declares is a field of `Order`.
+	if err := fraiseql.NewFactTable("data").
+		TableName("tf_sale").
+		TypeName("Order").
+		Measure("total", "numeric", false).
+		Dimension("status", "data->>'status'", "text").
+		DenormalizedFilter("fk_user", "uuid", true).
+		Register(); err != nil {
+		return err
+	}
+
 	// #1329: the function half of `quotePreview`. `request:query` is the one trigger
 	// that names a capability rather than an event, and it names no query — the binding
 	// lives on the query, so there is one copy of it.

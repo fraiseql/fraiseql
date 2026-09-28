@@ -27,7 +27,9 @@
         "python",
         "conformance/export.py"
       ],
-      "unsupported": {}
+      "unsupported": {
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
+      }
     },
     "typescript": {
       "dir": "fraiseql-typescript",
@@ -59,7 +61,9 @@
         "php",
         "conformance/export.php"
       ],
-      "unsupported": {}
+      "unsupported": {
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
+      }
     },
     "java": {
       "dir": "fraiseql-java",
@@ -72,7 +76,9 @@
         "-Dtest=ConformanceExport",
         "-DfailIfNoTests=false"
       ],
-      "unsupported": {},
+      "unsupported": {
+        "fact_tables": "the SDK authors no fact table: `@GraphQLFactTable` registers the annotated class as an ordinary type and emits no `fact_tables` entry, so there is no table to link to its type (AF 1). Fact-table authoring is a feature, not a key rename."
+      },
       "container": "maven:3.9-eclipse-temurin-21",
       "container_env": [
         "HOME=/conformance-cache/java"
@@ -91,7 +97,8 @@
         "quiet"
       ],
       "unsupported": {
-        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
+        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
       }
     },
     "fsharp": {
@@ -107,7 +114,8 @@
         "quiet"
       ],
       "unsupported": {
-        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
+        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
       }
     },
     "elixir": {
@@ -119,7 +127,8 @@
         "mix local.hex --force --if-missing >/dev/null && mix local.rebar --force --if-missing >/dev/null && mix deps.get >/dev/null && mix run conformance/export.exs"
       ],
       "unsupported": {
-        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
+        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
       },
       "container": "elixir:1.17",
       "container_env": [
@@ -136,7 +145,8 @@
         "conformance/export.rb"
       ],
       "unsupported": {
-        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
+        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
       },
       "container": "ruby:3.3"
     },
@@ -149,7 +159,8 @@
         "dart pub get >/dev/null && dart run conformance/export.dart"
       ],
       "unsupported": {
-        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024)."
+        "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
       },
       "container": "dart:stable",
       "container_env": [
@@ -189,7 +200,8 @@
         "mutation_requires_role": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
         "mutation_requires_actor": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
         "function_definition": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
-        "function_backed_query": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct. Declared alongside `function_definition` of necessity: a function-backed query and the function it names are one declaration the compiler refuses either half of, so an SDK that cannot author a function cannot author the query either"
+        "function_backed_query": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct. Declared alongside `function_definition` of necessity: a function-backed query and the function it names are one declaration the compiler refuses either half of, so an SDK that cannot author a function cannot author the query either",
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
       }
     }
   }

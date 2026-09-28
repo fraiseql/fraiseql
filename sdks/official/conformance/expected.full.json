@@ -6,6 +6,35 @@
       "CANCELLED"
     ]
   },
+  "fact_tables": {
+    "tf_sale": {
+      "denormalized_filters": [
+        {
+          "indexed": true,
+          "name": "fk_user",
+          "sql_type": "Uuid"
+        }
+      ],
+      "dimensions": {
+        "name": "data",
+        "paths": [
+          {
+            "data_type": "text",
+            "json_path": "data->>'status'",
+            "name": "status"
+          }
+        ]
+      },
+      "measures": [
+        {
+          "name": "total",
+          "nullable": false,
+          "sql_type": "Decimal"
+        }
+      ],
+      "type_name": "Order"
+    }
+  },
   "field_deprecated": {
     "User.name": {
       "reason": "use displayName"
