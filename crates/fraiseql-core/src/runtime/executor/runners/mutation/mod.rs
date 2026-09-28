@@ -13,6 +13,7 @@ mod payload_gates;
 use std::sync::Arc;
 
 use fraiseql_db::{ChangeLogWrite, ViewName};
+pub use payload_gates::StampContract;
 
 use self::payload_gates::{PayloadGates, PayloadPosition};
 use super::{
@@ -921,18 +922,18 @@ fn build_mutation_result(
             // returned union, an implementor of the returned interface, or the returned type —
             // else, unstamped, the one type a success can be. Where there are several, the
             // function's silence must not pick one: a contract error, and the write rolls back.
-            let successes = payload_gates::success_types(&ctx.schema, mutation_return_type);
+            let successes = &gates.contract().success;
             let typename = match entity_type {
                 Some(stamp) if successes.contains(&stamp) => stamp,
                 Some(stamp) => {
                     return Err(payload_gates::off_contract(
                         PayloadPosition::Root,
                         &stamp,
-                        &successes,
+                        successes,
                     ));
                 },
                 None => unstamped_type(&ctx.schema, mutation_return_type, false)
-                    .ok_or_else(|| unstamped_ambiguity(mutation_return_type, &successes))?,
+                    .ok_or_else(|| unstamped_ambiguity(mutation_return_type, successes))?,
             };
 
             // Project the entity through the single canonical projector — the same
@@ -1019,23 +1020,19 @@ fn build_mutation_result(
             // with several, the function's silence must not pick one: a contract error, and
             // the write rolls back. An unstamped failure of an object return, or of a union
             // with no error member, is the untyped failure: there is no member to pick.
-            let errors = payload_gates::error_types(&ctx.schema, mutation_return_type);
+            let errors = &gates.contract().error;
             let returns_members = ctx.schema.find_union(mutation_return_type).is_some()
                 || ctx.schema.find_interface(mutation_return_type).is_some();
             let error_type = match entity_type {
                 Some(stamp) if errors.contains(&stamp) => ctx.schema.find_type(&stamp),
                 Some(stamp) => {
-                    return Err(payload_gates::off_contract(
-                        PayloadPosition::Root,
-                        &stamp,
-                        &errors,
-                    ));
+                    return Err(payload_gates::off_contract(PayloadPosition::Root, &stamp, errors));
                 },
                 None if !returns_members => None,
                 None => match errors.as_slice() {
                     [] => None,
                     [only] => ctx.schema.find_type(only),
-                    _ => return Err(unstamped_error_ambiguity(mutation_return_type, &errors)),
+                    _ => return Err(unstamped_error_ambiguity(mutation_return_type, errors)),
                 },
             };
 

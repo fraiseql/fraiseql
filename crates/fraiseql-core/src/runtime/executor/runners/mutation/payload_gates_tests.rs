@@ -2,7 +2,7 @@
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use super::{PayloadPosition, payload_roots};
+use super::{PayloadPosition, StampContract, payload_roots};
 use crate::{
     graphql::FieldSelection,
     schema::{CompiledSchema, FieldDefinition, FieldType, TypeDefinition, UnionDefinition},
@@ -45,6 +45,17 @@ fn schema() -> CompiledSchema {
     schema
 }
 
+/// The roots of a payload selection, classified against the mutation's own contract.
+fn classified_roots<'s>(
+    schema: &CompiledSchema,
+    return_type: &str,
+    is_cascade: bool,
+    selections: &'s [FieldSelection],
+) -> Vec<(PayloadPosition, String, &'s [FieldSelection])> {
+    let contract = StampContract::for_return(schema, return_type, is_cascade);
+    payload_roots(schema, &contract, return_type, is_cascade, selections)
+}
+
 fn names<'r>(
     roots: &'r [(PayloadPosition, String, &[FieldSelection])],
 ) -> Vec<(PayloadPosition, &'r str)> {
@@ -59,7 +70,7 @@ fn names<'r>(
 fn a_union_payload_is_classified_as_its_members_once() {
     let schema = schema();
     let selections = [select("id", vec![])];
-    let roots = payload_roots(&schema, "OrderResult", false, &selections);
+    let roots = classified_roots(&schema, "OrderResult", false, &selections);
     assert_eq!(
         names(&roots),
         [
@@ -74,7 +85,7 @@ fn a_union_payload_is_classified_as_its_members_once() {
 fn a_plain_payload_is_classified_as_its_type_and_every_error_type() {
     let schema = schema();
     let selections = [select("id", vec![])];
-    let roots = payload_roots(&schema, "Order", false, &selections);
+    let roots = classified_roots(&schema, "Order", false, &selections);
     assert_eq!(
         names(&roots),
         [
@@ -98,7 +109,7 @@ fn a_cascade_classifies_its_entity_and_each_updated_entity_as_every_cascade_node
             )],
         ),
     ];
-    let roots = payload_roots(&schema, "TouchPayload", true, &selections);
+    let roots = classified_roots(&schema, "TouchPayload", true, &selections);
     assert_eq!(
         names(&roots),
         [
@@ -126,11 +137,29 @@ fn a_cascade_entity_declared_on_its_payload_is_classified_as_that_type_alone() {
     schema.types.push(payload);
     schema.build_indexes();
     let selections = [select("entity", vec![select("id", vec![])])];
-    let roots = payload_roots(&schema, "TouchPayload", true, &selections);
+    let roots = classified_roots(&schema, "TouchPayload", true, &selections);
     let entities: Vec<_> = roots
         .iter()
         .filter(|r| r.0 == PayloadPosition::CascadeEntity)
         .map(|r| &r.1)
         .collect();
     assert_eq!(entities, ["User"]);
+}
+
+/// What a function may stamp, per outcome (ruling AJ 1): the contract the runner checks and
+/// the CLI lint reads. A union: its non-error members on success, its error members on
+/// failure. An object: itself on success, every error type on failure. A cascade: its
+/// payload's `entity` type on success, else every `CascadeNode` implementor.
+#[test]
+fn a_stamp_contract_is_derived_per_outcome_from_the_return_type() {
+    let schema = schema();
+    let union = StampContract::for_return(&schema, "OrderResult", false);
+    assert_eq!((union.success, union.error), (vec!["Order".into()], vec!["Locked".into()]));
+    let object = StampContract::for_return(&schema, "Account", false);
+    assert_eq!(
+        (object.success, object.error),
+        (vec!["Account".into()], vec!["Locked".into(), "Missing".into()])
+    );
+    let cascade = StampContract::for_return(&schema, "TouchPayload", true);
+    assert_eq!(cascade.success, vec!["Order".to_string(), "User".to_string()]);
 }

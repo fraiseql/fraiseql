@@ -24,8 +24,11 @@ use std::collections::HashSet;
 
 use super::super::{super::context::ExecutorContext, read_plan::ReadPlan};
 use crate::{
-    error::Result, graphql::FieldSelection, runtime::projection::effective_selections,
-    schema::CompiledSchema, security::SecurityContext,
+    error::Result,
+    graphql::FieldSelection,
+    runtime::projection::effective_selections,
+    schema::{CompiledSchema, MutationDefinition},
+    security::SecurityContext,
 };
 
 /// Where in a payload an entity sits. One type can sit at several, under different
@@ -40,11 +43,55 @@ pub(super) enum PayloadPosition {
     UpdatedEntity,
 }
 
+/// What a mutation's function may stamp in its `entity_type` column (rulings AA 1, AG 2).
+///
+/// The one derivation the runner's contract check reads, and the CLI's stamp lint
+/// (`fraiseql compile --database`, `fraiseql doctor --against-db`) with it, so the two cannot
+/// drift (ruling AJ 1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct StampContract {
+    /// The types a success can be served as: for a cascade mutation, its payload's `entity`
+    /// type (else every `CascadeNode` implementor); otherwise the non-error members of the
+    /// returned union, the implementors of the returned interface, or the returned type.
+    pub success: Vec<String>,
+    /// The types a failure can be served as: the error members of the returned union, the
+    /// error implementors of the returned interface, or — for an object return, where nothing
+    /// narrower is declared — every error type of the schema.
+    pub error:   Vec<String>,
+}
+
+impl StampContract {
+    /// The contract of `mutation` in `schema`.
+    #[must_use]
+    pub fn of(schema: &CompiledSchema, mutation: &MutationDefinition) -> Self {
+        Self::for_return(schema, &mutation.return_type, mutation.cascade)
+    }
+
+    /// The contract of a mutation returning `return_type`, a cascade one or not.
+    pub(super) fn for_return(schema: &CompiledSchema, return_type: &str, is_cascade: bool) -> Self {
+        let success = if is_cascade {
+            let payload_type = super::resolve_payload_type(return_type, schema);
+            super::payload_entity_type(&payload_type, schema)
+                .map_or_else(|| cascade_node_types(schema), |t| vec![t])
+        } else {
+            success_types(schema, return_type)
+        };
+        Self {
+            success,
+            error: error_types(schema, return_type),
+        }
+    }
+}
+
 /// What the static gates decided for a payload selection, before the write.
 pub(super) struct PayloadGates {
     plan:       ReadPlan,
     /// The `(position, type)` pairs classified: exactly what each position can hold.
     classified: HashSet<(PayloadPosition, String)>,
+    /// What the function may stamp, per arm: the classified root and cascade-entity sets are
+    /// drawn from it.
+    contract:   StampContract,
 }
 
 impl PayloadGates {
@@ -62,14 +109,21 @@ impl PayloadGates {
         is_cascade: bool,
         selections: &[FieldSelection],
     ) -> Result<Self> {
-        let roots = payload_roots(&ctx.schema, return_type, is_cascade, selections);
+        let contract = StampContract::for_return(&ctx.schema, return_type, is_cascade);
+        let roots = payload_roots(&ctx.schema, &contract, return_type, is_cascade, selections);
         let typed: Vec<(&str, &[FieldSelection])> =
             roots.iter().map(|(_, t, sels)| (t.as_str(), *sels)).collect();
         let plan = ReadPlan::classify(ctx, security_ctx, variables, &typed)?;
         Ok(Self {
             plan,
             classified: roots.iter().map(|(p, t, _)| (*p, t.clone())).collect(),
+            contract,
         })
+    }
+
+    /// What the function may stamp (ruling AJ 1).
+    pub(super) const fn contract(&self) -> &StampContract {
+        &self.contract
     }
 
     /// Serve `entity`, a `type_name` at `position`, through `selections` under the read plan.
@@ -174,6 +228,7 @@ fn refuse_unless_type_readable(
 /// Every `(position, type, selections)` a payload selection can be served as.
 fn payload_roots<'s>(
     schema: &CompiledSchema,
+    contract: &StampContract,
     return_type: &str,
     is_cascade: bool,
     selections: &'s [FieldSelection],
@@ -181,20 +236,22 @@ fn payload_roots<'s>(
     let mut roots = Vec::new();
     // An error outcome is served as one of the error types this mutation can return
     // (ruling AG 2): classified here, so the classified set is the error arm's contract.
-    for error_type in error_types(schema, return_type) {
-        push_root(&mut roots, (PayloadPosition::Root, error_type, selections));
+    for error_type in &contract.error {
+        push_root(&mut roots, (PayloadPosition::Root, error_type.clone(), selections));
     }
     if is_cascade {
         let payload_type = super::resolve_payload_type(return_type, schema);
         for sel in effective_selections(selections, &payload_type, schema) {
             match sel.name.as_str() {
                 "entity" => {
-                    let entity_types = super::payload_entity_type(&payload_type, schema)
-                        .map_or_else(|| cascade_node_types(schema), |t| vec![t]);
-                    for entity_type in entity_types {
+                    for entity_type in &contract.success {
                         push_root(
                             &mut roots,
-                            (PayloadPosition::CascadeEntity, entity_type, &sel.nested_fields),
+                            (
+                                PayloadPosition::CascadeEntity,
+                                entity_type.clone(),
+                                &sel.nested_fields,
+                            ),
                         );
                     }
                 },
@@ -231,19 +288,11 @@ fn payload_roots<'s>(
             }
         }
     } else {
-        // The success entity: a member of the returned union, an implementor of the returned
-        // interface, or the returned type.
-        match schema.find_union(return_type) {
-            Some(union) => {
-                for member in &union.member_types {
-                    push_root(&mut roots, (PayloadPosition::Root, member.clone(), selections));
-                }
-            },
-            None => {
-                for success in success_types(schema, return_type) {
-                    push_root(&mut roots, (PayloadPosition::Root, success, selections));
-                }
-            },
+        // The success entity: a non-error member of the returned union (its error members
+        // are the error arm's, above), an implementor of the returned interface, or the
+        // returned type.
+        for success in &contract.success {
+            push_root(&mut roots, (PayloadPosition::Root, success.clone(), selections));
         }
     }
     roots

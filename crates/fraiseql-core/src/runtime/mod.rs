@@ -95,6 +95,9 @@ pub use executor::{
     // The row-shaped read's results (#1351). This list is enumerated, so a new
     // public item is invisible outside the crate until it is named here.
     RowRead,
+    // What a mutation's function may stamp (rulings AA 1, AG 2, AJ 1): one derivation for the
+    // runner and the CLI's stamp lint.
+    StampContract,
     StreamedRowRead,
     // A subscription's read plan (ruling AA 4).
     SubscriptionPlan,
