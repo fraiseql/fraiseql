@@ -163,11 +163,19 @@ jobs:
       - name: Build fraiseql-cli
         run: cargo build -p fraiseql-cli
 
+      # Compiled as a project, as the conformance harness compiles it: the fixture declares
+      # `requires_scope`, and `fraiseql compile` refuses a schema a server would refuse, so
+      # it needs the `fraiseql.toml` declaring the roles that grant those scopes.
       - name: Compile the canonical conformance fixture
-        run: >
-          ./target/debug/fraiseql-cli compile
-          sdks/official/conformance/reference/full.json
-          --skip-hash -o /tmp/schema.compiled.json
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/conformance-project
+          python3 sdks/official/conformance/project_toml.py \
+            sdks/official/conformance/reference/full.json \
+            > /tmp/conformance-project/fraiseql.toml
+          (cd /tmp/conformance-project && "$GITHUB_WORKSPACE/target/debug/fraiseql-cli" compile \
+            "$GITHUB_WORKSPACE/sdks/official/conformance/reference/full.json" \
+            --skip-hash -o /tmp/schema.compiled.json)
 
       - name: Generate + type-check the TypeScript client
         run: |
