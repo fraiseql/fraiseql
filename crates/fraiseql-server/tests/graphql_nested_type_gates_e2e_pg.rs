@@ -50,8 +50,8 @@ use fraiseql_core::{
         RoleDefinition, SecurityConfig, TypeDefinition, UnionDefinition,
     },
     security::{
-        Authorizer, AuthzDecision, AuthzRequest, CompiledRLSPolicy, DefaultRLSPolicy, RLSPolicy,
-        RlsWhereClause, SecurityContext,
+        Authorizer, AuthzDecision, AuthzRequest, CompiledRLSPolicy, ConstrainedPaths,
+        DefaultRLSPolicy, RLSPolicy, RlsWhereClause, SecurityContext,
         rls_policy::{RLSRule, RlsTarget},
     },
     types::TenantId,
@@ -150,6 +150,35 @@ async fn seed(adapter: &PostgresAdapter) {
              jsonb_build_object('id', t.id, 'tenant_id', t.tenant_id, 'name', t.name, 'budget', \
              t.budget, 'audit', 'internal') FROM \
              {SCHEMA}.tb_team t WHERE t.id = m.fk_team)) AS data FROM {SCHEMA}.tb_member m"
+        ),
+        // Two to-ones deep across two types: each badge embeds its holder, which embeds its
+        // team. Badge 2's holder is tenant A's and its team tenant B's; badge 3's holder is
+        // tenant B's, and its team tenant A's `red`.
+        format!(
+            "CREATE TABLE {SCHEMA}.tb_holder (id bigint PRIMARY KEY, tenant_id text NOT NULL, \
+             fk_team bigint NOT NULL REFERENCES {SCHEMA}.tb_team(id))"
+        ),
+        format!(
+            "CREATE TABLE {SCHEMA}.tb_badge (id bigint PRIMARY KEY, tenant_id text NOT NULL, \
+             fk_holder bigint NOT NULL REFERENCES {SCHEMA}.tb_holder(id))"
+        ),
+        format!("INSERT INTO {SCHEMA}.tb_holder VALUES (1, 'A', 1), (2, 'A', 2), (3, 'B', 1)"),
+        format!("INSERT INTO {SCHEMA}.tb_badge VALUES (1, 'A', 1), (2, 'A', 2), (3, 'A', 3)"),
+        format!(
+            "CREATE FUNCTION {SCHEMA}.holder_doc(hid bigint) RETURNS jsonb LANGUAGE sql STABLE \
+             AS $$ SELECT jsonb_build_object('id', h.id, 'tenant_id', h.tenant_id, 'fk_team', \
+             h.fk_team, 'team', (SELECT jsonb_build_object('id', t.id, 'tenant_id', t.tenant_id, \
+             'name', t.name, 'budget', t.budget) FROM {SCHEMA}.tb_team t WHERE t.id = \
+             h.fk_team)) FROM {SCHEMA}.tb_holder h WHERE h.id = hid $$"
+        ),
+        format!(
+            "CREATE VIEW {SCHEMA}.v_holder AS SELECT id, {SCHEMA}.holder_doc(id) AS data FROM \
+             {SCHEMA}.tb_holder"
+        ),
+        format!(
+            "CREATE VIEW {SCHEMA}.v_badge AS SELECT b.id, jsonb_build_object('id', b.id, \
+             'tenant_id', b.tenant_id, 'fk_holder', b.fk_holder, 'holder', \
+             {SCHEMA}.holder_doc(b.fk_holder)) AS data FROM {SCHEMA}.tb_badge b"
         ),
         // A chain of to-ones as deep as a selection can reach: folder `k`'s parent is
         // folder `k - 1`, and each document embeds every ancestor. Folder 2 is mallory's,
@@ -273,6 +302,20 @@ fn schema(user_view: &str) -> CompiledSchema {
         FieldDefinition::new("team", FieldType::Object("Team".to_string())),
     ];
     schema.types.push(member);
+    let mut holder = TypeDefinition::new("Holder", format!("{SCHEMA}.v_holder"));
+    holder.fields = vec![
+        FieldDefinition::new("id", FieldType::Int),
+        FieldDefinition::new("tenant_id", FieldType::String),
+        FieldDefinition::new("team", FieldType::Object("Team".to_string())),
+    ];
+    schema.types.push(holder);
+    let mut badge = TypeDefinition::new("Badge", format!("{SCHEMA}.v_badge"));
+    badge.fields = vec![
+        FieldDefinition::new("id", FieldType::Int),
+        FieldDefinition::new("tenant_id", FieldType::String),
+        FieldDefinition::new("holder", FieldType::Object("Holder".to_string())),
+    ];
+    schema.types.push(badge);
     let mut folder = TypeDefinition::new("Folder", format!("{SCHEMA}.v_folder"));
     folder.fields = vec![
         FieldDefinition::new("id", FieldType::Int),
@@ -289,6 +332,8 @@ fn schema(user_view: &str) -> CompiledSchema {
         ("orders", "Order", "v_order"),
         ("teams", "Team", "v_team"),
         ("members", "Member", "v_member"),
+        ("holders", "Holder", "v_holder"),
+        ("badges", "Badge", "v_badge"),
         ("folders", "Folder", "v_folder"),
     ] {
         schema.queries.push(
@@ -383,6 +428,29 @@ impl<P: RLSPolicy> RLSPolicy for Opaque<P> {
     }
 }
 
+/// A policy that declares its keys for every type but `.0`: a type it is opaque for is read
+/// through its declared relationship, the others over the embedded document — so both kinds
+/// of nested row gate meet on one path.
+struct OpaqueFor<P>(&'static [&'static str], P);
+
+impl<P: RLSPolicy> RLSPolicy for OpaqueFor<P> {
+    fn evaluate(
+        &self,
+        context: &SecurityContext,
+        target: &RlsTarget<'_>,
+    ) -> Result<Option<RlsWhereClause>> {
+        self.1.evaluate(context, target)
+    }
+
+    fn constrained_paths(&self, target: &RlsTarget<'_>) -> ConstrainedPaths {
+        if target.type_name.is_some_and(|t| self.0.contains(&t)) {
+            ConstrainedPaths::Opaque
+        } else {
+            self.1.constrained_paths(target)
+        }
+    }
+}
+
 fn owner_policy() -> DefaultRLSPolicy {
     DefaultRLSPolicy::new()
         .with_single_tenant()
@@ -396,6 +464,8 @@ enum Policy {
     None,
     OpaqueOwner,
     OpaqueTenant,
+    /// The tenant policy, opaque for the named types only.
+    OpaqueTenantFor(&'static [&'static str]),
 }
 
 async fn rig(user_view: &str, policy: Policy) -> Option<Executor> {
@@ -418,6 +488,9 @@ fn policy_config(schema: &CompiledSchema, policy: Policy) -> RuntimeConfig {
         Policy::Tenant => config.with_rls_policy(Arc::new(tenant_policy())),
         Policy::OpaqueOwner => config.with_rls_policy(Arc::new(Opaque(owner_policy()))),
         Policy::OpaqueTenant => config.with_rls_policy(Arc::new(Opaque(tenant_policy()))),
+        Policy::OpaqueTenantFor(types) => {
+            config.with_rls_policy(Arc::new(OpaqueFor(types, tenant_policy())))
+        },
         Policy::None => config,
     }
 }
@@ -2205,5 +2278,158 @@ async fn a_relation_filter_under_an_opaque_policy_reads_through_the_declared_rel
     ] {
         let out = graphql(&executor, query).await.unwrap_or_else(|e| panic!("{query}: {e}"));
         assert_eq!(root_ids(&out, "members"), expected, "{query}: {out}");
+    }
+}
+
+// Join guards along a path. Where a type's policy cannot be read off the embedded document,
+// a filter through a declared relationship decides the related row's visibility over the
+// type's own view (ruling AL); guards stack along the path, a document guard and a join
+// guard mixing. `a_relation_filter_under_an_opaque_policy_reads_through_the_declared_relationship`
+// covers one level; these cover a chain of them — two types (`Badge.holder.team`) and one
+// type through itself (`Folder.parent.parent`) — and the two kinds of guard stacked either
+// way round. Each policy shape must give the answers the policy that declares its keys gives.
+
+/// `joinable(filterable(..))`, with `Badge.holder`, `Holder.team` and `Folder.parent`
+/// declared too.
+fn chained() -> CompiledSchema {
+    let mut schema = joinable(filterable("v_user_fk"));
+    for (on, name, target, foreign_key) in [
+        ("Badge", "holder", "Holder", "fk_holder"),
+        ("Holder", "team", "Team", "fk_team"),
+        ("Folder", "parent", "Folder", "fk_parent"),
+    ] {
+        schema
+            .types
+            .iter_mut()
+            .find(|t| t.name == on)
+            .unwrap()
+            .relationships
+            .push(Relationship {
+                name:           name.to_string(),
+                target_type:    target.to_string(),
+                cardinality:    Cardinality::ManyToOne,
+                foreign_key:    foreign_key.to_string(),
+                referenced_key: "id".to_string(),
+            });
+    }
+    schema.build_indexes();
+    schema
+}
+
+/// Tenant A: badge 1's holder and team are its own; badge 2's team is tenant B's; badge 3's
+/// holder is tenant B's (its team is tenant A's `red`). A hidden level reads `NULL` to every
+/// operator below it, whichever guard hides it — the outer one included.
+#[tokio::test]
+async fn a_relation_filter_two_levels_deep_follows_every_levels_policy_whichever_its_kind() {
+    let cases = [
+        (r#"{ badges(where: {holder: {team: {name: {eq: "red"}}}}) { id } }"#, vec![1]),
+        (r#"{ badges(where: {holder: {team: {name: {eq: "blue"}}}}) { id } }"#, vec![]),
+        (
+            r#"{ badges(where: {_not: {holder: {team: {name: {eq: "blue"}}}}}) { id } }"#,
+            vec![1],
+        ),
+        ("{ badges(where: {holder: {team: {name: {isnull: true}}}}) { id } }", vec![2, 3]),
+        (r#"{ badges(where: {holder: {tenant_id: {eq: "B"}}}) { id } }"#, vec![]),
+    ];
+    let served = serde_json::json!([
+        {"id": 1, "holder": {"id": 1, "team": {"name": "red"}}},
+        {"id": 2, "holder": {"id": 2, "team": null}},
+        {"id": 3, "holder": null},
+    ]);
+    for (shape, policy) in [
+        ("keys declared", Policy::Tenant),
+        ("join under join", Policy::OpaqueTenant),
+        ("join under a document guard", Policy::OpaqueTenantFor(&["Team"])),
+        ("a document guard under a join", Policy::OpaqueTenantFor(&["Holder"])),
+    ] {
+        let executor = rig_or_skip!(over chained(), policy);
+        for (query, expected) in &cases {
+            let out = graphql(&executor, query)
+                .await
+                .unwrap_or_else(|e| panic!("{shape}: {query}: {e}"));
+            assert_eq!(&root_ids(&out, "badges"), expected, "{shape}: {query}: {out}");
+        }
+        let out = graphql(&executor, "{ badges { id holder { id team { name } } } }")
+            .await
+            .unwrap_or_else(|e| panic!("{shape}: {e}"));
+        assert_eq!(out["data"]["badges"], served, "{shape}: {out}");
+    }
+}
+
+/// Owner policy through `Folder.parent`: folder 2 is mallory's, the parent of alice's folder
+/// 3 and the grandparent of folder 4. A path through it reads `NULL` beyond it, even where
+/// the row past it (folder 1) is alice's.
+#[tokio::test]
+async fn a_relation_filter_through_a_type_itself_follows_the_policy_at_every_depth() {
+    let cases = [
+        ("{ folders(where: {parent: {parent: {id: {eq: 3}}}}) { id } }", vec![5]),
+        ("{ folders(where: {parent: {parent: {id: {eq: 1}}}}) { id } }", vec![]),
+        (
+            r#"{ folders(where: {parent: {parent: {owner: {eq: "u-mallory"}}}}) { id } }"#,
+            vec![],
+        ),
+        ("{ folders(where: {parent: {parent: {parent: {id: {eq: 1}}}}}) { id } }", vec![]),
+        (
+            "{ folders(where: {parent: {parent: {parent: {id: {eq: 3}}}}}) { id } }",
+            vec![6],
+        ),
+    ];
+    for (shape, policy) in [
+        ("keys declared", Policy::Owner),
+        ("joined", Policy::OpaqueOwner),
+    ] {
+        let executor = rig_or_skip!(over chained(), policy);
+        for (query, expected) in &cases {
+            let out = graphql(&executor, query)
+                .await
+                .unwrap_or_else(|e| panic!("{shape}: {query}: {e}"));
+            assert_eq!(&root_ids(&out, "folders"), expected, "{shape}: {query}: {out}");
+        }
+    }
+}
+
+/// Control: with no policy, every filter above matches the rows the policies hide.
+#[tokio::test]
+async fn control_without_a_policy_the_chained_relation_filters_match() {
+    let executor = rig_or_skip!(over chained(), Policy::None);
+    for (query, key, expected) in [
+        (
+            r#"{ badges(where: {holder: {team: {name: {eq: "red"}}}}) { id } }"#,
+            "badges",
+            vec![1, 3],
+        ),
+        (
+            r#"{ badges(where: {holder: {team: {name: {eq: "blue"}}}}) { id } }"#,
+            "badges",
+            vec![2],
+        ),
+        (
+            "{ badges(where: {holder: {team: {name: {isnull: true}}}}) { id } }",
+            "badges",
+            vec![],
+        ),
+        (
+            r#"{ badges(where: {holder: {tenant_id: {eq: "B"}}}) { id } }"#,
+            "badges",
+            vec![3],
+        ),
+        (
+            "{ folders(where: {parent: {parent: {id: {eq: 1}}}}) { id } }",
+            "folders",
+            vec![3],
+        ),
+        (
+            r#"{ folders(where: {parent: {parent: {owner: {eq: "u-mallory"}}}}) { id } }"#,
+            "folders",
+            vec![4],
+        ),
+        (
+            "{ folders(where: {parent: {parent: {parent: {id: {eq: 1}}}}}) { id } }",
+            "folders",
+            vec![4],
+        ),
+    ] {
+        let out = graphql(&executor, query).await.unwrap_or_else(|e| panic!("{query}: {e}"));
+        assert_eq!(root_ids(&out, key), expected, "{query}: {out}");
     }
 }
