@@ -1569,7 +1569,7 @@ fn test_function_definition_effective_timeout() {
 
     let custom =
         FunctionDefinition::new("test", "http:GET:/hello", RuntimeType::Deno).with_timeout(1000);
-    assert_eq!(custom.effective_timeout(), Duration::from_millis(1000));
+    assert_eq!(custom.effective_timeout(), Duration::from_secs(1));
 }
 
 /// Test: trigger registry loads function definitions

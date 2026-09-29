@@ -1265,7 +1265,7 @@ mod read_replicas_407 {
         assert_eq!(rc.urls, vec!["postgres://replica1/db".to_string()]);
         assert_eq!(
             rc.pin_after_write,
-            std::time::Duration::from_millis(5000),
+            std::time::Duration::from_secs(5),
             "the pin default is 5000 ms and lives in this one seam"
         );
     }
@@ -1349,7 +1349,7 @@ mod bounded_staleness_957 {
         );
         assert_eq!(
             rc.health_probe_interval,
-            std::time::Duration::from_millis(1000),
+            std::time::Duration::from_secs(1),
             "probing is NOT opt-in — a failover that promotes a replica after boot is \
              invisible to the one-shot boot health check"
         );
@@ -1364,7 +1364,7 @@ mod bounded_staleness_957 {
             ..ServerConfig::default()
         };
         let rc = config.read_replicas().expect("configured replicas must lower to Some");
-        assert_eq!(rc.max_lag, Some(std::time::Duration::from_millis(2000)));
+        assert_eq!(rc.max_lag, Some(std::time::Duration::from_secs(2)));
         assert_eq!(rc.health_probe_interval, std::time::Duration::from_millis(250));
     }
 

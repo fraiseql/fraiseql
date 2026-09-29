@@ -647,15 +647,14 @@ pub async fn validate_schema_against_database(
             // JSONB identity may be sharpened to a cheaper native one; and either
             // way, a view that orders itself is about to have that order replaced.
             match &query.pagination_order {
-                Some(PaginationOrder::Column(col)) => {
-                    if !column_map.contains_key(col) {
-                        warnings.push(DatabaseWarning::MissingPaginationColumn {
-                            query_name:  query.name.clone(),
-                            sql_source:  source.clone(),
-                            column_name: col.clone(),
-                        });
-                    }
+                Some(PaginationOrder::Column(col)) if !column_map.contains_key(col) => {
+                    warnings.push(DatabaseWarning::MissingPaginationColumn {
+                        query_name:  query.name.clone(),
+                        sql_source:  source.clone(),
+                        column_name: col.clone(),
+                    });
                 },
+                Some(PaginationOrder::Column(_)) => {},
                 Some(PaginationOrder::JsonIdentity) => {
                     let pk = pk_column_name(&query.return_type);
                     if let Some(col) = cheapest_identity_column(&pk, &column_map) {

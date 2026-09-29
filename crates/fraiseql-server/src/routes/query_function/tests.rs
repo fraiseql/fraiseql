@@ -57,9 +57,9 @@ fn an_unparseable_override_leaves_the_default() {
 #[test]
 fn a_declared_timeout_wins_over_the_default_in_both_directions() {
     let budget = QueryFunctionBudget::from_millis(5_000);
-    assert_eq!(budget.for_function(Some(30_000)).duration(), Duration::from_millis(30_000));
+    assert_eq!(budget.for_function(Some(30_000)).duration(), Duration::from_secs(30));
     assert_eq!(budget.for_function(Some(250)).duration(), Duration::from_millis(250));
-    assert_eq!(budget.for_function(None).duration(), Duration::from_millis(5_000));
+    assert_eq!(budget.for_function(None).duration(), Duration::from_secs(5));
 }
 
 // ── Both sides of the threshold ──────────────────────────────────────────────
@@ -108,7 +108,7 @@ async fn an_invocation_over_the_budget_times_out_naming_the_field() {
 #[tokio::test(start_paused = true)]
 async fn a_zero_budget_means_no_ceiling() {
     let answer = run_within_budget("quotePreview", QueryFunctionBudget::from_millis(0), async {
-        tokio::time::sleep(Duration::from_secs(60)).await;
+        tokio::time::sleep(Duration::from_mins(1)).await;
         Ok(serde_json::json!({"id": "q-1"}))
     })
     .await

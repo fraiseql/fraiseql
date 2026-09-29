@@ -38,7 +38,7 @@ fn a_finished_invocation_wakes_the_watchdog_at_once() {
     for round in 0..ROUNDS {
         let signal = Arc::new(WatchdogSignal::new());
         // A deadline far enough away that it can never be the reason for a wake.
-        let deadline = Instant::now() + Duration::from_secs(60);
+        let deadline = Instant::now() + Duration::from_mins(1);
 
         let waiter = {
             let signal = Arc::clone(&signal);
@@ -99,7 +99,7 @@ fn a_completion_before_the_wait_is_not_lost() {
     signal.finish();
 
     let started = Instant::now();
-    let outcome = signal.wait_until(started + Duration::from_secs(60));
+    let outcome = signal.wait_until(started + Duration::from_mins(1));
 
     assert_eq!(outcome, WatchdogOutcome::Finished);
     assert!(started.elapsed() < Duration::from_millis(50), "it must not wait at all");

@@ -100,10 +100,10 @@ fn extract_fields_from_selection_set(query: &str) -> Result<Vec<String>> {
                 }
             },
             ' ' | '\n' | '\r' | '\t' if in_selection => {
-                // Whitespace is a field separator
-                if !current_field.is_empty() {
-                    fields.push(current_field.trim().to_string());
-                    current_field.clear();
+                // Whitespace is a field separator: it ends the current field, if any.
+                let field = std::mem::take(&mut current_field);
+                if !field.is_empty() {
+                    fields.push(field.trim().to_string());
                 }
             },
             _ if in_selection => {

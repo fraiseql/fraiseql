@@ -319,9 +319,9 @@ pub struct ReadReplicaPolicy {
 impl Default for ReadReplicaPolicy {
     fn default() -> Self {
         Self {
-            pin_after_write:       Duration::from_millis(5000),
+            pin_after_write:       Duration::from_secs(5),
             max_lag:               None,
-            health_probe_interval: Duration::from_millis(1000),
+            health_probe_interval: Duration::from_secs(1),
         }
     }
 }

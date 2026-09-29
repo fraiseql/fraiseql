@@ -29,7 +29,7 @@ const JWKS_PATH: &str = "/.well-known/jwks.json";
 
 /// A TTL long enough that nothing below expires by accident. Expiry is exercised
 /// by advancing the clock, never by waiting.
-const LONG_TTL: Duration = Duration::from_secs(3600);
+const LONG_TTL: Duration = Duration::from_hours(1);
 
 /// An RSA modulus of the right shape. The tests here never verify a signature —
 /// they count requests and select keys — so only the *selection* has to be real.
@@ -264,7 +264,7 @@ async fn concurrent_misses_make_one_request_between_them() {
 
 #[tokio::test]
 async fn an_expired_set_is_not_served_even_while_the_cooldown_holds() {
-    let ttl = Duration::from_secs(60);
+    let ttl = Duration::from_mins(1);
     let mock = publisher(&["rotating"], Duration::ZERO).await;
     let clock = TestClock::new();
     let source = source_for(&mock, ttl, &clock);

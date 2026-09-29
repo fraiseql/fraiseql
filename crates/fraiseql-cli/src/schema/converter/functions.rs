@@ -74,17 +74,18 @@ pub fn validate_against_schema(
         };
 
         match parsed {
-            ParsedTrigger::BeforeMutation { mutation_name } => {
-                if !schema.mutations.iter().any(|m| m.name == mutation_name) {
-                    failures.push(format!(
-                        "  function `{}`: trigger `{}` names no declared mutation. The chain runs \
-                         keyed on the mutation's name; declared mutations are: {}",
-                        definition.name,
-                        definition.trigger,
-                        name_list(schema.mutations.iter().map(|m| m.name.as_str())),
-                    ));
-                }
+            ParsedTrigger::BeforeMutation { mutation_name }
+                if !schema.mutations.iter().any(|m| m.name == mutation_name) =>
+            {
+                failures.push(format!(
+                    "  function `{}`: trigger `{}` names no declared mutation. The chain runs \
+                     keyed on the mutation's name; declared mutations are: {}",
+                    definition.name,
+                    definition.trigger,
+                    name_list(schema.mutations.iter().map(|m| m.name.as_str())),
+                ));
             },
+            ParsedTrigger::BeforeMutation { .. } => {},
             ParsedTrigger::AfterMutation { entity_type, .. } => {
                 // The dispatcher keys on the *mutation's return type*, not its name
                 // (`plan_after_mutation_dispatch` builds the entity event from

@@ -266,7 +266,7 @@ const TIMESTAMP_TOLERANCE_SECS: u64 = 300;
 /// separately and is not configurable — see `fraiseql_jwks::REFETCH_COOLDOWN`,
 /// which matters more here than on the `[auth]` path because a webhook route is
 /// unauthenticated by construction.
-const JWKS_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(300);
+const JWKS_CACHE_TTL: std::time::Duration = std::time::Duration::from_mins(5);
 
 /// Build every configured route, or refuse.
 ///
@@ -294,7 +294,7 @@ fn build_routes<S: std::hash::BuildHasher>(
     // non-deterministic config error with a non-deterministic message would be no
     // better than the defect.
     let mut sorted: Vec<(&String, &WebhookRouteConfig)> = routes.iter().collect();
-    sorted.sort_by(|(a, _), (b, _)| a.cmp(b));
+    sorted.sort_by_key(|(a, _)| *a);
 
     let mut built: BTreeMap<String, BuiltRoute> = BTreeMap::new();
     for (name, config) in sorted {
