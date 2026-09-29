@@ -73,3 +73,45 @@ mod upload_allow_list_config {
         );
     }
 }
+
+/// The Flight `OptimizedView` path reads a registered view with no row scoping (#716), so
+/// what the registry holds is what any Flight principal can read.
+#[cfg(feature = "arrow")]
+mod view_registry {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use std::sync::Arc;
+
+    use super::super::create_flight_service;
+
+    /// The Flight service the server builds, over the adapter its feature set selects.
+    async fn server_flight_service(url: &str) -> fraiseql_arrow::FraiseQLFlightService {
+        #[cfg(not(feature = "wire-backend"))]
+        let adapter = Arc::new(
+            fraiseql_core::db::postgres::PostgresAdapter::with_pool_size(url, 1)
+                .await
+                .unwrap(),
+        );
+        #[cfg(feature = "wire-backend")]
+        let adapter = Arc::new(fraiseql_core::db::FraiseWireAdapter::new(url));
+        create_flight_service(adapter, &[])
+    }
+
+    /// **Reproduction.** The server's Flight service registered four demo names
+    /// (`va_orders`, `va_users`, `ta_orders`, `ta_users`) whatever the operator declared: a
+    /// database that has such a view served it, unscoped, to every Flight principal.
+    #[tokio::test]
+    #[ignore = "reproduction: the server's Flight registry serves views no operator declared"]
+    async fn the_server_serves_no_flight_view_its_operator_did_not_declare() {
+        let Some(url) = fraiseql_test_support::try_database_url() else {
+            return;
+        };
+        let service = server_flight_service(&url).await;
+        for view in ["va_orders", "va_users", "ta_orders", "ta_users"] {
+            assert!(
+                !service.schema_registry().contains(view),
+                "`{view}` is served though no operator declared it"
+            );
+        }
+    }
+}
