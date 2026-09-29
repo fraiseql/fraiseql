@@ -5687,7 +5687,7 @@ disagreed, and the promise was the part that was wrong.
 - **Read gates are enforced on every path that reads a type**, not only at the root of a
   query: nested selections, projections at any depth, Relay connections, `node`, `_entities`,
   mutation payloads, subscriptions and streams, filters and orderings, idempotent replays
-  and shared-cache headers. See GHSA-TODO for the affected versions and details; the
+  and shared-cache headers. See [GHSA-645f-59rr-6w3p](https://github.com/fraiseql/fraiseql/security/advisories/GHSA-645f-59rr-6w3p) for the affected versions and details; the
   upgrade notes are under *Breaking* above.
 
 - **`DatabaseAdapter::supports_mutations` now defaults to `false`.** An adapter is
