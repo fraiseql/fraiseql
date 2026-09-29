@@ -590,6 +590,33 @@ async fn operations_are_scoped_to_their_submitter() {
     assert_eq!(resp.status().as_u16(), 404, "and cannot be cancelled cross-submitter");
 }
 
+/// **Reproduction (ruling AM).** An `Idempotency-Key` is its submitter's own: another
+/// principal submitting the same key and body gets an operation of its own — one it can read
+/// — not the first submitter's `op_id`, which reads as absent to it, while its own
+/// submission is silently dropped.
+#[tokio::test]
+#[ignore = "reproduction (ruling AM): another submitter is replayed the first one's op_id"]
+async fn another_submitter_under_the_same_key_gets_its_own_operation() {
+    let Some(rig) = boot().await else {
+        eprintln!("SKIP key_owner: no DATABASE_URL");
+        return;
+    };
+    let owner = mint_token("key-owner");
+    let other = mint_token("key-other");
+    let q = "mutation Create($label: String) { createItem(label: $label) { id } }";
+
+    let (_, first) = rig
+        .submit("createItem", q, json!({"label": "shared-key"}), &owner, Some("order-42"))
+        .await;
+    let (code, second) = rig
+        .submit("createItem", q, json!({"label": "shared-key"}), &other, Some("order-42"))
+        .await;
+    assert_eq!(code, 202, "{second}");
+    assert_ne!(second["op_id"], first["op_id"], "replayed another submitter's op_id");
+    let (code, _) = rig.status(second["op_id"].as_str().unwrap(), &other).await;
+    assert_eq!(code, 200, "the operation it was given is its own");
+}
+
 /// The submission gate: anonymous refused; a non-allowlisted operation refused;
 /// a root-field/path mismatch refused.
 #[tokio::test]

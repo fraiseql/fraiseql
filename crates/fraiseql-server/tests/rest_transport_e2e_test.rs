@@ -1209,3 +1209,72 @@ mod export_embedding_refusal {
         assert!(body.contains("\"title\":\"hello\""), "the canned row streamed: {body}");
     }
 }
+
+// ---------------------------------------------------------------------------
+// `Idempotency-Key` is the caller's own (ruling AM)
+// ---------------------------------------------------------------------------
+
+mod idempotency_key_owner {
+    use chrono::{Duration, Utc};
+    use fraiseql_core::{security::AuthenticatedUser, types::UserId};
+    use fraiseql_server::middleware::AuthUser;
+
+    use super::*;
+
+    /// `build_router`, keeping a handle on the adapter to count executions.
+    fn counted_router() -> (axum::Router, Arc<FailingAdapter>) {
+        let entity = json!({"pk_user_id": 42, "name": "Alice", "email": "alice@test.com"});
+        let adapter = Arc::new(
+            FailingAdapter::new()
+                .with_function_response("fn_create_user", mutation_success_row(entity)),
+        );
+        let executor = Arc::new(Executor::new(build_rest_schema(), Arc::clone(&adapter)));
+        let state = AppState::new(executor);
+        let router = rest_router(&state, &RestMountConfig::default()).expect("REST router");
+        (router, adapter)
+    }
+
+    /// `POST /rest/v1/users` under `Idempotency-Key: order-42`, as `sub`.
+    async fn create_as(router: &axum::Router, sub: &str) -> StatusCode {
+        let mut request = Request::builder()
+            .method("POST")
+            .uri("/rest/v1/users")
+            .header("content-type", "application/json")
+            .header("idempotency-key", "order-42")
+            .body(Body::from(
+                serde_json::to_vec(&json!({"name": "Alice", "email": "alice@test.com"})).unwrap(),
+            ))
+            .unwrap();
+        request.extensions_mut().insert(AuthUser(AuthenticatedUser {
+            user_id:      UserId::new(sub),
+            scopes:       Vec::new(),
+            expires_at:   Utc::now() + Duration::hours(1),
+            email:        None,
+            display_name: None,
+            extra_claims: HashMap::new(),
+        }));
+        send_request(router, request).await.0
+    }
+
+    /// Control: the caller that used the key is replayed — its retry does not execute.
+    #[tokio::test]
+    async fn the_caller_that_used_a_key_is_replayed() {
+        let (router, adapter) = counted_router();
+        assert_eq!(create_as(&router, "alice").await, StatusCode::CREATED);
+        let executions = adapter.query_count();
+        assert!(create_as(&router, "alice").await.is_success());
+        assert_eq!(adapter.query_count(), executions, "alice's retry was replayed");
+    }
+
+    /// **Reproduction (ruling AM).** Bob sending alice's key and body is not replayed her
+    /// stored response: his create runs, as his own, as under any other key.
+    #[tokio::test]
+    #[ignore = "reproduction (ruling AM): another caller is replayed a stored response"]
+    async fn another_caller_under_the_same_key_runs_its_own_request() {
+        let (router, adapter) = counted_router();
+        assert_eq!(create_as(&router, "alice").await, StatusCode::CREATED);
+        let executions = adapter.query_count();
+        assert_eq!(create_as(&router, "bob").await, StatusCode::CREATED);
+        assert!(adapter.query_count() > executions, "bob was replayed alice's response");
+    }
+}

@@ -11,7 +11,9 @@
 //! 2. reusing a key with a different body is a 409 conflict, never a silent replay of the wrong
 //!    response;
 //! 3. mutations without a key keep at-will semantics (each request executes);
-//! 4. queries ignore the header entirely (only mutations are deduplicated).
+//! 4. queries ignore the header entirely (only mutations are deduplicated);
+//! 5. a key is the principal's own: another principal sending the same key and body is never served
+//!    the stored response — its request runs as its own, under its own gates.
 
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 #![allow(clippy::missing_panics_doc)] // Reason: test helpers
@@ -20,11 +22,17 @@
 use std::{collections::HashMap, sync::Arc};
 
 use axum::{Router, body::Body, routing::post};
+use chrono::{Duration, Utc};
 use fraiseql_core::{
     runtime::Executor,
     schema::{ArgumentDefinition, FieldType, MutationDefinition},
+    security::AuthenticatedUser,
+    types::UserId,
 };
-use fraiseql_server::routes::graphql::{AppState, graphql_handler};
+use fraiseql_server::{
+    middleware::AuthUser,
+    routes::graphql::{AppState, graphql_handler},
+};
 use fraiseql_test_utils::{failing_adapter::FailingAdapter, schema_builder::TestSchemaBuilder};
 use http::{Request, StatusCode};
 use serde_json::{Value, json};
@@ -55,9 +63,15 @@ fn required_arg(name: &str, ty: FieldType) -> ArgumentDefinition {
 
 /// Build the router plus a handle on the adapter so tests can count executions.
 fn make_router() -> (Router, Arc<FailingAdapter>) {
+    make_router_requiring(None)
+}
+
+/// `make_router`, with `updateUser` requiring `role` when one is given.
+fn make_router_requiring(role: Option<&str>) -> (Router, Arc<FailingAdapter>) {
     let mut mutation = MutationDefinition::new("updateUser", "User");
     mutation.sql_source = Some("fn_updateUser".to_string());
     mutation.arguments = vec![required_arg("id", FieldType::Id)];
+    mutation.requires_role = role.map(ToString::to_string);
 
     let schema = TestSchemaBuilder::new()
         .with_simple_query("users", "User", true)
@@ -83,6 +97,16 @@ const MUTATION: &str = "mutation UpdateUser($id: ID!) { updateUser(id: $id) { id
 
 /// POST a GraphQL body, optionally with an `Idempotency-Key` header.
 async fn post_graphql(router: Router, body: Value, key: Option<&str>) -> (StatusCode, Value) {
+    post_graphql_as(router, body, key, None).await
+}
+
+/// `post_graphql`, as the principal the OIDC middleware would have authenticated.
+async fn post_graphql_as(
+    router: Router,
+    body: Value,
+    key: Option<&str>,
+    auth: Option<AuthUser>,
+) -> (StatusCode, Value) {
     let mut builder = Request::builder()
         .method("POST")
         .uri("/graphql")
@@ -90,10 +114,11 @@ async fn post_graphql(router: Router, body: Value, key: Option<&str>) -> (Status
     if let Some(key) = key {
         builder = builder.header("idempotency-key", key);
     }
-    let response = router
-        .oneshot(builder.body(Body::from(serde_json::to_vec(&body).unwrap())).unwrap())
-        .await
-        .unwrap();
+    let mut request = builder.body(Body::from(serde_json::to_vec(&body).unwrap())).unwrap();
+    if let Some(auth) = auth {
+        request.extensions_mut().insert(auth);
+    }
+    let response = router.oneshot(request).await.unwrap();
     let status = response.status();
     let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
     let json: Value = serde_json::from_slice(&bytes).unwrap();
@@ -187,4 +212,95 @@ async fn queries_ignore_the_idempotency_key_header() {
         adapter.query_count() > count_after_first,
         "a repeated QUERY under an Idempotency-Key must re-execute, never replay"
     );
+}
+
+/// A principal `sub`, holding `roles`.
+fn principal(sub: &str, roles: &[&str]) -> AuthUser {
+    AuthUser(AuthenticatedUser {
+        user_id:      UserId::new(sub),
+        scopes:       Vec::new(),
+        expires_at:   Utc::now() + Duration::hours(1),
+        email:        None,
+        display_name: None,
+        extra_claims: HashMap::from([("roles".to_string(), json!(roles))]),
+    })
+}
+
+/// Control: the principal that stored a response is replayed it — the retry the key is for.
+#[tokio::test]
+async fn the_principal_that_used_a_key_is_replayed_its_response() {
+    let (router, adapter) = make_router_requiring(Some("editor"));
+    let alice = || Some(principal("alice", &["editor"]));
+
+    let (_, first) =
+        post_graphql_as(router.clone(), mutation_body("u-1"), Some("order-42"), alice()).await;
+    assert!(first["data"]["updateUser"].is_object(), "alice may run it: {first}");
+    let executions = adapter.query_count();
+
+    let (status, again) =
+        post_graphql_as(router, mutation_body("u-1"), Some("order-42"), alice()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(again, first, "the stored response");
+    assert_eq!(adapter.query_count(), executions, "not executed again");
+}
+
+/// **Reproduction (ruling AM).** A stored response is a read, and it was produced under the
+/// first caller's gates. Bob, who does not hold the role `updateUser` requires, sends alice's
+/// key and body: he must be refused as he is under any other key — not served her payload.
+#[tokio::test]
+#[ignore = "reproduction (ruling AM): another principal is replayed a stored response"]
+async fn a_stored_response_is_never_replayed_to_another_principal() {
+    let (router, _) = make_router_requiring(Some("editor"));
+
+    let (_, first) = post_graphql_as(
+        router.clone(),
+        mutation_body("u-1"),
+        Some("order-42"),
+        Some(principal("alice", &["editor"])),
+    )
+    .await;
+    assert!(first["data"]["updateUser"].is_object(), "alice may run it: {first}");
+
+    let (_, bobs) = post_graphql_as(
+        router,
+        mutation_body("u-1"),
+        Some("order-42"),
+        Some(principal("bob", &[])),
+    )
+    .await;
+    assert_ne!(bobs, first, "bob was served alice's stored response");
+    assert!(
+        bobs.get("data").and_then(|d| d.get("updateUser")).is_none_or(Value::is_null),
+        "bob may not run `updateUser`: {bobs}"
+    );
+    assert!(bobs["errors"].is_array(), "refused as under any other key: {bobs}");
+}
+
+/// **Reproduction (ruling AM).** Two principals allowed to run the mutation choosing the same
+/// key: the second one's mutation runs — as if it had chosen another key — rather than being
+/// silently swallowed by the first one's entry.
+#[tokio::test]
+#[ignore = "reproduction (ruling AM): another principal's mutation does not run"]
+async fn another_principal_under_the_same_key_runs_its_own_mutation() {
+    let (router, adapter) = make_router_requiring(Some("editor"));
+
+    let (_, first) = post_graphql_as(
+        router.clone(),
+        mutation_body("u-1"),
+        Some("order-42"),
+        Some(principal("alice", &["editor"])),
+    )
+    .await;
+    assert!(first["data"]["updateUser"].is_object(), "{first}");
+    let executions = adapter.query_count();
+
+    let (status, bobs) = post_graphql_as(
+        router,
+        mutation_body("u-1"),
+        Some("order-42"),
+        Some(principal("bob", &["editor"])),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{bobs}");
+    assert!(adapter.query_count() > executions, "bob's mutation was never executed");
 }
