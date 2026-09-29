@@ -2795,6 +2795,10 @@ func (m *FraiseqlCi) integrationObservers(ctx context.Context, source *dagger.Di
 		// about the fixture, and if both ever go red it is the harness that broke.
 		// `--features arrow` for the same #940-class reason as the line above.
 		"cargo test -p fraiseql-server --features arrow --test flight_do_put_outbox_pg -- --ignored --test-threads=1",
+		// Flight `OptimizedView` serves exactly the operator's `flight_views` (the registry the
+		// library pre-fills is emptied by the server). PostgreSQL build: `--features arrow`,
+		// not serverTestFeatures, for the same #940-class reason as the two lines above.
+		"cargo test -p fraiseql-server --features arrow --test flight_views_pg -- --ignored --test-threads=1",
 		// #908/#1001: the three DB-backed Flight suites. They self-skipped on a
 		// missing DATABASE_URL and the test leg has none, so all 31 tests read as
 		// passing while running nothing — and two of the three asserted a

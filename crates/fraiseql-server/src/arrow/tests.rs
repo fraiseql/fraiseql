@@ -80,77 +80,21 @@ mod upload_allow_list_config {
 mod view_registry {
     #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-    use std::sync::Arc;
-
-    use super::super::create_flight_service;
-
-    /// The Flight service the server builds, over the adapter its feature set selects.
-    async fn server_flight_service(url: &str) -> fraiseql_arrow::FraiseQLFlightService {
-        #[cfg(not(feature = "wire-backend"))]
-        let adapter = Arc::new(
-            fraiseql_core::db::postgres::PostgresAdapter::with_pool_size(url, 1)
-                .await
-                .unwrap(),
-        );
-        #[cfg(feature = "wire-backend")]
-        let adapter = Arc::new(fraiseql_core::db::FraiseWireAdapter::new(url));
-        create_flight_service(adapter, &[])
-    }
-
-    /// **Reproduction.** The server's Flight service registered four demo names
-    /// (`va_orders`, `va_users`, `ta_orders`, `ta_users`) whatever the operator declared: a
-    /// database that has such a view served it, unscoped, to every Flight principal.
-    #[tokio::test]
-    async fn the_server_serves_no_flight_view_its_operator_did_not_declare() {
-        let Some(url) = fraiseql_test_support::try_database_url() else {
-            return;
-        };
-        let service = server_flight_service(&url).await;
+    /// The wire-backend service the server builds. Database-free: the wire adapter does not
+    /// connect until it reads, and the registry is decided at construction. The PostgreSQL
+    /// build is pinned against a real database in `tests/flight_views_pg.rs`.
+    #[cfg(feature = "wire-backend")]
+    #[test]
+    fn the_wire_backend_flight_service_serves_no_view_its_operator_did_not_declare() {
+        let adapter =
+            std::sync::Arc::new(fraiseql_core::db::FraiseWireAdapter::new("postgres://unused"));
+        let service = super::super::create_flight_service(adapter, &[]);
         for view in ["va_orders", "va_users", "ta_orders", "ta_users"] {
             assert!(
                 !service.schema_registry().contains(view),
                 "`{view}` is served though no operator declared it"
             );
         }
-    }
-
-    /// A declared view that exists and has a row is served; one that does not exist is not;
-    /// nothing else is. PostgreSQL backend only: the wire adapter reads no arbitrary SQL, so
-    /// under `wire-backend` no view can be typed and none is served.
-    #[cfg(not(feature = "wire-backend"))]
-    #[tokio::test]
-    async fn the_server_serves_exactly_the_flight_views_its_operator_declared() {
-        use fraiseql_core::db::DatabaseAdapter as _;
-
-        let Some(url) = fraiseql_test_support::try_database_url() else {
-            return;
-        };
-        let pg = fraiseql_core::db::postgres::PostgresAdapter::with_pool_size(&url, 1)
-            .await
-            .unwrap();
-        pg.execute_raw_query(
-            "CREATE OR REPLACE VIEW p_flight_declared AS SELECT 1::bigint AS id, 'a'::text AS label",
-        )
-        .await
-        .unwrap();
-
-        let service = server_flight_service(&url).await;
-        let served = super::super::register_flight_views(
-            &service,
-            &[
-                "p_flight_declared".to_string(),
-                "p_flight_absent".to_string(),
-            ],
-        )
-        .await;
-
-        pg.execute_raw_query("DROP VIEW p_flight_declared").await.unwrap();
-        assert_eq!(served, ["p_flight_declared"]);
-        let registry = service.schema_registry();
-        assert!(registry.contains("p_flight_declared"));
-        assert!(!registry.contains("p_flight_absent"));
-        assert!(!registry.contains("va_users"));
-        assert_eq!(registry.len(), 1, "exactly the declared, readable view");
     }
 
     /// A view name reaches SQL: only a plain identifier is accepted, at config validation.
