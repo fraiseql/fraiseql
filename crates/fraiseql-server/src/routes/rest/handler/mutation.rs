@@ -152,13 +152,15 @@ impl RestHandler<'_> {
         // store. Used verbatim — as it was — a client-chosen opaque string collided across
         // everything sharing the process: the same key and body on two resources replayed
         // each other's stored response, and two tenants retrying an identical request
-        // under a natural key such as `order-42` received each other's results.
+        // under a natural key such as `order-42` received each other's results. Scoped by
+        // principal too: a stored response was produced under its caller's gates.
         let idempotency_scope = super::super::idempotency::IdempotencyScope {
-            tenant: security_context
+            tenant:    security_context
                 .and_then(|c| c.tenant_id.as_ref())
                 .map(|t| t.as_str().to_string()),
-            method: "POST".to_string(),
-            path:   resolved.route.path.clone(),
+            principal: security_context.map(|c| c.user_id.to_string()),
+            method:    "POST".to_string(),
+            path:      resolved.route.path.clone(),
         };
         let idempotency_key = headers
             .get("idempotency-key")

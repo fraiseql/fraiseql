@@ -201,9 +201,10 @@ async fn submit(
     // operation. A different body under the same key is a conflict.
     let idempotency = headers.get("idempotency-key").and_then(|v| v.to_str().ok()).map(|k| {
         let scope = IdempotencyScope {
-            tenant: tenant_key.clone(),
-            method: "POST".to_string(),
-            path:   format!("/operations/v1/{operation}"),
+            tenant:    tenant_key.clone(),
+            principal: Some(ctx.user_id.to_string()),
+            method:    "POST".to_string(),
+            path:      format!("/operations/v1/{operation}"),
         };
         let body_hash = hash_body(&json!({ "query": body.query, "variables": body.variables }));
         (scope.key(k), body_hash)

@@ -595,7 +595,6 @@ async fn operations_are_scoped_to_their_submitter() {
 /// — not the first submitter's `op_id`, which reads as absent to it, while its own
 /// submission is silently dropped.
 #[tokio::test]
-#[ignore = "reproduction (ruling AM): another submitter is replayed the first one's op_id"]
 async fn another_submitter_under_the_same_key_gets_its_own_operation() {
     let Some(rig) = boot().await else {
         eprintln!("SKIP key_owner: no DATABASE_URL");

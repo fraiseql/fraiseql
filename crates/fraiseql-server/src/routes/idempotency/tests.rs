@@ -13,9 +13,10 @@ fn make_store(ttl_secs: u64) -> InMemoryIdempotencyStore {
 /// store rather than the scoping rules (which have their own tests below).
 fn scope() -> IdempotencyScope {
     IdempotencyScope {
-        tenant: Some("tenant-a".to_string()),
-        method: "POST".to_string(),
-        path:   "/users".to_string(),
+        tenant:    Some("tenant-a".to_string()),
+        principal: Some("alice".to_string()),
+        method:    "POST".to_string(),
+        path:      "/users".to_string(),
     }
 }
 
@@ -189,9 +190,10 @@ async fn the_same_client_key_does_not_cross_resources() {
     let hash = hash_body(&body);
 
     let users = IdempotencyScope {
-        tenant: Some("tenant-a".to_string()),
-        method: "POST".to_string(),
-        path:   "/users".to_string(),
+        tenant:    Some("tenant-a".to_string()),
+        principal: None,
+        method:    "POST".to_string(),
+        path:      "/users".to_string(),
     };
     let orders = IdempotencyScope {
         path: "/orders".to_string(),
@@ -217,9 +219,10 @@ async fn the_same_client_key_does_not_cross_tenants() {
     let hash = hash_body(&json!({"sku": "X", "qty": 1}));
 
     let a = IdempotencyScope {
-        tenant: Some("tenant-a".to_string()),
-        method: "POST".to_string(),
-        path:   "/orders".to_string(),
+        tenant:    Some("tenant-a".to_string()),
+        principal: None,
+        method:    "POST".to_string(),
+        path:      "/orders".to_string(),
     };
     let b = IdempotencyScope {
         tenant: Some("tenant-b".to_string()),
@@ -241,9 +244,10 @@ async fn the_same_client_key_does_not_cross_methods() {
     let hash = hash_body(&json!({}));
 
     let post = IdempotencyScope {
-        tenant: None,
-        method: "POST".to_string(),
-        path:   "/users".to_string(),
+        tenant:    None,
+        principal: None,
+        method:    "POST".to_string(),
+        path:      "/users".to_string(),
     };
     let put = IdempotencyScope {
         method: "PUT".to_string(),
@@ -260,14 +264,73 @@ async fn the_same_client_key_does_not_cross_methods() {
 #[test]
 fn scope_segments_cannot_be_forged_into_one_another() {
     let a = IdempotencyScope {
-        tenant: Some("ab".to_string()),
-        method: "POST".to_string(),
-        path:   "/x".to_string(),
+        tenant:    Some("ab".to_string()),
+        principal: None,
+        method:    "POST".to_string(),
+        path:      "/x".to_string(),
     };
     let b = IdempotencyScope {
-        tenant: Some("a".to_string()),
-        method: "bPOST".to_string(),
-        path:   "/x".to_string(),
+        tenant:    Some("a".to_string()),
+        principal: None,
+        method:    "bPOST".to_string(),
+        path:      "/x".to_string(),
     };
     assert_ne!(a.key("k").as_str(), b.key("k").as_str());
+
+    // Nor can a principal be shifted into the tenant, or an empty subject pass for the
+    // anonymous caller.
+    let c = IdempotencyScope {
+        tenant:    Some("a".to_string()),
+        principal: Some("b".to_string()),
+        method:    "POST".to_string(),
+        path:      "/x".to_string(),
+    };
+    let d = IdempotencyScope {
+        tenant: Some("a@b".to_string()),
+        principal: None,
+        ..c.clone()
+    };
+    assert_ne!(c.key("k").as_str(), d.key("k").as_str());
+    let empty = IdempotencyScope {
+        principal: Some(String::new()),
+        ..d.clone()
+    };
+    let anonymous = IdempotencyScope {
+        principal: None,
+        ..d
+    };
+    assert_ne!(empty.key("k").as_str(), anonymous.key("k").as_str());
+}
+
+/// The same client key and body from two principals of one tenant must not cross-replay:
+/// the stored response was produced under the first principal's gates (ruling AM).
+#[tokio::test]
+async fn the_same_client_key_does_not_cross_principals() {
+    let store = make_store(3600);
+    let hash = hash_body(&json!({"sku": "X", "qty": 1}));
+
+    let alice = scope();
+    let bob = IdempotencyScope {
+        principal: Some("bob".to_string()),
+        ..scope()
+    };
+    let anonymous = IdempotencyScope {
+        principal: None,
+        ..scope()
+    };
+
+    store.store(alice.key("order-42"), hash, make_response()).await;
+
+    assert!(
+        matches!(store.check(&bob.key("order-42"), hash).await, IdempotencyCheck::New),
+        "bob must not receive alice's stored response"
+    );
+    assert!(
+        matches!(store.check(&anonymous.key("order-42"), hash).await, IdempotencyCheck::New),
+        "nor an anonymous caller"
+    );
+    assert!(
+        matches!(store.check(&alice.key("order-42"), hash).await, IdempotencyCheck::Replay(_)),
+        "alice's retry still replays"
+    );
 }

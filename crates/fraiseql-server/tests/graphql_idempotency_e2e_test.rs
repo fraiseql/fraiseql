@@ -248,7 +248,6 @@ async fn the_principal_that_used_a_key_is_replayed_its_response() {
 /// first caller's gates. Bob, who does not hold the role `updateUser` requires, sends alice's
 /// key and body: he must be refused as he is under any other key — not served her payload.
 #[tokio::test]
-#[ignore = "reproduction (ruling AM): another principal is replayed a stored response"]
 async fn a_stored_response_is_never_replayed_to_another_principal() {
     let (router, _) = make_router_requiring(Some("editor"));
 
@@ -280,7 +279,6 @@ async fn a_stored_response_is_never_replayed_to_another_principal() {
 /// key: the second one's mutation runs — as if it had chosen another key — rather than being
 /// silently swallowed by the first one's entry.
 #[tokio::test]
-#[ignore = "reproduction (ruling AM): another principal's mutation does not run"]
 async fn another_principal_under_the_same_key_runs_its_own_mutation() {
     let (router, adapter) = make_router_requiring(Some("editor"));
 

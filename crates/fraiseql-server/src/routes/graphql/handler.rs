@@ -484,15 +484,17 @@ async fn execute_graphql_request(
     // the saga at-least-once dispatch contract — a peer coordinator re-sends a
     // step's mutation under the same key after an ambiguous failure (timeout,
     // connection reset after send) or a crash-recovery replay, and this check
-    // is what turns those re-sends into one logical effect. Scoped by tenant so
-    // keys can never replay across tenants; mutations only arrive via POST (the
-    // GET handler rejects them).
+    // is what turns those re-sends into one logical effect. Scoped by tenant and
+    // by principal, so a key never replays across tenants nor to a caller other
+    // than the one whose gates produced the stored response; mutations only
+    // arrive via POST (the GET handler rejects them).
     let idempotency_key = if detect_mutation_name(&query).is_some() {
         headers.get("idempotency-key").and_then(|v| v.to_str().ok()).map(|client_key| {
             let scope = crate::routes::idempotency::IdempotencyScope {
-                tenant: tenant_key.clone(),
-                method: "POST".to_string(),
-                path:   "/graphql".to_string(),
+                tenant:    tenant_key.clone(),
+                principal: security_context.as_ref().map(|c| c.user_id.to_string()),
+                method:    "POST".to_string(),
+                path:      "/graphql".to_string(),
             };
             let body_hash = crate::routes::idempotency::hash_body(&serde_json::json!({
                 "query": query,

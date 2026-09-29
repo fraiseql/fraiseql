@@ -1269,7 +1269,6 @@ mod idempotency_key_owner {
     /// **Reproduction (ruling AM).** Bob sending alice's key and body is not replayed her
     /// stored response: his create runs, as his own, as under any other key.
     #[tokio::test]
-    #[ignore = "reproduction (ruling AM): another caller is replayed a stored response"]
     async fn another_caller_under_the_same_key_runs_its_own_request() {
         let (router, adapter) = counted_router();
         assert_eq!(create_as(&router, "alice").await, StatusCode::CREATED);

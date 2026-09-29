@@ -229,28 +229,55 @@ pub fn hash_body(body: &Value) -> u64 {
 ///
 /// The scope is a parameter of the store operations rather than something the caller
 /// pre-hashes, so an implementation cannot silently omit it.
+///
+/// A key is also the **principal's** own. A stored response is a read, produced under the
+/// gates of the caller that stored it — its role, its actor class, the #422 decision, its row
+/// policy and field scopes over the payload — and a replay runs none of them. Scoped by
+/// tenant alone, any principal of the tenant that sent the same key and body was served that
+/// response, for a mutation it might not even be allowed to run, and its own request was
+/// swallowed. Another principal under the same key now addresses its own entry: its request
+/// runs as its own, as under any other key.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct IdempotencyScope {
     /// Tenant the request belongs to, when the deployment resolves one.
-    pub tenant: Option<String>,
+    pub tenant:    Option<String>,
+    /// The authenticated subject that sent the request (`SecurityContext::user_id`), `None`
+    /// for an anonymous caller — anonymous callers are one principal to every gate.
+    ///
+    /// Required rather than defaulted for the reason [`ScopedIdempotencyKey`] is a newtype:
+    /// every construction site must say whose key it is.
+    pub principal: Option<String>,
     /// HTTP method, so a key cannot cross verbs.
-    pub method: String,
+    pub method:    String,
     /// Resolved resource path, so a key cannot cross resources.
-    pub path:   String,
+    pub path:      String,
 }
 
 impl IdempotencyScope {
     /// Compose the storage key for a client-supplied `Idempotency-Key`.
     ///
-    /// Segments are length-prefixed so no combination of tenant, method, path and key can
-    /// be forged into another by embedding the separator.
+    /// Segments are length-prefixed so no combination of tenant, principal, method, path and
+    /// key can be forged into another by embedding the separator. A principal is marked, so
+    /// no subject — not even an empty one — composes the anonymous caller's key.
     #[must_use]
     pub fn key(&self, client_key: &str) -> ScopedIdempotencyKey {
         let tenant = self.tenant.as_deref().unwrap_or("");
+        let principal = self.principal.as_deref().map_or_else(String::new, |p| format!("@{p}"));
         let mut out = String::with_capacity(
-            tenant.len() + self.method.len() + self.path.len() + client_key.len() + 16,
+            tenant.len()
+                + principal.len()
+                + self.method.len()
+                + self.path.len()
+                + client_key.len()
+                + 20,
         );
-        for segment in [tenant, self.method.as_str(), self.path.as_str(), client_key] {
+        for segment in [
+            tenant,
+            principal.as_str(),
+            self.method.as_str(),
+            self.path.as_str(),
+            client_key,
+        ] {
             out.push_str(&segment.len().to_string());
             out.push(':');
             out.push_str(segment);
