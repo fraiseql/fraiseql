@@ -1277,3 +1277,80 @@ mod idempotency_key_owner {
         assert!(adapter.query_count() > executions, "bob was replayed alice's response");
     }
 }
+
+// ---------------------------------------------------------------------------
+// A read shaped by a principal is never marked shareable (ruling AM 5)
+// ---------------------------------------------------------------------------
+
+mod cache_visibility {
+    use chrono::{Duration, Utc};
+    use fraiseql_core::{security::AuthenticatedUser, types::UserId};
+    use fraiseql_server::middleware::AuthUser;
+
+    use super::*;
+
+    /// `GET /rest/v1/users` over a schema that lets shared caches keep public reads for
+    /// ten minutes, as `auth` (when given) with `extra` request headers.
+    async fn cache_control(auth: Option<&str>, extra: &[(&str, &str)]) -> String {
+        let users = vec![JsonbValue::new(
+            json!({"pk_user_id": 1, "name": "Alice", "email": "a@t.com"}),
+        )];
+        let adapter = FailingAdapter::new().with_response("v_user", users);
+        let mut schema = build_rest_schema();
+        let rest = schema.rest_config.as_mut().unwrap();
+        rest.default_cache_ttl = 60;
+        rest.cdn_max_age = Some(600);
+        let router = build_router(adapter, schema);
+
+        let mut builder = Request::builder().uri("/rest/v1/users");
+        for (key, value) in extra {
+            builder = builder.header(*key, *value);
+        }
+        let mut request = builder.body(Body::empty()).unwrap();
+        if let Some(sub) = auth {
+            request.extensions_mut().insert(AuthUser(AuthenticatedUser {
+                user_id:      UserId::new(sub),
+                scopes:       Vec::new(),
+                expires_at:   Utc::now() + Duration::hours(1),
+                email:        None,
+                display_name: None,
+                extra_claims: HashMap::new(),
+            }));
+        }
+        let (status, headers, _) = send_request(&router, request).await;
+        assert_eq!(status, StatusCode::OK, "the read is served");
+        headers.get("cache-control").unwrap().to_str().unwrap().to_string()
+    }
+
+    /// Control: an anonymous read is the same for every anonymous caller — public.
+    #[tokio::test]
+    async fn an_anonymous_read_is_public() {
+        let value = cache_control(None, &[]).await;
+        assert!(value.starts_with("public") && value.contains("s-maxage=600"), "{value}");
+    }
+
+    /// Control: a bearer-authenticated read is private.
+    #[tokio::test]
+    async fn a_bearer_authenticated_read_is_private() {
+        let value = cache_control(Some("alice"), &[("authorization", "Bearer t")]).await;
+        assert!(value.starts_with("private") && !value.contains("s-maxage"), "{value}");
+    }
+
+    /// **Reproduction (ruling AM 5).** The OIDC middleware also authenticates by the
+    /// `__Host-access_token` cookie, and the HS256 layer a service account by `x-api-key`,
+    /// neither with an `Authorization` header. Their reads are shaped by their principal —
+    /// its row policy, its scopes — and must not be offered to shared caches, which key on
+    /// the URL (`Vary` names neither header).
+    #[tokio::test]
+    #[ignore = "reproduction (ruling AM 5): a cookie- or key-authenticated read is public"]
+    async fn a_read_authenticated_without_an_authorization_header_is_private() {
+        for extra in [("cookie", "__Host-access_token=t"), ("x-api-key", "k")] {
+            let value = cache_control(Some("alice"), &[extra]).await;
+            assert!(
+                value.starts_with("private") && !value.contains("s-maxage"),
+                "{}: {value}",
+                extra.0
+            );
+        }
+    }
+}
