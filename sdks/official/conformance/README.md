@@ -55,7 +55,8 @@ python3 sdks/official/conformance/run.py --cli target/debug/fraiseql-cli
 
 Add `--sdk go --sdk php` to narrow. Add `--require-all` to turn "toolchain missing" into a
 failure rather than a skip — **CI uses this**, because a skipped SDK reads exactly like a
-passing one in a log.
+passing one in a log. CI also passes `--no-container`: it installs every toolchain natively,
+so a broken setup step must fail rather than fall back to docker.
 
 You do not need eleven language runtimes: any SDK whose toolchain is absent is run in the
 container named in `manifest.json`, cached under `~/.cache/fraiseql-conformance` — every

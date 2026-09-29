@@ -111,11 +111,14 @@ jobs:
       # `--require-all` turns "toolchain missing" into a failure. Without it a broken
       # setup step downgrades an SDK to SKIP, and a skipped SDK reads exactly like a
       # passing one in a log — the failure mode this whole suite exists to end.
+      # `--no-container` keeps it a failure: the runner has docker, and without the flag
+      # an SDK whose setup step broke would quietly run in its manifest container.
       - name: Conformance
         run: |
           python3 sdks/official/conformance/run.py \
             --cli target/debug/fraiseql-cli \
-            --require-all
+            --require-all \
+            --no-container
 
       # --- every schema an example emits must compile --------------------------------
       # A separate failure surface from the authoring APIs above: an example can use a

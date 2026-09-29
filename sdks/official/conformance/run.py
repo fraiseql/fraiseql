@@ -385,6 +385,13 @@ def main() -> int:
         help="treat an unrunnable SDK as a failure instead of a skip (use this in CI: a "
         "skipped SDK reads exactly like a passing one in a log)",
     )
+    parser.add_argument(
+        "--no-container",
+        action="store_true",
+        help="never fall back to an SDK's container: a missing toolchain is then unrunnable "
+        "(use this in CI, which installs every toolchain natively, so a broken setup step "
+        "fails instead of silently running in docker)",
+    )
     args = parser.parse_args()
 
     cli = Path(args.cli).resolve()
@@ -404,6 +411,8 @@ def main() -> int:
     failed = []
     for sdk in selected:
         spec = manifest["sdks"][sdk]
+        if args.no_container:
+            spec = {key: value for key, value in spec.items() if key != "container"}
         runnable = not spec.get("requires") or shutil.which(spec["requires"])
         if not runnable and spec.get("container") and shutil.which("docker"):
             runnable = True
