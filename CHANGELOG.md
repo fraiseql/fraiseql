@@ -16,6 +16,8 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+## [2.15.0] - 2026-09-30
+
 ### Breaking
 
 - **Minimum Rust version 1.95.0** (was 1.94.1): `fraiseql-functions`' WebAssembly runtime moves
@@ -19571,7 +19573,7 @@ being written.
 link for it would be a guaranteed 404. An undefined reference renders as literal
 text, which is the honest outcome; a broken link is not.
 -->
-[Unreleased]: https://github.com/fraiseql/fraiseql/compare/v2.14.1...HEAD
+[Unreleased]: https://github.com/fraiseql/fraiseql/compare/v2.15.0...HEAD
 [2.15.0]: https://github.com/fraiseql/fraiseql/compare/v2.14.1...v2.15.0
 [2.14.1]: https://github.com/fraiseql/fraiseql/compare/v2.14.0...v2.14.1
 [2.14.0]: https://github.com/fraiseql/fraiseql/compare/v2.13.1...v2.14.0
