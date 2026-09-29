@@ -35,12 +35,16 @@
       "dir": "fraiseql-typescript",
       "requires": "npx",
       "export": [
-        "npx",
-        "--yes",
-        "tsx",
-        "conformance/export.ts"
+        "sh",
+        "-c",
+        "{ [ -d node_modules ] || npm ci --no-audit --no-fund --loglevel=error >/dev/null; } && npx --yes tsx conformance/export.ts"
       ],
-      "unsupported": {}
+      "unsupported": {},
+      "container": "node:22",
+      "container_env": [
+        "HOME=/conformance-cache/node",
+        "npm_config_cache=/conformance-cache/node/npm"
+      ]
     },
     "go": {
       "dir": "fraiseql-go",
@@ -58,12 +62,18 @@
       "dir": "fraiseql-php",
       "requires": "php",
       "export": [
-        "php",
-        "conformance/export.php"
+        "sh",
+        "-c",
+        "{ [ -d vendor ] || composer install --prefer-dist --no-progress --no-interaction --quiet; } && php conformance/export.php"
       ],
       "unsupported": {
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
-      }
+      },
+      "container": "composer:2",
+      "container_env": [
+        "HOME=/conformance-cache/php",
+        "COMPOSER_HOME=/conformance-cache/php/composer"
+      ]
     },
     "java": {
       "dir": "fraiseql-java",
@@ -99,7 +109,15 @@
       "unsupported": {
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
-      }
+      },
+      "container": "mcr.microsoft.com/dotnet/sdk:9.0",
+      "container_env": [
+        "HOME=/conformance-cache/dotnet",
+        "DOTNET_CLI_HOME=/conformance-cache/dotnet",
+        "NUGET_PACKAGES=/conformance-cache/dotnet/nuget",
+        "DOTNET_NOLOGO=1",
+        "DOTNET_CLI_TELEMETRY_OPTOUT=1"
+      ]
     },
     "fsharp": {
       "dir": "fraiseql-fsharp",
@@ -116,7 +134,15 @@
       "unsupported": {
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
         "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
-      }
+      },
+      "container": "mcr.microsoft.com/dotnet/sdk:9.0",
+      "container_env": [
+        "HOME=/conformance-cache/dotnet",
+        "DOTNET_CLI_HOME=/conformance-cache/dotnet",
+        "NUGET_PACKAGES=/conformance-cache/dotnet/nuget",
+        "DOTNET_NOLOGO=1",
+        "DOTNET_CLI_TELEMETRY_OPTOUT=1"
+      ]
     },
     "elixir": {
       "dir": "fraiseql-elixir",

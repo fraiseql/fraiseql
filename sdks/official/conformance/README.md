@@ -58,7 +58,10 @@ failure rather than a skip — **CI uses this**, because a skipped SDK reads exa
 passing one in a log.
 
 You do not need eleven language runtimes: any SDK whose toolchain is absent is run in the
-container named in `manifest.json`, cached under `~/.cache/fraiseql-conformance`. Set
+container named in `manifest.json`, cached under `~/.cache/fraiseql-conformance` — every
+SDK but Python (uv), Go and Rust, which need their toolchain. An export that
+needs installed dependencies (`node_modules`, `vendor`, hex/pub packages) installs them
+itself when they are absent, so for those SDKs a fresh clone needs docker alone. Set
 `FRAISEQL_CONFORMANCE_FORCE_CONTAINER=java` (or `=1` for all) when a toolchain is present
 but unusable — a box with a JRE has `mvn` on `$PATH` and still cannot compile, and the
 resulting error reads like an SDK defect rather than a local one.
