@@ -121,9 +121,9 @@ reason = "aws-runtime 1.9 → http-body 0.4, same cause as the http 0.2 entry; w
 version = "=0.4.6"
 
 [[bans.skip]]
-name = "socket2"
-reason = "hyper-util 0.1 (via aws-smithy-http-client) → socket2 0.5; workspace on 0.6 (#1111)"
-version = "=0.5.10"
+name = "io-lifetimes"
+reason = "wasmtime-wasi 48 → cap-primitives 4 (io-lifetimes 3) and cap-primitives → fs-set-times 0.20 (io-lifetimes 2): both inside wasmtime-wasi's own tree, which the wasmtime skip-tree does not root"
+version = "=2.0.4"
 
 [[bans.skip]]
 name = "async-channel"
@@ -353,7 +353,7 @@ version = "=1.0.2"
 [[bans.skip-tree]]
 name = "wasmtime"
 reason = "wasmtime pulls in older debug utilities (addr2line, gimli, object, etc.) via backtrace/dhat, plus its own wasm-tooling versions (wasm-encoder, wasmparser, wast). NOTE: this is an exact-version pin — a wasmtime bump that forgets to move it un-skips the whole tree and reports every duplicate under it as an unrelated-looking storm (#933). That is now caught at the source: every call site passes -D unmatched-skip-root, so a pin matching nothing fails the run instead of warning under the storm (#1020)."
-version = "=46.0.3"
+version = "=48.0.3"
 
 [[bans.skip-tree]]
 name = "windows-sys"

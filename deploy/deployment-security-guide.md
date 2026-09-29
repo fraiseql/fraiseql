@@ -30,7 +30,7 @@
 ### What is actually shipped
 
 **Runtime image**: `debian:bookworm-slim`, carrying one statically-configured Rust binary.
-The builder stage is `rust:1.94.1-slim`; nothing from it reaches the runtime image. The
+The builder stage is `rust:1.95.0-slim`; nothing from it reaches the runtime image. The
 builder installs `curl`, `ca-certificates` and `g++` — build-only prerequisites for the
 `v8` crate, which downloads a prebuilt static archive — and the runtime stage copies only
 the binary, so none of them ships.
@@ -597,7 +597,7 @@ kubectl run -n fraiseql-production test-pod \
 
    ```bash
    # Pull the latest base images (builder and runtime)
-   docker pull rust:1.94.1-slim
+   docker pull rust:1.95.0-slim
    docker pull debian:bookworm-slim
 
    # Rebuild

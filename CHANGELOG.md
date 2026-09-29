@@ -18,6 +18,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Minimum Rust version 1.95.0** (was 1.94.1): `fraiseql-functions`' WebAssembly runtime moves
+  to wasmtime 48, which requires it (see *Security*). The release Docker image builds on
+  `rust:1.95.0-slim`.
+
 - **Every read gate applies at every level a read reaches.** (See the security advisory
   linked under *Security*.)
 
@@ -5675,6 +5679,10 @@ disagreed, and the promise was the part that was wrong.
   fixture to extend.
 
 ### Security
+
+- **wasmtime 48.0.3** (was 46.0.3) for the `runtime-wasm` feature of `fraiseql-functions`:
+  fixes RUSTSEC-2026-0314 (a guest can panic the host through a filesystem datetime overflow)
+  and RUSTSEC-2026-0316 (dynamic record lifting can allocate beyond the hostcall fuel limit).
 
 - **Read gates are enforced on every path that reads a type**, not only at the root of a
   query: nested selections, projections at any depth, Relay connections, `node`, `_entities`,

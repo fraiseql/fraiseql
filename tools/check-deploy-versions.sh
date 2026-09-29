@@ -70,7 +70,7 @@ fail() {
 }
 
 # ── Dockerfile OCI version label ─────────────────────────────────────────────
-# ⚠ Anchored on the LABEL key. `Dockerfile:8` is `FROM rust:1.94.1-slim`, and a
+# ⚠ Anchored on the LABEL key. `Dockerfile:8` is `FROM rust:1.95.0-slim`, and a
 # version-shaped match anywhere in the file would rewrite the toolchain pin — which is
 # #1107's subject, not this gate's.
 label="$(grep -oE 'org\.opencontainers\.image\.version="[^"]+"' "$DOCKERFILE" \

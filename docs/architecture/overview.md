@@ -519,7 +519,7 @@ struct MockDatabaseAdapter {
 }
 
 // Note: #[async_trait] is currently required for dyn-compatible async traits.
-// Native dyn-async-trait with Send is not yet stable in Rust 1.94.1 (MSRV),
+// Native dyn-async-trait with Send is not yet stable in Rust 1.95.0 (MSRV),
 // and dynosaur is incompatible due to Tokio's Send requirement on futures.
 #[async_trait]
 impl DatabaseAdapter for MockDatabaseAdapter {

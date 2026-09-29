@@ -63,13 +63,15 @@ jobs:
           # the job. The string is double-quoted, so a backtick in there would also run as
           # command substitution. Keep prose out here.
           #
-          # Both the floating rust:1.94 and the patch-pinned rust:1.94.1 are mirrored.
-          # Docker's rust:1.94 tracks the newest 1.94.x, so a leg pinned to it silently
-          # stops testing the rust-version we declare the day 1.94.2 ships; .dagger pins
-          # the exact patch, and the floating tag stays so an older checkout still resolves.
+          # Both the floating rust:1.95 and the patch-pinned rust:1.95.0 are mirrored (the
+          # MSRV), and the 1.94 pair stays so an older checkout still resolves. Docker's
+          # rust:1.95 tracks the newest 1.95.x, so a leg pinned to it silently stops testing
+          # the rust-version we declare the day 1.95.1 ships; .dagger pins the exact patch.
           IMAGES="
           docker.io/library/rust:1.94|ghcr.io/fraiseql/rust:1.94
           docker.io/library/rust:1.94.1|ghcr.io/fraiseql/rust:1.94.1
+          docker.io/library/rust:1.95|ghcr.io/fraiseql/rust:1.95
+          docker.io/library/rust:1.95.0|ghcr.io/fraiseql/rust:1.95.0
           docker.io/library/ubuntu:24.04|ghcr.io/fraiseql/ubuntu:24.04
           docker.io/library/postgres:16|ghcr.io/fraiseql/postgres:16
           docker.io/pgvector/pgvector:pg16|ghcr.io/fraiseql/pgvector:pg16
