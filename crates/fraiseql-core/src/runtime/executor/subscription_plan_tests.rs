@@ -651,3 +651,104 @@ fn a_subscriber_is_not_told_another_tenants_id_and_an_empty_envelope_is_not_sent
     });
     assert_eq!(delivered_envelope(&principal(&[]), json!({}), event), None);
 }
+
+// ── A subscription and a stream read their type as its own read does ─────────────────────
+//
+// Their roots deliver the type's rows, so they are refused what the type's own read (its
+// list query) refuses — its `requires_role` and its `requires_actor` — as a nested level of
+// the type is; and a stream asks the #422 authorizer as the resource's `GET` does.
+
+/// `schema()` with `Order { id, note }` and `orders: [Order]`, the type's own read, requiring
+/// `role` / `actor`.
+fn schema_with_own_read(
+    role: Option<&str>,
+    actor: &[crate::security::ActorType],
+) -> CompiledSchema {
+    let mut schema = schema();
+    // No `Reject` and no `authorize` field: a whole-type stream is not refused on their account.
+    schema.types[0].fields.retain(|f| f.name == "id" || f.name == "note");
+    let mut orders = crate::schema::QueryDefinition::new("orders", "Order")
+        .returning_list()
+        .with_sql_source("v_order");
+    orders.requires_role = role.map(ToString::to_string);
+    orders.requires_actor = actor.to_vec();
+    schema.queries.push(orders);
+    schema.build_indexes();
+    schema
+}
+
+/// **Reproduction.** `Order` is ungated; `orders` requires `clerk`.
+#[test]
+#[ignore = "reproduction: a subscription root skips its type's own read's role"]
+fn a_subscription_and_a_stream_are_refused_their_types_own_reads_role() {
+    let exec = executor(schema_with_own_read(Some("clerk"), &[]), RuntimeConfig::default());
+    let err =
+        plan(&exec, "subscription { orderCreated { id } }", &json!({}), Some(&principal(&[])))
+            .unwrap_err();
+    assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+    let err = exec.plan_type_stream("Order", Some(&principal(&[]))).unwrap_err();
+    assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+
+    let clerk = principal(&["clerk"]);
+    plan(&exec, "subscription { orderCreated { id } }", &json!({}), Some(&clerk))
+        .expect("the role's holder may subscribe");
+    exec.plan_type_stream("Order", Some(&clerk))
+        .expect("the role's holder may stream");
+}
+
+/// **Reproduction.** `orders` is restricted to service accounts.
+#[test]
+#[ignore = "reproduction: a subscription root skips its type's own read's actor restriction"]
+fn a_subscription_and_a_stream_are_refused_their_types_own_reads_actor_restriction() {
+    use crate::security::ActorType;
+    let exec = executor(
+        schema_with_own_read(None, &[ActorType::ServiceAccount]),
+        RuntimeConfig::default(),
+    );
+    let human = principal(&[]);
+    let err =
+        plan(&exec, "subscription { orderCreated { id } }", &json!({}), Some(&human)).unwrap_err();
+    assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+    let err = exec.plan_type_stream("Order", Some(&human)).unwrap_err();
+    assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+
+    let service = principal(&[]).with_actor_type(ActorType::ServiceAccount);
+    plan(&exec, "subscription { orderCreated { id } }", &json!({}), Some(&service))
+        .expect("a service account may subscribe");
+    exec.plan_type_stream("Order", Some(&service))
+        .expect("a service account may stream");
+}
+
+/// Denies every read of `orders`.
+struct DenyOrderReads;
+
+impl crate::security::Authorizer for DenyOrderReads {
+    fn authorize(
+        &self,
+        req: &crate::security::AuthzRequest<'_>,
+    ) -> Result<crate::security::AuthzDecision> {
+        Ok(if req.name == "orders" {
+            crate::security::AuthzDecision::Deny {
+                reason: "no order reads".to_string(),
+            }
+        } else {
+            crate::security::AuthzDecision::Allow
+        })
+    }
+}
+
+/// **Reproduction.** A `GET` of the resource asks the #422 authorizer; the stream of the same
+/// resource did not.
+#[test]
+#[ignore = "reproduction: a REST stream never asks the #422 authorizer"]
+fn a_type_stream_asks_the_authorizer_as_its_get_does() {
+    let config = RuntimeConfig::default().with_authorizer(Arc::new(DenyOrderReads));
+    let exec = executor(schema_with_own_read(None, &[]), config);
+    let err = exec.plan_type_stream("Order", Some(&principal(&[]))).unwrap_err();
+    assert!(err.to_string().contains("no order reads"), "{err}");
+
+    // Control: without the authorizer the same stream is planned.
+    let exec = executor(schema_with_own_read(None, &[]), RuntimeConfig::default());
+    exec.plan_type_stream("Order", Some(&principal(&[])))
+        .expect("nothing refuses it");
+}

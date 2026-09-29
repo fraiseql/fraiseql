@@ -4041,6 +4041,52 @@ mod field_authz {
         assert!(adapter.committed());
     }
 
+    // A type read anywhere but its own root query is read under its own read's gates: the
+    // list query's `requires_role` (else the type's) and `requires_actor` — as a nested level
+    // is. A deployment gating `users` rather than `User` is gated here too.
+    fn schema_with_union_member_behind_its_reads_role() -> CompiledSchema {
+        let mut s = schema_with_role_gated_union_member();
+        s.types.iter_mut().find(|t| t.name == "User").unwrap().requires_role = None;
+        s.queries.retain(|q| q.return_type != "User");
+        let mut users = crate::schema::QueryDefinition::new("users", "User")
+            .returning_list()
+            .with_sql_source("v_user");
+        users.requires_role = Some("admin".to_string());
+        s.queries.push(users);
+        s.build_indexes();
+        s
+    }
+
+    /// **Reproduction.** `User` itself is ungated; its own read, `users`, requires `admin`.
+    #[tokio::test]
+    #[ignore = "reproduction: a payload member is served past its type's own read's role"]
+    async fn a_union_member_whose_own_read_requires_a_role_is_not_served_without_it() {
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let err = Executor::with_config(
+            schema_with_union_member_behind_its_reads_role(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default(),
+        )
+        .execute_with_security("mutation { createUser { ... on User { id name } } }", None, &ctx())
+        .await
+        .expect_err("`users` requires `admin`, which the caller does not hold");
+        assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+        assert!(!adapter.committed(), "a refused payload takes its write with it");
+
+        let mut admin = ctx();
+        admin.roles = vec!["admin".to_string()];
+        let adapter = Arc::new(GatedEntityAdapter::default());
+        let out = Executor::with_config(
+            schema_with_union_member_behind_its_reads_role(),
+            Arc::clone(&adapter),
+            RuntimeConfig::default(),
+        )
+        .execute_with_security("mutation { createUser { ... on User { id name } } }", None, &admin)
+        .await
+        .unwrap();
+        assert_eq!(out["data"]["createUser"]["name"], "Alice", "{out}");
+    }
+
     // ── Ruling AA 1 (Z 3): the type a write's payload is served as is the contract's ─────
     //
     // A payload position holds an exact set of types, derived from the schema. A function
