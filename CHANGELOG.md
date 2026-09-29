@@ -30,7 +30,10 @@ disagreed, and the promise was the part that was wrong.
   and error detail), a subscription, a REST stream, a Kafka-mirrored or webhook message,
   and a filter, ordering or search. What to expect on upgrade:
 
-  * **403 where data was served:** a nested level of a role- or actor-restricted type; a
+  * **403 where data was served:** a nested level, a subscription or REST stream root, or a
+    payload member (union member, cascade or updated entity, stamped type) of a type whose
+    own read — its list query's `requires_role` (else the type's) or `requires_actor` — the
+    caller does not pass; a REST stream the #422 authorizer denies; a
     nested level the #422 authorizer denies ("Read of 'Order' at 'User.orders' denied");
     a nested level scoped by a policy that does not declare its keys
     (`RLSPolicy::constrained_paths` → `Opaque`) with no declared relationship to join
