@@ -213,3 +213,65 @@ async fn the_policy_seam_attaches_to_a_flight_service() {
         "after the serve-time attach the Flight service executes GraphQL — through the seam"
     );
 }
+
+/// A server over one `users` query whose adapter fails with a database error naming an
+/// internal relation, with `[security.error_sanitization]` enabled or not.
+async fn failing_server(sanitised: bool) -> Server {
+    let mut schema = fraiseql_test_utils::schema_builder::TestSchemaBuilder::new()
+        .with_simple_query("users", "User", true)
+        .build();
+    schema.security = Some(fraiseql_core::schema::SecurityConfig {
+        error_sanitization: Some(fraiseql_core::schema::ErrorSanitizationConfig {
+            enabled: sanitised,
+            ..fraiseql_core::schema::ErrorSanitizationConfig::default()
+        }),
+        ..fraiseql_core::schema::SecurityConfig::default()
+    });
+    let adapter = FailingAdapter::new().fail_with_error(
+        fraiseql_test_utils::failing_adapter::FailError::Database {
+            message:   "relation \"internal_audit_shadow\" does not exist".to_string(),
+            sql_state: Some("42P01".to_string()),
+        },
+    );
+    let config = ServerConfig {
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    Box::pin(Server::new(config, schema, Arc::new(adapter), None))
+        .await
+        .expect("Server::new")
+}
+
+/// **Reproduction.** Flight answers a failed read with the executor's error text, and the
+/// server's error sanitiser — which `/graphql`, REST and MCP apply — never saw it: the
+/// database's own message, internal relation names included, reached the Flight client.
+/// Sanitised, the error keeps its kind (so its gRPC status) and loses the text.
+#[tokio::test]
+#[ignore = "reproduction: Flight errors bypass the error sanitiser"]
+async fn a_database_error_over_flight_is_sanitised_as_graphql_sanitises_it() {
+    let seam = PolicyGatedExecutor::new(failing_server(true).await.build_app_state());
+    let error = seam
+        .execute_with_security("{ users { id } }", None, &flight_session_context())
+        .await
+        .expect_err("the adapter fails");
+    assert!(
+        matches!(error, fraiseql_core::error::FraiseQLError::Database { .. }),
+        "the kind, and so the gRPC status, is kept: {error:?}"
+    );
+    assert!(
+        !error.to_string().contains("internal_audit_shadow"),
+        "the database's text reached the Flight client: {error}"
+    );
+}
+
+/// Control: without sanitisation the database's text is passed through — the rig reaches
+/// the adapter's error.
+#[tokio::test]
+async fn an_unsanitised_database_error_over_flight_keeps_its_text() {
+    let seam = PolicyGatedExecutor::new(failing_server(false).await.build_app_state());
+    let error = seam
+        .execute_with_security("{ users { id } }", None, &flight_session_context())
+        .await
+        .expect_err("the adapter fails");
+    assert!(error.to_string().contains("internal_audit_shadow"), "{error}");
+}

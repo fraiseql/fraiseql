@@ -26,8 +26,8 @@ use fraiseql_core::{
     db::postgres::PostgresAdapter,
     prelude::DatabaseAdapter as _,
     schema::{
-        ArgumentDefinition, CompiledSchema, FieldDefinition, FieldType, MutationDefinition,
-        MutationOperation, QueryDefinition, TypeDefinition,
+        ArgumentDefinition, CompiledSchema, ErrorSanitizationConfig, FieldDefinition, FieldType,
+        MutationDefinition, MutationOperation, QueryDefinition, SecurityConfig, TypeDefinition,
     },
 };
 use fraiseql_server::{
@@ -184,6 +184,11 @@ struct Rig {
 /// Boot the REAL server (auth layer, mounted routes, live workers) on an
 /// ephemeral port, with a database pool so `[async_operations]` boots.
 async fn boot() -> Option<Rig> {
+    Box::pin(boot_over(schema())).await
+}
+
+/// `boot`, serving `schema`.
+async fn boot_over(schema: CompiledSchema) -> Option<Rig> {
     let url = try_database_url()?;
     let adapter = PostgresAdapter::new(&url).await.expect("adapter");
     provision(&adapter).await;
@@ -195,7 +200,7 @@ async fn boot() -> Option<Rig> {
         [(SECRET_ENV, Some(SECRET))],
         Box::pin(Server::new(
             config(),
-            schema(),
+            schema,
             Arc::new(PostgresAdapter::new(&url).await.expect("server adapter")),
             Some(pool.clone()),
         )),
@@ -442,6 +447,58 @@ async fn failed_execution_records_the_error() {
         "the execution error is recorded, not discarded: {terminal}"
     );
     assert_eq!(terminal["attempts"], 1, "max_attempts = 1 means exactly one attempt");
+}
+
+/// `schema()` with `[security.error_sanitization]` enabled — as every production deployment
+/// without the section runs.
+fn sanitised_schema() -> CompiledSchema {
+    let mut schema = schema();
+    schema.security = Some(SecurityConfig {
+        error_sanitization: Some(ErrorSanitizationConfig {
+            enabled: true,
+            ..ErrorSanitizationConfig::default()
+        }),
+        ..SecurityConfig::default()
+    });
+    schema
+}
+
+/// **Reproduction.** Under error sanitisation `/graphql` answers a failed write with a
+/// generic message, never the database's text; a status read of the same write run as an
+/// async operation must not hand that text over either.
+#[tokio::test]
+#[ignore = "reproduction: an async operation's error bypasses the error sanitiser"]
+async fn a_failed_operations_error_is_sanitised_as_graphql_sanitises_it() {
+    let Some(rig) = Box::pin(boot_over(sanitised_schema())).await else {
+        eprintln!("SKIP sanitised_failure: no DATABASE_URL");
+        return;
+    };
+    let token = mint_token("async-user-5");
+    let document = "mutation { failItem(label: \"boom\") { id } }";
+
+    // Control: the same write through /graphql is sanitised.
+    let graphql: Value = rig
+        .client
+        .post(format!("{}/graphql", rig.url))
+        .bearer_auth(&token)
+        .json(&json!({ "query": document }))
+        .send()
+        .await
+        .expect("graphql")
+        .json()
+        .await
+        .expect("graphql body");
+    assert!(graphql["errors"].is_array(), "the write fails: {graphql}");
+    assert!(!graphql.to_string().contains("deliberate failure"), "/graphql: {graphql}");
+
+    let (_, body) = rig.submit("failItem", document, json!({}), &token, None).await;
+    let op_id = body["op_id"].as_str().unwrap().to_string();
+    let terminal = rig.wait_terminal(&op_id, &token).await;
+    assert_eq!(terminal["status"], "failed", "{terminal}");
+    assert!(
+        !terminal.to_string().contains("deliberate failure"),
+        "the status read served the database's text: {terminal}"
+    );
 }
 
 // ── Recovery semantics, at the store's conditional UPDATEs ───────────────────
