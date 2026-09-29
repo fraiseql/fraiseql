@@ -159,7 +159,9 @@ retried `chargeCard` charges twice.
 - **FraiseQL peers** deduplicate automatically: the `/graphql` endpoint
   executes a mutation carrying an `Idempotency-Key` at most once per key
   (repeat with the same body → the stored response is replayed; same key with
-  a different body → HTTP 409). The store is per-replica and TTL-bound
+  a different body → HTTP 409). A key is its principal's own: a stored response
+  is replayed only to the caller that stored it (a saga coordinator resends
+  under one credential, so its retries replay). The store is per-replica and TTL-bound
   (24 h, sized to the crash-recovery window) — behind a load balancer, use
   key-affine or sticky routing so a retry lands on the replica that stored
   the first attempt.

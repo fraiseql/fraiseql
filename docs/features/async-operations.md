@@ -47,7 +47,11 @@ DELETE /operations/v1/{op_id}
 - The document's root field must equal the `{operation}` path segment and be on
   the allowlist; subscriptions are refused (nothing to poll).
 - `Idempotency-Key` on submission deduplicates: the same key with the same body
-  replays the same `op_id`; a different body under the same key is a 422.
+  replays the same `op_id`; a different body under the same key is a 422. A key is the
+  submitting principal's own: another principal sending the same key gets an operation
+  of its own.
+- A failed operation's `error` is rendered as `/graphql` renders errors — through the
+  error sanitiser (on by default in production), so it carries no database text there.
 - Operation cost is charged against the tenant budget **at submission** — the
   queue is not a budget bypass.
 - Status and cancel are scoped to the submitting principal; another caller's

@@ -819,7 +819,9 @@ pub struct RestConfig {
     pub max_filter_bytes:        u64,
     /// How DELETE endpoints report success.
     pub delete_response:         DeleteResponse,
-    /// Default result cache TTL in seconds (0 = no caching).
+    /// Default result cache TTL in seconds (0 = no caching): the `max-age` of a GET's
+    /// `Cache-Control`. An authenticated read (any credential) is `private`; only an
+    /// anonymous read is `public`, and only a public one carries `s-maxage`.
     pub default_cache_ttl:       u64,
     /// CDN `s-maxage` value in seconds for `Cache-Control` headers (`None` = omit).
     #[serde(default, skip_serializing_if = "Option::is_none")]

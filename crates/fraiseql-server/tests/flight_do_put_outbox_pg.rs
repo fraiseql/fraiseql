@@ -141,8 +141,8 @@ fn batch_of(rows: &[(&str, &str)]) -> RecordBatch {
     RecordBatch::try_new(schema, vec![ids, notes]).unwrap()
 }
 
-/// Arrow IPC stream bytes — the encoding both `decode_flight_data_to_batch` (DoPut)
-/// and `decode_upload_batch` (DoExchange) expect, so the twin really does send the
+/// Arrow IPC stream bytes — the encoding both `decode_flight_data_to_batch` (`DoPut`)
+/// and `decode_upload_batch` (`DoExchange`) expect, so the twin really does send the
 /// same bytes.
 fn encode_batch(batch: &RecordBatch) -> Vec<u8> {
     let mut buf = Vec::new();

@@ -23,20 +23,22 @@ Location: crates/fraiseql-server/src/validation.rs
 A query with 31+ aliases on the same field is rejected. This prevents a client from
 forcing the server to resolve the same field 1000+ times via aliasing.
 
-### Query Depth (Default 10, Configurable)
+### Query Depth (Default 11, Configurable)
 
 ```
-Location: crates/fraiseql-server/src/validation.rs
-  Line 457: max_depth: 10 (default)
-  Line 86:  pub const fn with_max_depth(mut self, max_depth: usize) -> Self
+Default: fraiseql_core::schema::DEFAULT_MAX_QUERY_DEPTH = 11
 
 fraiseql.toml override:
-  [fraiseql.security]
+  [validation]
   max_query_depth = 15
 ```
 
 A query exceeding the depth limit is rejected with a `QueryTooDeep` error before reaching
-the database.
+the database. The same bound decides how deep the selection resolver and the projectors
+follow a document, so every level a query may reach is projected through its selection.
+11 is the depth GraphQL queries were held to before there was a default; past about 49 a
+declared value cannot bind on GraphQL, whose parser refuses a document nested past 50
+brackets.
 
 A REST leaf `?select=` of an object field (`members?select=id,team`) means the whole
 object: every field its type declares, each gated as a read of that type. That expansion
@@ -143,8 +145,8 @@ costed ahead of deployment with
 ```toml
 # fraiseql.toml
 [validation]
-# Max query nesting depth (default: 10)
-max_query_depth = 10
+# Max query nesting depth (default: 11)
+max_query_depth = 11
 # Max rows a top-level first/last/limit may request (default: 1000). #421
 # Overridable at runtime with FRAISEQL_MAX_PAGE_SIZE (a number, or 0/none to disable).
 max_page_size = 1000
