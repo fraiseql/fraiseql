@@ -114,7 +114,46 @@ pub fn create_flight_service(
 
     // Create Flight service with PostgreSQL adapter
     let service = FraiseQLFlightService::new_with_db(Arc::new(flight_adapter));
+    serve_no_undeclared_view(&service);
     apply_upload_allow_list(service, upload_tables)
+}
+
+/// Empty the `OptimizedView` registry the library pre-fills.
+///
+/// `new_with_db` registers four demo names (`va_orders`, `va_users`, `ta_orders`,
+/// `ta_users`) for its tests. The `OptimizedView` ticket reads a registered view with no
+/// row scoping (#716), so a database that happened to have such a view served it to every
+/// Flight principal. The server serves exactly what its operator declares in
+/// `flight_views` ([`register_flight_views`]), and nothing by default.
+#[cfg(feature = "arrow")]
+fn serve_no_undeclared_view(service: &FraiseQLFlightService) {
+    service.schema_registry().clear();
+}
+
+/// Register the operator's `flight_views` for the `OptimizedView` ticket.
+///
+/// Every Flight-authenticated principal can read a registered view **whole**: the path
+/// applies no row policy, field gate or authorizer (#716). Declare only views whose
+/// entire contents every such principal may read. Each is typed by sampling one row; a
+/// view that cannot be read or is empty at boot is not served (logged). Returns the views
+/// served.
+#[cfg(feature = "arrow")]
+pub async fn register_flight_views(
+    service: &FraiseQLFlightService,
+    views: &[String],
+) -> Vec<String> {
+    let served = service.preload_views(views).await;
+    for view in views.iter().filter(|v| !served.contains(v)) {
+        tracing::warn!(view = %view, "flight_views: not served (unreadable, or no row to type it)");
+    }
+    if !served.is_empty() {
+        tracing::warn!(
+            views = ?served,
+            "Arrow Flight OptimizedView serves these views WHOLE to every Flight principal: \
+             no row policy, field gate or authorizer applies on that path"
+        );
+    }
+    served
 }
 
 /// Apply the operator's Upload allow-list, leaving `Upload` disabled when empty.
@@ -151,5 +190,6 @@ pub fn create_flight_service(
     // refused for want of an atomic write path — allow-listing it here cannot open
     // the surface (#953).
     let service = FraiseQLFlightService::new_with_db(Arc::new(flight_adapter));
+    serve_no_undeclared_view(&service);
     apply_upload_allow_list(service, upload_tables)
 }

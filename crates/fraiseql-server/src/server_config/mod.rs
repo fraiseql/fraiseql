@@ -127,6 +127,22 @@ pub struct ServerConfig {
     #[serde(default)]
     pub flight_upload_tables: Vec<String>,
 
+    /// Views the Arrow Flight `OptimizedView` ticket may serve (default: none).
+    ///
+    /// That ticket reads a view **whole**, with no row policy, field gate or authorizer
+    /// (#716): every Flight-authenticated principal can read every row and column of a
+    /// view named here. Name only views whose entire contents every such principal may
+    /// read. Plain identifiers (resolved through the connection's `search_path`); each is
+    /// typed from one of its rows at boot, so a view empty at boot is not served. A
+    /// `wire-backend` build reads no arbitrary SQL, and serves none.
+    ///
+    /// ```toml
+    /// flight_views = ["va_public_metrics"]
+    /// ```
+    #[cfg(feature = "arrow")]
+    #[serde(default)]
+    pub flight_views: Vec<String>,
+
     /// Enable CORS.
     #[serde(default = "defaults::default_true")]
     pub cors_enabled: bool,
@@ -1300,6 +1316,9 @@ impl Default for ServerConfig {
             // #953: fail-closed — Upload is off until an operator names tables.
             #[cfg(feature = "arrow")]
             flight_upload_tables: Vec::new(),
+            // Fail-closed: `OptimizedView` serves nothing until an operator names views.
+            #[cfg(feature = "arrow")]
+            flight_views: Vec::new(),
             cors_enabled: true,
             cors_origins: Vec::new(),
             compression_enabled: false,

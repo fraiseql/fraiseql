@@ -101,7 +101,6 @@ mod view_registry {
     /// (`va_orders`, `va_users`, `ta_orders`, `ta_users`) whatever the operator declared: a
     /// database that has such a view served it, unscoped, to every Flight principal.
     #[tokio::test]
-    #[ignore = "reproduction: the server's Flight registry serves views no operator declared"]
     async fn the_server_serves_no_flight_view_its_operator_did_not_declare() {
         let Some(url) = fraiseql_test_support::try_database_url() else {
             return;
@@ -112,6 +111,60 @@ mod view_registry {
                 !service.schema_registry().contains(view),
                 "`{view}` is served though no operator declared it"
             );
+        }
+    }
+
+    /// A declared view that exists and has a row is served; one that does not exist is not;
+    /// nothing else is. PostgreSQL backend only: the wire adapter reads no arbitrary SQL, so
+    /// under `wire-backend` no view can be typed and none is served.
+    #[cfg(not(feature = "wire-backend"))]
+    #[tokio::test]
+    async fn the_server_serves_exactly_the_flight_views_its_operator_declared() {
+        use fraiseql_core::db::DatabaseAdapter as _;
+
+        let Some(url) = fraiseql_test_support::try_database_url() else {
+            return;
+        };
+        let pg = fraiseql_core::db::postgres::PostgresAdapter::with_pool_size(&url, 1)
+            .await
+            .unwrap();
+        pg.execute_raw_query(
+            "CREATE OR REPLACE VIEW p_flight_declared AS SELECT 1::bigint AS id, 'a'::text AS label",
+        )
+        .await
+        .unwrap();
+
+        let service = server_flight_service(&url).await;
+        let served = super::super::register_flight_views(
+            &service,
+            &[
+                "p_flight_declared".to_string(),
+                "p_flight_absent".to_string(),
+            ],
+        )
+        .await;
+
+        pg.execute_raw_query("DROP VIEW p_flight_declared").await.unwrap();
+        assert_eq!(served, ["p_flight_declared"]);
+        let registry = service.schema_registry();
+        assert!(registry.contains("p_flight_declared"));
+        assert!(!registry.contains("p_flight_absent"));
+        assert!(!registry.contains("va_users"));
+        assert_eq!(registry.len(), 1, "exactly the declared, readable view");
+    }
+
+    /// A view name reaches SQL: only a plain identifier is accepted, at config validation.
+    #[test]
+    fn a_flight_view_must_be_named_by_a_plain_identifier() {
+        let config = |views: &[&str]| crate::server_config::ServerConfig {
+            flight_views: views.iter().map(ToString::to_string).collect(),
+            cors_enabled: false,
+            ..crate::server_config::ServerConfig::default()
+        };
+        assert!(config(&["va_public_metrics", "_v2"]).validate().is_ok());
+        for bad in ["public.v", "v\"; DROP", "", "1v", "v-x"] {
+            let err = config(&[bad]).validate().expect_err(bad);
+            assert!(err.contains("flight_views"), "{err}");
         }
     }
 }

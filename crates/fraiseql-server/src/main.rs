@@ -743,6 +743,8 @@ async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> 
         // #953: the Upload allow-list is an operator decision, read from
         // `flight_upload_tables`. Empty (the default) leaves Upload disabled.
         let flight_service = create_flight_service(adapter.clone(), &config.flight_upload_tables);
+        // `OptimizedView` serves exactly the operator's `flight_views`, nothing else.
+        fraiseql_server::arrow::register_flight_views(&flight_service, &config.flight_views).await;
         if config.flight_upload_tables.is_empty() {
             tracing::info!(
                 "Arrow Flight service initialized with real database adapter (Upload disabled: \

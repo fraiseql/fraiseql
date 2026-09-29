@@ -10,6 +10,7 @@ use super::{DatabaseTlsConfig, ServerConfig};
 /// the build-feature hint for any of these keys found in the raw TOML.
 const FEATURE_GATED_SECTIONS: &[(&str, &str, bool)] = &[
     ("flight_bind_addr", "arrow", cfg!(feature = "arrow")),
+    ("flight_views", "arrow", cfg!(feature = "arrow")),
     ("observers", "observers", cfg!(feature = "observers")),
     ("sources", "sources", cfg!(feature = "sources")),
     ("webhooks", "inbound", cfg!(feature = "inbound")),
@@ -238,6 +239,15 @@ impl ServerConfig {
     /// - In production mode: `playground_enabled` is true
     /// - In production mode: `cors_enabled` is true but `cors_origins` is empty
     pub fn validate(&self) -> Result<(), String> {
+        // A Flight view name reaches SQL as a quoted identifier; only a plain identifier
+        // names the view an operator meant.
+        #[cfg(feature = "arrow")]
+        if let Some(bad) = self.flight_views.iter().find(|v| !is_plain_identifier(v)) {
+            return Err(format!(
+                "flight_views: {bad:?} is not a plain SQL identifier ([A-Za-z_][A-Za-z0-9_]*)"
+            ));
+        }
+
         #[cfg(feature = "auth")]
         if let Some(ref ss) = self.session_state {
             ss.validate()?;
@@ -544,4 +554,12 @@ impl ServerConfig {
     pub const fn auth_enabled(&self) -> bool {
         self.auth.is_some()
     }
+}
+
+/// `[A-Za-z_][A-Za-z0-9_]*`.
+#[cfg(feature = "arrow")]
+fn is_plain_identifier(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars.next().is_some_and(|c| c.is_ascii_alphabetic() || c == '_')
+        && chars.all(|c| c.is_ascii_alphanumeric() || c == '_')
 }

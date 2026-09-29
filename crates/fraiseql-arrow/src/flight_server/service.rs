@@ -365,6 +365,16 @@ impl FraiseQLFlightService {
         }
     }
 
+    /// Register exactly `views` for `OptimizedView`, typed from the database (see
+    /// [`crate::metadata::SchemaRegistry::preload_views`]). Returns the names registered; none
+    /// without a database adapter.
+    pub async fn preload_views(&self, views: &[String]) -> Vec<String> {
+        match self.db_adapter {
+            Some(ref db_adapter) => self.schema_registry.preload_views(&**db_adapter, views).await,
+            None => Vec::new(),
+        }
+    }
+
     /// Get a reference to the schema registry.
     ///
     /// Useful for testing and schema introspection.

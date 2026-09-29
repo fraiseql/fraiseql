@@ -409,6 +409,38 @@ impl SchemaRegistry {
         self.register("ta_users", ta_users_schema);
     }
 
+    /// Register exactly `views`, each typed by sampling one of its rows.
+    ///
+    /// The sample reads the view by the same quoted name the `OptimizedView` ticket reads
+    /// it by, so a registered name is one that ticket can serve. A view that cannot be
+    /// read, or has no row to type it from, is not registered. Returns the names
+    /// registered, in `views` order.
+    pub async fn preload_views(
+        &self,
+        db_adapter: &dyn ArrowDatabaseAdapter,
+        views: &[String],
+    ) -> Vec<String> {
+        let mut registered = Vec::with_capacity(views.len());
+        for view in views {
+            let quoted = format!("\"{}\"", view.replace('"', "\"\""));
+            let sample = format!("SELECT * FROM {quoted} LIMIT 1");
+            match db_adapter.execute_raw_query(&sample).await {
+                Ok(rows) => match rows.first().map(|row| infer_schema_from_row(view, row)) {
+                    Some(Ok(schema)) => {
+                        self.register(view.clone(), schema);
+                        registered.push(view.clone());
+                    },
+                    Some(Err(e)) => {
+                        tracing::warn!(view = %view, error = %e, "cannot type the view's rows");
+                    },
+                    None => tracing::warn!(view = %view, "the view has no row to type it from"),
+                },
+                Err(e) => tracing::warn!(view = %view, error = %e, "cannot read the view"),
+            }
+        }
+        registered
+    }
+
     /// Pre-load all schemas from database at startup.
     ///
     /// This method queries the database to discover all va_* (view-backed) and ta_* (table-backed)
