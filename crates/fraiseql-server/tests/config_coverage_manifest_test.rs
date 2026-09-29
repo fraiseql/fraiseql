@@ -227,6 +227,11 @@ const MANIFEST: &[(&str, &str)] = &[
         "Arrow Flight `Upload` allow-list — main.rs → create_flight_service → \
          with_upload_tables (#953); empty leaves Upload disabled",
     ),
+    (
+        "flight_views",
+        "Arrow Flight `OptimizedView` registry — main.rs → register_flight_views; empty serves \
+         no view",
+    ),
     ("mailbox", "inbound email IMAP pollers + startup probes (lifecycle.rs)"),
     (
         "send.challenge_suppress_after",
