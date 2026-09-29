@@ -34,7 +34,7 @@ use super::{
     context::ExecutorContext,
     core::Executor,
     runners::{
-        query_nested::{RootRowFilter, whole_object},
+        query_nested::{RootRowFilter, own_read, type_read_refusal, whole_object},
         read_plan::ReadPlan,
     },
     support::security::refuse_unreadable_where,
@@ -194,33 +194,36 @@ impl Executor {
         principal: Option<&SecurityContext>,
     ) -> Result<SubscriptionPlan> {
         let selections = whole_object(&self.ctx.schema, type_name, 0)?;
+        // #422, as the resource's `GET` asks it: a root read of the type's own read.
+        if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
+            let name = own_read(&self.ctx.schema, type_name).map_or(type_name, |q| q.name.as_str());
+            let ops = [crate::security::AuthzOperation::root(
+                crate::security::OperationKind::Query,
+                name,
+                Some(type_name),
+            )];
+            crate::security::authorizer::enforce_authz(authorizer.as_ref(), principal, &ops, None)?;
+        }
         self.refuse_unless_readable(type_name, type_name, principal)?;
         self.plan_read(type_name, type_name, selections, HashMap::new(), principal)
     }
 
-    /// Refuse `type_name` to a reader lacking its own `requires_role`.
+    /// Refuse `type_name` to a reader its own read refuses: that read's `requires_role` (else
+    /// the type's) and its `requires_actor` — the gates a nested level of the type applies.
     fn refuse_unless_readable(
         &self,
         read: &str,
         type_name: &str,
         principal: Option<&SecurityContext>,
     ) -> Result<()> {
-        let Some(role) =
-            self.ctx.schema.find_type(type_name).and_then(|t| t.requires_role.as_deref())
-        else {
-            return Ok(());
-        };
-        if principal.is_some_and(|p| p.roles.iter().any(|r| r == role)) {
-            return Ok(());
+        match type_read_refusal(&self.ctx.schema, type_name, principal) {
+            None => Ok(()),
+            Some(why) => Err(FraiseQLError::Authorization {
+                message:  format!("'{read}' delivers '{type_name}', {why}"),
+                action:   Some("read".to_string()),
+                resource: Some(type_name.to_string()),
+            }),
         }
-        Err(FraiseQLError::Authorization {
-            message:  format!(
-                "'{read}' delivers '{type_name}', whose read requires a role the request does \
-                 not hold"
-            ),
-            action:   Some("read".to_string()),
-            resource: Some(type_name.to_string()),
-        })
     }
 
     /// The row predicate and the read plan of `selections` over `type_name`, for `read`.

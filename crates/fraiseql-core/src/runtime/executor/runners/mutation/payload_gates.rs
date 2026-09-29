@@ -222,7 +222,8 @@ pub(super) fn off_contract(
 }
 
 /// Refuse to serve an entity of `type_name` at `position` unless the caller may read the
-/// type at all: its own `requires_role` (ruling Y 6).
+/// type at all: its own read's `requires_role` (else the type's) and `requires_actor`, the
+/// gates a nested level of the type applies.
 ///
 /// #677 lowers a type's role onto an operation only when the operation returns exactly that
 /// type, and the classifier checks it only below the root. A payload root is served as a read
@@ -236,28 +237,23 @@ pub(super) fn off_contract(
 ///
 /// # Errors
 ///
-/// `FraiseQLError::Authorization` when the type requires a role the request does not hold.
+/// `FraiseQLError::Authorization` when the type's read requires a role or an actor type the
+/// request does not hold.
 fn refuse_unless_type_readable(
     ctx: &ExecutorContext,
     security_ctx: Option<&SecurityContext>,
     position: PayloadPosition,
     type_name: &str,
 ) -> Result<()> {
-    let Some(role) = ctx.schema.find_type(type_name).and_then(|t| t.requires_role.as_deref())
-    else {
-        return Ok(());
-    };
-    if security_ctx.is_some_and(|c| c.roles.iter().any(|r| r == role)) {
-        return Ok(());
+    // The type's own read's gates, as a nested level of the type applies them.
+    match super::super::query_nested::type_read_refusal(&ctx.schema, type_name, security_ctx) {
+        None => Ok(()),
+        Some(why) => Err(crate::error::FraiseQLError::Authorization {
+            message:  format!("the payload serves '{type_name}' ({position:?}), {why}"),
+            action:   Some("read".to_string()),
+            resource: Some(type_name.to_string()),
+        }),
     }
-    Err(crate::error::FraiseQLError::Authorization {
-        message:  format!(
-            "the payload serves '{type_name}' ({position:?}), whose read requires a role the \
-             request does not hold"
-        ),
-        action:   Some("read".to_string()),
-        resource: Some(type_name.to_string()),
-    })
 }
 
 /// Every `(position, type, selections)` a payload selection can be served as.

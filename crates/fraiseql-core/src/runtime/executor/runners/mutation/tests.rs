@@ -4059,7 +4059,6 @@ mod field_authz {
 
     /// **Reproduction.** `User` itself is ungated; its own read, `users`, requires `admin`.
     #[tokio::test]
-    #[ignore = "reproduction: a payload member is served past its type's own read's role"]
     async fn a_union_member_whose_own_read_requires_a_role_is_not_served_without_it() {
         let adapter = Arc::new(GatedEntityAdapter::default());
         let err = Executor::with_config(

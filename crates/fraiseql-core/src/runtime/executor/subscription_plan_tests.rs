@@ -679,7 +679,6 @@ fn schema_with_own_read(
 
 /// **Reproduction.** `Order` is ungated; `orders` requires `clerk`.
 #[test]
-#[ignore = "reproduction: a subscription root skips its type's own read's role"]
 fn a_subscription_and_a_stream_are_refused_their_types_own_reads_role() {
     let exec = executor(schema_with_own_read(Some("clerk"), &[]), RuntimeConfig::default());
     let err =
@@ -698,7 +697,6 @@ fn a_subscription_and_a_stream_are_refused_their_types_own_reads_role() {
 
 /// **Reproduction.** `orders` is restricted to service accounts.
 #[test]
-#[ignore = "reproduction: a subscription root skips its type's own read's actor restriction"]
 fn a_subscription_and_a_stream_are_refused_their_types_own_reads_actor_restriction() {
     use crate::security::ActorType;
     let exec = executor(
@@ -740,7 +738,6 @@ impl crate::security::Authorizer for DenyOrderReads {
 /// **Reproduction.** A `GET` of the resource asks the #422 authorizer; the stream of the same
 /// resource did not.
 #[test]
-#[ignore = "reproduction: a REST stream never asks the #422 authorizer"]
 fn a_type_stream_asks_the_authorizer_as_its_get_does() {
     let config = RuntimeConfig::default().with_authorizer(Arc::new(DenyOrderReads));
     let exec = executor(schema_with_own_read(None, &[]), config);

@@ -279,30 +279,45 @@ fn enforce_level_read_gates(
     target: &str,
     security_context: Option<&SecurityContext>,
 ) -> Result<()> {
-    let read = own_read(schema, target);
-    let denied = |why: &str| FraiseQLError::Authorization {
-        message:  format!("'{parent_type}.{field}' reads '{target}', {why}"),
-        action:   Some("read".to_string()),
-        resource: Some(target.to_string()),
-    };
+    match type_read_refusal(schema, target, security_context) {
+        None => Ok(()),
+        Some(why) => Err(FraiseQLError::Authorization {
+            message:  format!("'{parent_type}.{field}' reads '{target}', {why}"),
+            action:   Some("read".to_string()),
+            resource: Some(target.to_string()),
+        }),
+    }
+}
+
+/// Why reading `type_name` anywhere but its own root query is refused to
+/// `security_context`, if it is: its own read's `requires_role` (else the type's) and its own
+/// read's `requires_actor`. One rule for a nested level, a subscription or stream root, and a
+/// payload served as a type other than its mutation's declared return — so a deployment that
+/// gates a type's list query rather than the type is gated on every path that reads it.
+pub(in super::super) fn type_read_refusal(
+    schema: &CompiledSchema,
+    type_name: &str,
+    security_context: Option<&SecurityContext>,
+) -> Option<&'static str> {
+    let read = own_read(schema, type_name);
     let role = read
         .and_then(|q| q.requires_role.as_deref())
-        .or_else(|| schema.find_type(target).and_then(|t| t.requires_role.as_deref()));
+        .or_else(|| schema.find_type(type_name).and_then(|t| t.requires_role.as_deref()));
     if let Some(role) = role {
         if !security_context.is_some_and(|ctx| ctx.roles.iter().any(|r| r == role)) {
-            return Err(denied("whose read requires a role the request does not hold"));
+            return Some("whose read requires a role the request does not hold");
         }
     }
-    if let Some(read) = read {
+    let actor_refused = read.is_some_and(|read| {
         crate::security::actor_type::enforce_requires_actor(
             "Query",
             &read.name,
             &read.requires_actor,
             security_context,
         )
-        .map_err(|_| denied("whose read is restricted to actor types the request is not"))?;
-    }
-    Ok(())
+        .is_err()
+    });
+    actor_refused.then_some("whose read is restricted to actor types the request is not")
 }
 
 fn null_masked_at(
@@ -427,7 +442,10 @@ impl NestedRowGates {
 
 /// The SQL-backed read of `type_name` a nested level of it is gated as: its list query
 /// when it has one — the read REST embeds it through — otherwise any.
-fn own_read<'a>(schema: &'a CompiledSchema, type_name: &str) -> Option<&'a QueryDefinition> {
+pub(in super::super) fn own_read<'a>(
+    schema: &'a CompiledSchema,
+    type_name: &str,
+) -> Option<&'a QueryDefinition> {
     let reads = |q: &&QueryDefinition| {
         q.return_type == type_name
             && q.function.is_none()
