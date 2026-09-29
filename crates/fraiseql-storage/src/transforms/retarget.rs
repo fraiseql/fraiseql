@@ -51,6 +51,28 @@ const BUDGET: Duration = Duration::from_millis(750);
     clippy::cast_sign_loss
 )]
 pub fn retarget(img: &DynamicImage, w: u32, h: u32, gravity: Gravity) -> Result<DynamicImage> {
+    retarget_within(img, w, h, gravity, BUDGET)
+}
+
+/// [`retarget`] under an explicit wall-clock `budget` — the one input that is not the
+/// image's, so a caller can decide carving without the clock (and pin the fall-back
+/// with a zero budget).
+///
+/// # Errors
+///
+/// As [`retarget`].
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+pub fn retarget_within(
+    img: &DynamicImage,
+    w: u32,
+    h: u32,
+    gravity: Gravity,
+    budget: Duration,
+) -> Result<DynamicImage> {
     let (sw, sh) = img.dimensions();
     let source_aspect = sw as f32 / sh as f32;
     let target_aspect = w as f32 / h as f32;
@@ -80,7 +102,7 @@ pub fn retarget(img: &DynamicImage, w: u32, h: u32, gravity: Gravity) -> Result<
     let target_w = w.min(work_w);
     let target_h = h.min(work_h);
 
-    let deadline = Instant::now() + BUDGET;
+    let deadline = Instant::now() + budget;
     let mut canvas = img.resize_exact(work_w, work_h, FILTER).to_rgba8();
 
     if !carve_columns(&mut canvas, work_w - target_w, deadline) {

@@ -1351,14 +1351,33 @@ fn retarget_carves_within_the_threshold_and_falls_back_past_it() {
         .unwrap()
     };
 
-    // 1000×800 into 400×400: an aspect delta of 1.25, inside the threshold.
-    let carved = render(ResizeMode::Retarget, 400, 400);
-    assert_eq!((carved.width, carved.height), (400, 400));
+    // 1000×800 into 400×400: an aspect delta of 1.25, inside the threshold. Carving is
+    // decided without the wall-clock budget: an unoptimised test build on a loaded runner
+    // can exhaust it, and the rendering then falls back to `fill` — correctly, but not what
+    // this asserts (the fall-back is pinned on its own, below).
+    let source = image::load_from_memory(&lopsided_source()).unwrap();
+    let unbounded = std::time::Duration::from_hours(1);
+    let carved =
+        super::retarget::retarget_within(&source, 400, 400, Gravity::default(), unbounded).unwrap();
+    let filled = super::ops::resize_into(
+        &source,
+        400,
+        400,
+        ResizeMode::Fill,
+        Gravity::default(),
+        Rgba([0, 0, 0, 255]),
+    )
+    .unwrap();
+    assert_eq!(image::GenericImageView::dimensions(&carved), (400, 400));
     assert_ne!(
-        carved.body,
-        render(ResizeMode::Fill, 400, 400).body,
+        carved.to_rgba8().into_raw(),
+        filled.to_rgba8().into_raw(),
         "inside the threshold, retarget must actually carve rather than crop"
     );
+    // Through the transformer, the same request is a 400×400 rendering (carved or, past the
+    // budget, filled).
+    let rendered = render(ResizeMode::Retarget, 400, 400);
+    assert_eq!((rendered.width, rendered.height), (400, 400));
 
     // 1000×800 into 1000×100: an aspect delta of 8, far past the threshold.
     let fell_back = render(ResizeMode::Retarget, 1000, 100);
@@ -1368,4 +1387,30 @@ fn retarget_carves_within_the_threshold_and_falls_back_past_it() {
         render(ResizeMode::Fill, 1000, 100).body,
         "past the threshold, retarget must render exactly as fill"
     );
+}
+
+/// A retarget that runs out of its wall-clock budget completes as `fill` — never an error and
+/// never a partially-carved image.
+#[cfg(feature = "transforms-retarget")]
+#[test]
+fn a_retarget_past_its_budget_renders_as_fill() {
+    let source = image::load_from_memory(&lopsided_source()).unwrap();
+    let out_of_time = super::retarget::retarget_within(
+        &source,
+        400,
+        400,
+        Gravity::default(),
+        std::time::Duration::ZERO,
+    )
+    .unwrap();
+    let filled = super::ops::resize_into(
+        &source,
+        400,
+        400,
+        ResizeMode::Fill,
+        Gravity::default(),
+        Rgba([0, 0, 0, 255]),
+    )
+    .unwrap();
+    assert_eq!(out_of_time.to_rgba8().into_raw(), filled.to_rgba8().into_raw());
 }
