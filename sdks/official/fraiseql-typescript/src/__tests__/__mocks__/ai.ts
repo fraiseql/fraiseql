@@ -1,5 +1,5 @@
 // Test stub for the 'ai' peer dependency
-import { vi } from 'vitest';
+import { vi } from "vitest";
 
 export const tool = vi.fn(
   (config: {

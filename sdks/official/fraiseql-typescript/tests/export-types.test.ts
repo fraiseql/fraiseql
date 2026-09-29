@@ -90,10 +90,7 @@ describe("export types minimal (TOML-based workflow)", () => {
   });
 
   test("exportTypes() should include enums in output", () => {
-    SchemaRegistry.registerEnum("Status", [
-      { name: "ACTIVE" },
-      { name: "INACTIVE" },
-    ]);
+    SchemaRegistry.registerEnum("Status", [{ name: "ACTIVE" }, { name: "INACTIVE" }]);
 
     SchemaRegistry.registerType("User", [
       { name: "id", type: "String", nullable: false },

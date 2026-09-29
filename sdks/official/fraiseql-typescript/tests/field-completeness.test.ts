@@ -49,17 +49,12 @@ describe("registerTypeFields — all fields", () => {
   });
 
   it("all type options can be combined", () => {
-    registerTypeFields(
-      "Order",
-      [{ name: "id", type: "ID", nullable: false }],
-      "An order",
-      {
-        sqlSource: "v_order",
-        jsonbColumn: "data",
-        requiresRole: "admin",
-        implements: ["Node"],
-      }
-    );
+    registerTypeFields("Order", [{ name: "id", type: "ID", nullable: false }], "An order", {
+      sqlSource: "v_order",
+      jsonbColumn: "data",
+      requiresRole: "admin",
+      implements: ["Node"],
+    });
     const t = SchemaRegistry.getSchema().types[0];
     expect(t.sql_source).toBe("v_order");
     expect(t.jsonb_column).toBe("data");
@@ -76,7 +71,9 @@ describe("registerQuery — all config fields", () => {
     registerQuery("users", "User", true, false, [], undefined, { sqlSource: "v_user" });
     expect(SchemaRegistry.getSchema().queries[0].sql_source).toBe("v_user");
     // camelCase original must NOT be present
-    expect((SchemaRegistry.getSchema().queries[0] as Record<string, unknown>)["sqlSource"]).toBeUndefined();
+    expect(
+      (SchemaRegistry.getSchema().queries[0] as Record<string, unknown>)["sqlSource"]
+    ).toBeUndefined();
   });
 
   it("cache_ttl_seconds is emitted via cacheTtlSeconds config key", () => {

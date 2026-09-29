@@ -21,9 +21,7 @@ export class ScalarValidationError extends Error {
     public context: "serialize" | "parseValue" | "parseLiteral",
     message: string
   ) {
-    super(
-      `Scalar ${JSON.stringify(scalarName)} validation failed in ${context}: ${message}`
-    );
+    super(`Scalar ${JSON.stringify(scalarName)} validation failed in ${context}: ${message}`);
     this.name = "ScalarValidationError";
   }
 }
@@ -80,8 +78,7 @@ export function validateCustomScalar(
       throw error;
     }
 
-    const message =
-      error instanceof Error ? error.message : String(error);
+    const message = error instanceof Error ? error.message : String(error);
     throw new ScalarValidationError(scalarName, context, message);
   }
 }

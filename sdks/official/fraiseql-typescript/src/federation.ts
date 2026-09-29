@@ -308,7 +308,8 @@ export function generateSchemaJson(types: FederatedClass[]): Record<string, unkn
       if (m.external_fields.includes(fieldName)) fed.external = true;
       if (m.shareable_fields.includes(fieldName)) fed.shareable = true;
       if (m.inaccessible_fields.includes(fieldName)) fed.inaccessible = true;
-      if (m.override_fields[fieldName] !== undefined) fed.override_from = m.override_fields[fieldName];
+      if (m.override_fields[fieldName] !== undefined)
+        fed.override_from = m.override_fields[fieldName];
       if (m.requires[fieldName] !== undefined) fed.requires = m.requires[fieldName];
       if (m.provides[fieldName] !== undefined) fed.provides = m.provides[fieldName];
       return fed;
@@ -327,7 +328,8 @@ export function generateSchemaJson(types: FederatedClass[]): Record<string, unkn
       if (registeredNames.has(fieldName)) continue;
       const fieldFed = buildFieldFederation(fieldName, meta);
       const entry: MergedField = { name: fieldName };
-      if (Object.keys(fieldFed).length > 0) (entry as { name: string; federation?: FieldFederation }).federation = fieldFed;
+      if (Object.keys(fieldFed).length > 0)
+        (entry as { name: string; federation?: FieldFederation }).federation = fieldFed;
       mergedFields.push(entry);
     }
 
@@ -374,7 +376,7 @@ export function validateFederation(types: FederatedClass[]): void {
     if (keys.length > 0) {
       // @Key requires @Type
       const schema = SchemaRegistry.getSchema();
-      if (!schema.types.some((t) => t.name === (cls.name))) {
+      if (!schema.types.some((t) => t.name === cls.name)) {
         throw new Error(`@Key requires @Type decorator on class ${cls.name}`);
       }
 
@@ -382,16 +384,14 @@ export function validateFederation(types: FederatedClass[]): void {
       for (const key of keys) {
         for (const field of key.fields) {
           if (!allFields.has(field)) {
-            throw new Error(
-              `Field '${field}' not found on type ${cls.name}`
-            );
+            throw new Error(`Field '${field}' not found on type ${cls.name}`);
           }
         }
       }
     }
 
     // @External requires @Extends
-    if ((meta?.external_fields?.length ?? 0) > 0 && !(meta?.extend)) {
+    if ((meta?.external_fields?.length ?? 0) > 0 && !meta?.extend) {
       throw new Error(`@external requires @extends on type ${cls.name}`);
     }
 
@@ -407,9 +407,7 @@ export function validateFederation(types: FederatedClass[]): void {
     // @Requires target fields must exist
     for (const requiredField of Object.values(meta?.requires ?? {})) {
       if (!allFields.has(requiredField)) {
-        throw new Error(
-          `Field '${requiredField}' not found on type ${cls.name}`
-        );
+        throw new Error(`Field '${requiredField}' not found on type ${cls.name}`);
       }
     }
   }

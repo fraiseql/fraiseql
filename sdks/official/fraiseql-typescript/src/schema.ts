@@ -46,9 +46,7 @@ function validateSchemaBeforeExport(schema: Schema): void {
   for (const query of schema.queries) {
     const ret = query.return_type;
     if (ret && !registeredTypeNames.has(ret)) {
-      errors.push(
-        `Query '${query.name}' has return type '${ret}' which is not a registered type.`
-      );
+      errors.push(`Query '${query.name}' has return type '${ret}' which is not a registered type.`);
     }
   }
 

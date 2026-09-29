@@ -22,28 +22,50 @@ beforeEach(() => SchemaRegistry.clear());
 
 describe("Golden fixture 01 — basic query and mutation", () => {
   function buildFixture01() {
-    registerQuery("users", "User", true, false, [
-      { name: "email", type: "String", nullable: true },
-      { name: "limit", type: "Int", nullable: false, default: 10 },
-    ], "List all users with optional filtering", {
-      sqlSource: "v_user",
-      jsonbColumn: "payload",
-    });
+    registerQuery(
+      "users",
+      "User",
+      true,
+      false,
+      [
+        { name: "email", type: "String", nullable: true },
+        { name: "limit", type: "Int", nullable: false, default: 10 },
+      ],
+      "List all users with optional filtering",
+      {
+        sqlSource: "v_user",
+        jsonbColumn: "payload",
+      }
+    );
 
-    registerQuery("user", "User", false, true, [
-      { name: "id", type: "ID", nullable: false },
-    ], "Fetch a single user by ID", {
-      sqlSource: "v_user",
-      jsonbColumn: "payload",
-    });
+    registerQuery(
+      "user",
+      "User",
+      false,
+      true,
+      [{ name: "id", type: "ID", nullable: false }],
+      "Fetch a single user by ID",
+      {
+        sqlSource: "v_user",
+        jsonbColumn: "payload",
+      }
+    );
 
-    registerMutation("createUser", "User", false, false, [
-      { name: "email", type: "String", nullable: false },
-      { name: "name", type: "String", nullable: false },
-    ], "Create a new user account", {
-      sqlSource: "fn_create_user",
-      operation: "CREATE",
-    });
+    registerMutation(
+      "createUser",
+      "User",
+      false,
+      false,
+      [
+        { name: "email", type: "String", nullable: false },
+        { name: "name", type: "String", nullable: false },
+      ],
+      "Create a new user account",
+      {
+        sqlSource: "fn_create_user",
+        operation: "CREATE",
+      }
+    );
   }
 
   it("query sql_source matches golden", () => {
@@ -87,28 +109,43 @@ describe("Golden fixture 01 — basic query and mutation", () => {
 
 describe("Golden fixture 04 — error types", () => {
   function buildFixture04() {
-    registerTypeFields("CreateUserSuccess", [
-      { name: "id", type: "ID", nullable: false },
-      { name: "email", type: "String", nullable: false },
-    ], undefined, { sqlSource: "v_user" });
+    registerTypeFields(
+      "CreateUserSuccess",
+      [
+        { name: "id", type: "ID", nullable: false },
+        { name: "email", type: "String", nullable: false },
+      ],
+      undefined,
+      { sqlSource: "v_user" }
+    );
 
-    registerTypeFields("DuplicateEmailError", [
-      { name: "message", type: "String", nullable: false },
-      { name: "conflicting_id", type: "ID", nullable: true },
-      { name: "code", type: "Int", nullable: false },
-    ], "Error returned when email already exists", {
-      sqlSource: "v_user",
-      isError: true,
-    });
+    registerTypeFields(
+      "DuplicateEmailError",
+      [
+        { name: "message", type: "String", nullable: false },
+        { name: "conflicting_id", type: "ID", nullable: true },
+        { name: "code", type: "Int", nullable: false },
+      ],
+      "Error returned when email already exists",
+      {
+        sqlSource: "v_user",
+        isError: true,
+      }
+    );
 
-    registerTypeFields("ValidationError", [
-      { name: "message", type: "String", nullable: false },
-      { name: "field", type: "String", nullable: false },
-      { name: "rule", type: "String", nullable: false },
-    ], "Validation failure with field-level details", {
-      sqlSource: "v_user",
-      isError: true,
-    });
+    registerTypeFields(
+      "ValidationError",
+      [
+        { name: "message", type: "String", nullable: false },
+        { name: "field", type: "String", nullable: false },
+        { name: "rule", type: "String", nullable: false },
+      ],
+      "Validation failure with field-level details",
+      {
+        sqlSource: "v_user",
+        isError: true,
+      }
+    );
   }
 
   it("success type has no is_error flag", () => {
@@ -159,15 +196,20 @@ describe("Golden fixture 04 — error types", () => {
 
 describe("Golden fixture 05 — security, inject, cache", () => {
   function buildFixture05() {
-    registerTypeFields("Order", [
-      { name: "id", type: "ID", nullable: false },
-      { name: "tenant_id", type: "UUID", nullable: false },
-      { name: "amount", type: "Decimal", nullable: false },
-      { name: "status", type: "String", nullable: false },
-    ], "A tenant-scoped order (admin-only)", {
-      sqlSource: "v_order",
-      requiresRole: "admin",
-    });
+    registerTypeFields(
+      "Order",
+      [
+        { name: "id", type: "ID", nullable: false },
+        { name: "tenant_id", type: "UUID", nullable: false },
+        { name: "amount", type: "Decimal", nullable: false },
+        { name: "status", type: "String", nullable: false },
+      ],
+      "A tenant-scoped order (admin-only)",
+      {
+        sqlSource: "v_order",
+        requiresRole: "admin",
+      }
+    );
 
     registerQuery("orders", "Order", true, false, [], undefined, {
       sqlSource: "v_order",
@@ -177,16 +219,24 @@ describe("Golden fixture 05 — security, inject, cache", () => {
       additionalViews: ["v_order_summary", "v_order_items"],
     });
 
-    registerMutation("createOrder", "Order", false, false, [
-      { name: "amount", type: "Decimal", nullable: false },
-      { name: "description", type: "String", nullable: true },
-    ], "Create an order; auto-stamps tenant and user from JWT", {
-      sqlSource: "fn_create_order",
-      operation: "CREATE",
-      inject: { user_id: "jwt:sub", tenant_id: "jwt:org_id" },
-      invalidatesFactTables: ["tf_sales", "tf_order_count"],
-      invalidatesViews: ["v_order_summary", "v_order_items"],
-    });
+    registerMutation(
+      "createOrder",
+      "Order",
+      false,
+      false,
+      [
+        { name: "amount", type: "Decimal", nullable: false },
+        { name: "description", type: "String", nullable: true },
+      ],
+      "Create an order; auto-stamps tenant and user from JWT",
+      {
+        sqlSource: "fn_create_order",
+        operation: "CREATE",
+        inject: { user_id: "jwt:sub", tenant_id: "jwt:org_id" },
+        invalidatesFactTables: ["tf_sales", "tf_order_count"],
+        invalidatesViews: ["v_order_summary", "v_order_items"],
+      }
+    );
   }
 
   it("type requires_role matches golden", () => {
@@ -204,7 +254,10 @@ describe("Golden fixture 05 — security, inject, cache", () => {
   it("query inject_params match golden", () => {
     buildFixture05();
     const golden = loadGolden("05-security-inject-cache.json") as {
-      queries: Array<{ name: string; inject_params?: Record<string, { source: string; claim: string }> }>;
+      queries: Array<{
+        name: string;
+        inject_params?: Record<string, { source: string; claim: string }>;
+      }>;
     };
     const schema = SchemaRegistry.getSchema();
 
@@ -240,7 +293,10 @@ describe("Golden fixture 05 — security, inject, cache", () => {
   it("mutation inject_params match golden", () => {
     buildFixture05();
     const golden = loadGolden("05-security-inject-cache.json") as {
-      mutations: Array<{ name: string; inject_params?: Record<string, { source: string; claim: string }> }>;
+      mutations: Array<{
+        name: string;
+        inject_params?: Record<string, { source: string; claim: string }>;
+      }>;
     };
     const schema = SchemaRegistry.getSchema();
 

@@ -14,14 +14,7 @@
  * very next command rejects. The registry contents are printed instead.
  */
 
-import {
-  Observer,
-  SchemaRegistry,
-  email,
-  registerTypeFields,
-  slack,
-  webhook,
-} from "../src/index";
+import { Observer, SchemaRegistry, email, registerTypeFields, slack, webhook } from "../src/index";
 
 // The entities the observers watch. Declared with `registerTypeFields` rather than
 // `@Type()`: TypeScript erases the field types a class decorator would need, so `@Type()`

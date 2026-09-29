@@ -51,8 +51,12 @@ interface ObserverConfig {
  * @returns Method decorator
  */
 export function Observer(config: ObserverConfig) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- method decorator target
-  return function (_target: any, propertyKeyOrContext: unknown, _descriptor?: PropertyDescriptor): void {
+  return function (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- method decorator target
+    _target: any,
+    propertyKeyOrContext: unknown,
+    _descriptor?: PropertyDescriptor
+  ): void {
     const name = decoratedMemberName(propertyKeyOrContext, "Observer");
     SchemaRegistry.registerObserver(
       name,

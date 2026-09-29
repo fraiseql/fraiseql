@@ -113,7 +113,11 @@ export function generateCrudOperations(
       type: f.type,
       nullable: f.nullable,
     }));
-    SchemaRegistry.registerInputType(inputName, inputFields, `Input for creating a new ${typeName}.`);
+    SchemaRegistry.registerInputType(
+      inputName,
+      inputFields,
+      `Input for creating a new ${typeName}.`
+    );
     const config: Record<string, unknown> = {
       sql_source: `fn_create_${snake}`,
       operation: "INSERT",
@@ -137,7 +141,11 @@ export function generateCrudOperations(
       { name: pkField.name, type: pkField.type, nullable: false },
       ...writableFields.map((f) => ({ name: f.name, type: f.type, nullable: true })),
     ];
-    SchemaRegistry.registerInputType(inputName, inputFields, `Input for updating an existing ${typeName}.`);
+    SchemaRegistry.registerInputType(
+      inputName,
+      inputFields,
+      `Input for updating an existing ${typeName}.`
+    );
     const config: Record<string, unknown> = {
       sql_source: `fn_update_${snake}`,
       operation: "UPDATE",

@@ -18,12 +18,7 @@
  *   fraiseql-cli compile schema.json
  */
 
-import {
-  exportSchema,
-  registerMutation,
-  registerQuery,
-  registerTypeFields,
-} from "../src/index";
+import { exportSchema, registerMutation, registerQuery, registerTypeFields } from "../src/index";
 
 // ============================================================================
 // Types

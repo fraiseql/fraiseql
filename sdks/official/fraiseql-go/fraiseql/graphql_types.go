@@ -15,10 +15,10 @@ type GraphQLResponse struct {
 
 // GraphQLErrorEntry is one entry in the GraphQL errors array.
 type GraphQLErrorEntry struct {
-	Message    string         `json:"message"`
+	Message    string          `json:"message"`
 	Locations  []ErrorLocation `json:"locations,omitempty"`
-	Path       []any          `json:"path,omitempty"`
-	Extensions map[string]any `json:"extensions,omitempty"`
+	Path       []any           `json:"path,omitempty"`
+	Extensions map[string]any  `json:"extensions,omitempty"`
 }
 
 // ErrorLocation identifies a position in a GraphQL document.

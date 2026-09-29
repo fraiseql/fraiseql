@@ -194,11 +194,7 @@ export { Source } from "./sources";
 
 // Export HTTP client
 export { FraiseQLClient } from "./client";
-export type {
-  FraiseQLClientConfig,
-  HttpRetryConfig,
-  RequestOptions,
-} from "./client";
+export type { FraiseQLClientConfig, HttpRetryConfig, RequestOptions } from "./client";
 export {
   FraiseQLError,
   GraphQLError,

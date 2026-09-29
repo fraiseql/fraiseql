@@ -92,9 +92,7 @@ describe("Subscriptions", () => {
     it("should reject a duplicate subscription name", () => {
       registerSubscription("orderCreated", "Order", []);
 
-      expect(() => registerSubscription("orderCreated", "Order", [])).toThrow(
-        /already registered/
-      );
+      expect(() => registerSubscription("orderCreated", "Order", [])).toThrow(/already registered/);
     });
   });
 
@@ -247,11 +245,7 @@ describe("Subscriptions", () => {
 
       const schema = SchemaRegistry.getSchema();
       expect(schema.subscriptions).toHaveLength(3);
-      expect(schema.subscriptions.map((s) => s.return_type)).toEqual([
-        "User",
-        "Post",
-        "Comment",
-      ]);
+      expect(schema.subscriptions.map((s) => s.return_type)).toEqual(["User", "Post", "Comment"]);
     });
 
     it("should register multiple subscriptions on the same type with different filters", () => {
@@ -294,9 +288,7 @@ describe("Subscriptions", () => {
         topic: "orders.events.lifecycle",
       });
 
-      expect(SchemaRegistry.getSchema().subscriptions[0].topic).toBe(
-        "orders.events.lifecycle"
-      );
+      expect(SchemaRegistry.getSchema().subscriptions[0].topic).toBe("orders.events.lifecycle");
     });
 
     it("should support topic with event-path filtering", () => {

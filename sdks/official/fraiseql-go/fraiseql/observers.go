@@ -45,7 +45,7 @@ type RetryConfig struct {
 // DefaultRetryConfig is what an observer that does not call Retry() is compiled with.
 //
 // `IntermediateObserver.retry` is a required field with no serde default, so omitting the
-// block failed the compile with `missing field `retry`` — and the builder omitted it
+// block failed the compile with `missing field `retry“ — and the builder omitted it
 // whenever the author had not set one, which is the common case. Every shipped Go
 // observer example was uncompilable for this reason alone.
 func DefaultRetryConfig() RetryConfig {

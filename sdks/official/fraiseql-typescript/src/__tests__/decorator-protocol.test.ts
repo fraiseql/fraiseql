@@ -50,10 +50,7 @@ describe("decorator protocol independence", () => {
   });
 
   it("@Observer takes the member name from a TC39 context object", () => {
-    Observer({ entity: "Order", event: "created", actions: [] })(
-      {},
-      tc39Context("onOrderCreated")
-    );
+    Observer({ entity: "Order", event: "created", actions: [] })({}, tc39Context("onOrderCreated"));
 
     expect(SchemaRegistry.getSchema().observers?.[0]?.name).toBe("onOrderCreated");
   });

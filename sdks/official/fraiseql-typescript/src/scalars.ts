@@ -81,7 +81,7 @@ export abstract class CustomScalar {
   /**
    * Scalar name (e.g., "Email"). Must be unique in schema.
    */
-  abstract name: string
+  abstract name: string;
 
   /**
    * Convert value to output format (schema → response).
@@ -99,7 +99,7 @@ export abstract class CustomScalar {
    * }
    * ```
    */
-  abstract serialize(value: unknown): unknown
+  abstract serialize(value: unknown): unknown;
 
   /**
    * Validate and convert input value (client input → internal).
@@ -121,7 +121,7 @@ export abstract class CustomScalar {
    * }
    * ```
    */
-  abstract parseValue(value: unknown): unknown
+  abstract parseValue(value: unknown): unknown;
 
   /**
    * Parse GraphQL literal (hardcoded value in query).
@@ -143,7 +143,7 @@ export abstract class CustomScalar {
    * }
    * ```
    */
-  abstract parseLiteral(ast: unknown): unknown
+  abstract parseLiteral(ast: unknown): unknown;
 }
 
 // =============================================================================

@@ -1,13 +1,9 @@
 // Mock the 'ai' module before importing the integration
-import { vi } from 'vitest';
+import { vi } from "vitest";
 
-vi.mock('ai', () => ({
+vi.mock("ai", () => ({
   tool: vi.fn(
-    (config: {
-      description: string;
-      parameters: unknown;
-      execute: (p: unknown) => unknown;
-    }) => ({
+    (config: { description: string; parameters: unknown; execute: (p: unknown) => unknown }) => ({
       _isTool: true,
       description: config.description,
       parameters: config.parameters,
@@ -16,19 +12,19 @@ vi.mock('ai', () => ({
   ),
 }));
 
-import { fraiseqlTool } from '../../integrations/vercel-ai';
-import { FraiseQLClient } from '../../client';
+import { fraiseqlTool } from "../../integrations/vercel-ai";
+import { FraiseQLClient } from "../../client";
 
 function makeMockClient(data: Record<string, unknown>): FraiseQLClient {
   const fetchMock = vi.fn().mockResolvedValue({
     status: 200,
     ok: true,
-    statusText: 'OK',
+    statusText: "OK",
     headers: { get: () => null },
     json: () => Promise.resolve({ data }),
   });
   return new FraiseQLClient({
-    url: 'http://localhost:4000/graphql',
+    url: "http://localhost:4000/graphql",
     fetch: fetchMock as unknown as typeof fetch,
   });
 }
@@ -37,60 +33,58 @@ function makeMockClient(data: Record<string, unknown>): FraiseQLClient {
 const mockSchema = {
   _type: {} as Record<string, unknown>,
   parse: (v: unknown) => v,
-} as unknown as import('zod').z.ZodObject<import('zod').z.ZodRawShape>;
+} as unknown as import("zod").z.ZodObject<import("zod").z.ZodRawShape>;
 
-describe('fraiseqlTool (Vercel AI)', () => {
-  it('creates a tool with description and parameters', () => {
+describe("fraiseqlTool (Vercel AI)", () => {
+  it("creates a tool with description and parameters", () => {
     const client = makeMockClient({});
     const t = fraiseqlTool(client, {
-      name: 'getUser',
-      description: 'Fetch a user',
-      query: 'query($id: ID!) { user(id: $id) { id } }',
+      name: "getUser",
+      description: "Fetch a user",
+      query: "query($id: ID!) { user(id: $id) { id } }",
       parameters: mockSchema,
     });
 
-    expect(t).toHaveProperty('description', 'Fetch a user');
-    expect(t).toHaveProperty('execute');
+    expect(t).toHaveProperty("description", "Fetch a user");
+    expect(t).toHaveProperty("execute");
   });
 
-  it('execute calls client.query with params', async () => {
-    const userData = { user: { id: '1', name: 'Alice' } };
+  it("execute calls client.query with params", async () => {
+    const userData = { user: { id: "1", name: "Alice" } };
     const client = makeMockClient(userData);
-    const querySpy = vi.spyOn(client, 'query');
+    const querySpy = vi.spyOn(client, "query");
 
     const t = fraiseqlTool(client, {
-      name: 'getUser',
-      description: 'Fetch a user',
-      query: 'query($id: ID!) { user(id: $id) { id name } }',
+      name: "getUser",
+      description: "Fetch a user",
+      query: "query($id: ID!) { user(id: $id) { id name } }",
       parameters: mockSchema,
     });
 
     const result = await (
       t as { execute: (p: Record<string, unknown>) => Promise<unknown> }
-    ).execute({ id: '1' });
+    ).execute({ id: "1" });
 
-    expect(querySpy).toHaveBeenCalledWith(
-      'query($id: ID!) { user(id: $id) { id name } }',
-      { id: '1' }
-    );
+    expect(querySpy).toHaveBeenCalledWith("query($id: ID!) { user(id: $id) { id name } }", {
+      id: "1",
+    });
     expect(result).toEqual(userData);
   });
 
-  it('applies transform function when provided', async () => {
-    const client = makeMockClient({ users: [{ id: '1' }, { id: '2' }] });
+  it("applies transform function when provided", async () => {
+    const client = makeMockClient({ users: [{ id: "1" }, { id: "2" }] });
 
     const t = fraiseqlTool(client, {
-      name: 'listUsers',
-      description: 'List users',
-      query: '{ users { id } }',
+      name: "listUsers",
+      description: "List users",
+      query: "{ users { id } }",
       parameters: mockSchema,
-      transform: (data) =>
-        (data['users'] as { id: string }[]).map((u) => u.id),
+      transform: (data) => (data["users"] as { id: string }[]).map((u) => u.id),
     });
 
     const result = await (
       t as { execute: (p: Record<string, unknown>) => Promise<unknown> }
     ).execute({});
-    expect(result).toEqual(['1', '2']);
+    expect(result).toEqual(["1", "2"]);
   });
 });

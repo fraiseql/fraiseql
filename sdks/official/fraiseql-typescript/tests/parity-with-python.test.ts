@@ -107,11 +107,7 @@ describe("TypeScript ↔ Python Feature Parity", () => {
       const schema = SchemaRegistry.getSchema();
       expect(schema.unions).toHaveLength(1);
       expect(schema.unions![0].name).toBe("SearchResult");
-      expect(schema.unions![0].member_types).toEqual([
-        "User",
-        "Post",
-        "Comment",
-      ]);
+      expect(schema.unions![0].member_types).toEqual(["User", "Post", "Comment"]);
     });
 
     it("should have parity: input types", () => {
@@ -368,11 +364,16 @@ describe("TypeScript ↔ Python Feature Parity", () => {
 
     it("should have parity: computed fields excluded from CRUD inputs (create only)", () => {
       // TypeScript: Type with computed field and create-only CRUD
-      registerTypeFields("Order", [
-        { name: "id", type: "ID", nullable: false },
-        { name: "reference", type: "String", nullable: false, computed: true },
-        { name: "quantity", type: "Int", nullable: false },
-      ], undefined, { crud: ["create"] });
+      registerTypeFields(
+        "Order",
+        [
+          { name: "id", type: "ID", nullable: false },
+          { name: "reference", type: "String", nullable: false, computed: true },
+          { name: "quantity", type: "Int", nullable: false },
+        ],
+        undefined,
+        { crud: ["create"] }
+      );
 
       // Python equivalent:
       // @fraiseql.type(crud=["create"])
@@ -390,11 +391,16 @@ describe("TypeScript ↔ Python Feature Parity", () => {
 
     it("should have parity: computed fields excluded from CRUD inputs (update only)", () => {
       // TypeScript: Type with computed field and update-only CRUD
-      registerTypeFields("Product", [
-        { name: "id", type: "ID", nullable: false },
-        { name: "slug", type: "String", nullable: false, computed: true },
-        { name: "name", type: "String", nullable: false },
-      ], undefined, { crud: ["update"] });
+      registerTypeFields(
+        "Product",
+        [
+          { name: "id", type: "ID", nullable: false },
+          { name: "slug", type: "String", nullable: false, computed: true },
+          { name: "name", type: "String", nullable: false },
+        ],
+        undefined,
+        { crud: ["update"] }
+      );
 
       // Python equivalent:
       // @fraiseql.type(crud=["update"])
@@ -409,17 +415,22 @@ describe("TypeScript ↔ Python Feature Parity", () => {
       expect(updateInput!.fields).toHaveLength(2); // id (required) and name, slug excluded
       expect(updateInput!.fields.map((f) => f.name)).toEqual(["id", "name"]);
       expect(updateInput!.fields[0].nullable).toBe(false); // PK is required
-      expect(updateInput!.fields[1].nullable).toBe(true);  // other fields are optional
+      expect(updateInput!.fields[1].nullable).toBe(true); // other fields are optional
     });
 
     it("should have parity: computed fields excluded from CRUD inputs (full crud)", () => {
       // TypeScript: Type with computed field and full CRUD
-      registerTypeFields("Post", [
-        { name: "id", type: "ID", nullable: false },
-        { name: "urlSlug", type: "String", nullable: false, computed: true },
-        { name: "title", type: "String", nullable: false },
-        { name: "content", type: "String", nullable: false },
-      ], undefined, { crud: true });
+      registerTypeFields(
+        "Post",
+        [
+          { name: "id", type: "ID", nullable: false },
+          { name: "urlSlug", type: "String", nullable: false, computed: true },
+          { name: "title", type: "String", nullable: false },
+          { name: "content", type: "String", nullable: false },
+        ],
+        undefined,
+        { crud: true }
+      );
 
       // Python equivalent:
       // @fraiseql.type(crud=True)
@@ -443,8 +454,8 @@ describe("TypeScript ↔ Python Feature Parity", () => {
       expect(updateInput!.fields).toHaveLength(3);
       expect(updateInput!.fields.map((f) => f.name)).toEqual(["id", "title", "content"]);
       expect(updateInput!.fields[0].nullable).toBe(false); // PK required
-      expect(updateInput!.fields[1].nullable).toBe(true);  // title optional
-      expect(updateInput!.fields[2].nullable).toBe(true);  // content optional
+      expect(updateInput!.fields[1].nullable).toBe(true); // title optional
+      expect(updateInput!.fields[2].nullable).toBe(true); // content optional
     });
   });
 
@@ -553,9 +564,7 @@ describe("TypeScript ↔ Python Feature Parity", () => {
       union("SearchResult", ["User", "Post"]);
 
       // Input
-      input("FilterInput", [
-        { name: "query", type: "String", nullable: false },
-      ]);
+      input("FilterInput", [{ name: "query", type: "String", nullable: false }]);
 
       // Queries
       registerQuery("users", "User", true, false, [], "Get users");
@@ -569,12 +578,9 @@ describe("TypeScript ↔ Python Feature Parity", () => {
       });
 
       // Observers
-      SchemaRegistry.registerObserver(
-        "notifyNewUser",
-        "User",
-        "INSERT",
-        [{ type: "webhook", url: "https://example.com" }]
-      );
+      SchemaRegistry.registerObserver("notifyNewUser", "User", "INSERT", [
+        { type: "webhook", url: "https://example.com" },
+      ]);
 
       // Verify completeness
       const schema = SchemaRegistry.getSchema();
@@ -611,9 +617,7 @@ describe("TypeScript ↔ Python Feature Parity", () => {
       };
 
       // Count implemented features
-      const implementedCount = Object.values(parityFeatures).filter(
-        (v) => v === true
-      ).length;
+      const implementedCount = Object.values(parityFeatures).filter((v) => v === true).length;
       const totalFeatures = Object.keys(parityFeatures).length;
 
       expect(implementedCount).toBe(totalFeatures);

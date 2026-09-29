@@ -191,15 +191,23 @@ function authorFull(): void {
   // The argument is two words on purpose (#1255): every argument in this fixture used
   // to be `id`, `email` or `name`, which spell the same in every convention, so no SDK's
   // argument-name translation was exercised and three did not have one.
-  registerQuery("tenantOrders", "Order", true, false, [{ name: "includeArchived", type: "Boolean", nullable: true }], undefined, {
-    sql_source: "v_order",
-    inject_params: { tenant_id: "jwt:tenant_id" },
-    cache_ttl_seconds: 300,
-    requires_role: "admin",
-    // #966's actor allow-list, enforced in the same executor gate as `requires_role` on
-    // every transport, and authorable in no SDK until #1123.
-    requires_actor: ["human_user", "service_account"],
-  });
+  registerQuery(
+    "tenantOrders",
+    "Order",
+    true,
+    false,
+    [{ name: "includeArchived", type: "Boolean", nullable: true }],
+    undefined,
+    {
+      sql_source: "v_order",
+      inject_params: { tenant_id: "jwt:tenant_id" },
+      cache_ttl_seconds: 300,
+      requires_role: "admin",
+      // #966's actor allow-list, enforced in the same executor gate as `requires_role` on
+      // every transport, and authorable in no SDK until #1123.
+      requires_actor: ["human_user", "service_account"],
+    }
+  );
 
   // #1305: the three authored states of `pagination_order`, one query each, because one
   // query can demonstrate only one. The key decides the total order a `LIMIT`/`OFFSET`
@@ -235,10 +243,17 @@ function authorFull(): void {
   // SDK that recases config values as well as keys publishes `previewQuote` and the
   // author's `preview_quote.ts` is never found. Spelled in this SDK's camelCase style
   // for the key (it has none to translate) and snake_case for the value, deliberately.
-  registerQuery("quotePreview", "Order", false, true,
-    [{ name: "sku", type: "String", nullable: false }], undefined, {
-    function: "preview_quote",
-  });
+  registerQuery(
+    "quotePreview",
+    "Order",
+    false,
+    true,
+    [{ name: "sku", type: "String", nullable: false }],
+    undefined,
+    {
+      function: "preview_quote",
+    }
+  );
 
   registerMutation(
     "createUser",

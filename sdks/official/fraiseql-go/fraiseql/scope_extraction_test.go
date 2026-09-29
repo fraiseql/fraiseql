@@ -117,7 +117,7 @@ func TestMultipleScopesOnSingleFieldAreRefused(t *testing.T) {
 	defer Reset()
 
 	type AdminWithMultipleScopes struct {
-		ID        int    `fraiseql:"id,type=Int"`
+		ID         int    `fraiseql:"id,type=Int"`
 		AdminNotes string `fraiseql:"adminNotes,type=String,scopes=admin;auditor"`
 	}
 
@@ -207,8 +207,8 @@ func TestActionBasedScopePattern(t *testing.T) {
 	defer Reset()
 
 	type ActionPatternScopes struct {
-		ReadableField  string `fraiseql:"readableField,type=String,scope=read:User.*"`
-		WritableField  string `fraiseql:"writableField,type=String,scope=write:User.*"`
+		ReadableField string `fraiseql:"readableField,type=String,scope=read:User.*"`
+		WritableField string `fraiseql:"writableField,type=String,scope=write:User.*"`
 	}
 
 	fields, err := ExtractFields(reflect.TypeOf(ActionPatternScopes{}))

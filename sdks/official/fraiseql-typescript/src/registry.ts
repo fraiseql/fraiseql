@@ -536,9 +536,7 @@ function normaliseConfig(
   // changelog_pre_image opt-in flag must be a real boolean; omitting it lets the
   // compiler default it to false (after-image only).
   if ("changelogPreImage" in config && typeof config.changelogPreImage !== "boolean") {
-    throw new Error(
-      `changelogPreImage must be a boolean (got ${typeof config.changelogPreImage})`
-    );
+    throw new Error(`changelogPreImage must be a boolean (got ${typeof config.changelogPreImage})`);
   }
 
   // input_style controls how the `input` arg reaches the SQL function: "flatten"
@@ -668,7 +666,8 @@ export class SchemaRegistry {
   private static observers: Map<string, ObserverDefinition> = new Map();
   private static sources: Map<string, SourceDefinition> = new Map();
   private static functions: Map<string, FunctionDefinition> = new Map();
-  private static customScalars: Map<string, { class: typeof CustomScalar; description?: string }> = new Map();
+  private static customScalars: Map<string, { class: typeof CustomScalar; description?: string }> =
+    new Map();
 
   /**
    * Register a GraphQL type.
@@ -936,13 +935,13 @@ export class SchemaRegistry {
       if (!returnsList) {
         throw new Error(
           `registerQuery('${name}'): relay: true requires returns_list to be true. ` +
-          "Relay connections only apply to list queries."
+            "Relay connections only apply to list queries."
         );
       }
       if (!config.sqlSource) {
         throw new Error(
           `registerQuery('${name}'): relay: true requires sqlSource to be set. ` +
-          "The compiler needs the view name to derive the cursor column."
+            "The compiler needs the view name to derive the cursor column."
         );
       }
       // Strip limit/offset from autoParams — relay uses first/after/last/before instead
@@ -1293,7 +1292,11 @@ export class SchemaRegistry {
    *
    * @throws If scalar name is not unique
    */
-  static registerScalar(name: string, scalarClass: typeof CustomScalar, description?: string): void {
+  static registerScalar(
+    name: string,
+    scalarClass: typeof CustomScalar,
+    description?: string
+  ): void {
     if (this.customScalars.has(name)) {
       throw new Error(
         `Scalar '${name}' is already registered. Each name must be unique within a schema.`
@@ -1360,7 +1363,10 @@ export class SchemaRegistry {
     }
 
     if (this.customScalars.size > 0) {
-      const customScalars: Record<string, { name: string; description: string; validate: boolean }> = {};
+      const customScalars: Record<
+        string,
+        { name: string; description: string; validate: boolean }
+      > = {};
       for (const [name, { class: scalarClass, description }] of this.customScalars) {
         customScalars[name] = {
           name,

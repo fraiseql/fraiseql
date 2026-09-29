@@ -71,12 +71,7 @@ fraiseql.registerTypeFields(
 // ============================================================================
 
 // Subscribe to all user changes
-fraiseql.registerSubscription(
-  "userChanged",
-  "User",
-  [],
-  "Subscribe to any user changes"
-);
+fraiseql.registerSubscription("userChanged", "User", [], "Subscribe to any user changes");
 
 // The event payload carries the DML verb; a filter condition selects on it, which is
 // what replaces the `operation: "CREATE"` this example used to pass.
@@ -185,21 +180,13 @@ fraiseql.registerSubscription(
 // EXAMPLE 6: Change Data Capture (CDC) Pattern
 // ============================================================================
 
-fraiseql.registerSubscription(
-  "userCDC",
-  "User",
-  [],
-  "Change data capture for users",
-  { topic: "cdc" }
-);
+fraiseql.registerSubscription("userCDC", "User", [], "Change data capture for users", {
+  topic: "cdc",
+});
 
-fraiseql.registerSubscription(
-  "orderCDC",
-  "Order",
-  [],
-  "Change data capture for orders",
-  { topic: "cdc" }
-);
+fraiseql.registerSubscription("orderCDC", "Order", [], "Change data capture for orders", {
+  topic: "cdc",
+});
 
 // ============================================================================
 // EXAMPLE 7: Multi-Topic Fan-Out Pattern
@@ -221,13 +208,10 @@ fraiseql.registerSubscription("standardOrders", "Order", [], "Standard orders", 
 });
 
 // A subscription that is on its way out says so, and generated clients warn.
-fraiseql.registerSubscription(
-  "lowPriorityOrders",
-  "Order",
-  [],
-  "Low-priority orders",
-  { topic: "orders.low_priority", deprecated: "fold into standardOrders" }
-);
+fraiseql.registerSubscription("lowPriorityOrders", "Order", [], "Low-priority orders", {
+  topic: "orders.low_priority",
+  deprecated: "fold into standardOrders",
+});
 
 // ============================================================================
 // EXAMPLE 8: Queries Complementing Subscriptions

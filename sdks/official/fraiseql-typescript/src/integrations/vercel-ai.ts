@@ -15,9 +15,9 @@
  * ```
  */
 
-import { tool } from 'ai';
-import type { z } from 'zod';
-import type { FraiseQLClient } from '../client';
+import { tool } from "ai";
+import type { z } from "zod";
+import type { FraiseQLClient } from "../client";
 
 export function fraiseqlTool<TParams extends z.ZodType>(
   client: FraiseQLClient,
@@ -33,13 +33,8 @@ export function fraiseqlTool<TParams extends z.ZodType>(
     description: options.description,
     parameters: options.parameters,
     execute: async (params) => {
-      const data = await client.query(
-        options.query,
-        params as Record<string, unknown>
-      );
-      return options.transform
-        ? options.transform(data as Record<string, unknown>)
-        : data;
+      const data = await client.query(options.query, params as Record<string, unknown>);
+      return options.transform ? options.transform(data as Record<string, unknown>) : data;
     },
   });
 }

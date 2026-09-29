@@ -64,7 +64,9 @@ describe("vector field authoring", () => {
       index_type: "hnsw",
       distance_metric: "hamming",
     });
-    expect(fieldOf("Document", "compact").vector_config).toMatchObject({ distance_metric: "inner_product" });
+    expect(fieldOf("Document", "compact").vector_config).toMatchObject({
+      distance_metric: "inner_product",
+    });
     expect(fieldOf("Document", "terms").vector_config).toMatchObject({ index_type: "none" });
   });
 

@@ -140,9 +140,7 @@ describe("Field-Level Metadata", () => {
 
       expect(salaryField.requires_scope).toBe("read:User.salary");
       expect(salaryField.deprecated).toEqual({ reason: "Use totalCompensation instead" });
-      expect(salaryField.description).toBe(
-        "Annual salary (deprecated - use totalCompensation)"
-      );
+      expect(salaryField.description).toBe("Annual salary (deprecated - use totalCompensation)");
     });
 
     it("should preserve metadata in multi-field registration", () => {
@@ -412,7 +410,8 @@ describe("Field-Level Metadata", () => {
           type: "Decimal",
           nullable: true,
           requiresScope: "orders:view_discounts",
-          description: "Discount amount applied to this order. Requires orders:view_discounts scope.",
+          description:
+            "Discount amount applied to this order. Requires orders:view_discounts scope.",
         },
       ]);
 

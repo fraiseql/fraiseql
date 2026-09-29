@@ -3,7 +3,13 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { CustomScalar, Scalar, validateCustomScalar, getAllCustomScalars, ScalarValidationError } from "../src";
+import {
+  CustomScalar,
+  Scalar,
+  validateCustomScalar,
+  getAllCustomScalars,
+  ScalarValidationError,
+} from "../src";
 import { SchemaRegistry } from "../src/registry";
 
 /**
@@ -83,9 +89,15 @@ describe("Custom Scalar Support", () => {
       @Scalar
       class EmailScalar extends CustomScalar {
         name = "Email";
-        serialize(v: unknown) { return v; }
-        parseValue(v: unknown) { return v; }
-        parseLiteral(v: unknown) { return v; }
+        serialize(v: unknown) {
+          return v;
+        }
+        parseValue(v: unknown) {
+          return v;
+        }
+        parseLiteral(v: unknown) {
+          return v;
+        }
       }
 
       // After registration, Email is in registry
@@ -105,9 +117,15 @@ describe("Custom Scalar Support", () => {
     it("should validate name attribute", () => {
       // @ts-expect-error intentionally missing abstract 'name' for error-path test
       class NoNameScalar extends CustomScalar {
-        serialize(v: unknown) { return v; }
-        parseValue(v: unknown) { return v; }
-        parseLiteral(v: unknown) { return v; }
+        serialize(v: unknown) {
+          return v;
+        }
+        parseValue(v: unknown) {
+          return v;
+        }
+        parseLiteral(v: unknown) {
+          return v;
+        }
       }
 
       expect(() => {
@@ -119,16 +137,28 @@ describe("Custom Scalar Support", () => {
       @Scalar
       class Email1 extends CustomScalar {
         name = "Email";
-        serialize(v: unknown) { return v; }
-        parseValue(v: unknown) { return v; }
-        parseLiteral(v: unknown) { return v; }
+        serialize(v: unknown) {
+          return v;
+        }
+        parseValue(v: unknown) {
+          return v;
+        }
+        parseLiteral(v: unknown) {
+          return v;
+        }
       }
 
       class Email2 extends CustomScalar {
         name = "Email";
-        serialize(v: unknown) { return v; }
-        parseValue(v: unknown) { return v; }
-        parseLiteral(v: unknown) { return v; }
+        serialize(v: unknown) {
+          return v;
+        }
+        parseValue(v: unknown) {
+          return v;
+        }
+        parseLiteral(v: unknown) {
+          return v;
+        }
       }
 
       expect(() => {

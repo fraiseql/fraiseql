@@ -22,15 +22,15 @@ func TestGenerateParitySchema(t *testing.T) {
 	// --- Types ---
 
 	if err := RegisterType("User", []FieldInfo{
-		{Name: "id",    Type: "ID",     Nullable: false},
+		{Name: "id", Type: "ID", Nullable: false},
 		{Name: "email", Type: "String", Nullable: false},
-		{Name: "name",  Type: "String", Nullable: false},
+		{Name: "name", Type: "String", Nullable: false},
 	}, ""); err != nil {
 		t.Fatal(err)
 	}
 
 	if err := RegisterType("Order", []FieldInfo{
-		{Name: "id",    Type: "ID",    Nullable: false},
+		{Name: "id", Type: "ID", Nullable: false},
 		{Name: "total", Type: "Float", Nullable: false},
 	}, ""); err != nil {
 		t.Fatal(err)
@@ -38,7 +38,7 @@ func TestGenerateParitySchema(t *testing.T) {
 
 	if err := RegisterErrorType("UserNotFound", []FieldInfo{
 		{Name: "message", Type: "String", Nullable: false},
-		{Name: "code",    Type: "String", Nullable: false},
+		{Name: "code", Type: "String", Nullable: false},
 	}, ""); err != nil {
 		t.Fatal(err)
 	}

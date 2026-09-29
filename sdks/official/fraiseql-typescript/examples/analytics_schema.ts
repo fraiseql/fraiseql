@@ -19,12 +19,7 @@
  *   fraiseql-cli compile schema.json
  */
 
-import {
-  SchemaRegistry,
-  exportSchema,
-  registerMutation,
-  registerTypeFields,
-} from "../src/index";
+import { SchemaRegistry, exportSchema, registerMutation, registerTypeFields } from "../src/index";
 
 // ============================================================================
 // The transactional type the facts are derived from

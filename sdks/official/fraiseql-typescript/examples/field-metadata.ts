@@ -134,8 +134,7 @@ fraiseql.registerTypeFields("Order", [
     name: "discount",
     type: "Decimal",
     nullable: false,
-    description:
-      "Discount amount applied (cents). Requires orders:view_discounts scope.",
+    description: "Discount amount applied (cents). Requires orders:view_discounts scope.",
     requiresScope: "orders:view_discounts",
   },
   {

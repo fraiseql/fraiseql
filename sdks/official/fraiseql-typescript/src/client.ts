@@ -10,12 +10,12 @@ import {
   TimeoutError,
   AuthenticationError,
   RateLimitError,
-} from './errors';
+} from "./errors";
 
 const HTTP_REQUEST_TIMEOUT = 408;
 const HTTP_SERVER_ERROR_FLOOR = 500;
-import type { HttpRetryConfig } from './http-retry';
-import { executeWithRetry } from './http-retry';
+import type { HttpRetryConfig } from "./http-retry";
+import { executeWithRetry } from "./http-retry";
 
 export type { HttpRetryConfig };
 
@@ -56,7 +56,7 @@ interface GraphQLResponse {
 /** A fresh idempotency key for one logical mutation. */
 function newIdempotencyKey(): string {
   const webCrypto = globalThis.crypto as Crypto | undefined;
-  if (typeof webCrypto?.randomUUID === 'function') {
+  if (typeof webCrypto?.randomUUID === "function") {
     return webCrypto.randomUUID();
   }
   // Runtimes without WebCrypto: still unique per call, which is all the server
@@ -68,8 +68,7 @@ function newIdempotencyKey(): string {
 function isAbortError(error: unknown): boolean {
   return (
     error instanceof Error &&
-    (error.name === 'AbortError' ||
-      error.message.toLowerCase().includes('abort'))
+    (error.name === "AbortError" || error.message.toLowerCase().includes("abort"))
   );
 }
 
@@ -83,7 +82,7 @@ export class FraiseQLClient {
 
   constructor(urlOrConfig: string | FraiseQLClientConfig) {
     const config: FraiseQLClientConfig =
-      typeof urlOrConfig === 'string' ? { url: urlOrConfig } : urlOrConfig;
+      typeof urlOrConfig === "string" ? { url: urlOrConfig } : urlOrConfig;
 
     this.url = config.url;
     this.authorization = config.authorization;
@@ -96,7 +95,7 @@ export class FraiseQLClient {
 
   private async resolveAuth(): Promise<string | undefined> {
     if (this.authorization === undefined) return undefined;
-    if (typeof this.authorization === 'string') return this.authorization;
+    if (typeof this.authorization === "string") return this.authorization;
     return this.authorization();
   }
 
@@ -105,16 +104,16 @@ export class FraiseQLClient {
     idempotencyKey?: string
   ): Promise<Record<string, string>> {
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...this.extraHeaders,
       ...options?.headers,
     };
     const auth = await this.resolveAuth();
     if (auth !== undefined) {
-      headers['Authorization'] = auth;
+      headers["Authorization"] = auth;
     }
     if (idempotencyKey !== undefined) {
-      headers['Idempotency-Key'] = idempotencyKey;
+      headers["Idempotency-Key"] = idempotencyKey;
     }
     return headers;
   }
@@ -141,7 +140,7 @@ export class FraiseQLClient {
         let response: Response;
         try {
           response = await this.fetchFn(this.url, {
-            method: 'POST',
+            method: "POST",
             headers: await this.buildHeaders(options, idempotencyKey),
             body,
             signal: controller.signal,
@@ -151,7 +150,7 @@ export class FraiseQLClient {
             throw new TimeoutError();
           }
           throw new NetworkError(
-            error instanceof Error ? error.message : 'Network request failed',
+            error instanceof Error ? error.message : "Network request failed",
             { cause: error }
           );
         }
@@ -161,17 +160,13 @@ export class FraiseQLClient {
         }
 
         if (response.status === 429) {
-          const retryAfterHeader = response.headers.get('Retry-After');
-          const retryAfterMs = retryAfterHeader
-            ? parseInt(retryAfterHeader, 10) * 1000
-            : undefined;
-          throw new RateLimitError(
-            Number.isNaN(retryAfterMs) ? undefined : retryAfterMs
-          );
+          const retryAfterHeader = response.headers.get("Retry-After");
+          const retryAfterMs = retryAfterHeader ? parseInt(retryAfterHeader, 10) * 1000 : undefined;
+          throw new RateLimitError(Number.isNaN(retryAfterMs) ? undefined : retryAfterMs);
         }
 
         if (response.status === HTTP_REQUEST_TIMEOUT) {
-          throw new TimeoutError('Server reported a request timeout (HTTP 408)');
+          throw new TimeoutError("Server reported a request timeout (HTTP 408)");
         }
 
         if (!response.ok) {
@@ -179,9 +174,7 @@ export class FraiseQLClient {
           // means the request itself was rejected, which ADR-0015 §3 treats as
           // permanent — retrying it just repeats a known-bad request (#1059).
           if (response.status >= HTTP_SERVER_ERROR_FLOOR) {
-            throw new NetworkError(
-              `HTTP ${response.status}: ${response.statusText}`
-            );
+            throw new NetworkError(`HTTP ${response.status}: ${response.statusText}`);
           }
           throw new HttpStatusError(response.status, response.statusText);
         }
@@ -196,17 +189,13 @@ export class FraiseQLClient {
           if (isAbortError(error)) {
             throw new TimeoutError();
           }
-          throw new NetworkError('Failed to parse JSON response', {
+          throw new NetworkError("Failed to parse JSON response", {
             cause: error,
           });
         }
 
         // null/absent errors array means success — do NOT treat as error
-        if (
-          json.errors !== null &&
-          json.errors !== undefined &&
-          json.errors.length > 0
-        ) {
+        if (json.errors !== null && json.errors !== undefined && json.errors.length > 0) {
           throw new GraphQLError(json.errors);
         }
 
@@ -230,11 +219,7 @@ export class FraiseQLClient {
     });
     // No generated key: repeating a read is already safe, and a key would make
     // the server store a response for something that does not need replaying.
-    return this.executeRequest(
-      body,
-      options,
-      options?.idempotencyKey
-    ) as Promise<T>;
+    return this.executeRequest(body, options, options?.idempotencyKey) as Promise<T>;
   }
 
   async mutate<T = Record<string, unknown>>(
@@ -252,8 +237,7 @@ export class FraiseQLClient {
     // of a lost response re-executes the mutation and commits twice; with it
     // the server replays the first response instead (#1060).
     const idempotencyKey =
-      options?.idempotencyKey ??
-      (this.retriesEnabled() ? newIdempotencyKey() : undefined);
+      options?.idempotencyKey ?? (this.retriesEnabled() ? newIdempotencyKey() : undefined);
     return this.executeRequest(body, options, idempotencyKey) as Promise<T>;
   }
 }
@@ -268,4 +252,4 @@ export {
   AuthenticationError,
   RateLimitError,
 };
-export type { GraphQLErrorEntry } from './errors';
+export type { GraphQLErrorEntry } from "./errors";

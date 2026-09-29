@@ -15,9 +15,9 @@
  * ```
  */
 
-import { StructuredTool } from '@langchain/core/tools';
-import type { z } from 'zod';
-import type { FraiseQLClient } from '../client';
+import { StructuredTool } from "@langchain/core/tools";
+import type { z } from "zod";
+import type { FraiseQLClient } from "../client";
 
 export class FraiseQLTool extends StructuredTool {
   schema: z.ZodObject<z.ZodRawShape>;

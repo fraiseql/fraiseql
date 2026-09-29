@@ -2,8 +2,8 @@
  * Retry logic for FraiseQL HTTP client operations.
  */
 
-import type { FraiseQLError } from './errors';
-import { NetworkError, TimeoutError } from './errors';
+import type { FraiseQLError } from "./errors";
+import { NetworkError, TimeoutError } from "./errors";
 
 export interface HttpRetryConfig {
   maxAttempts?: number;
@@ -35,18 +35,13 @@ export async function executeWithRetry<T>(
     } catch (error) {
       if (attempt === maxAttempts) throw error;
 
-      const isRetryable = retryOn.some(
-        (ErrorClass) => error instanceof ErrorClass
-      );
+      const isRetryable = retryOn.some((ErrorClass) => error instanceof ErrorClass);
       if (!isRetryable) throw error;
 
       lastError = error as FraiseQLError;
       onRetry?.(attempt, lastError);
 
-      const delay = Math.min(
-        baseDelayMs * Math.pow(2, attempt - 1),
-        maxDelayMs
-      );
+      const delay = Math.min(baseDelayMs * Math.pow(2, attempt - 1), maxDelayMs);
       const actualDelay = jitter ? delay * (0.5 + Math.random() * 0.5) : delay;
       await new Promise((resolve) => setTimeout(resolve, actualDelay));
     }

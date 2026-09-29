@@ -20,12 +20,9 @@ describe("validateSchemaBeforeExport", () => {
   });
 
   const declareUser = () =>
-    registerTypeFields(
-      "User",
-      [{ name: "id", type: "ID", nullable: false }],
-      undefined,
-      { sqlSource: "v_user" }
-    );
+    registerTypeFields("User", [{ name: "id", type: "ID", nullable: false }], undefined, {
+      sqlSource: "v_user",
+    });
 
   it("accepts a query returning a declared union", () => {
     declareUser();

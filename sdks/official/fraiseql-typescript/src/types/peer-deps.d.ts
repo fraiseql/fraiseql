@@ -5,7 +5,7 @@
 
 // Minimal zod stub for type-checking without the full package installed.
 // When zod is installed as a dependency, its own types take precedence.
-declare module 'zod' {
+declare module "zod" {
   export namespace z {
     type ZodRawShape = Record<string, ZodType>;
     interface ZodType {
@@ -14,13 +14,13 @@ declare module 'zod' {
     interface ZodObject<T extends ZodRawShape> extends ZodType {
       readonly _shape: T;
     }
-    type infer<T extends ZodType> = T['_type'];
+    type infer<T extends ZodType> = T["_type"];
   }
   export type { z };
 }
 
-declare module 'ai' {
-  import type { z } from 'zod';
+declare module "ai" {
+  import type { z } from "zod";
 
   export interface ToolConfig<TParams extends z.ZodType = z.ZodType> {
     description: string;
@@ -34,13 +34,11 @@ declare module 'ai' {
     execute: (params: unknown) => Promise<unknown> | unknown;
   }
 
-  export function tool<TParams extends z.ZodType>(
-    config: ToolConfig<TParams>
-  ): Tool;
+  export function tool<TParams extends z.ZodType>(config: ToolConfig<TParams>): Tool;
 }
 
-declare module '@langchain/core/tools' {
-  import type { z } from 'zod';
+declare module "@langchain/core/tools" {
+  import type { z } from "zod";
 
   export abstract class StructuredTool {
     abstract schema: z.ZodObject<z.ZodRawShape>;
@@ -51,8 +49,8 @@ declare module '@langchain/core/tools' {
   }
 }
 
-declare module '@mastra/core/tools' {
-  import type { z } from 'zod';
+declare module "@mastra/core/tools" {
+  import type { z } from "zod";
 
   export interface MastraToolConfig {
     id: string;

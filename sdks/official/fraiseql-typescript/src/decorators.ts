@@ -726,9 +726,7 @@ export function Scalar<T extends typeof CustomScalar>(target: T): T {
   if (!isCustomScalarSubclass(target)) {
     // Use (target as object) to avoid narrowing to never before the throw
     const name = (target as { name?: string }).name ?? "(unknown)";
-    throw new TypeError(
-      `@Scalar can only be applied to CustomScalar subclasses, got ${name}`
-    );
+    throw new TypeError(`@Scalar can only be applied to CustomScalar subclasses, got ${name}`);
   }
 
   // Create instance to get the name; double-cast through unknown to satisfy abstract→concrete
@@ -738,9 +736,7 @@ export function Scalar<T extends typeof CustomScalar>(target: T): T {
 
   // Validate name
   if (!scalarName || typeof scalarName !== "string") {
-    throw new Error(
-      `CustomScalar ${target.name} must have a 'name' property of type string`
-    );
+    throw new Error(`CustomScalar ${target.name} must have a 'name' property of type string`);
   }
 
   // Register with schema registry

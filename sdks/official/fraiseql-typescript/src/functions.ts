@@ -67,8 +67,12 @@ interface FunctionConfig {
  * @returns Method decorator
  */
 export function FraiseFunction(config: FunctionConfig) {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any -- method decorator target
-  return function (_target: any, propertyKeyOrContext: unknown, _descriptor?: PropertyDescriptor): void {
+  return function (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- method decorator target
+    _target: any,
+    propertyKeyOrContext: unknown,
+    _descriptor?: PropertyDescriptor
+  ): void {
     const name = decoratedMemberName(propertyKeyOrContext, "FraiseFunction");
     SchemaRegistry.registerFunction({
       name,

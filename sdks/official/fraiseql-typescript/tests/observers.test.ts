@@ -228,12 +228,9 @@ describe("email action", () => {
   });
 
   it("should support custom sender", () => {
-    const action = email(
-      "customer@example.com",
-      "Order shipped",
-      "Your order is on its way!",
-      { from_email: "noreply@example.com" }
-    );
+    const action = email("customer@example.com", "Order shipped", "Your order is on its way!", {
+      from_email: "noreply@example.com",
+    });
 
     expect(action.from).toBe("noreply@example.com");
   });

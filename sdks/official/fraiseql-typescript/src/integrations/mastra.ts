@@ -15,9 +15,9 @@
  * ```
  */
 
-import { createTool } from '@mastra/core/tools';
-import type { z } from 'zod';
-import type { FraiseQLClient } from '../client';
+import { createTool } from "@mastra/core/tools";
+import type { z } from "zod";
+import type { FraiseQLClient } from "../client";
 
 export function fraiseqlMastraTool(
   client: FraiseQLClient,
@@ -35,10 +35,7 @@ export function fraiseqlMastraTool(
     inputSchema: options.inputSchema,
     outputSchema: options.outputSchema,
     execute: async ({ context }) => {
-      return client.query(
-        options.query,
-        context as Record<string, unknown>
-      );
+      return client.query(options.query, context as Record<string, unknown>);
     },
   });
 }

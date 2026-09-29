@@ -178,12 +178,7 @@ describe("SchemaRegistry", () => {
 
   describe("registerSubscription", () => {
     it("should register a simple subscription", () => {
-      SchemaRegistry.registerSubscription(
-        "orderCreated",
-        "Order",
-        [],
-        "Subscribe to new orders"
-      );
+      SchemaRegistry.registerSubscription("orderCreated", "Order", [], "Subscribe to new orders");
 
       const schema = SchemaRegistry.getSchema();
       expect(schema.subscriptions).toHaveLength(1);
@@ -192,13 +187,9 @@ describe("SchemaRegistry", () => {
     });
 
     it("should register a subscription with topic", () => {
-      SchemaRegistry.registerSubscription(
-        "orderCreated",
-        "Order",
-        [],
-        "Subscribe to new orders",
-        { topic: "order_events" }
-      );
+      SchemaRegistry.registerSubscription("orderCreated", "Order", [], "Subscribe to new orders", {
+        topic: "order_events",
+      });
 
       const schema = SchemaRegistry.getSchema();
       expect(schema.subscriptions[0].topic).toBe("order_events");

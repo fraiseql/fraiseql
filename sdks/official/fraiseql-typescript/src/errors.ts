@@ -5,7 +5,7 @@
 export class FraiseQLError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
-    this.name = 'FraiseQLError';
+    this.name = "FraiseQLError";
   }
 }
 
@@ -19,8 +19,8 @@ export interface GraphQLErrorEntry {
 export class GraphQLError extends FraiseQLError {
   readonly errors: GraphQLErrorEntry[];
   constructor(errors: GraphQLErrorEntry[]) {
-    super(errors[0]?.message ?? 'GraphQL error');
-    this.name = 'GraphQLError';
+    super(errors[0]?.message ?? "GraphQL error");
+    this.name = "GraphQLError";
     this.errors = errors;
   }
 }
@@ -28,14 +28,14 @@ export class GraphQLError extends FraiseQLError {
 export class NetworkError extends FraiseQLError {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
-    this.name = 'NetworkError';
+    this.name = "NetworkError";
   }
 }
 
 export class TimeoutError extends NetworkError {
-  constructor(message = 'Request timed out') {
+  constructor(message = "Request timed out") {
     super(message);
-    this.name = 'TimeoutError';
+    this.name = "TimeoutError";
   }
 }
 
@@ -43,7 +43,7 @@ export class AuthenticationError extends FraiseQLError {
   readonly statusCode: 401 | 403;
   constructor(statusCode: 401 | 403) {
     super(`Authentication failed (HTTP ${statusCode})`);
-    this.name = 'AuthenticationError';
+    this.name = "AuthenticationError";
     this.statusCode = statusCode;
   }
 }
@@ -51,8 +51,8 @@ export class AuthenticationError extends FraiseQLError {
 export class RateLimitError extends FraiseQLError {
   readonly retryAfterMs?: number;
   constructor(retryAfterMs?: number) {
-    super('Rate limit exceeded');
-    this.name = 'RateLimitError';
+    super("Rate limit exceeded");
+    this.name = "RateLimitError";
     this.retryAfterMs = retryAfterMs;
   }
 }
@@ -68,8 +68,8 @@ export class RateLimitError extends FraiseQLError {
 export class HttpStatusError extends FraiseQLError {
   readonly status: number;
   constructor(status: number, statusText?: string) {
-    super(`HTTP ${status}${statusText ? `: ${statusText}` : ''}`);
-    this.name = 'HttpStatusError';
+    super(`HTTP ${status}${statusText ? `: ${statusText}` : ""}`);
+    this.name = "HttpStatusError";
     this.status = status;
   }
 }
