@@ -18,17 +18,107 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
-- **A subscription's `extensions.changeSpine` names no one but the subscriber.**
+- **Every read gate applies at every level a read reaches.** (See the security advisory
+  linked under *Security*.)
 
-  The Change-Spine envelope on `/ws` `next` frames now carries only what describes the
-  delivered event: `actorType` and `schemaVersion` as before; `actingFor` only when the
-  delegated human it names is the subscriber itself (its token's `sub`, compared as a UUID);
-  `tenantId` only when it is the subscription's own tenant. `durationMs` is no longer
-  delivered. Before, every subscriber that could read a row an agent wrote learned whom the
-  agent acted for — another user's identity, which no field gate could hide — and how long
-  the mutation took, which rows the subscriber cannot read influence. An envelope left with
-  nothing to say is omitted (the plain `next` frame of an unstamped event). The change log,
-  observers and audit keep the full envelope. New: `ChangeSpineEnvelope::for_subscriber`.
+  A type's field scopes (`requires_scope`, Mask and Reject), its row policy (`rls_policy`,
+  and its read's `inject_params`), its `requires_role` / `requires_actor`, the operation
+  authorizer (#422) and the field authorizer (`authorize = true`) now apply wherever the
+  type is read — as a nested selection (`{ users { orders { … } } }`), at any selection
+  depth, through a Relay connection, `node(id:)`, federation `_entities`, a REST `?select=`
+  of an object field, a mutation's payload (its entity, cascade entities, updated entities
+  and error detail), a subscription, a REST stream, a Kafka-mirrored or webhook message,
+  and a filter, ordering or search. What to expect on upgrade:
+
+  * **403 where data was served:** a nested level of a role- or actor-restricted type; a
+    nested level the #422 authorizer denies ("Read of 'Order' at 'User.orders' denied");
+    a nested level scoped by a policy that does not declare its keys
+    (`RLSPolicy::constrained_paths` → `Opaque`) with no declared relationship to join
+    through; an `_entities` selection reaching a row-gated nested level; a REST read
+    selecting an object field whose type has a `Reject` field the caller lacks; a
+    mutation whose selection names, at any level, a `Reject` field the caller lacks on
+    any type its payload could resolve to — refused **before the write**; a payload served
+    as a type whose `requires_role` the caller lacks (the write rolls back).
+  * **Filters, orderings, searches:** `where`, `orderBy` and similarity search naming a
+    field the caller may not read — `requires_scope` without the scope (Mask included) or
+    any `authorize = true` field — are 403 on every read path, as is a filter path into a
+    type whose `requires_role` the caller lacks. REST `?search=` matches and ranks only
+    the fields the caller may read (403 when it may read none). A filter through a to-one
+    relation into a row-secured type reads a related row the caller may not read as
+    `NULL`, to every operator; under a policy that does not declare its keys it is decided
+    over the target's view when the relation is a declared relationship, and is 403
+    otherwise. On a fact table linked to a type (`FactTableMetadata::type_name`), an
+    aggregate or window referencing an unreadable field is 403, an undeclared name 400;
+    anonymous aggregates and windows under an `rls_policy` are refused.
+  * **Subscriptions and streams:** `/ws` delivers the client's selection, gated as a
+    read; a subscription selecting a `Reject` or undeclared field, or filtering by an
+    unreadable one, is refused; subscribers receive only rows their type's policy admits
+    (a subscription under a row policy with no principal is refused; a policy reload can
+    end one). Kafka-mirrored and webhook messages carry the subscriber's served selection,
+    no `old_data`, and a per-subscription `sequence_number`. REST streams mask, filter and
+    refuse as a `GET` of the resource does; their `id:` is an opaque token (it does not
+    survive a restart; a `Last-Event-ID` that does not open is 410).
+    `extensions.changeSpine` carries `actorType` and `schemaVersion`; `actingFor` only
+    when it names the subscriber (its token's `sub`), `tenantId` only when it is the
+    subscription's own, never `seq` or `durationMs`; an envelope left empty is omitted.
+  * **501:** a streamed or embedding REST read selecting a row-gated nested object field;
+    a read needing a composed statement on an adapter that cannot compose; the engine
+    row read for an object or list column.
+  * **400:** a REST leaf `?select=` of an object nesting past four levels (a
+    self-referential type) instead of a silently truncated object.
+  * **Data shape:** a Relay `node` and a `node(id:)` nested object carry only their
+    selection; a gated nested list stored as `null` or absent comes back `[]`, and its
+    `null` / scalar elements are dropped; a joined nested level reads the target's view; a
+    REST nested object field lists real elements where it listed `{}`s.
+  * **Depth:** an undeclared `[validation] max_query_depth` is `11`
+    (`DEFAULT_MAX_QUERY_DEPTH`) and binds on the selection resolver too; `node(id:)` goes
+    from 12 to 11. The error reads "Selection nests deeper than the N-level limit".
+  * **#422 authorizer:** called at every nested GraphQL level (once per request per
+    parent type and path), for REST embeds, and again for `node` / `_entities` once their
+    type is known. `AuthzRequest` gains `target_type` and `nesting`; an authorizer that
+    denies by `name` without checking `nesting` may deny reads it used to allow.
+  * **Load and compile:** a compiled schema declaring `requires_scope` with no `security`
+    section no longer loads (declare the roles that grant the scopes).
+
+  Public API changes: `can_reference_field`, `Executor::plan_subscription`,
+  `plan_type_stream`, `SubscriptionPlan`, `subscribe_planned`, `replace_plan`,
+  `ChangeSpineEnvelope::for_subscriber` are new; `enforce_authz` takes
+  `&[AuthzOperation]`; `execute_relay_query`, `execute_function_backed_query` and
+  `classify_entities_levels` take the request variables; `RestHandler::resolve_get_query`
+  / `resolve_streaming_get_query` take the caller's `Option<&SecurityContext>`;
+  `selection_set::resolve` / `resolve_and_filter` take `max_depth`;
+  `ComposedEmbed.{target_key, parent_key, key_type}` → `ComposedEmbed.source`;
+  `client_where_argument` takes the row policy; `WhereClause` gains `Guarded` and `KeyIn`
+  (`#[non_exhaustive]`).
+
+- **Every mutation is adjudicated before it commits; its stamp must be one its mutation
+  can return.**
+
+  A write's response is built inside its transaction and any error there rolls it back:
+  a write whose response cannot be built (no rows, an unparseable `mutation_response`, a
+  malformed or over-large cascade) fails and rolls back instead of committing and
+  reporting failure. With the change-log outbox on (the default) this adds no round trip.
+
+  A mutation function's `entity_type` stamp must name a type its mutation can return on
+  that outcome. A success stamped outside the mutation's return types (or as an unknown
+  name, or as one of its error types), a success left unstamped where more than one type
+  is possible, and a cascade or updated entity stamped outside its set are contract errors
+  naming the function, the stamp and the allowed types; the write rolls back. The change
+  log's `object_type` of an unstamped success is the type it resolved to.
+
+  ⚠ **Re-run `fraiseql setup`** (helper protocol `2.3.0`):
+  `fraiseql.mutation_err(error_class, message, error_detail, http_status, p_entity_type)`
+  gains a trailing, optional `p_entity_type` naming the declared error the failure is —
+  `fraiseql.mutation_err('conflict', 'Email taken', p_entity_type => 'DuplicateEmailError')`.
+  Existing positional calls bind unchanged. A failure's stamp must be one of the error
+  types the mutation can return; an unstamped failure of a union with two or more error
+  members is a contract error listing them; one possible error type (every
+  `auto_error_union` result) and a plain object return behave as before. Mutations are
+  classified only against their own error types.
+
+  A mutation selecting an `authorize = true` field with no principal, no field
+  authorizer, below the top level, or with unreadable arguments is refused before its
+  function runs.
 
 - **`fraiseql compile` refuses a schema a server would refuse to load.**
 
@@ -45,78 +135,53 @@ disagreed, and the promise was the part that was wrong.
   `fraiseql.toml` derived from the scopes the export declares
   (`sdks/official/conformance/project_toml.py`).
 
-- **A filter through a to-one relation sees only the related rows the caller may read.**
-
-  A `where` through a to-one relation (`members(where: {team: {name: {eq: "blue"}}})`) now
-  reads the related document the way the response serves it: where the caller's row policy
-  (and the target read's `inject_params`) would hide the related row, every value under it
-  reads `NULL` — to `eq`, `neq`, `_not`, `isnull` and every other operator alike, exactly as
-  an absent related row does. Before, the filter was evaluated over the document the view
-  embedded, before the related row's own policy applied, so it could match a row the
-  response would never show.
-
-  **A policy that does not declare its keys** (`RLSPolicy::constrained_paths` returning
-  `Opaque`), or a target read whose `inject_params` names a native column, cannot be
-  evaluated over the embedded document. Where the relation is a declared relationship, the
-  filter decides visibility over the target's own view instead — exactly as a nested
-  selection of it does: the value reads only where the parent's key is among the keys of
-  the view's rows the caller may read. ⚠ Without a declared relationship such a filter is
-  refused (403) rather than evaluated unguarded; declare the relationship, or the policy's
-  keys. Filters that cross no row-gated relation produce byte-identical SQL.
-
-  Internally: `WhereClause::Guarded { under, guard, inner }` and `WhereClause::KeyIn { path,
-  key_type, view, target_key, predicate }` (new variants of a `#[non_exhaustive]` enum), and
-  `client_where_argument` takes the row policy.
-
-- **A mutation failure is served only as an error type its mutation can return; `fraiseql.mutation_err` takes the stamp.**
-
-  ⚠ **Re-run `fraiseql setup`.** The helper library is now protocol `2.3.0`:
-  `fraiseql.mutation_err(error_class, message, error_detail, http_status, p_entity_type)`
-  gains a trailing, optional `p_entity_type` naming the declared error the failure is —
-  `fraiseql.mutation_err('conflict', 'Email taken', p_entity_type => 'DuplicateEmailError')`.
-  Every existing positional call binds unchanged; setup replaces the four-argument
-  signature (a second overload would make those calls ambiguous).
-
-  The error arm now follows the rule the success arm already did. A failure's `entity_type`
-  must be one of the error types the mutation can return — an error member of its result
-  union, an error implementor of its interface, or, for a plain object return, any declared
-  error type. Before, a stamp naming *any* error type in the schema was served as it, and
-  any other stamp (the entity type, an unknown name) or none fell back silently to the
-  union's first error member. Now:
-
-  * a stamp outside the set is a contract error naming the stamp and the set, and the write
-    is rolled back;
-  * an unstamped failure of a union with **two or more** error members is a contract error
-    listing them — stamp the one produced;
-  * an unstamped failure with one possible error type (every `auto_error_union` result) is
-    that type, and an unstamped failure of a plain object return is served untyped, both as
-    before.
-
-  Mutations are also classified only against their own error types, not every error type in
-  the schema.
-
 - **The federated subscription forwarder is removed; every `/ws` subscription is this
   server's own.**
 
   `SubscriptionState::with_remote_subscription_fields` let an embedder route a subscription
   name to another subgraph, which `/ws` then proxied over `graphql-transport-ws`. No schema,
-  SDK or CLI path ever populated it — `FederationMetadata::remote_subscription_fields` was
-  always empty in a compiled schema — so a server built by `fraiseql-server` never forwarded;
-  only an embedder calling the builder could. A forwarded subscription did not go through
-  this server's subscribe-time checks (the read plan, the tenant check, the row-visibility
-  policy) nor its stream lifecycle (authorization re-check, policy reload, drain,
-  `complete`), and the other subgraph received no identity for the subscriber.
-
-  FraiseQL is a federation *subgraph*: queries were never forwarded to other subgraphs, and
-  subscriptions now are not either. Federate subscriptions at your router, which owns
-  cross-subgraph routing and can forward identity each subgraph verifies. A subscription
-  name this server does not define is refused on `/ws` like any unknown field.
+  SDK or CLI path ever populated it, so a server built by `fraiseql-server` never
+  forwarded; only an embedder calling the builder could. FraiseQL is a federation
+  *subgraph*: queries were never forwarded to other subgraphs, and subscriptions now are
+  not either. Federate subscriptions at your router, which owns cross-subgraph routing and
+  can forward identity each subgraph verifies. A subscription name this server does not
+  define is refused on `/ws` like any unknown field.
 
   Removed: the `fraiseql_federation::subscription_forwarder` module (`SubscriptionForwarder`,
   `ForwardError`, `ForwardedEvent`, `lookup_remote_subscription`,
   `extract_subscription_field_name`), `FederationMetadata::remote_subscription_fields`, and
   `SubscriptionState::{remote_subscription_fields, with_remote_subscription_fields}`.
   `fraiseql-federation` no longer depends on `futures` or `tokio-tungstenite`.
+
+- **An `Idempotency-Key` is its principal's own.**
+
+  A mutation (GraphQL, REST, `/operations/v1`) repeating a key and body another principal
+  used runs as its own request, as under any other key; the stored response is replayed
+  only to the principal that stored it. Saga retries, which resend under one credential,
+  still replay. `IdempotencyScope` gains a required `principal` field. Entries stored before
+  the upgrade no longer match, so a retry spanning the upgrade may run once more.
+
+- **A REST read produced for a principal is `Cache-Control: private`, whatever carried the
+  credential.**
+
+  Authenticated reads — bearer, `__Host-access_token` cookie or `x-api-key` — are
+  `private, max-age=<ttl>` without `s-maxage`; only anonymous reads are `public`.
+  `CacheContext.has_auth` is renamed `authenticated`.
+
+- **Async-operation and Arrow Flight errors go through the error sanitiser.**
+
+  As on `/graphql`, REST and MCP: with sanitisation on (the production default), a failed
+  operation's `error` (`GET /operations/v1/{id}`) and a Flight GraphQL error carry the
+  generic message, not the database's text; a Flight error keeps its kind, so its gRPC
+  status is unchanged. New: `ErrorSanitizer::sanitize_error`.
+
+- **Arrow Flight serves exactly the views listed in `flight_views`, and none by default.**
+
+  The `OptimizedView` ticket reads a view whole, with no row policy, field gate or
+  authorizer. The server no longer registers the library's demo names (`va_orders`,
+  `va_users`, `ta_orders`, `ta_users`); list the views every Flight principal may read in
+  full in `flight_views` (plain identifiers; each is typed from one of its rows at boot).
+  A `wire-backend` build serves none.
 
 - **One write API: `Writer::execute_write`, and a dry run is a mode of the write.**
 
@@ -5607,6 +5672,12 @@ disagreed, and the promise was the part that was wrong.
   fixture to extend.
 
 ### Security
+
+- **Read gates are enforced on every path that reads a type**, not only at the root of a
+  query: nested selections, projections at any depth, Relay connections, `node`, `_entities`,
+  mutation payloads, subscriptions and streams, filters and orderings, idempotent replays
+  and shared-cache headers. See GHSA-TODO for the affected versions and details; the
+  upgrade notes are under *Breaking* above.
 
 - **`DatabaseAdapter::supports_mutations` now defaults to `false`.** An adapter is
   read-only until it says otherwise. It defaulted to `true`, which is how the gate came
