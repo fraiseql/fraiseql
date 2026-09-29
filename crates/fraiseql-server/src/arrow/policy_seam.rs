@@ -113,8 +113,16 @@ impl QueryExecutor for PolicyGatedExecutor {
             estimated_cost,
         )?;
 
-        // 5. Execute on the *tenant's* executor, not the default one.
-        executor.execute_with_security(query, variables, security_context).await
+        // 5. Execute on the *tenant's* executor, not the default one. The error goes out through
+        //    the server's sanitiser, as `/graphql`'s does: Flight hands its text to the client, and
+        //    the kind (so the gRPC status) is kept.
+        executor
+            .execute_with_security(query, variables, security_context)
+            .await
+            .map_err(|e| {
+                tracing::warn!(error = %e, "Flight GraphQL execution failed");
+                self.state.error_sanitizer.sanitize_error(e)
+            })
     }
 }
 

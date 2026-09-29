@@ -161,7 +161,15 @@ async fn execute_claimed(
             }
         },
         Err(e) => {
-            record_failure(&store, op_id, claim_token, &e.to_string(), None).await;
+            // A status read serves the recorded error to the submitter, so it is rendered
+            // as `/graphql` renders it: through the server's sanitiser. The real error is
+            // logged.
+            warn!(error = %e, op_id = %op_id, "async-operations: execution failed");
+            let rendered = state
+                .error_sanitizer
+                .sanitize(crate::error::GraphQLError::from_fraiseql_error(&e))
+                .message;
+            record_failure(&store, op_id, claim_token, &rendered, None).await;
         },
     }
 }

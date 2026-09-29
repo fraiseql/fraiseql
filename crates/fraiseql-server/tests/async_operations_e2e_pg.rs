@@ -442,8 +442,11 @@ async fn failed_execution_records_the_error() {
 
     let terminal = rig.wait_terminal(&op_id, &token).await;
     assert_eq!(terminal["status"], "failed");
+    // Recorded as `/graphql` renders it: under the default (production) sanitiser, the
+    // generic message, not the database's text —
+    // `a_failed_operations_error_is_sanitised_as_graphql_sanitises_it`.
     assert!(
-        terminal["error"].as_str().unwrap_or_default().contains("deliberate failure"),
+        !terminal["error"].as_str().unwrap_or_default().is_empty(),
         "the execution error is recorded, not discarded: {terminal}"
     );
     assert_eq!(terminal["attempts"], 1, "max_attempts = 1 means exactly one attempt");
@@ -467,7 +470,6 @@ fn sanitised_schema() -> CompiledSchema {
 /// generic message, never the database's text; a status read of the same write run as an
 /// async operation must not hand that text over either.
 #[tokio::test]
-#[ignore = "reproduction: an async operation's error bypasses the error sanitiser"]
 async fn a_failed_operations_error_is_sanitised_as_graphql_sanitises_it() {
     let Some(rig) = Box::pin(boot_over(sanitised_schema())).await else {
         eprintln!("SKIP sanitised_failure: no DATABASE_URL");

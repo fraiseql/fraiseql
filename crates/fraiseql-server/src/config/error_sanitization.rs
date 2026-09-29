@@ -57,6 +57,37 @@ impl ErrorSanitizer {
         error
     }
 
+    /// Sanitize an engine error for a transport that carries the typed error to its edge
+    /// (Flight maps the kind to a gRPC status there).
+    ///
+    /// The same decision as [`sanitize`](Self::sanitize), taken on the error's GraphQL
+    /// classification: an error whose text can come from the database or its driver
+    /// (`Database`, `ConnectionPool`, `Internal`) keeps its **kind** — so the status the
+    /// transport derives from it is unchanged — and loses its text. Every other error is
+    /// returned unchanged. Without this, Flight served the database's own message where
+    /// `/graphql` served the generic one.
+    #[must_use]
+    pub fn sanitize_error(
+        &self,
+        error: fraiseql_core::error::FraiseQLError,
+    ) -> fraiseql_core::error::FraiseQLError {
+        use fraiseql_core::error::FraiseQLError as E;
+        let code = GraphQLError::from_fraiseql_error(&error).code;
+        if !(self.should_sanitize_internal() && code.carries_database_text()) {
+            return error;
+        }
+        let message = self.replacement_message(code);
+        match error {
+            E::Database { sql_state, .. } => E::Database { message, sql_state },
+            E::ConnectionPool { .. } => E::ConnectionPool { message },
+            E::Internal { .. } => E::Internal {
+                message,
+                source: None,
+            },
+            other => other,
+        }
+    }
+
     /// Sanitize a batch of errors (the GraphQL `errors` response array).
     #[must_use]
     pub fn sanitize_all(&self, errors: Vec<GraphQLError>) -> Vec<GraphQLError> {

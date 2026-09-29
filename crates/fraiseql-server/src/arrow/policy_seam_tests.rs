@@ -247,7 +247,6 @@ async fn failing_server(sanitised: bool) -> Server {
 /// database's own message, internal relation names included, reached the Flight client.
 /// Sanitised, the error keeps its kind (so its gRPC status) and loses the text.
 #[tokio::test]
-#[ignore = "reproduction: Flight errors bypass the error sanitiser"]
 async fn a_database_error_over_flight_is_sanitised_as_graphql_sanitises_it() {
     let seam = PolicyGatedExecutor::new(failing_server(true).await.build_app_state());
     let error = seam
