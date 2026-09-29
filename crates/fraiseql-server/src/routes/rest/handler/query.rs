@@ -785,16 +785,16 @@ impl RestHandler<'_> {
                 .insert("x-preference-fallback", HeaderValue::from_static("count=exact"));
         }
 
-        // Cache-Control headers
-        let has_auth = headers.get("authorization").is_some();
+        // Cache-Control headers: a read produced for a principal is never shareable, whichever
+        // header carried its credential (bearer, `__Host-access_token` cookie, `x-api-key`).
         super::super::cache_control::apply_cache_headers(
             &mut response_headers,
             &super::super::cache_control::CacheContext {
-                is_get: true,
-                has_auth,
-                query_ttl: query_match.query_def.cache_ttl_seconds,
-                default_ttl: self.config.default_cache_ttl,
-                cdn_max_age: self.config.cdn_max_age,
+                is_get:        true,
+                authenticated: security_context.is_some(),
+                query_ttl:     query_match.query_def.cache_ttl_seconds,
+                default_ttl:   self.config.default_cache_ttl,
+                cdn_max_age:   self.config.cdn_max_age,
             },
         );
 

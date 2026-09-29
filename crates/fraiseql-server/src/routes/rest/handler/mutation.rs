@@ -227,11 +227,11 @@ impl RestHandler<'_> {
         super::super::cache_control::apply_cache_headers(
             &mut response_headers,
             &super::super::cache_control::CacheContext {
-                is_get:      false,
-                has_auth:    headers.get("authorization").is_some(),
-                query_ttl:   None,
-                default_ttl: self.config.default_cache_ttl,
-                cdn_max_age: self.config.cdn_max_age,
+                is_get:        false,
+                authenticated: security_context.is_some(),
+                query_ttl:     None,
+                default_ttl:   self.config.default_cache_ttl,
+                cdn_max_age:   self.config.cdn_max_age,
             },
         );
 
@@ -345,11 +345,11 @@ impl RestHandler<'_> {
         super::super::cache_control::apply_cache_headers(
             &mut response_headers,
             &super::super::cache_control::CacheContext {
-                is_get:      false,
-                has_auth:    headers.get("authorization").is_some(),
-                query_ttl:   None,
-                default_ttl: self.config.default_cache_ttl,
-                cdn_max_age: self.config.cdn_max_age,
+                is_get:        false,
+                authenticated: security_context.is_some(),
+                query_ttl:     None,
+                default_ttl:   self.config.default_cache_ttl,
+                cdn_max_age:   self.config.cdn_max_age,
             },
         );
 
@@ -423,11 +423,11 @@ impl RestHandler<'_> {
                 super::super::cache_control::apply_cache_headers(
                     &mut response_headers,
                     &super::super::cache_control::CacheContext {
-                        is_get:      false,
-                        has_auth:    headers.get("authorization").is_some(),
-                        query_ttl:   None,
-                        default_ttl: self.config.default_cache_ttl,
-                        cdn_max_age: self.config.cdn_max_age,
+                        is_get:        false,
+                        authenticated: security_context.is_some(),
+                        query_ttl:     None,
+                        default_ttl:   self.config.default_cache_ttl,
+                        cdn_max_age:   self.config.cdn_max_age,
                     },
                 );
 
@@ -510,11 +510,11 @@ impl RestHandler<'_> {
                 super::super::cache_control::apply_cache_headers(
                     &mut response_headers,
                     &super::super::cache_control::CacheContext {
-                        is_get:      false,
-                        has_auth:    headers.get("authorization").is_some(),
-                        query_ttl:   None,
-                        default_ttl: self.config.default_cache_ttl,
-                        cdn_max_age: self.config.cdn_max_age,
+                        is_get:        false,
+                        authenticated: security_context.is_some(),
+                        query_ttl:     None,
+                        default_ttl:   self.config.default_cache_ttl,
+                        cdn_max_age:   self.config.cdn_max_age,
                     },
                 );
 

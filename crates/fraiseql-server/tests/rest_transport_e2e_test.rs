@@ -1342,7 +1342,6 @@ mod cache_visibility {
     /// its row policy, its scopes — and must not be offered to shared caches, which key on
     /// the URL (`Vary` names neither header).
     #[tokio::test]
-    #[ignore = "reproduction (ruling AM 5): a cookie- or key-authenticated read is public"]
     async fn a_read_authenticated_without_an_authorization_header_is_private() {
         for extra in [("cookie", "__Host-access_token=t"), ("x-api-key", "k")] {
             let value = cache_control(Some("alice"), &[extra]).await;

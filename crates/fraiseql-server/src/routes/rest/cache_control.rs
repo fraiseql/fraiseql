@@ -4,8 +4,12 @@
 //! - GET requests: `Cache-Control: public|private, max-age={ttl}` with `Vary`
 //! - Mutating requests: `Cache-Control: no-store`
 //!
-//! The `private` directive is used when the request includes an `Authorization`
-//! header (response varies by user), `public` otherwise.
+//! The `private` directive is used when the request was authenticated — the response was
+//! produced for a principal, under its row policy and field scopes — and `public` only for
+//! an anonymous read. Authentication, not the `Authorization` header: the OIDC middleware
+//! also accepts the `__Host-access_token` cookie and the HS256 layer a service account's
+//! `x-api-key`, and a response to either marked `public` would be stored by a shared cache
+//! under its URL and served to the next caller.
 
 use std::fmt::Write;
 
@@ -18,15 +22,15 @@ use axum::http::{HeaderMap, HeaderValue};
 /// Context for computing cache headers on a REST response.
 pub struct CacheContext {
     /// Whether this is a GET request.
-    pub is_get:      bool,
-    /// Whether the request included an `Authorization` header.
-    pub has_auth:    bool,
+    pub is_get:        bool,
+    /// Whether the request was authenticated (a security context exists), by any credential.
+    pub authenticated: bool,
     /// Per-query cache TTL override (from `QueryDefinition.cache_ttl_seconds`).
-    pub query_ttl:   Option<u64>,
+    pub query_ttl:     Option<u64>,
     /// Default TTL from `RestConfig.default_cache_ttl`.
-    pub default_ttl: u64,
+    pub default_ttl:   u64,
     /// CDN/shared-cache TTL (`s-maxage`). Only emitted on public GET responses.
-    pub cdn_max_age: Option<u64>,
+    pub cdn_max_age:   Option<u64>,
 }
 
 /// Apply `Cache-Control` and `Vary` headers to a response header map.
@@ -39,12 +43,16 @@ pub struct CacheContext {
 pub fn apply_cache_headers(headers: &mut HeaderMap, ctx: &CacheContext) {
     if ctx.is_get {
         let max_age = ctx.query_ttl.unwrap_or(ctx.default_ttl);
-        let visibility = if ctx.has_auth { "private" } else { "public" };
+        let visibility = if ctx.authenticated {
+            "private"
+        } else {
+            "public"
+        };
         let mut value = format!("{visibility}, max-age={max_age}");
 
         // s-maxage only on public responses — CDNs ignore private responses,
         // but omitting it is cleaner and avoids confusion.
-        if !ctx.has_auth {
+        if !ctx.authenticated {
             if let Some(s_maxage) = ctx.cdn_max_age {
                 write!(value, ", s-maxage={s_maxage}").expect("write to String");
             }
