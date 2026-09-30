@@ -2276,6 +2276,2227 @@ disagreed, and the promise was the part that was wrong.
   at-most-once with nothing behind it to retry, so the CDC drain's 30s — sized to *its*
   retry cadence — only parked a hot-path task.
 
+- **`StorageRlsEvaluator::can_write_object` takes the object key; `can_write` is gone (#1100).**
+
+  `can_write_object(caller, bucket, key, existing)` — the new third argument is the key being
+  written. It decides the **create** branch only; an overwrite is still decided against
+  `existing.key`, so no caller can widen its own grant by naming a different key.
+
+  `can_write` is removed rather than kept as a key-less form. Its whole body was
+  `can_write_key(caller, bucket, "")`, and the empty string is a key no `key_prefix` can match
+  — which is the defect below, not an incidental detail. "May this caller write *somewhere* in
+  this bucket" is a question no door asks.
+
+  **Migration.** Pass the key you are about to write: all three write doors already had it in
+  hand. A `can_write(caller, bucket)` call becomes `can_write_key(caller, bucket, key)`.
+
+- **One Compose stack ships, not six. `docker-compose.prod.yml` and the four `docker/docker-compose.*` demo stacks are deleted (#1189, #1202).**
+
+  Measured 2026-08-28 against a real Docker: **not one of the six operator-facing Compose
+  stacks in this repository could serve a query.** The blocker they all shared was in neither
+  issue filed against them — none of them set `FRAISEQL_ENV` or mounted a `fraiseql.toml`, so
+  the server exited on its first line with `cors_enabled is true but cors_origins is empty in
+  production mode`. That check fires *before* the schema check, so compiling the schema first
+  — the fix #1202 proposes — would have changed nothing observable; it only moves the error.
+
+  Beyond that: the two root files mounted no compiled schema at all and the image bakes none;
+  `docker/docker-compose.{demo,examples}.yml` built an `admin-dashboard/Dockerfile` that exists
+  nowhere in the repository (#1189); `docker/docker-compose.prod{,-examples}.yml` pulled
+  `fraiseql/dashboard:latest`, which has never been published (`docker manifest inspect` →
+  `no such manifest`); all four `docker/` stacks pointed `FRAISEQL_SCHEMA_PATH` at a
+  `schema.compiled.json` that is gitignored and that no step builds (#1202); all four ran
+  `graphql/graphql-playground`, a repository Docker Hub no longer serves; and
+  `docker-compose.prod.yml` bind-mounted `./tools/prometheus.yml`, a path that does not exist
+  — Docker creates an empty directory for those and mounts it.
+
+  Five were deleted rather than repaired, for the reason `helm.yml` was: near-copies of a stack
+  that cannot start are not artifacts, they are claims. The root **`docker-compose.yml` is now
+  the single canonical stack**, production-shaped and gated end to end on every push
+  (`tools/compose-stack-test.sh`). It is FraiseQL plus PostgreSQL on a version-pinned published
+  image, and it requires three inputs an operator supplies — `DB_PASSWORD`,
+  `FRAISEQL_SCHEMA_FILE`, `FRAISEQL_CONFIG_FILE` — each declared `${VAR:?…}`, so an unset one
+  aborts `docker compose up` with an instruction rather than starting a container that exits.
+  See `.env.example`.
+
+  **Migration.** `make demo-start`, `make examples-start`, `make prod-start`,
+  `make prod-examples-start` and their `-stop`/`-logs`/`-status`/`-clean` variants are gone;
+  none of them could bring a stack up. For a Docker deployment use the root
+  `docker-compose.yml` with your own compiled schema and `fraiseql.toml`. For running the
+  examples, `examples/README.md` documents the `psql` + `fraiseql query` path, which works. The
+  Redis and Prometheus services the old production template declared are also gone: the server
+  binary reads no `REDIS_URL` (only tests do), and the Prometheus config it mounted did not
+  exist. `docker/docker-compose.test.yml` — the test rig behind `make db-up` — is unchanged.
+
+- **The published container image serves on port 8000, not 8815, and binds `0.0.0.0` (#1216).**
+
+  A container started from the published image with the environment every deployment supplies
+  — `DATABASE_URL` and `FRAISEQL_SCHEMA_PATH` — was reported **unhealthy by Docker and was
+  reachable from nothing outside its own network namespace**. Three values disagreed, and the
+  one the binary actually used appeared in none of them: `EXPOSE` said 8815, the `HEALTHCHECK`
+  curled 8815, and `default_bind_addr()` is `127.0.0.1:8000`. The check was refused, and after
+  the start period plus interval × retries (10s + 30s × 3) Docker marked the container
+  unhealthy — permanently, since nothing was ever going to listen on 8815. Anything waiting on
+  that health, such as a Compose `depends_on: condition: service_healthy`, waited forever.
+
+  The image now sets `FRAISEQL_BIND_ADDR=0.0.0.0:8000`, `EXPOSE 8000`, and healthchecks 8000:
+  the port `default_bind_addr()` uses, and the one every compose file, both Kubernetes
+  manifests and every runbook already pinned. `0.0.0.0` rather than the process default is
+  deliberate — without it the healthcheck would *pass*, because it runs inside the network
+  namespace, while the container served nobody, which is worse than failing. #874 made the
+  process default to loopback so a bare-metal run is not exposed by accident; a container's
+  network namespace is the boundary that argument asks for.
+
+  **Migration:** anyone publishing the container as `-p …:8815` should publish 8000 instead;
+  the image was not serving on 8815 either way.
+
+  ⚠ **Correction.** This entry originally said the migration was "none for the shipped compose
+  files, Kubernetes manifests or runbook commands — they all set `0.0.0.0:8000` explicitly and
+  always did". That was measured only over `docker/*.yml` and the runbooks. It was **wrong for
+  every other consumer in the repository**, and they are corrected in the entry below: the two
+  root compose files published `8815:8815` against an image that binds 8000 and set no
+  `FRAISEQL_BIND_ADDR`, all three plain Kubernetes manifests declared 8815 (including the
+  hardened file's NetworkPolicy rules, which would have dropped the traffic even once something
+  listened), the Helm chart declared 8815 on its container port and all three probes, and
+  `tools/check-deploy-security.sh` **required** `8815:8815` as the only mapping a compose file
+  was allowed to publish — so correcting the compose files turned a security gate red.
+
+  8815 is Arrow Flight's conventional port. It arrived in a February 2026 deployment
+  scaffolding commit that also moved the healthcheck off the 8000 the original Dockerfile
+  used, and no gate has built the release image on a branch since (#1206, #1205).
+
+- **Every consumer of the image now uses port 8000, and the Helm chart's values interface
+  changed (#1216, #1129).**
+
+  Fixing the image alone left the fix half-applied for six months' worth of consumers. Now
+  corrected: `docker-compose.yml` and `docker-compose.prod.yml` publish `8000:8000` (and the
+  production healthcheck curls 8000), `deploy/kubernetes/{deployment,service,fraiseql-hardened}.yaml`
+  declare 8000 throughout, `.env.example` says `PORT=8000`, and
+  `tools/check-deploy-security.sh`'s `APP_PORT` moved with them.
+
+  **The Helm chart could not start a pod at all**, and fixing its image reference — the only
+  part of #1129 that had been fixed — would not have changed that. Measured by deploying it:
+  it mounted `DATABASE_URL` from a Secret no template created, mounted no compiled schema (so
+  the container exited at startup validation), probed port 8815, supplied no `fraiseql.toml`
+  (so the server exited on `cors_origins` in production mode), and pointed its liveness probe
+  at `/health`, which answers 503 whenever the database is unreachable — restarting every pod
+  for the duration of a database outage.
+
+  **Migration.** `helm install` now requires three inputs and fails at template time with an
+  instruction if any is missing, rather than installing a release that never serves:
+
+  ```bash
+  helm install fraiseql ./deploy/kubernetes/helm/fraiseql \
+    --set-file schema.compiled=schema.compiled.json \
+    --set-file config.content=fraiseql.toml \
+    --set database.existingSecret=fraiseql-db-credentials
+  ```
+
+  Outside production, `--set env.FRAISEQL_ENV=development` removes the `config.content`
+  requirement. Values removed because **no template read them** — rendering with all of them
+  flipped produced byte-identical output — are `ingress`, `podDisruptionBudget`, `persistence`,
+  `monitoring`, `security`, `database.{host,port,name,pool,timeout_seconds}`,
+  `application.{graphql,admin}`, `service.targetPort`, and the environment ConfigMap the
+  Deployment never referenced. Anything the server reads can be set through the `env` map;
+  anything with no environment variable goes in `config.content`. `application.port` is now the
+  single number the container port, the Service target, every probe and `FRAISEQL_BIND_ADDR`
+  are all derived from. `serviceAccount.create` now creates a ServiceAccount.
+
+- **Both Python clients raise `FraiseQLError` subclasses for every HTTP status, instead of
+  leaking `httpx.HTTPStatusError` (#1059).**
+
+  `resp.raise_for_status()` in `AsyncFraiseQLClient._send` and `FraiseQLClient.execute` raised
+  an httpx type, which is not a `FraiseQLError` and not in the default `retry_on` tuple. So the
+  catch-all that `errors.py` documents — `except fraiseql.FraiseQLError` — did not catch a 502,
+  and the retry feature could not fire for the most common transient server failure. The
+  server's own 429, 503 and 504 responses all took that path.
+
+  Every non-2xx status now maps into the hierarchy, and the mapping is what decides
+  retryability:
+
+  | Status | Raises | Retried |
+  |---|---|---|
+  | 401, 403 | `AuthenticationError` | no |
+  | 408 | `TimeoutError` | yes |
+  | 429 | `RateLimitError`, carrying `retry_after` | no |
+  | other 4xx | `HTTPStatusError` | no |
+  | 5xx | `NetworkError` | yes |
+
+  **What breaks:** code catching `httpx.HTTPStatusError` around a FraiseQL call no longer sees
+  it. Catch `fraiseql.HTTPStatusError` (or the base `fraiseql.FraiseQLError`) instead. Code that
+  already followed the documented catch-all gains coverage rather than losing it.
+
+  `RateLimitError` and `HTTPStatusError` are new exports. `RateLimitError` is distinct from the
+  sync client's `FraiseQLRateLimitError`, which classifies a GraphQL `extensions.code` rather
+  than a transport status.
+
+- **The TypeScript client stops retrying 4xx (#1059).**
+
+  `client.ts` turned every non-ok status into a retryable `NetworkError`, so a 400, 404 or 409
+  was re-sent up to `maxAttempts` times — directly against ADR-0015 §3, which treats a
+  4xx-class response as permanent and dead-letters it immediately. 4xx now raises the new
+  non-retryable `HttpStatusError` (with `.status`), 408 raises `TimeoutError`, and only 5xx
+  remains a retryable `NetworkError`. Callers matching on `NetworkError` to detect a bad
+  request must match `HttpStatusError` instead.
+
+- **Every SDK's subscription authoring surface moves to the compiler's shape, dropping
+  `nullable` and `operation` (#1024).**
+
+  A subscription authored through any SDK could not be compiled. The SDKs emitted
+  `{name, entity_type, nullable, operation, …}`; `IntermediateSubscription` reads
+  `{name, return_type, arguments, description, topic, filter, fields, deprecated}` and denies
+  unknown fields — so `entity_type` failed the **whole document**, not the subscription.
+
+  The compiler is canonical. Five SDKs ship a subscription surface and all five change:
+
+  - **TypeScript, Python, Go** emitted the wrong shape and were refused at compile.
+  - **PHP and Java emitted nothing at all.** `SchemaExporter::toArray()` and
+    `SchemaFormatter.formatSchema()` never read their registries' subscriptions back, so a
+    registered subscription was *silently dropped* from a compile that then reported success —
+    the worse failure of the two, and the reason the shape defect above survived undetected in
+    those two SDKs.
+
+  What changes for authors:
+
+  - `entity_type` / `entityType` survives as the **authoring spelling**, resolved to
+    `return_type` before export. Existing calls that name the type keep working.
+  - **`nullable` is gone.** It was a positional parameter in TypeScript, Python and PHP, so
+    dropping it shifts later arguments — a compile error at the call site in TypeScript, and
+    a `TypeError` in Python. The runtime subscription model has no nullability member; the
+    value was only ever emitted into a struct that refused it.
+  - **`operation` / `operations` is gone.** There is no DML-verb filter in the runtime.
+    Where one was wanted, the event payload carries the verb and a `filter` condition selects
+    on it: `filter: { conditions: [{ argument: "verb", path: "$.op" }] }`.
+  - **`filter`, `fields` and `deprecated` are new** and reach the compiled schema:
+    `filter` maps arguments onto JSON paths in the event, `fields` projects a subset of the
+    event, `deprecated` surfaces through introspection.
+  - The **options bag is closed**. TypeScript's `SubscriptionDefinition` had an index
+    signature and Python's decorator a `**config_kwargs`, both spread verbatim into the
+    emitted object — which is how `operation` reached the compiler, and how any typo would.
+    An unknown option is now a type error at the call site instead of a parse failure against
+    the whole document.
+
+  Also fixed in passing, because it blocked the PHP half: `FraiseQL\ArgumentDefinition` lived
+  in `src/ArgumentBuilder.php` and was therefore not PSR-4 autoloadable, making
+  `SubscriptionBuilder::argument()` a fatal error in any process that had not already loaded
+  `ArgumentBuilder`. It now has its own file. The sibling violation — `UnsetValue` in
+  `src/Unset.php`, dead and unreachable — is tracked separately as #1184, with the
+  `composer dump-autoload --strict-psr` gate that would have caught both.
+
+  The Ruby and Dart READMEs listed "Subscription definitions" as a shipped feature. Neither
+  SDK has a single line of subscription code; the claim is removed.
+
+- **PHP SDK: `QueryBuilder::relayCursorType()` is removed (#1021).**
+
+  The setter accepted a value and discarded it. `IntermediateQuery` has no cursor-type member —
+  only `relay: bool` — so there was nothing for it to reach, and the sibling serializer that did
+  emit it wrote `relay_cursor_type`, a key the compiler refuses outright. Rather than leave a
+  setter that takes input it cannot honour, it is deleted. Remove the call; Relay pagination is
+  unaffected and is still enabled with `relay`.
+
+- **`ConvertConfig::max_rows` is removed from `fraiseql-arrow` (#1041).**
+
+  The field was public and documented as "Maximum total rows to convert (default: unlimited)",
+  and it was populated at five call sites — but nothing ever read it. `convert_batch`
+  appended every row it was given and `chunk_into_batches` chunked the whole slice, so a
+  caller who set the cap to bound peak memory got no cap at all. The only test covering it
+  set the field and then asserted the field it had just set, which holds for every possible
+  implementation including the one that ignores it.
+
+  It is removed rather than implemented. No path in the workspace needs it: the single site
+  that set it non-`None` derived it from the same `limit` that `build_optimized_sql` already
+  emits as a SQL `LIMIT`, so PostgreSQL bounds the row count before conversion begins, and
+  the other four passed `None`.
+
+  Construct `ConvertConfig` with `batch_size` alone. Callers who relied on the documented cap
+  never had one, so no behaviour changes — only the false promise on the published crate's
+  API is gone.
+
+- **The inbound-webhook dedup namespace is the route, not the provider, which renames one
+  ledger column and one public field (#1046).**
+
+  `fraiseql-webhooks`: `Delivery.provider` is now `Delivery.route`, and
+  `IdempotencyStore::claim`'s second parameter is `route`. The types are unchanged; what
+  changed is what the value must be — the receiving endpoint, not the provider it serves.
+  A caller that keeps passing a provider string reintroduces the defect below, so the
+  rename is deliberate rather than mechanical.
+
+  The ledger column `webhooks.tb_inbound_delivery.provider` is renamed to `route`, and the
+  unique key with it. `PostgresIdempotencyStore::init` performs the rename in place on an
+  existing database (`CREATE TABLE IF NOT EXISTS` alone would leave the old column and the
+  first claim would fail with *column "route" does not exist*); the unique index follows the
+  column, so the claim never loses its atomicity.
+
+  `fraiseql-server`: `WebhookSource::new` takes the route segment as a second argument, and a
+  webhook message's spine `idempotency_key` is now `<route length>:<route>:<event id>` rather
+  than the bare event id — the same structured-key shape the email adapter has carried since
+  #775. It is length-prefixed because the spine flattens its half of the key into one column
+  while the *sender* chooses the event id: a bare `<route>:<id>` join is not injective, and
+  route `a` receiving the id `b:1` would land on route `a:b`'s event `1`. The
+  `after:ingest:webhook:<provider>` trigger discriminant is deliberately **unchanged**;
+  declared triggers keep firing.
+
+  **Who is affected, and how far:** a ledger row written before the upgrade still matches
+  after it whenever a route's segment equals its provider string — which is the documented
+  one-route-per-provider shape, so most deployments see no discontinuity at all. Under a
+  `path` override, or two routes on one provider, a delivery still in the provider's retry
+  window may be processed once more. Spine keys all change, so the same one-time window
+  applies there.
+
+- **A `storage` section in the compiled schema is now refused at load (#1008).** It used to be
+  deserialized into `SchemaStorageConfig`, validated by `validate_storage_config`, and stored
+  on `ExtendedCompiledSchema.storage` — where **nothing read it**. `main.rs` takes `.schema`
+  and `.functions`; the server's storage backend is built from `[storage]` in the *server
+  config file*. So an author who read "configuration is embedded in the compiled schema" and
+  declared buckets there got a clean compile, a clean boot, and either no storage backend at
+  all or whatever unrelated `[storage]` the server config named. Parsing and validating the
+  section is precisely what made it look honoured.
+
+  The boot now fails with an error naming `[storage]` in the server config as the working
+  surface. This is deliberately a different posture from the legacy `realtime` key, which is
+  warned-and-ignored: that one names a subsystem that no longer exists, so an author can only
+  recompile, while this one names a live subsystem configured elsewhere.
+
+  **Who is affected:** only hand-authored compiled schemas. `fraiseql-cli` has never emitted a
+  `storage` section, and a `null` value is still accepted. `SchemaStorageConfig`,
+  `SchemaBucketDef` and `ExtendedCompiledSchema.storage` are removed from the public API.
+
+- **A declared custom scalar compiles to `FieldType::Scalar`, so `--emit-ddl` emits `TEXT`
+  where it used to emit `JSONB` (#1018).** `parse_field_type` resolved a non-builtin name
+  against the schema's declared enums, interfaces and unions (#923) and fell through to
+  `FieldType::Object` for everything else — including a name the author declared in
+  `custom_scalars`. That variant therefore had **no producer at all** for an authored schema,
+  the same shape #923 fixed one variant over, and three consumers branched on the wrong
+  answer: `--emit-ddl` gave a custom-scalar column a `JSONB` type, introspection reported
+  `OBJECT` for a leaf (so an introspecting client generates a nested selection for it), and
+  the TypeScript/Go/Python/Rust emitters treated it as requiring a sub-selection.
+
+  **Migration.** A project that uses a custom scalar (`Email`, `IBAN`, any author-declared
+  name) and generates its DDL from `--emit-ddl` will see that column's type change from
+  `JSONB` to `TEXT`. Existing databases are unaffected until you regenerate; when you do,
+  reconcile the column type by hand — `ALTER TABLE … ALTER COLUMN … TYPE TEXT USING …` — since
+  a JSONB-encoded string carries its quotes. The columns were only ever `JSONB` because the
+  compiler had mislabelled the field.
+
+  An *undeclared* name still resolves to `FieldType::Object`, deliberately and unchanged:
+  `SchemaValidator` reports it by name, and #724 chose a warning there because a
+  `--schema-dir` author can declare a scalar in a file the converter cannot see.
+
+- **`where` and `orderBy` are no longer typed as the `JSON` scalar (#1154).** They now publish
+  `{Entity}WhereInput` and `[{Entity}OrderByInput]` — the conventional names clients already
+  write, and which until now resolved against nothing. A document declaring
+  `$where: OrderWhereInput` was therefore refused by § 5.8.2 while being correct in every other
+  respect: in one consumer that was **60 test failures**, all from names the schema's own
+  convention implies but its introspection never carried.
+
+  The types are derived from the compiled schema at load and published everywhere the argument
+  list is rendered — introspection, the federation `_service` SDL, and the Go/TypeScript/Python/
+  Rust client emitters, which now generate a filter argument their users can typecheck instead
+  of an opaque blob. Two emitter defects fell out of this and are fixed here: the three
+  emitters that write per-module imports now collect the names they reference from the argument
+  list they *render* (the auto-wired pair is absent from `arguments` by design), and the Rust
+  emitter boxes a by-value input field that closes a cycle — `_not: OrderWhereInput` makes a
+  Rust struct infinitely sized, which no hand-authored input in this schema had ever done.
+
+  ```graphql
+  input OrderWhereInput {
+    reference: StringFilter
+    total: IntFilter
+    customer: CustomerWhereInput      # single relations nest
+    _and: [OrderWhereInput!]
+    _or: [OrderWhereInput!]
+    _not: OrderWhereInput             # typed, not JSON
+  }
+  input OrderOrderByInput { field: String!, direction: SortDirection = ASC }
+  enum SortDirection { ASC DESC }
+  ```
+
+  Four things to check before upgrading:
+
+  1. **The combinators are `_and`/`_or`/`_not`.** v1 emitted `AND`/`OR`/`NOT`; this engine's WHERE parser matches the underscored spelling and nothing else, so publishing v1's would advertise three fields no request can execute. `_not` is typed rather than left `JSON` as v1 left it.
+  2. **`orderBy` publishes the list form only.** `[{field, direction}]` is what the engine's array branch parses. The object form (`{name: "DESC"}`) keeps executing but has no expression in the published type — its key order is not something a JSON object can promise.
+  3. **Per-scalar filters are stricter than the engine**, which restricts no operator by field type: `IntFilter` carries no `icontains`, an enum filter no `LIKE`. The fulltext, network and ltree families are not bucketed onto any leaf at all, because a declared field type cannot say whether the column behind it is a `tsvector`, an `inet` or an `ltree` — advertising them would repeat #869. All of them remain **executable**; nothing coerces a query argument's value against its declared input type today, so this constrains clients that validate locally against introspection (graphql-codegen, Apollo), not clients that send the value.
+  4. **A schema that cannot adjudicate a return type keeps `JSON`.** An argument is typed if and only if the schema carries the type it would name, so nothing can publish a dangling reference. A name the author already declared is never derived over.
+
+  A list field gets a list filter rather than a nested entity filter, deliberately: the engine
+  lowers `{lines: {sku: {eq: …}}}` to `data->'lines'->>'sku'`, which cannot index into an array
+  and so matches nothing, silently.
+
+- **`where` accepts only the field names the schema declares.** Until now the parser
+  snake_cased an incoming key and asked only whether *that* was a known storage key, so
+  `where: {createdAt: …}` and `where: {created_at: …}` both worked. `{Entity}WhereInput`
+  publishes `createdAt` alone, so the second spelling was the runtime honouring a key the
+  published input type does not declare — the same defect class as the rest of this release,
+  and an asymmetry with `orderBy`, which already answered `Cannot sort by 'created_at'. Did you
+  mean 'createdAt'?`. The two surfaces now agree.
+
+  ```graphql
+  where: { createdAt:  { eq: "2026-01-01" } }   # unchanged
+  where: { created_at: { eq: "2026-01-01" } }   # now refused, naming createdAt
+  ```
+
+  **The rule is "equals the declared name", not "must be camelCase".** A schema that declares
+  `created_at` publishes `created_at`, and that spelling keeps working — a schema authored in
+  snake_case is unaffected by this entry.
+
+  **Native columns are not affected, and there is no carve-out here.** `orderBy` needs one
+  because it accepts a key that is *either* a declared field *or* a native column. `where`
+  never did: its allowlist is built from the return type's declared fields alone, so a native
+  column that is not also a declared field was already refused before this change, and one that
+  *is* declared stays filterable under its declared name. Nothing that filtered yesterday stops
+  filtering except the storage spelling of a declared field.
+
+  Two properties are preserved deliberately. The lowering to storage is untouched — the parser
+  still snake_cases to build the SQL path, and `FieldTypeMap` is still keyed by the dotted
+  storage path, because that is what the generator reads. And a level the schema cannot
+  adjudicate — an unknown type, or one carrying no fields — still accepts every key (#939);
+  tightening a spelling is not a licence to refuse where there is no evidence.
+
+  Injected and RLS predicates are unaffected by construction: they are built as `WhereClause`
+  values directly and never pass through the client-input parser, so a tenant filter on a
+  `tenant_id` column keeps composing exactly as before. There is a test pinning both halves —
+  that the tenant predicate survives, and that a refused client key fails **closed** rather than
+  falling through to an unfiltered read.
+
+  One internal caller had to be corrected for this: REST's nested-resource embedding built its
+  parent-scoping predicate from a type's declared relationships, whose
+  `foreign_key`/`referenced_key` are SQL **column** names (`fk_user`). Handing those to the parser would have made the server
+  refuse its own join predicate. It now resolves the column to the target type's declared field
+  name first, the same way full-text search already keyed off the declared name.
+
+- **`/ws` validates subscription documents (#1154).** The WebSocket surface reached neither
+  `execute_dispatch` nor `classify_query`, so it validated *nothing*: a subscription referencing
+  a variable it never defined was accepted, and the argument carrying that variable was silently
+  dropped — the same silent-loss the `/graphql` surface stops doing in this release, on the one
+  surface that had no rule at all. A release headlined "documents are validated" cannot ship a
+  surface that does not.
+
+  GraphQL § 5.8.3, § 5.8.2 and § 5.8.4 now run at subscribe time, in the same order and with the
+  same messages as `/graphql` — a test asserts the two surfaces refuse the same document
+  identically, because a client moving a document between them should not discover a different
+  set of rules. § 5.8.2 resolves against the schema that is actually serving, so a hot-reload
+  applies on the next subscribe.
+
+  **Scope: variables only.** The other document rules bind at argument resolution, which this
+  path never reaches. Whether subscription *filters* need the same treatment is a separate audit.
+
+  The document is also **validated against the subscription operation**, not the document's
+  first: on a document mixing `query Q {…}` with `subscription S {…}`, validating `Q` and
+  leaving `S` unchecked would have been a fix with the same shape as the bug.
+
+- **A subscription refused for a schema reason reports `VALIDATION_ERROR`, not `PARSE_ERROR`
+  (#1154).** Every failure on this path collapsed into `PARSE_ERROR` with the single message
+  `Could not parse subscription query`, which sends a client hunting for a syntax error in a
+  document that parses perfectly well. Malformed GraphQL — and the two structural guards, more
+  than one subscription operation and more than one root field — still report `PARSE_ERROR`, now
+  saying which of the three it was.
+
+- **A nested `where` key the relation's type does not declare is refused instead of matching
+  nothing (#1154).** Only the *top* level was adjudicated, because the compiled schema carried
+  no field map for a relation's own type. So `{machine: {bogusField: {eq: "x"}}}` lowered to
+  `data->'machine'->>'bogusField'`, matched no row, and returned `[]` under a 200 — the same
+  silent-wrong-answer shape the top-level rule closed, one level further out, and now flatly
+  contradicted by the `MachineWhereInput` the schema publishes.
+
+  Every level a path reaches is now scored against the type it actually arrived at, to any
+  depth, and the "did you mean" candidates come from *that* level rather than the root. A
+  relation whose target type the schema does not carry stays unadjudicated, as before — this
+  rejects what the schema positively contradicts, never an absence of evidence.
+
+  Two consequences worth checking:
+
+  - **`_and`/`_or`/`_not` now work inside a nested relation.** `{machine: {_or: […]}}` failed with `Unknown WHERE operator: _or`, because a nested object was parsed key-at-a-time and a combinator's value is an array. A relation field now carries a whole nested predicate, which is what its published type says.
+  - **What counts as a relation is now the same question the published type answers.** A field is a relation exactly when `{Entity}WhereInput` gives it a nested filter — so a nested predicate on a **list** field (`{lines: {sku: {eq: …}}}`, which the engine lowered to a JSON path that cannot index into an array) and on an `Object` type nothing declares (`{placedAt: {…}}`) are now refused rather than silently matching nothing.
+
+- **Input-object fields introspect as real type references (#1154).** An input field's type is
+  stored as a string and was published as a single `SCALAR` named after the whole string, so
+  `[OrderWhereInput!]` introspected as a scalar type called `"[OrderWhereInput!]"` — a name no
+  client can look up. List and non-null wrappers now become `LIST`/`NON_NULL` nodes and the leaf
+  resolves to `ENUM`, `INPUT_OBJECT` or `SCALAR` against the schema. This also corrects every
+  hand-authored mutation input with a list or nested-input field.
+
+- **An argument the field does not declare is refused instead of ignored, on queries and
+  mutations alike (#1154).** GraphQL § 5.4.1 makes it a validation error; the server accepted
+  it, dropped it, and answered normally. Only *declared* arguments become WHERE conditions and
+  only the auto-wired names reach the pagination paths, so `orders(contractId: "x")` against a
+  query that does not declare `contractId` returned **every row** under a 200 with no `errors`
+  array. That reads as a filtering bug in the server and is very hard to trace back to the
+  argument that vanished. On a mutation the same drop bound the write without it, and reported
+  success.
+
+  Undeclared *fields* were already refused (#939), so validation ran — it just did not cover
+  argument names, which left the server more permissive than the schema its own introspection
+  publishes: a spec-compliant client-side validator rejected queries this server answered.
+
+  The response is now
+  `Validation error: Unknown argument 'contractId' on field 'Query.orders'.`, with a "did you
+  mean" hint when a close accepted name exists, since a renamed or mistyped argument is the
+  common case. **Breaking for exactly the clients that are silently getting wrong results
+  today**; a client sending an argument the schema does not have now learns that it never
+  applied.
+
+  The accepted set is what the runtime reads, which is slightly wider than what introspection
+  publishes: a relay connection's `first`/`after`/`last`/`before` (plus `where`/`orderBy` when
+  `auto_params` enables them), and the runtime-only `nearest` similarity-search argument, which
+  is accepted by name so its own diagnostics reach the client rather than a blanket "unknown
+  argument". Arguments on **nested** fields are unchanged: no object-type field declares
+  arguments, so they remain inert.
+
+- **A document referencing a variable it never defines is refused instead of silently losing
+  the argument (GraphQL § 5.8.3).** The same silent-drop failure as #1154, one axis further
+  out, and the most damaging of the family: it removes a *filter* or a *bound* rather than a
+  projection. A whole-argument variable is resolved by looking its name up in the request's
+  variables map and dropping the argument when absent — correct for a **declared** variable
+  the caller chose not to supply, and destructive for one that was never declared. So
+  `query Q { orders(offset: $neverDeclared) { reference } }` returned **every** row, and
+  `where: $neverDeclared` returned the whole table, both under a 200 with no `errors` array.
+  With `limit:` it was worse: the dropped bound made the query unbounded, which tripped the
+  complexity ceiling, so the client got an error about *cost* that never mentioned the
+  variable.
+
+  The response is now
+  `Validation error: Variable '$neverDeclared' is not defined by operation 'Q'.`, with a "did
+  you mean" hint when a close declared name exists — a variable typo is exactly what this
+  catches. References are collected from whole arguments, values nested in objects and lists,
+  directive arguments (`@skip`/`@include`/`@stream`), nested field arguments, and mutation
+  root arguments. **Breaking for exactly the clients that are silently getting unfiltered or
+  unpaginated results today.**
+
+  Two boundaries were deliberately *not* crossed. A variable that **is** declared but simply
+  not supplied still drops its argument — that is spec-correct and load-bearing, since it is
+  what lets `limit: $limit` fall back to the query's compiled default instead of forcing
+  `LIMIT NULL`. And in a multi-operation document only the fragments transitively reachable
+  from the executed operation are walked, so a second operation's fragments — which
+  legitimately reference *that* operation's variables — are never scored against this one.
+
+  The check runs at classification, which is the one point every operation type shares while
+  the AST still exists, and it is ordered **before** the depth/complexity gate on purpose: the
+  variable error is the actionable one, and the cost error was a symptom of the very argument
+  that went missing. Parsing before that gate exposes no new surface — the gate already parses
+  the same document through the same panic-guarded seam.
+
+- **A variable declared with a type the schema does not publish is refused (GraphQL
+  § 5.8.2).** `query Q($w: NoSuchTypeAtAll) { orders(where: $w, limit: 1) }` executed
+  normally; nothing resolved a variable's declared type name against anything. The name now
+  resolves against the surface a client can actually learn names from: the scalars
+  introspection publishes, declared enums, and declared input objects. List and non-null
+  wrappers are structural, so `[ID!]!` resolves as `ID`.
+
+  Three deliberate limits. The accepted scalar list is **derived from the introspection
+  response**, not hand-copied — it publishes `JSON`, while the *authoring* table
+  `BUILTIN_SCALARS` spells the same scalar `Json`, and a client writes what introspection told
+  it; resolving against the authoring table would have rejected `$w: JSON`. The rule
+  **fails open** when a schema carries no enums *and* no input objects: that means the
+  compiler emitted no input-type information, which is not the same as declaring those names
+  absent. And a type the schema **declares** is accepted even when introspection does not
+  publish it as a scalar — notably the pgvector family
+  (`Vector`/`BitVector`/`HalfVector`/`SparseVector`), whose fields introspect as `JSON` or
+  `[Float!]!`. A hand-authored or externally-generated document does not need introspection to
+  know a type the schema declares, so `query Q($v: Vector)` against a schema with a `Vector` keeps
+  working. A schema declaring no vector anywhere still refuses the name: acceptance follows
+  from *this* schema declaring something of that type, never from membership of a global list.
+
+- **A variable that is declared and never used is refused (GraphQL § 5.8.4).**
+  `query Q($unused: Int) { orders(limit: 1) { reference } }` is now
+  `Validation error: Variable '$unused' is never used in operation 'Q'.`
+
+  **Read this one differently from the other two.** § 5.8.3 was fixing a **wrong answer** —
+  silently dropped filters and bounds — whereas a document with an unused variable definition
+  executes and answers **correctly** today. Nothing is dropped, nothing is wrong.
+
+  What settles it is not the spec text but the ecosystem: **`graphql-js` has enforced § 5.8.4
+  for years, and so does every other major GraphQL implementation.** A client sending superset
+  variable definitions is already rejected by every other server it talks to. So the pattern is
+  not really in the wild — what is in the wild is code written specifically against FraiseQL's
+  leniency, which is a much smaller and far more addressable population than "everyone using
+  shared documents". This change aligns FraiseQL with every other implementation rather than
+  inventing a restriction.
+
+  If you have such a document, the fix is to trim each operation's definitions to what it
+  references. A variable referenced only inside a reachable fragment **does** count as used.
+
+- **A `where` key the type does not declare is refused instead of silently matching nothing.**
+  The nastiest member of this family. An undeclared *argument* over-fetches, which is visibly
+  wrong; an undeclared *field* renders a blank column. An undeclared `where` **key** returned
+  `[]` — indistinguishable from "no rows matched". `parse_where_object` checked a key for
+  identifier *shape* only (the #833 SQL-injection boundary) and then snake_cased it into a
+  JSONB path that could not match, so one renamed field turned every query into a silent empty
+  result that read as real data.
+
+  `Validation error: Unknown field 'bogusKey' in where clause. Did you mean 'reference'?`
+
+  **The rule is enforced where the read resolves, not at the GraphQL document entry** —
+  `WhereClause::from_graphql_json`, which the REST filter surface and `/graphql` both call.
+  REST builds a `QueryMatch` from URL parameters and calls `execute_query_direct`, never
+  touching the document path, so a gate at the entry point would have left REST serving
+  unvalidated filters. That is #966 exactly, and it is why the REST case is a test rather than
+  an assumption.
+
+  Scope, decided from the code and stated so upgraders can predict it:
+  - `_and`/`_or`/`_not` are combinators, not field names, at every nesting depth.
+  - **Only the top level is adjudicated.** A nested relation path (`{machine: {id: …}}`) resolves its second segment against *machine's* type, for which the compiled schema carries no field map — rejecting there would be guessing. The root of the path is adjudicated like any other key.
+  - The rule **fails open** when the schema cannot adjudicate: the type is not found, or it carries no fields. Those two used to be indistinguishable (both produced an empty map, read as "skip the casts"); "cannot adjudicate" is now a distinct state rather than an empty collection, so the allowlist cannot fail open on a missing type or closed on a schema without field metadata.
+
+- **An unknown `where` operator with an *object* value on a scalar field is now refused.**
+  Operators were only half-validated: with a *scalar* value an unknown operator errored, but
+  with an **object** value it fell through to the nested-relation branch, so
+  `{"reference": {"notAnOperator": {"eq": "ORD-1"}}}` built the path
+  `reference.notAnOperator`, matched nothing, and returned `[]` with no error. A nested
+  relation filter on a scalar field is never legitimate. The same shape on a **relation**
+  field is the documented nested-filter form and still works.
+
+- **`orderBy` naming a field the type does not declare is refused instead of sorting nothing.**
+  An unknown sort key kept the default field type and lowered to a JSONB extraction of a key
+  that is not there — all-NULL, which orders nothing. The client received rows in whatever
+  order the plan happened to produce, with no signal that its sort had been discarded:
+  `orderBy: [{field: "totallyBogusField", direction: "DESC"}]` returned the same natural order
+  as no `orderBy` at all.
+
+  `Validation error: Cannot sort by 'totallyBogusField' on type 'Order'. Did you mean 'reference'?`
+
+  A key is refused only when it is **neither** a declared field on the type **nor** a native
+  column. That second half is load-bearing: `enrich_order_by_clauses` routes a native column
+  straight to a real column three lines below the check, so a sort key can be legitimate
+  without being a declared type field, and a naive "must be a type field" rule would break
+  those deployments. As elsewhere in this family, the rule **fails open** when the schema
+  cannot adjudicate — an unknown type, or one carrying no fields.
+
+  Enforced on every surface that sorts: the list runner, the relay connection runner, and the
+  REST sort parameter, each proved by its own test rather than by the observation that they
+  reach the same function.
+
+- **A window query's final `orderBy` can sort by a window alias, and an unknown sort key is
+  refused (#1014).** `WindowAllowlist` already built the right set — measures, denormalised
+  filter columns, and dimension paths — and was already threaded into select columns,
+  PARTITION BY and dimension paths for #794. **Both** order-by conversions were missed, so a
+  final `orderBy` on `rank` or `running_total` became `dimensions->>'rank'`, which is NULL,
+  which sorted nothing.
+
+  The two clauses need *different* sets, and this is the substance of the fix:
+
+  | Clause | Runs | Accepts |
+  |---|---|---|
+  | in-window, inside `OVER (…)` | before the window functions produce anything | measures, filter columns, dimension paths |
+  | the final `ORDER BY` | after the window functions | the above **plus** every window and select alias |
+
+  So `orderBy: [{field: "rank"}]` on a window query now sorts by the rank column, while a
+  window function still cannot order by its own sibling's alias inside `OVER (…)`, where that
+  column does not yet exist. Window-function operand fields (`lag`, `lead`, `firstValue`, …)
+  are also allowlist-checked now, which they were not before.
+
+  Generalisation beyond #1014: a sort key that is neither a schema field nor an output alias
+  is now a validation error rather than a silent NULL sort. The allowlist remains a no-op when
+  the schema declares no fact-table metadata, so a schema that cannot adjudicate still
+  executes — and the charset check stays in front of it, since the allowlist is
+  defence-in-depth (#794), never a replacement.
+
+- **`ID`/`UUID` equality is no longer case-sensitive text equality.**
+  `{"id":{"eq":"0000000a-…-b"}}` matched; the same UUID upper-cased returned **zero rows** for
+  the same row. `ID`, `UUID` and `String` all mapped to the same "compare as text" hint, and
+  the comparison runs against the JSONB text rendering, which PostgreSQL emits lower-case. The
+  result was a well-formed empty list — indistinguishable from "no rows matched", and it cost
+  a real debugging session where the empty result read as missing seed data.
+
+  An `eq`/`neq`/`in`/`nin` against an identity field whose literal is a UUID now compares
+  against both renderings (`= ANY(ARRAY[…])`, `<> ALL(ARRAY[…])`). **No SQL cast is emitted.**
+  That is the load-bearing detail: `(data->>'id')::uuid` is evaluated *per row*, so on a table
+  where any row's identity is not a UUID it would raise SQLSTATE 22P02 for every query — and
+  `ID` is documented as intentionally spanning uuid / integer / text keys
+  (`docs/adr/0017-entity-identity-contract.md`), with in-repo fixtures holding `'user-1'` and
+  a BIGINT primary key. Only the *literal* is inspected, so no knowledge of the column's type
+  is required and nothing can raise.
+
+  Three things deliberately unchanged: an **already-canonical** literal generates byte-identical
+  SQL (so plans and indexes are unaffected); a **non-UUID** identity value such as `'user-1'`
+  takes the unchanged text path, because case-folding an opaque key would be the same
+  silent-wrong-answer bug in the opposite direction; and **`ORDER BY` is untouched** — sorting
+  identities as text is correct, and a cast there would both retype the sort and raise on
+  non-UUID rows. Range operators (`gt`/`lt`/…) on identity fields also keep text ordering.
+
+- **`__schema` and `__type` follow the selection set (GraphQL § 6.3).**
+  `{ __schema { queryType { name } } }` used to return `description`, `directives`, `queryType`
+  **and** `types`, and `{ __schema { types { name } } }` returned every type with
+  `description`, `fields`, `interfaces` and `kind`. The response was built once at startup and
+  served verbatim.
+
+  This is the only change in the family with no *wrong* answer — the response was a superset,
+  never a plausible-but-false result. It is still worth fixing: over-delivery is harmless only
+  if every consumer tolerates unknown fields, and a strict typed deserialiser, or tooling that
+  *diffs* introspection results, is a real failure. More structurally, a pre-built blob makes
+  field- or type-level introspection filtering — hiding internal types, or a
+  partial-introspection mode for semi-trusted clients — impossible, because the filter has
+  nowhere to live.
+
+  **The zero-cost property is kept.** Projection is a pure function of the selection set, and
+  the space of introspection selection sets in the wild is small and repetitive: `GraphiQL`
+  sends one canonical query, Apollo sends one, each codegen tool sends one, and they do not
+  vary between page loads. The projected value is memoised by a hash of the normalised
+  selection set, so a repeated shape is an `Arc` clone from a table — the same cost as serving
+  the canned response — and only the first request of each shape does work. The pre-built
+  response remains the source; it is projected on the way out, never rebuilt.
+
+  Aliases are honoured, lists are projected element-wise, and a selection naming something the
+  response does not carry is omitted rather than fabricated as `null`.
+
+- **The cache put methods take a fence argument (#1079).** `QueryResultCache::put` /
+  `put_arc` and `ResponseCache::put` gained a trailing `fence: Option<u64>`. Pass
+  `Some(cache.invalidation_generation())`, snapshotted **before** the work whose result is
+  being stored; `None` stores unconditionally and is only correct when the value cannot have
+  raced a mutation — a fixture, or a synchronous re-population. This is a parameter rather
+  than a second "fenced" method on purpose: an unfenced overload left in place is a fail-open
+  default that every future caller can reach for by accident. See `### Fixed` for the race
+  it closes.
+
+- **The release Docker image no longer ships `libpq5` (#1133).**
+
+  It was installed for a driver this binary does not use — the PostgreSQL driver is the
+  pure-Rust `tokio-postgres` + rustls stack, and the built binary's only dynamic
+  dependencies are `libc`, `libm` and `libgcc_s`. Nothing in FraiseQL linked it, so
+  nothing in FraiseQL changes; but an image built `FROM` this one, whose own tooling links
+  `libpq`, now has to install it. That is the whole of the breaking surface here — the
+  rest of #1133 and #1205 is a build that was failing outright, and it is under
+  `### Fixed`.
+
+- **`fraiseql_core::schema::BUILTIN_SCALARS` is now the compiler's own table, and the
+  list it replaces is gone (#959).** It was `&[&str]`; it is now
+  `&[(&str, FieldType)]`, pairing each built-in scalar name with the type it denotes.
+  The old constant was a hand-written list under a docstring calling itself the unified
+  source of truth for scalar recognition, with **no non-test caller anywhere**, and it
+  disagreed with the compiler in both directions: it spelled JSON `"JSON"` where the
+  authoring format writes `"Json"`, it did not know `Vector`, `BitVector`, `HalfVector`
+  or `SparseVector`, and it listed `BigInt`, `Timestamp` and `Void`, none of which the
+  compiler accepts as a field type. `is_known_scalar` now answers from the real table,
+  so those three names return `false` and the four vector types return `true`.
+
+- **`fraiseql-wire`'s `HammingDistance` / `JaccardDistance` operands are bit strings
+  (#959).** Both variants took `vector: Vec<f32>` / `set: Vec<String>` and now take
+  `bits: String`. The emitted SQL was a second, unreachable implementation that disagreed
+  with the executed one and was wrong on its own terms: jaccard cast both sides to
+  `::text[]`, though pgvector's `<%>` is a bit-vector operator, and hamming cast to `::bit`
+  — which is `bit(1)`. Both now emit `::varbit` and match the executed path.
+
+- **The unused `fraiseql_core::utils::vector` module is removed — vector *search* is
+  unaffected (#959).** To be unambiguous, because the two are easy to confuse: `nearest`
+  top-K queries, the threshold WHERE operators, dimensioned `vector(N)` DDL and index
+  emission all continue to work exactly as before, and `graphql_vector_e2e_pg` passes
+  against real pgvector without a line changed.
+
+  What is gone is a **second, parallel** SQL builder — `VectorQueryBuilder`,
+  `VectorSearchQuery`, `VectorInsertQuery`, `VectorParam`, `PlaceholderStyle` — that
+  predated the executed vector work (#386) and was wired to nothing. It had **zero
+  callers**: nothing in the workspace referenced it, which is why deleting it compiles
+  the workspace unchanged. Breaking only for code that imported those symbols directly.
+
+  It is removed rather than kept because of how it built SQL: the table name, the
+  embedding column, every `select_columns` entry and an entire raw `where_clause` were
+  interpolated into the statement as strings. As published API on a crate whose whole
+  claim is that user input reaches the database as bind parameters, that is a shape to
+  delete, not to document.
+
+  Nothing to fold forward: the executed path already does top-K `nearest`, threshold
+  predicates, dimension validation and DDL emission. The one capability this builder
+  had that the executed path lacks — the distance value in the response — is its own
+  tracked item on #959 and needs computed-column projection, not this.
+
+- **REST streaming exports are now a per-route opt-in (#958).** `Accept:
+  application/x-ndjson`, `text/csv` and the XLSX media type were served on every REST
+  resource; they are now served only where the query declares `rest_stream = true`, and
+  answered `406 Not Acceptable` everywhere else. The JSON representation is unchanged.
+
+  A deployment relying on exports must add the flag to the queries behind those routes.
+  Default-off rather than default-on because an export is not a bigger page: it reads
+  the whole filtered relation, is not bounded by `max_page_size`, and holds a pooled
+  database connection for as long as the client takes to read it. A capability with
+  those properties on every route by default is one an operator has not decided to
+  offer.
+
+- **`enable_graphql_sse` is now `enable_graphql_incremental`, and
+  `graphql_sse_stream_batch_size` is now `graphql_incremental_batch_size` (#958).** The
+  flag gates the incremental-delivery *capability*, and #958 gave that capability a
+  second wire framing (`multipart/mixed`) alongside SSE. A flag named for one framing
+  that switches both on is a configuration file that does not describe what it does —
+  the defect class `[fraiseql.security]` honesty work has been closing all program. An
+  operator's `fraiseql.toml` needs both keys renamed; there is no alias, deliberately.
+
+- **`DatabaseAdapter`'s read-path methods gained a `ReadRouting` argument (#957).**
+  `execute_where_query_arc_with_session`, `execute_with_projection_arc_with_session`,
+  `execute_parameterized_aggregate_with_session`, `count_where_query` and
+  `RelayDatabaseAdapter::execute_relay_page_with_session` each take one more parameter,
+  carrying the compiled query's `read_routing`. Every method keeps a default implementation,
+  so an adapter that overrides none compiles unchanged; an adapter that *does* override one
+  must add the parameter — deliberately, because a wrapper that quietly dropped it would
+  serve a query annotated `primary` from a replica, and that is exactly the class of silent
+  fail-open the parameter exists to prevent.
+
+  Also new, and mandatory at every construction site for the same reason `tls` and
+  `read_replicas` already are: `ReadReplicaConfig` gained `max_lag` and
+  `health_probe_interval`, and `TenantPoolConfig` gained `read_replica_urls` and
+  `read_replica_policy`. `make_executor_factory` takes the policy as a second argument.
+
+- **`GET /auth/saml/login` now scopes by tenant, and refuses with `404` (#947).** Two
+  changes, both deliberate. A tenant-bound IdP (`tenant_id` set, in `[saml.idps.*]` or the
+  new store) no longer answers a request that does not carry a matching `?tenant=`, and an
+  untenanted IdP no longer answers a tenant-qualified one — the tenant named by the request
+  must *equal* the tenant bound to the IdP, where "absent" equals only itself. A
+  single-tenant deployment with untenanted IdPs is unaffected; a deployment that already set
+  `tenant_id` on a config-file IdP must start passing `?tenant=`. Separately, an unknown IdP
+  name now answers `404` rather than `400`, identically to a tenant mismatch: distinguishing
+  them let any caller enumerate other tenants' IdP names.
+
+  `SamlAuthState` correspondingly resolves through a `SamlIdpRegistry` rather than a private
+  map; `with_idp` is unchanged for embedders, and `with_registry` is the new multi-tenant
+  entry point.
+
+- **`fraiseql_auth::provider::TokenResponse` gained an `id_token` field (#943).** Any code
+  constructing one — a custom `OAuthProvider`, a test double — must add
+  `id_token: None` (or the provider's ID token, if it issues one; the built-in OIDC provider
+  now carries its through). The field exists because Apple returns the entire identity in
+  the ID token and publishes no userinfo endpoint, which is also why `OAuthProvider` gained
+  `user_info_from_tokens`. That method has a default forwarding to `user_info`, so existing
+  provider impls compile unchanged — but a provider whose identity lives in the ID token
+  must override it, and should make its own `user_info` fail rather than return a degraded
+  identity.
+
+- **Twilio senders must use the `bodySHA256` scheme for non-form bodies (#1069).** A JSON
+  delivery signed the way this crate used to accept — `HMAC-SHA1(auth_token, public_url)`
+  with no body material — now answers 401. Genuine Twilio traffic is unaffected: Twilio
+  already sends the `bodySHA256` form this release implements, and could not verify against
+  the old code at all. Only a sender that followed FraiseQL's own (unsound) scheme breaks,
+  and it breaks because that scheme authenticated nothing about the message. See the
+  Security entry for the full account.
+
+- **The minimum supported Rust version is now 1.94.1 (was 1.92) (#933, #975).** Required to clear
+  RUSTSEC-2026-0222 (`wasmtime`: stores can mix up type indices between engines): the 44.x
+  line we shipped has no patched release, and every patched line (46.0.2 / 47.0.3) pulls
+  cranelift 0.133, which requires 1.94. The same bump also clears **RUSTSEC-2026-0188**
+  (`wasmtime-wasi`: WASI hard links and renames bypass `FilePerms` on the destination path),
+  whose fix likewise landed outside the 44.x line — both advisory ignores are removed from
+  `deny.toml` and `.cargo/audit.toml`, and no wasmtime advisory is accepted any more.
+  Raised now rather than at the 2026-10-01 ignore deadline, because an expiring ignore
+  reddens the *required* `security` check on a date rather than on a push, i.e. on every
+  branch at once.
+
+  `wasmtime` and `wasmtime-wasi` move together to 46.0.2 (opt-in `runtime-wasm` feature;
+  not in a default build). `rust-version`, `rust-toolchain.toml`, the Dagger MSRV leg and
+  its mirrored base image all move in lockstep. Two published crates carried
+  MSRV metadata that was already untrue and now inherit the workspace value:
+  `fraiseql-storage` claimed `1.75`, and `fraiseql-federation` declared no `rust-version`
+  at all.
+
+  The floor is stated to the **patch** (1.94.1, not 1.94.0) for two reasons. `aws-sdk-kinesis`
+  — needed by the Kinesis CDC sink (#975) — declares `rust-version = 1.94.1`, so a 1.94.0 floor
+  would pin us to an older release of it. More importantly, 1.94.0 was a floor **no CI leg has
+  ever tested**: `rust-toolchain.toml` said `channel = "1.94"`, which rustup resolves to the
+  newest 1.94.x, and Docker's `rust:1.94` tag *is* 1.94.1 — so the declared minimum and the
+  verified minimum had quietly diverged. The Dagger base image is now pinned to the exact patch
+  (`ghcr.io/fraiseql/rust:1.94.1`) rather than the floating tag, so they cannot diverge again the
+  day 1.94.2 ships.
+
+- **`computed` is pinned as an authoring-only flag (#927).** Python's
+  `@fraiseql.field(computed=True)` and F#'s `[<GraphQLField(Computed = true)>]` both used to
+  serialize a `computed` key into `schema.json`. `IntermediateField` has no such member and
+  denies unknown fields, so the compile failed outright with ``unknown field `computed` ``,
+  naming a parameter the SDKs' own docstrings document as supported. Both halves were fixed
+  during the cross-SDK conformance work (Python stopped listing it among the emitted keys;
+  F# marked the record member `[<JsonIgnore>]`), and the open question — whether `computed`
+  should reach the compiled schema and introspection so a generated client knows not to send
+  the field — is answered *no*: the flag's consumer is each SDK's own CRUD generator, which
+  runs before export, so carrying it would add compiled-schema surface with no runtime
+  reader. Each SDK now has a test asserting the key is absent from its exported schema while
+  the flag still excludes the field from generated CRUD inputs, so neither fix can silently
+  regress.
+
+- **A schema declaring `aggregate_queries` is refused instead of silently dropped (#956).**
+  The section is listed in `AUTHORABLE_ARRAY_SECTIONS`, so it was valid input on every
+  compile path and every loader and merger carried it faithfully — and then the converter
+  mapped `fact_tables` and never read it. `CompiledSchema` has no corresponding field, so
+  the definitions reached the end of the seam and evaporated under
+  `✓ Schema compiled successfully`: the #755 shape surviving inside the seam built to kill
+  it, behind a `seam_coverage_manifest_test` excuse claiming parity with `fact_tables` that
+  was false in the one way that mattered — `fact_tables` reaches the compiled schema and
+  `aggregate_queries` did not. The compile now fails, naming the offending entries and the
+  supported spelling: `[[analytics.queries]]` in `fraiseql.toml`, which #624 gave real
+  semantics by lowering each entry onto an ordinary view-backed query. An empty or absent
+  block still compiles. The manifest excuse is corrected to state the refusal.
+
+- **Go: `NewAggregateQueryConfig` / `RegisterAggregateQuery` / `AggregateQueryDefinition` are
+  removed (#956).** The compiler now refuses an `aggregate_queries` block, so the builder
+  produced schemas that could no longer compile. ⚠ This entry originally claimed the Go SDK
+  was the only SDK emitting the block; that was wrong — the TypeScript SDK's producer was
+  missed and survived until #1023. Two shipped examples (`examples/analytics`, `examples/complete`) used it and are
+  updated: they keep their fact tables, which is what actually makes analytics work, because
+  the executor dispatches the `<fact_table>_aggregate` and `<fact_table>_window` root fields
+  to the fact-table planners with no further declaration. For a *named* analytics query, use
+  `[[analytics.queries]]` in `fraiseql.toml` (#624).
+
+- **SQL-source dispatch is removed from the Go, Java and Dart SDKs (#926).** Go's
+  `QueryBuilder.SqlSourceDispatch` / `SqlSourceDispatchWithTemplate`, Java's
+  `sqlSourceDispatch()` / `sqlSourceDispatchTemplate()`, and Dart's `SqlSourceDispatch`
+  annotation are gone. No part of the compiler ever read `sql_source_dispatch`: it is
+  absent from the intermediate schema, the converter and the compiled artifact. Go's
+  emitted it under `config`, which — once `IntermediateQuery` denied unknown fields — made
+  the whole schema uncompilable with an error naming a key the author never wrote; Java
+  stored it in a registry field nothing serialized; Dart's annotation was read by nothing,
+  because Dart has no reflection layer over its annotations. Two of the three were
+  completely inert. Declare **one query per source** instead, which also gives each source
+  its own compile-time SQL identifier validation. Java's `QueryInfo.config` /
+  `getConfig()` and the `registerQuery` overload that carried it go with them — dispatch
+  was their only producer. A new `tools/check-sdk-dead-surface.sh` gate, wired into
+  preflight and the Dagger ShellGates leg, fails if any of the three names returns to an
+  SDK authoring surface.
+
+- **`fraiseql_cli::schema::intermediate::reject_drifted_security_keys` is renamed to
+  `reject_drifted_keys` (#890).** The guard now also covers a non-security key —
+  `return_array`, the `[queries.*]` TOML spelling of `returns_list` — so the old name no
+  longer describes what it refuses. Behaviour for the security keys is unchanged.
+
+- **`WindowFunctionPlanner` is removed (#881).** `fraiseql-core` shipped two window
+  planners. Only `WindowPlanner` is reachable from the binary
+  (`WindowQueryParser::parse` → `WindowPlanner::plan` → `WindowSqlGenerator::generate`);
+  `WindowFunctionPlanner` took a different, raw-SQL-string request shape and nothing
+  outside tests ever called it. It was the root cause of #794 — the identifier allowlist
+  was wired into it, so every guard test passed while the live path interpolated client
+  strings verbatim — and #878 fixed the vulnerability in `WindowPlanner` while leaving
+  the dead planner in place so the security patch stayed reviewable. It is gone from the
+  `compiler` re-export along with its `validate` companion, whose only job was refusing
+  GROUPS frames and frame exclusion on the non-PostgreSQL dialects removed in #374.
+  Callers construct a `WindowRequest` (or let `WindowQueryParser` build one) instead of
+  passing a `serde_json::Value` of SQL fragments. Its 36 tests were ported onto the live
+  chain rather than dropped; two snapshots changed in the process, because the dead
+  planner emitted `data->>'category' as category AS data->>'category' as category` for a
+  selected dimension — SQL PostgreSQL rejects.
+
+- **`EventListener`, `ListenerConfig` and `OverflowPolicy` are removed (#931).** The
+  LISTEN/NOTIFY listener's `overflow_policy` knob (`Drop` / `Block` / `DropOldest`) was
+  accepted, documented and stored, and never read: the loop hard-coded `try_send` and warned
+  "Channel full, dropping event" whatever was configured, so an operator setting `Block` to
+  avoid event loss got drop-newest anyway, silently. Nothing in the workspace wired
+  `EventListener`, and LISTEN/NOTIFY is ephemeral by construction — a notification delivered
+  while no listener is connected is gone. `ChangeLogListener` is the one delivery path, and
+  it now has a durable dispatch ledger (#935). `ObserverRuntimeConfig.overflow_policy` goes
+  with the enum; it was likewise never read. That struct is not `deny_unknown_fields`, so an
+  existing TOML carrying `overflow_policy = "drop"` still parses and the key is ignored — as
+  it effectively always was. Embedders needing backpressure should consume
+  `ChangeLogListener` and apply it at their own dispatch boundary, where a bounded channel
+  can block without dropping a durable row.
+
+- **Observer `cache` actions now require a backend, or the server refuses to boot (#985).**
+  The Redis cache/invalidate transport shipped in #428 but no `fraiseql.toml` could reach it.
+  It is now mounted from `[observers.runtime.redis]` when an enabled observer declares a
+  `cache` action. Declaring one **without** that block is a boot error, as is declaring one
+  in a binary built without the new `observers-cache` feature (in `full`). Previously such a
+  deployment booted and failed every dispatch forever with "no backend wired".
+
+- **`tb_observer_log.status` values changed (#932).** The runtime wrote `"error"`, which
+  migration 06's `ck_observer_log_status` CHECK has never accepted, so every failure row was
+  rejected by the database and dropped behind a `warn!`. It now writes `"failed"`. Queries or
+  dashboards filtering `status = 'error'` should filter `'failed'` — they were matching
+  nothing before, since the rows never landed.
+
+- **The security-config keys that reached no consumer are refused by name (#983).** Four
+  leftovers from the #977 seam typing, all of the same class — config that is accepted or
+  emitted and read by nothing:
+
+  1. **`[fraiseql.security.audit_logging]`** keeps `enabled` (it lowers onto
+     `enterprise.audit_logging_enabled`); `log_level`, `include_sensitive_data`,
+     `async_logging`, `buffer_size` and `flush_interval_secs` are gone.
+     **`[fraiseql.security.error_sanitization]`** keeps `enabled`; `generic_messages`,
+     `internal_logging`, `leak_sensitive_details` and `user_facing_format` are gone.
+     **`[fraiseql.security.state_encryption]`** keeps `enabled` and `algorithm`;
+     `key_rotation_enabled`, `nonce_size` and `key_size` are gone (both sizes are fixed by
+     the algorithm). Each section is `deny_unknown_fields`, so a removed key is now a parse
+     error naming it. `leak_sensitive_details = true` used to be *refused* as "a security
+     risk" — it switched nothing either way, which is the more alarming half of that
+     sentence.
+  2. **`[security] default_policy` is removed from the authoring surface.** No enforcer read
+     it, and `SecuritySettings::default()` emitted `"authenticated"` into *every*
+     Workflow-A schema — a declaration an operator reads as an access boundary, attached to
+     nothing. `examples/saas` and `examples/multitenant` both shipped it. `fraiseql compile`
+     also now refuses `security.rules`, `security.field_auth` and `security.default_policy`
+     in a hand-authored `schema.json`, the one route that could still reach them.
+  3. **`CompiledSecurityConfig` is deleted** (no producer, no consumer, one `default()` in a
+     test), along with the dead `ConstantTimeConfig::to_json` and the three other
+     per-section `to_json` helpers the #977 typed emit replaced.
+  4. **`[fraiseql.security.service_accounts]` is now authorable.** The server has consumed
+     `security.service_accounts` since #977, but no authoring workflow could write it — only
+     a hand-written `schema.json`, so the feature was reachable only by accident:
+
+     ```toml
+     [fraiseql.security.service_accounts.reconciler]
+     secret_env = "FRAISEQL_SA_RECONCILER_SECRET"
+     roles      = ["reconciler"]
+     scopes     = ["write:Invoice"]
+     ```
+
+     An account with no `secret_env`, or with neither roles nor scopes, is refused.
+
+  `fraiseql doctor`'s cache+auth coherence check keyed on the presence of `default_policy`;
+  it now keys on `[security.rls] enabled` or `[[security.role_definitions]]` — the
+  mechanisms that actually gate a cached read. A schema with no access control could clear
+  that check by declaring one word.
+
+  **What changes for you:** `fraiseql compile` fails on any removed key, naming it. Delete
+  the key — none of them did anything. `fraiseql init`'s scaffold no longer writes
+  `log_level`.
+- **The functions subsystem is configured from the schema the server was built with
+  (#896).** `prepare_functions_runtime` re-read the compiled schema from
+  `config.schema_path` instead of using the `CompiledSchema` the `Server` was given, so
+  the functions subsystem could be configured from a different artifact than the one
+  serving queries — a stale file, or one the process's CWD resolved elsewhere — with
+  nothing checking they matched. Because it needed a file, it also could only run on
+  `serve_with_shutdown`: `serve_on_listener`, the in-process entry point every e2e test
+  drives, mounted **no functions at all**.
+
+  The `functions` section now travels with the server via the new
+  `Server::with_functions_config`, and provisioning moved into the boot prologue both
+  entry points share. `main.rs` loads it with `CompiledSchemaLoader::load_extended` and
+  passes it, so running the binary is unchanged.
+
+  **What changes for you:** a library caller that builds a `Server` and expects
+  functions to run must now pass the section explicitly —
+  `Server::new(...).await?.with_functions_config(extended.functions)`. Without it the
+  server runs no functions instead of silently reading whatever is at `schema_path`.
+- **`[security] default_role` now does what it says (#894).** The key was accepted in
+  `fraiseql.toml`, compiled into the schema, and deserialized into the runtime struct —
+  and no production code ever read it. An operator who set `default_role = "viewer"`
+  expecting authenticated principals with no role claim to inherit `viewer`'s scopes got
+  nothing, and every `requires_scope` field was denied to them.
+
+  `SecurityContext::can_access_scope` now falls back to `default_role` when the
+  principal's role set is **empty**. Two boundaries, both deliberate:
+
+  - It is an *absent* role set, not a failed lookup. A principal assigned `guest` has
+    been given its authority; topping it up when `guest` falls short would make
+    `default_role` a floor under every principal rather than a default.
+  - It reaches **authenticated principals only**. A `SecurityContext` exists only for
+    one; an anonymous request is classified by a separate path that stays deny-all.
+    Extending the fallback there would re-open #743's privilege inversion from the other
+    side, handing every `requires_scope` field to callers with no credential.
+
+  **What changes for you:** if your compiled schema sets `default_role`, principals whose
+  token carries no role claim now receive that role's scopes where they previously
+  received none. Set `default_role` to `None` to keep the old behaviour. The two tests
+  named after this behaviour — `test_default_role_fallback` and
+  `test_executor_default_role_applied` — asserted only that the field round-tripped;
+  they now exercise the fallback, and three more pin its boundaries.
+- **The admin cache API sees the cache that actually serves queries, and its response
+  shape is per-cache (#941).** On a server with `cache_enabled = true` and no Arrow
+  Flight service, `GET /api/v1/admin/config` reported `cache_enabled: "true",
+  cache_status: "active"` while `GET /api/v1/admin/cache/stats` on the same server
+  answered `"Cache is not configured"` and `POST /api/v1/admin/cache/clear` returned
+  **500 `Cache not configured`**. Two different caches shared one vocabulary: `config`
+  reported the query result cache, `stats` and `clear` could see only the Arrow Flight
+  cache. An operator following runbook 04 got a 500 from an endpoint whose sibling said
+  the cache was active.
+
+  Both endpoints now operate on both caches and report them separately:
+
+  ```json
+  {"caches":[{"cache":"query_result","configured":true,"entries_count":1284,
+              "hits":90211,"misses":1284,"ttl_secs":300,"max_entries":10000}],
+   "message":"Configured cache(s): query_result"}
+  ```
+
+  **What changes for you:** `CacheStatsResponse`'s flat `entries_count` / `cache_enabled`
+  / `ttl_secs` are replaced by `caches[]`; `CacheClearResponse` gains `caches[]` beside
+  its (now summed) `entries_cleared`. `cache/clear` no longer 500s when a cache is
+  absent — it returns 200 with `configured: false` for that cache, since "there is no
+  such cache" is an answer, not a server error. `scope: "pattern"` applies only to the
+  Arrow cache (result-cache keys are hashes, not globbable strings) and says so in
+  `note` rather than reporting a successful clear of nothing. `scope: "entity"` now
+  resolves the view from the compiled schema instead of guessing `v_{lowercase}`, which
+  mapped `OrderItem` to `v_orderitem` and evicted nothing.
+
+  New on `DatabaseAdapter`: `result_cache_stats()` and `clear_result_cache()`, both
+  defaulting to "no cache" and overridden by `CachedDatabaseAdapter`.
+  `QueryResultCache::run_pending_tasks` is now public and is called before reporting
+  stats: moka settles writes on a background schedule, so an entry cached moments
+  earlier was reported as an empty cache.
+- **A mutation that resolves to no view no longer compiles beside a cacheable view
+  (#910).** A successful mutation's invalidation is resolved from `invalidates_views`,
+  the return type's view, the entity a payload type wraps, the `entity_type` its SQL
+  function stamps on `mutation_response`, and its cascade envelope. When none of them
+  names a view the plan is empty and the mutation invalidates **nothing** — silently,
+  and for a view annotated `cache_ttl_seconds = 0` ("mutation-invalidated only") that
+  means for the process lifetime.
+
+  The reachable shape: a `Custom` mutation returning a payload with no `sql_source` and
+  no `entity` field, whose function stamps no `entity_type`, declaring no
+  `invalidates_views`. `fn_rebuild_pricing` rewrites `tb_price`; `v_price` is cached
+  forever; nothing says so.
+
+  `fraiseql compile` now refuses such a schema, naming every unattributable mutation
+  and the cacheable views at risk. A `tracing::warn!` beside a successful compile is
+  the same defect with more text, so this is an error, not an advisory. Schemas that
+  annotate no view as cacheable are unaffected — there is no entry to strand.
+
+  **What changes for you:** add `invalidates_views = ["v_price"]` to each mutation the
+  error names. A mutation whose return type is backed by a view, or whose payload wraps
+  an entity that is, already resolves and needs no annotation. The server carries the
+  same refusal at boot (only when `cache_enabled = true`) as a backstop for a
+  hand-authored or older-CLI `schema.compiled.json`. The compile gate and the runtime
+  invalidation plan read the same `fraiseql_core::cache::statically_resolved_views`, so
+  they cannot drift into disagreeing about what "resolves to a view" means.
+- **The Arrow/Flight boot path now honours `cache_enabled` — and `Server::with_flight_service`
+  returns `Server<CachedDatabaseAdapter<A>>` (#889).** The constructor `main.rs` selects
+  whenever the `arrow` feature is on passed the raw adapter straight to the executor, so
+  `cache_enabled = true` was accepted, logged nowhere, and did nothing. The same
+  `server.toml` behaved completely differently depending on which feature the binary was
+  built with, and an operator measuring p99 against a deployment they believed was caching
+  got no cache and no line saying so.
+
+  All three constructors now build the cache through one
+  `build_cached_adapter` seam, which also runs the cache+RLS gates
+  (`tenant_isolation_declaration_check`, `warn_on_inert_cache_ttls`, `verify_declared_rls`)
+  in one order. Three constructors deciding independently is the #750 drift shape.
+
+  **New boot refusal:** `cache_enabled = true` together with a non-empty
+  `flight_upload_tables` is refused. A Flight `Upload` is a direct INSERT that never reaches
+  the mutation runner, so it invalidates nothing and cached GraphQL reads would keep serving
+  pre-upload rows until the TTL expired. Set `cache_enabled = false`, or leave
+  `flight_upload_tables` empty (the default, which keeps Upload disabled).
+
+  **What changes for you:** library callers of `with_flight_service` get a
+  `Server<CachedDatabaseAdapter<A>>`; a tenant executor factory paired with it must be
+  built for `CachedDatabaseAdapter<A>` (`main.rs` does this on every PG path now). The
+  constructor also no longer panics when the adapter `Arc` has been cloned — the shared
+  seam clones the adapter instead of requiring exclusive ownership.
+- **`fraiseql_core::config` is removed — `FraiseQLConfig` and its whole `[server]`,
+  `[database]`, `[cors]`, `[auth]`, `[rate_limit]`, `[cache]`, `[collation]` TOML tree
+  (#909).** The type parsed a full configuration file, validated it, expanded `${VAR}`
+  references and round-tripped it in its own tests. No code outside its own module ever
+  read a single field — the whole crate compiles unchanged with the module deleted. An
+  operator who wrote
+
+  ```toml
+  [cache]
+  response_cache_enabled = true
+  response_cache_ttl_secs = 300
+  ```
+
+  got a file that parsed, validated, and did nothing: no response cache was ever
+  constructed, and nothing said so. Every section had a live twin elsewhere, which is why
+  the dead one was never missed.
+
+  **Where each section's working knob lives.** The server's runtime config is
+  `ServerConfig`, deserialized directly from the `--config` file with flat top-level keys
+  and `deny_unknown_fields`:
+
+  | removed | working knob |
+  |---|---|
+  | `[server] host`/`port` | `bind_addr` |
+  | `[server] max_body_size` | `max_request_body_bytes` |
+  | `[server] workers` | tokio runtime default (never wired) |
+  | `[database] url` | `database_url` |
+  | `[database] max_connections`/`min_connections` | `pool_max_size`/`pool_min_size` |
+  | `[database] connect_timeout_secs` | `pool_timeout_secs` |
+  | `[database] ssl_mode` | `[database_tls]` |
+  | `[database] mutation_timing` | no key — the outbox path stamps `fraiseql.started_at` itself; `PostgresAdapter::with_mutation_timing` is the library seam |
+  | `[cors] enabled`/`allowed_origins` | `cors_enabled`/`cors_origins` |
+  | `[auth] *` | `[auth]` (OIDC `issuer`/`audience`), `[auth_hs256]`, `[identity]` |
+  | `[rate_limit] *` | `[rate_limiting]` + the compiled `security.rate_limiting` |
+  | `[cache] apq_*` | `apq_enabled` |
+  | `[cache] response_cache_*` | `cache_enabled` (the adapter query-result cache) |
+  | `[collation] *` | never wired on any path |
+
+  Because `ServerConfig` and the CLI's `fraiseql.toml` loaders both use
+  `deny_unknown_fields`, a config file carrying any of the removed sections is refused at
+  boot rather than silently ignored.
+
+  **What changes for you:** `fraiseql_core::config::*`, `fraiseql_core::FraiseQLConfig`,
+  `fraiseql_core::prelude::FraiseQLConfig`, `fraiseql::FraiseQLConfig` and
+  `fraiseql::prelude::FraiseQLConfig` no longer exist. Library embedders that constructed
+  one were building a value nothing consumed; configure the server through `ServerConfig`.
+
+  A new gate, `tools/check-config-loaders.sh` (preflight + the CI ShellGates leg), refuses
+  a typed TOML config loader that has no coverage manifest naming each accepted key's
+  consumer — the check that would have caught this at the PR that added it.
+- **Selecting a field the type does not define is now a validation error (#939).** GraphQL
+  § 5.3.1 (Field Selections on Objects) makes such a document invalid, and an invalid
+  document must not execute. The runtime instead lowered the unknown name into the SQL
+  projection, where `data->>'phantom_field'` evaluates to NULL and serialises as a
+  legitimate-looking `null` — **HTTP 200, no `errors` array**:
+
+  ```
+  { "data": { "users": [ { "phantom_field": null } ] } }
+  ```
+
+  A client typo (`emial` for `email`, or a snake/camel mixup) therefore shipped silently:
+  the response shape looked correct and the value was always null, with nothing in the
+  logs or the response pointing at it.
+
+  **What changes for you:** a query that today returns 200 with `"field": null` for an
+  undeclared selection now fails validation with
+  `Cannot query field '<field>' on type '<Type>'.` and never reaches the database. If any
+  client is relying on that null — including one whose typo has been invisible — it will
+  start erroring. That is the point; check your clients' field names before upgrading.
+
+  Validated on the regular query path (single- and multi-root) and the Relay `node(id:)`
+  path. Deliberately *not* rejected, so a rejection the schema cannot justify never breaks
+  a working query: types the compiled schema does not carry, types whose field list is
+  empty (an object type must have at least one field, so an empty list means the compiler
+  emitted no field information), `__typename` and the introspection meta-fields, inline
+  fragments on unknown type conditions, and Relay connection selections — whose scoped
+  type is the generated `XxxConnection`, not the query's node `return_type`.
+
+  **Interaction with `on_deny` (#423), decided and documented:** a *denied* field is not
+  an *undeclared* field. Policy-gated fields are in the type's field list, so they pass
+  validation and continue through the RBAC layer — `on_deny = Mask` still returns the key
+  with a null value, and `Reject` still returns its authorization error. The unknown-field
+  error therefore only ever names a field that genuinely does not exist. It does let a
+  caller distinguish "exists but masked" from "does not exist", which is the same
+  information introspection publishes and what every spec-conformant GraphQL server
+  reports; masking withholds a *value*, not the schema. Operators who need that hidden
+  should disable introspection and enable error sanitization together.
+
+  Mutation payload selections are not yet validated (#1005): a payload type may be a union
+  resolved per-result, and validating against the wrong variant would reject a working
+  mutation — strictly worse than the bug. Named rather than silently left.
+- **`FragmentResolver::merge_selections` and `FragmentResolver::evaluate_inline_fragment`
+  are removed (#905).** Both were `pub`, and neither had a production caller — fragment
+  expansion goes through `FragmentResolver::resolve_spreads` (via
+  `graphql::selection_set`), which preserves document order by construction, and
+  inline-fragment type conditions are handled by the projector.
+
+  `merge_selections` returned `HashMap::into_values()`, so its result was in hash order —
+  unspecified, and randomised per process. A GraphQL response's fields must appear in the
+  order the query asked for them (spec § Response Format), which the runtime now honours
+  via workspace-level `serde_json/preserve_order`. Any future caller reaching for the
+  obviously-named helper would have got a correct field *set* in an arbitrary *order*: a
+  response-ordering violation invisible in a diff and intermittent at runtime. Its own
+  tests asserted `names.contains(…)` — the set, never the order — so nothing would have
+  caught it.
+
+  Keeping a helper that silently violates a guarantee the crate now makes is worse than
+  its absence. If a merge helper is wanted later it should be built order-preserving (walk
+  `base`, then append unseen keys from `additional`) and covered by a test that asserts
+  the order rather than the set.
+- **A typo in a compiled schema's `security` object is now a load error, not a
+  silently disabled subsystem (#977).** `SecurityConfig` carried a
+  `#[serde(flatten)]` catch-all that seven security subsystems read by string
+  lookup — so `rate_limitting`, `token_revokation` or `api_key` in a compiled
+  schema landed in the catch-all, the lookup missed, and the subsystem came up
+  unconfigured while the server booted clean. Every subsystem section
+  (`rate_limiting`, `error_sanitization`, `trusted_documents`, `pkce`,
+  `token_revocation`, `api_keys`, `service_accounts`, `state_encryption`,
+  `enterprise`, plus `persisted_queries_only`, `default_policy`, `rules`,
+  `policies`, `field_auth`) is now a typed, `deny_unknown_fields` field on
+  `SecurityConfig`, itself `deny_unknown_fields`; the CLI's TOML types and the
+  server's readers are the same structs re-exported, so producer and consumer
+  shapes cannot drift. Schema-load errors name the offending JSON path
+  (`security.rate_limiting.requests_per_second: invalid type …`).
+
+  Consequences a hand-authored `schema.json` may notice:
+  - Unknown keys anywhere under `security` now fail `CompiledSchema::from_json`;
+    previously they were preserved (and a numeric value beyond `u64` was
+    silently rewritten through `f64`, so a compiled schema was not stable
+    across a load/save cycle — the fuzz finding that filed this issue).
+  - Malformed subsystem sections that previously *warn-and-disabled*
+    (`api_keys`, `service_accounts`, `trusted_documents`, `error_sanitization`)
+    now refuse the load — the fail-open class this remediation program exists
+    to eliminate.
+  - Defaults for a `rate_limiting` section that omits keys are now the
+    producer's (auth-endpoint budgets 5/10/20/30 per window, burst 200) rather
+    than the server's zeroed copy — enabling rate limiting protects the auth
+    endpoints by default instead of building no rules.
+  - The project-config workflow (`[fraiseql.security.*]`) no longer emits the
+    consumer-less `audit_logging`/camelCase sections; `audit_logging.enabled`
+    lowers onto `enterprise.audit_logging_enabled`, the key the runtime reads.
+- **`compile --database` fails on error-severity drift (#384).** Previously
+  every schema↔database drift finding was advisory (`warn!` + exit 0, artifact
+  written). A schema whose declarations name database objects that do not
+  exist — or cannot serve the declared shape — no longer compiles; pass
+  `--allow-drift` for the old behaviour. `DatabaseIntrospector::
+  get_sample_json_rows` lost its silently-empty default implementation and is
+  now required.
+- **The vector WHERE operand shape changed (#386).** `cosine_distance: [0.1, …]`
+  (a bare array) generated SQL PostgreSQL always refused — a non-boolean
+  float8 expression over a mis-parenthesised cast with a jsonb-bound operand —
+  so no working query used it. The operand is now
+  `{vector: [Float!], threshold: Float}` with distance-≤ (or, for
+  `inner_product`, raw-inner-product-≥) semantics. `hamming_distance` and
+  `jaccard_distance` are refused loudly: pgvector defines them over binary
+  (`bit`) vectors, which the float `Vector` type cannot declare. The
+  `SqlDialect::vector_distance_sql`/`jaccard_distance_sql` trait methods
+  (unreachable outside that broken path) are removed.
+- **`PoolPrewarmConfig` gains the mandatory `read_replicas` field (#407).** Every
+  pool construction site must now state its replica topology (`None` for a
+  single-primary pool), the same compile-time-visible decision the `tls` field
+  imposes: replica pools are built from the very same config, so tenant isolation
+  and transport security cannot silently differ between the primary and a replica.
+- **Cost rejections changed shape (#379).** A per-tenant `cost_budget` rejection was
+  HTTP 429 `RATE_LIMIT_EXCEEDED` with `retry_after_secs: 1`; it is now
+  `OPERATION_COST_EXCEEDED` in a 200 GraphQL error response, because retrying an
+  over-budget operation can never succeed. `FraiseQLError` gains the `CostExceeded`
+  variant carrying `cost`, `limit`, and an optional retry hint.
+- **`RuntimeConfig.max_query_depth` and `max_query_complexity` are deleted (#379).**
+  Both were declared, defaulted, debug-printed — and read by nothing. The one
+  enforcement surface is `query_validation` (embedder-installed, or derived from the
+  compiled `[validation]` limits at executor construction). An embedder that set the
+  dead fields and expected enforcement never had it; set `query_validation` instead.
+- **The compiled `auth` object is nested (#368, #367).** `CompiledSchema.auth` was
+  the flat PKCE quadruple; it is now a container with `pkce`, `social` and `local`
+  groups, so the `[auth]` block can carry the social-provider registry and the
+  first-party auth methods alongside the PKCE client. A schema compiled before this
+  change carries the flat shape and no longer deserializes — recompile it. (There are
+  no compiled schemas in the wild; the field shipped in #621.)
+- **`fraiseql_auth::social` is deleted (#368).** `SocialLoginState`,
+  `SocialProviderRegistry` and `social_authorize` were a second, thinner social
+  surface: a redirect-only `GET /auth/v1/authorize` with no callback, no account
+  linking and therefore no trust gate. The mounted flow is `multi_provider`, which has
+  all three. `Server::with_social_login` now takes
+  `Arc<MultiProviderAuthState>`; library embedders on the old type should build the
+  `multi_provider` state instead, or configure `[auth.social]` and let the server
+  build it.
+- **`GitHubOAuth::new` is synchronous and fallible (#368).** It was `async` because it
+  performed OIDC discovery — against an endpoint GitHub does not serve. It now returns
+  `Result<Self>` without any network call; `GitHubOAuth::with_endpoints` takes explicit
+  base URLs for GitHub Enterprise Server.
+- **`github` is trusted for email-verified account linking by default (#368).** With
+  the `/user/emails` second hop implemented, `TrustedEmailProviders::builtin_default`
+  is now `{google, apple, github}`. Deployments that want the previous posture should
+  call `.distrust("github")`.
+- **The rich-filter surface (`<RichType>WhereInput`) is gone (#869).** The compiler
+  emitted 48 per-type WhereInput input types advertising 35 operator names
+  (`domainEq`, `tldIn`, `withinRange`, …) that the runtime WHERE parser could never
+  serve: 32 of them failed with `Unknown WHERE operator`, and two (`depthEq`,
+  `overlaps`) silently bound to unrelated ltree/inet operators. The emission, the
+  embedded `lookup_data` blob, the CLI SQL-template tables, and the runtime's
+  unreachable `ExtendedOperator` machinery (`fraiseql_db::filters`,
+  `WhereOperator::Extended`, `SqlDialect::generate_extended_sql`,
+  `fraiseql_core::filters`) are all deleted. Rich scalar *names* remain valid
+  authoring types; filtering uses the standard operator set. A compiler↔runtime
+  contract test now refuses any compiled input type advertising an operator
+  `WhereOperator::from_str` cannot parse.
+- **The string-SQL tenancy helpers are gone (#736).**
+  `fraiseql_core::tenancy::{where_clause, where_clause_postgresql,
+  where_clause_parameterized}` (methods and free functions) interpolated or
+  templated `tenant_id` SQL that no production path used, behind a doc claim
+  ("validated at context creation") that was false — `TenantContext::new` validates
+  nothing, and `where_clause()` panicked on IDs outside `[A-Za-z0-9._-]`.
+  `TenantContext` now carries identity/metadata only; tenant filtering is done by
+  the runtime security machinery (`inject_params`, `rls_policy`, per-tenant pools).
+- **An RLS-protected deployment now fails closed on every anonymous query path
+  (#784).** With a `RuntimeConfig::rls_policy` configured, the anonymous regular
+  path served *unfiltered* rows (it never consulted the policy) and the REST
+  direct-read and count paths fell through to unfiltered on a missing security
+  context, while the relay and node paths refused. All five paths now refuse
+  identically ("Query not found"), and `Prefer: count=exact` can no longer
+  disagree with the body it describes.
+- **`fraiseql run` refuses malformed `FRAISEQL_*` env values instead of silently
+  flipping them to `false` (#874).** `ServerArgs::from_env` routed every boolean
+  through a hand parser that mapped clap-valid `y`/`t`/`on` — and any typo, e.g.
+  `FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH=ture` or a trailing space — to an explicit
+  `false` override, silently disabling the guard the operator was enabling. Both
+  binaries now share clap's boolish parser; a set-but-unrecognised boolean or an
+  unparseable numeric/address value is a startup error naming the variable.
+- **Arrow Flight defaults to loopback (#874).** `flight_bind_addr` defaulted to
+  the `0.0.0.0:50051` wildcard while the HTTP surface defaulted to loopback, and
+  the `FRAISEQL_FLIGHT_BIND_ADDR` override lived in a serde default — so it lost
+  to any config-file value, and a malformed value silently fell back to the
+  wildcard. Default is now `127.0.0.1:50051`; the env var / `--flight-bind-addr`
+  follow the standard CLI > env > file > default precedence and refuse startup on
+  a malformed value.
+- **`Server::new`/`from_executor` run `ServerConfig::validate()` (#874).** The
+  documented library embedding (`ServerConfig::from_file` + `Server::new`) skipped
+  every production safety gate — a leftover `playground_enabled = true`, a zero
+  pool timeout, or `[auth]` + `[auth_hs256]` both configured booted happily as a
+  library while the binary refused. Every construction path now faces the same
+  gates; library embedders with configs the binary would reject will now be
+  refused too.
+- **`FRAISEQL_REQUIRE_REDIS` now verifies all three shared-auth-state subsystems
+  (#874).** The gate inspected only the PKCE store, so the operator's "all shared
+  state is distributed" assertion held while revoked tokens stayed accepted on
+  other replicas and per-IP limits ran at N× the configured rate. It now refuses
+  when the PKCE store, the rate limiter, or the token revocation store is
+  per-process (a disabled subsystem is not a violation; Postgres-backed
+  revocation counts as shared).
+- **The non-kafka `KafkaAdapter` stub fails loud (#784).** The compiled-out stub
+  reported `Ok` from `deliver()` (dropping every subscription event) and
+  `health_check() == true`. It now errors on delivery and reports unhealthy,
+  matching the other compiled-out runtime stubs.
+- **The dead `ServerSubsystems` bundle was deleted (#874).**
+  `ServerSubsystemsBuilder`, `validate_subsystems_config` and the
+  `ServerSubsystems`/`StorageSubsystem` container had no production constructor —
+  their "call once during server startup" advisories never reached an operator.
+  The live pieces (`FunctionsSubsystem`, `BeforeMutationHooks`, the functions
+  loader) are unchanged.
+- **`ServerConfig` (the `fraiseql-server --config` file) now refuses unknown keys
+  (#839).** The architecture docs shipped a production example whose keys sat in
+  `[server]`/`[database]` grouping tables `ServerConfig` does not have; serde silently
+  discarded every documented key, so the server booted on `127.0.0.1:8000` with default
+  pool sizing while the operator believed they had configured `0.0.0.0:4000` and
+  `pool_max_size = 20`. An unknown top-level key is now a parse error naming the key,
+  and a section whose build feature is compiled out (e.g. `[observers]` without the
+  `observers` feature) gets an error naming the missing feature instead of the former
+  warn-and-drop. **Migration:** the config keys are top-level (`bind_addr`,
+  `schema_path`, `database_url`, `pool_min_size`, …) — remove any grouping tables and
+  any key the error message names.
+- **The dead `fraiseql_server::config::RuntimeConfig` layer was deleted (#839).** The
+  docs described the binary as "loading `RuntimeConfig` and translating it to
+  `ServerConfig`"; in reality the type — with its own `[server]`/`[database]` shape,
+  `url_env` indirection, loader and 433-line `ConfigValidator` — was constructed by
+  nothing but its own tests and a fuzz target. Removed along with its sub-configs
+  (`HttpServerConfig`, `DatabaseConfig`, `LifecycleConfig`, `CorsConfig`,
+  `MetricsConfig`, `TracingConfig`, `RateLimitingConfig`, …), the `config::env`
+  helpers, and the never-fed `AppState` config slot whose emptiness made
+  `GET /api/v1/admin/config` always report `cache_enabled = false`; that endpoint now
+  reports the real adapter-cache state and no longer promises port/host/workers fields
+  it could never fill. `fraiseql_server::config` retains only the live types
+  (`UsagePersistenceConfig`, `WebhookRouteConfig`, error sanitization, pool tuning).
+- **FraiseQL is PostgreSQL-only: the MySQL, SQLite and SQL Server backends were removed
+  (P22, #374 #721 #799 #829 #830 #831 #832 #833 #834 #870).** Three audit passes found
+  the non-PostgreSQL paths had never been executed against a real database, and the
+  defects were not marginal: every field-projected query failed on MySQL and SQLite (a
+  PostgreSQL-only `jsonb_build_object` projection was spliced into their SQL, #799);
+  MySQL boolean equality never matched `true` while `neq: true` matched everything
+  (#831); MySQL numeric comparison rounded to an integer, so `19.99` and `20.4` compared
+  equal (#830); boolean `ORDER BY` collapsed every sort key to 0 (#829); cursor-paginated
+  sorts were silently dropped (#832); a client-controlled `where` field name could break
+  out of a MySQL string literal (#833); and a multi-argument SQLite `DELETE` applied only
+  the first filter, widening the delete (#834). Supporting them properly means three more
+  per-dialect integration matrices in CI forever, against a design that is
+  PostgreSQL-shaped throughout (Trinity views, JSONB `data` columns, RLS tenancy,
+  `LISTEN/NOTIFY` subscriptions, WAL-based CDC).
+
+  **Removed:** the `mysql`, `sqlite`, `sqlserver`, `mssql`, `test-mysql`,
+  `test-sqlserver`, `multi-db` and `all-db` Cargo features on every crate; `MySqlAdapter`
+  / `SqliteAdapter` / `SqlServerAdapter` and their introspectors; `MySqlDialect` /
+  `SqliteDialect` / `SqlServerDialect`; `MySqlProjectionGenerator` /
+  `SqliteProjectionGenerator`; the `quote_mysql_identifier` / `quote_sqlite_identifier` /
+  `quote_sqlserver_identifier` and `escape_mysql_json_path` / `escape_sqlite_json_path` /
+  `escape_sqlserver_json_path` helpers; the observers' MySQL and MSSQL NATS bridges; and
+  the `MySQL`, `SQLite` and `SQLServer` variants of `DatabaseType`, which now has one
+  variant. `DialectCapabilityGuard` and its `Feature` matrix are gone too — three audit
+  passes confirmed the guard was never called from any production path.
+
+  **Migration:** move to PostgreSQL 14+. A `mysql://`, `sqlite://` or `sqlserver://`
+  database URL is now refused at startup by both `fraiseql-server` and `fraiseql run`,
+  with an error naming the removal — it is never silently downgraded. A
+  `[collation.database_overrides.mysql|sqlite|sqlserver]` config table now fails to parse
+  (`deny_unknown_fields`) rather than being silently ignored. Because the removed
+  backends returned wrong results on filters, sorts and projections rather than working,
+  treat data from such a deployment as suspect rather than as a baseline to reproduce.
+  See `docs/database-compatibility.md`.
+- **`where` field names are validated at the parse boundary (#833).** A `where` key
+  outside the GraphQL identifier pattern `[_A-Za-z][_0-9A-Za-z]*` — a quote, a backslash,
+  a leading digit — is now rejected with a `Validation` error instead of being
+  interpolated into SQL. This is the same rule `orderBy` already enforced, and it is kept
+  after the de-scope because it protects PostgreSQL too. A client sending such a key
+  previously reached SQL generation; it now gets an error.
+- **CDC drain redesign (P20, #797 #814 #815).** `core.tb_cdc_sink_state` gains a
+  `lease_expires_at` column and an `in_flight` status (idempotent `ADD COLUMN IF NOT
+  EXISTS` migration; re-run `outbox_sink_state_migration_sql`). The enqueue cursor is now
+  an anti-join bounded by a commit-lag window (default 15 min,
+  `DrainWorker::with_commit_lag_window`) with a periodic full recovery sweep
+  (`with_sweep_every`, first tick always sweeps) — a row whose transaction commits out of
+  sequence order is no longer permanently dropped. Publishing is claim-then-publish under
+  a lease (`with_lease`, default 10 min) with **no database transaction held across broker
+  calls**, and a transiently failing row now **blocks its successors** (head-of-line
+  blocking; a dead-lettered row releases them) instead of being overtaken —
+  `DrainStats.retried` therefore counts at most the head row per tick, and `DrainStats`
+  gains `late_recovered`.
+- **`fraiseql-wire` connection strings parse their query component strictly (#817).**
+  `?sslmode=…`, `?application_name=…` and `?connect_timeout=…` are honoured (`sslmode` is
+  *enforced*: a plaintext connect refuses `require`/`verify-*`, a TLS connect refuses
+  `disable`, and the opportunistic `prefer`/`allow` modes are refused outright); any other
+  parameter is a loud `WireError::Config` instead of being folded into the database name.
+  `ConnectionInfo.user`/`database` are now `Option<String>` (explicit-vs-defaulted is
+  distinguishable; `user_or_default()`/`database_or_default()` apply the OS-user
+  convention), and `Connection::streaming_query` takes the entity name as a parameter
+  instead of re-deriving it from the SQL text.
+- **`fraiseql-wire` `connect_with_config`/`connect_with_config_and_tls` implement their
+  documented merge (#877).** The connection string's explicit user, password, database,
+  `application_name` and `connect_timeout` now override the passed `ConnectionConfig`
+  (they were previously parsed and silently discarded, so the startup packet carried the
+  config's credentials and no password).
+- **`fraiseql-wire` `TlsConfig` drops `verify_hostname` and
+  `danger_accept_invalid_hostnames` (#877).** Both flags were stored and reported but
+  never reached the rustls verifier — hostname verification is always on. The
+  debug-build-only `danger_accept_invalid_certs` remains the self-signed-development
+  escape hatch (it disables the whole verification, hostname included).
+- **`fraiseql-wire` `OrderByClause` renders JSONB fields with text extraction (`->>`)
+  (#877).** The previous `->` navigation yielded `jsonb`, so any collated JSONB order
+  clause failed at the server with `collations are not supported by type jsonb` (42P22).
+- **`fraiseql-wire` SASL mechanism-list decoding hard-errors past the cap (#729)** like
+  every other decode cap, instead of silently truncating the list.
+- **`fraiseql_arrow::execute_batched_queries` rejects heterogeneous result schemas
+  (#717).** A Flight stream carries one schema header; a batch whose queries infer
+  different schemas now returns `InvalidArgument` naming both shapes instead of emitting
+  an undecodable stream.
+- **`fraiseql init` refuses `--database mysql|sqlite|sqlserver|mssql` (#823 follow-through
+  of the PostgreSQL-only decision).** The scaffolder still generated projects for the
+  removed engines — projects the runtime refuses to boot. It now errors with the removal
+  notice instead of scaffolding; `postgres` is the only accepted value.
+- **`fraiseql generate-views --validate` now requires a database.** It executes the
+  generated DDL against `DATABASE_URL` inside a rolled-back transaction and fails when
+  PostgreSQL rejects any statement (#821). The previous flag checked only the view-name
+  prefix, so it could never fail — it reported files with syntax errors as "valid". Runs
+  without `DATABASE_URL` now exit non-zero with an explanation instead of claiming
+  validity.
+- **`fraiseql-server`'s bridge `EntityEvent.operation` is now `SubscriptionOperation`**
+  (was a free-form `String`), and `fraiseql-observers`' `EventKind` is a **closed enum**
+  (no longer `#[non_exhaustive]`), so the subscription forward mapping is an exhaustive
+  match and an unmapped variant is a compile error instead of a silent fall-through
+  (#773).
+- **Unknown `modification_type` verbs in `tb_entity_change_log` are rejected.**
+  `INSERT`/`UPDATE`/`DELETE` and the explicit no-op verbs `CUSTOM`/`NOOP`/`READ` remain
+  valid; anything else now errors at conversion (the row is skipped and logged, the
+  checkpoint still advances) instead of being silently treated as a no-op (#773).
+- **A restart no longer replays the entire change log (#805).** The observer runtime wrote
+  a checkpoint after every batch but nothing ever read it back — and the row was keyed on
+  the entity type of whatever row happened to be last in the batch, so there was no global
+  cursor to read. Every process start (deploy, OOM, node drain) re-read
+  `core.tb_entity_change_log` from row 0 and re-fired every webhook, email and Slack
+  message ever recorded, with severity growing with deployment age. The runtime now
+  restores the cursor at startup under a stable listener identity (`listener_id`, default
+  `"change_log"`), ensures the checkpoint table exists (the shipped idempotent migration),
+  and persists through `PostgresCheckpointStore` after each dispatched batch. Delivery is
+  explicitly **at-least-once with a one-batch replay window**; payloads carry the
+  change-log row UUID as the dedup key. Pinned by a genuine restart test (second runtime,
+  same pool, zero re-dispatch).
+- **The job-queue worker actually executes jobs (#844).** `timeout_job_execution` was a
+  placeholder returning `Ok(())`: every dequeued observer action was logged as completed,
+  counted in `job_executed`, and acknowledged — which `DEL`s the only copy of the payload —
+  without any dispatch ever happening. The worker now dispatches the action against the
+  event carried on the job, bounded by `job_timeout_secs`; a timeout is a transient failure
+  retried per policy, terminal failures land in the DLQ with the payload intact, and a job
+  is only removed after a confirmed terminal outcome. Also fixed on the way: the error path
+  called `mark_failed` twice per failure (double-counting attempts), and `fail()` re-checked
+  `can_retry()` on the already-incremented counter, dead-lettering jobs one attempt early
+  with a stored state (`pending`) contradicting the status hash (`dead_lettered`).
+- **`field_changed*` conditions error loudly when change tracking is unavailable (#845).**
+  On the default change-log path (`changelog_pre_image = false`) UPDATE rows carry no
+  pre-image, so `field_changed` / `field_changed_to` / `field_changed_from` silently
+  evaluated false — a documented condition family that could not fire in the default
+  configuration, indistinguishable from "correctly configured, not matching". Evaluating
+  them against an UPDATE without a pre-image is now an error naming the missing
+  `changelog_pre_image` prerequisite; a recorded pre-image with an empty diff is a clean
+  `false` (the two cases are no longer conflated). The docs (`condition` module, crate
+  docs, webhooks.md) now state the prerequisite, and the crate docs' example of a
+  non-existent `status_changed_to` function is corrected.
+- **Condition `==`/`!=` compare numbers numerically (#843).** serde_json equality is
+  representation-strict, so `total != 100` was true for a PostgreSQL `numeric(10,2)` value
+  of `100.00` — firing observers on rows they should skip — while `>=`/`<=` on the same
+  operands coerced and agreed the values were equal. Equality now routes through the same
+  numeric-aware comparison as the ordered operators (exact `i64`/`u64` first, so values
+  above 2^53 stay exact), shared with `field_changed_to`/`field_changed_from`, which had
+  the identical root cause.
+- **`database` and `log` observer actions dispatch for real (#632).** The admin API's 400
+  for those action types (the #612 stopgap) is lifted: `database` calls the configured
+  PostgreSQL function with a `{"event": ..., "params": ...}` jsonb envelope (function name
+  restricted to a strict SQL identifier, re-validated at dispatch), and `log` emits one
+  structured tracing event at the configured level with a rendered message template. Both
+  fail loud when their backend is absent.
+- **Observer metrics reach the server's `/metrics` (#634).** The observer subsystem records
+  into the `prometheus` crate's default registry while the server scrape is rendered from
+  the `metrics-exporter-prometheus` ecosystem — two registries that never met, so
+  `fraiseql_observer_*` series were absent from every scrape. The server (feature
+  `observers-metrics`, included in `observers-enterprise`) now appends the observer
+  registry's rendering to the scrape output.
+- **The observer E2E suite runs, and can pass (#928).** None of its 8 tests constructed a
+  runtime — nothing polled the change log, so every test waited for webhooks that could not
+  be sent — and no CI leg ran the file. Several also registered observers for `"Order"`
+  while inserting `"Order_{test_id}"` rows, asserted a log status (`"failed"`) the writer
+  never emits, and counted webhook deliveries with a mock that only recorded successes.
+  Each test now drives a real `ObserverRuntime`; the suite is wired into the Dagger
+  observers integration leg, and the #844 job-queue tests into the redis leg.
+- **`MultiListenerCoordinator` docs no longer claim cross-process HA (#872).** The module
+  advertised "shared checkpoint store, leader election, failover coordination" while every
+  structure is process-local — three replicas each elect *themselves* leader and all poll
+  concurrently. The docs now state the process-local reality and point HA users at the
+  advisory `CheckpointLease` plus the durable checkpoint cursor.
+- **Every `cron:` function fires on every matching window, not once ever (#796,
+  CRITICAL).** `CronExecutionState::should_execute` returned `last_exec >= window_start` —
+  the exact negation of its own comment — and `find_schedule_window` stepped back one minute
+  before searching, returning the *previous* window (or, for any schedule sparser than
+  hourly, giving up after a 60-minute scan and returning the tick instant itself). Under
+  real wall-clock timestamps every daily and weekly schedule fired exactly once and then
+  never again, and sub-hourly schedules degenerated to a per-tick coin flip that wedged
+  permanently after the first miss — silently, with nothing logged. The window is now the
+  minute *containing* the tick and the guard is `last_executed < window_start`; the fix is
+  pinned by a ported 20 000-tick simulation asserting exactly one fire per matching window
+  under sub-second jitter. Every scheduling loop (functions cron, server cron, scheduled
+  sources — including #573 scheduled ingress, which this bug had capped at one run per
+  process) now logs a window-suppressed tick at `warn` instead of silently continuing.
+- **`_fraiseql_cron_state` is read back at boot (#796).** The table was documented as the
+  cross-restart "already fired this window" guard, but `PgCronState` had `record_fire` and
+  no loader — nothing ever read it. Each cron poller now resumes its fire-window state from
+  the durable record; a state read failure refuses boot instead of silently double-firing.
+- **Cron day-of-week fields use POSIX numbering (#841).** Matching used chrono's
+  `number_from_sunday()` (Sun=1…Sat=7) against POSIX fields (Sun=0…Sat=6), so `0 9 * * 1`
+  fired on **Sundays**, `1-5` meant Sun–Thu, and `0` (Sunday) could never match at all.
+  Weekday tokens now match their POSIX days, `7` is accepted as the alternate Sunday, and a
+  calendar-pinned test covers every token.
+- **A dispatched function sees a real identity (#803).** The live host's `SecurityContext`
+  was a hard-coded `anonymous` placeholder (documented "for testing") on every production
+  path, so `fraiseql_auth_context()` fabricated an empty identity and `send_email` could
+  never resolve a sender — the entire wiring was dead on arrival, dead-lettering every
+  send. The host now carries the triggering caller's authenticated context on the
+  after:mutation request path (GraphQL and REST), and the function's own `run_as` identity
+  on background paths (cron, sources, after:ingest, after:capture); the `fraiseql_query`
+  bridge stays under the `run_as` ceiling. A host with no wired identity fails
+  `auth_context()` loudly instead of fabricating one, and the send-status/suppression
+  tenant stamp now carries the caller's tenant instead of collapsing to NULL.
+- **`fraiseql_env_var` can actually return a value (#840).** The env-var allowlist had no
+  producer — no TOML key, no env var, no builder — so deny-by-default degenerated into
+  deny-always while docs described granting secrets, and a blocked read was
+  indistinguishable from an unset variable. The allowlist is now populated from
+  `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS` (after:mutation/cron) and `[sources]
+  allowed_env_vars` / `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` (sources).
+- **The Deno CPU watchdog stays armed across the event loop (#804).** It was disarmed
+  immediately after `execute_script` returned — before the event loop ran — so a guest that
+  spun *after* an `await` (a poll loop without a sleep) pinned an executor thread and its
+  V8 isolate at 100 % CPU forever; the event-loop `tokio::time::timeout` future was never
+  polled again and could not fire. Script evaluation and the event loop now share one
+  watchdog deadline, and a spin after a real async host op is terminated at `max_duration`.
+- **Runtime observers have exactly one source of truth (#631).** Compiled handler
+  declarations are not a runtime concept: the compiled `ObserversConfig` no longer has a
+  `handlers` field (and is `deny_unknown_fields`, so a schema smuggling one fails to load),
+  `[[observers.handlers]]` keeps failing the TOML compile as permanent policy, and an
+  SDK-authored `observers_config.handlers` array — which previously slipped through the
+  seam and landed in the compiled schema as decoration — now fails the compile with a
+  message naming `tb_observer` / `POST /api/observers`. The unused `EventHandler` type is
+  removed from `fraiseql-core`.
+- **`job_queue::Job` carries the full triggering `EntityEvent`** (field `event` replaces
+  `event_id`): a bare event id gave the worker nothing to dispatch with (#844).
+  `Job::new`/`Job::with_config` signatures changed accordingly; jobs serialized by
+  pre-#844 builds do not deserialize (they were never executed anyway).
+- **Go SDK: `Enum` takes ordered members (#929).** `Enum(name, values map[string]string)`
+  iterated a Go map, so the exported member order was randomized per run — two builds of
+  one schema produced different artifacts and the SDK conformance gate was a coin flip —
+  and the map's values were silently dropped (only keys were ever exported). The
+  signature is now `Enum(name string, members ...string)`, and every `GetSchema` category
+  is exported in sorted-name order so the whole export is reproducible.
+- **Quoted condition literals are strings (#843).** The DSL lexer previously discarded
+  quoting, so `code == '100'` compared a string field against the *number* 100 and was
+  silently false forever. A quoted literal now always compares as a string and never
+  equals a number; `total == 100` (unquoted) compares numerically.
+- **`fraiseql-server`'s `observers` feature now requires `fraiseql-observers/checkpoint`**
+  — the durable cursor is not optional (#805) — and a new `observers-metrics` feature
+  (included in `observers-enterprise`) compiles the metrics bridge (#634).
+- **An unrecognized `after:mutation`/`after:capture` operation token fails the load
+  (#842).** `after:mutation:User:created` (or `:INSERT`, or any typo) used to silently
+  widen the trigger to *all* event kinds — a welcome-email function also fired on every
+  delete. Only `insert`/`update`/`delete` narrow; the documented `*` wildcard and the
+  token-less form still mean "all kinds"; anything else aborts startup with an error
+  naming the function and the valid tokens.
+- **`http:` triggers are rejected at registry load (#871).** They were accepted, stored in
+  a matcher no server code consumes, and never served — a declared `http:` function
+  silently did nothing while `POST /functions/v1/{name}` ignored the trigger entirely.
+  Until a mounted route surface exists, a declared `http:` trigger aborts startup with the
+  same loud error `after:storage` gets. The `TriggerRegistry` `http_routes` field and its
+  accessors are removed.
+- **`env_var` refuses non-allowlisted names loudly (#840).** A blocked name is now an
+  authorization error (a thrown exception in Deno guests; `result` in the WASM WIT, whose
+  `get-env-var` signature changed to `result<option<string>, string>`); `Ok(None)`/`null`
+  is reserved for an allowlisted but unset variable.
+- **`fraiseql_sql_query` is documented as not implemented (#871).** The guest typings and
+  architecture docs advertised a working raw-SQL op; it has never had an execution
+  backend (statements were classified, never executed, then failed loud). The typings,
+  the host module doc's "RLS-backed raw SQL" claim, and the docs now say so.
+- `LiveHostContext.security_context` is no longer a public field; wire an identity with
+  `with_security_context(...)`. The dead `host::factory` module (a stub with no
+  production caller) is removed. `build_cron_pollers` is now async and fallible;
+  `spawn_after_mutation` takes the triggering caller's `SecurityContext`.
+- **Every official SDK is now held to a cross-SDK conformance suite, and eleven of them
+  changed to pass it (#733, #849, #850, #851, #852, #853, #854, #855).** The canonical schema
+  is authored through each SDK's *public API*, compiled by the real `fraiseql compile`, and
+  the compiled result compared against a shared expectation
+  (`sdks/official/conformance/`). Nothing before this ran the compiler, and six of the
+  eleven pre-existing "parity generators" hand-wrote their JSON without calling the SDK at
+  all — which is why a green parity gate coexisted with a Ruby README documenting an exporter
+  that did not exist and a Dart package with no export path.
+
+  Author-visible changes:
+
+  - **TypeScript**: `@Query`, `@Mutation` and `@Subscription` now **throw**, naming
+    `registerQuery`/`registerMutation`/`registerSubscription`. They registered placeholders —
+    a return type of the literal string `"Query"`, zero arguments — because TypeScript erases
+    the types they would need, and `reflect-metadata` does not recover them either. `@Type`
+    remains a marker (the federation decorators build on it), but *exporting* a type whose
+    fields never arrived is refused. `registerTypeFields` can now complete a `@Type`
+    registration, which its own docstring documented and the duplicate guard forbade.
+  - **Java**: `SchemaFormatter` emits arrays of objects, not maps keyed by name; `return_type`
+    plus `returns_list` rather than a camelCase `returnType` carrying `"[User]"`; arguments as
+    `{name, type, nullable}` objects; `javaClass`, `baseType` and `isList` are gone. Argument
+    types are GraphQL type expressions, so a trailing `!` means non-null. `QueryBuilder` and
+    `MutationBuilder` gain `nullable()` and `requiresRole()`.
+  - **PHP**: `MutationBuilder::toIntermediateArray()` emits `invalidates_views` (not
+    `invalidates`), adds `invalidates_fact_tables`, and writes `inject_params` (not `inject`)
+    in the nested `{source, claim}` form. `returnsList()`, `nullable()` and `requiresRole()`
+    are new. `StaticAPI::enum()` is new.
+  - **Go**: all four top-level slices carry `omitempty`, so an unpopulated section is omitted
+    rather than marshalled to `null`. `FieldInfo` gains `Description`; `RegisterInputType` is
+    new. `Config` is no longer serialized and `SqlSourceDispatch` *refuses* at `Register()`,
+    because `sql_source_dispatch` has no consumer anywhere in the compiler (#926). The
+    analytics surface matches `IntermediateFactTable`: `Measure(name, sqlType, nullable)`
+    replaces `Measure(name, aggregations...)`, dimensions carry a JSONB path, and
+    `FactTableDefinition` drops `name`/`dimension_paths` for `table_name`/`dimensions`/
+    `denormalized_filters`. Observer actions serialize flat rather than under `config`, and
+    an observer with no `Retry()` gets `DefaultRetryConfig()`.
+  - **C#**: `IntermediateType` carries `relay` and `is_error`; a type marked
+    `IsInput = true` is routed into `input_types` instead of being emitted as an output type.
+    `Inject`, `RequiresRole`, `InvalidatesViews`, `InvalidatesFactTables` and `RegisterEnum`
+    are new.
+  - **F#**: `computed` is no longer serialized (#927). `QueryBuilder`/`MutationBuilder` gain
+    `inject`, `requiresRole`, `invalidatesViews`, `invalidatesFactTables`;
+    `SchemaRegistry.registerEnum` is new. `QueryDefinition`, `MutationDefinition` and
+    `IntermediateSchema` gained fields, so record literals need updating.
+  - **Elixir**: `requires_scopes` is folded to a singleton `requires_scope` and refused beyond
+    one — the array is a key the compiler does not read. `fraiseql_type` no longer requires
+    `sql_source` on an `is_input: true` type, and refuses one that sets it: the macro demanded
+    a key the compiler forbids, so input objects were unauthorable. `fraiseql_enum` is new,
+    and queries/mutations accept `inject_params`, `requires_role`, `invalidates_views` and
+    `invalidates_fact_tables`.
+  - **Ruby**: `lib/fraiseql.rb` exists, so `require "fraiseql"` resolves — the README's first
+    line raised `LoadError`. `FraiseQL::Schema` is implemented: the `schema.type` /
+    `schema.query` / `schema.export_json` API the README has always documented.
+    `to_fraiseql_schema` emits the required `nullable`, uses snake_case field names to match
+    its CRUD sibling, and no longer emits `deprecated`, which `IntermediateField` has no
+    member for.
+  - **Rust**: `export_to_json` produces `{"version", "types": [...]}` via `serde_json`
+    instead of a name-keyed map built with `format!` — a `"` in any name, scope or description
+    previously produced text that was not parseable JSON. Keys are snake_case
+    (`requires_scope`, not `requiresScope`). `register_type_with_source` is new. The crate now
+    depends on `serde`/`serde_json`.
+  - **Dart**: `FraiseQLSchema` and `FieldType` are implemented and `crud_generator` is
+    exported — the package shipped annotations nothing read and no way to produce a schema.
+  - **Python**: `computed` is no longer serialized (#927).
+- **A custom scalar declaring `validation_rules` is refused (#922).**
+  `CompiledSchema.custom_scalars` is `#[serde(skip)]`: the converter registers the scalar into
+  an in-memory registry that is dropped when the compiled schema is written, and nothing in
+  `fraiseql-server` reads scalar rules back. A declared `pattern`, `length` or `range` was
+  therefore never enforced, from any SDK, while the compile reported success. Carrying the
+  rules further without a runtime consumer would relocate the drop rather than fix it — the
+  disposition `#779` got for observers. The scalar *declaration* still works, and is what
+  makes the name known to the compiler; enforce the constraint in the database (a `CHECK`
+  constraint or a `DOMAIN`) or in the mutation's SQL function.
+- **The mutation `operation` verb is matched case-insensitively.** `parse_mutation_operation`
+  accepted only uppercase, while `docs/authoring.md`, `docs/architecture/intermediate-schema.md`,
+  the Python SDK's parity generator, the PHP `MutationBuilder` docblock and the Java
+  `OperationBuilder` all use lowercase — every one of them produced
+  `Error: Unknown mutation operation: insert`. The verb set stays closed: an unrecognized word
+  is still a hard error rather than a silent fallback to `CUSTOM`, and the diagnostic echoes
+  what the author wrote rather than the uppercased form.
+- **`IntermediateSchema` and the nested intermediate structs reject unknown fields.** Every
+  field on the authoring→compile boundary carries `#[serde(default)]`, because an SDK
+  legitimately omits most of them. Without `deny_unknown_fields` that combination means any
+  key the compiler does not read binds to an empty default and the compile reports success —
+  the mechanism behind #755, #756, #779, #847, #848 and, earlier, #806/#807. A `schema.json`
+  carrying a key the compiler does not read now **fails to compile**, naming the key.
+
+  Spellings seen in the wild, and what to use instead: `return_array` → `returns_list`;
+  `args` with `required` → `arguments` with `nullable`; `customScalars` → `custom_scalars`;
+  `inject` → `inject_params`.
+- **A schema declaring top-level `observers` fails to compile (#779).** The block was
+  validated by ~220 lines of `SchemaValidator` — a typo in any observer field failed the
+  build, which told authors emphatically that it was honoured — and then discarded by
+  `observers: Vec::new()` under a comment claiming the opposite. No webhook, Slack message or
+  email ever fired for any declared event. The runtime loads observers exclusively from the
+  `tb_observer` table and the admin API and reads nothing from the compiled schema, so
+  carrying them would only have moved the silent drop one layer down. The compile now fails
+  and names the mechanism that works.
+- **A `[includes]` pattern that matches no files fails the compile (#723).** Previously the
+  glob resolved to nothing and compilation continued from TOML-only definitions, producing a
+  schema silently missing everything the include was meant to contribute. An empty *list* of
+  patterns is still fine — nothing is configured. The same applies to a configured
+  `[domain_discovery]` whose root is missing or whose files fail to parse: the schema-source
+  fallback now asks "is this configured?" before attempting it, so a failure inside a
+  configured source propagates instead of being swallowed by `if let Ok(schema) = …`.
+- **`fraiseql validate` exits 2 on a validation failure**, matching the contract
+  `--help-json` publishes and what `lint` and `federation check` already did. It exited 1,
+  so CI could not distinguish an invalid schema from a broken toolchain (#868).
+- **`--show-output-schema compile` is removed.** `compile::run` prints plain lines and never
+  constructs a `CommandResult`, so `fraiseql compile --json` emits no `{status, command,
+  data}` object for the advertised schema to describe (#868).
+- **`fraiseql explain` no longer emits a `sql` field.** Its value was a hard-coded
+  `SELECT data FROM v_table LIMIT 1000;` — a relation appearing nowhere else in the codebase
+  — published under the label "Compiled SQL representation". The command takes no `--schema`
+  argument, so it could not have produced real SQL in principle (#868).
+- **A type marked `is_input: true` compiles into `input_types`, not `types` (#848).** Four
+  SDKs advertise the flag and emit it; the compiler had no field to receive it, so such a
+  type became an *object* type and any mutation argument referencing it produced a schema
+  violating GraphQL §3.10. Output-only attributes on an `is_input` type (`sql_source`,
+  `relay`, `requires_role`, `is_error`, `implements`, `subscribable_tables`) are now refused
+  rather than ignored.
+- **The Python SDK emits `custom_scalars` as an array** rather than `customScalars` as an
+  object, and no longer emits a `validate` flag (#922).
+- **The REST write surface is mounted (#865).** `POST`/`PUT`/`PATCH`/`DELETE` on derived
+  resources, and the collection-level bulk routes, are now served by any deployment whose
+  adapter implements `SupportsMutations` (PostgreSQL, MySQL, SQL Server). `rest_router`
+  had had **no production caller at all** — a regression of the closed #227 — while the
+  served `OpenAPI` document went on advertising every write path, so a client following the
+  published contract received `405` on all of them. Read-only adapters (`SqliteAdapter`,
+  `FraiseWireAdapter`) are unaffected: they cannot satisfy the bound, so the type system
+  rather than a runtime check keeps writes off them.
+
+  The mount goes through the one existing REST mount site, so the write half passes through
+  the same `Server::attach_auth` call as the read half — `route_layer` does not survive
+  `Router::merge` (#812), and a separately-merged write router would have been
+  unauthenticated.
+- **`rest_router` and `rest_query_router` take a `RestMountConfig`** instead of two
+  positional `bool`s. Every call site read `rest_router(&state, false, false)`, where
+  nothing distinguished "compression off" from "no auth attached"; the struct also carries
+  the new export configuration.
+- **The served `OpenAPI` document is derived from the mounted router (#918, #865).** It is
+  now filtered through `MountedRoutes` — the same set the router drives its registration
+  from — so it describes exactly the operations the server answers. A read-only mount no
+  longer advertises the write API, and an item-level `PATCH /items/{id}/rename` no longer
+  suppresses the collection-level bulk `PATCH` while the document promises it. The `links`
+  member is removed from the collection-GET response schema: `build_query_response` emits
+  `data` + `meta` and never populated it.
+- **`[export]` is read from `fraiseql.toml`, and `export_formats` defaults to all three
+  formats (#917).** `ExportConfig` had no deserialization site anywhere — all three
+  production consumers called `::default()`, one under a comment conceding that
+  "TOML-driven `ExportConfig` loading is a later phase" — so a configured CSV delimiter,
+  BOM setting, row cap, temp directory, concurrency limit and format allow-list each
+  reached nothing. The default changes from the empty vector to all three formats:
+  empty is documented as "disables all exports", so wiring the kill-switch up without
+  changing the default would have turned every export off in every deployment that had not
+  written the key. An *explicit* empty list still disables everything, and a disabled
+  format is refused with `406`.
+- **`GET /{resource}/stream` returns `501` instead of a heartbeat-only `200` (#873).**
+  `RestState::event_transport` is `None` at every construction — the struct is private and
+  has no setter — so the endpoint emitted `event: ping` forever and no entity event, while
+  the served document described it as carrying `insert`/`update`/`delete`. A dashboard saw
+  a healthy connection, so its reconnect and error handling never fired and it displayed
+  stale data indefinitely; enabling the `observers` feature turned an honest `501` into a
+  silent no-op. Wiring a real transport is #428.
+- **`?limit=` on a streaming REST export now caps the export total, and an export without
+  it returns every row (#811).** The NDJSON, CSV and XLSX batch loops advanced pagination
+  by writing `limit`/`offset` into a clone of `variables`, which `execute_query_direct`
+  reads only for authorization — it takes limit/offset from `query_match.arguments`. Every
+  batch therefore re-issued the identical first-page query, producing one of two failures
+  depending on whether the page filled: a 10,000-row export silently returned
+  `default_page_size` rows with HTTP 200 and no error line, or, when `rows.len()` equalled
+  the batch size, the loop never terminated and re-emitted the same page indefinitely
+  while pinning a database connection.
+
+  Previously `GET /rest/v1/x` with `Accept: application/x-ndjson` returned 100 rows and
+  stopped, believing it had exported everything; it now streams the whole result set in
+  `ndjson_batch_size` pages. `?limit=N` bounds the total. All three formats share one
+  pagination driver — they were three independent copies of the same mistake.
+- **`Prefer: tx=rollback` is refused on bulk operations rather than silently committing
+  (#914).** It was parsed and its only effect was to echo `tx=rollback` in the
+  `Preference-Applied` response header — RFC 7240's assertion that the server honoured the
+  preference — while the mutation committed. A dry-run bulk `DELETE` destroyed data and
+  answered that it had rolled back. Honouring it needs a per-request execution mode
+  threaded through `Executor::execute`, whose `RuntimeConfig` is shared across requests, so
+  the honest answer today is an explicit 400. Both `Preference-Applied` echo sites are
+  removed: a preference can no longer be reported as applied when it was not.
+- **`IdempotencyStore::check`/`store` take a `ScopedIdempotencyKey` (#915).** See the
+  security entry above.
+- **`/health` reports `observers.events_processed`, not `observers.pending_events`
+  (#875).** The field carried `RuntimeHealth::events_processed` — a monotonic lifetime
+  counter of events already handled — under a name and a doc comment that promised
+  "approximate number of events pending in the internal queue". An operator alerting on
+  `pending_events > 100` got an alert that fired permanently after the 100th *successful*
+  event and never cleared, while a genuine backlog stayed invisible. The observer runtime
+  is checkpoint-driven and `RuntimeHealth` carries no backlog source, so the field is
+  renamed to what it actually reports rather than a depth being fabricated for it.
+- **`FraiseQLMcpService::new` takes an `AppState`, not a schema and executor (#858), and
+  `mcp::executor::call_tool` takes an `McpCallContext`.** Both are consequences of the
+  MCP transport reaching the same tenant registry and error sanitizer as `/graphql`.
+  `require_auth` is no longer a separate parameter — it is read from the `[mcp]` config
+  that is now passed in, so the two cannot disagree.
+- **The second storage stack is gone (#813, #866).** `fraiseql_server::storage` (a
+  duplicate `StorageBackend` trait with its own local/S3/GCS/Azure implementations) and
+  `fraiseql_server::routes::storage` (a `/storage/v1/object/{*key}` router) have been
+  removed, along with `ServerBuilder::with_storage`. It was a parallel object API with no
+  metadata, no per-object ownership and no RLS — its download handler served any file in
+  the backing store to any holder of a single shared token — and it carried its own copy
+  of both defects fixed above: a byte-identical weak `validate_key`, and the same Azure
+  key-encoding bug. No binary mounted it and no configuration key reached it.
+
+  Use `ServerBuilder::with_storage_state` and a `[storage.<name>]` section; that backend
+  now also serves as the inbound-email attachment sink, which previously hung off the
+  removed builder method and was therefore unreachable from the shipped server.
+- **`allowed_mime_types = []` now allows nothing**, as documented, instead of being read
+  by the upload handler as "no restriction".
+- **The object-metadata table gains a `pending` column.** The DDL is idempotent and
+  applies on startup.
+- **`WhereClause` gains a `Typed` variant, and `WhereClause::from_graphql_json` takes the
+  declared field types (#798).** The cast a filter needs is a property of the *field*, so
+  parsing a user filter without the compiled schema's types is what produced SQL that
+  errored on every date and silently under-matched on numbers. The types are required
+  rather than optional, and they travel as a node of the clause rather than as an argument
+  on the adapter seams the clause passes through — `ProjectionRequest`, the relay cursor
+  path, the wire adapter, federation, the cache key — because each of those would
+  otherwise be a place to drop them. Embedders with no schema pass
+  `SharedFieldTypes::default()` and get the previous value-shape inference.
+- **`OrderByFieldType` is renamed `ScalarFieldType`**, and the type → SQL-cast mapping
+  moves onto `SqlDialect::cast_type_name`. ORDER BY and WHERE previously carried separate
+  tables, so a sort and a filter on the same field could disagree about its type. The
+  per-dialect `cast_to_numeric` / `cast_to_boolean` / `cast_param_numeric` methods are
+  replaced by `cast_expr_as` / `cast_param_as`.
+
+  Two renderings change as a result: MySQL and SQL Server now cast `Numeric` to
+  `DECIMAL(38,12)` (previously `DECIMAL` and `FLOAT` in WHERE), and SQLite emits no cast
+  for date/time types (`CAST(… AS TEXT)` was a no-op over an already-textual extraction).
+- **Thirteen operator names are no longer advertised (#828).** `has_key`, `has_any_keys`,
+  `has_all_keys`, `array_eq`, `array_neq`, `notInSubnet`, `contains_date`, `adjacent`,
+  `strictly_left`, `strictly_right`, `not_left`, `not_right` and `distance_within` were in
+  `OPERATOR_REGISTRY` — so REST's `?filter=` accepted them and its error messages
+  recommended them — with no `WhereOperator` variant behind any of them. Every request
+  that used one was accepted by the transport and then rejected by the executor. The
+  registry is now generated from the executor's own table, so it can only advertise what
+  runs.
+- **`WhereOperator` gains an `IsNotNull` variant**, and both null-check operators now
+  require a boolean operand instead of reading a non-boolean as "assume IS NULL".
+- **A malformed `validation_rules` block fails compilation (#720).** `serde_json::from_value(…).unwrap_or_default()`
+  turned a typo'd rule into an empty rule set, so a scalar declared with validation
+  shipped with none.
+- **`DatabaseAdapter::invalidate_list_queries`, `CachedDatabaseAdapter::invalidate_list_queries`
+  and `QueryResultCache::invalidate_list_queries` are removed**, along with the
+  `list_index` reverse index and `CachedResult::is_list_query`. List-versus-point-lookup
+  classification was derived from result cardinality and was the root of #742; there is no
+  sound replacement at that layer, so the distinction is gone rather than repaired. Callers
+  use `invalidate_views`, which is what the mutation path now does for every operation
+  kind. Expect more evictions per mutation: a point lookup for an unrelated entity is now
+  dropped and re-read, where before it was kept on a premise that was never checked.
+- **`CachedDatabaseAdapter::with_ttl_overrides_from_schema` is renamed
+  `with_cache_metadata_from_schema`.** It is the single seam between the compiled schema
+  and the row cache, and it now reads `additional_views` as well as `cache_ttl_seconds`;
+  the old name described half its job. `rebuilt_for_schema` (hot reload) delegates to the
+  same reader, so a per-query cache annotation cannot work at boot and stop working after
+  a schema reload.
+- **`QueryCache::get`/`put` in `fraiseql-arrow` take a `CacheScope` first argument.**
+  Required rather than optional so no call site can store an entry another principal could
+  read back (#716).
+- `ErrorCode::Timeout` now maps to **504 Gateway Timeout** (was 408 Request Timeout), and
+  the GET size ceilings return the new `ErrorCode::PayloadTooLarge` → **413** (was 400 via
+  `RequestError`). Clients branching on those statuses need updating.
+- `UsageBackend::flush` is renamed **`flush_deltas`** and its contract inverted: the map
+  now carries increments to be **added**, not absolute totals to be written. Any external
+  implementation must be updated — the rename is deliberate so it cannot compile
+  unchanged. `UsageAggregator::flush_to_backend` also now *errors* when the backend's
+  startup load failed.
+- A schema hot-reload **refuses** a schema whose boot-frozen configuration differs from
+  the running one — `[security]`, `[validation]`, `[subscriptions]`, `[mcp]`, `[rest]`,
+  `[grpc]`, federation, observers, sources, `[fraiseql.naming]`, `[debug]`, fact tables
+  and per-query `cache_ttl_seconds`. These are read once by subsystems that are immutable
+  afterwards, so the previous behaviour was to report success and keep serving the old
+  configuration. Reloads that change only types, queries, mutations or session variables
+  are unaffected; the rest now need a restart, and the refusal says which section.
+- `AppState::with_reload_config` takes a third argument, the executor rebuilder recorded
+  by the booting constructor. An `AppState` assembled directly (without a `Server`)
+  refuses to reload rather than guessing how to rebuild.
+- `[database_tls]`: `redis_ssl`, `clickhouse_https` and `elasticsearch_https` are
+  **removed**. They only ever rewrote a URL scheme, in a helper with no production
+  caller. A config still setting one is refused with a message naming the replacement
+  (put `rediss://` / `https://` in the URL, which is what the client library reads) —
+  refused rather than dropped, because an unknown key in that struct is discarded
+  silently.
+- `postgres_ssl_mode` / `[database] ssl_mode`: libpq's `allow` and `verify-ca` are
+  **refused** rather than approximated. `allow` has no expression in the driver, and
+  `verify-ca` would need a bespoke verifier whose only purpose is to check less than the
+  default. Each error names the mode to use instead.
+- `postgres_ssl_mode` and `[database] ssl_mode` are now **unset by default** rather than
+  `"prefer"`. Unset means "whatever `?sslmode=` in the connection URL says"; a concrete
+  default would override an operator's explicit `?sslmode=require` with a value they
+  never wrote.
+- `[security.constant_time]` is **refused**. Constant-time comparison is applied
+  unconditionally, so the toggles switched nothing — and one key inside was misspelled
+  `applytoCsrfTokens`, which nothing noticed because nothing read it.
+- `[security.rate_limiting] failed_login_max_attempts` / `failed_login_lockout_secs`
+  defaults change from 5 / 3600 to 10 / 900, matching the runtime's. The old values read
+  as deliberately tuned, and now that this section actually reaches the runtime, a tuned
+  value refuses to boot in production (#356).
+- `fraiseql analyze` output shape changed from `categories` (a map of constant strings)
+  to `recommendations` — the shape its published machine contract already documented.
+- **RBAC list endpoints return a page envelope, not a bare array** (#769).
+  `GET /api/roles`, `/api/permissions` and `/api/user-roles` now answer
+  `{"items": [...], "total": N, "limit": N, "offset": N, "has_more": bool}` and accept
+  `limit` (default 100, max 1000), `offset` and — where the resource is tenant-scoped —
+  `tenant_id`. Unknown query parameters are refused rather than ignored, so a mistyped
+  `tenant_id` cannot silently widen a read. `GET /api/user-roles` now **requires**
+  `user_id`; omitting it used to answer `200 []`, indistinguishable from "this user holds
+  no roles". The RBAC API could never have been used before this release — its tables
+  could not be created (#748) — so there are no existing consumers.
+- **`POST /api/roles` and `POST /api/user-roles` refuse unknown body fields** (#769), and
+  accept an explicit `tenant_id`. A misspelled `tenantId` used to be silently dropped,
+  creating a *global* role while the caller believed it was tenant-scoped.
+- **Studio admin endpoints that perform no operation answer `501`** (#749) instead of
+  `{"success": true}` or an empty collection: `/admin/v1/users`, `/admin/v1/users/invite`,
+  `/admin/v1/data/{entity}/query`, `/admin/v1/data/{entity}/mutate`,
+  `/admin/v1/storage/buckets`, `/admin/v1/storage/objects`, `/admin/v1/functions`,
+  `/admin/v1/functions/{name}/logs` and the function-secret routes. The response carries
+  `{"error": "not_implemented", "feature": "...", "message": "..."}`.
+- **`GET /admin/v1/health/detailed` and `/admin/v1/metrics/summary` report `null` for
+  figures they cannot measure** (#749), where they previously reported `0`. A zero pool
+  size reads as an exhausted pool and a zero hit rate as a cache that never hits.
+  `uptime_secs` was `SystemTime::now() - UNIX_EPOCH` — the current Unix timestamp — so a
+  four-second-old server claimed ~1.8 billion seconds of uptime; it is now time since
+  boot. `errors.rate_5m`/`rate_1h`/`rate_24h` were three copies of the lifetime ratio
+  under three window names; the lifetime value moved to `errors.lifetime` and the windows
+  report `null` until windowed counters exist.
+- **`[fraiseql.security]` compiles `role_definitions`, `default_role` and
+  `tenant_claim` under those names** (#757), replacing `roleDefinitions`, `defaultRole`
+  and `tenantClaim`. Recompile; no runtime consumer ever read the old spellings.
+- **A schema whose type-level `requires_role` cannot be enforced is refused at load**
+  (#677). Two shapes: an operation whose own role disagrees with its return type's (both
+  are required, and a compiled operation carries only one role), and a gated type
+  reachable as a field of a type that is not gated the same way (operations returning the
+  container carry no role, so the gated type travels out ungated). Subscriptions carry no
+  role gate at all, so a subscription returning a gated type is refused.
+- **`[security.rls]` is the RLS declaration; `security.policies` no longer implies it.**
+  `has_rls_configured()` counted `security.additional["policies"]` — *authorization*
+  policies, a section #612 made a hard compile error — so it answered `false` for every
+  producible schema. Declare `[security.rls] enabled = true` (or
+  `[fraiseql.security.rls]`) to state that database RLS isolates the deployment. With
+  `multi_tenant` also set, the server verifies the claim against the live catalog at boot
+  and refuses to start when it is not true.
+- **`[security] multi_tenant` and `[session_variables]` are declarable in TOML.**
+  `multi_tenant` was rejected as an unknown field by both TOML security structs.
+  `[session_variables]` had no TOML producer at all, though the compiled field documented
+  itself as "compiled from the `[session_variables]` TOML section" — the only way to
+  declare the mechanism RLS policies read was to hand-author `schema.json`.
+- **A session-variable mapping is one flat table.** `SessionVariableMapping` now flattens
+  its source, so a mapping is `{name, source, claim}` in JSON and
+
+  ```toml
+  [[session_variables.variables]]
+  name = "app.tenant_id"
+  source = "jwt"
+  claim = "tenant_id"
+  ```
+
+  in TOML — against the same type the runtime consumes, with no CLI-side mirror struct to
+  drift. No SDK emitted `session_variables`, so nothing in the wild produced the old
+  nested shape.
+- **`CachedDatabaseAdapter::validate_rls_active` and `enforce_rls` take the compiled
+  schema.** They need the relation list to check anything; the previous signatures could
+  only read a GUC (#762).
+- **`PoolPrewarmConfig` carries a `search_path`.** Every pool construction site must now
+  state whether its connections are schema-isolated. `PostgresAdapter::new` and
+  `with_pool_size` are unchanged.
+- **`DELETE /api/v1/admin/tenants/{key}` reports what it did.** `status` is now
+  `removed_schema_retained` or `removed_and_purged` rather than `removed`, with
+  `schema_retained` / `schema_dropped` naming the schema (#859).
+- **`max_storage_bytes` is renamed `max_storage_bytes_advisory`** (#633). Nothing meters
+  per-tenant storage, so nothing was ever rejected on the basis of this value; a field
+  called `max_storage_bytes` reads as a boundary that does not exist. The registration
+  body is now `deny_unknown_fields`, so the old key is a 400 rather than a silently
+  ignored setting. `TenantExecutorRegistry::is_quota_exceeded` / `set_quota_exceeded` are
+  removed — a public quota API with no producer on either side reads as an enforced limit
+  to anyone who greps for one. Metering remains tracked at #633.
+- **`examples/saas` declares queries only.** Its eight mutations named no input type and
+  no backing SQL function; the compiler accepted them and none could ever execute. See
+  `examples/mutation-patterns` for the mutation story.
+- **The intermediate-schema injection key is `inject_params`, not `inject`** (#806). The
+  value may be either `"jwt:<claim>"` or `{"source": "jwt", "claim": "<claim>"}`. A schema
+  using `inject` is now **refused** with a message naming the replacement, rather than
+  compiling to a query with no injected filter. The Python decorator's `inject=` argument
+  is unchanged; only the emitted JSON key moved.
+- **Field scopes must be declared as `requires_scope`** (#807). `scope`, `scopes`,
+  `requiresScope`, `requiresScopes` and `requires_scopes` are refused with a message naming
+  the replacement. The Go, C#, F#, Rust, PHP and Java SDKs now emit the canonical key.
+- **Multiple required scopes on one field are unsupported and now say so.** The compiled
+  schema and the runtime field filter represent exactly one `requires_scope`; a multi-scope
+  declaration compiled to a field with *no* scope. The SDKs refuse it at authoring time. A
+  singleton list is normalised to a single scope.
+- **`require_auth = true` now applies to every REST route, including
+  `{base}/openapi.json`** (#810). A surface closed to anonymous callers no longer hands
+  those callers a full description of its resources, fields and filters.
+- **`rest_query_router` and `rest_router` take an `auth_layer_attached` argument** (#810),
+  and `generate_openapi` takes it too, so the served document reflects the deployment's
+  actual authentication rather than a static template.
+- **Unified every outbound-address guard and every production check onto one
+  implementation (#802, #836, #816, #725, #882).** The workspace carried **eight**
+  hand-rolled SSRF address predicates and **two** production detectors. Each was
+  individually reasonable; collectively they disagreed, and the gaps between them were
+  exploitable.
+
+  - **#802 — `IPv4`-mapped `IPv6` bypassed the serverless-function HTTP guard.** Its
+    `IPv6` arm tested `is_loopback`/`is_unique_local`/`is_unicast_link_local`, none of
+    which fire for `::ffff:169.254.169.254`, so a guest function could reach cloud
+    instance metadata over a dual-stack socket — via a bracketed literal, or via an
+    allowlisted hostname with an attacker-controlled AAAA record, which is precisely the
+    rebinding attack the surrounding code claimed to close. Five of the eight predicates
+    shared this gap; it is the same defect as #776 in a different crate.
+
+  - **#836 — the SSRF bypass was honoured in production.** `ServerConfig::is_production_mode()`
+    treated an unset `FRAISEQL_ENV` as production, and every server safety gate is keyed
+    off it. `observers::insecure_guard::is_production_environment()` read the same variable
+    and treated unset as **not** production. On any non-Kubernetes deployment — Docker
+    Compose, systemd, a VM, ECS — the server therefore believed it was in production while
+    the observer subsystem honoured `FRAISEQL_OBSERVERS_ALLOW_INSECURE`, disabling the
+    scheme allow-list, the private-address blocklist and the rebinding defence on a webhook
+    URL that comes from a mutable `tb_observer` row.
+
+  - **#882 — two escape hatches had no production check at all.**
+    `FRAISEQL_VAULT_ALLOW_INSECURE` and `FRAISEQL_OIDC_ALLOW_INSECURE` disabled their SSRF
+    guards on the environment variable alone, under every environment including an explicit
+    `FRAISEQL_ENV=production` and inside a Kubernetes pod. All four of the product's escape
+    hatches now share one policy: honoured only when development is positively declared.
+
+  - **#816 — the CDC NATS plaintext guard was inverted.** It refused plaintext `nats://`
+    only for loopback hosts — the one case that is safe — and accepted every remote
+    plaintext endpoint, publishing full row after-images in the clear. It also skipped
+    every non-`nats://` URL including the scheme-less form that `async-nats` rewrites to
+    plaintext, split the host with `split(['/', ':'])` so `nats://user:pw@host` yielded
+    `"user"`, and compared the host without lower-casing it. It had no unit tests.
+
+  - A **ninth** hand-rolled guard, on the manifest hot-reload URL, was found by the new
+    gate rather than by review. Its doc comment claimed it used "the same pattern as the
+    federation and Vault SSRF guards"; it had drifted from both.
+
+  The shared guard additionally blocks ranges no previous copy covered: the NAT64
+  well-known prefix `64:ff9b::/96` (a live route to the metadata service wherever a NAT64
+  gateway exists), NAT64 local-use `64:ff9b:1::/48`, `IPv4`-compatible `::a.b.c.d`,
+  multicast, site-local `fec0::/10`, discard-only `100::/64`, IETF protocol assignments
+  `192.0.0.0/24` (Oracle Cloud metadata), the RFC 5737 documentation ranges, RFC 2544
+  benchmarking, and the `2001:db8::/32` and `2001:2::/48` `IPv6` equivalents.
+
+  `make lint-guard-parity` now fails the build on a new hand-rolled address predicate, a
+  new `is_production`-shaped helper, or an escape hatch read without a posture check. It
+  runs in the Dagger `preflight` leg and as the `guard-parity-check` CI job.
+- **New crate `fraiseql-guard`.** Holds the workspace's single outbound-address guard
+  (`fraiseql_guard::net`) and its single production detector
+  (`fraiseql_guard::deployment`). It is a Tier-1 leaf with no dependencies beyond `std`,
+  published before every crate that depends on it.
+- **`fraiseql_auth::constant_time::ConstantTimeOps::compare_padded` and
+  `compare_jwt_constant` are removed (#725).** They truncated both inputs to `fixed_len`
+  before comparing, so `compare_jwt_constant` reported **equality** for any two tokens
+  sharing their first 512 bytes — the shape of two JWTs with identical header and payload
+  and different signatures, since the signature sits at the end and real tokens exceed
+  512 bytes. `"abc"` and `"abc\0"` also compared equal. Nothing on a production path
+  called either; the one real comparison uses `ConstantTimeOps::compare`, which is correct
+  for values of any length. Callers wanting length hiding should compare digests rather
+  than values. `compare`, `compare_str` and `compare_len_safe` are unchanged.
+- **Documentation, benchmarking and reserved ranges are now refused by every outbound
+  guard.** A URL targeting `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`,
+  `198.18.0.0/15`, `240.0.0.0/4`, `224.0.0.0/4` or their `IPv6` equivalents is rejected
+  where some guards previously allowed it. These are not globally routable; the practical
+  impact is on test fixtures that used a documentation address as a stand-in for a public
+  one. Conversely, a *mapped public* address such as `::ffff:8.8.8.8` is now allowed
+  rather than blanket-refused: mapped and NAT64 addresses are canonicalised and judged as
+  the `IPv4` address the stack would route to.
+- **`FRAISEQL_NATS_ALLOW_PLAINTEXT` now requires a declared development environment**, in
+  both `fraiseql-observers` and `fraiseql-cdc-sinks`, and no longer accepts a remote
+  plaintext endpoint at all. The opt-in permits loopback — its purpose is a local dev
+  broker — but does not disable the address guard for other hosts.
+- **`fraiseql_federation::http_resolver::is_ssrf_blocked_ip` is now a re-export** of
+  `fraiseql_guard::net::is_blocked_ip`. The signature is unchanged; the accepted set is
+  strictly smaller.
+- **CRITICAL: closed two unauthenticated SQL-injection holes on the analytics execution
+  path (#794, #795).** Both were reachable by any client able to POST a GraphQL query, on
+  any deployment whose compiled schema declares at least one fact table, and both were
+  verified against live PostgreSQL 16 exfiltrating `pg_authid` contents.
+
+  - **#794 — window aliases and dimension paths were interpolated raw.** Four sinks on the
+    live `*_window` path wrote request-supplied strings straight into the SELECT list: the
+    dimension select arm and the `PARTITION BY` arm both built `format!("{}->>'{}'", …)`
+    with no charset check, and `alias` was cloned through untouched for measure, dimension,
+    filter and window-function selections before being emitted as `<expr> AS <alias>`.
+    Because `WindowProjector::project` copies every returned column into the response, an
+    injected column was handed back to the caller.
+
+    Every alias and dimension path is now rejected unless it matches
+    `[_A-Za-z][_0-9A-Za-z]*`, through a single entry point that all sinks share — the
+    defect existed because one arm carried a check its four siblings did not. The
+    `WindowAllowlist` is additionally consulted wherever the schema enumerates dimension
+    paths. It existed and was documented as the defence for this path, but was only ever
+    called by `WindowFunctionPlanner`, which nothing in the shipped binary invokes; the
+    live planner is `WindowPlanner`, which never built one.
+
+  - **#795 — the `table` request key selected the FROM target.** The relation is already
+    determined by the GraphQL root field (`sales_window` → `tf_sales`), but a second,
+    unchecked channel could name any relation or substitute an entire subquery. Worse, the
+    RLS policy was looked up by that same attacker-controlled name, so naming a table with
+    no configured policy yielded `None` and composed **no tenant WHERE clause at all**.
+
+    Both the aggregate and window planners now reject a `table` that does not match the
+    resolved fact table, every FROM sink emits the resolved name, and the RLS policy is
+    evaluated against the resolved name — which matters independently, because RLS is
+    evaluated before the planner runs.
+
+  Regression coverage runs against real PostgreSQL in the Dagger `integration: server`
+  suite (`analytics_injection_e2e_pg`), driving the real HTTP handler and asserting both
+  that each payload is refused and that no catalog data reaches the response.
+- **`fraiseql run`, `fraiseql validate facts`, and `fraiseql introspect facts` no longer
+  collide on `-d` (#650).** The global `--debug` short (`-d`) and each subcommand's
+  `--database` short (also `-d`) claimed the same letter, so debug builds of the CLI
+  panicked at startup (clap `debug_asserts`: "Short option names must be unique … '-d' is
+  in use by both 'database' and 'debug'") and release builds advertised an ambiguous `-d`.
+  `--database` is now long-only on all three subcommands — the global `-d` (debug) is
+  consistent across every subcommand — and a `Cli::command().debug_assert()` test guards
+  against reintroduction. Use `--database <url>` (the long form always worked).
+- **`StorageBackend::multipart_begin` takes the declared upload size (#972).** The signature
+  is now `multipart_begin(key, content_type, total_bytes)`. GCS needs the total *before* the
+  first chunk — a resumable session finalises the object when a chunk's `Content-Range`
+  reaches the declared total, which is the only finalisation form Google documents for
+  chunked uploads — so the seam carries it and the local/S3 arms ignore it. The route layer
+  already knew the number (Tus `Upload-Length` is mandatory there), so nothing above the
+  seam changed. Embedders calling the backend directly pass the size they declared.
+
+  `StorageBackend::multipart_chunk_multiple_bytes()` joins `multipart_min_chunk_bytes()` for
+  the same reason: a minimum is not the whole constraint. GCS accepts a non-final chunk only
+  at 256 KiB granularity, so a 300 KiB chunk clears the minimum and is still refused — by
+  GCS, mid-upload. The Tus `PATCH` route now answers `400 chunk_not_aligned` up front, in
+  the same shape as the existing `chunk_too_small`.
+- **`quality` on a losslessly-encoded render format is now refused (#973).** `quality` was
+  accepted by the render route, threaded into `TransformParams`, and never handed to an
+  encoder — every render used the encoder's default. It now reaches the encoder for `jpeg`
+  and `avif`. PNG is lossless by definition and this server's WebP encoder writes lossless
+  WebP, so a quality on either could never take effect: `?quality=` with those formats
+  answers `400`, and a **preset** that pairs them refuses to boot. A configuration like
+  `{ format = "webp", quality = 80 }` — which did nothing before — must drop the quality or
+  move to `jpeg`/`avif`.
+
+  `TransformParams` gained fields (`resize_mode`, `gravity`, `background`, `crop`, `blur`,
+  `sharpen`, `watermark`) and now derives `Default`, so construct it with
+  `..TransformParams::default()`. `BucketConfig` and `TransformPreset` likewise.
+  `TransformCache` is now built over the configured `StorageBackend` rather than a
+  `LocalBackend`, and its `get_or_transform`/`invalidate` pair is replaced by `get`/`put`
+  over a content-addressed key — see the Added entry for why there is nothing left to
+  invalidate.
+- **A bucket may not be named `.fraiseql-uploads` or `.fraiseql-transforms` (#973).** A
+  bucket name becomes the first segment of every object key, so a bucket carrying one of
+  FraiseQL's own namespaces would put caller objects inside the resumable-upload staging area
+  or the render cache. The server refuses such a section at boot.
+- **A configured Redis backend that is unavailable refuses to boot in production (#770,
+  #777).** Token revocation, PKCE login state and rate limiting each fell back to per-process
+  in-memory state when the configured Redis URL was malformed, unreachable, or its Cargo
+  feature was not compiled in — a silently absent service wearing a healthy startup log. An
+  operator who configured Redis asked for state shared across replicas: N replicas revoked N
+  separate token sets and enforced N times the rate limit. All three now fail boot with an
+  error naming the config key, the cause and the consequence. `FRAISEQL_ENV=development`
+  downgrades it to a warning; the only sanctioned fallback is the explicit one — remove the
+  Redis URL and accept per-process state.
+- **`[security.token_revocation] backend = "env"` is gone (#770).** It was an undocumented
+  alias for `"memory"`, so a deployment that wrote it got per-process revocation while its
+  configuration read as deliberate. The accepted values are `"memory"`, `"redis"` and
+  `"postgres"`; anything else is refused at boot, by name.
+- **`FRAISEQL_SECRETS_BACKEND` selects a backend instead of being ignored (#856).** Every
+  value built the **environment** backend, so a deployment that set
+  `FRAISEQL_SECRETS_BACKEND=vault` read its secrets from environment variables and logged a
+  healthy start. It now accepts exactly `env`, `file` and `vault`, refuses an unknown value
+  by name, and refuses to boot when the selected backend's own settings are missing:
+  `FRAISEQL_SECRETS_FILE_PATH` for `file`, and `VAULT_ADDR` plus either `VAULT_TOKEN` or
+  `VAULT_ROLE_ID` + `VAULT_SECRET_ID` for `vault`.
+- **Vault `tls_verify = false` is refused in production, and `SecretsBackend` returns a
+  zeroizing `Secret` (#726, #727).** `VAULT_TLS_VERIFY=false` disables certificate
+  verification on the channel carrying every secret, and is now accepted only outside
+  production. `get_secret` and `get_secret_with_expiry` return `Secret` rather than `String`
+  — redacted `Debug`/`Display`, zeroized on drop — so out-of-tree backends and callers must
+  update their signatures. `FRAISEQL_VAULT_ALLOWED_HOSTS` replaces the all-or-nothing SSRF
+  bypass with an exact-host allowlist.
+- **Inbound webhook routes that cannot verify a signature are refused at boot (#781, #787).**
+  `webhook_routes_check` rejects an unknown `provider`, and rejects a provider that needs the
+  deployment's public URL when `public_url` is unset. A route whose `secret_env` is unset is
+  refused in production; in development it is skipped rather than mounted, so the path
+  answers 404 instead of accepting unverified deliveries.
+- **`PostgresSessionStore` refuses to mint a token it cannot sign (#753).** With no RS256 key
+  configured, `generate_access_token` signed each HS256 token with a fresh random key that
+  was a stack local — dropped on return, never stored, never shared with any validator. Every
+  token minted by `auth_callback`, the multi-provider callback and `saml_acs` was a dead blob
+  that 401'd on the next request, so the shipped social-login flow produced logins that
+  "succeeded" and then failed on every API call. It now returns `AuthError::ConfigError`, and
+  `create_session` mints before the INSERT so the fail-loud path leaves no orphan session row.
+  `PostgresSessionStore::new` is documented as the no-signing constructor; use
+  `with_hs256_secret` for HMAC mode with a persistent secret shared with the validating side.
+
 ### Added
 
 - **The mutation-contract check reads literal `entity_type` stamps.**
@@ -3083,6 +5304,1260 @@ disagreed, and the promise was the part that was wrong.
   value costs accuracy and never availability. The `RateLimitConfig` doc comment saying
   new keys are "**denied**" described the behaviour #1080 replaced and has been corrected.
 
+- **Object metadata, and `set_metadata` as a permission of its own (#1099).**
+
+  Objects now carry a user-defined string-to-string `metadata` map, and a policy rule can match
+  on it with `require_metadata`. #974 listed that condition alongside `require_claims` and shipped
+  the other three, because there was no metadata to compare against — it would have been
+  permanently false.
+
+  Set it at upload time with `x-fraiseql-meta-<name>` headers on `PUT`, presign-upload or
+  resumable creation, or afterwards through `GET|PUT /storage/v1/metadata/{bucket}/{key}`.
+  Replacement is wholesale on every door. Limits: 32 keys, 128-byte names, 1024-byte values, over
+  `a-z 0-9 - _ .`; keys are lower-cased because header names are case-insensitive, and two keys
+  differing only in case are a `400` rather than a silent last-one-wins.
+
+  **What took the design work is not the storage, it is making the condition mean something.**
+  Metadata is caller-supplied, so a rule matching on it is normally a rule the gated caller
+  authors — they write the value that decides their own access. The obvious fix is a reserved key
+  namespace that ingestion refuses to let callers write. That was rejected: a namespace is only as
+  good as its enforcement, and that enforcement is one check at one door. It holds until the first
+  migration that backfills keys or the first internal caller that reaches the table another way —
+  and when it breaks it breaks *silently*, with a caller-written key now load-bearing for access.
+
+  What ships instead is a write-permission split, which is what S3 landed on: object tags are
+  caller-writable, IAM conditions match on them, and the whole thing is held together by
+  `PutObjectTagging` being a separate permission from `PutObject`. So `set_metadata` is its own
+  `PolicyMethod` — implied by nothing, not by `write`, not by `overwrite`, not by all five
+  existing methods together, and held by nobody but the storage admin absent a policy — and
+  `require_metadata` **refuses to hold for any caller who holds it**.
+
+  ```toml
+  # Curators classify documents; nobody else can.
+  [[storage.docs.policies]]
+  methods = ["set_metadata"]
+  principal = "role:curator"
+
+  # Anyone authenticated may read what a curator marked public.
+  [[storage.docs.policies]]
+  methods = ["read"]
+  principal = "authenticated"
+  require_metadata = { classification = "public" }
+  ```
+
+  A curator reading through the second rule is denied — a curator could have written
+  `classification = "public"` themselves. The guarantee is a property of the permission system
+  rather than of a validation check, so no ingestion path present or future can undermine it, and
+  it degrades in the safe direction: **widening who may set metadata narrows what a
+  metadata-gated rule permits.** It can never quietly hand those callers the ability to grant
+  themselves access.
+
+  The upload headers are a convenience path, not a second authority: sending them without the
+  grant is a `403`, never a silent drop — a `200` that stored none of the metadata the caller sent
+  would leave the object missing exactly what a policy gates on. An upload carrying no metadata
+  headers leaves what the object already had, so an ordinary overwrite cannot clear a value a
+  policy reads.
+
+  A rule that both grants `set_metadata` and carries `require_metadata` is refused at boot: the
+  condition is answered by asking whether the caller may set metadata, so the rule would decide
+  itself. Refused at the door rather than guarded at runtime, because a runtime guard is behaviour
+  an operator cannot read off their own config; and such a rule can never hold for anyone it
+  grants.
+
+
+- **`examples/` is a set of examples that run (#1054).** The top-level
+  `examples/README.md` walked a newcomer through seven directories that had never
+  existed — `basic-query`, `subscriptions`, `error-handling`, `performance`,
+  `authentication`, `complex-queries` and the `python` Arrow Flight client. The first
+  command of the first walkthrough failed. All seven are now written, plus
+  `examples/ecommerce`, the v2 replacement for the FastAPI directory removed under
+  `### Removed`.
+
+  The six Rust examples are workspace **members** with `publish = false`, so
+  `cargo check --workspace --all-targets` and `cargo clippy --workspace` compile and
+  lint them on every push. That is deliberate: the async-jobs subgraph sits outside
+  the workspace and lost its clippy gate for a whole release when the legacy ci.yml
+  was retired (#951). Each carries a `run.sh`, because `schema.compiled.json` is a
+  build artifact and is gitignored, so `cargo run` on a fresh clone has nothing to
+  load.
+
+  Two of them are worth singling out. `examples/error-handling` runs seven
+  deliberately broken queries and prints what the engine in **this tree** actually
+  does with each, including the two cases where that is wrong (#1197) — an example
+  that agreed with the documentation instead of with the binary would be the
+  fixture-that-agrees shape. `examples/python` performs the Flight `handshake` and
+  sends the session token on every `do_get`, which is the protocol the R and Rust
+  clients in the same tree both skip (#1200).
+
+  `examples/ecommerce` carries the domain the README has always advertised —
+  `Category`, `Product`, `Customer`, `Order`, `OrderItem`, 5/12/5/7 rows — with
+  nested objects and a nested list built by the views, so
+  `order { items { product { name } } }` resolves in one statement.
+
+- **The examples gate, in three tiers, and all three now run in CI (#1054).** Before
+  this release the entire CI coverage of `examples/` was one clippy run over the
+  single example that is a Rust crate, plus three greps; a nine-issue audit then
+  found essentially every documented entry point dead, and nothing would have
+  noticed. Repairing them without a gate buys a state that rots by the next release.
+
+  | Tier | Runs in | Checks |
+  |---|---|---|
+  | `tools/check-examples-integrity.sh` | preflight (**required**) | compose mounts resolve, `COPY` sources exist in the build context, no `\|\| true` around a build step, no health grep that also matches `unhealthy`, every documented `cd` lands somewhere |
+  | `tools/check-examples-compile.sh` | `integration --suite=examples` | every `schema.py` runs and every `fraiseql.toml`/`schema.json` compiles, each from its own directory |
+  | `tools/examples-smoke.sh` | `integration --suite=examples` | each example's SQL loads under `ON_ERROR_STOP=1`, its schema compiles, **every** `queries/*.graphql` resolves against a real PostgreSQL, and a real `fraiseql-server` boots on it and answers a real query over HTTP |
+
+  Also `make lint-examples-integrity`, `make examples-compile` and
+  `make examples-smoke`.
+
+  The HTTP step is the one that matters: compiling an artifact is not testing an
+  example, and a healthy container is not a working one. #1071's image built, then
+  refused to boot, then booted healthy and answered ordinary queries while refusing
+  the single query that made it a subgraph. The check also rejects a 200 carrying an
+  in-band `errors` array.
+
+  Neither static gate skips, and where either is red for a defect that predates it
+  the exemption **names its issue and is checked in both directions** — an exemption
+  that stops firing fails the gate, so closing the issue also deletes its row. A
+  required gate nobody can turn green is one the next reader learns to skip, which is
+  what `check-feature-chains.sh` cost (#1055/#990).
+
+- **MCP Resources and Prompts (#967, partial).** Alongside tools, the MCP server now
+  advertises every exposed **query** as a readable Resource at `fraiseql://query/{name}`,
+  publishes a `similarity-search` resource *template* for each vector-backed query, and
+  describes every exposed operation as a Prompt built from its `description`.
+
+  All three surfaces are derived from the **same** exposed set, so `include`,
+  `exclude` and `read_only` govern them together: an operation an operator
+  withheld is not advertised, described, or readable. A Resource list built from
+  the schema directly would have been an existence oracle for exactly the names
+  the allowlist hides.
+
+  **Reading a Resource routes through the tool seam**, and that is the whole
+  security design rather than an implementation detail: authentication, tenant
+  resolution, quota charging, the allowlist, RLS and the executor's gates are the
+  tool path's, so there is one execution path and RLS parity is structural. A
+  refused read comes back as a protocol error, never as a successful read whose
+  body says "access denied". Mutations are deliberately not Resources —
+  `resources/read` is a read verb — but they *are* Prompts, because a prompt is a
+  sentence and getting one changes nothing.
+
+- **MCP session continuity, opt-in via `[mcp] session_state` (#967).** An authenticated
+  agent's tool calls accumulate into a thread in the `[session_state]` store, and every
+  result carries that thread back in `_meta` — so an agent can see what it has already
+  done. Off by default: it writes to a durable store on every authenticated call and makes
+  one call's result depend on the ones before it, which is a behaviour change no deployment
+  should acquire by upgrading.
+
+  **The whole security question is what the thread is keyed on.** rmcp's
+  streamable-HTTP transport surfaces a session in the `mcp-session-id` header,
+  and that header is client-controlled — keying the store on it would let any
+  caller read and overwrite any other's *durable* thread by sending their id. The
+  store is two-level, and the levels come from different places: `session_id` is
+  a UUIDv5 over the **authenticated** `user_id`, with nothing the client sends
+  contributing; `thread_id` is the header, verbatim. A client partitions its own
+  threads and can address nothing else. Two callers sending the identical header
+  get entirely separate histories, asserted end to end against a real store.
+
+  There is no fallback for an unauthenticated caller: no principal means nothing
+  safe to key on, and one unscoped thread shared by every anonymous caller is
+  worse than no continuity. Only tool **names** and argument **names** are
+  recorded — never values, which may be customer identifiers or search terms —
+  and only calls that actually happened, so a thread never tells an agent it has
+  done work it has not. A store failure is logged and the tool call still
+  succeeds.
+
+- **`requires_actor`: an operation may restrict which actor classes run it (#966).** #390
+  completed the *recording* half of the actor model; this is the consuming half. A query or
+  mutation may declare `requires_actor`, an **allow-list** of `ActorType`s
+  (`human_user`, `service_account`, `ai_agent`, `system_job`), evaluated in the same
+  executor gate as `requires_role` and composing with it as AND. Empty (the default) is
+  unrestricted, so no existing schema changes behaviour.
+
+  An allow-list rather than a deny-list, because a deny-list admits every class
+  invented after it was written. **Delegation is deliberately not consulted**: an
+  agent acting for an administrator is still an agent — a delegated token carries
+  the human's roles, so `requires_role` already consults them, and having
+  `requires_actor` do the same would make it a no-op for exactly the case it
+  exists for. An unauthenticated request has no classification and is refused by
+  any non-empty list, rather than falling back to `ActorType::default()` — which
+  is `HumanUser`, and would admit every anonymous caller to a human-only operation.
+
+  Enforced **inside the executor**, at the gates every read and write already
+  passes on its way to the database — the regular query path, the direct-read path
+  (REST reads, `Prefer: count=exact`, streaming exports), the universal mutation
+  chokepoint, the relay `node(id:)` lookup and the federation `_entities`
+  resolver. That is what makes "every transport" a fact rather than a claim, and
+  it is not theoretical: the REST case of the new `actor_predicate_e2e_pg` suite
+  found a **real hole** during development, where a predicate placed only on the
+  GraphQL entry points served every restricted row over REST (#808's shape).
+
+  The role gate still runs first, so a caller lacking the role keeps its
+  enumeration-hiding "not found"; a caller holding the role but of the wrong class
+  gets `FORBIDDEN`. Authored from `schema.json` today — an unrecognised token is a
+  compile error naming it, never a silently-dropped restriction, because an
+  allow-list that failed to parse would leave the operation *open*. No official
+  SDK authors it yet; that rollout is #1123.
+
+- **Per-actor-class cost budgets, keyed on `(tenant, actor_type)` (#966).** A tenant's
+  `cost_budget_per_actor` map gives a class its own per-request ceiling and its **own**
+  rolling minute window. A service account draining a report and a human clicking through a
+  UI are the same tenant, and without this they share one allowance: the batch job exhausts
+  the window the humans need, and sizing the window for the batch job removes the ceiling
+  from everyone.
+
+  A class's budget **replaces** the tenant-wide one rather than stacking — a class
+  configured with a *larger* allowance is a legitimate configuration, and stacking
+  would make it unreachable. Each class draws on its own counter, because charging
+  one shared window would make the tenant-wide budget a function of the traffic
+  mix. A class absent from the map falls back to the tenant-wide budget; an
+  unauthenticated request takes the tenant-wide one rather than `human_user`'s. A
+  tenant may configure *only* per-class budgets, and they are still charged. An
+  override setting neither number is **refused at registration** rather than
+  stored — it would otherwise be reported by the admin API and consulted per
+  request while refusing nothing.
+
+  MCP remains deliberately excluded from tenant cost budgets, unchanged and for
+  the reason already documented: an MCP document's shape is fixed by the schema,
+  so its score is constant and the check would meter nothing.
+
+  Documented in `docs/operations/actor-policies.md`.
+
+- **The operator SQL console: `POST /api/v1/admin/sql`, behind the new `admin-sql`
+  feature (#962).** Studio's SQL tab. This runs statements an operator typed — the only
+  endpoint on the server that executes SQL FraiseQL did not generate — so it is off in
+  three independent ways until all three are on: the `admin-sql` cargo feature (not a
+  default, and never will be), `admin_api_enabled` with an `admin_token`, and
+  `[admin_sql] enabled = true`. Each missing piece is a **boot error naming itself**,
+  never a route that quietly is not there, and a mounted console logs a `WARN` at every
+  boot naming the bounds in force.
+
+  Every control is enforced **by PostgreSQL**, not by inspecting the statement text:
+
+  - **Read-only is the transaction's mode.** `admin_readonly_token` opens a `READ ONLY`
+    transaction, so a write is refused with SQLSTATE `25006` however it is spelled. This is the
+    load-bearing choice: `WITH x AS (UPDATE …) SELECT`, `SELECT nextval(…)` and a `VOLATILE`
+    function that writes are all writes that no regex over the text recognises. A `commit: true`
+    request under that token is refused *before* the database is touched — `COMMIT` on a read-only
+    transaction succeeds and persists nothing, so allowing it would answer `committed: true` over a
+    change that never happened.
+  - **Rollback by default.** The statement runs inside a transaction that rolls back unless
+    `commit: true` is sent, so the default is a genuine preview: `RETURNING` comes back, nothing
+    persists. `[admin_sql] allow_commit = false` removes the opt-in entirely.
+  - **`SET LOCAL statement_timeout` and a row cap.** A request may tighten either and never loosen
+    it, and the response reports the values *actually applied* — an operator who asked for ten
+    minutes on a thirty-second server would otherwise read the cancellation as a hung database. `0`
+    is refused rather than clamped for both, because PostgreSQL reads a zero timeout as *no*
+    timeout.
+  - **One statement per request**, from the extended query protocol's Parse rather than a
+    `split(';')` — which would be a bypass, since a semicolon inside a string literal is not a
+    statement boundary. `; COMMIT` cannot be appended to escape the rollback, and `; DROP TABLE`
+    is rejected before anything runs.
+  - **RLS preview.** `impersonate` sets the session variables the compiled schema's mappings would
+    produce for that identity, resolved by the *same* function the executor calls — a preview
+    computed by a second implementation is a preview of that implementation. Claims in the reserved
+    `fraiseql.` namespace are refused by name, since the token extractor strips that namespace from
+    real tokens precisely so a client cannot write it.
+  - **Every execution is audited**, including the failed and refused ones: a new
+    `AuditEventType::AdminSqlExecution` (the first non-auth-shaped variant) and
+    `SecretType::AdminToken`, carrying the peer, the credential that authenticated, whether a
+    commit was requested and whether it happened, and the statement — truncated to the entry's
+    bound, with the SHA-256 of the full text beside it.
+
+  Rows come back **positional** against a `columns` list rather than keyed by name,
+  because `SELECT 1 AS a, 2 AS a` is legal SQL and a name-keyed object silently drops
+  one of the two.
+
+  `docs/operations/admin-sql-console.md` documents it, including a section on what none
+  of this bounds: a committed statement bypasses the mutation pipeline, field
+  authorization, the change log, observers and cache invalidation; the console holds a
+  primary connection and an `ACCESS SHARE` lock for the life of the request; and the
+  database role is the real outer boundary — if the pool's role can `DROP SCHEMA`, so
+  can `admin_token`.
+
+- **Typed clients for Go and Rust: `fraiseql generate-client {go,rust}` (#961).** Both
+  plug into the same `client::common` document core the `TypeScript` and Python
+  generators use, so all four emit **byte-identical `GraphQL` documents** — a claim now
+  pinned by one test over all four generators rather than a copy owned by one of them.
+  Only the type rendering, the identifier rules and the ~100-line runtime are per
+  language.
+
+  Acceptance is compile-the-output, not "a template exists": the `generated-clients`
+  CI job generates from the canonical conformance fixture and runs
+  `gofmt -l` + `go build` + `go vet` on the Go client, and `cargo check` with warnings
+  denied on the Rust one, then compiles a consumer project that calls every operation
+  (`client_go_consumer` / `client_rust_consumer`).
+
+  **Go** is one package (`fraiseqlclient`), Go ≥ 1.21, standard library only
+  (`net/http`). Operations are **methods on `*Client`**: Go has a single exported
+  namespace per package, and the canonical schema puts a `user` query beside a `User`
+  type, which as package functions is a redeclaration — the conformance fixture caught
+  exactly that. Unions become a struct with one pointer per member and a generated
+  `UnmarshalJSON`, since Go has no sum type and flattening the members would lose which
+  one arrived. Optional arguments are checked at their typed parameter before being
+  boxed, because a typed nil inside an `any` is not `== nil`.
+
+  **Rust** is a module tree depending only on `serde` and `serde_json`. Unions map onto
+  `#[serde(tag = "__typename")]` enums — the one place the two type systems line up
+  exactly. Rust's standard library has no HTTP client, so the transport is a `Transport`
+  trait with a blanket impl for any `Fn(&str) -> Result<String, Error>` rather than a
+  dependency chosen on the caller's behalf.
+
+  Both renderers carry `every_field_type_maps_to_its_own_surface` from the start:
+  `FieldType` is `#[non_exhaustive]` and lives in another crate, so the mapping must end
+  in a wildcard arm — which is what let `HalfVector` and `SparseVector` degrade silently
+  in the two older generators when they were added (#959).
+
+  `sdk-conformance.yml` now also triggers on `crates/fraiseql-codegen/**`; it watched
+  `fraiseql-cli` and `fraiseql-core/src/schema` only, so a change confined to the
+  generators skipped the very job that gates them.
+
+- **Half-precision and sparse vectors: `HalfVector` and `SparseVector` (#959).**
+  `halfvec(N)` halves the storage and the HNSW index memory at `f16` precision, with an
+  unchanged query surface. `sparsevec(N)` takes pgvector's own text form,
+  `{1:0.5,7:0.25}/1000` — a dense `[Float!]` operand is refused, because a sparse vector
+  exists so that a 30-thousand-dimension bag of terms is never written out in full.
+
+  The operator class is now resolved from the field type *and* the metric —
+  `halfvec_cosine_ops`, `sparsevec_l2_ops`, `bit_hamming_ops` — against the table
+  pgvector actually ships: `ivfflat` has no `sparsevec_*` class at all, which is a
+  compile error rather than DDL `CREATE INDEX` rejects.
+
+  There is deliberately **no half-precision operand kind**. A `halfvec` column compared
+  against `'[…]'::vector` resolves the literal to `halfvec` and uses the same index —
+  identical query plans on the rig — so the mutation that removed the distinction stayed
+  green, and the distinction went with it. A sparse literal is the opposite case:
+  `'{1:1}/5'::vector` is `Vector contents must start with "["`.
+
+- **The distance a `nearest` search ordered by, in the response (#959).** A `Float` field
+  declaring `vector_distance = "embedding"` carries it:
+  `docs(nearest: {vector: $q, k: 10}) { id similarity }`.
+
+  Projected from **the same expression** the `ORDER BY` was built from — one construction
+  site, so the number a row reports and the position it occupies cannot be computed two
+  different ways. Override the metric and the reported number follows, negated inner
+  product included.
+
+  Selecting it on a query that ran no `nearest` search, or one that searched a *different*
+  vector field, is refused rather than answered with null: a null is indistinguishable
+  from a row whose distance is genuinely unknown, on a response that otherwise looks like
+  it worked. The declaration itself is checked at compile time — the named field must
+  exist on the same type and be a vector field, and the declaring field must be a `Float`.
+
+  Under the hood a projection may now carry a computed expression, which is a small new
+  power and a deliberately narrow one: `ComputedExpr` has no public constructor, so the
+  only SQL that can reach a projection this way is the distance expression the ORDER BY
+  builder produced.
+
+- **Binary (bit) vectors: the `BitVector` field type, hamming and jaccard search (#959).**
+  pgvector's `hamming_distance` (`<~>`) and `jaccard_distance` (`<%>`) are defined over
+  `bit` values, not `vector` ones — so both operators were, until now, advertised by the
+  operator table and refused by the generator, because no column they could apply to could
+  be declared.
+
+  `type = "BitVector"` declares one. `dimensions` counts bits; `--emit-ddl` produces a
+  `bit(N)` column and an index with the `bit_hamming_ops` / `bit_jaccard_ops` operator
+  class. `nearest: { vector: "11110000", k: 10 }` lowers to
+  `ORDER BY "fingerprint" <~> '11110000'::varbit LIMIT k`, and
+  `where: { fingerprint: { jaccard_distance: { vector: "…", threshold: 0.4 } } }` filters.
+  In GraphQL the field is a `String` — a run of `0`/`1`, which is `bit(N)`'s own text form
+  and what `binary_quantize(embedding)::bit(N)` produces.
+
+  Three refusals, each a case pgvector cannot execute: a float metric on a `BitVector`
+  field or a binary metric on a `Vector` one (compile error, both directions);
+  `index_type = "ivf_flat"` with `jaccard`, since pgvector 0.8 ships `bit_jaccard_ops` for
+  `hnsw` only; and a query vector whose length is not the declared width.
+
+  That last one is not a nicety. Casting text to `bit(N)` **pads a short value on the
+  right and truncates a long one, both silently**, so an unchecked operand searches a
+  different fingerprint and reports the result as an answer to the question asked. For the
+  same reason every emitted cast is `varbit` rather than `bit`: `'1011'::bit` is `bit(1)`,
+  which reduces every comparison to the first bit — and, proven by mutation, returns *all
+  four* fixture rows for a filter that must return two.
+
+- **Incremental delivery: `@defer`, `multipart/mixed`, resumable `@stream` (#958).** Four
+  of the eight deferred parts of #387.
+
+  **`@defer` on a fragment is live** over an incremental transport. The immediate payload
+  carries the fields the client did not defer; each deferred fragment then arrives as an
+  `incremental` entry addressed by its response path, one per list element, grouped by
+  `(path, label)` so one fragment produces one payload rather than one per field.
+
+  It is deliberately a **delivery split, not a second query**. A FraiseQL query is one SQL
+  statement over a JSONB view — there are no per-field resolvers to defer — so the only way
+  `@defer` could save database work is to drop the deferred fields from the projection and
+  re-query them, and for a list that is *unsound*: the two statements are separate
+  snapshots, so aligning the second to the first positionally attaches one row's deferred
+  fields to another row whenever a concurrent write shifts the window. Aligning by key
+  would require the client to have selected an identity field, which it is under no
+  obligation to do. So `@defer` here changes when bytes reach the client — a real benefit
+  when the deferred part is large — and never what they say. That is stated in the docs
+  rather than left to be inferred.
+
+  **`multipart/mixed`** joins SSE as a second framing (the Apollo/Relay
+  `deferSpec=20220824` shape), built from the same payload sequence in one code path so
+  the two cannot drift into delivering different results — a drift no client would catch,
+  since a client only ever exercises one of them. `Accept` naming both resolves to SSE.
+  The compression predicate exempts it, as it already did SSE.
+
+  **`@stream` deliveries are resumable.** Every payload carries the absolute row offset of
+  the first row it did *not* deliver, so `Last-Event-ID` is directly the resume point. No
+  replay buffer is involved and none would be honest — the source is a re-executable
+  paginated query, not a transient event feed. Rows already delivered are charged against
+  the document's own `limit`, so a resumed delivery cannot outlive the budget it asked for,
+  and a `Last-Event-ID` that is malformed or points *before* the document's `offset`
+  argument is refused rather than clamped: a silently adjusted resume point returns a wrong
+  result set that looks like a right one. The terminal payload of a delivery that ended
+  early is stamped too, so a client whose token was revoked resumes rather than restarts.
+
+  **Every continuation batch now re-checks revocation, not only expiry.** The `@stream`
+  loop uses the same `StreamAuthGuard` the subscription transport uses — now one shared
+  implementation rather than two — so a "log out everywhere" or a stolen-token revocation
+  terminates a delivery in flight. Expiry alone left both unenforced for the whole life of
+  a delivery, which on a large result set is unbounded.
+
+
+- **`nearest.field`: similarity search on a type with several vector fields (#959).**
+  A type declaring both a text and an image embedding could not be searched at all —
+  `nearest` refused any type with more than one vector field. It now takes an optional
+  `field:` naming which to search, and the selected field's own `dimensions` and
+  `distance_metric` apply.
+
+  `field` stays optional where there is one vector field and is **required** where
+  there are several: the omission is ambiguous rather than convenient, and answering it
+  by declaration order would search one embedding space and report the result as
+  another. The refusal names the candidates.
+
+- **REST `rest_stream` per-route opt-in (#958).** A query offers the streaming
+  representations — `Accept: application/x-ndjson`, `text/csv`, XLSX — only with
+  `rest_stream = true`. The flag reaches the compiled schema from the authored
+  `rest_stream` key (validated in the Python decorator and again in the compiler:
+  `rest_stream` on a single-item query is refused, because those representations
+  deliver a sequence of rows and that query returns one).
+
+  All three export handlers resolve through one `resolve_streaming_get_query`, so a
+  fourth representation gets the opt-in by using the only resolution function that
+  fits it rather than by someone remembering to check a flag.
+
+  A route without it answers `406 Not Acceptable` and names the flag; its JSON
+  envelope is untouched. Refusing rather than substituting the envelope is the point:
+  a client sending `Accept: application/x-ndjson` is asking to be handed a dataset,
+  and quietly answering with one page of a different representation is #811's failure
+  mode wearing a different header.
+
+- **Nested `@stream` (#958).** `@stream` on a list *inside* a row —
+  `users { posts @stream(initialCount: 2) }` — is delivered incrementally instead of
+  refused. It is a **delivery split**, the shape `@defer` already has, not the database
+  paging a root `@stream` gets: a nested list is a JSONB array produced by the same
+  single statement as the row that carries it, so there is no per-path pagination to
+  push down. Fetching "the next 10 posts of user 3" would be a second statement over a
+  second snapshot, with the alignment problem `@defer` documents.
+
+  So the honest properties are stated rather than implied: it does not reduce database
+  work, it does not bound server memory, it is always correctly aligned, and it is
+  **not** resumable — a root `@stream`'s event id is a row offset the query accepts as
+  an argument, while a nested chunk boundary is a position in a value that no longer
+  exists once the response is delivered.
+
+  Each chunk is addressed by the response path of its **first item**
+  (`["users",0,"posts",2]`), so every element of an enclosing list splices into its own
+  row rather than all of them into the first. A `@stream` on a field that resolved to
+  something other than a list is refused with an ordinary HTTP error — the split runs
+  before any byte is written, and a directive that silently did nothing on a negotiated
+  incremental transport would read to the client as "streaming worked". Nested `@stream`
+  combined with `@defer`, or with a root `@stream`, is refused for the same reason the
+  existing `@defer`+`@stream` combination is: their payload order is not defined here.
+
+- **Streaming reads through the `DatabaseAdapter` boundary (#958).** The structural part of
+  #387's remainder: `DatabaseAdapter::stream_with_projection` and `stream_row_query` deliver
+  rows as PostgreSQL produces them instead of collecting them into a `Vec` at the boundary,
+  and the REST exports (`Accept: application/x-ndjson`, `text/csv`, XLSX) and gRPC
+  server-streaming consume them.
+
+  What that fixes is not speed. All three exports walked their result set with
+  `LIMIT n OFFSET k` re-executions, which has two properties no batch size changes:
+  `OFFSET k` makes PostgreSQL walk and discard `k` rows, so exporting `N` rows scans
+  `O(N²)`; and each batch is its own snapshot, so a concurrent insert or delete shifts rows
+  across a batch boundary and the export silently emits one row twice and another not at
+  all. One statement over one portal has neither problem.
+
+  **The cost is stated rather than discovered.** A streamed read holds its pooled connection
+  for as long as the client is reading — the whole duration of an export, not the duration
+  of a query — and holds `ACCESS SHARE` on the views it reads, so DDL against a view under
+  active export waits. `pool_max_streaming_reads` bounds how many connections streaming
+  reads may hold at once, defaulting to a quarter of `pool_max_size` (at least 1): a bound
+  at the pool size would be no bound, since exports would evict every interactive request
+  from it. Rows move through a bounded channel, so a client that stops reading stops the
+  delivery all the way back to the socket.
+
+  Both methods carry a **buffering default** that collects and replays, so an adapter that
+  implements neither is correct — and a wrapping adapter that inherits it converts every
+  streaming caller back into a buffering one *without failing any test*: the rows are right
+  and only the memory bound is gone. `CachedDatabaseAdapter` therefore forwards both
+  explicitly (uncached: populating a cache entry means holding every row, which is the cost
+  the call exists to avoid), and a test asserts which method the inner adapter saw rather
+  than which rows came back.
+
+  The buffered and streamed executions of a read now resolve through **one**
+  `resolve_direct_read`: operation authorization, the field-authorization gate, the RLS
+  policy, the `inject_params` tenant filter and the field-level RBAC classification belong
+  to the read, not to its delivery. #739 is the standing proof that "the other reader of
+  the same query" is where a row filter goes missing, and that it goes missing invisibly —
+  so the tenant filter and the gated-field refusal are asserted on the export surface
+  itself, not inferred from the shared code path.
+
+  Opening the read before any response header is sent has a visible consequence: a refusal
+  — unauthorized, gated field, tenant-scoped query with no principal — is now an HTTP
+  status on the export, where a mid-stream failure could only ever be an error line inside
+  a `200`.
+
+  `FraiseWireAdapter` keeps the buffering default. Its `QueryStream` really does stream and
+  threading it through would be small, but no CI leg executes that adapter against a real
+  database, so the result could be compiled and not proven — tracked as #1115 with the rig
+  it needs.
+
+- **Read replicas: bounded staleness, per-query routing, failover detection, per-tenant
+  replicas (#957).** The four parts #407 deferred.
+
+  `read_replica_max_lag_ms` turns the read-your-writes pin's *assertion* about lag into a
+  *measurement*, and covers everyone else's writes rather than the client's own. A background
+  probe (`read_replica_health_probe_interval_ms`, 1 s by default) reads each replica's replay
+  lag; a replica is eligible while `lag_at_last_probe + age_of_that_probe <= max_lag`. That
+  sum is a true upper bound rather than an estimate — replay lag grows at most one millisecond
+  per millisecond of wall clock — and it makes the gate self-closing: nothing has to notice
+  that probing stopped, because an unrefreshed probe ages past any budget on its own. A
+  replica whose lag cannot be *measured* is never eligible; unknown staleness is not zero
+  staleness.
+
+  `read_routing` on a compiled query says what the structural read/write partition cannot.
+  `primary` keeps a query off replicas **and out of the result cache** — it is asked for when
+  staleness is a correctness problem, and a cache hit is stale data by construction, so
+  serving one would give the query the opposite of what it asked for through a different door.
+  `replica` opts out of the read-your-writes pin, for reads that have declared they are not
+  what the pin exists to protect. FraiseQL defines and enforces the shape; an authoring
+  language emits it — a `@reads_from(...)` directive is one spelling. Replica *topology*
+  stays out of the compiled artifact — URLs are server configuration and secrets.
+
+  Probing also closes the gap the one-shot boot health check structurally cannot see: a
+  replica that booted as a standby and is later found outside recovery has been promoted, and
+  stops taking reads whether or not a staleness budget is set. A promoted server accepts
+  writes of its own, so reads from it diverge from the primary in *both* directions, which is
+  not a staleness any budget could bound.
+
+  Tenant pools are no longer primary-only: a registration may carry `read_replica_urls` of its
+  own — topology, like its connection string — while the pin window, staleness budget and
+  probe cadence are stamped from the server's configuration, exactly as `[database_tls]` is.
+  Replica pools are built from the same `PoolPrewarmConfig` as the primary, so a
+  schema-isolated tenant's `search_path` reaches them too.
+
+  Proven against a **real streaming standby** added to both rigs, with lag induced by
+  `pg_wal_replay_pause()` and failover by a real `pg_promote()`. The pre-existing replica
+  stand-in is a second independent database, where `pg_is_in_recovery()` is false and lag is
+  unmeasurable — a bounded-staleness guarantee proven against it would have been proven
+  against a server that can never be stale.
+
+- **Outbound CDC: the Apache Kafka sink (#975).** `kind = "kafka"` behind the `cdc-kafka`
+  feature, reusing the existing drain worker, backoff and dead-lettering unchanged. A binary
+  built without the feature refuses the kind *by name* and says which feature to rebuild
+  with, rather than accepting the sink and dropping its events.
+
+  Kafka's `bootstrap.servers` is a scheme-less `host:port` list, so transport security is not
+  expressible in the endpoint the way `tls://` is for NATS. The sink defines its own schemes
+  — `kafka+ssl://`, `kafka+sasl-ssl://`, and plaintext `kafka://` behind
+  `FRAISEQL_KAFKA_ALLOW_PLAINTEXT` plus `FRAISEQL_ENV=development` — and maps each to an
+  explicit `security.protocol`. A **scheme-less endpoint is refused rather than defaulted**,
+  because librdkafka would read it as `PLAINTEXT`, and **every** broker in the list is
+  screened, so one metadata address cannot ride along behind a legitimate one.
+
+  SASL credentials come from `FRAISEQL_KAFKA_SASL_{MECHANISM,USERNAME,PASSWORD}`. The
+  mechanism is required rather than defaulted (librdkafka's default is `GSSAPI`, which these
+  builds cannot perform, and no default suits every broker). `PLAIN`, `SCRAM-SHA-256` and
+  `SCRAM-SHA-512` are supported; Kerberos is refused by name, as supporting it is the sole
+  reason to link Cyrus libsasl2.
+
+  Records are keyed by entity identity (`{object_type}:{object_id}`) so an entity's changes
+  share a partition — Kafka orders only within one — with `enable.idempotence` on and the
+  `(object_type, seq)` dedup key in both the payload and a `fraiseql-msg-id` header. Kafka's
+  topic charset is narrower than a NATS subject's, so a template that renders outside
+  `[a-zA-Z0-9._-]` dead-letters rather than being re-routed.
+
+- **Outbound CDC: the AWS Kinesis sink (#975).** `kind = "kinesis"` behind the `cdc-kinesis`
+  feature, reusing the drain worker, backoff and dead-lettering unchanged. As for Kafka, a
+  binary built without the feature refuses the kind *by name* and says which feature to
+  rebuild with. `pulsar` keeps a named refusal too, rather than falling through to
+  "unknown kind" — configuring it should say it is unimplemented, not imply a typo.
+
+  Kinesis is not addressed by a broker list: the SDK resolves a regional HTTPS endpoint from
+  a region name, so the configured endpoint carries only the region — `kinesis://eu-west-3`
+  — and a scheme-less value is refused rather than guessed. The region is constrained to
+  `[a-z0-9-]` starting with a letter, since it is interpolated into the endpoint the SDK
+  resolves. Credentials come from the standard AWS provider chain, never from the TOML.
+
+  The one route to an unencrypted endpoint is `FRAISEQL_KINESIS_ENDPOINT_URL`. An `https://`
+  override is taken as given — a VPC interface endpoint resolves into RFC 1918 space and
+  vetoing it would be wrong — while an `http://` override additionally requires
+  `FRAISEQL_KINESIS_ALLOW_PLAINTEXT`, `FRAISEQL_ENV=development`, and a host that survives
+  the same screening the Kafka sink applies, so the development hatch cannot reach an
+  instance-metadata address.
+
+  Records carry the same entity-identity partition key as the Kafka sink
+  (`{object_type}:{object_id}`), which pins one entity's changes to one shard — Kinesis
+  orders only within a shard — with `(object_type, seq)` in the payload for consumer dedup.
+  `SequenceNumberForOrdering` is deliberately not used: the drain publishes serially and
+  head-of-line-blocks, so arrival order already is `seq` order, and threading it would mean
+  unbounded per-key state. Stream names are validated against Kinesis's own rules
+  (`[a-zA-Z0-9_.-]`, capped at 128 — narrower than Kafka's 249), and a name it cannot accept
+  dead-letters rather than being re-routed. `InvalidArgumentException` is the only permanent
+  `PutRecord` failure; a missing stream and throttling both retry, because dead-lettering
+  them would discard events no retry needed to lose.
+
+- **Render transforms: resize modes, crop, effects and watermarks (#973).** #370 shipped the
+  render endpoint with resize, format conversion and the resource bounds that make exposing
+  image transforms safe. The operations themselves were resize-and-re-encode only, with one
+  fixed geometry and no way to ask for another.
+
+  `?mode=` now chooses how the `w`×`h` box is filled — `contain` (the shipped behaviour, and
+  still the default), `stretch`, `fit` (letterbox with `background`), `fill` (cover and crop
+  at `gravity`), `cover-blur` and `cover-mirror` — with a per-bucket `default_resize_mode`.
+  `?gravity=` takes a compass point, `center`, or `smart`, which is resolved from the pixels
+  by picking the window carrying the most edge energy. `?crop=` takes a bounding box or an
+  aspect ratio. `?blur=` and `?sharpen=` are Gaussian radii. `?watermark=` composites another
+  stored object and `?watermark_text=` rasterises text; both are bounded by the canvas.
+  Behind the opt-in `transforms-retarget` feature, `?mode=retarget` seam-carves.
+
+  Every operation is **bounded before it allocates**, which for these meant more than
+  inheriting #370's dimension ceiling. Blur and sharpen cost `pixels × radius`, so the budget
+  is on that product: a flat radius cap left a sigma of 100 over a 12 000 px render costing
+  roughly ninety seconds of CPU, which is the resource-exhaustion shape #370 exists to
+  refuse. A watermark cannot be scaled past its canvas; text is capped in both type size and
+  length; `retarget` — the one operation whose cost is not bounded by its output — is held by
+  an aspect-delta threshold, a working-resolution cap and a wall-clock budget, past any of
+  which it renders as `fill` instead. A crop outside the source is refused rather than
+  clamped, because quietly returning a different rectangle is the wrong answer with a `200`.
+
+  A watermark asset is a stored object, so it goes through **the same read gate as any
+  object in its bucket** (#336): a watermark the caller cannot read answers exactly like a
+  missing one. Text watermarks use the bucket's `watermark_font`, read and parsed at boot —
+  FraiseQL vendors no typeface, so a published crate carries no font licence, and a bucket
+  without one refuses `watermark_text` by name rather than substituting something.
+
+  Every render spelling is validated where it is written: an unknown mode or gravity is a
+  `400` at request time and a startup error in a preset, never a silent fallback.
+
+  Face-aware gravity is **not** part of this: the only pure-Rust detector ships a ~10 MB model
+  binary, and vendoring an ML model and its licence is not something a thumbnail-cropping
+  heuristic earns when entropy-based `smart` gravity covers the same need. Recorded on #973
+  with a follow-up rather than left implicit.
+
+- **Rendered images are cached, and invalidation is structural (#973).** `TransformCache`
+  existed but only its key builder was ever called outside tests: every render recomputed the
+  image, and its `invalidate()` wrote a marker no reader consulted — an invalidation that
+  looked like one and was not. The cache is now wired to the render route and
+  **content-addressed**: the key covers the source bytes and the canonical description of the
+  resolved transform, so a re-uploaded source hashes differently, reads a different key, and a
+  stale entry becomes unreachable rather than merely marked. There is nothing left to
+  invalidate, so `invalidate()` is gone rather than fixed. Entries live under the reserved
+  `.fraiseql-transforms/` prefix.
+
+  Each render also logs the resolved transform and whether it was a cache hit, using the same
+  canonical string the cache key derives from — so the audit record and the cache cannot
+  disagree about what was served.
+
+- **Resumable uploads on GCS and Azure Blob, and a Tus suite driven by a real client
+  (#972).** #369 shipped the resumable core with two working backends; GCS and Azure refused
+  loudly with `NotImplemented`. Both are now real. **GCS** opens a resumable session
+  (`uploadType=resumable`), keeps the session URI in the upload's continuation state and
+  `PUT`s each chunk with its own `Content-Range`; the session finalises when a chunk reaches
+  the declared total, and `multipart_abort` `DELETE`s the session so staged bytes are not
+  left accruing. **Azure** stages each chunk as an uncommitted block (`Put Block`, with
+  fixed-width block ids) and publishes the blob with `Put Block List`; `multipart_begin`
+  checks the container up front, because Azure has no session to open and a missing container
+  would otherwise surface only after the client had been handed an upload URL. Azure's abort
+  deliberately issues no request: uncommitted blocks belong to no blob and Azure reclaims
+  them, whereas deleting the blob would destroy an object a cancelled overwrite was supposed
+  to leave untouched.
+
+  Both are covered end to end against their emulators (Azurite, fake-gcs-server) in the
+  Dagger storage leg — at the backend seam and through the Tus routes an operator actually
+  calls, including the foreign-session refusal. GCS additionally gets a recording stand-in
+  for the wire contract the emulator is too permissive to check: fake-gcs-server accepts a
+  `Content-Range` that disagrees with the bytes sent and keeps serving a deleted session, so
+  an implementation that sent neither would round-trip against it perfectly.
+
+  The same issue closes #369's last deferred acceptance item: `tus-js-client`, the reference
+  Tus implementation, now drives the endpoints in CI (`tus_interop`). Everything else in the
+  repository speaks the protocol the way the server does, so a shared misreading of the spec
+  would have read as agreement. It uploads chunked and in one shot, and asserts that a
+  refusal — the bucket's size cap — reaches the client as a reported error rather than as a
+  hang.
+
+- **SCIM 2.0 provisioning, and an offboarding that is not cosmetic (#946).** `#381`'s SAML
+  slice covered authentication; provisioning is the other half of an enterprise IdP
+  integration, and its security-load-bearing part is the end of the lifecycle. Without it an
+  offboarded employee's account stayed active: SAML stopped them signing in *through the
+  IdP*, and a local password or social link on the same account kept working. `[scim]
+  enabled = true` mounts `/scim/v2/Users`, `/scim/v2/Groups`, the `.search` forms and the
+  discovery trio, with `userName`/`displayName` filtering, `startIndex`/`count` pagination,
+  `attributes`/`excludedAttributes` projection, and `ETag`/`If-Match` concurrency.
+
+  **`active = false` revokes every existing session and blocks new ones.** The block sits at
+  session creation — the single point password login, the MFA second factor, social
+  callbacks, email and phone OTP and the SAML ACS all converge on — so no credential path
+  stays quietly open. SCIM users are `core.tb_user` rows rather than a parallel directory,
+  precisely so the account an IdP deactivates is the account a password would authenticate;
+  a live-PostgreSQL test proves it by signing up with a password, offboarding over SCIM, and
+  showing the still-correct password no longer buys a session. A principal with no account
+  row — anonymous, or JWT-only — is a different identity space and is unaffected.
+
+  **A provisioning credential is not an admin credential.** `/scim/v2/*` takes a bearer
+  token minted through `/api/scim/tokens` (admin-gated, stored only as `sha256`, tenant
+  scoped by the credential rather than by any request field); the e2e asserts the separation
+  in both directions. SCIM groups mirror onto RBAC roles and members onto assignments, and a
+  group creates a role with **no permissions** — an IdP decides who is in a role, an admin
+  decides what it may do.
+
+  Filtering is deliberately strict: only `attribute eq "value"`, and anything else is
+  refused with `400 invalidFilter` rather than ignored, because answering a "does this user
+  exist?" probe with the whole directory is how a client provisions onto the wrong account.
+
+  Conformance runs against **`scim2-tester`**, a third-party SCIM client, in the Dagger
+  `saml` leg — the issue asked for a real provisioning client rather than a hand-written
+  request set, and it earned its keep immediately by finding several defects the hand-written
+  tests had missed (`$ref`/`type` sub-attributes strict clients reject, a PATCH surface too
+  narrow to provision with, an empty `members` array read as "not removed", and untyped
+  404/405 bodies). Okta and Entra validators need a public URL and a vendor tenant, so those
+  stay a manual pre-release step. Two deviations are documented with reasons; the one defect
+  it filed (#1090) is fixed in this release and its exemption removed.
+
+- **SAML SP request signing, encrypted assertions, and SP metadata publishing (#948).**
+  FraiseQL's SP verified inbound assertions but could not sign its outbound
+  `AuthnRequest`s or read an `EncryptedAssertion` — both are hard requirements at some IdPs,
+  so the effect was "we cannot integrate with your IdP", which for those customers is the
+  same as not supporting SAML. `[saml.sp]` configures one key pair for the whole deployment,
+  applied to every IdP, config-file and stored alike, so no private key lives in a database
+  row. `GET /auth/saml/metadata` publishes the entity ID, ACS endpoint, signing posture and
+  certificate, tenant-scoped exactly like login. Two SP keys are accepted during a rotation
+  window — the previous one for decryption only, and published as an extra `use="encryption"`
+  descriptor so an IdP that has not yet picked up the new certificate keeps working.
+
+  Unsigned stays the default. `sign_authn_requests = true` with no key pair is refused at
+  boot rather than silently sending unsigned requests, an unreadable key refuses to boot
+  rather than starting with signing quietly off, and a key that does not match its
+  certificate is refused at configuration time rather than at the first login.
+
+  **Decryption is not a second door.** The decrypted assertion's own signature is never
+  checked — verification operates on the bytes the IdP signed, and for an
+  `EncryptedAssertion` those are the *ciphertext*. So the envelope signature must cover it:
+  an unsigned response carrying an encrypted assertion is refused rather than decrypted, a
+  tampered ciphertext fails before any decryption happens, and what comes out of the
+  decryption runs the **existing** path — audience, recipient, conditions, `InResponseTo`,
+  replay. Each of those is pinned by its own test. An IdP that signs only the inner
+  assertion and then encrypts it is consequently unsupported: that configuration hides the
+  signature from us, and accepting it would mean trusting unverified ciphertext.
+
+  Key transport is restricted to RSA-OAEP and content encryption to AES-GCM. `rsa-1_5` and
+  the CBC modes — the algorithms behind the Bleichenbacher and padding-oracle breaks of XML
+  Encryption — are refused by name, on signature-verified bytes so the check never reads
+  attacker-controlled XML. The envelope-signature requirement already denies the
+  chosen-ciphertext oracle those attacks need, so this is defence in depth.
+
+- **Per-tenant SAML IdP store, with hot reload and a tenant-scoped login route (#947).**
+  `[saml.idps.*]` resolves once at boot, so adding or rotating an IdP meant a restart and a
+  config deploy, and — the security half — the tenant binding constrained only what an
+  assertion could *link* to, never who could start a login with it: any caller could name
+  any configured IdP. `[saml] store_enabled = true` adds `core.tb_saml_idp` (deny-by-default
+  RLS, like `core.tb_user`), a hot-reloading registry, and admin CRUD at `/api/saml/idps`
+  behind the existing admin bearer gate. Config-file IdPs keep working unchanged and win any
+  name collision; a stored IdP that would shadow one is refused at write time and not served
+  at read time, because the two would share one `saml:<name>` account namespace.
+
+  Certificate expiry is parsed out of the metadata on every write and reported by the API,
+  with `certificate_expiry_warning_days` (default 30) driving a periodic warning — a silently
+  expired IdP certificate is an outage whose cause is invisible from the login failure alone.
+  `refresh_interval_secs` (default 30) bounds only how fast *another replica's* change
+  propagates; writes through this server's own API serve on the next request.
+
+  Two properties keep the store from becoming a takeover primitive, and both are pinned by
+  live-PostgreSQL tests. **An IdP name is globally unique and is never reissued** — not even
+  after deletion, which is a tombstone: the logical name *is* the account-store provider
+  namespace, so a reissued name would hand the new IdP every account the old one created,
+  and a `NameID` collision across the two would resolve to a single user. **A stored,
+  tenant-bound IdP still cannot email-merge**: `trust_asserted_email` is recorded, but
+  `effective_saml_email_verified` is unchanged and the API reports
+  `email_linking_effective: false`, because `core.tb_user` keys verified email globally and
+  a merge therefore cannot be bounded to one tenant. Lifting that needs the tenant-scoped
+  account store in #1088 first; relaxing it alone is a one-boolean cross-tenant takeover.
+  Admin credentials are not tenant-scoped either — the admin token manages every tenant's
+  IdPs (#1089).
+
+- **Email verification for local-password accounts (#945).** FraiseQL could only *consume*
+  a verification claim someone else asserted — a trusted provider's `email_verified`, or a
+  completed email OTP. A local password signup passes `email_verified = false` (deliberately
+  fail-closed, so it keys on `(local, email)` and can never auto-merge), which meant
+  `core.tb_user.email` stayed `NULL` forever: the account could never *become* verified, and
+  the same person's password and Google sign-ins were two accounts with no way to join them.
+
+  `[auth.local] email_verification = true` mounts `POST /auth/v1/email/verify/start` and
+  `.../confirm`, backed by `core.tb_email_verification_token` on the selector + verifier
+  discipline password reset already uses (plaintext selector indexed, `sha256(verifier)`
+  stored, single-use under an atomic guard, one-hour TTL) plus one column reset does not
+  have: the address the link was mailed to, so confirmation promotes exactly the mailbox
+  that was proved. Delivery goes through the `[auth.local] email_from` mailbox; the link is
+  built from a new required `verification_url_template` (`{token}`), and a config that
+  enables verification without `password = true`, without `email_from`, or without the
+  template is refused by the compiler and again at boot.
+
+  **Both halves are required to confirm.** The routes are the only ones in this group that
+  need an authenticated caller: the token proves control of the mailbox, the session proves
+  ownership of the account, and the token's subject must equal the caller's `user_id`. That
+  is what closes the confused-deputy shape — signup for an arbitrary address is open by
+  design, so an attacker can seed a local account under `victim@example.com` and cause a
+  verification mail to land in the victim's inbox; a victim who clicks it is not
+  authenticated as the attacker, so nothing happens. A token presented by any other account
+  is rejected exactly like a forged one.
+
+  **Confirmation promotes; it never merges.** The proved address is written to the caller's
+  own user row, which is what puts the account in the cross-provider `email:<normalized>`
+  key space — so a later trusted social sign-in for the same address links into it through
+  the ordinary `link_or_create_user` path, one account, no new merge machinery. If another
+  account already holds that verified address, confirmation refuses with the new
+  `AuthError::EmailClaimedByAnotherAccount` (`409`) and changes nothing. The issue asked for
+  a merge there; a merge would move this account's password credential onto an account it
+  could not previously reach, which combined with open signup completes an account-takeover
+  chain needing the mailed code only once. The `TrustedEmailProviders` pre-hijack invariant
+  is re-proved for the new path in **both** directions against real PostgreSQL, and each
+  guard was verified by reverting it alone and watching the matching assertion fail.
+
+- **Sign in with Apple (#943).** `[auth.social.apple]` completes the third provider the
+  `[auth.social]` umbrella (#368) named, and it is the one that could not have been a copy
+  of the Google client. Apple's client secret is an **ES256 assertion**, not a stored
+  string: the config takes `client_id` (the services ID), `team_id`, `key_id` and the `.p8`
+  key through exactly one of `private_key_env` / `private_key_path`, and the runtime signs
+  a short-lived assertion over that triple, caching it and re-minting before expiry. A key
+  that cannot sign is refused at boot, not at the first login.
+
+  Apple publishes **no userinfo endpoint** — the identity is the token endpoint's
+  `id_token` and nothing else — so `OAuthProvider` gained
+  `user_info_from_tokens(&TokenResponse)`, which defaults to today's
+  `user_info(access_token)` for every provider that does publish one. `AppleOAuth::user_info`
+  refuses loudly rather than returning a degraded identity. The `id_token`'s `iss`, `aud`
+  and `exp` are validated fail-closed; its signature is not re-verified, because it arrives
+  by direct TLS from the token endpoint (OIDC Core §3.1.3.7 rule 6) and an attacker who
+  could forge that response could forge the JWKS document too.
+
+  Requesting the `name`/`email` scopes makes Apple deliver the callback as
+  `response_mode=form_post`, so configuring Apple also mounts a **`POST` variant of
+  `/auth/v1/callback`** — same CSRF-state consumption, same trust gate, same session mint as
+  the `GET` shape. That POST's `user` field carries the display name Apple returns exactly
+  once, on the first authorization.
+
+  **The security-load-bearing decision, and a deliberate narrowing of the issue as filed:**
+  that `user` field arrives in a request the *browser* makes, so anyone holding a valid
+  `code`/`state` pair from their own Apple account can put any address in it. Honouring its
+  `email` would let them link straight into that address's account. It is therefore not even
+  modelled — `AppleFirstAuthUser` has a name and nothing else, the form body's `id_token` is
+  never read, and the linking email comes only from the token endpoint. A live e2e proves it:
+  a sign-in whose payload claims `victim@example.com` leaves that address owning nothing.
+
+  Persisting the first-authorization claims needs no new storage: `AccountStore` resolves a
+  known `(provider, provider_id)` before it looks at any email, so the second sign-in —
+  which Apple sends with `sub` and nothing else — lands on the account the first one created.
+  The e2e drives exactly that sequence. Apple was already in the default
+  `TrustedEmailProviders` set; Private Relay aliases are verified addresses Apple owns, so
+  they key normally and simply never match another provider (correct, not a gap).
+
+- **Discord and Facebook social login (#944).** The last two providers the `[auth.social]`
+  umbrella (#368) named. Both are plain OAuth2 on the GitHub template — fixed well-known
+  endpoints, network-free construction, SSRF-guarded base-URL overrides — and each one's
+  interesting question is what it can honestly say about an email address.
+
+  **Discord** carries `email` and `verified` on the same user object, with no second hop.
+  The provider *reads* that flag rather than assuming it: an unverified address arrives at
+  the callback as unverified and keys on `(discord, id)`, so it cannot collapse into an
+  existing email-keyed account. Only because that check exists is **`discord` now in the
+  default `TrustedEmailProviders` set** — the trust and the check ship together, and a
+  deployment that wants neither can drop it with `.distrust("discord")`.
+
+  **Facebook** may return no `email` at all (a phone-number-only account, or a declined
+  permission) and publishes **no verification flag whatsoever**. There is nothing to gate on,
+  so the provider reports `email_verified = false` unconditionally and `facebook` is
+  deliberately absent from the default trusted set — two independent reasons its address can
+  never become a linking key. The Graph API version lives in the request path and Meta
+  deprecates versions on its own schedule, so `api_version` is configuration (default
+  `v21.0`) rather than a constant that would break on Meta's timetable; a value carrying a
+  path separator is refused, since it would re-point the request.
+
+  The two belts made a test-design point worth recording: setting Facebook's
+  `email_verified` to `true` leaves the *end-to-end* test green, because the trust gate
+  downgrades it anyway. Each half therefore has its own test — a stub-backed `user_info`
+  case for the provider's claim, and a trust-set case for the gate.
+
+- **Outbound CDC is mounted by the server (#382).** `[cdc_outbound]` with one
+  or more `[[cdc_outbound.sinks]]` now makes the server drain
+  `core.tb_entity_change_log` to a broker on its own task set, behind the new
+  `cdc-outbound` feature. The drain engine — durable per-sink delivery state,
+  anti-join enqueue with a commit-lag sweep, claim-then-publish under a lease
+  with head-of-line ordering, backoff and dead-lettering — shipped in v2.12.0
+  and is used unchanged; what was missing is that **nothing in the shipped
+  server ever constructed a `DrainWorker`**, so outbound CDC was reachable only
+  by writing your own binary.
+
+  Boot is fail-loud: a configured section with no database pool, an unreachable
+  broker, delivery-state DDL that will not apply, a duplicate sink name, or a
+  `kind` that is unknown or not yet implemented (`kafka`, `kinesis`, `pulsar`)
+  all refuse to start. A server that boots without its drain looks healthy
+  while every downstream consumer silently starves. Docs:
+  `docs/features/cdc-outbound.md`.
+- **Per-bucket access policies (#371).** `[[storage.<name>.policies]]` attaches
+  a list of permit rules that *replaces* the bucket's coarse `access` mode:
+  `methods` (`read`/`write`/`overwrite`/`delete`/`list`) × `principal`
+  (`owner`/`authenticated`/`anonymous`/`role:<name>`) × an optional
+  `key_prefix`. This expresses the shapes key-prefix routing could not — "the
+  audit group may read under `reports/`, but only the creator may delete".
+
+  Three properties are structural rather than documented. **Denial is the
+  fallthrough**: there is no `effect = "deny"` whose precedence could be wrong,
+  and `permits` returns true only from inside a matched rule, so an empty
+  policy denies everything including to an object's own owner. **`write` is
+  create-only** — replacing an existing object needs an explicit `overwrite`
+  grant, because the natural rule "authenticated callers may write" would
+  otherwise re-open the H9/B4 overwrite IDOR through the policy door (this was
+  caught by the end-to-end test, not by review). **An unparseable policy
+  refuses to boot** — an unknown method or principal, an empty `methods` list,
+  or a misspelled field is a startup error, never a rule that silently denies.
+  `list` also becomes a distinct permission (no longer implied by write
+  access), with row filtering still applied on top.
+- **Policy conditions, signed-URL grants, and runtime policy management
+  (#974).** #371 shipped policies as `methods` × `principal` × `key_prefix`,
+  parsed at boot. #974 asked for a CEL-style expression language on top
+  (`object.expires_at`, `jwt.<claim>`) plus an admin API to push policies
+  without a deploy.
+
+  What lands is the same expressive power as **more closed rule fields**, so
+  there is still nothing parsed or evaluated at request time — only comparisons
+  between values already in hand. `not_before` / `not_after` bound a grant's own
+  validity, with `not_after` exclusive so two adjacent grants neither overlap
+  nor gap. `require_unexpired` reads an object's own expiry through a new
+  nullable `expires_at` column. `require_claims` is exact string equality
+  against the caller's token claims. A new `signed_url` principal expresses
+  *"a public bucket whose objects are served only through signed URLs"*: it
+  matches on the presign path and nowhere else.
+
+  Two readings are fail-closed on purpose. **A missing `expires_at` denies**
+  under `require_unexpired` — the condition mirrors `now < object.expires_at`,
+  which is not true against `NULL`, so adding the column cannot widen access on
+  any existing row. **`require_claims` denies under non-OIDC auth**, where the
+  claim set is empty, rather than silently ceasing to narrow when the auth mode
+  changes. Every condition only ever narrows, and a rule skipped for a failed
+  condition does not suppress a later permitting rule.
+
+  Policies can now also be pushed at runtime:
+  `GET`/`PUT`/`DELETE /api/v1/admin/storage/{bucket}/policies`, stored in
+  `_fraiseql_storage_policies` and loaded at boot. **A stored policy replaces
+  the configured one wholesale** — never merged, so "what can this caller do"
+  stays answerable from one list — and `GET` plus the boot log name the
+  governing `source` (`store` / `config_file` / `access_mode`) so which list is
+  never a guess. `DELETE` reverts to the configured policy, which can widen
+  access and therefore takes the write token. Since **a pushed policy has no
+  boot to refuse**, #371's parse guarantee is enforced at the request instead:
+  the rules are validated — through the same parser the config file goes
+  through — before anything is written or applied, and a rejection answers `400`
+  naming the offending `rule_index` while the policy already in force keeps
+  serving untouched. `GET` needs only `admin_readonly_token`; `PUT`/`DELETE`
+  need `admin_token`, so inspecting what governs a bucket can be delegated
+  without delegating the ability to change it. A push applies immediately on the
+  replica that served it and reaches the others within 30 seconds.
+
+  `require_metadata` from the original issue is deliberately absent: objects
+  carry no user-defined metadata, so the condition would have had nothing to
+  match. Tracked separately as #1099.
+- **Image renders are served, and hostile images are bounded (#370, closing
+  #901).** `GET /storage/v1/render/{bucket}/{*key}?w=&h=&format=&quality=&preset=`
+  mounts behind the server's new `storage-transforms` feature and reads through
+  exactly the gates the download route uses (metadata, `can_read`, the
+  missing/not-yours collapse). `format` is `webp`/`jpeg`/`png`/`avif`; with none
+  given, the client's `Accept` header picks the encoding. Named presets now come
+  from configuration — `[storage.<name>] transform_presets = [{ name = "thumb",
+  width = 200, format = "webp" }]` — which previously could not be set at all
+  (`BucketConfig::transform_presets` was hard-coded `None`); declaring them in a
+  binary built without the feature is a **startup error**, not a silently absent
+  endpoint. Before this, the whole `transforms` feature had no HTTP surface and
+  `ImageTransformer` had no non-test caller.
+
+  The transformer itself was unbounded: it decoded whatever a caller supplied
+  and resized to whatever was requested, so a decompression bomb (a small file
+  whose header declares an enormous image) or an absurd `?w=` allocated
+  hundreds of megabytes per request. Source and requested dimensions are now
+  capped at 12 000 px per side, checked from the header *before* decoding, with
+  matching hard decoder limits behind them; bombs, malformed bytes, non-image
+  objects and oversized requests all return a named `400`.
+- **Resumable uploads — Tus 1.0.0 core + S3 multipart (#369).** New endpoints
+  `POST /storage/v1/uploads/{bucket}/{*key}` (create, `Upload-Length` +
+  optional `Upload-Metadata` filetype), `PATCH`/`HEAD`/`DELETE
+  /storage/v1/uploads/{id}` (append at the proven offset / resume probe /
+  cancel). Interrupted uploads resume from the durable offset; sessions are
+  rows in the new `_fraiseql_storage_uploads` table, so they survive a server
+  restart. Every path funnels through the SAME machinery as single-shot
+  uploads: creation passes the H9/B4 overwrite gate and reserves the metadata
+  row exactly like a presigned upload (#866), completion is one routine that
+  finalises backend staging and confirms that row, and a foreign session is
+  indistinguishable from a missing one (`404`; anonymous `401`; #876 — an
+  interrupted upload cannot be resumed, probed, or cancelled by a different
+  owner). Backends: local (staging under the reserved — and now
+  `validate_key`-fenced — `.fraiseql-uploads/` namespace, rename on
+  completion) and S3/MinIO (real multipart: chunks become parts, sub-5-MiB
+  non-final chunks are refused up front as `400`); GCS/Azure refuse loudly
+  (`NotImplemented`). Concurrency: one in-flight session per key (`409`),
+  appends pinned to the proven offset (`409` on races), size caps enforced at
+  creation and cumulatively, expired sessions answer `410` and are reaped
+  (staging discarded, created reservations released; per-bucket
+  `upload_ttl_secs`, default 24 h). Verified end to end over real MinIO + a
+  real metadata table in the `server-storage` leg.
+- **Durable long-running operations (#391).** New `[async_operations]` section
+  mounts `POST/GET/DELETE /operations/v1/…` — submit returns an `op_id`
+  immediately, background workers execute the stored GraphQL document through
+  the SAME `execute_with_security` pipeline as `/graphql` (RLS, cost gates,
+  change-log outbox — never a second execution path), and status reads the
+  stored row. Designed against P19's six saga-recovery failure modes, each
+  pinned in `async_operations_e2e_pg`: terminal states are never reclaimable;
+  claiming is staleness-gated (workers heartbeat, so a live execution is never
+  stolen); completions are claim-token-guarded (a superseded worker's late
+  result cannot clobber the retry's); `Idempotency-Key` submission replays the
+  same `op_id`; the persisted tenant key dispatches execution through the
+  shared tenant seam; and a cancel that did not cancel is never reported as
+  one (queued → cancelled outright, running → explicit `cancel_requested`).
+  The operation allowlist is required and fail-closed, cost is charged at
+  submission, status/cancel are submitter-scoped (404, no existence oracle),
+  an errored GraphQL envelope records as `failed`, and an expired security
+  snapshot refuses to execute. A configured section without a database pool or
+  a creatable `_system.async_operations` refuses to boot. Docs:
+  `docs/features/async-operations.md`.
+- **MCP as a first-class transport (#376).** Three gaps closed on the existing
+  (P09-hardened) MCP surface. **Auth parity**: MCP now accepts the same two
+  Bearer modes as `/graphql` — OIDC (`[auth]`) *or* local HS256
+  (`[auth_hs256]`); previously only OIDC validated, so an HS256 deployment
+  could never authenticate an MCP call and `require_auth = true` refused to
+  mount the endpoint (`FraiseQLMcpService::with_oidc_validator` is replaced by
+  `with_token_validator(McpTokenValidator)`). **Behaviour hints**: every
+  advertised tool carries MCP `ToolAnnotations` — queries `readOnlyHint: true`,
+  mutations explicitly `destructiveHint: true` / non-idempotent, so agent
+  clients confirm before invoking writes. **Audit tagging**: an MCP-originated
+  mutation's change-log row is stamped `extra_metadata.transport = "mcp"`
+  (forge-safe: the tag rides a framework-reserved security-context attribute
+  set by the transport itself), making agent writes one query to find. New
+  `mcp_transport_stamp_e2e_pg` suite drives an HS256-authenticated tool call
+  through the real executor into the outbox. Resources / Prompts / session
+  continuity are tracked in #967. Docs: `docs/mcp.md` gained Authentication,
+  Behaviour hints, and Audit trail sections.
+- **Session-state subsystem (#389).** New `[session_state]` section: durable
+  per-thread conversation memory for agents and multi-turn applications —
+  key/value entries scoped to `(session, thread)` with per-entry TTL (expired
+  entries are invisible to reads immediately and reclaimed by a background
+  sweep), a 64 KiB per-value cap, and an optional `Summarizer` hook that
+  atomically collapses a thread into a single reserved `_summary` entry past a
+  configurable threshold (a failing summarizer leaves the thread intact).
+  Backends: `memory` (volatile, dev — warns at boot) and `postgres`
+  (`_system.session_state`, created at boot like `_system.sessions`). A
+  configured `postgres` backend without a pool, or whose table cannot be
+  initialised, **refuses to boot** — never a silent in-memory downgrade. The
+  section is strict (`deny_unknown_fields`). Library API:
+  `fraiseql_auth::session_state` + `Server::session_state()`; MCP session
+  continuity binds to it in #376. Docs: `docs/features/session-state.md`.
+- **Actor-model hardening (#390).** The change-log's `actor_type` domain is now
+  enforced by the database itself: migration 08 installs
+  `chk_entity_change_log_actor_type` (`NOT VALID`, so a populated legacy table
+  migrates safely; new writes are checked), and a CLI lockstep test pins the
+  constraint's token list to `ActorType::ALL` so adding an enum variant without
+  extending the constraint is a red test. `fraiseql doctor --against-db` gained
+  an actor-attribution check: out-of-contract `actor_type` values are a
+  **Fail** (rogue writer), a missing constraint or `NULL`-actor rows are a
+  **Warn**. A new end-to-end suite (`actor_attribution_e2e_pg`) drives real
+  HS256 tokens through the production mount on both HTTP write transports
+  (`/graphql` + REST) and asserts the recorded rows: `human_user` /
+  `service_account` (scope) / `ai_agent` + `acting_for` (RFC 8693 `act`)
+  derivation, that forged `fraiseql.*`/`actor_type` claims cannot influence the
+  classification, and that unauthenticated writes are refused rather than
+  recorded unattributed. Operator docs: `docs/features/audit-logging.md`.
+  Deferred consumption features (RBAC actor predicates, per-actor budgets) are
+  tracked in #966.
+- **The HTTP `QUERY` method (RFC 10008) on the GraphQL endpoint (#508).** Opt-in via
+  `enable_http_query` (default `false`); `GET` and `POST` behaviour is unchanged either
+  way. `QUERY` is "GET with a request body" — safe, idempotent and cacheable — so routing
+  deterministic GraphQL reads over it stops telling caches, proxies and retry layers
+  "unsafe, do not cache, do not retry". Acceptance is **queries-only**: a `mutation` or
+  `subscription` is refused with `405`, because a method an intermediary may replay must
+  never carry a state-changing operation. The gate parses with the same parser the
+  executor uses, so it cannot disagree with what would actually run. CORS advertises
+  `QUERY` only when the server accepts it, so the header never promises a route that
+  answers 405. axum 0.8 has no `MethodFilter::QUERY` yet, so the method is mounted as a
+  `MethodRouter` fallback — two clearly-marked places (`HTTP_QUERY_METHOD` and the
+  fallback wiring) swap to the typed filter when upstream ships it.
+- **Social login is reachable from the shipped binary (#368).** The account-linking
+  trust gate and the provider modules were library-only: `Server::with_social_login`
+  had zero callers, nothing auto-registered providers, and `[auth.social]` could not
+  even be typed (`[auth]` is `deny_unknown_fields`). A compiled `[auth.social.google]`
+  / `[auth.social.github]` block now builds the trust-gated `multi_provider` flow at
+  boot and mounts `GET /auth/v1/{providers,authorize,callback}`, backed by
+  Postgres-backed sessions and account linking. Configured-but-unusable shapes refuse
+  to boot naming the offending key: no `[auth_hs256]`, an unset `client_secret_env`,
+  an SSRF-blocked endpoint override, or no database pool. `/auth/v1/authorize` and
+  `/auth/v1/callback` are governed by the same per-IP `auth_start` / `auth_callback`
+  path buckets that guard `/auth/start` (#788) — both rate-limit backends now derive
+  their rules from one shared builder so they cannot drift. Apple, Discord and
+  Facebook are split out to #943 and #944.
+- **The GitHub provider talks to GitHub (#368).** It wrapped `OidcProvider`, so
+  construction performed OIDC discovery against `github.com` — which serves no
+  discovery document (404), meaning it could never have constructed against real
+  GitHub. It is now a plain OAuth2 client against the fixed well-known endpoints
+  (overridable for GitHub Enterprise Server, SSRF-guarded), requesting
+  `read:user user:email`, sending `Accept: application/json` at the token endpoint,
+  and tolerating the absent `expires_in`. The `/user/emails` second hop resolves the
+  **primary verified** address, so a private-email GitHub account can participate in
+  email-keyed account linking; any failure of that hop falls back to
+  `email_verified = false`. GitHub therefore joins `google` and `apple` in the default
+  `TrustedEmailProviders` set — the documented reason for its exclusion was exactly
+  this missing hop.
+- **`[auth.local]` — first-party auth methods are reachable (#367).** Email+password,
+  email OTP / magic link, TOTP MFA and anonymous sessions all existed in
+  `fraiseql-auth` with no way to reach them: `with_mfa` / `with_anon_signup` had zero
+  callers, the MFA/social/anon route groups were registered against fields hard-coded
+  to `None`, OTP had no server route at all, and the password-reset flow had no
+  concrete `ResetEmailSender` outside its own test double. A compiled `[auth.local]`
+  block now mounts each enabled method — `/auth/v1/password/{signup,login,reset,
+  reset/confirm}`, `/auth/v1/{otp,verify}`, `/auth/v1/mfa/*`, `/auth/v1/signup` — and
+  a method that cannot work refuses to boot rather than dead-ending: no
+  `[auth_hs256]`, no pool, a missing or send-less `email_from` mailbox, or a build
+  without the `inbound-email` feature (which carries the SMTP transport) each name
+  the offending key.
+- **Postgres-backed MFA and OTP stores (#367).** `PgMfaStore` and `PgOtpStore` make
+  `[auth.local] mfa`/`otp` safe to serve. The in-memory stores are per-process, which
+  for MFA means a deploy silently destroys every user's second factor, and for OTP
+  means N replicas multiply both the send budget and the 3-attempt verify cap by N —
+  a six-digit code becomes brute-forceable. TOTP secrets are stored recoverable (they
+  are shared secrets), recovery codes are bcrypt-hashed and deleted as consumed,
+  challenge tokens and OTP codes are stored as SHA-256 hashes so a database read
+  cannot replay a live one, and the per-user failure budget lives in the enrollment
+  row so it survives a restart. Both budgets are charged in SQL, so a concurrent
+  flood cannot lose a failure to a read-modify-write race.
+- **A concrete `ResetEmailSender` / `EmailDelivery` (#367).** `MailboxEmailSender`
+  relays OTP codes and reset links through the same `[mailbox.<name>.smtp]` transport
+  the `send_email` host op uses, so a deployment configures outbound mail once.
+  `reset_url_template` / `magic_link_template` are validated at compile time to
+  contain their `{token}` / `{code}` placeholder — a template without one builds the
+  same dead link for every user.
+- **OTP identities are real accounts (#367).** `otp_verify` minted
+  `user_id = "otp:<email>"` without touching the account store, so the same person's
+  OTP, social and password sign-ins produced as many separate identities as sign-in
+  methods. Completing the OTP flow proves control of the mailbox, so the identity now
+  resolves through `AccountStore::link_or_create_user` with `email_verified = true`
+  and converges with every other verified-email sign-in for that address.
+- **`FRAISEQL_SHUTDOWN_TIMEOUT_SECS` / `--shutdown-timeout-secs` (#838).** The
+  `shutdown_timeout_secs` config field's rustdoc had promised this override since it
+  shipped; the variable now exists — the only occurrence of its name in the workspace
+  used to be that comment.
+- **Docs-truth CI gates (#838, #839).** `tools/check-docs-env-vars.sh` fails when any
+  `FRAISEQL_*` variable named in `docs/`, `README.md` or an example README has no reader
+  in the workspace; `tools/check-docs-version.sh` fails when a doc's "vX.Y.Z released"
+  status line disagrees with `Cargo.toml`; and `doc_config_examples_test` deserializes
+  every `# server.toml`-marked TOML block in the operator docs into the real
+  `ServerConfig`. All three run in CI (shell gates + the test leg).
+- **Graceful subscription drain on shutdown (#571).** When graceful shutdown begins, every
+  active subscription receives a per-operation `Complete` frame and the socket closes with
+  **1001 (Going Away)**, so clients see a clean end-of-stream during a rolling deploy
+  instead of a transport-level abort indistinguishable from a network fault.
+- **`subscription_auth_recheck_secs`** server config key (default 30): how often a live
+  subscription re-checks its principal's expiry/revocation (#771). `0` disables the
+  periodic check; per-delivery expiry enforcement remains.
+
+
+- **A filtered-ANN benchmark, and what it found (#959).**
+  `benches/vector_filtered_ann.sql` measures `nearest` combined with a `where` over
+  100 000 documents × 384 dimensions against any pgvector 0.8+ database, reporting rows
+  returned, recall against the exact answer, and latency across six selectivities and
+  the three `hnsw.iterative_scan` settings.
+
+  The headline is not a speed number. With pgvector's default
+  `hnsw.iterative_scan = off`, a `nearest` search asking for ten rows returns **two**
+  once the filter is selective — the index scan's candidate list is exhausted before ten
+  survive the filter, and the query succeeds. `relaxed_order` returns all ten at full
+  recall for 3.1 ms against 0.43 ms. FraiseQL sets neither GUC today; the operator-level
+  remedy is in `docs/operations/vector-search.md` and the automatic one is filed as
+  #1116. Separately, a threshold predicate reading the vector out of the JSONB payload
+  costs 122× the identical predicate against the native column the same view must
+  already expose (#1117).
+
+- **Every official SDK can author a pgvector field (#959).** `vector_config` and
+  `vector_distance` are on the field surface of all eleven — Python, TypeScript, Go, PHP,
+  Java, C#, F#, Elixir, Ruby, Dart and Rust — each in its own idiom, together with the
+  `BitVector`, `HalfVector` and `SparseVector` type names. Until now the `Vector` scalar
+  existed in some of them as a name with nothing behind it: the compiler refuses a vector
+  field carrying no configuration, so no SDK could author one at all.
+
+  Two properties are deliberate. Every SDK writes `index_type` and `distance_metric` into
+  the emitted `schema.json` even when the author leaves them off, so the artifact says
+  which index and which metric the column will get instead of deferring to a compiler
+  default nobody chose. And no SDK carries the table of which field-type / metric / index
+  combinations pgvector actually defines — that lives once, in the compiler, which refuses
+  an unsupported combination by name. Eleven copies of that table would be eleven things
+  to drift.
+
+  The cross-SDK conformance suite gained the `vector_fields` construct, which owns a type
+  carrying all four vector field types plus a `Float` declaring `vector_distance`, and
+  asserts every key of every config survives authoring, export and compilation. All eleven
+  SDKs satisfy it; none needed a declared gap.
+
+
+- **`count = true` emits a `<name>Count(where): Int!` sibling for a list query (#938).**
+  A non-Relay list compiles to `where`/`orderBy`/`limit`/`offset` returning a bare `[T]`,
+  which has nowhere to hang a total — so an offset-paginated client could not compute a
+  page count. `totalCount` existed, but only on a Relay connection, and a Relay connection
+  is keyset-only: obtaining the count cost random access, which is the reason offset paging
+  was chosen. The sibling closes that gap without either compromise:
+
+  ```graphql
+  users(where: UserWhere, orderBy: UserOrderBy, limit: Int, offset: Int): [User!]!
+  usersCount(where: UserWhere): Int!
+  ```
+
+  Opt-in per query, because the extra `SELECT COUNT(*)` scans the whole filtered set and is
+  wasted on any list not rendered with page numbers. Refused at compile time on a
+  single-item query, on a query with no `sql_source`, and on `relay = true` (redundant with
+  its `totalCount`); a generated name that collides with an authored query is also refused
+  rather than silently displacing it.
+
+  The sibling is **derived** from the list definition, not authored separately, so it
+  inherits the same `sql_source`, `inject_params`, `requires_role`, declared arguments,
+  `native_columns` and `additional_views`. That inheritance is the point: a count answers
+  "how many rows match?" without returning one, so a count that kept the rows but dropped
+  the tenant filter would leak another tenant's row total while leaking no row — and would
+  pass any test that only inspects returned data.
+
+- **`make lint-feature-matrix` — the feature-check matrix, runnable before a push (#1227).**
+
+  `make preflight` printed "Safe to push" over a class of failure it is structurally unable
+  to see. Its clippy pass is `--all-features`, where a feature-OFF arm is not compiled at
+  all, and its narrow-feature pass is `cargo check`, which runs no clippy lints. Their
+  intersection — clippy under anything other than `--all-features` — had no local gate, and
+  the leg that covers it, `Dagger — feature matrix`, triggers on `push: branches: [dev]`
+  and so runs only *after* the merge. One `clippy::collection_is_never_read` reached `dev`
+  that way, preflight-green and red on 4 of 47 combos.
+
+  The new target runs the matrix natively, with each combo's `cargo` invocation
+  byte-identical to the one the leg issues. `--clippy-only` narrows to the 11 combos the leg
+  clippies; every run prints its selected count next to the declared total, so a narrowed
+  run is never mistaken for a full one.
+
+  **The combo list is derived, never copied.** `tools/feature-combos.py` reads
+  `.dagger/feature-combos.go` and refuses to emit a short list: a struct literal it cannot
+  parse in full, a field it does not model, or a `cargoArgs()` that no longer matches the
+  reproduction is a hard error rather than a silently smaller matrix. Without that, the
+  local runner would be a second hand-maintained copy of a CI list — the drift that #1135
+  already recorded for the preflight/ShellGates pair.
+
+  `preflight` states the gap in its closing lines instead of claiming it does not exist, and
+  keeps the fast red-capability pin (`make test-feature-matrix-gate`, which stubs `cargo` and
+  compiles nothing). The heavy target stays out of `preflight` deliberately: a cold run
+  compiles 47 feature sets, and a gate that slow is a gate nobody runs.
+
 ### Changed
 
 - **`check-doc-image-refs.sh` stopped costing three minutes of every run (#1334).**
@@ -3175,6 +6650,98 @@ disagreed, and the promise was the part that was wrong.
   how to say "nothing here" — some omit the key, some always emit it with an empty array —
   and without this the same project authored through two SDKs produced two different
   artifacts.
+
+- **The weekly fuzz campaign reports what it finds (#441).** A crash now opens
+  (or comments on) an issue labelled `fuzz-crash` instead of only reddening a
+  scheduled job — seven consecutive weekly failures on a real security defect
+  went unread because a red scheduled job is not a signal anyone receives. Build
+  failures and crash finds are now separate steps, so a bad nightly cannot
+  masquerade as a finding, and the nightly toolchain is pinned rather than
+  floating (an internal compiler error on 2026-07-26 failed two targets in
+  exactly that way). Seed corpora carry the reproducers for fixed crashes, so a
+  regression is caught by a fixture in git rather than by a 90-day cache
+  surviving. The campaign remains schedule- and dispatch-only and cannot gate a
+  merge.
+
+  All 25 fuzz targets across the 8 crates were build-verified as part of this,
+  which is how two of them turned out to be broken: `fraiseql-db`'s
+  `where_from_json` and `where_generator` still referenced `MySqlDialect`,
+  `SqliteDialect` and `SqlServerDialect`, removed by the PostgreSQL-only
+  de-scope (#374), and `WhereClause::from_graphql_json` had gained a second
+  argument. `where_from_json` is in the scheduled matrix, so this would have
+  reddened the campaign the moment the de-scope merged — no CI leg builds
+  `fuzz/`, because each is a separate cargo workspace. Both are fixed and now
+  exercise the typed-field path as well as the untyped one; `where_generator`
+  additionally asserts the emitted SQL keeps its quotes and parentheses
+  balanced. `docs/fuzzing.md` carries a one-command build-verify loop.
+- **Five properties from real defects are now checked continuously (#441).** Each
+  is derived from a defect this remediation program actually fixed, and each was
+  verified by pointing it at the pre-fix code and watching it find the original
+  bug — a target that cannot do that asserts nothing while reporting green.
+
+  | Property | Form | Defect |
+  |---|---|---|
+  | An inline argument never silently vanishes across the `value_json` write→read round trip | `value_json_seam` fuzz target | #719 |
+  | No accepted identifier can alter the structure of the SQL it lands in | `identifier_validation` fuzz target | #794, #795, #833 |
+  | Generated WHERE SQL keeps quotes and parentheses balanced | `where_generator` fuzz target | #833 |
+  | A query parameter never bleeds into the host, user or database name | `fraiseql-wire` proptest | #817 |
+  | No caller-supplied argument value can add a root field to a built MCP document | `fraiseql-server` proptest | #808 |
+
+  The last two are proptests rather than fuzz targets because the code they guard
+  is behind a private module, and widening it to `pub` purely for test reach would
+  enlarge the supported API surface. They run in every CI test leg rather than
+  weekly, so for those two the in-crate form is the stronger check.
+
+  `pre-commit` no longer rewrites `fuzz/seed_corpus/`: `end-of-file-fixer`
+  appended newlines to five #976 reproducers, and a seed corpus is test data
+  where every byte is part of the input.
+
+### Deprecated
+
+- **`fraiseql_wire::operators::generate_where_operator_sql` (#877).** It emits `$N`
+  placeholders that the crate's simple-query protocol can never bind — no encoder for
+  Parse/Bind exists and `QueryBuilder` has no method accepting the parameter map, so the
+  advertised usage failed at the server with `there is no parameter $1`. Deprecated (and
+  the module docs corrected) until the crate either implements the extended query
+  protocol or renders operator values as safely quoted literals; use
+  `QueryBuilder::where_sql` with an inline predicate.
+- **Saga store and recovery API (P19, #744 #745 #766 #767 #785).**
+  `PostgresSagaStore::claim_stuck_sagas` takes a `stuck_after_secs` staleness threshold and
+  `find_pending_sagas` an `older_than_secs` age gate; `RecoveryConfig` gains
+  `stuck_threshold` (default 5 min) and `max_recovery_attempts` (default 5); `SagaStep`
+  gains `remote: bool` (set at creation from the coordinator's registry) and
+  `compensation_error: Option<String>` (the recorded outcome of the last rollback
+  attempt). `update_saga_step_state` now **validates transitions atomically** — illegal
+  writes (e.g. `Completed → Executing`, anything out of `Compensated`) return
+  `InvalidStateTransition` — and `save_saga_step`'s upsert no longer rewrites `state`
+  (state changes must go through the guarded method). `SagaRecoveryManager::with_routing`
+  (new `RecoveryRouting`) carries the subgraph registry/HTTP client/entity resolver so
+  recovery can re-drive remote steps on their real transport.
+- **`HttpMutationClient::execute_mutation` takes an `idempotency_key: Option<&str>`**
+  parameter, sent as the `Idempotency-Key` header on every attempt (#747). Saga steps pass
+  their persisted step id; compensations a derived `<step-id>:compensate` key.
+- **Federation mutation literal building is dialect-aware (#728).**
+  `value_to_sql_literal` and `build_insert_query`/`build_update_query`/`build_delete_query`
+  take a `DatabaseType`; MySQL (whose backslash-escaping mode is connection-dependent and
+  unobservable here) is refused loud instead of mis-escaped.
+- **Federation `_entities` wrappers error on resolution failure (#764).**
+  `batch_load_entities`, `batch_load_entities_with_tracing` and
+  `batch_load_entities_enforced` now return `Err` when any typename batch failed, instead
+  of returning `Ok` with all-`None` entities and discarding the errors.
+- **Placeholder federation APIs removed or made loud (#785).**
+  `FederationResolver::get_or_determine_strategy`, its `strategy_cache` field and the
+  `types::ResolutionStrategy` enum are **removed** (the strategy was a hardcoded
+  `http://localhost:4000` / nonexistent `<Type>_federation_view`).
+  `FederationMutationExecutor::execute_extended_mutation` now always returns an error
+  pointing at the real remote-dispatch path (`HttpMutationClient` / saga steps) instead of
+  fabricating a success response that no subgraph ever saw.
+- **`SagaCoordinator::cancel_saga` no longer writes `Cancelled` over un-compensated work
+  (#746).** When the rollback is incomplete the saga is left `Failed` (as the compensator
+  recorded), the result reports `compensated: false` and names the un-rolled-back steps.
+- **`fraiseql federation check --against` semantics (#820).** `@override(from:)` references
+  are validated against the supergraph's declared roster (`federation.subgraphs`) — not
+  harvested from its `override_from` annotations — and reported as *unchecked* when no
+  roster exists; the blanket "Composition check passed" claim is gone.
 
 ### Removed
 
@@ -3436,6 +7003,88 @@ disagreed, and the promise was the part that was wrong.
 
   Its own Compose header had recorded the risk: *"Not CI-verified. Nothing in CI brings this
   stack up, so it may have stopped working without anyone noticing."* It had.
+
+- **`examples/ecommerce_api/`, replaced by `examples/ecommerce` (#1054).** It was a
+  FastAPI/uvicorn **runtime** product: `uvicorn app:app` in both its Dockerfile and
+  its compose file, against an `app.py` the directory had never contained, over
+  `fastapi`/`uvicorn`/`asyncpg` requirements describing a v1-era service. Python is
+  an authoring language in v2; the runtime is Rust. Its 4408 lines of SQL carried two
+  competing layouts (`db/0_schema/**` and `db/{views,functions,migrations,seeds}/`),
+  `_with_cdc` and `_updated` duplicates of the same objects, and plural v1 table
+  names. The domain is carried forward into `examples/ecommerce`; that tree is not.
+
+  If you were reading it for the mutation-function pattern, `examples/mutation-patterns`
+  is the maintained version and now loads (#1051).
+
+- **`fraiseql-db`'s collation modules and `DatabaseCapabilities` (#1009).**
+  `collation_config` (`CollationConfig`, `DatabaseCollationOverrides`,
+  `InvalidLocaleStrategy`, `PostgresCollationConfig`) and `collation` (`CollationMapper`,
+  `CollationCapabilities`) were public API with no consumer anywhere in the workspace outside
+  their own tests and one benchmark. `CollationMapper::new` was called only from
+  `benches/sql_generation_bench.rs`; no SQL generation path consulted it, so an `ORDER BY` on
+  a text column was emitted without a `COLLATE` clause regardless of any locale configured.
+  The server's own removed-section ledger already recorded collation as "never wired to a
+  config key" — this removes the surface that made it look otherwise.
+
+  `DatabaseCapabilities` goes with them rather than surviving as a husk: all of it was
+  collation (`supports_locale_collation`, `requires_custom_collation`,
+  `recommended_collation`, `collation_strategy()`), the `DatabaseAdapter::capabilities()`
+  default that built it had **zero callers**, and what remained after removing the collation
+  fields was a one-field struct restating `DatabaseAdapter::database_type()`.
+
+  Locale-aware `ORDER BY` is a real feature and this is not a decision against it — it is a
+  decision against advertising it. A capability flag that reads `supports_locale_collation:
+  true` while nothing applies a collation is worse than no flag: it tells a user who
+  configures a locale that they have got one. Reinstating this means writing the consumer
+  first.
+
+- **Two TypeScript examples that imported a module the package has never had (#925).**
+  `comprehensive-example.ts` imported `../src/views` and `ddl_generation_example.ts`
+  imported `@fraiseql/views`; no such module exists in the package or on npm, so neither
+  had ever run. Also removed: the committed `.js` / `.d.ts` / `.d.ts.map` build output
+  beside two of the examples — generated files nobody regenerated, the same way the three
+  `ecommerce_schema.json` artifacts rotted.
+
+- **The Elixir, Dart, C#, F#, Java and Ruby parity generators (#952).** All six built the
+  expected JSON as a literal — `%{"name" => "User", "fields" => [...]}`, importing a JSON
+  library and never their SDK — so they could not fail whatever the SDK did; the three that
+  "disagreed" with Python did so only because someone had typed `"jwt:sub"` where the nested
+  `{source, claim}` form belongs. Correcting them would have made fiction agree with fiction.
+  Six of eleven is exactly the count `sdks/official/conformance/manifest.json` already
+  records as the reason the conformance suite was built. All six SDKs remain covered by
+  `sdk-conformance.yml`, which authors through the real API, runs the actual compiler and
+  asserts sixteen constructs. The parity gate now covers the five generators that genuinely
+  drive their SDK, plus the golden fixture, and says out loud which six it does not.
+
+- **Committed development archaeology (#735).** `v2.3.0-ext-phases/` (phase files from
+  eleven releases ago) and the stray `target-user/` cargo dir are gone (with a
+  `.gitignore` entry so a stray `--target-dir` cannot silently return); the frozen
+  `IMPROVEMENTS.md` / `IMPROVEMENTS_R3.md` audit ledgers moved to `docs/history/` (code
+  comments still cite their finding IDs); the `spikes/` #687(c) RFC conclusion was
+  archived onto issue #687 before removal.
+
+- **`examples/ci/` (#1074).** The directory instructed users to copy two CI configurations
+  into their own repositories. Both invoked `examples/agents/python/schema_auditor.py`,
+  which exists nowhere in this repo — nor do the other four artifacts its README points at
+  (`examples/pre-commit-hooks.sh`, `docs/DESIGNING_FOR_FRAISEQL.md`, `docs/LINTING_RULES.md`,
+  `docs/CI_CD_INTEGRATION.md`). Both also configured `DATABASE_URL: sqlite::memory:`, a
+  backend removed in this release. It was self-referential documentation for a tool that was
+  never written, and nothing in the repository referenced it.
+
+  #1074 filed it as "a design-quality gate cannot fail", pointing at an
+  `echo "exit_code=$?"` unreachable under `bash -eo pipefail` and an `== '1'` condition that
+  therefore cannot hold. Both are real, and both go with the directory — but three refuters
+  were right that it is not the honest headline: a user copying the workflow fails loudly at
+  `pip install -r examples/agents/python/requirements.txt` long before reaching the audit
+  step, and the job does publish a failure through its `Create check run` step. The defect is
+  dead documentation, and patching line 89 of a file nobody can run would have been the wrong
+  fix.
+
+  ⚠ Found while removing it: `check-examples-postgres-only.sh` anchored its URL pattern on
+  `://`, so `sqlite::memory:` — which has no authority component — read straight past it, and
+  the gate was green over both files for as long as they existed. The pattern now accepts
+  `://`, `::memory:` and `:file.db` alike, and is red on those two lines when they are
+  restored.
 
 ### Fixed
 
@@ -5679,3884 +9328,6 @@ disagreed, and the promise was the part that was wrong.
   protection — each macro's two forms are now asserted to differ *only* in the argument or
   field buffer, and a key added to any of the three definition structs fails a test naming the
   fixture to extend.
-
-### Security
-
-- **wasmtime 48.0.3** (was 46.0.3) for the `runtime-wasm` feature of `fraiseql-functions`:
-  fixes RUSTSEC-2026-0314 (a guest can panic the host through a filesystem datetime overflow)
-  and RUSTSEC-2026-0316 (dynamic record lifting can allocate beyond the hostcall fuel limit).
-
-- **Read gates are enforced on every path that reads a type**, not only at the root of a
-  query: nested selections, projections at any depth, Relay connections, `node`, `_entities`,
-  mutation payloads, subscriptions and streams, filters and orderings, idempotent replays
-  and shared-cache headers. See [GHSA-645f-59rr-6w3p](https://github.com/fraiseql/fraiseql/security/advisories/GHSA-645f-59rr-6w3p) for the affected versions and details; the
-  upgrade notes are under *Breaking* above.
-
-- **`DatabaseAdapter::supports_mutations` now defaults to `false`.** An adapter is
-  read-only until it says otherwise. It defaulted to `true`, which is how the gate came
-  to be a no-op for `FraiseWireAdapter` (below): a write capability was something a
-  backend acquired by omission.
-
-  Both mutation gates now fail closed. The compile-time `SupportsMutations` marker was
-  already opt-in; this one has stopped being opt-out. An adapter that implements neither
-  is refused writes by the type system and by the runtime guard, instead of being refused
-  by one and granted by the other.
-
-  `SupportsMutations` documents the pairing it cannot enforce: implementing the marker
-  obliges you to override `supports_mutations()` to `true` as well. Rust cannot derive
-  one from the other without specialization, so the two are stated together at each
-  adapter. `PostgresAdapter` opts in; `CachedDatabaseAdapter` already forwarded its
-  inner adapter's answer and is unchanged.
-
-  **Who this breaks:** any out-of-tree adapter that writes and relied on the permissive
-  default. It will be refused mutations at runtime until it overrides
-  `supports_mutations()` to return `true`. The failure is a `FraiseQLError::Validation`
-  refusing the write, not silent data loss; its message now says what an adapter must do
-  to be write-capable, and no longer advises callers to reach for `MySqlAdapter` or
-  `SqlServerAdapter`, both deleted in #374.
-
-- **The runtime mutation gate was a no-op for the only read-only adapter in the tree.**
-  `DatabaseAdapter::supports_mutations` calls itself "the authoritative mutation gate"
-  and tells read-only adapters to override it, naming `FraiseWireAdapter`.
-  `FraiseWireAdapter` never did, so the gate returned the permissive default — `true` —
-  for the one adapter its own documentation named. It now returns `false`.
-
-  Nothing was writable that should not have been: the compile-time `SupportsMutations`
-  marker, which `FraiseWireAdapter` deliberately does not implement, is what actually
-  kept it out of `Executor`'s write entries, and a write dispatched through the
-  runtime-guarded path still ended in a refusal from the trait's default
-  `execute_function_call`. But that refusal arrived at the far end of the pipeline,
-  after the operation authorizer, `requires_role`, `requires_actor`, argument
-  validation and the `before:mutation` chain had all run — and `before:mutation` runs
-  app-authored rule code. The gate that was supposed to stop that first did not fire.
-
-  The two layers are not interchangeable, and the docs now say so: `SupportsMutations`
-  is **opt-in**, so an adapter that says nothing cannot reach a write entry;
-  `supports_mutations()` is **opt-out**, so an adapter that says nothing is granted
-  writes. The second is a backstop behind the first, never a substitute for it. That
-  asymmetry is load-bearing for the boundary work — see the note below on S5.
-
-  The unsupported-mutation error also stopped advising callers to "use PostgreSQL,
-  MySQL, or SQL Server"; the latter two adapters were deleted in #374.
-
-
-- **rustls 0.23.42 → 0.23.45 clears RUSTSEC-2026-0285 (TLS 1.3 handshake messages
-  accepted across encryption-level boundaries).**
-
-  rustls accepted a TLS 1.3 handshake message sent at the wrong encryption level when it
-  followed a key-changing message in the same record — a plaintext
-  `EncryptedExtensions` packed into the `ServerHello`'s record, for example. RFC 8446
-  §5.1 requires terminating such a connection with `unexpected_message`. The transcript
-  stays authenticated, so this is not handshake forgery; the effect is that a peer could
-  send in plaintext handshake messages that should have been encrypted, and rustls would
-  not reject the connection.
-
-  It is in the **default** build, reached through `fraiseql-db`, so it is the TLS the
-  shipped binary speaks rather than a test-only edge.
-
-  `cargo update -p rustls` alone stops at 0.23.43: 0.23.45 requires a newer `aws-lc-rs`,
-  which only `--precise` pulls in. The lockfile therefore also moves `aws-lc-rs`
-  1.16.3 → 1.18.1, `aws-lc-sys` 0.40.0 → 0.45.0 and `rustls-webpki`
-  0.103.13 → 0.103.15.
-
-  No `deny.toml` acceptance and no `check-default-build-minimums.sh` floor were added.
-  The h2 floor exists because an advisory was *accepted* for a second, non-default
-  instance and cargo-deny cannot scope an ignore to one version; nothing is ignored here,
-  so `cargo deny check advisories` catches a rustls downgrade directly and a floor would
-  be a second gate saying the same thing.
-
-- **`before:mutation` is now unbypassable: it is enforced in the engine, at the one point
-  every mutation entry path converges on (#1327).**
-
-  `before:mutation` is the synchronous hook that can rewrite a mutation's input or abort it,
-  so it is where a validation or business rule goes — which makes it enforcement. It ran in
-  the GraphQL handler, once per HTTP request, keyed on `parse_query(…).root_field` and handed
-  `request.variables`. Three request shapes executed a mutation without running its chain:
-
-  1. **A second root field.** The handler keyed on the *first* root. Since #759 the executor
-     runs **every** root serially, so `mutation { harmless(…) { id } guarded(…) { id } }`
-     wrote `guarded` after only `harmless`'s chain had run.
-  2. **Inline arguments.** `guarded(input: { … })` with no variables was invisible to the
-     chain, because the chain was handed the request's `variables` map rather than the
-     arguments the write would bind from — and `Proceed(modified)` could only rewrite
-     variables.
-  3. **The REST write route.** `routes/rest/handler/mutation.rs` dispatched `after:mutation`
-     only. No before-chain existed on that path at all.
-
-  The fix is not a fourth place that runs the chain. The chain is now consulted from
-  `execute_mutation_impl` — the single point every mutation entry path converges on, where
-  `requires_role`, `requires_actor` (#966) and the operation `Authorizer` (#422) are already
-  enforced — so it runs **once per executed root, in document order, immediately before that
-  root writes, on every transport**. A hook stage that derives its own root list is how (1)
-  happened; at the chokepoint there is no second root list to derive, and a new mutation route
-  needs no wiring and cannot forget any.
-
-  What the chain is handed changed with it: the **resolved** arguments — request variables
-  merged with the root field's inline literals, nested `$var` references substituted — which
-  is the same view the engine binds the SQL function's arguments from. A `{"input": …}` rewrite
-  therefore reaches the executed arguments and the field-authorizer view, not just the
-  variables.
-
-  Fail-closed throughout. An abort refuses the write carrying the rule's own message. A chain
-  that *fails* — missing module, runtime error, or a decision this build does not recognise —
-  also refuses it. The replaced handler code had a `Ok(_) => Ok(variables)` arm over a
-  `#[non_exhaustive]` enum, which proceeded with the original input: the one thing an
-  enforcement hook must never do. A `Proceed(null)` no longer silently drops the write's
-  arguments either — it reaches the required-argument check and fails loudly.
-
-  **Exposure.** Builds with `functions-runtime` that declare a `before:mutation` function.
-  The published image carries no function runtime (#1326), so released artifacts are not
-  affected; bypass (1) is unreleased (#759), bypass (3) has been the REST handler's behaviour
-  since #460 and #865 mounts those routes in the stock binary, and bypass (2) is in v2.14.1
-  and earlier. #1326 and #1325 each turn all three from theoretical into live, which is why
-  this landed before them.
-
-  **Breaking for embedders.** `RuntimeConfig` gains `before_mutation_gate:
-  Option<Arc<dyn BeforeMutationGate>>` (caller-owned, so it survives a hot reload) with
-  `RuntimeConfig::with_before_mutation_gate`. The new `fraiseql_core::security` seam —
-  `BeforeMutationGate`, `BeforeMutationRequest`, `BeforeMutationOutcome` — lets an embedder
-  install its own rule engine there with or without functions compiled in.
-  `fraiseql-server`'s `FunctionChainGate` is the implementation that runs the compiled
-  schema's chain. An abort's client-facing message now carries the engine's
-  `Validation error: ` prefix, like every other validation refusal, where the handler
-  previously emitted the bare message.
-
-  Each bypass is pinned by a test that asserts the **write** — whether the mutation's SQL
-  function was called — rather than the response envelope, because a repaired outer guard can
-  make the response say "refused" while the row lands anyway.
-
-- **`EventFilter` is now honoured by every event transport, and the REST stream scopes its
-  subscription to the caller's tenant (#1113).**
-
-  `EventTransport::subscribe` takes an `EventFilter` carrying an `entity_type`, an
-  `operation` and a tenant. Only the NATS transport applied it. `InMemoryTransport` and
-  `PostgresNotifyTransport` both took the argument as `_filter` and returned an **unfiltered**
-  stream — not even `entity_type` — so whether a subscription was filtered at all depended on
-  which transport the deployment happened to be running, and the two that ignored it are the
-  two a single-node deployment is most likely to have. All three now decide with the same
-  `EventFilter::matches`.
-
-  On top of that, `GET /rest/v1/{resource}/stream`'s live-event branch extracted the caller's
-  `SecurityContext` and discarded it, building its filter with `..Default::default()` — and an
-  absent tenant meant *every* tenant. An authenticated caller on any tenant would have received
-  every tenant's change events, full `data` payload included, on an endpoint sitting behind
-  `require_auth`. Authentication is not authorisation: the REST read surface's tenant scoping
-  (#812/#739) lives in the query path, and a stream that subscribes with no tenant bypasses it
-  by construction.
-
-  The subscription is now scoped by the rule the GraphQL subscription gate already applies,
-  keyed on the same `security.multi_tenant`: in multi-tenant mode the principal's tenant scopes
-  the stream and a principal carrying no tenant is **refused** (`403 TENANT_SCOPE_REQUIRED`);
-  single-tenant deployments stay unscoped, where tenant ids are typically absent throughout.
-  Refusing — rather than opening a stream that can never deliver, as the subscription gate
-  does — is deliberate: a silent SSE connection is the "looks healthy, is stale" failure #873.4
-  removed from this very endpoint.
-
-  **Neither half was exploitable.** `RestState.event_transport` is `None` at its only
-  construction site and has no setter, so the branch is unreachable and the endpoint answers an
-  honest `501`. Both defects would have shipped the moment it was wired. Which nothing tracked:
-  the code said wiring it was #428's work, and #428 is entirely about observer *action* types.
-  That is now #1309, which also has to answer why the obvious wiring does not work —
-  `subscribe` is a *competing consumer* on all three transports, so a per-request subscription
-  would steal the observer executor's events rather than fan out beside them.
-
-- **wasmtime 46.0.2 → 46.0.3, closing RUSTSEC-2026-0268 and RUSTSEC-2026-0269.**
-
-  A WASI filesystem sandbox escape via paths or symlinks with trailing slashes, and a
-  guest-controlled-size host heap allocation through WASIp3 streams. Both are reachable
-  only with `fraiseql-functions`' opt-in `runtime-wasm` feature compiled in, where a
-  guest module is precisely the untrusted input the sandbox exists to contain.
-
-  Both advisories name a fix inside the pinned major (`>=46.0.3, <47.0.0`), so this is a
-  patch bump — wasmtime, wasmtime-wasi, cranelift 0.133.2 → 0.133.3 and the pulley/wiggle
-  crates that move with them. No manifest, MSRV or API change.
-
-  `deny.toml`'s `[[bans.skip-tree]]` root for wasmtime moves with it. That pin is an exact
-  version by design, and the version it names is the whole point: left at `=46.0.2` it
-  matches nothing, un-skipping the subtree and reporting ~40 duplicate transitive crates as
-  an unrelated-looking storm. The `-D unmatched-skip-root` escalation added in #1020 names
-  the real cause in one line above that storm, which is what it was added for.
-
-  These were published after `534173857`, so `dev` was red on `Dagger — security` with no
-  local change involved.
-
-- **Two real RSA private keys are no longer tracked in this public repository (#1211).**
-
-  `docker/tls-postgres/certs/ca.key` (4096-bit) and `.../server.key` (2048-bit) were committed
-  on 2026-01-18 and had been in the tree since. They are self-signed `CN=localhost` material
-  for a local Postgres container and protect nothing that runs anywhere, but a private key in
-  a public tree invites reuse, and `.gitleaks.toml` had to exempt them by exact path for the
-  secret gate (#1208) to pass at all.
-
-  **They remain in this repository's git history and cannot be removed from it.** Treat both
-  as burned: never reuse either key or the CA that signed them. Nothing needs rotating
-  elsewhere — no service ever trusted that CA, and the rig that used it is gone (above). The
-  certificates expired on 2027-01-18 in any case, a date nobody was watching.
-
-  The gitleaks exemption is deleted with them. `tools/tests/gitleaks_allowlist_test.sh` now
-  pins the opposite property: a private key under `docker/tls-postgres/` **fails** the gate,
-  so neither the rig nor its keys can return quietly.
-
-## [2.15.0] - 2026-08-22
-
-### Breaking
-
-- **`StorageRlsEvaluator::can_write_object` takes the object key; `can_write` is gone (#1100).**
-
-  `can_write_object(caller, bucket, key, existing)` — the new third argument is the key being
-  written. It decides the **create** branch only; an overwrite is still decided against
-  `existing.key`, so no caller can widen its own grant by naming a different key.
-
-  `can_write` is removed rather than kept as a key-less form. Its whole body was
-  `can_write_key(caller, bucket, "")`, and the empty string is a key no `key_prefix` can match
-  — which is the defect below, not an incidental detail. "May this caller write *somewhere* in
-  this bucket" is a question no door asks.
-
-  **Migration.** Pass the key you are about to write: all three write doors already had it in
-  hand. A `can_write(caller, bucket)` call becomes `can_write_key(caller, bucket, key)`.
-
-- **One Compose stack ships, not six. `docker-compose.prod.yml` and the four `docker/docker-compose.*` demo stacks are deleted (#1189, #1202).**
-
-  Measured 2026-08-28 against a real Docker: **not one of the six operator-facing Compose
-  stacks in this repository could serve a query.** The blocker they all shared was in neither
-  issue filed against them — none of them set `FRAISEQL_ENV` or mounted a `fraiseql.toml`, so
-  the server exited on its first line with `cors_enabled is true but cors_origins is empty in
-  production mode`. That check fires *before* the schema check, so compiling the schema first
-  — the fix #1202 proposes — would have changed nothing observable; it only moves the error.
-
-  Beyond that: the two root files mounted no compiled schema at all and the image bakes none;
-  `docker/docker-compose.{demo,examples}.yml` built an `admin-dashboard/Dockerfile` that exists
-  nowhere in the repository (#1189); `docker/docker-compose.prod{,-examples}.yml` pulled
-  `fraiseql/dashboard:latest`, which has never been published (`docker manifest inspect` →
-  `no such manifest`); all four `docker/` stacks pointed `FRAISEQL_SCHEMA_PATH` at a
-  `schema.compiled.json` that is gitignored and that no step builds (#1202); all four ran
-  `graphql/graphql-playground`, a repository Docker Hub no longer serves; and
-  `docker-compose.prod.yml` bind-mounted `./tools/prometheus.yml`, a path that does not exist
-  — Docker creates an empty directory for those and mounts it.
-
-  Five were deleted rather than repaired, for the reason `helm.yml` was: near-copies of a stack
-  that cannot start are not artifacts, they are claims. The root **`docker-compose.yml` is now
-  the single canonical stack**, production-shaped and gated end to end on every push
-  (`tools/compose-stack-test.sh`). It is FraiseQL plus PostgreSQL on a version-pinned published
-  image, and it requires three inputs an operator supplies — `DB_PASSWORD`,
-  `FRAISEQL_SCHEMA_FILE`, `FRAISEQL_CONFIG_FILE` — each declared `${VAR:?…}`, so an unset one
-  aborts `docker compose up` with an instruction rather than starting a container that exits.
-  See `.env.example`.
-
-  **Migration.** `make demo-start`, `make examples-start`, `make prod-start`,
-  `make prod-examples-start` and their `-stop`/`-logs`/`-status`/`-clean` variants are gone;
-  none of them could bring a stack up. For a Docker deployment use the root
-  `docker-compose.yml` with your own compiled schema and `fraiseql.toml`. For running the
-  examples, `examples/README.md` documents the `psql` + `fraiseql query` path, which works. The
-  Redis and Prometheus services the old production template declared are also gone: the server
-  binary reads no `REDIS_URL` (only tests do), and the Prometheus config it mounted did not
-  exist. `docker/docker-compose.test.yml` — the test rig behind `make db-up` — is unchanged.
-
-- **The published container image serves on port 8000, not 8815, and binds `0.0.0.0` (#1216).**
-
-  A container started from the published image with the environment every deployment supplies
-  — `DATABASE_URL` and `FRAISEQL_SCHEMA_PATH` — was reported **unhealthy by Docker and was
-  reachable from nothing outside its own network namespace**. Three values disagreed, and the
-  one the binary actually used appeared in none of them: `EXPOSE` said 8815, the `HEALTHCHECK`
-  curled 8815, and `default_bind_addr()` is `127.0.0.1:8000`. The check was refused, and after
-  the start period plus interval × retries (10s + 30s × 3) Docker marked the container
-  unhealthy — permanently, since nothing was ever going to listen on 8815. Anything waiting on
-  that health, such as a Compose `depends_on: condition: service_healthy`, waited forever.
-
-  The image now sets `FRAISEQL_BIND_ADDR=0.0.0.0:8000`, `EXPOSE 8000`, and healthchecks 8000:
-  the port `default_bind_addr()` uses, and the one every compose file, both Kubernetes
-  manifests and every runbook already pinned. `0.0.0.0` rather than the process default is
-  deliberate — without it the healthcheck would *pass*, because it runs inside the network
-  namespace, while the container served nobody, which is worse than failing. #874 made the
-  process default to loopback so a bare-metal run is not exposed by accident; a container's
-  network namespace is the boundary that argument asks for.
-
-  **Migration:** anyone publishing the container as `-p …:8815` should publish 8000 instead;
-  the image was not serving on 8815 either way.
-
-  ⚠ **Correction.** This entry originally said the migration was "none for the shipped compose
-  files, Kubernetes manifests or runbook commands — they all set `0.0.0.0:8000` explicitly and
-  always did". That was measured only over `docker/*.yml` and the runbooks. It was **wrong for
-  every other consumer in the repository**, and they are corrected in the entry below: the two
-  root compose files published `8815:8815` against an image that binds 8000 and set no
-  `FRAISEQL_BIND_ADDR`, all three plain Kubernetes manifests declared 8815 (including the
-  hardened file's NetworkPolicy rules, which would have dropped the traffic even once something
-  listened), the Helm chart declared 8815 on its container port and all three probes, and
-  `tools/check-deploy-security.sh` **required** `8815:8815` as the only mapping a compose file
-  was allowed to publish — so correcting the compose files turned a security gate red.
-
-  8815 is Arrow Flight's conventional port. It arrived in a February 2026 deployment
-  scaffolding commit that also moved the healthcheck off the 8000 the original Dockerfile
-  used, and no gate has built the release image on a branch since (#1206, #1205).
-
-- **Every consumer of the image now uses port 8000, and the Helm chart's values interface
-  changed (#1216, #1129).**
-
-  Fixing the image alone left the fix half-applied for six months' worth of consumers. Now
-  corrected: `docker-compose.yml` and `docker-compose.prod.yml` publish `8000:8000` (and the
-  production healthcheck curls 8000), `deploy/kubernetes/{deployment,service,fraiseql-hardened}.yaml`
-  declare 8000 throughout, `.env.example` says `PORT=8000`, and
-  `tools/check-deploy-security.sh`'s `APP_PORT` moved with them.
-
-  **The Helm chart could not start a pod at all**, and fixing its image reference — the only
-  part of #1129 that had been fixed — would not have changed that. Measured by deploying it:
-  it mounted `DATABASE_URL` from a Secret no template created, mounted no compiled schema (so
-  the container exited at startup validation), probed port 8815, supplied no `fraiseql.toml`
-  (so the server exited on `cors_origins` in production mode), and pointed its liveness probe
-  at `/health`, which answers 503 whenever the database is unreachable — restarting every pod
-  for the duration of a database outage.
-
-  **Migration.** `helm install` now requires three inputs and fails at template time with an
-  instruction if any is missing, rather than installing a release that never serves:
-
-  ```bash
-  helm install fraiseql ./deploy/kubernetes/helm/fraiseql \
-    --set-file schema.compiled=schema.compiled.json \
-    --set-file config.content=fraiseql.toml \
-    --set database.existingSecret=fraiseql-db-credentials
-  ```
-
-  Outside production, `--set env.FRAISEQL_ENV=development` removes the `config.content`
-  requirement. Values removed because **no template read them** — rendering with all of them
-  flipped produced byte-identical output — are `ingress`, `podDisruptionBudget`, `persistence`,
-  `monitoring`, `security`, `database.{host,port,name,pool,timeout_seconds}`,
-  `application.{graphql,admin}`, `service.targetPort`, and the environment ConfigMap the
-  Deployment never referenced. Anything the server reads can be set through the `env` map;
-  anything with no environment variable goes in `config.content`. `application.port` is now the
-  single number the container port, the Service target, every probe and `FRAISEQL_BIND_ADDR`
-  are all derived from. `serviceAccount.create` now creates a ServiceAccount.
-
-- **Both Python clients raise `FraiseQLError` subclasses for every HTTP status, instead of
-  leaking `httpx.HTTPStatusError` (#1059).**
-
-  `resp.raise_for_status()` in `AsyncFraiseQLClient._send` and `FraiseQLClient.execute` raised
-  an httpx type, which is not a `FraiseQLError` and not in the default `retry_on` tuple. So the
-  catch-all that `errors.py` documents — `except fraiseql.FraiseQLError` — did not catch a 502,
-  and the retry feature could not fire for the most common transient server failure. The
-  server's own 429, 503 and 504 responses all took that path.
-
-  Every non-2xx status now maps into the hierarchy, and the mapping is what decides
-  retryability:
-
-  | Status | Raises | Retried |
-  |---|---|---|
-  | 401, 403 | `AuthenticationError` | no |
-  | 408 | `TimeoutError` | yes |
-  | 429 | `RateLimitError`, carrying `retry_after` | no |
-  | other 4xx | `HTTPStatusError` | no |
-  | 5xx | `NetworkError` | yes |
-
-  **What breaks:** code catching `httpx.HTTPStatusError` around a FraiseQL call no longer sees
-  it. Catch `fraiseql.HTTPStatusError` (or the base `fraiseql.FraiseQLError`) instead. Code that
-  already followed the documented catch-all gains coverage rather than losing it.
-
-  `RateLimitError` and `HTTPStatusError` are new exports. `RateLimitError` is distinct from the
-  sync client's `FraiseQLRateLimitError`, which classifies a GraphQL `extensions.code` rather
-  than a transport status.
-
-- **The TypeScript client stops retrying 4xx (#1059).**
-
-  `client.ts` turned every non-ok status into a retryable `NetworkError`, so a 400, 404 or 409
-  was re-sent up to `maxAttempts` times — directly against ADR-0015 §3, which treats a
-  4xx-class response as permanent and dead-letters it immediately. 4xx now raises the new
-  non-retryable `HttpStatusError` (with `.status`), 408 raises `TimeoutError`, and only 5xx
-  remains a retryable `NetworkError`. Callers matching on `NetworkError` to detect a bad
-  request must match `HttpStatusError` instead.
-
-- **Every SDK's subscription authoring surface moves to the compiler's shape, dropping
-  `nullable` and `operation` (#1024).**
-
-  A subscription authored through any SDK could not be compiled. The SDKs emitted
-  `{name, entity_type, nullable, operation, …}`; `IntermediateSubscription` reads
-  `{name, return_type, arguments, description, topic, filter, fields, deprecated}` and denies
-  unknown fields — so `entity_type` failed the **whole document**, not the subscription.
-
-  The compiler is canonical. Five SDKs ship a subscription surface and all five change:
-
-  - **TypeScript, Python, Go** emitted the wrong shape and were refused at compile.
-  - **PHP and Java emitted nothing at all.** `SchemaExporter::toArray()` and
-    `SchemaFormatter.formatSchema()` never read their registries' subscriptions back, so a
-    registered subscription was *silently dropped* from a compile that then reported success —
-    the worse failure of the two, and the reason the shape defect above survived undetected in
-    those two SDKs.
-
-  What changes for authors:
-
-  - `entity_type` / `entityType` survives as the **authoring spelling**, resolved to
-    `return_type` before export. Existing calls that name the type keep working.
-  - **`nullable` is gone.** It was a positional parameter in TypeScript, Python and PHP, so
-    dropping it shifts later arguments — a compile error at the call site in TypeScript, and
-    a `TypeError` in Python. The runtime subscription model has no nullability member; the
-    value was only ever emitted into a struct that refused it.
-  - **`operation` / `operations` is gone.** There is no DML-verb filter in the runtime.
-    Where one was wanted, the event payload carries the verb and a `filter` condition selects
-    on it: `filter: { conditions: [{ argument: "verb", path: "$.op" }] }`.
-  - **`filter`, `fields` and `deprecated` are new** and reach the compiled schema:
-    `filter` maps arguments onto JSON paths in the event, `fields` projects a subset of the
-    event, `deprecated` surfaces through introspection.
-  - The **options bag is closed**. TypeScript's `SubscriptionDefinition` had an index
-    signature and Python's decorator a `**config_kwargs`, both spread verbatim into the
-    emitted object — which is how `operation` reached the compiler, and how any typo would.
-    An unknown option is now a type error at the call site instead of a parse failure against
-    the whole document.
-
-  Also fixed in passing, because it blocked the PHP half: `FraiseQL\ArgumentDefinition` lived
-  in `src/ArgumentBuilder.php` and was therefore not PSR-4 autoloadable, making
-  `SubscriptionBuilder::argument()` a fatal error in any process that had not already loaded
-  `ArgumentBuilder`. It now has its own file. The sibling violation — `UnsetValue` in
-  `src/Unset.php`, dead and unreachable — is tracked separately as #1184, with the
-  `composer dump-autoload --strict-psr` gate that would have caught both.
-
-  The Ruby and Dart READMEs listed "Subscription definitions" as a shipped feature. Neither
-  SDK has a single line of subscription code; the claim is removed.
-
-- **PHP SDK: `QueryBuilder::relayCursorType()` is removed (#1021).**
-
-  The setter accepted a value and discarded it. `IntermediateQuery` has no cursor-type member —
-  only `relay: bool` — so there was nothing for it to reach, and the sibling serializer that did
-  emit it wrote `relay_cursor_type`, a key the compiler refuses outright. Rather than leave a
-  setter that takes input it cannot honour, it is deleted. Remove the call; Relay pagination is
-  unaffected and is still enabled with `relay`.
-
-- **`ConvertConfig::max_rows` is removed from `fraiseql-arrow` (#1041).**
-
-  The field was public and documented as "Maximum total rows to convert (default: unlimited)",
-  and it was populated at five call sites — but nothing ever read it. `convert_batch`
-  appended every row it was given and `chunk_into_batches` chunked the whole slice, so a
-  caller who set the cap to bound peak memory got no cap at all. The only test covering it
-  set the field and then asserted the field it had just set, which holds for every possible
-  implementation including the one that ignores it.
-
-  It is removed rather than implemented. No path in the workspace needs it: the single site
-  that set it non-`None` derived it from the same `limit` that `build_optimized_sql` already
-  emits as a SQL `LIMIT`, so PostgreSQL bounds the row count before conversion begins, and
-  the other four passed `None`.
-
-  Construct `ConvertConfig` with `batch_size` alone. Callers who relied on the documented cap
-  never had one, so no behaviour changes — only the false promise on the published crate's
-  API is gone.
-
-- **The inbound-webhook dedup namespace is the route, not the provider, which renames one
-  ledger column and one public field (#1046).**
-
-  `fraiseql-webhooks`: `Delivery.provider` is now `Delivery.route`, and
-  `IdempotencyStore::claim`'s second parameter is `route`. The types are unchanged; what
-  changed is what the value must be — the receiving endpoint, not the provider it serves.
-  A caller that keeps passing a provider string reintroduces the defect below, so the
-  rename is deliberate rather than mechanical.
-
-  The ledger column `webhooks.tb_inbound_delivery.provider` is renamed to `route`, and the
-  unique key with it. `PostgresIdempotencyStore::init` performs the rename in place on an
-  existing database (`CREATE TABLE IF NOT EXISTS` alone would leave the old column and the
-  first claim would fail with *column "route" does not exist*); the unique index follows the
-  column, so the claim never loses its atomicity.
-
-  `fraiseql-server`: `WebhookSource::new` takes the route segment as a second argument, and a
-  webhook message's spine `idempotency_key` is now `<route length>:<route>:<event id>` rather
-  than the bare event id — the same structured-key shape the email adapter has carried since
-  #775. It is length-prefixed because the spine flattens its half of the key into one column
-  while the *sender* chooses the event id: a bare `<route>:<id>` join is not injective, and
-  route `a` receiving the id `b:1` would land on route `a:b`'s event `1`. The
-  `after:ingest:webhook:<provider>` trigger discriminant is deliberately **unchanged**;
-  declared triggers keep firing.
-
-  **Who is affected, and how far:** a ledger row written before the upgrade still matches
-  after it whenever a route's segment equals its provider string — which is the documented
-  one-route-per-provider shape, so most deployments see no discontinuity at all. Under a
-  `path` override, or two routes on one provider, a delivery still in the provider's retry
-  window may be processed once more. Spine keys all change, so the same one-time window
-  applies there.
-
-- **A `storage` section in the compiled schema is now refused at load (#1008).** It used to be
-  deserialized into `SchemaStorageConfig`, validated by `validate_storage_config`, and stored
-  on `ExtendedCompiledSchema.storage` — where **nothing read it**. `main.rs` takes `.schema`
-  and `.functions`; the server's storage backend is built from `[storage]` in the *server
-  config file*. So an author who read "configuration is embedded in the compiled schema" and
-  declared buckets there got a clean compile, a clean boot, and either no storage backend at
-  all or whatever unrelated `[storage]` the server config named. Parsing and validating the
-  section is precisely what made it look honoured.
-
-  The boot now fails with an error naming `[storage]` in the server config as the working
-  surface. This is deliberately a different posture from the legacy `realtime` key, which is
-  warned-and-ignored: that one names a subsystem that no longer exists, so an author can only
-  recompile, while this one names a live subsystem configured elsewhere.
-
-  **Who is affected:** only hand-authored compiled schemas. `fraiseql-cli` has never emitted a
-  `storage` section, and a `null` value is still accepted. `SchemaStorageConfig`,
-  `SchemaBucketDef` and `ExtendedCompiledSchema.storage` are removed from the public API.
-
-- **A declared custom scalar compiles to `FieldType::Scalar`, so `--emit-ddl` emits `TEXT`
-  where it used to emit `JSONB` (#1018).** `parse_field_type` resolved a non-builtin name
-  against the schema's declared enums, interfaces and unions (#923) and fell through to
-  `FieldType::Object` for everything else — including a name the author declared in
-  `custom_scalars`. That variant therefore had **no producer at all** for an authored schema,
-  the same shape #923 fixed one variant over, and three consumers branched on the wrong
-  answer: `--emit-ddl` gave a custom-scalar column a `JSONB` type, introspection reported
-  `OBJECT` for a leaf (so an introspecting client generates a nested selection for it), and
-  the TypeScript/Go/Python/Rust emitters treated it as requiring a sub-selection.
-
-  **Migration.** A project that uses a custom scalar (`Email`, `IBAN`, any author-declared
-  name) and generates its DDL from `--emit-ddl` will see that column's type change from
-  `JSONB` to `TEXT`. Existing databases are unaffected until you regenerate; when you do,
-  reconcile the column type by hand — `ALTER TABLE … ALTER COLUMN … TYPE TEXT USING …` — since
-  a JSONB-encoded string carries its quotes. The columns were only ever `JSONB` because the
-  compiler had mislabelled the field.
-
-  An *undeclared* name still resolves to `FieldType::Object`, deliberately and unchanged:
-  `SchemaValidator` reports it by name, and #724 chose a warning there because a
-  `--schema-dir` author can declare a scalar in a file the converter cannot see.
-
-- **`where` and `orderBy` are no longer typed as the `JSON` scalar (#1154).** They now publish
-  `{Entity}WhereInput` and `[{Entity}OrderByInput]` — the conventional names clients already
-  write, and which until now resolved against nothing. A document declaring
-  `$where: OrderWhereInput` was therefore refused by § 5.8.2 while being correct in every other
-  respect: in one consumer that was **60 test failures**, all from names the schema's own
-  convention implies but its introspection never carried.
-
-  The types are derived from the compiled schema at load and published everywhere the argument
-  list is rendered — introspection, the federation `_service` SDL, and the Go/TypeScript/Python/
-  Rust client emitters, which now generate a filter argument their users can typecheck instead
-  of an opaque blob. Two emitter defects fell out of this and are fixed here: the three
-  emitters that write per-module imports now collect the names they reference from the argument
-  list they *render* (the auto-wired pair is absent from `arguments` by design), and the Rust
-  emitter boxes a by-value input field that closes a cycle — `_not: OrderWhereInput` makes a
-  Rust struct infinitely sized, which no hand-authored input in this schema had ever done.
-
-  ```graphql
-  input OrderWhereInput {
-    reference: StringFilter
-    total: IntFilter
-    customer: CustomerWhereInput      # single relations nest
-    _and: [OrderWhereInput!]
-    _or: [OrderWhereInput!]
-    _not: OrderWhereInput             # typed, not JSON
-  }
-  input OrderOrderByInput { field: String!, direction: SortDirection = ASC }
-  enum SortDirection { ASC DESC }
-  ```
-
-  Four things to check before upgrading:
-
-  1. **The combinators are `_and`/`_or`/`_not`.** v1 emitted `AND`/`OR`/`NOT`; this engine's WHERE parser matches the underscored spelling and nothing else, so publishing v1's would advertise three fields no request can execute. `_not` is typed rather than left `JSON` as v1 left it.
-  2. **`orderBy` publishes the list form only.** `[{field, direction}]` is what the engine's array branch parses. The object form (`{name: "DESC"}`) keeps executing but has no expression in the published type — its key order is not something a JSON object can promise.
-  3. **Per-scalar filters are stricter than the engine**, which restricts no operator by field type: `IntFilter` carries no `icontains`, an enum filter no `LIKE`. The fulltext, network and ltree families are not bucketed onto any leaf at all, because a declared field type cannot say whether the column behind it is a `tsvector`, an `inet` or an `ltree` — advertising them would repeat #869. All of them remain **executable**; nothing coerces a query argument's value against its declared input type today, so this constrains clients that validate locally against introspection (graphql-codegen, Apollo), not clients that send the value.
-  4. **A schema that cannot adjudicate a return type keeps `JSON`.** An argument is typed if and only if the schema carries the type it would name, so nothing can publish a dangling reference. A name the author already declared is never derived over.
-
-  A list field gets a list filter rather than a nested entity filter, deliberately: the engine
-  lowers `{lines: {sku: {eq: …}}}` to `data->'lines'->>'sku'`, which cannot index into an array
-  and so matches nothing, silently.
-
-- **`where` accepts only the field names the schema declares.** Until now the parser
-  snake_cased an incoming key and asked only whether *that* was a known storage key, so
-  `where: {createdAt: …}` and `where: {created_at: …}` both worked. `{Entity}WhereInput`
-  publishes `createdAt` alone, so the second spelling was the runtime honouring a key the
-  published input type does not declare — the same defect class as the rest of this release,
-  and an asymmetry with `orderBy`, which already answered `Cannot sort by 'created_at'. Did you
-  mean 'createdAt'?`. The two surfaces now agree.
-
-  ```graphql
-  where: { createdAt:  { eq: "2026-01-01" } }   # unchanged
-  where: { created_at: { eq: "2026-01-01" } }   # now refused, naming createdAt
-  ```
-
-  **The rule is "equals the declared name", not "must be camelCase".** A schema that declares
-  `created_at` publishes `created_at`, and that spelling keeps working — a schema authored in
-  snake_case is unaffected by this entry.
-
-  **Native columns are not affected, and there is no carve-out here.** `orderBy` needs one
-  because it accepts a key that is *either* a declared field *or* a native column. `where`
-  never did: its allowlist is built from the return type's declared fields alone, so a native
-  column that is not also a declared field was already refused before this change, and one that
-  *is* declared stays filterable under its declared name. Nothing that filtered yesterday stops
-  filtering except the storage spelling of a declared field.
-
-  Two properties are preserved deliberately. The lowering to storage is untouched — the parser
-  still snake_cases to build the SQL path, and `FieldTypeMap` is still keyed by the dotted
-  storage path, because that is what the generator reads. And a level the schema cannot
-  adjudicate — an unknown type, or one carrying no fields — still accepts every key (#939);
-  tightening a spelling is not a licence to refuse where there is no evidence.
-
-  Injected and RLS predicates are unaffected by construction: they are built as `WhereClause`
-  values directly and never pass through the client-input parser, so a tenant filter on a
-  `tenant_id` column keeps composing exactly as before. There is a test pinning both halves —
-  that the tenant predicate survives, and that a refused client key fails **closed** rather than
-  falling through to an unfiltered read.
-
-  One internal caller had to be corrected for this: REST's nested-resource embedding built its
-  parent-scoping predicate from a type's declared relationships, whose
-  `foreign_key`/`referenced_key` are SQL **column** names (`fk_user`). Handing those to the parser would have made the server
-  refuse its own join predicate. It now resolves the column to the target type's declared field
-  name first, the same way full-text search already keyed off the declared name.
-
-- **`/ws` validates subscription documents (#1154).** The WebSocket surface reached neither
-  `execute_dispatch` nor `classify_query`, so it validated *nothing*: a subscription referencing
-  a variable it never defined was accepted, and the argument carrying that variable was silently
-  dropped — the same silent-loss the `/graphql` surface stops doing in this release, on the one
-  surface that had no rule at all. A release headlined "documents are validated" cannot ship a
-  surface that does not.
-
-  GraphQL § 5.8.3, § 5.8.2 and § 5.8.4 now run at subscribe time, in the same order and with the
-  same messages as `/graphql` — a test asserts the two surfaces refuse the same document
-  identically, because a client moving a document between them should not discover a different
-  set of rules. § 5.8.2 resolves against the schema that is actually serving, so a hot-reload
-  applies on the next subscribe.
-
-  **Scope: variables only.** The other document rules bind at argument resolution, which this
-  path never reaches. Whether subscription *filters* need the same treatment is a separate audit.
-
-  The document is also **validated against the subscription operation**, not the document's
-  first: on a document mixing `query Q {…}` with `subscription S {…}`, validating `Q` and
-  leaving `S` unchecked would have been a fix with the same shape as the bug.
-
-- **A subscription refused for a schema reason reports `VALIDATION_ERROR`, not `PARSE_ERROR`
-  (#1154).** Every failure on this path collapsed into `PARSE_ERROR` with the single message
-  `Could not parse subscription query`, which sends a client hunting for a syntax error in a
-  document that parses perfectly well. Malformed GraphQL — and the two structural guards, more
-  than one subscription operation and more than one root field — still report `PARSE_ERROR`, now
-  saying which of the three it was.
-
-- **A nested `where` key the relation's type does not declare is refused instead of matching
-  nothing (#1154).** Only the *top* level was adjudicated, because the compiled schema carried
-  no field map for a relation's own type. So `{machine: {bogusField: {eq: "x"}}}` lowered to
-  `data->'machine'->>'bogusField'`, matched no row, and returned `[]` under a 200 — the same
-  silent-wrong-answer shape the top-level rule closed, one level further out, and now flatly
-  contradicted by the `MachineWhereInput` the schema publishes.
-
-  Every level a path reaches is now scored against the type it actually arrived at, to any
-  depth, and the "did you mean" candidates come from *that* level rather than the root. A
-  relation whose target type the schema does not carry stays unadjudicated, as before — this
-  rejects what the schema positively contradicts, never an absence of evidence.
-
-  Two consequences worth checking:
-
-  - **`_and`/`_or`/`_not` now work inside a nested relation.** `{machine: {_or: […]}}` failed with `Unknown WHERE operator: _or`, because a nested object was parsed key-at-a-time and a combinator's value is an array. A relation field now carries a whole nested predicate, which is what its published type says.
-  - **What counts as a relation is now the same question the published type answers.** A field is a relation exactly when `{Entity}WhereInput` gives it a nested filter — so a nested predicate on a **list** field (`{lines: {sku: {eq: …}}}`, which the engine lowered to a JSON path that cannot index into an array) and on an `Object` type nothing declares (`{placedAt: {…}}`) are now refused rather than silently matching nothing.
-
-- **Input-object fields introspect as real type references (#1154).** An input field's type is
-  stored as a string and was published as a single `SCALAR` named after the whole string, so
-  `[OrderWhereInput!]` introspected as a scalar type called `"[OrderWhereInput!]"` — a name no
-  client can look up. List and non-null wrappers now become `LIST`/`NON_NULL` nodes and the leaf
-  resolves to `ENUM`, `INPUT_OBJECT` or `SCALAR` against the schema. This also corrects every
-  hand-authored mutation input with a list or nested-input field.
-
-- **An argument the field does not declare is refused instead of ignored, on queries and
-  mutations alike (#1154).** GraphQL § 5.4.1 makes it a validation error; the server accepted
-  it, dropped it, and answered normally. Only *declared* arguments become WHERE conditions and
-  only the auto-wired names reach the pagination paths, so `orders(contractId: "x")` against a
-  query that does not declare `contractId` returned **every row** under a 200 with no `errors`
-  array. That reads as a filtering bug in the server and is very hard to trace back to the
-  argument that vanished. On a mutation the same drop bound the write without it, and reported
-  success.
-
-  Undeclared *fields* were already refused (#939), so validation ran — it just did not cover
-  argument names, which left the server more permissive than the schema its own introspection
-  publishes: a spec-compliant client-side validator rejected queries this server answered.
-
-  The response is now
-  `Validation error: Unknown argument 'contractId' on field 'Query.orders'.`, with a "did you
-  mean" hint when a close accepted name exists, since a renamed or mistyped argument is the
-  common case. **Breaking for exactly the clients that are silently getting wrong results
-  today**; a client sending an argument the schema does not have now learns that it never
-  applied.
-
-  The accepted set is what the runtime reads, which is slightly wider than what introspection
-  publishes: a relay connection's `first`/`after`/`last`/`before` (plus `where`/`orderBy` when
-  `auto_params` enables them), and the runtime-only `nearest` similarity-search argument, which
-  is accepted by name so its own diagnostics reach the client rather than a blanket "unknown
-  argument". Arguments on **nested** fields are unchanged: no object-type field declares
-  arguments, so they remain inert.
-
-- **A document referencing a variable it never defines is refused instead of silently losing
-  the argument (GraphQL § 5.8.3).** The same silent-drop failure as #1154, one axis further
-  out, and the most damaging of the family: it removes a *filter* or a *bound* rather than a
-  projection. A whole-argument variable is resolved by looking its name up in the request's
-  variables map and dropping the argument when absent — correct for a **declared** variable
-  the caller chose not to supply, and destructive for one that was never declared. So
-  `query Q { orders(offset: $neverDeclared) { reference } }` returned **every** row, and
-  `where: $neverDeclared` returned the whole table, both under a 200 with no `errors` array.
-  With `limit:` it was worse: the dropped bound made the query unbounded, which tripped the
-  complexity ceiling, so the client got an error about *cost* that never mentioned the
-  variable.
-
-  The response is now
-  `Validation error: Variable '$neverDeclared' is not defined by operation 'Q'.`, with a "did
-  you mean" hint when a close declared name exists — a variable typo is exactly what this
-  catches. References are collected from whole arguments, values nested in objects and lists,
-  directive arguments (`@skip`/`@include`/`@stream`), nested field arguments, and mutation
-  root arguments. **Breaking for exactly the clients that are silently getting unfiltered or
-  unpaginated results today.**
-
-  Two boundaries were deliberately *not* crossed. A variable that **is** declared but simply
-  not supplied still drops its argument — that is spec-correct and load-bearing, since it is
-  what lets `limit: $limit` fall back to the query's compiled default instead of forcing
-  `LIMIT NULL`. And in a multi-operation document only the fragments transitively reachable
-  from the executed operation are walked, so a second operation's fragments — which
-  legitimately reference *that* operation's variables — are never scored against this one.
-
-  The check runs at classification, which is the one point every operation type shares while
-  the AST still exists, and it is ordered **before** the depth/complexity gate on purpose: the
-  variable error is the actionable one, and the cost error was a symptom of the very argument
-  that went missing. Parsing before that gate exposes no new surface — the gate already parses
-  the same document through the same panic-guarded seam.
-
-- **A variable declared with a type the schema does not publish is refused (GraphQL
-  § 5.8.2).** `query Q($w: NoSuchTypeAtAll) { orders(where: $w, limit: 1) }` executed
-  normally; nothing resolved a variable's declared type name against anything. The name now
-  resolves against the surface a client can actually learn names from: the scalars
-  introspection publishes, declared enums, and declared input objects. List and non-null
-  wrappers are structural, so `[ID!]!` resolves as `ID`.
-
-  Three deliberate limits. The accepted scalar list is **derived from the introspection
-  response**, not hand-copied — it publishes `JSON`, while the *authoring* table
-  `BUILTIN_SCALARS` spells the same scalar `Json`, and a client writes what introspection told
-  it; resolving against the authoring table would have rejected `$w: JSON`. The rule
-  **fails open** when a schema carries no enums *and* no input objects: that means the
-  compiler emitted no input-type information, which is not the same as declaring those names
-  absent. And a type the schema **declares** is accepted even when introspection does not
-  publish it as a scalar — notably the pgvector family
-  (`Vector`/`BitVector`/`HalfVector`/`SparseVector`), whose fields introspect as `JSON` or
-  `[Float!]!`. A hand-authored or externally-generated document does not need introspection to
-  know a type the schema declares, so `query Q($v: Vector)` against a schema with a `Vector` keeps
-  working. A schema declaring no vector anywhere still refuses the name: acceptance follows
-  from *this* schema declaring something of that type, never from membership of a global list.
-
-- **A variable that is declared and never used is refused (GraphQL § 5.8.4).**
-  `query Q($unused: Int) { orders(limit: 1) { reference } }` is now
-  `Validation error: Variable '$unused' is never used in operation 'Q'.`
-
-  **Read this one differently from the other two.** § 5.8.3 was fixing a **wrong answer** —
-  silently dropped filters and bounds — whereas a document with an unused variable definition
-  executes and answers **correctly** today. Nothing is dropped, nothing is wrong.
-
-  What settles it is not the spec text but the ecosystem: **`graphql-js` has enforced § 5.8.4
-  for years, and so does every other major GraphQL implementation.** A client sending superset
-  variable definitions is already rejected by every other server it talks to. So the pattern is
-  not really in the wild — what is in the wild is code written specifically against FraiseQL's
-  leniency, which is a much smaller and far more addressable population than "everyone using
-  shared documents". This change aligns FraiseQL with every other implementation rather than
-  inventing a restriction.
-
-  If you have such a document, the fix is to trim each operation's definitions to what it
-  references. A variable referenced only inside a reachable fragment **does** count as used.
-
-- **A `where` key the type does not declare is refused instead of silently matching nothing.**
-  The nastiest member of this family. An undeclared *argument* over-fetches, which is visibly
-  wrong; an undeclared *field* renders a blank column. An undeclared `where` **key** returned
-  `[]` — indistinguishable from "no rows matched". `parse_where_object` checked a key for
-  identifier *shape* only (the #833 SQL-injection boundary) and then snake_cased it into a
-  JSONB path that could not match, so one renamed field turned every query into a silent empty
-  result that read as real data.
-
-  `Validation error: Unknown field 'bogusKey' in where clause. Did you mean 'reference'?`
-
-  **The rule is enforced where the read resolves, not at the GraphQL document entry** —
-  `WhereClause::from_graphql_json`, which the REST filter surface and `/graphql` both call.
-  REST builds a `QueryMatch` from URL parameters and calls `execute_query_direct`, never
-  touching the document path, so a gate at the entry point would have left REST serving
-  unvalidated filters. That is #966 exactly, and it is why the REST case is a test rather than
-  an assumption.
-
-  Scope, decided from the code and stated so upgraders can predict it:
-  - `_and`/`_or`/`_not` are combinators, not field names, at every nesting depth.
-  - **Only the top level is adjudicated.** A nested relation path (`{machine: {id: …}}`) resolves its second segment against *machine's* type, for which the compiled schema carries no field map — rejecting there would be guessing. The root of the path is adjudicated like any other key.
-  - The rule **fails open** when the schema cannot adjudicate: the type is not found, or it carries no fields. Those two used to be indistinguishable (both produced an empty map, read as "skip the casts"); "cannot adjudicate" is now a distinct state rather than an empty collection, so the allowlist cannot fail open on a missing type or closed on a schema without field metadata.
-
-- **An unknown `where` operator with an *object* value on a scalar field is now refused.**
-  Operators were only half-validated: with a *scalar* value an unknown operator errored, but
-  with an **object** value it fell through to the nested-relation branch, so
-  `{"reference": {"notAnOperator": {"eq": "ORD-1"}}}` built the path
-  `reference.notAnOperator`, matched nothing, and returned `[]` with no error. A nested
-  relation filter on a scalar field is never legitimate. The same shape on a **relation**
-  field is the documented nested-filter form and still works.
-
-- **`orderBy` naming a field the type does not declare is refused instead of sorting nothing.**
-  An unknown sort key kept the default field type and lowered to a JSONB extraction of a key
-  that is not there — all-NULL, which orders nothing. The client received rows in whatever
-  order the plan happened to produce, with no signal that its sort had been discarded:
-  `orderBy: [{field: "totallyBogusField", direction: "DESC"}]` returned the same natural order
-  as no `orderBy` at all.
-
-  `Validation error: Cannot sort by 'totallyBogusField' on type 'Order'. Did you mean 'reference'?`
-
-  A key is refused only when it is **neither** a declared field on the type **nor** a native
-  column. That second half is load-bearing: `enrich_order_by_clauses` routes a native column
-  straight to a real column three lines below the check, so a sort key can be legitimate
-  without being a declared type field, and a naive "must be a type field" rule would break
-  those deployments. As elsewhere in this family, the rule **fails open** when the schema
-  cannot adjudicate — an unknown type, or one carrying no fields.
-
-  Enforced on every surface that sorts: the list runner, the relay connection runner, and the
-  REST sort parameter, each proved by its own test rather than by the observation that they
-  reach the same function.
-
-- **A window query's final `orderBy` can sort by a window alias, and an unknown sort key is
-  refused (#1014).** `WindowAllowlist` already built the right set — measures, denormalised
-  filter columns, and dimension paths — and was already threaded into select columns,
-  PARTITION BY and dimension paths for #794. **Both** order-by conversions were missed, so a
-  final `orderBy` on `rank` or `running_total` became `dimensions->>'rank'`, which is NULL,
-  which sorted nothing.
-
-  The two clauses need *different* sets, and this is the substance of the fix:
-
-  | Clause | Runs | Accepts |
-  |---|---|---|
-  | in-window, inside `OVER (…)` | before the window functions produce anything | measures, filter columns, dimension paths |
-  | the final `ORDER BY` | after the window functions | the above **plus** every window and select alias |
-
-  So `orderBy: [{field: "rank"}]` on a window query now sorts by the rank column, while a
-  window function still cannot order by its own sibling's alias inside `OVER (…)`, where that
-  column does not yet exist. Window-function operand fields (`lag`, `lead`, `firstValue`, …)
-  are also allowlist-checked now, which they were not before.
-
-  Generalisation beyond #1014: a sort key that is neither a schema field nor an output alias
-  is now a validation error rather than a silent NULL sort. The allowlist remains a no-op when
-  the schema declares no fact-table metadata, so a schema that cannot adjudicate still
-  executes — and the charset check stays in front of it, since the allowlist is
-  defence-in-depth (#794), never a replacement.
-
-- **`ID`/`UUID` equality is no longer case-sensitive text equality.**
-  `{"id":{"eq":"0000000a-…-b"}}` matched; the same UUID upper-cased returned **zero rows** for
-  the same row. `ID`, `UUID` and `String` all mapped to the same "compare as text" hint, and
-  the comparison runs against the JSONB text rendering, which PostgreSQL emits lower-case. The
-  result was a well-formed empty list — indistinguishable from "no rows matched", and it cost
-  a real debugging session where the empty result read as missing seed data.
-
-  An `eq`/`neq`/`in`/`nin` against an identity field whose literal is a UUID now compares
-  against both renderings (`= ANY(ARRAY[…])`, `<> ALL(ARRAY[…])`). **No SQL cast is emitted.**
-  That is the load-bearing detail: `(data->>'id')::uuid` is evaluated *per row*, so on a table
-  where any row's identity is not a UUID it would raise SQLSTATE 22P02 for every query — and
-  `ID` is documented as intentionally spanning uuid / integer / text keys
-  (`docs/adr/0017-entity-identity-contract.md`), with in-repo fixtures holding `'user-1'` and
-  a BIGINT primary key. Only the *literal* is inspected, so no knowledge of the column's type
-  is required and nothing can raise.
-
-  Three things deliberately unchanged: an **already-canonical** literal generates byte-identical
-  SQL (so plans and indexes are unaffected); a **non-UUID** identity value such as `'user-1'`
-  takes the unchanged text path, because case-folding an opaque key would be the same
-  silent-wrong-answer bug in the opposite direction; and **`ORDER BY` is untouched** — sorting
-  identities as text is correct, and a cast there would both retype the sort and raise on
-  non-UUID rows. Range operators (`gt`/`lt`/…) on identity fields also keep text ordering.
-
-- **`__schema` and `__type` follow the selection set (GraphQL § 6.3).**
-  `{ __schema { queryType { name } } }` used to return `description`, `directives`, `queryType`
-  **and** `types`, and `{ __schema { types { name } } }` returned every type with
-  `description`, `fields`, `interfaces` and `kind`. The response was built once at startup and
-  served verbatim.
-
-  This is the only change in the family with no *wrong* answer — the response was a superset,
-  never a plausible-but-false result. It is still worth fixing: over-delivery is harmless only
-  if every consumer tolerates unknown fields, and a strict typed deserialiser, or tooling that
-  *diffs* introspection results, is a real failure. More structurally, a pre-built blob makes
-  field- or type-level introspection filtering — hiding internal types, or a
-  partial-introspection mode for semi-trusted clients — impossible, because the filter has
-  nowhere to live.
-
-  **The zero-cost property is kept.** Projection is a pure function of the selection set, and
-  the space of introspection selection sets in the wild is small and repetitive: `GraphiQL`
-  sends one canonical query, Apollo sends one, each codegen tool sends one, and they do not
-  vary between page loads. The projected value is memoised by a hash of the normalised
-  selection set, so a repeated shape is an `Arc` clone from a table — the same cost as serving
-  the canned response — and only the first request of each shape does work. The pre-built
-  response remains the source; it is projected on the way out, never rebuilt.
-
-  Aliases are honoured, lists are projected element-wise, and a selection naming something the
-  response does not carry is omitted rather than fabricated as `null`.
-
-- **The cache put methods take a fence argument (#1079).** `QueryResultCache::put` /
-  `put_arc` and `ResponseCache::put` gained a trailing `fence: Option<u64>`. Pass
-  `Some(cache.invalidation_generation())`, snapshotted **before** the work whose result is
-  being stored; `None` stores unconditionally and is only correct when the value cannot have
-  raced a mutation — a fixture, or a synchronous re-population. This is a parameter rather
-  than a second "fenced" method on purpose: an unfenced overload left in place is a fail-open
-  default that every future caller can reach for by accident. See `### Fixed` for the race
-  it closes.
-
-- **The release Docker image no longer ships `libpq5` (#1133).**
-
-  It was installed for a driver this binary does not use — the PostgreSQL driver is the
-  pure-Rust `tokio-postgres` + rustls stack, and the built binary's only dynamic
-  dependencies are `libc`, `libm` and `libgcc_s`. Nothing in FraiseQL linked it, so
-  nothing in FraiseQL changes; but an image built `FROM` this one, whose own tooling links
-  `libpq`, now has to install it. That is the whole of the breaking surface here — the
-  rest of #1133 and #1205 is a build that was failing outright, and it is under
-  `### Fixed`.
-
-- **`fraiseql_core::schema::BUILTIN_SCALARS` is now the compiler's own table, and the
-  list it replaces is gone (#959).** It was `&[&str]`; it is now
-  `&[(&str, FieldType)]`, pairing each built-in scalar name with the type it denotes.
-  The old constant was a hand-written list under a docstring calling itself the unified
-  source of truth for scalar recognition, with **no non-test caller anywhere**, and it
-  disagreed with the compiler in both directions: it spelled JSON `"JSON"` where the
-  authoring format writes `"Json"`, it did not know `Vector`, `BitVector`, `HalfVector`
-  or `SparseVector`, and it listed `BigInt`, `Timestamp` and `Void`, none of which the
-  compiler accepts as a field type. `is_known_scalar` now answers from the real table,
-  so those three names return `false` and the four vector types return `true`.
-
-- **`fraiseql-wire`'s `HammingDistance` / `JaccardDistance` operands are bit strings
-  (#959).** Both variants took `vector: Vec<f32>` / `set: Vec<String>` and now take
-  `bits: String`. The emitted SQL was a second, unreachable implementation that disagreed
-  with the executed one and was wrong on its own terms: jaccard cast both sides to
-  `::text[]`, though pgvector's `<%>` is a bit-vector operator, and hamming cast to `::bit`
-  — which is `bit(1)`. Both now emit `::varbit` and match the executed path.
-
-- **The unused `fraiseql_core::utils::vector` module is removed — vector *search* is
-  unaffected (#959).** To be unambiguous, because the two are easy to confuse: `nearest`
-  top-K queries, the threshold WHERE operators, dimensioned `vector(N)` DDL and index
-  emission all continue to work exactly as before, and `graphql_vector_e2e_pg` passes
-  against real pgvector without a line changed.
-
-  What is gone is a **second, parallel** SQL builder — `VectorQueryBuilder`,
-  `VectorSearchQuery`, `VectorInsertQuery`, `VectorParam`, `PlaceholderStyle` — that
-  predated the executed vector work (#386) and was wired to nothing. It had **zero
-  callers**: nothing in the workspace referenced it, which is why deleting it compiles
-  the workspace unchanged. Breaking only for code that imported those symbols directly.
-
-  It is removed rather than kept because of how it built SQL: the table name, the
-  embedding column, every `select_columns` entry and an entire raw `where_clause` were
-  interpolated into the statement as strings. As published API on a crate whose whole
-  claim is that user input reaches the database as bind parameters, that is a shape to
-  delete, not to document.
-
-  Nothing to fold forward: the executed path already does top-K `nearest`, threshold
-  predicates, dimension validation and DDL emission. The one capability this builder
-  had that the executed path lacks — the distance value in the response — is its own
-  tracked item on #959 and needs computed-column projection, not this.
-
-- **REST streaming exports are now a per-route opt-in (#958).** `Accept:
-  application/x-ndjson`, `text/csv` and the XLSX media type were served on every REST
-  resource; they are now served only where the query declares `rest_stream = true`, and
-  answered `406 Not Acceptable` everywhere else. The JSON representation is unchanged.
-
-  A deployment relying on exports must add the flag to the queries behind those routes.
-  Default-off rather than default-on because an export is not a bigger page: it reads
-  the whole filtered relation, is not bounded by `max_page_size`, and holds a pooled
-  database connection for as long as the client takes to read it. A capability with
-  those properties on every route by default is one an operator has not decided to
-  offer.
-
-- **`enable_graphql_sse` is now `enable_graphql_incremental`, and
-  `graphql_sse_stream_batch_size` is now `graphql_incremental_batch_size` (#958).** The
-  flag gates the incremental-delivery *capability*, and #958 gave that capability a
-  second wire framing (`multipart/mixed`) alongside SSE. A flag named for one framing
-  that switches both on is a configuration file that does not describe what it does —
-  the defect class `[fraiseql.security]` honesty work has been closing all program. An
-  operator's `fraiseql.toml` needs both keys renamed; there is no alias, deliberately.
-
-- **`DatabaseAdapter`'s read-path methods gained a `ReadRouting` argument (#957).**
-  `execute_where_query_arc_with_session`, `execute_with_projection_arc_with_session`,
-  `execute_parameterized_aggregate_with_session`, `count_where_query` and
-  `RelayDatabaseAdapter::execute_relay_page_with_session` each take one more parameter,
-  carrying the compiled query's `read_routing`. Every method keeps a default implementation,
-  so an adapter that overrides none compiles unchanged; an adapter that *does* override one
-  must add the parameter — deliberately, because a wrapper that quietly dropped it would
-  serve a query annotated `primary` from a replica, and that is exactly the class of silent
-  fail-open the parameter exists to prevent.
-
-  Also new, and mandatory at every construction site for the same reason `tls` and
-  `read_replicas` already are: `ReadReplicaConfig` gained `max_lag` and
-  `health_probe_interval`, and `TenantPoolConfig` gained `read_replica_urls` and
-  `read_replica_policy`. `make_executor_factory` takes the policy as a second argument.
-
-- **`GET /auth/saml/login` now scopes by tenant, and refuses with `404` (#947).** Two
-  changes, both deliberate. A tenant-bound IdP (`tenant_id` set, in `[saml.idps.*]` or the
-  new store) no longer answers a request that does not carry a matching `?tenant=`, and an
-  untenanted IdP no longer answers a tenant-qualified one — the tenant named by the request
-  must *equal* the tenant bound to the IdP, where "absent" equals only itself. A
-  single-tenant deployment with untenanted IdPs is unaffected; a deployment that already set
-  `tenant_id` on a config-file IdP must start passing `?tenant=`. Separately, an unknown IdP
-  name now answers `404` rather than `400`, identically to a tenant mismatch: distinguishing
-  them let any caller enumerate other tenants' IdP names.
-
-  `SamlAuthState` correspondingly resolves through a `SamlIdpRegistry` rather than a private
-  map; `with_idp` is unchanged for embedders, and `with_registry` is the new multi-tenant
-  entry point.
-
-- **`fraiseql_auth::provider::TokenResponse` gained an `id_token` field (#943).** Any code
-  constructing one — a custom `OAuthProvider`, a test double — must add
-  `id_token: None` (or the provider's ID token, if it issues one; the built-in OIDC provider
-  now carries its through). The field exists because Apple returns the entire identity in
-  the ID token and publishes no userinfo endpoint, which is also why `OAuthProvider` gained
-  `user_info_from_tokens`. That method has a default forwarding to `user_info`, so existing
-  provider impls compile unchanged — but a provider whose identity lives in the ID token
-  must override it, and should make its own `user_info` fail rather than return a degraded
-  identity.
-
-- **Twilio senders must use the `bodySHA256` scheme for non-form bodies (#1069).** A JSON
-  delivery signed the way this crate used to accept — `HMAC-SHA1(auth_token, public_url)`
-  with no body material — now answers 401. Genuine Twilio traffic is unaffected: Twilio
-  already sends the `bodySHA256` form this release implements, and could not verify against
-  the old code at all. Only a sender that followed FraiseQL's own (unsound) scheme breaks,
-  and it breaks because that scheme authenticated nothing about the message. See the
-  Security entry for the full account.
-
-- **The minimum supported Rust version is now 1.94.1 (was 1.92) (#933, #975).** Required to clear
-  RUSTSEC-2026-0222 (`wasmtime`: stores can mix up type indices between engines): the 44.x
-  line we shipped has no patched release, and every patched line (46.0.2 / 47.0.3) pulls
-  cranelift 0.133, which requires 1.94. The same bump also clears **RUSTSEC-2026-0188**
-  (`wasmtime-wasi`: WASI hard links and renames bypass `FilePerms` on the destination path),
-  whose fix likewise landed outside the 44.x line — both advisory ignores are removed from
-  `deny.toml` and `.cargo/audit.toml`, and no wasmtime advisory is accepted any more.
-  Raised now rather than at the 2026-10-01 ignore deadline, because an expiring ignore
-  reddens the *required* `security` check on a date rather than on a push, i.e. on every
-  branch at once.
-
-  `wasmtime` and `wasmtime-wasi` move together to 46.0.2 (opt-in `runtime-wasm` feature;
-  not in a default build). `rust-version`, `rust-toolchain.toml`, the Dagger MSRV leg and
-  its mirrored base image all move in lockstep. Two published crates carried
-  MSRV metadata that was already untrue and now inherit the workspace value:
-  `fraiseql-storage` claimed `1.75`, and `fraiseql-federation` declared no `rust-version`
-  at all.
-
-  The floor is stated to the **patch** (1.94.1, not 1.94.0) for two reasons. `aws-sdk-kinesis`
-  — needed by the Kinesis CDC sink (#975) — declares `rust-version = 1.94.1`, so a 1.94.0 floor
-  would pin us to an older release of it. More importantly, 1.94.0 was a floor **no CI leg has
-  ever tested**: `rust-toolchain.toml` said `channel = "1.94"`, which rustup resolves to the
-  newest 1.94.x, and Docker's `rust:1.94` tag *is* 1.94.1 — so the declared minimum and the
-  verified minimum had quietly diverged. The Dagger base image is now pinned to the exact patch
-  (`ghcr.io/fraiseql/rust:1.94.1`) rather than the floating tag, so they cannot diverge again the
-  day 1.94.2 ships.
-
-- **`computed` is pinned as an authoring-only flag (#927).** Python's
-  `@fraiseql.field(computed=True)` and F#'s `[<GraphQLField(Computed = true)>]` both used to
-  serialize a `computed` key into `schema.json`. `IntermediateField` has no such member and
-  denies unknown fields, so the compile failed outright with ``unknown field `computed` ``,
-  naming a parameter the SDKs' own docstrings document as supported. Both halves were fixed
-  during the cross-SDK conformance work (Python stopped listing it among the emitted keys;
-  F# marked the record member `[<JsonIgnore>]`), and the open question — whether `computed`
-  should reach the compiled schema and introspection so a generated client knows not to send
-  the field — is answered *no*: the flag's consumer is each SDK's own CRUD generator, which
-  runs before export, so carrying it would add compiled-schema surface with no runtime
-  reader. Each SDK now has a test asserting the key is absent from its exported schema while
-  the flag still excludes the field from generated CRUD inputs, so neither fix can silently
-  regress.
-
-- **A schema declaring `aggregate_queries` is refused instead of silently dropped (#956).**
-  The section is listed in `AUTHORABLE_ARRAY_SECTIONS`, so it was valid input on every
-  compile path and every loader and merger carried it faithfully — and then the converter
-  mapped `fact_tables` and never read it. `CompiledSchema` has no corresponding field, so
-  the definitions reached the end of the seam and evaporated under
-  `✓ Schema compiled successfully`: the #755 shape surviving inside the seam built to kill
-  it, behind a `seam_coverage_manifest_test` excuse claiming parity with `fact_tables` that
-  was false in the one way that mattered — `fact_tables` reaches the compiled schema and
-  `aggregate_queries` did not. The compile now fails, naming the offending entries and the
-  supported spelling: `[[analytics.queries]]` in `fraiseql.toml`, which #624 gave real
-  semantics by lowering each entry onto an ordinary view-backed query. An empty or absent
-  block still compiles. The manifest excuse is corrected to state the refusal.
-
-- **Go: `NewAggregateQueryConfig` / `RegisterAggregateQuery` / `AggregateQueryDefinition` are
-  removed (#956).** The compiler now refuses an `aggregate_queries` block, so the builder
-  produced schemas that could no longer compile. ⚠ This entry originally claimed the Go SDK
-  was the only SDK emitting the block; that was wrong — the TypeScript SDK's producer was
-  missed and survived until #1023. Two shipped examples (`examples/analytics`, `examples/complete`) used it and are
-  updated: they keep their fact tables, which is what actually makes analytics work, because
-  the executor dispatches the `<fact_table>_aggregate` and `<fact_table>_window` root fields
-  to the fact-table planners with no further declaration. For a *named* analytics query, use
-  `[[analytics.queries]]` in `fraiseql.toml` (#624).
-
-- **SQL-source dispatch is removed from the Go, Java and Dart SDKs (#926).** Go's
-  `QueryBuilder.SqlSourceDispatch` / `SqlSourceDispatchWithTemplate`, Java's
-  `sqlSourceDispatch()` / `sqlSourceDispatchTemplate()`, and Dart's `SqlSourceDispatch`
-  annotation are gone. No part of the compiler ever read `sql_source_dispatch`: it is
-  absent from the intermediate schema, the converter and the compiled artifact. Go's
-  emitted it under `config`, which — once `IntermediateQuery` denied unknown fields — made
-  the whole schema uncompilable with an error naming a key the author never wrote; Java
-  stored it in a registry field nothing serialized; Dart's annotation was read by nothing,
-  because Dart has no reflection layer over its annotations. Two of the three were
-  completely inert. Declare **one query per source** instead, which also gives each source
-  its own compile-time SQL identifier validation. Java's `QueryInfo.config` /
-  `getConfig()` and the `registerQuery` overload that carried it go with them — dispatch
-  was their only producer. A new `tools/check-sdk-dead-surface.sh` gate, wired into
-  preflight and the Dagger ShellGates leg, fails if any of the three names returns to an
-  SDK authoring surface.
-
-- **`fraiseql_cli::schema::intermediate::reject_drifted_security_keys` is renamed to
-  `reject_drifted_keys` (#890).** The guard now also covers a non-security key —
-  `return_array`, the `[queries.*]` TOML spelling of `returns_list` — so the old name no
-  longer describes what it refuses. Behaviour for the security keys is unchanged.
-
-- **`WindowFunctionPlanner` is removed (#881).** `fraiseql-core` shipped two window
-  planners. Only `WindowPlanner` is reachable from the binary
-  (`WindowQueryParser::parse` → `WindowPlanner::plan` → `WindowSqlGenerator::generate`);
-  `WindowFunctionPlanner` took a different, raw-SQL-string request shape and nothing
-  outside tests ever called it. It was the root cause of #794 — the identifier allowlist
-  was wired into it, so every guard test passed while the live path interpolated client
-  strings verbatim — and #878 fixed the vulnerability in `WindowPlanner` while leaving
-  the dead planner in place so the security patch stayed reviewable. It is gone from the
-  `compiler` re-export along with its `validate` companion, whose only job was refusing
-  GROUPS frames and frame exclusion on the non-PostgreSQL dialects removed in #374.
-  Callers construct a `WindowRequest` (or let `WindowQueryParser` build one) instead of
-  passing a `serde_json::Value` of SQL fragments. Its 36 tests were ported onto the live
-  chain rather than dropped; two snapshots changed in the process, because the dead
-  planner emitted `data->>'category' as category AS data->>'category' as category` for a
-  selected dimension — SQL PostgreSQL rejects.
-
-- **`EventListener`, `ListenerConfig` and `OverflowPolicy` are removed (#931).** The
-  LISTEN/NOTIFY listener's `overflow_policy` knob (`Drop` / `Block` / `DropOldest`) was
-  accepted, documented and stored, and never read: the loop hard-coded `try_send` and warned
-  "Channel full, dropping event" whatever was configured, so an operator setting `Block` to
-  avoid event loss got drop-newest anyway, silently. Nothing in the workspace wired
-  `EventListener`, and LISTEN/NOTIFY is ephemeral by construction — a notification delivered
-  while no listener is connected is gone. `ChangeLogListener` is the one delivery path, and
-  it now has a durable dispatch ledger (#935). `ObserverRuntimeConfig.overflow_policy` goes
-  with the enum; it was likewise never read. That struct is not `deny_unknown_fields`, so an
-  existing TOML carrying `overflow_policy = "drop"` still parses and the key is ignored — as
-  it effectively always was. Embedders needing backpressure should consume
-  `ChangeLogListener` and apply it at their own dispatch boundary, where a bounded channel
-  can block without dropping a durable row.
-
-- **Observer `cache` actions now require a backend, or the server refuses to boot (#985).**
-  The Redis cache/invalidate transport shipped in #428 but no `fraiseql.toml` could reach it.
-  It is now mounted from `[observers.runtime.redis]` when an enabled observer declares a
-  `cache` action. Declaring one **without** that block is a boot error, as is declaring one
-  in a binary built without the new `observers-cache` feature (in `full`). Previously such a
-  deployment booted and failed every dispatch forever with "no backend wired".
-
-- **`tb_observer_log.status` values changed (#932).** The runtime wrote `"error"`, which
-  migration 06's `ck_observer_log_status` CHECK has never accepted, so every failure row was
-  rejected by the database and dropped behind a `warn!`. It now writes `"failed"`. Queries or
-  dashboards filtering `status = 'error'` should filter `'failed'` — they were matching
-  nothing before, since the rows never landed.
-
-- **The security-config keys that reached no consumer are refused by name (#983).** Four
-  leftovers from the #977 seam typing, all of the same class — config that is accepted or
-  emitted and read by nothing:
-
-  1. **`[fraiseql.security.audit_logging]`** keeps `enabled` (it lowers onto
-     `enterprise.audit_logging_enabled`); `log_level`, `include_sensitive_data`,
-     `async_logging`, `buffer_size` and `flush_interval_secs` are gone.
-     **`[fraiseql.security.error_sanitization]`** keeps `enabled`; `generic_messages`,
-     `internal_logging`, `leak_sensitive_details` and `user_facing_format` are gone.
-     **`[fraiseql.security.state_encryption]`** keeps `enabled` and `algorithm`;
-     `key_rotation_enabled`, `nonce_size` and `key_size` are gone (both sizes are fixed by
-     the algorithm). Each section is `deny_unknown_fields`, so a removed key is now a parse
-     error naming it. `leak_sensitive_details = true` used to be *refused* as "a security
-     risk" — it switched nothing either way, which is the more alarming half of that
-     sentence.
-  2. **`[security] default_policy` is removed from the authoring surface.** No enforcer read
-     it, and `SecuritySettings::default()` emitted `"authenticated"` into *every*
-     Workflow-A schema — a declaration an operator reads as an access boundary, attached to
-     nothing. `examples/saas` and `examples/multitenant` both shipped it. `fraiseql compile`
-     also now refuses `security.rules`, `security.field_auth` and `security.default_policy`
-     in a hand-authored `schema.json`, the one route that could still reach them.
-  3. **`CompiledSecurityConfig` is deleted** (no producer, no consumer, one `default()` in a
-     test), along with the dead `ConstantTimeConfig::to_json` and the three other
-     per-section `to_json` helpers the #977 typed emit replaced.
-  4. **`[fraiseql.security.service_accounts]` is now authorable.** The server has consumed
-     `security.service_accounts` since #977, but no authoring workflow could write it — only
-     a hand-written `schema.json`, so the feature was reachable only by accident:
-
-     ```toml
-     [fraiseql.security.service_accounts.reconciler]
-     secret_env = "FRAISEQL_SA_RECONCILER_SECRET"
-     roles      = ["reconciler"]
-     scopes     = ["write:Invoice"]
-     ```
-
-     An account with no `secret_env`, or with neither roles nor scopes, is refused.
-
-  `fraiseql doctor`'s cache+auth coherence check keyed on the presence of `default_policy`;
-  it now keys on `[security.rls] enabled` or `[[security.role_definitions]]` — the
-  mechanisms that actually gate a cached read. A schema with no access control could clear
-  that check by declaring one word.
-
-  **What changes for you:** `fraiseql compile` fails on any removed key, naming it. Delete
-  the key — none of them did anything. `fraiseql init`'s scaffold no longer writes
-  `log_level`.
-- **The functions subsystem is configured from the schema the server was built with
-  (#896).** `prepare_functions_runtime` re-read the compiled schema from
-  `config.schema_path` instead of using the `CompiledSchema` the `Server` was given, so
-  the functions subsystem could be configured from a different artifact than the one
-  serving queries — a stale file, or one the process's CWD resolved elsewhere — with
-  nothing checking they matched. Because it needed a file, it also could only run on
-  `serve_with_shutdown`: `serve_on_listener`, the in-process entry point every e2e test
-  drives, mounted **no functions at all**.
-
-  The `functions` section now travels with the server via the new
-  `Server::with_functions_config`, and provisioning moved into the boot prologue both
-  entry points share. `main.rs` loads it with `CompiledSchemaLoader::load_extended` and
-  passes it, so running the binary is unchanged.
-
-  **What changes for you:** a library caller that builds a `Server` and expects
-  functions to run must now pass the section explicitly —
-  `Server::new(...).await?.with_functions_config(extended.functions)`. Without it the
-  server runs no functions instead of silently reading whatever is at `schema_path`.
-- **`[security] default_role` now does what it says (#894).** The key was accepted in
-  `fraiseql.toml`, compiled into the schema, and deserialized into the runtime struct —
-  and no production code ever read it. An operator who set `default_role = "viewer"`
-  expecting authenticated principals with no role claim to inherit `viewer`'s scopes got
-  nothing, and every `requires_scope` field was denied to them.
-
-  `SecurityContext::can_access_scope` now falls back to `default_role` when the
-  principal's role set is **empty**. Two boundaries, both deliberate:
-
-  - It is an *absent* role set, not a failed lookup. A principal assigned `guest` has
-    been given its authority; topping it up when `guest` falls short would make
-    `default_role` a floor under every principal rather than a default.
-  - It reaches **authenticated principals only**. A `SecurityContext` exists only for
-    one; an anonymous request is classified by a separate path that stays deny-all.
-    Extending the fallback there would re-open #743's privilege inversion from the other
-    side, handing every `requires_scope` field to callers with no credential.
-
-  **What changes for you:** if your compiled schema sets `default_role`, principals whose
-  token carries no role claim now receive that role's scopes where they previously
-  received none. Set `default_role` to `None` to keep the old behaviour. The two tests
-  named after this behaviour — `test_default_role_fallback` and
-  `test_executor_default_role_applied` — asserted only that the field round-tripped;
-  they now exercise the fallback, and three more pin its boundaries.
-- **The admin cache API sees the cache that actually serves queries, and its response
-  shape is per-cache (#941).** On a server with `cache_enabled = true` and no Arrow
-  Flight service, `GET /api/v1/admin/config` reported `cache_enabled: "true",
-  cache_status: "active"` while `GET /api/v1/admin/cache/stats` on the same server
-  answered `"Cache is not configured"` and `POST /api/v1/admin/cache/clear` returned
-  **500 `Cache not configured`**. Two different caches shared one vocabulary: `config`
-  reported the query result cache, `stats` and `clear` could see only the Arrow Flight
-  cache. An operator following runbook 04 got a 500 from an endpoint whose sibling said
-  the cache was active.
-
-  Both endpoints now operate on both caches and report them separately:
-
-  ```json
-  {"caches":[{"cache":"query_result","configured":true,"entries_count":1284,
-              "hits":90211,"misses":1284,"ttl_secs":300,"max_entries":10000}],
-   "message":"Configured cache(s): query_result"}
-  ```
-
-  **What changes for you:** `CacheStatsResponse`'s flat `entries_count` / `cache_enabled`
-  / `ttl_secs` are replaced by `caches[]`; `CacheClearResponse` gains `caches[]` beside
-  its (now summed) `entries_cleared`. `cache/clear` no longer 500s when a cache is
-  absent — it returns 200 with `configured: false` for that cache, since "there is no
-  such cache" is an answer, not a server error. `scope: "pattern"` applies only to the
-  Arrow cache (result-cache keys are hashes, not globbable strings) and says so in
-  `note` rather than reporting a successful clear of nothing. `scope: "entity"` now
-  resolves the view from the compiled schema instead of guessing `v_{lowercase}`, which
-  mapped `OrderItem` to `v_orderitem` and evicted nothing.
-
-  New on `DatabaseAdapter`: `result_cache_stats()` and `clear_result_cache()`, both
-  defaulting to "no cache" and overridden by `CachedDatabaseAdapter`.
-  `QueryResultCache::run_pending_tasks` is now public and is called before reporting
-  stats: moka settles writes on a background schedule, so an entry cached moments
-  earlier was reported as an empty cache.
-- **A mutation that resolves to no view no longer compiles beside a cacheable view
-  (#910).** A successful mutation's invalidation is resolved from `invalidates_views`,
-  the return type's view, the entity a payload type wraps, the `entity_type` its SQL
-  function stamps on `mutation_response`, and its cascade envelope. When none of them
-  names a view the plan is empty and the mutation invalidates **nothing** — silently,
-  and for a view annotated `cache_ttl_seconds = 0` ("mutation-invalidated only") that
-  means for the process lifetime.
-
-  The reachable shape: a `Custom` mutation returning a payload with no `sql_source` and
-  no `entity` field, whose function stamps no `entity_type`, declaring no
-  `invalidates_views`. `fn_rebuild_pricing` rewrites `tb_price`; `v_price` is cached
-  forever; nothing says so.
-
-  `fraiseql compile` now refuses such a schema, naming every unattributable mutation
-  and the cacheable views at risk. A `tracing::warn!` beside a successful compile is
-  the same defect with more text, so this is an error, not an advisory. Schemas that
-  annotate no view as cacheable are unaffected — there is no entry to strand.
-
-  **What changes for you:** add `invalidates_views = ["v_price"]` to each mutation the
-  error names. A mutation whose return type is backed by a view, or whose payload wraps
-  an entity that is, already resolves and needs no annotation. The server carries the
-  same refusal at boot (only when `cache_enabled = true`) as a backstop for a
-  hand-authored or older-CLI `schema.compiled.json`. The compile gate and the runtime
-  invalidation plan read the same `fraiseql_core::cache::statically_resolved_views`, so
-  they cannot drift into disagreeing about what "resolves to a view" means.
-- **The Arrow/Flight boot path now honours `cache_enabled` — and `Server::with_flight_service`
-  returns `Server<CachedDatabaseAdapter<A>>` (#889).** The constructor `main.rs` selects
-  whenever the `arrow` feature is on passed the raw adapter straight to the executor, so
-  `cache_enabled = true` was accepted, logged nowhere, and did nothing. The same
-  `server.toml` behaved completely differently depending on which feature the binary was
-  built with, and an operator measuring p99 against a deployment they believed was caching
-  got no cache and no line saying so.
-
-  All three constructors now build the cache through one
-  `build_cached_adapter` seam, which also runs the cache+RLS gates
-  (`tenant_isolation_declaration_check`, `warn_on_inert_cache_ttls`, `verify_declared_rls`)
-  in one order. Three constructors deciding independently is the #750 drift shape.
-
-  **New boot refusal:** `cache_enabled = true` together with a non-empty
-  `flight_upload_tables` is refused. A Flight `Upload` is a direct INSERT that never reaches
-  the mutation runner, so it invalidates nothing and cached GraphQL reads would keep serving
-  pre-upload rows until the TTL expired. Set `cache_enabled = false`, or leave
-  `flight_upload_tables` empty (the default, which keeps Upload disabled).
-
-  **What changes for you:** library callers of `with_flight_service` get a
-  `Server<CachedDatabaseAdapter<A>>`; a tenant executor factory paired with it must be
-  built for `CachedDatabaseAdapter<A>` (`main.rs` does this on every PG path now). The
-  constructor also no longer panics when the adapter `Arc` has been cloned — the shared
-  seam clones the adapter instead of requiring exclusive ownership.
-- **`fraiseql_core::config` is removed — `FraiseQLConfig` and its whole `[server]`,
-  `[database]`, `[cors]`, `[auth]`, `[rate_limit]`, `[cache]`, `[collation]` TOML tree
-  (#909).** The type parsed a full configuration file, validated it, expanded `${VAR}`
-  references and round-tripped it in its own tests. No code outside its own module ever
-  read a single field — the whole crate compiles unchanged with the module deleted. An
-  operator who wrote
-
-  ```toml
-  [cache]
-  response_cache_enabled = true
-  response_cache_ttl_secs = 300
-  ```
-
-  got a file that parsed, validated, and did nothing: no response cache was ever
-  constructed, and nothing said so. Every section had a live twin elsewhere, which is why
-  the dead one was never missed.
-
-  **Where each section's working knob lives.** The server's runtime config is
-  `ServerConfig`, deserialized directly from the `--config` file with flat top-level keys
-  and `deny_unknown_fields`:
-
-  | removed | working knob |
-  |---|---|
-  | `[server] host`/`port` | `bind_addr` |
-  | `[server] max_body_size` | `max_request_body_bytes` |
-  | `[server] workers` | tokio runtime default (never wired) |
-  | `[database] url` | `database_url` |
-  | `[database] max_connections`/`min_connections` | `pool_max_size`/`pool_min_size` |
-  | `[database] connect_timeout_secs` | `pool_timeout_secs` |
-  | `[database] ssl_mode` | `[database_tls]` |
-  | `[database] mutation_timing` | no key — the outbox path stamps `fraiseql.started_at` itself; `PostgresAdapter::with_mutation_timing` is the library seam |
-  | `[cors] enabled`/`allowed_origins` | `cors_enabled`/`cors_origins` |
-  | `[auth] *` | `[auth]` (OIDC `issuer`/`audience`), `[auth_hs256]`, `[identity]` |
-  | `[rate_limit] *` | `[rate_limiting]` + the compiled `security.rate_limiting` |
-  | `[cache] apq_*` | `apq_enabled` |
-  | `[cache] response_cache_*` | `cache_enabled` (the adapter query-result cache) |
-  | `[collation] *` | never wired on any path |
-
-  Because `ServerConfig` and the CLI's `fraiseql.toml` loaders both use
-  `deny_unknown_fields`, a config file carrying any of the removed sections is refused at
-  boot rather than silently ignored.
-
-  **What changes for you:** `fraiseql_core::config::*`, `fraiseql_core::FraiseQLConfig`,
-  `fraiseql_core::prelude::FraiseQLConfig`, `fraiseql::FraiseQLConfig` and
-  `fraiseql::prelude::FraiseQLConfig` no longer exist. Library embedders that constructed
-  one were building a value nothing consumed; configure the server through `ServerConfig`.
-
-  A new gate, `tools/check-config-loaders.sh` (preflight + the CI ShellGates leg), refuses
-  a typed TOML config loader that has no coverage manifest naming each accepted key's
-  consumer — the check that would have caught this at the PR that added it.
-- **Selecting a field the type does not define is now a validation error (#939).** GraphQL
-  § 5.3.1 (Field Selections on Objects) makes such a document invalid, and an invalid
-  document must not execute. The runtime instead lowered the unknown name into the SQL
-  projection, where `data->>'phantom_field'` evaluates to NULL and serialises as a
-  legitimate-looking `null` — **HTTP 200, no `errors` array**:
-
-  ```
-  { "data": { "users": [ { "phantom_field": null } ] } }
-  ```
-
-  A client typo (`emial` for `email`, or a snake/camel mixup) therefore shipped silently:
-  the response shape looked correct and the value was always null, with nothing in the
-  logs or the response pointing at it.
-
-  **What changes for you:** a query that today returns 200 with `"field": null` for an
-  undeclared selection now fails validation with
-  `Cannot query field '<field>' on type '<Type>'.` and never reaches the database. If any
-  client is relying on that null — including one whose typo has been invisible — it will
-  start erroring. That is the point; check your clients' field names before upgrading.
-
-  Validated on the regular query path (single- and multi-root) and the Relay `node(id:)`
-  path. Deliberately *not* rejected, so a rejection the schema cannot justify never breaks
-  a working query: types the compiled schema does not carry, types whose field list is
-  empty (an object type must have at least one field, so an empty list means the compiler
-  emitted no field information), `__typename` and the introspection meta-fields, inline
-  fragments on unknown type conditions, and Relay connection selections — whose scoped
-  type is the generated `XxxConnection`, not the query's node `return_type`.
-
-  **Interaction with `on_deny` (#423), decided and documented:** a *denied* field is not
-  an *undeclared* field. Policy-gated fields are in the type's field list, so they pass
-  validation and continue through the RBAC layer — `on_deny = Mask` still returns the key
-  with a null value, and `Reject` still returns its authorization error. The unknown-field
-  error therefore only ever names a field that genuinely does not exist. It does let a
-  caller distinguish "exists but masked" from "does not exist", which is the same
-  information introspection publishes and what every spec-conformant GraphQL server
-  reports; masking withholds a *value*, not the schema. Operators who need that hidden
-  should disable introspection and enable error sanitization together.
-
-  Mutation payload selections are not yet validated (#1005): a payload type may be a union
-  resolved per-result, and validating against the wrong variant would reject a working
-  mutation — strictly worse than the bug. Named rather than silently left.
-- **`FragmentResolver::merge_selections` and `FragmentResolver::evaluate_inline_fragment`
-  are removed (#905).** Both were `pub`, and neither had a production caller — fragment
-  expansion goes through `FragmentResolver::resolve_spreads` (via
-  `graphql::selection_set`), which preserves document order by construction, and
-  inline-fragment type conditions are handled by the projector.
-
-  `merge_selections` returned `HashMap::into_values()`, so its result was in hash order —
-  unspecified, and randomised per process. A GraphQL response's fields must appear in the
-  order the query asked for them (spec § Response Format), which the runtime now honours
-  via workspace-level `serde_json/preserve_order`. Any future caller reaching for the
-  obviously-named helper would have got a correct field *set* in an arbitrary *order*: a
-  response-ordering violation invisible in a diff and intermittent at runtime. Its own
-  tests asserted `names.contains(…)` — the set, never the order — so nothing would have
-  caught it.
-
-  Keeping a helper that silently violates a guarantee the crate now makes is worse than
-  its absence. If a merge helper is wanted later it should be built order-preserving (walk
-  `base`, then append unseen keys from `additional`) and covered by a test that asserts
-  the order rather than the set.
-- **A typo in a compiled schema's `security` object is now a load error, not a
-  silently disabled subsystem (#977).** `SecurityConfig` carried a
-  `#[serde(flatten)]` catch-all that seven security subsystems read by string
-  lookup — so `rate_limitting`, `token_revokation` or `api_key` in a compiled
-  schema landed in the catch-all, the lookup missed, and the subsystem came up
-  unconfigured while the server booted clean. Every subsystem section
-  (`rate_limiting`, `error_sanitization`, `trusted_documents`, `pkce`,
-  `token_revocation`, `api_keys`, `service_accounts`, `state_encryption`,
-  `enterprise`, plus `persisted_queries_only`, `default_policy`, `rules`,
-  `policies`, `field_auth`) is now a typed, `deny_unknown_fields` field on
-  `SecurityConfig`, itself `deny_unknown_fields`; the CLI's TOML types and the
-  server's readers are the same structs re-exported, so producer and consumer
-  shapes cannot drift. Schema-load errors name the offending JSON path
-  (`security.rate_limiting.requests_per_second: invalid type …`).
-
-  Consequences a hand-authored `schema.json` may notice:
-  - Unknown keys anywhere under `security` now fail `CompiledSchema::from_json`;
-    previously they were preserved (and a numeric value beyond `u64` was
-    silently rewritten through `f64`, so a compiled schema was not stable
-    across a load/save cycle — the fuzz finding that filed this issue).
-  - Malformed subsystem sections that previously *warn-and-disabled*
-    (`api_keys`, `service_accounts`, `trusted_documents`, `error_sanitization`)
-    now refuse the load — the fail-open class this remediation program exists
-    to eliminate.
-  - Defaults for a `rate_limiting` section that omits keys are now the
-    producer's (auth-endpoint budgets 5/10/20/30 per window, burst 200) rather
-    than the server's zeroed copy — enabling rate limiting protects the auth
-    endpoints by default instead of building no rules.
-  - The project-config workflow (`[fraiseql.security.*]`) no longer emits the
-    consumer-less `audit_logging`/camelCase sections; `audit_logging.enabled`
-    lowers onto `enterprise.audit_logging_enabled`, the key the runtime reads.
-- **`compile --database` fails on error-severity drift (#384).** Previously
-  every schema↔database drift finding was advisory (`warn!` + exit 0, artifact
-  written). A schema whose declarations name database objects that do not
-  exist — or cannot serve the declared shape — no longer compiles; pass
-  `--allow-drift` for the old behaviour. `DatabaseIntrospector::
-  get_sample_json_rows` lost its silently-empty default implementation and is
-  now required.
-- **The vector WHERE operand shape changed (#386).** `cosine_distance: [0.1, …]`
-  (a bare array) generated SQL PostgreSQL always refused — a non-boolean
-  float8 expression over a mis-parenthesised cast with a jsonb-bound operand —
-  so no working query used it. The operand is now
-  `{vector: [Float!], threshold: Float}` with distance-≤ (or, for
-  `inner_product`, raw-inner-product-≥) semantics. `hamming_distance` and
-  `jaccard_distance` are refused loudly: pgvector defines them over binary
-  (`bit`) vectors, which the float `Vector` type cannot declare. The
-  `SqlDialect::vector_distance_sql`/`jaccard_distance_sql` trait methods
-  (unreachable outside that broken path) are removed.
-- **`PoolPrewarmConfig` gains the mandatory `read_replicas` field (#407).** Every
-  pool construction site must now state its replica topology (`None` for a
-  single-primary pool), the same compile-time-visible decision the `tls` field
-  imposes: replica pools are built from the very same config, so tenant isolation
-  and transport security cannot silently differ between the primary and a replica.
-- **Cost rejections changed shape (#379).** A per-tenant `cost_budget` rejection was
-  HTTP 429 `RATE_LIMIT_EXCEEDED` with `retry_after_secs: 1`; it is now
-  `OPERATION_COST_EXCEEDED` in a 200 GraphQL error response, because retrying an
-  over-budget operation can never succeed. `FraiseQLError` gains the `CostExceeded`
-  variant carrying `cost`, `limit`, and an optional retry hint.
-- **`RuntimeConfig.max_query_depth` and `max_query_complexity` are deleted (#379).**
-  Both were declared, defaulted, debug-printed — and read by nothing. The one
-  enforcement surface is `query_validation` (embedder-installed, or derived from the
-  compiled `[validation]` limits at executor construction). An embedder that set the
-  dead fields and expected enforcement never had it; set `query_validation` instead.
-- **The compiled `auth` object is nested (#368, #367).** `CompiledSchema.auth` was
-  the flat PKCE quadruple; it is now a container with `pkce`, `social` and `local`
-  groups, so the `[auth]` block can carry the social-provider registry and the
-  first-party auth methods alongside the PKCE client. A schema compiled before this
-  change carries the flat shape and no longer deserializes — recompile it. (There are
-  no compiled schemas in the wild; the field shipped in #621.)
-- **`fraiseql_auth::social` is deleted (#368).** `SocialLoginState`,
-  `SocialProviderRegistry` and `social_authorize` were a second, thinner social
-  surface: a redirect-only `GET /auth/v1/authorize` with no callback, no account
-  linking and therefore no trust gate. The mounted flow is `multi_provider`, which has
-  all three. `Server::with_social_login` now takes
-  `Arc<MultiProviderAuthState>`; library embedders on the old type should build the
-  `multi_provider` state instead, or configure `[auth.social]` and let the server
-  build it.
-- **`GitHubOAuth::new` is synchronous and fallible (#368).** It was `async` because it
-  performed OIDC discovery — against an endpoint GitHub does not serve. It now returns
-  `Result<Self>` without any network call; `GitHubOAuth::with_endpoints` takes explicit
-  base URLs for GitHub Enterprise Server.
-- **`github` is trusted for email-verified account linking by default (#368).** With
-  the `/user/emails` second hop implemented, `TrustedEmailProviders::builtin_default`
-  is now `{google, apple, github}`. Deployments that want the previous posture should
-  call `.distrust("github")`.
-- **The rich-filter surface (`<RichType>WhereInput`) is gone (#869).** The compiler
-  emitted 48 per-type WhereInput input types advertising 35 operator names
-  (`domainEq`, `tldIn`, `withinRange`, …) that the runtime WHERE parser could never
-  serve: 32 of them failed with `Unknown WHERE operator`, and two (`depthEq`,
-  `overlaps`) silently bound to unrelated ltree/inet operators. The emission, the
-  embedded `lookup_data` blob, the CLI SQL-template tables, and the runtime's
-  unreachable `ExtendedOperator` machinery (`fraiseql_db::filters`,
-  `WhereOperator::Extended`, `SqlDialect::generate_extended_sql`,
-  `fraiseql_core::filters`) are all deleted. Rich scalar *names* remain valid
-  authoring types; filtering uses the standard operator set. A compiler↔runtime
-  contract test now refuses any compiled input type advertising an operator
-  `WhereOperator::from_str` cannot parse.
-- **The string-SQL tenancy helpers are gone (#736).**
-  `fraiseql_core::tenancy::{where_clause, where_clause_postgresql,
-  where_clause_parameterized}` (methods and free functions) interpolated or
-  templated `tenant_id` SQL that no production path used, behind a doc claim
-  ("validated at context creation") that was false — `TenantContext::new` validates
-  nothing, and `where_clause()` panicked on IDs outside `[A-Za-z0-9._-]`.
-  `TenantContext` now carries identity/metadata only; tenant filtering is done by
-  the runtime security machinery (`inject_params`, `rls_policy`, per-tenant pools).
-- **An RLS-protected deployment now fails closed on every anonymous query path
-  (#784).** With a `RuntimeConfig::rls_policy` configured, the anonymous regular
-  path served *unfiltered* rows (it never consulted the policy) and the REST
-  direct-read and count paths fell through to unfiltered on a missing security
-  context, while the relay and node paths refused. All five paths now refuse
-  identically ("Query not found"), and `Prefer: count=exact` can no longer
-  disagree with the body it describes.
-- **`fraiseql run` refuses malformed `FRAISEQL_*` env values instead of silently
-  flipping them to `false` (#874).** `ServerArgs::from_env` routed every boolean
-  through a hand parser that mapped clap-valid `y`/`t`/`on` — and any typo, e.g.
-  `FRAISEQL_SUBSCRIPTION_REQUIRE_AUTH=ture` or a trailing space — to an explicit
-  `false` override, silently disabling the guard the operator was enabling. Both
-  binaries now share clap's boolish parser; a set-but-unrecognised boolean or an
-  unparseable numeric/address value is a startup error naming the variable.
-- **Arrow Flight defaults to loopback (#874).** `flight_bind_addr` defaulted to
-  the `0.0.0.0:50051` wildcard while the HTTP surface defaulted to loopback, and
-  the `FRAISEQL_FLIGHT_BIND_ADDR` override lived in a serde default — so it lost
-  to any config-file value, and a malformed value silently fell back to the
-  wildcard. Default is now `127.0.0.1:50051`; the env var / `--flight-bind-addr`
-  follow the standard CLI > env > file > default precedence and refuse startup on
-  a malformed value.
-- **`Server::new`/`from_executor` run `ServerConfig::validate()` (#874).** The
-  documented library embedding (`ServerConfig::from_file` + `Server::new`) skipped
-  every production safety gate — a leftover `playground_enabled = true`, a zero
-  pool timeout, or `[auth]` + `[auth_hs256]` both configured booted happily as a
-  library while the binary refused. Every construction path now faces the same
-  gates; library embedders with configs the binary would reject will now be
-  refused too.
-- **`FRAISEQL_REQUIRE_REDIS` now verifies all three shared-auth-state subsystems
-  (#874).** The gate inspected only the PKCE store, so the operator's "all shared
-  state is distributed" assertion held while revoked tokens stayed accepted on
-  other replicas and per-IP limits ran at N× the configured rate. It now refuses
-  when the PKCE store, the rate limiter, or the token revocation store is
-  per-process (a disabled subsystem is not a violation; Postgres-backed
-  revocation counts as shared).
-- **The non-kafka `KafkaAdapter` stub fails loud (#784).** The compiled-out stub
-  reported `Ok` from `deliver()` (dropping every subscription event) and
-  `health_check() == true`. It now errors on delivery and reports unhealthy,
-  matching the other compiled-out runtime stubs.
-- **The dead `ServerSubsystems` bundle was deleted (#874).**
-  `ServerSubsystemsBuilder`, `validate_subsystems_config` and the
-  `ServerSubsystems`/`StorageSubsystem` container had no production constructor —
-  their "call once during server startup" advisories never reached an operator.
-  The live pieces (`FunctionsSubsystem`, `BeforeMutationHooks`, the functions
-  loader) are unchanged.
-- **`ServerConfig` (the `fraiseql-server --config` file) now refuses unknown keys
-  (#839).** The architecture docs shipped a production example whose keys sat in
-  `[server]`/`[database]` grouping tables `ServerConfig` does not have; serde silently
-  discarded every documented key, so the server booted on `127.0.0.1:8000` with default
-  pool sizing while the operator believed they had configured `0.0.0.0:4000` and
-  `pool_max_size = 20`. An unknown top-level key is now a parse error naming the key,
-  and a section whose build feature is compiled out (e.g. `[observers]` without the
-  `observers` feature) gets an error naming the missing feature instead of the former
-  warn-and-drop. **Migration:** the config keys are top-level (`bind_addr`,
-  `schema_path`, `database_url`, `pool_min_size`, …) — remove any grouping tables and
-  any key the error message names.
-- **The dead `fraiseql_server::config::RuntimeConfig` layer was deleted (#839).** The
-  docs described the binary as "loading `RuntimeConfig` and translating it to
-  `ServerConfig`"; in reality the type — with its own `[server]`/`[database]` shape,
-  `url_env` indirection, loader and 433-line `ConfigValidator` — was constructed by
-  nothing but its own tests and a fuzz target. Removed along with its sub-configs
-  (`HttpServerConfig`, `DatabaseConfig`, `LifecycleConfig`, `CorsConfig`,
-  `MetricsConfig`, `TracingConfig`, `RateLimitingConfig`, …), the `config::env`
-  helpers, and the never-fed `AppState` config slot whose emptiness made
-  `GET /api/v1/admin/config` always report `cache_enabled = false`; that endpoint now
-  reports the real adapter-cache state and no longer promises port/host/workers fields
-  it could never fill. `fraiseql_server::config` retains only the live types
-  (`UsagePersistenceConfig`, `WebhookRouteConfig`, error sanitization, pool tuning).
-- **FraiseQL is PostgreSQL-only: the MySQL, SQLite and SQL Server backends were removed
-  (P22, #374 #721 #799 #829 #830 #831 #832 #833 #834 #870).** Three audit passes found
-  the non-PostgreSQL paths had never been executed against a real database, and the
-  defects were not marginal: every field-projected query failed on MySQL and SQLite (a
-  PostgreSQL-only `jsonb_build_object` projection was spliced into their SQL, #799);
-  MySQL boolean equality never matched `true` while `neq: true` matched everything
-  (#831); MySQL numeric comparison rounded to an integer, so `19.99` and `20.4` compared
-  equal (#830); boolean `ORDER BY` collapsed every sort key to 0 (#829); cursor-paginated
-  sorts were silently dropped (#832); a client-controlled `where` field name could break
-  out of a MySQL string literal (#833); and a multi-argument SQLite `DELETE` applied only
-  the first filter, widening the delete (#834). Supporting them properly means three more
-  per-dialect integration matrices in CI forever, against a design that is
-  PostgreSQL-shaped throughout (Trinity views, JSONB `data` columns, RLS tenancy,
-  `LISTEN/NOTIFY` subscriptions, WAL-based CDC).
-
-  **Removed:** the `mysql`, `sqlite`, `sqlserver`, `mssql`, `test-mysql`,
-  `test-sqlserver`, `multi-db` and `all-db` Cargo features on every crate; `MySqlAdapter`
-  / `SqliteAdapter` / `SqlServerAdapter` and their introspectors; `MySqlDialect` /
-  `SqliteDialect` / `SqlServerDialect`; `MySqlProjectionGenerator` /
-  `SqliteProjectionGenerator`; the `quote_mysql_identifier` / `quote_sqlite_identifier` /
-  `quote_sqlserver_identifier` and `escape_mysql_json_path` / `escape_sqlite_json_path` /
-  `escape_sqlserver_json_path` helpers; the observers' MySQL and MSSQL NATS bridges; and
-  the `MySQL`, `SQLite` and `SQLServer` variants of `DatabaseType`, which now has one
-  variant. `DialectCapabilityGuard` and its `Feature` matrix are gone too — three audit
-  passes confirmed the guard was never called from any production path.
-
-  **Migration:** move to PostgreSQL 14+. A `mysql://`, `sqlite://` or `sqlserver://`
-  database URL is now refused at startup by both `fraiseql-server` and `fraiseql run`,
-  with an error naming the removal — it is never silently downgraded. A
-  `[collation.database_overrides.mysql|sqlite|sqlserver]` config table now fails to parse
-  (`deny_unknown_fields`) rather than being silently ignored. Because the removed
-  backends returned wrong results on filters, sorts and projections rather than working,
-  treat data from such a deployment as suspect rather than as a baseline to reproduce.
-  See `docs/database-compatibility.md`.
-- **`where` field names are validated at the parse boundary (#833).** A `where` key
-  outside the GraphQL identifier pattern `[_A-Za-z][_0-9A-Za-z]*` — a quote, a backslash,
-  a leading digit — is now rejected with a `Validation` error instead of being
-  interpolated into SQL. This is the same rule `orderBy` already enforced, and it is kept
-  after the de-scope because it protects PostgreSQL too. A client sending such a key
-  previously reached SQL generation; it now gets an error.
-- **CDC drain redesign (P20, #797 #814 #815).** `core.tb_cdc_sink_state` gains a
-  `lease_expires_at` column and an `in_flight` status (idempotent `ADD COLUMN IF NOT
-  EXISTS` migration; re-run `outbox_sink_state_migration_sql`). The enqueue cursor is now
-  an anti-join bounded by a commit-lag window (default 15 min,
-  `DrainWorker::with_commit_lag_window`) with a periodic full recovery sweep
-  (`with_sweep_every`, first tick always sweeps) — a row whose transaction commits out of
-  sequence order is no longer permanently dropped. Publishing is claim-then-publish under
-  a lease (`with_lease`, default 10 min) with **no database transaction held across broker
-  calls**, and a transiently failing row now **blocks its successors** (head-of-line
-  blocking; a dead-lettered row releases them) instead of being overtaken —
-  `DrainStats.retried` therefore counts at most the head row per tick, and `DrainStats`
-  gains `late_recovered`.
-- **`fraiseql-wire` connection strings parse their query component strictly (#817).**
-  `?sslmode=…`, `?application_name=…` and `?connect_timeout=…` are honoured (`sslmode` is
-  *enforced*: a plaintext connect refuses `require`/`verify-*`, a TLS connect refuses
-  `disable`, and the opportunistic `prefer`/`allow` modes are refused outright); any other
-  parameter is a loud `WireError::Config` instead of being folded into the database name.
-  `ConnectionInfo.user`/`database` are now `Option<String>` (explicit-vs-defaulted is
-  distinguishable; `user_or_default()`/`database_or_default()` apply the OS-user
-  convention), and `Connection::streaming_query` takes the entity name as a parameter
-  instead of re-deriving it from the SQL text.
-- **`fraiseql-wire` `connect_with_config`/`connect_with_config_and_tls` implement their
-  documented merge (#877).** The connection string's explicit user, password, database,
-  `application_name` and `connect_timeout` now override the passed `ConnectionConfig`
-  (they were previously parsed and silently discarded, so the startup packet carried the
-  config's credentials and no password).
-- **`fraiseql-wire` `TlsConfig` drops `verify_hostname` and
-  `danger_accept_invalid_hostnames` (#877).** Both flags were stored and reported but
-  never reached the rustls verifier — hostname verification is always on. The
-  debug-build-only `danger_accept_invalid_certs` remains the self-signed-development
-  escape hatch (it disables the whole verification, hostname included).
-- **`fraiseql-wire` `OrderByClause` renders JSONB fields with text extraction (`->>`)
-  (#877).** The previous `->` navigation yielded `jsonb`, so any collated JSONB order
-  clause failed at the server with `collations are not supported by type jsonb` (42P22).
-- **`fraiseql-wire` SASL mechanism-list decoding hard-errors past the cap (#729)** like
-  every other decode cap, instead of silently truncating the list.
-- **`fraiseql_arrow::execute_batched_queries` rejects heterogeneous result schemas
-  (#717).** A Flight stream carries one schema header; a batch whose queries infer
-  different schemas now returns `InvalidArgument` naming both shapes instead of emitting
-  an undecodable stream.
-- **`fraiseql init` refuses `--database mysql|sqlite|sqlserver|mssql` (#823 follow-through
-  of the PostgreSQL-only decision).** The scaffolder still generated projects for the
-  removed engines — projects the runtime refuses to boot. It now errors with the removal
-  notice instead of scaffolding; `postgres` is the only accepted value.
-- **`fraiseql generate-views --validate` now requires a database.** It executes the
-  generated DDL against `DATABASE_URL` inside a rolled-back transaction and fails when
-  PostgreSQL rejects any statement (#821). The previous flag checked only the view-name
-  prefix, so it could never fail — it reported files with syntax errors as "valid". Runs
-  without `DATABASE_URL` now exit non-zero with an explanation instead of claiming
-  validity.
-- **`fraiseql-server`'s bridge `EntityEvent.operation` is now `SubscriptionOperation`**
-  (was a free-form `String`), and `fraiseql-observers`' `EventKind` is a **closed enum**
-  (no longer `#[non_exhaustive]`), so the subscription forward mapping is an exhaustive
-  match and an unmapped variant is a compile error instead of a silent fall-through
-  (#773).
-- **Unknown `modification_type` verbs in `tb_entity_change_log` are rejected.**
-  `INSERT`/`UPDATE`/`DELETE` and the explicit no-op verbs `CUSTOM`/`NOOP`/`READ` remain
-  valid; anything else now errors at conversion (the row is skipped and logged, the
-  checkpoint still advances) instead of being silently treated as a no-op (#773).
-- **A restart no longer replays the entire change log (#805).** The observer runtime wrote
-  a checkpoint after every batch but nothing ever read it back — and the row was keyed on
-  the entity type of whatever row happened to be last in the batch, so there was no global
-  cursor to read. Every process start (deploy, OOM, node drain) re-read
-  `core.tb_entity_change_log` from row 0 and re-fired every webhook, email and Slack
-  message ever recorded, with severity growing with deployment age. The runtime now
-  restores the cursor at startup under a stable listener identity (`listener_id`, default
-  `"change_log"`), ensures the checkpoint table exists (the shipped idempotent migration),
-  and persists through `PostgresCheckpointStore` after each dispatched batch. Delivery is
-  explicitly **at-least-once with a one-batch replay window**; payloads carry the
-  change-log row UUID as the dedup key. Pinned by a genuine restart test (second runtime,
-  same pool, zero re-dispatch).
-- **The job-queue worker actually executes jobs (#844).** `timeout_job_execution` was a
-  placeholder returning `Ok(())`: every dequeued observer action was logged as completed,
-  counted in `job_executed`, and acknowledged — which `DEL`s the only copy of the payload —
-  without any dispatch ever happening. The worker now dispatches the action against the
-  event carried on the job, bounded by `job_timeout_secs`; a timeout is a transient failure
-  retried per policy, terminal failures land in the DLQ with the payload intact, and a job
-  is only removed after a confirmed terminal outcome. Also fixed on the way: the error path
-  called `mark_failed` twice per failure (double-counting attempts), and `fail()` re-checked
-  `can_retry()` on the already-incremented counter, dead-lettering jobs one attempt early
-  with a stored state (`pending`) contradicting the status hash (`dead_lettered`).
-- **`field_changed*` conditions error loudly when change tracking is unavailable (#845).**
-  On the default change-log path (`changelog_pre_image = false`) UPDATE rows carry no
-  pre-image, so `field_changed` / `field_changed_to` / `field_changed_from` silently
-  evaluated false — a documented condition family that could not fire in the default
-  configuration, indistinguishable from "correctly configured, not matching". Evaluating
-  them against an UPDATE without a pre-image is now an error naming the missing
-  `changelog_pre_image` prerequisite; a recorded pre-image with an empty diff is a clean
-  `false` (the two cases are no longer conflated). The docs (`condition` module, crate
-  docs, webhooks.md) now state the prerequisite, and the crate docs' example of a
-  non-existent `status_changed_to` function is corrected.
-- **Condition `==`/`!=` compare numbers numerically (#843).** serde_json equality is
-  representation-strict, so `total != 100` was true for a PostgreSQL `numeric(10,2)` value
-  of `100.00` — firing observers on rows they should skip — while `>=`/`<=` on the same
-  operands coerced and agreed the values were equal. Equality now routes through the same
-  numeric-aware comparison as the ordered operators (exact `i64`/`u64` first, so values
-  above 2^53 stay exact), shared with `field_changed_to`/`field_changed_from`, which had
-  the identical root cause.
-- **`database` and `log` observer actions dispatch for real (#632).** The admin API's 400
-  for those action types (the #612 stopgap) is lifted: `database` calls the configured
-  PostgreSQL function with a `{"event": ..., "params": ...}` jsonb envelope (function name
-  restricted to a strict SQL identifier, re-validated at dispatch), and `log` emits one
-  structured tracing event at the configured level with a rendered message template. Both
-  fail loud when their backend is absent.
-- **Observer metrics reach the server's `/metrics` (#634).** The observer subsystem records
-  into the `prometheus` crate's default registry while the server scrape is rendered from
-  the `metrics-exporter-prometheus` ecosystem — two registries that never met, so
-  `fraiseql_observer_*` series were absent from every scrape. The server (feature
-  `observers-metrics`, included in `observers-enterprise`) now appends the observer
-  registry's rendering to the scrape output.
-- **The observer E2E suite runs, and can pass (#928).** None of its 8 tests constructed a
-  runtime — nothing polled the change log, so every test waited for webhooks that could not
-  be sent — and no CI leg ran the file. Several also registered observers for `"Order"`
-  while inserting `"Order_{test_id}"` rows, asserted a log status (`"failed"`) the writer
-  never emits, and counted webhook deliveries with a mock that only recorded successes.
-  Each test now drives a real `ObserverRuntime`; the suite is wired into the Dagger
-  observers integration leg, and the #844 job-queue tests into the redis leg.
-- **`MultiListenerCoordinator` docs no longer claim cross-process HA (#872).** The module
-  advertised "shared checkpoint store, leader election, failover coordination" while every
-  structure is process-local — three replicas each elect *themselves* leader and all poll
-  concurrently. The docs now state the process-local reality and point HA users at the
-  advisory `CheckpointLease` plus the durable checkpoint cursor.
-- **Every `cron:` function fires on every matching window, not once ever (#796,
-  CRITICAL).** `CronExecutionState::should_execute` returned `last_exec >= window_start` —
-  the exact negation of its own comment — and `find_schedule_window` stepped back one minute
-  before searching, returning the *previous* window (or, for any schedule sparser than
-  hourly, giving up after a 60-minute scan and returning the tick instant itself). Under
-  real wall-clock timestamps every daily and weekly schedule fired exactly once and then
-  never again, and sub-hourly schedules degenerated to a per-tick coin flip that wedged
-  permanently after the first miss — silently, with nothing logged. The window is now the
-  minute *containing* the tick and the guard is `last_executed < window_start`; the fix is
-  pinned by a ported 20 000-tick simulation asserting exactly one fire per matching window
-  under sub-second jitter. Every scheduling loop (functions cron, server cron, scheduled
-  sources — including #573 scheduled ingress, which this bug had capped at one run per
-  process) now logs a window-suppressed tick at `warn` instead of silently continuing.
-- **`_fraiseql_cron_state` is read back at boot (#796).** The table was documented as the
-  cross-restart "already fired this window" guard, but `PgCronState` had `record_fire` and
-  no loader — nothing ever read it. Each cron poller now resumes its fire-window state from
-  the durable record; a state read failure refuses boot instead of silently double-firing.
-- **Cron day-of-week fields use POSIX numbering (#841).** Matching used chrono's
-  `number_from_sunday()` (Sun=1…Sat=7) against POSIX fields (Sun=0…Sat=6), so `0 9 * * 1`
-  fired on **Sundays**, `1-5` meant Sun–Thu, and `0` (Sunday) could never match at all.
-  Weekday tokens now match their POSIX days, `7` is accepted as the alternate Sunday, and a
-  calendar-pinned test covers every token.
-- **A dispatched function sees a real identity (#803).** The live host's `SecurityContext`
-  was a hard-coded `anonymous` placeholder (documented "for testing") on every production
-  path, so `fraiseql_auth_context()` fabricated an empty identity and `send_email` could
-  never resolve a sender — the entire wiring was dead on arrival, dead-lettering every
-  send. The host now carries the triggering caller's authenticated context on the
-  after:mutation request path (GraphQL and REST), and the function's own `run_as` identity
-  on background paths (cron, sources, after:ingest, after:capture); the `fraiseql_query`
-  bridge stays under the `run_as` ceiling. A host with no wired identity fails
-  `auth_context()` loudly instead of fabricating one, and the send-status/suppression
-  tenant stamp now carries the caller's tenant instead of collapsing to NULL.
-- **`fraiseql_env_var` can actually return a value (#840).** The env-var allowlist had no
-  producer — no TOML key, no env var, no builder — so deny-by-default degenerated into
-  deny-always while docs described granting secrets, and a blocked read was
-  indistinguishable from an unset variable. The allowlist is now populated from
-  `FRAISEQL_FUNCTIONS_ALLOWED_ENV_VARS` (after:mutation/cron) and `[sources]
-  allowed_env_vars` / `FRAISEQL_SOURCES_ALLOWED_ENV_VARS` (sources).
-- **The Deno CPU watchdog stays armed across the event loop (#804).** It was disarmed
-  immediately after `execute_script` returned — before the event loop ran — so a guest that
-  spun *after* an `await` (a poll loop without a sleep) pinned an executor thread and its
-  V8 isolate at 100 % CPU forever; the event-loop `tokio::time::timeout` future was never
-  polled again and could not fire. Script evaluation and the event loop now share one
-  watchdog deadline, and a spin after a real async host op is terminated at `max_duration`.
-- **Runtime observers have exactly one source of truth (#631).** Compiled handler
-  declarations are not a runtime concept: the compiled `ObserversConfig` no longer has a
-  `handlers` field (and is `deny_unknown_fields`, so a schema smuggling one fails to load),
-  `[[observers.handlers]]` keeps failing the TOML compile as permanent policy, and an
-  SDK-authored `observers_config.handlers` array — which previously slipped through the
-  seam and landed in the compiled schema as decoration — now fails the compile with a
-  message naming `tb_observer` / `POST /api/observers`. The unused `EventHandler` type is
-  removed from `fraiseql-core`.
-- **`job_queue::Job` carries the full triggering `EntityEvent`** (field `event` replaces
-  `event_id`): a bare event id gave the worker nothing to dispatch with (#844).
-  `Job::new`/`Job::with_config` signatures changed accordingly; jobs serialized by
-  pre-#844 builds do not deserialize (they were never executed anyway).
-- **Go SDK: `Enum` takes ordered members (#929).** `Enum(name, values map[string]string)`
-  iterated a Go map, so the exported member order was randomized per run — two builds of
-  one schema produced different artifacts and the SDK conformance gate was a coin flip —
-  and the map's values were silently dropped (only keys were ever exported). The
-  signature is now `Enum(name string, members ...string)`, and every `GetSchema` category
-  is exported in sorted-name order so the whole export is reproducible.
-- **Quoted condition literals are strings (#843).** The DSL lexer previously discarded
-  quoting, so `code == '100'` compared a string field against the *number* 100 and was
-  silently false forever. A quoted literal now always compares as a string and never
-  equals a number; `total == 100` (unquoted) compares numerically.
-- **`fraiseql-server`'s `observers` feature now requires `fraiseql-observers/checkpoint`**
-  — the durable cursor is not optional (#805) — and a new `observers-metrics` feature
-  (included in `observers-enterprise`) compiles the metrics bridge (#634).
-- **An unrecognized `after:mutation`/`after:capture` operation token fails the load
-  (#842).** `after:mutation:User:created` (or `:INSERT`, or any typo) used to silently
-  widen the trigger to *all* event kinds — a welcome-email function also fired on every
-  delete. Only `insert`/`update`/`delete` narrow; the documented `*` wildcard and the
-  token-less form still mean "all kinds"; anything else aborts startup with an error
-  naming the function and the valid tokens.
-- **`http:` triggers are rejected at registry load (#871).** They were accepted, stored in
-  a matcher no server code consumes, and never served — a declared `http:` function
-  silently did nothing while `POST /functions/v1/{name}` ignored the trigger entirely.
-  Until a mounted route surface exists, a declared `http:` trigger aborts startup with the
-  same loud error `after:storage` gets. The `TriggerRegistry` `http_routes` field and its
-  accessors are removed.
-- **`env_var` refuses non-allowlisted names loudly (#840).** A blocked name is now an
-  authorization error (a thrown exception in Deno guests; `result` in the WASM WIT, whose
-  `get-env-var` signature changed to `result<option<string>, string>`); `Ok(None)`/`null`
-  is reserved for an allowlisted but unset variable.
-- **`fraiseql_sql_query` is documented as not implemented (#871).** The guest typings and
-  architecture docs advertised a working raw-SQL op; it has never had an execution
-  backend (statements were classified, never executed, then failed loud). The typings,
-  the host module doc's "RLS-backed raw SQL" claim, and the docs now say so.
-- `LiveHostContext.security_context` is no longer a public field; wire an identity with
-  `with_security_context(...)`. The dead `host::factory` module (a stub with no
-  production caller) is removed. `build_cron_pollers` is now async and fallible;
-  `spawn_after_mutation` takes the triggering caller's `SecurityContext`.
-- **Every official SDK is now held to a cross-SDK conformance suite, and eleven of them
-  changed to pass it (#733, #849, #850, #851, #852, #853, #854, #855).** The canonical schema
-  is authored through each SDK's *public API*, compiled by the real `fraiseql compile`, and
-  the compiled result compared against a shared expectation
-  (`sdks/official/conformance/`). Nothing before this ran the compiler, and six of the
-  eleven pre-existing "parity generators" hand-wrote their JSON without calling the SDK at
-  all — which is why a green parity gate coexisted with a Ruby README documenting an exporter
-  that did not exist and a Dart package with no export path.
-
-  Author-visible changes:
-
-  - **TypeScript**: `@Query`, `@Mutation` and `@Subscription` now **throw**, naming
-    `registerQuery`/`registerMutation`/`registerSubscription`. They registered placeholders —
-    a return type of the literal string `"Query"`, zero arguments — because TypeScript erases
-    the types they would need, and `reflect-metadata` does not recover them either. `@Type`
-    remains a marker (the federation decorators build on it), but *exporting* a type whose
-    fields never arrived is refused. `registerTypeFields` can now complete a `@Type`
-    registration, which its own docstring documented and the duplicate guard forbade.
-  - **Java**: `SchemaFormatter` emits arrays of objects, not maps keyed by name; `return_type`
-    plus `returns_list` rather than a camelCase `returnType` carrying `"[User]"`; arguments as
-    `{name, type, nullable}` objects; `javaClass`, `baseType` and `isList` are gone. Argument
-    types are GraphQL type expressions, so a trailing `!` means non-null. `QueryBuilder` and
-    `MutationBuilder` gain `nullable()` and `requiresRole()`.
-  - **PHP**: `MutationBuilder::toIntermediateArray()` emits `invalidates_views` (not
-    `invalidates`), adds `invalidates_fact_tables`, and writes `inject_params` (not `inject`)
-    in the nested `{source, claim}` form. `returnsList()`, `nullable()` and `requiresRole()`
-    are new. `StaticAPI::enum()` is new.
-  - **Go**: all four top-level slices carry `omitempty`, so an unpopulated section is omitted
-    rather than marshalled to `null`. `FieldInfo` gains `Description`; `RegisterInputType` is
-    new. `Config` is no longer serialized and `SqlSourceDispatch` *refuses* at `Register()`,
-    because `sql_source_dispatch` has no consumer anywhere in the compiler (#926). The
-    analytics surface matches `IntermediateFactTable`: `Measure(name, sqlType, nullable)`
-    replaces `Measure(name, aggregations...)`, dimensions carry a JSONB path, and
-    `FactTableDefinition` drops `name`/`dimension_paths` for `table_name`/`dimensions`/
-    `denormalized_filters`. Observer actions serialize flat rather than under `config`, and
-    an observer with no `Retry()` gets `DefaultRetryConfig()`.
-  - **C#**: `IntermediateType` carries `relay` and `is_error`; a type marked
-    `IsInput = true` is routed into `input_types` instead of being emitted as an output type.
-    `Inject`, `RequiresRole`, `InvalidatesViews`, `InvalidatesFactTables` and `RegisterEnum`
-    are new.
-  - **F#**: `computed` is no longer serialized (#927). `QueryBuilder`/`MutationBuilder` gain
-    `inject`, `requiresRole`, `invalidatesViews`, `invalidatesFactTables`;
-    `SchemaRegistry.registerEnum` is new. `QueryDefinition`, `MutationDefinition` and
-    `IntermediateSchema` gained fields, so record literals need updating.
-  - **Elixir**: `requires_scopes` is folded to a singleton `requires_scope` and refused beyond
-    one — the array is a key the compiler does not read. `fraiseql_type` no longer requires
-    `sql_source` on an `is_input: true` type, and refuses one that sets it: the macro demanded
-    a key the compiler forbids, so input objects were unauthorable. `fraiseql_enum` is new,
-    and queries/mutations accept `inject_params`, `requires_role`, `invalidates_views` and
-    `invalidates_fact_tables`.
-  - **Ruby**: `lib/fraiseql.rb` exists, so `require "fraiseql"` resolves — the README's first
-    line raised `LoadError`. `FraiseQL::Schema` is implemented: the `schema.type` /
-    `schema.query` / `schema.export_json` API the README has always documented.
-    `to_fraiseql_schema` emits the required `nullable`, uses snake_case field names to match
-    its CRUD sibling, and no longer emits `deprecated`, which `IntermediateField` has no
-    member for.
-  - **Rust**: `export_to_json` produces `{"version", "types": [...]}` via `serde_json`
-    instead of a name-keyed map built with `format!` — a `"` in any name, scope or description
-    previously produced text that was not parseable JSON. Keys are snake_case
-    (`requires_scope`, not `requiresScope`). `register_type_with_source` is new. The crate now
-    depends on `serde`/`serde_json`.
-  - **Dart**: `FraiseQLSchema` and `FieldType` are implemented and `crud_generator` is
-    exported — the package shipped annotations nothing read and no way to produce a schema.
-  - **Python**: `computed` is no longer serialized (#927).
-- **A custom scalar declaring `validation_rules` is refused (#922).**
-  `CompiledSchema.custom_scalars` is `#[serde(skip)]`: the converter registers the scalar into
-  an in-memory registry that is dropped when the compiled schema is written, and nothing in
-  `fraiseql-server` reads scalar rules back. A declared `pattern`, `length` or `range` was
-  therefore never enforced, from any SDK, while the compile reported success. Carrying the
-  rules further without a runtime consumer would relocate the drop rather than fix it — the
-  disposition `#779` got for observers. The scalar *declaration* still works, and is what
-  makes the name known to the compiler; enforce the constraint in the database (a `CHECK`
-  constraint or a `DOMAIN`) or in the mutation's SQL function.
-- **The mutation `operation` verb is matched case-insensitively.** `parse_mutation_operation`
-  accepted only uppercase, while `docs/authoring.md`, `docs/architecture/intermediate-schema.md`,
-  the Python SDK's parity generator, the PHP `MutationBuilder` docblock and the Java
-  `OperationBuilder` all use lowercase — every one of them produced
-  `Error: Unknown mutation operation: insert`. The verb set stays closed: an unrecognized word
-  is still a hard error rather than a silent fallback to `CUSTOM`, and the diagnostic echoes
-  what the author wrote rather than the uppercased form.
-- **`IntermediateSchema` and the nested intermediate structs reject unknown fields.** Every
-  field on the authoring→compile boundary carries `#[serde(default)]`, because an SDK
-  legitimately omits most of them. Without `deny_unknown_fields` that combination means any
-  key the compiler does not read binds to an empty default and the compile reports success —
-  the mechanism behind #755, #756, #779, #847, #848 and, earlier, #806/#807. A `schema.json`
-  carrying a key the compiler does not read now **fails to compile**, naming the key.
-
-  Spellings seen in the wild, and what to use instead: `return_array` → `returns_list`;
-  `args` with `required` → `arguments` with `nullable`; `customScalars` → `custom_scalars`;
-  `inject` → `inject_params`.
-- **A schema declaring top-level `observers` fails to compile (#779).** The block was
-  validated by ~220 lines of `SchemaValidator` — a typo in any observer field failed the
-  build, which told authors emphatically that it was honoured — and then discarded by
-  `observers: Vec::new()` under a comment claiming the opposite. No webhook, Slack message or
-  email ever fired for any declared event. The runtime loads observers exclusively from the
-  `tb_observer` table and the admin API and reads nothing from the compiled schema, so
-  carrying them would only have moved the silent drop one layer down. The compile now fails
-  and names the mechanism that works.
-- **A `[includes]` pattern that matches no files fails the compile (#723).** Previously the
-  glob resolved to nothing and compilation continued from TOML-only definitions, producing a
-  schema silently missing everything the include was meant to contribute. An empty *list* of
-  patterns is still fine — nothing is configured. The same applies to a configured
-  `[domain_discovery]` whose root is missing or whose files fail to parse: the schema-source
-  fallback now asks "is this configured?" before attempting it, so a failure inside a
-  configured source propagates instead of being swallowed by `if let Ok(schema) = …`.
-- **`fraiseql validate` exits 2 on a validation failure**, matching the contract
-  `--help-json` publishes and what `lint` and `federation check` already did. It exited 1,
-  so CI could not distinguish an invalid schema from a broken toolchain (#868).
-- **`--show-output-schema compile` is removed.** `compile::run` prints plain lines and never
-  constructs a `CommandResult`, so `fraiseql compile --json` emits no `{status, command,
-  data}` object for the advertised schema to describe (#868).
-- **`fraiseql explain` no longer emits a `sql` field.** Its value was a hard-coded
-  `SELECT data FROM v_table LIMIT 1000;` — a relation appearing nowhere else in the codebase
-  — published under the label "Compiled SQL representation". The command takes no `--schema`
-  argument, so it could not have produced real SQL in principle (#868).
-- **A type marked `is_input: true` compiles into `input_types`, not `types` (#848).** Four
-  SDKs advertise the flag and emit it; the compiler had no field to receive it, so such a
-  type became an *object* type and any mutation argument referencing it produced a schema
-  violating GraphQL §3.10. Output-only attributes on an `is_input` type (`sql_source`,
-  `relay`, `requires_role`, `is_error`, `implements`, `subscribable_tables`) are now refused
-  rather than ignored.
-- **The Python SDK emits `custom_scalars` as an array** rather than `customScalars` as an
-  object, and no longer emits a `validate` flag (#922).
-- **The REST write surface is mounted (#865).** `POST`/`PUT`/`PATCH`/`DELETE` on derived
-  resources, and the collection-level bulk routes, are now served by any deployment whose
-  adapter implements `SupportsMutations` (PostgreSQL, MySQL, SQL Server). `rest_router`
-  had had **no production caller at all** — a regression of the closed #227 — while the
-  served `OpenAPI` document went on advertising every write path, so a client following the
-  published contract received `405` on all of them. Read-only adapters (`SqliteAdapter`,
-  `FraiseWireAdapter`) are unaffected: they cannot satisfy the bound, so the type system
-  rather than a runtime check keeps writes off them.
-
-  The mount goes through the one existing REST mount site, so the write half passes through
-  the same `Server::attach_auth` call as the read half — `route_layer` does not survive
-  `Router::merge` (#812), and a separately-merged write router would have been
-  unauthenticated.
-- **`rest_router` and `rest_query_router` take a `RestMountConfig`** instead of two
-  positional `bool`s. Every call site read `rest_router(&state, false, false)`, where
-  nothing distinguished "compression off" from "no auth attached"; the struct also carries
-  the new export configuration.
-- **The served `OpenAPI` document is derived from the mounted router (#918, #865).** It is
-  now filtered through `MountedRoutes` — the same set the router drives its registration
-  from — so it describes exactly the operations the server answers. A read-only mount no
-  longer advertises the write API, and an item-level `PATCH /items/{id}/rename` no longer
-  suppresses the collection-level bulk `PATCH` while the document promises it. The `links`
-  member is removed from the collection-GET response schema: `build_query_response` emits
-  `data` + `meta` and never populated it.
-- **`[export]` is read from `fraiseql.toml`, and `export_formats` defaults to all three
-  formats (#917).** `ExportConfig` had no deserialization site anywhere — all three
-  production consumers called `::default()`, one under a comment conceding that
-  "TOML-driven `ExportConfig` loading is a later phase" — so a configured CSV delimiter,
-  BOM setting, row cap, temp directory, concurrency limit and format allow-list each
-  reached nothing. The default changes from the empty vector to all three formats:
-  empty is documented as "disables all exports", so wiring the kill-switch up without
-  changing the default would have turned every export off in every deployment that had not
-  written the key. An *explicit* empty list still disables everything, and a disabled
-  format is refused with `406`.
-- **`GET /{resource}/stream` returns `501` instead of a heartbeat-only `200` (#873).**
-  `RestState::event_transport` is `None` at every construction — the struct is private and
-  has no setter — so the endpoint emitted `event: ping` forever and no entity event, while
-  the served document described it as carrying `insert`/`update`/`delete`. A dashboard saw
-  a healthy connection, so its reconnect and error handling never fired and it displayed
-  stale data indefinitely; enabling the `observers` feature turned an honest `501` into a
-  silent no-op. Wiring a real transport is #428.
-- **`?limit=` on a streaming REST export now caps the export total, and an export without
-  it returns every row (#811).** The NDJSON, CSV and XLSX batch loops advanced pagination
-  by writing `limit`/`offset` into a clone of `variables`, which `execute_query_direct`
-  reads only for authorization — it takes limit/offset from `query_match.arguments`. Every
-  batch therefore re-issued the identical first-page query, producing one of two failures
-  depending on whether the page filled: a 10,000-row export silently returned
-  `default_page_size` rows with HTTP 200 and no error line, or, when `rows.len()` equalled
-  the batch size, the loop never terminated and re-emitted the same page indefinitely
-  while pinning a database connection.
-
-  Previously `GET /rest/v1/x` with `Accept: application/x-ndjson` returned 100 rows and
-  stopped, believing it had exported everything; it now streams the whole result set in
-  `ndjson_batch_size` pages. `?limit=N` bounds the total. All three formats share one
-  pagination driver — they were three independent copies of the same mistake.
-- **`Prefer: tx=rollback` is refused on bulk operations rather than silently committing
-  (#914).** It was parsed and its only effect was to echo `tx=rollback` in the
-  `Preference-Applied` response header — RFC 7240's assertion that the server honoured the
-  preference — while the mutation committed. A dry-run bulk `DELETE` destroyed data and
-  answered that it had rolled back. Honouring it needs a per-request execution mode
-  threaded through `Executor::execute`, whose `RuntimeConfig` is shared across requests, so
-  the honest answer today is an explicit 400. Both `Preference-Applied` echo sites are
-  removed: a preference can no longer be reported as applied when it was not.
-- **`IdempotencyStore::check`/`store` take a `ScopedIdempotencyKey` (#915).** See the
-  security entry above.
-- **`/health` reports `observers.events_processed`, not `observers.pending_events`
-  (#875).** The field carried `RuntimeHealth::events_processed` — a monotonic lifetime
-  counter of events already handled — under a name and a doc comment that promised
-  "approximate number of events pending in the internal queue". An operator alerting on
-  `pending_events > 100` got an alert that fired permanently after the 100th *successful*
-  event and never cleared, while a genuine backlog stayed invisible. The observer runtime
-  is checkpoint-driven and `RuntimeHealth` carries no backlog source, so the field is
-  renamed to what it actually reports rather than a depth being fabricated for it.
-- **`FraiseQLMcpService::new` takes an `AppState`, not a schema and executor (#858), and
-  `mcp::executor::call_tool` takes an `McpCallContext`.** Both are consequences of the
-  MCP transport reaching the same tenant registry and error sanitizer as `/graphql`.
-  `require_auth` is no longer a separate parameter — it is read from the `[mcp]` config
-  that is now passed in, so the two cannot disagree.
-- **The second storage stack is gone (#813, #866).** `fraiseql_server::storage` (a
-  duplicate `StorageBackend` trait with its own local/S3/GCS/Azure implementations) and
-  `fraiseql_server::routes::storage` (a `/storage/v1/object/{*key}` router) have been
-  removed, along with `ServerBuilder::with_storage`. It was a parallel object API with no
-  metadata, no per-object ownership and no RLS — its download handler served any file in
-  the backing store to any holder of a single shared token — and it carried its own copy
-  of both defects fixed above: a byte-identical weak `validate_key`, and the same Azure
-  key-encoding bug. No binary mounted it and no configuration key reached it.
-
-  Use `ServerBuilder::with_storage_state` and a `[storage.<name>]` section; that backend
-  now also serves as the inbound-email attachment sink, which previously hung off the
-  removed builder method and was therefore unreachable from the shipped server.
-- **`allowed_mime_types = []` now allows nothing**, as documented, instead of being read
-  by the upload handler as "no restriction".
-- **The object-metadata table gains a `pending` column.** The DDL is idempotent and
-  applies on startup.
-- **`WhereClause` gains a `Typed` variant, and `WhereClause::from_graphql_json` takes the
-  declared field types (#798).** The cast a filter needs is a property of the *field*, so
-  parsing a user filter without the compiled schema's types is what produced SQL that
-  errored on every date and silently under-matched on numbers. The types are required
-  rather than optional, and they travel as a node of the clause rather than as an argument
-  on the adapter seams the clause passes through — `ProjectionRequest`, the relay cursor
-  path, the wire adapter, federation, the cache key — because each of those would
-  otherwise be a place to drop them. Embedders with no schema pass
-  `SharedFieldTypes::default()` and get the previous value-shape inference.
-- **`OrderByFieldType` is renamed `ScalarFieldType`**, and the type → SQL-cast mapping
-  moves onto `SqlDialect::cast_type_name`. ORDER BY and WHERE previously carried separate
-  tables, so a sort and a filter on the same field could disagree about its type. The
-  per-dialect `cast_to_numeric` / `cast_to_boolean` / `cast_param_numeric` methods are
-  replaced by `cast_expr_as` / `cast_param_as`.
-
-  Two renderings change as a result: MySQL and SQL Server now cast `Numeric` to
-  `DECIMAL(38,12)` (previously `DECIMAL` and `FLOAT` in WHERE), and SQLite emits no cast
-  for date/time types (`CAST(… AS TEXT)` was a no-op over an already-textual extraction).
-- **Thirteen operator names are no longer advertised (#828).** `has_key`, `has_any_keys`,
-  `has_all_keys`, `array_eq`, `array_neq`, `notInSubnet`, `contains_date`, `adjacent`,
-  `strictly_left`, `strictly_right`, `not_left`, `not_right` and `distance_within` were in
-  `OPERATOR_REGISTRY` — so REST's `?filter=` accepted them and its error messages
-  recommended them — with no `WhereOperator` variant behind any of them. Every request
-  that used one was accepted by the transport and then rejected by the executor. The
-  registry is now generated from the executor's own table, so it can only advertise what
-  runs.
-- **`WhereOperator` gains an `IsNotNull` variant**, and both null-check operators now
-  require a boolean operand instead of reading a non-boolean as "assume IS NULL".
-- **A malformed `validation_rules` block fails compilation (#720).** `serde_json::from_value(…).unwrap_or_default()`
-  turned a typo'd rule into an empty rule set, so a scalar declared with validation
-  shipped with none.
-- **`DatabaseAdapter::invalidate_list_queries`, `CachedDatabaseAdapter::invalidate_list_queries`
-  and `QueryResultCache::invalidate_list_queries` are removed**, along with the
-  `list_index` reverse index and `CachedResult::is_list_query`. List-versus-point-lookup
-  classification was derived from result cardinality and was the root of #742; there is no
-  sound replacement at that layer, so the distinction is gone rather than repaired. Callers
-  use `invalidate_views`, which is what the mutation path now does for every operation
-  kind. Expect more evictions per mutation: a point lookup for an unrelated entity is now
-  dropped and re-read, where before it was kept on a premise that was never checked.
-- **`CachedDatabaseAdapter::with_ttl_overrides_from_schema` is renamed
-  `with_cache_metadata_from_schema`.** It is the single seam between the compiled schema
-  and the row cache, and it now reads `additional_views` as well as `cache_ttl_seconds`;
-  the old name described half its job. `rebuilt_for_schema` (hot reload) delegates to the
-  same reader, so a per-query cache annotation cannot work at boot and stop working after
-  a schema reload.
-- **`QueryCache::get`/`put` in `fraiseql-arrow` take a `CacheScope` first argument.**
-  Required rather than optional so no call site can store an entry another principal could
-  read back (#716).
-- `ErrorCode::Timeout` now maps to **504 Gateway Timeout** (was 408 Request Timeout), and
-  the GET size ceilings return the new `ErrorCode::PayloadTooLarge` → **413** (was 400 via
-  `RequestError`). Clients branching on those statuses need updating.
-- `UsageBackend::flush` is renamed **`flush_deltas`** and its contract inverted: the map
-  now carries increments to be **added**, not absolute totals to be written. Any external
-  implementation must be updated — the rename is deliberate so it cannot compile
-  unchanged. `UsageAggregator::flush_to_backend` also now *errors* when the backend's
-  startup load failed.
-- A schema hot-reload **refuses** a schema whose boot-frozen configuration differs from
-  the running one — `[security]`, `[validation]`, `[subscriptions]`, `[mcp]`, `[rest]`,
-  `[grpc]`, federation, observers, sources, `[fraiseql.naming]`, `[debug]`, fact tables
-  and per-query `cache_ttl_seconds`. These are read once by subsystems that are immutable
-  afterwards, so the previous behaviour was to report success and keep serving the old
-  configuration. Reloads that change only types, queries, mutations or session variables
-  are unaffected; the rest now need a restart, and the refusal says which section.
-- `AppState::with_reload_config` takes a third argument, the executor rebuilder recorded
-  by the booting constructor. An `AppState` assembled directly (without a `Server`)
-  refuses to reload rather than guessing how to rebuild.
-- `[database_tls]`: `redis_ssl`, `clickhouse_https` and `elasticsearch_https` are
-  **removed**. They only ever rewrote a URL scheme, in a helper with no production
-  caller. A config still setting one is refused with a message naming the replacement
-  (put `rediss://` / `https://` in the URL, which is what the client library reads) —
-  refused rather than dropped, because an unknown key in that struct is discarded
-  silently.
-- `postgres_ssl_mode` / `[database] ssl_mode`: libpq's `allow` and `verify-ca` are
-  **refused** rather than approximated. `allow` has no expression in the driver, and
-  `verify-ca` would need a bespoke verifier whose only purpose is to check less than the
-  default. Each error names the mode to use instead.
-- `postgres_ssl_mode` and `[database] ssl_mode` are now **unset by default** rather than
-  `"prefer"`. Unset means "whatever `?sslmode=` in the connection URL says"; a concrete
-  default would override an operator's explicit `?sslmode=require` with a value they
-  never wrote.
-- `[security.constant_time]` is **refused**. Constant-time comparison is applied
-  unconditionally, so the toggles switched nothing — and one key inside was misspelled
-  `applytoCsrfTokens`, which nothing noticed because nothing read it.
-- `[security.rate_limiting] failed_login_max_attempts` / `failed_login_lockout_secs`
-  defaults change from 5 / 3600 to 10 / 900, matching the runtime's. The old values read
-  as deliberately tuned, and now that this section actually reaches the runtime, a tuned
-  value refuses to boot in production (#356).
-- `fraiseql analyze` output shape changed from `categories` (a map of constant strings)
-  to `recommendations` — the shape its published machine contract already documented.
-- **RBAC list endpoints return a page envelope, not a bare array** (#769).
-  `GET /api/roles`, `/api/permissions` and `/api/user-roles` now answer
-  `{"items": [...], "total": N, "limit": N, "offset": N, "has_more": bool}` and accept
-  `limit` (default 100, max 1000), `offset` and — where the resource is tenant-scoped —
-  `tenant_id`. Unknown query parameters are refused rather than ignored, so a mistyped
-  `tenant_id` cannot silently widen a read. `GET /api/user-roles` now **requires**
-  `user_id`; omitting it used to answer `200 []`, indistinguishable from "this user holds
-  no roles". The RBAC API could never have been used before this release — its tables
-  could not be created (#748) — so there are no existing consumers.
-- **`POST /api/roles` and `POST /api/user-roles` refuse unknown body fields** (#769), and
-  accept an explicit `tenant_id`. A misspelled `tenantId` used to be silently dropped,
-  creating a *global* role while the caller believed it was tenant-scoped.
-- **Studio admin endpoints that perform no operation answer `501`** (#749) instead of
-  `{"success": true}` or an empty collection: `/admin/v1/users`, `/admin/v1/users/invite`,
-  `/admin/v1/data/{entity}/query`, `/admin/v1/data/{entity}/mutate`,
-  `/admin/v1/storage/buckets`, `/admin/v1/storage/objects`, `/admin/v1/functions`,
-  `/admin/v1/functions/{name}/logs` and the function-secret routes. The response carries
-  `{"error": "not_implemented", "feature": "...", "message": "..."}`.
-- **`GET /admin/v1/health/detailed` and `/admin/v1/metrics/summary` report `null` for
-  figures they cannot measure** (#749), where they previously reported `0`. A zero pool
-  size reads as an exhausted pool and a zero hit rate as a cache that never hits.
-  `uptime_secs` was `SystemTime::now() - UNIX_EPOCH` — the current Unix timestamp — so a
-  four-second-old server claimed ~1.8 billion seconds of uptime; it is now time since
-  boot. `errors.rate_5m`/`rate_1h`/`rate_24h` were three copies of the lifetime ratio
-  under three window names; the lifetime value moved to `errors.lifetime` and the windows
-  report `null` until windowed counters exist.
-- **`[fraiseql.security]` compiles `role_definitions`, `default_role` and
-  `tenant_claim` under those names** (#757), replacing `roleDefinitions`, `defaultRole`
-  and `tenantClaim`. Recompile; no runtime consumer ever read the old spellings.
-- **A schema whose type-level `requires_role` cannot be enforced is refused at load**
-  (#677). Two shapes: an operation whose own role disagrees with its return type's (both
-  are required, and a compiled operation carries only one role), and a gated type
-  reachable as a field of a type that is not gated the same way (operations returning the
-  container carry no role, so the gated type travels out ungated). Subscriptions carry no
-  role gate at all, so a subscription returning a gated type is refused.
-- **`[security.rls]` is the RLS declaration; `security.policies` no longer implies it.**
-  `has_rls_configured()` counted `security.additional["policies"]` — *authorization*
-  policies, a section #612 made a hard compile error — so it answered `false` for every
-  producible schema. Declare `[security.rls] enabled = true` (or
-  `[fraiseql.security.rls]`) to state that database RLS isolates the deployment. With
-  `multi_tenant` also set, the server verifies the claim against the live catalog at boot
-  and refuses to start when it is not true.
-- **`[security] multi_tenant` and `[session_variables]` are declarable in TOML.**
-  `multi_tenant` was rejected as an unknown field by both TOML security structs.
-  `[session_variables]` had no TOML producer at all, though the compiled field documented
-  itself as "compiled from the `[session_variables]` TOML section" — the only way to
-  declare the mechanism RLS policies read was to hand-author `schema.json`.
-- **A session-variable mapping is one flat table.** `SessionVariableMapping` now flattens
-  its source, so a mapping is `{name, source, claim}` in JSON and
-
-  ```toml
-  [[session_variables.variables]]
-  name = "app.tenant_id"
-  source = "jwt"
-  claim = "tenant_id"
-  ```
-
-  in TOML — against the same type the runtime consumes, with no CLI-side mirror struct to
-  drift. No SDK emitted `session_variables`, so nothing in the wild produced the old
-  nested shape.
-- **`CachedDatabaseAdapter::validate_rls_active` and `enforce_rls` take the compiled
-  schema.** They need the relation list to check anything; the previous signatures could
-  only read a GUC (#762).
-- **`PoolPrewarmConfig` carries a `search_path`.** Every pool construction site must now
-  state whether its connections are schema-isolated. `PostgresAdapter::new` and
-  `with_pool_size` are unchanged.
-- **`DELETE /api/v1/admin/tenants/{key}` reports what it did.** `status` is now
-  `removed_schema_retained` or `removed_and_purged` rather than `removed`, with
-  `schema_retained` / `schema_dropped` naming the schema (#859).
-- **`max_storage_bytes` is renamed `max_storage_bytes_advisory`** (#633). Nothing meters
-  per-tenant storage, so nothing was ever rejected on the basis of this value; a field
-  called `max_storage_bytes` reads as a boundary that does not exist. The registration
-  body is now `deny_unknown_fields`, so the old key is a 400 rather than a silently
-  ignored setting. `TenantExecutorRegistry::is_quota_exceeded` / `set_quota_exceeded` are
-  removed — a public quota API with no producer on either side reads as an enforced limit
-  to anyone who greps for one. Metering remains tracked at #633.
-- **`examples/saas` declares queries only.** Its eight mutations named no input type and
-  no backing SQL function; the compiler accepted them and none could ever execute. See
-  `examples/mutation-patterns` for the mutation story.
-- **The intermediate-schema injection key is `inject_params`, not `inject`** (#806). The
-  value may be either `"jwt:<claim>"` or `{"source": "jwt", "claim": "<claim>"}`. A schema
-  using `inject` is now **refused** with a message naming the replacement, rather than
-  compiling to a query with no injected filter. The Python decorator's `inject=` argument
-  is unchanged; only the emitted JSON key moved.
-- **Field scopes must be declared as `requires_scope`** (#807). `scope`, `scopes`,
-  `requiresScope`, `requiresScopes` and `requires_scopes` are refused with a message naming
-  the replacement. The Go, C#, F#, Rust, PHP and Java SDKs now emit the canonical key.
-- **Multiple required scopes on one field are unsupported and now say so.** The compiled
-  schema and the runtime field filter represent exactly one `requires_scope`; a multi-scope
-  declaration compiled to a field with *no* scope. The SDKs refuse it at authoring time. A
-  singleton list is normalised to a single scope.
-- **`require_auth = true` now applies to every REST route, including
-  `{base}/openapi.json`** (#810). A surface closed to anonymous callers no longer hands
-  those callers a full description of its resources, fields and filters.
-- **`rest_query_router` and `rest_router` take an `auth_layer_attached` argument** (#810),
-  and `generate_openapi` takes it too, so the served document reflects the deployment's
-  actual authentication rather than a static template.
-- **Unified every outbound-address guard and every production check onto one
-  implementation (#802, #836, #816, #725, #882).** The workspace carried **eight**
-  hand-rolled SSRF address predicates and **two** production detectors. Each was
-  individually reasonable; collectively they disagreed, and the gaps between them were
-  exploitable.
-
-  - **#802 — `IPv4`-mapped `IPv6` bypassed the serverless-function HTTP guard.** Its
-    `IPv6` arm tested `is_loopback`/`is_unique_local`/`is_unicast_link_local`, none of
-    which fire for `::ffff:169.254.169.254`, so a guest function could reach cloud
-    instance metadata over a dual-stack socket — via a bracketed literal, or via an
-    allowlisted hostname with an attacker-controlled AAAA record, which is precisely the
-    rebinding attack the surrounding code claimed to close. Five of the eight predicates
-    shared this gap; it is the same defect as #776 in a different crate.
-
-  - **#836 — the SSRF bypass was honoured in production.** `ServerConfig::is_production_mode()`
-    treated an unset `FRAISEQL_ENV` as production, and every server safety gate is keyed
-    off it. `observers::insecure_guard::is_production_environment()` read the same variable
-    and treated unset as **not** production. On any non-Kubernetes deployment — Docker
-    Compose, systemd, a VM, ECS — the server therefore believed it was in production while
-    the observer subsystem honoured `FRAISEQL_OBSERVERS_ALLOW_INSECURE`, disabling the
-    scheme allow-list, the private-address blocklist and the rebinding defence on a webhook
-    URL that comes from a mutable `tb_observer` row.
-
-  - **#882 — two escape hatches had no production check at all.**
-    `FRAISEQL_VAULT_ALLOW_INSECURE` and `FRAISEQL_OIDC_ALLOW_INSECURE` disabled their SSRF
-    guards on the environment variable alone, under every environment including an explicit
-    `FRAISEQL_ENV=production` and inside a Kubernetes pod. All four of the product's escape
-    hatches now share one policy: honoured only when development is positively declared.
-
-  - **#816 — the CDC NATS plaintext guard was inverted.** It refused plaintext `nats://`
-    only for loopback hosts — the one case that is safe — and accepted every remote
-    plaintext endpoint, publishing full row after-images in the clear. It also skipped
-    every non-`nats://` URL including the scheme-less form that `async-nats` rewrites to
-    plaintext, split the host with `split(['/', ':'])` so `nats://user:pw@host` yielded
-    `"user"`, and compared the host without lower-casing it. It had no unit tests.
-
-  - A **ninth** hand-rolled guard, on the manifest hot-reload URL, was found by the new
-    gate rather than by review. Its doc comment claimed it used "the same pattern as the
-    federation and Vault SSRF guards"; it had drifted from both.
-
-  The shared guard additionally blocks ranges no previous copy covered: the NAT64
-  well-known prefix `64:ff9b::/96` (a live route to the metadata service wherever a NAT64
-  gateway exists), NAT64 local-use `64:ff9b:1::/48`, `IPv4`-compatible `::a.b.c.d`,
-  multicast, site-local `fec0::/10`, discard-only `100::/64`, IETF protocol assignments
-  `192.0.0.0/24` (Oracle Cloud metadata), the RFC 5737 documentation ranges, RFC 2544
-  benchmarking, and the `2001:db8::/32` and `2001:2::/48` `IPv6` equivalents.
-
-  `make lint-guard-parity` now fails the build on a new hand-rolled address predicate, a
-  new `is_production`-shaped helper, or an escape hatch read without a posture check. It
-  runs in the Dagger `preflight` leg and as the `guard-parity-check` CI job.
-- **New crate `fraiseql-guard`.** Holds the workspace's single outbound-address guard
-  (`fraiseql_guard::net`) and its single production detector
-  (`fraiseql_guard::deployment`). It is a Tier-1 leaf with no dependencies beyond `std`,
-  published before every crate that depends on it.
-- **`fraiseql_auth::constant_time::ConstantTimeOps::compare_padded` and
-  `compare_jwt_constant` are removed (#725).** They truncated both inputs to `fixed_len`
-  before comparing, so `compare_jwt_constant` reported **equality** for any two tokens
-  sharing their first 512 bytes — the shape of two JWTs with identical header and payload
-  and different signatures, since the signature sits at the end and real tokens exceed
-  512 bytes. `"abc"` and `"abc\0"` also compared equal. Nothing on a production path
-  called either; the one real comparison uses `ConstantTimeOps::compare`, which is correct
-  for values of any length. Callers wanting length hiding should compare digests rather
-  than values. `compare`, `compare_str` and `compare_len_safe` are unchanged.
-- **Documentation, benchmarking and reserved ranges are now refused by every outbound
-  guard.** A URL targeting `192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`,
-  `198.18.0.0/15`, `240.0.0.0/4`, `224.0.0.0/4` or their `IPv6` equivalents is rejected
-  where some guards previously allowed it. These are not globally routable; the practical
-  impact is on test fixtures that used a documentation address as a stand-in for a public
-  one. Conversely, a *mapped public* address such as `::ffff:8.8.8.8` is now allowed
-  rather than blanket-refused: mapped and NAT64 addresses are canonicalised and judged as
-  the `IPv4` address the stack would route to.
-- **`FRAISEQL_NATS_ALLOW_PLAINTEXT` now requires a declared development environment**, in
-  both `fraiseql-observers` and `fraiseql-cdc-sinks`, and no longer accepts a remote
-  plaintext endpoint at all. The opt-in permits loopback — its purpose is a local dev
-  broker — but does not disable the address guard for other hosts.
-- **`fraiseql_federation::http_resolver::is_ssrf_blocked_ip` is now a re-export** of
-  `fraiseql_guard::net::is_blocked_ip`. The signature is unchanged; the accepted set is
-  strictly smaller.
-- **CRITICAL: closed two unauthenticated SQL-injection holes on the analytics execution
-  path (#794, #795).** Both were reachable by any client able to POST a GraphQL query, on
-  any deployment whose compiled schema declares at least one fact table, and both were
-  verified against live PostgreSQL 16 exfiltrating `pg_authid` contents.
-
-  - **#794 — window aliases and dimension paths were interpolated raw.** Four sinks on the
-    live `*_window` path wrote request-supplied strings straight into the SELECT list: the
-    dimension select arm and the `PARTITION BY` arm both built `format!("{}->>'{}'", …)`
-    with no charset check, and `alias` was cloned through untouched for measure, dimension,
-    filter and window-function selections before being emitted as `<expr> AS <alias>`.
-    Because `WindowProjector::project` copies every returned column into the response, an
-    injected column was handed back to the caller.
-
-    Every alias and dimension path is now rejected unless it matches
-    `[_A-Za-z][_0-9A-Za-z]*`, through a single entry point that all sinks share — the
-    defect existed because one arm carried a check its four siblings did not. The
-    `WindowAllowlist` is additionally consulted wherever the schema enumerates dimension
-    paths. It existed and was documented as the defence for this path, but was only ever
-    called by `WindowFunctionPlanner`, which nothing in the shipped binary invokes; the
-    live planner is `WindowPlanner`, which never built one.
-
-  - **#795 — the `table` request key selected the FROM target.** The relation is already
-    determined by the GraphQL root field (`sales_window` → `tf_sales`), but a second,
-    unchecked channel could name any relation or substitute an entire subquery. Worse, the
-    RLS policy was looked up by that same attacker-controlled name, so naming a table with
-    no configured policy yielded `None` and composed **no tenant WHERE clause at all**.
-
-    Both the aggregate and window planners now reject a `table` that does not match the
-    resolved fact table, every FROM sink emits the resolved name, and the RLS policy is
-    evaluated against the resolved name — which matters independently, because RLS is
-    evaluated before the planner runs.
-
-  Regression coverage runs against real PostgreSQL in the Dagger `integration: server`
-  suite (`analytics_injection_e2e_pg`), driving the real HTTP handler and asserting both
-  that each payload is refused and that no catalog data reaches the response.
-- **`fraiseql run`, `fraiseql validate facts`, and `fraiseql introspect facts` no longer
-  collide on `-d` (#650).** The global `--debug` short (`-d`) and each subcommand's
-  `--database` short (also `-d`) claimed the same letter, so debug builds of the CLI
-  panicked at startup (clap `debug_asserts`: "Short option names must be unique … '-d' is
-  in use by both 'database' and 'debug'") and release builds advertised an ambiguous `-d`.
-  `--database` is now long-only on all three subcommands — the global `-d` (debug) is
-  consistent across every subcommand — and a `Cli::command().debug_assert()` test guards
-  against reintroduction. Use `--database <url>` (the long form always worked).
-- **`StorageBackend::multipart_begin` takes the declared upload size (#972).** The signature
-  is now `multipart_begin(key, content_type, total_bytes)`. GCS needs the total *before* the
-  first chunk — a resumable session finalises the object when a chunk's `Content-Range`
-  reaches the declared total, which is the only finalisation form Google documents for
-  chunked uploads — so the seam carries it and the local/S3 arms ignore it. The route layer
-  already knew the number (Tus `Upload-Length` is mandatory there), so nothing above the
-  seam changed. Embedders calling the backend directly pass the size they declared.
-
-  `StorageBackend::multipart_chunk_multiple_bytes()` joins `multipart_min_chunk_bytes()` for
-  the same reason: a minimum is not the whole constraint. GCS accepts a non-final chunk only
-  at 256 KiB granularity, so a 300 KiB chunk clears the minimum and is still refused — by
-  GCS, mid-upload. The Tus `PATCH` route now answers `400 chunk_not_aligned` up front, in
-  the same shape as the existing `chunk_too_small`.
-- **`quality` on a losslessly-encoded render format is now refused (#973).** `quality` was
-  accepted by the render route, threaded into `TransformParams`, and never handed to an
-  encoder — every render used the encoder's default. It now reaches the encoder for `jpeg`
-  and `avif`. PNG is lossless by definition and this server's WebP encoder writes lossless
-  WebP, so a quality on either could never take effect: `?quality=` with those formats
-  answers `400`, and a **preset** that pairs them refuses to boot. A configuration like
-  `{ format = "webp", quality = 80 }` — which did nothing before — must drop the quality or
-  move to `jpeg`/`avif`.
-
-  `TransformParams` gained fields (`resize_mode`, `gravity`, `background`, `crop`, `blur`,
-  `sharpen`, `watermark`) and now derives `Default`, so construct it with
-  `..TransformParams::default()`. `BucketConfig` and `TransformPreset` likewise.
-  `TransformCache` is now built over the configured `StorageBackend` rather than a
-  `LocalBackend`, and its `get_or_transform`/`invalidate` pair is replaced by `get`/`put`
-  over a content-addressed key — see the Added entry for why there is nothing left to
-  invalidate.
-- **A bucket may not be named `.fraiseql-uploads` or `.fraiseql-transforms` (#973).** A
-  bucket name becomes the first segment of every object key, so a bucket carrying one of
-  FraiseQL's own namespaces would put caller objects inside the resumable-upload staging area
-  or the render cache. The server refuses such a section at boot.
-- **A configured Redis backend that is unavailable refuses to boot in production (#770,
-  #777).** Token revocation, PKCE login state and rate limiting each fell back to per-process
-  in-memory state when the configured Redis URL was malformed, unreachable, or its Cargo
-  feature was not compiled in — a silently absent service wearing a healthy startup log. An
-  operator who configured Redis asked for state shared across replicas: N replicas revoked N
-  separate token sets and enforced N times the rate limit. All three now fail boot with an
-  error naming the config key, the cause and the consequence. `FRAISEQL_ENV=development`
-  downgrades it to a warning; the only sanctioned fallback is the explicit one — remove the
-  Redis URL and accept per-process state.
-- **`[security.token_revocation] backend = "env"` is gone (#770).** It was an undocumented
-  alias for `"memory"`, so a deployment that wrote it got per-process revocation while its
-  configuration read as deliberate. The accepted values are `"memory"`, `"redis"` and
-  `"postgres"`; anything else is refused at boot, by name.
-- **`FRAISEQL_SECRETS_BACKEND` selects a backend instead of being ignored (#856).** Every
-  value built the **environment** backend, so a deployment that set
-  `FRAISEQL_SECRETS_BACKEND=vault` read its secrets from environment variables and logged a
-  healthy start. It now accepts exactly `env`, `file` and `vault`, refuses an unknown value
-  by name, and refuses to boot when the selected backend's own settings are missing:
-  `FRAISEQL_SECRETS_FILE_PATH` for `file`, and `VAULT_ADDR` plus either `VAULT_TOKEN` or
-  `VAULT_ROLE_ID` + `VAULT_SECRET_ID` for `vault`.
-- **Vault `tls_verify = false` is refused in production, and `SecretsBackend` returns a
-  zeroizing `Secret` (#726, #727).** `VAULT_TLS_VERIFY=false` disables certificate
-  verification on the channel carrying every secret, and is now accepted only outside
-  production. `get_secret` and `get_secret_with_expiry` return `Secret` rather than `String`
-  — redacted `Debug`/`Display`, zeroized on drop — so out-of-tree backends and callers must
-  update their signatures. `FRAISEQL_VAULT_ALLOWED_HOSTS` replaces the all-or-nothing SSRF
-  bypass with an exact-host allowlist.
-- **Inbound webhook routes that cannot verify a signature are refused at boot (#781, #787).**
-  `webhook_routes_check` rejects an unknown `provider`, and rejects a provider that needs the
-  deployment's public URL when `public_url` is unset. A route whose `secret_env` is unset is
-  refused in production; in development it is skipped rather than mounted, so the path
-  answers 404 instead of accepting unverified deliveries.
-- **`PostgresSessionStore` refuses to mint a token it cannot sign (#753).** With no RS256 key
-  configured, `generate_access_token` signed each HS256 token with a fresh random key that
-  was a stack local — dropped on return, never stored, never shared with any validator. Every
-  token minted by `auth_callback`, the multi-provider callback and `saml_acs` was a dead blob
-  that 401'd on the next request, so the shipped social-login flow produced logins that
-  "succeeded" and then failed on every API call. It now returns `AuthError::ConfigError`, and
-  `create_session` mints before the INSERT so the fail-loud path leaves no orphan session row.
-  `PostgresSessionStore::new` is documented as the no-signing constructor; use
-  `with_hs256_secret` for HMAC mode with a persistent secret shared with the validating side.
-
-### Added
-
-- **Object metadata, and `set_metadata` as a permission of its own (#1099).**
-
-  Objects now carry a user-defined string-to-string `metadata` map, and a policy rule can match
-  on it with `require_metadata`. #974 listed that condition alongside `require_claims` and shipped
-  the other three, because there was no metadata to compare against — it would have been
-  permanently false.
-
-  Set it at upload time with `x-fraiseql-meta-<name>` headers on `PUT`, presign-upload or
-  resumable creation, or afterwards through `GET|PUT /storage/v1/metadata/{bucket}/{key}`.
-  Replacement is wholesale on every door. Limits: 32 keys, 128-byte names, 1024-byte values, over
-  `a-z 0-9 - _ .`; keys are lower-cased because header names are case-insensitive, and two keys
-  differing only in case are a `400` rather than a silent last-one-wins.
-
-  **What took the design work is not the storage, it is making the condition mean something.**
-  Metadata is caller-supplied, so a rule matching on it is normally a rule the gated caller
-  authors — they write the value that decides their own access. The obvious fix is a reserved key
-  namespace that ingestion refuses to let callers write. That was rejected: a namespace is only as
-  good as its enforcement, and that enforcement is one check at one door. It holds until the first
-  migration that backfills keys or the first internal caller that reaches the table another way —
-  and when it breaks it breaks *silently*, with a caller-written key now load-bearing for access.
-
-  What ships instead is a write-permission split, which is what S3 landed on: object tags are
-  caller-writable, IAM conditions match on them, and the whole thing is held together by
-  `PutObjectTagging` being a separate permission from `PutObject`. So `set_metadata` is its own
-  `PolicyMethod` — implied by nothing, not by `write`, not by `overwrite`, not by all five
-  existing methods together, and held by nobody but the storage admin absent a policy — and
-  `require_metadata` **refuses to hold for any caller who holds it**.
-
-  ```toml
-  # Curators classify documents; nobody else can.
-  [[storage.docs.policies]]
-  methods = ["set_metadata"]
-  principal = "role:curator"
-
-  # Anyone authenticated may read what a curator marked public.
-  [[storage.docs.policies]]
-  methods = ["read"]
-  principal = "authenticated"
-  require_metadata = { classification = "public" }
-  ```
-
-  A curator reading through the second rule is denied — a curator could have written
-  `classification = "public"` themselves. The guarantee is a property of the permission system
-  rather than of a validation check, so no ingestion path present or future can undermine it, and
-  it degrades in the safe direction: **widening who may set metadata narrows what a
-  metadata-gated rule permits.** It can never quietly hand those callers the ability to grant
-  themselves access.
-
-  The upload headers are a convenience path, not a second authority: sending them without the
-  grant is a `403`, never a silent drop — a `200` that stored none of the metadata the caller sent
-  would leave the object missing exactly what a policy gates on. An upload carrying no metadata
-  headers leaves what the object already had, so an ordinary overwrite cannot clear a value a
-  policy reads.
-
-  A rule that both grants `set_metadata` and carries `require_metadata` is refused at boot: the
-  condition is answered by asking whether the caller may set metadata, so the rule would decide
-  itself. Refused at the door rather than guarded at runtime, because a runtime guard is behaviour
-  an operator cannot read off their own config; and such a rule can never hold for anyone it
-  grants.
-
-
-- **`examples/` is a set of examples that run (#1054).** The top-level
-  `examples/README.md` walked a newcomer through seven directories that had never
-  existed — `basic-query`, `subscriptions`, `error-handling`, `performance`,
-  `authentication`, `complex-queries` and the `python` Arrow Flight client. The first
-  command of the first walkthrough failed. All seven are now written, plus
-  `examples/ecommerce`, the v2 replacement for the FastAPI directory removed under
-  `### Removed`.
-
-  The six Rust examples are workspace **members** with `publish = false`, so
-  `cargo check --workspace --all-targets` and `cargo clippy --workspace` compile and
-  lint them on every push. That is deliberate: the async-jobs subgraph sits outside
-  the workspace and lost its clippy gate for a whole release when the legacy ci.yml
-  was retired (#951). Each carries a `run.sh`, because `schema.compiled.json` is a
-  build artifact and is gitignored, so `cargo run` on a fresh clone has nothing to
-  load.
-
-  Two of them are worth singling out. `examples/error-handling` runs seven
-  deliberately broken queries and prints what the engine in **this tree** actually
-  does with each, including the two cases where that is wrong (#1197) — an example
-  that agreed with the documentation instead of with the binary would be the
-  fixture-that-agrees shape. `examples/python` performs the Flight `handshake` and
-  sends the session token on every `do_get`, which is the protocol the R and Rust
-  clients in the same tree both skip (#1200).
-
-  `examples/ecommerce` carries the domain the README has always advertised —
-  `Category`, `Product`, `Customer`, `Order`, `OrderItem`, 5/12/5/7 rows — with
-  nested objects and a nested list built by the views, so
-  `order { items { product { name } } }` resolves in one statement.
-
-- **The examples gate, in three tiers, and all three now run in CI (#1054).** Before
-  this release the entire CI coverage of `examples/` was one clippy run over the
-  single example that is a Rust crate, plus three greps; a nine-issue audit then
-  found essentially every documented entry point dead, and nothing would have
-  noticed. Repairing them without a gate buys a state that rots by the next release.
-
-  | Tier | Runs in | Checks |
-  |---|---|---|
-  | `tools/check-examples-integrity.sh` | preflight (**required**) | compose mounts resolve, `COPY` sources exist in the build context, no `\|\| true` around a build step, no health grep that also matches `unhealthy`, every documented `cd` lands somewhere |
-  | `tools/check-examples-compile.sh` | `integration --suite=examples` | every `schema.py` runs and every `fraiseql.toml`/`schema.json` compiles, each from its own directory |
-  | `tools/examples-smoke.sh` | `integration --suite=examples` | each example's SQL loads under `ON_ERROR_STOP=1`, its schema compiles, **every** `queries/*.graphql` resolves against a real PostgreSQL, and a real `fraiseql-server` boots on it and answers a real query over HTTP |
-
-  Also `make lint-examples-integrity`, `make examples-compile` and
-  `make examples-smoke`.
-
-  The HTTP step is the one that matters: compiling an artifact is not testing an
-  example, and a healthy container is not a working one. #1071's image built, then
-  refused to boot, then booted healthy and answered ordinary queries while refusing
-  the single query that made it a subgraph. The check also rejects a 200 carrying an
-  in-band `errors` array.
-
-  Neither static gate skips, and where either is red for a defect that predates it
-  the exemption **names its issue and is checked in both directions** — an exemption
-  that stops firing fails the gate, so closing the issue also deletes its row. A
-  required gate nobody can turn green is one the next reader learns to skip, which is
-  what `check-feature-chains.sh` cost (#1055/#990).
-
-- **MCP Resources and Prompts (#967, partial).** Alongside tools, the MCP server now
-  advertises every exposed **query** as a readable Resource at `fraiseql://query/{name}`,
-  publishes a `similarity-search` resource *template* for each vector-backed query, and
-  describes every exposed operation as a Prompt built from its `description`.
-
-  All three surfaces are derived from the **same** exposed set, so `include`,
-  `exclude` and `read_only` govern them together: an operation an operator
-  withheld is not advertised, described, or readable. A Resource list built from
-  the schema directly would have been an existence oracle for exactly the names
-  the allowlist hides.
-
-  **Reading a Resource routes through the tool seam**, and that is the whole
-  security design rather than an implementation detail: authentication, tenant
-  resolution, quota charging, the allowlist, RLS and the executor's gates are the
-  tool path's, so there is one execution path and RLS parity is structural. A
-  refused read comes back as a protocol error, never as a successful read whose
-  body says "access denied". Mutations are deliberately not Resources —
-  `resources/read` is a read verb — but they *are* Prompts, because a prompt is a
-  sentence and getting one changes nothing.
-
-- **MCP session continuity, opt-in via `[mcp] session_state` (#967).** An authenticated
-  agent's tool calls accumulate into a thread in the `[session_state]` store, and every
-  result carries that thread back in `_meta` — so an agent can see what it has already
-  done. Off by default: it writes to a durable store on every authenticated call and makes
-  one call's result depend on the ones before it, which is a behaviour change no deployment
-  should acquire by upgrading.
-
-  **The whole security question is what the thread is keyed on.** rmcp's
-  streamable-HTTP transport surfaces a session in the `mcp-session-id` header,
-  and that header is client-controlled — keying the store on it would let any
-  caller read and overwrite any other's *durable* thread by sending their id. The
-  store is two-level, and the levels come from different places: `session_id` is
-  a UUIDv5 over the **authenticated** `user_id`, with nothing the client sends
-  contributing; `thread_id` is the header, verbatim. A client partitions its own
-  threads and can address nothing else. Two callers sending the identical header
-  get entirely separate histories, asserted end to end against a real store.
-
-  There is no fallback for an unauthenticated caller: no principal means nothing
-  safe to key on, and one unscoped thread shared by every anonymous caller is
-  worse than no continuity. Only tool **names** and argument **names** are
-  recorded — never values, which may be customer identifiers or search terms —
-  and only calls that actually happened, so a thread never tells an agent it has
-  done work it has not. A store failure is logged and the tool call still
-  succeeds.
-
-- **`requires_actor`: an operation may restrict which actor classes run it (#966).** #390
-  completed the *recording* half of the actor model; this is the consuming half. A query or
-  mutation may declare `requires_actor`, an **allow-list** of `ActorType`s
-  (`human_user`, `service_account`, `ai_agent`, `system_job`), evaluated in the same
-  executor gate as `requires_role` and composing with it as AND. Empty (the default) is
-  unrestricted, so no existing schema changes behaviour.
-
-  An allow-list rather than a deny-list, because a deny-list admits every class
-  invented after it was written. **Delegation is deliberately not consulted**: an
-  agent acting for an administrator is still an agent — a delegated token carries
-  the human's roles, so `requires_role` already consults them, and having
-  `requires_actor` do the same would make it a no-op for exactly the case it
-  exists for. An unauthenticated request has no classification and is refused by
-  any non-empty list, rather than falling back to `ActorType::default()` — which
-  is `HumanUser`, and would admit every anonymous caller to a human-only operation.
-
-  Enforced **inside the executor**, at the gates every read and write already
-  passes on its way to the database — the regular query path, the direct-read path
-  (REST reads, `Prefer: count=exact`, streaming exports), the universal mutation
-  chokepoint, the relay `node(id:)` lookup and the federation `_entities`
-  resolver. That is what makes "every transport" a fact rather than a claim, and
-  it is not theoretical: the REST case of the new `actor_predicate_e2e_pg` suite
-  found a **real hole** during development, where a predicate placed only on the
-  GraphQL entry points served every restricted row over REST (#808's shape).
-
-  The role gate still runs first, so a caller lacking the role keeps its
-  enumeration-hiding "not found"; a caller holding the role but of the wrong class
-  gets `FORBIDDEN`. Authored from `schema.json` today — an unrecognised token is a
-  compile error naming it, never a silently-dropped restriction, because an
-  allow-list that failed to parse would leave the operation *open*. No official
-  SDK authors it yet; that rollout is #1123.
-
-- **Per-actor-class cost budgets, keyed on `(tenant, actor_type)` (#966).** A tenant's
-  `cost_budget_per_actor` map gives a class its own per-request ceiling and its **own**
-  rolling minute window. A service account draining a report and a human clicking through a
-  UI are the same tenant, and without this they share one allowance: the batch job exhausts
-  the window the humans need, and sizing the window for the batch job removes the ceiling
-  from everyone.
-
-  A class's budget **replaces** the tenant-wide one rather than stacking — a class
-  configured with a *larger* allowance is a legitimate configuration, and stacking
-  would make it unreachable. Each class draws on its own counter, because charging
-  one shared window would make the tenant-wide budget a function of the traffic
-  mix. A class absent from the map falls back to the tenant-wide budget; an
-  unauthenticated request takes the tenant-wide one rather than `human_user`'s. A
-  tenant may configure *only* per-class budgets, and they are still charged. An
-  override setting neither number is **refused at registration** rather than
-  stored — it would otherwise be reported by the admin API and consulted per
-  request while refusing nothing.
-
-  MCP remains deliberately excluded from tenant cost budgets, unchanged and for
-  the reason already documented: an MCP document's shape is fixed by the schema,
-  so its score is constant and the check would meter nothing.
-
-  Documented in `docs/operations/actor-policies.md`.
-
-- **The operator SQL console: `POST /api/v1/admin/sql`, behind the new `admin-sql`
-  feature (#962).** Studio's SQL tab. This runs statements an operator typed — the only
-  endpoint on the server that executes SQL FraiseQL did not generate — so it is off in
-  three independent ways until all three are on: the `admin-sql` cargo feature (not a
-  default, and never will be), `admin_api_enabled` with an `admin_token`, and
-  `[admin_sql] enabled = true`. Each missing piece is a **boot error naming itself**,
-  never a route that quietly is not there, and a mounted console logs a `WARN` at every
-  boot naming the bounds in force.
-
-  Every control is enforced **by PostgreSQL**, not by inspecting the statement text:
-
-  - **Read-only is the transaction's mode.** `admin_readonly_token` opens a `READ ONLY`
-    transaction, so a write is refused with SQLSTATE `25006` however it is spelled. This is the
-    load-bearing choice: `WITH x AS (UPDATE …) SELECT`, `SELECT nextval(…)` and a `VOLATILE`
-    function that writes are all writes that no regex over the text recognises. A `commit: true`
-    request under that token is refused *before* the database is touched — `COMMIT` on a read-only
-    transaction succeeds and persists nothing, so allowing it would answer `committed: true` over a
-    change that never happened.
-  - **Rollback by default.** The statement runs inside a transaction that rolls back unless
-    `commit: true` is sent, so the default is a genuine preview: `RETURNING` comes back, nothing
-    persists. `[admin_sql] allow_commit = false` removes the opt-in entirely.
-  - **`SET LOCAL statement_timeout` and a row cap.** A request may tighten either and never loosen
-    it, and the response reports the values *actually applied* — an operator who asked for ten
-    minutes on a thirty-second server would otherwise read the cancellation as a hung database. `0`
-    is refused rather than clamped for both, because PostgreSQL reads a zero timeout as *no*
-    timeout.
-  - **One statement per request**, from the extended query protocol's Parse rather than a
-    `split(';')` — which would be a bypass, since a semicolon inside a string literal is not a
-    statement boundary. `; COMMIT` cannot be appended to escape the rollback, and `; DROP TABLE`
-    is rejected before anything runs.
-  - **RLS preview.** `impersonate` sets the session variables the compiled schema's mappings would
-    produce for that identity, resolved by the *same* function the executor calls — a preview
-    computed by a second implementation is a preview of that implementation. Claims in the reserved
-    `fraiseql.` namespace are refused by name, since the token extractor strips that namespace from
-    real tokens precisely so a client cannot write it.
-  - **Every execution is audited**, including the failed and refused ones: a new
-    `AuditEventType::AdminSqlExecution` (the first non-auth-shaped variant) and
-    `SecretType::AdminToken`, carrying the peer, the credential that authenticated, whether a
-    commit was requested and whether it happened, and the statement — truncated to the entry's
-    bound, with the SHA-256 of the full text beside it.
-
-  Rows come back **positional** against a `columns` list rather than keyed by name,
-  because `SELECT 1 AS a, 2 AS a` is legal SQL and a name-keyed object silently drops
-  one of the two.
-
-  `docs/operations/admin-sql-console.md` documents it, including a section on what none
-  of this bounds: a committed statement bypasses the mutation pipeline, field
-  authorization, the change log, observers and cache invalidation; the console holds a
-  primary connection and an `ACCESS SHARE` lock for the life of the request; and the
-  database role is the real outer boundary — if the pool's role can `DROP SCHEMA`, so
-  can `admin_token`.
-
-- **Typed clients for Go and Rust: `fraiseql generate-client {go,rust}` (#961).** Both
-  plug into the same `client::common` document core the `TypeScript` and Python
-  generators use, so all four emit **byte-identical `GraphQL` documents** — a claim now
-  pinned by one test over all four generators rather than a copy owned by one of them.
-  Only the type rendering, the identifier rules and the ~100-line runtime are per
-  language.
-
-  Acceptance is compile-the-output, not "a template exists": the `generated-clients`
-  CI job generates from the canonical conformance fixture and runs
-  `gofmt -l` + `go build` + `go vet` on the Go client, and `cargo check` with warnings
-  denied on the Rust one, then compiles a consumer project that calls every operation
-  (`client_go_consumer` / `client_rust_consumer`).
-
-  **Go** is one package (`fraiseqlclient`), Go ≥ 1.21, standard library only
-  (`net/http`). Operations are **methods on `*Client`**: Go has a single exported
-  namespace per package, and the canonical schema puts a `user` query beside a `User`
-  type, which as package functions is a redeclaration — the conformance fixture caught
-  exactly that. Unions become a struct with one pointer per member and a generated
-  `UnmarshalJSON`, since Go has no sum type and flattening the members would lose which
-  one arrived. Optional arguments are checked at their typed parameter before being
-  boxed, because a typed nil inside an `any` is not `== nil`.
-
-  **Rust** is a module tree depending only on `serde` and `serde_json`. Unions map onto
-  `#[serde(tag = "__typename")]` enums — the one place the two type systems line up
-  exactly. Rust's standard library has no HTTP client, so the transport is a `Transport`
-  trait with a blanket impl for any `Fn(&str) -> Result<String, Error>` rather than a
-  dependency chosen on the caller's behalf.
-
-  Both renderers carry `every_field_type_maps_to_its_own_surface` from the start:
-  `FieldType` is `#[non_exhaustive]` and lives in another crate, so the mapping must end
-  in a wildcard arm — which is what let `HalfVector` and `SparseVector` degrade silently
-  in the two older generators when they were added (#959).
-
-  `sdk-conformance.yml` now also triggers on `crates/fraiseql-codegen/**`; it watched
-  `fraiseql-cli` and `fraiseql-core/src/schema` only, so a change confined to the
-  generators skipped the very job that gates them.
-
-- **Half-precision and sparse vectors: `HalfVector` and `SparseVector` (#959).**
-  `halfvec(N)` halves the storage and the HNSW index memory at `f16` precision, with an
-  unchanged query surface. `sparsevec(N)` takes pgvector's own text form,
-  `{1:0.5,7:0.25}/1000` — a dense `[Float!]` operand is refused, because a sparse vector
-  exists so that a 30-thousand-dimension bag of terms is never written out in full.
-
-  The operator class is now resolved from the field type *and* the metric —
-  `halfvec_cosine_ops`, `sparsevec_l2_ops`, `bit_hamming_ops` — against the table
-  pgvector actually ships: `ivfflat` has no `sparsevec_*` class at all, which is a
-  compile error rather than DDL `CREATE INDEX` rejects.
-
-  There is deliberately **no half-precision operand kind**. A `halfvec` column compared
-  against `'[…]'::vector` resolves the literal to `halfvec` and uses the same index —
-  identical query plans on the rig — so the mutation that removed the distinction stayed
-  green, and the distinction went with it. A sparse literal is the opposite case:
-  `'{1:1}/5'::vector` is `Vector contents must start with "["`.
-
-- **The distance a `nearest` search ordered by, in the response (#959).** A `Float` field
-  declaring `vector_distance = "embedding"` carries it:
-  `docs(nearest: {vector: $q, k: 10}) { id similarity }`.
-
-  Projected from **the same expression** the `ORDER BY` was built from — one construction
-  site, so the number a row reports and the position it occupies cannot be computed two
-  different ways. Override the metric and the reported number follows, negated inner
-  product included.
-
-  Selecting it on a query that ran no `nearest` search, or one that searched a *different*
-  vector field, is refused rather than answered with null: a null is indistinguishable
-  from a row whose distance is genuinely unknown, on a response that otherwise looks like
-  it worked. The declaration itself is checked at compile time — the named field must
-  exist on the same type and be a vector field, and the declaring field must be a `Float`.
-
-  Under the hood a projection may now carry a computed expression, which is a small new
-  power and a deliberately narrow one: `ComputedExpr` has no public constructor, so the
-  only SQL that can reach a projection this way is the distance expression the ORDER BY
-  builder produced.
-
-- **Binary (bit) vectors: the `BitVector` field type, hamming and jaccard search (#959).**
-  pgvector's `hamming_distance` (`<~>`) and `jaccard_distance` (`<%>`) are defined over
-  `bit` values, not `vector` ones — so both operators were, until now, advertised by the
-  operator table and refused by the generator, because no column they could apply to could
-  be declared.
-
-  `type = "BitVector"` declares one. `dimensions` counts bits; `--emit-ddl` produces a
-  `bit(N)` column and an index with the `bit_hamming_ops` / `bit_jaccard_ops` operator
-  class. `nearest: { vector: "11110000", k: 10 }` lowers to
-  `ORDER BY "fingerprint" <~> '11110000'::varbit LIMIT k`, and
-  `where: { fingerprint: { jaccard_distance: { vector: "…", threshold: 0.4 } } }` filters.
-  In GraphQL the field is a `String` — a run of `0`/`1`, which is `bit(N)`'s own text form
-  and what `binary_quantize(embedding)::bit(N)` produces.
-
-  Three refusals, each a case pgvector cannot execute: a float metric on a `BitVector`
-  field or a binary metric on a `Vector` one (compile error, both directions);
-  `index_type = "ivf_flat"` with `jaccard`, since pgvector 0.8 ships `bit_jaccard_ops` for
-  `hnsw` only; and a query vector whose length is not the declared width.
-
-  That last one is not a nicety. Casting text to `bit(N)` **pads a short value on the
-  right and truncates a long one, both silently**, so an unchecked operand searches a
-  different fingerprint and reports the result as an answer to the question asked. For the
-  same reason every emitted cast is `varbit` rather than `bit`: `'1011'::bit` is `bit(1)`,
-  which reduces every comparison to the first bit — and, proven by mutation, returns *all
-  four* fixture rows for a filter that must return two.
-
-- **Incremental delivery: `@defer`, `multipart/mixed`, resumable `@stream` (#958).** Four
-  of the eight deferred parts of #387.
-
-  **`@defer` on a fragment is live** over an incremental transport. The immediate payload
-  carries the fields the client did not defer; each deferred fragment then arrives as an
-  `incremental` entry addressed by its response path, one per list element, grouped by
-  `(path, label)` so one fragment produces one payload rather than one per field.
-
-  It is deliberately a **delivery split, not a second query**. A FraiseQL query is one SQL
-  statement over a JSONB view — there are no per-field resolvers to defer — so the only way
-  `@defer` could save database work is to drop the deferred fields from the projection and
-  re-query them, and for a list that is *unsound*: the two statements are separate
-  snapshots, so aligning the second to the first positionally attaches one row's deferred
-  fields to another row whenever a concurrent write shifts the window. Aligning by key
-  would require the client to have selected an identity field, which it is under no
-  obligation to do. So `@defer` here changes when bytes reach the client — a real benefit
-  when the deferred part is large — and never what they say. That is stated in the docs
-  rather than left to be inferred.
-
-  **`multipart/mixed`** joins SSE as a second framing (the Apollo/Relay
-  `deferSpec=20220824` shape), built from the same payload sequence in one code path so
-  the two cannot drift into delivering different results — a drift no client would catch,
-  since a client only ever exercises one of them. `Accept` naming both resolves to SSE.
-  The compression predicate exempts it, as it already did SSE.
-
-  **`@stream` deliveries are resumable.** Every payload carries the absolute row offset of
-  the first row it did *not* deliver, so `Last-Event-ID` is directly the resume point. No
-  replay buffer is involved and none would be honest — the source is a re-executable
-  paginated query, not a transient event feed. Rows already delivered are charged against
-  the document's own `limit`, so a resumed delivery cannot outlive the budget it asked for,
-  and a `Last-Event-ID` that is malformed or points *before* the document's `offset`
-  argument is refused rather than clamped: a silently adjusted resume point returns a wrong
-  result set that looks like a right one. The terminal payload of a delivery that ended
-  early is stamped too, so a client whose token was revoked resumes rather than restarts.
-
-  **Every continuation batch now re-checks revocation, not only expiry.** The `@stream`
-  loop uses the same `StreamAuthGuard` the subscription transport uses — now one shared
-  implementation rather than two — so a "log out everywhere" or a stolen-token revocation
-  terminates a delivery in flight. Expiry alone left both unenforced for the whole life of
-  a delivery, which on a large result set is unbounded.
-
-
-- **`nearest.field`: similarity search on a type with several vector fields (#959).**
-  A type declaring both a text and an image embedding could not be searched at all —
-  `nearest` refused any type with more than one vector field. It now takes an optional
-  `field:` naming which to search, and the selected field's own `dimensions` and
-  `distance_metric` apply.
-
-  `field` stays optional where there is one vector field and is **required** where
-  there are several: the omission is ambiguous rather than convenient, and answering it
-  by declaration order would search one embedding space and report the result as
-  another. The refusal names the candidates.
-
-- **REST `rest_stream` per-route opt-in (#958).** A query offers the streaming
-  representations — `Accept: application/x-ndjson`, `text/csv`, XLSX — only with
-  `rest_stream = true`. The flag reaches the compiled schema from the authored
-  `rest_stream` key (validated in the Python decorator and again in the compiler:
-  `rest_stream` on a single-item query is refused, because those representations
-  deliver a sequence of rows and that query returns one).
-
-  All three export handlers resolve through one `resolve_streaming_get_query`, so a
-  fourth representation gets the opt-in by using the only resolution function that
-  fits it rather than by someone remembering to check a flag.
-
-  A route without it answers `406 Not Acceptable` and names the flag; its JSON
-  envelope is untouched. Refusing rather than substituting the envelope is the point:
-  a client sending `Accept: application/x-ndjson` is asking to be handed a dataset,
-  and quietly answering with one page of a different representation is #811's failure
-  mode wearing a different header.
-
-- **Nested `@stream` (#958).** `@stream` on a list *inside* a row —
-  `users { posts @stream(initialCount: 2) }` — is delivered incrementally instead of
-  refused. It is a **delivery split**, the shape `@defer` already has, not the database
-  paging a root `@stream` gets: a nested list is a JSONB array produced by the same
-  single statement as the row that carries it, so there is no per-path pagination to
-  push down. Fetching "the next 10 posts of user 3" would be a second statement over a
-  second snapshot, with the alignment problem `@defer` documents.
-
-  So the honest properties are stated rather than implied: it does not reduce database
-  work, it does not bound server memory, it is always correctly aligned, and it is
-  **not** resumable — a root `@stream`'s event id is a row offset the query accepts as
-  an argument, while a nested chunk boundary is a position in a value that no longer
-  exists once the response is delivered.
-
-  Each chunk is addressed by the response path of its **first item**
-  (`["users",0,"posts",2]`), so every element of an enclosing list splices into its own
-  row rather than all of them into the first. A `@stream` on a field that resolved to
-  something other than a list is refused with an ordinary HTTP error — the split runs
-  before any byte is written, and a directive that silently did nothing on a negotiated
-  incremental transport would read to the client as "streaming worked". Nested `@stream`
-  combined with `@defer`, or with a root `@stream`, is refused for the same reason the
-  existing `@defer`+`@stream` combination is: their payload order is not defined here.
-
-- **Streaming reads through the `DatabaseAdapter` boundary (#958).** The structural part of
-  #387's remainder: `DatabaseAdapter::stream_with_projection` and `stream_row_query` deliver
-  rows as PostgreSQL produces them instead of collecting them into a `Vec` at the boundary,
-  and the REST exports (`Accept: application/x-ndjson`, `text/csv`, XLSX) and gRPC
-  server-streaming consume them.
-
-  What that fixes is not speed. All three exports walked their result set with
-  `LIMIT n OFFSET k` re-executions, which has two properties no batch size changes:
-  `OFFSET k` makes PostgreSQL walk and discard `k` rows, so exporting `N` rows scans
-  `O(N²)`; and each batch is its own snapshot, so a concurrent insert or delete shifts rows
-  across a batch boundary and the export silently emits one row twice and another not at
-  all. One statement over one portal has neither problem.
-
-  **The cost is stated rather than discovered.** A streamed read holds its pooled connection
-  for as long as the client is reading — the whole duration of an export, not the duration
-  of a query — and holds `ACCESS SHARE` on the views it reads, so DDL against a view under
-  active export waits. `pool_max_streaming_reads` bounds how many connections streaming
-  reads may hold at once, defaulting to a quarter of `pool_max_size` (at least 1): a bound
-  at the pool size would be no bound, since exports would evict every interactive request
-  from it. Rows move through a bounded channel, so a client that stops reading stops the
-  delivery all the way back to the socket.
-
-  Both methods carry a **buffering default** that collects and replays, so an adapter that
-  implements neither is correct — and a wrapping adapter that inherits it converts every
-  streaming caller back into a buffering one *without failing any test*: the rows are right
-  and only the memory bound is gone. `CachedDatabaseAdapter` therefore forwards both
-  explicitly (uncached: populating a cache entry means holding every row, which is the cost
-  the call exists to avoid), and a test asserts which method the inner adapter saw rather
-  than which rows came back.
-
-  The buffered and streamed executions of a read now resolve through **one**
-  `resolve_direct_read`: operation authorization, the field-authorization gate, the RLS
-  policy, the `inject_params` tenant filter and the field-level RBAC classification belong
-  to the read, not to its delivery. #739 is the standing proof that "the other reader of
-  the same query" is where a row filter goes missing, and that it goes missing invisibly —
-  so the tenant filter and the gated-field refusal are asserted on the export surface
-  itself, not inferred from the shared code path.
-
-  Opening the read before any response header is sent has a visible consequence: a refusal
-  — unauthorized, gated field, tenant-scoped query with no principal — is now an HTTP
-  status on the export, where a mid-stream failure could only ever be an error line inside
-  a `200`.
-
-  `FraiseWireAdapter` keeps the buffering default. Its `QueryStream` really does stream and
-  threading it through would be small, but no CI leg executes that adapter against a real
-  database, so the result could be compiled and not proven — tracked as #1115 with the rig
-  it needs.
-
-- **Read replicas: bounded staleness, per-query routing, failover detection, per-tenant
-  replicas (#957).** The four parts #407 deferred.
-
-  `read_replica_max_lag_ms` turns the read-your-writes pin's *assertion* about lag into a
-  *measurement*, and covers everyone else's writes rather than the client's own. A background
-  probe (`read_replica_health_probe_interval_ms`, 1 s by default) reads each replica's replay
-  lag; a replica is eligible while `lag_at_last_probe + age_of_that_probe <= max_lag`. That
-  sum is a true upper bound rather than an estimate — replay lag grows at most one millisecond
-  per millisecond of wall clock — and it makes the gate self-closing: nothing has to notice
-  that probing stopped, because an unrefreshed probe ages past any budget on its own. A
-  replica whose lag cannot be *measured* is never eligible; unknown staleness is not zero
-  staleness.
-
-  `read_routing` on a compiled query says what the structural read/write partition cannot.
-  `primary` keeps a query off replicas **and out of the result cache** — it is asked for when
-  staleness is a correctness problem, and a cache hit is stale data by construction, so
-  serving one would give the query the opposite of what it asked for through a different door.
-  `replica` opts out of the read-your-writes pin, for reads that have declared they are not
-  what the pin exists to protect. FraiseQL defines and enforces the shape; an authoring
-  language emits it — a `@reads_from(...)` directive is one spelling. Replica *topology*
-  stays out of the compiled artifact — URLs are server configuration and secrets.
-
-  Probing also closes the gap the one-shot boot health check structurally cannot see: a
-  replica that booted as a standby and is later found outside recovery has been promoted, and
-  stops taking reads whether or not a staleness budget is set. A promoted server accepts
-  writes of its own, so reads from it diverge from the primary in *both* directions, which is
-  not a staleness any budget could bound.
-
-  Tenant pools are no longer primary-only: a registration may carry `read_replica_urls` of its
-  own — topology, like its connection string — while the pin window, staleness budget and
-  probe cadence are stamped from the server's configuration, exactly as `[database_tls]` is.
-  Replica pools are built from the same `PoolPrewarmConfig` as the primary, so a
-  schema-isolated tenant's `search_path` reaches them too.
-
-  Proven against a **real streaming standby** added to both rigs, with lag induced by
-  `pg_wal_replay_pause()` and failover by a real `pg_promote()`. The pre-existing replica
-  stand-in is a second independent database, where `pg_is_in_recovery()` is false and lag is
-  unmeasurable — a bounded-staleness guarantee proven against it would have been proven
-  against a server that can never be stale.
-
-- **Outbound CDC: the Apache Kafka sink (#975).** `kind = "kafka"` behind the `cdc-kafka`
-  feature, reusing the existing drain worker, backoff and dead-lettering unchanged. A binary
-  built without the feature refuses the kind *by name* and says which feature to rebuild
-  with, rather than accepting the sink and dropping its events.
-
-  Kafka's `bootstrap.servers` is a scheme-less `host:port` list, so transport security is not
-  expressible in the endpoint the way `tls://` is for NATS. The sink defines its own schemes
-  — `kafka+ssl://`, `kafka+sasl-ssl://`, and plaintext `kafka://` behind
-  `FRAISEQL_KAFKA_ALLOW_PLAINTEXT` plus `FRAISEQL_ENV=development` — and maps each to an
-  explicit `security.protocol`. A **scheme-less endpoint is refused rather than defaulted**,
-  because librdkafka would read it as `PLAINTEXT`, and **every** broker in the list is
-  screened, so one metadata address cannot ride along behind a legitimate one.
-
-  SASL credentials come from `FRAISEQL_KAFKA_SASL_{MECHANISM,USERNAME,PASSWORD}`. The
-  mechanism is required rather than defaulted (librdkafka's default is `GSSAPI`, which these
-  builds cannot perform, and no default suits every broker). `PLAIN`, `SCRAM-SHA-256` and
-  `SCRAM-SHA-512` are supported; Kerberos is refused by name, as supporting it is the sole
-  reason to link Cyrus libsasl2.
-
-  Records are keyed by entity identity (`{object_type}:{object_id}`) so an entity's changes
-  share a partition — Kafka orders only within one — with `enable.idempotence` on and the
-  `(object_type, seq)` dedup key in both the payload and a `fraiseql-msg-id` header. Kafka's
-  topic charset is narrower than a NATS subject's, so a template that renders outside
-  `[a-zA-Z0-9._-]` dead-letters rather than being re-routed.
-
-- **Outbound CDC: the AWS Kinesis sink (#975).** `kind = "kinesis"` behind the `cdc-kinesis`
-  feature, reusing the drain worker, backoff and dead-lettering unchanged. As for Kafka, a
-  binary built without the feature refuses the kind *by name* and says which feature to
-  rebuild with. `pulsar` keeps a named refusal too, rather than falling through to
-  "unknown kind" — configuring it should say it is unimplemented, not imply a typo.
-
-  Kinesis is not addressed by a broker list: the SDK resolves a regional HTTPS endpoint from
-  a region name, so the configured endpoint carries only the region — `kinesis://eu-west-3`
-  — and a scheme-less value is refused rather than guessed. The region is constrained to
-  `[a-z0-9-]` starting with a letter, since it is interpolated into the endpoint the SDK
-  resolves. Credentials come from the standard AWS provider chain, never from the TOML.
-
-  The one route to an unencrypted endpoint is `FRAISEQL_KINESIS_ENDPOINT_URL`. An `https://`
-  override is taken as given — a VPC interface endpoint resolves into RFC 1918 space and
-  vetoing it would be wrong — while an `http://` override additionally requires
-  `FRAISEQL_KINESIS_ALLOW_PLAINTEXT`, `FRAISEQL_ENV=development`, and a host that survives
-  the same screening the Kafka sink applies, so the development hatch cannot reach an
-  instance-metadata address.
-
-  Records carry the same entity-identity partition key as the Kafka sink
-  (`{object_type}:{object_id}`), which pins one entity's changes to one shard — Kinesis
-  orders only within a shard — with `(object_type, seq)` in the payload for consumer dedup.
-  `SequenceNumberForOrdering` is deliberately not used: the drain publishes serially and
-  head-of-line-blocks, so arrival order already is `seq` order, and threading it would mean
-  unbounded per-key state. Stream names are validated against Kinesis's own rules
-  (`[a-zA-Z0-9_.-]`, capped at 128 — narrower than Kafka's 249), and a name it cannot accept
-  dead-letters rather than being re-routed. `InvalidArgumentException` is the only permanent
-  `PutRecord` failure; a missing stream and throttling both retry, because dead-lettering
-  them would discard events no retry needed to lose.
-
-- **Render transforms: resize modes, crop, effects and watermarks (#973).** #370 shipped the
-  render endpoint with resize, format conversion and the resource bounds that make exposing
-  image transforms safe. The operations themselves were resize-and-re-encode only, with one
-  fixed geometry and no way to ask for another.
-
-  `?mode=` now chooses how the `w`×`h` box is filled — `contain` (the shipped behaviour, and
-  still the default), `stretch`, `fit` (letterbox with `background`), `fill` (cover and crop
-  at `gravity`), `cover-blur` and `cover-mirror` — with a per-bucket `default_resize_mode`.
-  `?gravity=` takes a compass point, `center`, or `smart`, which is resolved from the pixels
-  by picking the window carrying the most edge energy. `?crop=` takes a bounding box or an
-  aspect ratio. `?blur=` and `?sharpen=` are Gaussian radii. `?watermark=` composites another
-  stored object and `?watermark_text=` rasterises text; both are bounded by the canvas.
-  Behind the opt-in `transforms-retarget` feature, `?mode=retarget` seam-carves.
-
-  Every operation is **bounded before it allocates**, which for these meant more than
-  inheriting #370's dimension ceiling. Blur and sharpen cost `pixels × radius`, so the budget
-  is on that product: a flat radius cap left a sigma of 100 over a 12 000 px render costing
-  roughly ninety seconds of CPU, which is the resource-exhaustion shape #370 exists to
-  refuse. A watermark cannot be scaled past its canvas; text is capped in both type size and
-  length; `retarget` — the one operation whose cost is not bounded by its output — is held by
-  an aspect-delta threshold, a working-resolution cap and a wall-clock budget, past any of
-  which it renders as `fill` instead. A crop outside the source is refused rather than
-  clamped, because quietly returning a different rectangle is the wrong answer with a `200`.
-
-  A watermark asset is a stored object, so it goes through **the same read gate as any
-  object in its bucket** (#336): a watermark the caller cannot read answers exactly like a
-  missing one. Text watermarks use the bucket's `watermark_font`, read and parsed at boot —
-  FraiseQL vendors no typeface, so a published crate carries no font licence, and a bucket
-  without one refuses `watermark_text` by name rather than substituting something.
-
-  Every render spelling is validated where it is written: an unknown mode or gravity is a
-  `400` at request time and a startup error in a preset, never a silent fallback.
-
-  Face-aware gravity is **not** part of this: the only pure-Rust detector ships a ~10 MB model
-  binary, and vendoring an ML model and its licence is not something a thumbnail-cropping
-  heuristic earns when entropy-based `smart` gravity covers the same need. Recorded on #973
-  with a follow-up rather than left implicit.
-
-- **Rendered images are cached, and invalidation is structural (#973).** `TransformCache`
-  existed but only its key builder was ever called outside tests: every render recomputed the
-  image, and its `invalidate()` wrote a marker no reader consulted — an invalidation that
-  looked like one and was not. The cache is now wired to the render route and
-  **content-addressed**: the key covers the source bytes and the canonical description of the
-  resolved transform, so a re-uploaded source hashes differently, reads a different key, and a
-  stale entry becomes unreachable rather than merely marked. There is nothing left to
-  invalidate, so `invalidate()` is gone rather than fixed. Entries live under the reserved
-  `.fraiseql-transforms/` prefix.
-
-  Each render also logs the resolved transform and whether it was a cache hit, using the same
-  canonical string the cache key derives from — so the audit record and the cache cannot
-  disagree about what was served.
-
-- **Resumable uploads on GCS and Azure Blob, and a Tus suite driven by a real client
-  (#972).** #369 shipped the resumable core with two working backends; GCS and Azure refused
-  loudly with `NotImplemented`. Both are now real. **GCS** opens a resumable session
-  (`uploadType=resumable`), keeps the session URI in the upload's continuation state and
-  `PUT`s each chunk with its own `Content-Range`; the session finalises when a chunk reaches
-  the declared total, and `multipart_abort` `DELETE`s the session so staged bytes are not
-  left accruing. **Azure** stages each chunk as an uncommitted block (`Put Block`, with
-  fixed-width block ids) and publishes the blob with `Put Block List`; `multipart_begin`
-  checks the container up front, because Azure has no session to open and a missing container
-  would otherwise surface only after the client had been handed an upload URL. Azure's abort
-  deliberately issues no request: uncommitted blocks belong to no blob and Azure reclaims
-  them, whereas deleting the blob would destroy an object a cancelled overwrite was supposed
-  to leave untouched.
-
-  Both are covered end to end against their emulators (Azurite, fake-gcs-server) in the
-  Dagger storage leg — at the backend seam and through the Tus routes an operator actually
-  calls, including the foreign-session refusal. GCS additionally gets a recording stand-in
-  for the wire contract the emulator is too permissive to check: fake-gcs-server accepts a
-  `Content-Range` that disagrees with the bytes sent and keeps serving a deleted session, so
-  an implementation that sent neither would round-trip against it perfectly.
-
-  The same issue closes #369's last deferred acceptance item: `tus-js-client`, the reference
-  Tus implementation, now drives the endpoints in CI (`tus_interop`). Everything else in the
-  repository speaks the protocol the way the server does, so a shared misreading of the spec
-  would have read as agreement. It uploads chunked and in one shot, and asserts that a
-  refusal — the bucket's size cap — reaches the client as a reported error rather than as a
-  hang.
-
-- **SCIM 2.0 provisioning, and an offboarding that is not cosmetic (#946).** `#381`'s SAML
-  slice covered authentication; provisioning is the other half of an enterprise IdP
-  integration, and its security-load-bearing part is the end of the lifecycle. Without it an
-  offboarded employee's account stayed active: SAML stopped them signing in *through the
-  IdP*, and a local password or social link on the same account kept working. `[scim]
-  enabled = true` mounts `/scim/v2/Users`, `/scim/v2/Groups`, the `.search` forms and the
-  discovery trio, with `userName`/`displayName` filtering, `startIndex`/`count` pagination,
-  `attributes`/`excludedAttributes` projection, and `ETag`/`If-Match` concurrency.
-
-  **`active = false` revokes every existing session and blocks new ones.** The block sits at
-  session creation — the single point password login, the MFA second factor, social
-  callbacks, email and phone OTP and the SAML ACS all converge on — so no credential path
-  stays quietly open. SCIM users are `core.tb_user` rows rather than a parallel directory,
-  precisely so the account an IdP deactivates is the account a password would authenticate;
-  a live-PostgreSQL test proves it by signing up with a password, offboarding over SCIM, and
-  showing the still-correct password no longer buys a session. A principal with no account
-  row — anonymous, or JWT-only — is a different identity space and is unaffected.
-
-  **A provisioning credential is not an admin credential.** `/scim/v2/*` takes a bearer
-  token minted through `/api/scim/tokens` (admin-gated, stored only as `sha256`, tenant
-  scoped by the credential rather than by any request field); the e2e asserts the separation
-  in both directions. SCIM groups mirror onto RBAC roles and members onto assignments, and a
-  group creates a role with **no permissions** — an IdP decides who is in a role, an admin
-  decides what it may do.
-
-  Filtering is deliberately strict: only `attribute eq "value"`, and anything else is
-  refused with `400 invalidFilter` rather than ignored, because answering a "does this user
-  exist?" probe with the whole directory is how a client provisions onto the wrong account.
-
-  Conformance runs against **`scim2-tester`**, a third-party SCIM client, in the Dagger
-  `saml` leg — the issue asked for a real provisioning client rather than a hand-written
-  request set, and it earned its keep immediately by finding several defects the hand-written
-  tests had missed (`$ref`/`type` sub-attributes strict clients reject, a PATCH surface too
-  narrow to provision with, an empty `members` array read as "not removed", and untyped
-  404/405 bodies). Okta and Entra validators need a public URL and a vendor tenant, so those
-  stay a manual pre-release step. Two deviations are documented with reasons; the one defect
-  it filed (#1090) is fixed in this release and its exemption removed.
-
-- **SAML SP request signing, encrypted assertions, and SP metadata publishing (#948).**
-  FraiseQL's SP verified inbound assertions but could not sign its outbound
-  `AuthnRequest`s or read an `EncryptedAssertion` — both are hard requirements at some IdPs,
-  so the effect was "we cannot integrate with your IdP", which for those customers is the
-  same as not supporting SAML. `[saml.sp]` configures one key pair for the whole deployment,
-  applied to every IdP, config-file and stored alike, so no private key lives in a database
-  row. `GET /auth/saml/metadata` publishes the entity ID, ACS endpoint, signing posture and
-  certificate, tenant-scoped exactly like login. Two SP keys are accepted during a rotation
-  window — the previous one for decryption only, and published as an extra `use="encryption"`
-  descriptor so an IdP that has not yet picked up the new certificate keeps working.
-
-  Unsigned stays the default. `sign_authn_requests = true` with no key pair is refused at
-  boot rather than silently sending unsigned requests, an unreadable key refuses to boot
-  rather than starting with signing quietly off, and a key that does not match its
-  certificate is refused at configuration time rather than at the first login.
-
-  **Decryption is not a second door.** The decrypted assertion's own signature is never
-  checked — verification operates on the bytes the IdP signed, and for an
-  `EncryptedAssertion` those are the *ciphertext*. So the envelope signature must cover it:
-  an unsigned response carrying an encrypted assertion is refused rather than decrypted, a
-  tampered ciphertext fails before any decryption happens, and what comes out of the
-  decryption runs the **existing** path — audience, recipient, conditions, `InResponseTo`,
-  replay. Each of those is pinned by its own test. An IdP that signs only the inner
-  assertion and then encrypts it is consequently unsupported: that configuration hides the
-  signature from us, and accepting it would mean trusting unverified ciphertext.
-
-  Key transport is restricted to RSA-OAEP and content encryption to AES-GCM. `rsa-1_5` and
-  the CBC modes — the algorithms behind the Bleichenbacher and padding-oracle breaks of XML
-  Encryption — are refused by name, on signature-verified bytes so the check never reads
-  attacker-controlled XML. The envelope-signature requirement already denies the
-  chosen-ciphertext oracle those attacks need, so this is defence in depth.
-
-- **Per-tenant SAML IdP store, with hot reload and a tenant-scoped login route (#947).**
-  `[saml.idps.*]` resolves once at boot, so adding or rotating an IdP meant a restart and a
-  config deploy, and — the security half — the tenant binding constrained only what an
-  assertion could *link* to, never who could start a login with it: any caller could name
-  any configured IdP. `[saml] store_enabled = true` adds `core.tb_saml_idp` (deny-by-default
-  RLS, like `core.tb_user`), a hot-reloading registry, and admin CRUD at `/api/saml/idps`
-  behind the existing admin bearer gate. Config-file IdPs keep working unchanged and win any
-  name collision; a stored IdP that would shadow one is refused at write time and not served
-  at read time, because the two would share one `saml:<name>` account namespace.
-
-  Certificate expiry is parsed out of the metadata on every write and reported by the API,
-  with `certificate_expiry_warning_days` (default 30) driving a periodic warning — a silently
-  expired IdP certificate is an outage whose cause is invisible from the login failure alone.
-  `refresh_interval_secs` (default 30) bounds only how fast *another replica's* change
-  propagates; writes through this server's own API serve on the next request.
-
-  Two properties keep the store from becoming a takeover primitive, and both are pinned by
-  live-PostgreSQL tests. **An IdP name is globally unique and is never reissued** — not even
-  after deletion, which is a tombstone: the logical name *is* the account-store provider
-  namespace, so a reissued name would hand the new IdP every account the old one created,
-  and a `NameID` collision across the two would resolve to a single user. **A stored,
-  tenant-bound IdP still cannot email-merge**: `trust_asserted_email` is recorded, but
-  `effective_saml_email_verified` is unchanged and the API reports
-  `email_linking_effective: false`, because `core.tb_user` keys verified email globally and
-  a merge therefore cannot be bounded to one tenant. Lifting that needs the tenant-scoped
-  account store in #1088 first; relaxing it alone is a one-boolean cross-tenant takeover.
-  Admin credentials are not tenant-scoped either — the admin token manages every tenant's
-  IdPs (#1089).
-
-- **Email verification for local-password accounts (#945).** FraiseQL could only *consume*
-  a verification claim someone else asserted — a trusted provider's `email_verified`, or a
-  completed email OTP. A local password signup passes `email_verified = false` (deliberately
-  fail-closed, so it keys on `(local, email)` and can never auto-merge), which meant
-  `core.tb_user.email` stayed `NULL` forever: the account could never *become* verified, and
-  the same person's password and Google sign-ins were two accounts with no way to join them.
-
-  `[auth.local] email_verification = true` mounts `POST /auth/v1/email/verify/start` and
-  `.../confirm`, backed by `core.tb_email_verification_token` on the selector + verifier
-  discipline password reset already uses (plaintext selector indexed, `sha256(verifier)`
-  stored, single-use under an atomic guard, one-hour TTL) plus one column reset does not
-  have: the address the link was mailed to, so confirmation promotes exactly the mailbox
-  that was proved. Delivery goes through the `[auth.local] email_from` mailbox; the link is
-  built from a new required `verification_url_template` (`{token}`), and a config that
-  enables verification without `password = true`, without `email_from`, or without the
-  template is refused by the compiler and again at boot.
-
-  **Both halves are required to confirm.** The routes are the only ones in this group that
-  need an authenticated caller: the token proves control of the mailbox, the session proves
-  ownership of the account, and the token's subject must equal the caller's `user_id`. That
-  is what closes the confused-deputy shape — signup for an arbitrary address is open by
-  design, so an attacker can seed a local account under `victim@example.com` and cause a
-  verification mail to land in the victim's inbox; a victim who clicks it is not
-  authenticated as the attacker, so nothing happens. A token presented by any other account
-  is rejected exactly like a forged one.
-
-  **Confirmation promotes; it never merges.** The proved address is written to the caller's
-  own user row, which is what puts the account in the cross-provider `email:<normalized>`
-  key space — so a later trusted social sign-in for the same address links into it through
-  the ordinary `link_or_create_user` path, one account, no new merge machinery. If another
-  account already holds that verified address, confirmation refuses with the new
-  `AuthError::EmailClaimedByAnotherAccount` (`409`) and changes nothing. The issue asked for
-  a merge there; a merge would move this account's password credential onto an account it
-  could not previously reach, which combined with open signup completes an account-takeover
-  chain needing the mailed code only once. The `TrustedEmailProviders` pre-hijack invariant
-  is re-proved for the new path in **both** directions against real PostgreSQL, and each
-  guard was verified by reverting it alone and watching the matching assertion fail.
-
-- **Sign in with Apple (#943).** `[auth.social.apple]` completes the third provider the
-  `[auth.social]` umbrella (#368) named, and it is the one that could not have been a copy
-  of the Google client. Apple's client secret is an **ES256 assertion**, not a stored
-  string: the config takes `client_id` (the services ID), `team_id`, `key_id` and the `.p8`
-  key through exactly one of `private_key_env` / `private_key_path`, and the runtime signs
-  a short-lived assertion over that triple, caching it and re-minting before expiry. A key
-  that cannot sign is refused at boot, not at the first login.
-
-  Apple publishes **no userinfo endpoint** — the identity is the token endpoint's
-  `id_token` and nothing else — so `OAuthProvider` gained
-  `user_info_from_tokens(&TokenResponse)`, which defaults to today's
-  `user_info(access_token)` for every provider that does publish one. `AppleOAuth::user_info`
-  refuses loudly rather than returning a degraded identity. The `id_token`'s `iss`, `aud`
-  and `exp` are validated fail-closed; its signature is not re-verified, because it arrives
-  by direct TLS from the token endpoint (OIDC Core §3.1.3.7 rule 6) and an attacker who
-  could forge that response could forge the JWKS document too.
-
-  Requesting the `name`/`email` scopes makes Apple deliver the callback as
-  `response_mode=form_post`, so configuring Apple also mounts a **`POST` variant of
-  `/auth/v1/callback`** — same CSRF-state consumption, same trust gate, same session mint as
-  the `GET` shape. That POST's `user` field carries the display name Apple returns exactly
-  once, on the first authorization.
-
-  **The security-load-bearing decision, and a deliberate narrowing of the issue as filed:**
-  that `user` field arrives in a request the *browser* makes, so anyone holding a valid
-  `code`/`state` pair from their own Apple account can put any address in it. Honouring its
-  `email` would let them link straight into that address's account. It is therefore not even
-  modelled — `AppleFirstAuthUser` has a name and nothing else, the form body's `id_token` is
-  never read, and the linking email comes only from the token endpoint. A live e2e proves it:
-  a sign-in whose payload claims `victim@example.com` leaves that address owning nothing.
-
-  Persisting the first-authorization claims needs no new storage: `AccountStore` resolves a
-  known `(provider, provider_id)` before it looks at any email, so the second sign-in —
-  which Apple sends with `sub` and nothing else — lands on the account the first one created.
-  The e2e drives exactly that sequence. Apple was already in the default
-  `TrustedEmailProviders` set; Private Relay aliases are verified addresses Apple owns, so
-  they key normally and simply never match another provider (correct, not a gap).
-
-- **Discord and Facebook social login (#944).** The last two providers the `[auth.social]`
-  umbrella (#368) named. Both are plain OAuth2 on the GitHub template — fixed well-known
-  endpoints, network-free construction, SSRF-guarded base-URL overrides — and each one's
-  interesting question is what it can honestly say about an email address.
-
-  **Discord** carries `email` and `verified` on the same user object, with no second hop.
-  The provider *reads* that flag rather than assuming it: an unverified address arrives at
-  the callback as unverified and keys on `(discord, id)`, so it cannot collapse into an
-  existing email-keyed account. Only because that check exists is **`discord` now in the
-  default `TrustedEmailProviders` set** — the trust and the check ship together, and a
-  deployment that wants neither can drop it with `.distrust("discord")`.
-
-  **Facebook** may return no `email` at all (a phone-number-only account, or a declined
-  permission) and publishes **no verification flag whatsoever**. There is nothing to gate on,
-  so the provider reports `email_verified = false` unconditionally and `facebook` is
-  deliberately absent from the default trusted set — two independent reasons its address can
-  never become a linking key. The Graph API version lives in the request path and Meta
-  deprecates versions on its own schedule, so `api_version` is configuration (default
-  `v21.0`) rather than a constant that would break on Meta's timetable; a value carrying a
-  path separator is refused, since it would re-point the request.
-
-  The two belts made a test-design point worth recording: setting Facebook's
-  `email_verified` to `true` leaves the *end-to-end* test green, because the trust gate
-  downgrades it anyway. Each half therefore has its own test — a stub-backed `user_info`
-  case for the provider's claim, and a trust-set case for the gate.
-
-- **Outbound CDC is mounted by the server (#382).** `[cdc_outbound]` with one
-  or more `[[cdc_outbound.sinks]]` now makes the server drain
-  `core.tb_entity_change_log` to a broker on its own task set, behind the new
-  `cdc-outbound` feature. The drain engine — durable per-sink delivery state,
-  anti-join enqueue with a commit-lag sweep, claim-then-publish under a lease
-  with head-of-line ordering, backoff and dead-lettering — shipped in v2.12.0
-  and is used unchanged; what was missing is that **nothing in the shipped
-  server ever constructed a `DrainWorker`**, so outbound CDC was reachable only
-  by writing your own binary.
-
-  Boot is fail-loud: a configured section with no database pool, an unreachable
-  broker, delivery-state DDL that will not apply, a duplicate sink name, or a
-  `kind` that is unknown or not yet implemented (`kafka`, `kinesis`, `pulsar`)
-  all refuse to start. A server that boots without its drain looks healthy
-  while every downstream consumer silently starves. Docs:
-  `docs/features/cdc-outbound.md`.
-- **Per-bucket access policies (#371).** `[[storage.<name>.policies]]` attaches
-  a list of permit rules that *replaces* the bucket's coarse `access` mode:
-  `methods` (`read`/`write`/`overwrite`/`delete`/`list`) × `principal`
-  (`owner`/`authenticated`/`anonymous`/`role:<name>`) × an optional
-  `key_prefix`. This expresses the shapes key-prefix routing could not — "the
-  audit group may read under `reports/`, but only the creator may delete".
-
-  Three properties are structural rather than documented. **Denial is the
-  fallthrough**: there is no `effect = "deny"` whose precedence could be wrong,
-  and `permits` returns true only from inside a matched rule, so an empty
-  policy denies everything including to an object's own owner. **`write` is
-  create-only** — replacing an existing object needs an explicit `overwrite`
-  grant, because the natural rule "authenticated callers may write" would
-  otherwise re-open the H9/B4 overwrite IDOR through the policy door (this was
-  caught by the end-to-end test, not by review). **An unparseable policy
-  refuses to boot** — an unknown method or principal, an empty `methods` list,
-  or a misspelled field is a startup error, never a rule that silently denies.
-  `list` also becomes a distinct permission (no longer implied by write
-  access), with row filtering still applied on top.
-- **Policy conditions, signed-URL grants, and runtime policy management
-  (#974).** #371 shipped policies as `methods` × `principal` × `key_prefix`,
-  parsed at boot. #974 asked for a CEL-style expression language on top
-  (`object.expires_at`, `jwt.<claim>`) plus an admin API to push policies
-  without a deploy.
-
-  What lands is the same expressive power as **more closed rule fields**, so
-  there is still nothing parsed or evaluated at request time — only comparisons
-  between values already in hand. `not_before` / `not_after` bound a grant's own
-  validity, with `not_after` exclusive so two adjacent grants neither overlap
-  nor gap. `require_unexpired` reads an object's own expiry through a new
-  nullable `expires_at` column. `require_claims` is exact string equality
-  against the caller's token claims. A new `signed_url` principal expresses
-  *"a public bucket whose objects are served only through signed URLs"*: it
-  matches on the presign path and nowhere else.
-
-  Two readings are fail-closed on purpose. **A missing `expires_at` denies**
-  under `require_unexpired` — the condition mirrors `now < object.expires_at`,
-  which is not true against `NULL`, so adding the column cannot widen access on
-  any existing row. **`require_claims` denies under non-OIDC auth**, where the
-  claim set is empty, rather than silently ceasing to narrow when the auth mode
-  changes. Every condition only ever narrows, and a rule skipped for a failed
-  condition does not suppress a later permitting rule.
-
-  Policies can now also be pushed at runtime:
-  `GET`/`PUT`/`DELETE /api/v1/admin/storage/{bucket}/policies`, stored in
-  `_fraiseql_storage_policies` and loaded at boot. **A stored policy replaces
-  the configured one wholesale** — never merged, so "what can this caller do"
-  stays answerable from one list — and `GET` plus the boot log name the
-  governing `source` (`store` / `config_file` / `access_mode`) so which list is
-  never a guess. `DELETE` reverts to the configured policy, which can widen
-  access and therefore takes the write token. Since **a pushed policy has no
-  boot to refuse**, #371's parse guarantee is enforced at the request instead:
-  the rules are validated — through the same parser the config file goes
-  through — before anything is written or applied, and a rejection answers `400`
-  naming the offending `rule_index` while the policy already in force keeps
-  serving untouched. `GET` needs only `admin_readonly_token`; `PUT`/`DELETE`
-  need `admin_token`, so inspecting what governs a bucket can be delegated
-  without delegating the ability to change it. A push applies immediately on the
-  replica that served it and reaches the others within 30 seconds.
-
-  `require_metadata` from the original issue is deliberately absent: objects
-  carry no user-defined metadata, so the condition would have had nothing to
-  match. Tracked separately as #1099.
-- **Image renders are served, and hostile images are bounded (#370, closing
-  #901).** `GET /storage/v1/render/{bucket}/{*key}?w=&h=&format=&quality=&preset=`
-  mounts behind the server's new `storage-transforms` feature and reads through
-  exactly the gates the download route uses (metadata, `can_read`, the
-  missing/not-yours collapse). `format` is `webp`/`jpeg`/`png`/`avif`; with none
-  given, the client's `Accept` header picks the encoding. Named presets now come
-  from configuration — `[storage.<name>] transform_presets = [{ name = "thumb",
-  width = 200, format = "webp" }]` — which previously could not be set at all
-  (`BucketConfig::transform_presets` was hard-coded `None`); declaring them in a
-  binary built without the feature is a **startup error**, not a silently absent
-  endpoint. Before this, the whole `transforms` feature had no HTTP surface and
-  `ImageTransformer` had no non-test caller.
-
-  The transformer itself was unbounded: it decoded whatever a caller supplied
-  and resized to whatever was requested, so a decompression bomb (a small file
-  whose header declares an enormous image) or an absurd `?w=` allocated
-  hundreds of megabytes per request. Source and requested dimensions are now
-  capped at 12 000 px per side, checked from the header *before* decoding, with
-  matching hard decoder limits behind them; bombs, malformed bytes, non-image
-  objects and oversized requests all return a named `400`.
-- **Resumable uploads — Tus 1.0.0 core + S3 multipart (#369).** New endpoints
-  `POST /storage/v1/uploads/{bucket}/{*key}` (create, `Upload-Length` +
-  optional `Upload-Metadata` filetype), `PATCH`/`HEAD`/`DELETE
-  /storage/v1/uploads/{id}` (append at the proven offset / resume probe /
-  cancel). Interrupted uploads resume from the durable offset; sessions are
-  rows in the new `_fraiseql_storage_uploads` table, so they survive a server
-  restart. Every path funnels through the SAME machinery as single-shot
-  uploads: creation passes the H9/B4 overwrite gate and reserves the metadata
-  row exactly like a presigned upload (#866), completion is one routine that
-  finalises backend staging and confirms that row, and a foreign session is
-  indistinguishable from a missing one (`404`; anonymous `401`; #876 — an
-  interrupted upload cannot be resumed, probed, or cancelled by a different
-  owner). Backends: local (staging under the reserved — and now
-  `validate_key`-fenced — `.fraiseql-uploads/` namespace, rename on
-  completion) and S3/MinIO (real multipart: chunks become parts, sub-5-MiB
-  non-final chunks are refused up front as `400`); GCS/Azure refuse loudly
-  (`NotImplemented`). Concurrency: one in-flight session per key (`409`),
-  appends pinned to the proven offset (`409` on races), size caps enforced at
-  creation and cumulatively, expired sessions answer `410` and are reaped
-  (staging discarded, created reservations released; per-bucket
-  `upload_ttl_secs`, default 24 h). Verified end to end over real MinIO + a
-  real metadata table in the `server-storage` leg.
-- **Durable long-running operations (#391).** New `[async_operations]` section
-  mounts `POST/GET/DELETE /operations/v1/…` — submit returns an `op_id`
-  immediately, background workers execute the stored GraphQL document through
-  the SAME `execute_with_security` pipeline as `/graphql` (RLS, cost gates,
-  change-log outbox — never a second execution path), and status reads the
-  stored row. Designed against P19's six saga-recovery failure modes, each
-  pinned in `async_operations_e2e_pg`: terminal states are never reclaimable;
-  claiming is staleness-gated (workers heartbeat, so a live execution is never
-  stolen); completions are claim-token-guarded (a superseded worker's late
-  result cannot clobber the retry's); `Idempotency-Key` submission replays the
-  same `op_id`; the persisted tenant key dispatches execution through the
-  shared tenant seam; and a cancel that did not cancel is never reported as
-  one (queued → cancelled outright, running → explicit `cancel_requested`).
-  The operation allowlist is required and fail-closed, cost is charged at
-  submission, status/cancel are submitter-scoped (404, no existence oracle),
-  an errored GraphQL envelope records as `failed`, and an expired security
-  snapshot refuses to execute. A configured section without a database pool or
-  a creatable `_system.async_operations` refuses to boot. Docs:
-  `docs/features/async-operations.md`.
-- **MCP as a first-class transport (#376).** Three gaps closed on the existing
-  (P09-hardened) MCP surface. **Auth parity**: MCP now accepts the same two
-  Bearer modes as `/graphql` — OIDC (`[auth]`) *or* local HS256
-  (`[auth_hs256]`); previously only OIDC validated, so an HS256 deployment
-  could never authenticate an MCP call and `require_auth = true` refused to
-  mount the endpoint (`FraiseQLMcpService::with_oidc_validator` is replaced by
-  `with_token_validator(McpTokenValidator)`). **Behaviour hints**: every
-  advertised tool carries MCP `ToolAnnotations` — queries `readOnlyHint: true`,
-  mutations explicitly `destructiveHint: true` / non-idempotent, so agent
-  clients confirm before invoking writes. **Audit tagging**: an MCP-originated
-  mutation's change-log row is stamped `extra_metadata.transport = "mcp"`
-  (forge-safe: the tag rides a framework-reserved security-context attribute
-  set by the transport itself), making agent writes one query to find. New
-  `mcp_transport_stamp_e2e_pg` suite drives an HS256-authenticated tool call
-  through the real executor into the outbox. Resources / Prompts / session
-  continuity are tracked in #967. Docs: `docs/mcp.md` gained Authentication,
-  Behaviour hints, and Audit trail sections.
-- **Session-state subsystem (#389).** New `[session_state]` section: durable
-  per-thread conversation memory for agents and multi-turn applications —
-  key/value entries scoped to `(session, thread)` with per-entry TTL (expired
-  entries are invisible to reads immediately and reclaimed by a background
-  sweep), a 64 KiB per-value cap, and an optional `Summarizer` hook that
-  atomically collapses a thread into a single reserved `_summary` entry past a
-  configurable threshold (a failing summarizer leaves the thread intact).
-  Backends: `memory` (volatile, dev — warns at boot) and `postgres`
-  (`_system.session_state`, created at boot like `_system.sessions`). A
-  configured `postgres` backend without a pool, or whose table cannot be
-  initialised, **refuses to boot** — never a silent in-memory downgrade. The
-  section is strict (`deny_unknown_fields`). Library API:
-  `fraiseql_auth::session_state` + `Server::session_state()`; MCP session
-  continuity binds to it in #376. Docs: `docs/features/session-state.md`.
-- **Actor-model hardening (#390).** The change-log's `actor_type` domain is now
-  enforced by the database itself: migration 08 installs
-  `chk_entity_change_log_actor_type` (`NOT VALID`, so a populated legacy table
-  migrates safely; new writes are checked), and a CLI lockstep test pins the
-  constraint's token list to `ActorType::ALL` so adding an enum variant without
-  extending the constraint is a red test. `fraiseql doctor --against-db` gained
-  an actor-attribution check: out-of-contract `actor_type` values are a
-  **Fail** (rogue writer), a missing constraint or `NULL`-actor rows are a
-  **Warn**. A new end-to-end suite (`actor_attribution_e2e_pg`) drives real
-  HS256 tokens through the production mount on both HTTP write transports
-  (`/graphql` + REST) and asserts the recorded rows: `human_user` /
-  `service_account` (scope) / `ai_agent` + `acting_for` (RFC 8693 `act`)
-  derivation, that forged `fraiseql.*`/`actor_type` claims cannot influence the
-  classification, and that unauthenticated writes are refused rather than
-  recorded unattributed. Operator docs: `docs/features/audit-logging.md`.
-  Deferred consumption features (RBAC actor predicates, per-actor budgets) are
-  tracked in #966.
-- **The HTTP `QUERY` method (RFC 10008) on the GraphQL endpoint (#508).** Opt-in via
-  `enable_http_query` (default `false`); `GET` and `POST` behaviour is unchanged either
-  way. `QUERY` is "GET with a request body" — safe, idempotent and cacheable — so routing
-  deterministic GraphQL reads over it stops telling caches, proxies and retry layers
-  "unsafe, do not cache, do not retry". Acceptance is **queries-only**: a `mutation` or
-  `subscription` is refused with `405`, because a method an intermediary may replay must
-  never carry a state-changing operation. The gate parses with the same parser the
-  executor uses, so it cannot disagree with what would actually run. CORS advertises
-  `QUERY` only when the server accepts it, so the header never promises a route that
-  answers 405. axum 0.8 has no `MethodFilter::QUERY` yet, so the method is mounted as a
-  `MethodRouter` fallback — two clearly-marked places (`HTTP_QUERY_METHOD` and the
-  fallback wiring) swap to the typed filter when upstream ships it.
-- **Social login is reachable from the shipped binary (#368).** The account-linking
-  trust gate and the provider modules were library-only: `Server::with_social_login`
-  had zero callers, nothing auto-registered providers, and `[auth.social]` could not
-  even be typed (`[auth]` is `deny_unknown_fields`). A compiled `[auth.social.google]`
-  / `[auth.social.github]` block now builds the trust-gated `multi_provider` flow at
-  boot and mounts `GET /auth/v1/{providers,authorize,callback}`, backed by
-  Postgres-backed sessions and account linking. Configured-but-unusable shapes refuse
-  to boot naming the offending key: no `[auth_hs256]`, an unset `client_secret_env`,
-  an SSRF-blocked endpoint override, or no database pool. `/auth/v1/authorize` and
-  `/auth/v1/callback` are governed by the same per-IP `auth_start` / `auth_callback`
-  path buckets that guard `/auth/start` (#788) — both rate-limit backends now derive
-  their rules from one shared builder so they cannot drift. Apple, Discord and
-  Facebook are split out to #943 and #944.
-- **The GitHub provider talks to GitHub (#368).** It wrapped `OidcProvider`, so
-  construction performed OIDC discovery against `github.com` — which serves no
-  discovery document (404), meaning it could never have constructed against real
-  GitHub. It is now a plain OAuth2 client against the fixed well-known endpoints
-  (overridable for GitHub Enterprise Server, SSRF-guarded), requesting
-  `read:user user:email`, sending `Accept: application/json` at the token endpoint,
-  and tolerating the absent `expires_in`. The `/user/emails` second hop resolves the
-  **primary verified** address, so a private-email GitHub account can participate in
-  email-keyed account linking; any failure of that hop falls back to
-  `email_verified = false`. GitHub therefore joins `google` and `apple` in the default
-  `TrustedEmailProviders` set — the documented reason for its exclusion was exactly
-  this missing hop.
-- **`[auth.local]` — first-party auth methods are reachable (#367).** Email+password,
-  email OTP / magic link, TOTP MFA and anonymous sessions all existed in
-  `fraiseql-auth` with no way to reach them: `with_mfa` / `with_anon_signup` had zero
-  callers, the MFA/social/anon route groups were registered against fields hard-coded
-  to `None`, OTP had no server route at all, and the password-reset flow had no
-  concrete `ResetEmailSender` outside its own test double. A compiled `[auth.local]`
-  block now mounts each enabled method — `/auth/v1/password/{signup,login,reset,
-  reset/confirm}`, `/auth/v1/{otp,verify}`, `/auth/v1/mfa/*`, `/auth/v1/signup` — and
-  a method that cannot work refuses to boot rather than dead-ending: no
-  `[auth_hs256]`, no pool, a missing or send-less `email_from` mailbox, or a build
-  without the `inbound-email` feature (which carries the SMTP transport) each name
-  the offending key.
-- **Postgres-backed MFA and OTP stores (#367).** `PgMfaStore` and `PgOtpStore` make
-  `[auth.local] mfa`/`otp` safe to serve. The in-memory stores are per-process, which
-  for MFA means a deploy silently destroys every user's second factor, and for OTP
-  means N replicas multiply both the send budget and the 3-attempt verify cap by N —
-  a six-digit code becomes brute-forceable. TOTP secrets are stored recoverable (they
-  are shared secrets), recovery codes are bcrypt-hashed and deleted as consumed,
-  challenge tokens and OTP codes are stored as SHA-256 hashes so a database read
-  cannot replay a live one, and the per-user failure budget lives in the enrollment
-  row so it survives a restart. Both budgets are charged in SQL, so a concurrent
-  flood cannot lose a failure to a read-modify-write race.
-- **A concrete `ResetEmailSender` / `EmailDelivery` (#367).** `MailboxEmailSender`
-  relays OTP codes and reset links through the same `[mailbox.<name>.smtp]` transport
-  the `send_email` host op uses, so a deployment configures outbound mail once.
-  `reset_url_template` / `magic_link_template` are validated at compile time to
-  contain their `{token}` / `{code}` placeholder — a template without one builds the
-  same dead link for every user.
-- **OTP identities are real accounts (#367).** `otp_verify` minted
-  `user_id = "otp:<email>"` without touching the account store, so the same person's
-  OTP, social and password sign-ins produced as many separate identities as sign-in
-  methods. Completing the OTP flow proves control of the mailbox, so the identity now
-  resolves through `AccountStore::link_or_create_user` with `email_verified = true`
-  and converges with every other verified-email sign-in for that address.
-- **`FRAISEQL_SHUTDOWN_TIMEOUT_SECS` / `--shutdown-timeout-secs` (#838).** The
-  `shutdown_timeout_secs` config field's rustdoc had promised this override since it
-  shipped; the variable now exists — the only occurrence of its name in the workspace
-  used to be that comment.
-- **Docs-truth CI gates (#838, #839).** `tools/check-docs-env-vars.sh` fails when any
-  `FRAISEQL_*` variable named in `docs/`, `README.md` or an example README has no reader
-  in the workspace; `tools/check-docs-version.sh` fails when a doc's "vX.Y.Z released"
-  status line disagrees with `Cargo.toml`; and `doc_config_examples_test` deserializes
-  every `# server.toml`-marked TOML block in the operator docs into the real
-  `ServerConfig`. All three run in CI (shell gates + the test leg).
-- **Graceful subscription drain on shutdown (#571).** When graceful shutdown begins, every
-  active subscription receives a per-operation `Complete` frame and the socket closes with
-  **1001 (Going Away)**, so clients see a clean end-of-stream during a rolling deploy
-  instead of a transport-level abort indistinguishable from a network fault.
-- **`subscription_auth_recheck_secs`** server config key (default 30): how often a live
-  subscription re-checks its principal's expiry/revocation (#771). `0` disables the
-  periodic check; per-delivery expiry enforcement remains.
-
-
-- **A filtered-ANN benchmark, and what it found (#959).**
-  `benches/vector_filtered_ann.sql` measures `nearest` combined with a `where` over
-  100 000 documents × 384 dimensions against any pgvector 0.8+ database, reporting rows
-  returned, recall against the exact answer, and latency across six selectivities and
-  the three `hnsw.iterative_scan` settings.
-
-  The headline is not a speed number. With pgvector's default
-  `hnsw.iterative_scan = off`, a `nearest` search asking for ten rows returns **two**
-  once the filter is selective — the index scan's candidate list is exhausted before ten
-  survive the filter, and the query succeeds. `relaxed_order` returns all ten at full
-  recall for 3.1 ms against 0.43 ms. FraiseQL sets neither GUC today; the operator-level
-  remedy is in `docs/operations/vector-search.md` and the automatic one is filed as
-  #1116. Separately, a threshold predicate reading the vector out of the JSONB payload
-  costs 122× the identical predicate against the native column the same view must
-  already expose (#1117).
-
-- **Every official SDK can author a pgvector field (#959).** `vector_config` and
-  `vector_distance` are on the field surface of all eleven — Python, TypeScript, Go, PHP,
-  Java, C#, F#, Elixir, Ruby, Dart and Rust — each in its own idiom, together with the
-  `BitVector`, `HalfVector` and `SparseVector` type names. Until now the `Vector` scalar
-  existed in some of them as a name with nothing behind it: the compiler refuses a vector
-  field carrying no configuration, so no SDK could author one at all.
-
-  Two properties are deliberate. Every SDK writes `index_type` and `distance_metric` into
-  the emitted `schema.json` even when the author leaves them off, so the artifact says
-  which index and which metric the column will get instead of deferring to a compiler
-  default nobody chose. And no SDK carries the table of which field-type / metric / index
-  combinations pgvector actually defines — that lives once, in the compiler, which refuses
-  an unsupported combination by name. Eleven copies of that table would be eleven things
-  to drift.
-
-  The cross-SDK conformance suite gained the `vector_fields` construct, which owns a type
-  carrying all four vector field types plus a `Float` declaring `vector_distance`, and
-  asserts every key of every config survives authoring, export and compilation. All eleven
-  SDKs satisfy it; none needed a declared gap.
-
-
-- **`count = true` emits a `<name>Count(where): Int!` sibling for a list query (#938).**
-  A non-Relay list compiles to `where`/`orderBy`/`limit`/`offset` returning a bare `[T]`,
-  which has nowhere to hang a total — so an offset-paginated client could not compute a
-  page count. `totalCount` existed, but only on a Relay connection, and a Relay connection
-  is keyset-only: obtaining the count cost random access, which is the reason offset paging
-  was chosen. The sibling closes that gap without either compromise:
-
-  ```graphql
-  users(where: UserWhere, orderBy: UserOrderBy, limit: Int, offset: Int): [User!]!
-  usersCount(where: UserWhere): Int!
-  ```
-
-  Opt-in per query, because the extra `SELECT COUNT(*)` scans the whole filtered set and is
-  wasted on any list not rendered with page numbers. Refused at compile time on a
-  single-item query, on a query with no `sql_source`, and on `relay = true` (redundant with
-  its `totalCount`); a generated name that collides with an authored query is also refused
-  rather than silently displacing it.
-
-  The sibling is **derived** from the list definition, not authored separately, so it
-  inherits the same `sql_source`, `inject_params`, `requires_role`, declared arguments,
-  `native_columns` and `additional_views`. That inheritance is the point: a count answers
-  "how many rows match?" without returning one, so a count that kept the rows but dropped
-  the tenant filter would leak another tenant's row total while leaking no row — and would
-  pass any test that only inspects returned data.
-
-- **`make lint-feature-matrix` — the feature-check matrix, runnable before a push (#1227).**
-
-  `make preflight` printed "Safe to push" over a class of failure it is structurally unable
-  to see. Its clippy pass is `--all-features`, where a feature-OFF arm is not compiled at
-  all, and its narrow-feature pass is `cargo check`, which runs no clippy lints. Their
-  intersection — clippy under anything other than `--all-features` — had no local gate, and
-  the leg that covers it, `Dagger — feature matrix`, triggers on `push: branches: [dev]`
-  and so runs only *after* the merge. One `clippy::collection_is_never_read` reached `dev`
-  that way, preflight-green and red on 4 of 47 combos.
-
-  The new target runs the matrix natively, with each combo's `cargo` invocation
-  byte-identical to the one the leg issues. `--clippy-only` narrows to the 11 combos the leg
-  clippies; every run prints its selected count next to the declared total, so a narrowed
-  run is never mistaken for a full one.
-
-  **The combo list is derived, never copied.** `tools/feature-combos.py` reads
-  `.dagger/feature-combos.go` and refuses to emit a short list: a struct literal it cannot
-  parse in full, a field it does not model, or a `cargoArgs()` that no longer matches the
-  reproduction is a hard error rather than a silently smaller matrix. Without that, the
-  local runner would be a second hand-maintained copy of a CI list — the drift that #1135
-  already recorded for the preflight/ShellGates pair.
-
-  `preflight` states the gap in its closing lines instead of claiming it does not exist, and
-  keeps the fast red-capability pin (`make test-feature-matrix-gate`, which stubs `cargo` and
-  compiles nothing). The heavy target stays out of `preflight` deliberately: a cold run
-  compiles 47 feature sets, and a gate that slow is a gate nobody runs.
-
-### Changed
-
-- **The weekly fuzz campaign reports what it finds (#441).** A crash now opens
-  (or comments on) an issue labelled `fuzz-crash` instead of only reddening a
-  scheduled job — seven consecutive weekly failures on a real security defect
-  went unread because a red scheduled job is not a signal anyone receives. Build
-  failures and crash finds are now separate steps, so a bad nightly cannot
-  masquerade as a finding, and the nightly toolchain is pinned rather than
-  floating (an internal compiler error on 2026-07-26 failed two targets in
-  exactly that way). Seed corpora carry the reproducers for fixed crashes, so a
-  regression is caught by a fixture in git rather than by a 90-day cache
-  surviving. The campaign remains schedule- and dispatch-only and cannot gate a
-  merge.
-
-  All 25 fuzz targets across the 8 crates were build-verified as part of this,
-  which is how two of them turned out to be broken: `fraiseql-db`'s
-  `where_from_json` and `where_generator` still referenced `MySqlDialect`,
-  `SqliteDialect` and `SqlServerDialect`, removed by the PostgreSQL-only
-  de-scope (#374), and `WhereClause::from_graphql_json` had gained a second
-  argument. `where_from_json` is in the scheduled matrix, so this would have
-  reddened the campaign the moment the de-scope merged — no CI leg builds
-  `fuzz/`, because each is a separate cargo workspace. Both are fixed and now
-  exercise the typed-field path as well as the untyped one; `where_generator`
-  additionally asserts the emitted SQL keeps its quotes and parentheses
-  balanced. `docs/fuzzing.md` carries a one-command build-verify loop.
-- **Five properties from real defects are now checked continuously (#441).** Each
-  is derived from a defect this remediation program actually fixed, and each was
-  verified by pointing it at the pre-fix code and watching it find the original
-  bug — a target that cannot do that asserts nothing while reporting green.
-
-  | Property | Form | Defect |
-  |---|---|---|
-  | An inline argument never silently vanishes across the `value_json` write→read round trip | `value_json_seam` fuzz target | #719 |
-  | No accepted identifier can alter the structure of the SQL it lands in | `identifier_validation` fuzz target | #794, #795, #833 |
-  | Generated WHERE SQL keeps quotes and parentheses balanced | `where_generator` fuzz target | #833 |
-  | A query parameter never bleeds into the host, user or database name | `fraiseql-wire` proptest | #817 |
-  | No caller-supplied argument value can add a root field to a built MCP document | `fraiseql-server` proptest | #808 |
-
-  The last two are proptests rather than fuzz targets because the code they guard
-  is behind a private module, and widening it to `pub` purely for test reach would
-  enlarge the supported API surface. They run in every CI test leg rather than
-  weekly, so for those two the in-crate form is the stronger check.
-
-  `pre-commit` no longer rewrites `fuzz/seed_corpus/`: `end-of-file-fixer`
-  appended newlines to five #976 reproducers, and a seed corpus is test data
-  where every byte is part of the input.
-
-### Deprecated
-
-- **`fraiseql_wire::operators::generate_where_operator_sql` (#877).** It emits `$N`
-  placeholders that the crate's simple-query protocol can never bind — no encoder for
-  Parse/Bind exists and `QueryBuilder` has no method accepting the parameter map, so the
-  advertised usage failed at the server with `there is no parameter $1`. Deprecated (and
-  the module docs corrected) until the crate either implements the extended query
-  protocol or renders operator values as safely quoted literals; use
-  `QueryBuilder::where_sql` with an inline predicate.
-- **Saga store and recovery API (P19, #744 #745 #766 #767 #785).**
-  `PostgresSagaStore::claim_stuck_sagas` takes a `stuck_after_secs` staleness threshold and
-  `find_pending_sagas` an `older_than_secs` age gate; `RecoveryConfig` gains
-  `stuck_threshold` (default 5 min) and `max_recovery_attempts` (default 5); `SagaStep`
-  gains `remote: bool` (set at creation from the coordinator's registry) and
-  `compensation_error: Option<String>` (the recorded outcome of the last rollback
-  attempt). `update_saga_step_state` now **validates transitions atomically** — illegal
-  writes (e.g. `Completed → Executing`, anything out of `Compensated`) return
-  `InvalidStateTransition` — and `save_saga_step`'s upsert no longer rewrites `state`
-  (state changes must go through the guarded method). `SagaRecoveryManager::with_routing`
-  (new `RecoveryRouting`) carries the subgraph registry/HTTP client/entity resolver so
-  recovery can re-drive remote steps on their real transport.
-- **`HttpMutationClient::execute_mutation` takes an `idempotency_key: Option<&str>`**
-  parameter, sent as the `Idempotency-Key` header on every attempt (#747). Saga steps pass
-  their persisted step id; compensations a derived `<step-id>:compensate` key.
-- **Federation mutation literal building is dialect-aware (#728).**
-  `value_to_sql_literal` and `build_insert_query`/`build_update_query`/`build_delete_query`
-  take a `DatabaseType`; MySQL (whose backslash-escaping mode is connection-dependent and
-  unobservable here) is refused loud instead of mis-escaped.
-- **Federation `_entities` wrappers error on resolution failure (#764).**
-  `batch_load_entities`, `batch_load_entities_with_tracing` and
-  `batch_load_entities_enforced` now return `Err` when any typename batch failed, instead
-  of returning `Ok` with all-`None` entities and discarding the errors.
-- **Placeholder federation APIs removed or made loud (#785).**
-  `FederationResolver::get_or_determine_strategy`, its `strategy_cache` field and the
-  `types::ResolutionStrategy` enum are **removed** (the strategy was a hardcoded
-  `http://localhost:4000` / nonexistent `<Type>_federation_view`).
-  `FederationMutationExecutor::execute_extended_mutation` now always returns an error
-  pointing at the real remote-dispatch path (`HttpMutationClient` / saga steps) instead of
-  fabricating a success response that no subgraph ever saw.
-- **`SagaCoordinator::cancel_saga` no longer writes `Cancelled` over un-compensated work
-  (#746).** When the rollback is incomplete the saga is left `Failed` (as the compensator
-  recorded), the result reports `compensated: false` and names the un-rolled-back steps.
-- **`fraiseql federation check --against` semantics (#820).** `@override(from:)` references
-  are validated against the supergraph's declared roster (`federation.subgraphs`) — not
-  harvested from its `override_from` annotations — and reported as *unchecked* when no
-  roster exists; the blanket "Composition check passed" claim is gone.
-
-### Removed
-
-- **`examples/ecommerce_api/`, replaced by `examples/ecommerce` (#1054).** It was a
-  FastAPI/uvicorn **runtime** product: `uvicorn app:app` in both its Dockerfile and
-  its compose file, against an `app.py` the directory had never contained, over
-  `fastapi`/`uvicorn`/`asyncpg` requirements describing a v1-era service. Python is
-  an authoring language in v2; the runtime is Rust. Its 4408 lines of SQL carried two
-  competing layouts (`db/0_schema/**` and `db/{views,functions,migrations,seeds}/`),
-  `_with_cdc` and `_updated` duplicates of the same objects, and plural v1 table
-  names. The domain is carried forward into `examples/ecommerce`; that tree is not.
-
-  If you were reading it for the mutation-function pattern, `examples/mutation-patterns`
-  is the maintained version and now loads (#1051).
-
-- **`fraiseql-db`'s collation modules and `DatabaseCapabilities` (#1009).**
-  `collation_config` (`CollationConfig`, `DatabaseCollationOverrides`,
-  `InvalidLocaleStrategy`, `PostgresCollationConfig`) and `collation` (`CollationMapper`,
-  `CollationCapabilities`) were public API with no consumer anywhere in the workspace outside
-  their own tests and one benchmark. `CollationMapper::new` was called only from
-  `benches/sql_generation_bench.rs`; no SQL generation path consulted it, so an `ORDER BY` on
-  a text column was emitted without a `COLLATE` clause regardless of any locale configured.
-  The server's own removed-section ledger already recorded collation as "never wired to a
-  config key" — this removes the surface that made it look otherwise.
-
-  `DatabaseCapabilities` goes with them rather than surviving as a husk: all of it was
-  collation (`supports_locale_collation`, `requires_custom_collation`,
-  `recommended_collation`, `collation_strategy()`), the `DatabaseAdapter::capabilities()`
-  default that built it had **zero callers**, and what remained after removing the collation
-  fields was a one-field struct restating `DatabaseAdapter::database_type()`.
-
-  Locale-aware `ORDER BY` is a real feature and this is not a decision against it — it is a
-  decision against advertising it. A capability flag that reads `supports_locale_collation:
-  true` while nothing applies a collation is worse than no flag: it tells a user who
-  configures a locale that they have got one. Reinstating this means writing the consumer
-  first.
-
-- **Two TypeScript examples that imported a module the package has never had (#925).**
-  `comprehensive-example.ts` imported `../src/views` and `ddl_generation_example.ts`
-  imported `@fraiseql/views`; no such module exists in the package or on npm, so neither
-  had ever run. Also removed: the committed `.js` / `.d.ts` / `.d.ts.map` build output
-  beside two of the examples — generated files nobody regenerated, the same way the three
-  `ecommerce_schema.json` artifacts rotted.
-
-- **The Elixir, Dart, C#, F#, Java and Ruby parity generators (#952).** All six built the
-  expected JSON as a literal — `%{"name" => "User", "fields" => [...]}`, importing a JSON
-  library and never their SDK — so they could not fail whatever the SDK did; the three that
-  "disagreed" with Python did so only because someone had typed `"jwt:sub"` where the nested
-  `{source, claim}` form belongs. Correcting them would have made fiction agree with fiction.
-  Six of eleven is exactly the count `sdks/official/conformance/manifest.json` already
-  records as the reason the conformance suite was built. All six SDKs remain covered by
-  `sdk-conformance.yml`, which authors through the real API, runs the actual compiler and
-  asserts sixteen constructs. The parity gate now covers the five generators that genuinely
-  drive their SDK, plus the golden fixture, and says out loud which six it does not.
-
-- **Committed development archaeology (#735).** `v2.3.0-ext-phases/` (phase files from
-  eleven releases ago) and the stray `target-user/` cargo dir are gone (with a
-  `.gitignore` entry so a stray `--target-dir` cannot silently return); the frozen
-  `IMPROVEMENTS.md` / `IMPROVEMENTS_R3.md` audit ledgers moved to `docs/history/` (code
-  comments still cite their finding IDs); the `spikes/` #687(c) RFC conclusion was
-  archived onto issue #687 before removal.
-
-- **`examples/ci/` (#1074).** The directory instructed users to copy two CI configurations
-  into their own repositories. Both invoked `examples/agents/python/schema_auditor.py`,
-  which exists nowhere in this repo — nor do the other four artifacts its README points at
-  (`examples/pre-commit-hooks.sh`, `docs/DESIGNING_FOR_FRAISEQL.md`, `docs/LINTING_RULES.md`,
-  `docs/CI_CD_INTEGRATION.md`). Both also configured `DATABASE_URL: sqlite::memory:`, a
-  backend removed in this release. It was self-referential documentation for a tool that was
-  never written, and nothing in the repository referenced it.
-
-  #1074 filed it as "a design-quality gate cannot fail", pointing at an
-  `echo "exit_code=$?"` unreachable under `bash -eo pipefail` and an `== '1'` condition that
-  therefore cannot hold. Both are real, and both go with the directory — but three refuters
-  were right that it is not the honest headline: a user copying the workflow fails loudly at
-  `pip install -r examples/agents/python/requirements.txt` long before reaching the audit
-  step, and the job does publish a failure through its `Create check run` step. The defect is
-  dead documentation, and patching line 89 of a file nobody can run would have been the wrong
-  fix.
-
-  ⚠ Found while removing it: `check-examples-postgres-only.sh` anchored its URL pattern on
-  `://`, so `sqlite::memory:` — which has no authority component — read straight past it, and
-  the gate was green over both files for as long as they existed. The pattern now accepts
-  `://`, `::memory:` and `:file.db` alike, and is red on those two lines when they are
-  restored.
-
-### Fixed
 
 - **The release Docker image can be built again, and both stages stop installing a driver
   library nothing links (#1205, #1133).**
@@ -13179,6 +12950,221 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **wasmtime 48.0.3** (was 46.0.3) for the `runtime-wasm` feature of `fraiseql-functions`:
+  fixes RUSTSEC-2026-0314 (a guest can panic the host through a filesystem datetime overflow)
+  and RUSTSEC-2026-0316 (dynamic record lifting can allocate beyond the hostcall fuel limit).
+
+- **Read gates are enforced on every path that reads a type**, not only at the root of a
+  query: nested selections, projections at any depth, Relay connections, `node`, `_entities`,
+  mutation payloads, subscriptions and streams, filters and orderings, idempotent replays
+  and shared-cache headers. See [GHSA-645f-59rr-6w3p](https://github.com/fraiseql/fraiseql/security/advisories/GHSA-645f-59rr-6w3p) for the affected versions and details; the
+  upgrade notes are under *Breaking* above.
+
+- **`DatabaseAdapter::supports_mutations` now defaults to `false`.** An adapter is
+  read-only until it says otherwise. It defaulted to `true`, which is how the gate came
+  to be a no-op for `FraiseWireAdapter` (below): a write capability was something a
+  backend acquired by omission.
+
+  Both mutation gates now fail closed. The compile-time `SupportsMutations` marker was
+  already opt-in; this one has stopped being opt-out. An adapter that implements neither
+  is refused writes by the type system and by the runtime guard, instead of being refused
+  by one and granted by the other.
+
+  `SupportsMutations` documents the pairing it cannot enforce: implementing the marker
+  obliges you to override `supports_mutations()` to `true` as well. Rust cannot derive
+  one from the other without specialization, so the two are stated together at each
+  adapter. `PostgresAdapter` opts in; `CachedDatabaseAdapter` already forwarded its
+  inner adapter's answer and is unchanged.
+
+  **Who this breaks:** any out-of-tree adapter that writes and relied on the permissive
+  default. It will be refused mutations at runtime until it overrides
+  `supports_mutations()` to return `true`. The failure is a `FraiseQLError::Validation`
+  refusing the write, not silent data loss; its message now says what an adapter must do
+  to be write-capable, and no longer advises callers to reach for `MySqlAdapter` or
+  `SqlServerAdapter`, both deleted in #374.
+
+- **The runtime mutation gate was a no-op for the only read-only adapter in the tree.**
+  `DatabaseAdapter::supports_mutations` calls itself "the authoritative mutation gate"
+  and tells read-only adapters to override it, naming `FraiseWireAdapter`.
+  `FraiseWireAdapter` never did, so the gate returned the permissive default — `true` —
+  for the one adapter its own documentation named. It now returns `false`.
+
+  Nothing was writable that should not have been: the compile-time `SupportsMutations`
+  marker, which `FraiseWireAdapter` deliberately does not implement, is what actually
+  kept it out of `Executor`'s write entries, and a write dispatched through the
+  runtime-guarded path still ended in a refusal from the trait's default
+  `execute_function_call`. But that refusal arrived at the far end of the pipeline,
+  after the operation authorizer, `requires_role`, `requires_actor`, argument
+  validation and the `before:mutation` chain had all run — and `before:mutation` runs
+  app-authored rule code. The gate that was supposed to stop that first did not fire.
+
+  The two layers are not interchangeable, and the docs now say so: `SupportsMutations`
+  is **opt-in**, so an adapter that says nothing cannot reach a write entry;
+  `supports_mutations()` is **opt-out**, so an adapter that says nothing is granted
+  writes. The second is a backstop behind the first, never a substitute for it. That
+  asymmetry is load-bearing for the boundary work — see the note below on S5.
+
+  The unsupported-mutation error also stopped advising callers to "use PostgreSQL,
+  MySQL, or SQL Server"; the latter two adapters were deleted in #374.
+
+
+- **rustls 0.23.42 → 0.23.45 clears RUSTSEC-2026-0285 (TLS 1.3 handshake messages
+  accepted across encryption-level boundaries).**
+
+  rustls accepted a TLS 1.3 handshake message sent at the wrong encryption level when it
+  followed a key-changing message in the same record — a plaintext
+  `EncryptedExtensions` packed into the `ServerHello`'s record, for example. RFC 8446
+  §5.1 requires terminating such a connection with `unexpected_message`. The transcript
+  stays authenticated, so this is not handshake forgery; the effect is that a peer could
+  send in plaintext handshake messages that should have been encrypted, and rustls would
+  not reject the connection.
+
+  It is in the **default** build, reached through `fraiseql-db`, so it is the TLS the
+  shipped binary speaks rather than a test-only edge.
+
+  `cargo update -p rustls` alone stops at 0.23.43: 0.23.45 requires a newer `aws-lc-rs`,
+  which only `--precise` pulls in. The lockfile therefore also moves `aws-lc-rs`
+  1.16.3 → 1.18.1, `aws-lc-sys` 0.40.0 → 0.45.0 and `rustls-webpki`
+  0.103.13 → 0.103.15.
+
+  No `deny.toml` acceptance and no `check-default-build-minimums.sh` floor were added.
+  The h2 floor exists because an advisory was *accepted* for a second, non-default
+  instance and cargo-deny cannot scope an ignore to one version; nothing is ignored here,
+  so `cargo deny check advisories` catches a rustls downgrade directly and a floor would
+  be a second gate saying the same thing.
+
+- **`before:mutation` is now unbypassable: it is enforced in the engine, at the one point
+  every mutation entry path converges on (#1327).**
+
+  `before:mutation` is the synchronous hook that can rewrite a mutation's input or abort it,
+  so it is where a validation or business rule goes — which makes it enforcement. It ran in
+  the GraphQL handler, once per HTTP request, keyed on `parse_query(…).root_field` and handed
+  `request.variables`. Three request shapes executed a mutation without running its chain:
+
+  1. **A second root field.** The handler keyed on the *first* root. Since #759 the executor
+     runs **every** root serially, so `mutation { harmless(…) { id } guarded(…) { id } }`
+     wrote `guarded` after only `harmless`'s chain had run.
+  2. **Inline arguments.** `guarded(input: { … })` with no variables was invisible to the
+     chain, because the chain was handed the request's `variables` map rather than the
+     arguments the write would bind from — and `Proceed(modified)` could only rewrite
+     variables.
+  3. **The REST write route.** `routes/rest/handler/mutation.rs` dispatched `after:mutation`
+     only. No before-chain existed on that path at all.
+
+  The fix is not a fourth place that runs the chain. The chain is now consulted from
+  `execute_mutation_impl` — the single point every mutation entry path converges on, where
+  `requires_role`, `requires_actor` (#966) and the operation `Authorizer` (#422) are already
+  enforced — so it runs **once per executed root, in document order, immediately before that
+  root writes, on every transport**. A hook stage that derives its own root list is how (1)
+  happened; at the chokepoint there is no second root list to derive, and a new mutation route
+  needs no wiring and cannot forget any.
+
+  What the chain is handed changed with it: the **resolved** arguments — request variables
+  merged with the root field's inline literals, nested `$var` references substituted — which
+  is the same view the engine binds the SQL function's arguments from. A `{"input": …}` rewrite
+  therefore reaches the executed arguments and the field-authorizer view, not just the
+  variables.
+
+  Fail-closed throughout. An abort refuses the write carrying the rule's own message. A chain
+  that *fails* — missing module, runtime error, or a decision this build does not recognise —
+  also refuses it. The replaced handler code had a `Ok(_) => Ok(variables)` arm over a
+  `#[non_exhaustive]` enum, which proceeded with the original input: the one thing an
+  enforcement hook must never do. A `Proceed(null)` no longer silently drops the write's
+  arguments either — it reaches the required-argument check and fails loudly.
+
+  **Exposure.** Builds with `functions-runtime` that declare a `before:mutation` function.
+  The published image carries no function runtime (#1326), so released artifacts are not
+  affected; bypass (1) is unreleased (#759), bypass (3) has been the REST handler's behaviour
+  since #460 and #865 mounts those routes in the stock binary, and bypass (2) is in v2.14.1
+  and earlier. #1326 and #1325 each turn all three from theoretical into live, which is why
+  this landed before them.
+
+  **Breaking for embedders.** `RuntimeConfig` gains `before_mutation_gate:
+  Option<Arc<dyn BeforeMutationGate>>` (caller-owned, so it survives a hot reload) with
+  `RuntimeConfig::with_before_mutation_gate`. The new `fraiseql_core::security` seam —
+  `BeforeMutationGate`, `BeforeMutationRequest`, `BeforeMutationOutcome` — lets an embedder
+  install its own rule engine there with or without functions compiled in.
+  `fraiseql-server`'s `FunctionChainGate` is the implementation that runs the compiled
+  schema's chain. An abort's client-facing message now carries the engine's
+  `Validation error: ` prefix, like every other validation refusal, where the handler
+  previously emitted the bare message.
+
+  Each bypass is pinned by a test that asserts the **write** — whether the mutation's SQL
+  function was called — rather than the response envelope, because a repaired outer guard can
+  make the response say "refused" while the row lands anyway.
+
+- **`EventFilter` is now honoured by every event transport, and the REST stream scopes its
+  subscription to the caller's tenant (#1113).**
+
+  `EventTransport::subscribe` takes an `EventFilter` carrying an `entity_type`, an
+  `operation` and a tenant. Only the NATS transport applied it. `InMemoryTransport` and
+  `PostgresNotifyTransport` both took the argument as `_filter` and returned an **unfiltered**
+  stream — not even `entity_type` — so whether a subscription was filtered at all depended on
+  which transport the deployment happened to be running, and the two that ignored it are the
+  two a single-node deployment is most likely to have. All three now decide with the same
+  `EventFilter::matches`.
+
+  On top of that, `GET /rest/v1/{resource}/stream`'s live-event branch extracted the caller's
+  `SecurityContext` and discarded it, building its filter with `..Default::default()` — and an
+  absent tenant meant *every* tenant. An authenticated caller on any tenant would have received
+  every tenant's change events, full `data` payload included, on an endpoint sitting behind
+  `require_auth`. Authentication is not authorisation: the REST read surface's tenant scoping
+  (#812/#739) lives in the query path, and a stream that subscribes with no tenant bypasses it
+  by construction.
+
+  The subscription is now scoped by the rule the GraphQL subscription gate already applies,
+  keyed on the same `security.multi_tenant`: in multi-tenant mode the principal's tenant scopes
+  the stream and a principal carrying no tenant is **refused** (`403 TENANT_SCOPE_REQUIRED`);
+  single-tenant deployments stay unscoped, where tenant ids are typically absent throughout.
+  Refusing — rather than opening a stream that can never deliver, as the subscription gate
+  does — is deliberate: a silent SSE connection is the "looks healthy, is stale" failure #873.4
+  removed from this very endpoint.
+
+  **Neither half was exploitable.** `RestState.event_transport` is `None` at its only
+  construction site and has no setter, so the branch is unreachable and the endpoint answers an
+  honest `501`. Both defects would have shipped the moment it was wired. Which nothing tracked:
+  the code said wiring it was #428's work, and #428 is entirely about observer *action* types.
+  That is now #1309, which also has to answer why the obvious wiring does not work —
+  `subscribe` is a *competing consumer* on all three transports, so a per-request subscription
+  would steal the observer executor's events rather than fan out beside them.
+
+- **wasmtime 46.0.2 → 46.0.3, closing RUSTSEC-2026-0268 and RUSTSEC-2026-0269.**
+
+  A WASI filesystem sandbox escape via paths or symlinks with trailing slashes, and a
+  guest-controlled-size host heap allocation through WASIp3 streams. Both are reachable
+  only with `fraiseql-functions`' opt-in `runtime-wasm` feature compiled in, where a
+  guest module is precisely the untrusted input the sandbox exists to contain.
+
+  Both advisories name a fix inside the pinned major (`>=46.0.3, <47.0.0`), so this is a
+  patch bump — wasmtime, wasmtime-wasi, cranelift 0.133.2 → 0.133.3 and the pulley/wiggle
+  crates that move with them. No manifest, MSRV or API change.
+
+  `deny.toml`'s `[[bans.skip-tree]]` root for wasmtime moves with it. That pin is an exact
+  version by design, and the version it names is the whole point: left at `=46.0.2` it
+  matches nothing, un-skipping the subtree and reporting ~40 duplicate transitive crates as
+  an unrelated-looking storm. The `-D unmatched-skip-root` escalation added in #1020 names
+  the real cause in one line above that storm, which is what it was added for.
+
+  These were published after `534173857`, so `dev` was red on `Dagger — security` with no
+  local change involved.
+
+- **Two real RSA private keys are no longer tracked in this public repository (#1211).**
+
+  `docker/tls-postgres/certs/ca.key` (4096-bit) and `.../server.key` (2048-bit) were committed
+  on 2026-01-18 and had been in the tree since. They are self-signed `CN=localhost` material
+  for a local Postgres container and protect nothing that runs anywhere, but a private key in
+  a public tree invites reuse, and `.gitleaks.toml` had to exempt them by exact path for the
+  secret gate (#1208) to pass at all.
+
+  **They remain in this repository's git history and cannot be removed from it.** Treat both
+  as burned: never reuse either key or the CA that signed them. Nothing needs rotating
+  elsewhere — no service ever trusted that CA, and the rig that used it is gone (above). The
+  certificates expired on 2027-01-18 in any case, a date nobody was watching.
+
+  The gitleaks exemption is deleted with them. `tools/tests/gitleaks_allowlist_test.sh` now
+  pins the opposite property: a private key under `docker/tls-postgres/` **fails** the gate,
+  so neither the rig nor its keys can return quietly.
+
 - **The `aws-*` client stack no longer resolves rustls 0.21, and four accepted advisories
   are deleted rather than re-dated (#1111).**
 
@@ -14194,7 +14180,6 @@ disagreed, and the promise was the part that was wrong.
   federation's `query_plan_cache` — key on `String`, whose `Drop` cannot panic, so the
   trigger was never reachable here; the lockfile bump clears the advisory outright, with no
   `deny.toml` exception.
-
 
 ### Known issues
 
