@@ -42,7 +42,9 @@ jobs:
     - name: Install cargo-cyclonedx
       uses: taiki-e/install-action@b550161ef8a7bc4f2a671c0b03a18ac9ccedea1e  # v2
       with:
-        tool: cargo-cyclonedx
+        # Pinned: its CLI changes between releases (`--output-file` is gone), and an
+        # unpinned install broke this workflow on v2.15.0.
+        tool: cargo-cyclonedx@0.5.9
 
     - name: Determine version
       id: version
@@ -78,11 +80,14 @@ jobs:
 
     - name: Generate SBOM (CycloneDX JSON)
       run: |
-        cargo cyclonedx --format json --all \
-          --output-file "fraiseql-${{ steps.version.outputs.version }}-sbom"
-        # cargo-cyclonedx appends .cdx.json — rename to expected path
-        mv "fraiseql-${{ steps.version.outputs.version }}-sbom.cdx.json" \
-           "fraiseql-${{ steps.version.outputs.version }}-sbom.json"
+        # cargo-cyclonedx writes one BOM per workspace crate, beside its Cargo.toml; the
+        # release SBOM is the merge of the published crates' BOMs (tools/merge-sbom.py reads
+        # which crates are published from `cargo metadata`).
+        cargo cyclonedx --format json --all --spec-version 1.5 \
+          --override-filename fraiseql-sbom-part
+        python3 tools/merge-sbom.py --part fraiseql-sbom-part \
+          --version "${{ steps.version.outputs.version }}" \
+          --output "fraiseql-${{ steps.version.outputs.version }}-sbom.json"
 
     - name: Validate SBOM schema
       run: |
