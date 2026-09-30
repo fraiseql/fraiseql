@@ -332,3 +332,19 @@ fn federation_sdl_renders_changelog_camelcase() {
     assert!(!sdl.contains("entity_change_logs"), "snake_case query leaked into SDL");
     assert!(!sdl.contains("transport_name"), "snake_case argument leaked into SDL");
 }
+
+/// **Reproduction.** With the default roles — `changelog_reader` to read, `changelog_writer`
+/// to upsert — an exposed changelog is a schema the server refuses to load: the upsert
+/// requires the writer role and returns `TransportCheckpoint`, which carried the reader role
+/// at type level, and a compiled operation carries one role.
+#[test]
+#[ignore = "reproduction: an exposed changelog with the default roles does not load"]
+fn an_exposed_changelog_with_the_default_roles_loads() {
+    let schema = exposed_schema(ChangelogConfig {
+        expose: true,
+        ..Default::default()
+    });
+    let json = schema.to_json().unwrap();
+    let loaded = CompiledSchema::from_json(&json, false);
+    assert!(loaded.is_ok(), "the server refuses it: {:?}", loaded.err());
+}
