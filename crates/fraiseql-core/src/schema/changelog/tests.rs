@@ -189,6 +189,11 @@ fn rbac_roles_propagate_from_config() {
         .find(|m| m.name == "upsert_transport_checkpoint")
         .unwrap();
     assert_eq!(upsert.requires_role.as_deref(), Some("ops_writer"));
+    // The checkpoint's gates are its operations': read by the reader, upserted by the writer.
+    let checkpoint = schema.queries.iter().find(|q| q.name == "transport_checkpoint").unwrap();
+    assert_eq!(checkpoint.requires_role.as_deref(), Some("ops_reader"));
+    let ty = schema.types.iter().find(|t| t.name == TRANSPORT_CHECKPOINT).unwrap();
+    assert_eq!(ty.requires_role, None, "a type role would give the upsert two roles");
 }
 
 #[test]
@@ -338,7 +343,6 @@ fn federation_sdl_renders_changelog_camelcase() {
 /// requires the writer role and returns `TransportCheckpoint`, which carried the reader role
 /// at type level, and a compiled operation carries one role.
 #[test]
-#[ignore = "reproduction: an exposed changelog with the default roles does not load"]
 fn an_exposed_changelog_with_the_default_roles_loads() {
     let schema = exposed_schema(ChangelogConfig {
         expose: true,

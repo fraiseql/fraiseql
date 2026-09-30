@@ -123,7 +123,11 @@ fn transport_checkpoint_type(cfg: &ChangelogConfig, nc: NamingConvention) -> Typ
             .with_field(FieldDefinition::new(key, FieldType::String))
             .with_field(FieldDefinition::new(cased("last_pk", nc), FieldType::Int))
             .with_field(FieldDefinition::new(cased("updated_at", nc), FieldType::DateTime));
-    t.requires_role.clone_from(&cfg.read_role);
+    // No type-level role: both operations over the type carry their own. Its query requires
+    // the read role (and is the type's own read, so every other read of it does too); the
+    // upsert requires the write role and returns the checkpoint it wrote. A type-level read
+    // role would make that mutation carry two roles, which no compiled operation can — the
+    // loader refuses it, so an exposed changelog with distinct roles would not start.
     // Framework-synthesized read-only projection, not a client-cache node: exempt from
     // cascade entity classification (`id: ID!` enforcement + `CascadeNode` auto-implement).
     // Keyed by `transport_name` (no `id`), so this exemption is what lets changelog +
