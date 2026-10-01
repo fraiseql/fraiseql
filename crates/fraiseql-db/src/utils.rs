@@ -83,7 +83,8 @@ fn acronym_spans_digit(chars: &[char], word_start: usize, digit_start: usize) ->
 ///
 /// Registered acronyms are the exception: a lowercase word plus a digit run that
 /// matches the acronym registry stays whole — `"s3"` → `"s3"`, `"ipv4"` → `"ipv4"`,
-/// `"s3Bucket"` → `"s3_bucket"`. The built-in defaults (`s3`, `ipv4`, `oauth2`, …)
+/// `"s3Bucket"` → `"s3_bucket"`, and wherever it sits in the name:
+/// `"hostIpv4"` → `"host_ipv4"`. The built-in defaults (`s3`, `ipv4`, `oauth2`, …)
 /// are extended per project via `[fraiseql.naming] acronyms` (see
 /// [`set_runtime_acronyms`]); an unregistered `oauth2`-shaped name still splits.
 ///
@@ -99,6 +100,7 @@ fn acronym_spans_digit(chars: &[char], word_start: usize, digit_start: usize) ->
 /// assert_eq!(to_snake_case("dns1Id"), "dns_1_id");
 /// assert_eq!(to_snake_case("s3"), "s3"); // built-in acronym, stays whole
 /// assert_eq!(to_snake_case("s3Bucket"), "s3_bucket");
+/// assert_eq!(to_snake_case("hostIpv4"), "host_ipv4"); // acronym after the first word
 /// assert_eq!(to_snake_case("already_snake"), "already_snake");
 /// assert_eq!(to_snake_case("phone_1"), "phone_1"); // idempotent
 /// ```
@@ -109,9 +111,10 @@ pub fn to_snake_case(name: &str) -> String {
     let mut prev_was_upper = false;
     let mut prev_was_lower = false;
     let mut prev_was_digit = false;
-    // Start index (in `chars`) of the current run of consecutive lowercase letters,
-    // used to test a lowercase-word + digit run against the acronym registry.
-    let mut lower_run_start = 0usize;
+    // Start index (in `chars`) of the current word — the capital that opened it in
+    // camelCase, else the first lowercase letter — used to test a word + digit run
+    // against the acronym registry (`emissionCo2Kg` must test `Co2`, not `o2`).
+    let mut word_start = 0usize;
 
     for (i, &c) in chars.iter().enumerate() {
         if c.is_uppercase() {
@@ -119,11 +122,14 @@ pub fn to_snake_case(name: &str) -> String {
             // lowercase letter, leaving a digit (e.g. "dns1Id"), or leaving an
             // acronym run into a new word (prev upper, next lower) — e.g.
             // "HTTPResponse".
-            if i > 0 {
-                let next_is_lower = chars.get(i + 1).is_some_and(|n| n.is_lowercase());
-                if prev_was_lower || prev_was_digit || (prev_was_upper && next_is_lower) {
-                    result.push('_');
-                }
+            let next_is_lower = chars.get(i + 1).is_some_and(|n| n.is_lowercase());
+            if i > 0 && (prev_was_lower || prev_was_digit || (prev_was_upper && next_is_lower)) {
+                result.push('_');
+            }
+            // A capital opens a new word unless it continues an acronym run
+            // ("HTTP" in "HTTPResponse"; the `R` that ends the run does open one).
+            if !prev_was_upper || next_is_lower {
+                word_start = i;
             }
             result.push(c.to_ascii_lowercase());
             prev_was_upper = true;
@@ -133,7 +139,7 @@ pub fn to_snake_case(name: &str) -> String {
             // A digit after a lowercase letter normally opens a new word
             // ("phone1" → "phone_1"). Suppress that split when the lowercase word
             // plus this digit run is a registered acronym ("s3", "ipv4", "oauth2").
-            if prev_was_lower && !acronym_spans_digit(&chars, lower_run_start, i) {
+            if prev_was_lower && !acronym_spans_digit(&chars, word_start, i) {
                 result.push('_');
             }
             result.push(c);
@@ -142,8 +148,8 @@ pub fn to_snake_case(name: &str) -> String {
             prev_was_digit = true;
         } else {
             if c.is_lowercase() {
-                if !prev_was_lower {
-                    lower_run_start = i;
+                if !prev_was_lower && !prev_was_upper {
+                    word_start = i;
                 }
                 prev_was_lower = true;
             } else {

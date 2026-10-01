@@ -46,6 +46,16 @@ disagreed, and the promise was the part that was wrong.
   wake 7–9 ms late every round (median ~10 ms with signalling disabled and a 10 ms wake
   cap, so the test still fails for that defect). Test only; the watchdog is unchanged.
 
+- **A registered acronym is recognised after the first word of a camelCase name (#1372).**
+  `to_snake_case` tested the acronym registry from the first lowercase letter of the current
+  run, which in camelCase is one character after the word's capital: `emissionCo2Kg`
+  tested `o2`, never `co2`, and resolved to the JSONB key `emission_co_2_kg`. A view storing
+  `emission_co2_kg` then never matched: `--database` refused the schema as drifted, and
+  without it the field read `null`. The candidate now starts at the capital that opened the
+  word, so `emissionEc2Kg` → `emission_ec2_kg` and `hostIpv4` → `host_ipv4`, for the
+  built-in acronyms and for `[fraiseql.naming] acronyms`. An unregistered name still
+  splits (`emissionCo2Kg` stays `emission_co_2_kg` until `co2` is registered).
+
 ### Security
 
 Lockfile and patch-level pin changes only; no source changed. The runtime crates' own

@@ -72,3 +72,42 @@ fn test_set_runtime_acronyms_adds_to_defaults() {
     // A non-registered name still splits.
     assert_eq!(to_snake_case("phone1"), "phone_1");
 }
+
+/// #1372: a registered acronym is recognised at any word position, not only the
+/// first. The word's candidate starts at the capital that opened it (`Ec2`), not at
+/// its first lowercase letter (`c2`), so `emissionEc2Kg` reaches the stored key
+/// `emission_ec2_kg`.
+#[test]
+fn test_to_snake_case_registered_acronym_after_the_first_word() {
+    let cases = [
+        // After the first word — the defect.
+        ("emissionEc2Kg", "emission_ec2_kg"),
+        ("emissionEc2", "emission_ec2"),
+        ("hostIpv4", "host_ipv4"),
+        ("authOauth2Token", "auth_oauth2_token"),
+        // First word, camelCase and PascalCase — must keep working.
+        ("ec2Emission", "ec2_emission"),
+        ("Ec2Emission", "ec2_emission"),
+        ("EmissionEc2Kg", "emission_ec2_kg"),
+        // Already snake: idempotent.
+        ("emission_ec2_kg", "emission_ec2_kg"),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(to_snake_case(input), expected, "input `{input}`");
+    }
+}
+
+/// #1372, the other half: an unregistered `<word><digit>` still splits at every
+/// position, so the fix widens nothing it should not.
+#[test]
+fn test_to_snake_case_unregistered_word_digit_still_splits_after_the_first_word() {
+    let cases = [
+        ("emissionCo2Kg", "emission_co_2_kg"),
+        ("emissionCo2", "emission_co_2"),
+        ("co2Emission", "co_2_emission"),
+        ("hostFoo4", "host_foo_4"),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(to_snake_case(input), expected, "input `{input}`");
+    }
+}
