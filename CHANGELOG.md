@@ -46,7 +46,7 @@ disagreed, and the promise was the part that was wrong.
   and error detail), a subscription, a REST stream, a Kafka-mirrored or webhook message,
   and a filter, ordering or search. What to expect on upgrade:
 
-  * **403 where data was served:** a nested level, a subscription or REST stream root, or a
+  - **403 where data was served:** a nested level, a subscription or REST stream root, or a
     payload member (union member, cascade or updated entity, stamped type) of a type whose
     own read — its list query's `requires_role` (else the type's) or `requires_actor` — the
     caller does not pass; a REST stream the #422 authorizer denies; a
@@ -58,7 +58,7 @@ disagreed, and the promise was the part that was wrong.
     mutation whose selection names, at any level, a `Reject` field the caller lacks on
     any type its payload could resolve to — refused **before the write**; a payload served
     as a type whose `requires_role` the caller lacks (the write rolls back).
-  * **Filters, orderings, searches:** `where`, `orderBy` and similarity search naming a
+  - **Filters, orderings, searches:** `where`, `orderBy` and similarity search naming a
     field the caller may not read — `requires_scope` without the scope (Mask included) or
     any `authorize = true` field — are 403 on every read path, as is a filter path into a
     type whose `requires_role` the caller lacks. REST `?search=` matches and ranks only
@@ -69,7 +69,7 @@ disagreed, and the promise was the part that was wrong.
     otherwise. On a fact table linked to a type (`FactTableMetadata::type_name`), an
     aggregate or window referencing an unreadable field is 403, an undeclared name 400;
     anonymous aggregates and windows under an `rls_policy` are refused.
-  * **Subscriptions and streams:** `/ws` delivers the client's selection, gated as a
+  - **Subscriptions and streams:** `/ws` delivers the client's selection, gated as a
     read; a subscription selecting a `Reject` or undeclared field, or filtering by an
     unreadable one, is refused; subscribers receive only rows their type's policy admits
     (a subscription under a row policy with no principal is refused; a policy reload can
@@ -80,23 +80,23 @@ disagreed, and the promise was the part that was wrong.
     `extensions.changeSpine` carries `actorType` and `schemaVersion`; `actingFor` only
     when it names the subscriber (its token's `sub`), `tenantId` only when it is the
     subscription's own, never `seq` or `durationMs`; an envelope left empty is omitted.
-  * **501:** a streamed or embedding REST read selecting a row-gated nested object field;
+  - **501:** a streamed or embedding REST read selecting a row-gated nested object field;
     a read needing a composed statement on an adapter that cannot compose; the engine
     row read for an object or list column.
-  * **400:** a REST leaf `?select=` of an object nesting past four levels (a
+  - **400:** a REST leaf `?select=` of an object nesting past four levels (a
     self-referential type) instead of a silently truncated object.
-  * **Data shape:** a Relay `node` and a `node(id:)` nested object carry only their
+  - **Data shape:** a Relay `node` and a `node(id:)` nested object carry only their
     selection; a gated nested list stored as `null` or absent comes back `[]`, and its
     `null` / scalar elements are dropped; a joined nested level reads the target's view; a
     REST nested object field lists real elements where it listed `{}`s.
-  * **Depth:** an undeclared `[validation] max_query_depth` is `11`
+  - **Depth:** an undeclared `[validation] max_query_depth` is `11`
     (`DEFAULT_MAX_QUERY_DEPTH`) and binds on the selection resolver too; `node(id:)` goes
     from 12 to 11. The error reads "Selection nests deeper than the N-level limit".
-  * **#422 authorizer:** called at every nested GraphQL level (once per request per
+  - **#422 authorizer:** called at every nested GraphQL level (once per request per
     parent type and path), for REST embeds, and again for `node` / `_entities` once their
     type is known. `AuthzRequest` gains `target_type` and `nesting`; an authorizer that
     denies by `name` without checking `nesting` may deny reads it used to allow.
-  * **Load and compile:** a compiled schema declaring `requires_scope` with no `security`
+  - **Load and compile:** a compiled schema declaring `requires_scope` with no `security`
     section no longer loads (declare the roles that grant the scopes).
 
   Public API changes: `can_reference_field`, `Executor::plan_subscription`,
