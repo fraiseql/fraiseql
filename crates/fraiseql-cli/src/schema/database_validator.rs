@@ -1073,50 +1073,65 @@ impl DatabaseIntrospector for AnyIntrospector {
     }
 }
 
-/// Create an introspector from a database URL.
+/// Refuse a database URL that targets an engine whose support was removed (#374).
 ///
-/// Detects the database type from the URL scheme and creates the appropriate
-/// introspector with a connection pool.
+/// The one rule for every command that takes a database URL (`compile --database`,
+/// `query`) and for [`create_introspector`], run before anything tries to connect. Without
+/// it `compile --database sqlite://…` failed inside the connection pool with "invalid
+/// connection string". Anything else is left to the caller: `compile` also accepts a
+/// libpq `key=value` connection string, `query` does not.
 ///
 /// # Errors
 ///
-/// Returns error if the URL scheme is unrecognized or the connection pool
-/// cannot be created.
-#[allow(clippy::unused_async)] // Reason: callers always .await this; feature-gated branches do use await
-pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector> {
-    if db_url.starts_with("postgres") {
-        use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
-        use tokio_postgres::NoTls;
-
-        let mut cfg = Config::new();
-        cfg.url = Some(db_url.to_string());
-        cfg.manager = Some(ManagerConfig {
-            recycling_method: RecyclingMethod::Fast,
-        });
-        cfg.pool = Some(deadpool_postgres::PoolConfig::new(2));
-
-        let pool = cfg
-            .create_pool(Some(Runtime::Tokio1), NoTls)
-            .map_err(|e| anyhow::anyhow!("Failed to create PostgreSQL pool: {e}"))?;
-
-        Ok(AnyIntrospector::Postgres(fraiseql_core::db::PostgresIntrospector::new(pool)))
-    } else if db_url.starts_with("mysql")
+/// Returns an error naming the PostgreSQL-only rule for a MySQL / MariaDB / SQLite /
+/// SQL Server URL or a SQLite database file path.
+pub fn refuse_removed_engine_url(db_url: &str) -> anyhow::Result<()> {
+    let removed_engine = db_url.starts_with("mysql")
         || db_url.starts_with("mariadb")
         || db_url.starts_with("sqlite")
         || db_url.starts_with("mssql")
         || db_url.starts_with("server=")
-        || std::path::Path::new(db_url)
-            .extension()
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("db") || ext.eq_ignore_ascii_case("sqlite"))
-    {
+        || std::path::Path::new(db_url).extension().is_some_and(|ext| {
+            ext.eq_ignore_ascii_case("db") || ext.eq_ignore_ascii_case("sqlite")
+        });
+    if removed_engine {
         anyhow::bail!(
             "This database URL targets an engine whose support was removed: FraiseQL is \
              PostgreSQL-only (G2 decision on #374; the non-PostgreSQL dialects were never \
              production-correct, see #721/#799). Use a postgresql:// URL."
-        )
-    } else {
-        anyhow::bail!("Unrecognized database URL scheme: {db_url}")
+        );
     }
+    Ok(())
+}
+
+/// Create an introspector from a database URL.
+///
+/// # Errors
+///
+/// Returns error if the URL targets a removed engine (see [`refuse_removed_engine_url`]),
+/// its scheme is unrecognized, or the connection pool cannot be created.
+#[allow(clippy::unused_async)] // Reason: callers always .await this; feature-gated branches do use await
+pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector> {
+    use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
+    use tokio_postgres::NoTls;
+
+    refuse_removed_engine_url(db_url)?;
+    if !db_url.starts_with("postgres") {
+        anyhow::bail!("Unrecognized database URL scheme: {db_url}");
+    }
+
+    let mut cfg = Config::new();
+    cfg.url = Some(db_url.to_string());
+    cfg.manager = Some(ManagerConfig {
+        recycling_method: RecyclingMethod::Fast,
+    });
+    cfg.pool = Some(deadpool_postgres::PoolConfig::new(2));
+
+    let pool = cfg
+        .create_pool(Some(Runtime::Tokio1), NoTls)
+        .map_err(|e| anyhow::anyhow!("Failed to create PostgreSQL pool: {e}"))?;
+
+    Ok(AnyIntrospector::Postgres(fraiseql_core::db::PostgresIntrospector::new(pool)))
 }
 
 /// Build a query's native-column map from its explicit (non-auto-param) arguments

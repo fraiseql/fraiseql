@@ -173,6 +173,12 @@ pub async fn compile_to_schema(
 ) -> Result<(CompiledArtifact, OptimizationReport)> {
     info!("Compiling schema: {}", opts.input);
 
+    // A removed engine's URL is refused before any work, naming the PostgreSQL-only rule
+    // (#1341), rather than failing inside the connection pool at step 5b.
+    if let Some(db_url) = opts.database {
+        crate::schema::database_validator::refuse_removed_engine_url(db_url)?;
+    }
+
     // 1. Determine workflow based on input file and options
     let input_path = Path::new(opts.input);
     if !input_path.exists() {
@@ -496,9 +502,6 @@ pub async fn compile_to_schema(
             }
         }
     }
-
-    // 5c. Warn when SQLite is the target but the schema uses features SQLite doesn't support.
-    check_sqlite_compatibility_warnings(&schema, opts.database);
 
     // 5d. Warn when mutations have wide invalidation fan-out (HOT update pressure).
     warn_wide_cascade_mutations(&schema);
@@ -975,68 +978,6 @@ pub(crate) fn field_type_to_pg(ft: &FieldType) -> String {
         FieldType::Input(_) | FieldType::Interface(_) | FieldType::Union(_) => "JSONB".to_string(),
         // FieldType is #[non_exhaustive]; future variants default to TEXT.
         _ => "TEXT".to_string(),
-    }
-}
-
-/// Emit warnings when schema uses features that SQLite does not support, for a
-/// `--database sqlite://` URL (a `database_target` other than `postgresql` is refused at
-/// config load, so the TOML can no longer reach here).
-///
-/// SQLite executes direct-SQL Insert/Delete mutations, but lacks Update /
-/// stored-procedure (`fn_*`) mutations and relay/subscription support. A
-/// compile-time warning helps catch this before runtime failures.
-fn check_sqlite_compatibility_warnings(schema: &CompiledSchema, database_url: Option<&str>) {
-    let target_is_sqlite =
-        database_url.is_some_and(|url| url.to_ascii_lowercase().starts_with("sqlite://"));
-
-    if !target_is_sqlite {
-        return;
-    }
-
-    // ⚠ These warnings are stale and understate the situation: they date from when a
-    // SQLite adapter existed and could serve Insert/Delete through the `DirectSql`
-    // mutation strategy. #374 removed every non-PostgreSQL adapter, and this change
-    // removed that strategy — so the runtime can serve NO SQLite query, and a schema
-    // whose mutations are all Insert/Delete draws no warning here at all before failing
-    // at run time. Tracked as #1356; not widened into this change because what this
-    // should do instead (warn harder, or refuse the compile) is a user-facing decision.
-    let unsupported_mutation_count = schema
-        .mutations
-        .iter()
-        .filter(|m| {
-            matches!(
-                m.operation,
-                fraiseql_core::schema::MutationOperation::Update { .. }
-                    | fraiseql_core::schema::MutationOperation::Custom
-            )
-        })
-        .count();
-    let relay_count = schema.queries.iter().filter(|q| q.relay).count();
-    let subscription_count = schema.subscriptions.len();
-
-    if unsupported_mutation_count > 0 {
-        warn!(
-            "Schema contains {} Update or custom mutation(s) but target database is SQLite. \
-             SQLite supports only direct-SQL Insert/Delete mutations. \
-             See: https://fraiseql.dev/docs/database-compatibility",
-            unsupported_mutation_count,
-        );
-    }
-    if relay_count > 0 {
-        warn!(
-            "Schema contains {} relay query/queries but target database is SQLite. \
-             Relay (keyset pagination) is not supported on SQLite. \
-             See: https://fraiseql.dev/docs/database-compatibility",
-            relay_count,
-        );
-    }
-    if subscription_count > 0 {
-        warn!(
-            "Schema contains {} subscription(s) but target database is SQLite. \
-             Subscriptions are not supported on SQLite. \
-             See: https://fraiseql.dev/docs/database-compatibility",
-            subscription_count,
-        );
     }
 }
 

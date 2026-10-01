@@ -48,8 +48,9 @@ pub struct ProjectConfig {
     pub version:         String,
     /// Optional project description
     pub description:     Option<String>,
-    /// Target database backend. Only `"postgresql"` exists: MySQL, SQLite and SQL Server
-    /// were removed in v2.15.0 (#374).
+    /// Target database backend. Only `"postgresql"` is accepted: MySQL, SQLite and SQL
+    /// Server were removed in v2.15.0 (#374), and [`TomlProjectConfig::validate`] refuses
+    /// them (see `config::validate_database_target`).
     pub database_target: Option<String>,
 }
 
@@ -189,16 +190,43 @@ impl TomlProjectConfig {
     ///
     /// # Errors
     ///
-    /// Returns an error if any security, server, or database configuration value
-    /// is invalid (e.g. unsupported algorithm, zero window, or bad port range).
+    /// Returns an error if `[project] database_target` names anything but PostgreSQL, or
+    /// if any security, server, or database configuration value is invalid (e.g.
+    /// unsupported algorithm, zero window, or bad port range).
     pub fn validate(&self) -> Result<()> {
         info!("Validating configuration");
+        if let Some(target) = &self.project.database_target {
+            validate_database_target("[project]", target)?;
+        }
         self.fraiseql.security.validate()?;
         self.fraiseql.tenancy.validate()?;
         self.server.validate()?;
         self.database.validate()?;
         Ok(())
     }
+}
+
+/// Refuse a `database_target` other than `postgresql` (compared case-insensitively).
+///
+/// The one rule for both keys that carry a target: `[project] database_target`, which
+/// `fraiseql init` writes into every new `fraiseql.toml`, and `[schema] database_target`
+/// in a TOML schema. `section` names the key in the message.
+///
+/// # Errors
+///
+/// Returns an error naming the removed backends and `docs/database-compatibility.md`.
+pub(crate) fn validate_database_target(section: &str, target: &str) -> Result<()> {
+    let target = target.trim();
+    if target.eq_ignore_ascii_case("postgresql") {
+        return Ok(());
+    }
+    anyhow::bail!(
+        "{section} database_target = {target:?} is not supported: FraiseQL targets \
+         PostgreSQL only. The `mysql`, `sqlite` and `sqlserver` backends were removed in \
+         v2.15.0 (#374), so a schema declaring one would compile PostgreSQL SQL. Set \
+         `database_target = \"postgresql\"` or remove the key. See \
+         docs/database-compatibility.md."
+    )
 }
 
 /// Expand `${VAR}` environment variable placeholders in a string.

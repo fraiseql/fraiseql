@@ -3542,3 +3542,27 @@ fn ddl_snake_case_matches_the_pipeline_namer() {
         );
     }
 }
+
+/// #1341: `compile --database` names the PostgreSQL-only rule for a URL of a removed
+/// engine, instead of failing later inside the connection pool with "invalid connection
+/// string" (which also made the SQLite-compatibility warnings unreachable).
+mod compile_database_url_tests {
+    use super::super::compile::{CompileOptions, compile_to_schema};
+
+    #[tokio::test]
+    async fn a_removed_engine_url_is_refused_naming_postgresql_only() {
+        let tmp = tempfile::tempdir().unwrap();
+        let input = tmp.path().join("schema.toml");
+        std::fs::write(&input, "[schema]\nname = \"a\"\nversion = \"1\"\n").unwrap();
+        let input = input.to_str().unwrap();
+
+        for url in ["sqlite://x.db", "mysql://localhost/db", "mssql://h/db"] {
+            let err = compile_to_schema(CompileOptions::new(input).with_database(url))
+                .await
+                .map(|_| ())
+                .expect_err(url);
+            let err = format!("{err:#}");
+            assert!(err.contains("PostgreSQL-only"), "{url}: {err}");
+        }
+    }
+}

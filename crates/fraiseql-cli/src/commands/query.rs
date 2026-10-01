@@ -101,6 +101,7 @@ fn resolve_db_url(cli: Option<String>) -> Result<String> {
 
 /// Guard: `fraiseql query` supports PostgreSQL only (slice 1).
 pub(crate) fn ensure_postgres_url(url: &str) -> Result<()> {
+    crate::schema::database_validator::refuse_removed_engine_url(url)?;
     if url.starts_with("postgres://") || url.starts_with("postgresql://") {
         Ok(())
     } else {

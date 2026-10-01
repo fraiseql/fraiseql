@@ -28,16 +28,24 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
-- **`[schema] database_target` accepts only `postgresql` (#1341).** A `fraiseql.toml` that
-  declared `mysql`, `sqlite` or `sqlserver` used to compile with `✓ Schema compiled
-  successfully` while emitting PostgreSQL SQL, because the key was a bare string and the
-  only reader tested whether it contained `"sqlite"`. Those backends were removed in
-  v2.15.0 (#374); the compile now refuses them, and any other value, with an error naming the
-  removed backends and `docs/database-compatibility.md`. The key may still be omitted
-  (default `postgresql`; case-insensitive). The `fraiseql.toml.example` template and the
-  field's doc comments no longer advertise the removed backends, and the compile-time
-  SQLite warning no longer reads the TOML, since that value can no longer reach it (a
-  `--database sqlite://` URL still draws it).
+- **`database_target` accepts only `postgresql`, in both places it can be set (#1341).** A
+  `fraiseql.toml` that declared `mysql`, `sqlite` or `sqlserver` used to compile with
+  `✓ Schema compiled successfully` while emitting PostgreSQL SQL, because the key was a bare
+  string and the only reader tested whether it contained `"sqlite"`. Those backends were
+  removed in v2.15.0 (#374); the compile now refuses them, and any other value, with an
+  error naming the removed backends and `docs/database-compatibility.md`. One rule covers
+  `[schema] database_target` (TOML schemas) and `[project] database_target`, the key
+  `fraiseql init` writes into every new `fraiseql.toml` (read by `compile` on a
+  `schema.json`). Either key may still be omitted; the value is compared
+  case-insensitively, and `postgres` / `pg` are refused with the same sentence (write
+  `postgresql`). The `fraiseql.toml.example` template and the doc comments no longer
+  advertise the removed backends.
+- **`compile --database` refuses a removed engine's URL up front.** A `sqlite://`,
+  `mysql://`, `mariadb://` or `mssql://` URL, or a SQLite file path, now fails before any
+  work with the PostgreSQL-only sentence the drift check already used (`query` now gives
+  it too), instead of `invalid connection string` from the connection pool. The compile-time SQLite
+  warnings are deleted: they could never print, because the pool refused the URL first.
+  A libpq `key=value` connection string is still accepted.
 
 ### Fixed
 

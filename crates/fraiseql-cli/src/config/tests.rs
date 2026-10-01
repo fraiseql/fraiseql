@@ -733,3 +733,32 @@ mod security_tests {
         assert!(result.is_err());
     }
 }
+
+/// #1341: `[project] database_target` — the key `fraiseql init` writes into every new
+/// `fraiseql.toml` — is refused under the same rule as `[schema] database_target`.
+mod project_database_target_tests {
+    use super::super::*;
+
+    fn project_targeting(target: Option<&str>) -> TomlProjectConfig {
+        let key = target.map_or_else(String::new, |t| format!("database_target = \"{t}\"\n"));
+        toml::from_str(&format!("[project]\nname = \"x\"\nversion = \"0.1.0\"\n{key}"))
+            .expect("the key parses so that it can be refused with a sentence")
+    }
+
+    #[test]
+    fn a_removed_backend_is_refused_naming_the_section_and_the_doc() {
+        for target in ["mysql", "sqlite", "sqlserver", "MySQL", "oracle"] {
+            let err = project_targeting(Some(target)).validate().expect_err(target).to_string();
+            assert!(err.contains("[project] database_target"), "{target}: {err}");
+            assert!(err.contains(&format!("{target:?}")), "{target}: {err}");
+            assert!(err.contains("docs/database-compatibility.md"), "{target}: {err}");
+        }
+    }
+
+    #[test]
+    fn postgresql_and_an_absent_key_are_accepted() {
+        project_targeting(Some("postgresql")).validate().unwrap();
+        project_targeting(Some("PostgreSQL")).validate().unwrap();
+        project_targeting(None).validate().unwrap();
+    }
+}
