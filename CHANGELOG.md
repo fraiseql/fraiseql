@@ -26,6 +26,18 @@ disagreed, and the promise was the part that was wrong.
   say 2026-10-31. The grounds are unchanged, and the `rsa` justification is still under review
   in #1110. This buys time for that review; it is not the review.
 
+### Fixed
+
+- **The SBOM workflow's copyleft check no longer crashes, and no longer misses what it was
+  asked to find.** The `Summary` step of `sbom-generation.yml` read only `license.id` and
+  passed the result to `contains`, so the first component whose license is written as a
+  `name` or an `expression` made `jq` exit 5 and failed the run on the 2.15.0 tag after the
+  assets had uploaded. Skipping the null would have hidden a worse fault: all 472 license
+  entries in the 2.15.0 SBOM are `expression` entries, so an `id`-only count could never
+  have seen a GPL component. The step now reads `id`, `name` and `expression`, counts GPL
+  and AGPL, and leaves LGPL out, including inside `LGPL-2.1 OR GPL-2.0`. On the 2.15.0 SBOM
+  it counts 0 copyleft components.
+
 ## [2.15.0] - 2026-09-30
 
 ### Breaking

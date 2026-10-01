@@ -222,8 +222,10 @@ jobs:
       run: |
         # Count components
         COMPONENT_COUNT=$(jq '.components | length' "fraiseql-${{ steps.version.outputs.version }}-sbom.json")
-        # Check for copyleft licenses
-        COPYLEFT_COUNT=$(jq '[.components[].licenses[]?.license.id | select(contains("GPL") and (contains("LGPL") | not))] | length' "fraiseql-${{ steps.version.outputs.version }}-sbom.json")
+        # Check for copyleft licenses. CycloneDX writes a license as {license:{id}},
+        # {license:{name}} or {expression}; read all three, and count GPL/AGPL but not
+        # LGPL ("GPL" with no "L" before it, so "LGPL-2.1 OR GPL-2.0" still counts).
+        COPYLEFT_COUNT=$(jq '[.components[] | select([.licenses[]? | (.license.id // .license.name // .expression // empty) | select(test("(^|[^L])GPL"))] | length > 0)] | length' "fraiseql-${{ steps.version.outputs.version }}-sbom.json")
 
         {
           echo "## 📋 SBOM Generation Complete"
