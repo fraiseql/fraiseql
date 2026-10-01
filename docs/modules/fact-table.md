@@ -233,16 +233,16 @@ fraiseql.NewFactTable("data").TableName("tf_sales").TypeName("Sale"). /* measure
 SchemaRegistry.registerFactTable("tf_sales", measures, dimensions, filters, { typeName: "Sale" });
 ```
 
-* Every measure, denormalized filter, dimension path and native-mapping key of the fact
+- Every measure, denormalized filter, dimension path and native-mapping key of the fact
   table must be a field of the type (matched by snake_case name). A link to a type that does
   not exist, or that lacks one of them, is refused when the schema loads.
-* Every name a request references — `where`, `groupBy`, the aggregates and `having`,
+- Every name a request references — `where`, `groupBy`, the aggregates and `having`,
   `orderBy`, a window's `select`, `partitionBy`, `orderBy` and function field — must be a
   field of the type (an undeclared JSONB key is refused), and one the caller may read: a
   `requires_scope` field needs the scope whether it masks or rejects, and an `authorize`
   field is never referenceable. Otherwise the request is refused (403) before any SQL runs.
-* The type's `requires_role` must be held.
-* A fact table with no `type_name` declares no field gate, and none applies.
+- The type's `requires_role` must be held.
+- A fact table with no `type_name` declares no field gate, and none applies.
 
 Independently of the link, when a row-level security policy is configured an aggregate or a
 window without a principal is refused, as a regular query is: the policy cannot be
