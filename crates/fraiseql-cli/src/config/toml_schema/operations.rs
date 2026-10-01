@@ -113,8 +113,32 @@ pub struct SchemaMetadata {
     pub version:         String,
     /// Optional schema description
     pub description:     Option<String>,
-    /// Target database (postgresql, mysql, sqlite, sqlserver)
+    /// Target database. Only `postgresql` is accepted: MySQL, SQLite and SQL Server
+    /// were removed in v2.15.0 (#374), and [`Self::validate_database_target`] refuses
+    /// them rather than compiling PostgreSQL SQL under a target the engine cannot serve.
     pub database_target: String,
+}
+
+impl SchemaMetadata {
+    /// Refuse a `database_target` other than `postgresql`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error naming the removed backends and `docs/database-compatibility.md`
+    /// when the target is anything but `postgresql` (compared case-insensitively).
+    pub fn validate_database_target(&self) -> anyhow::Result<()> {
+        let target = self.database_target.trim();
+        if target.eq_ignore_ascii_case("postgresql") {
+            return Ok(());
+        }
+        anyhow::bail!(
+            "[schema] database_target = {target:?} is not supported: FraiseQL targets \
+             PostgreSQL only. The `mysql`, `sqlite` and `sqlserver` backends were removed in \
+             v2.15.0 (#374), so a schema declaring one would compile PostgreSQL SQL. Set \
+             `database_target = \"postgresql\"` or remove the key. See \
+             docs/database-compatibility.md."
+        )
+    }
 }
 
 impl Default for SchemaMetadata {

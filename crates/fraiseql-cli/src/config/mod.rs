@@ -48,7 +48,8 @@ pub struct ProjectConfig {
     pub version:         String,
     /// Optional project description
     pub description:     Option<String>,
-    /// Target database backend (e.g. "postgresql", "mysql", "sqlite", "sqlserver")
+    /// Target database backend. Only `"postgresql"` exists: MySQL, SQLite and SQL Server
+    /// were removed in v2.15.0 (#374).
     pub database_target: Option<String>,
 }
 

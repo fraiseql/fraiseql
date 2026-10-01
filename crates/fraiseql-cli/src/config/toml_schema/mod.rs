@@ -518,6 +518,7 @@ impl TomlSchema {
     /// or rate-limiting configuration is invalid.
     pub(crate) fn validate_self_contained(&self) -> Result<()> {
         self.reject_accepted_but_unconsumed_config()?;
+        self.schema.validate_database_target()?;
 
         // #892: the same validation the project-config path runs (`config::mod`'s
         // `self.fraiseql.tenancy.validate()`). An empty `tenant_claim` under a non-`none`

@@ -12,7 +12,7 @@
 name = "my-fraiseql-app"
 version = "1.0.0"
 description = "My GraphQL API"
-database_target = "postgresql"          # postgresql | mysql | sqlite | sqlserver
+database_target = "postgresql"          # PostgreSQL only (MySQL, SQLite, SQL Server removed in v2.15.0)
 
 # =============================================================================
 # DATABASE CONNECTION

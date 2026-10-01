@@ -498,7 +498,7 @@ pub async fn compile_to_schema(
     }
 
     // 5c. Warn when SQLite is the target but the schema uses features SQLite doesn't support.
-    check_sqlite_compatibility_warnings(&schema, opts.input, is_toml, opts.database);
+    check_sqlite_compatibility_warnings(&schema, opts.database);
 
     // 5d. Warn when mutations have wide invalidation fan-out (HOT update pressure).
     warn_wide_cascade_mutations(&schema);
@@ -978,20 +978,16 @@ pub(crate) fn field_type_to_pg(ft: &FieldType) -> String {
     }
 }
 
-/// Emit warnings when schema uses features that SQLite does not support.
+/// Emit warnings when schema uses features that SQLite does not support, for a
+/// `--database sqlite://` URL (a `database_target` other than `postgresql` is refused at
+/// config load, so the TOML can no longer reach here).
 ///
 /// SQLite executes direct-SQL Insert/Delete mutations, but lacks Update /
 /// stored-procedure (`fn_*`) mutations and relay/subscription support. A
 /// compile-time warning helps catch this before runtime failures.
-fn check_sqlite_compatibility_warnings(
-    schema: &CompiledSchema,
-    input_path: &str,
-    is_toml: bool,
-    database_url: Option<&str>,
-) {
-    let target_is_sqlite = database_url
-        .is_some_and(|url| url.to_ascii_lowercase().starts_with("sqlite://"))
-        || is_toml && detect_sqlite_target_in_toml(input_path);
+fn check_sqlite_compatibility_warnings(schema: &CompiledSchema, database_url: Option<&str>) {
+    let target_is_sqlite =
+        database_url.is_some_and(|url| url.to_ascii_lowercase().starts_with("sqlite://"));
 
     if !target_is_sqlite {
         return;
@@ -1042,20 +1038,6 @@ fn check_sqlite_compatibility_warnings(
             subscription_count,
         );
     }
-}
-
-/// Check if the TOML schema file specifies `database_target = "sqlite"`.
-///
-/// Reads and parses the TOML to extract the schema metadata. Returns `false`
-/// on any parse error (non-fatal — warning detection is best-effort).
-fn detect_sqlite_target_in_toml(toml_path: &str) -> bool {
-    let Ok(content) = fs::read_to_string(toml_path) else {
-        return false;
-    };
-    let Ok(toml_schema) = toml::from_str::<crate::config::toml_schema::TomlSchema>(&content) else {
-        return false;
-    };
-    toml_schema.schema.database_target.to_ascii_lowercase().contains("sqlite")
 }
 
 /// Minimum distinct invalidation targets (views + fact tables) that triggers

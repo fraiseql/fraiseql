@@ -26,6 +26,19 @@ disagreed, and the promise was the part that was wrong.
   say 2026-10-31. The grounds are unchanged, and the `rsa` justification is still under review
   in #1110. This buys time for that review; it is not the review.
 
+### Breaking
+
+- **`[schema] database_target` accepts only `postgresql` (#1341).** A `fraiseql.toml` that
+  declared `mysql`, `sqlite` or `sqlserver` used to compile with `✓ Schema compiled
+  successfully` while emitting PostgreSQL SQL, because the key was a bare string and the
+  only reader tested whether it contained `"sqlite"`. Those backends were removed in
+  v2.15.0 (#374); the compile now refuses them, and any other value, with an error naming the
+  removed backends and `docs/database-compatibility.md`. The key may still be omitted
+  (default `postgresql`; case-insensitive). The `fraiseql.toml.example` template and the
+  field's doc comments no longer advertise the removed backends, and the compile-time
+  SQLite warning no longer reads the TOML, since that value can no longer reach it (a
+  `--database sqlite://` URL still draws it).
+
 ### Fixed
 
 - **The SBOM workflow's copyleft check no longer crashes, and no longer misses what it was

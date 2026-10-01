@@ -937,3 +937,57 @@ mod retired_rest_keys {
         assert!(err.contains("[security.cost_budget] per_request_max"), "{err}");
     }
 }
+
+/// #1341: `[schema] database_target` names a backend the engine removed in v2.15.0
+/// (#374). It used to compile clean and emit PostgreSQL SQL under any target.
+mod database_target_tests {
+    use super::super::*;
+
+    fn schema_targeting(target: Option<&str>) -> TomlSchema {
+        let key = target.map_or_else(String::new, |t| format!("database_target = \"{t}\"\n"));
+        let toml = format!("[schema]\nname = \"myapp\"\nversion = \"1.0.0\"\n{key}");
+        TomlSchema::parse_toml(&toml)
+            .expect("the key parses so that it can be refused with a sentence")
+    }
+
+    #[test]
+    fn a_removed_backend_is_refused_naming_the_removed_backends_and_the_doc() {
+        for target in [
+            "mysql",
+            "sqlite",
+            "sqlserver",
+            "MySQL",
+            "SQLite",
+            " sqlserver ",
+        ] {
+            let err = schema_targeting(Some(target))
+                .validate_self_contained()
+                .expect_err(target)
+                .to_string();
+            assert!(err.contains("database_target"), "{target}: {err}");
+            assert!(err.contains(&format!("{:?}", target.trim_matches(' '))), "{target}: {err}");
+            for removed in ["mysql", "sqlite", "sqlserver"] {
+                assert!(err.to_ascii_lowercase().contains(removed), "{target}: {err}");
+            }
+            assert!(err.contains("docs/database-compatibility.md"), "{target}: {err}");
+        }
+    }
+
+    #[test]
+    fn an_unknown_target_is_refused_too() {
+        let err = schema_targeting(Some("oracle")).validate_self_contained().unwrap_err();
+        assert!(err.to_string().contains("oracle"), "{err}");
+    }
+
+    #[test]
+    fn postgresql_is_accepted() {
+        for target in ["postgresql", "PostgreSQL"] {
+            schema_targeting(Some(target)).validate_self_contained().expect(target);
+        }
+    }
+
+    #[test]
+    fn an_absent_key_is_accepted() {
+        schema_targeting(None).validate_self_contained().unwrap();
+    }
+}
