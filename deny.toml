@@ -10,7 +10,7 @@
 # - sqlx 0.8     — sqlx 0.9.0 is alpha as of 2026-04-25; upgrade when stable.
 # Was recorded as resolving RUSTSEC-2023-0071 (rsa Marvin Attack "via mysql_async"), but that
 # path no longer exists — rsa now arrives via jsonwebtoken in the default build (#1110).
-# Re-evaluate by: 2026-10-01
+# Re-evaluate by: 2026-10-31
 # - thiserror 1.x — graphql-parser 0.4 pins thiserror 1.x; blocked on upstream update.
 # Re-evaluate by: 2026-12-01 — migrate off graphql-parser if still blocked.
 # - h2 0.3      — hyper 0.14 (aws-smithy-http-client) pins it; RUSTSEC-2026-0258 has no 0.3-series
@@ -32,8 +32,8 @@ ignore = [
   # (session_postgres.rs:175) — an attacker-triggerable private-key operation, which is the
   # shape Marvin targets. Acceptance left standing (there is no fixed rsa release either way),
   # but it must be re-argued on the real path rather than re-approved on this text.
-  # deadline: 2026-10-01 — re-evaluate sqlx 0.9 release status and resolve #1110.
-  {id = "RUSTSEC-2023-0071", reason = "No fixed rsa release. Recorded mysql-feature justification is stale — real path is jsonwebtoken in the default build; under review in #1110. Deadline 2026-10-01."},
+  # deadline: 2026-10-31 — re-evaluate sqlx 0.9 release status and resolve #1110.
+  {id = "RUSTSEC-2023-0071", reason = "No fixed rsa release. Recorded mysql-feature justification is stale — real path is jsonwebtoken in the default build; under review in #1110. Deadline 2026-10-31."},
   # rustls-pemfile: deprecated in favour of rustls-pki-types' own PEM support.
   # ⚠ CORRECTED 2026-08-16 (#1137). The recorded grounds — "DEV-dependency only (fraiseql-wire
   # test deps / bollard test infra), no production runtime exposure" — were FALSE:
@@ -45,9 +45,9 @@ ignore = [
   # advisory, not an exploitable defect, so being in the build is a maintenance risk rather
   # than an attack path. The real resolution path is FraiseQL's own — move fraiseql-wire's PEM
   # parsing to rustls-pki-types — not bollard's upstream migration.
-  # deadline: 2026-10-01 — migrate fraiseql-wire off rustls-pemfile, or re-accept with the
+  # deadline: 2026-10-31 — migrate fraiseql-wire off rustls-pemfile, or re-accept with the
   # maintenance risk stated.
-  {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile deprecated-crate advisory (maintenance risk, not an exploitable defect). IN THE DEFAULT BUILD via fraiseql-wire's direct dependency — the previous dev-only justification was false, corrected in #1137. Deadline 2026-10-01."},
+  {id = "RUSTSEC-2025-0134", reason = "rustls-pemfile deprecated-crate advisory (maintenance risk, not an exploitable defect). IN THE DEFAULT BUILD via fraiseql-wire's direct dependency — the previous dev-only justification was false, corrected in #1137. Deadline 2026-10-31."},
   # quick-xml DoS pair (published 2026-07-02): RUSTSEC-2026-0194 (quadratic run time when checking
   # a start tag for duplicate attribute names) + RUSTSEC-2026-0195 (unbounded namespace-declaration
   # allocation in NsReader → memory-exhaustion DoS). Transitive ONLY via samael 0.0.21 (SAML SP,
@@ -55,10 +55,10 @@ ignore = [
   # quick-xml 0.37.5 and `cargo update` cannot move it (the fix is in a later quick-xml outside
   # samael's range); a clean bump would need a samael update (0.0.21 is latest) or a risky [patch]
   # override. DoS is reachable only via malicious SAML XML at a SAML-enabled ACS endpoint.
-  # deadline: 2026-10-01 — re-check samael release cadence; consider a [patch] to a patched
+  # deadline: 2026-10-31 — re-check samael release cadence; consider a [patch] to a patched
   # quick-xml (validating SAML parsing) or dropping samael.
-  {id = "RUSTSEC-2026-0194", reason = "quick-xml quadratic duplicate-attribute-name check (DoS); transitive via samael (auth-saml opt-in only); samael pins quick-xml 0.37.5, no fix in range. Deadline 2026-10-01."},
-  {id = "RUSTSEC-2026-0195", reason = "quick-xml unbounded namespace-declaration allocation in NsReader (memory-exhaustion DoS); same cause/path as RUSTSEC-2026-0194 (samael, auth-saml opt-in). Deadline 2026-10-01."},
+  {id = "RUSTSEC-2026-0194", reason = "quick-xml quadratic duplicate-attribute-name check (DoS); transitive via samael (auth-saml opt-in only); samael pins quick-xml 0.37.5, no fix in range. Deadline 2026-10-31."},
+  {id = "RUSTSEC-2026-0195", reason = "quick-xml unbounded namespace-declaration allocation in NsReader (memory-exhaustion DoS); same cause/path as RUSTSEC-2026-0194 (samael, auth-saml opt-in). Deadline 2026-10-31."},
   # crossbeam-epoch 0.9.18: fmt::Pointer dereferences an invalid Atomic/Shared.
   # ⚠ CORRECTED 2026-08-16 (#1137). The recorded path — "transitive via rayon (criterion
   # dev-deps)" — was FALSE: `cargo tree -i crossbeam-epoch@0.9.18 -e normal` on DEFAULT
@@ -67,8 +67,8 @@ ignore = [
   # The acceptance stands on USAGE, which is what always actually carried it: reaching the
   # defect requires Debug/Pointer-formatting an invalid Atomic/Shared, which moka does not do
   # and FraiseQL does not do.
-  # deadline: 2026-10-01 — re-check moka's dependency range for a fixed crossbeam-epoch.
-  {id = "RUSTSEC-2026-0204", reason = "crossbeam-epoch 0.9.18 fmt::Pointer invalid-pointer dereference; only triggers when Debug/Pointer-formatting an invalid Atomic/Shared pointer, which moka and FraiseQL never do. IN THE DEFAULT BUILD via moka -> fraiseql-core — the previous rayon/criterion dev-dep path was false, corrected in #1137. Deadline 2026-10-01."}
+  # deadline: 2026-10-31 — re-check moka's dependency range for a fixed crossbeam-epoch.
+  {id = "RUSTSEC-2026-0204", reason = "crossbeam-epoch 0.9.18 fmt::Pointer invalid-pointer dereference; only triggers when Debug/Pointer-formatting an invalid Atomic/Shared pointer, which moka and FraiseQL never do. IN THE DEFAULT BUILD via moka -> fraiseql-core — the previous rayon/criterion dev-dep path was false, corrected in #1137. Deadline 2026-10-31."}
 ]
 unmaintained = "workspace"
 

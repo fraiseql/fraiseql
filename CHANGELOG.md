@@ -16,6 +16,16 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Security
+
+- **Five accepted advisories were extended by 30 days, not re-argued.** The risk acceptances
+  for RUSTSEC-2023-0071 (`rsa`), RUSTSEC-2025-0134 (`rustls-pemfile`), RUSTSEC-2026-0194 and
+  RUSTSEC-2026-0195 (`quick-xml` via `samael`) and RUSTSEC-2026-0204 (`crossbeam-epoch`) carried
+  a deadline of 2026-10-01, and on that date `make lint-deadlines` reddened `preflight` on every
+  open branch at once. `deny.toml`, `.cargo/audit.toml` and `docs/dependency-risk-policy.md` now
+  say 2026-10-31. The grounds are unchanged, and the `rsa` justification is still under review
+  in #1110. This buys time for that review; it is not the review.
+
 ## [2.15.0] - 2026-09-30
 
 ### Breaking

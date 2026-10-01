@@ -66,11 +66,11 @@ that reason.
 
 | Advisory | Crate | Path | Exposure | Mitigation | Deadline |
 |----------|-------|------|----------|------------|---------|
-| RUSTSEC-2023-0071 | `rsa@0.9.10` | `jsonwebtoken` 10.4 → `fraiseql-auth` | `default-build` | No fixed `rsa` release exists. The exposure is RS256 access-token signing (`session_postgres.rs:175`), an attacker-triggerable private-key operation — the shape Marvin targets. Re-argue on this path by the deadline; do not re-approve on the old `sqlx-mysql` text | 2026-10-01 |
-| RUSTSEC-2025-0134 | `rustls-pemfile@2.2.0` | direct dependency of `fraiseql-wire`; optional in `fraiseql-db` | `default-build` | Deprecated/unmaintained-crate advisory, not an exploitable defect, so presence in the build is not itself an exploit path. Blocked on `bollard` migrating off `pem` 0.x upstream | 2026-10-01 |
-| RUSTSEC-2026-0194 | `quick-xml@0.37.5` | `samael` 0.0.21 → `fraiseql-auth` | `feature-gated:auth-saml` | Quadratic run time checking a start tag for duplicate attribute names. SAML SP only, opt-in; `samael` pins `quick-xml` 0.37.5 and no fix is in range | 2026-10-01 |
-| RUSTSEC-2026-0195 | `quick-xml@0.37.5` | `samael` 0.0.21 → `fraiseql-auth` | `feature-gated:auth-saml` | Unbounded namespace-declaration allocation in `NsReader`. Same path and same upstream block as RUSTSEC-2026-0194 | 2026-10-01 |
-| RUSTSEC-2026-0204 | `crossbeam-epoch@0.9.18` | `moka` 0.12 → `fraiseql-core` | `default-build` | Invalid-pointer dereference reachable only when `fmt::Pointer` Debug-formats an invalid `Atomic`/`Shared`, which `moka` does not do. Accepted on usage grounds, not on absence from the build | 2026-10-01 |
+| RUSTSEC-2023-0071 | `rsa@0.9.10` | `jsonwebtoken` 10.4 → `fraiseql-auth` | `default-build` | No fixed `rsa` release exists. The exposure is RS256 access-token signing (`session_postgres.rs:175`), an attacker-triggerable private-key operation — the shape Marvin targets. Re-argue on this path by the deadline; do not re-approve on the old `sqlx-mysql` text | 2026-10-31 |
+| RUSTSEC-2025-0134 | `rustls-pemfile@2.2.0` | direct dependency of `fraiseql-wire`; optional in `fraiseql-db` | `default-build` | Deprecated/unmaintained-crate advisory, not an exploitable defect, so presence in the build is not itself an exploit path. Blocked on `bollard` migrating off `pem` 0.x upstream | 2026-10-31 |
+| RUSTSEC-2026-0194 | `quick-xml@0.37.5` | `samael` 0.0.21 → `fraiseql-auth` | `feature-gated:auth-saml` | Quadratic run time checking a start tag for duplicate attribute names. SAML SP only, opt-in; `samael` pins `quick-xml` 0.37.5 and no fix is in range | 2026-10-31 |
+| RUSTSEC-2026-0195 | `quick-xml@0.37.5` | `samael` 0.0.21 → `fraiseql-auth` | `feature-gated:auth-saml` | Unbounded namespace-declaration allocation in `NsReader`. Same path and same upstream block as RUSTSEC-2026-0194 | 2026-10-31 |
+| RUSTSEC-2026-0204 | `crossbeam-epoch@0.9.18` | `moka` 0.12 → `fraiseql-core` | `default-build` | Invalid-pointer dereference reachable only when `fmt::Pointer` Debug-formats an invalid `Atomic`/`Shared`, which `moka` does not do. Accepted on usage grounds, not on absence from the build | 2026-10-31 |
 
 ⚠ Three of these rows were corrected on 2026-08-16 after being checked against `cargo tree`
 rather than trusted: RUSTSEC-2023-0071 claimed `sqlx-mysql` (gone since #374, and `rsa` in
@@ -100,7 +100,7 @@ prints nothing. The acceptance was corrected in `deny.toml` on 2026-08-13 and he
 The `sqlx 0.9` upgrade that used to be the tracked resolution path is irrelevant to the real
 dependency edge.
 
-**Review action by 2026-10-01**: the choice is between continuing to accept the timing
+**Review action by 2026-10-31**: the choice is between continuing to accept the timing
 sidechannel on RS256 signing and moving RS256 issuance off `jsonwebtoken`'s `rsa` backend.
 Decide that, on this path. Re-approving on the removed MySQL text is not a review.
 
@@ -119,7 +119,7 @@ risk, not an attack path — but on those grounds, not the old ones.
 own PEM parsing to `rustls-pki-types`. The second is in FraiseQL's hands and is the real
 resolution path.
 
-**Review action by 2026-10-01**: migrate `fraiseql-wire` off `rustls-pemfile`, or re-accept
+**Review action by 2026-10-31**: migrate `fraiseql-wire` off `rustls-pemfile`, or re-accept
 with the maintenance risk stated.
 
 ### RUSTSEC-2026-0194 / -0195 (quick-xml DoS pair)
@@ -134,7 +134,7 @@ for that configuration.
 
 **Blocked on**: `samael` pinning `quick-xml` 0.37.5 with no fixed version in range.
 
-**Review action by 2026-10-01**: check for a `samael` release that relaxes the pin; otherwise
+**Review action by 2026-10-31**: check for a `samael` release that relaxes the pin; otherwise
 state whether SAML SP deployments should carry a request-size limit in front of assertion
 parsing.
 
@@ -149,7 +149,7 @@ invalid pointer, which `moka` does not do and FraiseQL does not do.
 
 **Blocked on**: a `crossbeam-epoch` release `moka` will take.
 
-**Review action by 2026-10-01**: re-check `moka`'s dependency range for a fixed
+**Review action by 2026-10-31**: re-check `moka`'s dependency range for a fixed
 `crossbeam-epoch`.
 
 ## Resolved acceptances
