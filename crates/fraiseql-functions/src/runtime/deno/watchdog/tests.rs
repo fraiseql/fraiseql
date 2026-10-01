@@ -24,16 +24,20 @@ use super::{WatchdogOutcome, WatchdogSignal};
 /// genuinely blocked first. Measuring the total is how the first version of this
 /// test passed against the very polling implementation it was written to catch.
 ///
-/// Summed over ten rounds rather than asserted per round, because a single round
-/// is a coin flip: a 10 ms poll wakes somewhere in `[0, 10)` ms depending on where
-/// `finish` lands in the grid, so one round can be fast by luck. Ten rounds under
-/// the old implementation total ~50 ms expected; the ceiling here is 10 ms, which
-/// a condvar clears by three orders of magnitude and a poll loop cannot reach
-/// without every one of ten independent draws landing in its lowest tenth.
+/// Judged on the **median** round, not the sum or any single round (#1369). A
+/// descheduled thread inflates one wake by milliseconds on a loaded box; the sum
+/// let that single outlier decide the verdict (10 wakes took 10–22 ms in total with
+/// 300 CPU burners running, against a 10 ms ceiling), while the median ignores up
+/// to four outliers out of ten.
+///
+/// The sleep offsets are 11, 12 or 13 ms: against the old 10 ms poll loop, `finish`
+/// then lands 1–3 ms into a poll period, so that implementation woke 7–9 ms late
+/// **every** round and its median gap was ~8 ms. The ceiling is 4 ms, half of that,
+/// which a condvar wake clears by orders of magnitude even on a loaded box.
 #[test]
 fn a_finished_invocation_wakes_the_watchdog_at_once() {
     const ROUNDS: u32 = 10;
-    let mut total_wake_gap = Duration::ZERO;
+    let mut wake_gaps = Vec::new();
 
     for round in 0..ROUNDS {
         let signal = Arc::new(WatchdogSignal::new());
@@ -48,22 +52,24 @@ fn a_finished_invocation_wakes_the_watchdog_at_once() {
             })
         };
 
-        // Let the waiter block. The offsets are deliberately not multiples of the
-        // old 10 ms poll interval, so `finish` lands at a different phase of that
-        // grid each round instead of always at the same favourable point.
-        thread::sleep(Duration::from_millis(11 + u64::from(round)));
+        // Let the waiter block. 11–13 ms is just past a multiple of the old 10 ms
+        // poll interval, the phase at which a poll loop is slowest to notice.
+        thread::sleep(Duration::from_millis(11 + u64::from(round % 3)));
         let finished_at = Instant::now();
         signal.finish();
 
         let (outcome, woke_at) = waiter.join().unwrap();
         assert_eq!(outcome, WatchdogOutcome::Finished, "round {round}");
-        total_wake_gap += woke_at.saturating_duration_since(finished_at);
+        wake_gaps.push(woke_at.saturating_duration_since(finished_at));
     }
 
+    wake_gaps.sort_unstable();
+    let median_wake_gap = wake_gaps[wake_gaps.len() / 2];
     assert!(
-        total_wake_gap < Duration::from_millis(10),
-        "the watchdog must wake on the signal, not on a poll interval — {ROUNDS} wakes \
-         took {total_wake_gap:?} in total after `finish` had already been called"
+        median_wake_gap < Duration::from_millis(4),
+        "the watchdog must wake on the signal, not on a poll interval — the median of \
+         {ROUNDS} wake gaps after `finish` had already been called was {median_wake_gap:?} \
+         (all gaps: {wake_gaps:?})"
     );
 }
 

@@ -38,6 +38,14 @@ disagreed, and the promise was the part that was wrong.
   and AGPL, and leaves LGPL out, including inside `LGPL-2.1 OR GPL-2.0`. On the 2.15.0 SBOM
   it counts 0 copyleft components.
 
+- **`a_finished_invocation_wakes_the_watchdog_at_once` no longer fails on a loaded box
+  (#1369).** It summed ten wake gaps against a 10 ms ceiling, a sub-millisecond scheduler
+  budget per thread wake-up: with 300 CPU burners running it failed 12 runs in 40 at
+  10–22 ms, and it had failed `make test-unit` and `make test-leg` the same way. It now
+  judges the median gap against 4 ms, with sleep offsets that make a poll-based watchdog
+  wake 7–9 ms late every round (median ~10 ms with signalling disabled and a 10 ms wake
+  cap, so the test still fails for that defect). Test only; the watchdog is unchanged.
+
 ### Security
 
 Lockfile and patch-level pin changes only; no source changed. The runtime crates' own
