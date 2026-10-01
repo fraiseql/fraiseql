@@ -343,15 +343,10 @@ cargo build --release --features "dedup"
 
 #### If deduplication window too short
 
-```rust
-// Increase from 5 minutes to 30 minutes
-dedup_store: Arc::new(
-    RedisDeduplicationStore::new(
-        "redis://localhost:6379",
-        1800  // 30 minutes instead of 300 (5 minutes)
-    )
-    .await?
-),
+```toml
+# Increase from 5 minutes to 30 minutes (valid range: 1..=3600)
+[redis]
+dedup_window_secs = 1800   # was 300
 ```
 
 #### To verify deduplication working
@@ -414,23 +409,14 @@ psql $DATABASE_URL -c "SELECT pg_size_pretty(pg_total_relation_size('observer_ch
 
 #### If cache memory exhausted
 
-```rust
-// Option 1: Reduce cache TTL (entries expire faster)
-cache_ttl: Duration::from_secs(60),  // Was 300
+```toml
+# Option 1: Reduce cache TTL (entries expire faster)
+[redis]
+cache_ttl_secs = 60   # was 300 (valid range: 1..=3600)
+```
 
-// Option 2: Reduce max cache size
-cache_backend: Arc::new(
-    RedisCacheBackend::with_config(
-        "redis://localhost",
-        CacheConfig {
-            max_size: 50_000,  // Was 100_000
-            ttl: Duration::from_secs(300),
-        }
-    )
-    .await?
-),
-
-// Option 3: Increase Redis memory
+```yaml
+# Option 2: Bound the memory Redis may use
 # In docker-compose.yml
 redis:
   command: redis-server --maxmemory 2gb --maxmemory-policy allkeys-lru
@@ -439,19 +425,16 @@ redis:
 #### If connection pool exhausted
 
 ```rust
-// Increase connection pool size
-checkpoint_store: Arc::new(
-    PostgresCheckpointStore::with_pool_config(
-        "postgresql://localhost/observers",
-        PoolConfig {
-            min_connections: 5,
-            max_connections: 50,  // Was 20
-            ..Default::default()
-        }
-    )
-    .await?
-),
+// Increase the size of the sqlx pool you hand to the checkpoint store
+let pool = sqlx::postgres::PgPoolOptions::new()
+    .min_connections(5)
+    .max_connections(50) // Was 20
+    .connect("postgresql://localhost/observers")
+    .await?;
+let checkpoint_store = PostgresCheckpointStore::new(pool);
 ```
+
+Redis connections are a separate setting: `[redis] pool_size`.
 
 #### If checkpoint table too large
 
@@ -528,15 +511,10 @@ multi_listener_config: Some(MultiListenerConfig {
 #### If checkpoints not shared
 
 ```rust
-// Ensure ALL listeners use same checkpoint store
-// In config for each listener:
-checkpoint_store: Arc::new(
-    PostgresCheckpointStore::new(
-        "postgresql://user:pass@postgres:5432/fraiseql",
-        "observer_checkpoints"
-    )
-    .await?
-),
+// Ensure ALL listeners use the same checkpoint database
+// In each listener process:
+let pool = sqlx::PgPool::connect("postgresql://user:pass@postgres:5432/fraiseql").await?;
+let checkpoint_store = PostgresCheckpointStore::new(pool);
 
 // Verify table has unique index on listener_id
 psql $DATABASE_URL -c "\d observer_checkpoints"

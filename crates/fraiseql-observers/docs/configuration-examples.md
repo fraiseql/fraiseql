@@ -1,10 +1,31 @@
-# Configuration Examples - Phase 8
+# Configuration Examples
 
-> ⚠ The `ObserverRuntimeConfig` literals in this document do not match the struct in
-> `src/config/runtime.rs`; they are being rewritten under #1365. The prose is accurate; the
-> Rust snippets are not.
+This guide shows configurations for different deployment scenarios.
 
-This guide provides real-world configuration examples for different scenarios.
+`ObserverRuntimeConfig` (`src/config/runtime.rs`) derives `Deserialize` and has no `Default`
+and no loader of its own, so the examples below are TOML that you parse with
+`toml::from_str::<ObserverRuntimeConfig>(..)` (add the `toml` crate to your own
+`Cargo.toml`). Its fields are:
+
+| Field | Type | Default |
+|-------|------|---------|
+| `transport` | `TransportConfig` (table) | Postgres, executors on, bridge off |
+| `redis` | `Option<RedisConfig>` | absent |
+| `clickhouse` | `Option<ClickHouseConfig>` | absent |
+| `job_queue` | `Option<JobQueueConfig>` | absent |
+| `performance` | `PerformanceConfig` | dedup off, caching off, concurrent on |
+| `channel_capacity` | `usize` | `1000` |
+| `max_concurrency` | `usize` | `50` |
+| `backlog_alert_threshold` | `usize` | `500` |
+| `shutdown_timeout` | `String` | `"30s"` |
+| `max_dlq_size` | `Option<usize>` | unbounded |
+| `observers` | map of name → `ObserverDefinition` | empty |
+
+Top-level scalar keys must come **before** the first `[table]` in a TOML file.
+
+Other pieces of the crate are **not** fields of this struct and are built separately: the
+checkpoint store, the circuit breaker, the multi-listener coordinator, the search sink and
+the metrics registry. Each has its own section below.
 
 ## Table of Contents
 
@@ -13,6 +34,8 @@ This guide provides real-world configuration examples for different scenarios.
 3. [High-Performance Setup](#high-performance-setup)
 4. [Budget Setup](#budget-setup)
 5. [Feature-Specific Examples](#feature-specific-examples)
+6. [Environment Overrides](#environment-overrides)
+7. [Checklist: Configuration Review](#checklist-configuration-review)
 
 ---
 
@@ -22,131 +45,128 @@ This guide provides real-world configuration examples for different scenarios.
 
 **Characteristics**:
 
-- All Phase 8 features enabled
-- PostgreSQL for checkpoints
-- Redis for cache and dedup
-- Elasticsearch for audit trail
-- Prometheus for monitoring
-- Multiple listeners for HA
+- PostgreSQL transport, with durable checkpoints (`PostgresCheckpointStore`)
+- Redis for deduplication and caching
+- A Redis-backed job queue for asynchronous actions
+- A bounded dead letter queue
+- Multiple listeners for failover
 
 ### Cargo.toml
 
 ```toml
-[features]
-production = ["checkpoint", "dedup", "caching", "search", "metrics", "queue"]
+[dependencies]
+fraiseql-observers = { version = "2", features = ["checkpoint", "dedup", "caching", "queue"] }
 ```
+
+The `enterprise` feature is the bundle `checkpoint`, `dedup`, `caching`, `queue`, `search`
+and `metrics`.
 
 ### Runtime Configuration
 
+```toml
+channel_capacity = 5000
+max_concurrency = 100
+backlog_alert_threshold = 2000
+shutdown_timeout = "30s"
+# When the dead letter queue reaches this size the newest entry is dropped, with a warning.
+max_dlq_size = 10000
+
+[transport]
+transport = "postgres"
+
+[redis]
+url = "redis://redis:6379/0"
+pool_size = 20
+connect_timeout_secs = 5
+command_timeout_secs = 2
+dedup_window_secs = 600   # 10 minutes, to catch retries (1..=3600)
+cache_ttl_secs = 300      # 5 minutes (1..=3600)
+
+[job_queue]
+url = "redis://redis:6379/0"
+batch_size = 100
+worker_concurrency = 50
+max_retries = 5
+initial_delay_ms = 100
+max_delay_ms = 30000
+
+[performance]
+enable_dedup = true       # requires [redis]
+enable_caching = true     # requires [redis]
+enable_concurrent = true
+max_concurrent_actions = 50
+concurrent_timeout_ms = 30000
+
+[observers.order_created]
+event_type = "INSERT"
+entity = "Order"
+on_failure = "dlq"
+
+[observers.order_created.retry]
+max_attempts = 5
+initial_delay_ms = 100
+max_delay_ms = 30000
+backoff_strategy = "exponential"
+
+[[observers.order_created.actions]]
+type = "webhook"
+url_env = "ORDER_WEBHOOK_URL"
+signing_secret_env = "ORDER_WEBHOOK_SECRET"
+```
+
+Load it, then build the executor stack from it:
+
 ```rust
-use fraiseql_observers::*;
-use std::time::Duration;
+use std::sync::Arc;
 
-pub async fn production_config() -> ObserverRuntimeConfig {
-    ObserverRuntimeConfig {
-        // Checkpoints: Save every 100 events (balance safety vs performance)
-        checkpoint_batch_size: 100,
-        checkpoint_store: Arc::new(
-            PostgresCheckpointStore::new(
-                "postgresql://user:pass@localhost/observers",
-                "observer_checkpoints"
-            )
-            .await
-            .expect("Failed to initialize checkpoint store")
-        ),
+use fraiseql_observers::{
+    ObserverError, ObserverRuntimeConfig, factory::ExecutorFactory, traits::DeadLetterQueue,
+};
 
-        // Deduplication: 10-minute window to catch retries
-        dedup_window: Duration::from_secs(600),
-        dedup_store: Arc::new(
-            RedisDeduplicationStore::new(
-                "redis://localhost:6379",
-                600  // 10 minutes TTL
-            )
-            .await
-            .expect("Failed to initialize dedup store")
-        ),
+async fn start(
+    toml_text: &str,
+    dlq: Arc<dyn DeadLetterQueue>,
+) -> fraiseql_observers::Result<()> {
+    let config: ObserverRuntimeConfig = toml::from_str(toml_text)
+        .map_err(|e| ObserverError::InvalidConfig { message: e.to_string() })?;
+    config.validate()?;
 
-        // Caching: 5-minute TTL for frequent lookups
-        cache_backend: Arc::new(
-            RedisCacheBackend::new(
-                "redis://localhost:6379",
-                Duration::from_secs(300)  // 5 minutes
-            )
-            .await
-            .expect("Failed to initialize cache")
-        ),
-
-        // Search: Index all events in Elasticsearch
-        search_backend: Arc::new(
-            HttpSearchBackend::new(
-                "http://localhost:9200",
-                Duration::from_secs(30)
-            )
-        ),
-
-        // Metrics: Export to Prometheus
-        metrics: Some(Arc::new(ObserverMetrics::new())),
-
-        // Job Queue: Redis-backed with 50 workers
-        job_queue: Arc::new(
-            RedisJobQueue::new(
-                "redis://localhost:6379",
-                50  // workers
-            )
-            .await
-            .expect("Failed to initialize job queue")
-        ),
-
-        // Retry: Exponential backoff (100ms -> 30s)
-        retry_strategy: BackoffStrategy::Exponential {
-            initial: Duration::from_millis(100),
-            max: Duration::from_secs(30),
-        },
-        max_retry_attempts: 5,
-
-        // Circuit Breaker: 50% failure threshold
-        circuit_breaker: CircuitBreakerConfig {
-            failure_threshold: 0.5,
-            success_threshold: 0.8,
-            timeout: Duration::from_secs(60),
-            sample_size: 100,
-        },
-
-        // Multi-Listener: 3 listeners for HA
-        multi_listener_config: Some(MultiListenerConfig {
-            num_listeners: 3,
-            health_check_interval: Duration::from_secs(5),
-            failover_threshold: Duration::from_secs(60),
-        }),
-
-        // Backpressure: Drop oldest events if queue fills
-        max_queue_size: 10000,
-
-        // Logging
-        log_level: "info".to_string(),
-    }
+    // Wraps the base executor with deduplication and caching according to `config.performance`.
+    let _executor = ExecutorFactory::build(&config, dlq).await?;
+    Ok(())
 }
 ```
 
+### Checkpoints and listener identity
+
+Checkpoints are written by the listener, not configured in `ObserverRuntimeConfig`.
+`PostgresCheckpointStore` takes a `PgPool`; its `observer_checkpoints` table comes from
+`migrations/02_create_observer_checkpoints.sql`:
+
+```rust
+use fraiseql_observers::{ChangeLogListenerConfig, PostgresCheckpointStore};
+use sqlx::PgPool;
+
+fn listener(pool: PgPool) -> (ChangeLogListenerConfig, PostgresCheckpointStore) {
+    let config =
+        ChangeLogListenerConfig::new(pool.clone()).with_listener_id("orders-listener-1");
+    (config, PostgresCheckpointStore::new(pool))
+}
+```
+
+Use the **same** listener id for the listener and for the checkpoint store, so the cursor and
+the dispatch ledger describe one listener.
+
 ### Environment Setup
 
+Each config section has `with_env_overrides`; see [Environment Overrides](#environment-overrides)
+for the variable names.
+
 ```bash
-# PostgreSQL for checkpoints
-DATABASE_URL=postgresql://observer:secure_password@postgres:5432/fraiseql_observers
-
-# Redis for cache and dedup
-REDIS_URL=redis://:secure_password@redis:6379/0
-
-# Elasticsearch for search
-ELASTICSEARCH_URL=http://elasticsearch:9200
-
-# Prometheus metrics (push gateway)
-PROMETHEUS_PUSHGATEWAY=http://prometheus-pushgateway:9091
-
-# Observer configuration
-OBSERVER_LOG_LEVEL=info
-OBSERVER_MAX_RETRIES=5
-OBSERVER_CACHE_TTL=300
+FRAISEQL_REDIS_URL=redis://:secure_password@redis:6379/0
+FRAISEQL_JOB_QUEUE_URL=redis://:secure_password@redis:6379/0
+ORDER_WEBHOOK_URL=https://example.com/hooks/orders
+ORDER_WEBHOOK_SECRET=change-me
 ```
 
 ---
@@ -158,189 +178,121 @@ OBSERVER_CACHE_TTL=300
 **Characteristics**:
 
 - Minimal external dependencies
-- PostgreSQL for checkpoints (`checkpoint::postgres`, the only checkpoint store)
-- In-memory caching
-- No Elasticsearch
-- Immediate retries (no backoff)
-- Single listener
+- No Redis: no deduplication, no caching, no job queue
+- In-memory checkpoints (`InMemoryCheckpointStore`, **not durable**)
+- Short retry delays
 
 ### Cargo.toml
 
 ```toml
-[features]
-development = ["checkpoint"]  # Only checkpoints, nothing else
+[dependencies]
+fraiseql-observers = { version = "2", features = ["checkpoint"] }
 ```
 
 ### Runtime Configuration
 
-```rust
-pub async fn development_config() -> ObserverRuntimeConfig {
-    ObserverRuntimeConfig {
-        // Checkpoints: PostgreSQL, the only checkpoint store
-        checkpoint_batch_size: 1,  // Save immediately
-        checkpoint_store: Arc::new(
-            PostgresCheckpointStore::new(pool)
-                .await
-                .expect("Failed to initialize checkpoint store")
-        ),
+```toml
+[transport]
+transport = "in_memory"
 
-        // No deduplication (faster testing)
-        dedup_store: Arc::new(NullDeduplicationStore::new()),
+[performance]
+enable_dedup = false
+enable_caching = false
 
-        // No caching (test real execution paths)
-        cache_backend: Arc::new(NullCacheBackend::new()),
+[observers.order_created]
+event_type = "INSERT"
+entity = "Order"
 
-        // No search (no external dependencies)
-        search_backend: Arc::new(NullSearchBackend::new()),
+[observers.order_created.retry]
+max_attempts = 2
+initial_delay_ms = 10
+backoff_strategy = "fixed"
 
-        // No metrics in dev
-        metrics: None,
-
-        // No job queue (execute synchronously)
-        job_queue: Arc::new(NullJobQueue::new()),
-
-        // Immediate retries for fast testing
-        retry_strategy: BackoffStrategy::Fixed {
-            delay: Duration::from_millis(10),
-        },
-        max_retry_attempts: 2,  // Fast failure
-
-        // No circuit breaker in dev
-        circuit_breaker: CircuitBreakerConfig::default(),
-
-        // Single listener
-        multi_listener_config: None,
-
-        // No backpressure limits in dev
-        max_queue_size: 1000,
-
-        log_level: "debug".to_string(),
-    }
-}
+[[observers.order_created.actions]]
+type = "webhook"
+url = "https://example.test/hook"
 ```
 
-### Mock Implementations
+Outbound action URLs go through the crate's SSRF check, which rejects loopback and private
+addresses such as `http://localhost:8080`. For local development only, the
+`FRAISEQL_OBSERVERS_ALLOW_INSECURE` bypass exists; it is refused when any production marker
+is set (see `src/insecure_guard.rs`).
 
-For testing, use provided mocks:
+### In-memory checkpoints
 
 ```rust
-use fraiseql_observers::testing::mocks::*;
+use fraiseql_observers::InMemoryCheckpointStore;
 
-pub fn test_config() -> ObserverRuntimeConfig {
-    ObserverRuntimeConfig {
-        checkpoint_store: Arc::new(MockCheckpointStore::new()),
-        dedup_store: Arc::new(MockDeduplicationStore::new()),
-        cache_backend: Arc::new(MockCacheBackend::new()),
-        search_backend: Arc::new(MockSearchBackend::new()),
-        job_queue: Arc::new(MockJobQueue::new()),
-        // ... rest of config
-    }
-}
+let store = InMemoryCheckpointStore::new(); // state is lost on every restart
 ```
+
+Postgres is the only durable checkpoint store. `check_checkpoint_requirement` and
+`CheckpointMode::DevOnly` exist so that running without one is an explicit choice.
 
 ---
 
 ## High-Performance Setup
 
-**Recommended for**: High-throughput systems (1000+ events/second)
+**Recommended for**: High-throughput systems
 
 **Characteristics**:
 
-- Caching enabled for performance
-- Concurrent execution
-- Dedup for quality
-- Batched checkpoints
-- Large queue
-- Many worker threads
+- NATS transport (JetStream), so that executors can scale out
+- Larger channel and concurrency limits
+- Redis deduplication and caching, with a larger connection pool
+- Many job-queue workers
 
 ### Cargo.toml
 
 ```toml
-[features]
-performance = ["checkpoint", "dedup", "caching", "queue"]
+[dependencies]
+fraiseql-observers = { version = "2", features = ["checkpoint", "dedup", "caching", "queue", "nats"] }
 ```
 
 ### Runtime Configuration
 
-```rust
-pub async fn performance_config() -> ObserverRuntimeConfig {
-    ObserverRuntimeConfig {
-        // Checkpoints: Large batches (performance priority)
-        checkpoint_batch_size: 1000,  // Write every 1000 events
-        checkpoint_store: Arc::new(
-            PostgresCheckpointStore::with_pool_config(
-                "postgresql://localhost/observers",
-                PoolConfig {
-                    min_connections: 5,
-                    max_connections: 20,
-                    ..Default::default()
-                }
-            )
-            .await
-            .expect("Failed to create checkpoint store")
-        ),
+```toml
+channel_capacity = 20000
+max_concurrency = 200
+backlog_alert_threshold = 10000
+max_dlq_size = 50000
 
-        // Deduplication: Shorter window (fast duplicate detection)
-        dedup_window: Duration::from_secs(300),  // 5 minutes
-        dedup_store: Arc::new(
-            RedisDeduplicationStore::with_config(
-                "redis://localhost",
-                RedisConfig {
-                    connection_pool_size: 20,
-                    ttl: 300,
-                }
-            )
-            .await
-            .expect("Failed to create dedup store")
-        ),
+[transport]
+transport = "nats"
+run_executors = true
 
-        // Caching: Aggressive caching
-        cache_backend: Arc::new(
-            RedisCacheBackend::with_config(
-                "redis://localhost",
-                CacheConfig {
-                    ttl: Duration::from_secs(600),  // 10 minutes
-                    max_size: 100_000,  // 100k entries
-                    eviction: EvictionPolicy::LRU,
-                }
-            )
-            .await
-            .expect("Failed to create cache")
-        ),
+[transport.nats]
+url = "nats://nats:4222"
+stream_name = "fraiseql_events"
+consumer_name = "fraiseql_observer_worker"
 
-        // Job Queue: Many workers for parallelism
-        job_queue: Arc::new(
-            RedisJobQueue::with_workers(
-                "redis://localhost",
-                200  // 200 worker threads!
-            )
-            .await
-            .expect("Failed to create job queue")
-        ),
+[transport.nats.jetstream]
+dedup_window_minutes = 5   # 1..=60
+ack_wait_secs = 30
+max_deliver = 3
 
-        // Retry: Fast backoff for quick recovery
-        retry_strategy: BackoffStrategy::Linear {
-            initial: Duration::from_millis(50),
-            increment: Duration::from_millis(50),
-            max: Duration::from_secs(10),
-        },
-        max_retry_attempts: 3,  // Fast failure
+[redis]
+url = "redis://redis:6379/0"
+pool_size = 20
+dedup_window_secs = 300
+cache_ttl_secs = 600
 
-        // Circuit Breaker: Aggressive thresholds
-        circuit_breaker: CircuitBreakerConfig {
-            failure_threshold: 0.3,  // Open at 30% failures
-            success_threshold: 0.9,  // Close at 90% success
-            timeout: Duration::from_secs(30),  // Quick recovery probing
-            sample_size: 50,  // Small sample for responsiveness
-        },
+[job_queue]
+url = "redis://redis:6379/0"
+batch_size = 500
+worker_concurrency = 100
+poll_interval_ms = 200
 
-        // Backpressure: Large queue for throughput
-        max_queue_size: 50000,  // Large buffer
-
-        log_level: "warn".to_string(),  // Reduce logging overhead
-    }
-}
+[performance]
+enable_dedup = true
+enable_caching = true
+enable_concurrent = true
+max_concurrent_actions = 100
+concurrent_timeout_ms = 15000
 ```
+
+`run_bridge = true` (the Postgres-to-NATS bridge, configured under `[transport.bridge]`)
+requires `transport = "nats"`; `TransportConfig::validate` rejects it otherwise.
 
 ---
 
@@ -350,64 +302,34 @@ pub async fn performance_config() -> ObserverRuntimeConfig {
 
 **Characteristics**:
 
-- Only essentials enabled
-- Shared Redis instance
-- No Elasticsearch
-- Batched processing
-- Single node
+- PostgreSQL only: no Redis, no NATS
+- A single node
+- Durable checkpoints, so that a restart does not lose events
 
 ### Cargo.toml
 
 ```toml
-[features]
-budget = ["checkpoint"]  # Checkpoint only, for safety
+[dependencies]
+fraiseql-observers = { version = "2", features = ["checkpoint"] }
 ```
 
 ### Runtime Configuration
 
-```rust
-pub async fn budget_config() -> ObserverRuntimeConfig {
-    ObserverRuntimeConfig {
-        // Checkpoints: Only feature enabled (safety essential)
-        checkpoint_batch_size: 500,
-        checkpoint_store: Arc::new(
-            PostgresCheckpointStore::new(
-                "postgresql://localhost/observers",
-                "observer_checkpoints"
-            )
-            .await
-            .expect("Failed to initialize checkpoint store")
-        ),
+```toml
+channel_capacity = 1000
+max_concurrency = 20
 
-        // No extras (keep costs down)
-        dedup_store: Arc::new(NullDeduplicationStore::new()),
-        cache_backend: Arc::new(NullCacheBackend::new()),
-        search_backend: Arc::new(NullSearchBackend::new()),
-        metrics: None,
-        job_queue: Arc::new(NullJobQueue::new()),
+[transport]
+transport = "postgres"
 
-        // Conservative retry (limited costs)
-        retry_strategy: BackoffStrategy::Fixed {
-            delay: Duration::from_secs(1),
-        },
-        max_retry_attempts: 3,
-
-        // Single listener (no HA complexity)
-        multi_listener_config: None,
-
-        // Moderate queue
-        max_queue_size: 5000,
-
-        log_level: "warn".to_string(),
-    }
-}
+[performance]
+enable_dedup = false      # both need [redis]; PerformanceConfig::validate rejects them without it
+enable_caching = false
+max_concurrent_actions = 5
 ```
 
-**Cost Estimate**:
-
-- PostgreSQL: ~$15/month (managed service)
-- Compute: ~$50/month (single instance)
-- **Total: ~$65/month**
+`ExecutorFactory::build_postgres_only` builds this shape and returns
+`ObserverError::InvalidConfig` if deduplication or caching is enabled.
 
 ---
 
@@ -415,265 +337,199 @@ pub async fn budget_config() -> ObserverRuntimeConfig {
 
 ### Example 1: Checkpoint Configuration
 
+The listener's batch size and poll interval live on `ChangeLogListenerConfig`:
+
 ```rust
-// Save checkpoint after every 100 events (balance)
-checkpoint_batch_size: 100,
+use fraiseql_observers::ChangeLogListenerConfig;
 
-// Or: Save immediately (safest but slowest)
-checkpoint_batch_size: 1,
+// `pool` is your `sqlx::PgPool`.
 
-// Or: Save every 10000 events (fast but riskier)
-checkpoint_batch_size: 10000,
+// Safest: small batches, frequent polls.
+let mut careful = ChangeLogListenerConfig::new(pool.clone());
+careful.batch_size = 10;
+careful.poll_interval_ms = 50;
+
+// Throughput: larger batches.
+let mut fast = ChangeLogListenerConfig::new(pool.clone());
+fast.batch_size = 1000;
 ```
 
-**When to use**:
-
-- `1`: Financial transactions, healthcare (safety critical)
-- `100`: Most production systems
-- `10000`: High-throughput, lower-criticality
+Delivery is at-least-once by default (`CheckpointStrategy::AtLeastOnce`): a crash between the
+side effect and the checkpoint write redelivers the event. Use
+`CheckpointStrategy::EffectivelyOnce { idempotency_table }` when side effects are not
+idempotent; it costs one extra database round trip per event.
 
 ---
 
-### Example 2: Retry Strategy Configuration
+### Example 2: Retry Configuration
 
-#### Exponential Backoff (Standard)
+Retries are configured **per observer**, in `[observers.<name>.retry]`. `RetryConfig` rejects
+unknown keys. The delay before the retry that follows failed attempt *n* is:
 
-```rust
-retry_strategy: BackoffStrategy::Exponential {
-    initial: Duration::from_millis(100),
-    max: Duration::from_secs(30),
-},
+| `backoff_strategy` | Delay | Example (`initial_delay_ms = 100`, `max_delay_ms = 10000`) |
+|--------------------|-------|-----------------------------------------------------------|
+| `exponential` (default) | `2^(n-1) × initial`, capped at `max`, with ±25% jitter | about 100, 200, 400, 800 ms … |
+| `linear` | `n × initial`, capped at `max` | 100, 200, 300, 400 ms … |
+| `fixed` | `initial` | 100, 100, 100 ms … |
+
+```toml
+[observers.payment_failed.retry]
+max_attempts = 5
+initial_delay_ms = 100
+max_delay_ms = 10000
+backoff_strategy = "linear"
 ```
 
-Delays: 100ms, 200ms, 400ms, 800ms, 1.6s, 3.2s, 6.4s, 12.8s, 25.6s, 30s
-
-**Use case**: Transient failures (network glitches, temporary overload)
-
-#### Linear Backoff (Predictable)
-
-```rust
-retry_strategy: BackoffStrategy::Linear {
-    initial: Duration::from_millis(100),
-    increment: Duration::from_millis(100),
-    max: Duration::from_secs(10),
-},
-```
-
-Delays: 100ms, 200ms, 300ms, 400ms, ..., 10s
-
-**Use case**: More predictable, uniform retry pattern
-
-#### Fixed Backoff (Simple)
-
-```rust
-retry_strategy: BackoffStrategy::Fixed {
-    delay: Duration::from_millis(100),
-},
-```
-
-Delays: 100ms, 100ms, 100ms, ...
-
-**Use case**: Testing, or when service recovers quickly
+`on_failure` decides what happens after the last attempt: `"log"` (default), `"alert"` or
+`"dlq"`.
 
 ---
 
 ### Example 3: Circuit Breaker Configuration
 
-#### Aggressive (Fail Fast)
+`CircuitBreakerConfig` is a plain struct, passed to `CircuitBreaker::new`:
 
 ```rust
-CircuitBreakerConfig {
-    failure_threshold: 0.2,      // Open at 20% failures
-    success_threshold: 0.9,      // Close at 90% success
-    timeout: Duration::from_secs(10),
+use fraiseql_observers::{CircuitBreaker, CircuitBreakerConfig};
+
+// Aggressive: fail fast to protect an expensive downstream.
+let aggressive = CircuitBreaker::new(CircuitBreakerConfig {
+    failure_threshold: 0.2,       // open at a 20% failure rate
     sample_size: 50,
-}
-```
+    open_timeout_ms: 10_000,      // probe again after 10 s
+    half_open_max_requests: 3,
+});
 
-**Use case**: Expensive operations (protect system from runaway)
-
-#### Conservative (High Tolerance)
-
-```rust
-CircuitBreakerConfig {
-    failure_threshold: 0.7,      // Open at 70% failures
-    success_threshold: 0.5,      // Close at 50% success
-    timeout: Duration::from_secs(300),
+// Conservative: tolerate brief outages.
+let conservative = CircuitBreaker::new(CircuitBreakerConfig {
+    failure_threshold: 0.7,
     sample_size: 1000,
-}
+    open_timeout_ms: 300_000,
+    half_open_max_requests: 10,
+});
 ```
 
-**Use case**: Resilient to brief outages, don't want false alarms
+The default is a 50% failure rate over the last 100 requests, 30 s before half-open, and up to
+5 half-open requests.
 
 ---
 
-### Example 4: Cache Configuration
+### Example 4: Cache and Deduplication Windows
 
-#### Aggressive Caching (Speed Priority)
+Both live in `[redis]` and are switched on in `[performance]`:
 
-```rust
-cache_backend: Arc::new(
-    RedisCacheBackend::with_config(
-        "redis://localhost",
-        CacheConfig {
-            ttl: Duration::from_secs(3600),  // 1 hour
-            max_size: 1_000_000,  // 1M entries
-        }
-    )
-    .await?
-),
+```toml
+[redis]
+url = "redis://redis:6379"
+cache_ttl_secs = 60       # 1..=3600
+dedup_window_secs = 300   # 1..=3600
+
+[performance]
+enable_caching = true
+enable_dedup = true
 ```
 
-**Result**: 95%+ hit rate, extreme performance
-
-#### Conservative Caching (Correctness Priority)
-
-```rust
-cache_backend: Arc::new(
-    RedisCacheBackend::with_config(
-        "redis://localhost",
-        CacheConfig {
-            ttl: Duration::from_secs(60),  // 1 minute
-            max_size: 10_000,  // 10k entries
-        }
-    )
-    .await?
-),
-```
-
-**Result**: ~50-60% hit rate, fresher data
+A longer `cache_ttl_secs` serves staler results; a shorter one re-runs the action more often.
+A value of `0`, or above `3600`, fails `RedisConfig::validate`.
 
 ---
 
 ### Example 5: Multi-Listener Configuration
 
-#### 1 Listener (No HA)
+`MultiListenerConfig` is its own struct; it is not a field of `ObserverRuntimeConfig`.
+Standard failover:
 
 ```rust
-multi_listener_config: None,
+use fraiseql_observers::MultiListenerConfig;
+
+let config: MultiListenerConfig = toml::from_str(
+    r#"
+    enabled = true
+    listener_id = "orders-listener-1"
+    lease_duration_ms = 30000
+    health_check_interval_ms = 5000
+    failover_threshold_ms = 60000
+    max_listeners = 3
+    "#,
+)
+.expect("valid MultiListenerConfig TOML");
 ```
 
-**Use case**: Development, non-critical systems
-
-#### 3 Listeners (Standard HA)
-
-```rust
-multi_listener_config: Some(MultiListenerConfig {
-    num_listeners: 3,
-    health_check_interval: Duration::from_secs(5),
-    failover_threshold: Duration::from_secs(60),
-}),
-```
-
-**Use case**: Production with acceptable downtime (seconds)
-
-#### 5 Listeners (High Availability)
-
-```rust
-multi_listener_config: Some(MultiListenerConfig {
-    num_listeners: 5,
-    health_check_interval: Duration::from_secs(2),
-    failover_threshold: Duration::from_secs(10),
-}),
-```
-
-**Use case**: Mission-critical with minimal acceptable downtime
+A tighter failover, for mission-critical systems, lowers `health_check_interval_ms` and
+`failover_threshold_ms` (for example to `2000` and `10000`). With `enabled = false` (the
+default) the instance runs alone. The coordinator is `MultiListenerCoordinator`;
+`CheckpointLease::redis` (feature `redis-lease`) is the lease for multi-process setups.
 
 ---
 
-## Environment-Based Configuration
+### Example 6: Search Sink
 
-### Using Config from Environment
+With the `search` feature, `ElasticsearchSink` bulk-indexes events and `HttpSearchBackend`
+(`HttpSearchBackend::new(url)`) is the Elasticsearch implementation of `SearchBackend`. The
+sink is configured by `ElasticsearchSinkConfig`:
 
 ```rust
-use std::env;
-use std::time::Duration;
+use fraiseql_observers::{ElasticsearchSink, ElasticsearchSinkConfig};
 
-pub async fn config_from_env() -> ObserverRuntimeConfig {
-    let environment = env::var("ENVIRONMENT").unwrap_or("development".to_string());
+let sink = ElasticsearchSink::new(ElasticsearchSinkConfig {
+    url: "http://elasticsearch:9200".to_string(),
+    index_prefix: "fraiseql-events".to_string(),
+    bulk_size: 1000,
+    flush_interval_secs: 5,
+    max_retries: 3,
+})?;
+```
 
-    match environment.as_str() {
-        "production" => production_config().await,
-        "staging" => staging_config().await,
-        "development" => development_config().await,
-        _ => panic!("Unknown environment: {}", environment),
-    }
+The URL goes through the same SSRF check as action URLs, so a loopback or private IP literal
+is rejected.
+
+---
+
+## Environment Overrides
+
+`RedisConfig`, `JobQueueConfig`, `ClickHouseConfig`, `PerformanceConfig` and `TransportConfig`
+each have `with_env_overrides()`, which replaces a field when its variable is set and parses.
+`ObserverRuntimeConfig` itself has no such method, so apply it to the sections you use:
+
+```rust
+use fraiseql_observers::ObserverRuntimeConfig;
+
+fn load(toml_text: &str) -> Result<ObserverRuntimeConfig, Box<dyn std::error::Error>> {
+    let mut config: ObserverRuntimeConfig = toml::from_str(toml_text)?;
+    config.transport = config.transport.with_env_overrides();
+    config.performance = config.performance.with_env_overrides();
+    config.redis = config.redis.map(|r| r.with_env_overrides());
+    config.job_queue = config.job_queue.map(|q| q.with_env_overrides());
+    config.validate()?;
+    Ok(config)
 }
 ```
 
-### Staging Configuration
+| Section | Variables |
+|---------|-----------|
+| `redis` | `FRAISEQL_REDIS_URL`, `FRAISEQL_REDIS_POOL_SIZE`, `FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS`, `FRAISEQL_REDIS_COMMAND_TIMEOUT_SECS`, `FRAISEQL_REDIS_DEDUP_WINDOW_SECS`, `FRAISEQL_REDIS_CACHE_TTL_SECS` |
+| `job_queue` | `FRAISEQL_JOB_QUEUE_URL`, `FRAISEQL_JOB_QUEUE_BATCH_SIZE`, `FRAISEQL_JOB_QUEUE_BATCH_TIMEOUT_SECS`, `FRAISEQL_JOB_QUEUE_MAX_RETRIES`, `FRAISEQL_JOB_QUEUE_WORKER_CONCURRENCY`, `FRAISEQL_JOB_QUEUE_POLL_INTERVAL_MS`, `FRAISEQL_JOB_QUEUE_INITIAL_DELAY_MS`, `FRAISEQL_JOB_QUEUE_MAX_DELAY_MS` |
+| `performance` | `FRAISEQL_ENABLE_DEDUP`, `FRAISEQL_ENABLE_CACHING`, `FRAISEQL_ENABLE_CONCURRENT`, `FRAISEQL_MAX_CONCURRENT_ACTIONS`, `FRAISEQL_CONCURRENT_TIMEOUT_MS` |
+| `transport` | `FRAISEQL_OBSERVER_TRANSPORT` (`postgres`, `nats`, `in_memory`), `FRAISEQL_NATS_URL`, `FRAISEQL_NATS_ENABLE_BRIDGE`, `FRAISEQL_NATS_RUN_EXECUTORS`, plus the other `FRAISEQL_NATS_*` and `FRAISEQL_BRIDGE_*` variables read in `src/config/transport.rs` |
+| `clickhouse` | `FRAISEQL_CLICKHOUSE_URL`, `FRAISEQL_CLICKHOUSE_DATABASE`, `FRAISEQL_CLICKHOUSE_TABLE`, `FRAISEQL_CLICKHOUSE_BATCH_SIZE`, `FRAISEQL_CLICKHOUSE_BATCH_TIMEOUT_SECS`, `FRAISEQL_CLICKHOUSE_MAX_RETRIES` |
 
-```rust
-pub async fn staging_config() -> ObserverRuntimeConfig {
-    // Similar to production but with:
-    // - Shorter retry delays (test faster)
-    // - Smaller batches (detect issues quicker)
-    // - Same features (test production setup)
-
-    let mut config = production_config().await;
-    config.checkpoint_batch_size = 10;  // More frequent saves
-    config.retry_strategy = BackoffStrategy::Fixed {
-        delay: Duration::from_millis(100),
-    };
-    config
-}
-```
+To keep one configuration per environment, keep one TOML file per environment (for example
+`observers.production.toml` and `observers.staging.toml`) and choose between them in your own
+code; nothing in the crate selects one.
 
 ---
 
 ## Migration Path
 
-### Deploy with Checkpoints Only
+Add capabilities one at a time; each is a Cargo feature plus a config section.
 
-```toml
-[features]
-phase1 = ["checkpoint"]
-```
-
-- Enables zero-event-loss guarantee
-- No external dependencies (except PostgreSQL)
-- Safe foundation
-
-### Add Caching
-
-```toml
-[features]
-phase2 = ["checkpoint", "caching"]
-```
-
-- Reduces external API load
-- Improves latency
-- Adds Redis dependency
-
-### Add Deduplication
-
-```toml
-[features]
-phase3 = ["checkpoint", "caching", "dedup"]
-```
-
-- Prevents duplicate side effects
-- Uses existing Redis
-
-### Add Monitoring
-
-```toml
-[features]
-phase4 = ["checkpoint", "caching", "dedup", "metrics"]
-```
-
-- Production observability
-- Enables alerting
-
-### Add Search
-
-```toml
-[features]
-final = ["checkpoint", "caching", "dedup", "metrics", "search"]
-```
-
-- Compliance-ready audit trail
-- Full debugging capability
+| Step | Features | Config | Adds |
+|------|----------|--------|------|
+| 1 | `checkpoint` | `[transport]` | No event loss across restarts; PostgreSQL only |
+| 2 | `+ caching` | `[redis]`, `performance.enable_caching` | Redis dependency; fewer repeated action calls |
+| 3 | `+ dedup` | `performance.enable_dedup` | Suppresses duplicate side effects; reuses the same Redis |
+| 4 | `+ metrics` | | Prometheus metrics (`MetricsRegistry`) |
+| 5 | `+ search` | | `ElasticsearchSink` audit trail |
 
 ---
 
@@ -681,67 +537,29 @@ final = ["checkpoint", "caching", "dedup", "metrics", "search"]
 
 ### Increase Throughput
 
-1. **Increase checkpoint batch size**
-
-   ```rust
-   checkpoint_batch_size: 1000,  // Was 100
-   ```
-
-   Trade-off: Higher data loss risk on crash
-
-2. **Enable aggressive caching**
-
-   ```rust
-   cache_ttl: Duration::from_secs(600),  // Was 60
-   ```
-
-   Trade-off: Staler data
-
-3. **Increase worker pool**
-
-   ```rust
-   job_queue: Arc::new(RedisJobQueue::with_workers("redis://...", 500))
-   ```
-
-   Trade-off: Higher resource usage
+1. **Larger listener batches**: `ChangeLogListenerConfig.batch_size = 1000`. Fewer round trips;
+   more events are in flight if the process crashes.
+2. **Longer cache TTL**: `redis.cache_ttl_secs = 600`. Staler results.
+3. **More concurrency**: raise `max_concurrency`, `performance.max_concurrent_actions` and
+   `job_queue.worker_concurrency`. More resource use.
 
 ### Reduce Latency
 
-1. **Reduce cache TTL** (for fresher data)
-
-   ```rust
-   cache_ttl: Duration::from_secs(10),  // Was 60
-   ```
-
-2. **Reduce retry delays**
-
-   ```rust
-   retry_strategy: BackoffStrategy::Fixed {
-       delay: Duration::from_millis(10),  // Was 100
-   },
-   ```
-
-3. **Decrease checkpoint batch size**
-
-   ```rust
-   checkpoint_batch_size: 10,  // Was 100
-   ```
-
-   Trade-off: More frequent writes to database
+1. **Shorter cache TTL**: `redis.cache_ttl_secs = 10`.
+2. **Shorter retry delays**: `initial_delay_ms = 10` with `backoff_strategy = "fixed"`.
+3. **Smaller listener batches and a shorter `poll_interval_ms`**: more frequent database reads.
 
 ---
 
 ## Checklist: Configuration Review
 
-- [ ] Selected appropriate feature set for use case
-- [ ] Configured checkpoint batch size
-- [ ] Set retry strategy and max attempts
-- [ ] Configured circuit breaker thresholds
-- [ ] Set cache TTL and size
-- [ ] Configured multi-listener if using HA
-- [ ] Set overflow policy and queue size
-- [ ] Configured external service URLs
-- [ ] Set log level
-- [ ] Tested configuration with sample events
-- [ ] Documented configuration choices
-- [ ] Set up monitoring and alerting
+- [ ] Selected the Cargo features for the use case
+- [ ] Used one listener id for the `ChangeLogListenerConfig` and its checkpoint store
+- [ ] Set `retry` and `on_failure` on every observer
+- [ ] Set `max_dlq_size` if any observer uses `on_failure = "dlq"`
+- [ ] Set the `redis` TTLs and windows, and the `[performance]` flags that depend on them
+- [ ] Configured `MultiListenerConfig` if running more than one listener
+- [ ] Set `channel_capacity` and `backlog_alert_threshold`
+- [ ] Supplied secrets through `*_env` keys or environment overrides, not literals
+- [ ] Ran `ObserverRuntimeConfig::validate()` on the loaded config
+- [ ] Tested the configuration with sample events

@@ -323,8 +323,8 @@ fraiseql-observers metrics | grep cache
 # 1. Reduce TTL
 cache_ttl: Duration::from_secs(60),  # Was 300
 
-# 2. Or disable cache
-// cache_backend: Arc::new(NullCacheBackend::new()),
+# 2. Or disable cache (requires no [redis] change)
+# performance.enable_caching = false
 ```
 
 ---
@@ -555,10 +555,11 @@ Fastest, no data loss:
 
 ```bash
 # Disable most recent feature
-# E.g., disable caching:
-cache_backend: Arc::new(NullCacheBackend::new()),
+# E.g., disable caching, in the observer TOML config:
+#   [performance]
+#   enable_caching = false
 
-// Redeploy
+# Redeploy
 cargo build --release
 docker build -t observer:rollback .
 docker-compose up
