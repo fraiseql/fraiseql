@@ -85,9 +85,12 @@ fn test_to_snake_case_registered_acronym_after_the_first_word() {
         ("emissionEc2", "emission_ec2"),
         ("hostIpv4", "host_ipv4"),
         ("authOauth2Token", "auth_oauth2_token"),
-        // First word, camelCase and PascalCase — must keep working.
+        // First word, camelCase — unchanged.
         ("ec2Emission", "ec2_emission"),
+        // First word, PascalCase — also fixed: the candidate used to be `c2`, so a type
+        // name gave `ec_2_emission` (and `pk_ec_2_…`, `--emit-ddl` table names).
         ("Ec2Emission", "ec2_emission"),
+        ("Ec2Instance", "ec2_instance"),
         ("EmissionEc2Kg", "emission_ec2_kg"),
         // Already snake: idempotent.
         ("emission_ec2_kg", "emission_ec2_kg"),
@@ -106,6 +109,24 @@ fn test_to_snake_case_unregistered_word_digit_still_splits_after_the_first_word(
         ("emissionCo2", "emission_co_2"),
         ("co2Emission", "co_2_emission"),
         ("hostFoo4", "host_foo_4"),
+    ];
+    for (input, expected) in cases {
+        assert_eq!(to_snake_case(input), expected, "input `{input}`");
+    }
+}
+
+/// #1372, the behaviour the fix changed on purpose: the candidate is the whole word,
+/// capital included, so a word that merely *ends* in a registered acronym is no longer
+/// kept whole after the first word. `consolePs3` used to test `s3` and give
+/// `console_ps3`; the word is `Ps3`, unregistered, so it splits like `ps3` as a first
+/// word always did. Registering `ps3` keeps it whole.
+#[test]
+fn test_to_snake_case_word_ending_in_an_acronym_splits_like_its_first_word_form() {
+    let cases = [
+        ("ps3", "ps_3"),
+        ("consolePs3", "console_ps_3"),
+        ("HTTPs3", "htt_ps_3"),
+        ("Xs3", "xs_3"),
     ];
     for (input, expected) in cases {
         assert_eq!(to_snake_case(input), expected, "input `{input}`");

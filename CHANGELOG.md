@@ -76,6 +76,13 @@ disagreed, and the promise was the part that was wrong.
   word, so `emissionEc2Kg` → `emission_ec2_kg` and `hostIpv4` → `host_ipv4`, for the
   built-in acronyms and for `[fraiseql.naming] acronyms`. An unregistered name still
   splits (`emissionCo2Kg` stays `emission_co_2_kg` until `co2` is registered).
+  Two other names change with it. A PascalCase name that *starts* with an acronym was
+  split too, and type names go through the same function: `Ec2Instance` now gives
+  `ec2_instance`, so the inferred primary-key column is `pk_ec2_instance` (was
+  `pk_ec_2_instance`) and so is the `--emit-ddl` table name. And a word that only *ends*
+  in an acronym after the first word is no longer kept whole: `consolePs3` gives
+  `console_ps_3` (was `console_ps3`), as `ps3` as a first word always did. Register `ps3`
+  to keep it whole.
 
 ### Security
 
