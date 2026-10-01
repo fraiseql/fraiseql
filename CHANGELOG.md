@@ -63,9 +63,10 @@ disagreed, and the promise was the part that was wrong.
   (#1369).** It summed ten wake gaps against a 10 ms ceiling, a sub-millisecond scheduler
   budget per thread wake-up: with 300 CPU burners running it failed 12 runs in 40 at
   10–22 ms, and it had failed `make test-unit` and `make test-leg` the same way. It now
-  judges the median gap against 4 ms, with sleep offsets that make a poll-based watchdog
-  wake 7–9 ms late every round (median ~10 ms with signalling disabled and a 10 ms wake
-  cap, so the test still fails for that defect). Test only; the watchdog is unchanged.
+  judges the median gap against 4 ms, and calls `finish` 11–13 ms after the waiter itself
+  started waiting, so a poll-based watchdog wakes 7–9 ms late every round (median ~8 ms
+  with signalling disabled and a 10 ms wake cap, so the test still fails for that
+  defect). Test only; the watchdog is unchanged.
 
 - **A registered acronym is recognised after the first word of a camelCase name (#1372).**
   `to_snake_case` tested the acronym registry from the first lowercase letter of the current

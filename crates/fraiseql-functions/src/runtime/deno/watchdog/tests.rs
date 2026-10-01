@@ -9,7 +9,7 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics acceptable
 
 use std::{
-    sync::Arc,
+    sync::{Arc, mpsc},
     thread,
     time::{Duration, Instant},
 };
@@ -30,9 +30,12 @@ use super::{WatchdogOutcome, WatchdogSignal};
 /// 300 CPU burners running, against a 10 ms ceiling), while the median ignores up
 /// to four outliers out of ten.
 ///
-/// The sleep offsets are 11, 12 or 13 ms: against the old 10 ms poll loop, `finish`
-/// then lands 1–3 ms into a poll period, so that implementation woke 7–9 ms late
-/// **every** round and its median gap was ~8 ms. The ceiling is 4 ms, half of that,
+/// `finish` is called 11, 12 or 13 ms after the waiter **itself** reported that it was
+/// about to wait, not after this thread started sleeping: a poll loop's grid starts
+/// when the waiter starts, which on a loaded box can be milliseconds after the spawn.
+/// Anchored there, `finish` lands 1–3 ms into a 10 ms poll period, so the old
+/// implementation wakes 7–9 ms late **every** round instead of at a random phase (where
+/// a median under 4 ms would happen by luck about one run in six). The ceiling is 4 ms,
 /// which a condvar wake clears by orders of magnitude even on a loaded box.
 #[test]
 fn a_finished_invocation_wakes_the_watchdog_at_once() {
@@ -44,17 +47,22 @@ fn a_finished_invocation_wakes_the_watchdog_at_once() {
         // A deadline far enough away that it can never be the reason for a wake.
         let deadline = Instant::now() + Duration::from_mins(1);
 
+        let (started_tx, started_rx) = mpsc::channel();
         let waiter = {
             let signal = Arc::clone(&signal);
             thread::spawn(move || {
+                started_tx.send(Instant::now()).unwrap();
                 let outcome = signal.wait_until(deadline);
                 (outcome, Instant::now())
             })
         };
 
-        // Let the waiter block. 11–13 ms is just past a multiple of the old 10 ms
-        // poll interval, the phase at which a poll loop is slowest to notice.
-        thread::sleep(Duration::from_millis(11 + u64::from(round % 3)));
+        // Let the waiter block, timed from when it started waiting. 11–13 ms is just
+        // past a multiple of the old 10 ms poll interval, the phase at which a poll loop
+        // is slowest to notice.
+        let waiter_started = started_rx.recv().unwrap();
+        let finish_at = waiter_started + Duration::from_millis(11 + u64::from(round % 3));
+        thread::sleep(finish_at.saturating_duration_since(Instant::now()));
         let finished_at = Instant::now();
         signal.finish();
 
