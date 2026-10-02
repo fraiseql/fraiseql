@@ -25,7 +25,7 @@ use tempfile::{NamedTempFile, TempDir};
 
 /// A realistic SDK-shaped `schema.json` carrying a federation block exactly as the
 /// Python SDK's `export_schema(..., federation=Federation(...))` emits it:
-/// top-level `"federation"` key, `apollo_version`, and entities shaped as
+/// top-level `"federation"` key, `version`, and entities shaped as
 /// `{ "name": ..., "key_fields": [...] }` (NOT `{type_name, key_fields: "id"}`).
 const SDK_SCHEMA_WITH_FEDERATION: &str = r#"
 {
@@ -56,7 +56,7 @@ const SDK_SCHEMA_WITH_FEDERATION: &str = r#"
   "federation": {
     "enabled": true,
     "service_name": "orders",
-    "apollo_version": 2,
+    "version": "v2",
     "entities": [
       {"name": "Order", "key_fields": ["id"]}
     ]
@@ -217,6 +217,7 @@ fn toml_federation_carries_through_merger_and_converter() {
 
         [types.Order]
         sql_source = "v_orders"
+        fields.id = { type = "ID" }
 
         [federation]
         enabled = true
@@ -257,6 +258,7 @@ fn toml_federation_service_name_and_version_reach_compiled_schema() {
 
         [types.Order]
         sql_source = "v_orders"
+        fields.id = { type = "ID" }
 
         [federation]
         enabled = true
@@ -330,9 +332,12 @@ fn toml_federation_declares_an_extended_entity_and_renders_it() {
 
         [types.Order]
         sql_source = "v_orders"
+        fields.id = { type = "ID" }
 
         [types.User]
         sql_source = "v_users"
+        fields.id = { type = "ID" }
+        fields.email = { type = "String" }
 
         [federation]
         enabled = true
@@ -374,4 +379,35 @@ fn toml_federation_declares_an_extended_entity_and_renders_it() {
         sdl.contains("extend type User"),
         "an extended entity must render as `extend type`, got:\n{sdl}"
     );
+}
+
+/// The compiled `federation` block refuses a key it does not know (#1395): the
+/// 2.15.0 Python SDK emitted `apollo_version`, which the core struct dropped in
+/// silence, and the dead `federation.types` shape was dropped the same way.
+#[test]
+fn legacy_json_unknown_federation_key_fails_loudly() {
+    for unknown in [r#""apollo_version": 2"#, r#""types": []"#] {
+        let doc = SDK_SCHEMA_WITH_FEDERATION
+            .replace(r#""version": "v2","#, &format!(r#""version": "v2", {unknown},"#));
+        let intermediate: IntermediateSchema = serde_json::from_str(&doc).unwrap();
+        let err = SchemaConverter::convert(intermediate)
+            .expect_err("an unknown federation key must fail the compile");
+        let chain = format!("{err:#}");
+        let key = unknown.split('"').nth(1).unwrap();
+        assert!(chain.contains(&format!("unknown field `{key}`")), "{key}: {chain}");
+    }
+}
+
+/// `SchemaConverter::convert` reports a bad key itself, in the same report as every
+/// other schema problem (#1395) — not only when `compile` reloads its own output.
+#[test]
+fn the_converter_reports_an_unknown_key_field_with_the_other_schema_problems() {
+    let doc = SDK_SCHEMA_WITH_FEDERATION
+        .replace(r#""key_fields": ["id"]"#, r#""key_fields": ["id", "region"]"#)
+        .replace(r#""return_type": "Order","#, r#""return_type": "Ordr","#);
+    let intermediate: IntermediateSchema = serde_json::from_str(&doc).unwrap();
+    let err = format!("{:#}", SchemaConverter::convert(intermediate).unwrap_err());
+    assert!(err.contains("2 problems"), "both problems in one report: {err}");
+    assert!(err.contains("'Order'") && err.contains("'region'"), "{err}");
+    assert!(err.contains("'Ordr'"), "{err}");
 }

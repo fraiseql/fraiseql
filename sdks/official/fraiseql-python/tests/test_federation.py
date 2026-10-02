@@ -121,7 +121,7 @@ def test_get_schema_dict_with_federation():
     block = schema["federation"]
     assert block["enabled"] is True
     assert block["service_name"] == "my-subgraph"
-    assert block["apollo_version"] == 2
+    assert "apollo_version" not in block  # the compiler refuses unknown keys (#1395)
 
     entities = {e["name"]: e["key_fields"] for e in block["entities"]}
     # User has no explicit key_fields → defaults to ["id"]
@@ -371,8 +371,7 @@ def test_federation_no_shareable_types_key_when_none():
 
 
 def test_federation_emits_version_string():
-    # The Rust core FederationConfig reads `version` (the @link spec URL); the legacy
-    # int `apollo_version` is ignored there. Emit both.
+    # The Rust core FederationConfig reads `version` (the @link spec URL).
     @fraiseql.type
     class User:
         id: ID
@@ -506,3 +505,67 @@ def test_federation_default_key_fields_are_published_names_too():
     fed = fraiseql.Federation(service_name="things", default_key_fields=["tenant_id"])
     block = fraiseql.get_schema_dict(federation=fed)["federation"]
     assert block["entities"][0]["key_fields"] == ["tenantId"]
+
+
+# ---------------------------------------------------------------------------
+# #1395: only a type that can be keyed becomes an entity
+# ---------------------------------------------------------------------------
+
+
+def test_embedded_type_is_not_emitted_as_an_entity():
+    @fraiseql.type(embedded=True)
+    class Reading:
+        serial: str
+
+    @fraiseql.type
+    class Meter:
+        id: ID
+        reading: Reading
+
+    block = fraiseql.get_schema_dict(federation=fraiseql.Federation(service_name="s"))["federation"]
+    assert [e["name"] for e in block["entities"]] == ["Meter"]
+
+
+def test_embedded_type_with_an_id_is_still_not_an_entity():
+    @fraiseql.type(embedded=True)
+    class Money:
+        id: ID
+        amount: int
+
+    block = fraiseql.get_schema_dict(federation=fraiseql.Federation(service_name="s"))["federation"]
+    assert block["entities"] == []
+
+
+def test_type_without_the_default_key_fields_is_not_an_entity():
+    @fraiseql.type
+    class Org:
+        organization_id: ID
+        name: str
+
+    block = fraiseql.get_schema_dict(federation=fraiseql.Federation(service_name="s"))["federation"]
+    assert block["entities"] == []
+
+
+def test_declared_key_fields_are_emitted_even_when_wrong_so_the_compiler_reports_them():
+    @fraiseql.type(key_fields=["region"])
+    class Org:
+        id: ID
+
+    block = fraiseql.get_schema_dict(federation=fraiseql.Federation(service_name="s"))["federation"]
+    assert block["entities"] == [{"name": "Org", "key_fields": ["region"]}]
+
+
+def test_embedded_type_cannot_declare_key_fields():
+    with pytest.raises(ValueError, match="cannot be a federation entity"):
+
+        @fraiseql.type(embedded=True, key_fields=["serial"])
+        class Reading:
+            serial: str
+
+
+def test_embedded_type_cannot_extend_an_entity():
+    with pytest.raises(ValueError, match="cannot be a federation entity"):
+
+        @fraiseql.type(embedded=True, extends=True)
+        class Reading:
+            serial: str

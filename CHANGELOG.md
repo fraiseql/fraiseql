@@ -37,6 +37,47 @@ disagreed, and the promise was the part that was wrong.
   warnings are deleted: they could never print, because the pool refused the URL first.
   A libpq `key=value` connection string is still accepted.
 
+- **A federation `@key` the router would reject no longer compiles, loads or passes
+  `fraiseql federation check` (#1395).** An entity keyed on a field its type does not
+  publish compiled with exit 0 and served an SDL the router then refused with
+  `KEY_INVALID_FIELDS`. One rule, `CompiledSchema::federation_key_problems`, now runs in
+  `fraiseql compile` (every authoring path: `schema.json`, `fraiseql.toml`, and
+  `fraiseql.toml` + `--types`) and when any entry point loads a compiled schema. It parses
+  the key as a GraphQL field set, so composite (`"a b"` or `["a", "b"]`) and nested
+  (`"org { id }"`) keys are checked through each field's type, and it refuses: an entity
+  naming no declared type or interface, an entity declared twice, an `embedded` value type
+  as an entity, an empty key, a key that is not a field set (alias, argument, directive,
+  fragment, unbalanced brace), a field the type does not declare, a selection on a leaf, an
+  object field with no selection, and a list, interface, union or input-object field.
+  Names match exactly, as the router does; a snake_case key against a camelCase field is
+  refused with a hint naming the published spelling. The TOML "entity references undefined
+  type" check is gone: it ran only on the paths where every type is declared in TOML, so on
+  the `--types` path an entity naming a type neither file declared compiled clean. **Upgrade:** recompile; fix each key the report names. A compiled
+  schema from 2.15.0 with such a key no longer boots.
+- **The compiled `federation` block refuses unknown keys.** `federation`, its `entities`,
+  `circuit_breaker` and `circuit_breaker.per_entity` were deserialized without
+  `deny_unknown_fields`, so a misspelled key was dropped in silence. The golden fixture
+  `07-relay-uuid-cursor.json` spelled its per-entity override `per_entity_overrides`, and the
+  override never applied. **Upgrade:** a `schema.json` written by the 2.15.0 Python SDK
+  carries `federation.apollo_version`, which is now refused; regenerate it with this SDK.
+- **`fraiseql federation check` reads the compiled schema.** It walked
+  `federation.types[].keys[]`, a shape no producer writes, so on every artifact `compile`
+  wrote it validated nothing and reported success. It now loads the input as a compiled
+  schema, reports `federation_key_problems`, and refuses the old shape. `--against` now
+  takes another subgraph's `schema.compiled.json` and checks that an entity both declare is
+  keyed identically and that a field both define is `@shareable` on both (or `@external`
+  here, or part of the key). The `@requires`, `@provides`, `@override` and `@inaccessible`
+  checks are gone: the compiled schema cannot carry those directives, so they could never
+  fire.
+- **Python SDK: only a type that can be keyed becomes a federation entity.**
+  `export_schema(federation=…)` made every non-error type an entity keyed on
+  `default_key_fields`, including `embedded` value types and types with no `id`, so the
+  default output of any schema with such a type was refused by the router. An `embedded`
+  type is never an entity, and `embedded=True` with `key_fields` or `extends=True` raises at
+  decoration. A type without `key_fields` becomes an entity only when it publishes every
+  default key field; declared `key_fields` are emitted as written and judged by the compiler.
+  The block no longer carries `apollo_version`.
+
 ### Security
 
 - **Five accepted advisories were extended by 30 days, not re-argued.** The risk acceptances

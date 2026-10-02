@@ -475,7 +475,12 @@ fn golden_07_federation_debug_mcp_sdl() {
     let fed = schema.federation.as_ref().expect("federation must be present");
     assert!(fed.enabled);
     assert_eq!(fed.service_name.as_deref(), Some("items-service"));
-    assert!(fed.circuit_breaker.is_some());
+    // The per-entity override is read, not dropped: the fixture spelled it
+    // `per_entity_overrides` for as long as unknown keys were ignored (#1395).
+    let breaker = fed.circuit_breaker.as_ref().expect("circuit_breaker must be present");
+    assert_eq!(breaker.per_entity.len(), 1);
+    assert_eq!(breaker.per_entity[0].entity, "Item");
+    assert_eq!(breaker.per_entity[0].failure_threshold, Some(3));
 
     let debug = schema.debug_config.as_ref().expect("debug_config must be present");
     assert!(debug.enabled);

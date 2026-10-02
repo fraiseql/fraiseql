@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 /// Federation configuration for Apollo Federation v2 support.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FederationConfig {
     /// Enable Apollo federation.
     #[serde(default)]
@@ -37,6 +38,7 @@ pub struct FederationConfig {
 
 /// Federated entity configuration.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct FederationEntity {
     /// Entity type name (e.g., "User", "Product").
     pub name:             String,
@@ -57,6 +59,7 @@ pub struct FederationEntity {
 
 /// Circuit breaker configuration for federation entity resolution.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct CircuitBreakerConfig {
     /// Enable circuit breaker protection.
     #[serde(default)]
@@ -101,6 +104,7 @@ impl Default for CircuitBreakerConfig {
 
 /// Per-entity circuit breaker configuration override.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct EntityCircuitBreakerOverride {
     /// Entity type name to apply override to.
     pub entity:            String,

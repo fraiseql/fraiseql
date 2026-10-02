@@ -103,24 +103,32 @@ def _build_federation_block(federation: Federation, schema: dict[str, Any]) -> d
             shareable_types.append(name)
             continue
 
-        # Non-shareable error types stay out of the federation graph entirely.
-        if type_def.get("is_error"):
+        # Non-shareable error types stay out of the federation graph entirely, and so do
+        # embedded value types (#687, #1395): they have no identity of their own and no
+        # view for `_entities` to resolve them from — they travel inside their parent.
+        if type_def.get("is_error") or type_def.get("embedded"):
             continue
 
-        entity: dict[str, Any] = {
-            "name": name,
-            # `@key(fields: …)` names GRAPHQL fields, so the published spelling is the
-            # only correct one — the same reason `external_fields` (derived from the
-            # field names themselves) has always been camelCase. Carried through
-            # verbatim, a key authored as `organization_id` made Apollo refuse the whole
-            # supergraph with KEY_INVALID_FIELDS while the field was published as
-            # `organizationId`. Every single-word key, `id` included, is spelled
-            # identically either way, which is why it stayed hidden.
-            "key_fields": [
-                _snake_to_camel(f)
-                for f in type_def.get("key_fields", federation.default_key_fields)
-            ],
-        }
+        # `@key(fields: …)` names GRAPHQL fields, so the published spelling is the only
+        # correct one — the same reason `external_fields` (derived from the field names
+        # themselves) has always been camelCase. Carried through verbatim, a key authored
+        # as `organization_id` made Apollo refuse the whole supergraph with
+        # KEY_INVALID_FIELDS while the field was published as `organizationId`. Every
+        # single-word key, `id` included, is spelled identically either way, which is why
+        # it stayed hidden.
+        declared = "key_fields" in type_def or type_def.get("extends")
+        key_fields = [
+            _snake_to_camel(f) for f in type_def.get("key_fields", federation.default_key_fields)
+        ]
+        # The default key makes an entity only of a type that has those fields (#1395). A
+        # type without them is a plain value type: keying it on a field it does not publish
+        # is a supergraph the router refuses. A key the author declared is emitted as
+        # written, and the compiler judges it, so a mistake there is reported, not hidden.
+        published = {field["name"] for field in type_def.get("fields", [])}
+        if not declared and not set(key_fields) <= published:
+            continue
+
+        entity: dict[str, Any] = {"name": name, "key_fields": key_fields}
         # Additive keys only when set, so the no-directive entity is unchanged.
         if type_def.get("extends"):
             entity["extends"] = True
@@ -132,14 +140,10 @@ def _build_federation_block(federation: Federation, schema: dict[str, Any]) -> d
             entity["shareable_fields"] = shareable_fields
         entities.append(entity)
 
-    apollo_version = 2 if federation.version == "v2" else 1
     block: dict[str, Any] = {
         "enabled": True,
         "service_name": federation.service_name,
-        # The Rust core FederationConfig reads `version` (the @link spec URL); the
-        # legacy int `apollo_version` is kept for back-compat but ignored there.
         "version": federation.version,
-        "apollo_version": apollo_version,
         "entities": entities,
     }
     if shareable_types:

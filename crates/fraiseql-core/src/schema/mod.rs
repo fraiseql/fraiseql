@@ -68,10 +68,10 @@ pub use changelog::inject_changelog;
 pub use compiled::{
     AppleSocialConfig, ArgumentDefinition, AuthClientConfig, AutoParams, CURRENT_FRAISEQL_VERSION,
     CompiledSchema, CursorType, DirectiveDefinition, DirectiveLocationKind, DiscordSocialConfig,
-    FacebookSocialConfig, GitHubSocialConfig, GoogleSocialConfig, InputStyle, LocalAuthConfig,
-    MutationDefinition, MutationOperation, PaginationOrder, PkceClientConfig, ProducerVersion,
-    QueryDefinition, SocialAuthConfig, SubscribableEntity, canonicalize_json, content_hash_of,
-    is_safe_sql_identifier,
+    FacebookSocialConfig, FederationKeyProblem, GitHubSocialConfig, GoogleSocialConfig, InputStyle,
+    LocalAuthConfig, MutationDefinition, MutationOperation, PaginationOrder, PkceClientConfig,
+    ProducerVersion, QueryDefinition, SocialAuthConfig, SubscribableEntity, canonicalize_json,
+    content_hash_of, is_safe_sql_identifier,
 };
 pub use config_types::{
     AuthorizationPolicy, AuthorizationRule, Cardinality, ChangelogConfig, CircuitBreakerConfig,

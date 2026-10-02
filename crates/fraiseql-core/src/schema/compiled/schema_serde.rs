@@ -193,9 +193,10 @@ impl CompiledSchema {
     /// shape no execution path can enforce — see
     /// [`CompiledSchema::type_role_violations`] — when a type and its backing query
     /// scope the same column from different sources, see
-    /// [`CompiledSchema::type_inject_violations`], or when a relationship names a
-    /// target, a join column or a list query the embed executor cannot resolve, see
-    /// [`CompiledSchema::relationship_violations`].
+    /// [`CompiledSchema::type_inject_violations`], when a federation entity's `@key`
+    /// cannot be served, see [`CompiledSchema::federation_key_problems`], or when a
+    /// relationship names a target, a join column or a list query the embed executor
+    /// cannot resolve, see [`CompiledSchema::relationship_violations`].
     fn finish_load(&mut self) -> std::result::Result<(), FraiseQLError> {
         // First: a name declared twice makes every later check ambiguous. `build_indexes`
         // keys by name, so the second definition silently shadows the first and the
@@ -269,6 +270,16 @@ impl CompiledSchema {
                     violations.join("\n  - ")
                 ),
                 path:    Some("fact_tables.type_name".to_string()),
+            });
+        }
+        let violations = self.federation_key_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "federation entities cannot be served as declared:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("federation.entities".to_string()),
             });
         }
         let violations = self.relationship_violations();

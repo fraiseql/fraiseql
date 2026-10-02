@@ -1060,14 +1060,15 @@ pub(crate) enum FederationCommands {
         format: String,
     },
 
-    /// Validate subgraph composition
+    /// Validate a subgraph's federation entities and keys
     Check {
         /// Path to local schema.compiled.json
         #[arg(value_name = "SCHEMA")]
         schema: String,
 
-        /// Path to supergraph schema for composition validation
-        #[arg(short, long, value_name = "SUPERGRAPH")]
+        /// Another subgraph's schema.compiled.json to compare with (@key agreement,
+        /// field sharing)
+        #[arg(short, long, value_name = "OTHER_SCHEMA")]
         against: Option<String>,
 
         /// Output result as JSON

@@ -743,8 +743,9 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
             from cascade classification: the compiler never enforces ``id: ID!`` on it
             nor auto-implements ``CascadeNode``, so a cascade schema that embeds it
             compiles. Mutually exclusive with ``sql_source`` (a value object has no
-            backing view) and with ``cascade`` (a value object cannot originate a
-            cascade). Default ``False``.
+            backing view), with ``cascade`` (a value object cannot originate a
+            cascade) and with ``key_fields``/``extends`` (it has no identity to key a
+            federation entity on; it is never emitted as one). Default ``False``.
         relationships: Relationships to other types, followed by REST resource embedding
             (#1266) — ``?select=orders(id,total)``, ``?select=orders.count``,
             ``?orders.status=paid`` — and published in the served OpenAPI document and
@@ -812,6 +813,14 @@ def type(  # noqa: PLR0913 — public API; all parameters are meaningful
                 f"@fraiseql.type on {c.__name__!r}: embedded=True declares a value object with "
                 f"no backing view, so it cannot be combined with sql_source={sql_source!r}. "
                 "An embedded type declares no source; remove sql_source or drop embedded=True."
+            )
+            raise ValueError(msg)
+        if embedded and (key_fields is not None or extends):
+            msg = (
+                f"@fraiseql.type on {c.__name__!r}: embedded=True declares a value object, which "
+                "has no identity of its own, so it cannot be a federation entity "
+                f"({'key_fields' if key_fields is not None else 'extends=True'}). "
+                "Key the parent entity instead; the value object travels inside it."
             )
             raise ValueError(msg)
         if embedded and cascade:

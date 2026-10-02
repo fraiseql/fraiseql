@@ -697,17 +697,6 @@ impl TomlSchema {
             }
         }
 
-        // Validate federation entities reference existing types
-        for entity in &self.federation.entities {
-            if !self.types.contains_key(&entity.name) {
-                let hint = format_suggestions(suggest_similar(&entity.name, &type_names));
-                anyhow::bail!(
-                    "Federation entity '{}' references undefined type{hint}",
-                    entity.name
-                );
-            }
-        }
-
         Ok(())
     }
 

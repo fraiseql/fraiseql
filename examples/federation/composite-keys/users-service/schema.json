@@ -132,7 +132,6 @@
     "enabled": true,
     "service_name": "users",
     "version": "v2",
-    "apollo_version": 2,
     "entities": [
       {
         "name": "Organization",

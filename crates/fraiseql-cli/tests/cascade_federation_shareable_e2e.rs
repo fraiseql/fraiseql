@@ -69,7 +69,7 @@ fn cascade_subgraph_json(service_name: &str, entity: &str, sql_source: &str) -> 
   "federation": {{
     "enabled": true,
     "service_name": "{service_name}",
-    "apollo_version": 2,
+    "version": "v2",
     "entities": [
       {{"name": "{entity}", "key_fields": ["id"]}}
     ]
@@ -198,7 +198,7 @@ fn cascade_compose_subgraph_json(service_name: &str, entity: &str, sql_source: &
   "federation": {{
     "enabled": true,
     "service_name": "{service_name}",
-    "apollo_version": 2,
+    "version": "v2",
     "entities": [
       {{"name": "{entity}", "key_fields": ["id"]}}
     ]

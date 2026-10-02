@@ -44,9 +44,7 @@
     "circuit_breaker": {
       "failure_threshold": 5,
       "recovery_timeout_secs": 30,
-      "per_entity_overrides": {
-        "Item": {"failure_threshold": 3}
-      }
+      "per_entity": [{ "entity": "Item", "failure_threshold": 3 }]
     }
   },
   "debug_config": {

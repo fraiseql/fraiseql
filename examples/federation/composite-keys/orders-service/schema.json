@@ -123,7 +123,6 @@
     "enabled": true,
     "service_name": "orders",
     "version": "v2",
-    "apollo_version": 2,
     "entities": [
       {
         "name": "Order",

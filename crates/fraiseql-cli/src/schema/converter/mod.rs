@@ -830,6 +830,10 @@ impl SchemaConverter {
         // is what covers the hand-edited artifact this compile-time refusal cannot reach.
         problems.extend(schema.relationship_violations());
 
+        // Federation `@key`s the router would refuse (#1395) — the same function the load
+        // path runs, for the same reason as the relationship check above.
+        problems.extend(schema.federation_key_violations());
+
         if !problems.is_empty() {
             let count = problems.len();
             let noun = if count == 1 { "problem" } else { "problems" };

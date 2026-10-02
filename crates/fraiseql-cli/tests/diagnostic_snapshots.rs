@@ -126,23 +126,6 @@ fn diagnostic_query_type_typo_suggests_correction() {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// 6. Federation entity referencing an undefined type
-// ---------------------------------------------------------------------------
-
-#[test]
-fn diagnostic_federation_entity_undefined_type() {
-    let mut schema = base_schema_with_user();
-    schema.federation.entities.push(FederationEntity {
-        name: "Product".to_string(),
-        key_fields: vec!["id".to_string()],
-        ..FederationEntity::default()
-    });
-
-    let err = schema.validate().unwrap_err();
-    insta::assert_snapshot!(err.to_string());
-}
-
-// ---------------------------------------------------------------------------
 // 7. Malformed TOML — parse error diagnostic
 // ---------------------------------------------------------------------------
 
@@ -516,24 +499,6 @@ fn diagnostic_mutation_type_typo_suggests_correction() {
             ..MutationDefinition::default()
         },
     );
-
-    let err = schema.validate().unwrap_err();
-    insta::assert_snapshot!(err.to_string());
-}
-
-// ---------------------------------------------------------------------------
-// 32. Federation entity typo suggests correction
-// ---------------------------------------------------------------------------
-
-#[test]
-fn diagnostic_federation_entity_typo_suggests_correction() {
-    let mut schema = base_schema_with_user();
-    // "Usar" is close to "User"
-    schema.federation.entities.push(FederationEntity {
-        name: "Usar".to_string(),
-        key_fields: vec!["id".to_string()],
-        ..FederationEntity::default()
-    });
 
     let err = schema.validate().unwrap_err();
     insta::assert_snapshot!(err.to_string());
