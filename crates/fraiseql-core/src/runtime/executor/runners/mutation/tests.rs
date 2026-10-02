@@ -3612,18 +3612,18 @@ mod field_authz {
         );
     }
 
-    // A policy error fails closed. The #423 contract reports it as `Authorization`
-    // without surfacing the policy's own error (the `Raising` double returns a
-    // `Validation`), and that contract is shared with the read path — so the variant
-    // is the relabelled one. The rollback does not depend on it.
+    // A policy error fails closed. It is reported as `ServiceUnavailable` — the backend
+    // could not answer, the caller was not refused (#1374) — without surfacing the
+    // policy's own error (the `Raising` double returns a `Validation`), on the read path
+    // and here alike. The rollback does not depend on the variant (#1353).
     #[tokio::test]
     async fn mutation_raising_policy_does_not_commit_the_write() {
         let adapter = Arc::new(GatedEntityAdapter::default());
         let err = refused_write(&adapter, Arc::new(Raising)).await;
 
         assert!(
-            matches!(err, FraiseQLError::Authorization { .. }),
-            "a policy error fails closed as Authorization (#423), got: {err:?}"
+            matches!(err, FraiseQLError::ServiceUnavailable { .. }),
+            "a policy error fails closed as ServiceUnavailable (#1374), got: {err:?}"
         );
         assert!(
             !format!("{err}").contains("policy backend down"),
@@ -4590,7 +4590,7 @@ mod field_authz {
         assert!(adapter.committed(), "a masked field does not refuse the write");
     }
 
-    // A raising policy on a gated mutation field denies the whole mutation (403).
+    // A raising policy on a gated mutation field fails the whole mutation closed (503).
     #[tokio::test]
     async fn mutation_raising_policy_denies() {
         let executor = Executor::with_config(
@@ -4601,11 +4601,9 @@ mod field_authz {
         let res = executor
             .execute_with_security("mutation { createUser { id email } }", None, &ctx())
             .await;
-        assert!(res.is_err(), "raising policy must fail closed on the mutation path");
-        assert!(
-            !format!("{}", res.unwrap_err()).contains("alice@x.com"),
-            "must not leak the value"
-        );
+        let err = res.expect_err("raising policy must fail closed on the mutation path");
+        assert!(matches!(err, FraiseQLError::ServiceUnavailable { .. }), "{err:?}");
+        assert!(!format!("{err}").contains("alice@x.com"), "must not leak the value");
     }
 
     // Deny{Mask} nulls the gated field in the success payload.

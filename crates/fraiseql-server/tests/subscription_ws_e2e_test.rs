@@ -505,6 +505,17 @@ impl Authorizer for DenyAll {
     }
 }
 
+/// A policy backend that cannot decide (#1374).
+struct Raising;
+impl Authorizer for Raising {
+    fn authorize(&self, _req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
+        Err(fraiseql_core::error::FraiseQLError::Database {
+            message:   "policy store down".into(),
+            sql_state: None,
+        })
+    }
+}
+
 struct AllowAll;
 impl Authorizer for AllowAll {
     fn authorize(&self, _req: &AuthzRequest<'_>) -> FqlResult<AuthzDecision> {
@@ -542,10 +553,48 @@ async fn ws_e2e_authorizer_deny_rejects_subscription() {
         "deny must yield an error frame, got {error_frame}"
     );
     assert_eq!(error_frame["id"], "op_deny");
+    assert!(
+        error_frame.to_string().contains("FORBIDDEN"),
+        "a deny is a refusal: {error_frame}"
+    );
 
     // The subscription must NOT be registered.
     tokio::time::sleep(std::time::Duration::from_millis(100)).await;
     assert_eq!(manager.subscription_count(), 0, "denied subscription must not register");
+}
+
+/// A policy backend that fails to decide rejects the subscribe — fail closed — but
+/// says the service is unavailable, not that the caller was refused (#1374), and does
+/// not surface the backend's own error.
+#[tokio::test]
+async fn ws_e2e_authorizer_outage_rejects_as_unavailable_not_forbidden() {
+    let schema = Arc::new(schema_with_subscription("orderCreated", "Order"));
+    let manager = Arc::new(SubscriptionManager::new(schema));
+    let state = SubscriptionState::new(manager.clone()).with_authorizer(Some(Arc::new(Raising)));
+
+    let url = spawn_ws_server(state).await;
+    let (mut sink, mut stream) = connect_ws(&url).await;
+
+    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    assert_eq!(recv_json(&mut stream).await["type"], "connection_ack");
+    send_json(
+        &mut sink,
+        json!({
+            "type": "subscribe",
+            "id": "op_outage",
+            "payload": { "query": "subscription { orderCreated { id status } }" }
+        }),
+    )
+    .await;
+
+    let frame = recv_json(&mut stream).await;
+    assert_eq!(frame["type"], "error", "{frame}");
+    let text = frame.to_string();
+    assert!(text.contains("SERVICE_UNAVAILABLE"), "{frame}");
+    assert!(!text.contains("FORBIDDEN"), "an outage is not a refusal: {frame}");
+    assert!(!text.contains("policy store down"), "the backend error must not leak: {frame}");
+    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    assert_eq!(manager.subscription_count(), 0, "a failed authorization must not register");
 }
 
 /// A configured authorizer that allows → the subscription registers normally.

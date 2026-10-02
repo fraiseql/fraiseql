@@ -1249,12 +1249,15 @@ async fn handle_client_message(
                     warn!(
                         connection_id = %connection_id,
                         subscription = %subscription_name,
-                        "Operation authorizer denied the subscription"
+                        code = err.error_code(),
+                        "Operation authorizer refused the subscription"
                     );
                     WS_SUBSCRIPTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);
+                    // The error's own class: FORBIDDEN for a deny, SERVICE_UNAVAILABLE
+                    // for a policy backend that could not decide (#1374).
                     let error = ServerMessage::error(
                         &op_id,
-                        vec![GraphQLError::with_code(err.to_string(), "FORBIDDEN")],
+                        vec![GraphQLError::with_code(err.to_string(), err.error_code())],
                     );
                     if let Err(e) = send_server_message(codec, sender, error).await {
                         debug!(connection_id = %connection_id, error = %e, "Could not send authorization denial to client");

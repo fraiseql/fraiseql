@@ -74,10 +74,12 @@ tracked follow-up; today, set `authorize` in the authored schema directly.)
 
 ## Semantics
 
-- **Fail-closed.** Any `Err` from `authorize_field` — or a `Deny { on_deny: Reject }` —
-  fails the whole query with HTTP **403 `FORBIDDEN`**; the field value is never served.
-  Reserve `Err` for policy-evaluation failures (e.g. an unreachable policy backend); use
-  `Deny` for ordinary, expected denials.
+- **Fail-closed.** A `Deny { on_deny: Reject }` fails the whole query with HTTP
+  **403 `FORBIDDEN`**. An `Err` from `authorize_field` fails it too, as HTTP
+  **503 `SERVICE_UNAVAILABLE`** (#1374): the backend could not decide, the caller was not
+  refused, and a client may retry. Either way the field value is never served, and the
+  policy's own error is never surfaced. Reserve `Err` for policy-evaluation failures (e.g.
+  an unreachable policy backend); use `Deny` for ordinary, expected denials.
 - **Mask vs reject.** `Deny { on_deny: Mask }` succeeds but returns `null` for that field
   on that row (per row — other rows may keep it). `Deny { on_deny: Reject }` fails the
   whole query.

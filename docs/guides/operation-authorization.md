@@ -76,8 +76,11 @@ one policy type can serve operation- and field-level checks.
 
 ## Semantics
 
-- **Fail-closed.** Any `Err` from `authorize` — or an `AuthzDecision::Deny` — fails the
-  operation with HTTP **403 `FORBIDDEN`**; the operation never executes. Reserve `Err` for
+- **Fail-closed.** An `AuthzDecision::Deny` fails the operation with HTTP **403
+  `FORBIDDEN`**. An `Err` from `authorize` fails it too, as HTTP **503
+  `SERVICE_UNAVAILABLE`** (`UNAVAILABLE` on gRPC, a `SERVICE_UNAVAILABLE` error frame on
+  subscriptions; #1374): the backend could not decide, the caller was not refused, and a
+  client may retry. Either way the operation never executes. Reserve `Err` for
   policy-evaluation failures (e.g. an unreachable policy backend); use `Deny` for ordinary,
   expected denials. A policy `Err` is **not** surfaced to the client (no information leak).
 - **Deny reason.** The `reason` on a `Deny` is folded into the 403 error message.
@@ -138,7 +141,7 @@ A PEP is only as strong as its least-guarded entry path. The authorizer is enfor
 | Mutations — GraphQL, MCP, **authenticated and anonymous REST**, the direct API | The universal mutation chokepoint (`execute_mutation_impl`), covering the anonymous-REST write path that bypasses the `execute*`/`execute_with_security` chokepoints |
 | REST reads — GET, count, streaming (NDJSON/CSV/XLSX), embedding sub-queries, bulk-by-filter lookup | The shared read runner methods (`execute_query_direct` / `count_rows`) |
 | Nested levels — GraphQL selections (root, `node`, Relay, `_entities`, function-backed), REST embeds and leaf object selections | Where each level is classified: `SelectionAccess` for GraphQL, the per-level `resolve_direct_read` for REST (`nesting = Some`) |
-| Subscriptions (`graphql-transport-ws` / `graphql-ws`) | At subscribe-time, with the connection's principal — a deny rejects with a `FORBIDDEN` error frame |
+| Subscriptions (`graphql-transport-ws` / `graphql-ws`) | At subscribe-time, with the connection's principal — a deny rejects with a `FORBIDDEN` error frame, a policy error with `SERVICE_UNAVAILABLE` |
 | **Tenant-keyed requests**, on every path above | The tenant's own executor, built from the **server's** `RuntimeConfig` (#1333) |
 
 > **Introspection and federation are gated too** (as `Query` named `__schema`/`__type`/

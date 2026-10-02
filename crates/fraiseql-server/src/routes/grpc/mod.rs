@@ -299,20 +299,7 @@ impl DynamicGrpcService {
                 .await
                 {
                     Ok(read) => read,
-                    Err(FraiseQLError::Validation { message, .. }) => {
-                        return grpc_error_response(tonic::Code::InvalidArgument, &message);
-                    },
-                    Err(FraiseQLError::Unsupported { message }) => {
-                        return grpc_error_response(tonic::Code::Unimplemented, &message);
-                    },
-                    // #1351: the gates the engine now applies to this arm refuse with
-                    // `Authorization`. Mapped to `PermissionDenied` rather than falling
-                    // into `Internal` below — a refused caller must not be told the
-                    // server broke, and a client cannot retry its way out of a 403.
-                    Err(FraiseQLError::Authorization { message, .. }) => {
-                        return grpc_error_response(tonic::Code::PermissionDenied, &message);
-                    },
-                    Err(e) => return grpc_error_response(tonic::Code::Internal, &e.to_string()),
+                    Err(e) => return grpc_error_response(grpc_code_for(&e), &e.to_string()),
                 };
 
                 debug!(
@@ -364,13 +351,7 @@ impl DynamicGrpcService {
                 .await
                 {
                     Ok(r) => r,
-                    Err(FraiseQLError::Validation { message, .. }) => {
-                        return grpc_error_response(tonic::Code::InvalidArgument, &message);
-                    },
-                    Err(FraiseQLError::Unsupported { message }) => {
-                        return grpc_error_response(tonic::Code::Unimplemented, &message);
-                    },
-                    Err(e) => return grpc_error_response(tonic::Code::Internal, &e.to_string()),
+                    Err(e) => return grpc_error_response(grpc_code_for(&e), &e.to_string()),
                 };
 
                 debug!(method = %method, success = result.success, "gRPC mutation completed");
@@ -525,6 +506,26 @@ impl DynamicGrpcService {
 }
 
 /// Build an HTTP response with a gRPC error status.
+/// The gRPC status an engine error is answered with — one mapping for the read and
+/// the mutation arm.
+///
+/// The two arms used to match inline and had drifted: the read arm mapped a refusal
+/// (`Authorization`, #1351) to `PermissionDenied`, the mutation arm let it fall into
+/// `Internal`, so a refused write told the caller the server broke. Everything without
+/// a closer status is `Internal`.
+pub(crate) const fn grpc_code_for(error: &FraiseQLError) -> tonic::Code {
+    match error {
+        FraiseQLError::Validation { .. } => tonic::Code::InvalidArgument,
+        FraiseQLError::Unsupported { .. } => tonic::Code::Unimplemented,
+        // A refused caller must not be told the server broke, and a client cannot
+        // retry its way out of a 403.
+        FraiseQLError::Authorization { .. } => tonic::Code::PermissionDenied,
+        // A policy backend that could not decide (#1374): retryable, and not a refusal.
+        FraiseQLError::ServiceUnavailable { .. } => tonic::Code::Unavailable,
+        _ => tonic::Code::Internal,
+    }
+}
+
 fn grpc_error_response(code: tonic::Code, message: &str) -> http::Response<TonicBody> {
     let mut response = http::Response::new(TonicBody::empty());
     response

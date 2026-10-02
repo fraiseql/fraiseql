@@ -445,6 +445,12 @@ impl GraphQLError {
             E::Authentication { .. } => Self::unauthenticated(),
             E::Timeout { .. } => Self::new(err.to_string(), ErrorCode::Timeout),
             E::RateLimited { message, .. } => Self::rate_limited(message.clone()),
+            // A dependency that could not be reached — an authorization policy backend
+            // (#1374), a suspended tenant — is a retryable 503, never the generic 500.
+            E::ServiceUnavailable {
+                message,
+                retry_after,
+            } => Self::service_unavailable(message.clone(), *retry_after),
             // Cancelled, Configuration, Internal, and any future variants
             _ => Self::internal(err.to_string()),
         }

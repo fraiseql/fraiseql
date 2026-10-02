@@ -165,6 +165,22 @@ Lockfile and patch-level pin changes only; no source changed. The runtime crates
 
 ### Fixed
 
+- **An authorization-policy outage is a 503, not a 403 (#1374).** When an `Authorizer` or
+  `FieldAuthorizer` returned an error rather than a decision, the request failed closed
+  as `FORBIDDEN` — telling the client it had been adjudicated and refused, so it would not
+  retry, and making a policy-backend outage look like a permissions problem. It still fails
+  closed and the policy's own error is still never surfaced, but it is now
+  `ServiceUnavailable` (`SERVICE_UNAVAILABLE` / HTTP 503 on GraphQL, `UNAVAILABLE` on gRPC,
+  a `SERVICE_UNAVAILABLE` error frame on subscriptions). A `Deny` is unchanged (403). The
+  rollback of a mutation whose field policy errors is unchanged. **Note:** a client that
+  treated this 403 as permanent should retry the 503.
+- **GraphQL no longer reports `ServiceUnavailable` as a 500.** `GraphQLError::from_fraiseql_error`
+  had no arm for it, so a dependency outage reaching the executor fell into the generic
+  `INTERNAL_SERVER_ERROR`; it is now a 503 with any `Retry-After` it carries.
+- **gRPC reports a refused mutation as `PERMISSION_DENIED`, not `INTERNAL`.** The read and
+  mutation arms matched engine errors inline and had drifted: the read arm mapped
+  `Authorization` (#1351), the mutation arm let it fall into `Internal`. Both now use one
+  mapping.
 - **The SBOM workflow's copyleft check no longer crashes, and no longer misses what it was
   asked to find.** The `Summary` step of `sbom-generation.yml` read only `license.id` and
   passed the result to `contains`, so the first component whose license is written as a

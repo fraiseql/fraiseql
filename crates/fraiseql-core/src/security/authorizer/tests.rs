@@ -146,21 +146,21 @@ fn enforce_deny_is_authorization_403() {
 }
 
 #[test]
-fn enforce_raising_fails_closed_to_403() {
-    // A raising policy must DENY (403), never silently allow. Load-bearing honesty test.
+fn enforce_raising_fails_closed_as_unavailable_not_forbidden() {
+    // A raising policy must never silently allow — load-bearing honesty test — and must
+    // not claim the caller was adjudicated and refused (#1374): the policy backend could
+    // not be reached, which is a 503 the client may retry, not a 403.
     let ops = [AuthzOperation::root(OperationKind::Query, "users", None)];
     let err = enforce_authz(&RaisingAuthorizer, None, &ops, None).unwrap_err();
     assert!(
-        matches!(err, FraiseQLError::Authorization { .. }),
-        "raising authorizer must fail closed to Authorization/403, got {err:?}"
+        matches!(err, FraiseQLError::ServiceUnavailable { .. }),
+        "raising authorizer must fail closed as ServiceUnavailable/503, got {err:?}"
     );
     // The underlying error text must NOT leak through.
-    if let FraiseQLError::Authorization { message, .. } = err {
-        assert!(
-            !message.contains("backend unreachable"),
-            "policy error must not leak: {message}"
-        );
-    }
+    assert!(
+        !err.to_string().contains("backend unreachable"),
+        "policy error must not leak: {err}"
+    );
 }
 
 #[test]

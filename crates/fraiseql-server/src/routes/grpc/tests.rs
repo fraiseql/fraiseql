@@ -1018,3 +1018,27 @@ mod principal_production {
         );
     }
 }
+
+/// One status mapping for both arms (#1374): a refusal is `PermissionDenied`, a policy
+/// backend that could not decide is `Unavailable` — a status a client retries — and
+/// neither is `Internal`.
+mod status_mapping {
+    use fraiseql_error::FraiseQLError;
+
+    use super::super::grpc_code_for;
+
+    #[test]
+    fn a_refusal_is_permission_denied_and_an_outage_is_unavailable() {
+        assert_eq!(
+            grpc_code_for(&FraiseQLError::unauthorized("denied")),
+            tonic::Code::PermissionDenied
+        );
+        assert_eq!(
+            grpc_code_for(&FraiseQLError::ServiceUnavailable {
+                message:     "authorization policy unavailable".into(),
+                retry_after: None,
+            }),
+            tonic::Code::Unavailable
+        );
+    }
+}

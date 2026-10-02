@@ -500,6 +500,22 @@ mod error_tests {
         assert_eq!(retry_after.and_then(|v| v.to_str().ok()), Some("60"));
     }
 
+    /// A dependency the engine could not reach — an authorization policy backend
+    /// (#1374), a suspended tenant — is a 503 the client may retry, never the generic
+    /// 500 a wildcard arm would make of it.
+    #[test]
+    fn test_from_fraiseql_error_service_unavailable_is_503() {
+        use axum::http::StatusCode;
+        use fraiseql_core::error::FraiseQLError;
+        let err = FraiseQLError::ServiceUnavailable {
+            message:     "authorization policy unavailable".into(),
+            retry_after: None,
+        };
+        let graphql_err = GraphQLError::from_fraiseql_error(&err);
+        assert_eq!(graphql_err.code, ErrorCode::ServiceUnavailable);
+        assert_eq!(graphql_err.code.status_code(), StatusCode::SERVICE_UNAVAILABLE);
+    }
+
     #[test]
     fn test_from_fraiseql_error_database_maps_to_database_code() {
         use fraiseql_core::error::FraiseQLError;

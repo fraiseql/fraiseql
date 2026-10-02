@@ -230,12 +230,28 @@ fn authz_deny_error(op: &AuthzOperation, reason: &str) -> FraiseQLError {
     }
 }
 
+/// The answer when a policy backend fails to decide: fail closed, and say so honestly.
+///
+/// A policy `Err` is not a refusal: nobody adjudicated the caller, the backend could not
+/// be reached. Reporting it as 403 told operators an outage was a permissions problem
+/// and told clients not to retry exactly when they should (#1374). It is a 503 with no
+/// detail — the policy's own error is never surfaced (no information leak) — and the
+/// operation never executes, exactly as for a deny. Shared by the operation and the
+/// field authorizer, so the transports cannot disagree.
+#[must_use]
+pub fn policy_unavailable() -> FraiseQLError {
+    FraiseQLError::ServiceUnavailable {
+        message:     "authorization policy unavailable".to_string(),
+        retry_after: None,
+    }
+}
+
 /// Run the configured [`Authorizer`] over one or more operations or levels, fail-closed.
 ///
 /// A multi-root query yields one call per root; a nested level, one call of its own. Any
-/// [`AuthzDecision::Deny`] or any `Err` returns [`FraiseQLError::Authorization`] (403) and the
-/// operation never executes. A `Deny`'s `reason` is folded into the message; a policy `Err` is not
-/// surfaced (no information leak).
+/// [`AuthzDecision::Deny`] returns [`FraiseQLError::Authorization`] (403), with the `Deny`'s
+/// `reason` folded into the message. A policy `Err` returns [`policy_unavailable`] (503,
+/// the error itself not surfaced). Either way the operation never executes.
 ///
 /// This is the canonical enforcement entry point. It is `pub` so transports that do
 /// not route through the core executor (e.g. the `WebSocket` subscription handler in
@@ -244,7 +260,8 @@ fn authz_deny_error(op: &AuthzOperation, reason: &str) -> FraiseQLError {
 ///
 /// # Errors
 ///
-/// Returns [`FraiseQLError::Authorization`] on the first `Deny` decision or policy error.
+/// Returns [`FraiseQLError::Authorization`] on the first `Deny` decision, and
+/// [`FraiseQLError::ServiceUnavailable`] on the first policy error.
 pub fn enforce_authz(
     authorizer: &dyn Authorizer,
     principal: Option<&SecurityContext>,
@@ -263,11 +280,7 @@ pub fn enforce_authz(
         match authorizer.authorize(&req) {
             Ok(AuthzDecision::Allow) => {},
             Ok(AuthzDecision::Deny { reason }) => return Err(authz_deny_error(op, &reason)),
-            Err(_) => {
-                // Fail-closed: any policy error is a hard deny. The underlying error is
-                // not surfaced to the client (no information leak).
-                return Err(authz_deny_error(op, "authorization failed"));
-            },
+            Err(_) => return Err(policy_unavailable()),
         }
     }
     Ok(())

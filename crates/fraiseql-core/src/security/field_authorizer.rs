@@ -360,12 +360,14 @@ fn field_authz_error(type_name: &str, field: &str, code: &str) -> FraiseQLError 
 /// field on that row). `statically_masked` are fields the static `requires_scope`
 /// gate already denied — skipped here (AND-composition: already denied).
 ///
-/// Fail-closed: a `Reject` decision or any policy `Err` returns
-/// [`FraiseQLError::Authorization`] (403) and the value is never served.
+/// Fail-closed: a `Reject` decision returns [`FraiseQLError::Authorization`] (403), a
+/// policy `Err` returns [`FraiseQLError::ServiceUnavailable`] (503, #1374), and either
+/// way the value is never served.
 ///
 /// # Errors
 ///
-/// Returns [`FraiseQLError::Authorization`] on any `Reject` decision or policy error.
+/// [`FraiseQLError::Authorization`] on any `Reject` decision,
+/// [`FraiseQLError::ServiceUnavailable`] on any policy error.
 pub(crate) fn apply_field_authorizer(
     pass: &FieldAuthzPass<'_>,
     results: &[JsonbValue],
@@ -395,12 +397,13 @@ pub(crate) fn apply_field_authorizer(
 /// object (the mutation path), using `parent` as the full entity for the decision.
 /// `projected` is mutated in place (a `Mask` decision nulls the field).
 ///
-/// Fail-closed: a `Reject` decision or any policy `Err` returns
-/// [`FraiseQLError::Authorization`] (403).
+/// Fail-closed: a `Reject` decision returns [`FraiseQLError::Authorization`] (403), a
+/// policy `Err` returns [`FraiseQLError::ServiceUnavailable`] (503, #1374).
 ///
 /// # Errors
 ///
-/// Returns [`FraiseQLError::Authorization`] on any `Reject` decision or policy error.
+/// [`FraiseQLError::Authorization`] on any `Reject` decision,
+/// [`FraiseQLError::ServiceUnavailable`] on any policy error.
 pub(crate) fn apply_field_authorizer_to_entity(
     pass: &FieldAuthzPass<'_>,
     parent: &JsonValue,
@@ -487,12 +490,13 @@ pub(crate) enum FieldDisposition {
 /// The single decision site for #423. Both enforcement shapes call it — the JSON
 /// projection (`enforce_row`) and the columnar row ([`RowFieldGate`]) — so a `Reject`,
 /// a policy `Err` and the mask policy cannot come to mean different things on different
-/// transports. Fail-closed: a `Reject` or any policy error is an `Authorization` error
-/// and the value is never served.
+/// transports. Fail-closed: a `Reject` is an `Authorization` error, a policy error is
+/// `ServiceUnavailable` (#1374), and the value is never served.
 ///
 /// # Errors
 ///
-/// [`FraiseQLError::Authorization`] on a `Reject` decision or any policy error.
+/// [`FraiseQLError::Authorization`] on a `Reject` decision,
+/// [`FraiseQLError::ServiceUnavailable`] on any policy error.
 fn adjudicate_field(
     authorizer: &dyn FieldAuthorizer,
     principal: &SecurityContext,
@@ -517,11 +521,8 @@ fn adjudicate_field(
             code,
             on_deny: FieldDenyPolicy::Reject,
         }) => Err(field_authz_error(type_name, &gf.field_name, &code)),
-        Err(_) => {
-            // Fail-closed: any policy error is a hard deny. The underlying error is
-            // not surfaced to the client (no information leak).
-            Err(field_authz_error(type_name, &gf.field_name, "field_authorization_failed"))
-        },
+        // Fail closed as an outage, not a refusal (#1374); the error is not surfaced.
+        Err(_) => Err(super::authorizer::policy_unavailable()),
     }
 }
 

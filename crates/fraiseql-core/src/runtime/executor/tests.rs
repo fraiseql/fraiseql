@@ -2653,7 +2653,8 @@ mod field_authz {
 
     // ---- tests ------------------------------------------------------------
 
-    // HONESTY-1: a raising policy denies the whole query (403); the value is never served.
+    // HONESTY-1: a raising policy fails the whole query closed (503, #1374); the value is
+    // never served.
     #[tokio::test]
     async fn raising_policy_denies_query() {
         let executor = Executor::with_config(
@@ -2664,8 +2665,12 @@ mod field_authz {
         let result = executor
             .execute_with_security("{ users { id email } }", None, &ctx("user-1"))
             .await;
-        assert!(result.is_err(), "raising policy must fail closed");
-        let msg = format!("{}", result.unwrap_err());
+        let err = result.expect_err("raising policy must fail closed");
+        assert!(
+            matches!(err, FraiseQLError::ServiceUnavailable { .. }),
+            "a policy outage is 503, not a refusal (#1374): {err:?}"
+        );
+        let msg = format!("{err}");
         assert!(!msg.contains("alice@x.com"), "must never leak the field value: {msg}");
     }
 
@@ -3001,7 +3006,8 @@ mod operation_authz {
         assert!(!format!("{err}").contains("Alice"), "must not leak data");
     }
 
-    // HONESTY: a raising authorizer fails closed → 403; the policy error is not leaked.
+    // HONESTY: a raising authorizer fails closed → 503 (#1374): an outage is not a
+    // refusal. The policy error is not leaked.
     #[tokio::test]
     async fn authenticated_raise_fails_closed() {
         let executor = Executor::with_config(
@@ -3013,7 +3019,10 @@ mod operation_authz {
             .execute_with_security("{ users { id name } }", None, &ctx("u1"))
             .await
             .unwrap_err();
-        assert!(is_authz(&err), "raise must fail closed to Authorization/403: {err:?}");
+        assert!(
+            matches!(err, FraiseQLError::ServiceUnavailable { .. }),
+            "raise must fail closed as ServiceUnavailable/503: {err:?}"
+        );
         assert!(!format!("{err}").contains("backend down"), "policy error must not leak");
     }
 
@@ -3274,7 +3283,10 @@ mod operation_authz {
             .execute_mutation("createUser", None, any_write_selections())
             .await
             .unwrap_err();
-        assert!(is_authz(&err), "raising authorizer must fail the mutation closed: {err:?}");
+        assert!(
+            matches!(err, FraiseQLError::ServiceUnavailable { .. }),
+            "raising authorizer must fail the mutation closed as unavailable: {err:?}"
+        );
     }
 
     // ALLOW lets the mutation past the gate (it then proceeds to execution — the empty
