@@ -23,7 +23,7 @@ pub use header_limits::header_limits_middleware;
 pub use hs256_auth::{Hs256AuthState, hs256_auth_middleware};
 pub use metrics::metrics_middleware;
 pub use oidc_auth::{
-    AuthUser, OidcAuthState, SessionJti, admin_auth_middleware, oidc_auth_middleware,
+    AuthUser, OidcAuthState, SessionJti, TenantClaim, admin_auth_middleware, oidc_auth_middleware,
     required_auth_middleware,
 };
 pub use rate_limit::{

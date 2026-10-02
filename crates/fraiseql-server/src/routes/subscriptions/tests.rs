@@ -60,23 +60,22 @@ fn headers(pairs: &[(&str, &str)]) -> HeaderMap {
 }
 
 #[test]
-fn jwt_tenant_takes_precedence_over_header() {
+fn a_header_naming_another_tenant_than_the_token_is_refused() {
+    // The subscription transport resolves through the same rule as /graphql: an
+    // authenticated caller's tenant is its token's, and a header may only agree
+    // (GHSA-24pq-hx78-766q). It used to win over the header only in strict mode.
     let ctx = ctx_with_tenant("bar");
     let h = headers(&[("X-Tenant-ID", "foo")]);
-    let resolved = resolve_subscription_tenant(Some(&ctx), &h, &state(false, &[])).unwrap();
-    assert_eq!(
-        resolved.as_deref(),
-        Some("bar"),
-        "JWT tenant_id must win over the X-Tenant-ID header (was dropped pre-#331)",
-    );
-}
-
-#[test]
-fn strict_rejects_conflicting_jwt_and_header() {
-    let ctx = ctx_with_tenant("bar");
-    let h = headers(&[("X-Tenant-ID", "foo")]);
-    let result = resolve_subscription_tenant(Some(&ctx), &h, &state(true, &[]));
-    assert!(result.is_err(), "strict mode must reject a JWT/header tenant conflict");
+    for strict in [false, true] {
+        let result = resolve_subscription_tenant(Some(&ctx), &h, &state(strict, &[]));
+        assert!(
+            matches!(result, Err(fraiseql_error::FraiseQLError::Authorization { .. })),
+            "strict={strict}: {result:?}"
+        );
+    }
+    let agreeing = headers(&[("X-Tenant-ID", "bar")]);
+    let resolved = resolve_subscription_tenant(Some(&ctx), &agreeing, &state(false, &[])).unwrap();
+    assert_eq!(resolved.as_deref(), Some("bar"));
 }
 
 #[test]

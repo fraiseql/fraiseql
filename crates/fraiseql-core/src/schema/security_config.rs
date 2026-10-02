@@ -21,12 +21,10 @@ mod tests;
 #[serde(tag = "source", content = "claim", rename_all = "snake_case")]
 #[non_exhaustive]
 pub enum InjectedParamSource {
-    /// Extract a value from the JWT claims.
-    ///
-    /// Special aliases resolved before attribute lookup:
-    /// - `"sub"` → `SecurityContext.user_id`
-    /// - `"tenant_id"` / `"org_id"` → `SecurityContext.tenant_id`
-    /// - any other name → `SecurityContext.attributes.get(name)`
+    /// Extract a value from the JWT claims, through
+    /// [`SecurityContext::jwt_claim`](crate::security::SecurityContext::jwt_claim): the
+    /// claim as the token carried it. A claim the token does not carry is an error;
+    /// no other claim and no derived value stands in for it (#1388).
     Jwt(String),
     /// Extract a DB-resolved enriched-identity field, read from the reserved
     /// `fraiseql.enriched.*` attribute namespace (#539).
@@ -185,15 +183,21 @@ pub struct TenancyConfig {
 
     /// JWT claim name that carries the tenant identifier.
     ///
-    /// Defaults to `"tenant_id"`. Used by `InjectedParamSource::Jwt` to
-    /// resolve the tenant at runtime, and by the compiler to validate
-    /// `@tenant_id` annotations in row mode.
+    /// Defaults to `"tenant_id"`. The compiler writes it into row-mode
+    /// `jwt:<tenant_claim>` injects, and the server derives
+    /// `SecurityContext::tenant_id` — the key per-tenant dispatch, the default RLS
+    /// policy and the caches scope by — from this claim of each validated token
+    /// (#1388). Read once at boot: `security` is boot-frozen.
     #[serde(default = "default_tenant_claim")]
     pub tenant_claim: String,
 }
 
+/// The JWT claim that names a request's tenant when `[fraiseql.tenancy]` does not
+/// say otherwise.
+pub const DEFAULT_TENANT_CLAIM: &str = "tenant_id";
+
 fn default_tenant_claim() -> String {
-    "tenant_id".to_string()
+    DEFAULT_TENANT_CLAIM.to_string()
 }
 
 impl Default for TenancyConfig {

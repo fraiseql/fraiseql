@@ -620,7 +620,10 @@ mod entities_authz {
             roles:            roles.iter().map(|r| (*r).to_string()).collect(),
             tenant_id:        Some("tenant-abc".into()),
             scopes:           vec![],
-            attributes:       HashMap::default(),
+            attributes:       HashMap::from([(
+                "tenant_id".to_string(),
+                serde_json::json!("tenant-abc"),
+            )]),
             request_id:       "req-1".to_string(),
             ip_address:       None,
             expires_at:       Utc::now() + chrono::Duration::hours(1),
@@ -1334,20 +1337,60 @@ mod inject {
         assert_eq!(result, serde_json::Value::String("user-42".to_string()));
     }
 
-    #[test]
-    fn test_resolve_inject_tenant_id_claim() {
-        let ctx = make_security_ctx("user-1", Some("tenant-abc"), &[]);
-        let source = InjectedParamSource::Jwt("tenant_id".to_string());
-        let result = resolve_inject_value("tenant_id", &source, &ctx).unwrap();
-        assert_eq!(result, serde_json::Value::String("tenant-abc".to_string()));
+    /// `jwt:<claim>` reads the claim the token carries (#1388). The contexts below are
+    /// shaped as `build_security_context` produces them: every non-reserved claim is in
+    /// `attributes`, and `tenant_id` is derived from the token separately — here from a
+    /// different claim, which is how the two could disagree.
+    fn inject(claim: &str, ctx: &SecurityContext) -> Result<serde_json::Value> {
+        resolve_inject_value(claim, &InjectedParamSource::Jwt(claim.to_string()), ctx)
     }
 
     #[test]
-    fn test_resolve_inject_org_id_alias() {
-        let ctx = make_security_ctx("user-1", Some("org-xyz"), &[]);
-        let source = InjectedParamSource::Jwt("org_id".to_string());
-        let result = resolve_inject_value("org_id", &source, &ctx).unwrap();
-        assert_eq!(result, serde_json::Value::String("org-xyz".to_string()));
+    fn jwt_tenant_id_reads_the_tenant_id_claim_when_it_is_the_only_one() {
+        let ctx = make_security_ctx("user-1", None, &[("tenant_id", serde_json::json!("a"))]);
+        assert_eq!(inject("tenant_id", &ctx).unwrap(), serde_json::json!("a"));
+    }
+
+    #[test]
+    fn jwt_tenant_id_is_absent_when_the_token_carries_only_org_id() {
+        let ctx = make_security_ctx("user-1", Some("b"), &[("org_id", serde_json::json!("b"))]);
+        let err = inject("tenant_id", &ctx).unwrap_err();
+        assert!(err.to_string().contains("'tenant_id' not present"), "{err}");
+    }
+
+    #[test]
+    fn jwt_tenant_id_reads_tenant_id_not_org_id_when_the_token_carries_both() {
+        let ctx = make_security_ctx(
+            "user-1",
+            Some("b"),
+            &[
+                ("tenant_id", serde_json::json!("a")),
+                ("org_id", serde_json::json!("b")),
+            ],
+        );
+        assert_eq!(inject("tenant_id", &ctx).unwrap(), serde_json::json!("a"));
+    }
+
+    #[test]
+    fn jwt_org_id_reads_the_org_id_claim_not_the_derived_tenant() {
+        let ctx = make_security_ctx(
+            "user-1",
+            Some("a"),
+            &[
+                ("tenant_id", serde_json::json!("a")),
+                ("org_id", serde_json::json!("b")),
+            ],
+        );
+        assert_eq!(inject("org_id", &ctx).unwrap(), serde_json::json!("b"));
+    }
+
+    /// Registered claims never reach `attributes` (`JwtClaims` names them), so the
+    /// resolver reads the fields the validator normalised them into.
+    #[test]
+    fn jwt_email_reads_the_registered_email_claim() {
+        let mut ctx = make_security_ctx("user-1", None, &[]);
+        ctx.email = Some("ada@example.com".to_string());
+        assert_eq!(inject("email", &ctx).unwrap(), serde_json::json!("ada@example.com"));
     }
 
     #[test]

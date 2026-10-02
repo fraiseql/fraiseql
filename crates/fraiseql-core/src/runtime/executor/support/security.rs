@@ -113,27 +113,11 @@ pub(in super::super) fn resolve_session_variables(
     for mapping in &config.variables {
         let value: Option<String> = match &mapping.source {
             SessionVariableSource::Jwt { claim } => {
-                // Check custom attributes first (raw JWT claims forwarded there).
-                // Fall back to well-known SecurityContext fields for `sub`/`user_id`
-                // and `tenant_id` so that schemas that populate only those fields
-                // (not attributes) still work.
-                if let Some(v) = security_context.attributes.get(claim.as_str()) {
-                    Some(if let serde_json::Value::String(s) = v {
-                        s.clone()
-                    } else {
-                        v.to_string()
-                    })
-                } else if claim == "sub" || claim == "user_id" {
-                    Some(security_context.user_id.0.clone())
-                } else if claim == "tenant_id" {
-                    security_context.tenant_id.as_ref().map(|t| t.0.clone())
-                } else if claim == "email" {
-                    security_context.email.clone()
-                } else if claim == "name" || claim == "display_name" {
-                    security_context.display_name.clone()
-                } else {
-                    None
-                }
+                // The one claim resolver (#1388): the claim as the token carried it.
+                security_context.jwt_claim(claim).map(|v| match v {
+                    serde_json::Value::String(s) => s,
+                    other => other.to_string(),
+                })
             },
             SessionVariableSource::Header { header } => {
                 // HTTP headers are forwarded into attributes

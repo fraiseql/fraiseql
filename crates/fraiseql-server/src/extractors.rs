@@ -13,7 +13,7 @@ use axum::{
 };
 use fraiseql_core::security::SecurityContext;
 
-use crate::middleware::AuthUser;
+use crate::middleware::{AuthUser, TenantClaim};
 
 /// Extractor for the TCP peer IP address.
 ///
@@ -81,6 +81,7 @@ where
         async move {
             // Try to extract AuthUser from extensions
             let auth_user: Option<AuthUser> = parts.extensions.get::<AuthUser>().cloned();
+            let tenant_claim = parts.extensions.get::<TenantClaim>().cloned();
 
             // Extract request headers
             let headers = &parts.headers;
@@ -88,7 +89,11 @@ where
             // Create SecurityContext if auth user is present
             let security_context = auth_user.map(|auth_user| {
                 let request_id = extract_request_id(headers);
-                let mut context = build_security_context(&auth_user.0, request_id);
+                let mut context = build_security_context(
+                    &auth_user.0,
+                    request_id,
+                    tenant_claim.as_ref().map(|c| &*c.0),
+                );
                 context.ip_address = extract_ip_address(headers);
                 if let Some(tenant_id) = extract_tenant_id(headers) {
                     context.tenant_id = Some(fraiseql_core::types::TenantId::new(tenant_id));
@@ -114,11 +119,16 @@ where
 ///   available to RLS policies and session-variable injection;
 /// - skips any claim in the framework-reserved `fraiseql.` namespace, so a token carrying a claim
 ///   literally named `fraiseql.actor_type` cannot forge the recorded actor (#390);
-/// - derives `tenant_id` from the `org_id` claim — the standard multi-tenant pattern.
+/// - derives `tenant_id` from `tenant_claim`, the claim the compiled schema names its tenant by
+///   (`[fraiseql.tenancy] tenant_claim`, default `tenant_id`; #1388). It used to be the `org_id`
+///   claim whatever the schema said, so a token carrying both was scoped by the wrong one. `None` —
+///   no claim configured on this path — means no tenant: everything that scopes by tenant then
+///   fails closed instead of guessing.
 #[must_use]
 pub(crate) fn build_security_context(
     user: &fraiseql_core::security::AuthenticatedUser,
     request_id: String,
+    tenant_claim: Option<&str>,
 ) -> SecurityContext {
     let mut context = SecurityContext::from_user(user, request_id);
 
@@ -129,11 +139,16 @@ pub(crate) fn build_security_context(
         context.attributes.insert(key.clone(), value.clone());
     }
 
-    if context.tenant_id.is_none() {
-        if let Some(org_id) = user.extra_claims.get("org_id").and_then(|v| v.as_str()) {
-            context.tenant_id = Some(fraiseql_core::types::TenantId::new(org_id));
-        }
-    }
+    // A tenant identifier is a non-empty string, or a number spelled in decimal; any
+    // other shape names no tenant.
+    context.tenant_id = tenant_claim
+        .and_then(|claim| context.jwt_claim(claim))
+        .and_then(|value| match value {
+            serde_json::Value::String(s) if !s.is_empty() => Some(s),
+            serde_json::Value::Number(n) => Some(n.to_string()),
+            _ => None,
+        })
+        .map(fraiseql_core::types::TenantId::new);
 
     context
 }

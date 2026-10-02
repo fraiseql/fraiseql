@@ -659,7 +659,11 @@ mod hs256_auth_tests {
         assert_clone::<Hs256AuthState>();
 
         let mw = AuthMiddleware::from_config(AuthConfig::with_hs256("test-secret-123"));
-        let _state = Hs256AuthState::new(Arc::new(mw), "test".to_string());
+        let _state = Hs256AuthState::new(
+            Arc::new(mw),
+            "test".to_string(),
+            crate::middleware::TenantClaim(Arc::from("tenant_id")),
+        );
     }
 }
 

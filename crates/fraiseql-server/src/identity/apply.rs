@@ -91,34 +91,20 @@ pub async fn resolve_request_identity(
     enrich_security_context(resolver, ctx).await
 }
 
-/// Build the claim map the resolver binds `$param`s from: the raw forwarded
-/// attributes, plus the well-known identity fields under their conventional
-/// names (attributes win on a collision, mirroring the `Jwt` source). Exposing
-/// `iss` lets a multi-issuer app bind `$iss` for cache correctness (DESIGN §6).
+/// Build the claim map the resolver binds `$param`s from: every claim the token
+/// carried, as [`SecurityContext::jwt_claim`] reads it — the raw forwarded
+/// attributes, plus the registered claims the validator lifts into their own fields
+/// (`sub`, `email`, `name`/`display_name`, `iss`). Exposing `iss` lets a
+/// multi-issuer app bind `$iss` for cache correctness (DESIGN §6).
+///
+/// The derived tenant is not a claim and never binds as one (#1388): `$org_id` and
+/// `$tenant_id` are the token's own claims, or a missing bind.
 fn claims_for_binding(ctx: &SecurityContext) -> HashMap<String, serde_json::Value> {
     let mut claims = ctx.attributes.clone();
-    claims
-        .entry("sub".to_owned())
-        .or_insert_with(|| serde_json::Value::String(ctx.user_id.0.clone()));
-    if let Some(tenant) = &ctx.tenant_id {
-        let value = serde_json::Value::String(tenant.0.clone());
-        claims.entry("tenant_id".to_owned()).or_insert_with(|| value.clone());
-        claims.entry("org_id".to_owned()).or_insert(value);
-    }
-    if let Some(email) = &ctx.email {
-        claims
-            .entry("email".to_owned())
-            .or_insert_with(|| serde_json::Value::String(email.clone()));
-    }
-    if let Some(name) = &ctx.display_name {
-        let value = serde_json::Value::String(name.clone());
-        claims.entry("name".to_owned()).or_insert_with(|| value.clone());
-        claims.entry("display_name".to_owned()).or_insert(value);
-    }
-    if let Some(iss) = &ctx.issuer {
-        claims
-            .entry("iss".to_owned())
-            .or_insert_with(|| serde_json::Value::String(iss.clone()));
+    for registered in ["sub", "email", "name", "display_name", "iss"] {
+        if let Some(value) = ctx.jwt_claim(registered) {
+            claims.entry(registered.to_owned()).or_insert(value);
+        }
     }
     // `$claims` — the whole set as one JSON object, so a provisioning statement
     // can hand an IdP's token to a function that stores what it chooses (#1324)

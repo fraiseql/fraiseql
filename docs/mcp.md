@@ -345,12 +345,14 @@ cannot forge or suppress it.
 
 ### Tenancy and errors
 
-An MCP tool call goes through the same per-tenant dispatch as `/graphql`: the tenant
-key is resolved from the validated token's claims (`tenant_id`, or `org_id`), the
-`X-Tenant-ID` header, or the `Host` header; an unregistered key is refused rather
-than served from the default executor, a suspended tenant is refused, and the
-tenant's concurrency and per-second quotas apply. The stdio transport carries no
-headers, so there the JWT claim is the only source.
+An MCP tool call goes through the same per-tenant dispatch as `/graphql`. An
+authenticated caller is served the tenant its token names in the schema's tenant claim
+(`[fraiseql.tenancy] tenant_claim`, default `tenant_id`); an `X-Tenant-ID` or `Host`
+header may only agree with it, and one naming another tenant, or sent with a token that
+names none, is refused. An anonymous caller is addressed by `X-Tenant-ID`, then `Host`.
+An unregistered key is refused rather than served from the default executor, a suspended
+tenant is refused, and the tenant's concurrency and per-second quotas apply. The stdio
+transport carries no headers, so there the token is the only source.
 
 Execution errors are passed through the configured
 `[security.error_sanitization]` sanitizer before reaching the client, so a database

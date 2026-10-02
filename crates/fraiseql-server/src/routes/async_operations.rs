@@ -193,7 +193,7 @@ async fn submit(
 
     let tenant_key = match tenant_dispatch::resolve_tenant_key(&state.app, Some(&ctx), &headers) {
         Ok(k) => k,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, &e.to_string()),
+        Err(e) => return error_response(tenant_refusal_status(&e), &e.to_string()),
     };
 
     // Idempotent submission (#747): the same Idempotency-Key with the same body
@@ -297,7 +297,7 @@ async fn status(
     };
     let tenant_key = match tenant_dispatch::resolve_tenant_key(&state.app, Some(&ctx), &headers) {
         Ok(k) => k,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, &e.to_string()),
+        Err(e) => return error_response(tenant_refusal_status(&e), &e.to_string()),
     };
 
     // The status is READ from the stored row — never inferred (P19 mode 6) —
@@ -327,7 +327,7 @@ async fn cancel(
     };
     let tenant_key = match tenant_dispatch::resolve_tenant_key(&state.app, Some(&ctx), &headers) {
         Ok(k) => k,
-        Err(e) => return error_response(StatusCode::BAD_REQUEST, &e.to_string()),
+        Err(e) => return error_response(tenant_refusal_status(&e), &e.to_string()),
     };
     let submitter = ctx.user_id.as_str();
     let tenant = tenant_key.as_deref();
@@ -383,4 +383,10 @@ fn caller_and_id(
         return Err(error_response(StatusCode::BAD_REQUEST, "op_id must be a UUID"));
     };
     Ok((ctx, op_id))
+}
+
+/// The status a tenant-resolution refusal is answered with: its own class (403 for a
+/// header naming a tenant the caller's token is not bound to, 400 for a malformed one).
+fn tenant_refusal_status(error: &fraiseql_error::FraiseQLError) -> StatusCode {
+    StatusCode::from_u16(error.status_code()).unwrap_or(StatusCode::BAD_REQUEST)
 }

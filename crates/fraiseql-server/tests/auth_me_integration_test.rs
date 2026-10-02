@@ -217,7 +217,10 @@ async fn test_auth_me_reads_host_cookie() {
     };
     let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks")
         .expect("an https jwks_uri is accepted");
-    let auth_state = OidcAuthState::new(Arc::new(validator));
+    let auth_state = OidcAuthState::new(
+        Arc::new(validator),
+        fraiseql_server::middleware::TenantClaim(Arc::from("tenant_id")),
+    );
 
     let state = make_me_state(&[]);
     let router = Router::new()

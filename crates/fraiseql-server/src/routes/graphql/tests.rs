@@ -816,13 +816,65 @@ mod tenant_key_tests {
         }
     }
 
+    // ── An authenticated request's tenant is its token's (GHSA-24pq-hx78-766q) ──
+    //
+    // Client headers address a tenant; for an authenticated caller they may only agree
+    // with the token. Before, the token won a disagreement only in strict mode, and a
+    // token naming no tenant let `X-Tenant-ID` or `Host` choose any registered one.
+
+    const fn refused(result: &fraiseql_error::Result<Option<String>>) -> bool {
+        matches!(result, Err(FraiseQLError::Authorization { .. }))
+    }
+
     #[test]
-    fn test_resolve_from_jwt_takes_priority() {
-        let ctx = ctx_with_tenant("from-jwt");
-        let headers = headers_with_tenant_id("from_header");
+    fn an_authenticated_request_is_served_its_tokens_tenant() {
+        let ctx = ctx_with_tenant("tenant_a");
         let registry = DomainRegistry::new();
-        let key = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&registry), false).unwrap();
-        assert_eq!(key, Some("from-jwt".to_string()));
+        let key = TenantKeyResolver::resolve(Some(&ctx), &HeaderMap::new(), Some(&registry), false);
+        assert_eq!(key.unwrap(), Some("tenant_a".to_string()));
+        // A header that agrees is no conflict.
+        let headers = headers_with_tenant_id("tenant_a");
+        let key = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&registry), false);
+        assert_eq!(key.unwrap(), Some("tenant_a".to_string()));
+    }
+
+    #[test]
+    fn a_header_naming_another_tenant_is_refused_even_outside_strict_mode() {
+        let ctx = ctx_with_tenant("tenant_a");
+        let headers = headers_with_tenant_id("tenant_b");
+        let registry = DomainRegistry::new();
+        for strict in [false, true] {
+            let result = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&registry), strict);
+            assert!(refused(&result), "strict={strict}");
+        }
+    }
+
+    #[test]
+    fn a_host_naming_another_tenant_is_refused_for_an_authenticated_request() {
+        let ctx = ctx_with_tenant("tenant_a");
+        let headers = headers_with_host("b.example.com");
+        let registry = DomainRegistry::new();
+        registry.register("b.example.com", "tenant_b");
+        let result = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&registry), false);
+        assert!(refused(&result));
+    }
+
+    #[test]
+    fn a_token_binding_no_tenant_cannot_be_routed_by_a_header_or_host() {
+        let mut ctx = ctx_with_tenant("unused");
+        ctx.tenant_id = None;
+        let registry = DomainRegistry::new();
+        registry.register("b.example.com", "tenant_b");
+        for headers in [
+            headers_with_tenant_id("tenant_b"),
+            headers_with_host("b.example.com"),
+        ] {
+            let result = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&registry), false);
+            assert!(refused(&result), "{headers:?}");
+        }
+        // With no client hint it is simply the default executor.
+        let key = TenantKeyResolver::resolve(Some(&ctx), &HeaderMap::new(), Some(&registry), false);
+        assert_eq!(key.unwrap(), None);
     }
 
     #[test]
@@ -917,16 +969,22 @@ mod tenant_key_tests {
         assert_eq!(key, None);
     }
 
+    /// Anonymous routing is unchanged: in strict mode two client hints that disagree are
+    /// refused; outside it the header wins.
     #[test]
-    fn test_resolve_strict_mode_rejects_conflicts() {
-        let ctx = ctx_with_tenant("jwt-tenant");
-        let headers = headers_with_tenant_id("header_tenant");
+    fn anonymous_conflicting_hints_are_refused_in_strict_mode() {
+        let mut headers = headers_with_tenant_id("tenant_a");
+        headers.insert("Host", HeaderValue::from_static("b.example.com"));
         let registry = DomainRegistry::new();
-        let result = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&registry), true);
-        assert!(result.is_err());
-        if let Err(FraiseQLError::Validation { message, .. }) = result {
-            assert!(message.contains("Conflicting tenant values"));
-        }
+        registry.register("b.example.com", "tenant_b");
+        let result = TenantKeyResolver::resolve(None, &headers, Some(&registry), true);
+        assert!(
+            matches!(&result, Err(FraiseQLError::Validation { message, .. })
+                if message.contains("Conflicting tenant values")),
+            "{result:?}"
+        );
+        let key = TenantKeyResolver::resolve(None, &headers, Some(&registry), false).unwrap();
+        assert_eq!(key, Some("tenant_a".to_string()));
     }
 }
 

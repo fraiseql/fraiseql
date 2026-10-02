@@ -466,16 +466,13 @@ async fn execute_graphql_request(
     let cb_entity_types =
         stages::check_federation_circuit_breakers(&state, &query, request.variables.as_ref())?;
 
-    // Resolve tenant key from JWT / X-Tenant-ID header / Host header, through the
-    // same seam the MCP transport uses (#858).
+    // Resolve the tenant key — the token's tenant for an authenticated caller, the
+    // client hints otherwise — through the same seam the MCP transport uses (#858). A
+    // refusal keeps its own class: a header naming a tenant the token is not bound to
+    // is FORBIDDEN, a malformed header a validation error.
     let tenant_key =
         super::tenant_dispatch::resolve_tenant_key(&state, security_context.as_ref(), headers)
-            .map_err(|e| {
-                ErrorResponse::from_error(GraphQLError::new(
-                    e.to_string(),
-                    crate::error::ErrorCode::ValidationError,
-                ))
-            })?;
+            .map_err(|e| ErrorResponse::from_error(GraphQLError::from_fraiseql_error(&e)))?;
 
     // ── Idempotency (#747) ───────────────────────────────────────────────────
     // A mutation carrying an `Idempotency-Key` header executes at most once per

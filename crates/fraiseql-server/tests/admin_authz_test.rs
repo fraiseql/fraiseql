@@ -48,7 +48,10 @@ fn optional_oidc_state() -> OidcAuthState {
     // real JWKS request is made.
     let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks")
         .expect("an https jwks_uri is accepted");
-    OidcAuthState::new(Arc::new(validator))
+    OidcAuthState::new(
+        Arc::new(validator),
+        fraiseql_server::middleware::TenantClaim(Arc::from("tenant_id")),
+    )
 }
 
 async fn ok_handler() -> StatusCode {

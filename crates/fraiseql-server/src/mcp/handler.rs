@@ -181,8 +181,8 @@ impl FraiseQLMcpService {
     /// not be held across the validation await point.
     ///
     /// The context is built by the same function the `/graphql` extractor uses, so
-    /// the JWT's `org_id` becomes `tenant_id` and its extra claims become
-    /// `attributes` on this transport too (#858) — and it goes through the same
+    /// the tenant comes from the schema's configured tenant claim and the extra claims
+    /// become `attributes` on this transport too (#858, #1388) — and it goes through the same
     /// enrichment seam, so a subject the actor table refuses is refused here (#1336).
     ///
     /// - `Ok(None)` — no validator configured, or no Bearer token present (anonymous). The
@@ -214,8 +214,12 @@ impl FraiseQLMcpService {
         // writes queryable in the audit trail.
         match validator.validate(&token).await {
             Ok(user) => {
-                let mut ctx = crate::extractors::build_security_context(&user, request_id)
-                    .with_transport("mcp");
+                let mut ctx = crate::extractors::build_security_context(
+                    &user,
+                    request_id,
+                    Some(self.schema.tenant_claim()),
+                )
+                .with_transport("mcp");
                 // #1336: resolve the subject's DB identity before the tool call, exactly
                 // as `/graphql` does. MCP reached the engine's authenticated dispatch
                 // already, so it consumed enriched fields correctly — it simply never

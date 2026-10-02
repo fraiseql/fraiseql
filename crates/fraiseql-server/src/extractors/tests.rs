@@ -83,31 +83,71 @@ async fn extractor_leaves_roles_empty_without_claim() {
 }
 
 /// `build_security_context` is the one function that turns a validated token into
-/// a `SecurityContext`, so every transport gets `org_id` → `tenant_id` and the
-/// forwarded claims.
+/// a `SecurityContext`, so every transport derives the tenant and forwards the claims
+/// the same way.
 ///
 /// The MCP transport called `SecurityContext::from_user` directly, which leaves
-/// `tenant_id` unset and `attributes` empty — so an MCP caller's `org_id` never
-/// became a tenant key and every `SessionVariableSource::Jwt` mapping resolved to
-/// nothing (#858). These assertions are made against the shared builder rather
-/// than the HTTP extractor precisely because the shared builder is what both
-/// transports now call.
+/// `tenant_id` unset and `attributes` empty, so an MCP caller never had a tenant and
+/// every `SessionVariableSource::Jwt` mapping resolved to nothing (#858). These
+/// assertions are made against the shared builder rather than the HTTP extractor
+/// precisely because the shared builder is what every transport calls.
 mod shared_security_context {
     use super::{HashMap, json, user_with_claims};
     use crate::extractors::build_security_context;
 
+    fn tenant_of(
+        claims: &[(&str, serde_json::Value)],
+        tenant_claim: Option<&str>,
+    ) -> Option<String> {
+        let extra: HashMap<_, _> =
+            claims.iter().map(|(k, v)| ((*k).to_string(), v.clone())).collect();
+        build_security_context(&user_with_claims(extra), "req-1".to_string(), tenant_claim)
+            .tenant_id
+            .map(|t| t.0)
+    }
+
+    /// The tenant is the configured claim (#1388). It used to be `org_id` whatever the
+    /// schema said, so a token carrying both scoped requests by the wrong one.
     #[test]
-    fn org_id_claim_becomes_the_tenant_id() {
-        let mut extra = HashMap::new();
-        extra.insert("org_id".to_string(), json!("acme"));
+    fn the_configured_tenant_claim_becomes_the_tenant_id() {
+        let claims = [("tenant_id", json!("a")), ("org_id", json!("b"))];
+        assert_eq!(tenant_of(&claims, Some("tenant_id")).as_deref(), Some("a"));
+        assert_eq!(tenant_of(&claims, Some("org_id")).as_deref(), Some("b"));
+    }
 
-        let ctx = build_security_context(&user_with_claims(extra), "req-1".to_string());
+    #[test]
+    fn org_id_is_not_the_tenant_unless_it_is_the_configured_claim() {
+        assert_eq!(tenant_of(&[("org_id", json!("b"))], Some("tenant_id")), None);
+    }
 
+    /// No `TenantClaim` (a mount that never configured one) means no tenant, never a
+    /// guess: everything that scopes by tenant then fails closed.
+    #[test]
+    fn without_a_configured_claim_there_is_no_tenant() {
+        assert_eq!(tenant_of(&[("tenant_id", json!("a")), ("org_id", json!("b"))], None), None);
+    }
+
+    /// A numeric tenant identifier is the tenant spelled in decimal; a value that is not
+    /// a scalar identifier is no tenant.
+    #[test]
+    fn a_numeric_tenant_claim_is_a_tenant_and_a_structured_one_is_not() {
         assert_eq!(
-            ctx.tenant_id.as_ref().map(|t| t.0.as_str()),
-            Some("acme"),
-            "org_id must resolve to a tenant key for per-tenant dispatch",
+            tenant_of(&[("tenant_id", json!(42))], Some("tenant_id")).as_deref(),
+            Some("42")
         );
+        for value in [
+            json!({"id": "a"}),
+            json!(["a"]),
+            json!(true),
+            json!(null),
+            json!(""),
+        ] {
+            assert_eq!(
+                tenant_of(&[("tenant_id", value.clone())], Some("tenant_id")),
+                None,
+                "{value}"
+            );
+        }
     }
 
     #[test]
@@ -115,7 +155,7 @@ mod shared_security_context {
         let mut extra = HashMap::new();
         extra.insert("department".to_string(), json!("finance"));
 
-        let ctx = build_security_context(&user_with_claims(extra), "req-1".to_string());
+        let ctx = build_security_context(&user_with_claims(extra), "req-1".to_string(), None);
 
         assert_eq!(ctx.attributes.get("department"), Some(&json!("finance")));
     }
@@ -127,14 +167,8 @@ mod shared_security_context {
         let mut extra = HashMap::new();
         extra.insert("fraiseql.actor_type".to_string(), json!("system"));
 
-        let ctx = build_security_context(&user_with_claims(extra), "req-1".to_string());
+        let ctx = build_security_context(&user_with_claims(extra), "req-1".to_string(), None);
 
         assert_ne!(ctx.attributes.get("fraiseql.actor_type"), Some(&json!("system")));
-    }
-
-    #[test]
-    fn no_org_id_claim_leaves_the_tenant_unset() {
-        let ctx = build_security_context(&user_with_claims(HashMap::new()), "req-1".to_string());
-        assert!(ctx.tenant_id.is_none());
     }
 }

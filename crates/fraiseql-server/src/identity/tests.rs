@@ -26,7 +26,7 @@ use axum::{
 use chrono::Utc;
 use fraiseql_core::{
     security::{ENRICHED_NAMESPACE_PREFIX, SecurityContext},
-    types::UserId,
+    types::{TenantId, UserId},
 };
 use serde_json::{Value, json};
 use tower::ServiceExt;
@@ -1183,6 +1183,36 @@ async fn enrich_binds_subject_from_context() {
     // The subject from the context bound `$sub` — the read scopes on a
     // DB-derived identity, not a client-asserted one.
     assert_eq!(*store.captured.lock().unwrap(), vec![json!("subject-42")]);
+}
+
+/// `$org_id` binds the token's `org_id` claim, never the tenant derived from another
+/// claim (#1388): enrichment reads claims through the same resolver as inject params.
+#[tokio::test]
+async fn enrich_binds_the_org_id_claim_not_the_derived_tenant() {
+    let store = Arc::new(CapturingStore {
+        rows:     vec![actor_row()],
+        captured: std::sync::Mutex::new(Vec::new()),
+    });
+    let resolver = IdentityResolver::new(
+        config(
+            "SELECT actor_id, actor_role FROM tb_actor WHERE sub = $sub AND org = $org_id",
+            &[("actor_id", "actor_id"), ("actor_role", "actor_role")],
+        ),
+        store.clone(),
+    );
+    let mut ctx = sec_ctx("subject-42", &[("org_id", json!("org-b"))]);
+    ctx.tenant_id = Some(TenantId::new("tenant-a"));
+    let _ = enrich_security_context(&resolver, &mut ctx).await;
+    assert_eq!(*store.captured.lock().unwrap(), vec![json!("subject-42"), json!("org-b")]);
+
+    // And with no `org_id` claim, the derived tenant does not stand in for it.
+    let mut ctx = sec_ctx("subject-42", &[]);
+    ctx.tenant_id = Some(TenantId::new("tenant-a"));
+    assert_eq!(
+        enrich_security_context(&resolver, &mut ctx).await,
+        EnrichmentOutcome::Denied,
+        "an absent claim is a missing bind, not the derived tenant"
+    );
 }
 
 #[test]

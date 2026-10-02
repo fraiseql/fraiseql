@@ -937,14 +937,14 @@ mod principal_production {
         // leaves `tenant_id` unset and `attributes` empty, so `org_id` never became a
         // tenant and every `SessionVariableSource::Jwt` mapping resolved to nothing on
         // gRPC. Asserted without a resolver, because it is true with enrichment off.
-        let ctx = Svc::principal_from_user(None, &user(), "req-1".to_string())
+        let ctx = Svc::principal_from_user(None, &user(), "req-1".to_string(), "org_id")
             .await
             .expect("no resolver configured — nothing to refuse");
 
         assert_eq!(
             ctx.tenant_id.as_ref().map(|t| t.0.as_str()),
             Some("tenant-a"),
-            "the JWT's org_id must become the tenant, as it does on /graphql and MCP"
+            "the configured tenant claim must become the tenant, as it does on /graphql and MCP"
         );
         assert_eq!(
             ctx.attributes.get("department"),
@@ -964,7 +964,7 @@ mod principal_production {
             ("actor_role", json!("admin")),
         ]);
 
-        let ctx = Svc::principal_from_user(Some(&resolver), &user(), "req-2".to_string())
+        let ctx = Svc::principal_from_user(Some(&resolver), &user(), "req-2".to_string(), "org_id")
             .await
             .expect("a subject the actor table knows must proceed");
 
@@ -987,9 +987,10 @@ mod principal_production {
         // dispatched it, so an unprovisioned subject reached the data.
         let resolver = identity_fixtures::resolver_returning(&[]);
 
-        let response = Svc::principal_from_user(Some(&resolver), &user(), "req-3".to_string())
-            .await
-            .expect_err("a subject the actor table does not know must be refused");
+        let response =
+            Svc::principal_from_user(Some(&resolver), &user(), "req-3".to_string(), "org_id")
+                .await
+                .expect_err("a subject the actor table does not know must be refused");
 
         assert_eq!(
             response.headers().get("grpc-status").map(|v| v.to_str().unwrap()),
@@ -1004,9 +1005,10 @@ mod principal_production {
         // an outage is transient and a client should.
         let resolver = identity_fixtures::resolver_unavailable();
 
-        let response = Svc::principal_from_user(Some(&resolver), &user(), "req-4".to_string())
-            .await
-            .expect_err("a resolver outage must never fall through to an unscoped query");
+        let response =
+            Svc::principal_from_user(Some(&resolver), &user(), "req-4".to_string(), "org_id")
+                .await
+                .expect_err("a resolver outage must never fall through to an unscoped query");
 
         assert_eq!(
             response.headers().get("grpc-status").map(|v| v.to_str().unwrap()),

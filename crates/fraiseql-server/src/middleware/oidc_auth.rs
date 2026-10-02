@@ -29,16 +29,38 @@ fn bearer_challenge(issuer: Option<&str>) -> String {
     issuer.map_or_else(|| "Bearer".to_string(), |issuer| format!("Bearer realm=\"{issuer}\""))
 }
 
+/// Request extension naming the JWT claim that carries the caller's tenant
+/// (`[fraiseql.tenancy] tenant_claim`, see
+/// [`CompiledSchema::tenant_claim`](fraiseql_core::schema::CompiledSchema::tenant_claim)).
+///
+/// Both auth middlewares insert it beside [`AuthUser`], from the claim their state was
+/// built with, and the shared context builder every transport calls derives
+/// `SecurityContext::tenant_id` from that claim (#1388). A request that carries
+/// no `TenantClaim` gets no tenant: there is no default to fall back on, so a mount that
+/// forgot it fails closed rather than scoping by a claim nobody configured.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TenantClaim(pub Arc<str>);
+
+impl TenantClaim {
+    /// The claim a compiled schema names its tenant by.
+    #[must_use]
+    pub fn of(schema: &fraiseql_core::schema::CompiledSchema) -> Self {
+        Self(Arc::from(schema.tenant_claim()))
+    }
+}
+
 /// State for OIDC authentication middleware.
 #[derive(Clone)]
 pub struct OidcAuthState {
     /// The OIDC validator.
-    pub validator:  Arc<OidcValidator>,
+    pub validator:    Arc<OidcValidator>,
+    /// The claim that names the caller's tenant, inserted as a [`TenantClaim`] extension.
+    pub tenant_claim: TenantClaim,
     /// Optional token-revocation manager. When present, every authenticated request is
     /// checked against the revocation store (single-`jti` revocation **and** the caller's
     /// `revoke-all` epoch) after token validation succeeds — closing H8, where revoked
     /// tokens were accepted until their natural `exp`.
-    pub revocation: Option<Arc<TokenRevocationManager>>,
+    pub revocation:   Option<Arc<TokenRevocationManager>>,
 }
 
 impl OidcAuthState {
@@ -48,9 +70,10 @@ impl OidcAuthState {
     /// when `[security.token_revocation]` is configured; constructing without one (e.g. in
     /// tests) simply performs no revocation check.
     #[must_use]
-    pub const fn new(validator: Arc<OidcValidator>) -> Self {
+    pub const fn new(validator: Arc<OidcValidator>, tenant_claim: TenantClaim) -> Self {
         Self {
             validator,
+            tenant_claim,
             revocation: None,
         }
     }
@@ -220,7 +243,7 @@ pub(crate) fn extract_access_token_cookie(headers: &axum::http::HeaderMap) -> Op
 /// // Requires: OIDC provider reachable for JWKS discovery, running Axum application.
 /// use axum::{middleware, Router};
 ///
-/// let oidc_state = OidcAuthState::new(validator);
+/// let oidc_state = OidcAuthState::new(validator, TenantClaim::of(&schema));
 /// let app = Router::new()
 ///     .route("/graphql", post(graphql_handler))
 ///     .layer(middleware::from_fn_with_state(oidc_state, oidc_auth_middleware));
@@ -294,6 +317,7 @@ pub async fn oidc_auth_middleware(
                             Err(response) => return response,
                         };
                     request.extensions_mut().insert(AuthUser(user));
+                    request.extensions_mut().insert(auth_state.tenant_claim.clone());
                     request.extensions_mut().insert(SessionJti(claims.jti.clone()));
                     // #771: long-lived streams re-run the revocation check mid-stream.
                     request.extensions_mut().insert(claims);
@@ -403,6 +427,7 @@ async fn authenticate_required(
                 Err(response) => return Err(response),
             };
             request.extensions_mut().insert(AuthUser(user.clone()));
+            request.extensions_mut().insert(auth_state.tenant_claim.clone());
             request.extensions_mut().insert(SessionJti(claims.jti.clone()));
             // #771: long-lived streams re-run the revocation check mid-stream.
             request.extensions_mut().insert(claims);
@@ -555,7 +580,7 @@ mod revocation_tests {
 
     #[tokio::test]
     async fn no_manager_is_a_noop_passthrough() {
-        let state = OidcAuthState::new(validator());
+        let state = OidcAuthState::new(validator(), super::TenantClaim(Arc::from("tenant_id")));
         let claims = check_revocation(
             state.revocation.as_ref(),
             &user("alice"),
@@ -571,7 +596,8 @@ mod revocation_tests {
     async fn revoked_jti_is_rejected_on_the_request_path() {
         let store = Arc::new(InMemoryRevocationStore::new());
         store.revoke("j1", 3600).await.unwrap();
-        let state = OidcAuthState::new(validator()).with_revocation(Some(manager(store)));
+        let state = OidcAuthState::new(validator(), super::TenantClaim(Arc::from("tenant_id")))
+            .with_revocation(Some(manager(store)));
 
         // H8: before this wiring the middleware decoded the jti but never consulted the
         // revocation store, so a revoked token was accepted.
@@ -590,7 +616,7 @@ mod revocation_tests {
         let store = Arc::new(InMemoryRevocationStore::new());
         store.revoke_all_for_user("alice", 3600).await.unwrap();
         let now = Utc::now().timestamp();
-        let state = OidcAuthState::new(validator())
+        let state = OidcAuthState::new(validator(), super::TenantClaim(Arc::from("tenant_id")))
             .with_revocation(Some(manager(Arc::clone(&store) as Arc<dyn RevocationStore>)));
 
         // A token issued before the revoke-all epoch is rejected even though its jti was

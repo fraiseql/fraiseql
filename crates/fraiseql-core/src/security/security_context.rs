@@ -701,6 +701,39 @@ impl SecurityContext {
         self
     }
 
+    /// The value of JWT claim `claim` for this request, as the token carried it.
+    ///
+    /// The one answer to "what is claim X" (#1388). Inject parameters (`jwt:<claim>`),
+    /// session variables (`source = "jwt"`) and identity-enrichment bindings all read
+    /// claims through this, so a claim name means the same thing on every path. Three
+    /// copies used to answer differently, and two of them answered `tenant_id` *and*
+    /// `org_id` with [`Self::tenant_id`] — the tenant derived from one claim — so a token
+    /// carrying both scoped a query by the wrong one.
+    ///
+    /// Resolution:
+    /// 1. the raw claim, from [`Self::attributes`] (every non-reserved claim lands there);
+    /// 2. a **registered** claim the validator lifts out of the claim map into its own field, so it
+    ///    never reaches `attributes`: `sub` (also spelled `user_id`) → [`Self::user_id`], `email` →
+    ///    [`Self::email`], `name` (also `display_name`) → [`Self::display_name`], `iss` →
+    ///    [`Self::issuer`].
+    ///
+    /// No other name is aliased. In particular the derived [`Self::tenant_id`] is never
+    /// read here: it is not a claim, and standing in for one is how #1388 happened.
+    #[must_use]
+    pub fn jwt_claim(&self, claim: &str) -> Option<serde_json::Value> {
+        if let Some(value) = self.attributes.get(claim) {
+            return Some(value.clone());
+        }
+        let field = match claim {
+            "sub" | "user_id" => Some(self.user_id.0.clone()),
+            "email" => self.email.clone(),
+            "name" | "display_name" => self.display_name.clone(),
+            "iss" => self.issuer.clone(),
+            _ => None,
+        };
+        field.map(serde_json::Value::String)
+    }
+
     /// Check if user can access a field based on role definitions.
     ///
     /// Takes a required scope and checks if any of the user's roles grant that scope.

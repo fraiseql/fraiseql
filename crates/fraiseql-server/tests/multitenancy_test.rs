@@ -413,7 +413,7 @@ fn test_domain_registry_register_lookup_remove() {
 }
 
 #[test]
-fn test_tenant_key_priority_jwt_over_header_over_host() {
+fn test_tenant_key_token_binds_then_header_then_host() {
     use axum::http::{HeaderMap, HeaderValue};
     use chrono::Utc;
     use fraiseql_core::{
@@ -444,8 +444,14 @@ fn test_tenant_key_priority_jwt_over_header_over_host() {
     headers.insert("X-Tenant-ID", HeaderValue::from_static("from_header"));
     headers.insert("Host", HeaderValue::from_static("api.acme.com"));
 
-    // All three sources present → JWT wins
-    let key = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&domain_reg), false).unwrap();
+    // An authenticated request whose headers name other tenants is refused: its tenant
+    // is the token's, and client hints may only agree (GHSA-24pq-hx78-766q).
+    let refused = TenantKeyResolver::resolve(Some(&ctx), &headers, Some(&domain_reg), false);
+    assert!(matches!(refused, Err(FraiseQLError::Authorization { .. })), "{refused:?}");
+
+    // With no client hint it is served the token's tenant.
+    let key = TenantKeyResolver::resolve(Some(&ctx), &HeaderMap::new(), Some(&domain_reg), false)
+        .unwrap();
     assert_eq!(key, Some("from_jwt".to_string()));
 
     // No JWT → header wins
@@ -797,4 +803,67 @@ async fn test_schema_isolation_delete_drops_schema() {
     // After DELETE /api/v1/admin/tenants/a, pg_namespace no longer
     // contains tenant_a.
     todo!("requires live PostgreSQL with schema DDL");
+}
+
+// ── Over HTTP: a header cannot move an authenticated caller to another tenant ──
+
+/// Through the real `/graphql` handler: a caller whose token names `tenant_a` and whose
+/// `X-Tenant-ID` names `tenant_b` is refused as FORBIDDEN — never routed to `tenant_b`'s
+/// executor, and never reported as a malformed request (GHSA-24pq-hx78-766q). The same
+/// caller naming its own tenant is served.
+#[tokio::test]
+async fn an_authenticated_caller_cannot_select_another_tenant_by_header() {
+    use axum::{Router, body::Body, routing::post};
+    use fraiseql_core::{security::AuthenticatedUser, types::UserId};
+    use fraiseql_server::{
+        middleware::{AuthUser, TenantClaim},
+        routes::graphql::graphql_handler,
+    };
+    use http::Request;
+    use tower::ServiceExt;
+
+    let state = make_multitenant_state();
+    let registry = state.tenant_registry().unwrap();
+    registry.upsert("tenant_a", make_executor("a", "users"));
+    registry.upsert("tenant_b", make_executor("b", "users"));
+    let router = Router::new().route("/graphql", post(graphql_handler)).with_state(state);
+
+    let send = |header: &'static str| {
+        let router = router.clone();
+        async move {
+            let mut request = Request::builder()
+                .method("POST")
+                .uri("/graphql")
+                .header("content-type", "application/json")
+                .header("X-Tenant-ID", header)
+                .body(Body::from(r#"{"query":"{ users { id } }"}"#))
+                .unwrap();
+            let user = AuthenticatedUser {
+                user_id:      UserId::new("alice"),
+                scopes:       vec![],
+                expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+                email:        None,
+                display_name: None,
+                extra_claims: std::collections::HashMap::from([(
+                    "tenant_id".to_string(),
+                    serde_json::json!("tenant_a"),
+                )]),
+            };
+            request.extensions_mut().insert(AuthUser(user));
+            request.extensions_mut().insert(TenantClaim(Arc::from("tenant_id")));
+            let response = router.oneshot(request).await.unwrap();
+            let bytes = axum::body::to_bytes(response.into_body(), usize::MAX).await.unwrap();
+            serde_json::from_slice::<serde_json::Value>(&bytes).unwrap()
+        }
+    };
+
+    let refused = send("tenant_b").await;
+    assert_eq!(refused["errors"][0]["code"], "FORBIDDEN", "{refused}");
+
+    let served = send("tenant_a").await;
+    let codes: Vec<_> = served["errors"]
+        .as_array()
+        .map(|e| e.iter().map(|e| e["code"].clone()).collect())
+        .unwrap_or_default();
+    assert!(!codes.contains(&serde_json::json!("FORBIDDEN")), "{served}");
 }

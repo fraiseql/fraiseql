@@ -1,15 +1,12 @@
 //! Tenant key resolution from HTTP request context.
 //!
-//! Resolves tenant key from three sources in priority order:
-//! 1. JWT `tenant_id` claim (via `SecurityContext`)
-//! 2. `X-Tenant-ID` header
-//! 3. `Host` header (via `DomainRegistry`)
+//! An authenticated request is served the tenant its token is bound to
+//! (`SecurityContext::tenant_id`); client headers may only agree with it. An anonymous
+//! request is addressed by `X-Tenant-ID`, then `Host` (via `DomainRegistry`).
 //!
 //! The resolver only **extracts and validates** the key format. It does NOT check
 //! whether the key is registered — that validation happens in
 //! [`TenantExecutorRegistry::executor_for`](super::tenant_registry::TenantExecutorRegistry::executor_for).
-
-use std::collections::HashSet;
 
 use axum::http::HeaderMap;
 use dashmap::DashMap;
@@ -33,17 +30,26 @@ pub struct TenantKeyResolver;
 impl TenantKeyResolver {
     /// Resolve and validate a tenant key from request context.
     ///
-    /// Priority: JWT `tenant_id` > `X-Tenant-ID` header > `Host` header.
+    /// **An authenticated request is served its token's tenant**
+    /// (`SecurityContext::tenant_id`, derived from the configured tenant claim). The
+    /// `X-Tenant-ID` and `Host` headers are client-controlled: for an authenticated caller
+    /// they may only agree with the token. One that names a different tenant is refused,
+    /// and so is one sent with a token that binds no tenant at all — otherwise a header
+    /// would choose which tenant's executor a principal runs against
+    /// (GHSA-24pq-hx78-766q). With no header, a token binding no tenant is served by the
+    /// default executor.
     ///
-    /// JWT values are trusted (already validated by token verification).
-    /// `X-Tenant-ID` header values are validated for format safety.
-    /// Cross-validates all available sources for consistency when `strict` is true.
+    /// **An anonymous request** is addressed by its client hints alone: `X-Tenant-ID`,
+    /// then `Host` through the domain registry (public per-tenant surfaces). When
+    /// `strict` is true, two hints that disagree are refused.
     ///
     /// # Errors
     ///
-    /// Returns `FraiseQLError::Validation` if the `X-Tenant-ID` header value
-    /// contains invalid characters, exceeds `MAX_TENANT_KEY_LEN`, or if
-    /// `strict` is true and multiple sources provide conflicting tenant values.
+    /// - `FraiseQLError::Authorization` when an authenticated request's header or `Host` names a
+    ///   tenant its token is not bound to.
+    /// - `FraiseQLError::Validation` if the `X-Tenant-ID` header contains invalid characters or
+    ///   exceeds `MAX_TENANT_KEY_LEN`, or if `strict` is true and an anonymous request's hints
+    ///   conflict.
     #[doc(hidden)] // Internal-pub: dispatched by GraphQL handler/subscription routes; downstream tenancy goes through TenancyConfig, not this fn.
     pub fn resolve(
         security_context: Option<&SecurityContext>,
@@ -51,63 +57,60 @@ impl TenantKeyResolver {
         domain_registry: Option<&DomainRegistry>,
         strict: bool,
     ) -> Result<Option<String>> {
-        let mut sources = Vec::new();
-        let mut resolved_value = None;
+        let hints = Self::client_hints(headers, domain_registry)?;
 
-        // 1. JWT tenant_id (highest priority, trusted)
         if let Some(ctx) = security_context {
-            if let Some(ref tid) = ctx.tenant_id {
-                resolved_value = Some(tid.0.clone());
-                sources.push(("JWT".to_string(), tid.0.clone()));
+            let bound = ctx.tenant_id.as_ref().map(|t| t.0.as_str());
+            if let Some((source, named)) =
+                hints.iter().find(|(_, named)| Some(named.as_str()) != bound)
+            {
+                warn!(
+                    source,
+                    named, "authenticated request names a tenant its token does not bind"
+                );
+                return Err(FraiseQLError::unauthorized(format!(
+                    "the request names tenant '{named}' ({source}), which the caller's token \
+                     is not bound to"
+                )));
             }
+            return Ok(bound.map(str::to_string));
         }
 
-        // 2. X-Tenant-ID header (untrusted, must validate)
-        if let Some(val) = headers.get("X-Tenant-ID") {
-            if let Ok(s) = val.to_str() {
-                validate_tenant_key(s)?;
-                let header_value = s.to_string();
-                sources.push(("X-Tenant-ID".to_string(), header_value.clone()));
-                if resolved_value.is_none() {
-                    resolved_value = Some(header_value);
-                }
-            }
-        }
-
-        // 3. Host header → domain registry lookup
-        if let Some(registry) = domain_registry {
-            if let Some(val) = headers.get("Host") {
-                if let Ok(host) = val.to_str() {
-                    if let Some(key) = registry.lookup(host) {
-                        sources.push(("Host".to_string(), key.clone()));
-                        if resolved_value.is_none() {
-                            resolved_value = Some(key);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Cross-validate sources
-        if sources.len() > 1 {
-            let unique_values: HashSet<_> = sources.iter().map(|(_, v)| v).collect();
-            if unique_values.len() > 1 {
-                let conflicts: Vec<String> =
-                    sources.iter().map(|(src, val)| format!("{}: {}", src, val)).collect();
-                warn!("Tenant source conflict detected: {}", conflicts.join(", "));
+        if let [(first, a), rest @ ..] = hints.as_slice() {
+            if let Some((second, b)) = rest.iter().find(|(_, b)| b != a) {
+                warn!("Tenant source conflict detected: {first}: {a}, {second}: {b}");
                 if strict {
                     return Err(FraiseQLError::Validation {
                         message: format!(
-                            "Conflicting tenant values from sources: {}",
-                            conflicts.join(", ")
+                            "Conflicting tenant values from sources: {first}: {a}, {second}: {b}"
                         ),
                         path:    None,
                     });
                 }
             }
         }
+        Ok(hints.into_iter().next().map(|(_, key)| key))
+    }
 
-        Ok(resolved_value)
+    /// The tenants a request's client-controlled headers name, in priority order:
+    /// `X-Tenant-ID` (format-validated), then `Host` through the domain registry.
+    fn client_hints(
+        headers: &HeaderMap,
+        domain_registry: Option<&DomainRegistry>,
+    ) -> Result<Vec<(&'static str, String)>> {
+        let mut hints = Vec::new();
+        if let Some(value) = headers.get("X-Tenant-ID").and_then(|v| v.to_str().ok()) {
+            validate_tenant_key(value)?;
+            hints.push(("X-Tenant-ID", value.to_string()));
+        }
+        if let (Some(registry), Some(host)) =
+            (domain_registry, headers.get("Host").and_then(|v| v.to_str().ok()))
+        {
+            if let Some(key) = registry.lookup(host) {
+                hints.push(("Host", key));
+            }
+        }
+        Ok(hints)
     }
 }
 

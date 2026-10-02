@@ -344,6 +344,26 @@ mod session_variable_tests {
         assert_eq!(vars[0].1, "tenant-abc");
     }
 
+    /// The session-variable resolver and the inject resolver answer `jwt:<claim>`
+    /// identically (#1388): the derived `tenant_id` never stands in for a claim the
+    /// token does not carry.
+    #[test]
+    fn a_jwt_session_variable_never_reads_the_derived_tenant_for_an_absent_claim() {
+        let mut ctx = make_context();
+        ctx.attributes.remove("tenant_id");
+        let config = SessionVariablesConfig {
+            variables:         vec![SessionVariableMapping {
+                name:   "app.tenant_id".to_string(),
+                source: SessionVariableSource::Jwt {
+                    claim: "tenant_id".to_string(),
+                },
+            }],
+            inject_started_at: false,
+        };
+        let vars = resolve_session_variables(&config, &ctx).unwrap();
+        assert!(vars.is_empty(), "an absent claim sets nothing, got {vars:?}");
+    }
+
     #[test]
     fn resolve_session_variables_jwt_well_known_sub() {
         let ctx = make_context();

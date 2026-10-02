@@ -307,6 +307,21 @@ impl CompiledSchema {
         self.security.as_ref().map(|s| &s.tenancy)
     }
 
+    /// The JWT claim that names a request's tenant: `[fraiseql.tenancy] tenant_claim`,
+    /// or [`DEFAULT_TENANT_CLAIM`](crate::schema::security_config::DEFAULT_TENANT_CLAIM)
+    /// when the schema declares none.
+    ///
+    /// The one source for every reader of "which claim is the tenant" (#1388): the
+    /// compiler bakes it into row-mode `jwt:<claim>` injects, and the server derives
+    /// `SecurityContext::tenant_id` from it.
+    #[must_use]
+    pub fn tenant_claim(&self) -> &str {
+        self.tenancy_config()
+            .map_or(crate::schema::security_config::DEFAULT_TENANT_CLAIM, |t| {
+                t.tenant_claim.as_str()
+            })
+    }
+
     /// Find a role definition by name.
     ///
     /// # Arguments

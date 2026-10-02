@@ -453,6 +453,7 @@ impl DynamicGrpcService {
                     self.identity_resolver.as_deref(),
                     &user,
                     request_id,
+                    self.schema.tenant_claim(),
                 )
                 .await
                 .map(Some)
@@ -492,9 +493,10 @@ impl DynamicGrpcService {
         #[cfg(feature = "auth")] identity_resolver: Option<&crate::identity::IdentityResolver>,
         user: &fraiseql_core::security::AuthenticatedUser,
         request_id: String,
+        tenant_claim: &str,
     ) -> std::result::Result<SecurityContext, http::Response<TonicBody>> {
-        let ctx =
-            crate::extractors::build_security_context(user, request_id).with_transport("grpc");
+        let ctx = crate::extractors::build_security_context(user, request_id, Some(tenant_claim))
+            .with_transport("grpc");
         // Shadowed rather than declared `mut` up front: without `auth` there is no
         // resolver and nothing mutates it, and an unconditional `mut` warns in that
         // arm — the arm `--all-features` never builds.

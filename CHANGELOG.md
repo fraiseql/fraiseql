@@ -18,6 +18,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`jwt:<claim>` reads the claim the token carries, on every path (#1388).** Inject
+  parameters, `[session_variables]` with `source = "jwt"` and identity-enrichment `$param`
+  bindings each resolved claims themselves, and two of them answered `jwt:tenant_id` *and*
+  `jwt:org_id` with the tenant derived from the `org_id` claim. A token carrying only
+  `tenant_id` was refused ("claim 'tenant_id' not present"); a token carrying both scoped
+  the query by `org_id`. One resolver, `SecurityContext::jwt_claim`, now answers all
+  three: the raw claim, or a registered claim the validator lifts into its own field
+  (`sub`/`user_id`, `email`, `name`/`display_name`, `iss`), and nothing else. `jwt:email`
+  works as an inject source as a result. **Upgrade:** a schema that injects
+  `jwt:tenant_id` while its tokens carry the tenant in `org_id` must inject `jwt:org_id`
+  (or set `[fraiseql.tenancy] tenant_claim = "org_id"` and recompile row-mode tenancy).
+- **The request's tenant is the configured `tenant_claim`, not `org_id` (#1388).**
+  `SecurityContext::tenant_id`, which per-tenant dispatch, the default RLS policy, the
+  caches and SSE scope by, was the `org_id` claim whatever the schema said, while
+  `[fraiseql.tenancy] tenant_claim` (default `tenant_id`) had no runtime reader. It is now
+  derived from that claim on `/graphql`, REST, MCP, gRPC and subscriptions; a string or a
+  number is a tenant, any other value is none. **Upgrade:** a deployment whose tokens carry
+  the tenant in `org_id` sets `tenant_claim = "org_id"`. Embedders:
+  `OidcAuthState::new` and `Hs256AuthState::new` take a `TenantClaim`
+  (`TenantClaim::of(&schema)`), inserted beside `AuthUser`; a request without one has no
+  tenant.
+
 - **`database_target` accepts only `postgresql`, in both places it can be set (#1341).** A
   `fraiseql.toml` that declared `mysql`, `sqlite` or `sqlserver` used to compile with
   `✓ Schema compiled successfully` while emitting PostgreSQL SQL, because the key was a bare
@@ -79,6 +101,17 @@ disagreed, and the promise was the part that was wrong.
   The block no longer carries `apollo_version`.
 
 ### Security
+
+- **An authenticated request is served its token's tenant; a header cannot choose
+  another.** With the multi-tenant runtime on, `X-Tenant-ID` or a registered `Host`
+  decided the tenant executor whenever the caller's security context carried no tenant,
+  and a disagreement with the token was refused only when RLS was configured. A principal
+  whose token named no tenant (for instance a token carrying `tenant_id` while the server
+  read only `org_id`, #1388) could address any registered tenant by header and run there
+  with its own roles. Now an authenticated request's header or `Host` may only agree with
+  its token's tenant; one naming another tenant, or sent with a token that names none, is
+  refused as `FORBIDDEN` (403 on the async-operations routes, which reported every tenant
+  error as 400). Anonymous routing by `X-Tenant-ID` and `Host` is unchanged.
 
 - **Five accepted advisories were extended by 30 days, not re-argued.** The risk acceptances
   for RUSTSEC-2023-0071 (`rsa`), RUSTSEC-2025-0134 (`rustls-pemfile`), RUSTSEC-2026-0194 and

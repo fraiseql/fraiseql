@@ -18,7 +18,7 @@ use axum::{
 };
 use fraiseql_core::security::{AuthMiddleware, AuthRequest};
 
-use super::oidc_auth::{AuthUser, SessionJti, check_revocation};
+use super::oidc_auth::{AuthUser, SessionJti, TenantClaim, check_revocation};
 
 /// State for HS256 authentication middleware.
 #[derive(Clone)]
@@ -40,17 +40,24 @@ pub struct Hs256AuthState {
     /// a configured store was silently inert and Studio's "revoke all of a user's active
     /// sessions" reported success over tokens that kept working (#1112).
     pub revocation:       Option<Arc<crate::token_revocation::TokenRevocationManager>>,
+    /// The claim that names the caller's tenant, inserted as a [`TenantClaim`] extension.
+    pub tenant_claim:     TenantClaim,
 }
 
 impl Hs256AuthState {
     /// Create new HS256 auth state.
     #[must_use]
-    pub const fn new(validator: Arc<AuthMiddleware>, realm: String) -> Self {
+    pub const fn new(
+        validator: Arc<AuthMiddleware>,
+        realm: String,
+        tenant_claim: TenantClaim,
+    ) -> Self {
         Self {
             validator,
             realm,
             service_accounts: None,
             revocation: None,
+            tenant_claim,
         }
     }
 
@@ -154,6 +161,7 @@ pub async fn hs256_auth_middleware(
                 Err(response) => return response,
             };
             request.extensions_mut().insert(AuthUser(user));
+            request.extensions_mut().insert(auth_state.tenant_claim.clone());
             request.extensions_mut().insert(SessionJti(claims.jti.clone()));
             request.extensions_mut().insert(claims);
             next.run(request).await

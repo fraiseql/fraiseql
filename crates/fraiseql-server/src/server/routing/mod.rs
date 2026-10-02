@@ -37,7 +37,7 @@ use tracing::info;
 
 use super::{OidcAuthState, Server, oidc_auth_middleware};
 use crate::{
-    middleware::{Hs256AuthState, hs256_auth_middleware},
+    middleware::{Hs256AuthState, TenantClaim, hs256_auth_middleware},
     routes::graphql::AppState,
 };
 
@@ -120,7 +120,8 @@ impl Server {
     /// enforcement uniform: a bare `OidcAuthState::new` at a route would silently skip
     /// the revocation check for that route.
     pub(super) fn oidc_auth_state(&self, validator: Arc<OidcValidator>) -> OidcAuthState {
-        OidcAuthState::new(validator).with_revocation(self.revocation_manager.clone())
+        OidcAuthState::new(validator, TenantClaim::of(self.executor.schema()))
+            .with_revocation(self.revocation_manager.clone())
     }
 
     /// Build an [`Hs256AuthState`], attaching the configured token-revocation manager —
@@ -140,7 +141,8 @@ impl Server {
         validator: Arc<fraiseql_core::security::AuthMiddleware>,
         realm: String,
     ) -> Hs256AuthState {
-        Hs256AuthState::new(validator, realm).with_revocation(self.revocation_manager.clone())
+        Hs256AuthState::new(validator, realm, TenantClaim::of(self.executor.schema()))
+            .with_revocation(self.revocation_manager.clone())
     }
 
     /// Build application router and return the shared `AppState`.
