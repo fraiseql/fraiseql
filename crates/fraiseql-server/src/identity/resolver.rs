@@ -262,9 +262,12 @@ impl IdentityStore for PgIdentityStore {
 /// The shared resolver: one per profile, server-lifetime, memoizing per
 /// bound-parameter tuple.
 pub struct IdentityResolver {
-    config: EnrichmentQueryConfig,
-    store:  Arc<dyn IdentityStore>,
-    cache:  IdentityCache,
+    config:       EnrichmentQueryConfig,
+    store:        Arc<dyn IdentityStore>,
+    cache:        IdentityCache,
+    /// The schema's tenant claim, which `$<tenant_claim>` binds from an assigned tenant
+    /// when the principal carries no such claim (see `SecurityContext::jwt_claim`).
+    tenant_claim: Arc<str>,
 }
 
 impl IdentityResolver {
@@ -274,14 +277,27 @@ impl IdentityResolver {
             config,
             store,
             cache: IdentityCache::new(),
+            tenant_claim: Arc::from(fraiseql_core::schema::security_config::DEFAULT_TENANT_CLAIM),
         }
+    }
+
+    /// Bind `$<tenant_claim>` under the schema's configured tenant claim.
+    #[must_use]
+    pub(super) fn with_tenant_claim(mut self, tenant_claim: &str) -> Self {
+        self.tenant_claim = Arc::from(tenant_claim);
+        self
+    }
+
+    /// The tenant claim `$param` bindings resolve against.
+    pub(super) fn tenant_claim(&self) -> &str {
+        &self.tenant_claim
     }
 
     /// Construct a Postgres-backed resolver on an unscoped pool — the server's
     /// entry point for building a profile instance from config.
     #[must_use]
-    pub fn postgres(config: EnrichmentQueryConfig, pool: sqlx::PgPool) -> Self {
-        Self::new(config, Arc::new(PgIdentityStore::new(pool)))
+    pub fn postgres(config: EnrichmentQueryConfig, pool: sqlx::PgPool, tenant_claim: &str) -> Self {
+        Self::new(config, Arc::new(PgIdentityStore::new(pool))).with_tenant_claim(tenant_claim)
     }
 
     /// Resolve `sub`'s identity, using the cache. `claims` supplies the `$param`

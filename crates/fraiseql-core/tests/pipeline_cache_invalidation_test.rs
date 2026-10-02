@@ -188,7 +188,10 @@ fn admin_security_context() -> SecurityContext {
         tenant_id:        Some(fraiseql_core::types::TenantId::new("tenant-456")),
         roles:            vec!["admin".to_string()],
         scopes:           vec![],
-        attributes:       HashMap::new(),
+        attributes:       std::collections::HashMap::from([
+            ("tenant_id".to_string(), serde_json::json!("tenant-456")),
+            ("org_id".to_string(), serde_json::json!("tenant-456")),
+        ]),
         request_id:       "req-test".to_string(),
         ip_address:       None,
         authenticated_at: Utc::now(),

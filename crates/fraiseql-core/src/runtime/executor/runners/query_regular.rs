@@ -217,7 +217,11 @@ impl QueryRunner {
         let sv = &self.ctx.schema.session_variables;
         match security_context {
             Some(sec) if !sv.variables.is_empty() || sv.inject_started_at => {
-                crate::runtime::executor::security::resolve_session_variables(sv, sec)
+                crate::runtime::executor::support::security::resolve_session_variables(
+                    sv,
+                    sec,
+                    self.ctx.schema.tenant_claim(),
+                )
             },
             _ => Ok(Vec::new()),
         }
@@ -601,7 +605,12 @@ impl QueryRunner {
                 .inject_params
                 .iter()
                 .map(|(col, source)| {
-                    let value = resolve_inject_value(col, source, security_context)?;
+                    let value = resolve_inject_value(
+                        col,
+                        source,
+                        security_context,
+                        self.ctx.schema.tenant_claim(),
+                    )?;
                     Ok(inject_param_where_clause(col, value, &query_match.query_def.native_columns))
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -2124,7 +2133,8 @@ impl QueryRunner {
                 path:    None,
             })?;
             for (param_name, source) in &query_match.query_def.inject_params {
-                let value = resolve_inject_value(param_name, source, ctx)?;
+                let value =
+                    resolve_inject_value(param_name, source, ctx, self.ctx.schema.tenant_claim())?;
                 security_conditions.push(inject_param_where_clause(
                     param_name,
                     value,
@@ -2465,7 +2475,8 @@ impl QueryRunner {
                 .inject_params
                 .iter()
                 .map(|(col, source)| {
-                    let value = resolve_inject_value(col, source, ctx)?;
+                    let value =
+                        resolve_inject_value(col, source, ctx, self.ctx.schema.tenant_claim())?;
                     Ok(inject_param_where_clause(col, value, &query_match.query_def.native_columns))
                 })
                 .collect::<Result<Vec<_>>>()?;

@@ -1403,7 +1403,10 @@ mod relay_security {
             roles:            vec!["user".to_string()],
             tenant_id:        Some(tenant_id.into()),
             scopes:           vec![],
-            attributes:       HashMap::new(),
+            attributes:       std::collections::HashMap::from([(
+                "tenant_id".to_string(),
+                serde_json::json!(tenant_id),
+            )]),
             request_id:       "test-req".to_string(),
             ip_address:       None,
             authenticated_at: chrono::Utc::now(),
@@ -1421,7 +1424,10 @@ mod relay_security {
             roles:            vec!["admin".to_string()],
             tenant_id:        Some("tenant-abc".into()),
             scopes:           vec![],
-            attributes:       HashMap::new(),
+            attributes:       std::collections::HashMap::from([(
+                "tenant_id".to_string(),
+                serde_json::json!("tenant-abc"),
+            )]),
             request_id:       "test-admin-req".to_string(),
             ip_address:       None,
             authenticated_at: chrono::Utc::now(),

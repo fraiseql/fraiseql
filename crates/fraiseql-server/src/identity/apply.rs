@@ -38,7 +38,7 @@ pub async fn enrich_security_context(
         return EnrichmentOutcome::Proceed;
     }
     let sub = ctx.user_id.0.clone();
-    let claims = claims_for_binding(ctx);
+    let claims = claims_for_binding(ctx, resolver.tenant_claim());
     match resolver.resolve(&sub, &claims).await {
         IdentityResolution::Resolved(fields) => {
             for (field, value) in fields {
@@ -97,13 +97,17 @@ pub async fn resolve_request_identity(
 /// (`sub`, `email`, `name`/`display_name`, `iss`). Exposing `iss` lets a
 /// multi-issuer app bind `$iss` for cache correctness (DESIGN §6).
 ///
-/// The derived tenant is not a claim and never binds as one (#1388): `$org_id` and
-/// `$tenant_id` are the token's own claims, or a missing bind.
-fn claims_for_binding(ctx: &SecurityContext) -> HashMap<String, serde_json::Value> {
+/// Only the schema's tenant claim can bind an assigned tenant, exactly as
+/// [`SecurityContext::jwt_claim`] resolves it (#1388); any other name, `$org_id` and
+/// `$tenant_id` included, is the principal's own claim or a missing bind.
+fn claims_for_binding(
+    ctx: &SecurityContext,
+    tenant_claim: &str,
+) -> HashMap<String, serde_json::Value> {
     let mut claims = ctx.attributes.clone();
-    for registered in ["sub", "email", "name", "display_name", "iss"] {
-        if let Some(value) = ctx.jwt_claim(registered) {
-            claims.entry(registered.to_owned()).or_insert(value);
+    for name in ["sub", "email", "name", "display_name", "iss", tenant_claim] {
+        if let Some(value) = ctx.jwt_claim(name, tenant_claim) {
+            claims.entry(name.to_owned()).or_insert(value);
         }
     }
     // `$claims` — the whole set as one JSON object, so a provisioning statement

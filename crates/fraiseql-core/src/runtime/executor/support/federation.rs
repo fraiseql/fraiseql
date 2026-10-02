@@ -185,10 +185,7 @@ impl Executor {
                 if !self.ctx.schema.session_variables.variables.is_empty()
                     || self.ctx.schema.session_variables.inject_started_at =>
             {
-                super::super::security::resolve_session_variables(
-                    &self.ctx.schema.session_variables,
-                    sc,
-                )?
+                super::super::security::resolve_session_variables(&self.ctx.schema, sc)?
             },
             _ => Vec::new(),
         };
@@ -614,7 +611,12 @@ impl Executor {
 
             let mut conditions: Vec<WhereClause> = Vec::with_capacity(inject_params.len());
             for (col, source) in &inject_params {
-                let value = super::super::resolve_inject_value(col, source, sc)?;
+                let value = super::super::resolve_inject_value(
+                    col,
+                    source,
+                    sc,
+                    self.ctx.schema.tenant_claim(),
+                )?;
                 let pg_cast = qdef
                     .and_then(|q| q.native_columns.get(col))
                     .map(|t| crate::runtime::native_columns::pg_type_to_cast(t).to_string())

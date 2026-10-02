@@ -465,7 +465,11 @@ async fn mcp_service() -> Option<FraiseQLMcpService> {
 
     let pool = sqlx::PgPool::connect(&url).await.expect("enrichment pool");
     let state = AppState::new(Arc::new(Executor::new(build_schema(), Arc::new(adapter))))
-        .with_identity_resolver(Arc::new(IdentityResolver::postgres(enrichment_config(), pool)));
+        .with_identity_resolver(Arc::new(IdentityResolver::postgres(
+            enrichment_config(),
+            pool,
+            "tenant_id",
+        )));
 
     Some(
         FraiseQLMcpService::new(
@@ -668,7 +672,11 @@ async fn tenant_keyed_service() -> Option<FraiseQLMcpService> {
     registry.upsert(TENANT_KEY, Arc::new(Executor::new(build_schema(), Arc::new(adapter))));
 
     let state = AppState::new(default_executor)
-        .with_identity_resolver(Arc::new(IdentityResolver::postgres(enrichment_config(), pool)))
+        .with_identity_resolver(Arc::new(IdentityResolver::postgres(
+            enrichment_config(),
+            pool,
+            "tenant_id",
+        )))
         .with_tenant_registry(registry);
 
     Some(

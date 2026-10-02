@@ -555,6 +555,52 @@ async fn only_one_statement_is_accepted() {
 
 // ── RLS preview ──────────────────────────────────────────────────────────────
 
+/// An impersonated tenant is the schema's tenant claim, so a preview that also names
+/// that claim with another tenant is a contradiction and is refused rather than
+/// resolved one way or the other (#1388). Naming the same tenant twice is fine.
+#[tokio::test]
+async fn impersonation_refuses_a_tenant_claim_that_contradicts_the_tenant() {
+    if database_url_or_skip("impersonation_refuses_a_tenant_claim_that_contradicts_the_tenant")
+        .is_none()
+    {
+        return;
+    }
+    let rig = Box::pin(boot_console()).await.unwrap();
+    let scoped = format!("SELECT title FROM {SCHEMA}.v_scoped_doc ORDER BY id");
+
+    let (status, body) = run_sql(
+        &rig.server,
+        READONLY_TOKEN,
+        json!({
+            "sql": scoped,
+            "impersonate": {
+                "user_id": "operator-preview",
+                "tenant_id": TENANT_A,
+                "claims": { "tenant_id": TENANT_B }
+            }
+        }),
+    )
+    .await;
+    assert_ne!(status, 200, "two tenants for one preview must be refused: {body}");
+    assert!(body.to_string().contains("different tenants"), "{body}");
+
+    let agreeing = ok_sql(
+        &rig.server,
+        READONLY_TOKEN,
+        json!({
+            "sql": scoped,
+            "max_rows": 100,
+            "impersonate": {
+                "user_id": "operator-preview",
+                "tenant_id": TENANT_A,
+                "claims": { "tenant_id": TENANT_A }
+            }
+        }),
+    )
+    .await;
+    assert_eq!(agreeing["rows"], json!([["a-one"], ["a-two"], ["a-three"]]), "{agreeing}");
+}
+
 /// Impersonation sets the session variables the executor would set, and the
 /// database sees them.
 ///

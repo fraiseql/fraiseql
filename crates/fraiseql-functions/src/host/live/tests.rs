@@ -762,7 +762,10 @@ async fn test_host_auth_context_returns_claims() {
         authenticated_at: chrono::Utc::now(),
         request_id:       "req-123".to_string(),
         ip_address:       None,
-        attributes:       std::collections::HashMap::new(),
+        attributes:       std::collections::HashMap::from([
+            ("tenant_id".to_string(), serde_json::json!("tenant456".to_string())),
+            ("org_id".to_string(), serde_json::json!("tenant456".to_string())),
+        ]),
         issuer:           None,
         audience:         None,
         email:            None,
@@ -802,7 +805,10 @@ async fn test_host_auth_context_redacts_sensitive() {
         authenticated_at: chrono::Utc::now(),
         request_id:       "req-123".to_string(),
         ip_address:       Some("192.168.1.1".to_string()),
-        attributes:       std::collections::HashMap::new(),
+        attributes:       std::collections::HashMap::from([
+            ("tenant_id".to_string(), serde_json::json!("tenant456".to_string())),
+            ("org_id".to_string(), serde_json::json!("tenant456".to_string())),
+        ]),
         issuer:           None,
         audience:         None,
         email:            None,

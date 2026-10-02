@@ -795,8 +795,6 @@ mod tenant_key_tests {
     }
 
     fn ctx_with_tenant(tenant_id: &str) -> SecurityContext {
-        use std::collections::HashMap;
-
         use chrono::Utc;
 
         SecurityContext {
@@ -804,7 +802,10 @@ mod tenant_key_tests {
             roles:            vec![],
             tenant_id:        Some(fraiseql_core::types::TenantId::new(tenant_id)),
             scopes:           vec![],
-            attributes:       HashMap::new(),
+            attributes:       std::collections::HashMap::from([(
+                "tenant_id".to_string(),
+                serde_json::json!(tenant_id),
+            )]),
             request_id:       "test-req".to_string(),
             ip_address:       None,
             authenticated_at: Utc::now(),

@@ -100,6 +100,7 @@ pub(in super::super) fn enforce_enrichment_resolved(
 pub(in super::super) fn resolve_session_variables(
     config: &SessionVariablesConfig,
     security_context: &SecurityContext,
+    tenant_claim: &str,
 ) -> Result<Vec<(String, String)>> {
     let mut vars: Vec<(String, String)> = Vec::new();
 
@@ -114,7 +115,7 @@ pub(in super::super) fn resolve_session_variables(
         let value: Option<String> = match &mapping.source {
             SessionVariableSource::Jwt { claim } => {
                 // The one claim resolver (#1388): the claim as the token carried it.
-                security_context.jwt_claim(claim).map(|v| match v {
+                security_context.jwt_claim(claim, tenant_claim).map(|v| match v {
                     serde_json::Value::String(s) => s,
                     other => other.to_string(),
                 })

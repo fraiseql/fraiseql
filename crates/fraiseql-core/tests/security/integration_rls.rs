@@ -91,7 +91,10 @@ fn test_rls_policy_enforces_multi_tenant_isolation() {
         roles:            vec!["user".to_string()],
         tenant_id:        Some("tenant1".into()),
         scopes:           vec![],
-        attributes:       HashMap::new(),
+        attributes:       std::collections::HashMap::from([(
+            "tenant_id".to_string(),
+            serde_json::json!("tenant1"),
+        )]),
         request_id:       "req-1".to_string(),
         ip_address:       None,
         authenticated_at: chrono::Utc::now(),
@@ -276,7 +279,10 @@ fn test_rls_compose_with_tenant_and_owner_filters() {
         roles:            vec!["user".to_string()],
         tenant_id:        Some("tenant-acme".into()),
         scopes:           vec![],
-        attributes:       HashMap::new(),
+        attributes:       std::collections::HashMap::from([(
+            "tenant_id".to_string(),
+            serde_json::json!("tenant-acme"),
+        )]),
         request_id:       "req-test".to_string(),
         ip_address:       None,
         authenticated_at: chrono::Utc::now(),

@@ -371,7 +371,10 @@ fn alice() -> SecurityContext {
         roles:            vec![],
         tenant_id:        Some(TenantId::from("A")),
         scopes:           vec![],
-        attributes:       HashMap::new(),
+        attributes:       std::collections::HashMap::from([(
+            "tenant_id".to_string(),
+            serde_json::json!("A"),
+        )]),
         request_id:       "req-nested-gates".to_string(),
         ip_address:       None,
         authenticated_at: Utc::now(),

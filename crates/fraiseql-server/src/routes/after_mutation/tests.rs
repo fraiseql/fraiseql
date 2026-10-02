@@ -690,7 +690,10 @@ mod query_bridge_wiring {
             authenticated_at: chrono::Utc::now(),
             request_id:       "req-42".to_string(),
             ip_address:       None,
-            attributes:       std::collections::HashMap::new(),
+            attributes:       std::collections::HashMap::from([
+                ("tenant_id".to_string(), serde_json::json!("tenant-7")),
+                ("org_id".to_string(), serde_json::json!("tenant-7")),
+            ]),
             issuer:           None,
             audience:         None,
             email:            Some("rep@outreach.example".to_string()),
@@ -765,7 +768,10 @@ mod query_bridge_wiring {
             authenticated_at: chrono::Utc::now(),
             request_id:       "req-42".to_string(),
             ip_address:       None,
-            attributes:       std::collections::HashMap::new(),
+            attributes:       std::collections::HashMap::from([
+                ("tenant_id".to_string(), serde_json::json!("tenant-7")),
+                ("org_id".to_string(), serde_json::json!("tenant-7")),
+            ]),
             issuer:           None,
             audience:         None,
             email:            Some("rep@outreach.example".to_string()),

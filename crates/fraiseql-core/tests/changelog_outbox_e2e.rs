@@ -197,7 +197,10 @@ fn security_ctx_with_tenant(tenant: &str) -> SecurityContext {
         roles:            vec![],
         tenant_id:        Some(TenantId::new(tenant)),
         scopes:           vec![],
-        attributes:       std::collections::HashMap::new(),
+        attributes:       std::collections::HashMap::from([(
+            "tenant_id".to_string(),
+            serde_json::json!(tenant),
+        )]),
         request_id:       "req-e2e".to_string(),
         ip_address:       None,
         authenticated_at: chrono::Utc::now(),

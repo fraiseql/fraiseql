@@ -787,7 +787,12 @@ fn row_predicate(
             });
         };
         for (column, source) in &read.inject_params {
-            let value = super::super::resolve_inject_value(column, source, principal)?;
+            let value = super::super::resolve_inject_value(
+                column,
+                source,
+                principal,
+                schema.tenant_claim(),
+            )?;
             conditions.push(super::query_params::inject_param_where_clause(
                 column,
                 value,

@@ -701,26 +701,32 @@ impl SecurityContext {
         self
     }
 
-    /// The value of JWT claim `claim` for this request, as the token carried it.
+    /// The value of JWT claim `claim` for this request.
     ///
     /// The one answer to "what is claim X" (#1388). Inject parameters (`jwt:<claim>`),
     /// session variables (`source = "jwt"`) and identity-enrichment bindings all read
     /// claims through this, so a claim name means the same thing on every path. Three
-    /// copies used to answer differently, and two of them answered `tenant_id` *and*
-    /// `org_id` with [`Self::tenant_id`] — the tenant derived from one claim — so a token
-    /// carrying both scoped a query by the wrong one.
+    /// copies used to answer differently, and two of them answered both `tenant_id` and
+    /// `org_id` with [`Self::tenant_id`] whatever the schema's tenant claim was, so a
+    /// token carrying both scoped a query by the wrong one.
     ///
-    /// Resolution:
+    /// Resolution, first match wins:
     /// 1. the raw claim, from [`Self::attributes`] (every non-reserved claim lands there);
     /// 2. a **registered** claim the validator lifts out of the claim map into its own field, so it
     ///    never reaches `attributes`: `sub` (also spelled `user_id`) → [`Self::user_id`], `email` →
     ///    [`Self::email`], `name` (also `display_name`) → [`Self::display_name`], `iss` →
-    ///    [`Self::issuer`].
+    ///    [`Self::issuer`];
+    /// 3. `tenant_claim` — the schema's configured tenant claim, and only that name — →
+    ///    [`Self::tenant_id`].
     ///
-    /// No other name is aliased. In particular the derived [`Self::tenant_id`] is never
-    /// read here: it is not a claim, and standing in for one is how #1388 happened.
+    /// Step 3 is what lets a principal the server mints itself (a service account, a
+    /// system job, a source's per-message tenant, an admin preview) answer row-mode
+    /// tenancy's `jwt:<tenant_claim>` with the tenant it was assigned. For a principal
+    /// built from a token it changes nothing: its tenant *is* that claim's value (see
+    /// the server's context builder), so step 1 already answered. No other name reads
+    /// the tenant.
     #[must_use]
-    pub fn jwt_claim(&self, claim: &str) -> Option<serde_json::Value> {
+    pub fn jwt_claim(&self, claim: &str, tenant_claim: &str) -> Option<serde_json::Value> {
         if let Some(value) = self.attributes.get(claim) {
             return Some(value.clone());
         }
@@ -729,6 +735,7 @@ impl SecurityContext {
             "email" => self.email.clone(),
             "name" | "display_name" => self.display_name.clone(),
             "iss" => self.issuer.clone(),
+            _ if claim == tenant_claim => self.tenant_id.as_ref().map(|t| t.0.clone()),
             _ => None,
         };
         field.map(serde_json::Value::String)

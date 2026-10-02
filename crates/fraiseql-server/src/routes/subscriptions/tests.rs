@@ -37,7 +37,10 @@ fn ctx_with_tenant(tenant: &str) -> SecurityContext {
         roles:            vec![],
         tenant_id:        Some(TenantId::new(tenant)),
         scopes:           vec![],
-        attributes:       HashMap::new(),
+        attributes:       std::collections::HashMap::from([(
+            "tenant_id".to_string(),
+            serde_json::json!(tenant),
+        )]),
         request_id:       "req-test".to_string(),
         ip_address:       None,
         authenticated_at: Utc::now(),

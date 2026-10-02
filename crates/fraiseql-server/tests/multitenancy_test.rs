@@ -429,7 +429,10 @@ fn test_tenant_key_token_binds_then_header_then_host() {
         roles:            vec![],
         tenant_id:        Some(TenantId("from_jwt".to_string())),
         scopes:           vec![],
-        attributes:       std::collections::HashMap::new(),
+        attributes:       std::collections::HashMap::from([
+            ("tenant_id".to_string(), serde_json::json!("from_jwt".to_string())),
+            ("org_id".to_string(), serde_json::json!("from_jwt".to_string())),
+        ]),
         request_id:       "r1".to_string(),
         ip_address:       None,
         authenticated_at: Utc::now(),

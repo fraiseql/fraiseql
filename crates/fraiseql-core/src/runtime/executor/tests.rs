@@ -1304,6 +1304,7 @@ mod config {
 
 mod inject {
     use super::*;
+    use crate::schema::security_config::DEFAULT_TENANT_CLAIM;
 
     fn make_security_ctx(
         user_id: &str,
@@ -1333,7 +1334,7 @@ mod inject {
     fn test_resolve_inject_sub_maps_to_user_id() {
         let ctx = make_security_ctx("user-42", None, &[]);
         let source = InjectedParamSource::Jwt("sub".to_string());
-        let result = resolve_inject_value("user_id", &source, &ctx).unwrap();
+        let result = resolve_inject_value("user_id", &source, &ctx, DEFAULT_TENANT_CLAIM).unwrap();
         assert_eq!(result, serde_json::Value::String("user-42".to_string()));
     }
 
@@ -1342,7 +1343,12 @@ mod inject {
     /// `attributes`, and `tenant_id` is derived from the token separately — here from a
     /// different claim, which is how the two could disagree.
     fn inject(claim: &str, ctx: &SecurityContext) -> Result<serde_json::Value> {
-        resolve_inject_value(claim, &InjectedParamSource::Jwt(claim.to_string()), ctx)
+        resolve_inject_value(
+            claim,
+            &InjectedParamSource::Jwt(claim.to_string()),
+            ctx,
+            DEFAULT_TENANT_CLAIM,
+        )
     }
 
     #[test]
@@ -1351,11 +1357,39 @@ mod inject {
         assert_eq!(inject("tenant_id", &ctx).unwrap(), serde_json::json!("a"));
     }
 
+    /// Under the default tenant claim a token carrying only `org_id` has no tenant (the
+    /// server derives it from `tenant_id`), and `jwt:tenant_id` is absent.
     #[test]
     fn jwt_tenant_id_is_absent_when_the_token_carries_only_org_id() {
-        let ctx = make_security_ctx("user-1", Some("b"), &[("org_id", serde_json::json!("b"))]);
+        let ctx = make_security_ctx("user-1", None, &[("org_id", serde_json::json!("b"))]);
         let err = inject("tenant_id", &ctx).unwrap_err();
         assert!(err.to_string().contains("'tenant_id' not present"), "{err}");
+    }
+
+    /// A principal the server mints itself (a service account, a system job) carries an
+    /// assigned tenant and no token: it answers the schema's tenant claim — and only that
+    /// name — with that tenant, so row-mode `jwt:<tenant_claim>` scopes it.
+    #[test]
+    fn a_server_minted_principal_answers_only_the_configured_tenant_claim() {
+        let svc = SecurityContext::service_account(
+            "reconciler",
+            "req-1",
+            vec![],
+            vec![],
+            Some(crate::types::TenantId::new("acme")),
+        );
+        let resolve = |claim: &str, tenant_claim: &str| {
+            resolve_inject_value(
+                claim,
+                &InjectedParamSource::Jwt(claim.to_string()),
+                &svc,
+                tenant_claim,
+            )
+        };
+        assert_eq!(resolve("tenant_id", "tenant_id").unwrap(), serde_json::json!("acme"));
+        assert!(resolve("org_id", "tenant_id").is_err(), "org_id is not the tenant claim");
+        assert_eq!(resolve("org_id", "org_id").unwrap(), serde_json::json!("acme"));
+        assert!(resolve("tenant_id", "org_id").is_err(), "tenant_id is not the tenant claim");
     }
 
     #[test]
@@ -1398,7 +1432,7 @@ mod inject {
         let ctx =
             make_security_ctx("user-1", None, &[("department", serde_json::json!("engineering"))]);
         let source = InjectedParamSource::Jwt("department".to_string());
-        let result = resolve_inject_value("dept", &source, &ctx).unwrap();
+        let result = resolve_inject_value("dept", &source, &ctx, DEFAULT_TENANT_CLAIM).unwrap();
         assert_eq!(result, serde_json::Value::String("engineering".to_string()));
     }
 
@@ -1406,7 +1440,7 @@ mod inject {
     fn test_resolve_inject_missing_claim_returns_error() {
         let ctx = make_security_ctx("user-1", None, &[]);
         let source = InjectedParamSource::Jwt("org_id".to_string());
-        let err = resolve_inject_value("org_id", &source, &ctx).unwrap_err();
+        let err = resolve_inject_value("org_id", &source, &ctx, DEFAULT_TENANT_CLAIM).unwrap_err();
         assert!(matches!(err, FraiseQLError::Validation { .. }));
         let msg = err.to_string();
         assert!(msg.contains("org_id"), "Error should mention claim name");
@@ -1420,7 +1454,7 @@ mod inject {
             &[("fraiseql.enriched.actor_id", serde_json::json!("a-1"))],
         );
         let source = InjectedParamSource::Enrichment("actor_id".to_string());
-        let result = resolve_inject_value("actor_id", &source, &ctx).unwrap();
+        let result = resolve_inject_value("actor_id", &source, &ctx, DEFAULT_TENANT_CLAIM).unwrap();
         assert_eq!(result, serde_json::Value::String("a-1".to_string()));
     }
 
@@ -1428,7 +1462,7 @@ mod inject {
     fn test_resolve_inject_enrichment_missing_field_errors() {
         let ctx = make_security_ctx("user-1", None, &[]);
         let source = InjectedParamSource::Enrichment("actor_id".to_string());
-        assert!(resolve_inject_value("actor_id", &source, &ctx).is_err());
+        assert!(resolve_inject_value("actor_id", &source, &ctx, DEFAULT_TENANT_CLAIM).is_err());
     }
 
     #[test]
@@ -1438,7 +1472,7 @@ mod inject {
         let ctx = make_security_ctx("user-1", None, &[("actor_id", serde_json::json!("forged"))]);
         let source = InjectedParamSource::Enrichment("actor_id".to_string());
         assert!(
-            resolve_inject_value("actor_id", &source, &ctx).is_err(),
+            resolve_inject_value("actor_id", &source, &ctx, DEFAULT_TENANT_CLAIM).is_err(),
             "Enrichment inject param must not fall back to a raw claim"
         );
     }
@@ -1447,7 +1481,8 @@ mod inject {
     fn test_resolve_inject_missing_tenant_id_returns_error() {
         let ctx = make_security_ctx("user-1", None, &[]);
         let source = InjectedParamSource::Jwt("tenant_id".to_string());
-        let err = resolve_inject_value("tenant_id", &source, &ctx).unwrap_err();
+        let err =
+            resolve_inject_value("tenant_id", &source, &ctx, DEFAULT_TENANT_CLAIM).unwrap_err();
         assert!(matches!(err, FraiseQLError::Validation { .. }));
     }
 

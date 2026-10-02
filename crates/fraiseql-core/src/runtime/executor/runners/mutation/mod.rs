@@ -1543,7 +1543,12 @@ pub(in super::super) async fn execute_mutation_impl(
             path:    None,
         })?;
         for (param_name, source) in &mutation_def.inject_params {
-            args.push(resolve_inject_value(param_name, source, sec_ctx)?);
+            args.push(resolve_inject_value(
+                param_name,
+                source,
+                sec_ctx,
+                ctx.schema.tenant_claim(),
+            )?);
         }
     }
 
@@ -1616,7 +1621,11 @@ pub(in super::super) async fn execute_mutation_impl(
             let sv = &ctx.schema.session_variables;
             match security_ctx {
                 Some(sec_ctx) if !sv.variables.is_empty() || sv.inject_started_at => {
-                    crate::runtime::executor::security::resolve_session_variables(sv, sec_ctx)?
+                    crate::runtime::executor::support::security::resolve_session_variables(
+                        sv,
+                        sec_ctx,
+                        ctx.schema.tenant_claim(),
+                    )?
                 },
                 _ => Vec::new(),
             }

@@ -142,7 +142,7 @@ pub(crate) fn build_security_context(
     // A tenant identifier is a non-empty string, or a number spelled in decimal; any
     // other shape names no tenant.
     context.tenant_id = tenant_claim
-        .and_then(|claim| context.jwt_claim(claim))
+        .and_then(|claim| context.jwt_claim(claim, claim))
         .and_then(|value| match value {
             serde_json::Value::String(s) if !s.is_empty() => Some(s),
             serde_json::Value::Number(n) => Some(n.to_string()),

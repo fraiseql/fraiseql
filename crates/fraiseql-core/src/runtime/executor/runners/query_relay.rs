@@ -152,7 +152,8 @@ impl QueryRunner {
                 .inject_params
                 .iter()
                 .map(|(col, source)| {
-                    let value = resolve_inject_value(col, source, ctx)?;
+                    let value =
+                        resolve_inject_value(col, source, ctx, self.ctx.schema.tenant_claim())?;
                     Ok(inject_param_where_clause(col, value, &query_def.native_columns))
                 })
                 .collect::<Result<Vec<_>>>()?;
@@ -641,7 +642,8 @@ impl QueryRunner {
                     .inject_params
                     .iter()
                     .map(|(col, source)| {
-                        let value = resolve_inject_value(col, source, sc)?;
+                        let value =
+                            resolve_inject_value(col, source, sc, self.ctx.schema.tenant_claim())?;
                         Ok(inject_param_where_clause(col, value, &node_qdef.native_columns))
                     })
                     .collect::<Result<Vec<_>>>()?;

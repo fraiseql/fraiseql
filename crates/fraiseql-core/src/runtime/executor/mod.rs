@@ -407,15 +407,18 @@ fn resolve_inject_value(
     param_name: &str,
     source: &InjectedParamSource,
     security_ctx: &SecurityContext,
+    tenant_claim: &str,
 ) -> Result<serde_json::Value> {
     match source {
         InjectedParamSource::Jwt(claim) => {
-            security_ctx.jwt_claim(claim).ok_or_else(|| FraiseQLError::Validation {
-                message: format!(
-                    "Inject param '{param_name}': JWT claim '{claim}' not present in token"
-                ),
-                path:    None,
-            })
+            security_ctx
+                .jwt_claim(claim, tenant_claim)
+                .ok_or_else(|| FraiseQLError::Validation {
+                    message: format!(
+                        "Inject param '{param_name}': JWT claim '{claim}' not present in token"
+                    ),
+                    path:    None,
+                })
         },
         InjectedParamSource::Enrichment(field) => {
             // Read ONLY the reserved namespace — no fallback to a raw claim or a

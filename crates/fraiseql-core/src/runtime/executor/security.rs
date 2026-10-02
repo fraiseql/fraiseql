@@ -5,7 +5,6 @@ use super::{Executor, support};
 use crate::{
     error::{FraiseQLError, Result},
     runtime::ExecutionContext,
-    schema::SessionVariablesConfig,
     security::{FieldAccessError, SecurityContext},
 };
 
@@ -36,10 +35,14 @@ use crate::{
 /// Returns [`FraiseQLError::Validation`] if a `SessionVariableSource::Enrichment`
 /// mapping references an enriched field absent from the resolved identity (#539).
 pub fn resolve_session_variables(
-    config: &SessionVariablesConfig,
+    schema: &crate::schema::CompiledSchema,
     security_context: &SecurityContext,
 ) -> crate::error::Result<Vec<(String, String)>> {
-    support::security::resolve_session_variables(config, security_context)
+    support::security::resolve_session_variables(
+        &schema.session_variables,
+        security_context,
+        schema.tenant_claim(),
+    )
 }
 
 impl Executor {
@@ -297,11 +300,23 @@ mod session_variable_tests {
 
     use chrono::Utc;
 
-    use super::resolve_session_variables;
     use crate::{
+        error::Result,
         schema::{SessionVariableMapping, SessionVariableSource, SessionVariablesConfig},
         security::SecurityContext,
     };
+
+    /// The resolver as the executor calls it, under the default tenant claim.
+    fn resolve_session_variables(
+        config: &SessionVariablesConfig,
+        ctx: &SecurityContext,
+    ) -> Result<Vec<(String, String)>> {
+        super::support::security::resolve_session_variables(
+            config,
+            ctx,
+            crate::schema::security_config::DEFAULT_TENANT_CLAIM,
+        )
+    }
 
     fn make_context() -> SecurityContext {
         let mut attributes = std::collections::HashMap::new();
@@ -345,17 +360,16 @@ mod session_variable_tests {
     }
 
     /// The session-variable resolver and the inject resolver answer `jwt:<claim>`
-    /// identically (#1388): the derived `tenant_id` never stands in for a claim the
-    /// token does not carry.
+    /// identically (#1388): the tenant answers the configured tenant claim only, never
+    /// another name the token does not carry.
     #[test]
-    fn a_jwt_session_variable_never_reads_the_derived_tenant_for_an_absent_claim() {
-        let mut ctx = make_context();
-        ctx.attributes.remove("tenant_id");
+    fn a_jwt_session_variable_never_reads_the_tenant_under_another_claim_name() {
+        let ctx = make_context(); // tenant set, no `org_id` claim
         let config = SessionVariablesConfig {
             variables:         vec![SessionVariableMapping {
-                name:   "app.tenant_id".to_string(),
+                name:   "app.org".to_string(),
                 source: SessionVariableSource::Jwt {
-                    claim: "tenant_id".to_string(),
+                    claim: "org_id".to_string(),
                 },
             }],
             inject_started_at: false,

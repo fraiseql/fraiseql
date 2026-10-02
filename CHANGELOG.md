@@ -24,9 +24,12 @@ disagreed, and the promise was the part that was wrong.
   `jwt:org_id` with the tenant derived from the `org_id` claim. A token carrying only
   `tenant_id` was refused ("claim 'tenant_id' not present"); a token carrying both scoped
   the query by `org_id`. One resolver, `SecurityContext::jwt_claim`, now answers all
-  three: the raw claim, or a registered claim the validator lifts into its own field
-  (`sub`/`user_id`, `email`, `name`/`display_name`, `iss`), and nothing else. `jwt:email`
-  works as an inject source as a result. **Upgrade:** a schema that injects
+  three: the raw claim; else a registered claim the validator lifts into its own field
+  (`sub`/`user_id`, `email`, `name`/`display_name`, `iss`); else, for the schema's
+  configured tenant claim only, the principal's tenant — which is how a principal the
+  server mints itself (a service account, a system job, a source's per-message tenant, an
+  admin SQL preview) answers row-mode `jwt:<tenant_claim>`. No other name reads the tenant.
+  `jwt:email` works as an inject source as a result. **Upgrade:** a schema that injects
   `jwt:tenant_id` while its tokens carry the tenant in `org_id` must inject `jwt:org_id`
   (or set `[fraiseql.tenancy] tenant_claim = "org_id"` and recompile row-mode tenancy).
 - **The request's tenant is the configured `tenant_claim`, not `org_id` (#1388).**

@@ -282,6 +282,7 @@ impl Server {
                     let resolver = crate::identity::resolver::IdentityResolver::postgres(
                         sender.clone(),
                         pool.clone(),
+                        self.executor.schema().tenant_claim(),
                     );
                     return Arc::new(crate::identity::sender::DbSenderIdentityResolver::new(
                         resolver,

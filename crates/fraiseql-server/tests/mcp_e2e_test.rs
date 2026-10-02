@@ -8,7 +8,7 @@
 #![allow(clippy::missing_panics_doc)] // Reason: test functions
 #![cfg(feature = "mcp")]
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use chrono::Utc;
 use fraiseql_core::{
@@ -360,7 +360,10 @@ fn test_security_context() -> SecurityContext {
         roles:            vec![],
         tenant_id:        Some("tenant-1".into()),
         scopes:           vec![],
-        attributes:       HashMap::new(),
+        attributes:       std::collections::HashMap::from([(
+            "tenant_id".to_string(),
+            serde_json::json!("tenant-1"),
+        )]),
         request_id:       "mcp-test".to_string(),
         ip_address:       None,
         expires_at:       Utc::now() + chrono::Duration::hours(1),

@@ -24,7 +24,7 @@ use axum::{
 };
 use fraiseql_core::{
     db::{AdminSqlOutcome, AdminSqlRequest},
-    security::{AuthenticatedUser, SecurityContext},
+    security::AuthenticatedUser,
     types::UserId,
 };
 use serde::{Deserialize, Serialize};
@@ -381,30 +381,45 @@ fn impersonated_session_vars(
         )));
     }
 
+    // The impersonated tenant is a claim, under the name the schema reads its tenant
+    // from, so the preview resolves exactly as a token carrying it would (#1388). An
+    // explicit claim of that name that names another tenant is a contradiction.
+    let tenant_claim = schema.tenant_claim();
+    let mut extra_claims = claims.claims.clone();
+    if let Some(ref tenant) = claims.tenant_id {
+        let tenant = serde_json::Value::String(tenant.clone());
+        if extra_claims.get(tenant_claim).is_some_and(|named| *named != tenant) {
+            return Err(ApiError::validation_error(format!(
+                "impersonate.tenant_id and impersonate.claims.{tenant_claim} name different \
+                 tenants; `{tenant_claim}` is the schema's tenant claim"
+            )));
+        }
+        extra_claims.insert(tenant_claim.to_string(), tenant);
+    }
+
     let user = AuthenticatedUser {
-        user_id:      UserId::new(claims.user_id.clone()),
-        scopes:       claims.scopes.clone(),
+        user_id: UserId::new(claims.user_id.clone()),
+        scopes: claims.scopes.clone(),
         // A preview is a preview of *now*; an expiry in the past would make the
         // context read as expired to anything that inspects it later.
-        expires_at:   chrono::Utc::now() + chrono::Duration::minutes(5),
-        email:        None,
+        expires_at: chrono::Utc::now() + chrono::Duration::minutes(5),
+        email: None,
         display_name: None,
-        extra_claims: claims.claims.clone(),
+        extra_claims,
     };
 
-    let mut context =
-        SecurityContext::from_user(&user, format!("admin-sql-{}", uuid::Uuid::new_v4()));
+    // The same builder a validated token goes through, so the preview cannot resolve a
+    // claim differently from the request it previews.
+    let mut context = crate::extractors::build_security_context(
+        &user,
+        format!("admin-sql-{}", uuid::Uuid::new_v4()),
+        Some(tenant_claim),
+    );
     context.roles.clone_from(&claims.roles);
-    for (key, value) in &claims.claims {
-        context = context.with_attribute(key.clone(), value.clone());
-    }
-    if let Some(ref tenant) = claims.tenant_id {
-        context = context.with_tenant(tenant.clone());
-    }
 
-    fraiseql_core::runtime::resolve_session_variables(&schema.session_variables, &context).map_err(
-        |e| ApiError::validation_error(format!("impersonation could not be resolved: {e}")),
-    )
+    fraiseql_core::runtime::resolve_session_variables(schema, &context).map_err(|e| {
+        ApiError::validation_error(format!("impersonation could not be resolved: {e}"))
+    })
 }
 
 /// Write one entry to the audit ledger for this request.

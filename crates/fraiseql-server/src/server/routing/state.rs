@@ -139,6 +139,7 @@ impl Server {
                         crate::identity::IdentityResolver::postgres(
                             enrichment.clone(),
                             pool.clone(),
+                            self.executor.schema().tenant_claim(),
                         ),
                     ));
                     if crate::identity::schema_declares_enrichment_consumer(self.executor.schema())

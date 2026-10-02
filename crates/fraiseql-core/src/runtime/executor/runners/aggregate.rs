@@ -31,7 +31,11 @@ impl AggregateRunner {
         let sv = &self.ctx.schema.session_variables;
         match security_context {
             Some(sec) if !sv.variables.is_empty() || sv.inject_started_at => {
-                crate::runtime::executor::security::resolve_session_variables(sv, sec)
+                crate::runtime::executor::support::security::resolve_session_variables(
+                    sv,
+                    sec,
+                    self.ctx.schema.tenant_claim(),
+                )
             },
             _ => Ok(Vec::new()),
         }
