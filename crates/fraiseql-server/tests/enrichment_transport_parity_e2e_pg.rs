@@ -194,6 +194,17 @@ fn server_config() -> ServerConfig {
 /// from the actor table, so a row set scoped to `tenant-a` proves a database resolve
 /// happened rather than a claim being read.
 fn token_for(sub: &str) -> String {
+    token_with(sub, None)
+}
+
+/// Mint a token for `sub` bound to `tenant` under the default tenant claim. An
+/// authenticated request is served its token's tenant and a header may only agree with
+/// it, so a tenant-keyed request is made by a caller of that tenant.
+fn token_for_tenant(sub: &str, tenant: &str) -> String {
+    token_with(sub, Some(tenant))
+}
+
+fn token_with(sub: &str, tenant: Option<&str>) -> String {
     use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 
     let now = std::time::SystemTime::now()
@@ -203,13 +214,19 @@ fn token_for(sub: &str) -> String {
 
     encode(
         &Header::new(Algorithm::HS256),
-        &json!({
-            "sub": sub,
-            "iss": ISSUER,
-            "aud": AUDIENCE,
-            "iat": now,
-            "exp": now + 3600,
-        }),
+        &{
+            let mut claims = json!({
+                "sub": sub,
+                "iss": ISSUER,
+                "aud": AUDIENCE,
+                "iat": now,
+                "exp": now + 3600,
+            });
+            if let Some(tenant) = tenant {
+                claims["tenant_id"] = json!(tenant);
+            }
+            claims
+        },
         &EncodingKey::from_secret(SECRET.as_bytes()),
     )
     .expect("mint HS256 token")
@@ -716,7 +733,7 @@ async fn tenant_keyed_call_as(
         .call_tool_authenticated(
             "audits",
             None,
-            Some(token_for(sub)),
+            Some(token_for_tenant(sub, tenant)),
             format!("mcp-p36-tenant-{sub}"),
             &headers,
         )
