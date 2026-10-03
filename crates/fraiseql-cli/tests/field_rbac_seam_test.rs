@@ -63,7 +63,8 @@ fn project_dir(fraiseql_extra: &str) -> TempDir {
         r#"{
   "types": [{"name": "Employee", "fields": [
     {"name": "id", "type": "ID", "nullable": false},
-    {"name": "salary", "type": "Int", "nullable": true, "requires_scope": "read:Employee.salary"}
+    {"name": "salary", "type": "Int", "nullable": true, "requires_scope": "read:Employee.salary"},
+    {"name": "tenant_id", "type": "String", "nullable": false, "directives": [{"name": "tenant_id"}]}
   ]}],
   "queries": [{"name": "employees", "return_type": "Employee", "returns_list": true,
                "sql_source": "v_employee"}]

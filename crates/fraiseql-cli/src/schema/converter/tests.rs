@@ -2201,6 +2201,22 @@ mod tenancy_tests {
 
     // ── Auto-injection ──────────────────────────────────────────────────
 
+    /// #1386: row isolation that matches no type is refused, naming the scope of the
+    /// no-op and the setting for isolation enforced by database RLS.
+    #[test]
+    fn row_tenancy_with_no_annotated_type_is_refused() {
+        let mut schema = make_schema(
+            vec![make_type("User", vec![make_field("id", "Int")])],
+            vec![make_query("getUser", "User")],
+            vec![],
+        );
+        let message =
+            validate_tenant_annotations(&mut schema, "tenant_id").unwrap_err().to_string();
+        assert!(message.contains("matched 0 of 1 types"), "{message}");
+        assert!(message.contains("multi_tenant = true"), "{message}");
+        assert!(schema.queries[0].inject.is_empty(), "nothing may be injected on refusal");
+    }
+
     #[test]
     fn auto_injects_query_when_inject_empty() {
         let mut schema = make_schema(
@@ -2853,7 +2869,10 @@ mod tenancy_tests {
     #[test]
     fn query_on_non_annotated_type_unchanged() {
         let mut schema = make_schema(
-            vec![make_type("Post", vec![make_field("id", "Int")])],
+            vec![
+                make_type("Post", vec![make_field("id", "Int")]),
+                make_type("User", vec![make_tenant_id_field("tenant_id")]),
+            ],
             vec![make_query("getPosts", "Post")],
             vec![],
         );
@@ -2861,16 +2880,46 @@ mod tenancy_tests {
         assert!(schema.queries[0].inject.is_empty());
     }
 
-    // ── Warning when no annotations ─────────────────────────────────────
+    // ── A mutation passes the tenant as a function parameter (#1386) ────
 
+    /// A mutation that already injects the tenant claim, under its function's own
+    /// parameter name, is scoped: no argument is added for the annotated field.
     #[test]
-    fn warning_when_no_tenant_id_annotations() {
+    fn a_mutation_injecting_the_tenant_claim_under_another_name_is_left_alone() {
+        let mut inject = IndexMap::new();
+        inject.insert("p_tenant_id".to_string(), "jwt:tenant_id".to_string());
+        inject.insert("p_user_id".to_string(), "jwt:sub".to_string());
         let mut schema = make_schema(
-            vec![make_type("User", vec![make_field("id", "Int")])],
-            vec![make_query("getUser", "User")],
+            vec![make_type("User", vec![make_tenant_id_field("tenant_id")])],
             vec![],
+            vec![IntermediateMutation {
+                name: "createUser".to_string(),
+                return_type: "User".to_string(),
+                inject: inject.clone(),
+                ..Default::default()
+            }],
         );
         validate_tenant_annotations(&mut schema, "tenant_id").unwrap();
+        assert_eq!(schema.mutations[0].inject, inject, "the function's arity is untouched");
+    }
+
+    /// The refusal for a mutation passing no tenant names the claim it must read.
+    #[test]
+    fn a_mutation_passing_no_tenant_is_refused_naming_the_claim() {
+        let mut inject = IndexMap::new();
+        inject.insert("p_user_id".to_string(), "jwt:sub".to_string());
+        let mut schema = make_schema(
+            vec![make_type("User", vec![make_tenant_id_field("tenant_id")])],
+            vec![],
+            vec![IntermediateMutation {
+                name: "createUser".to_string(),
+                return_type: "User".to_string(),
+                inject,
+                ..Default::default()
+            }],
+        );
+        let message = validate_tenant_annotations(&mut schema, "org_id").unwrap_err().to_string();
+        assert!(message.contains("createUser") && message.contains("jwt:org_id"), "{message}");
     }
 
     // ── #1142: a @tenant_id type no operation returns ───────────────────

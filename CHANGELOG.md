@@ -141,6 +141,14 @@ disagreed, and the promise was the part that was wrong.
   passes `--config`. Embedders: `CompileOptions` gains `config: Option<ConfigSource>` (`None`
   resolves it from the input).
 
+- **`[fraiseql.tenancy] mode = "row"` that matches no type is a compile error (#1386).** It was a
+  warning, easy to read as "configured, with a note", while every query stayed unscoped and the
+  artifact was byte-identical to the unconfigured one (measured: 0 of 97 types annotated). The
+  error states the scope of the no-op ("matched 0 of N types"). **Upgrade:** mark the field that
+  holds the tenant on each per-tenant type with `@tenant_id`; a project whose isolation is
+  enforced by database RLS replaces `mode = "row"` with `[fraiseql.security] multi_tenant = true`
+  and `[fraiseql.security.rls] enabled = true`.
+
 ### Added
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds
@@ -240,6 +248,14 @@ disagreed, and the promise was the part that was wrong.
   `validate`, `doctor`, `query`, `perf` and `sources`: refuse an engine whose support was removed,
   accept whatever PostgreSQL's own client parses. A refusal no longer echoes the connection
   string, which can carry a password.
+
+- **Row tenancy no longer adds an argument a mutation's function already takes (#1386).** A
+  mutation returning a `@tenant_id`-annotated type whose `inject_params` passed the tenant under
+  its function's own parameter name (`p_tenant_id = "jwt:tenant_id"`) was refused with "lacks
+  inject_params for 'tenant_id'", because the rule compared parameter names with the annotated
+  column. A mutation is now scoped when any of its `inject_params` reads `jwt:<tenant_claim>`;
+  one that passes the tenant nowhere is still refused, and the refusal names the claim it must
+  read.
 
 ### Security
 

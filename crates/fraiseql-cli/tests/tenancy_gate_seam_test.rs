@@ -78,7 +78,8 @@ const TYPES_JSON: &str = r#"{
   "types": [
     {"name": "User", "fields": [
       {"name": "id", "type": "ID", "nullable": false},
-      {"name": "tenantId", "type": "String", "nullable": false}
+      {"name": "tenantId", "type": "String", "nullable": false,
+       "directives": [{"name": "tenant_id"}]}
     ]}
   ]
 }"#;
@@ -122,7 +123,10 @@ fn project_config_dir(fraiseql_extra: &str) -> TempDir {
     fs::write(
         dir.path().join("schema.json"),
         r#"{
-  "types": [{"name": "User", "fields": [{"name": "id", "type": "ID", "nullable": false}]}],
+  "types": [{"name": "User", "fields": [
+    {"name": "id", "type": "ID", "nullable": false},
+    {"name": "tenant_id", "type": "String", "nullable": false, "directives": [{"name": "tenant_id"}]}
+  ]}],
   "queries": [{"name": "users", "return_type": "User", "returns_list": true, "sql_source": "v_user"}]
 }"#,
     )

@@ -8,12 +8,12 @@
 //! 3. For each annotated type **no query returns** — a federation entity reached only through
 //!    `_entities`, which has no operation to lower the annotation onto (#1142) — the same two rules
 //!    applied to the type's own `inject_params`.
-//! 4. When no types have `@tenant_id` annotations → warning.
+//! 4. When no type has a `@tenant_id` annotation → compile error (#1386): row isolation configured
+//!    to scope nothing is a misconfiguration, not a note.
 
 use std::collections::{HashMap, HashSet};
 
 use anyhow::{Result, bail};
-use tracing::warn;
 
 use crate::schema::intermediate::{IntermediateSchema, IntermediateType};
 
@@ -70,20 +70,28 @@ impl AnnotatedTypeIndex {
 ///
 /// # Errors
 ///
-/// Returns an error if a query or mutation explicitly overrides `inject` without
-/// including the `@tenant_id`-annotated field.
+/// Returns an error if no type carries a `@tenant_id` annotation, or if a query or
+/// mutation explicitly overrides `inject` without including the annotated field.
 pub fn validate_tenant_annotations(
     schema: &mut IntermediateSchema,
     tenant_claim: &str,
 ) -> Result<()> {
     let index = AnnotatedTypeIndex::build(&schema.types);
 
+    // #1386: a warning here read as "configured, with a note", while every query stayed
+    // unscoped and the artifact was byte-identical to the unconfigured one. Row isolation
+    // that matches nothing is a security control configured to do nothing; say so, with
+    // the scope of the no-op, and name the setting for isolation enforced elsewhere.
     if !index.has_annotations() {
-        warn!(
-            "tenancy mode is 'row' but no types have @tenant_id annotations. \
-             Add @tenant_id to fields that carry the tenant identifier."
+        bail!(
+            "[fraiseql.tenancy] mode = \"row\" matched 0 of {} types: no field carries the \
+             @tenant_id directive, so no query would be scoped to the caller's tenant. Mark \
+             the field that holds the tenant on each per-tenant type with @tenant_id. If row \
+             isolation is enforced by database RLS instead, remove `mode = \"row\"` and \
+             declare `[fraiseql.security] multi_tenant = true` with \
+             `[fraiseql.security.rls] enabled = true`.",
+            schema.types.len()
         );
-        return Ok(());
     }
 
     // Validate and auto-inject on queries
@@ -112,21 +120,32 @@ pub fn validate_tenant_annotations(
         }
     }
 
-    // Validate and auto-inject on mutations
+    // Validate and auto-inject on mutations.
+    //
+    // A mutation's inject key is a *function parameter* name, not a column: the annotation
+    // says which field of the returned rows holds the tenant, which says nothing about how
+    // the writer receives it. So a mutation that already passes the tenant claim — under
+    // any parameter name — is scoped, and adding a second argument for the annotated field
+    // would only break its function's arity (#1386). One that passes it nowhere is refused.
     for mutation in &mut schema.mutations {
         if let Some(fields) = index.fields_for_type(&mutation.return_type) {
+            let inject_source = format!("jwt:{tenant_claim}");
+            if mutation.inject.values().any(|source| *source == inject_source) {
+                continue;
+            }
             for field_name in fields {
-                let inject_source = format!("jwt:{tenant_claim}");
                 if mutation.inject.is_empty() {
-                    mutation.inject.insert(field_name.clone(), inject_source);
+                    mutation.inject.insert(field_name.clone(), inject_source.clone());
                 } else if !mutation.inject.contains_key(field_name) {
                     bail!(
-                        "Mutation '{}' references @tenant_id-annotated type '{}' but \
-                         lacks inject_params for '{}'. Add `inject.{} = \"{}\"` or \
-                         remove the explicit inject to use auto-injection.",
+                        "Mutation '{}' returns @tenant_id-annotated type '{}' but passes the \
+                         tenant to its function under no parameter: none of its inject_params \
+                         reads '{}'. Add one (for example `inject.{} = \"{}\"`, named after the \
+                         function's tenant parameter), or remove the explicit inject to use \
+                         auto-injection.",
                         mutation.name,
                         mutation.return_type,
-                        field_name,
+                        inject_source,
                         field_name,
                         inject_source,
                     );
