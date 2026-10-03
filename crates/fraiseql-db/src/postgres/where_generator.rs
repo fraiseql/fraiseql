@@ -4,10 +4,7 @@
 //! `GenericWhereGenerator<PostgresDialect>`.  All logic lives in
 //! [`crate::where_generator::GenericWhereGenerator`].
 
-use std::{
-    collections::{HashMap, HashSet},
-    sync::Arc,
-};
+use std::collections::{HashMap, HashSet};
 
 use crate::{dialect::PostgresDialect, where_generator::GenericWhereGenerator};
 
@@ -64,38 +61,12 @@ pub type PostgresWhereGenerator = GenericWhereGenerator<PostgresDialect>;
 
 /// Constructor compatibility shim for `PostgresWhereGenerator`.
 ///
-/// These `impl` blocks expose the same `new()` / `with_indexed_columns()`
-/// constructors that the old concrete struct had.
+/// This `impl` block exposes the `new()` constructor the old concrete struct had.
 impl PostgresWhereGenerator {
     /// Create a new PostgreSQL WHERE generator.
     #[must_use]
     pub const fn postgres_new() -> Self {
         Self::new(PostgresDialect)
-    }
-
-    /// Create a new PostgreSQL WHERE generator with indexed columns for a view.
-    ///
-    /// When indexed columns are provided, the generator uses them instead of
-    /// JSONB extraction for nested paths that have corresponding indexed columns.
-    ///
-    /// # Arguments
-    ///
-    /// * `indexed_columns` - Set of indexed column names for the current view
-    ///
-    /// # Example
-    ///
-    /// ```rust
-    /// use fraiseql_db::postgres::PostgresWhereGenerator;
-    /// use std::collections::HashSet;
-    /// use std::sync::Arc;
-    ///
-    /// let mut columns = HashSet::new();
-    /// columns.insert("items__product__category__code".to_string());
-    /// let generator = PostgresWhereGenerator::postgres_with_indexed_columns(Arc::new(columns));
-    /// ```
-    #[must_use]
-    pub fn postgres_with_indexed_columns(indexed_columns: Arc<HashSet<String>>) -> Self {
-        Self::new(PostgresDialect).with_indexed_columns(indexed_columns)
     }
 }
 

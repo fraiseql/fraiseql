@@ -1,7 +1,5 @@
 #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
 
-use std::{collections::HashSet, sync::Arc};
-
 use serde_json::json;
 
 use super::*;
@@ -54,31 +52,6 @@ fn test_and_clause() {
     let (sql, params) = gen.generate(&clause).unwrap();
     assert!(sql.contains("AND"), "Expected AND: {sql}");
     assert_eq!(params.len(), 2);
-}
-
-#[test]
-fn test_indexed_columns() {
-    let mut cols = HashSet::new();
-    cols.insert("items__product__category__code".to_string());
-    let gen = PostgresWhereGenerator::new(PostgresDialect).with_indexed_columns(Arc::new(cols));
-
-    let clause = WhereClause::Field {
-        path:     vec![
-            "items".to_string(),
-            "product".to_string(),
-            "category".to_string(),
-            "code".to_string(),
-        ],
-        operator: WhereOperator::Eq,
-        value:    json!("BOOK"),
-    };
-
-    let (sql, params) = gen.generate(&clause).unwrap();
-    assert!(
-        sql.contains("\"items__product__category__code\""),
-        "Expected indexed col, got: {sql}"
-    );
-    assert_eq!(params, vec![json!("BOOK")]);
 }
 
 #[test]

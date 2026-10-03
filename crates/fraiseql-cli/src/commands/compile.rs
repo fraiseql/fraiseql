@@ -431,11 +431,8 @@ pub async fn compile_to_schema(
     // DB introspection (step 5b) overrides these inferred values when `--database` is provided.
     infer_native_columns_from_arg_types(&mut schema);
 
-    // 5b. Optional: Validate indexed columns and native columns against database.
+    // 5b. Optional: Validate native columns against database.
     if let Some(db_url) = opts.database {
-        info!("Validating indexed columns against database...");
-        validate_indexed_columns(&schema, db_url).await?;
-
         info!("Validating native columns for direct query arguments...");
         let pg_introspector = build_postgres_introspector(db_url)
             .context("Failed to connect for native column validation")?;
@@ -1233,8 +1230,6 @@ fn warn_jsonb_preserve_mismatch(schema: &CompiledSchema) {
 
 /// Build a PostgreSQL introspector connected to `db_url`.
 ///
-/// Shared by `validate_indexed_columns` and the native column validation path.
-///
 /// # Errors
 ///
 /// Returns error if the pool cannot be created or the connection URL is invalid.
@@ -1243,64 +1238,6 @@ pub(crate) fn build_postgres_introspector(
 ) -> Result<fraiseql_core::db::postgres::PostgresIntrospector> {
     let pool = crate::connection::postgres_pool(db_url, "database validation")?;
     Ok(fraiseql_core::db::postgres::PostgresIntrospector::new(pool))
-}
-
-/// Validate indexed columns against database views.
-///
-/// Connects to the database and introspects view columns to verify that
-/// any indexed column naming conventions are properly set up.
-///
-/// # Arguments
-///
-/// * `schema` - The compiled schema to validate
-/// * `db_url` - Database connection URL
-///
-/// # Errors
-///
-/// Returns error if database connection fails. Warnings are printed for
-/// missing indexed columns but don't cause validation to fail.
-async fn validate_indexed_columns(schema: &CompiledSchema, db_url: &str) -> Result<()> {
-    use fraiseql_core::db::postgres::PostgresIntrospector;
-
-    let pool = crate::connection::postgres_pool(db_url, "indexed column validation")?;
-    let introspector = PostgresIntrospector::new(pool);
-
-    let mut total_indexed = 0;
-    let mut total_views = 0;
-
-    // Check each query's sql_source (view)
-    for query in &schema.queries {
-        if let Some(view_name) = &query.sql_source {
-            total_views += 1;
-
-            // Get indexed columns for this view
-            match introspector.get_indexed_nested_columns(view_name).await {
-                Ok(indexed_cols) => {
-                    if !indexed_cols.is_empty() {
-                        info!(
-                            "View '{}': found {} indexed column(s): {:?}",
-                            view_name,
-                            indexed_cols.len(),
-                            indexed_cols
-                        );
-                        total_indexed += indexed_cols.len();
-                    }
-                },
-                Err(e) => {
-                    warn!(
-                        "Could not introspect view '{}': {}. Skipping indexed column check.",
-                        view_name, e
-                    );
-                },
-            }
-        }
-    }
-
-    println!("✓ Indexed column validation complete");
-    println!("  Views checked: {total_views}");
-    println!("  Indexed columns found: {total_indexed}");
-
-    Ok(())
 }
 
 /// Auto-param names excluded from `native_columns` inference and JSONB-extraction warnings.

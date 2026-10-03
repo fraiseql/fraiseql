@@ -1,33 +1,5 @@
+#[cfg(feature = "test-postgres")]
 use super::*;
-
-#[test]
-fn test_is_indexed_column_name_human_readable() {
-    // Valid human-readable patterns
-    assert!(PostgresIntrospector::is_indexed_column_name("items__product"));
-    assert!(PostgresIntrospector::is_indexed_column_name("items__product__category"));
-    assert!(PostgresIntrospector::is_indexed_column_name("items__product__category__code"));
-    assert!(PostgresIntrospector::is_indexed_column_name("order_items__product_name"));
-
-    // Invalid patterns
-    assert!(!PostgresIntrospector::is_indexed_column_name("items"));
-    assert!(!PostgresIntrospector::is_indexed_column_name("items_product")); // single underscore
-    assert!(!PostgresIntrospector::is_indexed_column_name("__items")); // empty first segment
-    assert!(!PostgresIntrospector::is_indexed_column_name("items__")); // empty last segment
-}
-
-#[test]
-fn test_is_indexed_column_name_entity_id() {
-    // Valid entity ID patterns
-    assert!(PostgresIntrospector::is_indexed_column_name("f200100__code"));
-    assert!(PostgresIntrospector::is_indexed_column_name("f1__name"));
-    assert!(PostgresIntrospector::is_indexed_column_name("f123456789__field"));
-
-    // Invalid entity ID patterns (that also aren't valid human-readable)
-    assert!(!PostgresIntrospector::is_indexed_column_name("f__code")); // no digits after 'f', and 'f' alone is reserved
-
-    // Note: fx123__code IS valid as a human-readable pattern (fx123 is a valid identifier)
-    assert!(PostgresIntrospector::is_indexed_column_name("fx123__code")); // valid as human-readable
-}
 
 #[cfg(feature = "test-postgres")]
 mod integration_tests {

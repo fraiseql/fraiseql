@@ -177,6 +177,16 @@ disagreed, and the promise was the part that was wrong.
   Embedders: `DatabaseAdapter::serves_reads_from_standbys` (default `false`) must be forwarded
   by a wrapping adapter.
 
+- **The never-used indexed-column WHERE path is removed (#1313).**
+  `GenericWhereGenerator::with_indexed_columns`, `PostgresWhereGenerator::postgres_with_indexed_columns`
+  and `PostgresIntrospector::get_indexed_nested_columns` are deleted, and `compile --database`
+  no longer prints an "Indexed column validation" report. No runtime path ever set the
+  indexed-column set, so the `items__product__code` convention it read never changed a single
+  query, while the report suggested it did. Filtering on a real column is what
+  `native_columns` does, and `compile --database` fills it from the view's columns.
+  **Upgrade:** drop calls to the removed functions; a column the filter should use natively
+  is picked up by `compile --database`.
+
 ### Added
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds

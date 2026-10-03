@@ -1,7 +1,5 @@
 //! Generic WHERE clause generator parameterised over a SQL dialect.
 
-use std::{collections::HashSet, sync::Arc};
-
 use fraiseql_error::{FraiseQLError, Result};
 
 use super::counter::ParamCounter;
@@ -182,11 +180,8 @@ fn validate_regex_pattern(pattern: &str) -> Result<()> {
 /// assert_eq!(sql, "data->>'email' = $1");
 /// ```
 pub struct GenericWhereGenerator<D: SqlDialect> {
-    dialect:         D,
-    counter:         ParamCounter,
-    /// Optional indexed-column set (PostgreSQL optimisation: short-circuits JSONB
-    /// extraction when a generated column covers the path).
-    indexed_columns: Option<Arc<HashSet<String>>>,
+    dialect: D,
+    counter: ParamCounter,
 }
 
 impl<D: SqlDialect> GenericWhereGenerator<D> {
@@ -195,18 +190,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         Self {
             dialect,
             counter: ParamCounter::new(),
-            indexed_columns: None,
         }
-    }
-
-    /// Attach an indexed-columns set (PostgreSQL optimisation).
-    ///
-    /// When a WHERE path matches a column name in this set, the generator
-    /// emits `"col_name" = $N` instead of `data->>'col_name' = $N`.
-    #[must_use]
-    pub fn with_indexed_columns(mut self, cols: Arc<HashSet<String>>) -> Self {
-        self.indexed_columns = Some(cols);
-        self
     }
 
     /// Generate SQL WHERE clause starting parameter numbering at 1.
@@ -428,13 +412,6 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
     }
 
     fn resolve_field_expr(&self, path: &[String]) -> String {
-        // PostgreSQL indexed-column optimisation.
-        if let Some(indexed) = &self.indexed_columns {
-            let col_name = path.join("__");
-            if indexed.contains(&col_name) {
-                return self.dialect.quote_identifier(&col_name);
-            }
-        }
         self.dialect.json_extract_scalar("data", path)
     }
 
