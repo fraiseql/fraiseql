@@ -358,6 +358,14 @@ Lockfile and patch-level pin changes only; no source changed. The runtime crates
   GHSA-wjgm-6hv5-3cvf).
 - **Dagger module (Go):** `google.golang.org/grpc` 1.84.0 (GHSA-2v4p-qf9q-27wj,
   GHSA-qc2q-p7wx-3px3, GHSA-vp52-pcj8-j9qc).
+- **A camelCase query argument resolves to its snake_case column under `compile --database`
+  (#1394).** The SDKs emit `customer_id` as `customerId`; the compiler looked that name up among
+  the view's columns, missed `customer_id`, and fell back to `data->>'customer_id'`, which the
+  view's `data` did not carry: every call returned `[]` with no error. The lookup now uses the
+  snake_case form the runtime filters on, so the argument compiles to `WHERE customer_id = $1`.
+  An argument the relation can provide neither as a column nor as a key in its sampled `data`
+  now fails the compile, as an unresolvable `inject_params` key does (#1382), and the JSONB
+  fallback advisory names the key the runtime actually reads.
 
 ## [2.15.0] - 2026-09-30
 

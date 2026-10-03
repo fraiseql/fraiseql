@@ -201,16 +201,19 @@ pub enum DatabaseWarning {
         /// The argument name that has no matching native column.
         arg_name:   String,
     },
-    /// An `inject_params` key the query's relation cannot provide (#1382): no column of that
-    /// name, and no sampled `data` row carrying it — so the predicate is false for every row
-    /// and every caller gets an empty, successful answer.
-    UnresolvableInjectParam {
+    /// A filter the query's relation cannot provide — an `inject_params` key (#1382) or a
+    /// direct argument (#1394): no column of that name, and no sampled `data` row carrying
+    /// it — so the predicate is false for every row and every caller gets an empty,
+    /// successful answer.
+    UnresolvableFilter {
         /// Name of the query.
         query_name: String,
         /// The `sql_source` relation.
         sql_source: String,
-        /// The injected parameter.
-        param:      String,
+        /// What filters the relation.
+        filter:     QueryFilter,
+        /// The column / JSON key the runtime reads for it.
+        key:        String,
         /// Why the relation cannot provide it.
         reason:     InjectMiss,
     },
@@ -232,7 +235,25 @@ pub enum DatabaseWarning {
     },
 }
 
-/// Why a relation cannot provide an injected parameter (#1382).
+/// A query filter the runtime lowers onto the relation: what the author declared.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum QueryFilter {
+    /// `inject_params['<name>']`.
+    Inject(String),
+    /// A direct GraphQL argument (its GraphQL name).
+    Argument(String),
+}
+
+impl fmt::Display for QueryFilter {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Inject(name) => write!(f, "inject_params['{name}']"),
+            Self::Argument(name) => write!(f, "argument `{name}`"),
+        }
+    }
+}
+
+/// Why a relation cannot provide a query filter (#1382, #1394).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum InjectMiss {
     /// No column of that name, and no JSON column to fall back on.
@@ -276,7 +297,7 @@ impl DatabaseWarning {
             | Self::MissingPaginationColumn { .. }
             | Self::TypeConvertibility { .. } => Severity::Error,
             // Evidence of absence fails the compile; an empty relation proves nothing.
-            Self::UnresolvableInjectParam { reason, .. } => match reason {
+            Self::UnresolvableFilter { reason, .. } => match reason {
                 InjectMiss::NoJsonColumn | InjectMiss::NotInSampledRows { .. } => Severity::Error,
                 InjectMiss::EmptyRelation { .. } => Severity::Warn,
             },
@@ -431,17 +452,19 @@ impl fmt::Display for DatabaseWarning {
                 sql_source,
                 arg_name,
             } => {
+                let key = fraiseql_core::utils::to_snake_case(arg_name);
                 write!(
                     f,
                     "query `{query_name}`: argument `{arg_name}` will use JSONB extraction \
-                     (`{sql_source}.data->>''{arg_name}''`) — no native column `{arg_name}` found on \
+                     (`{sql_source}.data->>'{key}'`) — no native column `{key}` found on \
                      `{sql_source}`. Add a native column with an index for O(log n) lookup."
                 )
             },
-            Self::UnresolvableInjectParam {
+            Self::UnresolvableFilter {
                 query_name,
                 sql_source,
-                param,
+                filter,
+                key,
                 reason,
             } => {
                 let why = match reason {
@@ -453,13 +476,22 @@ impl fmt::Display for DatabaseWarning {
                         "and is empty, so whether `{json_column}` carries the key cannot be checked"
                     ),
                 };
+                let way_out = match filter {
+                    QueryFilter::Inject(_) => {
+                        "Add the column to the relation, or, if this data is not scoped by it, drop \
+                         the parameter from this query (`exclude_inject_defaults` when it comes from \
+                         [inject_defaults])"
+                    },
+                    QueryFilter::Argument(_) => {
+                        "Add the column to the relation (or the key to its `data`), or rename the \
+                         argument after the column it filters"
+                    },
+                };
                 write!(
                     f,
-                    "query `{query_name}`: inject_params['{param}'] filters `{sql_source}`, which \
-                     has no `{param}` column {why} — the predicate would match no row and every \
-                     caller would get an empty answer. Add the column to the relation, or, if this \
-                     data is not scoped by `{param}`, drop the parameter from this query \
-                     (`exclude_inject_defaults` when it comes from [inject_defaults])"
+                    "query `{query_name}`: {filter} filters `{sql_source}` on `{key}`, which has no \
+                     `{key}` column {why} — the predicate would match no row and every caller would \
+                     get an empty answer. {way_out}"
                 )
             },
             Self::TypeConvertibility {
@@ -781,19 +813,23 @@ pub async fn validate_schema_against_database(
                 query.inject_params.keys().map(String::as_str),
                 &column_map,
             );
-            for arg_name in arg_fallbacks {
-                warnings.push(DatabaseWarning::NativeColumnFallback {
-                    query_name: query.name.clone(),
-                    sql_source: source.clone(),
-                    arg_name,
-                });
-            }
-
-            // #1382: an inject key with no column falls back to `data->>'key'` at runtime.
-            // If the JSON does not carry it either, the predicate is false for every row.
-            check_inject_params_resolvable(
+            // An inject key or argument with no column falls back to `data->>'key'` at
+            // runtime. If the JSON does not carry it either, the predicate is false for every
+            // row (#1382, #1394); if it does, the fallback is only slower.
+            let mut unresolved: Vec<(QueryFilter, String)> = query
+                .inject_params
+                .keys()
+                .filter(|param| !column_map.contains_key(*param))
+                .map(|param| (QueryFilter::Inject(param.clone()), param.clone()))
+                .collect();
+            unresolved.extend(arg_fallbacks.into_iter().map(|arg| {
+                let key = fraiseql_core::utils::to_snake_case(&arg);
+                (QueryFilter::Argument(arg), key)
+            }));
+            check_filters_resolvable(
                 query,
                 source,
+                unresolved,
                 &column_map,
                 db_type,
                 introspector,
@@ -1186,25 +1222,22 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
     Ok(AnyIntrospector::Postgres(fraiseql_core::db::PostgresIntrospector::new(pool)))
 }
 
-/// Report every `inject_params` key the query's relation cannot provide (#1382).
+/// Report every query filter the relation cannot provide (#1382, #1394).
 ///
-/// A key that names a column is a native predicate. Otherwise the runtime filters on
-/// `<json_column>->>'key'`, which is only sound if the JSON carries the key: sampled rows
-/// that all lack it are evidence it never does. An empty relation proves nothing and is
-/// reported as advisory.
-async fn check_inject_params_resolvable(
+/// `unresolved` holds the filters that named no column, each with the JSON key the runtime
+/// reads for it. That key is only sound if the JSON carries it: sampled rows that all lack
+/// it are evidence it never does, and the filter is an error. One the JSON does carry is
+/// only a slower path — an argument there keeps its `NativeColumnFallback` advisory. An
+/// empty relation proves nothing and is reported as advisory.
+async fn check_filters_resolvable(
     query: &fraiseql_core::schema::QueryDefinition,
     source: &str,
+    unresolved: Vec<(QueryFilter, String)>,
     column_map: &HashMap<String, String>,
     db_type: DatabaseType,
     introspector: &impl DatabaseIntrospector,
     warnings: &mut Vec<DatabaseWarning>,
 ) -> fraiseql_core::Result<()> {
-    let unresolved: Vec<&String> = query
-        .inject_params
-        .keys()
-        .filter(|param| !column_map.contains_key(*param))
-        .collect();
     if unresolved.is_empty() {
         return Ok(());
     }
@@ -1228,28 +1261,38 @@ async fn check_inject_params_resolvable(
     } else {
         None
     };
-    for param in unresolved {
+    for (filter, key) in unresolved {
         let reason = match (&carried, json_ok) {
             (_, false) => InjectMiss::NoJsonColumn,
             (None, true) => InjectMiss::EmptyRelation {
                 json_column: jsonb_col.clone(),
             },
-            (Some(keys), true) if !keys.contains(param) => InjectMiss::NotInSampledRows {
+            (Some(keys), true) if !keys.contains(&key) => InjectMiss::NotInSampledRows {
                 json_column: jsonb_col.clone(),
             },
-            (Some(_), true) => continue,
+            (Some(_), true) => {
+                if let QueryFilter::Argument(arg_name) = filter {
+                    warnings.push(DatabaseWarning::NativeColumnFallback {
+                        query_name: query.name.clone(),
+                        sql_source: source.to_string(),
+                        arg_name,
+                    });
+                }
+                continue;
+            },
         };
-        warnings.push(DatabaseWarning::UnresolvableInjectParam {
+        warnings.push(DatabaseWarning::UnresolvableFilter {
             query_name: query.name.clone(),
             sql_source: source.to_string(),
-            param: param.clone(),
+            filter,
+            key,
             reason,
         });
     }
     Ok(())
 }
 
-/// Rows sampled to decide whether an injected parameter lives in the JSON column.
+/// Rows sampled to decide whether a filter key lives in the JSON column.
 const INJECT_SAMPLE_ROWS: usize = 20;
 
 /// Build a query's native-column map from its explicit (non-auto-param) arguments
@@ -1273,7 +1316,11 @@ fn detect_query_native_columns<'a>(
     let mut arg_fallbacks: Vec<String> = Vec::new();
 
     for arg in direct_arg_names {
-        if let Some(col_type) = column_map.get(*arg) {
+        // The runtime filters on the snake_case form of the argument's GraphQL name
+        // (`combine_explicit_arg_where`, #486), so that is the column to look up (#1394):
+        // `customerId` must find `customer_id`, never miss it and fall back to a key that
+        // the view's `data` does not carry.
+        if let Some(col_type) = column_map.get(&fraiseql_core::utils::to_snake_case(arg)) {
             native.insert((*arg).to_string(), col_type.clone());
         } else {
             arg_fallbacks.push((*arg).to_string());
