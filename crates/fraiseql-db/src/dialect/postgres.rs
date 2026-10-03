@@ -286,7 +286,9 @@ impl SqlDialect for PostgresDialect {
         fk_column: Option<&str>,
         param: &str,
     ) -> Result<String, UnsupportedOperator> {
-        let qt = self.quote_identifier(table);
+        // A configured table may be schema-qualified (`app.tb_node`); quoting it as one
+        // identifier named a relation that does not exist (#1396).
+        let qt = crate::quote_postgres_identifier(table);
         let qp = self.quote_identifier(path_column);
         let qi = self.quote_identifier("id");
         let path_subquery = format!("SELECT {qp} FROM {qt} WHERE {qi} = {param}");

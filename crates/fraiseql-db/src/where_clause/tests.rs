@@ -488,17 +488,18 @@ fn test_ancestor_of_id_camel_case() {
 
 #[test]
 fn test_descendant_of_id_graphql_json() {
+    // #1396: the leaf carries the field's hierarchy, attached by the parser.
     let json = json!({
-        "category_path": { "descendantOfId": "abc-123" }
+        "path": { "descendantOfId": "abc-123" }
     });
-    let clause = WhereClause::from_graphql_json(&json, &untyped()).unwrap();
-    assert_eq!(
-        clause,
-        WhereClause::Field {
-            path:     vec!["category_path".to_string()],
-            operator: WhereOperator::DescendantOfId,
-            value:    json!("abc-123"),
-        }
+    let clause = WhereClause::from_graphql_json(&json, &with_hierarchy()).unwrap();
+    assert!(
+        matches!(
+            clause,
+            WhereClause::InHierarchy { ref inner, .. }
+                if matches!(**inner, WhereClause::Field { operator: WhereOperator::DescendantOfId, .. })
+        ),
+        "{clause:?}"
     );
 }
 
@@ -587,6 +588,7 @@ fn adjudicating() -> WhereFieldSchema {
                 // nothing about what `machine` points at.
                 relation_type: None,
                 cast: None,
+                hierarchy: None,
             },
         );
     }
@@ -630,6 +632,7 @@ fn declared_camel_case() -> WhereFieldSchema {
             is_relation:   false,
             relation_type: None,
             cast:          None,
+            hierarchy:     None,
         },
     );
     WhereFieldSchema::with_known_keys(SharedFieldTypes::default(), known)
@@ -683,6 +686,7 @@ fn a_field_the_schema_declares_in_snake_case_still_passes() {
             is_relation:   false,
             relation_type: None,
             cast:          None,
+            hierarchy:     None,
         },
     );
     let schema = WhereFieldSchema::with_known_keys(SharedFieldTypes::default(), known);
@@ -765,6 +769,7 @@ fn adjudicating_nested() -> WhereFieldSchema {
                 is_relation,
                 relation_type: target.map(ToString::to_string),
                 cast: None,
+                hierarchy: None,
             },
         )
     };
@@ -1097,4 +1102,66 @@ mod identity_equality {
         let sql = sql_for("id", WhereOperator::Eq, json!("{0000000a-0000-0000-0000-00000000000b}"));
         assert!(!sql.contains("ANY(ARRAY["), "only case-only differences are folded: {sql}");
     }
+}
+
+// ── #1396: ID-based ltree operators carry their field's hierarchy ──────────────
+
+/// A schema declaring `path` (linked to a hierarchy) and `label` (not linked).
+fn with_hierarchy() -> WhereFieldSchema {
+    use crate::where_generator::HierarchyContext;
+
+    let mut known = std::collections::HashMap::new();
+    for (name, hierarchy) in [
+        (
+            "path",
+            Some(HierarchyContext {
+                table:       "app.tb_node".to_string(),
+                path_column: "path".to_string(),
+                fk_column:   None,
+            }),
+        ),
+        ("label", None),
+    ] {
+        known.insert(
+            name.to_string(),
+            WhereFieldInfo {
+                declared_name: name.to_string(),
+                is_relation: false,
+                relation_type: None,
+                cast: None,
+                hierarchy,
+            },
+        );
+    }
+    WhereFieldSchema::with_known_keys(SharedFieldTypes::default(), known)
+}
+
+#[test]
+fn descendant_of_id_on_a_linked_field_carries_the_fields_hierarchy() {
+    let clause = WhereClause::from_graphql_json(
+        &json!({ "path": { "descendantOfId": "00000000-0000-0000-0000-000000000001" } }),
+        &with_hierarchy(),
+    )
+    .unwrap();
+    let rendered = format!("{clause:?}");
+    assert!(
+        rendered.contains("InHierarchy") && rendered.contains("app.tb_node"),
+        "the leaf must carry the field's hierarchy: {rendered}"
+    );
+}
+
+/// Refused at parse, naming what to configure — not at SQL generation with a message
+/// about an internal type.
+#[test]
+fn an_id_based_operator_on_an_unlinked_field_is_refused_naming_the_fix() {
+    let message = WhereClause::from_graphql_json(
+        &json!({ "label": { "ancestorOfId": "00000000-0000-0000-0000-000000000001" } }),
+        &with_hierarchy(),
+    )
+    .unwrap_err()
+    .to_string();
+    assert!(
+        message.contains("'label'") && message.contains("[hierarchies.<name>]"),
+        "{message}"
+    );
 }

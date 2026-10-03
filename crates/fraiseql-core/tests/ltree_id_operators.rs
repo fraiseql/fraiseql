@@ -51,46 +51,34 @@ fn ancestor_of_id_parses_from_camel_case() {
 
 #[test]
 fn graphql_json_descendant_of_id() {
+    // #1396: with no schema to name the field's hierarchy, the operator cannot resolve a
+    // node id to a path, so the parser refuses it naming the fix (the linked case is
+    // `query_hierarchy_operators`, end to end).
     let input = json!({
         "categoryPath": {
             "descendantOfId": "550e8400-e29b-41d4-a716-446655440000"
         }
     });
-    let clause = WhereClause::from_graphql_json(&input, &std::sync::Arc::default()).unwrap();
-    match &clause {
-        WhereClause::Field {
-            path,
-            operator,
-            value,
-        } => {
-            assert_eq!(path, &["category_path"]);
-            assert_eq!(*operator, WhereOperator::DescendantOfId);
-            assert_eq!(value, "550e8400-e29b-41d4-a716-446655440000");
-        },
-        other => panic!("Expected Field, got {other:?}"),
-    }
+    let message = WhereClause::from_graphql_json(&input, &std::sync::Arc::default())
+        .unwrap_err()
+        .to_string();
+    assert!(message.contains("[hierarchies.<name>]"), "{message}");
 }
 
 #[test]
 fn graphql_json_ancestor_of_id() {
+    // #1396: with no schema to name the field's hierarchy, the operator cannot resolve a
+    // node id to a path, so the parser refuses it naming the fix (the linked case is
+    // `query_hierarchy_operators`, end to end).
     let input = json!({
         "categoryPath": {
             "ancestorOfId": "550e8400-e29b-41d4-a716-446655440000"
         }
     });
-    let clause = WhereClause::from_graphql_json(&input, &std::sync::Arc::default()).unwrap();
-    match &clause {
-        WhereClause::Field {
-            path,
-            operator,
-            value,
-        } => {
-            assert_eq!(path, &["category_path"]);
-            assert_eq!(*operator, WhereOperator::AncestorOfId);
-            assert_eq!(value, "550e8400-e29b-41d4-a716-446655440000");
-        },
-        other => panic!("Expected Field, got {other:?}"),
-    }
+    let message = WhereClause::from_graphql_json(&input, &std::sync::Arc::default())
+        .unwrap_err()
+        .to_string();
+    assert!(message.contains("[hierarchies.<name>]"), "{message}");
 }
 
 // ── SQL generation (self-referencing) ────────────────────────────────────────
@@ -109,10 +97,15 @@ fn sql_descendant_of_id_self_referencing() {
         operator: WhereOperator::DescendantOfId,
         value:    json!("550e8400-e29b-41d4-a716-446655440000"),
     };
-    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    let (sql, params) = gen
+        .generate(&WhereClause::InHierarchy {
+            context: ctx,
+            inner:   Box::new(clause),
+        })
+        .unwrap();
     assert_eq!(
         sql,
-        "(data->>'category_path')::ltree <@ (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1)"
+        "(data->>'category_path')::ltree <@ (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1::text::uuid)"
     );
     assert_eq!(params.len(), 1);
     assert_eq!(params[0], json!("550e8400-e29b-41d4-a716-446655440000"));
@@ -132,10 +125,15 @@ fn sql_ancestor_of_id_self_referencing() {
         operator: WhereOperator::AncestorOfId,
         value:    json!("550e8400-e29b-41d4-a716-446655440000"),
     };
-    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    let (sql, params) = gen
+        .generate(&WhereClause::InHierarchy {
+            context: ctx,
+            inner:   Box::new(clause),
+        })
+        .unwrap();
     assert_eq!(
         sql,
-        "(data->>'category_path')::ltree @> (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1)"
+        "(data->>'category_path')::ltree @> (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1::text::uuid)"
     );
     assert_eq!(params.len(), 1);
 }
@@ -156,10 +154,15 @@ fn sql_descendant_of_id_cross_table() {
         operator: WhereOperator::DescendantOfId,
         value:    json!("550e8400-e29b-41d4-a716-446655440000"),
     };
-    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    let (sql, params) = gen
+        .generate(&WhereClause::InHierarchy {
+            context: ctx,
+            inner:   Box::new(clause),
+        })
+        .unwrap();
     assert_eq!(
         sql,
-        "\"fk_location\" IN (SELECT \"id\" FROM \"tb_location\" WHERE \"location_path\" <@ (SELECT \"location_path\" FROM \"tb_location\" WHERE \"id\" = $1))"
+        "\"fk_location\" IN (SELECT \"id\" FROM \"tb_location\" WHERE \"location_path\" <@ (SELECT \"location_path\" FROM \"tb_location\" WHERE \"id\" = $1::text::uuid))"
     );
     assert_eq!(params.len(), 1);
 }
@@ -178,10 +181,15 @@ fn sql_ancestor_of_id_cross_table() {
         operator: WhereOperator::AncestorOfId,
         value:    json!("550e8400-e29b-41d4-a716-446655440000"),
     };
-    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    let (sql, params) = gen
+        .generate(&WhereClause::InHierarchy {
+            context: ctx,
+            inner:   Box::new(clause),
+        })
+        .unwrap();
     assert_eq!(
         sql,
-        "\"fk_location\" IN (SELECT \"id\" FROM \"tb_location\" WHERE \"location_path\" @> (SELECT \"location_path\" FROM \"tb_location\" WHERE \"id\" = $1))"
+        "\"fk_location\" IN (SELECT \"id\" FROM \"tb_location\" WHERE \"location_path\" @> (SELECT \"location_path\" FROM \"tb_location\" WHERE \"id\" = $1::text::uuid))"
     );
     assert_eq!(params.len(), 1);
 }
@@ -200,8 +208,8 @@ fn descendant_of_id_without_hierarchy_context_errors() {
     let err = gen.generate(&clause).unwrap_err();
     let msg = err.to_string();
     assert!(
-        msg.contains("HierarchyContext") || msg.contains("hierarchies"),
-        "Error should mention HierarchyContext, got: {msg}"
+        msg.contains("InHierarchy"),
+        "a clause built outside the parser must say what attaches the hierarchy, got: {msg}"
     );
 }
 
@@ -226,7 +234,12 @@ fn id_operators_combined_with_and() {
             value:    json!("parent-uuid"),
         },
     ]);
-    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    let (sql, params) = gen
+        .generate(&WhereClause::InHierarchy {
+            context: ctx,
+            inner:   Box::new(clause),
+        })
+        .unwrap();
     assert!(sql.contains("AND"), "Expected AND clause, got: {sql}");
     assert!(sql.contains("<@"), "Expected <@ operator, got: {sql}");
     assert_eq!(params.len(), 2);
@@ -254,7 +267,12 @@ fn id_operators_preserve_param_ordering() {
             value:    json!("parent-uuid"),
         },
     ]);
-    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    let (sql, params) = gen
+        .generate(&WhereClause::InHierarchy {
+            context: ctx,
+            inner:   Box::new(clause),
+        })
+        .unwrap();
     assert!(sql.contains("$1"), "Expected $1 for status, got: {sql}");
     assert!(sql.contains("$2"), "Expected $2 for hierarchy ID, got: {sql}");
     assert_eq!(params[0], json!("active"));
@@ -290,7 +308,12 @@ fn hierarchy_context_propagates_through_nested_or_and() {
             value:    json!("uuid-child"),
         },
     ]);
-    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    let (sql, params) = gen
+        .generate(&WhereClause::InHierarchy {
+            context: ctx,
+            inner:   Box::new(clause),
+        })
+        .unwrap();
     assert!(sql.contains("<@"), "Expected <@ for DescendantOfId, got: {sql}");
     assert!(sql.contains("@>"), "Expected @> for AncestorOfId, got: {sql}");
     assert_eq!(params.len(), 3, "Expected 3 params (Eq + 2 IDs), got: {}", params.len());
@@ -310,7 +333,12 @@ fn descendant_of_id_empty_uuid_generates_valid_sql() {
         operator: WhereOperator::DescendantOfId,
         value:    json!(""),
     };
-    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    let (sql, params) = gen
+        .generate(&WhereClause::InHierarchy {
+            context: ctx,
+            inner:   Box::new(clause),
+        })
+        .unwrap();
     assert!(sql.contains("$1"), "Expected $1 placeholder, got: {sql}");
     assert_eq!(params[0], json!(""));
 }

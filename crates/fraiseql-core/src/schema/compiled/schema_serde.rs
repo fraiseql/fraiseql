@@ -197,6 +197,29 @@ impl CompiledSchema {
     /// cannot be served, see [`CompiledSchema::federation_key_problems`], or when a
     /// relationship names a target, a join column or a list query the embed executor
     /// cannot resolve, see [`CompiledSchema::relationship_violations`].
+    /// Every field whose `hierarchy` names no `[hierarchies.<name>]` entry.
+    fn hierarchy_link_violations(&self) -> Vec<String> {
+        let declared = self.hierarchies_config.as_ref();
+        let mut violations: Vec<String> = self
+            .types
+            .iter()
+            .flat_map(|t| t.fields.iter().map(move |f| (t, f)))
+            .filter_map(|(t, f)| {
+                let name = f.hierarchy.as_deref()?;
+                if declared.is_some_and(|h| h.contains_key(name)) {
+                    return None;
+                }
+                Some(format!(
+                    "field `{}.{}` links hierarchy `{name}`, which no `[hierarchies.{name}]` \
+                     table declares (table + path_column)",
+                    t.name, f.name
+                ))
+            })
+            .collect();
+        violations.sort();
+        violations
+    }
+
     fn finish_load(&mut self) -> std::result::Result<(), FraiseQLError> {
         // First: a name declared twice makes every later check ambiguous. `build_indexes`
         // keys by name, so the second definition silently shadows the first and the
@@ -220,6 +243,20 @@ impl CompiledSchema {
                     violations.join("\n  - ")
                 ),
                 path:    Some("security.requires_role".to_string()),
+            });
+        }
+        // #1396: a field's `hierarchy` names the table `descendantOfId` / `ancestorOfId`
+        // resolve node ids against. One naming nothing would make those operators fail on
+        // every request, so the artifact is refused here, where both compile workflows and
+        // a hand-edited artifact pass.
+        let violations = self.hierarchy_link_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "a field links a hierarchy that is not declared:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("hierarchies_config".to_string()),
             });
         }
         let violations = self.type_inject_violations();

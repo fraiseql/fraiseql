@@ -108,6 +108,23 @@ pub enum WhereClause {
         inner: Box<WhereClause>,
     },
 
+    /// A subtree whose ID-based ltree operators resolve against `context` (#1396).
+    ///
+    /// `descendantOfId` / `ancestorOfId` take a node's *id* and need to know which table
+    /// holds that node's path. That is a property of the filtered field — its
+    /// `hierarchy` link in the schema — so the parser, which knows the field, wraps the
+    /// leaf in this node, and the generator reads the context from it. As with
+    /// [`Typed`], carrying it in the clause means no seam the clause travels through can
+    /// drop it.
+    ///
+    /// [`Typed`]: WhereClause::Typed
+    InHierarchy {
+        /// Where the field's hierarchy keeps node paths.
+        context: crate::where_generator::HierarchyContext,
+        /// The leaf the context applies to.
+        inner:   Box<WhereClause>,
+    },
+
     /// A subtree whose values under `under` are visible only where `guard` holds.
     ///
     /// Every path in `inner` that runs through `under` reads its value through the guard —
@@ -160,7 +177,9 @@ impl WhereClause {
     pub fn is_empty(&self) -> bool {
         match self {
             Self::And(clauses) | Self::Or(clauses) => clauses.is_empty(),
-            Self::Typed { inner, .. } | Self::Guarded { inner, .. } => inner.is_empty(),
+            Self::Typed { inner, .. }
+            | Self::Guarded { inner, .. }
+            | Self::InHierarchy { inner, .. } => inner.is_empty(),
             Self::Not(_) | Self::Field { .. } | Self::NativeField { .. } | Self::KeyIn { .. } => {
                 false
             },
@@ -196,7 +215,9 @@ impl WhereClause {
                     c.collect_native_column_names(out);
                 }
             },
-            Self::Not(inner) | Self::Typed { inner, .. } => inner.collect_native_column_names(out),
+            Self::Not(inner) | Self::Typed { inner, .. } | Self::InHierarchy { inner, .. } => {
+                inner.collect_native_column_names(out);
+            },
             Self::Guarded { guard, inner, .. } => {
                 guard.collect_native_column_names(out);
                 inner.collect_native_column_names(out);
@@ -418,6 +439,34 @@ impl WhereClause {
 
                     for (op_str, op_val) in ops {
                         match WhereOperator::from_str(op_str) {
+                            Ok(
+                                operator @ (WhereOperator::DescendantOfId
+                                | WhereOperator::AncestorOfId),
+                            ) => {
+                                // #1396: the operand is a node *id*; which table holds that
+                                // node's path is the field's hierarchy link, resolved by the
+                                // schema. Attach it to the leaf, or refuse naming the fix.
+                                let context = level
+                                    .and_then(|l| l.get(&snake))
+                                    .and_then(|info| info.hierarchy.clone())
+                                    .ok_or_else(|| FraiseQLError::Validation {
+                                        message: format!(
+                                            "'{op_str}' on '{field_name}' needs the hierarchy the \
+                                             field belongs to: declare `hierarchy = \"<name>\"` on \
+                                             the field and a `[hierarchies.<name>]` table with \
+                                             `table` and `path_column` in fraiseql.toml."
+                                        ),
+                                        path:    None,
+                                    })?;
+                                conditions.push(Self::InHierarchy {
+                                    context,
+                                    inner: Box::new(Self::Field {
+                                        path: field_path.clone(),
+                                        operator,
+                                        value: op_val.clone(),
+                                    }),
+                                });
+                            },
                             Ok(operator) => {
                                 conditions.push(Self::Field {
                                     path: field_path.clone(),

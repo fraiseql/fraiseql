@@ -159,6 +159,13 @@ disagreed, and the promise was the part that was wrong.
   queries over unscoped data (`exclude_inject_defaults` when it comes from `[inject_defaults]`).
   A key carried only by rows outside the sample can be compiled with `--allow-drift`.
 
+- **`descendantOfId` / `ancestorOfId` resolve through the filtered field's hierarchy (#1396).**
+  Embedders: `GenericWhereGenerator::generate_with_hierarchy` is removed (it was the only way
+  to pass a hierarchy, and no runtime path called it); the parser now attaches the field's
+  hierarchy to the leaf as `WhereClause::InHierarchy`, and `WhereFieldInfo` gains
+  `hierarchy: Option<HierarchyContext>`. **Upgrade:** build such clauses through
+  `WhereClause::from_graphql_json` with a schema, or wrap the leaf in `InHierarchy` yourself.
+
 ### Added
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds
@@ -366,6 +373,15 @@ Lockfile and patch-level pin changes only; no source changed. The runtime crates
   An argument the relation can provide neither as a column nor as a key in its sampled `data`
   now fails the compile, as an unresolvable `inject_params` key does (#1382), and the JSONB
   fallback advisory names the key the runtime actually reads.
+- **`descendantOfId` and `ancestorOfId` execute (#1396).** Every use failed with "requires
+  HierarchyContext — configure [hierarchies] in fraiseql.toml", whatever was configured: the
+  compiled `hierarchies_config` was loaded and never consulted, because the only entry point that
+  passed a hierarchy had no caller. The parser now resolves the filtered field's `hierarchy` link
+  and attaches its table and path column to the filter. Three defects behind it are fixed too: a
+  schema-qualified table (`app.tb_node`) was quoted as one identifier, the node id was bound
+  uncast against the table's UUID `id` (refused by the driver), and a field linking an undeclared
+  hierarchy compiled. It is now refused when the schema loads, and either operator on a field with
+  no `hierarchy` is refused when the query is parsed, naming what to configure.
 
 ## [2.15.0] - 2026-09-30
 
