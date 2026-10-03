@@ -117,6 +117,23 @@ describe("registerQuery — all config fields", () => {
     ]);
   });
 
+  it("exclude_inject_defaults is emitted via excludeInjectDefaults config key", () => {
+    registerQuery("countries", "Country", true, false, [], undefined, {
+      sqlSource: "v_country",
+      excludeInjectDefaults: ["tenant_id"],
+    });
+    expect(SchemaRegistry.getSchema().queries[0].exclude_inject_defaults).toEqual(["tenant_id"]);
+  });
+
+  it("excludeInjectDefaults must be a list of identifiers", () => {
+    expect(() =>
+      registerQuery("countries", "Country", true, false, [], undefined, {
+        sqlSource: "v_country",
+        excludeInjectDefaults: "tenant_id",
+      })
+    ).toThrow(/excludeInjectDefaults/);
+  });
+
   it("requires_role is emitted via requiresRole config key", () => {
     registerQuery("adminData", "Admin", true, false, [], undefined, {
       sqlSource: "v_admin",

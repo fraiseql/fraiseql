@@ -666,6 +666,40 @@ def test_mutation_inject_valid_passes_through() -> None:
     assert m["inject_params"] == {"tenant_id": {"source": "jwt", "claim": "tenant_id"}}
 
 
+def test_exclude_inject_defaults_passes_through() -> None:
+    """exclude_inject_defaults= reaches the schema on queries and mutations (#1383)."""
+
+    @fraiseql.type
+    class Country:
+        id: int
+
+    @fraiseql.query(sql_source="v_country", exclude_inject_defaults=["tenant_id"])
+    def countries() -> list[Country]:
+        """Global reference data: no tenant to filter on."""
+
+    @fraiseql.mutation(sql_source="fn_touch_country", exclude_inject_defaults=["user_id"])
+    def touch_country(id: int) -> Country:
+        """A mutation opting out of the user default."""
+
+    schema = SchemaRegistry.get_schema()
+    assert schema["queries"][0]["exclude_inject_defaults"] == ["tenant_id"]
+    assert schema["mutations"][0]["exclude_inject_defaults"] == ["user_id"]
+
+
+def test_exclude_inject_defaults_must_be_a_list_of_names() -> None:
+    """A bare string would be iterated as characters; it is refused at authoring time."""
+
+    @fraiseql.type
+    class Country:
+        id: int
+
+    with pytest.raises(ValueError, match="exclude_inject_defaults"):
+
+        @fraiseql.query(sql_source="v_country", exclude_inject_defaults="tenant_id")
+        def countries() -> list[Country]:
+            pass
+
+
 def test_query_inject_invalid_source_raises() -> None:
     """inject source that doesn't match 'jwt:<claim>' raises ValueError."""
 

@@ -534,6 +534,50 @@ The SQL view receives `$tenant_id` as a parameter, enabling database-level tenan
 > caller so the base-table policy applies. `fraiseql doctor --against-db` warns when
 > a `sql_source` view lacks `security_invoker` while the database uses RLS.
 
+### Project-wide inject defaults
+
+Rather than repeating `inject=` on every operation, declare defaults once in
+`fraiseql.toml`. Every query and mutation is then scoped unless it opts out, which is the
+fail-closed shape: a new query is scoped, rather than unscoped until someone remembers.
+
+```toml
+# fraiseql.toml
+[inject_defaults]
+tenant_id = "jwt:tenant_id"     # queries and mutations
+
+[inject_defaults.queries]
+read_scope = "jwt:scope"        # queries only
+
+[inject_defaults.mutations]
+user_id = "jwt:sub"             # mutations only
+```
+
+How a default lands on an operation:
+
+- An operation that declares the parameter itself keeps its own source.
+- An operation that already injects the **same source under another name** gets nothing
+  added. A mutation whose function takes the tenant as `p_tenant_id` already receives it,
+  and a second argument would only break the function's arity.
+- An operation opts out next to itself, for global reference data that has no tenant to
+  filter on:
+
+  ```python
+  @fraiseql.query(sql_source="v_country", exclude_inject_defaults=["tenant_id"])
+  def countries() -> list[Country]: ...
+  ```
+
+  An exclusion must name a default that would otherwise apply, and must not also be
+  declared in `inject=`; either mistake is a compile error.
+
+`compile --database` checks that every mutation function takes the arguments its defaults
+add. A default that does not fit is reported once, naming the default and every mutation
+it does not fit, with the two ways out (exclude it there, or move it from the base table
+to `[inject_defaults.queries]`).
+
+The SDK config loaders read the same section. When the schema document also carries
+`inject_defaults` (emitted by an SDK from this file), the two must agree, or the compile
+is refused.
+
 ### Cache Invalidation
 
 ```python

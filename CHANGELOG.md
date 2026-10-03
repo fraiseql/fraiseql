@@ -161,6 +161,15 @@ disagreed, and the promise was the part that was wrong.
   `$iss` in enrichment queries. Every transport (`/graphql`, REST, MCP, gRPC, rate-limit
   identity) inherits it through the shared validator. See `docs/auth/multiple-issuers.md`.
 
+- **`exclude_inject_defaults` on queries and mutations (#1383).** `[inject_defaults]` applied
+  to every operation with no way to say "except this one", so a schema serving any global
+  reference data (a catalogue, a country list) could not adopt the default: those queries got
+  the tenant filter too. An operation now lists the default keys it opts out of, next to
+  itself (`exclude_inject_defaults=["tenant_id"]` in the Python SDK, `excludeInjectDefaults`
+  in TypeScript). An exclusion that names no default, or a parameter the operation also
+  declares, is a compile error — a stale opt-out must not read as one while the default still
+  applies.
+
 ### Fixed
 
 - **A human acting on someone's behalf is no longer recorded as an AI (#1401).** Any token
@@ -256,6 +265,22 @@ disagreed, and the promise was the part that was wrong.
   column. A mutation is now scoped when any of its `inject_params` reads `jwt:<tenant_claim>`;
   one that passes the tenant nowhere is still refused, and the refusal names the claim it must
   read.
+
+- **`[inject_defaults]` is read from `fraiseql.toml` (#1384).** The SDK config loaders read the
+  section from `fraiseql.toml` and emit it into `schema.json`, while the compiler parsed the
+  same file with `deny_unknown_fields` and refused it ("unknown field `inject_defaults`"), so a
+  project following the SDKs' documented config could not compile. The compiler now reads the
+  section in the SDKs' shape (base keys at the top, `queries` / `mutations` sub-tables) in both
+  `fraiseql.toml` forms, refuses a misspelled sub-table the SDK loaders silently ignore, and
+  refuses a schema whose own `inject_defaults` differs from the config's.
+- **An inject default no longer adds an argument a mutation already receives, and one that
+  does not fit is reported once (#1385).** A default was skipped only when the operation used
+  the same parameter *name*; a mutation passing the tenant as `p_tenant_id` got a second
+  tenant argument and an arity error. A default is now also skipped when the operation already
+  injects the same source. A default that genuinely does not fit the mutation functions used
+  to produce one arity error per mutation (98 in the report) without naming the config line;
+  `compile --database` now reports it once, naming the default, every mutation it does not fit,
+  and the two ways out. Errors are attributed to a default only when the arithmetic shows it.
 
 ### Security
 

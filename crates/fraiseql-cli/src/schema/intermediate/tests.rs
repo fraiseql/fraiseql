@@ -572,3 +572,86 @@ mod intermediate_tests {
         assert!(schema.mutations[0].changelog);
     }
 }
+
+/// How a project default lands on one operation: absent-only, source-aware (#1385), and
+/// droppable next to the operation (#1383).
+mod inject_defaults_apply {
+    use indexmap::IndexMap;
+
+    use super::super::IntermediateInjectDefaults;
+
+    fn map(pairs: &[(&str, &str)]) -> IndexMap<String, String> {
+        pairs.iter().map(|(k, v)| ((*k).to_string(), (*v).to_string())).collect()
+    }
+
+    fn apply(
+        defaults: &[(&str, &str)],
+        own: &[(&str, &str)],
+        excluded: &[&str],
+    ) -> anyhow::Result<(IndexMap<String, String>, Vec<String>)> {
+        let mut inject = map(own);
+        let excluded: Vec<String> = excluded.iter().map(ToString::to_string).collect();
+        let added =
+            IntermediateInjectDefaults::apply_to(&map(defaults), &mut inject, &excluded, "op")?;
+        Ok((inject, added))
+    }
+
+    #[test]
+    fn a_default_the_operation_lacks_is_added_and_reported() {
+        let (inject, added) = apply(&[("tenant_id", "jwt:tenant_id")], &[], &[]).unwrap();
+        assert_eq!(inject, map(&[("tenant_id", "jwt:tenant_id")]));
+        assert_eq!(added, ["tenant_id"]);
+    }
+
+    #[test]
+    fn an_operation_naming_the_parameter_keeps_its_own_source() {
+        let (inject, added) =
+            apply(&[("tenant_id", "jwt:tenant_id")], &[("tenant_id", "jwt:org_id")], &[]).unwrap();
+        assert_eq!(inject, map(&[("tenant_id", "jwt:org_id")]));
+        assert!(added.is_empty());
+    }
+
+    /// #1385: a function taking the tenant as `p_tenant_id` already receives it; a second
+    /// argument with the same claim is the arity error the issue counted 98 times.
+    #[test]
+    fn an_operation_injecting_the_same_source_under_another_name_gets_no_second_argument() {
+        let own = [("p_tenant_id", "jwt:tenant_id"), ("p_user_id", "jwt:sub")];
+        let (inject, added) = apply(&[("tenant_id", "jwt:tenant_id")], &own, &[]).unwrap();
+        assert_eq!(inject, map(&own), "the function's arity is untouched");
+        assert!(added.is_empty());
+    }
+
+    /// #1383: global reference data opts out of the tenant default, next to itself.
+    #[test]
+    fn an_excluded_default_is_not_applied() {
+        let defaults = [("tenant_id", "jwt:tenant_id"), ("user_id", "jwt:sub")];
+        let (inject, added) = apply(&defaults, &[], &["tenant_id"]).unwrap();
+        assert_eq!(inject, map(&[("user_id", "jwt:sub")]), "only the excluded key is dropped");
+        assert_eq!(added, ["user_id"]);
+    }
+
+    /// A stale or misspelled exclusion would leave the default applied while reading as
+    /// opted out.
+    #[test]
+    fn an_exclusion_no_default_supplies_is_refused() {
+        let message = apply(&[("tenant_id", "jwt:tenant_id")], &[], &["tenantid"])
+            .unwrap_err()
+            .to_string();
+        assert!(
+            message.contains("tenantid") && message.contains("no [inject_defaults]"),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn excluding_a_parameter_the_operation_declares_is_refused() {
+        let message = apply(
+            &[("tenant_id", "jwt:tenant_id")],
+            &[("tenant_id", "jwt:tenant_id")],
+            &["tenant_id"],
+        )
+        .unwrap_err()
+        .to_string();
+        assert!(message.contains("both declares"), "{message}");
+    }
+}

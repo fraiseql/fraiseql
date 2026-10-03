@@ -127,6 +127,57 @@ def _validate_inject(
             raise ValueError(msg)
 
 
+def _validate_exclude_inject_defaults(value: Any, context: str) -> None:
+    """Validate ``exclude_inject_defaults=`` on @query/@mutation (#1383).
+
+    The compiler checks each name against the project's ``[inject_defaults]``; this checks
+    the shape, so a bare string (``"tenant_id"``, iterated as characters) fails here.
+
+    Raises:
+        ValueError: If the value is not a list of identifier strings.
+    """
+    if not isinstance(value, list) or not all(
+        isinstance(name, str) and _IDENTIFIER_RE.match(name) for name in value
+    ):
+        msg = (
+            f"{context}: exclude_inject_defaults= must be a list of parameter names "
+            f"(identifiers), got {value!r}."
+        )
+        raise ValueError(msg)
+
+
+def _apply_inject_config(
+    cfg: dict[str, Any], signature: dict[str, Any], decorator: str, name: str
+) -> None:
+    """Validate and emit ``inject=`` and ``exclude_inject_defaults=`` for @query/@mutation.
+
+    ``inject=`` is emitted in its structured form under the canonical key, and the raw
+    authoring key dropped: the intermediate wire key is ``inject_params`` — the same name
+    the compiled schema uses (#806) — and the compiler refuses ``inject`` rather than
+    ignoring it, so emitting both would fail the compile.
+
+    Raises:
+        TypeError: If ``inject=`` is not a dict.
+        ValueError: If either key fails validation.
+    """
+    if inject := cfg.get("inject"):
+        if not isinstance(inject, dict):
+            msg = (
+                f"{decorator} inject= on {name!r} must be a dict "
+                f"(got {inject.__class__.__name__!r})."
+            )
+            raise TypeError(msg)
+        arg_names = {arg["name"] for arg in signature["arguments"]}
+        _validate_inject(inject, arg_names, f"{decorator} {name!r}")
+        del cfg["inject"]
+        cfg["inject_params"] = {
+            k: {"source": v.split(":", 1)[0], "claim": v.split(":", 1)[1]}
+            for k, v in inject.items()
+        }
+    if "exclude_inject_defaults" in cfg:
+        _validate_exclude_inject_defaults(cfg["exclude_inject_defaults"], f"{decorator} {name!r}")
+
+
 def _validate_rest_stream(
     cfg: dict,
     signature: dict,
@@ -918,6 +969,9 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
         **config_kwargs: Configuration options. Common keys:
 
             - ``sql_source``: override the default SQL view/table name.
+            - ``exclude_inject_defaults``: list of ``[inject_defaults]`` keys this query
+              opts out of — e.g. ``["tenant_id"]`` on global reference data. Each must
+              name a default that would otherwise apply.
             - ``auto_params``: dict of ``{limit, offset, where, order_by}`` booleans,
               or ``True`` to enable all.
             - ``jsonb_column``: name of the JSONB column holding the result data.
@@ -991,25 +1045,7 @@ def query(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F]:
             _validate_sql_identifier(sql_source, "sql_source", f"@fraiseql.query on {f.__name__!r}")
 
         # Inject validation — fail fast at authoring time
-        if inject := cfg.get("inject"):
-            if not isinstance(inject, dict):
-                msg = (
-                    f"@fraiseql.query inject= on {f.__name__!r} must be a dict "
-                    f"(got {inject.__class__.__name__!r})."
-                )
-                raise TypeError(msg)
-            arg_names = {arg["name"] for arg in signature["arguments"]}
-            _validate_inject(inject, arg_names, f"@fraiseql.query {f.__name__!r}")
-            # Emit the structured form under the canonical key and drop the raw
-            # `inject` authoring key. The intermediate wire key is `inject_params`
-            # — the same name the compiled schema uses (#806) — and the compiler
-            # now refuses `inject` rather than ignoring it, so emitting both would
-            # fail the compile. `inject=` remains the decorator argument.
-            del cfg["inject"]
-            cfg["inject_params"] = {
-                k: {"source": v.split(":", 1)[0], "claim": v.split(":", 1)[1]}
-                for k, v in inject.items()
-            }
+        _apply_inject_config(cfg, signature, "@fraiseql.query", f.__name__)
 
         # cache_ttl_seconds validation — fail fast at authoring time
         if (ttl := cfg.get("cache_ttl_seconds")) is not None:
@@ -1190,25 +1226,7 @@ def mutation(func: F | None = None, **config_kwargs: Any) -> F | Callable[[F], F
             )
 
         # Inject validation — fail fast at authoring time
-        if inject := cfg.get("inject"):
-            if not isinstance(inject, dict):
-                msg = (
-                    f"@fraiseql.mutation inject= on {f.__name__!r} must be a dict "
-                    f"(got {inject.__class__.__name__!r})."
-                )
-                raise TypeError(msg)
-            arg_names = {arg["name"] for arg in signature["arguments"]}
-            _validate_inject(inject, arg_names, f"@fraiseql.mutation {f.__name__!r}")
-            # Emit the structured form under the canonical key and drop the raw
-            # `inject` authoring key. The intermediate wire key is `inject_params`
-            # — the same name the compiled schema uses (#806) — and the compiler
-            # now refuses `inject` rather than ignoring it, so emitting both would
-            # fail the compile. `inject=` remains the decorator argument.
-            del cfg["inject"]
-            cfg["inject_params"] = {
-                k: {"source": v.split(":", 1)[0], "claim": v.split(":", 1)[1]}
-                for k, v in inject.items()
-            }
+        _apply_inject_config(cfg, signature, "@fraiseql.mutation", f.__name__)
 
         # deprecated= → deprecation={reason: ...}
         if "deprecated" in cfg:

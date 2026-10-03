@@ -125,6 +125,11 @@ pub struct TomlSchema {
     #[serde(default)]
     pub tenancy: crate::config::security::TenancyTomlConfig,
 
+    /// Project-wide default injected parameters (`[inject_defaults]`, #1384), in the shape
+    /// the SDK config loaders read.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inject_defaults: Option<crate::config::inject_defaults::InjectDefaultsToml>,
+
     /// Observers/event system configuration
     #[serde(rename = "observers")]
     pub observers: ObserversConfig,

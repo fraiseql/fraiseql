@@ -195,17 +195,58 @@ impl IntermediateInjectDefaults {
         merged
     }
 
-    /// Fill in any default the operation does not already declare.
+    /// Fill in each default the operation does not already have, and return the keys added.
     ///
-    /// Absent-only, never overwriting: an operation that names a parameter has made a more
-    /// specific decision than a project-wide default, and silently replacing it would be
-    /// the same class of defect one level up.
-    pub fn apply_to(defaults: &IndexMap<String, String>, inject: &mut IndexMap<String, String>) {
-        for (key, source) in defaults {
-            if !inject.contains_key(key) {
-                inject.insert(key.clone(), source.clone());
+    /// A default is skipped when the operation:
+    ///
+    /// - names the same parameter — absent-only, never overwriting: an operation that names a
+    ///   parameter has made a more specific decision than a project-wide default;
+    /// - already injects the same **source** under another name (#1385) — a mutation whose function
+    ///   takes the tenant as `p_tenant_id` already receives it, and a second argument carrying the
+    ///   same claim would only break the function's arity;
+    /// - lists the key in `exclude_inject_defaults` (#1383) — global reference data (a country
+    ///   list, a catalogue) has no tenant to filter on, and the default is the fail-closed shape
+    ///   only if dropping it is expressible next to the operation.
+    ///
+    /// The returned keys are the default-supplied parameters — what the compiler names when
+    /// one of them does not fit the operation's function.
+    ///
+    /// # Errors
+    ///
+    /// An exclusion that no default supplies (stale, or a typo that would silently leave the
+    /// default applied), or one the operation also declares itself (a contradiction).
+    pub fn apply_to(
+        defaults: &IndexMap<String, String>,
+        inject: &mut IndexMap<String, String>,
+        excluded: &[String],
+        operation: &str,
+    ) -> anyhow::Result<Vec<String>> {
+        for key in excluded {
+            if inject.contains_key(key) {
+                anyhow::bail!(
+                    "Operation '{operation}' both declares inject_params['{key}'] and lists \
+                     '{key}' in exclude_inject_defaults. An exclusion drops a project default; \
+                     a parameter the operation declares itself is not a default. Keep one."
+                );
+            }
+            if !defaults.contains_key(key) {
+                anyhow::bail!(
+                    "Operation '{operation}' lists '{key}' in exclude_inject_defaults, but no \
+                     [inject_defaults] entry supplies '{key}' to it. Remove the exclusion, or fix \
+                     its spelling — an exclusion that matches nothing leaves every default applied."
+                );
             }
         }
+        let mut added = Vec::new();
+        for (key, source) in defaults {
+            let declared = inject.contains_key(key) || inject.values().any(|own| own == source);
+            if declared || excluded.contains(key) {
+                continue;
+            }
+            inject.insert(key.clone(), source.clone());
+            added.push(key.clone());
+        }
+        Ok(added)
     }
 }
 
@@ -366,6 +407,14 @@ pub struct IntermediateQuery {
     )]
     pub inject: IndexMap<String, String>,
 
+    /// Project `[inject_defaults]` keys this operation opts out of (#1383).
+    ///
+    /// Reviewable next to the operation it applies to: a catalogue query declares here
+    /// that the tenant default does not apply to it. Each key must name a default that
+    /// would otherwise apply, and must not also be declared in `inject_params`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exclude_inject_defaults: Vec<String>,
+
     /// Where this query's reads may be served from (#957).
     ///
     /// `any` (the default) follows server policy; `primary` refuses replicas —
@@ -490,6 +539,14 @@ pub struct IntermediateMutation {
     )]
     pub inject: IndexMap<String, String>,
 
+    /// Project `[inject_defaults]` keys this operation opts out of (#1383).
+    ///
+    /// Reviewable next to the operation it applies to: a catalogue query declares here
+    /// that the tenant default does not apply to it. Each key must name a default that
+    /// would otherwise apply, and must not also be declared in `inject_params`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exclude_inject_defaults: Vec<String>,
+
     /// Role required to execute this mutation and see it in introspection.
     ///
     /// Mirrors [`IntermediateQuery::requires_role`]. Enforced at runtime with the same
@@ -582,6 +639,7 @@ impl Default for IntermediateMutation {
             operation:               None,
             deprecated:              None,
             inject:                  IndexMap::new(),
+            exclude_inject_defaults: Vec::new(),
             requires_actor:          Vec::new(),
             requires_role:           None,
             invalidates_fact_tables: Vec::new(),

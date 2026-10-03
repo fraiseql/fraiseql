@@ -506,6 +506,7 @@ function normaliseConfig(
     relayCursorType: "relay_cursor_type",
     requiresRole: "requires_role",
     additionalViews: "additional_views",
+    excludeInjectDefaults: "exclude_inject_defaults",
     inputStyle: "input_style",
     changelogPreImage: "changelog_pre_image",
   };
@@ -550,6 +551,21 @@ function normaliseConfig(
     if (!VALID_INPUT_STYLES.has(config.inputStyle)) {
       throw new Error(
         `inputStyle must be one of ${[...VALID_INPUT_STYLES].join(", ")} (got '${config.inputStyle}')`
+      );
+    }
+  }
+
+  // excludeInjectDefaults opts this operation out of named [inject_defaults] keys
+  // (#1383). The compiler checks each name against the defaults; here, only the shape.
+  if ("excludeInjectDefaults" in config) {
+    const excluded = config.excludeInjectDefaults;
+    if (
+      !Array.isArray(excluded) ||
+      excluded.some((k) => typeof k !== "string" || !INJECT_KEY_RE.test(k))
+    ) {
+      throw new Error(
+        "excludeInjectDefaults must be an array of parameter names (identifiers), " +
+          `got ${JSON.stringify(excluded)}`
       );
     }
   }

@@ -38,6 +38,7 @@ fn object_mutation(name: &str, return_type: &str) -> IntermediateMutation {
         operation:               Some("CUSTOM".to_string()),
         deprecated:              None,
         inject:                  IndexMap::new(),
+        exclude_inject_defaults: Vec::new(),
         requires_role:           None,
         invalidates_fact_tables: Vec::new(),
         invalidates_views:       Vec::new(),

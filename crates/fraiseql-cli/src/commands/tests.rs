@@ -3590,3 +3590,58 @@ mod compile_database_url_tests {
         }
     }
 }
+
+/// #1385: a contract error a project default caused names the default, once.
+mod default_collision_tests {
+    use super::super::compile::{default_caused, default_collision};
+    use crate::schema::mutation_contract::ContractViolation;
+
+    fn added(keys: &[&str]) -> Vec<String> {
+        keys.iter().map(ToString::to_string).collect()
+    }
+
+    /// The function takes exactly what the call would send without the default.
+    #[test]
+    fn an_arity_short_by_the_default_supplied_parameters_is_the_defaults() {
+        let v = ContractViolation::ArityMismatch {
+            expected: 4,
+            found:    vec![3],
+        };
+        assert_eq!(default_caused(&v, &added(&["org_id"])).as_deref(), Some("org_id"));
+    }
+
+    /// Any other arity is the function's own error: attributing it would hide it.
+    #[test]
+    fn an_arity_the_default_does_not_explain_is_not_attributed() {
+        let v = ContractViolation::ArityMismatch {
+            expected: 4,
+            found:    vec![1],
+        };
+        assert_eq!(default_caused(&v, &added(&["org_id"])), None);
+        let v = ContractViolation::ArityMismatch {
+            expected: 4,
+            found:    vec![3],
+        };
+        assert_eq!(default_caused(&v, &[]), None, "no default, no attribution");
+    }
+
+    #[test]
+    fn a_name_mismatch_on_a_default_supplied_parameter_is_the_defaults() {
+        let v = ContractViolation::InjectNameMismatch {
+            position: 1,
+            expected: "org_id".into(),
+            actual:   "p_org".into(),
+        };
+        assert_eq!(default_caused(&v, &added(&["org_id"])).as_deref(), Some("org_id"));
+        assert_eq!(default_caused(&v, &added(&["user_id"])), None);
+    }
+
+    #[test]
+    fn the_collision_names_the_default_the_count_and_the_way_out() {
+        let mutations: Vec<String> = (1..=7).map(|i| format!("m{i}")).collect();
+        let message = default_collision("org_id", &mutations);
+        assert!(message.contains("adds `org_id` to 7 mutation(s)"), "{message}");
+        assert!(message.contains("`m5`, and 2 more"), "{message}");
+        assert!(message.contains("exclude_inject_defaults"), "{message}");
+    }
+}

@@ -4,6 +4,7 @@
 //! including security settings, project metadata, and compilation options.
 
 pub mod discovery;
+pub mod inject_defaults;
 pub mod runtime;
 pub mod security;
 pub mod toml_schema;
@@ -38,6 +39,11 @@ pub struct TomlProjectConfig {
     /// Database connection pool configuration (optional — all fields have defaults).
     #[serde(default)]
     pub database: DatabaseRuntimeConfig,
+
+    /// Project-wide default injected parameters (`[inject_defaults]`, #1384) — the
+    /// section the SDK config loaders read from this same file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inject_defaults: Option<inject_defaults::InjectDefaultsToml>,
 }
 
 /// Project metadata

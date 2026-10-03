@@ -903,6 +903,22 @@ impl SchemaMerger {
                 .context("Failed to serialize session_variables")?;
         }
 
+        // `[inject_defaults]` (#1384): the TOML schema's section, reconciled with a block the
+        // SDK may have emitted into types.json from the same config.
+        let document_defaults = merged
+            .get("inject_defaults")
+            .cloned()
+            .map(serde_json::from_value::<super::intermediate::IntermediateInjectDefaults>)
+            .transpose()
+            .context("Invalid inject_defaults in the merged schema document")?;
+        if let Some(defaults) = crate::config::inject_defaults::InjectDefaultsToml::reconcile(
+            toml_schema.inject_defaults.as_ref(),
+            document_defaults,
+        )? {
+            merged["inject_defaults"] =
+                serde_json::to_value(defaults).context("Failed to serialize inject_defaults")?;
+        }
+
         // Refuse a security control declared under a key that does not bind (#806/#807).
         //
         // This is the TOML / multi-file workflow's *only* deserialization point — all six

@@ -85,6 +85,7 @@ impl SchemaExtractor for GoExtractor {
                 jsonb_column: None,
                 relay: false,
                 inject: IndexMap::default(),
+                exclude_inject_defaults: Vec::new(),
                 read_routing: fraiseql_core::db::types::ReadRouting::default(),
                 cache_ttl_seconds: None,
                 additional_views: vec![],

@@ -361,7 +361,12 @@ impl SchemaConverter {
         let mut queries: Vec<fraiseql_core::schema::QueryDefinition> =
             Vec::with_capacity(intermediate.queries.len());
         for mut q in intermediate.queries {
-            IntermediateInjectDefaults::apply_to(&query_defaults_inject, &mut q.inject);
+            IntermediateInjectDefaults::apply_to(
+                &query_defaults_inject,
+                &mut q.inject,
+                &q.exclude_inject_defaults,
+                &q.name,
+            )?;
             let wants_count = q.count;
             let converted = Self::convert_query(q, &defaults, &declared)
                 .context("Failed to convert queries")?;
@@ -389,7 +394,12 @@ impl SchemaConverter {
             .mutations
             .into_iter()
             .map(|mut m| {
-                IntermediateInjectDefaults::apply_to(&mutation_defaults_inject, &mut m.inject);
+                IntermediateInjectDefaults::apply_to(
+                    &mutation_defaults_inject,
+                    &mut m.inject,
+                    &m.exclude_inject_defaults,
+                    &m.name,
+                )?;
                 Self::convert_mutation(m, &declared)
             })
             .collect::<Result<Vec<_>>>()

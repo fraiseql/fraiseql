@@ -300,6 +300,14 @@ pub async fn compile_to_schema(
                     intermediate.session_variables = Some(config.fraiseql.session_variables);
                 }
 
+                // `[inject_defaults]` lives in the config the SDK loaders read (#1384); a
+                // copy the SDK emitted into the schema must agree with it.
+                intermediate.inject_defaults =
+                    crate::config::inject_defaults::InjectDefaultsToml::reconcile(
+                        config.inject_defaults.as_ref(),
+                        intermediate.inject_defaults.take(),
+                    )?;
+
                 info!("Security configuration applied successfully");
             },
             Err(e) => {
@@ -374,6 +382,29 @@ pub async fn compile_to_schema(
     // 4. Convert to the compiled artifact (validates and normalizes). `functions` is
     // a sibling section of the compiled schema, not a field of it, so the converter
     // hands both halves back and the rest of this pipeline sharpens the schema half.
+    // Which parameters each mutation receives from `[inject_defaults]` rather than declares
+    // (#1385), so a contract error a default caused can name the default instead of
+    // repeating once per mutation. Computed by the converter's own rule; a refusal that
+    // rule raises is the converter's to report.
+    let mutation_defaults =
+        intermediate.inject_defaults.clone().unwrap_or_default().for_mutations();
+    let default_args: std::collections::HashMap<String, Vec<String>> = intermediate
+        .mutations
+        .iter()
+        .filter_map(|m| {
+            let mut inject = m.inject.clone();
+            crate::schema::intermediate::IntermediateInjectDefaults::apply_to(
+                &mutation_defaults,
+                &mut inject,
+                &m.exclude_inject_defaults,
+                &m.name,
+            )
+            .ok()
+            .filter(|added| !added.is_empty())
+            .map(|added| (m.name.clone(), added))
+        })
+        .collect();
+
     info!("Converting to compiled format...");
     let CompiledArtifact {
         mut schema,
@@ -432,20 +463,31 @@ pub async fn compile_to_schema(
         let catalog = PgCatalog::connect(db_url)
             .context("Failed to connect for mutation-contract validation")?;
         let contract = validate_mutation_contract(&schema, &catalog).await?;
+        let mut caused_by_default: std::collections::BTreeMap<String, Vec<String>> =
+            std::collections::BTreeMap::new();
         for m in &contract.mutations {
+            let added = default_args.get(&m.mutation).map_or(&[][..], Vec::as_slice);
             for v in &m.violations {
                 let kind = match v.severity() {
                     Severity::Error => "contract error",
                     Severity::Warn => "contract warning",
                 };
                 warn!("mutation `{}` (sql_source: {}): {v} [{kind}]", m.mutation, m.sql_source);
-                if v.severity() == Severity::Error {
+                if v.severity() != Severity::Error {
+                    continue;
+                }
+                if let Some(key) = default_caused(v, added) {
+                    caused_by_default.entry(key).or_default().push(m.mutation.clone());
+                } else {
                     drift_errors.push(format!(
                         "mutation `{}` (sql_source: {}): {v}",
                         m.mutation, m.sql_source
                     ));
                 }
             }
+        }
+        for (key, mutations) in caused_by_default {
+            drift_errors.push(default_collision(&key, &mutations));
         }
 
         // The linter must be able to FAIL (#384): a schema that names database
@@ -545,6 +587,48 @@ pub async fn compile_to_schema(
 /// # Errors
 ///
 /// Returns the loader's refusal.
+/// The `[inject_defaults]` key a contract error is due to, if it is due to one (#1385).
+///
+/// Attributed only when the arithmetic says so: the function takes exactly the arguments
+/// the mutation would send without its default-supplied parameters, or the parameter the
+/// call binds at a mismatching position is one a default supplied. Anything else is the
+/// function's own error and is reported as such.
+pub(crate) fn default_caused(
+    violation: &crate::schema::mutation_contract::ContractViolation,
+    added: &[String],
+) -> Option<String> {
+    use crate::schema::mutation_contract::ContractViolation;
+    match violation {
+        ContractViolation::ArityMismatch { expected, found }
+            if !added.is_empty() && found.contains(&expected.saturating_sub(added.len())) =>
+        {
+            Some(added.join(", "))
+        },
+        ContractViolation::InjectNameMismatch { expected, .. } if added.contains(expected) => {
+            Some(expected.clone())
+        },
+        _ => None,
+    }
+}
+
+/// One error for every mutation a default does not fit, instead of one per mutation.
+pub(crate) fn default_collision(key: &str, mutations: &[String]) -> String {
+    const SHOWN: usize = 5;
+    let shown = mutations.iter().take(SHOWN).map(|m| format!("`{m}`")).collect::<Vec<_>>();
+    let more = mutations.len().saturating_sub(SHOWN);
+    let list = if more == 0 {
+        shown.join(", ")
+    } else {
+        format!("{}, and {more} more", shown.join(", "))
+    };
+    format!(
+        "[inject_defaults] adds `{key}` to {} mutation(s) whose functions do not take it: \
+         {list}. Exclude it on those mutations (`exclude_inject_defaults = [\"{key}\"]`), or \
+         move it from the base [inject_defaults] table to [inject_defaults.queries].",
+        mutations.len()
+    )
+}
+
 fn refuse_what_a_server_would_not_load(schema: &CompiledSchema) -> Result<()> {
     let body = serde_json::to_string(schema).context("Failed to serialize compiled schema")?;
     let mut value: serde_json::Value = serde_json::from_str(&body)?;

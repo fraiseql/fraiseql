@@ -508,3 +508,99 @@ async fn the_mutation_contract_is_checked_for_a_libpq_connection_string() {
         assert!(!out.exists(), "{form}: a failed compile must not write the artifact");
     }
 }
+
+/// #1385: a base `[inject_defaults]` entry that the mutation functions do not take fails the
+/// compile **once**, naming the default and every mutation it does not fit — not once per
+/// mutation as an arity error that never mentions the config line. And a mutation passing
+/// the same claim under its own parameter name gets no second argument.
+#[tokio::test]
+async fn an_ill_fitting_inject_default_is_named_once() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+
+    create_jsonb_view(&client, "v_cdf1385", r#"{"author": "ada"}"#).await;
+    client
+        .batch_execute(
+            "DROP FUNCTION IF EXISTS fn_cdf1385_a(jsonb);
+             DROP FUNCTION IF EXISTS fn_cdf1385_b(jsonb);
+             DROP FUNCTION IF EXISTS fn_cdf1385_c(jsonb, text);
+             CREATE FUNCTION fn_cdf1385_a(payload jsonb)
+             RETURNS TABLE(succeeded boolean, state_changed boolean, message text)
+             LANGUAGE sql AS $$ SELECT true, true, payload->>'author' $$;
+             CREATE FUNCTION fn_cdf1385_b(payload jsonb)
+             RETURNS TABLE(succeeded boolean, state_changed boolean, message text)
+             LANGUAGE sql AS $$ SELECT true, true, payload->>'author' $$;
+             CREATE FUNCTION fn_cdf1385_c(payload jsonb, p_org text)
+             RETURNS TABLE(succeeded boolean, state_changed boolean, message text)
+             LANGUAGE sql AS $$ SELECT true, true, payload->>'author' $$;",
+        )
+        .await
+        .unwrap();
+
+    let mutation = |name: &str, function: &str| {
+        json!({
+            "name": name,
+            "return_type": "Thing",
+            "sql_source": function,
+            "operation": "UPDATE",
+            "arguments": [{"name": "input", "type": "ThingInput", "nullable": false}]
+        })
+    };
+    let mut takes_org_itself = mutation("updateC", "fn_cdf1385_c");
+    takes_org_itself["inject_params"] = json!({"p_org": "jwt:org_id"});
+    let schema = |mutations: Vec<serde_json::Value>| {
+        write_json(&json!({
+            "types": [{
+                "name": "Thing",
+                "sql_source": "v_cdf1385",
+                "fields": [
+                    {"name": "id", "type": "ID", "nullable": false},
+                    {"name": "author", "type": "String", "nullable": false}
+                ]
+            }],
+            "input_types": [{
+                "name": "ThingInput",
+                "fields": [{"name": "author", "type": "String", "nullable": true}]
+            }],
+            "queries": [{
+                "name": "things",
+                "return_type": "Thing",
+                "returns_list": true,
+                "sql_source": "v_cdf1385",
+                "exclude_inject_defaults": ["org_id"]
+            }],
+            "mutations": mutations,
+            "inject_defaults": {"base": {"org_id": "jwt:org_id"}}
+        }))
+    };
+
+    // Two functions that do not take the default's argument: one error naming both.
+    let ill_fitting = schema(vec![
+        mutation("updateA", "fn_cdf1385_a"),
+        mutation("updateB", "fn_cdf1385_b"),
+    ]);
+    let out_dir = TempDir::new().unwrap();
+    let out = out_dir.path().join("schema.compiled.json");
+    let (ok, log) = run_compile(ill_fitting.path(), &url, &out, &[]);
+    assert!(!ok, "a default the functions cannot take must fail the compile. log:\n{log}");
+    assert!(
+        log.contains("adds `org_id` to 2 mutation(s)")
+            && log.contains("`updateA`")
+            && log.contains("`updateB`"),
+        "the failure must name the default once, with every mutation it does not fit. \
+         log:\n{log}"
+    );
+    assert!(
+        log.contains("1 error(s)"),
+        "the two arity errors must collapse into one. log:\n{log}"
+    );
+
+    // The same claim under the function's own parameter name: no second argument.
+    let fitting = schema(vec![takes_org_itself]);
+    let out = out_dir.path().join("fitting.compiled.json");
+    let (ok, log) = run_compile(fitting.path(), &url, &out, &[]);
+    assert!(
+        ok,
+        "a mutation already passing jwt:org_id must not receive the default again. log:\n{log}"
+    );
+}

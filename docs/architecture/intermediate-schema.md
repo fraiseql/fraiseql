@@ -277,6 +277,7 @@ Custom GraphQL scalar type.
 | `jsonb_column` | `string?` | no | JSONB column name (`tv_*` pattern) |
 | `relay` | `bool` | no | `true` for Relay connection queries |
 | `inject_params` | `{[col]: source}` | no | Server-injected params (not exposed as args). Values are `"jwt:<claim>"` or `{"source": "jwt", "claim": "<claim>"}`. **The key is `inject_params`, not `inject`** |
+| `exclude_inject_defaults` | `string[]` | no | `inject_defaults` keys this operation opts out of. Each must name a default that would otherwise apply and must not also be in `inject_params`; both are compile errors |
 | `rest` | `{path, method?}?` | no | REST route override for this operation |
 | `cache_ttl_seconds` | `integer?` | no | Per-query cache TTL override |
 | `additional_views` | `string[]` | no | Extra views read (for cache invalidation) |
