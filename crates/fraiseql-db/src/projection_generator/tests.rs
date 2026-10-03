@@ -340,7 +340,7 @@ fn test_typed_projection_nested_sub_fields_generate_nested_jsonb_build_object() 
     let sql = generator.generate_typed_projection_sql(&fields).unwrap();
     // author must use a nested jsonb_build_object instead of the full blob
     assert!(
-        sql.contains("'author', jsonb_build_object("),
+        sql.contains("'author', CASE WHEN jsonb_typeof("),
         "author must produce nested jsonb_build_object, got: {sql}"
     );
     // Nested scalars must use path operator with full path prefix
@@ -377,7 +377,7 @@ fn test_typed_projection_composite_without_sub_fields_returns_full_blob() {
     // The outer jsonb_build_object wraps all fields — that's expected.
     // What must NOT appear is a *nested* jsonb_build_object as the value for 'author'.
     assert!(
-        !sql.contains("'author', jsonb_build_object("),
+        !sql.contains("'author', CASE WHEN jsonb_typeof("),
         "must NOT produce nested jsonb_build_object for author when sub_fields is None, got: {sql}"
     );
 }
@@ -401,11 +401,11 @@ fn test_typed_projection_depth_2_recursion() {
     ];
     let sql = generator.generate_typed_projection_sql(&fields).unwrap();
     assert!(
-        sql.contains("'author', jsonb_build_object("),
+        sql.contains("'author', CASE WHEN jsonb_typeof("),
         "author must be nested, got: {sql}"
     );
     assert!(
-        sql.contains("'profile', jsonb_build_object("),
+        sql.contains("'profile', CASE WHEN jsonb_typeof("),
         "profile must be nested inside author, got: {sql}"
     );
     assert!(sql.contains("'profile'->>'bio'"), "bio must use depth-2 path, got: {sql}");
@@ -440,5 +440,9 @@ fn test_typed_projection_of_an_object_with_no_sub_fields_is_empty() {
     let sql = PostgresProjectionGenerator::new()
         .generate_typed_projection_sql(&[field])
         .unwrap();
-    assert_eq!(sql, "jsonb_build_object('author', jsonb_build_object())");
+    assert_eq!(
+        sql,
+        "jsonb_build_object('author', CASE WHEN jsonb_typeof(\"data\"->'author') = 'object' \
+         THEN jsonb_build_object() END)"
+    );
 }

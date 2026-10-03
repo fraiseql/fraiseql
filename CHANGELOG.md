@@ -292,6 +292,13 @@ disagreed, and the promise was the part that was wrong.
   `compile --database` now reports it once, naming the default, every mutation it does not fit,
   and the two ways out. Errors are attributed to a default only when the arithmetic shows it.
 
+- **A null or missing nested object is `null` in a query response, not an object of nulls
+  (#1364).** The query projection built every selected nested object unconditionally, so a
+  stored `"customer": null` (or no `customer` key) came back as `"customer": {"id": null, ...}`.
+  A client could not tell "no customer" from "a customer whose fields are null", and a non-null
+  sub-field was answered with `null`, contradicting the schema the server publishes. The object
+  is now built only when the stored value is an object, at every depth.
+
 ### Security
 
 - **wasmtime and wasmtime-wasi 48.0.5** (was 48.0.3) for the `runtime-wasm` feature of

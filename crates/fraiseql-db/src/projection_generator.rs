@@ -423,13 +423,24 @@ impl PostgresProjectionGenerator {
         let safe_jsonb_key = Self::escape_sql_string(&jsonb_key);
 
         // An object's sub-fields, at any depth — never the stored object in their place.
+        //
+        // Built only when the stored value IS an object (#1364): a JSON `null` or a missing
+        // key reads every sub-field as NULL, and an unconditional `jsonb_build_object`
+        // turned that into `{"id": null, ...}` — a nullable object that could never be
+        // `null`, and a non-null sub-field answered with `null`. The `CASE` with no `ELSE`
+        // yields NULL, and recursion applies the guard at every depth.
         if let Some(subs) = &field.sub_fields {
             let nested_path = format!("{}->'{}'", path, safe_jsonb_key);
             let inner = subs
                 .iter()
                 .map(|sf| Self::render_field(sf, &nested_path))
                 .collect::<Result<Vec<_>>>()?;
-            return Ok(format!("'{}', jsonb_build_object({})", resp_key, inner.join(",")));
+            return Ok(format!(
+                "'{}', CASE WHEN jsonb_typeof({}) = 'object' THEN jsonb_build_object({}) END",
+                resp_key,
+                nested_path,
+                inner.join(",")
+            ));
         }
 
         // Text: ->> (text cast, for String/ID).
