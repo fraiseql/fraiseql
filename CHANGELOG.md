@@ -165,6 +165,16 @@ Lockfile and patch-level pin changes only; no source changed. The runtime crates
 
 ### Fixed
 
+- **A human acting on someone's behalf is no longer recorded as an AI (#1401).** Any token
+  with an RFC 8693 `act` claim was classified `ai_agent`, though `act` means *delegated*,
+  not *automated*: a support engineer acting for a customer through token exchange was
+  written to the change log as `ai_agent`, refused by `requires_actor = ["human_user"]`
+  and admitted by `requires_actor = ["ai_agent"]`. The delegate's class is now read from
+  `act.actor_type` (`human_user`, `ai_agent` or `service_account`). An unmarked `act`
+  stays `ai_agent`, so deployments that do not mark delegations are unchanged, and
+  `system_job` is never believed from a token. Every delegated request now records
+  `acting_for` (it was set for agents only), and in a nested delegation the outermost
+  `act` decides. See `docs/operations/actor-policies.md`.
 - **An authorization-policy outage is a 503, not a 403 (#1374).** When an `Authorizer` or
   `FieldAuthorizer` returned an error rather than a decision, the request failed closed
   as `FORBIDDEN` — telling the client it had been adjudicated and refused, so it would not

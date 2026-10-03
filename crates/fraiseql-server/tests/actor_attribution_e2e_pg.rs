@@ -333,6 +333,18 @@ async fn every_write_path_records_the_derived_actor() {
     assert_eq!(actor.as_deref(), Some("ai_agent"));
     assert_eq!(acting_for.as_deref(), Some(HUMAN_SUB), "acting_for = the delegated human");
 
+    // 2b. A delegation whose issuer marks the delegate human (#1401): a person acting for the
+    //     subject is human_user, still recorded as acting for the token's sub.
+    let support = mint(
+        HUMAN_SUB,
+        &json!({ "act": { "sub": "support-ada", "actor_type": "human_user" } }),
+    );
+    let (s, b) = rig.graphql_create("gql-support", Some(&support)).await;
+    assert_mutation_succeeded(s, &b);
+    let (actor, acting_for) = rig.recorded_actor("gql-support").await.expect("row written");
+    assert_eq!(actor.as_deref(), Some("human_user"), "a marked human delegate is not an AI");
+    assert_eq!(acting_for.as_deref(), Some(HUMAN_SUB), "acting_for = the customer");
+
     // 3. A service-account token (OAuth2 `scope` claim) → service_account.
     let svc = mint("svc-batch-1", &json!({ "scope": "service_account" }));
     let (s, b) = rig.graphql_create("gql-svc", Some(&svc)).await;
@@ -348,7 +360,13 @@ async fn every_write_path_records_the_derived_actor() {
 
     // 5. No write above produced an unattributed row.
     let n = rig
-        .unattributed_rows(&["gql-human", "gql-agent", "gql-svc", "rest-human"])
+        .unattributed_rows(&[
+            "gql-human",
+            "gql-agent",
+            "gql-support",
+            "gql-svc",
+            "rest-human",
+        ])
         .await;
     assert_eq!(n, 0, "no authenticated write path may record an unattributed action");
 }

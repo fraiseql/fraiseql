@@ -217,3 +217,63 @@ mod requires_actor {
         assert!(err.to_string().contains("ai_agent"), "{err}");
     }
 }
+
+// ── #1401: a delegation is classified by its actor, not by the presence of `act` ──
+
+const SUBJECT: &str = "550e8400-e29b-41d4-a716-446655440000";
+
+fn delegated(act: serde_json::Value) -> (ActorType, Option<Uuid>) {
+    let mut extra = HashMap::new();
+    extra.insert("act".to_string(), act);
+    derive_actor(SUBJECT, &[], &extra)
+}
+
+/// A support engineer acting for a customer through token exchange is a human, recorded
+/// as acting for the customer — not an AI.
+#[test]
+fn a_delegate_marked_human_is_a_human_acting_for_the_subject() {
+    assert_eq!(
+        delegated(json!({ "sub": "support-ada", "actor_type": "human_user" })),
+        (ActorType::HumanUser, Some(Uuid::parse_str(SUBJECT).unwrap()))
+    );
+}
+
+#[test]
+fn a_delegate_marked_service_account_is_one_acting_for_the_subject() {
+    assert_eq!(
+        delegated(json!({ "sub": "billing-sync", "actor_type": "service_account" })),
+        (ActorType::ServiceAccount, Some(Uuid::parse_str(SUBJECT).unwrap()))
+    );
+}
+
+/// An explicit `ai_agent` mark, an unmarked `act` (today's behaviour), an unknown token
+/// and `system_job` (never token-derived) are all an agent.
+#[test]
+fn an_unmarked_or_unrecognised_delegate_stays_an_agent() {
+    for act in [
+        json!({ "sub": "robot", "actor_type": "ai_agent" }),
+        json!({ "sub": "robot" }),
+        json!({ "sub": "robot", "actor_type": "wizard" }),
+        json!({ "sub": "robot", "actor_type": "system_job" }),
+        json!({ "sub": "robot", "actor_type": 7 }),
+        json!("robot"),
+    ] {
+        assert_eq!(
+            delegated(act.clone()),
+            (ActorType::AiAgent, Some(Uuid::parse_str(SUBJECT).unwrap())),
+            "{act}"
+        );
+    }
+}
+
+/// Nested delegation (an agent acting for a person acting for a customer): the
+/// outermost `act` — the party presenting the token — decides.
+#[test]
+fn the_outermost_delegate_decides_a_nested_delegation() {
+    let act = json!({
+        "sub": "robot",
+        "actor_type": "ai_agent",
+        "act": { "sub": "support-ada", "actor_type": "human_user" }
+    });
+    assert_eq!(delegated(act).0, ActorType::AiAgent);
+}

@@ -9,8 +9,28 @@ can give each class its own cost budget.
 |---|---|
 | `human_user` | the default for an ordinary user token |
 | `service_account` | a `service_account` scope, or an API key |
-| `ai_agent` | an RFC 8693 `act` delegation claim |
+| `ai_agent` | an RFC 8693 `act` delegation claim whose delegate is not marked otherwise |
 | `system_job` | never token-derived; set by internal callers |
+
+## Delegated requests
+
+RFC 8693 `act` means *delegated*, not *automated*: a support engineer acting for a
+customer through token exchange carries `act` exactly as an agent does. The issuer of the
+delegation says which kind of party is acting, in `act.actor_type`, with one of the class
+tokens above:
+
+```json
+{ "sub": "<customer>", "act": { "sub": "support-ada", "actor_type": "human_user" } }
+```
+
+- `human_user`, `ai_agent` or `service_account` is recorded as that class.
+- An unmarked `act`, an unknown value, or `system_job` (never token-derived) is
+  `ai_agent`.
+- Every delegated request records `acting_for` = the token's `sub`, so "a person did this
+  on the customer's behalf" is `human_user` with `acting_for` set. A direct human request
+  has none.
+- With nested delegation (`act` inside `act`), the outermost `act` — the party presenting
+  the token — decides.
 
 ## Restricting an operation to actor classes
 
@@ -123,7 +143,8 @@ anything the caller controls. It is:
 - nothing deserializes a security context from an untrusted payload.
 
 A deployment trusting `ai_agent` restrictions is trusting its IdP's `act`
-issuance — exactly as `requires_role` trusts its role claims.
+issuance, and its `act.actor_type` marks — exactly as `requires_role` trusts its role
+claims.
 
 ## Per-actor-class cost budgets
 

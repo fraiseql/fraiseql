@@ -24,8 +24,13 @@ use uuid::Uuid;
 const SERVICE_ACCOUNT_SCOPE: &str = "service_account";
 
 /// The JWT claim (RFC 8693 token-exchange "actor") whose presence marks a
-/// delegated request — an agent acting on behalf of the token subject.
+/// delegated request — another party acting on behalf of the token subject.
 const DELEGATION_CLAIM: &str = "act";
+
+/// The claim *inside* `act` naming the acting party's class, as an [`ActorType`] token
+/// (#1401). RFC 8693 `act` means "delegated", not "automated", so the issuer of the
+/// delegation says which kind of party is acting.
+const DELEGATE_CLASS_CLAIM: &str = "actor_type";
 
 /// The kind of principal behind a request.
 ///
@@ -44,9 +49,9 @@ pub enum ActorType {
     /// A non-human service account — an API key or a token carrying the
     /// `service_account` scope.
     ServiceAccount,
-    /// An autonomous agent acting on behalf of a user, identified by an RFC 8693
-    /// `act` delegation claim. The user being acted for is recorded separately
-    /// (see [`derive_actor`]).
+    /// An autonomous agent acting on behalf of a user: an RFC 8693 `act` delegation
+    /// claim whose delegate is marked `ai_agent`, or not marked at all. The user being
+    /// acted for is recorded separately (see [`derive_actor`]).
     AiAgent,
     /// An internal scheduled / system-triggered job. Never token-derived; set
     /// explicitly by internal callers.
@@ -109,7 +114,9 @@ impl ActorType {
 /// not what `acting_for` records.
 ///
 /// Rules, first match wins:
-/// 1. an `act` delegation claim is present → [`AiAgent`](ActorType::AiAgent), `acting_for = sub`.
+/// 1. an `act` delegation claim is present → the class the delegation names in `act.actor_type`
+///    (`human_user`, `ai_agent` or `service_account`), else [`AiAgent`](ActorType::AiAgent);
+///    `acting_for = sub` either way (#1401).
 /// 2. a `service_account` scope is present → [`ServiceAccount`](ActorType::ServiceAccount).
 /// 3. otherwise → [`HumanUser`](ActorType::HumanUser).
 ///
@@ -142,8 +149,17 @@ pub fn derive_actor<S: std::hash::BuildHasher>(
     scopes: &[String],
     extra_claims: &HashMap<String, serde_json::Value, S>,
 ) -> (ActorType, Option<Uuid>) {
-    if extra_claims.get(DELEGATION_CLAIM).is_some_and(|v| !v.is_null()) {
-        return (ActorType::AiAgent, Uuid::parse_str(user_id).ok());
+    if let Some(act) = extra_claims.get(DELEGATION_CLAIM).filter(|v| !v.is_null()) {
+        // The outermost `act` is the party presenting the token; a nested `act` inside
+        // it is who *that* party was acting for, and does not decide. `SystemJob` is
+        // never token-derived, so a token naming it is not believed.
+        let class = act
+            .get(DELEGATE_CLASS_CLAIM)
+            .and_then(serde_json::Value::as_str)
+            .and_then(ActorType::from_token)
+            .filter(|class| *class != ActorType::SystemJob)
+            .unwrap_or(ActorType::AiAgent);
+        return (class, Uuid::parse_str(user_id).ok());
     }
     if scopes.iter().any(|s| s == SERVICE_ACCOUNT_SCOPE) {
         return (ActorType::ServiceAccount, None);
