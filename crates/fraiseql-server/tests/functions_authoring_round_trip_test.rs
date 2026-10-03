@@ -110,6 +110,7 @@ async fn an_authored_function_survives_the_compiler_and_loads_in_the_server() {
         false,
         false,
         false,
+        None,
     )
     .await;
     std::env::set_current_dir(original).expect("restore cwd");

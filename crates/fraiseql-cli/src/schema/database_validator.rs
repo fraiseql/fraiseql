@@ -1075,11 +1075,10 @@ impl DatabaseIntrospector for AnyIntrospector {
 
 /// Refuse a database URL that targets an engine whose support was removed (#374).
 ///
-/// The one rule for every command that takes a database URL (`compile --database`,
-/// `query`) and for [`create_introspector`], run before anything tries to connect. Without
-/// it `compile --database sqlite://…` failed inside the connection pool with "invalid
-/// connection string". Anything else is left to the caller: `compile` also accepts a
-/// libpq `key=value` connection string, `query` does not.
+/// The first half of [`crate::connection::require_postgres`], the one rule for every
+/// command that takes a database URL, run before anything tries to connect. Without it
+/// `compile --database sqlite://…` failed inside the connection pool with "invalid
+/// connection string".
 ///
 /// # Errors
 ///
@@ -1108,29 +1107,11 @@ pub fn refuse_removed_engine_url(db_url: &str) -> anyhow::Result<()> {
 ///
 /// # Errors
 ///
-/// Returns error if the URL targets a removed engine (see [`refuse_removed_engine_url`]),
-/// its scheme is unrecognized, or the connection pool cannot be created.
+/// Returns error if the URL is not a PostgreSQL connection string (see
+/// [`crate::connection::require_postgres`]) or the connection pool cannot be created.
 #[allow(clippy::unused_async)] // Reason: callers always .await this; feature-gated branches do use await
 pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector> {
-    use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
-    use tokio_postgres::NoTls;
-
-    refuse_removed_engine_url(db_url)?;
-    if !db_url.starts_with("postgres") {
-        anyhow::bail!("Unrecognized database URL scheme: {db_url}");
-    }
-
-    let mut cfg = Config::new();
-    cfg.url = Some(db_url.to_string());
-    cfg.manager = Some(ManagerConfig {
-        recycling_method: RecyclingMethod::Fast,
-    });
-    cfg.pool = Some(deadpool_postgres::PoolConfig::new(2));
-
-    let pool = cfg
-        .create_pool(Some(Runtime::Tokio1), NoTls)
-        .map_err(|e| anyhow::anyhow!("Failed to create PostgreSQL pool: {e}"))?;
-
+    let pool = crate::connection::postgres_pool(db_url, "schema introspection")?;
     Ok(AnyIntrospector::Postgres(fraiseql_core::db::PostgresIntrospector::new(pool)))
 }
 

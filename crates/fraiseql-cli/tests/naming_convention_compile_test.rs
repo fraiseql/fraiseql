@@ -4,8 +4,8 @@
 //!
 //! Workflow-B compiles to a `camelCase` GraphQL surface by default (`snake_case`
 //! in the database, `camelCase` exposed to clients), overridable to `preserve`. This
-//! exercises the real `compile_to_schema` pipeline — including its CWD
-//! `fraiseql.toml` lookup — so the compiled schema's `naming_convention` is
+//! exercises the real `compile_to_schema` pipeline — including its project-config
+//! lookup (the `fraiseql.toml` beside the schema) — so the compiled `naming_convention` is
 //! verified exactly as it would land in `schema.compiled.json`.
 //!
 //! Single test on purpose: it mutates the process working directory, so keeping

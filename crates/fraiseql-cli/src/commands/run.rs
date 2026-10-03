@@ -37,7 +37,7 @@ use tracing::{info, warn};
 
 use super::compile::{CompileOptions, compile_to_schema};
 use crate::config::{
-    DatabaseRuntimeConfig, ServerRuntimeConfig, TomlProjectConfig, TomlSchema,
+    ConfigSource, DatabaseRuntimeConfig, ServerRuntimeConfig, TomlProjectConfig, TomlSchema,
     runtime::TlsRuntimeConfig,
 };
 
@@ -307,9 +307,10 @@ pub(crate) fn resolve_runtime_config(
 
 /// Load `[server]` and `[database]` runtime config from the input file.
 ///
-/// For `.toml` input files the sections are embedded directly.  For `.json`
-/// input files we look for a sibling `fraiseql.toml` and load it as
-/// `TomlProjectConfig`.  Falls back to defaults if no config is found.
+/// For `.toml` input files the sections are embedded directly. For `.json` input
+/// files the project config is the one [`ConfigSource::resolve`] names — the same
+/// file the compile step reads (#1387) — loaded as `TomlProjectConfig`. Defaults
+/// apply only when no config applies; one that fails to parse is an error.
 fn load_runtime_config_from_toml(
     input_path: &Path,
 ) -> Result<(ServerRuntimeConfig, DatabaseRuntimeConfig)> {
@@ -326,30 +327,17 @@ fn load_runtime_config_from_toml(
         return Ok((schema.server, schema.database));
     }
 
-    // Workflow B: input is schema.json — look for fraiseql.toml in the same directory
-    let toml_path = input_path.parent().unwrap_or(Path::new(".")).join("fraiseql.toml");
-
-    if toml_path.exists() {
-        match TomlProjectConfig::from_file(toml_path.to_str().unwrap_or("fraiseql.toml")) {
-            Ok(cfg) => {
-                info!("Loaded [server] and [database] config from {}", toml_path.display());
-                warn_ignored_config_sections(&toml_path);
-                return Ok((cfg.server, cfg.database));
-            },
-            Err(e) => {
-                // A sibling fraiseql.toml exists but failed to parse: warn loudly rather
-                // than silently falling back to defaults (the operator almost certainly
-                // intended this config to apply). Best-effort fallback is retained.
-                warn!(
-                    "Found {} but could not parse it for runtime config ({e}); \
-                     falling back to default [server]/[database] settings",
-                    toml_path.display()
-                );
-            },
-        }
-    }
-
-    Ok((ServerRuntimeConfig::default(), DatabaseRuntimeConfig::default()))
+    // Workflow B: input is schema.json — the config the compile step reads too.
+    let source = ConfigSource::resolve(input_path, None)?;
+    let Some(toml_path) = source.project_config() else {
+        info!("Project config: {source}");
+        return Ok((ServerRuntimeConfig::default(), DatabaseRuntimeConfig::default()));
+    };
+    let cfg = TomlProjectConfig::from_file(toml_path.to_str().unwrap_or_default())
+        .with_context(|| format!("Failed to load runtime config from {}", toml_path.display()))?;
+    info!("Loaded [server] and [database] config from {}", toml_path.display());
+    warn_ignored_config_sections(toml_path);
+    Ok((cfg.server, cfg.database))
 }
 
 /// Config-file sections that a full `server.toml` deployment relies on but that

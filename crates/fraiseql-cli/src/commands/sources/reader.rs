@@ -8,8 +8,7 @@
 //! database.
 
 use anyhow::{Context, Result};
-use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
-use tokio_postgres::NoTls;
+use deadpool_postgres::Pool;
 
 /// One `_fraiseql_source_cursor` row: a source's durable watermark and its
 /// staleness, computed against the database clock so there is no app↔DB skew.
@@ -36,24 +35,11 @@ impl SourceCursorReader {
     ///
     /// # Errors
     ///
-    /// Returns an error if `db_url` is not a `postgres://` URL or the pool cannot be
-    /// created. (Connection failures surface lazily on the first query.)
+    /// Returns an error if `db_url` is not a PostgreSQL connection string (see
+    /// [`crate::connection::require_postgres`]) or the pool cannot be created.
+    /// (Connection failures surface lazily on the first query.)
     pub fn connect(db_url: &str) -> Result<Self> {
-        if !db_url.starts_with("postgres") {
-            anyhow::bail!(
-                "source cursor reads require a PostgreSQL connection URL (postgres://…); got: \
-                 {db_url}"
-            );
-        }
-        let mut cfg = Config::new();
-        cfg.url = Some(db_url.to_string());
-        cfg.manager = Some(ManagerConfig {
-            recycling_method: RecyclingMethod::Fast,
-        });
-        cfg.pool = Some(deadpool_postgres::PoolConfig::new(2));
-        let pool = cfg
-            .create_pool(Some(Runtime::Tokio1), NoTls)
-            .context("failed to create PostgreSQL connection pool for source cursor reads")?;
+        let pool = crate::connection::postgres_pool(db_url, "source cursor reads")?;
         Ok(Self { pool })
     }
 

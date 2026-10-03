@@ -123,6 +123,11 @@ EXAMPLES:
         /// advisories and writes the artifact anyway.
         #[arg(long, requires = "database")]
         allow_drift: bool,
+
+        /// Project config to compile with. Default: the nearest fraiseql.toml beside
+        /// or above the input, up to the repository root — never the working directory
+        #[arg(long, value_name = "PATH")]
+        config: Option<String>,
     },
 
     /// Extract schema from annotated source files

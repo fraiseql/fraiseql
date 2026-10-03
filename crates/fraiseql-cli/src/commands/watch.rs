@@ -140,6 +140,7 @@ async fn compile_once(input: &str, output: &str, database: Option<&str>) {
         false, // check_migrations
         false, // skip_hash
         false, // allow_drift: a drifted save must fail loudly; the loop keeps the old artifact
+        None,  // config: resolved from the input, as for `compile`
     )
     .await
     {

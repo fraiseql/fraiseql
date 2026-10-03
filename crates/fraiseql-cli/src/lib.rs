@@ -18,6 +18,7 @@
 pub mod cli;
 pub mod commands;
 pub mod config;
+pub mod connection;
 pub mod introspection;
 pub mod output;
 pub mod output_schemas;

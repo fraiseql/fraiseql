@@ -450,6 +450,14 @@ fraiseql compile schema.json --config fraiseql.toml --output schema.compiled.jso
 fraiseql validate schema.json
 ```
 
+**Which `fraiseql.toml` applies.** A `schema.json` compiles with the nearest
+`fraiseql.toml` in its own directory or a parent directory, stopping at the repository
+root (the directory holding `.git`). The working directory plays no part, so in a
+repository with several subgraphs each schema gets its own subgraph's config wherever the
+command runs from. `--config <path>` names the file explicitly. Every compile prints the
+file it used (`Config: …`), or that none applied. `fraiseql run` reads its `[server]` and
+`[database]` sections from the same file.
+
 The compiled schema is a self-contained JSON file. Deploy it alongside the
 `fraiseql-server` binary — no Python or Node.js needed at runtime.
 

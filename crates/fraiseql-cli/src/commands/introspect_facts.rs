@@ -8,13 +8,11 @@
 //! **Does NOT auto-modify schema** - outputs suggestions only.
 
 use anyhow::Result;
-use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
 use fraiseql_core::{
     compiler::fact_table::{DatabaseIntrospector, FactTableDetector, FactTableMetadata},
     db::PostgresIntrospector,
 };
 use serde_json::json;
-use tokio_postgres::NoTls;
 
 use crate::output::OutputFormatter;
 
@@ -45,16 +43,7 @@ impl OutputFormat {
 
 /// Create a PostgreSQL introspector from a database URL
 async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector> {
-    let mut cfg = Config::new();
-    cfg.url = Some(database_url.to_string());
-    cfg.manager = Some(ManagerConfig {
-        recycling_method: RecyclingMethod::Fast,
-    });
-    cfg.pool = Some(deadpool_postgres::PoolConfig::new(2));
-
-    let pool = cfg
-        .create_pool(Some(Runtime::Tokio1), NoTls)
-        .map_err(|e| anyhow::anyhow!("Failed to create database pool: {e}"))?;
+    let pool = crate::connection::postgres_pool(database_url, "fact-table introspection")?;
 
     // Test connection
     let _client = pool

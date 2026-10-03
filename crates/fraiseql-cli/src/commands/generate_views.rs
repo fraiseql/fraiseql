@@ -209,6 +209,7 @@ async fn validate_ddl_against_database(sql: &str) -> Result<()> {
              (everything runs in a rolled-back transaction; a scratch database is fine)"
         )
     })?;
+    crate::connection::require_postgres(&db_url)?;
     let (mut client, connection) = tokio_postgres::connect(&db_url, tokio_postgres::NoTls)
         .await
         .context("--validate: failed to connect to DATABASE_URL")?;

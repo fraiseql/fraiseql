@@ -46,7 +46,7 @@ pub async fn run(
 ) -> Result<()> {
     let schema = load_schema(schema_path)?;
     let db_url = resolve_db_url(database)?;
-    ensure_postgres_url(&db_url)?;
+    crate::connection::require_postgres(&db_url)?;
     let variables = parse_variables(variables.as_deref())?;
 
     // Safety notice: a mutation without --dry-run commits against the live DB.
@@ -97,19 +97,6 @@ fn resolve_db_url(cli: Option<String>) -> Result<String> {
             "No database URL provided. Pass --database or set the DATABASE_URL env var."
         )
     })
-}
-
-/// Guard: `fraiseql query` supports PostgreSQL only (slice 1).
-pub(crate) fn ensure_postgres_url(url: &str) -> Result<()> {
-    crate::schema::database_validator::refuse_removed_engine_url(url)?;
-    if url.starts_with("postgres://") || url.starts_with("postgresql://") {
-        Ok(())
-    } else {
-        bail!(
-            "`fraiseql query` currently supports PostgreSQL only. \
-             Pass a postgres:// (or postgresql://) connection string."
-        )
-    }
 }
 
 /// Parse the optional `--variables` JSON string into a value.

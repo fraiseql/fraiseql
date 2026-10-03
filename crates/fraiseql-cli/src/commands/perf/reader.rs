@@ -12,8 +12,7 @@
 //! object and the marker lives in a `jsonb` column.
 
 use anyhow::{Context, Result};
-use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
-use tokio_postgres::NoTls;
+use deadpool_postgres::Pool;
 
 /// The framework-owned read-path view shipped by the change-log contract
 /// migration (`08_create_entity_change_log_contract.sql`). Trusted identifier —
@@ -55,23 +54,11 @@ impl PerfReader {
     ///
     /// # Errors
     ///
-    /// Returns an error if `db_url` is not a `postgres://` URL or the pool cannot
-    /// be created. (Connection failures surface lazily on first query.)
+    /// Returns an error if `db_url` is not a PostgreSQL connection string (see
+    /// [`crate::connection::require_postgres`]) or the pool cannot be created.
+    /// (Connection failures surface lazily on first query.)
     pub fn connect(db_url: &str) -> Result<Self> {
-        if !db_url.starts_with("postgres") {
-            anyhow::bail!(
-                "perf reads require a PostgreSQL connection URL (postgres://…); got: {db_url}"
-            );
-        }
-        let mut cfg = Config::new();
-        cfg.url = Some(db_url.to_string());
-        cfg.manager = Some(ManagerConfig {
-            recycling_method: RecyclingMethod::Fast,
-        });
-        cfg.pool = Some(deadpool_postgres::PoolConfig::new(2));
-        let pool = cfg
-            .create_pool(Some(Runtime::Tokio1), NoTls)
-            .context("failed to create PostgreSQL connection pool for perf reads")?;
+        let pool = crate::connection::postgres_pool(db_url, "perf reads")?;
         Ok(Self { pool })
     }
 

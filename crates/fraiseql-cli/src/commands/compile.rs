@@ -11,7 +11,7 @@ use fraiseql_core::schema::{
 use tracing::{info, warn};
 
 use crate::{
-    config::TomlProjectConfig,
+    config::{ConfigSource, TomlProjectConfig},
     schema::{
         CompiledArtifact, ConvertOptions, IntermediateSchema, OptimizationReport, SchemaConverter,
         SchemaOptimizer, SchemaValidator,
@@ -43,6 +43,10 @@ pub struct CompileOptions<'a> {
     /// Downgrade error-severity schema↔database drift findings to advisories
     /// (#384). Without this, error-severity drift fails the compile.
     pub allow_drift:    bool,
+    /// The project config to compile with. `None` resolves it from `input` with
+    /// [`ConfigSource::resolve`], exactly as `compile` and `run` do — never from the
+    /// working directory (#1387).
+    pub config:         Option<ConfigSource>,
 }
 
 impl<'a> CompileOptions<'a> {
@@ -176,7 +180,7 @@ pub async fn compile_to_schema(
     // A removed engine's URL is refused before any work, naming the PostgreSQL-only rule
     // (#1341), rather than failing inside the connection pool at step 5b.
     if let Some(db_url) = opts.database {
-        crate::schema::database_validator::refuse_removed_engine_url(db_url)?;
+        crate::connection::require_postgres(db_url)?;
     }
 
     // 1. Determine workflow based on input file and options
@@ -237,10 +241,14 @@ pub async fn compile_to_schema(
         intermediate
     };
 
-    // 2a. Load and apply security configuration from fraiseql.toml if it exists.
-    // Skip when the input itself is a TomlSchema file: in that case the security
-    // settings are embedded in the TomlSchema, and the CWD fraiseql.toml uses a
-    // different TOML format (TomlSchema vs TomlProjectConfig) that is not compatible.
+    // 2a. Load and apply the project config that belongs to this input (#1387).
+    // A TOML input carries its settings itself (`ConfigSource::Input` names no
+    // separate file): it is a TomlSchema, a different format from TomlProjectConfig.
+    let config_source = match opts.config {
+        Some(source) => source,
+        None => ConfigSource::resolve(input_path, None)?,
+    };
+    info!("Project config: {config_source}");
     // Opt-in mutation-error-union synthesis, read from [fraiseql.mutations] below.
     let mut auto_error_union = false;
     // Casing acronyms from [fraiseql.naming], added on top of the built-in defaults.
@@ -254,9 +262,12 @@ pub async fn compile_to_schema(
     // The TomlSchema path carries its own naming_convention via the merger and is
     // left untouched (see the `if !is_toml` apply below).
     let mut naming_convention = NamingConvention::CamelCase;
-    if !is_toml && Path::new("fraiseql.toml").exists() {
-        info!("Loading security configuration from fraiseql.toml...");
-        match TomlProjectConfig::from_file("fraiseql.toml") {
+    if let Some(config_path) = config_source.project_config() {
+        info!("Loading security configuration from {}...", config_path.display());
+        let config_file = config_path.to_str().ok_or_else(|| {
+            anyhow::anyhow!("Config path is not valid UTF-8: {}", config_path.display())
+        })?;
+        match TomlProjectConfig::from_file(config_file) {
             Ok(config) => {
                 info!("Validating security configuration...");
                 config.validate()?;
@@ -293,13 +304,12 @@ pub async fn compile_to_schema(
             },
             Err(e) => {
                 anyhow::bail!(
-                    "Failed to parse fraiseql.toml: {e}\n\
-                     Fix the configuration file or remove it to use defaults."
+                    "Failed to parse {}: {e}\n\
+                     Fix the configuration file or remove it to use defaults.",
+                    config_path.display()
                 );
             },
         }
-    } else {
-        info!("No fraiseql.toml found, using default security configuration");
     }
 
     // Install the project's casing acronyms so compile-time key inference
@@ -415,25 +425,25 @@ pub async fn compile_to_schema(
         apply_database_report(&mut schema, &db_report);
 
         // Mutation call/response contract (#384 item 3: inject_params resolve to real
-        // function arguments). PostgreSQL-only — the catalog reads `pg_proc`.
-        if db_url.starts_with("postgres") {
-            info!("Validating mutation contract against the database...");
-            let catalog = PgCatalog::connect(db_url)
-                .context("Failed to connect for mutation-contract validation")?;
-            let contract = validate_mutation_contract(&schema, &catalog).await?;
-            for m in &contract.mutations {
-                for v in &m.violations {
-                    let kind = match v.severity() {
-                        Severity::Error => "contract error",
-                        Severity::Warn => "contract warning",
-                    };
-                    warn!("mutation `{}` (sql_source: {}): {v} [{kind}]", m.mutation, m.sql_source);
-                    if v.severity() == Severity::Error {
-                        drift_errors.push(format!(
-                            "mutation `{}` (sql_source: {}): {v}",
-                            m.mutation, m.sql_source
-                        ));
-                    }
+        // function arguments). Every URL that reached the drift check is PostgreSQL —
+        // a removed engine's was refused up front — so this runs for every form of it,
+        // libpq `key=value` included (#1403).
+        info!("Validating mutation contract against the database...");
+        let catalog = PgCatalog::connect(db_url)
+            .context("Failed to connect for mutation-contract validation")?;
+        let contract = validate_mutation_contract(&schema, &catalog).await?;
+        for m in &contract.mutations {
+            for v in &m.violations {
+                let kind = match v.severity() {
+                    Severity::Error => "contract error",
+                    Severity::Warn => "contract warning",
+                };
+                warn!("mutation `{}` (sql_source: {}): {v} [{kind}]", m.mutation, m.sql_source);
+                if v.severity() == Severity::Error {
+                    drift_errors.push(format!(
+                        "mutation `{}` (sql_source: {}): {v}",
+                        m.mutation, m.sql_source
+                    ));
                 }
             }
         }
@@ -697,6 +707,7 @@ pub async fn run(
     check_migrations: bool,
     skip_hash: bool,
     allow_drift: bool,
+    config: Option<&str>,
 ) -> Result<()> {
     // Defense-in-depth: never write the compiled output over the input schema.
     // The removed `serve` command did exactly this (H23) by deriving an output
@@ -709,6 +720,11 @@ pub async fn run(
         );
     }
 
+    // Which config an artifact was compiled with is not answerable from the artifact,
+    // so every compile says it, before the work that could fail (#1387).
+    let config = ConfigSource::resolve(Path::new(input), config.map(Path::new))?;
+    println!("Config: {config}");
+
     let opts = CompileOptions {
         input,
         types,
@@ -719,6 +735,7 @@ pub async fn run(
         database,
         skip_hash,
         allow_drift,
+        config: Some(config),
     };
     let (artifact, optimization_report) = compile_to_schema(opts).await?;
     let schema = &artifact.schema;
@@ -1140,20 +1157,7 @@ fn warn_jsonb_preserve_mismatch(schema: &CompiledSchema) {
 pub(crate) fn build_postgres_introspector(
     db_url: &str,
 ) -> Result<fraiseql_core::db::postgres::PostgresIntrospector> {
-    use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
-    use tokio_postgres::NoTls;
-
-    let mut cfg = Config::new();
-    cfg.url = Some(db_url.to_string());
-    cfg.manager = Some(ManagerConfig {
-        recycling_method: RecyclingMethod::Fast,
-    });
-    cfg.pool = Some(deadpool_postgres::PoolConfig::new(2));
-
-    let pool = cfg
-        .create_pool(Some(Runtime::Tokio1), NoTls)
-        .context("Failed to create connection pool for database validation")?;
-
+    let pool = crate::connection::postgres_pool(db_url, "database validation")?;
     Ok(fraiseql_core::db::postgres::PostgresIntrospector::new(pool))
 }
 
@@ -1172,22 +1176,9 @@ pub(crate) fn build_postgres_introspector(
 /// Returns error if database connection fails. Warnings are printed for
 /// missing indexed columns but don't cause validation to fail.
 async fn validate_indexed_columns(schema: &CompiledSchema, db_url: &str) -> Result<()> {
-    use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
     use fraiseql_core::db::postgres::PostgresIntrospector;
-    use tokio_postgres::NoTls;
 
-    // Create pool for introspection
-    let mut cfg = Config::new();
-    cfg.url = Some(db_url.to_string());
-    cfg.manager = Some(ManagerConfig {
-        recycling_method: RecyclingMethod::Fast,
-    });
-    cfg.pool = Some(deadpool_postgres::PoolConfig::new(2));
-
-    let pool = cfg
-        .create_pool(Some(Runtime::Tokio1), NoTls)
-        .context("Failed to create connection pool for indexed column validation")?;
-
+    let pool = crate::connection::postgres_pool(db_url, "indexed column validation")?;
     let introspector = PostgresIntrospector::new(pool);
 
     let mut total_indexed = 0;

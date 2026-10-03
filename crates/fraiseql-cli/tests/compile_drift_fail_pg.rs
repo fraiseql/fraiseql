@@ -412,3 +412,99 @@ async fn unreferenced_input_field_warns_but_compiles() {
         "the extracted field `author` must not be flagged. log:\n{log}"
     );
 }
+
+/// The `DATABASE_URL` rewritten in libpq `key=value` form — the same database.
+fn libpq_form(url: &str) -> String {
+    let config: tokio_postgres::Config = url.parse().unwrap();
+    let mut parts = Vec::new();
+    if let Some(tokio_postgres::config::Host::Tcp(host)) = config.get_hosts().first() {
+        parts.push(format!("host={host}"));
+    }
+    if let Some(port) = config.get_ports().first() {
+        parts.push(format!("port={port}"));
+    }
+    if let Some(user) = config.get_user() {
+        parts.push(format!("user={user}"));
+    }
+    if let Some(password) = config.get_password() {
+        parts.push(format!("password={}", String::from_utf8_lossy(password)));
+    }
+    if let Some(dbname) = config.get_dbname() {
+        parts.push(format!("dbname={dbname}"));
+    }
+    parts.join(" ")
+}
+
+/// #1403: the mutation-contract check runs for a libpq `key=value` connection
+/// string exactly as for a `postgresql://` URL.
+///
+/// The function takes the payload only, while the mutation injects `tenant_id`:
+/// an arity the call cannot satisfy. The URL form is the control; the libpq form
+/// used to run the drift check, then skip the contract check behind a
+/// `starts_with("postgres")` test and report success.
+#[tokio::test]
+async fn the_mutation_contract_is_checked_for_a_libpq_connection_string() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+
+    create_jsonb_view(&client, "v_cdf1403", r#"{"author": "ada"}"#).await;
+    client
+        .batch_execute(
+            "DROP FUNCTION IF EXISTS fn_cdf1403_update(jsonb);
+             CREATE FUNCTION fn_cdf1403_update(payload jsonb)
+             RETURNS TABLE(succeeded boolean, state_changed boolean, message text)
+             LANGUAGE sql AS $$ SELECT true, true, payload->>'author' $$;",
+        )
+        .await
+        .unwrap();
+
+    let schema = json!({
+        "types": [{
+            "name": "Thing",
+            "sql_source": "v_cdf1403",
+            "fields": [
+                {"name": "id", "type": "ID", "nullable": false},
+                {"name": "author", "type": "String", "nullable": false}
+            ]
+        }],
+        "input_types": [{
+            "name": "UpdateThingInput",
+            "fields": [{"name": "author", "type": "String", "nullable": true}]
+        }],
+        "queries": [{
+            "name": "things",
+            "return_type": "Thing",
+            "returns_list": true,
+            "sql_source": "v_cdf1403"
+        }],
+        "mutations": [{
+            "name": "updateThing",
+            "return_type": "Thing",
+            "sql_source": "fn_cdf1403_update",
+            "operation": "UPDATE",
+            "arguments": [{"name": "input", "type": "UpdateThingInput", "nullable": false}],
+            "inject_params": {"tenant_id": "jwt:tenant_id"}
+        }]
+    });
+    let schema = write_json(&schema);
+
+    for (form, conn) in [
+        ("postgresql:// URL", url.clone()),
+        ("libpq key=value", libpq_form(&url)),
+    ] {
+        let out_dir = TempDir::new().unwrap();
+        let out = out_dir.path().join("schema.compiled.json");
+        let (ok, log) = run_compile(schema.path(), &conn, &out, &[]);
+        assert!(
+            !ok,
+            "{form}: a mutation whose function cannot take its injected argument must \
+             fail the compile. log:\n{log}"
+        );
+        assert!(
+            log.contains("mutation `updateThing` (sql_source: fn_cdf1403_update)"),
+            "{form}: the failure must be the contract check's, naming the mutation and \
+             its function. log:\n{log}"
+        );
+        assert!(!out.exists(), "{form}: a failed compile must not write the artifact");
+    }
+}

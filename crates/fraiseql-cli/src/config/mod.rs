@@ -3,6 +3,7 @@
 //! This module handles loading configuration from fraiseql.toml files,
 //! including security settings, project metadata, and compilation options.
 
+pub mod discovery;
 pub mod runtime;
 pub mod security;
 pub mod toml_schema;
@@ -10,6 +11,7 @@ pub mod toml_schema;
 use std::path::Path;
 
 use anyhow::{Context, Result};
+pub use discovery::ConfigSource;
 use fraiseql_core::schema::NamingConvention;
 pub use runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
 pub use security::SecurityConfig;

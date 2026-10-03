@@ -876,11 +876,11 @@ pub async fn runtime_probe_checks(db_url: Option<&str>, schema_path: &Path) -> V
             "Pass --against-db <postgres-url> (or --db-url) together with --runtime.",
         )];
     };
-    if !(url.starts_with("postgres://") || url.starts_with("postgresql://")) {
+    if let Err(e) = crate::connection::require_postgres(url) {
         return vec![DoctorCheck::fail(
             RUNTIME_NAME,
-            "runtime smoke supports PostgreSQL only",
-            "Pass a postgres:// URL to --against-db.",
+            format!("runtime smoke supports PostgreSQL only: {e}"),
+            "Pass a postgresql:// URL or a libpq key=value string to --against-db.",
         )];
     }
 

@@ -17,8 +17,7 @@
 //! connection.
 
 use anyhow::{Context, Result};
-use deadpool_postgres::{Config, ManagerConfig, Pool, RecyclingMethod, Runtime};
-use tokio_postgres::NoTls;
+use deadpool_postgres::Pool;
 
 /// A single output column of a `PostgreSQL` function's result row.
 ///
@@ -192,23 +191,11 @@ impl PgCatalog {
     ///
     /// # Errors
     ///
-    /// Returns an error if `db_url` is not a `postgres://` URL or the pool
-    /// cannot be created. (Connection failures surface lazily on first query.)
+    /// Returns an error if `db_url` is not a PostgreSQL connection string (see
+    /// [`crate::connection::require_postgres`]) or the pool cannot be created.
+    /// (Connection failures surface lazily on first query.)
     pub fn connect(db_url: &str) -> Result<Self> {
-        if !db_url.starts_with("postgres") {
-            anyhow::bail!(
-                "--against-db requires a PostgreSQL connection URL (postgres://…); got: {db_url}"
-            );
-        }
-        let mut cfg = Config::new();
-        cfg.url = Some(db_url.to_string());
-        cfg.manager = Some(ManagerConfig {
-            recycling_method: RecyclingMethod::Fast,
-        });
-        cfg.pool = Some(deadpool_postgres::PoolConfig::new(2));
-        let pool = cfg
-            .create_pool(Some(Runtime::Tokio1), NoTls)
-            .context("failed to create PostgreSQL connection pool for --against-db")?;
+        let pool = crate::connection::postgres_pool(db_url, "catalogue introspection")?;
         Ok(Self { pool })
     }
 

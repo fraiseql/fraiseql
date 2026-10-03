@@ -2497,6 +2497,43 @@ url = "postgresql://toml-host/testdb"
         });
     }
 
+    /// #1387: a `schema.json` takes its `[database]` from the project config the
+    /// compile step reads — the nearest `fraiseql.toml` above it — not only a sibling.
+    #[test]
+    fn a_json_schema_reads_runtime_config_from_its_projects_config() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir(dir.path().join(".git")).unwrap();
+        std::fs::create_dir(dir.path().join("schema")).unwrap();
+        std::fs::write(
+            dir.path().join("fraiseql.toml"),
+            "[database]\nurl = \"postgresql://project-host/db\"\n",
+        )
+        .unwrap();
+        let schema = dir.path().join("schema/schema.json");
+        std::fs::write(&schema, "{}").unwrap();
+
+        temp_env::with_vars([("DATABASE_URL", None::<&str>)], || {
+            let (db_url, _addr, _srv, _db) =
+                resolve_runtime_config(&schema, None, None, None).unwrap();
+            assert_eq!(db_url, "postgresql://project-host/db");
+        });
+    }
+
+    /// A project config that does not parse is an error, not a silent fallback to
+    /// default `[server]`/`[database]` settings — the compile step refuses it too.
+    #[test]
+    fn an_unparseable_project_config_is_refused() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir(dir.path().join(".git")).unwrap();
+        std::fs::write(dir.path().join("fraiseql.toml"), "[database\n").unwrap();
+        let schema = dir.path().join("schema.json");
+        std::fs::write(&schema, "{}").unwrap();
+
+        let err = resolve_runtime_config(&schema, Some("postgresql://h/db".into()), None, None)
+            .unwrap_err();
+        assert!(format!("{err:#}").contains("fraiseql.toml"), "{err:#}");
+    }
+
     #[test]
     fn test_resolve_runtime_config_cli_db_overrides_toml() {
         let dir = TempDir::new().unwrap();
@@ -3302,20 +3339,7 @@ mod validate_facts_tests {
 mod query_tests {
     use serde_json::json;
 
-    use super::super::query::{ensure_postgres_url, has_errors, parse_variables};
-
-    #[test]
-    fn ensure_postgres_url_accepts_postgres_schemes() {
-        assert!(ensure_postgres_url("postgres://localhost/db").is_ok());
-        assert!(ensure_postgres_url("postgresql://u:p@h:5432/db").is_ok());
-    }
-
-    #[test]
-    fn ensure_postgres_url_rejects_other_schemes() {
-        assert!(ensure_postgres_url("mysql://localhost/db").is_err());
-        assert!(ensure_postgres_url("sqlite://./x.db").is_err());
-        assert!(ensure_postgres_url("not-a-url").is_err());
-    }
+    use super::super::query::{has_errors, parse_variables};
 
     #[test]
     fn parse_variables_none_is_none() {

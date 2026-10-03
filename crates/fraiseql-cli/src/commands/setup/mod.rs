@@ -5,8 +5,6 @@
 //! mutation functions under the v2.3.0 protocol.
 
 use anyhow::{Context, Result};
-use deadpool_postgres::{Config, ManagerConfig, RecyclingMethod, Runtime};
-use tokio_postgres::NoTls;
 use tracing::info;
 
 use crate::output::OutputFormatter;
@@ -116,18 +114,7 @@ fn mask_password(url: &str) -> String {
 
 /// Connect to the database using a deadpool connection pool
 async fn connect_to_database(db_url: &str) -> Result<deadpool_postgres::Pool> {
-    // Create deadpool config
-    let mut cfg = Config::new();
-    cfg.url = Some(db_url.to_string());
-    cfg.manager = Some(ManagerConfig {
-        recycling_method: RecyclingMethod::Fast,
-    });
-    cfg.pool = Some(deadpool_postgres::PoolConfig::new(2));
-
-    // Create connection pool
-    let pool = cfg
-        .create_pool(Some(Runtime::Tokio1), NoTls)
-        .context("Failed to create database pool")?;
+    let pool = crate::connection::postgres_pool(db_url, "setup")?;
 
     // Test connection
     let _client = pool.get().await.context("Failed to acquire database connection")?;

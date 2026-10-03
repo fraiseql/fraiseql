@@ -128,6 +128,19 @@ disagreed, and the promise was the part that was wrong.
   Embedders calling `cache::generate_view_query_key` pass the read's session variables, and
   `cache::generate_projection_query_key` takes the `ProjectionRequest` plus them.
 
+- **`compile` reads the `fraiseql.toml` that belongs to the schema, not the one in the working
+  directory (#1387).** Compiled from a sibling subgraph's directory, a schema silently took the
+  other subgraph's config — one repository measured 94 error unions in one artifact and 0 in the
+  other, exit 0 both times — while `fraiseql run` read the file beside the schema, so one launch
+  could compile with one config and serve with another. Both now use one rule: the nearest
+  `fraiseql.toml` in the schema's directory or a parent, stopping at the repository root (the
+  directory holding `.git`); `compile --config <path>` names it explicitly. Every compile prints
+  the file it used (`Config: …`), or that none applied, and `run` refuses a config that does not
+  parse instead of falling back to default `[server]`/`[database]` settings. **Upgrade:** a
+  project that compiles a schema from outside the directory tree holding its `fraiseql.toml`
+  passes `--config`. Embedders: `CompileOptions` gains `config: Option<ConfigSource>` (`None`
+  resolves it from the input).
+
 ### Added
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds
@@ -218,6 +231,15 @@ disagreed, and the promise was the part that was wrong.
   keyed on the variables they run under (sorted, so arrival order does not fork an entry), and
   run under them on a miss; two requests share an entry only when they agree on the WHERE clause
   **and** every session variable. A read routed to the primary still bypasses the cache.
+
+- **Every CLI command accepts the same PostgreSQL connection strings (#1403).** Seven commands
+  each decided what a PostgreSQL URL looks like with their own prefix test, and disagreed about the
+  libpq `key=value` form (`host=db dbname=app`). `compile --database` ran the drift check over such
+  a string and then skipped the mutation-contract check, which asked the prefix question again,
+  reporting success over contract errors it never looked for. One rule now serves `compile`,
+  `validate`, `doctor`, `query`, `perf` and `sources`: refuse an engine whose support was removed,
+  accept whatever PostgreSQL's own client parses. A refusal no longer echoes the connection
+  string, which can carry a password.
 
 ### Security
 
