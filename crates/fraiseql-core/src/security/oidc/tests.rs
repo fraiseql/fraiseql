@@ -268,14 +268,20 @@ async fn invalidating_makes_the_very_next_validation_refetch() {
     let mock = jwks_serving(&["compromised_kid"]).await;
     let validator = make_validator(&format!("{}{JWKS_FIXTURE_PATH}", mock.uri()));
 
-    validator.get_decoding_key("compromised_kid").await.expect("published");
+    validator.issuers[0]
+        .get_decoding_key("compromised_kid")
+        .await
+        .expect("published");
     assert_eq!(jwks_fetches(&mock).await, 1);
 
     // The flush has to clear the cooldown as well as the keys. Dropping only the
     // keys would answer the operator's "stop trusting these" by refusing every
     // token until the cooldown lapsed, rather than by fetching.
     validator.invalidate_jwks_cache();
-    validator.get_decoding_key("compromised_kid").await.expect("re-fetched");
+    validator.issuers[0]
+        .get_decoding_key("compromised_kid")
+        .await
+        .expect("re-fetched");
     assert_eq!(
         jwks_fetches(&mock).await,
         2,
@@ -794,7 +800,9 @@ async fn validate_token_missing_iss_rejected_when_issuer_set() {
     Mock::given(method("GET"))
         .and(path(jwks_path))
         .respond_with(ResponseTemplate::new(200).set_body_json(&jwks_body))
-        .expect(1..)
+        // A token without `iss` names no issuer, so it is refused before any key
+        // set is consulted (#1400): it costs the provider nothing.
+        .expect(0)
         .mount(&mock)
         .await;
 
@@ -1270,5 +1278,155 @@ mod jwks_refetch_bound {
              cooldown alone does not give this — it is only consulted once a fetch has \
              finished, and these all start first"
         );
+    }
+}
+
+// ============================================================================
+// #1400: several trusted issuers, each with its own keys, chosen by `iss`
+// ============================================================================
+
+mod additional_issuers {
+    use jsonwebtoken::{Algorithm, EncodingKey, Header};
+    use serde_json::json;
+
+    use super::{JWKS_FIXTURE_PATH, TEST_RSA_PRIVATE_KEY_PEM, jwks_fetches, jwks_serving};
+    use crate::security::{
+        errors::SecurityError,
+        oidc::{
+            providers::{OidcConfig, TrustedIssuer},
+            token::OidcValidator,
+        },
+    };
+
+    const IDP: &str = "https://idp.example.com";
+    const EXCHANGE: &str = "https://exchange.example.com";
+
+    /// Two issuers, each publishing its own key id at its own endpoint: the `IdP`
+    /// (`idp-key`, audience `api`) and a token-exchange service (`exchange-key`,
+    /// audience `api-exchange`). Both sign with the one test key, so only the kid
+    /// and the issuer tell them apart — which is exactly what must keep them apart.
+    async fn two_issuers() -> (OidcValidator, wiremock::MockServer, wiremock::MockServer) {
+        let idp = jwks_serving(&["idp-key"]).await;
+        let exchange = jwks_serving(&["exchange-key"]).await;
+        let config = OidcConfig {
+            issuer: Some(IDP.to_string()),
+            audience: Some("api".to_string()),
+            additional_issuers: vec![TrustedIssuer {
+                issuer:               EXCHANGE.to_string(),
+                audience:             Some("api-exchange".to_string()),
+                additional_audiences: Vec::new(),
+                allowed_algorithms:   vec!["RS256".to_string()],
+                clock_skew_secs:      60,
+                jwks_uri:             Some(format!("{}{JWKS_FIXTURE_PATH}", exchange.uri())),
+                scope_claim:          "scope".to_string(),
+                require_jti:          false,
+            }],
+            ..Default::default()
+        };
+        let validator =
+            OidcValidator::with_jwks_uri(config, &format!("{}{JWKS_FIXTURE_PATH}", idp.uri()))
+                .unwrap();
+        (validator, idp, exchange)
+    }
+
+    fn token(kid: &str, iss: &str, aud: &str) -> String {
+        let now = chrono::Utc::now().timestamp();
+        let mut header = Header::new(Algorithm::RS256);
+        header.kid = Some(kid.to_string());
+        jsonwebtoken::encode(
+            &header,
+            &json!({ "sub": "u1", "iss": iss, "aud": aud, "exp": now + 600, "iat": now }),
+            &EncodingKey::from_rsa_pem(TEST_RSA_PRIVATE_KEY_PEM.as_bytes()).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn each_issuer_validates_its_own_tokens_and_the_principal_records_which() {
+        let (validator, _idp, _exchange) = two_issuers().await;
+
+        let user = validator.validate_token(&token("idp-key", IDP, "api")).await.unwrap();
+        assert_eq!(user.extra_claims.get("iss"), Some(&json!(IDP)));
+
+        let user = validator
+            .validate_token(&token("exchange-key", EXCHANGE, "api-exchange"))
+            .await
+            .unwrap();
+        assert_eq!(user.extra_claims.get("iss"), Some(&json!(EXCHANGE)));
+    }
+
+    /// An `iss` no configured issuer names is refused before any key set is
+    /// consulted — it is never tried against every issuer's keys.
+    #[tokio::test]
+    async fn an_untrusted_issuer_is_refused_without_consulting_any_key_set() {
+        let (validator, idp, exchange) = two_issuers().await;
+        let result =
+            validator.validate_token(&token("idp-key", "https://evil.example", "api")).await;
+        assert!(matches!(result, Err(SecurityError::InvalidToken)), "{result:?}");
+        assert_eq!(jwks_fetches(&idp).await, 0, "the IdP's keys were consulted");
+        assert_eq!(jwks_fetches(&exchange).await, 0, "the exchange's keys were consulted");
+    }
+
+    /// A token claiming the `IdP` but signed under the exchange's key id is checked
+    /// against the `IdP`'s keys alone, and refused.
+    #[tokio::test]
+    async fn an_issuer_never_verifies_with_another_issuers_keys() {
+        let (validator, _idp, exchange) = two_issuers().await;
+        let result = validator.validate_token(&token("exchange-key", IDP, "api")).await;
+        assert!(result.is_err(), "verified with the wrong issuer's keys");
+        assert_eq!(jwks_fetches(&exchange).await, 0, "the exchange's keys were consulted");
+    }
+
+    /// Each issuer has its own audience: an exchange token minted for the `IdP`'s
+    /// audience is refused.
+    #[tokio::test]
+    async fn each_issuer_checks_its_own_audience() {
+        let (validator, _idp, _exchange) = two_issuers().await;
+        let result = validator.validate_token(&token("exchange-key", EXCHANGE, "api")).await;
+        assert!(matches!(result, Err(SecurityError::InvalidToken)), "{result:?}");
+    }
+
+    fn with_extra(primary_issuer: Option<&str>, extra: &[&str]) -> OidcConfig {
+        OidcConfig {
+            issuer: primary_issuer.map(ToString::to_string),
+            audience: Some("api".to_string()),
+            jwks_uri: Some("https://idp.example.com/jwks.json".to_string()),
+            additional_issuers: extra
+                .iter()
+                .map(|issuer| TrustedIssuer {
+                    issuer:               (*issuer).to_string(),
+                    audience:             Some("api".to_string()),
+                    additional_audiences: Vec::new(),
+                    allowed_algorithms:   vec!["RS256".to_string()],
+                    clock_skew_secs:      60,
+                    jwks_uri:             None,
+                    scope_claim:          "scope".to_string(),
+                    require_jti:          false,
+                })
+                .collect(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn additional_issuers_require_a_named_primary_issuer() {
+        let err = with_extra(None, &[EXCHANGE]).validate().unwrap_err();
+        assert!(err.to_string().contains("requires `issuer`"), "{err}");
+        with_extra(Some(IDP), &[EXCHANGE]).validate().unwrap();
+    }
+
+    #[test]
+    fn an_issuer_configured_twice_is_refused() {
+        let err = with_extra(Some(IDP), &[IDP]).validate().unwrap_err();
+        assert!(err.to_string().contains("configured twice"), "{err}");
+        let err = with_extra(Some(IDP), &[EXCHANGE, EXCHANGE]).validate().unwrap_err();
+        assert!(err.to_string().contains("configured twice"), "{err}");
+    }
+
+    /// Every additional issuer is held to the single-issuer rules, and the error names it.
+    #[test]
+    fn an_additional_issuer_is_held_to_the_single_issuer_rules() {
+        let err = with_extra(Some(IDP), &["http://plain.example.com"]).validate().unwrap_err();
+        assert!(err.to_string().contains("plain.example.com"), "{err}");
     }
 }

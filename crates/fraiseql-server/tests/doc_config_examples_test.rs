@@ -59,6 +59,7 @@ fn every_documented_server_config_example_parses_as_server_config() {
     let root = repo_root();
     let doc_dirs = [
         "docs/architecture",
+        "docs/auth",
         "docs/runbooks",
         "docs/operations",
         "docs/guides",

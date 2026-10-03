@@ -164,6 +164,76 @@ pub struct OidcConfig {
     /// Default: `None` (endpoint not mounted).
     #[serde(default)]
     pub me: Option<MeEndpointConfig>,
+
+    /// Further token issuers this server trusts beside [`Self::issuer`] (#1400) — for
+    /// example a first-party token-exchange service minting short-lived delegation
+    /// tokens next to the `IdP` users sign in with. Each is a complete issuer profile
+    /// with its own keys, audience and algorithms.
+    ///
+    /// A token is routed to exactly one profile by its `iss` claim, read before the
+    /// signature is checked, and verified with that profile's keys alone. A token whose
+    /// `iss` names no configured issuer is refused; it is never tried against every key
+    /// set, which would make `iss` meaningless. Configuring any requires [`Self::issuer`]
+    /// to be set too.
+    ///
+    /// Shared with the primary issuer: `required`, `jwks_cache_ttl_secs` and `me`.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub additional_issuers: Vec<TrustedIssuer>,
+}
+
+/// One additional trusted token issuer (`[[auth.additional_issuers]]`, #1400).
+///
+/// The issuer-level settings of [`OidcConfig`], for a second (third, …) issuer. `issuer`
+/// is mandatory: it is what routes a token here.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TrustedIssuer {
+    /// The issuer URL, matched exactly against a token's `iss`.
+    pub issuer:               String,
+    /// Expected audience; see [`OidcConfig::audience`].
+    #[serde(default)]
+    pub audience:             Option<String>,
+    /// Further accepted audiences; see [`OidcConfig::additional_audiences`].
+    #[serde(default)]
+    pub additional_audiences: Vec<String>,
+    /// Allowed signing algorithms; see [`OidcConfig::allowed_algorithms`].
+    #[serde(default = "default_algorithms")]
+    pub allowed_algorithms:   Vec<String>,
+    /// Clock-skew tolerance; see [`OidcConfig::clock_skew_secs`].
+    #[serde(default = "default_clock_skew")]
+    pub clock_skew_secs:      u64,
+    /// Pinned JWKS endpoint; discovered from `issuer` when unset.
+    #[serde(default)]
+    pub jwks_uri:             Option<String>,
+    /// Claim scopes are read from; see [`OidcConfig::scope_claim`].
+    #[serde(default = "default_scope_claim")]
+    pub scope_claim:          String,
+    /// Require a `jti` claim; see [`OidcConfig::require_jti`].
+    #[serde(default)]
+    pub require_jti:          bool,
+}
+
+impl TrustedIssuer {
+    /// This issuer as a complete single-issuer [`OidcConfig`], taking the settings it
+    /// shares with the primary issuer from `shared`. The validator and
+    /// [`OidcConfig::validate`] then treat every issuer through one code path.
+    #[must_use]
+    pub fn as_config(&self, shared: &OidcConfig) -> OidcConfig {
+        OidcConfig {
+            issuer:               Some(self.issuer.clone()),
+            audience:             self.audience.clone(),
+            additional_audiences: self.additional_audiences.clone(),
+            jwks_cache_ttl_secs:  shared.jwks_cache_ttl_secs,
+            allowed_algorithms:   self.allowed_algorithms.clone(),
+            clock_skew_secs:      self.clock_skew_secs,
+            jwks_uri:             self.jwks_uri.clone(),
+            required:             shared.required,
+            scope_claim:          self.scope_claim.clone(),
+            require_jti:          self.require_jti,
+            me:                   None,
+            additional_issuers:   Vec::new(),
+        }
+    }
 }
 
 pub(super) const fn default_jwks_cache_ttl() -> u64 {
@@ -206,6 +276,7 @@ impl Default for OidcConfig {
             scope_claim:          default_scope_claim(),
             require_jti:          false,
             me:                   None,
+            additional_issuers:   Vec::new(),
         }
     }
 }
@@ -312,6 +383,41 @@ impl OidcConfig {
     /// - Neither `audience` nor `additional_audiences` are configured
     /// - No algorithms are allowed
     pub fn validate(&self) -> Result<()> {
+        self.validate_issuer_profile()?;
+
+        if self.additional_issuers.is_empty() {
+            return Ok(());
+        }
+        // A token is routed by `iss`; an issuer-less primary would accept tokens no
+        // `iss` can be checked against, beside issuers selected by that very claim.
+        let Some(primary) = self.issuer.as_deref() else {
+            return Err(SecurityError::SecurityConfigError(
+                "`additional_issuers` requires `issuer` to be set: tokens are routed to an \
+                 issuer by their `iss` claim, so every trusted issuer must be named"
+                    .to_string(),
+            ));
+        };
+        let mut seen = std::collections::HashSet::from([primary]);
+        for extra in &self.additional_issuers {
+            if !seen.insert(extra.issuer.as_str()) {
+                return Err(SecurityError::SecurityConfigError(format!(
+                    "OIDC issuer {:?} is configured twice; each trusted issuer appears once, \
+                     or a token's `iss` would not name one set of keys",
+                    extra.issuer
+                )));
+            }
+            extra.as_config(self).validate_issuer_profile().map_err(|e| {
+                SecurityError::SecurityConfigError(format!(
+                    "additional issuer {:?}: {e}",
+                    extra.issuer
+                ))
+            })?;
+        }
+        Ok(())
+    }
+
+    /// The single-issuer rules, applied to the primary issuer and to each additional one.
+    fn validate_issuer_profile(&self) -> Result<()> {
         match &self.issuer {
             Some(issuer) => {
                 if !issuer.starts_with("https://")

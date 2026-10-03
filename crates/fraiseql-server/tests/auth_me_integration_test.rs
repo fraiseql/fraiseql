@@ -214,6 +214,7 @@ async fn test_auth_me_reads_host_cookie() {
         scope_claim:          "scope".to_string(),
         require_jti:          false,
         me:                   None,
+        additional_issuers:   Vec::new(),
     };
     let validator = OidcValidator::with_jwks_uri(config, "https://192.0.2.1/jwks")
         .expect("an https jwks_uri is accepted");

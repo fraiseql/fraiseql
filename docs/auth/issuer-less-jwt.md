@@ -6,6 +6,9 @@ access tokens carry `sub`, `aud`, `exp`, `iat` (plus `email`, `session_id`) but
 no `iss`. FraiseQL's OIDC `[auth]` supports these providers: the `issuer` field
 is **optional**, symmetric with `audience`.
 
+> To trust more than one issuer (for example an IdP and a token-exchange service), see
+> [multiple-issuers.md](multiple-issuers.md). Issuer-less mode is single-issuer only.
+
 ## How it works
 
 `[auth]` (the server's `OidcConfig`) treats `issuer` as optional:

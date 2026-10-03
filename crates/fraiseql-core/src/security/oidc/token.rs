@@ -40,15 +40,33 @@ use crate::security::{
 /// JWKS fetch/cache/key-selection helpers are in `impl OidcValidator` blocks
 /// defined in the `jwks` sub-module.
 pub struct OidcValidator {
+    /// The configuration as given: the primary issuer and the settings every issuer
+    /// shares (`required`, `me`, the JWKS cache TTL).
     pub(super) config:       OidcConfig,
-    /// The one bounded JWKS client (#1335). Not a cache this type owns: a
-    /// near-copy of it lived here and another in `fraiseql_auth`, and the two had
-    /// drifted on key types and on DNS pinning while agreeing on the one thing
-    /// that mattered — neither bounded a refetch.
-    pub(super) jwks:         Arc<JwksSource>,
+    /// Every trusted issuer, the primary first, then `additional_issuers` in order
+    /// (#1400). A token is verified by exactly one of them, chosen by its `iss`.
+    pub(super) issuers:      Vec<IssuerProfile>,
     /// Optional JWT replay cache. When set, each validated token's `jti` is
     /// checked against the cache and rejected if it has been seen before.
     pub(super) replay_cache: Option<Arc<ReplayCache>>,
+}
+
+/// One trusted issuer: its settings and its own key set (#1400).
+pub(super) struct IssuerProfile {
+    /// The issuer's settings, as a complete single-issuer configuration.
+    pub(super) config: OidcConfig,
+    /// The one bounded JWKS client (#1335), for this issuer's keys only. Not a cache
+    /// this type owns: a near-copy of it lived here and another in `fraiseql_auth`,
+    /// and the two had drifted on key types and on DNS pinning while agreeing on the
+    /// one thing that mattered — neither bounded a refetch.
+    pub(super) jwks:   Arc<JwksSource>,
+}
+
+/// The one claim read from a token before its signature is checked: which issuer's
+/// keys to check it with.
+#[derive(serde::Deserialize)]
+struct IssuerClaim {
+    iss: Option<String>,
 }
 
 impl OidcValidator {
@@ -64,8 +82,6 @@ impl OidcValidator {
     /// - OIDC discovery fails
     /// - JWKS endpoint cannot be determined
     pub async fn new(config: OidcConfig) -> Result<Self> {
-        use crate::security::oidc::jwks::OidcDiscoveryDocument;
-
         config.validate()?;
 
         // Redirects are disabled to prevent redirect-chain SSRF attacks.
@@ -81,74 +97,91 @@ impl OidcValidator {
             .build()
             .map_err(|e| SecurityError::SecurityConfigError(format!("HTTP client error: {e}")))?;
 
-        // Determine JWKS URI
-        let jwks_uri = if let Some(ref uri) = config.jwks_uri {
-            uri.clone()
-        } else {
-            // No pinned JWKS URI: locate it via OIDC discovery from the issuer.
-            // `config.validate()` above guarantees `issuer` is set whenever
-            // `jwks_uri` is not, so this error is unreachable in practice —
-            // it keeps the discovery path total without an unwrap.
-            let issuer = config.issuer.as_deref().ok_or_else(|| {
-                SecurityError::SecurityConfigError(
-                    "OIDC discovery requires an issuer when `jwks_uri` is not pinned".to_string(),
-                )
-            })?;
-            // Perform OIDC discovery
-            let discovery_url =
-                format!("{}/.well-known/openid-configuration", issuer.trim_end_matches('/'));
-
-            tracing::debug!(url = %discovery_url, "Performing OIDC discovery");
-
-            let response = http_client.get(&discovery_url).send().await.map_err(|e| {
-                SecurityError::SecurityConfigError(format!("OIDC discovery failed: {e}"))
-            })?;
-
-            if !response.status().is_success() {
-                return Err(SecurityError::SecurityConfigError(format!(
-                    "OIDC discovery failed with status: {}",
-                    response.status()
-                )));
-            }
-
-            let body_bytes = response.bytes().await.map_err(|e| {
-                SecurityError::SecurityConfigError(format!(
-                    "Failed to read OIDC discovery response: {e}"
-                ))
-            })?;
-            if body_bytes.len() > MAX_DISCOVERY_RESPONSE_BYTES {
-                return Err(SecurityError::SecurityConfigError(format!(
-                    "OIDC discovery response too large ({} bytes, max {MAX_DISCOVERY_RESPONSE_BYTES})",
-                    body_bytes.len()
-                )));
-            }
-            let discovery: OidcDiscoveryDocument =
-                serde_json::from_slice(&body_bytes).map_err(|e| {
-                    SecurityError::SecurityConfigError(format!(
-                        "Invalid OIDC discovery response: {e}"
-                    ))
-                })?;
-
-            tracing::info!(
-                issuer = %discovery.issuer,
-                jwks_uri = %discovery.jwks_uri,
-                "OIDC discovery successful"
-            );
-
-            discovery.jwks_uri
-        };
-
-        // The URI is validated here, by the client that will fetch it: not a URL,
-        // or not https (bar a loopback host for development), and this validator
-        // is refused rather than built. Core used only to check that it parsed,
-        // while `fraiseql_auth` checked the scheme too — one client, one rule.
-        let jwks = Self::key_source(&config, &jwks_uri)?;
+        let mut issuers = Vec::new();
+        for issuer_config in Self::issuer_configs(&config) {
+            let jwks_uri = Self::jwks_uri_for(&http_client, &issuer_config).await?;
+            // The URI is validated here, by the client that will fetch it: not a URL,
+            // or not https (bar a loopback host for development), and this validator
+            // is refused rather than built. Core used only to check that it parsed,
+            // while `fraiseql_auth` checked the scheme too — one client, one rule.
+            let jwks = Self::key_source(&issuer_config, &jwks_uri)?;
+            issuers.push(IssuerProfile {
+                config: issuer_config,
+                jwks,
+            });
+        }
 
         Ok(Self {
             config,
-            jwks,
+            issuers,
             replay_cache: None,
         })
+    }
+
+    /// Every issuer's complete configuration: the primary, then each additional one.
+    fn issuer_configs(config: &OidcConfig) -> Vec<OidcConfig> {
+        std::iter::once(config.clone())
+            .chain(config.additional_issuers.iter().map(|extra| extra.as_config(config)))
+            .collect()
+    }
+
+    /// The JWKS endpoint of one issuer: pinned, or located by OIDC discovery.
+    async fn jwks_uri_for(http_client: &reqwest::Client, config: &OidcConfig) -> Result<String> {
+        use crate::security::oidc::jwks::OidcDiscoveryDocument;
+
+        if let Some(ref uri) = config.jwks_uri {
+            return Ok(uri.clone());
+        }
+
+        // No pinned JWKS URI: locate it via OIDC discovery from the issuer.
+        // `config.validate()` above guarantees `issuer` is set whenever
+        // `jwks_uri` is not, so this error is unreachable in practice —
+        // it keeps the discovery path total without an unwrap.
+        let issuer = config.issuer.as_deref().ok_or_else(|| {
+            SecurityError::SecurityConfigError(
+                "OIDC discovery requires an issuer when `jwks_uri` is not pinned".to_string(),
+            )
+        })?;
+        // Perform OIDC discovery
+        let discovery_url =
+            format!("{}/.well-known/openid-configuration", issuer.trim_end_matches('/'));
+
+        tracing::debug!(url = %discovery_url, "Performing OIDC discovery");
+
+        let response = http_client.get(&discovery_url).send().await.map_err(|e| {
+            SecurityError::SecurityConfigError(format!("OIDC discovery failed: {e}"))
+        })?;
+
+        if !response.status().is_success() {
+            return Err(SecurityError::SecurityConfigError(format!(
+                "OIDC discovery failed with status: {}",
+                response.status()
+            )));
+        }
+
+        let body_bytes = response.bytes().await.map_err(|e| {
+            SecurityError::SecurityConfigError(format!(
+                "Failed to read OIDC discovery response: {e}"
+            ))
+        })?;
+        if body_bytes.len() > MAX_DISCOVERY_RESPONSE_BYTES {
+            return Err(SecurityError::SecurityConfigError(format!(
+                "OIDC discovery response too large ({} bytes, max {MAX_DISCOVERY_RESPONSE_BYTES})",
+                body_bytes.len()
+            )));
+        }
+        let discovery: OidcDiscoveryDocument =
+            serde_json::from_slice(&body_bytes).map_err(|e| {
+                SecurityError::SecurityConfigError(format!("Invalid OIDC discovery response: {e}"))
+            })?;
+
+        tracing::info!(
+            issuer = %discovery.issuer,
+            jwks_uri = %discovery.jwks_uri,
+            "OIDC discovery successful"
+        );
+
+        Ok(discovery.jwks_uri)
     }
 
     /// The bounded JWKS client for a configured `jwks_uri`.
@@ -184,10 +217,31 @@ impl OidcValidator {
     /// `SecurityError::SecurityConfigError` when `jwks_uri` is not a URL, or is
     /// not `https` — plain `http` is accepted only for a loopback host, which is
     /// what a local fixture or a development `IdP` is.
+    /// With `additional_issuers`, `jwks_uri` is the primary issuer's endpoint and every
+    /// additional issuer must pin its own: this constructor performs no discovery.
     pub fn with_jwks_uri(config: OidcConfig, jwks_uri: &str) -> Result<Self> {
+        let mut issuers = Vec::new();
+        for (index, issuer_config) in Self::issuer_configs(&config).into_iter().enumerate() {
+            let uri = if index == 0 {
+                jwks_uri.to_string()
+            } else {
+                issuer_config.jwks_uri.clone().ok_or_else(|| {
+                    SecurityError::SecurityConfigError(format!(
+                        "additional issuer {:?} needs a pinned `jwks_uri` when the validator \
+                         is built without discovery",
+                        issuer_config.issuer.as_deref().unwrap_or_default()
+                    ))
+                })?
+            };
+            let jwks = Self::key_source(&issuer_config, &uri)?;
+            issuers.push(IssuerProfile {
+                config: issuer_config,
+                jwks,
+            });
+        }
         Ok(Self {
-            jwks: Self::key_source(&config, jwks_uri)?,
             config,
+            issuers,
             replay_cache: None,
         })
     }
@@ -225,6 +279,10 @@ impl OidcValidator {
     /// - Token is expired
     /// - Issuer/audience don't match
     pub async fn validate_token(&self, token: &str) -> Result<AuthenticatedUser> {
+        // Which issuer's keys and rules apply, decided from `iss` before anything else
+        // (#1400). Everything below reads `issuer`, never another profile.
+        let issuer = self.issuer_for(token)?;
+
         // Decode header to get kid
         let header = decode_header(token).map_err(|e| {
             tracing::debug!(error = %e, "Failed to decode JWT header");
@@ -241,10 +299,10 @@ impl OidcValidator {
         // whose `alg` this server refuses on its header alone — an `HS256` against
         // an RSA JWKS, the algorithm-confusion probe — still cost one outbound
         // request to the IdP. Nothing here touches the network.
-        let algorithm = self.get_algorithm(&header)?;
+        let algorithm = issuer.get_algorithm(&header)?;
 
         // Only now: the key lookup, which may reach the provider (bounded).
-        let decoding_key = self.get_decoding_key(kid).await?;
+        let decoding_key = issuer.get_decoding_key(kid).await?;
 
         // Build validation
         let mut validation = Validation::new(algorithm);
@@ -259,8 +317,8 @@ impl OidcValidator {
         // In issuer-less mode both are skipped: tokens that omit `iss` (e.g.
         // Hanko access tokens) are accepted, gated only by signature (against
         // the pinned JWKS) and `audience`.
-        if let Some(ref issuer) = self.config.issuer {
-            validation.set_issuer(&[issuer]);
+        if let Some(ref expected) = issuer.config.issuer {
+            validation.set_issuer(&[expected]);
             validation.set_required_spec_claims(&["exp", "iss"]);
         }
 
@@ -269,14 +327,14 @@ impl OidcValidator {
         // so this else branch (validate_aud = false) is never reached in practice.
         // It is kept as a defensive fallback; the real protection is the mandatory
         // audience check in OidcConfig::validate().
-        if let Some(ref aud) = self.config.audience {
+        if let Some(ref aud) = issuer.config.audience {
             let mut audiences = vec![aud.clone()];
-            audiences.extend(self.config.additional_audiences.clone());
+            audiences.extend(issuer.config.additional_audiences.clone());
             validation.set_audience(&audiences);
-        } else if !self.config.additional_audiences.is_empty() {
+        } else if !issuer.config.additional_audiences.is_empty() {
             // Only additional_audiences configured (no primary audience):
             // still validate against those.
-            validation.set_audience(&self.config.additional_audiences);
+            validation.set_audience(&issuer.config.additional_audiences);
         } else {
             // Should be unreachable after OidcConfig::validate() — fail-closed.
             validation.validate_aud = true;
@@ -284,7 +342,7 @@ impl OidcValidator {
 
         // Set clock skew tolerance — capped to prevent accepting arbitrarily
         // old expired tokens due to misconfiguration.
-        validation.leeway = self.config.clock_skew_secs.min(MAX_CLOCK_SKEW_SECS);
+        validation.leeway = issuer.config.clock_skew_secs.min(MAX_CLOCK_SKEW_SECS);
 
         // Decode and validate token
         let token_data = decode::<JwtClaims>(token, &decoding_key, &validation).map_err(|e| {
@@ -301,7 +359,7 @@ impl OidcValidator {
         let claims = token_data.claims;
 
         // Validate jti claim if required by configuration.
-        if self.config.require_jti && claims.jti.is_none() {
+        if issuer.config.require_jti && claims.jti.is_none() {
             tracing::debug!("JWT missing required jti (JWT ID) claim");
             return Err(SecurityError::TokenMissingClaim {
                 claim: "jti".to_string(),
@@ -344,7 +402,7 @@ impl OidcValidator {
         }
 
         // Extract scopes first (before moving claims.sub)
-        let scopes = self.extract_scopes(&claims);
+        let scopes = issuer.extract_scopes(&claims);
 
         // Extract user ID (required)
         let user_id_str = claims.sub.ok_or(SecurityError::TokenMissingClaim {
@@ -381,16 +439,71 @@ impl OidcValidator {
             .and_then(extract_name_string)
             .or_else(|| claims.extra.get("name").and_then(extract_name_string));
 
+        // `iss` is a registered claim, so the deserializer lifts it out of `extra`; it is
+        // put back so the principal records which issuer vouched for it (#1400) — the
+        // issuer `SecurityContext::issuer` and `$iss` enrichment bindings read.
+        let mut extra_claims = claims.extra;
+        if let Some(iss) = claims.iss {
+            extra_claims.insert("iss".to_string(), serde_json::Value::String(iss));
+        }
+
         Ok(AuthenticatedUser {
             user_id,
             scopes,
             expires_at,
             email,
             display_name,
-            extra_claims: claims.extra,
+            extra_claims,
         })
     }
 
+    /// The one trusted issuer whose keys and rules apply to `token` (#1400).
+    ///
+    /// Chosen by the token's `iss`, read from the payload **before** the signature is
+    /// checked — only to pick a key set; the signature is then verified against that
+    /// issuer's keys alone, and `iss` itself is re-checked by the validation. An `iss`
+    /// that names no configured issuer is refused, never tried against every key set.
+    /// A single issuer-less profile (an `IdP` whose tokens omit `iss`) takes every token,
+    /// as before.
+    fn issuer_for(&self, token: &str) -> Result<&IssuerProfile> {
+        if let [only] = self.issuers.as_slice() {
+            if only.config.issuer.is_none() {
+                return Ok(only);
+            }
+        }
+        let iss = jsonwebtoken::dangerous::insecure_decode::<IssuerClaim>(token)
+            .ok()
+            .and_then(|data| data.claims.iss);
+        let Some(iss) = iss else {
+            tracing::debug!("JWT carries no `iss`, so no trusted issuer can verify it");
+            return Err(SecurityError::InvalidToken);
+        };
+        self.issuers
+            .iter()
+            .find(|issuer| issuer.config.issuer.as_deref() == Some(iss.as_str()))
+            .ok_or_else(|| {
+                tracing::debug!(iss = %iss, "JWT names an issuer this server does not trust");
+                SecurityError::InvalidToken
+            })
+    }
+
+    /// Check if authentication is required.
+    #[must_use]
+    pub const fn is_required(&self) -> bool {
+        self.config.required
+    }
+
+    /// Get the configured issuer, if any.
+    ///
+    /// Returns `None` in issuer-less mode (`IdPs` whose tokens omit the `iss`
+    /// claim, validated via a pinned `jwks_uri`).
+    #[must_use]
+    pub fn issuer(&self) -> Option<&str> {
+        self.config.issuer.as_deref()
+    }
+}
+
+impl IssuerProfile {
     /// Get the algorithm from the JWT header.
     ///
     /// # Errors
@@ -437,20 +550,5 @@ impl OidcValidator {
         }
 
         Vec::new()
-    }
-
-    /// Check if authentication is required.
-    #[must_use]
-    pub const fn is_required(&self) -> bool {
-        self.config.required
-    }
-
-    /// Get the configured issuer, if any.
-    ///
-    /// Returns `None` in issuer-less mode (`IdPs` whose tokens omit the `iss`
-    /// claim, validated via a pinned `jwks_uri`).
-    #[must_use]
-    pub fn issuer(&self) -> Option<&str> {
-        self.config.issuer.as_deref()
     }
 }

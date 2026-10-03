@@ -310,7 +310,9 @@ impl SecurityContext {
             ip_address: None,
             authenticated_at: Utc::now(),
             expires_at: user.expires_at,
-            issuer: None,
+            // The issuer that vouched for the token (#1400); the validator forwards
+            // `iss` among the claims it verified.
+            issuer: user.extra_claims.get("iss").and_then(|v| v.as_str()).map(String::from),
             audience: None,
             email: user.email.clone(),
             display_name: user.display_name.clone(),

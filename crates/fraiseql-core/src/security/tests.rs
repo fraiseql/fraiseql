@@ -4112,3 +4112,39 @@ mod system_job_tests {
         assert!(!ctx.is_multi_tenant(), "no tenant → scoped to nothing");
     }
 }
+
+/// The issuer that vouched for a token is the principal's `issuer` (#1400): with several
+/// trusted issuers it is what `$iss` enrichment bindings and audits tell apart.
+mod issuer_tests {
+    use std::collections::HashMap;
+
+    use crate::{
+        security::{AuthenticatedUser, SecurityContext},
+        types::UserId,
+    };
+
+    fn user(extra: HashMap<String, serde_json::Value>) -> AuthenticatedUser {
+        AuthenticatedUser {
+            user_id:      UserId::new("u1"),
+            scopes:       vec![],
+            expires_at:   chrono::Utc::now() + chrono::Duration::hours(1),
+            email:        None,
+            display_name: None,
+            extra_claims: extra,
+        }
+    }
+
+    #[test]
+    fn the_iss_claim_is_the_principals_issuer() {
+        let extra =
+            HashMap::from([("iss".to_string(), serde_json::json!("https://exchange.example.com"))]);
+        let ctx = SecurityContext::from_user(&user(extra), "r1".to_string());
+        assert_eq!(ctx.issuer.as_deref(), Some("https://exchange.example.com"));
+    }
+
+    #[test]
+    fn a_token_without_iss_has_no_issuer() {
+        let ctx = SecurityContext::from_user(&user(HashMap::new()), "r1".to_string());
+        assert_eq!(ctx.issuer, None);
+    }
+}

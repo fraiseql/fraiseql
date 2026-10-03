@@ -537,6 +537,7 @@ mod revocation_tests {
             scope_claim:          "scope".to_string(),
             require_jti:          false,
             me:                   None,
+            additional_issuers:   Vec::new(),
         };
         // check_revocation never calls the validator; with_jwks_uri avoids async discovery.
         Arc::new(

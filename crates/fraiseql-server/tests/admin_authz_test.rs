@@ -43,6 +43,7 @@ fn optional_oidc_state() -> OidcAuthState {
         scope_claim:          "scope".to_string(),
         require_jti:          false,
         me:                   None,
+        additional_issuers:   Vec::new(),
     };
     // with_jwks_uri bypasses async OIDC discovery; the 401 is returned before any
     // real JWKS request is made.

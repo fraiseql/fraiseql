@@ -175,6 +175,10 @@ pub struct OidcClientConfig {
     /// `[auth.me]` session-identity endpoint config (union-compat with `OidcConfig`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub me:                   Option<MeEndpointConfig>,
+    /// `[[auth.additional_issuers]]` further trusted token issuers (#1400; union-compat
+    /// with `OidcConfig`). The server's own type, so the two cannot drift.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub additional_issuers:   Vec<fraiseql_core::security::oidc::TrustedIssuer>,
 
     /// PKCE: OIDC provider discovery URL. **Not yet functional (#621).**
     #[serde(skip_serializing_if = "Option::is_none")]

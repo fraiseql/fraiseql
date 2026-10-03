@@ -103,65 +103,17 @@ disagreed, and the promise was the part that was wrong.
   default key field; declared `key_fields` are emitted as written and judged by the compiler.
   The block no longer carries `apollo_version`.
 
-### Security
+### Added
 
-- **wasmtime and wasmtime-wasi 48.0.5** (was 48.0.3) for the `runtime-wasm` feature of
-  `fraiseql-functions`: RUSTSEC-2026-0321, -0322, -0323, -0324 (wasmtime-wasi: a WASI
-  preview 0 `poll_oneoff` that bypasses fuel metering, host memory allocated for guests
-  without stdio, uninitialised padding copied into guest memory by `fd_readdir`, a host
-  panic on a pre-epoch file timestamp under wasip3) and RUSTSEC-2026-0325, -0326, -0327
-  (wasmtime: GC heap corruption through mis-typed tag imports or missing roots across
-  `try_call`, a native stack overflow from an unvalidated async-lifted callback result).
-  Function modules are author-supplied, but a fuel bypass and host panics defeat the
-  limits the runtime promises. Patch release; `deny.toml`'s wasmtime skip-tree pin moves
-  with it.
-
-- **An authenticated request is served its token's tenant; a header cannot choose
-  another.** With the multi-tenant runtime on, `X-Tenant-ID` or a registered `Host`
-  decided the tenant executor whenever the caller's security context carried no tenant,
-  and a disagreement with the token was refused only when RLS was configured. A principal
-  whose token named no tenant (for instance a token carrying `tenant_id` while the server
-  read only `org_id`, #1388) could address any registered tenant by header and run there
-  with its own roles. Now an authenticated request's header or `Host` may only agree with
-  its token's tenant; one naming another tenant, or sent with a token that names none, is
-  refused as `FORBIDDEN` (403 on the async-operations routes, which reported every tenant
-  error as 400). Anonymous routing by `X-Tenant-ID` and `Host` is unchanged.
-
-- **Five accepted advisories were extended by 30 days, not re-argued.** The risk acceptances
-  for RUSTSEC-2023-0071 (`rsa`), RUSTSEC-2025-0134 (`rustls-pemfile`), RUSTSEC-2026-0194 and
-  RUSTSEC-2026-0195 (`quick-xml` via `samael`) and RUSTSEC-2026-0204 (`crossbeam-epoch`) carried
-  a deadline of 2026-10-01, and on that date `make lint-deadlines` reddened `preflight` on every
-  open branch at once. `deny.toml`, `.cargo/audit.toml` and `docs/dependency-risk-policy.md` now
-  say 2026-10-31. The grounds are unchanged, and the `rsa` justification is still under review
-  in #1110. This buys time for that review; it is not the review.
-
-Lockfile and patch-level pin changes only; no source changed. The runtime crates' own
-`Cargo.lock` is untouched.
-
-- **Fuzz crates (Rust):** `quinn-proto` and `postgres-protocol` in the `crates/*/fuzz`
-  lockfiles move to patched releases (GHSA-4w2j-m93h-cj5j; GHSA-5x78-73v4-xg6w,
-  GHSA-rgqc-3x5p-6gwg).
-- **Python SDK (development and test lockfile only; the published `fraiseql` package depends
-  on `httpx` alone):** `nltk` 3.10.3, `aiohttp` 3.14.3, `anyio` 4.15.1 (aiohttp
-  GHSA-cq5v-8q36-5273, GHSA-mfx4-hv73-q22v, GHSA-mq44-7p77-q5h7; anyio GHSA-5p39-cfhj-2xmp,
-  GHSA-82r6-8w77-94w6; nltk GHSA-3gq4-3j92-5w49, GHSA-3gqm-fcw5-w839, GHSA-568f-pv23-39p4,
-  GHSA-6hm5-jgcp-p838, GHSA-6hwm-xvph-95vm, GHSA-6ww7-3frv-cqxh, GHSA-8mpw-7fpc-4gqj,
-  GHSA-97qj-x29f-37w7, GHSA-cv22-g7mw-8v73, GHSA-cw6x-m8jw-qmrh, GHSA-f794-5jv7-7672,
-  GHSA-ff5c-cp5c-9wjf, GHSA-fg7f-2386-8897, GHSA-m42h-3232-vpv3, GHSA-m4rf-3fr8-xwx3,
-  GHSA-p3m8-78j2-g5p3, GHSA-p4rw-rvv2-7xwr, GHSA-qvv7-cg9c-w4x3, GHSA-qx2g-xrx7-vfh8,
-  GHSA-rhp5-r9x4-f5g2, GHSA-rrv8-h7p8-rx55, GHSA-vp2x-qp44-57v7, GHSA-w3v8-gmh9-3wv7,
-  GHSA-ww6m-cw3f-q94g, GHSA-x5ph-mj9p-rfr8, GHSA-x99w-6fgc-pmfw, GHSA-xh95-f55m-82fw). nltk
-  GHSA-8mgp-746c-j5xp has no patched release and stays open.
-- **TypeScript SDK (dev tooling):** `fast-uri` 3.1.8, `js-yaml` 4.3.2, `postcss` 8.5.28,
-  `ip-address` 10.7.2 (fast-uri GHSA-5jgf-p345-68v8, GHSA-7p8r-x3mc-p8w7, GHSA-f65p-4m7j-42xc,
-  GHSA-fph4-wmhf-6fwf, GHSA-jqff-g426-hqxp, GHSA-qw65-cvwx-89v3; js-yaml GHSA-2883-xcg3-v3hh,
-  GHSA-5p4m-2wfm-xmqj; postcss GHSA-fxqj-rqcc-2cmp, GHSA-r28c-9q8g-f849; ip-address
-  GHSA-22jq-vg5j-6vgg, GHSA-2vr4-cq9g-pvrc, GHSA-4xrf-jv44-h6hh, GHSA-j6r3-76f7-8jcv,
-  GHSA-mwp4-54f8-5fhr, GHSA-rpw4-54j3-4h4q).
-- **Java SDK:** `jackson-databind` 2.22.1 → 2.22.3 (GHSA-gx83-3vf8-gh7j, GHSA-q4xh-88c3-wmh7,
-  GHSA-wjgm-6hv5-3cvf).
-- **Dagger module (Go):** `google.golang.org/grpc` 1.84.0 (GHSA-2v4p-qf9q-27wj,
-  GHSA-qc2q-p7wx-3px3, GHSA-vp52-pcj8-j9qc).
+- **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds
+  issuers beside `[auth]`, each with its own `issuer`, `jwks_uri` (or discovery),
+  audience, algorithms, clock skew, scope claim and `require_jti`, so an API can accept
+  its IdP's tokens and a token-exchange service's side by side. A token is routed by its
+  `iss`, verified with that issuer's keys alone, and refused if its `iss` names no
+  configured issuer, without contacting any key endpoint. The issuer that vouched for a
+  request is recorded as `SecurityContext::issuer` (it was always `None`) and binds
+  `$iss` in enrichment queries. Every transport (`/graphql`, REST, MCP, gRPC, rate-limit
+  identity) inherits it through the shared validator. See `docs/auth/multiple-issuers.md`.
 
 ### Fixed
 
@@ -232,6 +184,66 @@ Lockfile and patch-level pin changes only; no source changed. The runtime crates
   in an acronym after the first word is no longer kept whole: `consolePs3` gives
   `console_ps_3` (was `console_ps3`), as `ps3` as a first word always did. Register `ps3`
   to keep it whole.
+
+### Security
+
+- **wasmtime and wasmtime-wasi 48.0.5** (was 48.0.3) for the `runtime-wasm` feature of
+  `fraiseql-functions`: RUSTSEC-2026-0321, -0322, -0323, -0324 (wasmtime-wasi: a WASI
+  preview 0 `poll_oneoff` that bypasses fuel metering, host memory allocated for guests
+  without stdio, uninitialised padding copied into guest memory by `fd_readdir`, a host
+  panic on a pre-epoch file timestamp under wasip3) and RUSTSEC-2026-0325, -0326, -0327
+  (wasmtime: GC heap corruption through mis-typed tag imports or missing roots across
+  `try_call`, a native stack overflow from an unvalidated async-lifted callback result).
+  Function modules are author-supplied, but a fuel bypass and host panics defeat the
+  limits the runtime promises. Patch release; `deny.toml`'s wasmtime skip-tree pin moves
+  with it.
+
+- **An authenticated request is served its token's tenant; a header cannot choose
+  another.** With the multi-tenant runtime on, `X-Tenant-ID` or a registered `Host`
+  decided the tenant executor whenever the caller's security context carried no tenant,
+  and a disagreement with the token was refused only when RLS was configured. A principal
+  whose token named no tenant (for instance a token carrying `tenant_id` while the server
+  read only `org_id`, #1388) could address any registered tenant by header and run there
+  with its own roles. Now an authenticated request's header or `Host` may only agree with
+  its token's tenant; one naming another tenant, or sent with a token that names none, is
+  refused as `FORBIDDEN` (403 on the async-operations routes, which reported every tenant
+  error as 400). Anonymous routing by `X-Tenant-ID` and `Host` is unchanged.
+
+- **Five accepted advisories were extended by 30 days, not re-argued.** The risk acceptances
+  for RUSTSEC-2023-0071 (`rsa`), RUSTSEC-2025-0134 (`rustls-pemfile`), RUSTSEC-2026-0194 and
+  RUSTSEC-2026-0195 (`quick-xml` via `samael`) and RUSTSEC-2026-0204 (`crossbeam-epoch`) carried
+  a deadline of 2026-10-01, and on that date `make lint-deadlines` reddened `preflight` on every
+  open branch at once. `deny.toml`, `.cargo/audit.toml` and `docs/dependency-risk-policy.md` now
+  say 2026-10-31. The grounds are unchanged, and the `rsa` justification is still under review
+  in #1110. This buys time for that review; it is not the review.
+
+Lockfile and patch-level pin changes only; no source changed. The runtime crates' own
+`Cargo.lock` is untouched.
+
+- **Fuzz crates (Rust):** `quinn-proto` and `postgres-protocol` in the `crates/*/fuzz`
+  lockfiles move to patched releases (GHSA-4w2j-m93h-cj5j; GHSA-5x78-73v4-xg6w,
+  GHSA-rgqc-3x5p-6gwg).
+- **Python SDK (development and test lockfile only; the published `fraiseql` package depends
+  on `httpx` alone):** `nltk` 3.10.3, `aiohttp` 3.14.3, `anyio` 4.15.1 (aiohttp
+  GHSA-cq5v-8q36-5273, GHSA-mfx4-hv73-q22v, GHSA-mq44-7p77-q5h7; anyio GHSA-5p39-cfhj-2xmp,
+  GHSA-82r6-8w77-94w6; nltk GHSA-3gq4-3j92-5w49, GHSA-3gqm-fcw5-w839, GHSA-568f-pv23-39p4,
+  GHSA-6hm5-jgcp-p838, GHSA-6hwm-xvph-95vm, GHSA-6ww7-3frv-cqxh, GHSA-8mpw-7fpc-4gqj,
+  GHSA-97qj-x29f-37w7, GHSA-cv22-g7mw-8v73, GHSA-cw6x-m8jw-qmrh, GHSA-f794-5jv7-7672,
+  GHSA-ff5c-cp5c-9wjf, GHSA-fg7f-2386-8897, GHSA-m42h-3232-vpv3, GHSA-m4rf-3fr8-xwx3,
+  GHSA-p3m8-78j2-g5p3, GHSA-p4rw-rvv2-7xwr, GHSA-qvv7-cg9c-w4x3, GHSA-qx2g-xrx7-vfh8,
+  GHSA-rhp5-r9x4-f5g2, GHSA-rrv8-h7p8-rx55, GHSA-vp2x-qp44-57v7, GHSA-w3v8-gmh9-3wv7,
+  GHSA-ww6m-cw3f-q94g, GHSA-x5ph-mj9p-rfr8, GHSA-x99w-6fgc-pmfw, GHSA-xh95-f55m-82fw). nltk
+  GHSA-8mgp-746c-j5xp has no patched release and stays open.
+- **TypeScript SDK (dev tooling):** `fast-uri` 3.1.8, `js-yaml` 4.3.2, `postcss` 8.5.28,
+  `ip-address` 10.7.2 (fast-uri GHSA-5jgf-p345-68v8, GHSA-7p8r-x3mc-p8w7, GHSA-f65p-4m7j-42xc,
+  GHSA-fph4-wmhf-6fwf, GHSA-jqff-g426-hqxp, GHSA-qw65-cvwx-89v3; js-yaml GHSA-2883-xcg3-v3hh,
+  GHSA-5p4m-2wfm-xmqj; postcss GHSA-fxqj-rqcc-2cmp, GHSA-r28c-9q8g-f849; ip-address
+  GHSA-22jq-vg5j-6vgg, GHSA-2vr4-cq9g-pvrc, GHSA-4xrf-jv44-h6hh, GHSA-j6r3-76f7-8jcv,
+  GHSA-mwp4-54f8-5fhr, GHSA-rpw4-54j3-4h4q).
+- **Java SDK:** `jackson-databind` 2.22.1 → 2.22.3 (GHSA-gx83-3vf8-gh7j, GHSA-q4xh-88c3-wmh7,
+  GHSA-wjgm-6hv5-3cvf).
+- **Dagger module (Go):** `google.golang.org/grpc` 1.84.0 (GHSA-2v4p-qf9q-27wj,
+  GHSA-qc2q-p7wx-3px3, GHSA-vp52-pcj8-j9qc).
 
 ## [2.15.0] - 2026-09-30
 

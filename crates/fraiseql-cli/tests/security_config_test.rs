@@ -320,7 +320,7 @@ fn test_auth_issuerless_jwks_uri_compiles() {
 #[test]
 fn cli_auth_schema_mirrors_every_oidcconfig_field() {
     use fraiseql_cli::config::toml_schema::OidcClientConfig;
-    use fraiseql_core::security::oidc::{MeEndpointConfig, OidcConfig};
+    use fraiseql_core::security::oidc::{MeEndpointConfig, OidcConfig, TrustedIssuer};
 
     let runtime = OidcConfig {
         issuer:               Some("https://issuer.example.com".to_string()),
@@ -337,6 +337,16 @@ fn cli_auth_schema_mirrors_every_oidcconfig_field() {
             enabled:       true,
             expose_claims: vec!["email".to_string()],
         }),
+        additional_issuers:   vec![TrustedIssuer {
+            issuer:               "https://exchange.example.com".to_string(),
+            audience:             Some("api".to_string()),
+            additional_audiences: Vec::new(),
+            allowed_algorithms:   vec!["ES256".to_string()],
+            clock_skew_secs:      10,
+            jwks_uri:             Some("https://exchange.example.com/jwks.json".to_string()),
+            scope_claim:          "scope".to_string(),
+            require_jti:          true,
+        }],
     };
 
     // Serialize as the server would read it, then parse under the CLI union schema.

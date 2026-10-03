@@ -25,7 +25,7 @@ use serde::Deserialize;
 
 use crate::security::{
     errors::{Result, SecurityError},
-    oidc::token::OidcValidator,
+    oidc::token::{IssuerProfile, OidcValidator},
 };
 
 /// OIDC Discovery document (partial).
@@ -52,7 +52,7 @@ pub struct OidcDiscoveryDocument {
     pub token_endpoint: Option<String>,
 }
 
-impl OidcValidator {
+impl IssuerProfile {
     /// The decoding key for a specific key ID.
     ///
     /// Delegates to the shared client, which fetches the publisher's set at most
@@ -94,7 +94,9 @@ impl OidcValidator {
             }
         })
     }
+}
 
+impl OidcValidator {
     /// Invalidate the cached JWKS so the next token validation refetches keys.
     ///
     /// Use this when an operator learns of an `IdP`-side key compromise or
@@ -102,13 +104,16 @@ impl OidcValidator {
     /// rather than waiting up to `jwks_cache_ttl_secs` for the cached entry to
     /// expire. The next token validation performs a fresh fetch.
     pub fn invalidate_jwks_cache(&self) {
-        self.jwks.invalidate();
+        for issuer in &self.issuers {
+            issuer.jwks.invalidate();
+        }
     }
 
     /// Force an immediate JWKS refetch, replacing the cache with the provider's
     /// current key set.
     ///
-    /// Returns the number of keys fetched. Backs the operator-facing
+    /// Every trusted issuer's key set is refetched (#1400); returns the number of keys
+    /// fetched across all of them. Backs the operator-facing
     /// `/admin/v1/auth/refresh-jwks` endpoint, which closes the stolen-key replay
     /// window on demand and confirms the refresh succeeded.
     ///
@@ -121,11 +126,14 @@ impl OidcValidator {
     /// Returns `SecurityError::SecurityConfigError` if the JWKS endpoint cannot be
     /// reached or the response cannot be parsed.
     pub async fn refresh_jwks(&self) -> Result<usize> {
-        let count = self
-            .jwks
-            .refresh()
-            .await
-            .map_err(|error| SecurityError::SecurityConfigError(error.to_string()))?;
+        let mut count = 0;
+        for issuer in &self.issuers {
+            count += issuer
+                .jwks
+                .refresh()
+                .await
+                .map_err(|error| SecurityError::SecurityConfigError(error.to_string()))?;
+        }
         tracing::info!(key_count = count, "JWKS force-refreshed from provider");
         Ok(count)
     }
