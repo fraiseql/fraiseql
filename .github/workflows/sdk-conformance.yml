@@ -173,9 +173,10 @@ jobs:
           python3 sdks/official/conformance/project_toml.py \
             sdks/official/conformance/reference/full.json \
             > /tmp/conformance-project/fraiseql.toml
-          (cd /tmp/conformance-project && "$GITHUB_WORKSPACE/target/debug/fraiseql-cli" compile \
-            "$GITHUB_WORKSPACE/sdks/official/conformance/reference/full.json" \
-            --skip-hash -o /tmp/schema.compiled.json)
+          ./target/debug/fraiseql-cli compile \
+            sdks/official/conformance/reference/full.json \
+            --config /tmp/conformance-project/fraiseql.toml \
+            --skip-hash -o /tmp/schema.compiled.json
 
       - name: Generate + type-check the TypeScript client
         run: |

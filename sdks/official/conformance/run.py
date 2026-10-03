@@ -91,17 +91,27 @@ def compile_schema(cli: Path, schema: Path, out: Path) -> dict:
     which is the whole value of compiling rather than inspecting: the compiler names the
     offending key, and that message is what an SDK author would actually see.
 
-    The compiler reads `fraiseql.toml` from its working directory, so it runs in a scratch
-    project directory holding the one `project_toml` describes.
+    The schema needs a project config declaring the roles that grant its scopes. The
+    fixture does not live in a project tree, so the config `project_toml` derives is
+    written to a scratch directory and named with `--config` (#1387: discovery reads the
+    schema's own tree, never the working directory).
     """
     with tempfile.TemporaryDirectory() as project:
-        (Path(project) / "fraiseql.toml").write_text(project_toml(schema))
+        config = Path(project) / "fraiseql.toml"
+        config.write_text(project_toml(schema))
         result = subprocess.run(
-            [str(cli.resolve()), "compile", str(schema.resolve()), "-o", str(out.resolve())],
+            [
+                str(cli.resolve()),
+                "compile",
+                str(schema.resolve()),
+                "--config",
+                str(config),
+                "-o",
+                str(out.resolve()),
+            ],
             capture_output=True,
             text=True,
             check=False,
-            cwd=project,
         )
     if result.returncode != 0:
         raise ConformanceFailure(
