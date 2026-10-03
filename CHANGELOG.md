@@ -105,6 +105,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **wasmtime and wasmtime-wasi 48.0.5** (was 48.0.3) for the `runtime-wasm` feature of
+  `fraiseql-functions`: RUSTSEC-2026-0321, -0322, -0323, -0324 (wasmtime-wasi: a WASI
+  preview 0 `poll_oneoff` that bypasses fuel metering, host memory allocated for guests
+  without stdio, uninitialised padding copied into guest memory by `fd_readdir`, a host
+  panic on a pre-epoch file timestamp under wasip3) and RUSTSEC-2026-0325, -0326, -0327
+  (wasmtime: GC heap corruption through mis-typed tag imports or missing roots across
+  `try_call`, a native stack overflow from an unvalidated async-lifted callback result).
+  Function modules are author-supplied, but a fuel bypass and host panics defeat the
+  limits the runtime promises. Patch release; `deny.toml`'s wasmtime skip-tree pin moves
+  with it.
+
 - **An authenticated request is served its token's tenant; a header cannot choose
   another.** With the multi-tenant runtime on, `X-Tenant-ID` or a registered `Host`
   decided the tenant executor whenever the caller's security context carried no tenant,
