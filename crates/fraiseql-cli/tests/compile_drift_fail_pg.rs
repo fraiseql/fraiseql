@@ -604,3 +604,67 @@ async fn an_ill_fitting_inject_default_is_named_once() {
         "a mutation already passing jwt:org_id must not receive the default again. log:\n{log}"
     );
 }
+
+/// #1382: a query whose `inject_params` key its relation cannot provide — no column of
+/// that name, and no sampled `data` row carrying it — fails `compile --database`, instead
+/// of compiling clean and answering every caller with an empty list. A relation that has
+/// the column, or whose JSON carries the key, compiles.
+#[tokio::test]
+async fn an_inject_key_the_relation_cannot_provide_fails_the_compile() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+
+    client
+        .batch_execute(
+            "DROP VIEW IF EXISTS v_cdf1382_global;
+             DROP VIEW IF EXISTS v_cdf1382_column;
+             DROP VIEW IF EXISTS v_cdf1382_json;
+             CREATE VIEW v_cdf1382_global AS
+               SELECT gen_random_uuid() AS id, '{\"name\": \"widget\"}'::jsonb AS data;
+             CREATE VIEW v_cdf1382_column AS
+               SELECT gen_random_uuid() AS id, gen_random_uuid() AS tenant_id,
+                      '{\"name\": \"widget\"}'::jsonb AS data;
+             CREATE VIEW v_cdf1382_json AS
+               SELECT gen_random_uuid() AS id,
+                      jsonb_build_object('name', 'widget', 'tenant_id', gen_random_uuid()) AS data;",
+        )
+        .await
+        .unwrap();
+
+    let schema = |view: &str| {
+        write_json(&json!({
+            "types": [{
+                "name": "Product",
+                "sql_source": view,
+                "fields": [
+                    {"name": "id", "type": "ID", "nullable": false},
+                    {"name": "name", "type": "String", "nullable": false}
+                ]
+            }],
+            "queries": [{
+                "name": "products",
+                "return_type": "Product",
+                "returns_list": true,
+                "sql_source": view,
+                "inject_params": {"tenant_id": "jwt:tenant_id"}
+            }]
+        }))
+    };
+    let out_dir = TempDir::new().unwrap();
+
+    let global = schema("v_cdf1382_global");
+    let (ok, log) = run_compile(global.path(), &url, &out_dir.path().join("g.json"), &[]);
+    assert!(!ok, "an inject key nothing in the relation carries must fail. log:\n{log}");
+    assert!(
+        log.contains("inject_params['tenant_id'] filters `v_cdf1382_global`")
+            && log.contains("none of the sampled `data` rows carries the key"),
+        "the failure must name the query's parameter, the relation and why. log:\n{log}"
+    );
+
+    for view in ["v_cdf1382_column", "v_cdf1382_json"] {
+        let fits = schema(view);
+        let (ok, log) =
+            run_compile(fits.path(), &url, &out_dir.path().join(format!("{view}.json")), &[]);
+        assert!(ok, "`{view}` provides tenant_id and must compile. log:\n{log}");
+    }
+}

@@ -149,6 +149,16 @@ disagreed, and the promise was the part that was wrong.
   enforced by database RLS replaces `mode = "row"` with `[fraiseql.security] multi_tenant = true`
   and `[fraiseql.security.rls] enabled = true`.
 
+- **`compile --database` refuses an `inject_params` key the query's relation cannot provide
+  (#1382).** A key with no matching column falls back to `data->>'key'`; when the JSON does not
+  carry it either, the predicate is false for every row and the query answers every caller
+  with an empty list, HTTP 200, no error (measured: 37 of 112 queries in one schema). With
+  `--database` the compiler now samples the relation and refuses the key, naming the query,
+  the parameter and the relation; an empty relation is reported as a warning, since nothing
+  can be concluded from it. **Upgrade:** add the column to the view, or drop the parameter from
+  queries over unscoped data (`exclude_inject_defaults` when it comes from `[inject_defaults]`).
+  A key carried only by rows outside the sample can be compiled with `--allow-drift`.
+
 ### Added
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds

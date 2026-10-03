@@ -201,6 +201,19 @@ pub enum DatabaseWarning {
         /// The argument name that has no matching native column.
         arg_name:   String,
     },
+    /// An `inject_params` key the query's relation cannot provide (#1382): no column of that
+    /// name, and no sampled `data` row carrying it — so the predicate is false for every row
+    /// and every caller gets an empty, successful answer.
+    UnresolvableInjectParam {
+        /// Name of the query.
+        query_name: String,
+        /// The `sql_source` relation.
+        sql_source: String,
+        /// The injected parameter.
+        param:      String,
+        /// Why the relation cannot provide it.
+        reason:     InjectMiss,
+    },
     /// L2: a direct query argument resolves to a native column whose SQL type cannot
     /// cleanly drive the predicate for the argument's GraphQL scalar type (e.g. an
     /// `Int` argument filtering a `uuid` column — `WHERE col = $N` errors or never
@@ -216,6 +229,23 @@ pub enum DatabaseWarning {
         graphql_type: String,
         /// The native column's SQL type (e.g. `uuid`).
         column_type:  String,
+    },
+}
+
+/// Why a relation cannot provide an injected parameter (#1382).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum InjectMiss {
+    /// No column of that name, and no JSON column to fall back on.
+    NoJsonColumn,
+    /// No column of that name, and none of the sampled rows' JSON carries the key.
+    NotInSampledRows {
+        /// The JSON column sampled.
+        json_column: String,
+    },
+    /// No column of that name, and the relation is empty, so the JSON key cannot be checked.
+    EmptyRelation {
+        /// The JSON column that would have been sampled.
+        json_column: String,
     },
 }
 
@@ -245,6 +275,11 @@ impl DatabaseWarning {
             | Self::MissingCursorColumn { .. }
             | Self::MissingPaginationColumn { .. }
             | Self::TypeConvertibility { .. } => Severity::Error,
+            // Evidence of absence fails the compile; an empty relation proves nothing.
+            Self::UnresolvableInjectParam { reason, .. } => match reason {
+                InjectMiss::NoJsonColumn | InjectMiss::NotInSampledRows { .. } => Severity::Error,
+                InjectMiss::EmptyRelation { .. } => Severity::Warn,
+            },
             Self::MissingJsonKey { field_required, .. } => {
                 if *field_required {
                     Severity::Error
@@ -401,6 +436,30 @@ impl fmt::Display for DatabaseWarning {
                     "query `{query_name}`: argument `{arg_name}` will use JSONB extraction \
                      (`{sql_source}.data->>''{arg_name}''`) — no native column `{arg_name}` found on \
                      `{sql_source}`. Add a native column with an index for O(log n) lookup."
+                )
+            },
+            Self::UnresolvableInjectParam {
+                query_name,
+                sql_source,
+                param,
+                reason,
+            } => {
+                let why = match reason {
+                    InjectMiss::NoJsonColumn => "has no JSON column to fall back on".to_string(),
+                    InjectMiss::NotInSampledRows { json_column } => {
+                        format!("and none of the sampled `{json_column}` rows carries the key")
+                    },
+                    InjectMiss::EmptyRelation { json_column } => format!(
+                        "and is empty, so whether `{json_column}` carries the key cannot be checked"
+                    ),
+                };
+                write!(
+                    f,
+                    "query `{query_name}`: inject_params['{param}'] filters `{sql_source}`, which \
+                     has no `{param}` column {why} — the predicate would match no row and every \
+                     caller would get an empty answer. Add the column to the relation, or, if this \
+                     data is not scoped by `{param}`, drop the parameter from this query \
+                     (`exclude_inject_defaults` when it comes from [inject_defaults])"
                 )
             },
             Self::TypeConvertibility {
@@ -729,6 +788,18 @@ pub async fn validate_schema_against_database(
                     arg_name,
                 });
             }
+
+            // #1382: an inject key with no column falls back to `data->>'key'` at runtime.
+            // If the JSON does not carry it either, the predicate is false for every row.
+            check_inject_params_resolvable(
+                query,
+                source,
+                &column_map,
+                db_type,
+                introspector,
+                &mut warnings,
+            )
+            .await?;
 
             // L2 (type-convertibility): a direct argument that resolved to a native
             // column whose SQL type cannot cleanly drive the predicate is a likely
@@ -1114,6 +1185,72 @@ pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector
     let pool = crate::connection::postgres_pool(db_url, "schema introspection")?;
     Ok(AnyIntrospector::Postgres(fraiseql_core::db::PostgresIntrospector::new(pool)))
 }
+
+/// Report every `inject_params` key the query's relation cannot provide (#1382).
+///
+/// A key that names a column is a native predicate. Otherwise the runtime filters on
+/// `<json_column>->>'key'`, which is only sound if the JSON carries the key: sampled rows
+/// that all lack it are evidence it never does. An empty relation proves nothing and is
+/// reported as advisory.
+async fn check_inject_params_resolvable(
+    query: &fraiseql_core::schema::QueryDefinition,
+    source: &str,
+    column_map: &HashMap<String, String>,
+    db_type: DatabaseType,
+    introspector: &impl DatabaseIntrospector,
+    warnings: &mut Vec<DatabaseWarning>,
+) -> fraiseql_core::Result<()> {
+    let unresolved: Vec<&String> = query
+        .inject_params
+        .keys()
+        .filter(|param| !column_map.contains_key(*param))
+        .collect();
+    if unresolved.is_empty() {
+        return Ok(());
+    }
+    let jsonb_col = &query.jsonb_column;
+    let json_ok = !jsonb_col.is_empty()
+        && column_map.get(jsonb_col).is_some_and(|t| is_json_type(t, db_type));
+    let carried: Option<HashSet<String>> = if json_ok {
+        let samples =
+            introspector.get_sample_json_rows(source, jsonb_col, INJECT_SAMPLE_ROWS).await?;
+        if samples.is_empty() {
+            None
+        } else {
+            Some(
+                samples
+                    .iter()
+                    .filter_map(serde_json::Value::as_object)
+                    .flat_map(|row| row.keys().cloned())
+                    .collect(),
+            )
+        }
+    } else {
+        None
+    };
+    for param in unresolved {
+        let reason = match (&carried, json_ok) {
+            (_, false) => InjectMiss::NoJsonColumn,
+            (None, true) => InjectMiss::EmptyRelation {
+                json_column: jsonb_col.clone(),
+            },
+            (Some(keys), true) if !keys.contains(param) => InjectMiss::NotInSampledRows {
+                json_column: jsonb_col.clone(),
+            },
+            (Some(_), true) => continue,
+        };
+        warnings.push(DatabaseWarning::UnresolvableInjectParam {
+            query_name: query.name.clone(),
+            sql_source: source.to_string(),
+            param: param.clone(),
+            reason,
+        });
+    }
+    Ok(())
+}
+
+/// Rows sampled to decide whether an injected parameter lives in the JSON column.
+const INJECT_SAMPLE_ROWS: usize = 20;
 
 /// Build a query's native-column map from its explicit (non-auto-param) arguments
 /// and its inject-param names, consulting the introspected `column_map`.

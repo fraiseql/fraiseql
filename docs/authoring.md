@@ -520,6 +520,13 @@ def documents(status: str | None = None) -> list[Document]:
 
 The SQL view receives `$tenant_id` as a parameter, enabling database-level tenant isolation.
 
+The key is matched against the view: a column of that name is compared natively; otherwise
+the server filters on `data->>'tenant_id'`. `compile --database` refuses a key the view can
+provide neither way — no such column, and none of the sampled `data` rows carries the key —
+because that predicate is false for every row and every caller would get an empty list. An
+empty view cannot be checked and is reported as a warning. Without `--database` the
+compiler cannot see the view, so this check needs it.
+
 > **RLS + views: make `sql_source` views `security_invoker`.** If you enforce
 > tenant isolation with PostgreSQL Row-Level Security, every `sql_source` view MUST
 > be created `WITH (security_invoker = true)` (PostgreSQL 15+):
