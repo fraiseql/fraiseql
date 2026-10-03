@@ -845,6 +845,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.database_type()
     }
 
+    fn serves_reads_from_standbys(&self) -> bool {
+        self.adapter.serves_reads_from_standbys()
+    }
+
     async fn health_check(&self) -> Result<()> {
         self.adapter.health_check().await
     }

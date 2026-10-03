@@ -14,7 +14,11 @@
 //! CLI gate and the server boot check cannot drift on the definition of "backed".
 //! Each side runs the list with its own connector.
 
-use crate::schema::{CompiledSchema, MutationOperation};
+use crate::{
+    db::{DatabaseAdapter, quote_postgres_identifier},
+    error::{FraiseQLError, Result},
+    schema::{CompiledSchema, MutationOperation},
+};
 
 /// Whether a `sql_source` names a relation (query backing) or a function
 /// (mutation backing). They are resolved differently: a relation via
@@ -121,6 +125,96 @@ pub fn sql_source_probes(schema: &CompiledSchema) -> Vec<SourceProbe> {
     }
 
     probes
+}
+
+/// Refuse a schema whose sources a hot standby cannot read, when reads go to replicas
+/// (#1390).
+///
+/// PostgreSQL refuses to read an UNLOGGED or temporary relation during recovery
+/// ("cannot access temporary or unlogged relations during recovery"), so with read
+/// replicas configured every query over such a source fails on every replica — and
+/// `pg_tviews` creates its `tv_*` tables UNLOGGED by default. Views are followed to the
+/// relations they read (a logged view over an unlogged table fails the same way);
+/// materialized views are not, because they store their own rows.
+///
+/// # Errors
+///
+/// `FraiseQLError::Configuration` naming each source and the unlogged relation it
+/// depends on.
+pub async fn refuse_standby_unreadable_sources<A: DatabaseAdapter + ?Sized>(
+    adapter: &A,
+    schema: &CompiledSchema,
+) -> Result<()> {
+    if !adapter.serves_reads_from_standbys() {
+        return Ok(());
+    }
+    let unreadable = standby_unreadable_sources(adapter, schema).await?;
+    if unreadable.is_empty() {
+        return Ok(());
+    }
+    Err(FraiseQLError::Configuration {
+        message: format!(
+            "Read replicas are configured, but {} source relation(s) of this schema depend \
+             on an UNLOGGED or temporary table, which a hot standby cannot read: every query \
+             over them would fail on every replica.\n  - {}\nMake those tables LOGGED \
+             (`ALTER TABLE … SET LOGGED`; for pg_tviews, set \
+             `pg_tviews.unlogged_by_default = off` and recreate the TVIEWs) — at the cost \
+             of WAL for every refresh — or remove `read_replica_urls`.",
+            unreadable.len(),
+            unreadable.join("\n  - ")
+        ),
+    })
+}
+
+/// The relation sources of `schema` a hot standby cannot read (#1390).
+///
+/// Each is reported as `<source> — reads <table>`, for every UNLOGGED or temporary table
+/// it depends on. Read from the primary's catalog, so it answers whether or not replicas
+/// are configured.
+///
+/// # Errors
+///
+/// `FraiseQLError::Database` if the catalog query fails.
+pub async fn standby_unreadable_sources<A: DatabaseAdapter + ?Sized>(
+    adapter: &A,
+    schema: &CompiledSchema,
+) -> Result<Vec<String>> {
+    let mut unreadable: Vec<String> = Vec::new();
+    for probe in sql_source_probes(schema) {
+        if probe.kind != SourceKind::Relation {
+            continue;
+        }
+        let ident = match &probe.schema {
+            Some(s) => format!(
+                "{}.{}",
+                quote_postgres_identifier(s),
+                quote_postgres_identifier(&probe.name)
+            ),
+            None => quote_postgres_identifier(&probe.name),
+        };
+        let literal = ident.replace('\'', "''");
+        let sql = format!(
+            "WITH RECURSIVE rel(oid, kind) AS ( \
+               SELECT c.oid, c.relkind FROM pg_class c WHERE c.oid = to_regclass('{literal}') \
+               UNION \
+               SELECT base.oid, base.relkind FROM rel \
+               JOIN pg_rewrite r ON r.ev_class = rel.oid \
+               JOIN pg_depend d ON d.classid = 'pg_rewrite'::regclass AND d.objid = r.oid \
+                                AND d.refclassid = 'pg_class'::regclass \
+               JOIN pg_class base ON base.oid = d.refobjid AND base.oid <> rel.oid \
+               WHERE rel.kind = 'v' \
+             ) \
+             SELECT c.oid::regclass::text AS relation FROM rel \
+             JOIN pg_class c ON c.oid = rel.oid WHERE c.relpersistence IN ('u', 't') \
+             ORDER BY 1"
+        );
+        for row in adapter.execute_raw_query(&sql).await? {
+            if let Some(relation) = row.get("relation").and_then(serde_json::Value::as_str) {
+                unreadable.push(format!("{} — reads {relation}", probe.display_name()));
+            }
+        }
+    }
+    Ok(unreadable)
 }
 
 #[cfg(test)]

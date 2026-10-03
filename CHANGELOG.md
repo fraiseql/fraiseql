@@ -166,6 +166,17 @@ disagreed, and the promise was the part that was wrong.
   `hierarchy: Option<HierarchyContext>`. **Upgrade:** build such clauses through
   `WhereClause::from_graphql_json` with a schema, or wrap the leaf in `InHierarchy` yourself.
 
+- **With read replicas configured, a source a hot standby cannot read refuses boot (#1390).**
+  PostgreSQL will not read an UNLOGGED or temporary relation during recovery, and pg_tviews
+  creates its `tv_*` tables UNLOGGED by default, so with `read_replica_urls` set every query on a
+  TVIEW-backed type failed on every replica while the boot health check passed. The server now
+  reads the catalog at boot (and on a schema hot-reload), follows views to the tables they read,
+  and refuses to start naming each source and the UNLOGGED table behind it. **Upgrade:** make
+  those tables LOGGED (`pg_tviews.unlogged_by_default = off` and recreate the TVIEWs, or
+  `ALTER TABLE … SET LOGGED`) — every refresh then writes WAL — or remove `read_replica_urls`.
+  Embedders: `DatabaseAdapter::serves_reads_from_standbys` (default `false`) must be forwarded
+  by a wrapping adapter.
+
 ### Added
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds

@@ -1283,6 +1283,10 @@ pub(super) async fn build_cached_adapter<A: DatabaseAdapter + Clone + Send + Syn
 
     // Turn the RLS *declaration* into a checked claim against the live catalog.
     verify_declared_rls(schema, &cached, cache_config.rls_enforcement).await?;
+    // #1390: with read replicas, every source must be readable on a hot standby.
+    fraiseql_core::schema::refuse_standby_unreadable_sources(&cached, schema)
+        .await
+        .map_err(|e| crate::ServerError::ConfigError(e.to_string()))?;
 
     Ok((cached, cache_config))
 }

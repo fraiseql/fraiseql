@@ -198,6 +198,14 @@ impl ExecutorContext {
         self.adapter.on_schema_reload();
     }
 
+    /// See [`Executor::refuse_standby_unreadable_sources`](super::Executor).
+    pub(super) async fn refuse_standby_unreadable_sources(
+        &self,
+        schema: &CompiledSchema,
+    ) -> Result<()> {
+        crate::schema::refuse_standby_unreadable_sources(&*self.adapter, schema).await
+    }
+
     /// Execute one server-composed DDL statement.
     ///
     /// Private to this module: the only public door onto it is
