@@ -92,9 +92,8 @@ one policy type can serve operation- and field-level checks.
   `requires_role` gate; both must allow. The authorizer runs first (a `Deny` is a 403); the
   `requires_role` gate keeps its enumeration-hiding *"not found in schema"* response for a
   principal that lacks the role. An allowing authorizer never bypasses `requires_role`.
-- **Response cache.** Unlike the field-level authorizer, the operation gate runs **before**
-  the response cache is consulted, so it is *always* evaluated — a warm cache never replays
-  an allow past a later deny. No cache bypass is required.
+- **Result cache.** The operation gate runs **before** the result cache is consulted, so it
+  is *always* evaluated — a warm cache never replays an allow past a later deny.
 
 ## Nested levels
 

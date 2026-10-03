@@ -685,14 +685,27 @@ pub struct SessionVariableMapping {
 /// mutation to inject per-request values (JWT claims, HTTP headers, or literals)
 /// as PostgreSQL transaction-scoped settings.  SQL functions and RLS policies can
 /// then read these via `current_setting('app.tenant_id', true)`.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SessionVariablesConfig {
     /// Per-request session variable mappings.
     #[serde(default)]
     pub variables:         Vec<SessionVariableMapping>,
-    /// Inject the built-in `fraiseql.started_at` timestamp before every mutation.
+    /// Inject the built-in `fraiseql.started_at` timestamp before every mutation (and
+    /// only mutations: no read consults it).
     #[serde(default = "session_default_true")]
     pub inject_started_at: bool,
+}
+
+/// One default whether or not `[session_variables]` is written: the timestamp is on.
+/// A derived `Default` used to say `false` while the field's serde default said `true`,
+/// so declaring an unrelated session variable switched the mutation timestamp on.
+impl Default for SessionVariablesConfig {
+    fn default() -> Self {
+        Self {
+            variables:         Vec::new(),
+            inject_started_at: session_default_true(),
+        }
+    }
 }
 
 const fn session_default_true() -> bool {

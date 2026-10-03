@@ -18,9 +18,7 @@
 //! - applies field-level RBAC to what comes back, so a function-backed field is not a hole in the
 //!   scope gates every other field passes through;
 //! - projects the selection set, recases, and stamps `__typename` with the same projector the SQL
-//!   path uses;
-//! - consults and populates the response cache on the same terms as any other read (which today
-//!   means "as little as any other read": `fraiseql-server` installs no `ResponseCache` — #1344).
+//!   path uses.
 //!
 //! That list is the argument for option A in #1329. A field that resolved outside
 //! the engine would have to re-implement every one of them, and would be wrong about

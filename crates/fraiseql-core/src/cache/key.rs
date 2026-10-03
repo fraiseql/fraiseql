@@ -48,8 +48,9 @@ use ahash::RandomState;
 use serde_json::Value as JsonValue;
 
 use crate::{
-    backend::{OrderByClause, WhereOperator, where_clause::WhereClause},
-    schema::{QueryDefinition, SqlProjectionHint},
+    backend::{OrderByClause, ProjectionRequest, WhereOperator, where_clause::WhereClause},
+    schema::QueryDefinition,
+    security::SecurityContext,
 };
 
 // Fixed seeds for deterministic hashing across process restarts.
@@ -174,6 +175,7 @@ pub fn generate_view_query_key(
     limit: Option<u32>,
     offset: Option<u32>,
     order_by: Option<&[OrderByClause]>,
+    session_vars: &[(&str, &str)],
     schema_version: &str,
 ) -> u64 {
     let mut h = new_hasher();
@@ -204,6 +206,9 @@ pub fn generate_view_query_key(
     }
     h.write(b"\0b:");
     hash_order_by(&mut h, order_by);
+    h.write(b"\0sv:");
+    hash_session_vars(&mut h, session_vars);
+
     h.write(b"\0s:");
     h.write(schema_version.as_bytes());
     h.finish()
@@ -214,24 +219,29 @@ pub fn generate_view_query_key(
 /// Like [`generate_view_query_key`] but also hashes the projection template.
 /// Domain tag `"p:"` separates these keys from plain view keys.
 ///
+/// The request is destructured without `..`, so a field added to
+/// [`ProjectionRequest`] does not compile until it is either hashed here or
+/// argued out of the key.
+///
 /// # Arguments
 ///
-/// * `view` - Database view / table name
-/// * `projection` - Optional SQL projection hint (column subset)
-/// * `where_clause` - Optional WHERE filter
-/// * `limit` - Optional row limit
-/// * `offset` - Optional row offset
+/// * `request` - The read: view, projection, WHERE, ORDER BY, limit and offset
+/// * `session_vars` - The session variables the read runs under (#1373)
 /// * `schema_version` - Schema hash from `CompiledSchema::content_hash()`
 #[must_use]
 pub fn generate_projection_query_key(
-    view: &str,
-    projection: Option<&SqlProjectionHint>,
-    where_clause: Option<&WhereClause>,
-    limit: Option<u32>,
-    offset: Option<u32>,
-    order_by: Option<&[OrderByClause]>,
+    request: &ProjectionRequest<'_>,
+    session_vars: &[(&str, &str)],
     schema_version: &str,
 ) -> u64 {
+    let ProjectionRequest {
+        view,
+        projection,
+        where_clause,
+        order_by,
+        limit,
+        offset,
+    } = *request;
     let mut h = new_hasher();
     h.write(b"p:");
     h.write(view.as_bytes());
@@ -268,114 +278,67 @@ pub fn generate_projection_query_key(
     }
     h.write(b"\0b:");
     hash_order_by(&mut h, order_by);
+    h.write(b"\0sv:");
+    hash_session_vars(&mut h, session_vars);
+
     h.write(b"\0s:");
     h.write(schema_version.as_bytes());
     h.finish()
 }
 
-/// Cache key for a **projected GraphQL response**.
+/// Hash of the principal a cached result belongs to.
 ///
-/// The response cache stores the final envelope — the exact fields, in the exact
-/// shape, under the exact response keys the document asked for. Its key must
-/// therefore cover the whole operation, not just the parts that reach SQL:
+/// Covers the fields that can change which rows a request is entitled to:
+/// `user_id`, roles, `tenant_id`, scopes and `attributes` (custom RLS policies can
+/// key on any attribute, e.g. "department" or "region"). Roles and scopes are
+/// sorted and attribute keys ordered, so the order a token lists them in does not
+/// fork the entry; every collection is length-prefixed, so a value cannot slide
+/// from one field into the next.
 ///
-/// - the compiled query name, so two queries never share a slot;
-/// - the operation name, when the document supplies one;
-/// - the **full selection tree** — every field's name, alias, arguments and directives,
-///   recursively;
-/// - the request variables, hashed canonically.
+/// Not hashed: `request_id`, `ip_address`, `authenticated_at`, `expires_at`,
+/// `issuer`, `audience` — they do not change what the principal may see.
 ///
-/// # Why the whole tree (#760)
-///
-/// The previous derivation hashed `QueryMatch::fields`, the *top-level* selection
-/// names. For `{ users { id } }` that is `["users"]`: the sub-selection never
-/// reached the hash, so `{ users { id } }` and `{ users { id name email } }`
-/// mapped to one entry and whichever ran first decided the shape the other
-/// client received. Aliases were invisible for the same reason — `fields` holds
-/// the field *name*, so `{ people: users { id } }` replayed the envelope keyed
-/// under `users` and answered nothing at all under `people`.
-///
-/// Domain tag `"r:"` separates these from view (`"v:"`), projection (`"p:"`) and
-/// generic query (`"q:"`) keys.
+/// Returns `0` when no security context is present (all anonymous requests share
+/// one scope).
 #[must_use]
-#[allow(clippy::implicit_hasher)]
-// Reason: called with the executor's std HashMap; a generic S would leak into
-// every caller for no benefit (house pattern, see `value_json::resolve_variables`).
-pub fn generate_response_cache_key(
-    query_name: &str,
-    operation_name: Option<&str>,
-    selections: &[crate::graphql::FieldSelection],
-    variables: &std::collections::HashMap<String, JsonValue>,
-) -> u64 {
-    let mut h = new_hasher();
-    h.write(b"r:");
-    h.write(query_name.as_bytes());
+pub fn hash_security_context(ctx: Option<&SecurityContext>) -> u64 {
+    let Some(ctx) = ctx else {
+        return 0;
+    };
 
-    h.write(b"\0n:");
-    match operation_name {
-        Some(name) => {
-            h.write_u8(1);
-            h.write(name.as_bytes());
-        },
-        None => h.write_u8(0),
+    let mut h = new_hasher();
+    h.write(b"u:");
+    ctx.user_id.hash(&mut h);
+
+    let mut roles: Vec<&String> = ctx.roles.iter().collect();
+    roles.sort_unstable();
+    h.write(b"r:");
+    h.write_usize(roles.len());
+    for role in roles {
+        role.hash(&mut h);
     }
 
-    h.write(b"\0f:");
-    hash_selections(&mut h, selections);
+    h.write(b"t:");
+    ctx.tenant_id.hash(&mut h);
 
-    h.write(b"\0v:");
-    h.write_usize(variables.len());
-    let mut keys: Vec<&String> = variables.keys().collect();
-    keys.sort_unstable();
-    for key in keys {
-        h.write(key.as_bytes());
-        h.write_u8(0); // separator
-        hash_json_value(&mut h, &variables[key]);
+    let mut scopes: Vec<&String> = ctx.scopes.iter().collect();
+    scopes.sort_unstable();
+    h.write(b"s:");
+    h.write_usize(scopes.len());
+    for scope in scopes {
+        scope.hash(&mut h);
+    }
+
+    let mut attribute_keys: Vec<&String> = ctx.attributes.keys().collect();
+    attribute_keys.sort_unstable();
+    h.write(b"a:");
+    h.write_usize(attribute_keys.len());
+    for key in attribute_keys {
+        key.hash(&mut h);
+        hash_json_value(&mut h, &ctx.attributes[key]);
     }
 
     h.finish()
-}
-
-/// Hash a selection set: every field's response key, name, arguments,
-/// directives and children, recursively.
-///
-/// Order is significant — the response echoes the document's field order — so
-/// the slice is hashed as written, not sorted.
-fn hash_selections(h: &mut impl Hasher, selections: &[crate::graphql::FieldSelection]) {
-    h.write_usize(selections.len());
-    for field in selections {
-        h.write(b"|");
-        h.write(field.name.as_bytes());
-        h.write(b"@");
-        h.write(field.response_key().as_bytes());
-        h.write(b"(");
-        hash_graphql_arguments(h, &field.arguments);
-        h.write(b")d:");
-        h.write_usize(field.directives.len());
-        for directive in &field.directives {
-            h.write(directive.name.as_bytes());
-            h.write(b"(");
-            hash_graphql_arguments(h, &directive.arguments);
-            h.write(b")");
-        }
-        h.write(b"{");
-        hash_selections(h, &field.nested_fields);
-        h.write(b"}");
-    }
-}
-
-/// Hash literal GraphQL arguments in document order.
-fn hash_graphql_arguments(h: &mut impl Hasher, arguments: &[crate::graphql::GraphQLArgument]) {
-    h.write_usize(arguments.len());
-    for arg in arguments {
-        h.write(arg.name.as_bytes());
-        h.write_u8(b'=');
-        // `value_json` is the parser's rendering of the literal, including a
-        // `$var` reference, so a variable used at a nested position is covered
-        // here and its *value* is covered by the variables section.
-        h.write(arg.value_json.as_bytes());
-        h.write_u8(0); // separator
-    }
 }
 
 /// Recursively hash a `serde_json::Value` into the given hasher.
@@ -620,4 +583,24 @@ pub fn verify_deterministic(query: &str, variables: &JsonValue, schema_version: 
     let key1 = generate_cache_key(query, variables, None, schema_version);
     let key2 = generate_cache_key(query, variables, None, schema_version);
     key1 == key2
+}
+
+/// Hash the session variables a read runs under, independent of the order they arrive
+/// in (#1373).
+///
+/// A view may read request context with `current_setting()`, so the rows a read
+/// returns can depend on any session variable it sets, and only the database knows
+/// whether one does. Every pair is therefore part of the key: two callers share an
+/// entry only when they would have run the read under identical settings. Names are
+/// unique per request, so sorting by name is a total order.
+fn hash_session_vars(h: &mut impl std::hash::Hasher, session_vars: &[(&str, &str)]) {
+    let mut sorted: Vec<&(&str, &str)> = session_vars.iter().collect();
+    sorted.sort_unstable_by(|a, b| a.0.cmp(b.0).then_with(|| a.1.cmp(b.1)));
+    h.write_usize(sorted.len());
+    for (name, value) in sorted {
+        h.write(name.as_bytes());
+        h.write_u8(0);
+        h.write(value.as_bytes());
+        h.write_u8(0);
+    }
 }

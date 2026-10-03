@@ -386,35 +386,26 @@ fn a_declared_auto_param_beside_a_function_is_refused() {
     );
 }
 
-// ── Settings that remain meaningful ──────────────────────────────────────────
-
-/// `additional_views`, `requires_role` and `requires_actor` all still apply.
+/// `additional_views` names the views whose writes evict cached rows; a
+/// function-backed field caches none (#1344).
 ///
-/// `additional_views` carries more weight here than anywhere else: with no
-/// `sql_source`, it is the **only** thing that tells the invalidator which writes
-/// must evict this field's cached answers. Refusing it would have left every
-/// function-backed field either uncacheable or permanently stale.
+/// Accepting the list would let an author believe they had declared an
+/// invalidation surface for a cache that never holds this field.
 #[test]
-fn cache_invalidation_and_authorization_settings_survive() {
-    let mut queries = function_backed_query();
-    queries[0]["additional_views"] = json!(["v_quote", "v_price"]);
-    queries[0]["requires_role"] = json!("sales");
-    queries[0]["requires_actor"] = json!(["human_user"]);
-
-    let artifact = accepts(corpus(queries, preview_quote()));
-    let query = artifact.schema.queries.iter().find(|q| q.name == "quotePreview").unwrap();
-    assert_eq!(query.additional_views, vec!["v_quote".to_string(), "v_price".to_string()]);
-    assert_eq!(query.requires_role.as_deref(), Some("sales"));
-    assert_eq!(query.requires_actor.len(), 1);
+fn additional_views_beside_a_function_is_refused() {
+    let message = refused_for_the_binding(corpus(
+        query_with("additional_views", json!(["v_price"])),
+        preview_quote(),
+    ));
+    assert!(
+        message.contains("additional_views") && message.contains("v_price"),
+        "the refusal must quote what was declared; got: {message}"
+    );
 }
 
-/// `cache_ttl_seconds` is refused, and the refusal names the setting that *does* apply.
-///
-/// It is a **row**-cache TTL, applied per view by `CachedDatabaseAdapter`, and a
-/// function-backed field reads no view: the number would be accepted and never
-/// applied. Pointing at `additional_views` is what keeps "not supported" from being the
-/// takeaway — that key is how the field declares its invalidation surface, and an author
-/// reaching for a TTL is usually reaching for staleness control.
+/// `cache_ttl_seconds` is a **row**-cache TTL, applied per view by
+/// `CachedDatabaseAdapter`, and a function-backed field reads no view: the number
+/// would be accepted and never applied.
 #[test]
 fn cache_ttl_seconds_beside_a_function_is_refused() {
     let message = refused_for_the_binding(corpus(
@@ -426,9 +417,25 @@ fn cache_ttl_seconds_beside_a_function_is_refused() {
         "the refusal must quote what was declared; got: {message}"
     );
     assert!(
-        message.contains("additional_views"),
-        "and name the key that governs this field's cache instead; got: {message}"
+        message.contains("not cached"),
+        "and say what happens instead, rather than point at another cache key; got: {message}"
     );
+}
+
+// ── Settings that remain meaningful ──────────────────────────────────────────
+
+/// `requires_role` and `requires_actor` still apply: the gates run before the
+/// function is asked.
+#[test]
+fn authorization_settings_survive() {
+    let mut queries = function_backed_query();
+    queries[0]["requires_role"] = json!("sales");
+    queries[0]["requires_actor"] = json!(["human_user"]);
+
+    let artifact = accepts(corpus(queries, preview_quote()));
+    let query = artifact.schema.queries.iter().find(|q| q.name == "quotePreview").unwrap();
+    assert_eq!(query.requires_role.as_deref(), Some("sales"));
+    assert_eq!(query.requires_actor.len(), 1);
 }
 
 /// Two queries may name one function — the binding runs query → function, so

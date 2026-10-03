@@ -1625,6 +1625,7 @@ pub(in super::super) async fn execute_mutation_impl(
                         sv,
                         sec_ctx,
                         ctx.schema.tenant_claim(),
+                        crate::runtime::executor::support::security::SessionPurpose::Write,
                     )?
                 },
                 _ => Vec::new(),
@@ -1832,9 +1833,6 @@ pub(in super::super) async fn execute_mutation_impl(
     };
     if !plan.views.is_empty() {
         ctx.adapter.invalidate_views(&plan.views).await?;
-        if let Some(ref rc) = ctx.response_cache {
-            let _ = rc.invalidate_views(&plan.views);
-        }
     }
     // Supplementary, not a substitute: covers entries indexed under this entity
     // when the entity's own view could not be resolved from the schema.

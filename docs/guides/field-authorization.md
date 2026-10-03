@@ -147,9 +147,10 @@ and `make lint-write-selections` refuses a write path that invents one instead.
 > any other adapter refuses a gated mutation outright rather than committing it unadjudicated.
 
 > **Performance note.** When a query selects a gated field, the runtime fetches the full
-> row (it skips the SQL projection hint) so the authorizer sees a complete `parent`, and it
-> bypasses the response cache (a per-row, per-principal decision is not safely cacheable).
-> Both effects apply only to queries that actually select a gated field.
+> row (it skips the SQL projection hint) so the authorizer sees a complete `parent`. This
+> applies only to queries that actually select a gated field. The result cache holds rows,
+> never authorized responses, so a row set served from cache is put to the authorizer again
+> on every request.
 
 ## Current limitations (tracked follow-ups)
 

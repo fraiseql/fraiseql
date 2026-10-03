@@ -1398,3 +1398,73 @@ async fn cached_adapter_forwards_a_streaming_read_instead_of_buffering_it() {
          trait default, and inheriting it silently removes the memory bound"
     );
 }
+
+// ── #1373: the row cache is keyed on the request's session variables ─────────────
+
+mod session_keyed {
+    use fraiseql_db::types::ReadRouting;
+
+    use super::*;
+
+    async fn read(
+        adapter: &CachedDatabaseAdapter<MockAdapter>,
+        session: &[(&str, &str)],
+        routing: ReadRouting,
+    ) {
+        adapter
+            .execute_where_query_arc_with_session(
+                "v_user", None, None, None, None, session, routing,
+            )
+            .await
+            .expect("mock read");
+    }
+
+    fn cached() -> CachedDatabaseAdapter<MockAdapter> {
+        CachedDatabaseAdapter::new(
+            MockAdapter::new(),
+            QueryResultCache::new(CacheConfig::enabled()),
+            "1.0.0".to_string(),
+        )
+    }
+
+    /// A read whose view may consult `current_setting()` is served from the cache to a
+    /// caller with the same session — it used to bypass the cache whenever any session
+    /// variable was set, so a deployment declaring `[session_variables]` never cached
+    /// an authenticated read.
+    #[tokio::test]
+    async fn the_same_session_is_served_from_the_cache() {
+        let adapter = cached();
+        read(&adapter, &[("app.locale", "fr")], ReadRouting::Any).await;
+        read(&adapter, &[("app.locale", "fr")], ReadRouting::Any).await;
+        assert_eq!(adapter.inner().call_count(), 1, "the second read must be a hit");
+    }
+
+    /// The failure the key exists to prevent: callers with different session values
+    /// never share an entry (#1373's translated view).
+    #[tokio::test]
+    async fn a_different_session_value_is_a_different_entry() {
+        let adapter = cached();
+        read(&adapter, &[("app.locale", "fr")], ReadRouting::Any).await;
+        read(&adapter, &[("app.locale", "en")], ReadRouting::Any).await;
+        read(&adapter, &[], ReadRouting::Any).await;
+        assert_eq!(adapter.inner().call_count(), 3, "each session must miss once");
+    }
+
+    #[tokio::test]
+    async fn the_order_session_variables_arrive_in_does_not_change_the_entry() {
+        let adapter = cached();
+        read(&adapter, &[("app.a", "1"), ("app.b", "2")], ReadRouting::Any).await;
+        read(&adapter, &[("app.b", "2"), ("app.a", "1")], ReadRouting::Any).await;
+        assert_eq!(adapter.inner().call_count(), 1);
+    }
+
+    /// A read that refused staleness (`read_routing = primary`, #957) still never
+    /// touches the cache.
+    #[tokio::test]
+    async fn a_primary_routed_read_still_bypasses_the_cache() {
+        let adapter = cached();
+        read(&adapter, &[("app.locale", "fr")], ReadRouting::Primary).await;
+        read(&adapter, &[("app.locale", "fr")], ReadRouting::Primary).await;
+        assert_eq!(adapter.inner().call_count(), 2);
+    }
+}

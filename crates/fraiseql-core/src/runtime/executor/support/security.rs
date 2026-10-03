@@ -65,6 +65,17 @@ pub(in super::super) fn enforce_enrichment_resolved(
     })
 }
 
+/// What a statement does, which decides whether it carries the mutation timestamp.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(in super::super) enum SessionPurpose {
+    /// A read: request context only. `fraiseql.started_at` times a mutation for the
+    /// change log; a read never consults it, and setting a per-request clock directive
+    /// on every read is what kept session-scoped reads out of the row cache (#1373).
+    Read,
+    /// A write: request context, plus `fraiseql.started_at` when configured.
+    Write,
+}
+
 /// Resolve session variable mappings against the current security context.
 ///
 /// Returns a list of `(name, value)` pairs to inject as PostgreSQL transaction-scoped
@@ -101,10 +112,11 @@ pub(in super::super) fn resolve_session_variables(
     config: &SessionVariablesConfig,
     security_context: &SecurityContext,
     tenant_claim: &str,
+    purpose: SessionPurpose,
 ) -> Result<Vec<(String, String)>> {
     let mut vars: Vec<(String, String)> = Vec::new();
 
-    if config.inject_started_at {
+    if config.inject_started_at && purpose == SessionPurpose::Write {
         vars.push((
             fraiseql_db::STARTED_AT_VAR.to_string(),
             fraiseql_db::CLOCK_TIMESTAMP_DIRECTIVE.to_string(),

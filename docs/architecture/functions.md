@@ -482,7 +482,7 @@ A bad declaration fails `fraiseql compile`, not server boot:
 | …whose trigger is `request:query` | a query bound to an `after:mutation` handler |
 | every `request:query` function is named by a query | a declared function no field points at — it would load, the server would boot, and nothing would ever call it |
 | no dispatch setting on a `request:query` function | `run_as`, `when`, `re_runnable`, `retry` — see below |
-| nothing that lowers into SQL beside a `function` | `relay`, `count`, `inject_params`, `pagination_order`, `auto_params`, `rest_stream`, `jsonb_column`, `read_routing`, `cache_ttl_seconds`, a `rest` override |
+| nothing that lowers into SQL beside a `function` | `relay`, `count`, `inject_params`, `pagination_order`, `auto_params`, `rest_stream`, `jsonb_column`, `read_routing`, `cache_ttl_seconds`, `additional_views`, a `rest` override |
 | `function` on a **nested** field | root fields only — see below |
 
 The last one runs only when `module_dir` exists at compile time. The compiler is then
@@ -540,7 +540,7 @@ Everything except the value. The function is asked for the field's **data**; the
 engine still enforces `requires_role` and `requires_actor` before asking, applies
 field-level RBAC — both the static `requires_scope` gate and the per-row dynamic
 authorizer (#423) — to what comes back, projects the selection set, stamps
-`__typename`, and consults and populates the response cache. That is the whole
+and stamps `__typename`. That is the whole
 argument for resolving inside the engine: a field resolved beside it would have to
 re-implement each of those and would be wrong about one within a release.
 
@@ -568,20 +568,14 @@ build with a trivial guest; ~2.65 ms of it is deno_core's own bootstrap.
 Put beside this repository's own documented read latencies — ~5–15 ms cold, well
 under 1 ms cached — that is the same order as a cold read and roughly 5× a cache hit.
 It is a defensible price for computation SQL cannot express and a poor one for
-anything a view could answer. Three consequences worth acting on:
+anything a view could answer. The consequence worth acting on:
 
-- **Declare what it reads.** With no `sql_source` there is nothing for the invalidator to infer a
-  read set from, so `additional_views` is how a function-backed field says which writes must evict
-  it. A field that reads nothing declares nothing and is invalidated by nothing — correct, because
-  nothing it returns depends on a row.
-- **`cache_ttl_seconds` is refused beside it.** A per-query TTL is applied to the **row** cache,
-  keyed by the query's view; this field reads none, so the number would be accepted and never
-  applied.
-- **Today it is not cached at all in the stock binary**, and that is worth saying plainly. The
-  engine's whole-response cache is the only facility that could cover a field with no view, and
-  `fraiseql-server` installs none (#1344) — so an invocation happens on every request. The read
-  path here consults and populates that cache exactly as the SQL path does, so the field becomes
-  cacheable the day it is wired rather than needing this decision re-made then.
+- **It is not cached.** FraiseQL's result cache keys and invalidates the rows of a relation, and
+  a function-backed field reads none, so the function runs on every request. The reads the
+  function makes through the read bridge are ordinary reads and are cached on their own terms.
+  `cache_ttl_seconds` and `additional_views` are compile errors beside `function` (#1344): each
+  would be accepted and never applied. A field whose answer is worth caching across requests is
+  usually one a view can answer.
 
 ### Which transports carry it
 
@@ -639,7 +633,8 @@ granted authority.
 
 On the query side, everything that lowers into SQL is refused likewise — `relay`,
 `count`, `pagination_order`, `auto_params`, `rest_stream`, `jsonb_column`,
-`read_routing`, `cache_ttl_seconds`, a `rest` route override, and `inject_params`.
+`read_routing`, `cache_ttl_seconds`, `additional_views`, a `rest` route override, and
+`inject_params`.
 `inject_params` is the sharp one: it is how a query is scoped to the caller's tenant,
 and dropping it does not break a field, it **widens** one.
 

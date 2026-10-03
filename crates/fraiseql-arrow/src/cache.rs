@@ -6,7 +6,7 @@
 //! # Entries are scoped to a principal (#716)
 //!
 //! Every entry lives under a *scope*: a hash of the requesting principal, from
-//! the same `hash_security_context` the executor's response cache uses. The
+//! `fraiseql_core::cache::hash_security_context`. The
 //! Flight read paths execute their SQL against the raw database adapter with no
 //! per-user row filtering, so the cache is the last place a principal boundary
 //! is still observable — and a cache keyed on the SQL text alone erases it, by
@@ -35,13 +35,13 @@ pub type CacheScope = u64;
 
 /// The cache scope for a request's principal.
 ///
-/// Reuses `fraiseql-core`'s response-cache principal hash so "which principal is
+/// Reuses `fraiseql-core`'s principal hash so "which principal is
 /// this" has one definition across every cache in the workspace: `user_id`,
 /// roles, `tenant_id`, scopes and attributes — the fields that can change which
 /// rows a request is entitled to.
 #[must_use]
 pub fn principal_scope(context: &fraiseql_core::security::SecurityContext) -> CacheScope {
-    fraiseql_core::cache::response_cache::hash_security_context(Some(context))
+    fraiseql_core::cache::hash_security_context(Some(context))
 }
 
 /// In-memory query result cache with TTL support.

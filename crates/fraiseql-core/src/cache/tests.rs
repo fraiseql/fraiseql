@@ -327,107 +327,8 @@ mod cascade_response_parser_tests {
     }
 }
 
-mod response_cache_tests {
-    use std::sync::Arc;
-
-    use crate::{
-        cache::{response_cache::hash_security_context, *},
-        security::SecurityContext,
-    };
-
-    fn enabled_config() -> ResponseCacheConfig {
-        ResponseCacheConfig {
-            enabled:     true,
-            max_entries: 100,
-            ttl_seconds: 3600,
-        }
-    }
-
-    #[test]
-    fn test_put_and_get() {
-        let cache = ResponseCache::new(enabled_config());
-        let response = Arc::new(serde_json::json!({"data": {"users": []}}));
-
-        cache
-            .put(1, 0, response.clone(), vec!["v_user".to_string()], None)
-            .expect("put should succeed");
-        let result = cache.get(1, 0).expect("get should succeed");
-        assert!(result.is_some());
-        assert_eq!(*result.expect("should be Some"), *response);
-    }
-
-    #[test]
-    fn test_different_security_contexts_different_entries() {
-        let cache = ResponseCache::new(enabled_config());
-
-        let admin_response =
-            Arc::new(serde_json::json!({"data": {"users": [{"id": "1", "role": "admin"}]}}));
-        let user_response = Arc::new(serde_json::json!({"data": {"users": [{"id": "1"}]}}));
-
-        // Same query key (1), different security hashes
-        cache
-            .put(1, 100, admin_response.clone(), vec!["v_user".to_string()], None)
-            .expect("put admin");
-        cache
-            .put(1, 200, user_response.clone(), vec!["v_user".to_string()], None)
-            .expect("put user");
-
-        let admin_result = cache.get(1, 100).expect("get admin").expect("admin hit");
-        let user_result = cache.get(1, 200).expect("get user").expect("user hit");
-
-        assert_ne!(*admin_result, *user_result);
-        assert_eq!(*admin_result, *admin_response);
-        assert_eq!(*user_result, *user_response);
-    }
-
-    #[test]
-    fn test_invalidate_views() {
-        let cache = ResponseCache::new(enabled_config());
-
-        cache
-            .put(1, 0, Arc::new(serde_json::json!("r1")), vec!["v_user".to_string()], None)
-            .expect("put 1");
-        cache
-            .put(2, 0, Arc::new(serde_json::json!("r2")), vec!["v_post".to_string()], None)
-            .expect("put 2");
-
-        // Flush pending moka writes before invalidation
-        cache.run_pending_tasks();
-
-        let invalidated = cache.invalidate_views(&[ViewName::from("v_user")]).expect("invalidate");
-        assert_eq!(invalidated, 1);
-
-        // Flush invalidations
-        cache.run_pending_tasks();
-
-        assert!(cache.get(1, 0).expect("get 1").is_none());
-        assert!(cache.get(2, 0).expect("get 2").is_some());
-    }
-
-    #[test]
-    fn test_disabled_cache_returns_none() {
-        let cache = ResponseCache::new(ResponseCacheConfig::default());
-        assert!(!cache.is_enabled());
-
-        cache
-            .put(1, 0, Arc::new(serde_json::json!("r")), vec![], None)
-            .expect("put disabled");
-        assert!(cache.get(1, 0).expect("get disabled").is_none());
-    }
-
-    #[test]
-    fn test_metrics() {
-        let cache = ResponseCache::new(enabled_config());
-
-        cache.put(1, 0, Arc::new(serde_json::json!("r")), vec![], None).expect("put");
-        cache.run_pending_tasks();
-        let _ = cache.get(1, 0); // hit
-        let _ = cache.get(2, 0); // miss
-
-        let (hits, misses) = cache.metrics();
-        assert_eq!(hits, 1);
-        assert_eq!(misses, 1);
-    }
+mod principal_hash_tests {
+    use crate::{cache::hash_security_context, security::SecurityContext};
 
     // ========================================================================
     // Security Context Hash Tests
@@ -535,161 +436,6 @@ mod response_cache_tests {
             hash_security_context(Some(&ctx_no_attrs)),
             "Attributes vs no attributes must produce different hashes"
         );
-    }
-
-    // ========================================================================
-    // Invalidation Edge Cases
-    // ========================================================================
-
-    #[test]
-    fn test_invalidate_empty_views_is_noop() {
-        let cache = ResponseCache::new(enabled_config());
-        cache
-            .put(1, 0, Arc::new(serde_json::json!("r")), vec!["v_user".to_string()], None)
-            .expect("put");
-        cache.run_pending_tasks();
-
-        let invalidated = cache.invalidate_views(&[] as &[ViewName]).expect("invalidate empty");
-        assert_eq!(invalidated, 0);
-        assert!(cache.get(1, 0).expect("still cached").is_some());
-    }
-
-    #[test]
-    fn test_invalidate_nonexistent_view_is_noop() {
-        let cache = ResponseCache::new(enabled_config());
-        cache
-            .put(1, 0, Arc::new(serde_json::json!("r")), vec!["v_user".to_string()], None)
-            .expect("put");
-        cache.run_pending_tasks();
-
-        let invalidated = cache
-            .invalidate_views(&[ViewName::from("v_nonexistent")])
-            .expect("invalidate nonexistent");
-        assert_eq!(invalidated, 0);
-        assert!(cache.get(1, 0).expect("still cached").is_some());
-    }
-
-    #[test]
-    fn test_invalidate_clears_all_security_contexts_for_view() {
-        let cache = ResponseCache::new(enabled_config());
-
-        // Same query, different users, same view
-        cache
-            .put(1, 100, Arc::new(serde_json::json!("admin")), vec!["v_user".to_string()], None)
-            .expect("put admin");
-        cache
-            .put(1, 200, Arc::new(serde_json::json!("user")), vec!["v_user".to_string()], None)
-            .expect("put user");
-        cache
-            .put(1, 0, Arc::new(serde_json::json!("anon")), vec!["v_user".to_string()], None)
-            .expect("put anon");
-        cache.run_pending_tasks();
-
-        let invalidated = cache.invalidate_views(&[ViewName::from("v_user")]).expect("invalidate");
-        assert_eq!(invalidated, 3, "All entries for the view must be invalidated");
-
-        cache.run_pending_tasks();
-
-        assert!(cache.get(1, 100).expect("admin gone").is_none());
-        assert!(cache.get(1, 200).expect("user gone").is_none());
-        assert!(cache.get(1, 0).expect("anon gone").is_none());
-    }
-
-    #[test]
-    fn test_invalidate_multiple_views_at_once() {
-        let cache = ResponseCache::new(enabled_config());
-
-        cache
-            .put(1, 0, Arc::new(serde_json::json!("users")), vec!["v_user".to_string()], None)
-            .expect("put users");
-        cache
-            .put(2, 0, Arc::new(serde_json::json!("posts")), vec!["v_post".to_string()], None)
-            .expect("put posts");
-        cache
-            .put(3, 0, Arc::new(serde_json::json!("tags")), vec!["v_tag".to_string()], None)
-            .expect("put tags");
-        cache.run_pending_tasks();
-
-        let invalidated = cache
-            .invalidate_views(&[ViewName::from("v_user"), ViewName::from("v_post")])
-            .expect("invalidate");
-        assert_eq!(invalidated, 2);
-
-        cache.run_pending_tasks();
-
-        assert!(cache.get(1, 0).expect("users gone").is_none());
-        assert!(cache.get(2, 0).expect("posts gone").is_none());
-        assert!(cache.get(3, 0).expect("tags alive").is_some());
-    }
-
-    #[test]
-    fn test_entry_with_multiple_views_invalidated_by_any() {
-        let cache = ResponseCache::new(enabled_config());
-
-        // Query reads from both v_user and v_post (e.g., a join)
-        cache
-            .put(
-                1,
-                0,
-                Arc::new(serde_json::json!("joined")),
-                vec!["v_user".to_string(), "v_post".to_string()],
-                None,
-            )
-            .expect("put");
-        cache.run_pending_tasks();
-
-        // Invalidating either view should remove the entry
-        let invalidated = cache.invalidate_views(&[ViewName::from("v_post")]).expect("invalidate");
-        assert_eq!(invalidated, 1);
-
-        cache.run_pending_tasks();
-        assert!(cache.get(1, 0).expect("gone").is_none());
-    }
-
-    // ========================================================================
-    // Response Cache Key Collision Avoidance
-    // ========================================================================
-
-    #[test]
-    fn test_different_query_keys_no_collision() {
-        let cache = ResponseCache::new(enabled_config());
-
-        cache
-            .put(1, 0, Arc::new(serde_json::json!("response_1")), vec![], None)
-            .expect("put q1");
-        cache
-            .put(2, 0, Arc::new(serde_json::json!("response_2")), vec![], None)
-            .expect("put q2");
-        cache.run_pending_tasks();
-
-        let r1 = cache.get(1, 0).expect("get q1").expect("q1 hit");
-        let r2 = cache.get(2, 0).expect("get q2").expect("q2 hit");
-
-        assert_eq!(*r1, serde_json::json!("response_1"));
-        assert_eq!(*r2, serde_json::json!("response_2"));
-    }
-
-    #[test]
-    fn test_same_query_key_different_security_no_collision() {
-        let cache = ResponseCache::new(enabled_config());
-
-        for sec_hash in 0_u64..10 {
-            cache
-                .put(
-                    42,
-                    sec_hash,
-                    Arc::new(serde_json::json!(format!("response_for_user_{sec_hash}"))),
-                    vec![],
-                    None,
-                )
-                .expect("put");
-        }
-        cache.run_pending_tasks();
-
-        for sec_hash in 0_u64..10 {
-            let r = cache.get(42, sec_hash).expect("get").expect("should be cached");
-            assert_eq!(*r, serde_json::json!(format!("response_for_user_{sec_hash}")));
-        }
     }
 
     // ========================================================================
@@ -1812,8 +1558,8 @@ mod key_tests {
         let asc = [OrderByClause::new("name".into(), OrderDirection::Asc)];
         let desc = [OrderByClause::new("name".into(), OrderDirection::Desc)];
 
-        let key_asc = generate_view_query_key("v_user", None, None, None, Some(&asc), "v1");
-        let key_desc = generate_view_query_key("v_user", None, None, None, Some(&desc), "v1");
+        let key_asc = generate_view_query_key("v_user", None, None, None, Some(&asc), &[], "v1");
+        let key_desc = generate_view_query_key("v_user", None, None, None, Some(&desc), &[], "v1");
 
         assert_ne!(key_asc, key_desc, "Different order directions must produce different keys");
     }
@@ -1839,7 +1585,7 @@ mod key_tests {
             }),
         };
         let key = |tenant: &str| {
-            generate_view_query_key("v_member", Some(&guarded(tenant)), None, None, None, "v1")
+            generate_view_query_key("v_member", Some(&guarded(tenant)), None, None, None, &[], "v1")
         };
         assert_ne!(key("A"), key("B"), "callers with different guards must not share an entry");
         assert_eq!(key("A"), key("A"));
@@ -1871,7 +1617,7 @@ mod key_tests {
             }),
         };
         let key = |tenant: &str| {
-            generate_view_query_key("v_member", Some(&guarded(tenant)), None, None, None, "v1")
+            generate_view_query_key("v_member", Some(&guarded(tenant)), None, None, None, &[], "v1")
         };
         assert_ne!(key("A"), key("B"), "callers with different predicates must not share an entry");
         assert_eq!(key("A"), key("A"));
@@ -1883,8 +1629,8 @@ mod key_tests {
 
         let clauses = [OrderByClause::new("createdAt".into(), OrderDirection::Desc)];
 
-        let key1 = generate_view_query_key("v_user", None, None, None, Some(&clauses), "v1");
-        let key2 = generate_view_query_key("v_user", None, None, None, Some(&clauses), "v1");
+        let key1 = generate_view_query_key("v_user", None, None, None, Some(&clauses), &[], "v1");
+        let key2 = generate_view_query_key("v_user", None, None, None, Some(&clauses), &[], "v1");
 
         assert_eq!(key1, key2, "Same order_by must produce identical keys");
     }
@@ -1895,8 +1641,9 @@ mod key_tests {
 
         let clauses = [OrderByClause::new("name".into(), OrderDirection::Asc)];
 
-        let key_with = generate_view_query_key("v_user", None, None, None, Some(&clauses), "v1");
-        let key_without = generate_view_query_key("v_user", None, None, None, None, "v1");
+        let key_with =
+            generate_view_query_key("v_user", None, None, None, Some(&clauses), &[], "v1");
+        let key_without = generate_view_query_key("v_user", None, None, None, None, &[], "v1");
 
         assert_ne!(key_with, key_without, "Presence of order_by must change key");
     }
@@ -1908,8 +1655,10 @@ mod key_tests {
         let by_name = [OrderByClause::new("name".into(), OrderDirection::Asc)];
         let by_date = [OrderByClause::new("createdAt".into(), OrderDirection::Asc)];
 
-        let key_name = generate_view_query_key("v_user", None, None, None, Some(&by_name), "v1");
-        let key_date = generate_view_query_key("v_user", None, None, None, Some(&by_date), "v1");
+        let key_name =
+            generate_view_query_key("v_user", None, None, None, Some(&by_name), &[], "v1");
+        let key_date =
+            generate_view_query_key("v_user", None, None, None, Some(&by_date), &[], "v1");
 
         assert_ne!(key_name, key_date, "Different order_by fields must produce different keys");
     }
@@ -1920,10 +1669,16 @@ mod key_tests {
 
         let clauses = [OrderByClause::new("name".into(), OrderDirection::Asc)];
 
-        let key_with =
-            generate_projection_query_key("v_user", None, None, None, None, Some(&clauses), "v1");
-        let key_without =
-            generate_projection_query_key("v_user", None, None, None, None, None, "v1");
+        let ordered = crate::backend::ProjectionRequest {
+            order_by: Some(&clauses),
+            ..crate::backend::ProjectionRequest::new("v_user")
+        };
+        let key_with = generate_projection_query_key(&ordered, &[], "v1");
+        let key_without = generate_projection_query_key(
+            &crate::backend::ProjectionRequest::new("v_user"),
+            &[],
+            "v1",
+        );
 
         assert_ne!(key_with, key_without, "Projection key must include order_by");
     }
@@ -3395,154 +3150,6 @@ mod eviction_lifecycle_tests {
             "#740: an evicted entry must not linger in entity_index"
         );
     }
-
-    /// The same lifecycle bug exists verbatim in `ResponseCache` (#740).
-    #[test]
-    fn recached_response_is_still_reachable_by_view_invalidation() {
-        use std::sync::Arc;
-
-        let cache = ResponseCache::new(ResponseCacheConfig {
-            enabled:     true,
-            max_entries: 100,
-            ttl_seconds: 0,
-        });
-        let body = Arc::new(json!({"data": {"users": []}}));
-
-        cache.put(7, 0, Arc::clone(&body), vec!["v_user".to_string()], None).unwrap();
-        cache.put(7, 0, Arc::clone(&body), vec!["v_user".to_string()], None).unwrap();
-        cache.run_pending_tasks();
-
-        assert_eq!(
-            cache.invalidate_views(&[ViewName::from("v_user")]).unwrap(),
-            1,
-            "#740: a re-cached response must still be reachable through view_index"
-        );
-        cache.run_pending_tasks();
-        assert!(
-            cache.get(7, 0).unwrap().is_none(),
-            "#740: the live response entry must actually be gone after invalidate_views"
-        );
-    }
-}
-
-/// `generate_response_cache_key` must separate any two operations that could
-/// produce a different response (#760).
-///
-/// Driven through the real parser so the hashed selection trees are the ones the
-/// executor sees — including nested field arguments, which no end-to-end
-/// assertion can reach because they never reach SQL.
-mod response_cache_key_tests {
-    use crate::{
-        cache::generate_response_cache_key,
-        runtime::QueryMatcher,
-        schema::{
-            AutoParams, CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition,
-        },
-    };
-
-    fn schema() -> CompiledSchema {
-        let mut schema = CompiledSchema::new();
-        let mut users =
-            QueryDefinition::new("users", "User").returning_list().with_sql_source("v_user");
-        // These operations paginate, and since #1154 an argument the query does
-        // not accept is a validation error rather than a silently dropped one.
-        users.auto_params = AutoParams::all();
-        schema.queries.push(users);
-        let mut user = TypeDefinition::new("User", "v_user");
-        user.fields = vec![
-            FieldDefinition::new("id", FieldType::Int),
-            FieldDefinition::nullable("name", FieldType::String),
-            FieldDefinition::nullable("email", FieldType::String),
-            FieldDefinition::nullable(
-                "posts",
-                FieldType::List(Box::new(FieldType::Object("Post".to_string()))),
-            ),
-        ];
-        let mut post = TypeDefinition::new("Post", "v_post");
-        post.fields = vec![
-            FieldDefinition::new("id", FieldType::Int),
-            FieldDefinition::nullable("title", FieldType::String),
-        ];
-        schema.types.push(user);
-        schema.types.push(post);
-        schema
-    }
-
-    fn key_of(query: &str, variables: Option<&serde_json::Value>) -> u64 {
-        let matcher = QueryMatcher::new(schema());
-        let m = matcher.match_query(query, variables).expect("query must match");
-        generate_response_cache_key(
-            &m.query_def.name,
-            m.operation_name.as_deref(),
-            &m.selections,
-            &m.arguments,
-        )
-    }
-
-    /// Every pair here differs in a way the response can show, so every pair must
-    /// land in a different cache slot.
-    #[test]
-    fn any_difference_in_the_operation_changes_the_key() {
-        let pairs: &[(&str, &str, &str)] = &[
-            ("sub-selection width", "{ users { id } }", "{ users { id name } }"),
-            ("sub-selection identity", "{ users { name } }", "{ users { email } }"),
-            ("sub-selection order", "{ users { id name } }", "{ users { name id } }"),
-            ("root alias", "{ users { id } }", "{ people: users { id } }"),
-            ("nested alias", "{ users { id } }", "{ users { ident: id } }"),
-            ("root argument", "{ users(limit: 3) { id } }", "{ users(limit: 50) { id } }"),
-            (
-                "nested field argument",
-                "{ users { id posts(limit: 3) { id } } }",
-                "{ users { id posts(limit: 50) { id } } }",
-            ),
-            ("depth", "{ users { id posts { id } } }", "{ users { id posts { id title } } }"),
-            ("operation name", "query A { users { id } }", "query B { users { id } }"),
-        ];
-
-        for (what, left, right) in pairs {
-            assert_ne!(
-                key_of(left, None),
-                key_of(right, None),
-                "#760: operations differing in {what} must not share a cache slot\n  {left}\n  \
-                 {right}"
-            );
-        }
-    }
-
-    #[test]
-    fn different_variable_values_change_the_key() {
-        let q = "query Q($limit: Int) { users(limit: $limit) { id } }";
-        assert_ne!(
-            key_of(q, Some(&serde_json::json!({"limit": 3}))),
-            key_of(q, Some(&serde_json::json!({"limit": 50}))),
-        );
-    }
-
-    /// Determinism, in both directions: the same operation must hit, and the key
-    /// must not depend on the order the client wrote its variables in.
-    #[test]
-    fn the_key_is_stable_across_variable_ordering() {
-        let q = "query Q($a: Int, $b: Int) { users(limit: $a, offset: $b) { id } }";
-        let one = key_of(q, Some(&serde_json::json!({"a": 1, "b": 2})));
-        let two = key_of(q, Some(&serde_json::json!({"b": 2, "a": 1})));
-        assert_eq!(one, two, "variable insertion order must not fork the cache");
-        assert_eq!(one, key_of(q, Some(&serde_json::json!({"a": 1, "b": 2}))));
-    }
-
-    #[test]
-    fn an_identical_operation_reuses_its_slot() {
-        let q = "{ users { id posts(limit: 3) { id title } } }";
-        assert_eq!(key_of(q, None), key_of(q, None));
-    }
-
-    /// The whitespace a client happens to use is not a response difference.
-    #[test]
-    fn formatting_alone_does_not_fork_the_cache() {
-        assert_eq!(
-            key_of("{ users { id name } }", None),
-            key_of("{\n  users {\n    id\n    name\n  }\n}", None),
-        );
-    }
 }
 
 // ── invalidation_fence_tests ────────────────────────────────────────────────
@@ -3563,13 +3170,9 @@ mod response_cache_key_tests {
 /// performed between the snapshot and the put, exactly where the race puts it. A
 /// probabilistic version would be a flake in CI and a false green on a fast runner.
 mod invalidation_fence_tests {
-    use std::sync::Arc;
-
     use fraiseql_db::ViewName;
 
-    use crate::cache::{
-        CacheConfig, QueryResultCache, ResponseCache, response_cache::ResponseCacheConfig,
-    };
+    use crate::cache::{CacheConfig, QueryResultCache};
 
     fn row_cache() -> QueryResultCache {
         QueryResultCache::new(CacheConfig::enabled())
@@ -3668,62 +3271,6 @@ mod invalidation_fence_tests {
             before,
             "clear must move the fence generation — a read in flight across a clear must \
              not repopulate it"
-        );
-    }
-
-    // ── the same defect, one layer up ───────────────────────────────────────
-    //
-    // The mutation runner invalidates both caches in the same block, so the identical
-    // window strands whole GraphQL responses, not just row sets. Fixing only the row
-    // cache would leave the user-visible half live.
-
-    fn response_cache() -> ResponseCache {
-        ResponseCache::new(ResponseCacheConfig {
-            enabled: true,
-            ..Default::default()
-        })
-    }
-
-    #[test]
-    fn a_response_written_across_an_invalidation_is_discarded() {
-        let cache = response_cache();
-        let fence = cache.invalidation_generation();
-        cache.invalidate_views(&[ViewName::from("v_user")]).unwrap();
-
-        cache
-            .put(
-                7,
-                0,
-                Arc::new(serde_json::json!({"data": {"user": {"name": "pre"}}})),
-                vec!["v_user".to_string()],
-                Some(fence),
-            )
-            .unwrap();
-
-        assert!(
-            cache.get(7, 0).unwrap().is_none(),
-            "a response computed from pre-mutation rows must not be cached (#1079)"
-        );
-    }
-
-    #[test]
-    fn an_uncontended_response_still_caches() {
-        let cache = response_cache();
-        let fence = cache.invalidation_generation();
-
-        cache
-            .put(
-                7,
-                0,
-                Arc::new(serde_json::json!({"data": {"user": {"name": "n"}}})),
-                vec!["v_user".to_string()],
-                Some(fence),
-            )
-            .unwrap();
-
-        assert!(
-            cache.get(7, 0).unwrap().is_some(),
-            "an uncontended response must still be cached"
         );
     }
 }

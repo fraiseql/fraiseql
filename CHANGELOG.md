@@ -103,6 +103,31 @@ disagreed, and the promise was the part that was wrong.
   default key field; declared `key_fields` are emitted as written and judged by the compiler.
   The block no longer carries `apollo_version`.
 
+- **The whole-response cache is removed (#1344).** `cache::ResponseCache`,
+  `ResponseCacheConfig`, `Executor::with_response_cache` / `Executor::response_cache` and
+  `cache::generate_response_cache_key` are gone. `fraiseql-server` never installed one, so no
+  deployment served from it; what remained was a second cache an embedder could switch on,
+  whose key had to re-derive every input the row cache, the field authorizer and the operation
+  gate already account for. The row cache (`CachedDatabaseAdapter`) is FraiseQL's result cache.
+  `cache::response_cache::hash_security_context` moves to `cache::hash_security_context`; it is
+  now length-prefixed per field and hashes attribute values structurally, so its values differ
+  from before (they are in-process cache scopes, never persisted). **Upgrade:** drop the
+  `with_response_cache` call; wrap the adapter in `CachedDatabaseAdapter` to cache reads.
+- **`additional_views` is refused beside `function` (#1344).** A function-backed query reads no
+  relation, so no cache holds it and its `additional_views` were accepted and never applied. The
+  compile now refuses them, as it already refused `cache_ttl_seconds` there. **Upgrade:** delete
+  the key from function-backed queries.
+- **Reads no longer set `fraiseql.started_at`, and the timestamp is on by default everywhere
+  (#1373).** `inject_started_at` stamped a per-request clock on every read under
+  `[session_variables]` as well as on mutations; it is the mutation timestamp, and no read
+  consults it. Separately, a schema with no `[session_variables]` section compiled with it
+  **off**, while declaring any session variable turned it **on** (the struct's `Default` and its
+  serde default disagreed); both now say on. **Upgrade:** a view that reads
+  `current_setting('fraiseql.started_at')` uses `statement_timestamp()` instead; a project that
+  wants no timestamp on mutations sets `[fraiseql.session_variables] inject_started_at = false`.
+  Embedders calling `cache::generate_view_query_key` pass the read's session variables, and
+  `cache::generate_projection_query_key` takes the `ProjectionRequest` plus them.
+
 ### Added
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds
@@ -184,6 +209,15 @@ disagreed, and the promise was the part that was wrong.
   in an acronym after the first word is no longer kept whole: `consolePs3` gives
   `console_ps_3` (was `console_ps3`), as `ps3` as a first word always did. Register `ps3`
   to keep it whole.
+
+- **The row cache works under `[session_variables]`, and keys on them (#1373).** Every read on a
+  schema that declares session variables bypassed the result cache (#329), so the cache was
+  inert for exactly the deployments that scope rows by `current_setting()` — RLS keyed on a JWT
+  claim or a header. The suspected cross-tenant replay does not reproduce: that bypass held, and
+  removing it alone is caught by `cache_rls_isolation_test`. Session-scoped reads are now cached,
+  keyed on the variables they run under (sorted, so arrival order does not fork an entry), and
+  run under them on a miss; two requests share an entry only when they agree on the WHERE clause
+  **and** every session variable. A read routed to the primary still bypasses the cache.
 
 ### Security
 

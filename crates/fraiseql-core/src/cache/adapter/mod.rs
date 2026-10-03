@@ -798,9 +798,15 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_with_projection_impl(view, projection, where_clause, limit, offset, order_by)
-            .await
-            .map(Arc::unwrap_or_clone)
+        let request = crate::backend::ProjectionRequest {
+            view,
+            projection,
+            where_clause,
+            order_by,
+            limit,
+            offset,
+        };
+        self.execute_with_projection_impl(&request, &[]).await.map(Arc::unwrap_or_clone)
     }
 
     async fn execute_where_query(
@@ -811,7 +817,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
-        self.execute_where_query_impl(view, where_clause, limit, offset, order_by)
+        self.execute_where_query_impl(view, where_clause, limit, offset, order_by, &[])
             .await
             .map(Arc::unwrap_or_clone)
     }
@@ -820,15 +826,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         &self,
         request: &crate::backend::ProjectionRequest<'_>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_with_projection_impl(
-            request.view,
-            request.projection,
-            request.where_clause,
-            request.limit,
-            request.offset,
-            request.order_by,
-        )
-        .await
+        self.execute_with_projection_impl(request, &[]).await
     }
 
     async fn execute_where_query_arc(
@@ -839,7 +837,8 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        self.execute_where_query_impl(view, where_clause, limit, offset, order_by).await
+        self.execute_where_query_impl(view, where_clause, limit, offset, order_by, &[])
+            .await
     }
 
     fn database_type(&self) -> DatabaseType {
@@ -923,21 +922,20 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        // No session variables => preserve the cached read path unchanged, unless
-        // the query refused staleness (#957). `read_routing = primary` is asked for
-        // when stale data is a correctness problem, and a cache hit is stale data by
-        // construction — serving one would give that query the opposite of what it
-        // asked for, through a different door.
-        if session_vars.is_empty() && routing.allows_cached_result() {
+        // The cached path, keyed on the session variables (#1373), unless the query
+        // refused staleness (#957). `read_routing = primary` is asked for when stale
+        // data is a correctness problem, and a cache hit is stale data by construction
+        // — serving one would give that query the opposite of what it asked for,
+        // through a different door.
+        //
+        // This used to bypass the cache whenever any session variable was set, because
+        // the key did not include them: correct, but it meant a deployment declaring
+        // `[session_variables]` cached no authenticated read at all.
+        if routing.allows_cached_result() {
             return self
-                .execute_where_query_impl(view, where_clause, limit, offset, order_by)
+                .execute_where_query_impl(view, where_clause, limit, offset, order_by, session_vars)
                 .await;
         }
-        // Security: the result-cache key is NOT session-variable-aware, so a
-        // tenant-scoped read (RLS via current_setting) could otherwise leak
-        // another tenant's cached rows. Bypass the cache and run the read with
-        // session affinity on the inner adapter. Tracked for a cache-key fix:
-        // see #329 follow-up.
         self.adapter
             .execute_where_query_arc_with_session(
                 view,
@@ -957,22 +955,11 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
-        // No session variables => preserve the cached read path unchanged, unless
-        // the query refused staleness — see execute_where_query_arc_with_session.
-        if session_vars.is_empty() && routing.allows_cached_result() {
-            return self
-                .execute_with_projection_impl(
-                    request.view,
-                    request.projection,
-                    request.where_clause,
-                    request.limit,
-                    request.offset,
-                    request.order_by,
-                )
-                .await;
+        // Keyed on the session variables (#1373), unless the query refused staleness —
+        // see execute_where_query_arc_with_session.
+        if routing.allows_cached_result() {
+            return self.execute_with_projection_impl(request, session_vars).await;
         }
-        // Security: see execute_where_query_arc_with_session — bypass the
-        // non-tenant-aware cache for session-scoped reads.
         self.adapter
             .execute_with_projection_arc_with_session(request, session_vars, routing)
             .await

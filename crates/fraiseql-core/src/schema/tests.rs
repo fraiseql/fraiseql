@@ -1807,3 +1807,15 @@ fn embedded_survives_a_serialize_deserialize_roundtrip() {
         serde_json::from_str(&serde_json::to_string(&ty).unwrap()).unwrap();
     assert!(restored.embedded, "the declaration survives the compiled schema");
 }
+
+/// One default for `inject_started_at`, whether or not `[session_variables]` is
+/// written: a derived `Default` said `false` while the serde field default said
+/// `true`, so the same deployment injected the timestamp or not depending on whether
+/// it had declared any other session variable.
+#[test]
+fn inject_started_at_has_one_default() {
+    let absent = crate::schema::SessionVariablesConfig::default();
+    let empty_section: crate::schema::SessionVariablesConfig = serde_json::from_str("{}").unwrap();
+    assert_eq!(absent.inject_started_at, empty_section.inject_started_at);
+    assert!(absent.inject_started_at, "documented default: inject before every mutation");
+}

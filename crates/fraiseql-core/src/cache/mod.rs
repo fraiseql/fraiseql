@@ -204,7 +204,6 @@ mod invalidation;
 mod invalidation_api;
 mod key;
 mod relay_cache;
-pub mod response_cache;
 mod result;
 
 // Cascading invalidation with transitive dependencies
@@ -243,13 +242,12 @@ pub use fraiseql_db::ViewName;
 pub use invalidation::{InvalidationContext, InvalidationReason};
 pub use key::{
     extract_accessed_views, generate_cache_key, generate_projection_query_key,
-    generate_response_cache_key, generate_view_query_key,
+    generate_view_query_key, hash_security_context,
 };
 pub use mutation_reach::{
     declares_cacheable_views, statically_resolved_views, unattributable_mutations,
 };
 pub use query_analyzer::{QueryAnalyzer, QueryCardinality, QueryEntityProfile};
-pub use response_cache::{ResponseCache, ResponseCacheConfig};
 pub use result::{CacheMetrics, CachedResult, QueryResultCache};
 pub use uuid_extractor::UUIDExtractor;
 

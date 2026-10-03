@@ -109,9 +109,6 @@ pub(super) struct ExecutorContext {
     /// Stores the projected `Value` behind an `Arc` so a hit is an O(1)
     /// ref-count bump, matching how the unprojected response was served.
     pub(super) introspection_projections: MokaCache<u64, Arc<serde_json::Value>>,
-
-    /// Optional executor-level response cache.
-    pub(super) response_cache: Option<Arc<crate::cache::ResponseCache>>,
 }
 
 impl ExecutorContext {

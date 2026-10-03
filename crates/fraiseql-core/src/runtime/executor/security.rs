@@ -38,10 +38,13 @@ pub fn resolve_session_variables(
     schema: &crate::schema::CompiledSchema,
     security_context: &SecurityContext,
 ) -> crate::error::Result<Vec<(String, String)>> {
+    // An arbitrary statement (the admin SQL console previews writes too) gets
+    // everything the executor would set for a write.
     support::security::resolve_session_variables(
         &schema.session_variables,
         security_context,
         schema.tenant_claim(),
+        support::security::SessionPurpose::Write,
     )
 }
 
@@ -315,6 +318,7 @@ mod session_variable_tests {
             config,
             ctx,
             crate::schema::security_config::DEFAULT_TENANT_CLAIM,
+            super::support::security::SessionPurpose::Write,
         )
     }
 

@@ -2,7 +2,7 @@
 //!
 //! The engine asks a [`QueryFunctionResolver`] for the field's *data* and does
 //! everything else itself: the role and actor gates before, field-level RBAC,
-//! selection projection, `__typename` stamping and the response cache after. That
+//! selection projection and `__typename` stamping after. That
 //! division is the whole argument for resolving inside the engine rather than beside
 //! it — a field answered outside would have to re-implement each of those and would
 //! be wrong about one of them within a release.
@@ -16,6 +16,10 @@
 //!   control does not break a field, it widens one.
 //! * **No pagination.** `limit`/`offset`/`orderBy` are auto-params, refused for the same reason. A
 //!   function that returns a page returns it whole.
+//! * **No caching.** The result cache keys and invalidates rows of a relation; this field reads
+//!   none, so every request runs the function. The compiler refuses `cache_ttl_seconds` and
+//!   `additional_views` beside a `function` declaration rather than accept a cache policy nothing
+//!   honours (#1344).
 //!
 //! # The anonymous RLS gate does not apply here
 //!
@@ -28,8 +32,6 @@
 //! that lets an unauthenticated visitor be quoted a price.
 
 use std::sync::Arc;
-
-use tracing::debug;
 
 use super::query::QueryRunner;
 use crate::{
@@ -108,55 +110,9 @@ impl QueryRunner {
             )?;
         }
 
-        // The response cache, on the same terms as every other read (#1329 Cycle 4).
-        // It is not a nicety here: an invocation costs ~5–8 ms before the guest does
-        // any work, so a field that answers from cache is a 5 ms field only on a miss.
-        // The key is the same derivation every other read uses, so a dimension added
-        // there reaches this cache too — including the security hash, which is what
-        // stops one caller's answer reaching another.
-        //
-        // ⚠ `fraiseql-server` installs no `ResponseCache` today, so in the shipped
-        // binary this is a miss on every request — for a SQL-backed read as much as
-        // for this one (#1344). It is here because the alternative is a read path that
-        // stays uncacheable the day the cache is wired, and because the row cache the
-        // server *does* run is keyed by view and cannot cover a field that reads none.
-        // That is also why `cache_ttl_seconds`, a row-cache TTL, is a compile error
-        // beside a `function` rather than a number accepted and ignored.
-        //
-        // Invalidation comes from `additional_views`: with no `sql_source` there is
-        // nothing for the invalidator to infer a read set from, so a function-backed
-        // field that reads relations declares them, and one that reads none is
-        // invalidated by nothing — which is correct, because nothing it returns
-        // depends on a row.
-        //
-        // A selected policy-gated field is **not** cached, for the reason the SQL path
-        // does not cache one either (D5b): the decision is per row and per principal,
-        // so an entry would serve one caller's verdict to the next.
-        let cache_key = self
-            .ctx
-            .response_cache
-            .as_ref()
-            .filter(|rc| rc.is_enabled() && !gated_present)
-            .map(|_| {
-                (
-                    Self::compute_response_cache_key(query_match),
-                    crate::cache::response_cache::hash_security_context(security_context),
-                )
-            });
-        let cache_fence = self.ctx.response_cache.as_ref().map(|rc| rc.invalidation_generation());
-
-        if let (Some((query_key, sec_hash)), Some(rc)) =
-            (cache_key, self.ctx.response_cache.as_ref())
-        {
-            if let Some(cached) = rc.get(query_key, sec_hash)? {
-                debug!(
-                    target: "fraiseql::cache::response",
-                    event = "hit", query = %field, query_key, sec_hash,
-                    "response cache hit (function-backed)"
-                );
-                return Ok(Arc::unwrap_or_clone(cached));
-            }
-        }
+        // A function-backed field is not cached: the row cache is keyed by the view a
+        // read scans, and this field scans none. Its cost is the invocation, on every
+        // request (#1344).
 
         // Static field-level RBAC, classified **before** the invocation on both paths:
         // an `on_deny = Reject` refuses here, so a caller who may not read a selected
@@ -267,15 +223,6 @@ impl QueryRunner {
 
         let response =
             ResultProjector::wrap_in_data_envelope(projected, query_match.response_key());
-
-        if let (Some((query_key, sec_hash)), Some(rc)) =
-            (cache_key, self.ctx.response_cache.as_ref())
-        {
-            let accessed = crate::cache::extract_accessed_views(query_def);
-            let cached = Arc::new(response);
-            let _ = rc.put(query_key, sec_hash, Arc::clone(&cached), accessed, cache_fence);
-            return Ok(Arc::unwrap_or_clone(cached));
-        }
 
         Ok(response)
     }

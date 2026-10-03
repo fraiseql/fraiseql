@@ -181,11 +181,14 @@ impl Executor {
         // `data->>` view shape and cannot be composed onto the columnar entity table.
         let row_filters = self.build_entities_row_filters(&representations, security_context)?;
         let resolved_session_vars = match security_context {
-            Some(sc)
-                if !self.ctx.schema.session_variables.variables.is_empty()
-                    || self.ctx.schema.session_variables.inject_started_at =>
-            {
-                super::super::security::resolve_session_variables(&self.ctx.schema, sc)?
+            Some(sc) if !self.ctx.schema.session_variables.variables.is_empty() => {
+                // An entity lookup is a read: request context only (#1373).
+                super::security::resolve_session_variables(
+                    &self.ctx.schema.session_variables,
+                    sc,
+                    self.ctx.schema.tenant_claim(),
+                    super::security::SessionPurpose::Read,
+                )?
             },
             _ => Vec::new(),
         };

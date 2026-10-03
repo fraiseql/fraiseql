@@ -2476,7 +2476,7 @@ mod field_authz {
 
     use super::*;
     use crate::{
-        cache::{ResponseCache, ResponseCacheConfig},
+        cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
         error::{FraiseQLError, Result as FqlResult},
         security::{FieldAuthorizer, FieldAuthzDecision, FieldAuthzRequest},
     };
@@ -2533,8 +2533,8 @@ mod field_authz {
         }
     }
 
-    /// First call → Allow, every later call → Deny(Mask). Proves the response cache is
-    /// bypassed for gated queries (D5b): a stale `Allow` is never replayed.
+    /// First call → Allow, every later call → Deny(Mask). Proves a cached row set is
+    /// re-authorized on every read (D5b): a stale `Allow` is never replayed.
     struct FlipAuthorizer {
         calls: AtomicUsize,
     }
@@ -2771,30 +2771,35 @@ mod field_authz {
         assert!(users[0]["email"].is_null(), "statically-masked field stays null");
     }
 
-    // CACHE-BYPASS (D5b): with the response cache enabled, a gated query is never cached,
-    // so a policy that flips Allow→Deny between calls is honoured fresh each time.
+    // CACHE (D5b): the cache holds rows, never authorized responses. A field policy that
+    // flips Allow→Deny between calls is honoured on the second call even though its rows
+    // are served from a warm cache.
     #[tokio::test]
-    async fn response_cache_bypassed_for_gated_query() {
-        let cache = Arc::new(ResponseCache::new(ResponseCacheConfig {
-            enabled:     true,
-            max_entries: 100,
-            ttl_seconds: 3600,
-        }));
+    async fn a_warm_row_cache_does_not_replay_a_field_allow() {
+        let adapter = Arc::new(CachedDatabaseAdapter::new(
+            MockAdapter::new(rows()),
+            QueryResultCache::new(CacheConfig::enabled()),
+            "1".into(),
+        ));
         let executor = Executor::with_config(
             gated_schema(None),
-            Arc::new(MockAdapter::new(rows())),
+            Arc::clone(&adapter),
             RuntimeConfig::default().with_field_authorizer(Arc::new(FlipAuthorizer {
                 calls: AtomicUsize::new(0),
             })),
-        )
-        .with_response_cache(cache);
+        );
 
         let q = "{ users { id email } }";
         let first = executor.execute_with_security(q, None, &ctx("user-1")).await.unwrap();
         let second = executor.execute_with_security(q, None, &ctx("user-1")).await.unwrap();
 
-        // First call → Allow (email present); second → Deny(Mask) (email null).
-        // If the cache were used, the second would replay the first.
+        assert_eq!(
+            adapter.cache().metrics().unwrap().hits,
+            1,
+            "precondition: the second read must be served from the warm cache"
+        );
+        // First call → Allow (email present); second → Deny(Mask) (email null), on
+        // the same cached rows.
         assert_eq!(first["data"]["users"][0]["email"], "alice@x.com");
         assert!(
             second["data"]["users"][0]["email"].is_null(),
@@ -2852,7 +2857,7 @@ mod operation_authz {
 
     use super::*;
     use crate::{
-        cache::{ResponseCache, ResponseCacheConfig},
+        cache::{CacheConfig, CachedDatabaseAdapter, QueryResultCache},
         error::{FraiseQLError, Result as FqlResult},
         schema::{MutationDefinition, MutationOperation},
         security::{Authorizer, AuthzDecision, AuthzRequest},
@@ -2915,7 +2920,7 @@ mod operation_authz {
     }
 
     /// First call → Allow, every later call → Deny. Proves the gate runs BEFORE the
-    /// response cache: a stale `Allow` is never replayed for a now-denied operation.
+    /// result cache: a stale `Allow` is never replayed for a now-denied operation.
     struct Flip {
         calls: AtomicUsize,
     }
@@ -3165,32 +3170,42 @@ mod operation_authz {
         assert!(is_authz(&err), "authorizer deny must win (403), got {err:?}");
     }
 
-    // ---- response cache safety --------------------------------------------
+    // ---- result cache safety ----------------------------------------------
 
-    // The gate runs before the response cache: a warm cache from an earlier Allow does
+    // The gate runs before the result cache: a warm cache from an earlier Allow does
     // NOT let a later Deny through.
     #[tokio::test]
-    async fn deny_not_bypassed_by_warm_response_cache() {
-        let cache = Arc::new(ResponseCache::new(ResponseCacheConfig {
-            enabled:     true,
-            max_entries: 100,
-            ttl_seconds: 3600,
-        }));
+    async fn deny_not_bypassed_by_warm_result_cache() {
+        let adapter = Arc::new(CachedDatabaseAdapter::new(
+            MockAdapter::new(mock_user_results()),
+            QueryResultCache::new(CacheConfig::enabled()),
+            "1".into(),
+        ));
         let executor = Executor::with_config(
             test_schema(),
-            Arc::new(MockAdapter::new(mock_user_results())),
+            Arc::clone(&adapter),
             RuntimeConfig::default().with_authorizer(Arc::new(Flip {
                 calls: AtomicUsize::new(0),
             })),
-        )
-        .with_response_cache(cache);
+        );
 
         let q = "{ users { id name } }";
         // First call → Allow → executes and warms the cache.
         assert!(executor.execute_with_security(q, None, &ctx("u1")).await.is_ok());
-        // Second call → Deny → 403, even though the cache holds the first response.
+        adapter.cache().run_pending_tasks();
+        assert_eq!(
+            adapter.cache().metrics().unwrap().size,
+            1,
+            "precondition: the first read must warm the cache"
+        );
+        // Second call → Deny → 403, even though the cache holds the first read's rows.
         let err = executor.execute_with_security(q, None, &ctx("u1")).await.unwrap_err();
         assert!(is_authz(&err), "a warm cache must not replay an Allow past a later Deny");
+        assert_eq!(
+            adapter.cache().metrics().unwrap().hits,
+            0,
+            "the gate runs before the cache is consulted"
+        );
     }
 
     // ---- no authorizer configured → zero-cost no-op ------------------------
@@ -3580,135 +3595,6 @@ mod where_types_reach_the_generator {
         assert_declares(&clause, "age", ScalarFieldType::Integer);
         let sql = rendered(&clause);
         assert!(sql.contains("::bigint"), "an Int field compares as an integer: {sql}");
-    }
-}
-
-/// The response cache must key on the whole operation, not on the root field (#760).
-///
-/// `compute_response_cache_key` hashed `QueryMatch::fields`, which is the list of
-/// *top-level* selection names — for `{ users { id } }` that is `["users"]`, and
-/// nothing below the root reached the hash. Two documents that share a root field
-/// and root arguments therefore shared a cache slot, and the second client was
-/// served the first one's response shape.
-mod response_cache_key {
-    use std::{collections::HashMap, sync::Arc};
-
-    use chrono::Utc;
-
-    use super::MockAdapter;
-    use crate::{
-        backend::types::JsonbValue,
-        cache::{ResponseCache, ResponseCacheConfig},
-        runtime::Executor,
-        schema::{CompiledSchema, FieldDefinition, FieldType, QueryDefinition, TypeDefinition},
-        security::SecurityContext,
-    };
-
-    fn schema() -> CompiledSchema {
-        let mut schema = CompiledSchema::new();
-        schema
-            .queries
-            .push(QueryDefinition::new("users", "User").returning_list().with_sql_source("v_user"));
-        let mut user = TypeDefinition::new("User", "v_user");
-        user.fields = vec![
-            FieldDefinition::new("id", FieldType::Int),
-            FieldDefinition::nullable("name", FieldType::String),
-            FieldDefinition::nullable("email", FieldType::String),
-        ];
-        schema.types.push(user);
-        schema
-    }
-
-    fn rows() -> Vec<JsonbValue> {
-        vec![JsonbValue::new(serde_json::json!({
-            "id": 1, "name": "Alice", "email": "alice@x.com"
-        }))]
-    }
-
-    fn principal() -> SecurityContext {
-        SecurityContext {
-            user_id:          "user-1".into(),
-            roles:            vec![],
-            tenant_id:        None,
-            scopes:           vec![],
-            attributes:       HashMap::default(),
-            request_id:       "req-cache-key".to_string(),
-            ip_address:       None,
-            expires_at:       Utc::now() + chrono::Duration::hours(1),
-            authenticated_at: Utc::now(),
-            issuer:           None,
-            audience:         None,
-            email:            None,
-            display_name:     None,
-        }
-    }
-
-    fn executor_with_response_cache() -> Executor {
-        Executor::new(schema(), Arc::new(MockAdapter::new(rows()))).with_response_cache(Arc::new(
-            ResponseCache::new(ResponseCacheConfig {
-                enabled:     true,
-                max_entries: 100,
-                ttl_seconds: 3600,
-            }),
-        ))
-    }
-
-    #[tokio::test]
-    async fn a_wider_sub_selection_is_not_served_the_narrower_cached_response() {
-        let executor = executor_with_response_cache();
-        let ctx = principal();
-
-        let narrow = executor.execute_with_security("{ users { id } }", None, &ctx).await.unwrap();
-        assert!(narrow["data"]["users"][0]["name"].is_null(), "control: `name` was not selected");
-
-        let wide = executor
-            .execute_with_security("{ users { id name email } }", None, &ctx)
-            .await
-            .unwrap();
-        assert_eq!(
-            wide["data"]["users"][0]["name"], "Alice",
-            "#760: a different sub-selection must not collide with the cached narrow response"
-        );
-        assert_eq!(wide["data"]["users"][0]["email"], "alice@x.com");
-    }
-
-    #[tokio::test]
-    async fn a_narrower_sub_selection_is_not_served_the_wider_cached_response() {
-        let executor = executor_with_response_cache();
-        let ctx = principal();
-
-        let wide = executor
-            .execute_with_security("{ users { id name email } }", None, &ctx)
-            .await
-            .unwrap();
-        assert_eq!(wide["data"]["users"][0]["email"], "alice@x.com");
-
-        let narrow = executor.execute_with_security("{ users { id } }", None, &ctx).await.unwrap();
-        assert!(
-            narrow["data"]["users"][0]["email"].is_null(),
-            "#760: the cached wide response must not over-return fields the client did not select"
-        );
-    }
-
-    /// The root alias decides the response key, and `QueryMatch::fields` holds
-    /// the field *name*, so two aliases of the same query hashed identically.
-    #[tokio::test]
-    async fn a_root_alias_does_not_collide_with_the_unaliased_query() {
-        let executor = executor_with_response_cache();
-        let ctx = principal();
-
-        let plain = executor.execute_with_security("{ users { id } }", None, &ctx).await.unwrap();
-        assert!(plain["data"]["users"].is_array());
-
-        let aliased = executor
-            .execute_with_security("{ people: users { id } }", None, &ctx)
-            .await
-            .unwrap();
-        assert!(
-            aliased["data"]["people"].is_array(),
-            "#760: an aliased root must answer under its alias, not replay the cached `users` \
-             envelope: {aliased}"
-        );
     }
 }
 

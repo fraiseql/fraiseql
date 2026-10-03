@@ -30,11 +30,14 @@ impl AggregateRunner {
     ) -> Result<Vec<(String, String)>> {
         let sv = &self.ctx.schema.session_variables;
         match security_context {
-            Some(sec) if !sv.variables.is_empty() || sv.inject_started_at => {
+            // A read carries request context only; the mutation timestamp is never
+            // set on one (#1373).
+            Some(sec) if !sv.variables.is_empty() => {
                 crate::runtime::executor::support::security::resolve_session_variables(
                     sv,
                     sec,
                     self.ctx.schema.tenant_claim(),
+                    crate::runtime::executor::support::security::SessionPurpose::Read,
                 )
             },
             _ => Ok(Vec::new()),

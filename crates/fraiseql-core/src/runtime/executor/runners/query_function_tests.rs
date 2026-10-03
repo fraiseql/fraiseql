@@ -2,8 +2,8 @@
 //!
 //! Every test here drives the **engine**, not the resolver: the point of resolving
 //! inside the executor is that the role gate, the actor gate, field-level RBAC, the
-//! selection projection and the response cache still apply, and a stub resolver that
-//! returns a fixed document is enough to prove each of them does.
+//! and the selection projection still apply, and a stub resolver that returns a fixed
+//! document is enough to prove each of them does.
 //!
 //! The stub also records what it was handed, because half of what the engine owes a
 //! function is on the way *in* — the resolved arguments, the field name and the
@@ -463,143 +463,24 @@ async fn the_read_bridge_still_serves_a_sql_backed_field() {
     assert_eq!(response["data"]["rows"][0]["id"], "r-1");
 }
 
-// ── The response cache, on the query's own rules (#1329 Cycle 4) ─────────────
+// ── No response cache (#1344) ─────────────────────────────────────────────────
 //
-// Load-bearing rather than a nicety: an invocation costs ~5–8 ms before the guest
-// does any work, so a field that answers from cache is a 5 ms field only on a miss.
-// Each test below counts **invocations**, not responses — a cache that returned the
-// right answer while still spending an isolate would pass an equality assertion and
-// fail the only property anyone wants from it.
+// A function-backed field has no `sql_source`, so the row cache has nothing to key
+// and no relation to invalidate on: every request runs the function. The compiler
+// refuses `cache_ttl_seconds` and `additional_views` on such a field, so nothing in
+// the schema can claim otherwise.
 
-fn caching_executor(schema: CompiledSchema, resolver: Arc<StubResolver>) -> Executor {
-    let cache = Arc::new(crate::cache::ResponseCache::new(crate::cache::ResponseCacheConfig {
-        enabled:     true,
-        max_entries: 100,
-        ttl_seconds: 3600,
-    }));
-    Executor::with_config(
-        schema,
-        Arc::new(MockAdapter::new(vec![])),
-        RuntimeConfig::default().with_query_function_resolver(resolver),
-    )
-    .with_response_cache(cache)
-}
-
-/// A repeated request answers from cache and does not invoke the function again.
+/// A repeated request invokes the function again: there is no layer that could
+/// replay an earlier caller's answer.
 #[tokio::test]
-async fn a_repeated_function_backed_request_answers_from_cache() {
+async fn a_repeated_function_backed_request_invokes_the_function_each_time() {
     let resolver = StubResolver::answering(serde_json::json!({"id": "q-1", "total": 4200}));
-    let executor = caching_executor(quote_schema(), Arc::clone(&resolver));
-
-    let first = executor.execute(DOCUMENT, None).await.unwrap();
-    let second = executor.execute(DOCUMENT, None).await.unwrap();
-
-    assert_eq!(first, second, "the cached answer must be the same answer");
-    assert_eq!(
-        resolver.calls().len(),
-        1,
-        "the second request must not spend an isolate: {:?}",
-        resolver.calls()
-    );
-}
-
-/// Different arguments are different cache entries — the key is the same derivation
-/// every other read uses, so it carries the arguments.
-#[tokio::test]
-async fn a_different_argument_is_a_different_cache_entry() {
-    let resolver = StubResolver::answering(serde_json::json!({"id": "q-1", "total": 1}));
-    let executor = caching_executor(quote_schema(), Arc::clone(&resolver));
-
-    executor
-        .execute(r#"{ quotePreview(sku: "ABC-1") { id } }"#, None)
-        .await
-        .unwrap();
-    executor
-        .execute(r#"{ quotePreview(sku: "XYZ-9") { id } }"#, None)
-        .await
-        .unwrap();
-
-    assert_eq!(resolver.calls().len(), 2, "a different sku is a different question");
-}
-
-/// Two principals do not share a cache entry.
-///
-/// A function runs **as its caller** and may read rows only that caller can see, so
-/// an entry keyed without the principal would serve one caller's answer to another.
-/// Asserted by invocation count rather than by comparing responses: this stub
-/// answers both callers identically, and a fixture where both see the same value
-/// proves nothing about who the entry belongs to.
-#[tokio::test]
-async fn two_principals_do_not_share_a_cached_function_result() {
-    let resolver = StubResolver::answering(serde_json::json!({"id": "q-1", "total": 1}));
-    let executor = caching_executor(quote_schema(), Arc::clone(&resolver));
-
-    executor
-        .execute_with_security(DOCUMENT, None, &principal("alice"))
-        .await
-        .unwrap();
-    executor.execute_with_security(DOCUMENT, None, &principal("bob")).await.unwrap();
-
-    let callers: Vec<Option<String>> = resolver.calls().into_iter().map(|c| c.principal).collect();
-    assert_eq!(
-        callers,
-        vec![Some("alice".to_string()), Some("bob".to_string())],
-        "each principal must be asked for its own answer"
-    );
-}
-
-/// A write to a declared `additional_views` relation evicts the cached answer.
-///
-/// With no `sql_source` there is nothing for the invalidator to infer a read set
-/// from, so `additional_views` **is** the declaration of what this field depends on.
-/// Without it a function-backed field would be either uncacheable or permanently
-/// stale; this is the half that makes it neither.
-#[tokio::test]
-async fn a_write_to_a_declared_view_evicts_a_function_backed_answer() {
-    let mut schema = quote_schema();
-    schema.queries[0].additional_views = vec!["v_price".to_string()];
-    schema.build_indexes();
-    let resolver = StubResolver::answering(serde_json::json!({"id": "q-1", "total": 1}));
-    let executor = caching_executor(schema, Arc::clone(&resolver));
+    let executor = executor_with(quote_schema(), Some(Arc::clone(&resolver)));
 
     executor.execute(DOCUMENT, None).await.unwrap();
     executor.execute(DOCUMENT, None).await.unwrap();
-    assert_eq!(resolver.calls().len(), 1, "precondition: the second request hit the cache");
 
-    executor
-        .response_cache()
-        .unwrap()
-        .invalidate_views(&[crate::cache::ViewName::from("v_price")])
-        .unwrap();
-
-    executor.execute(DOCUMENT, None).await.unwrap();
-    assert_eq!(
-        resolver.calls().len(),
-        2,
-        "a write to a declared view must send the next request back to the function"
-    );
-}
-
-/// A field declaring no views is not evicted by an unrelated write.
-///
-/// The negative direction of the test above, and the one that shows the eviction is
-/// keyed on the declaration rather than firing for every write: a function that
-/// reads nothing depends on no row, and nothing a mutation touches can make its
-/// answer stale.
-#[tokio::test]
-async fn a_write_to_an_undeclared_view_leaves_a_function_backed_answer_cached() {
-    let resolver = StubResolver::answering(serde_json::json!({"id": "q-1", "total": 1}));
-    let executor = caching_executor(quote_schema(), Arc::clone(&resolver));
-
-    executor.execute(DOCUMENT, None).await.unwrap();
-    executor
-        .response_cache()
-        .unwrap()
-        .invalidate_views(&[crate::cache::ViewName::from("v_unrelated")])
-        .unwrap();
-    executor.execute(DOCUMENT, None).await.unwrap();
-
-    assert_eq!(resolver.calls().len(), 1, "an unrelated write must not evict this answer");
+    assert_eq!(resolver.calls().len(), 2, "each request must reach the function");
 }
 
 // ── The read runs as the caller (#1328's bridge, #1329's field) ──────────────

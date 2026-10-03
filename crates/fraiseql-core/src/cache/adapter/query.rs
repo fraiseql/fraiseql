@@ -5,15 +5,16 @@
 
 use std::sync::Arc;
 
+use fraiseql_db::types::ReadRouting;
+
 use super::CachedDatabaseAdapter;
 use crate::{
     backend::{
-        DatabaseAdapter, WhereClause,
+        DatabaseAdapter, ProjectionRequest, WhereClause,
         types::{JsonbValue, sql_hints::OrderByClause},
     },
     cache::key::{generate_projection_query_key, generate_view_query_key},
     error::Result,
-    schema::SqlProjectionHint,
 };
 
 /// Derives the GraphQL entity type name from a database view name.
@@ -62,37 +63,26 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     /// directly (one atomic increment).  On a miss the result is wrapped in a fresh
     /// `Arc`, an `Arc::clone` is stored in the cache, and the original `Arc` is
     /// returned — again without cloning the `Vec` contents.
-    #[tracing::instrument(skip_all, fields(cache.view = view))]
+    #[tracing::instrument(skip_all, fields(cache.view = request.view))]
     pub(super) async fn execute_with_projection_impl(
         &self,
-        view: &str,
-        projection: Option<&SqlProjectionHint>,
-        where_clause: Option<&WhereClause>,
-        limit: Option<u32>,
-        offset: Option<u32>,
-        order_by: Option<&[OrderByClause]>,
+        request: &ProjectionRequest<'_>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Arc<Vec<JsonbValue>>> {
+        let view = request.view;
         // Short-circuit when cache is disabled, or when opt-in mode is active and
         // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates
         // key-generation allocations entirely for un-annotated views.
         if !self.cache.is_enabled() || (self.opt_in_mode && !self.cacheable_views.contains(view)) {
             return self
                 .adapter
-                .execute_with_projection(view, projection, where_clause, limit, offset, order_by)
-                .await
-                .map(Arc::new);
+                .execute_with_projection_arc_with_session(request, session_vars, ReadRouting::Any)
+                .await;
         }
 
-        // Generate cache key — zero heap allocations on the hot path.
-        let cache_key = generate_projection_query_key(
-            view,
-            projection,
-            where_clause,
-            limit,
-            offset,
-            order_by,
-            &self.schema_version,
-        );
+        // Generate cache key — zero heap allocations on the hot path, bar the sort of
+        // the session variables (#1373).
+        let cache_key = generate_projection_query_key(request, session_vars, &self.schema_version);
 
         // Hit: return cached Arc directly — zero-copy, just one atomic increment.
         if let Some(cached_arc) = self.cache.get(cache_key)? {
@@ -108,11 +98,12 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         // Miss: wrap result in Arc, give a clone to the cache, return the Arc.
         // The Vec contents are never copied — the cache and the caller share the
         // same allocation via Arc reference counting.
-        let arc = Arc::new(
-            self.adapter
-                .execute_with_projection(view, projection, where_clause, limit, offset, order_by)
-                .await?,
-        );
+        // The read runs under its session variables (with connection affinity, #329):
+        // the entry stored is the result for exactly the settings it is keyed on.
+        let arc = self
+            .adapter
+            .execute_with_projection_arc_with_session(request, session_vars, ReadRouting::Any)
+            .await?;
 
         // Store in cache; derive entity type from view name so that
         // selective entity-level invalidation can target precise entries.
@@ -139,11 +130,10 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
     ///
     /// # Cache isolation in RLS deployments
     ///
-    /// Tenant isolation is provided structurally: the `where_clause` always contains the
-    /// RLS filter (tenant-scoped `inject_params` applied by the executor), so two requests
-    /// from different tenants produce different `WHERE` clauses → different cache keys →
-    /// independent cache entries.  No additional runtime bypass is needed because the key
-    /// already incorporates all per-request variation.
+    /// Isolation is structural: the key covers everything that can change the rows — the
+    /// `WHERE` clause (where tenant-scoped `inject_params` land) **and** the session
+    /// variables the read runs under (where `current_setting()`-backed RLS and request
+    /// context land, #1373). Two requests share an entry only when both agree.
     ///
     /// The `has_rls` flag is retained for observability and future extension (e.g., metrics
     /// on RLS-aware cache behaviour).
@@ -155,6 +145,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
+        session_vars: &[(&str, &str)],
     ) -> Result<Arc<Vec<JsonbValue>>> {
         // Short-circuit when cache is disabled, or when opt-in mode is active and
         // the view has no explicit `cache_ttl_seconds` annotation.  This eliminates
@@ -162,18 +153,26 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         if !self.cache.is_enabled() || (self.opt_in_mode && !self.cacheable_views.contains(view)) {
             return self
                 .adapter
-                .execute_where_query(view, where_clause, limit, offset, order_by)
-                .await
-                .map(Arc::new);
+                .execute_where_query_arc_with_session(
+                    view,
+                    where_clause,
+                    limit,
+                    offset,
+                    order_by,
+                    session_vars,
+                    ReadRouting::Any,
+                )
+                .await;
         }
 
-        // Generate cache key — zero heap allocations on the hot path.
+        // Generate cache key (#1373: the session variables are part of it).
         let cache_key = generate_view_query_key(
             view,
             where_clause,
             limit,
             offset,
             order_by,
+            session_vars,
             &self.schema_version,
         );
 
@@ -186,11 +185,19 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
         let fence = self.cache.invalidation_generation();
 
         // Miss: wrap result in Arc, give a clone to the cache, return the Arc.
-        let arc = Arc::new(
-            self.adapter
-                .execute_where_query(view, where_clause, limit, offset, order_by)
-                .await?,
-        );
+        // Run under the session variables it is keyed on (#329 affinity, #1373 key).
+        let arc = self
+            .adapter
+            .execute_where_query_arc_with_session(
+                view,
+                where_clause,
+                limit,
+                offset,
+                order_by,
+                session_vars,
+                ReadRouting::Any,
+            )
+            .await?;
 
         // Store in cache with entity-type index so that mutation-side
         // invalidate_by_entity() can evict only the entries that actually

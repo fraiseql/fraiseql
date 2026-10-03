@@ -3,7 +3,6 @@
 use std::sync::Arc;
 
 use futures::StreamExt as _;
-use tracing::debug;
 
 use super::{
     super::resolve_inject_value,
@@ -216,11 +215,14 @@ impl QueryRunner {
     ) -> Result<Vec<(String, String)>> {
         let sv = &self.ctx.schema.session_variables;
         match security_context {
-            Some(sec) if !sv.variables.is_empty() || sv.inject_started_at => {
+            // A read carries request context only; the mutation timestamp is never
+            // set on one (#1373).
+            Some(sec) if !sv.variables.is_empty() => {
                 crate::runtime::executor::support::security::resolve_session_variables(
                     sv,
                     sec,
                     self.ctx.schema.tenant_claim(),
+                    crate::runtime::executor::support::security::SessionPurpose::Read,
                 )
             },
             _ => Ok(Vec::new()),
@@ -471,9 +473,9 @@ impl QueryRunner {
         }
 
         // 0a. Detect whether a policy-gated field (#423) is selected (top-level or
-        //     nested). When so, the per-row dynamic authorizer decision is neither
-        //     cacheable (D5b) nor compatible with a selection-stripped row, so the
-        //     response cache and the SQL projection hint are both bypassed below.
+        //     nested). When so, the per-row dynamic authorizer decision is not
+        //     compatible with a selection-stripped row, so the SQL projection hint is
+        //     bypassed below.
         let root_fields: &[crate::graphql::FieldSelection] =
             query_match.selections.first().map_or(&[], |r| r.nested_fields.as_slice());
         let gated_present = crate::security::field_authorizer::selection_set_selects_gated_field(
@@ -481,66 +483,6 @@ impl QueryRunner {
             &query_match.query_def.return_type,
             root_fields,
         );
-
-        // 0. Check response cache (skips all projection/RBAC/serialization work on hit)
-        let response_cache_key = if !gated_present
-            && self.ctx.response_cache.as_ref().is_some_and(|rc| rc.is_enabled())
-        {
-            let query_key = Self::compute_response_cache_key(&query_match);
-            let sec_hash =
-                crate::cache::response_cache::hash_security_context(Some(security_context));
-            Some((query_key, sec_hash))
-        } else {
-            None
-        };
-
-        // Snapshot before the miss path does any work (#1079). A mutation that commits
-        // and invalidates while this request executes would otherwise be undone by the
-        // put at the end of this function, which would store a response computed from
-        // pre-mutation rows.
-        let response_cache_fence =
-            self.ctx.response_cache.as_ref().map(|rc| rc.invalidation_generation());
-
-        if let (Some((query_key, sec_hash)), Some(rc)) =
-            (response_cache_key, self.ctx.response_cache.as_ref())
-        {
-            if let Some(cached) = rc.get(query_key, sec_hash)? {
-                // F040: explicit hit event so operators can correlate slow
-                // requests with cache state from logs alone.
-                debug!(
-                    target: "fraiseql::cache::response",
-                    event = "hit",
-                    query = %query_match.query_def.name,
-                    query_key,
-                    sec_hash,
-                    "response cache hit"
-                );
-                // F002: `Arc::unwrap_or_clone` takes ownership when the cache
-                // entry is uniquely held (the common case once moka has
-                // returned an `Arc::clone`), avoiding the recursive deep
-                // clone of every JSON node. The fallback clone only fires
-                // when another reader is racing on the same key.
-                return Ok(Arc::unwrap_or_clone(cached));
-            }
-            // F040: miss → DB execution will run below. Emit before the
-            // expensive plan/projection work so the event timestamps the
-            // start of the slow path.
-            debug!(
-                target: "fraiseql::cache::response",
-                event = "miss",
-                query = %query_match.query_def.name,
-                query_key,
-                sec_hash,
-                "response cache miss"
-            );
-        } else {
-            debug!(
-                target: "fraiseql::cache::response",
-                event = "disabled",
-                query = %query_match.query_def.name,
-                "response cache disabled or no key available"
-            );
-        }
 
         // 3. Create execution plan
         let plan = self.ctx.planner.plan(&query_match)?;
@@ -862,44 +804,7 @@ impl QueryRunner {
         let response =
             ResultProjector::wrap_in_data_envelope(projected, query_match.response_key());
 
-        // 13. Store in response cache (if enabled) and return value.
-        //
-        // F002: wrap once in `Arc`, hand the `Arc` to the cache, and
-        // `unwrap_or_clone` for the return path. When no other reader has
-        // touched the entry yet, the unwrap is free and the only cost is
-        // the original `Arc::new` heap allocation — replacing the previous
-        // pattern that deep-cloned the projected JSON to satisfy both the
-        // cache and the return type.
-        if let (Some((query_key, sec_hash)), Some(rc)) =
-            (response_cache_key, self.ctx.response_cache.as_ref())
-        {
-            // Every view this query reads, primary and declared secondary — the
-            // same definition the row cache registers under (#761).
-            let accessed = crate::cache::extract_accessed_views(&query_match.query_def);
-            let cached = Arc::new(response);
-            let _ =
-                rc.put(query_key, sec_hash, Arc::clone(&cached), accessed, response_cache_fence);
-            return Ok(Arc::unwrap_or_clone(cached));
-        }
-
         Ok(response)
-    }
-
-    /// Compute a response cache key from a query match.
-    ///
-    /// Delegates to [`crate::cache::generate_response_cache_key`], which owns
-    /// every cache-key derivation in the workspace, so a new dimension added there
-    /// reaches this cache too. Combined with the security-context hash, this forms
-    /// the full response cache key.
-    pub(super) fn compute_response_cache_key(
-        query_match: &crate::runtime::matcher::QueryMatch,
-    ) -> u64 {
-        crate::cache::generate_response_cache_key(
-            &query_match.query_def.name,
-            query_match.operation_name.as_deref(),
-            &query_match.selections,
-            &query_match.arguments,
-        )
     }
 
     /// Apply the dynamic field authorizer (#423) to a projected result.

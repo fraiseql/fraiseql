@@ -874,6 +874,43 @@ mod session_variables {
         );
     }
 
+    /// `fraiseql.started_at` times a **mutation** (the change log's duration); a read
+    /// never consults it. Injecting it on reads set a per-request clock directive on
+    /// every authenticated read, which is what made the row cache skip all of them in a
+    /// deployment that declared `[session_variables]` (#1373).
+    #[tokio::test]
+    async fn a_read_does_not_carry_the_mutation_timestamp() {
+        let mut schema = test_schema();
+        // A real mapping, so the read resolves its session variables: what is pinned is
+        // that the resolution leaves the timestamp out, not that it never ran.
+        schema.session_variables = SessionVariablesConfig {
+            variables:         vec![SessionVariableMapping {
+                name:   "app.tenant_id".to_string(),
+                source: SessionVariableSource::Jwt {
+                    claim: "tenant_id".to_string(),
+                },
+            }],
+            inject_started_at: true,
+        };
+        let adapter = Arc::new(SessionVarCapturingAdapter::new(mock_user_results()));
+        let executor = Executor::read_only(schema, adapter.clone());
+
+        executor
+            .execute_with_security("{ users { id name } }", None, &security_ctx_with_tenant())
+            .await
+            .unwrap();
+
+        let pairs = adapter.captured_pairs();
+        assert!(
+            pairs.iter().any(|(k, _)| k == "app.tenant_id"),
+            "the read resolved its session variables, got: {pairs:?}"
+        );
+        assert!(
+            pairs.iter().all(|(k, _)| k != fraiseql_db::STARTED_AT_VAR),
+            "a read must not set the mutation timestamp, got: {pairs:?}"
+        );
+    }
+
     /// C-SV2: no session variables passed when `session_variables` config is empty.
     #[tokio::test]
     async fn test_no_session_variables_injected_when_config_empty() {

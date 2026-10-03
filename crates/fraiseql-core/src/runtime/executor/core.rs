@@ -402,7 +402,6 @@ impl Executor {
             gate1,
             parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),
             introspection_projections: MokaCache::new(INTROSPECTION_PROJECTION_CAPACITY),
-            response_cache: None,
         });
 
         Self { ctx }
@@ -625,31 +624,6 @@ impl Executor {
     #[must_use]
     pub fn parse_cache_entry_count(&self) -> u64 {
         self.ctx.parse_cache.entry_count()
-    }
-
-    /// Attach an executor-level response cache.
-    ///
-    /// When enabled, the executor caches the final projected response
-    /// (after RBAC, projection, and envelope wrapping) to skip all
-    /// redundant work on cache hits.
-    ///
-    /// # Panics
-    ///
-    /// Panics if called after the internal `Arc<ExecutorContext>` has been shared
-    /// (i.e., after the executor has been cloned).  Always call this immediately
-    /// after construction, before sharing the executor.
-    #[must_use]
-    pub fn with_response_cache(mut self, cache: Arc<crate::cache::ResponseCache>) -> Self {
-        Arc::get_mut(&mut self.ctx)
-            .expect("with_response_cache called after Arc was shared")
-            .response_cache = Some(cache);
-        self
-    }
-
-    /// Get response cache reference (if configured).
-    #[must_use]
-    pub fn response_cache(&self) -> Option<&Arc<crate::cache::ResponseCache>> {
-        self.ctx.response_cache.as_ref()
     }
 
     /// Rebuild an executor view over an already-shared context.

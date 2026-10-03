@@ -339,8 +339,17 @@ impl SchemaConverter {
                 "Query '{name}': cache_ttl_seconds = {ttl} cannot be combined with function = \
                  '{function}'. A per-query TTL is applied to the row cache, keyed by the query's \
                  view, and this field reads none — so the number would be accepted and never \
-                 applied. Declare `additional_views` instead: it is what tells the invalidator \
-                 which writes must evict this field's cached answers."
+                 applied. A function-backed field is not cached: every request runs the \
+                 function."
+            );
+        }
+        if !query.additional_views.is_empty() {
+            bail!(
+                "Query '{name}': additional_views = {:?} cannot be combined with function = \
+                 '{function}'. It names the views whose writes evict this query's cached rows, \
+                 and a function-backed field caches none — every request runs the function — so \
+                 the list would be accepted and never applied.",
+                query.additional_views
             );
         }
         if !query.read_routing.is_default() {

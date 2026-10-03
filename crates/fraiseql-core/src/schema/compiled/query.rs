@@ -182,13 +182,11 @@ pub struct QueryDefinition {
     /// stated here, and in `docs/architecture/functions.md`, so the choice is made
     /// knowingly.
     ///
-    /// The **response** cache covers a function-backed field on the same terms as any
-    /// other read, at the server's global TTL, and
-    /// [`additional_views`](Self::additional_views) is how the field declares which
-    /// writes must evict it — there is no `sql_source` for the invalidator to infer
-    /// one from. [`cache_ttl_seconds`](Self::cache_ttl_seconds) is a *row*-cache TTL,
-    /// keyed by view, so it has nothing to apply to here and is a compile error beside
-    /// a `function` rather than a number that is accepted and ignored.
+    /// A function-backed field is **not cached**: the result cache keys and invalidates
+    /// rows of a relation, and this field reads none, so every request runs the
+    /// function. [`cache_ttl_seconds`](Self::cache_ttl_seconds) and
+    /// [`additional_views`](Self::additional_views) are compile errors beside a
+    /// `function` rather than settings that are accepted and ignored.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub function: Option<String>,
 

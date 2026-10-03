@@ -126,7 +126,8 @@ fn the_cache_key_is_deterministic_over_an_annotated_clause() {
 
     let annotated = field("tenant_id", WhereOperator::Eq, json!("acme")).typed(types());
 
-    let key = |c: &WhereClause| generate_view_query_key("v_user", Some(c), None, None, None, "v1");
+    let key =
+        |c: &WhereClause| generate_view_query_key("v_user", Some(c), None, None, None, &[], "v1");
     assert_eq!(key(&annotated), key(&annotated), "the key must be deterministic");
 
     let other = field("tenant_id", WhereOperator::Eq, json!("other")).typed(types());

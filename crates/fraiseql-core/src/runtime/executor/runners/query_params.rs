@@ -1,7 +1,7 @@
-//! WHERE clause helpers and cache key computation for query execution.
+//! WHERE clause helpers for query execution.
 //!
 //! Pure functions that build `WhereClause` values from inject params and
-//! explicit query arguments, and compute response cache keys.
+//! explicit query arguments.
 
 use crate::{
     backend::{WhereClause, WhereOperator},
