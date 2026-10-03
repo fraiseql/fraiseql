@@ -533,6 +533,11 @@ impl AppState {
         // Refuse rather than half-apply: everything a boot-time subsystem read
         // once cannot be changed by swapping the executor.
         super::reload_gate::check_reloadable(current.schema(), &schema)?;
+        // #1390: a reloaded source must be readable on the replicas reads go to.
+        current
+            .refuse_standby_unreadable_sources(&schema)
+            .await
+            .map_err(|e| e.to_string())?;
 
         // #611: new subscriptions pick up policy changes immediately (layer-1); warn loudly
         // so operators know already-connected streams must reconnect to apply the change.

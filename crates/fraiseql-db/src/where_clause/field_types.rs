@@ -123,6 +123,10 @@ pub struct WhereFieldInfo {
     /// `None` means the caller has keys but no type information — the level is
     /// then typed exactly as it was before, by value shape.
     pub cast:          Option<ScalarFieldType>,
+    /// Where this field's hierarchy keeps node paths, when the field is linked to one
+    /// (`hierarchy = "<name>"` + `[hierarchies.<name>]`) — what `descendantOfId` /
+    /// `ancestorOfId` on it resolve against (#1396).
+    pub hierarchy:     Option<crate::where_generator::HierarchyContext>,
 }
 
 /// The declared `where` keys of every type a nested predicate can descend into,

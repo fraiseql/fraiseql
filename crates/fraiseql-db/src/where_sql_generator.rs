@@ -73,6 +73,8 @@ impl WhereSqlGenerator {
                 types: subtree_types,
                 inner,
             } => Self::to_sql_typed(inner, Some(subtree_types), guards),
+            // The wire path refuses the ID-based ltree operators on the leaf itself.
+            WhereClause::InHierarchy { inner, .. } => Self::to_sql_typed(inner, types, guards),
             // Ruling AH: a path through `under` reads its value only where `guard` holds.
             WhereClause::Guarded {
                 under,

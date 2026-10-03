@@ -398,10 +398,15 @@ fn descendant_of_id_self_referencing() {
         WhereOperator::DescendantOfId,
         json!("550e8400-e29b-41d4-a716-446655440000"),
     );
-    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    let (sql, params) = gen
+        .generate(&WhereClause::InHierarchy {
+            context: ctx,
+            inner:   Box::new(clause),
+        })
+        .unwrap();
     assert_eq!(
         sql,
-        "(data->>'category_path')::ltree <@ (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1)"
+        "(data->>'category_path')::ltree <@ (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1::text::uuid)"
     );
     assert_eq!(params, vec![json!("550e8400-e29b-41d4-a716-446655440000")]);
 }
@@ -419,10 +424,15 @@ fn ancestor_of_id_self_referencing() {
         WhereOperator::AncestorOfId,
         json!("550e8400-e29b-41d4-a716-446655440000"),
     );
-    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    let (sql, params) = gen
+        .generate(&WhereClause::InHierarchy {
+            context: ctx,
+            inner:   Box::new(clause),
+        })
+        .unwrap();
     assert_eq!(
         sql,
-        "(data->>'category_path')::ltree @> (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1)"
+        "(data->>'category_path')::ltree @> (SELECT \"category_path\" FROM \"tb_category\" WHERE \"id\" = $1::text::uuid)"
     );
     assert_eq!(params, vec![json!("550e8400-e29b-41d4-a716-446655440000")]);
 }
@@ -440,10 +450,15 @@ fn descendant_of_id_cross_table() {
         WhereOperator::DescendantOfId,
         json!("550e8400-e29b-41d4-a716-446655440000"),
     );
-    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    let (sql, params) = gen
+        .generate(&WhereClause::InHierarchy {
+            context: ctx,
+            inner:   Box::new(clause),
+        })
+        .unwrap();
     assert_eq!(
         sql,
-        "\"fk_location\" IN (SELECT \"id\" FROM \"tb_location\" WHERE \"location_path\" <@ (SELECT \"location_path\" FROM \"tb_location\" WHERE \"id\" = $1))"
+        "\"fk_location\" IN (SELECT \"id\" FROM \"tb_location\" WHERE \"location_path\" <@ (SELECT \"location_path\" FROM \"tb_location\" WHERE \"id\" = $1::text::uuid))"
     );
     assert_eq!(params, vec![json!("550e8400-e29b-41d4-a716-446655440000")]);
 }
@@ -461,10 +476,15 @@ fn ancestor_of_id_cross_table() {
         WhereOperator::AncestorOfId,
         json!("550e8400-e29b-41d4-a716-446655440000"),
     );
-    let (sql, params) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    let (sql, params) = gen
+        .generate(&WhereClause::InHierarchy {
+            context: ctx,
+            inner:   Box::new(clause),
+        })
+        .unwrap();
     assert_eq!(
         sql,
-        "\"fk_location\" IN (SELECT \"id\" FROM \"tb_location\" WHERE \"location_path\" @> (SELECT \"location_path\" FROM \"tb_location\" WHERE \"id\" = $1))"
+        "\"fk_location\" IN (SELECT \"id\" FROM \"tb_location\" WHERE \"location_path\" @> (SELECT \"location_path\" FROM \"tb_location\" WHERE \"id\" = $1::text::uuid))"
     );
     assert_eq!(params, vec![json!("550e8400-e29b-41d4-a716-446655440000")]);
 }
@@ -487,7 +507,12 @@ fn ltree_id_subquery_escapes_adversarial_identifiers() {
         fk_column:   None,
     };
     let clause = field("category_path", WhereOperator::DescendantOfId, json!("some-id"));
-    let (sql, _) = gen.generate_with_hierarchy(&clause, &ctx).unwrap();
+    let (sql, _) = gen
+        .generate(&WhereClause::InHierarchy {
+            context: ctx,
+            inner:   Box::new(clause),
+        })
+        .unwrap();
     assert!(
         sql.contains(r#""evil""table""#),
         "Table name should have doubled quotes, got: {sql}"

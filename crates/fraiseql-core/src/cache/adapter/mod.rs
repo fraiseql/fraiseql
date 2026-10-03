@@ -678,8 +678,14 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 
         Err(FraiseQLError::Configuration {
             message: format!(
-                "Row-Level Security is declared for this multi-tenant schema but is not in                  force on {} of its source relation(s), so tenants are not isolated and                  cached responses can cross tenant boundaries:\n  - {}\n\
-                 Enable RLS and declare a policy on each source table                  (`ALTER TABLE … ENABLE ROW LEVEL SECURITY` + `CREATE POLICY …`), define                  views `WITH (security_invoker = true)` so they honour the caller's                  policies, or remove `[security.rls] enabled = true` if this deployment                  does not rely on database RLS.",
+                "Row-Level Security is declared for this multi-tenant schema but is not in \
+                 force on {} of its source relation(s), so tenants are not isolated and \
+                 cached responses can cross tenant boundaries:\n  - {}\n\
+                 Enable RLS and declare a policy on each source table \
+                 (`ALTER TABLE … ENABLE ROW LEVEL SECURITY` + `CREATE POLICY …`), define \
+                 views `WITH (security_invoker = true)` so they honour the caller's \
+                 policies, or remove `[security.rls] enabled = true` if this deployment \
+                 does not rely on database RLS.",
                 unprotected.len(),
                 unprotected.join("\n  - ")
             ),
@@ -843,6 +849,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
 
     fn database_type(&self) -> DatabaseType {
         self.adapter.database_type()
+    }
+
+    fn serves_reads_from_standbys(&self) -> bool {
+        self.adapter.serves_reads_from_standbys()
     }
 
     async fn health_check(&self) -> Result<()> {

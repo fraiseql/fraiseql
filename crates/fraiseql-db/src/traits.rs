@@ -652,6 +652,16 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     /// Used to identify which database backend is in use.
     fn database_type(&self) -> DatabaseType;
 
+    /// Whether reads may be served by a hot standby — read replicas are configured (#1390).
+    ///
+    /// A standby cannot read an UNLOGGED or temporary relation, so a server whose reads go
+    /// to replicas checks at boot that none of its sources depends on one. A wrapper
+    /// adapter must forward this to the adapter it wraps: inheriting the default would
+    /// switch that check off.
+    fn serves_reads_from_standbys(&self) -> bool {
+        false
+    }
+
     /// Health check - verify database connectivity.
     ///
     /// Executes a simple query (e.g., `SELECT 1`) to verify the database is reachable.

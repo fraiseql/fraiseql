@@ -27,7 +27,7 @@ pub use generic::GenericWhereGenerator;
 /// Existing operators carry inline primitive data in their enum variant and
 /// dispatch to `SqlDialect` trait methods. Hierarchy config is infrastructure
 /// metadata — it belongs at the call site, keeping `WhereOperator` variants clean.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct HierarchyContext {
     /// Database table containing the ltree column (e.g., `"tb_category"`).
     pub table: String,

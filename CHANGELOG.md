@@ -159,6 +159,24 @@ disagreed, and the promise was the part that was wrong.
   queries over unscoped data (`exclude_inject_defaults` when it comes from `[inject_defaults]`).
   A key carried only by rows outside the sample can be compiled with `--allow-drift`.
 
+- **`descendantOfId` / `ancestorOfId` resolve through the filtered field's hierarchy (#1396).**
+  Embedders: `GenericWhereGenerator::generate_with_hierarchy` is removed (it was the only way
+  to pass a hierarchy, and no runtime path called it); the parser now attaches the field's
+  hierarchy to the leaf as `WhereClause::InHierarchy`, and `WhereFieldInfo` gains
+  `hierarchy: Option<HierarchyContext>`. **Upgrade:** build such clauses through
+  `WhereClause::from_graphql_json` with a schema, or wrap the leaf in `InHierarchy` yourself.
+
+- **With read replicas configured, a source a hot standby cannot read refuses boot (#1390).**
+  PostgreSQL will not read an UNLOGGED or temporary relation during recovery, and pg_tviews
+  creates its `tv_*` tables UNLOGGED by default, so with `read_replica_urls` set every query on a
+  TVIEW-backed type failed on every replica while the boot health check passed. The server now
+  reads the catalog at boot (and on a schema hot-reload), follows views to the tables they read,
+  and refuses to start naming each source and the UNLOGGED table behind it. **Upgrade:** make
+  those tables LOGGED (`pg_tviews.unlogged_by_default = off` and recreate the TVIEWs, or
+  `ALTER TABLE … SET LOGGED`) — every refresh then writes WAL — or remove `read_replica_urls`.
+  Embedders: `DatabaseAdapter::serves_reads_from_standbys` (default `false`) must be forwarded
+  by a wrapping adapter.
+
 ### Added
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds
@@ -358,6 +376,23 @@ Lockfile and patch-level pin changes only; no source changed. The runtime crates
   GHSA-wjgm-6hv5-3cvf).
 - **Dagger module (Go):** `google.golang.org/grpc` 1.84.0 (GHSA-2v4p-qf9q-27wj,
   GHSA-qc2q-p7wx-3px3, GHSA-vp52-pcj8-j9qc).
+- **A camelCase query argument resolves to its snake_case column under `compile --database`
+  (#1394).** The SDKs emit `customer_id` as `customerId`; the compiler looked that name up among
+  the view's columns, missed `customer_id`, and fell back to `data->>'customer_id'`, which the
+  view's `data` did not carry: every call returned `[]` with no error. The lookup now uses the
+  snake_case form the runtime filters on, so the argument compiles to `WHERE customer_id = $1`.
+  An argument the relation can provide neither as a column nor as a key in its sampled `data`
+  now fails the compile, as an unresolvable `inject_params` key does (#1382), and the JSONB
+  fallback advisory names the key the runtime actually reads.
+- **`descendantOfId` and `ancestorOfId` execute (#1396).** Every use failed with "requires
+  HierarchyContext — configure [hierarchies] in fraiseql.toml", whatever was configured: the
+  compiled `hierarchies_config` was loaded and never consulted, because the only entry point that
+  passed a hierarchy had no caller. The parser now resolves the filtered field's `hierarchy` link
+  and attaches its table and path column to the filter. Three defects behind it are fixed too: a
+  schema-qualified table (`app.tb_node`) was quoted as one identifier, the node id was bound
+  uncast against the table's UUID `id` (refused by the driver), and a field linking an undeclared
+  hierarchy compiled. It is now refused when the schema loads, and either operator on a field with
+  no `hierarchy` is refused when the query is parsed, naming what to configure.
 
 ## [2.15.0] - 2026-09-30
 
@@ -14837,7 +14872,6 @@ number below is open at the time of this release.
   may **newly reject** callers that previously succeeded, so verify role assignments before
   rolling out. Type-level `requires_role` remains unenforced and is tracked separately in
   \#677.
-||||||| parent of 28a1cc50b (fix(cli): drop `-d` short from --database (collides with global --debug) (#650))
 
 ## [2.13.1] - 2026-07-18
 

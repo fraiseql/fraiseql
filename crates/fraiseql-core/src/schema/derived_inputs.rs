@@ -529,6 +529,18 @@ pub(crate) fn where_keys_of(
                     // #1157: the cast travels with the key, so a nested path can
                     // be typed at the level the parser reaches it.
                     cast: Some(crate::runtime::field_type_to_where_type(&f.field_type)),
+                    // #1396: the hierarchy travels with the key too, so the parser can
+                    // attach it to `descendantOfId` / `ancestorOfId` on this field. A link
+                    // to an undeclared hierarchy is refused when the schema loads.
+                    hierarchy: f.hierarchy.as_deref().and_then(|name| {
+                        schema.hierarchies_config.as_ref()?.get(name).map(|h| {
+                            fraiseql_db::where_generator::HierarchyContext {
+                                table:       h.table.clone(),
+                                path_column: h.path_column.clone(),
+                                fk_column:   None,
+                            }
+                        })
+                    }),
                 },
             )
         })

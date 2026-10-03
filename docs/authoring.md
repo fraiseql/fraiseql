@@ -521,7 +521,9 @@ def documents(status: str | None = None) -> list[Document]:
 The SQL view receives `$tenant_id` as a parameter, enabling database-level tenant isolation.
 
 The key is matched against the view: a column of that name is compared natively; otherwise
-the server filters on `data->>'tenant_id'`. `compile --database` refuses a key the view can
+the server filters on `data->>'tenant_id'`. A query argument is matched the same way, by
+the snake_case form of its GraphQL name (`customerId` filters the `customer_id` column, or
+`data->>'customer_id'`). `compile --database` refuses a key or argument the view can
 provide neither way — no such column, and none of the sampled `data` rows carries the key —
 because that predicate is false for every row and every caller would get an empty list. An
 empty view cannot be checked and is reported as a warning. Without `--database` the
@@ -540,6 +542,31 @@ compiler cannot see the view, so this check needs it.
 > cascades, which read the same views). `security_invoker` runs the view as the
 > caller so the base-table policy applies. `fraiseql doctor --against-db` warns when
 > a `sql_source` view lacks `security_invoker` while the database uses RLS.
+
+### Hierarchy filters (`ltree`)
+
+A field holding an `ltree` path can be filtered by a node's **id**: `descendantOfId`
+returns the rows whose path is under that node's path, `ancestorOfId` the rows whose path
+is above it. The node's path is read from the hierarchy's table, which the field names:
+
+```toml
+# fraiseql.toml
+[hierarchies.node]
+table       = "app.tb_node"   # schema-qualified names are fine
+path_column = "path"          # the ltree column; the node is looked up by its `id` (UUID)
+```
+
+```json
+{ "name": "path", "type": "LTree", "hierarchy": "node" }
+```
+
+```graphql
+{ items(where: { path: { descendantOfId: "6f1c…" } }) { name } }
+```
+
+A field that links an undeclared hierarchy is refused when the schema loads, and either
+operator on a field with no `hierarchy` is refused when the query is parsed, naming what to
+configure.
 
 ### Project-wide inject defaults
 

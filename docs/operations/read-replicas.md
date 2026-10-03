@@ -158,6 +158,20 @@ server's own settings, exactly as `[database_tls]` is (#801) — a registration 
 that could send its own `max_lag_ms` would be deciding how stale its reads may be
 against a server whose operator already decided.
 
+## Sources a standby cannot read
+
+PostgreSQL does not read UNLOGGED or temporary relations during recovery ("cannot access
+temporary or unlogged relations during recovery"). With `read_replica_urls` set, the server
+refuses to start when any relation the compiled schema reads depends on one — following views
+to the tables they select from — because every query over it would fail on every replica. A
+schema hot-reload is held to the same rule.
+
+pg_tviews creates its `tv_*` tables UNLOGGED by default (`pg_tviews.unlogged_by_default = true`).
+To serve TVIEW-backed types from replicas, make them LOGGED (`pg_tviews.unlogged_by_default =
+off`, then recreate the TVIEWs; or `ALTER TABLE … SET LOGGED`). That is a trade-off: every
+refresh then writes WAL, in exchange for read scale-out. Materialized views are not affected:
+they store their own rows.
+
 ## Limitations
 
 - **The wire backend refuses replica configuration** at boot (no replica

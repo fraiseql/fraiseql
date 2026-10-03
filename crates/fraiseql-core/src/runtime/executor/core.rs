@@ -554,6 +554,19 @@ impl Executor {
         self.ctx.on_schema_reload();
     }
 
+    /// Refuse `schema` when this executor's reads go to hot standbys and a source of it
+    /// depends on an UNLOGGED or temporary table (#1390).
+    ///
+    /// The boot-time check, re-run by a hot reload before it swaps: a query added by a
+    /// reload reads through the same replicas the server was started with.
+    ///
+    /// # Errors
+    ///
+    /// See [`crate::schema::refuse_standby_unreadable_sources`].
+    pub async fn refuse_standby_unreadable_sources(&self, schema: &CompiledSchema) -> Result<()> {
+        self.ctx.refuse_standby_unreadable_sources(schema).await
+    }
+
     /// Drop a tenant's PostgreSQL schema and everything in it.
     ///
     /// Takes the schema *name*, not a statement: the engine composes the DDL, so no
