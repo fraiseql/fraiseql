@@ -14837,7 +14837,6 @@ number below is open at the time of this release.
   may **newly reject** callers that previously succeeded, so verify role assignments before
   rolling out. Type-level `requires_role` remains unenforced and is tracked separately in
   \#677.
-||||||| parent of 28a1cc50b (fix(cli): drop `-d` short from --database (collides with global --debug) (#650))
 
 ## [2.13.1] - 2026-07-18
 
