@@ -668,3 +668,67 @@ async fn an_inject_key_the_relation_cannot_provide_fails_the_compile() {
         assert!(ok, "`{view}` provides tenant_id and must compile. log:\n{log}");
     }
 }
+
+/// #1394: a camelCase argument (as the SDKs emit `customer_id`) resolves to the `snake_case`
+/// column the runtime filters on, instead of missing it and falling back to a JSON key the
+/// view does not carry. And an argument the relation can provide neither way fails.
+#[tokio::test]
+async fn a_camel_case_argument_resolves_to_its_snake_case_column() {
+    let Some(client) = client().await else { return };
+    let url = fraiseql_test_support::try_database_url().unwrap();
+
+    client
+        .batch_execute(
+            "DROP VIEW IF EXISTS v_cdf1394;
+             CREATE VIEW v_cdf1394 AS
+               SELECT gen_random_uuid() AS id, gen_random_uuid() AS customer_id,
+                      '{\"id\": \"o1\", \"total\": 3}'::jsonb AS data;",
+        )
+        .await
+        .unwrap();
+
+    let schema = |argument: &str| {
+        write_json(&json!({
+            "types": [{
+                "name": "Order",
+                "sql_source": "v_cdf1394",
+                "fields": [
+                    {"name": "id", "type": "ID", "nullable": false},
+                    {"name": "total", "type": "Int", "nullable": false}
+                ]
+            }],
+            "queries": [{
+                "name": "ordersByCustomer",
+                "return_type": "Order",
+                "returns_list": true,
+                "sql_source": "v_cdf1394",
+                "arguments": [{"name": argument, "type": "ID", "nullable": true}]
+            }]
+        }))
+    };
+    let out_dir = TempDir::new().unwrap();
+
+    let out = out_dir.path().join("camel.json");
+    let (ok, log) = run_compile(schema("customerId").path(), &url, &out, &[]);
+    assert!(ok, "`customerId` must resolve to the `customer_id` column. log:\n{log}");
+    let artifact: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(&out).unwrap()).unwrap();
+    let query = artifact["queries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|q| q["name"] == "ordersByCustomer")
+        .unwrap();
+    assert!(
+        query["native_columns"].get("customerId").is_some(),
+        "the argument must compile to a native-column predicate: {query}"
+    );
+
+    let (ok, log) =
+        run_compile(schema("regionCode").path(), &url, &out_dir.path().join("x.json"), &[]);
+    assert!(!ok, "an argument nothing in the relation carries must fail. log:\n{log}");
+    assert!(
+        log.contains("argument `regionCode` filters `v_cdf1394` on `region_code`"),
+        "the failure must name the argument and the key the runtime reads. log:\n{log}"
+    );
+}

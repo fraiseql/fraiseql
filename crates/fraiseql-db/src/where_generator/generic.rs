@@ -219,27 +219,6 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         self.generate_with_param_offset(clause, 0)
     }
 
-    /// Generate SQL WHERE clause with hierarchy context for ID-based ltree operators.
-    ///
-    /// The `hierarchy_ctx` provides metadata (`table`, `path_column`, `fk_column`)
-    /// needed by `DescendantOfId` / `AncestorOfId` operators to generate the
-    /// correct subquery SQL.
-    ///
-    /// # Errors
-    ///
-    /// Returns `FraiseQLError::Validation` if the clause uses an unsupported
-    /// operator or the hierarchy context is missing for an ID-based operator.
-    pub fn generate_with_hierarchy(
-        &self,
-        clause: &WhereClause,
-        hierarchy_ctx: &super::HierarchyContext,
-    ) -> Result<(String, Vec<serde_json::Value>)> {
-        self.counter.reset_to(0);
-        let mut params = Vec::new();
-        let sql = self.visit_impl(clause, &mut params, Some(hierarchy_ctx), None, &[])?;
-        Ok((sql, params))
-    }
-
     /// Generate SQL WHERE clause with parameter numbering starting after `offset`.
     ///
     /// Use when the WHERE clause is appended to a query that already has bound
@@ -303,6 +282,10 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 types: subtree_types,
                 inner,
             } => self.visit_impl(inner, params, hierarchy_ctx, Some(subtree_types), guards),
+            // #1396: the field's hierarchy, attached by the parser, scopes its leaf.
+            WhereClause::InHierarchy { context, inner } => {
+                self.visit_impl(inner, params, Some(context), types, guards)
+            },
             // Ruling AH: a path through `under` reads its value only where `guard` holds.
             WhereClause::Guarded {
                 under,
@@ -1196,8 +1179,9 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
             WhereOperator::DescendantOfId | WhereOperator::AncestorOfId => {
                 let ctx = hierarchy_ctx.ok_or_else(|| {
                     FraiseQLError::validation(
-                        "descendantOfId/ancestorOfId requires HierarchyContext — \
-                         configure [hierarchies] in fraiseql.toml"
+                        "descendantOfId/ancestorOfId reached SQL generation without its \
+                         field's hierarchy: the clause was built outside the `where` parser, \
+                         which attaches it (WhereClause::InHierarchy)"
                             .to_string(),
                     )
                 })?;
@@ -1206,7 +1190,10 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 } else {
                     "@>"
                 };
+                // The hierarchy table's `id` is a UUID (trinity pattern); an uncast text
+                // parameter against it is rejected by the driver's binary bind.
                 let p = self.push_param(params, value.clone());
+                let p = self.dialect.cast_native_param(&p, "uuid");
                 self.dialect
                     .ltree_id_subquery_sql(
                         pg_op,
