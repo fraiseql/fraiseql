@@ -325,10 +325,7 @@ func lookupCombo(name string) (featureCombo, error) {
 // parallel FeatureMatrix can give each lane its own (avoiding cargo's per-target build
 // lock); single-combo FeatureCheck passes the shared featureTargetVol.
 func (m *FraiseqlCi) featureBase(source *dagger.Directory, targetVol string) *dagger.Container {
-	return m.rustBaseFor(rustMsrv).
-		WithMountedDirectory("/src", source).
-		WithWorkdir("/src").
-		WithMountedCache("/src/target", dag.CacheVolume(targetVol))
+	return rustSource(m.rustBaseFor(rustMsrv), source, targetVol)
 }
 
 // comboResultMarker is the OK/FAIL line runCombo's script prints; the Go layer parses

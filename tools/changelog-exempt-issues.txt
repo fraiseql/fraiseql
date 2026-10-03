@@ -47,3 +47,4 @@
 #1165  test-only: four SSRF rejection tests called the guards without taking the bypass pin; the guards themselves are unchanged
 #1167  test infra: same defect as #1114, reported as an order-dependent pass count
 #1186  test infra: same defect as #1114, reported as nondeterministic parallel failures
+#1421  CI plumbing: Dagger target volumes mounted PRIVATE + sources stamped per leg, so a leg never links another run's crates; no change to any shipped artifact

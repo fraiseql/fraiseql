@@ -103,6 +103,31 @@ if [[ "${changed}" == "yes" && "${fresh}" -eq 0 ]]; then
     fi
 fi
 
+# #1421: partial staleness. A count of compiled units cannot see a build that recompiled
+# some crates and reused a stale dependency underneath — another branch's run sharing the
+# volume, or an earlier commit. Every Rust leg stamps its sources first and exports the
+# instant; any cached workspace artifact older than that was built from other source.
+if [[ -n "${FRAISEQL_SOURCE_TOUCHED_AT:-}" ]]; then
+    if ! bash tools/ci-stale-artifacts.sh "${BUILD_LOG}" "${FRAISEQL_SOURCE_TOUCHED_AT}" "${PWD}"; then
+        echo "#1421 CANARY: this build reused workspace artifacts from before the leg's source" \
+             "stamp — the test binaries would link code this commit does not contain."
+        if [[ "${FRAISEQL_CANARY_NO_HEAL:-0}" == "1" ]]; then
+            echo "#1421 CANARY: FRAISEQL_CANARY_NO_HEAL=1 — failing without self-heal."
+            exit 1
+        fi
+        echo "#1421 CANARY: self-healing — purging target/debug and rebuilding."
+        rm -rf target/debug
+        run_build "$@"
+        if ! bash tools/ci-stale-artifacts.sh "${BUILD_LOG}" "${FRAISEQL_SOURCE_TOUCHED_AT}" "${PWD}"; then
+            echo "#1421 CANARY: rebuild after purge STILL reused stale artifacts — refusing to test."
+            exit 1
+        fi
+        fresh="$(count_fresh_units)"
+    fi
+else
+    echo "#1421 canary: FRAISEQL_SOURCE_TOUCHED_AT unset (not a Dagger leg) — stale-artifact check skipped."
+fi
+
 echo "${cur}" >"${MARKER}"
 echo "#880 canary OK: fresh-built units: ${fresh}; source digest changed since this" \
      "suite's last run: ${changed} (marker ${ARGS_KEY})"

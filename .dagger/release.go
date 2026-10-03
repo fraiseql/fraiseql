@@ -318,10 +318,7 @@ func (m *FraiseqlCi) SemverNamed(
 		`echo "✅ semver-named complete (advisory; review findings above)"`,
 	}, "\n")
 
-	return m.semverBase().
-		WithMountedDirectory("/src", source).
-		WithWorkdir("/src").
-		WithMountedCache("/src/target", dag.CacheVolume("fraiseql-rust-target")).
+	return rustSource(m.semverBase(), source, "fraiseql-rust-target").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
@@ -346,10 +343,7 @@ func (m *FraiseqlCi) SemverWorkspace(
 	script := fmt.Sprintf(
 		"cargo semver-checks check-release --workspace --exclude fraiseql-test-utils --baseline-rev %q 2>&1",
 		baselineRev)
-	return m.semverBase().
-		WithMountedDirectory("/src", source).
-		WithWorkdir("/src").
-		WithMountedCache("/src/target", dag.CacheVolume("fraiseql-rust-target")).
+	return rustSource(m.semverBase(), source, "fraiseql-rust-target").
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }

@@ -8,7 +8,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
+	"time"
 
 	"dagger/fraiseql-ci/internal/dagger"
 )
@@ -512,6 +514,9 @@ func (m *FraiseqlCi) ShellGates(
 		// hours on an untouched branch (2026-09-20) — once before a single check ran.
 		"bash tools/check-ci-install-pins.sh",
 		"bash tools/tests/ci_install_pins_test.sh",
+		// The #1421 stale-artifact check the canary runs in every Rust leg, proved RED and
+		// GREEN on synthetic cargo logs (a green leg cannot show it would ever fire).
+		"bash tools/tests/ci_stale_artifacts_test.sh",
 		"bash tools/check-phases-citations.sh",
 		"bash tools/check-image-context.sh",
 		"bash tools/tests/doc_image_refs_test.sh",
@@ -757,10 +762,38 @@ func (m *FraiseqlCi) ShellGates(
 // by the compiling gates (clippy, rustdoc); fmt skips the target cache (it never
 // compiles).
 func (m *FraiseqlCi) rustSrc(source *dagger.Directory) *dagger.Container {
-	return m.rustBase().
+	return rustSource(m.rustBase(), source, "fraiseql-rust-target")
+}
+
+// rustSource is the one way a Rust leg mounts the commit and a persistent target volume
+// (#1421). Every leg that compiles goes through it, because a target volume outlives the
+// run and cargo judges a workspace crate fresh by comparing mtimes, not content:
+//
+//   - Sequential staleness (#880): an artifact an earlier run built from different source
+//     can be newer than this checkout's files, and cargo links it. So every file of the
+//     source is stamped with one instant taken at leg start; no artifact written before
+//     it can be judged fresh. The instant is also exported as FRAISEQL_SOURCE_TOUCHED_AT,
+//     which is what lets tools/ci-target-canary.sh prove it (any cached workspace artifact
+//     older than the stamp fails the leg), and — being new on every call — it keeps Dagger
+//     from replaying a cached stamp step with an old instant.
+//   - Concurrent staleness: two runners on this box ran two branches' legs at once on
+//     one volume, and one branch's tests linked the other's crates. A stamp cannot fix
+//     that (the other run's artifact is written after it), so the volume is mounted
+//     PRIVATE: Dagger hands a busy volume to one user at a time. Measured on this engine
+//     (v0.21): concurrent PRIVATE users are serialized, never given a shared live mount.
+//
+// The cost is a rustc invocation per workspace unit on every leg; sccache (content-
+// addressed, RUSTC_WRAPPER in rustBaseFor) answers those from its cache.
+func rustSource(base *dagger.Container, source *dagger.Directory, targetVol string) *dagger.Container {
+	stamp := strconv.FormatInt(time.Now().Unix(), 10)
+	return base.
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
-		WithMountedCache("/src/target", dag.CacheVolume("fraiseql-rust-target"))
+		WithEnvVariable("FRAISEQL_SOURCE_TOUCHED_AT", stamp).
+		WithExec([]string{"bash", "-c", `find /src -mindepth 1 -exec touch -h -d "@${FRAISEQL_SOURCE_TOUCHED_AT}" {} +`}).
+		WithMountedCache("/src/target", dag.CacheVolume(targetVol), dagger.ContainerWithMountedCacheOpts{
+			Sharing: dagger.CacheSharingModePrivate,
+		})
 }
 
 // rustBase is the shared Rust toolchain container for fmt/clippy/rustdoc. It pins the
@@ -1068,17 +1101,15 @@ func (m *FraiseqlCi) Test(
 		"echo \"test OK: workspace suite passed (toolchain " + toolchain + ", testcontainers tests skipped)\"",
 	}, "\n")
 
-	return m.rustBaseFor(toolchain).
+	base := m.rustBaseFor(toolchain).
 		// The test leg is the only one that runs a full `cargo build --all-features`
 		// PLUS the workspace test + doctest suites in one container. Since the functions
 		// runtime pulled V8 into --all-features (a very memory-heavy compilation unit),
 		// 16 parallel rustc jobs peak over this box's 31 GiB RAM and the OOM killer
 		// takes rustc/doctest processes (bare exit-101, no diagnostic). Cap this leg to
 		// 8 jobs (the other legs stay at the base 16 — they don't OOM). See #615.
-		WithEnvVariable("CARGO_BUILD_JOBS", "8").
-		WithMountedDirectory("/src", source).
-		WithWorkdir("/src").
-		WithMountedCache("/src/target", dag.CacheVolume(targetVol)).
+		WithEnvVariable("CARGO_BUILD_JOBS", "8")
+	return rustSource(base, source, targetVol).
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
@@ -2277,20 +2308,14 @@ func (m *FraiseqlCi) integrationFederation(ctx context.Context, source *dagger.D
 
 // fedBase mounts the source on a dedicated federation-feature target cache volume.
 func (m *FraiseqlCi) fedBase(source *dagger.Directory) *dagger.Container {
-	return m.rustBaseFor(rustMsrv).
-		WithMountedDirectory("/src", source).
-		WithWorkdir("/src").
-		WithMountedCache("/src/target", dag.CacheVolume(fedTargetVol)).
+	return rustSource(m.rustBaseFor(rustMsrv), source, fedTargetVol).
 		WithEnvVariable("RUST_LOG", "debug")
 }
 
 // fedServerBinary builds the fraiseql-server binary with the federation feature and
 // returns it as a File (extracted from the cache-mounted target dir to a plain path).
 func (m *FraiseqlCi) fedServerBinary(source *dagger.Directory) *dagger.File {
-	built := m.rustBaseFor(rustMsrv).
-		WithMountedDirectory("/src", source).
-		WithWorkdir("/src").
-		WithMountedCache("/src/target", dag.CacheVolume(fedTargetVol)).
+	built := rustSource(m.rustBaseFor(rustMsrv), source, fedTargetVol).
 		WithExec([]string{
 			"bash", "-c",
 			"bash tools/ci-target-canary.sh -- build -p fraiseql-server --features federation && cp target/debug/fraiseql-server /usr/local/bin/fraiseql-server",
@@ -2624,10 +2649,7 @@ func (m *FraiseqlCi) serverE2eService(source *dagger.Directory) *dagger.Service 
 
 	// Build the binary and copy it out of the (cache-mounted) target dir to a plain
 	// path so it can be extracted as a File into the runtime service container.
-	built := m.rustBaseFor(rustMsrv).
-		WithMountedDirectory("/src", source).
-		WithWorkdir("/src").
-		WithMountedCache("/src/target", dag.CacheVolume(targetVol)).
+	built := rustSource(m.rustBaseFor(rustMsrv), source, targetVol).
 		WithExec([]string{
 			"bash", "-c",
 			"bash tools/ci-target-canary.sh -- build -p fraiseql-server && cp target/debug/fraiseql-server /usr/local/bin/fraiseql-server",
@@ -3062,13 +3084,10 @@ func (m *FraiseqlCi) integrationBase(source *dagger.Directory, rust string) *dag
 	// a green integration leg does not prove the committed source was the source tested.
 	// Reproduced across two dispatches of the same commit before the bump.
 	//
-	// A volume bump only clears the current drift. The durable fix (tracked separately)
-	// is to stop trusting mtime-based freshness across a Dagger mount + persistent
-	// target volume.
+	// A volume bump only clears the current drift. The durable fix is rustSource (#1421):
+	// sources stamped at leg start so no earlier run's artifact is judged fresh, and the
+	// volume mounted PRIVATE so no concurrent run shares it.
 	targetVol := "fraiseql-rust-target-integ4-" + strings.ReplaceAll(toolchain, ".", "-")
-	return m.rustBaseFor(toolchain).
-		WithMountedDirectory("/src", source).
-		WithWorkdir("/src").
-		WithMountedCache("/src/target", dag.CacheVolume(targetVol)).
+	return rustSource(m.rustBaseFor(toolchain), source, targetVol).
 		WithEnvVariable("RUST_LOG", "debug")
 }
