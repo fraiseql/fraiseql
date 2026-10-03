@@ -403,6 +403,13 @@ Lockfile and patch-level pin changes only; no source changed. The runtime crates
   uncast against the table's UUID `id` (refused by the driver), and a field linking an undeclared
   hierarchy compiled. It is now refused when the schema loads, and either operator on a field with
   no `hierarchy` is refused when the query is parsed, naming what to configure.
+- **`node(id:)` accepts the id an object returns (#1398).** `id` fields return the object's
+  UUID, but `node(id:)` accepted only `base64("Type:uuid")`, which nothing in production
+  produced, so a Relay client could never refetch an object. A bare UUID is now resolved among
+  the `relay` types, each probed under its own query's scoping (role, actor, authorizer, RLS,
+  `inject_params`), so an id the caller may not read is `null` and resolves nowhere. An id two
+  readable relay types share (one entity exposed twice) is refused with the candidate types
+  named; the typed `base64("Type:uuid")` form is still accepted and resolves it.
 
 ## [2.15.0] - 2026-09-30
 

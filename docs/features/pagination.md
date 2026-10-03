@@ -170,6 +170,21 @@ whatever it is ordered by — and a client walking a large relation should prefe
 A relay connection never accepts `limit`/`offset`, and never carries a
 `pagination_order`.
 
+### Refetching a node
+
+`node(id:)` takes the `id` an object returned, its UUID, so `node(id: x.id)` gives `x` back:
+
+```graphql
+{ node(id: "6f1c…") { ... on User { id name } } }
+```
+
+The id's type is found among the `relay` types, each probed with the scoping its own query
+applies (`requires_role`, `requires_actor`, the authorizer, RLS, `inject_params`). An id
+the caller may not read under any of them is `null`. Some schemas expose one entity as two
+relay types, such as `User` and `UserCard` over the same table. An id both readable types
+hold is refused rather than guessed: pass `base64("UserCard:6f1c…")` to name the type. That
+typed form is always accepted.
+
 ## See also
 
 * [ADR-0017 — entity identity contract](../adr/0017-entity-identity-contract.md)

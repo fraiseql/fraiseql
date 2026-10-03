@@ -555,12 +555,31 @@ impl QueryRunner {
             })?
         };
 
-        // 2. Decode base64("TypeName:uuid") → (type_name, uuid).
-        let (type_name, uuid) =
-            decode_node_id(&raw_id).ok_or_else(|| FraiseQLError::Validation {
-                message: format!("node query: invalid node ID '{raw_id}'"),
+        // 2. Resolve the id to (type_name, uuid). An object's `id` is its bare UUID (the Relay
+        //    global id, ADR-0017), so that is what `node(id: x.id)` receives; its type is resolved
+        //    among the Node types (#1398). `base64("Type:uuid")` still names the type outright —
+        //    the way to refetch an id two Node types share.
+        let (type_name, uuid) = if let Some(typed) = decode_node_id(&raw_id) {
+            typed
+        } else if uuid::Uuid::parse_str(&raw_id).is_ok() {
+            match self.resolve_bare_node_type(&raw_id, security_context, variables).await? {
+                Some(type_name) => (type_name, raw_id.clone()),
+                None => {
+                    return Ok(ResultProjector::wrap_in_data_envelope(
+                        serde_json::Value::Null,
+                        "node",
+                    ));
+                },
+            }
+        } else {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "node query: invalid node ID '{raw_id}' — expected an object's id (a UUID) \
+                     or base64(\"Type:uuid\")"
+                ),
                 path:    Some("node.id".to_string()),
-            })?;
+            });
+        };
 
         // 2b. #939: the selection set is scoped to the type the opaque id resolved,
         //     so field-existence can only be checked here — the matcher never sees
@@ -629,40 +648,11 @@ impl QueryRunner {
         // Build the security WHERE (RLS ∧ inject_params). Fail closed when a policy is
         // configured but no security context is present: such a type is never resolvable by
         // opaque id without a principal, so return "not found" (null) — never the raw row.
-        let security_where: Option<WhereClause> = match security_context {
-            Some(sc) => {
-                let rls = if let Some(ref rls_policy) = self.ctx.config.rls_policy {
-                    rls_policy
-                        .evaluate(sc, &RlsTarget::query(&node_qdef.name, &node_qdef.return_type))?
-                        .map(RlsWhereClause::into_where_clause)
-                } else {
-                    None
-                };
-                let mut conditions: Vec<WhereClause> = node_qdef
-                    .inject_params
-                    .iter()
-                    .map(|(col, source)| {
-                        let value =
-                            resolve_inject_value(col, source, sc, self.ctx.schema.tenant_claim())?;
-                        Ok(inject_param_where_clause(col, value, &node_qdef.native_columns))
-                    })
-                    .collect::<Result<Vec<_>>>()?;
-                if let Some(rls) = rls {
-                    conditions.insert(0, rls);
-                }
-                match conditions.len() {
-                    0 => None,
-                    1 => Some(conditions.remove(0)),
-                    _ => Some(WhereClause::And(conditions)),
-                }
+        let security_where = match self.node_scope(node_qdef, security_context)? {
+            NodeScope::Readable(scope) => scope,
+            NodeScope::Hidden => {
+                return Ok(ResultProjector::wrap_in_data_envelope(serde_json::Value::Null, "node"));
             },
-            None if self.ctx.config.rls_policy.is_some() || !node_qdef.inject_params.is_empty() => {
-                // Fail closed: anonymous lookup of a policy-gated type yields nothing.
-                let response =
-                    ResultProjector::wrap_in_data_envelope(serde_json::Value::Null, "node");
-                return Ok(response);
-            },
-            None => None,
         };
 
         // 3c. Field-level RBAC at every level of the selection, each against its own type,
@@ -818,6 +808,181 @@ impl QueryRunner {
         Ok(response)
     }
 
+    /// The rows of a Node type's view this caller may read: its backing query's RLS and
+    /// `inject_params`, or [`NodeScope::Hidden`] for an anonymous caller on a policy-gated
+    /// type. One definition for the `node` lookup and the bare-id probe (#1398).
+    fn node_scope(
+        &self,
+        node_qdef: &crate::schema::QueryDefinition,
+        security_context: Option<&SecurityContext>,
+    ) -> Result<NodeScope> {
+        use crate::backend::WhereClause;
+
+        let scope: Option<WhereClause> = match security_context {
+            Some(sc) => {
+                let rls = if let Some(ref rls_policy) = self.ctx.config.rls_policy {
+                    rls_policy
+                        .evaluate(sc, &RlsTarget::query(&node_qdef.name, &node_qdef.return_type))?
+                        .map(RlsWhereClause::into_where_clause)
+                } else {
+                    None
+                };
+                let mut conditions: Vec<WhereClause> = node_qdef
+                    .inject_params
+                    .iter()
+                    .map(|(col, source)| {
+                        let value =
+                            resolve_inject_value(col, source, sc, self.ctx.schema.tenant_claim())?;
+                        Ok(inject_param_where_clause(col, value, &node_qdef.native_columns))
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                if let Some(rls) = rls {
+                    conditions.insert(0, rls);
+                }
+                match conditions.len() {
+                    0 => None,
+                    1 => Some(conditions.remove(0)),
+                    _ => Some(WhereClause::And(conditions)),
+                }
+            },
+            None if self.ctx.config.rls_policy.is_some() || !node_qdef.inject_params.is_empty() => {
+                // Fail closed: anonymous lookup of a policy-gated type yields nothing.
+                return Ok(NodeScope::Hidden);
+            },
+            None => None,
+        };
+        Ok(NodeScope::Readable(scope))
+    }
+
+    /// The Node type a bare UUID belongs to, among those this caller may read (#1398).
+    ///
+    /// An object's `id` is its UUID, so `node(id: x.id)` must find `x` without a type
+    /// prefix. Every `relay = true` type with a node view is probed for the id under the
+    /// gates the lookup itself applies — `requires_role`, `requires_actor`, the
+    /// operation authorizer, RLS and `inject_params` — so a type the caller cannot read
+    /// contributes nothing, and nothing below reveals that an id exists there.
+    ///
+    /// Several types can expose one entity (`User` and `UserSummary` over one table);
+    /// an id two readable Node types share is refused rather than resolved by guess.
+    ///
+    /// # Errors
+    ///
+    /// `FraiseQLError::Validation` when the id is ambiguous; a database or authorizer
+    /// outage propagates.
+    async fn resolve_bare_node_type(
+        &self,
+        uuid: &str,
+        security_context: Option<&SecurityContext>,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<Option<String>> {
+        use crate::backend::{WhereClause, where_clause::WhereOperator};
+
+        let resolved_session_vars = self.resolve_session_vars(security_context)?;
+        let session_pairs: Vec<(&str, &str)> =
+            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+
+        let mut probes = Vec::new();
+        for type_def in self.ctx.schema.types.iter().filter(|t| t.relay) {
+            let type_name = type_def.name.to_string();
+            let Some(view) = self.ctx.node_type_index.get(&type_name).cloned() else {
+                continue;
+            };
+            let Some(node_qdef) = self
+                .ctx
+                .schema
+                .queries
+                .iter()
+                .find(|q| q.return_type == type_name && q.sql_source.is_some())
+            else {
+                continue;
+            };
+            // A gate that refuses the caller removes the type from the candidates.
+            if crate::security::role_gate::enforce_requires_role(
+                "Query",
+                &node_qdef.name,
+                node_qdef.requires_role.as_deref(),
+                security_context,
+            )
+            .is_err()
+                || crate::security::actor_type::enforce_requires_actor(
+                    "Query",
+                    &node_qdef.name,
+                    &node_qdef.requires_actor,
+                    security_context,
+                )
+                .is_err()
+            {
+                continue;
+            }
+            if let Some(authorizer) = self.ctx.config.authorizer.as_ref() {
+                let op = crate::security::AuthzOperation::root(
+                    crate::security::OperationKind::Query,
+                    "node",
+                    Some(type_name.as_str()),
+                );
+                match crate::security::authorizer::enforce_authz(
+                    authorizer.as_ref(),
+                    security_context,
+                    &[op],
+                    variables,
+                ) {
+                    Ok(()) => {},
+                    Err(FraiseQLError::Authorization { .. }) => continue,
+                    Err(other) => return Err(other),
+                }
+            }
+            let scope = match self.node_scope(node_qdef, security_context)? {
+                NodeScope::Readable(scope) => scope,
+                NodeScope::Hidden => continue,
+            };
+            let id_where = WhereClause::Field {
+                path:     vec!["id".to_string()],
+                operator: WhereOperator::Eq,
+                value:    serde_json::Value::String(uuid.to_string()),
+            };
+            let where_clause = match scope {
+                Some(sec) => WhereClause::And(vec![sec, id_where]),
+                None => id_where,
+            };
+            let routing = node_qdef.read_routing;
+            let session_pairs = &session_pairs;
+            probes.push(async move {
+                let rows = self
+                    .ctx
+                    .adapter
+                    .execute_where_query_arc_with_session(
+                        &view,
+                        Some(&where_clause),
+                        Some(1),
+                        None,
+                        None,
+                        session_pairs,
+                        routing,
+                    )
+                    .await?;
+                Ok::<_, FraiseQLError>((!rows.is_empty()).then_some(type_name))
+            });
+        }
+
+        let mut found: Vec<String> =
+            futures::future::try_join_all(probes).await?.into_iter().flatten().collect();
+        match found.len() {
+            0 => Ok(None),
+            1 => Ok(found.pop()),
+            _ => {
+                found.sort();
+                Err(FraiseQLError::Validation {
+                    message: format!(
+                        "node query: id '{uuid}' identifies objects of more than one type ({}). \
+                         Pass base64(\"Type:{uuid}\") to choose the type.",
+                        found.join(", ")
+                    ),
+                    path:    Some("node.id".to_string()),
+                })
+            },
+        }
+    }
+
     /// The response-bytes ceiling, on the `node(id:)` lookup. One row, but one row of a
     /// materialised document is exactly the shape whose size the request cannot predict.
     fn charge_node_budget(&self, rows: &[crate::backend::JsonbValue]) -> Result<()> {
@@ -856,4 +1021,12 @@ fn sub_selections_named(selections: &[FieldSelection], name: &str) -> Vec<FieldS
         }
     }
     out
+}
+
+/// What a `node` lookup may read of a Node type's view.
+enum NodeScope {
+    /// Readable, under this security predicate (`None`: unscoped).
+    Readable(Option<crate::backend::WhereClause>),
+    /// Never resolvable for this caller: an anonymous lookup of a policy-gated type.
+    Hidden,
 }
