@@ -378,26 +378,6 @@ impl JwtValidator {
     }
 }
 
-/// Generate a JWT token with RS256 signature
-///
-/// # Arguments
-/// * `claims` - The JWT claims to sign
-/// * `private_key_pem` - RSA private key in PEM format
-///
-/// # Errors
-/// Returns error if token generation or signing fails
-pub fn generate_rs256_token(claims: &Claims, private_key_pem: &[u8]) -> Result<String> {
-    let encoding_key =
-        EncodingKey::from_rsa_pem(private_key_pem).map_err(|e| AuthError::Internal {
-            message: format!("Failed to parse private key: {}", e),
-        })?;
-
-    let header = Header::new(Algorithm::RS256);
-    encode(&header, claims, &encoding_key).map_err(|e| AuthError::Internal {
-        message: format!("Failed to generate RS256 token: {}", e),
-    })
-}
-
 /// Generate a JWT token with HMAC secret (HS256)
 ///
 /// # Arguments

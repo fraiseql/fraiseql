@@ -215,6 +215,13 @@ disagreed, and the promise was the part that was wrong.
   **Upgrade:** nothing in FraiseQL reads a function store; code that implemented the trait can
   drop it.
 
+- **`fraiseql-auth` no longer signs RS256 tokens (#1110).** `PostgresSessionStore::with_rs256_key`
+  and `generate_rs256_token` are removed. No shipped path called them (the server signs every
+  session HS256), and they were the only caller-triggerable RSA private-key operation in the
+  tree: the shape the `rsa` Marvin advisory (RUSTSEC-2023-0071) targets. RS256 *verification*
+  is unchanged. **Upgrade:** sign sessions with `with_hs256_secret`, or mint tokens with your own
+  signer (a KMS, or ES256/EdDSA through `jsonwebtoken`) and let FraiseQL verify them.
+
 ### Added
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds
@@ -362,6 +369,14 @@ disagreed, and the promise was the part that was wrong.
   is now built only when the stored value is an object, at every depth.
 
 ### Security
+
+- **RUSTSEC-2023-0071 (`rsa`) is re-argued on the path that exists, and a gate keeps it true
+  (#1110).** `rsa` verifies RS256 tokens, a public-key operation the advisory does not affect,
+  and signs one thing: the opt-in GCS backend's service-account assertion. The previous
+  justification named a login-triggered RS256 signer that no shipped path reached. That API is
+  removed (see Breaking), and `tools/check-crypto-providers.sh` now fails on any RSA private key
+  outside the GCS backend. The `aws_lc_rs` backend, which would drop `rsa` outright, is ruled out
+  by M-dual-crypto (one crypto provider, `ring`). Next review: 2027-01-31.
 
 - **Four accepted advisories resolved rather than re-accepted.** Each acceptance was due to lapse
   on 2026-10-31; each is now gone from `deny.toml` and `.cargo/audit.toml` because the advisory

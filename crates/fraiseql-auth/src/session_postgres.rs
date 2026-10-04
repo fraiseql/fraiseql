@@ -7,18 +7,6 @@ use crate::{
     session::{SessionData, SessionStore, TokenPair, generate_refresh_token, hash_token, unix_now},
 };
 
-/// How this store signs the access tokens it issues.
-///
-/// Both variants hold key material that outlives the token, so the corresponding
-/// validator can actually verify what was signed.
-enum SigningKey {
-    /// RSA private key in PEM format; tokens are signed RS256.
-    Rs256(Vec<u8>),
-    /// Shared HMAC secret; tokens are signed HS256. The same secret must be given
-    /// to the validating side (e.g. `Hs256AuthState`).
-    Hs256(Vec<u8>),
-}
-
 /// Default `iss` claim for minted access tokens (see [`PostgresSessionStore::with_token_claims`]).
 pub const DEFAULT_TOKEN_ISSUER: &str = "fraiseql";
 /// Default `aud` claim for minted access tokens (see [`PostgresSessionStore::with_token_claims`]).
@@ -27,9 +15,11 @@ pub const DEFAULT_TOKEN_AUDIENCE: &str = "fraiseql-api";
 /// PostgreSQL-backed session store
 pub struct PostgresSessionStore {
     db:             PgPool,
-    /// Key used to sign access tokens. `None` means signing is not configured and
-    /// [`SessionStore::create_session`] will fail rather than mint an unverifiable token.
-    signing_key:    Option<SigningKey>,
+    /// Shared HMAC secret access tokens are signed with (HS256). The same secret must
+    /// be given to the validating side (e.g. `Hs256AuthState`). `None` means signing is
+    /// not configured and [`SessionStore::create_session`] will fail rather than mint
+    /// an unverifiable token.
+    hs256_secret:   Option<Vec<u8>>,
     /// `iss` claim minted into access tokens. Must match what the validating
     /// side expects — see [`Self::with_token_claims`].
     token_issuer:   String,
@@ -45,28 +35,14 @@ impl PostgresSessionStore {
     /// [`SessionStore::revoke_session`], [`SessionStore::revoke_all_sessions`]) works,
     /// but [`SessionStore::create_session`] will return
     /// [`AuthError::ConfigError`] because there is no key to sign the access token
-    /// with. Use [`Self::with_rs256_key`] or [`Self::with_hs256_secret`] for a store
-    /// that can issue sessions.
+    /// with. Use [`Self::with_hs256_secret`] for a store that can issue sessions.
     #[must_use]
     pub fn new(db: PgPool) -> Self {
         Self {
             db,
-            signing_key: None,
+            hs256_secret: None,
             token_issuer: DEFAULT_TOKEN_ISSUER.to_string(),
             token_audience: DEFAULT_TOKEN_AUDIENCE.to_string(),
-        }
-    }
-
-    /// Create a new PostgreSQL session store with RS256 JWT signing
-    ///
-    /// # Arguments
-    /// * `db` - PostgreSQL connection pool
-    /// * `private_key_pem` - RSA private key in PEM format
-    #[must_use]
-    pub fn with_rs256_key(db: PgPool, private_key_pem: Vec<u8>) -> Self {
-        Self {
-            signing_key: Some(SigningKey::Rs256(private_key_pem)),
-            ..Self::new(db)
         }
     }
 
@@ -82,7 +58,7 @@ impl PostgresSessionStore {
     #[must_use]
     pub fn with_hs256_secret(db: PgPool, secret: Vec<u8>) -> Self {
         Self {
-            signing_key: Some(SigningKey::Hs256(secret)),
+            hs256_secret: Some(secret),
             ..Self::new(db)
         }
     }
@@ -170,15 +146,12 @@ impl PostgresSessionStore {
             .extra
             .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
-        match &self.signing_key {
-            Some(SigningKey::Rs256(private_key)) => {
-                crate::jwt::generate_rs256_token(&claims, private_key)
-            },
-            Some(SigningKey::Hs256(secret)) => crate::jwt::generate_hs256_token(&claims, secret),
+        match &self.hs256_secret {
+            Some(secret) => crate::jwt::generate_hs256_token(&claims, secret),
             None => Err(AuthError::ConfigError {
                 message: "JWT signing is not configured for this PostgresSessionStore — \
-                          construct it with with_rs256_key or with_hs256_secret. Refusing to \
-                          issue an access token that no validator could verify."
+                          construct it with with_hs256_secret. Refusing to issue an access \
+                          token that no validator could verify."
                     .to_string(),
             }),
         }

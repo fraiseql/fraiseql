@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Phase 12 — M-dual-crypto gate.
+# Crypto policy gate: M-dual-crypto, and the scope of RSA private-key use (#1110).
 #
 # Asserts the *default-feature* fraiseql-server build (what ships) links exactly
 # one rustls crypto provider and one rustls major. The workspace standardised on
@@ -46,8 +46,32 @@ if [ "$major_count" -gt 1 ]; then
   rc=1
 fi
 
+# RSA private-key operations stay confined to GCS service-account signing (#1110).
+#
+# RUSTSEC-2023-0071 (rsa, Marvin) is accepted because the `rsa` crate is reached only
+# through jsonwebtoken's `rust_crypto` backend for PUBLIC-key verification — which the
+# advisory does not affect — plus one private-key site: the opt-in `gcs` storage backend
+# signing its own service-account assertion, which Google requires to be RS256 and which
+# no caller can trigger or time. A new RSA private key anywhere else (an RS256 token
+# signer, a decryptor) would make that acceptance false while every other gate stayed
+# green, so it fails here. Test files are exempt: they sign tokens as an external issuer.
+# Scanned with grep, not git: the container this leg runs in has no `.git`.
+allowed_rsa_signers="crates/fraiseql-storage/src/backend/gcs.rs"
+rsa_private="$(grep -rlE 'EncodingKey::from_rsa_(pem|der|raw_components)|RsaPrivateKey' \
+  --include='*.rs' crates 2>/dev/null \
+  | grep -vE '(^|/)tests/|(^|/)tests?\.rs$|_tests?\.rs$|/fuzz/|/benches/' \
+  | grep -vxF "$allowed_rsa_signers" || true)"
+if [ -n "$rsa_private" ]; then
+  echo "FAIL (#1110): RSA private-key operations outside ${allowed_rsa_signers}:"
+  printf '    %s\n' $rsa_private
+  echo "    RUSTSEC-2023-0071 is accepted only while rsa does public-key work (plus GCS"
+  echo "    signing). Sign with HS256/ES256/EdDSA instead, or re-argue the acceptance in"
+  echo "    docs/dependency-risk-policy.md before allowing a new site."
+  rc=1
+fi
+
 if [ "$rc" -ne 0 ]; then
   exit 1
 fi
 
-echo "OK: default fraiseql-server build links one crypto provider (${providers}) and one rustls major (${rustls_majors})."
+echo "OK: default fraiseql-server build links one crypto provider (${providers}) and one rustls major (${rustls_majors}); RSA private keys only in ${allowed_rsa_signers}."

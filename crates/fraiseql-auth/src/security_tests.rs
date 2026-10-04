@@ -276,9 +276,21 @@ mod rs256_negative_paths {
         }
     }
 
+    /// Sign an RS256 token as an external issuer would. FraiseQL itself issues no RS256
+    /// tokens (it only verifies them), so the signing half lives here, in the test.
+    fn sign_rs256(claims: &Claims, private_key_pem: &[u8]) -> String {
+        let key = jsonwebtoken::EncodingKey::from_rsa_pem(private_key_pem).expect("test RSA key");
+        jsonwebtoken::encode(
+            &jsonwebtoken::Header::new(jsonwebtoken::Algorithm::RS256),
+            claims,
+            &key,
+        )
+        .expect("sign")
+    }
+
     #[test]
     fn a_valid_rs256_token_validates() {
-        let token = crate::jwt::generate_rs256_token(&claims(3600), PRIVATE_KEY).expect("sign");
+        let token = sign_rs256(&claims(3600), PRIVATE_KEY);
         assert!(
             validator().validate(&token, PUBLIC_KEY).is_ok(),
             "a genuinely RS256-signed, in-date token must validate — the control for the \
@@ -288,13 +300,13 @@ mod rs256_negative_paths {
 
     #[test]
     fn an_expired_rs256_token_is_rejected() {
-        let token = crate::jwt::generate_rs256_token(&claims(-3600), PRIVATE_KEY).expect("sign");
+        let token = sign_rs256(&claims(-3600), PRIVATE_KEY);
         assert!(matches!(validator().validate(&token, PUBLIC_KEY), Err(AuthError::TokenExpired)));
     }
 
     #[test]
     fn a_tampered_rs256_payload_is_rejected() {
-        let token = crate::jwt::generate_rs256_token(&claims(3600), PRIVATE_KEY).expect("sign");
+        let token = sign_rs256(&claims(3600), PRIVATE_KEY);
         // Flip the claims segment so the signature no longer covers the payload.
         let mut parts: Vec<&str> = token.split('.').collect();
         let tampered_payload = {
@@ -317,8 +329,7 @@ mod rs256_negative_paths {
         // A structurally valid token signed by a *different* RSA key must not
         // validate against our public key.
         const OTHER_PRIVATE_KEY: &[u8] = include_bytes!("../test_data/test_rsa_key_other.pem");
-        let token =
-            crate::jwt::generate_rs256_token(&claims(3600), OTHER_PRIVATE_KEY).expect("sign");
+        let token = sign_rs256(&claims(3600), OTHER_PRIVATE_KEY);
         assert!(
             matches!(validator().validate(&token, PUBLIC_KEY), Err(AuthError::InvalidSignature)),
             "a token signed by an unrelated key must fail signature verification"

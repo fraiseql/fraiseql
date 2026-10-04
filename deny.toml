@@ -7,10 +7,6 @@
 # require it; EOL dependency. Blocked on a custom hyper-rustls 0.27 HttpClient — tracked
 # as #1111, since no aws-* version bump or feature selection resolves it.
 # Re-evaluate by: 2026-12-01
-# - sqlx 0.8     — sqlx 0.9.0 is alpha as of 2026-04-25; upgrade when stable.
-# Was recorded as resolving RUSTSEC-2023-0071 (rsa Marvin Attack "via mysql_async"), but that
-# path no longer exists — rsa now arrives via jsonwebtoken in the default build (#1110).
-# Re-evaluate by: 2026-10-31
 # - thiserror 1.x — graphql-parser 0.4 pins thiserror 1.x; blocked on upstream update.
 # Re-evaluate by: 2026-12-01 — migrate off graphql-parser if still blocked.
 # - h2 0.3      — hyper 0.14 (aws-smithy-http-client) pins it; RUSTSEC-2026-0258 has no 0.3-series
@@ -23,17 +19,19 @@
 [advisories]
 db-path = "~/.cargo/advisory-db"
 ignore = [
-  # rsa: Marvin Attack — no upstream fix. Resolution path: upgrade sqlx to 0.9+ when released.
-  # ⚠ JUSTIFICATION UNDER REVIEW (#1110). The recorded grounds — "transitive via sqlx-mysql,
-  # optional feature only; mysql feature is non-default" — are false as of 2026-08-13:
-  # `cargo tree -i sqlx-mysql --all-features` prints nothing (MySQL left with #374), and rsa
-  # is reached via jsonwebtoken 10.4 in the DEFAULT build, where
-  # fraiseql-auth's generate_rs256_token() signs access tokens with an RSA PRIVATE key
-  # (session_postgres.rs:175) — an attacker-triggerable private-key operation, which is the
-  # shape Marvin targets. Acceptance left standing (there is no fixed rsa release either way),
-  # but it must be re-argued on the real path rather than re-approved on this text.
-  # deadline: 2026-10-31 — re-evaluate sqlx 0.9 release status and resolve #1110.
-  {id = "RUSTSEC-2023-0071", reason = "No fixed rsa release. Recorded mysql-feature justification is stale — real path is jsonwebtoken in the default build; under review in #1110. Deadline 2026-10-31."}
+  # rsa 0.9.10: Marvin Attack — a timing sidechannel in RSA PRIVATE-key operations. No fixed
+  # release. Re-argued on the real path (#1110), 2026-10-04: rsa is in the default build via
+  # jsonwebtoken 10.4's `rust_crypto` backend, where FraiseQL uses it to VERIFY RS256/384/512
+  # tokens (OIDC, JWKS, `[auth]` public keys) — public-key work the advisory does not affect.
+  # The one private-key operation left is the opt-in `gcs` storage backend signing its own
+  # service-account assertion (Google requires RS256): server-initiated, cached, neither
+  # triggerable nor timeable by a caller. The RS256 *signing* API (`with_rs256_key`,
+  # `generate_rs256_token`), which no shipped path called, was removed so that no new
+  # private-key path exists; tools/check-crypto-providers.sh fails on any RSA private key
+  # outside gcs.rs. Not fixed by switching jsonwebtoken to `aws_lc_rs`: M-dual-crypto keeps
+  # the default build on ring alone.
+  # deadline: 2027-01-31 — check for a constant-time rsa release (0.10, crypto-bigint) and move to it.
+  {id = "RUSTSEC-2023-0071", reason = "rsa used for RS256 public-key verification (unaffected) and GCS service-account signing only; no caller-triggerable private-key operation (#1110, gated by check-crypto-providers.sh). Deadline 2027-01-31."}
 ]
 unmaintained = "workspace"
 

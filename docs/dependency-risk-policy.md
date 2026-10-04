@@ -66,36 +66,45 @@ that reason.
 
 | Advisory | Crate | Path | Exposure | Mitigation | Deadline |
 |----------|-------|------|----------|------------|---------|
-| RUSTSEC-2023-0071 | `rsa@0.9.10` | `jsonwebtoken` 10.4 → `fraiseql-auth` | `default-build` | No fixed `rsa` release exists. The exposure is RS256 access-token signing (`session_postgres.rs:175`), an attacker-triggerable private-key operation — the shape Marvin targets. Re-argue on this path by the deadline; do not re-approve on the old `sqlx-mysql` text | 2026-10-31 |
+| RUSTSEC-2023-0071 | `rsa@0.9.10` | `jsonwebtoken` 10.4 (`rust_crypto`) → `fraiseql-auth` | `default-build` | Used to VERIFY RS256/384/512 tokens, a public-key operation the advisory does not affect. The one private-key operation is the opt-in `gcs` backend signing its own service-account assertion (Google requires RS256): server-initiated, cached, neither triggerable nor timeable by a caller. `tools/check-crypto-providers.sh` fails on any RSA private key outside `gcs.rs` (#1110) | 2027-01-31 |
 
-⚠ This row was corrected on 2026-08-16 after being checked against `cargo tree` rather than
-trusted: it claimed `sqlx-mysql`, which has been gone since #374; `rsa` in fact arrives via
-`jsonwebtoken` in the **default** build (#1110).
+⚠ This row was corrected twice. On 2026-08-16 it claimed `sqlx-mysql` (gone since #374); `rsa`
+in fact arrives via `jsonwebtoken` in the **default** build. That correction then claimed an
+unauthenticated login triggers RS256 signing. No shipped path ever did: every session store the
+server builds signs HS256. It was re-argued on 2026-10-04 (#1110), and the unused RS256 signing
+API was removed.
 
 ## Resolution Tracking
 
 ### RUSTSEC-2023-0071 (RSA Marvin Attack)
 
-**Root cause**: the `rsa` crate has a timing sidechannel in its private-key operations.
+**Root cause**: the `rsa` crate has a timing sidechannel in its **private**-key operations.
 
-**Status**: `rsa@0.9.10` is in the **default build**, reached as
-`jsonwebtoken 10.4 → fraiseql-auth`. `fraiseql-auth`'s `generate_rs256_token`
-(`crates/fraiseql-auth/src/session_postgres.rs:175`) signs access tokens with an RSA
-**private** key, so the vulnerable operation is one an unauthenticated caller can trigger by
-completing a login. That is the shape the Marvin Attack targets.
+**Status** (re-argued 2026-10-04, #1110): `rsa@0.9.10` is in the default build, reached as
+`jsonwebtoken 10.4 (rust_crypto) → fraiseql-auth`. What FraiseQL does with it:
 
-This entry previously recorded the opposite — "`sqlx-mysql`, lockfile-only, never compiled".
-That path was removed with MySQL support in #374; `cargo tree -i sqlx-mysql --all-features`
-prints nothing. The acceptance was corrected in `deny.toml` on 2026-08-13 and here on
-2026-08-16 (#1110).
+- **Verifies** RS256/384/512 tokens (OIDC, JWKS, configured public keys). These are public-key
+  operations, and Marvin does not apply to them.
+- **Signs** one thing: the opt-in `gcs` storage backend's service-account assertion
+  (`crates/fraiseql-storage/src/backend/gcs.rs`), because Google requires RS256 there. The
+  server initiates it and caches the token. A caller can neither trigger it on demand nor observe
+  its timing.
 
-**Blocked on**: nothing upstream — there is no fixed `rsa` release, and none is scheduled.
-The `sqlx 0.9` upgrade that used to be the tracked resolution path is irrelevant to the real
-dependency edge.
+The earlier text named `PostgresSessionStore::generate_access_token` as an attacker-triggerable
+signing path. No shipped path reached it: the server builds every session store with
+`with_hs256_secret`. The RS256 signing API (`with_rs256_key`, `generate_rs256_token`) had no
+production caller and was removed.
 
-**Review action by 2026-10-31**: the choice is between continuing to accept the timing
-sidechannel on RS256 signing and moving RS256 issuance off `jsonwebtoken`'s `rsa` backend.
-Decide that, on this path. Re-approving on the removed MySQL text is not a review.
+**Kept true by a gate**: `tools/check-crypto-providers.sh` fails on any RSA private key
+(`EncodingKey::from_rsa_*`, `RsaPrivateKey`) outside `gcs.rs` and test files. A new RS256
+signer therefore cannot quietly make this acceptance false.
+
+**Why not `jsonwebtoken`'s `aws_lc_rs` backend**: it would remove `rsa` outright, but
+M-dual-crypto keeps the default build on a single crypto provider (`ring`), and aws-lc-rs is the
+second one.
+
+**Review action by 2027-01-31**: check for a constant-time `rsa` release (0.10, built on
+`crypto-bigint`) and move to it.
 
 ## Resolved acceptances
 

@@ -1089,35 +1089,6 @@ mod jwt_token_shape_tests {
         assert_eq!(token1.matches('.').count(), 2);
         assert_eq!(token2.matches('.').count(), 2);
     }
-
-    #[test]
-    fn rs256_helper_emits_a_three_part_token() {
-        let test_key = include_bytes!("../test_data/test_rsa_key.pem");
-
-        let now = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .unwrap_or_default()
-            .as_secs();
-
-        let mut claims = crate::Claims {
-            sub:   "user123".to_string(),
-            iat:   now,
-            exp:   now + 3600,
-            nbf:   None,
-            iss:   "fraiseql".to_string(),
-            aud:   vec!["fraiseql-api".to_string()],
-            extra: std::collections::HashMap::new(),
-        };
-
-        claims
-            .extra
-            .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
-
-        let token = crate::jwt::generate_rs256_token(&claims, test_key)
-            .expect("Failed to generate RS256 token");
-
-        assert_eq!(token.matches('.').count(), 2);
-    }
 }
 
 #[cfg(test)]

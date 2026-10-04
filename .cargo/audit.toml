@@ -14,14 +14,11 @@
 
 [advisories]
 ignore = [
-  # rsa: Marvin Attack timing sidechannel. No upstream fix; sqlx 0.9 was the tracked
-  # resolution path.
-  # ⚠ JUSTIFICATION UNDER REVIEW (#1110): the "transitive via sqlx-mysql, optional feature
-  # only" grounds recorded here and in deny.toml are false as of 2026-08-13 — sqlx-mysql left
-  # the tree with #374, and rsa is reached via jsonwebtoken 10.4 in the DEFAULT build, where
-  # generate_rs256_token() signs with an RSA private key. The acceptance is left standing (no
-  # upstream fix exists either way) but must be re-argued on the real path.
-  # deadline: 2026-10-31 — re-evaluate sqlx 0.9 release status and resolve #1110.
+  # rsa: Marvin Attack timing sidechannel in PRIVATE-key operations; no fixed release.
+  # Re-argued (#1110, 2026-10-04): rsa verifies RS256 tokens (public key, unaffected); the
+  # only private-key site is the opt-in GCS service-account signer. The unused RS256 signing
+  # API was removed; tools/check-crypto-providers.sh confines RSA private keys to gcs.rs.
+  # deadline: 2027-01-31 — matches deny.toml.
   "RUSTSEC-2023-0071"
 ]
 # Surface unsound + unmaintained advisories as warnings so new soundness issues are visible
