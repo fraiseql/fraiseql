@@ -119,6 +119,13 @@ fn store_error(e: &fraiseql_auth::AuthError) -> Response {
             "A resource with this userName or displayName already exists",
             Some("uniqueness"),
         ),
+        // A group member outside the token's tenant, or one that does not exist. The store
+        // does not say which, so neither does the response.
+        AuthError::InvalidRegistration { .. } => scim_error(
+            StatusCode::BAD_REQUEST,
+            "A group member is not a provisioned user",
+            Some("invalidValue"),
+        ),
         _ => {
             tracing::error!(error = %e, "SCIM store operation failed");
             scim_error(StatusCode::INTERNAL_SERVER_ERROR, "Provisioning store error", None)

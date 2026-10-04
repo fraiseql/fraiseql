@@ -372,21 +372,25 @@ impl ScimStore for PgScimStore {
         // `start_index` is 1-based in SCIM; the offset is one less.
         let offset = (start_index - 1).max(0);
         let total: i64 = sqlx::query_scalar(
-            "SELECT count(*) FROM core.tb_user WHERE ($1::text IS NULL OR user_name = $1)",
+            "SELECT count(*) FROM core.tb_user WHERE ($1::text IS NULL OR user_name = $1) \
+             AND tenant_id IS NOT DISTINCT FROM $2",
         )
         .bind(user_name)
+        .bind(self.tenant_id)
         .fetch_one(&self.db)
         .await
         .map_err(|e| db_error("count SCIM users", &e))?;
 
         let rows = sqlx::query(&format!(
             "SELECT {} FROM core.tb_user WHERE ($1::text IS NULL OR user_name = $1) \
+             AND tenant_id IS NOT DISTINCT FROM $4 \
              ORDER BY pk_user LIMIT $2 OFFSET $3",
             user_columns()
         ))
         .bind(user_name)
         .bind(count)
         .bind(offset)
+        .bind(self.tenant_id)
         .fetch_all(&self.db)
         .await
         .map_err(|e| db_error("list SCIM users", &e))?;
@@ -398,12 +402,15 @@ impl ScimStore for PgScimStore {
     }
 
     async fn get_user(&self, id: &str) -> Result<Option<ScimUser>> {
-        let row =
-            sqlx::query(&format!("SELECT {} FROM core.tb_user WHERE user_id = $1", user_columns()))
-                .bind(id)
-                .fetch_optional(&self.db)
-                .await
-                .map_err(|e| db_error("get SCIM user", &e))?;
+        let row = sqlx::query(&format!(
+            "SELECT {} FROM core.tb_user WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2",
+            user_columns()
+        ))
+        .bind(id)
+        .bind(self.tenant_id)
+        .fetch_optional(&self.db)
+        .await
+        .map_err(|e| db_error("get SCIM user", &e))?;
         Ok(row.as_ref().map(decode_user))
     }
 
@@ -442,7 +449,7 @@ impl ScimStore for PgScimStore {
             "UPDATE core.tb_user SET user_name = $2, external_id = $3, email = $4, \
              given_name = $5, family_name = $6, display_name = $7, active = $8, \
              version = version + 1, updated_at = now() \
-             WHERE user_id = $1 RETURNING {}",
+             WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $9 RETURNING {}",
             user_columns()
         ))
         .bind(id)
@@ -453,6 +460,7 @@ impl ScimStore for PgScimStore {
         .bind(write.family_name.as_deref())
         .bind(write.display_name.as_deref())
         .bind(write.active)
+        .bind(self.tenant_id)
         .fetch_optional(&self.db)
         .await
         .map_err(|e| {
@@ -469,11 +477,12 @@ impl ScimStore for PgScimStore {
     async fn set_user_active(&self, id: &str, active: bool) -> Result<ScimUser> {
         let row = sqlx::query(&format!(
             "UPDATE core.tb_user SET active = $2, version = version + 1, updated_at = now() \
-             WHERE user_id = $1 RETURNING {}",
+             WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $3 RETURNING {}",
             user_columns()
         ))
         .bind(id)
         .bind(active)
+        .bind(self.tenant_id)
         .fetch_optional(&self.db)
         .await
         .map_err(|e| db_error("set SCIM user active", &e))?
@@ -482,12 +491,15 @@ impl ScimStore for PgScimStore {
     }
 
     async fn delete_user(&self, id: &str) -> Result<()> {
-        let affected = sqlx::query("DELETE FROM core.tb_user WHERE user_id = $1")
-            .bind(id)
-            .execute(&self.db)
-            .await
-            .map_err(|e| db_error("delete SCIM user", &e))?
-            .rows_affected();
+        let affected = sqlx::query(
+            "DELETE FROM core.tb_user WHERE user_id = $1 AND tenant_id IS NOT DISTINCT FROM $2",
+        )
+        .bind(id)
+        .bind(self.tenant_id)
+        .execute(&self.db)
+        .await
+        .map_err(|e| db_error("delete SCIM user", &e))?
+        .rows_affected();
         if affected == 0 {
             return Err(AuthError::TokenNotFound);
         }
@@ -560,6 +572,7 @@ impl ScimStore for PgScimStore {
         external_id: Option<&str>,
         members: &[String],
     ) -> Result<ScimGroup> {
+        self.ensure_members_in_tenant(members).await?;
         let row = sqlx::query(
             "INSERT INTO core.tb_scim_group (display_name, external_id, tenant_id) \
              VALUES ($1, $2, $3) \
@@ -590,6 +603,7 @@ impl ScimStore for PgScimStore {
         external_id: Option<&str>,
         members: &[String],
     ) -> Result<ScimGroup> {
+        self.ensure_members_in_tenant(members).await?;
         let row = sqlx::query(
             "UPDATE core.tb_scim_group SET display_name = $3, external_id = $4, \
              version = version + 1, updated_at = now() \
@@ -627,6 +641,7 @@ impl ScimStore for PgScimStore {
         add: &[String],
         remove: &[String],
     ) -> Result<ScimGroup> {
+        self.ensure_members_in_tenant(add).await?;
         let row = sqlx::query(
             "UPDATE core.tb_scim_group SET version = version + 1, updated_at = now() \
              WHERE id = $1 AND tenant_id IS NOT DISTINCT FROM $2 \
@@ -689,6 +704,33 @@ impl ScimStore for PgScimStore {
 }
 
 impl PgScimStore {
+    /// Refuse a membership list naming any user outside this store's tenant.
+    ///
+    /// Runs before the group row is written, so a refused write changes nothing. An id that
+    /// belongs to another tenant is refused exactly like one that does not exist, so the
+    /// refusal cannot be used to probe another tenant's user ids.
+    async fn ensure_members_in_tenant(&self, members: &[String]) -> Result<()> {
+        if members.is_empty() {
+            return Ok(());
+        }
+        let found: i64 = sqlx::query_scalar(
+            "SELECT count(DISTINCT user_id) FROM core.tb_user \
+             WHERE user_id = ANY($1) AND tenant_id IS NOT DISTINCT FROM $2",
+        )
+        .bind(members)
+        .bind(self.tenant_id)
+        .fetch_one(&self.db)
+        .await
+        .map_err(|e| db_error("check SCIM group members", &e))?;
+        let wanted = members.iter().collect::<std::collections::HashSet<_>>().len();
+        if usize::try_from(found).ok() != Some(wanted) {
+            return Err(AuthError::InvalidRegistration {
+                reason: "a group member is not a user of this provisioning tenant".to_string(),
+            });
+        }
+        Ok(())
+    }
+
     /// Insert membership rows, ignoring duplicates so PATCH-add is idempotent.
     async fn set_members(&self, pk_group: i64, members: &[String]) -> Result<()> {
         for user_id in members {

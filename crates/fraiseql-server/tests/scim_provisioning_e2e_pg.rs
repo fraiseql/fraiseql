@@ -579,6 +579,111 @@ async fn groups_become_permissionless_rbac_roles() {
     drop_scratch(&url, db).await;
 }
 
+/// Mint a provisioning credential scoped to `tenant`, the way an operator would.
+async fn mint_for_tenant(rig: &Rig, idp_name: &str, tenant: &str) -> String {
+    let minted: Value = rig
+        .client
+        .post(format!("{}/api/scim/tokens", rig.base))
+        .bearer_auth(ADMIN_TOKEN)
+        .json(&json!({ "idp_name": idp_name, "tenant_id": tenant }))
+        .send()
+        .await
+        .expect("mint token")
+        .json()
+        .await
+        .expect("mint token json");
+    assert_eq!(minted["tenant_id"], tenant, "the minted token must carry its tenant: {minted}");
+    minted["token"].as_str().expect("the token is shown once").to_string()
+}
+
+/// Two IdPs, two tenants, one server. Neither credential reaches the other tenant's users,
+/// and a group cannot enlist one: the refusal is SCIM's `invalidValue`, and no role is
+/// granted to the foreign user.
+#[tokio::test]
+async fn a_tenant_credential_cannot_reach_another_tenants_users() {
+    let Some(url) = database_url_or_skip("tenant_credential_isolation") else {
+        return;
+    };
+    let db = "fraiseql_scim_tenant_isolation";
+    let rig = boot(&url, db).await;
+    let acme = mint_for_tenant(&rig, "acme-okta", "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa").await;
+    let rival = mint_for_tenant(&rig, "rival-entra", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb").await;
+    let as_tenant = |token: &str, method: reqwest::Method, path: &str| {
+        rig.client
+            .request(method, format!("{}{path}", rig.base))
+            .bearer_auth(token.to_string())
+    };
+
+    let resp = as_tenant(&rival, reqwest::Method::POST, "/scim/v2/Users")
+        .json(&json!({ "userName": "victim@rival.example", "active": true }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 201);
+    let victim_id = resp.json::<Value>().await.unwrap()["id"].as_str().unwrap().to_string();
+
+    let listed: Value = as_tenant(&acme, reqwest::Method::GET, "/scim/v2/Users")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(listed["totalResults"], 0, "another tenant's users must not be listed: {listed}");
+
+    let resp = as_tenant(&acme, reqwest::Method::GET, &format!("/scim/v2/Users/{victim_id}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 404, "another tenant's user must not be readable");
+
+    let resp = as_tenant(&acme, reqwest::Method::DELETE, &format!("/scim/v2/Users/{victim_id}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 404, "another tenant's user must not be deletable");
+
+    let resp = as_tenant(&acme, reqwest::Method::POST, "/scim/v2/Groups")
+        .json(&json!({
+            "schemas": ["urn:ietf:params:scim:schemas:core:2.0:Group"],
+            "displayName": "Admins",
+            "members": [{ "value": victim_id }],
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 400, "a group must not enlist another tenant's user");
+    let body: Value = resp.json().await.unwrap();
+    assert_eq!(body["scimType"], "invalidValue", "{body}");
+
+    let assignments: Value = rig
+        .client
+        .get(format!("{}/api/user-roles", rig.base))
+        .query(&[("user_id", victim_id.as_str())])
+        .bearer_auth(ADMIN_TOKEN)
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(
+        assignments["items"].as_array().map(Vec::len),
+        Some(0),
+        "no role may reach the foreign user: {assignments}"
+    );
+
+    // Its own tenant still sees it.
+    let resp = as_tenant(&rival, reqwest::Method::GET, &format!("/scim/v2/Users/{victim_id}"))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), 200);
+
+    rig.shutdown().await;
+    drop_scratch(&url, db).await;
+}
+
 /// The document this suite serves loads, checked with no database.
 ///
 /// Every other test here reaches the document only after it has found a database, so in

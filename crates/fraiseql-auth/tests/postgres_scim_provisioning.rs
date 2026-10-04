@@ -271,6 +271,139 @@ async fn groups_carry_membership_and_patch_incrementally() {
     assert!(rig.scim.get_user(&b.id).await.unwrap().is_some());
 }
 
+// ─── Tenant isolation ────────────────────────────────────────────────────────
+
+const TENANT_A: Uuid = Uuid::from_u128(0xaaaa_aaaa_aaaa_4aaa_8aaa_aaaa_aaaa_aaaa);
+const TENANT_B: Uuid = Uuid::from_u128(0xbbbb_bbbb_bbbb_4bbb_8bbb_bbbb_bbbb_bbbb);
+
+fn store_for(rig: &Rig, tenant: Option<Uuid>) -> PgScimStore {
+    PgScimStore::new(rig.scim.pool().clone(), tenant)
+}
+
+/// A provisioning token is scoped to its tenant, so another tenant's users do not exist for
+/// it: not listed, not fetched, and not replaced, deactivated or deleted. Each operation is
+/// asserted on its own, because each is its own query and its own guard.
+#[tokio::test]
+async fn a_tenant_token_cannot_reach_another_tenants_users() {
+    let rig = skip_if_no_db!();
+    let acme = store_for(&rig, Some(TENANT_A));
+    let rival = store_for(&rig, Some(TENANT_B));
+    let victim = acme.create_user(&write("victim", true)).await.unwrap();
+
+    let listed = rival.list_users(None, 1, 100).await.unwrap();
+    assert_eq!(listed.total_results, 0, "another tenant's user must not be counted");
+    assert!(listed.resources.is_empty(), "another tenant's user must not be listed");
+    assert!(
+        rival.get_user(&victim.id).await.unwrap().is_none(),
+        "another tenant's user must not be fetchable by id"
+    );
+    let replaced = rival.replace_user(&victim.id, &write("hijacked", true)).await;
+    assert!(
+        matches!(replaced, Err(AuthError::TokenNotFound)),
+        "another tenant's user must not be replaceable: {replaced:?}"
+    );
+    let deactivated = rival.set_user_active(&victim.id, false).await;
+    assert!(
+        matches!(deactivated, Err(AuthError::TokenNotFound)),
+        "another tenant's user must not be deactivatable: {deactivated:?}"
+    );
+    let deleted = rival.delete_user(&victim.id).await;
+    assert!(
+        matches!(deleted, Err(AuthError::TokenNotFound)),
+        "another tenant's user must not be deletable: {deleted:?}"
+    );
+
+    // Untouched, as its own tenant sees it.
+    let after = acme.get_user(&victim.id).await.unwrap().expect("the user still exists");
+    assert_eq!(after, victim, "no write from another tenant may have landed");
+}
+
+/// The shape a deployment actually has: accounts created by a login path carry no tenant.
+/// A tenant-bound token must not reach them either — rewriting such an account's email is
+/// an account takeover through email linking.
+#[tokio::test]
+async fn a_tenant_token_cannot_reach_a_platform_account() {
+    let rig = skip_if_no_db!();
+    let platform_user = rig.passwords.signup("ada@example.com", PASSWORD).await.unwrap();
+    let acme = store_for(&rig, Some(TENANT_A));
+
+    assert_eq!(acme.list_users(None, 1, 100).await.unwrap().total_results, 0);
+    assert!(acme.get_user(&platform_user).await.unwrap().is_none());
+    assert!(matches!(
+        acme.replace_user(&platform_user, &write("ada", true)).await,
+        Err(AuthError::TokenNotFound)
+    ));
+    assert!(matches!(
+        acme.set_user_active(&platform_user, false).await,
+        Err(AuthError::TokenNotFound)
+    ));
+    assert!(matches!(acme.delete_user(&platform_user).await, Err(AuthError::TokenNotFound)));
+
+    // The untenanted token still manages it: single-tenant deployments are unchanged.
+    let platform = store_for(&rig, None);
+    assert!(platform.get_user(&platform_user).await.unwrap().is_some());
+    platform.set_user_active(&platform_user, false).await.unwrap();
+}
+
+/// …and the reverse: the untenanted token does not reach a tenant's users.
+#[tokio::test]
+async fn the_untenanted_token_cannot_reach_a_tenants_users() {
+    let rig = skip_if_no_db!();
+    let acme_user = store_for(&rig, Some(TENANT_A)).create_user(&write("t", true)).await.unwrap();
+    let platform = store_for(&rig, None);
+
+    assert_eq!(platform.list_users(None, 1, 100).await.unwrap().total_results, 0);
+    assert!(platform.get_user(&acme_user.id).await.unwrap().is_none());
+    assert!(matches!(
+        platform.delete_user(&acme_user.id).await,
+        Err(AuthError::TokenNotFound)
+    ));
+}
+
+/// A group may only hold its own tenant's users. Every membership write — create, replace,
+/// patch — refuses a foreign user id, the same way it refuses one that does not exist, so the
+/// refusal does not reveal that the id belongs to someone else.
+#[tokio::test]
+async fn a_group_cannot_take_a_member_from_another_tenant() {
+    let rig = skip_if_no_db!();
+    let acme = store_for(&rig, Some(TENANT_A));
+    let rival = store_for(&rig, Some(TENANT_B));
+    let own = acme.create_user(&write("own", true)).await.unwrap();
+    let foreign = rival.create_user(&write("foreign", true)).await.unwrap();
+
+    let created = acme.create_group("Admins", None, std::slice::from_ref(&foreign.id)).await;
+    assert!(
+        matches!(created, Err(AuthError::InvalidRegistration { .. })),
+        "create must refuse a foreign member: {created:?}"
+    );
+
+    let group = acme.create_group("Staff", None, std::slice::from_ref(&own.id)).await.unwrap();
+    let replaced = acme
+        .replace_group(group.id, "Staff", None, &[own.id.clone(), foreign.id.clone()])
+        .await;
+    assert!(
+        matches!(replaced, Err(AuthError::InvalidRegistration { .. })),
+        "replace must refuse a foreign member: {replaced:?}"
+    );
+    let patched = acme.patch_group_members(group.id, std::slice::from_ref(&foreign.id), &[]).await;
+    assert!(
+        matches!(patched, Err(AuthError::InvalidRegistration { .. })),
+        "patch must refuse a foreign member: {patched:?}"
+    );
+    let unknown = acme.patch_group_members(group.id, &["user_nonexistent".to_string()], &[]).await;
+    assert!(
+        matches!(unknown, Err(AuthError::InvalidRegistration { .. })),
+        "an unknown member is refused the same way: {unknown:?}"
+    );
+
+    // No partial write: the refused create left no group, and the group still holds exactly
+    // its own member.
+    assert_eq!(acme.list_groups(Some("Admins"), 1, 10).await.unwrap().total_results, 0);
+    let stored = acme.get_group(group.id).await.unwrap().unwrap();
+    assert_eq!(stored.members, vec![own.id.clone()]);
+    assert!(rival.groups_of_user(&foreign.id).await.unwrap().is_empty());
+}
+
 // ─── Provisioning credentials ────────────────────────────────────────────────
 
 #[tokio::test]

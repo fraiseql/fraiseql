@@ -48,6 +48,15 @@ curl -X DELETE https://api.example.com/api/scim/tokens/<id> -H "Authorization: B
 The tenant is a property of the **credential**, never of the request, so one IdP cannot
 provision into another's tenant — there is no request field that could say otherwise.
 
+A credential sees exactly its tenant's users and groups: users whose `tenant_id` equals the
+token's (an untenanted token sees untenanted users). Another tenant's user is `404` on every
+route, and a group member outside the tenant is `400 invalidValue`, worded the same whether
+the id belongs to another tenant or to no one.
+
+Accounts created by a sign-in path (password, OTP, social, SAML) carry no tenant today, so a
+tenant-scoped token does not reach them. To let a tenant's IdP manage such an account, assign
+it to the tenant: `UPDATE core.tb_user SET tenant_id = '<tenant uuid>' WHERE user_id = '…'`.
+
 ## Endpoints
 
 | Route | Notes |

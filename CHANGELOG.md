@@ -18,6 +18,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A tenant-scoped SCIM token reaches only its own tenant's users.** See Security. A token
+  minted with a `tenant_id` used to read and write every row of `core.tb_user`, including
+  accounts a login path created, which carry no tenant. It now sees only users whose
+  `tenant_id` equals its own; the untenanted token sees only untenanted users, so a
+  single-tenant deployment is unchanged. A group membership naming a user outside the token's
+  tenant (or no user at all) is refused with `400 invalidValue` instead of being stored.
+  **Upgrade:** if a tenant's IdP must deprovision accounts that predate its provisioning
+  (created by password, OTP, social or SAML sign-in, so `tenant_id IS NULL`), assign them to
+  that tenant first: `UPDATE core.tb_user SET tenant_id = '<tenant uuid>' WHERE user_id = ANY(…)`.
+  Until sign-in binds accounts to a tenant (#1088), a tenant token cannot reach accounts it did
+  not provision; its IdP sees `404` for them rather than silently managing another tenant's.
+
 - **`jwt:<claim>` reads the claim the token carries, on every path (#1388).** Inject
   parameters, `[session_variables]` with `source = "jwt"` and identity-enrichment `$param`
   bindings each resolved claims themselves, and two of them answered `jwt:tenant_id` *and*
@@ -392,6 +404,15 @@ disagreed, and the promise was the part that was wrong.
   is now built only when the stored value is an object, at every depth.
 
 ### Security
+
+- **SCIM provisioning tokens were not confined to their tenant.** `PgScimStore` scoped
+  groups by the token's tenant but not users: `GET /Users` listed every tenant's users (email,
+  names), and `PUT`/`PATCH`/`DELETE /Users/{id}` replaced, deactivated or deleted any of them.
+  Rewriting the email of an account another tenant's users sign in to is an account takeover
+  through verified-email linking. Group writes also accepted another tenant's user as a member,
+  and the membership was mirrored onto an RBAC role assignment for that user. Every user query
+  now carries `tenant_id IS NOT DISTINCT FROM <token tenant>`, and group membership is checked
+  against the token's tenant before anything is written.
 
 - **RUSTSEC-2023-0071 (`rsa`) is re-argued on the path that exists, and a gate keeps it true
   (#1110).** `rsa` verifies RS256 tokens, a public-key operation the advisory does not affect,

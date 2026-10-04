@@ -34,6 +34,15 @@ ACCEPTED_DEVIATIONS: dict[str, str] = {
         "account-linking key (#411). A second address would either be invisible to linking "
         "or silently widen it, so multi-valued emails are stored as the primary only."
     ),
+    "A group member is not a provisioned user": (
+        "scim2-tester fills `members[].value` with random UUIDs that name no user. A member "
+        "must be a user this token provisioned: an id that does not exist, or belongs to "
+        "another tenant, is refused with 400 invalidValue, the same answer for both, so the "
+        "refusal cannot probe another tenant's ids. Accepting it stored a dangling membership "
+        "and mirrored it onto an RBAC assignment. Cost: the tester's group checks that create "
+        "members stop at creation; the group lifecycle with real members is covered by "
+        "scim_provisioning_e2e_pg."
+    ),
     "did not remove attribute 'active'": (
         "`active` is the offboarding switch and is NOT NULL by design. Making it removable "
         "would mean a nullable deactivation flag, and 'NULL' would have to be read as "
