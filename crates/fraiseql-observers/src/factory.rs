@@ -96,18 +96,28 @@ impl ExecutorFactory {
     ///
     /// # Example
     ///
-    /// ```ignore
-    /// // Requires: Redis connection (when dedup/caching enabled) and config.toml file.
-    /// # use std::sync::Arc;
-    /// # use fraiseql_observers::{factory::ExecutorFactory, config::ObserverRuntimeConfig};
-    /// # async fn example() -> fraiseql_observers::Result<()> {
-    /// let config = ObserverRuntimeConfig::load_from_file("config.toml")?;
-    /// let dlq = Arc::new(PostgresDLQ::new(pool.clone()));
+    /// ```no_run
+    /// use std::sync::Arc;
     ///
-    /// // Automatically wraps with dedup/cache based on config
-    /// let executor = ExecutorFactory::build(&config, dlq).await?;
-    /// # Ok(())
-    /// # }
+    /// use fraiseql_observers::{
+    ///     DeadLetterQueue, config::ObserverRuntimeConfig, event::EntityEvent,
+    ///     factory::ExecutorFactory,
+    /// };
+    ///
+    /// // `config` is the deserialized `[observers.runtime]` section, and `dlq` is your
+    /// // `DeadLetterQueue` implementation. Redis is contacted only when the config enables
+    /// // dedup or caching.
+    /// async fn process(
+    ///     config: &ObserverRuntimeConfig,
+    ///     dlq: Arc<dyn DeadLetterQueue>,
+    ///     event: &EntityEvent,
+    /// ) -> fraiseql_observers::Result<()> {
+    ///     // Wrapped in dedup and/or caching according to `config.performance`.
+    ///     let executor = ExecutorFactory::build(config, dlq).await?;
+    ///     let summary = executor.process_event(event).await?;
+    ///     println!("{} actions succeeded", summary.successful_actions);
+    ///     Ok(())
+    /// }
     /// ```
     #[cfg(all(feature = "dedup", feature = "caching"))]
     pub async fn build(

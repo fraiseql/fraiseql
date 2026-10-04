@@ -60,22 +60,51 @@ checkpoint = []
 #### Step 3: Enable in Configuration
 
 ```rust
-use fraiseql_observers::checkpoint::PostgresCheckpointStore;
+use std::time::Duration;
 
-let checkpoint_store = Arc::new(
-    PostgresCheckpointStore::new(
-        "postgresql://user:pass@localhost/db",
-        "observer_checkpoints"
-    )
-    .await?
-);
+use fraiseql_observers::{
+    ChangeLogListener, ChangeLogListenerConfig, CheckpointState, CheckpointStore,
+    ObserverExecutor, PostgresCheckpointStore,
+};
 
-let executor = ObserverExecutor::with_checkpoint_store(
-    matcher,
-    checkpoint_store,
-    dlq,
-);
+async fn drive(pool: sqlx::PgPool, executor: ObserverExecutor) -> fraiseql_observers::Result<()> {
+    const LISTENER: &str = "orders";
+    let checkpoints = PostgresCheckpointStore::new(pool.clone());
+
+    // Restore the cursor BEFORE building the listener.
+    let mut config = ChangeLogListenerConfig::new(pool).with_listener_id(LISTENER);
+    if let Some(state) = checkpoints.load(LISTENER).await? {
+        config = config.with_resume_from(state.last_processed_id);
+    }
+    let mut listener = ChangeLogListener::new(config);
+
+    let mut processed = 0;
+    loop {
+        let batch = listener.next_batch().await?;
+        let Some(last) = batch.last() else {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            continue;
+        };
+        for entry in &batch {
+            executor.process_event(&entry.to_entity_event()?).await?;
+        }
+        // Record, then advance the cursor: both AFTER the actions ran (at-least-once).
+        listener.record_dispatched(&batch).await?;
+        processed += batch.len();
+        let state = CheckpointState {
+            listener_id:       LISTENER.to_string(),
+            last_processed_id: last.id,
+            last_processed_at: chrono::Utc::now(),
+            batch_size:        batch.len(),
+            event_count:       processed,
+        };
+        checkpoints.save(LISTENER, &state).await?;
+    }
+}
 ```
+
+The checkpoint belongs to the driver loop, not to the executor. This is the example compiled
+in the rustdoc of `fraiseql_observers::checkpoint`; `fraiseql-server` runs the same loop.
 
 #### Step 4: Verify Integration
 
@@ -220,13 +249,13 @@ let dedup_store = Arc::new(
 #### Step 3: Integrate with Executor
 
 ```rust
-let executor = ObserverExecutor::with_dedup(
-    matcher,
-    dlq,
-    checkpoint_store,
-    dedup_store,
-);
+use fraiseql_observers::{ObserverExecutor, deduped_executor::DedupedObserverExecutor};
+
+let executor = DedupedObserverExecutor::new(ObserverExecutor::new(matcher, dlq), dedup_store);
 ```
+
+Deduplication wraps the executor; it is not a method on it. The example compiled in the
+rustdoc of `DedupedObserverExecutor` shows the whole construction.
 
 #### Step 4: Verify Deduplication
 
@@ -598,17 +627,9 @@ metrics = ["prometheus"]
 
 #### Step 2: Initialize Metrics
 
-```rust
-use fraiseql_observers::metrics::ObserverMetrics;
-
-let metrics = Arc::new(ObserverMetrics::new());
-
-let executor = ObserverExecutor::with_metrics(
-    matcher,
-    dlq,
-    metrics.clone(),
-);
-```
+Nothing to construct: with the `metrics` feature on, every `ObserverExecutor` records into the
+process-global Prometheus registry (`MetricsRegistry::global()`). `fraiseql-server` serves it on
+its metrics endpoint.
 
 #### Step 3: Configure Prometheus
 
@@ -695,66 +716,10 @@ groups:
 
 **Purpose**: Prevent cascading failures
 
-### Prerequisites
-
-- Understanding of circuit breaker pattern
-- External service reliability concerns
-
-### Integration Steps
-
-#### Step 1: Configure Circuit Breaker
-
-```rust
-use fraiseql_observers::resilience::CircuitBreakerConfig;
-
-let cb_config = CircuitBreakerConfig {
-    failure_threshold: 0.5,      // Open at 50% failure rate
-    success_threshold: 0.8,      // Close at 80% success rate
-    timeout: Duration::from_secs(60),
-    sample_size: 100,
-};
-
-let executor = ObserverExecutor::with_circuit_breaker(
-    matcher,
-    dlq,
-    cb_config,
-);
-```
-
-#### Step 2: Test Circuit Breaker
-
-```rust
-#[test]
-fn test_circuit_breaker_opens_on_failures() {
-    // Simulate 50 consecutive failures
-    for _ in 0..50 {
-        let result = executor.execute_action(action_that_fails).await;
-        assert!(result.is_err());
-    }
-
-    // Next request should fail immediately (fast-fail)
-    let start = Instant::now();
-    let result = executor.execute_action(action_that_fails).await;
-    let elapsed = start.elapsed();
-
-    // Should fail fast (<1ms) without calling external service
-    assert!(elapsed.as_millis() < 10);
-}
-```
-
-#### Step 3: Monitor Circuit State
-
-```bash
-# Check circuit state
-fraiseql-observers status | grep -i circuit
-
-# Expected output:
-# Circuit Breaker: CLOSED (normal)
-# Circuit Breaker: OPEN (failing fast)
-# Circuit Breaker: HALF_OPEN (testing recovery)
-```
-
----
+> **Not available yet.** `fraiseql_observers::resilience` (`ResilientExecutor`,
+> `CircuitBreakerConfig`) is exported but not installed by the executor or the server; there is
+> no `ObserverExecutor::with_circuit_breaker`. Tracked in
+> [#1451](https://github.com/fraiseql/fraiseql/issues/1451).
 
 ## Phase 8.9: Multi-Listener Failover
 
@@ -940,60 +905,37 @@ After integrating each feature, verify:
 
 ## Common Integration Patterns
 
-### Pattern 1: Minimal Setup (Checkpoint Only)
+### Pattern 1: Minimal setup (checkpoint only)
+
+A plain `ObserverExecutor::new(matcher, dlq)`, driven by the checkpointed loop in
+[Checkpoints](#step-3-enable-in-configuration).
+
+### Pattern 2: Production setup
+
+Let the factory compose the executor from `[observers.runtime]`. It wraps the base executor in
+deduplication and/or result caching according to `performance.enable_dedup` and
+`performance.enable_caching`, and contacts Redis only when one of them is on:
 
 ```rust
-let checkpoint_store = PostgresCheckpointStore::new(...).await?;
-let executor = ObserverExecutor::with_checkpoint_store(
-    matcher,
-    checkpoint_store,
-    dlq,
-);
+use fraiseql_observers::factory::ExecutorFactory;
+
+let executor = ExecutorFactory::build(&runtime_config, dlq).await?;
+// Drive it with the checkpointed loop above: `executor.process_event(&event)`.
 ```
 
-### Pattern 2: Production Setup (All Features)
+Search indexing, the job queue (`QueuedObserverExecutor`) and metrics are separate components,
+not builder methods on the executor. `performance.enable_concurrent` is accepted but not
+honoured yet ([#1451](https://github.com/fraiseql/fraiseql/issues/1451)).
 
-```rust
-let checkpoint = PostgresCheckpointStore::new(...).await?;
-let dedup = RedisDeduplicationStore::new(...).await?;
-let cache = RedisCacheBackend::new(...).await?;
-let search = HttpSearchBackend::new(...);
-let queue = RedisJobQueue::new(...).await?;
-let metrics = ObserverMetrics::new();
+### Pattern 3: Migration (add features gradually)
 
-let executor = ObserverExecutor::new(matcher, dlq)
-    .with_checkpoint(checkpoint)
-    .with_dedup(dedup)
-    .with_cache(cache)
-    .with_search(search)
-    .with_queue(queue)
-    .with_metrics(metrics)
-    .with_circuit_breaker(cb_config)
-    .with_concurrent_execution(concurrent_config);
-```
+Each step is a configuration change, not a code change, once the factory builds the executor:
 
-### Pattern 3: Migration (Add Features Gradually)
-
-```rust
-// Week 1: Add checkpoints
-let executor = ObserverExecutor::with_checkpoint_store(
-    matcher, checkpoint_store, dlq
-);
-// Test, verify zero event loss
-
-// Week 2: Add caching
-let executor = executor.with_cache(cache);
-// Benchmark, verify 100x speedup for cache hits
-
-// Week 3: Add deduplication
-let executor = executor.with_dedup(dedup);
-// Monitor, verify duplicate prevention
-
-// Week 4: Add remaining features
-let executor = executor
-    .with_search(search)
-    .with_metrics(metrics);
-```
+1. Checkpoints: drive the executor with the checkpointed loop. Verify that a restart neither
+   loses nor re-delivers events beyond one batch.
+2. Caching: set `performance.enable_caching = true` with a `[observers.runtime.redis]` section.
+3. Deduplication: set `performance.enable_dedup = true`. Verify that a redelivered event inside
+   the window is skipped.
 
 ---
 

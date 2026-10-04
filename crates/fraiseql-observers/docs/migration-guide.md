@@ -62,20 +62,51 @@ checkpoint = []
 ```
 
 ```rust
-let checkpoint_store = Arc::new(
-    PostgresCheckpointStore::new(
-        $DATABASE_URL,
-        "observer_checkpoints"
-    )
-    .await?
-);
+use std::time::Duration;
 
-let executor = ObserverExecutor::with_checkpoint_store(
-    matcher,
-    checkpoint_store,
-    dlq,
-);
+use fraiseql_observers::{
+    ChangeLogListener, ChangeLogListenerConfig, CheckpointState, CheckpointStore,
+    ObserverExecutor, PostgresCheckpointStore,
+};
+
+async fn drive(pool: sqlx::PgPool, executor: ObserverExecutor) -> fraiseql_observers::Result<()> {
+    const LISTENER: &str = "orders";
+    let checkpoints = PostgresCheckpointStore::new(pool.clone());
+
+    // Restore the cursor BEFORE building the listener.
+    let mut config = ChangeLogListenerConfig::new(pool).with_listener_id(LISTENER);
+    if let Some(state) = checkpoints.load(LISTENER).await? {
+        config = config.with_resume_from(state.last_processed_id);
+    }
+    let mut listener = ChangeLogListener::new(config);
+
+    let mut processed = 0;
+    loop {
+        let batch = listener.next_batch().await?;
+        let Some(last) = batch.last() else {
+            tokio::time::sleep(Duration::from_millis(100)).await;
+            continue;
+        };
+        for entry in &batch {
+            executor.process_event(&entry.to_entity_event()?).await?;
+        }
+        // Record, then advance the cursor: both AFTER the actions ran (at-least-once).
+        listener.record_dispatched(&batch).await?;
+        processed += batch.len();
+        let state = CheckpointState {
+            listener_id:       LISTENER.to_string(),
+            last_processed_id: last.id,
+            last_processed_at: chrono::Utc::now(),
+            batch_size:        batch.len(),
+            event_count:       processed,
+        };
+        checkpoints.save(LISTENER, &state).await?;
+    }
+}
 ```
+
+The checkpoint belongs to the driver loop, not to the executor. This is the example compiled
+in the rustdoc of `fraiseql_observers::checkpoint`; `fraiseql-server` runs the same loop.
 
 #### Step 3: Testing
 
@@ -135,20 +166,10 @@ futures = "0.3"
 
 #### Step 2: Wrap Executor
 
-```rust
-use fraiseql_observers::concurrent::ConcurrentActionExecutor;
-
-let base_executor = ObserverExecutor::with_checkpoint_store(
-    matcher,
-    checkpoint_store,
-    dlq,
-);
-
-let executor = ConcurrentActionExecutor::new(
-    base_executor,
-    Duration::from_secs(30),  // Per-action timeout
-);
-```
+> **Not available yet.** `ConcurrentActionExecutor` wraps an `ActionExecutor`, not an
+> `ObserverExecutor`, and nothing in the runtime constructs it. `performance.enable_concurrent`
+> is accepted but not honoured: actions still run sequentially. Tracked in
+> [#1451](https://github.com/fraiseql/fraiseql/issues/1451). Skip this phase until it lands.
 
 #### Step 3: Testing
 
@@ -204,16 +225,19 @@ dedup = ["redis"]
 ```
 
 ```rust
-let dedup_store = Arc::new(
-    RedisDeduplicationStore::new(
-        "redis://localhost:6379",
-        300,  // 5-minute window
-    )
-    .await?
-);
+use fraiseql_observers::{
+    ObserverExecutor, RedisDeduplicationStore, deduped_executor::DedupedObserverExecutor,
+};
 
-let executor = executor.with_dedup(dedup_store);
+let redis = redis::Client::open("redis://localhost:6379")?;
+let conn = redis::aio::ConnectionManager::new(redis).await?;
+let dedup_store = RedisDeduplicationStore::new(conn, 300); // 5-minute window
+
+let executor = DedupedObserverExecutor::new(ObserverExecutor::new(matcher, dlq), dedup_store);
 ```
+
+Deduplication wraps the executor; it is not a method on it. This is the example compiled in the
+rustdoc of `DedupedObserverExecutor`.
 
 #### Step 3: Testing
 

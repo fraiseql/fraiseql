@@ -285,6 +285,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The observer guides call constructors that exist (#1406).** `integration-guide.md` and
+  `migration-guide.md` showed `ObserverExecutor::with_checkpoint_store`, `with_dedup`,
+  `with_metrics`, `with_circuit_breaker` and a chain of builder methods, none of which exist.
+  They now show the real composition: a checkpointed listener loop driving the executor,
+  `DedupedObserverExecutor` wrapping it, and `ExecutorFactory::build` from config. The loop and
+  the dedup construction are `no_run` rustdoc examples that `cargo test --doc` compiles, as is
+  `ExecutorFactory::build`'s example, which called a nonexistent `load_from_file` from an
+  `ignore` block. The concurrency and circuit-breaker sections now say these features are
+  not wired (#1451).
+
 - **`trust_asserted_email` works for tenant-bound SAML IdPs (#1088).** It was refused for
   every IdP with a `tenant_id`, because the account store keyed verified email globally,
   and a tenant's IdP could have merged into another tenant's account (the nOAuth class).

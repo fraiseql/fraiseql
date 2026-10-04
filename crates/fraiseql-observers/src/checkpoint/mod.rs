@@ -5,6 +5,55 @@
 //! listener identity, so a restarted listener resumes where it stopped instead
 //! of replaying the entire change log (#805).
 //!
+//! # Driving a listener with a checkpoint
+//!
+//! The checkpoint belongs to the driver loop, not to the executor: restore the cursor before
+//! building the listener, then persist it after each dispatched batch. This is the loop the
+//! server runs (`fraiseql-server` `observers::runtime`), less its shutdown and hot reload.
+//!
+//! ```no_run
+//! use std::time::Duration;
+//!
+//! use fraiseql_observers::{
+//!     ChangeLogListener, ChangeLogListenerConfig, CheckpointState, CheckpointStore,
+//!     ObserverExecutor, PostgresCheckpointStore,
+//! };
+//!
+//! async fn drive(pool: sqlx::PgPool, executor: ObserverExecutor) -> fraiseql_observers::Result<()> {
+//!     const LISTENER: &str = "orders";
+//!     let checkpoints = PostgresCheckpointStore::new(pool.clone());
+//!
+//!     let mut config = ChangeLogListenerConfig::new(pool).with_listener_id(LISTENER);
+//!     if let Some(state) = checkpoints.load(LISTENER).await? {
+//!         config = config.with_resume_from(state.last_processed_id);
+//!     }
+//!     let mut listener = ChangeLogListener::new(config);
+//!
+//!     let mut processed = 0;
+//!     loop {
+//!         let batch = listener.next_batch().await?;
+//!         let Some(last) = batch.last() else {
+//!             tokio::time::sleep(Duration::from_millis(100)).await;
+//!             continue;
+//!         };
+//!         for entry in &batch {
+//!             executor.process_event(&entry.to_entity_event()?).await?;
+//!         }
+//!         // Record, then advance the cursor: both AFTER the actions ran (at-least-once).
+//!         listener.record_dispatched(&batch).await?;
+//!         processed += batch.len();
+//!         let state = CheckpointState {
+//!             listener_id:       LISTENER.to_string(),
+//!             last_processed_id: last.id,
+//!             last_processed_at: chrono::Utc::now(),
+//!             batch_size:        batch.len(),
+//!             event_count:       processed,
+//!         };
+//!         checkpoints.save(LISTENER, &state).await?;
+//!     }
+//! }
+//! ```
+//!
 //! # Delivery semantics (explicit, not implicit)
 //!
 //! Checkpointing gives **at-least-once** delivery with a replay window bounded

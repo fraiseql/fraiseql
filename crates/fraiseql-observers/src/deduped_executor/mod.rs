@@ -134,6 +134,32 @@ use crate::{
 /// - ✅ Allows retry on failure (don't mark if actions failed)
 /// - ✅ At-least-once execution preserved
 /// - ✅ Dead Letter Queue handles permanent failures
+///
+/// # Example
+///
+/// ```no_run
+/// use std::sync::Arc;
+///
+/// use fraiseql_observers::{
+///     DeadLetterQueue, EventMatcher, ObserverExecutor, RedisDeduplicationStore,
+///     deduped_executor::DedupedObserverExecutor, event::EntityEvent,
+/// };
+///
+/// async fn process(
+///     matcher: EventMatcher,
+///     dlq: Arc<dyn DeadLetterQueue>,
+///     event: &EntityEvent,
+/// ) -> Result<(), Box<dyn std::error::Error>> {
+///     let redis = redis::Client::open("redis://localhost:6379")?;
+///     let conn = redis::aio::ConnectionManager::new(redis).await?;
+///     // A 5-minute window: a redelivered event inside it is skipped.
+///     let dedup = RedisDeduplicationStore::new(conn, 300);
+///
+///     let executor = DedupedObserverExecutor::new(ObserverExecutor::new(matcher, dlq), dedup);
+///     executor.process_event(event).await?;
+///     Ok(())
+/// }
+/// ```
 #[cfg(feature = "dedup")]
 pub struct DedupedObserverExecutor<D: DeduplicationStore> {
     /// Inner executor that performs actual event processing
