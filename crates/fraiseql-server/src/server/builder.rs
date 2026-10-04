@@ -935,6 +935,14 @@ impl Server {
         // sweep absent from exactly the builds that can still fill a bucket map.
         Self::spawn_rate_limit_cleanup(rate_limiter.as_ref(), &mut tasks);
 
+        // Tenant admin credentials (#1089): read by the admin gate on every feature set, so held
+        // in their own field rather than behind the observers-only `db_pool`.
+        let admin_tokens = config
+            .admin_token
+            .as_ref()
+            .and(db_pool.as_ref())
+            .map(|pool| std::sync::Arc::new(crate::api::PgAdminTokenStore::new(pool.clone())));
+
         Ok(Self {
             config,
             #[cfg(feature = "inbound")]
@@ -990,6 +998,7 @@ impl Server {
             entity_event_fanout,
             #[cfg(feature = "observers")]
             stream_replay,
+            admin_tokens,
             #[cfg(feature = "auth")]
             enrichment_pool: db_pool.clone(),
             #[cfg(feature = "observers")]

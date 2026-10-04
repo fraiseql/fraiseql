@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A tenant's role can be assigned only in that tenant (#1089).** `POST /api/user-roles`
+  answers `400 tenant_mismatch` when the role belongs to a tenant other than the
+  assignment's. Before, it stored the assignment. A global role may still be assigned in any
+  tenant. **Upgrade:** assign a tenant's role within that tenant, or make the role global.
+
 - **`admin_token` must be at least 32 characters whenever it is set.** The rule applied only
   with `admin_api_enabled = true`, but `admin_token` alone gates `/api/roles`,
   `/api/user-roles`, `/api/v1/admin/api-keys`, `/api/saml/idps`, `/api/scim/tokens`, the
@@ -271,6 +276,18 @@ disagreed, and the promise was the part that was wrong.
   `RuntimeConfig::with_after_mutation_observer` to observe committed writes.
 
 ### Added
+
+- **Tenant administrators (#1089).** The platform mints a tenant admin token for one tenant at
+  `/api/admin-tokens` (`core.tb_admin_token`; only `sha256(token)` is stored). On
+  `/api/saml/idps`, `/api/scim/tokens`, `/api/roles`, `/api/user-roles` and
+  `/api/audit/permissions`, that token administers its own tenant only:
+  - naming no tenant means its own;
+  - naming another is `403`;
+  - another tenant's row is `404`, like a missing one.
+
+  The permission catalogue is read-only for a tenant administrator. Every other admin surface
+  stays platform-only. The deployment `admin_token` behaves as before. See
+  `docs/auth/tenant-administrators.md`.
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds
   issuers beside `[auth]`, each with its own `issuer`, `jwks_uri` (or discovery),

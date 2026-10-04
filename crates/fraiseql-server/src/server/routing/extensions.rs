@@ -44,6 +44,24 @@ impl Server {
         let api_router = api::routes(state.clone());
         app = app.nest("/api/v1", api_router);
 
+        // Tenant admin credentials (#1089): minted and revoked by the deployment
+        // administrator only, so behind the platform bearer gate, where a tenant admin token
+        // is just a wrong token.
+        if let (Some(token), Some(tokens)) = (self.config.admin_token.as_ref(), &self.admin_tokens)
+        {
+            let auth_state = BearerAuthState::with_max_failures(
+                token.clone(),
+                self.config.admin_auth_max_failures,
+            );
+            let router =
+                crate::api::admin_token_management_router(crate::api::AdminTokenManagementState {
+                    tokens: tokens.clone(),
+                })
+                .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
+            app = app.merge(router);
+            info!("Tenant admin credentials managed at /api/admin-tokens (admin bearer token)");
+        }
+
         // RBAC Management API (if database pool available)
         #[cfg(feature = "observers")]
         if let Some(ref db_pool) = self.db_pool {
@@ -90,14 +108,13 @@ impl Server {
                     let mgmt_state = crate::api::SamlIdpManagementState {
                         registry: saml.registry().clone(),
                     };
-                    let auth_state = BearerAuthState::with_max_failures(
-                        token.clone(),
-                        self.config.admin_auth_max_failures,
-                    );
-                    let mgmt_router =
-                        crate::api::saml_idp_management_router(mgmt_state).route_layer(
-                            middleware::from_fn_with_state(auth_state, bearer_auth_middleware),
-                        );
+                    // Accepts tenant administrators (#1089); the router enforces their tenant.
+                    let auth_state = self.admin_principal_state(token);
+                    let mgmt_router = crate::api::saml_idp_management_router(mgmt_state)
+                        .route_layer(middleware::from_fn_with_state(
+                            auth_state,
+                            crate::middleware::admin_principal_middleware,
+                        ));
                     app = app.merge(mgmt_router);
                 } else {
                     tracing::error!(
@@ -137,16 +154,14 @@ impl Server {
                     };
                     app = app.merge(crate::api::scim_router(scim_state));
 
-                    let auth_state = BearerAuthState::with_max_failures(
-                        token.clone(),
-                        self.config.admin_auth_max_failures,
-                    );
+                    // Accepts tenant administrators (#1089); the router enforces their tenant.
+                    let auth_state = self.admin_principal_state(token);
                     let token_router = crate::api::scim_token_management_router(
                         crate::api::ScimTokenManagementState { tokens },
                     )
                     .route_layer(middleware::from_fn_with_state(
                         auth_state,
-                        bearer_auth_middleware,
+                        crate::middleware::admin_principal_middleware,
                     ));
                     app = app.merge(token_router);
                     info!(
@@ -447,6 +462,17 @@ impl Server {
         app
     }
 
+    /// The gate for admin routers that accept tenant administrators (#1089): `admin_token`
+    /// as the platform, plus tenant admin tokens when a database pool exists.
+    #[cfg(any(feature = "auth", feature = "observers"))]
+    fn admin_principal_state(&self, admin_token: &str) -> crate::middleware::AdminPrincipalState {
+        crate::middleware::AdminPrincipalState::new(
+            admin_token.to_string(),
+            self.admin_tokens.clone(),
+            self.config.admin_auth_max_failures,
+        )
+    }
+
     #[cfg(feature = "observers")]
     fn mount_rbac(&self, mut app: Router, db_pool: &sqlx::PgPool) -> Router {
         if let Some(ref token) = self.config.admin_token {
@@ -455,12 +481,14 @@ impl Server {
                 crate::api::rbac_management::db_backend::RbacDbBackend::new(db_pool.clone()),
             );
             let rbac_state = crate::api::RbacManagementState { db: rbac_backend };
-            let auth_state = BearerAuthState::with_max_failures(
-                token.clone(),
-                self.config.admin_auth_max_failures,
+            // Accepts tenant administrators (#1089); the router enforces their tenant.
+            let auth_state = self.admin_principal_state(token);
+            let rbac_router = crate::api::rbac_management_router(rbac_state).route_layer(
+                middleware::from_fn_with_state(
+                    auth_state,
+                    crate::middleware::admin_principal_middleware,
+                ),
             );
-            let rbac_router = crate::api::rbac_management_router(rbac_state)
-                .route_layer(middleware::from_fn_with_state(auth_state, bearer_auth_middleware));
             app = app.merge(rbac_router);
         } else {
             tracing::error!(

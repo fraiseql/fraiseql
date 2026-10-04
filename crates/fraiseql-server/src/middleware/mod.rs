@@ -14,8 +14,8 @@ pub mod tenant;
 pub mod trace;
 
 pub use auth::{
-    AdminCaller, AdminDualAuthState, AdminPrivilege, BearerAuthState, admin_dual_auth_middleware,
-    bearer_auth_middleware,
+    AdminCaller, AdminDualAuthState, AdminPrincipalState, AdminPrivilege, BearerAuthState,
+    admin_dual_auth_middleware, admin_principal_middleware, bearer_auth_middleware,
 };
 pub use content_type::require_json_content_type;
 pub use cors::{cors_layer, cors_layer_restricted, security_headers_middleware};

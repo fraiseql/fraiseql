@@ -5,15 +5,17 @@
 use std::sync::Arc;
 
 use axum::{
-    Json, Router,
+    Extension, Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
     routing::{delete, get, post},
 };
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use self::db_backend::{AuditFilter, RbacDbError};
+use super::admin_principal::{AdminPrincipal, foreign_tenant_response};
 
 /// Default page size for list endpoints.
 ///
@@ -90,12 +92,8 @@ pub struct CreateRoleRequest {
     /// Initial permissions to assign, as `"resource:action"` strings.
     #[serde(default)]
     pub permissions: Vec<String>,
-    /// Tenant this role belongs to. Omit for a global role.
-    ///
-    /// The RBAC router is gated by the admin bearer token, which carries no tenant
-    /// identity of its own — so the tenant is named explicitly by the operator
-    /// rather than "extracted from JWT", which is what the pre-#769 handlers'
-    /// comments promised and never did.
+    /// Tenant this role belongs to. Omit for a global role (deployment administrator) or
+    /// for the administrator's own tenant (tenant administrator, #1089).
     #[serde(default)]
     pub tenant_id:   Option<String>,
 }
@@ -255,6 +253,7 @@ impl IntoResponse for RbacDbError {
             Self::RoleDuplicate => (StatusCode::CONFLICT, "role_duplicate"),
             Self::PermissionDuplicate => (StatusCode::CONFLICT, "permission_duplicate"),
             Self::AssignmentDuplicate => (StatusCode::CONFLICT, "assignment_duplicate"),
+            Self::TenantMismatch => (StatusCode::BAD_REQUEST, "tenant_mismatch"),
             Self::PermissionInUse => (StatusCode::CONFLICT, "permission_in_use"),
             Self::ConnectionError(_) | Self::QueryError(_) | Self::TransactionError(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "database_error")
@@ -302,9 +301,12 @@ pub struct RbacManagementState {
 /// Unknown query parameters are refused rather than ignored, so a mistyped
 /// `tenant_id` cannot silently widen a read.
 ///
-/// The whole router sits behind the admin bearer token, which carries no tenant
-/// identity — so tenant scope is named explicitly by the operator on each request
-/// rather than derived from a principal.
+/// The router sits behind
+/// [`admin_principal_middleware`](crate::middleware::admin_principal_middleware) (#1089). The
+/// deployment administrator names the tenant on each request, as before; a tenant
+/// administrator is confined to its own tenant (a request naming another is `403`, another
+/// tenant's role or assignment is `404`), and may read but not change the permission
+/// catalogue, which every tenant shares.
 pub fn rbac_management_router(state: RbacManagementState) -> Router {
     Router::new()
         // Role endpoints
@@ -325,6 +327,90 @@ pub fn rbac_management_router(state: RbacManagementState) -> Router {
 }
 
 // =============================================================================
+// Tenant administrators (#1089)
+// =============================================================================
+
+/// Why a tenant administrator's request was refused before reaching the store.
+enum Refusal {
+    /// A malformed id, or a row the principal may not see (`404`, like a missing one).
+    Rbac(RbacDbError),
+    /// The request named a tenant the principal does not administer.
+    ForeignTenant,
+    /// A write to the permission catalogue, which only the platform changes.
+    PlatformOnly,
+}
+
+impl IntoResponse for Refusal {
+    fn into_response(self) -> Response {
+        match self {
+            Self::Rbac(e) => e.into_response(),
+            Self::ForeignTenant => foreign_tenant_response(),
+            Self::PlatformOnly => (
+                StatusCode::FORBIDDEN,
+                Json(serde_json::json!({
+                    "error": "platform_only",
+                    "message": "the permission catalogue is shared by every tenant; only the \
+                                deployment administrator changes it",
+                })),
+            )
+                .into_response(),
+        }
+    }
+}
+
+/// The tenant a request may act on, as the string the backend takes.
+///
+/// A malformed tenant is a `400`; a tenant principal naming another tenant is a `403`; a
+/// tenant principal naming none acts on its own.
+fn scoped_tenant(principal: AdminPrincipal, raw: Option<&str>) -> Result<Option<String>, Refusal> {
+    let requested = raw
+        .map(|t| {
+            Uuid::parse_str(t).map_err(|_| {
+                Refusal::Rbac(RbacDbError::InvalidInput(format!(
+                    "Invalid tenant ID: '{t}' is not a UUID"
+                )))
+            })
+        })
+        .transpose()?;
+    principal
+        .scope(requested)
+        .map(|t| t.map(|u| u.to_string()))
+        .map_err(|_| Refusal::ForeignTenant)
+}
+
+/// Whether `principal` may see a row whose stored tenant is `tenant` (`None` = global).
+fn visible(principal: AdminPrincipal, tenant: Option<&str>) -> bool {
+    match tenant {
+        None => principal.may_see(None),
+        // A stored tenant that is not a UUID is no tenant a principal administers.
+        Some(t) => Uuid::parse_str(t).is_ok_and(|t| principal.may_see(Some(t))),
+    }
+}
+
+/// Load a role the principal may see; another tenant's role is `RoleNotFound`, exactly
+/// like a missing one.
+async fn visible_role(
+    state: &RbacManagementState,
+    principal: AdminPrincipal,
+    role_id: &str,
+) -> Result<RoleDto, Refusal> {
+    match state.db.get_role(role_id).await {
+        Ok(role) if visible(principal, role.tenant_id.as_deref()) => Ok(role),
+        Ok(_) => Err(Refusal::Rbac(RbacDbError::RoleNotFound)),
+        Err(e) => Err(Refusal::Rbac(e)),
+    }
+}
+
+/// The permission catalogue is global: only the platform writes it.
+const fn platform_only(principal: AdminPrincipal) -> Result<(), Refusal> {
+    if principal.is_platform() {
+        Ok(())
+    } else {
+        Err(Refusal::PlatformOnly)
+    }
+}
+
+// =============================================================================
 // Role Management Endpoints
 // =============================================================================
 
@@ -332,15 +418,20 @@ pub fn rbac_management_router(state: RbacManagementState) -> Router {
 /// POST /api/roles
 async fn create_role(
     State(state): State<Arc<RbacManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Json(payload): Json<CreateRoleRequest>,
 ) -> Response {
+    let tenant = match scoped_tenant(principal, payload.tenant_id.as_deref()) {
+        Ok(tenant) => tenant,
+        Err(refusal) => return refusal.into_response(),
+    };
     match state
         .db
         .create_role(
             &payload.name,
             payload.description.as_deref(),
             payload.permissions,
-            payload.tenant_id.as_deref(),
+            tenant.as_deref(),
         )
         .await
     {
@@ -353,17 +444,18 @@ async fn create_role(
 /// GET `/api/roles?tenant_id=…&limit=…&offset=…`
 async fn list_roles(
     State(state): State<Arc<RbacManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Query(params): Query<ListQuery>,
 ) -> Response {
     let limit = match resolve_limit(params.limit) {
         Ok(limit) => limit,
         Err(message) => return bad_request(&message),
     };
-    match state
-        .db
-        .list_roles(params.tenant_id.as_deref(), limit, params.offset.unwrap_or(0))
-        .await
-    {
+    let tenant = match scoped_tenant(principal, params.tenant_id.as_deref()) {
+        Ok(tenant) => tenant,
+        Err(refusal) => return refusal.into_response(),
+    };
+    match state.db.list_roles(tenant.as_deref(), limit, params.offset.unwrap_or(0)).await {
         Ok(page) => (StatusCode::OK, Json(page)).into_response(),
         Err(e) => e.into_response(),
     }
@@ -373,11 +465,12 @@ async fn list_roles(
 /// GET `/api/roles/{role_id}`
 async fn get_role(
     State(state): State<Arc<RbacManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Path(role_id): Path<String>,
 ) -> Response {
-    match state.db.get_role(&role_id).await {
+    match visible_role(&state, principal, &role_id).await {
         Ok(role) => (StatusCode::OK, Json(role)).into_response(),
-        Err(e) => e.into_response(),
+        Err(refusal) => refusal.into_response(),
     }
 }
 
@@ -385,9 +478,13 @@ async fn get_role(
 /// PUT `/api/roles/{role_id}`
 async fn update_role(
     State(state): State<Arc<RbacManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Path(role_id): Path<String>,
     Json(payload): Json<CreateRoleRequest>,
 ) -> Response {
+    if let Err(refusal) = visible_role(&state, principal, &role_id).await {
+        return refusal.into_response();
+    }
     match state
         .db
         .update_role(&role_id, &payload.name, payload.description.as_deref(), payload.permissions)
@@ -402,8 +499,12 @@ async fn update_role(
 /// DELETE `/api/roles/{role_id}`
 async fn delete_role(
     State(state): State<Arc<RbacManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Path(role_id): Path<String>,
 ) -> Response {
+    if let Err(refusal) = visible_role(&state, principal, &role_id).await {
+        return refusal.into_response();
+    }
     match state.db.delete_role(&role_id).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => e.into_response(),
@@ -418,8 +519,12 @@ async fn delete_role(
 /// POST /api/permissions
 async fn create_permission(
     State(state): State<Arc<RbacManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Json(payload): Json<CreatePermissionRequest>,
 ) -> Response {
+    if let Err(refusal) = platform_only(principal) {
+        return refusal.into_response();
+    }
     match state
         .db
         .create_permission(&payload.resource, &payload.action, payload.description.as_deref())
@@ -462,8 +567,12 @@ async fn get_permission(
 /// DELETE `/api/permissions/{permission_id}`
 async fn delete_permission(
     State(state): State<Arc<RbacManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Path(permission_id): Path<String>,
 ) -> Response {
+    if let Err(refusal) = platform_only(principal) {
+        return refusal.into_response();
+    }
     match state.db.delete_permission(&permission_id).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => e.into_response(),
@@ -478,11 +587,19 @@ async fn delete_permission(
 /// POST /api/user-roles
 async fn assign_role(
     State(state): State<Arc<RbacManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Json(payload): Json<AssignRoleRequest>,
 ) -> Response {
+    let tenant = match scoped_tenant(principal, payload.tenant_id.as_deref()) {
+        Ok(tenant) => tenant,
+        Err(refusal) => return refusal.into_response(),
+    };
+    if let Err(refusal) = visible_role(&state, principal, &payload.role_id).await {
+        return refusal.into_response();
+    }
     match state
         .db
-        .assign_role_to_user(&payload.user_id, &payload.role_id, payload.tenant_id.as_deref())
+        .assign_role_to_user(&payload.user_id, &payload.role_id, tenant.as_deref())
         .await
     {
         Ok(assignment) => (StatusCode::CREATED, Json(assignment)).into_response(),
@@ -497,6 +614,7 @@ async fn assign_role(
 /// `200 []` — indistinguishable from "this user holds no roles" (#769).
 async fn list_user_roles(
     State(state): State<Arc<RbacManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     params: Result<Query<UserRolesQuery>, axum::extract::rejection::QueryRejection>,
 ) -> Response {
     let Ok(Query(params)) = params else {
@@ -506,14 +624,13 @@ async fn list_user_roles(
         Ok(limit) => limit,
         Err(message) => return bad_request(&message),
     };
+    let tenant = match scoped_tenant(principal, params.tenant_id.as_deref()) {
+        Ok(tenant) => tenant,
+        Err(refusal) => return refusal.into_response(),
+    };
     match state
         .db
-        .list_user_roles(
-            &params.user_id,
-            params.tenant_id.as_deref(),
-            limit,
-            params.offset.unwrap_or(0),
-        )
+        .list_user_roles(&params.user_id, tenant.as_deref(), limit, params.offset.unwrap_or(0))
         .await
     {
         Ok(page) => (StatusCode::OK, Json(page)).into_response(),
@@ -525,8 +642,15 @@ async fn list_user_roles(
 /// DELETE /api/user-roles/{user_id}/{role_id}
 async fn revoke_role(
     State(state): State<Arc<RbacManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Path((user_id, role_id)): Path<(String, String)>,
 ) -> Response {
+    // Another tenant's assignment is a 404, exactly like a missing one.
+    match state.db.assignment_tenant(&user_id, &role_id).await {
+        Ok(Some(tenant)) if principal.may_see(tenant) => {},
+        Ok(_) => return RbacDbError::AssignmentNotFound.into_response(),
+        Err(e) => return e.into_response(),
+    }
     match state.db.revoke_role_from_user(&user_id, &role_id).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => e.into_response(),
@@ -547,8 +671,13 @@ async fn revoke_role(
 /// answer a reviewer must not be given by accident (#768).
 async fn query_permission_audit(
     State(state): State<Arc<RbacManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Query(params): Query<AuditQuery>,
 ) -> Response {
+    let tenant = match scoped_tenant(principal, params.tenant_id.as_deref()) {
+        Ok(tenant) => tenant,
+        Err(refusal) => return refusal.into_response(),
+    };
     let limit = match resolve_limit(params.limit) {
         Ok(limit) => limit,
         Err(message) => return bad_request(&message),
@@ -566,7 +695,7 @@ async fn query_permission_audit(
         user_id: params.user_id.as_deref(),
         role_id: params.role_id.as_deref(),
         event_type: params.event_type.as_deref(),
-        tenant_id: params.tenant_id.as_deref(),
+        tenant_id: tenant.as_deref(),
         start_time,
         end_time,
         limit,

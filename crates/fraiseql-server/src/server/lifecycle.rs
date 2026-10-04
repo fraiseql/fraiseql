@@ -68,6 +68,14 @@ impl Server {
             }
         }
 
+        // Tenant admin credentials (#1089): the table the admin gate reads must exist before
+        // the first request reaches a tenant-aware admin router.
+        if let Some(tokens) = self.admin_tokens.as_ref() {
+            tokens.ensure_schema().await.map_err(|e| {
+                ServerError::ConfigError(format!("Failed to initialize admin-token schema: {e}"))
+            })?;
+        }
+
         // Ensure the API-key table exists before any request can resolve a
         // Postgres-stored key (#627). Fail loud: a configured postgres store
         // whose DDL cannot run must refuse to serve, not authenticate nothing.

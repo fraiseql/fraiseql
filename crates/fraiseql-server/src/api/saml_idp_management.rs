@@ -6,20 +6,19 @@
 //! (or stops serving) on the next request without a restart, and the metadata is validated
 //! by the same builder boot uses.
 //!
-//! # On "scoped so a tenant admin manages only their own `IdPs`"
+//! # Tenant administrators (#1089)
 //!
-//! The admin bearer token carries no tenant identity — it is one deployment-wide
-//! credential, exactly as for `/api/roles` — so this router cannot derive a caller's tenant
-//! and does not pretend to. The tenant is named explicitly on each request and `GET
-//! /api/saml/idps?tenant_id=…` filters by it. True per-tenant delegated administration
-//! needs a tenant-scoped admin principal, which is a new authorization model rather than a
-//! parameter; #1089 carries it. Naming this limitation is the point: a router that silently
-//! accepted a `tenant_id` it never enforced would be the accepted-and-unconsumed shape.
+//! The router accepts the deployment `admin_token` (the platform: every tenant) and tenant
+//! admin tokens (one tenant). A tenant administrator creates `IdPs` for its own tenant
+//! whether or not it names it, is refused (`403`) when it names another, lists only its
+//! own, and gets `404` for another tenant's `IdP`, exactly as for a missing one. `IdP` names
+//! are one namespace across tenants (the name is the account provider key), so creating a
+//! name another tenant holds is a `409` like any other taken name.
 
 use std::sync::Arc;
 
 use axum::{
-    Json, Router,
+    Extension, Json, Router,
     extract::{Path, Query, State},
     http::StatusCode,
     response::{IntoResponse, Response},
@@ -28,6 +27,8 @@ use axum::{
 use fraiseql_auth::saml::{SamlError, SamlIdpRecord, SamlIdpRegistry, SamlIdpSpec};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
+
+use super::admin_principal::{AdminPrincipal, foreign_tenant_response};
 
 /// Shared state: the registry the SAML routes resolve through, so a write here is visible
 /// to `/auth/saml/login` immediately.
@@ -157,7 +158,8 @@ fn store_error(e: &SamlError) -> Response {
 
 /// Build the SAML `IdP` management router.
 ///
-/// Routes (all behind the admin bearer token):
+/// Routes (behind [`admin_principal_middleware`](crate::middleware::admin_principal_middleware),
+/// which supplies the [`AdminPrincipal`]):
 /// - `POST   /api/saml/idps`             — create an `IdP`
 /// - `GET    /api/saml/idps`             — list `IdPs`, optionally filtered by `tenant_id`
 /// - `GET    /api/saml/idps/{idp_name}`  — one `IdP`
@@ -172,14 +174,19 @@ pub fn saml_idp_management_router(state: SamlIdpManagementState) -> Router {
 
 async fn create_idp(
     State(state): State<Arc<SamlIdpManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Json(payload): Json<CreateSamlIdpRequest>,
 ) -> Response {
+    // A tenant administrator creates IdPs for its own tenant, named or not (#1089).
+    let Ok(tenant_id) = principal.scope(payload.tenant_id) else {
+        return foreign_tenant_response();
+    };
     let spec = SamlIdpSpec {
-        idp_name:             payload.idp_name,
-        tenant_id:            payload.tenant_id,
-        sp_entity_id:         payload.sp_entity_id,
-        acs_url:              payload.acs_url,
-        metadata_xml:         payload.metadata_xml,
+        idp_name: payload.idp_name,
+        tenant_id,
+        sp_entity_id: payload.sp_entity_id,
+        acs_url: payload.acs_url,
+        metadata_xml: payload.metadata_xml,
         trust_asserted_email: payload.trust_asserted_email,
     };
     match state.registry.create(&spec).await {
@@ -190,13 +197,17 @@ async fn create_idp(
 
 async fn list_idps(
     State(state): State<Arc<SamlIdpManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Query(q): Query<ListQuery>,
 ) -> Response {
+    let Ok(tenant) = principal.scope(q.tenant_id) else {
+        return foreign_tenant_response();
+    };
     match state.registry.list_stored().await {
         Ok(records) => {
             let idps: Vec<SamlIdpDto> = records
                 .into_iter()
-                .filter(|r| q.tenant_id.is_none_or(|t| r.tenant_id == Some(t)))
+                .filter(|r| tenant.is_none_or(|t| r.tenant_id == Some(t)))
                 .map(SamlIdpDto::from)
                 .collect();
             Json(serde_json::json!({ "total": idps.len(), "idps": idps })).into_response()
@@ -207,25 +218,30 @@ async fn list_idps(
 
 async fn get_idp(
     State(state): State<Arc<SamlIdpManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Path(idp_name): Path<String>,
 ) -> Response {
     match state.registry.get_stored(&idp_name).await {
-        Ok(Some(record)) => Json(SamlIdpDto::from(record)).into_response(),
-        Ok(None) => json_error(StatusCode::NOT_FOUND, "no such SAML IdP"),
+        Ok(Some(record)) if principal.may_see(record.tenant_id) => {
+            Json(SamlIdpDto::from(record)).into_response()
+        },
+        // Another tenant's IdP is a 404, exactly like a missing one.
+        Ok(_) => json_error(StatusCode::NOT_FOUND, "no such SAML IdP"),
         Err(e) => store_error(&e),
     }
 }
 
 async fn update_idp(
     State(state): State<Arc<SamlIdpManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Path(idp_name): Path<String>,
     Json(payload): Json<UpdateSamlIdpRequest>,
 ) -> Response {
     // The tenant is not in the body and must not be changed by an update, so it is read
     // back from the stored row rather than taken from the caller.
     let existing = match state.registry.get_stored(&idp_name).await {
-        Ok(Some(record)) => record,
-        Ok(None) => return json_error(StatusCode::NOT_FOUND, "no such SAML IdP"),
+        Ok(Some(record)) if principal.may_see(record.tenant_id) => record,
+        Ok(_) => return json_error(StatusCode::NOT_FOUND, "no such SAML IdP"),
         Err(e) => return store_error(&e),
     };
     let spec = SamlIdpSpec {
@@ -244,8 +260,14 @@ async fn update_idp(
 
 async fn delete_idp(
     State(state): State<Arc<SamlIdpManagementState>>,
+    Extension(principal): Extension<AdminPrincipal>,
     Path(idp_name): Path<String>,
 ) -> Response {
+    match state.registry.get_stored(&idp_name).await {
+        Ok(Some(record)) if principal.may_see(record.tenant_id) => {},
+        Ok(_) => return json_error(StatusCode::NOT_FOUND, "no such SAML IdP"),
+        Err(e) => return store_error(&e),
+    }
     match state.registry.delete(&idp_name).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(e) => store_error(&e),

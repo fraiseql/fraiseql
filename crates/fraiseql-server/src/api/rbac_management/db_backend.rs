@@ -38,6 +38,8 @@ pub enum RbacDbError {
     AssignmentNotFound,
     /// Assignment already exists.
     AssignmentDuplicate,
+    /// The role belongs to a tenant other than the one the assignment is for (#1089).
+    TenantMismatch,
     /// Permission has active assignments.
     PermissionInUse,
     /// Database query error.
@@ -56,6 +58,9 @@ impl std::fmt::Display for RbacDbError {
             Self::RoleDuplicate => write!(f, "Role already exists"),
             Self::PermissionDuplicate => write!(f, "Permission already exists"),
             Self::AssignmentNotFound => write!(f, "Assignment not found"),
+            Self::TenantMismatch => {
+                write!(f, "The role belongs to a different tenant than the assignment")
+            },
             Self::AssignmentDuplicate => write!(f, "Assignment already exists"),
             Self::PermissionInUse => write!(f, "Permission has active assignments"),
             Self::QueryError(msg) => write!(f, "Query error: {msg}"),
@@ -718,17 +723,21 @@ impl RbacDbBackend {
             .await
             .map_err(|e| RbacDbError::ConnectionError(e.to_string()))?;
 
-        // Verify role exists
-        let role_name: Option<String> =
-            sqlx::query_scalar("SELECT name FROM fraiseql_roles WHERE id = $1")
+        // Verify the role exists, and that it may be held in this assignment's tenant: a
+        // global role anywhere, a tenant's role only in that tenant (#1089).
+        let role: Option<(String, Option<Uuid>)> =
+            sqlx::query_as("SELECT name, tenant_id FROM fraiseql_roles WHERE id = $1")
                 .bind(role_uuid)
                 .fetch_optional(&mut *tx)
                 .await
                 .map_err(|e| RbacDbError::QueryError(e.to_string()))?;
 
-        let Some(role_name) = role_name else {
+        let Some((role_name, role_tenant)) = role else {
             return Err(RbacDbError::RoleNotFound);
         };
+        if role_tenant.is_some() && role_tenant != tenant_uuid {
+            return Err(RbacDbError::TenantMismatch);
+        }
 
         sqlx::query(
             "INSERT INTO fraiseql_user_roles (user_id, role_id, tenant_id, assigned_at)
@@ -826,6 +835,29 @@ impl RbacDbBackend {
             })
             .collect();
         Ok(Page::new(items, total, limit, offset))
+    }
+
+    /// The tenant of a user's assignment of a role: `None` if there is no such assignment,
+    /// `Some(None)` for a global one.
+    ///
+    /// # Errors
+    ///
+    /// Returns `RbacDbError::InvalidInput` if `role_id` is not a UUID, and
+    /// `RbacDbError::QueryError` if the query fails.
+    pub async fn assignment_tenant(
+        &self,
+        user_id: &str,
+        role_id: &str,
+    ) -> Result<Option<Option<Uuid>>, RbacDbError> {
+        let role_uuid = parse_uuid("role ID", role_id)?;
+        sqlx::query_scalar(
+            "SELECT tenant_id FROM fraiseql_user_roles WHERE user_id = $1 AND role_id = $2",
+        )
+        .bind(user_id)
+        .bind(role_uuid)
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| RbacDbError::QueryError(e.to_string()))
     }
 
     /// Revoke a role from a user.

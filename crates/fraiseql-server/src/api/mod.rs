@@ -1,5 +1,7 @@
 //! API endpoints for FraiseQL Server
 
+/// Who is administering: the deployment or one tenant (#1089)
+pub mod admin_principal;
 /// API-key management (create / list / revoke / rotate, #627)
 pub mod api_key_management;
 /// Role and Permission Management API
@@ -11,6 +13,9 @@ pub mod saml_idp_management;
 #[cfg(feature = "auth")]
 pub mod scim;
 
+pub use admin_principal::{
+    AdminPrincipal, AdminTokenManagementState, PgAdminTokenStore, admin_token_management_router,
+};
 pub use api_key_management::{ApiKeyManagementState, api_key_management_router};
 pub use rbac_management::{RbacManagementState, rbac_management_router};
 #[cfg(feature = "auth-saml")]

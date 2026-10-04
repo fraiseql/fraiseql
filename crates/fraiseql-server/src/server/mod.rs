@@ -209,6 +209,10 @@ pub struct Server {
     #[cfg(feature = "observers")]
     pub(super) db_pool: Option<sqlx::PgPool>,
 
+    /// Tenant admin credentials (#1089): `Some` when `admin_token` is set and the server has a
+    /// database pool.
+    pub(super) admin_tokens: Option<std::sync::Arc<crate::api::PgAdminTokenStore>>,
+
     /// Outbound CDC drains built at construction (#382), spawned onto the
     /// task set at serve time. Built in the builder — where the pool is in
     /// scope unconditionally — so a broken `[cdc_outbound]` refuses to boot

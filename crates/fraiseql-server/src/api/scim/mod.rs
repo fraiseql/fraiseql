@@ -53,7 +53,10 @@ use self::{
         service_provider_config, user_to_json,
     },
 };
-use crate::api::rbac_management::db_backend::RbacDbBackend;
+use crate::api::{
+    admin_principal::{AdminPrincipal, foreign_tenant_response},
+    rbac_management::db_backend::RbacDbBackend,
+};
 
 /// Largest page a client may request. Mirrors `filter.maxResults` in
 /// `/ServiceProviderConfig`, so what the discovery document promises is what the server does.
@@ -1267,7 +1270,9 @@ pub struct MintScimTokenRequest {
 
 /// Build the admin router that mints and revokes provisioning credentials.
 ///
-/// Mounted behind the admin bearer token, deliberately apart from the SCIM surface itself:
+/// Mounted behind [`admin_principal_middleware`](crate::middleware::admin_principal_middleware):
+/// the platform manages every tenant's credentials, a tenant administrator only its own
+/// (#1089). It is deliberately apart from the SCIM surface itself:
 /// the credential that *creates* provisioning credentials is an admin credential, and the
 /// one an `IdP` holds is not.
 pub fn scim_token_management_router(state: ScimTokenManagementState) -> Router {
@@ -1279,11 +1284,16 @@ pub fn scim_token_management_router(state: ScimTokenManagementState) -> Router {
 
 async fn mint_token(
     State(state): State<Arc<ScimTokenManagementState>>,
+    axum::Extension(principal): axum::Extension<AdminPrincipal>,
     Json(payload): Json<MintScimTokenRequest>,
 ) -> Response {
+    // A tenant administrator mints provisioning credentials for its own tenant only (#1089).
+    let Ok(tenant_id) = principal.scope(payload.tenant_id) else {
+        return foreign_tenant_response();
+    };
     match state
         .tokens
-        .mint(&payload.idp_name, payload.tenant_id, payload.description.as_deref())
+        .mint(&payload.idp_name, tenant_id, payload.description.as_deref())
         .await
     {
         Ok(minted) => (
@@ -1311,9 +1321,15 @@ async fn mint_token(
     }
 }
 
-async fn list_tokens(State(state): State<Arc<ScimTokenManagementState>>) -> Response {
+async fn list_tokens(
+    State(state): State<Arc<ScimTokenManagementState>>,
+    axum::Extension(principal): axum::Extension<AdminPrincipal>,
+) -> Response {
     match state.tokens.list().await {
-        Ok(records) => Json(json!({
+        Ok(records) => {
+            let records: Vec<_> =
+                records.into_iter().filter(|r| principal.may_see(r.tenant_id)).collect();
+            Json(json!({
             "total": records.len(),
             "tokens": records.iter().map(|r| json!({
                 "id":           r.id,
@@ -1323,8 +1339,9 @@ async fn list_tokens(State(state): State<Arc<ScimTokenManagementState>>) -> Resp
                 "created_at":   r.created_at,
                 "last_used_at": r.last_used_at,
             })).collect::<Vec<_>>(),
-        }))
-        .into_response(),
+            }))
+            .into_response()
+        },
         Err(e) => {
             tracing::error!(error = %e, "could not list SCIM provisioning tokens");
             (
@@ -1338,11 +1355,27 @@ async fn list_tokens(State(state): State<Arc<ScimTokenManagementState>>) -> Resp
 
 async fn revoke_token(
     State(state): State<Arc<ScimTokenManagementState>>,
+    axum::Extension(principal): axum::Extension<AdminPrincipal>,
     Path(id): Path<String>,
 ) -> Response {
+    let not_found =
+        || (StatusCode::NOT_FOUND, Json(json!({ "error": "no such token" }))).into_response();
     let Ok(uuid) = Uuid::parse_str(&id) else {
-        return (StatusCode::NOT_FOUND, Json(json!({ "error": "no such token" }))).into_response();
+        return not_found();
     };
+    // Another tenant's credential is a 404, exactly like a missing one.
+    match state.tokens.list().await {
+        Ok(records) if records.iter().any(|r| r.id == uuid && principal.may_see(r.tenant_id)) => {},
+        Ok(_) => return not_found(),
+        Err(e) => {
+            tracing::error!(error = %e, "could not look up a SCIM provisioning token");
+            return (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({ "error": "could not revoke provisioning token" })),
+            )
+                .into_response();
+        },
+    }
     match state.tokens.revoke(uuid).await {
         Ok(()) => StatusCode::NO_CONTENT.into_response(),
         Err(fraiseql_auth::AuthError::TokenNotFound) => {

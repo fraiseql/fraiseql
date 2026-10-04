@@ -1659,9 +1659,8 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 		// shapes (no pool, dud metadata) refuse to boot.
 		// #947 adds the operator's path on top: manage IdPs over /api/saml/idps on a
 		// running server and watch /auth/saml/login follow, scoped by tenant. The `--lib`
-		// line runs the management router's own DB-free tests (router construction, and
-		// that a tenant-bound IdP's inert email opt-in is reported as inert) — this leg is
-		// the only one that enables `auth-saml` on fraiseql-server, so without it that
+		// line runs the management router's own DB-free tests (router construction) — this
+		// leg is the only one that enables `auth-saml` on fraiseql-server, so without it that
 		// module is compiled out everywhere and reads as passing.
 		"echo '### cargo test -p fraiseql-server --test saml_mount_e2e_pg (#381 server mount)'",
 		"cargo test -p fraiseql-server --features auth-saml,auth --lib api::saml_idp_management -- --test-threads=1",
@@ -1671,6 +1670,10 @@ func (m *FraiseqlCi) integrationSaml(ctx context.Context, source *dagger.Directo
 		// touches — and the e2e drives the mounted surface over HTTP.
 		"cargo test -p fraiseql-auth --test postgres_scim_provisioning -- --test-threads=1",
 		"cargo test -p fraiseql-server --features auth,observers --test scim_provisioning_e2e_pg -- --test-threads=1",
+		// #1089 tenant administrators: every tenant-aware admin router (SAML IdPs, SCIM
+		// tokens, RBAC) driven as the platform and as two tenants on one booted server. It
+		// needs `auth-saml` and `observers` together, which only this leg enables.
+		"cargo test -p fraiseql-server --features auth-saml,auth,observers --test tenant_admin_e2e_pg -- --test-threads=1",
 		// #946's verification gate: a THIRD-PARTY SCIM client, because a suite we wrote
 		// ourselves passes on the shapes we thought of. Okta's validator and the Entra
 		// agent are hosted services needing a public URL and a vendor tenant, so neither

@@ -262,6 +262,109 @@ pub async fn bearer_auth_middleware(
     next.run(request).await
 }
 
+/// State for [`admin_principal_middleware`] (#1089).
+#[derive(Clone)]
+pub struct AdminPrincipalState {
+    /// The deployment `admin_token`, which authenticates as the platform.
+    platform_token:  Arc<String>,
+    /// Tenant admin credentials. `None` when the deployment has no database pool, in which
+    /// case only the platform token authenticates.
+    tokens:          Option<Arc<crate::api::admin_principal::PgAdminTokenStore>>,
+    /// Per-IP brute-force guard, as for the bearer gate.
+    failure_limiter: FailureLimiter,
+}
+
+impl AdminPrincipalState {
+    /// Accept the platform token and, when `tokens` is set, tenant admin tokens.
+    #[must_use]
+    pub fn new(
+        platform_token: String,
+        tokens: Option<Arc<crate::api::admin_principal::PgAdminTokenStore>>,
+        max_failures: u32,
+    ) -> Self {
+        Self {
+            platform_token: Arc::new(platform_token),
+            tokens,
+            failure_limiter: FailureLimiter::new(max_failures),
+        }
+    }
+}
+
+/// Admin authentication for routers that accept tenant administrators (#1089).
+///
+/// Accepts the deployment `admin_token`, which authenticates as
+/// [`AdminPrincipal::Platform`](crate::api::admin_principal::AdminPrincipal::Platform), or a
+/// tenant admin token, which authenticates as
+/// [`AdminPrincipal::Tenant`](crate::api::admin_principal::AdminPrincipal::Tenant). Inserts the
+/// principal as a request extension. Status codes and the brute-force limiter match
+/// [`bearer_auth_middleware`]: 401 missing or malformed, 403 unknown, 429 throttled, and 503
+/// if the credential store cannot be read, so a store outage fails closed.
+pub async fn admin_principal_middleware(
+    State(state): State<AdminPrincipalState>,
+    mut request: Request<Body>,
+    next: Next,
+) -> Response {
+    use std::net::SocketAddr;
+
+    use axum::extract::ConnectInfo;
+
+    use crate::api::admin_principal::AdminPrincipal;
+
+    // Same peer keying as the bearer gate: the transport peer only, never X-Forwarded-For.
+    let peer_key = request
+        .extensions()
+        .get::<ConnectInfo<SocketAddr>>()
+        .map_or_else(|| "unknown".to_string(), |ci| ci.0.ip().to_string());
+    if state.failure_limiter.is_blocked(&peer_key) {
+        return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts").into_response();
+    }
+
+    let Some(header_value) =
+        request.headers().get(header::AUTHORIZATION).and_then(|v| v.to_str().ok())
+    else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, "Bearer")],
+            "Missing Authorization header",
+        )
+            .into_response();
+    };
+    let Some(token) = extract_bearer_token(header_value) else {
+        return (
+            StatusCode::UNAUTHORIZED,
+            [(header::WWW_AUTHENTICATE, "Bearer")],
+            "Invalid Authorization header format. Expected: Bearer <token>",
+        )
+            .into_response();
+    };
+
+    let principal = if constant_time_compare(token, &state.platform_token) {
+        Some(AdminPrincipal::Platform)
+    } else if let Some(tokens) = state.tokens.as_ref() {
+        match tokens.authenticate(token).await {
+            Ok(tenant) => tenant.map(AdminPrincipal::Tenant),
+            Err(e) => {
+                tracing::error!(error = %e, "tenant admin credential lookup failed");
+                return (StatusCode::SERVICE_UNAVAILABLE, "Admin credential store unavailable")
+                    .into_response();
+            },
+        }
+    } else {
+        None
+    };
+
+    let Some(principal) = principal else {
+        if state.failure_limiter.record_failure(&peer_key) {
+            return (StatusCode::TOO_MANY_REQUESTS, "Too many failed auth attempts")
+                .into_response();
+        }
+        return (StatusCode::FORBIDDEN, "Invalid token").into_response();
+    };
+    state.failure_limiter.record_success(&peer_key);
+    request.extensions_mut().insert(principal);
+    next.run(request).await
+}
+
 /// Extract the bearer token from an `Authorization` header value.
 ///
 /// Returns `Some(token)` if the header has the `Bearer ` prefix (with trailing space),

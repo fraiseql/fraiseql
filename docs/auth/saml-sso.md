@@ -148,8 +148,9 @@ answer `404` — so the route cannot enumerate other tenants' IdPs.
   `trust_asserted_email` merges only with accounts of the same tenant, never with a platform
   account or another tenant's that shares the address ([#1088]). The same person in two
   tenants is two accounts. A tenant's SCIM token manages exactly these accounts.
-- Admin credentials are **not** tenant-scoped: the admin token manages every tenant's IdPs.
-  See [#1089].
+- The deployment admin token manages every tenant's IdPs. A
+  [tenant admin token](tenant-administrators.md) manages only its own tenant's: it creates
+  IdPs in its tenant, lists only those, and gets `404` for anyone else's ([#1089]).
 
 [#1088]: https://github.com/fraiseql/fraiseql/issues/1088
 [#1089]: https://github.com/fraiseql/fraiseql/issues/1089

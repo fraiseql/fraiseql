@@ -606,8 +606,7 @@ extends to all query paths.
 - **Error Sanitization**: Hide implementation details from error messages
 - **Rate Limiting on Auth Endpoints**: Brute-force protection with configurable thresholds
 - **RBAC Management API**: Role-based access control with a built-in REST management API
-  - Endpoints: `POST /api/rbac/roles`, `GET /api/rbac/roles`, `POST /api/rbac/permissions`,
-    `GET /api/rbac/permissions`, `POST /api/rbac/assignments`, `GET /api/rbac/assignments`
+  - Endpoints: `/api/roles`, `/api/permissions`, `/api/user-roles` and `/api/audit/permissions`
   - **Authentication**: RBAC endpoints are protected by an admin bearer token (`admin_token`
     in `ServerConfig`, or `FRAISEQL_ADMIN_TOKEN` env var). Requests without a valid bearer
     token receive `401 Unauthorized`. This is independent of OIDC configuration.
@@ -621,9 +620,11 @@ extends to all query paths.
     > defence-in-depth layer.
   - **Schema initialization**: `RbacDbBackend::ensure_schema()` is called automatically at
     server startup; no manual migration is required.
-  - **Tenant isolation**: All RBAC tables include a `tenant_id` column. Every query is
-    scoped to the authenticated tenant; cross-tenant access is blocked at the query level.
-    Multi-tenant deployments share a single schema; row-level security enforces isolation.
+  - **Tenant isolation**: roles and assignments carry a `tenant_id`, and the permission
+    catalogue is global. The deployment `admin_token` names the tenant on each request. A
+    tenant admin token is confined to its own tenant: other tenants' roles and assignments
+    answer `404`, and it may read but not change the permission catalogue. See
+    [tenant administrators](../auth/tenant-administrators.md).
 - **Multi-Tenant Isolation**: Per-tenant data scoping with strict isolation
 
 ---

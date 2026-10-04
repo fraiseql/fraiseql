@@ -28,7 +28,7 @@ surface would exist with no way to authenticate to it.
 | Surface | Credential | Grants |
 |---|---|---|
 | `/scim/v2/*` | provisioning bearer token | provisioning, and nothing else |
-| `/api/scim/tokens` | admin bearer token | minting and revoking provisioning tokens |
+| `/api/scim/tokens` | admin bearer token, or a [tenant admin token](tenant-administrators.md) | minting and revoking provisioning tokens (a tenant administrator: for its own tenant only) |
 
 A provisioning credential is handed to an IdP and configured there ~forever. If it doubled
 as the admin bearer, every SCIM integration would also carry the ability to rewrite roles
