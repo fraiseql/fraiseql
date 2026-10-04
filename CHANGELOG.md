@@ -187,6 +187,14 @@ disagreed, and the promise was the part that was wrong.
   **Upgrade:** drop calls to the removed functions; a column the filter should use natively
   is picked up by `compile --database`.
 
+- **`fraiseql run` refuses a schema that declares functions (#1339).** It has no function
+  runtime and hands the compiled schema straight to the server, bypassing the loader whose
+  #1326 refusal covers the published image, so it started clean and every declared function
+  silently never ran. It now stops at compile time, naming the functions and where they can run.
+  **Upgrade:** serve a schema with functions through `fraiseql-server` built with
+  `functions-runtime` (the `-full` release tarball), or remove the functions to use
+  `fraiseql run`.
+
 ### Added
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds

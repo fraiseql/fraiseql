@@ -2288,10 +2288,58 @@ mod run_tests {
     use tempfile::TempDir;
 
     use super::super::run::{
-        auto_detect_input, build_config_from, ignored_config_sections, resolve_input,
-        resolve_runtime_config,
+        auto_detect_input, build_config_from, compile_schema, ignored_config_sections,
+        refuse_declared_functions, resolve_input, resolve_runtime_config,
     };
     use crate::config::runtime::{DatabaseRuntimeConfig, ServerRuntimeConfig};
+
+    /// #1339, at the call site: `fraiseql run`'s own compile step refuses the schema.
+    #[tokio::test]
+    async fn runs_compile_step_refuses_declared_functions() {
+        let dir = TempDir::new().unwrap();
+        std::fs::create_dir(dir.path().join(".git")).unwrap();
+        let schema = dir.path().join("schema.json");
+        std::fs::write(
+            &schema,
+            serde_json::json!({
+                "types": [{"name": "Order", "sql_source": "v_order", "is_input": false,
+                           "fields": [{"name": "id", "type": "ID", "nullable": false}]}],
+                "queries": [{"name": "orders", "return_type": "Order", "returns_list": true,
+                             "sql_source": "v_order"}],
+                "mutations": [{"name": "updateOrder", "return_type": "Order",
+                               "sql_source": "fn_update_order", "operation": "update",
+                               "invalidates_views": ["v_order"], "arguments": []}],
+                "functions": [{"name": "notify", "trigger": "after:mutation:Order:update",
+                               "runtime": "Deno"}]
+            })
+            .to_string(),
+        )
+        .unwrap();
+
+        let message = format!("{:#}", compile_schema(&schema).await.unwrap_err());
+        assert!(message.contains("notify"), "{message}");
+    }
+
+    /// #1339: `fraiseql run` has no function runtime, so a schema declaring functions is
+    /// refused rather than served with them silently dropped.
+    #[test]
+    fn run_refuses_a_schema_that_declares_functions() {
+        refuse_declared_functions(None).expect("no functions declared: nothing to refuse");
+
+        let functions: fraiseql_functions::FunctionsConfig =
+            serde_json::from_value(serde_json::json!({
+                "module_dir": "functions",
+                "definitions": [
+                    {"name": "notify", "trigger": "after:mutation:Order:update", "runtime": "Deno"}
+                ]
+            }))
+            .unwrap();
+        let message = refuse_declared_functions(Some(&functions)).unwrap_err().to_string();
+        assert!(
+            message.contains("notify") && message.contains("fraiseql-server"),
+            "the refusal must name the function and where it can run: {message}"
+        );
+    }
 
     #[test]
     fn test_ignored_config_sections_detects_platform_tables() {

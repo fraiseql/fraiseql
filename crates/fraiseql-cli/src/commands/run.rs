@@ -469,18 +469,15 @@ fn build_tls_config(tls: &TlsRuntimeConfig) -> TlsServerConfig {
 }
 
 /// Compile the schema at `path`, printing progress to stdout.
-async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema::CompiledSchema> {
+pub(crate) async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema::CompiledSchema> {
     let input = path.to_str().ok_or_else(|| anyhow::anyhow!("Input path is not valid UTF-8"))?;
 
     println!("Compiling schema...");
 
-    // `fraiseql run` serves the core schema only: it has no function runtime compiled
-    // in, so `artifact.functions` is dropped here rather than mounted (tracked
-    // separately — the server binary refuses such a schema at boot since #1326, and
-    // this path has no equivalent gate yet).
     let (artifact, _report) = compile_to_schema(CompileOptions::new(input))
         .await
         .context("Schema compilation failed")?;
+    refuse_declared_functions(artifact.functions.as_ref())?;
     let schema = artifact.schema;
 
     println!(
@@ -492,6 +489,36 @@ async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema::CompiledSc
     println!();
 
     Ok(schema)
+}
+
+/// Refuse a schema that declares functions: `fraiseql run` has no function runtime (#1339).
+///
+/// The rule the server applies at boot (#1326), at the seam that bypasses its loader:
+/// `fraiseql run` hands the compiled schema straight to the server, so the server's
+/// refusal never sees the `functions` section, and the section used to be dropped here —
+/// the server started clean and every declared function silently never ran. A declared
+/// section a build cannot serve is a misconfiguration, not a note.
+///
+/// # Errors
+///
+/// When the compiled artifact carries a `functions` section (it is `None` when the
+/// project declares none).
+pub(crate) fn refuse_declared_functions(
+    functions: Option<&fraiseql_functions::FunctionsConfig>,
+) -> Result<()> {
+    let Some(functions) = functions else {
+        return Ok(());
+    };
+    let names: Vec<&str> = functions.definitions.iter().map(|d| d.name.as_str()).collect();
+    anyhow::bail!(
+        "this schema declares {} function(s) ({}), but `fraiseql run` has no function \
+         runtime, so none of them would ever run — the server would start clean and drop \
+         them. To run them, serve the compiled schema with `fraiseql-server` built with the \
+         `functions-runtime` feature (the `-full` release tarball). To run without them, \
+         remove the functions from the schema.",
+        names.len(),
+        names.join(", ")
+    )
 }
 
 /// Spawn a file watcher that calls `on_change` once when a write event is detected.
