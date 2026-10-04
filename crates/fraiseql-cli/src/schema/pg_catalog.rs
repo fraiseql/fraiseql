@@ -461,7 +461,7 @@ impl PgCatalog {
     /// Audit the given `sql_source` views (bare relnames) for `security_invoker`.
     ///
     /// A *default* view runs with the view owner's privileges and bypasses the
-    /// caller's RLS; only a `security_invoker` view (PG 15+) honours base-table RLS
+    /// caller's RLS; only a `security_invoker` view honours base-table RLS
     /// — the requirement the cascade RLS boundary (and the query path) rely on.
     /// Returns which audited views lack the option, plus whether any RLS policy
     /// exists at all (the requirement only bites under RLS).

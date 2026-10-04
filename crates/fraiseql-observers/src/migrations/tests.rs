@@ -279,15 +279,16 @@ fn rls_insert_policy_is_permissive() {
 }
 
 #[test]
-fn contract_views_are_security_invoker_on_pg15_plus() {
+fn contract_views_are_always_security_invoker() {
     // The views are born security_invoker in the contract migration (08), not
     // ALTER'd by a later migration — a plain view runs as its owner and would
     // bypass the base-table RLS, so both read views must enforce it as the querying
-    // role, guarded on PG 15+ (the option does not exist on older servers).
+    // role. Unconditionally: PostgreSQL 18 is the floor (#1452), so the pre-15 branch
+    // that left the views owner-run behind a WARNING no longer exists.
     let sql = entity_change_log_contract_sql();
     assert!(
-        sql.contains("server_version_num") && sql.contains("150000"),
-        "the view flip is guarded on PostgreSQL >= 15: {sql}"
+        !sql.contains("server_version_num"),
+        "no server-version branch decides whether the views enforce RLS: {sql}"
     );
     for view in [
         "core.v_entity_change_log",

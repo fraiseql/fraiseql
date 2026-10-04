@@ -531,7 +531,7 @@ compiler cannot see the view, so this check needs it.
 
 > **RLS + views: make `sql_source` views `security_invoker`.** If you enforce
 > tenant isolation with PostgreSQL Row-Level Security, every `sql_source` view MUST
-> be created `WITH (security_invoker = true)` (PostgreSQL 15+):
+> be created `WITH (security_invoker = true)`:
 >
 > ```sql
 > CREATE VIEW v_document WITH (security_invoker = true) AS SELECT … FROM tb_document;

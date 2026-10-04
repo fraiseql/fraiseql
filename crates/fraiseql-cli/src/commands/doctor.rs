@@ -1652,7 +1652,7 @@ pub(crate) fn security_invoker_check(audit: &SecurityInvokerAudit) -> DoctorChec
             audit.views_without_invoker.join(", ")
         ),
         "Recreate each as `CREATE VIEW <v> WITH (security_invoker = true) AS …` (or \
-         `ALTER VIEW <v> SET (security_invoker = true)`), PostgreSQL 15+.",
+         `ALTER VIEW <v> SET (security_invoker = true)`).",
     )
 }
 

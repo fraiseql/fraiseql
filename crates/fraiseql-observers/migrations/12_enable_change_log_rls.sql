@@ -42,7 +42,7 @@
 --
 -- The two read views (`core.v_entity_change_log`,
 -- `core.v_entity_change_log_debezium`) are created with `security_invoker = true`
--- in migration 08 (PostgreSQL 15+), so they run as the QUERYING role and enforce
+-- in migration 08, so they run as the QUERYING role and enforce
 -- the base-table RLS enabled here rather than bypassing it as the view owner. This
 -- migration therefore only touches the table; the views need no change.
 --

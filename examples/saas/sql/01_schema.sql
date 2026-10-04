@@ -180,7 +180,7 @@ CREATE POLICY billing_admin_writes ON tb_subscription
 
 -- ── Views ────────────────────────────────────────────────────────────────────
 --
--- `security_invoker = true` (PostgreSQL 15+) is load-bearing. A default view runs
+-- `security_invoker = true` is load-bearing. A default view runs
 -- with its *owner's* privileges, which bypasses the caller's policies entirely — a
 -- view over a perfectly protected table would return every account's rows. FraiseQL
 -- refuses to boot on a non-invoker view when `[security.rls] enabled = true`.

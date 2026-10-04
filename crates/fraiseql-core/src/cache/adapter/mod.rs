@@ -101,7 +101,7 @@ struct RelationRls {
     rls_enabled:      bool,
     /// At least one `pg_policy` row targets it.
     has_policy:       bool,
-    /// `security_invoker = true` in `reloptions` (views only, PG 15+).
+    /// `security_invoker = true` in `reloptions` (views only).
     security_invoker: bool,
 }
 

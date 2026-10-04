@@ -293,7 +293,7 @@ table is **fail-closed**: a database role that is neither the table owner nor
   *primary* control (only an explicitly granted trusted/`BYPASSRLS` role reads it);
   RLS is defence-in-depth on top, not the sole guard against a stray `GRANT`.
 - **Views.** `core.v_entity_change_log` and `core.v_entity_change_log_debezium`
-  are created with `security_invoker = true` (PostgreSQL 15+) **in the contract
+  are created with `security_invoker = true` **in the contract
   migration (08)** — born correct, not ALTER'd by a later migration — so they run as
   the *querying* role and honour the base-table RLS instead of bypassing it as the
   view owner. On PostgreSQL < 15 the option does not exist: 08 warns, the views stay

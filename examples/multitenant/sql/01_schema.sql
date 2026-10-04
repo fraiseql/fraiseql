@@ -64,7 +64,7 @@ CREATE POLICY resource_isolation ON tb_resource
 
 -- ── Views ────────────────────────────────────────────────────────────────────
 --
--- `security_invoker = true` (PostgreSQL 15+) is load-bearing. A default view runs
+-- `security_invoker = true` is load-bearing. A default view runs
 -- with its *owner's* privileges, which bypasses the caller's policies entirely — a
 -- view over a perfectly protected table would return every tenant's rows. FraiseQL
 -- refuses to boot on a non-invoker view when `[security.rls] enabled = true`.
