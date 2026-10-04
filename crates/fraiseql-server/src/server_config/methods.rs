@@ -281,32 +281,25 @@ impl ServerConfig {
         }
 
         // Admin API validation
-        if self.admin_api_enabled {
-            match &self.admin_token {
-                None => {
-                    return Err("admin_api_enabled is true but admin_token is not set. \
-                         Set FRAISEQL_ADMIN_TOKEN or admin_token in config."
-                        .to_string());
-                },
-                Some(token) if token.len() < 32 => {
-                    return Err(
-                        "admin_token must be at least 32 characters for security.".to_string()
-                    );
-                },
-                Some(_) => {},
+        if self.admin_api_enabled && self.admin_token.is_none() {
+            return Err("admin_api_enabled is true but admin_token is not set. \
+                 Set FRAISEQL_ADMIN_TOKEN or admin_token in config."
+                .to_string());
+        }
+        // The strength rules hold whenever a token is set, not only with the admin API on:
+        // `admin_token` alone gates the RBAC, API-key, SAML-IdP, SCIM-token, identity and
+        // suppression routers.
+        if self.admin_token.as_ref().is_some_and(|token| token.len() < 32) {
+            return Err("admin_token must be at least 32 characters for security.".to_string());
+        }
+        if let Some(ref ro_token) = self.admin_readonly_token {
+            if ro_token.len() < 32 {
+                return Err(
+                    "admin_readonly_token must be at least 32 characters for security.".to_string()
+                );
             }
-
-            // Validate the optional read-only token when provided.
-            if let Some(ref ro_token) = self.admin_readonly_token {
-                if ro_token.len() < 32 {
-                    return Err(
-                        "admin_readonly_token must be at least 32 characters for security."
-                            .to_string(),
-                    );
-                }
-                if Some(ro_token) == self.admin_token.as_ref() {
-                    return Err("admin_readonly_token must differ from admin_token.".to_string());
-                }
+            if Some(ro_token) == self.admin_token.as_ref() {
+                return Err("admin_readonly_token must differ from admin_token.".to_string());
             }
         }
 

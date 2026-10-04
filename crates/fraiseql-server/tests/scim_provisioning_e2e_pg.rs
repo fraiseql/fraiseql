@@ -27,7 +27,7 @@ use sqlx::PgPool;
 
 const HS256_SECRET: &str = "p16-scim-hs256-secret-32-bytes!!";
 const SECRET_ENV: &str = "FRAISEQL_TEST_P16_SCIM_HS256_SECRET";
-const ADMIN_TOKEN: &str = "p16-scim-admin-token";
+const ADMIN_TOKEN: &str = "p16-scim-admin-token-at-least-32-chars";
 const PATCH_OP: &str = "urn:ietf:params:scim:api:messages:2.0:PatchOp";
 
 fn with_database(url: &str, db: &str) -> String {

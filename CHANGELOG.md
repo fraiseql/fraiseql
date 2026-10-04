@@ -18,6 +18,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`admin_token` must be at least 32 characters whenever it is set.** The rule applied only
+  with `admin_api_enabled = true`, but `admin_token` alone gates `/api/roles`,
+  `/api/user-roles`, `/api/v1/admin/api-keys`, `/api/saml/idps`, `/api/scim/tokens`, the
+  identity-cache flush and email suppression. A deployment with the admin API off could guard
+  all of them with a short token. `admin_readonly_token`'s rules (32 characters, different from
+  `admin_token`) now also apply whenever it is set. **Upgrade:** use a token of at least 32
+  characters (`openssl rand -hex 32`); boot refuses a shorter one, naming the key.
+
 - **Accounts live in an account space: the platform, or one tenant (#1088).**
   `AccountStore::link_or_create_user` takes a leading `tenant: Option<Uuid>` and confines
   every lookup and insert to it. Email, SCIM `userName` and `(provider, provider_id)` are

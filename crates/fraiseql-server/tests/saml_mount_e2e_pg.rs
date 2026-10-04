@@ -37,7 +37,7 @@ const IDP_ENTITY: &str = "https://idp.example.com";
 const HS256_SECRET: &str = "p26-saml-hs256-secret-32-bytes!!";
 const SECRET_ENV: &str = "FRAISEQL_TEST_P26_SAML_HS256_SECRET";
 /// Admin bearer token gating `/api/saml/idps` in the #947 store tests.
-const ADMIN_TOKEN: &str = "p16-saml-idp-admin-token";
+const ADMIN_TOKEN: &str = "p16-saml-idp-admin-token-at-least-32-chars";
 const TENANT_A: &str = "11111111-1111-4111-8111-111111111111";
 const TENANT_B: &str = "22222222-2222-4222-8222-222222222222";
 /// Env var carrying the SP private key in the #948 signing test.

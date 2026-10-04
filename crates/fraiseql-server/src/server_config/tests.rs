@@ -484,6 +484,47 @@ fn test_validate_admin_api_enabled_with_short_token_fails() {
     assert!(result.unwrap_err().contains("at least 32 characters"));
 }
 
+/// `admin_token` gates the RBAC, API-key, SAML-IdP, SCIM-token, identity and suppression
+/// routers whenever it is set, `admin_api_enabled` or not. Its strength rule must hold
+/// whenever it does.
+#[test]
+fn a_short_admin_token_is_refused_even_with_the_admin_api_off() {
+    let config = ServerConfig {
+        admin_api_enabled: false,
+        admin_token: Some("p16-scim-admin-token".to_string()), // 20 chars
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let err = config.validate().expect_err("a short admin_token must be refused");
+    assert!(err.contains("admin_token must be at least 32 characters"), "got: {err}");
+}
+
+#[test]
+fn a_weak_readonly_token_is_refused_even_with_the_admin_api_off() {
+    let strong = "an-admin-token-that-is-long-enough-123".to_string();
+    let short = ServerConfig {
+        admin_api_enabled: false,
+        admin_token: Some(strong.clone()),
+        admin_readonly_token: Some("short".to_string()),
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let err = short.validate().expect_err("a short admin_readonly_token must be refused");
+    assert!(err.contains("admin_readonly_token must be at least 32"), "got: {err}");
+
+    let same = ServerConfig {
+        admin_api_enabled: false,
+        admin_token: Some(strong.clone()),
+        admin_readonly_token: Some(strong),
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let err = same
+        .validate()
+        .expect_err("a read-only token equal to the admin token is refused");
+    assert!(err.contains("must differ from admin_token"), "got: {err}");
+}
+
 #[test]
 fn test_validate_admin_api_enabled_with_valid_token_ok() {
     let config = ServerConfig {
@@ -536,19 +577,6 @@ fn test_validate_admin_readonly_token_valid_passes() {
         admin_api_enabled: true,
         admin_token: Some("admin-write-token-that-is-long-enough-1234".to_string()),
         admin_readonly_token: Some("admin-readonly-token-that-is-long-enough-5678".to_string()),
-        cors_enabled: false,
-        ..ServerConfig::default()
-    };
-    config.validate().unwrap_or_else(|e| panic!("expected Ok: {e}"));
-}
-
-#[test]
-fn test_validate_admin_readonly_token_without_admin_enabled_is_ignored() {
-    // admin_readonly_token with admin_api_enabled=false — validation skipped entirely.
-    let config = ServerConfig {
-        admin_api_enabled: false,
-        admin_token: None,
-        admin_readonly_token: Some("short".to_string()), // would fail if admin_api_enabled=true
         cors_enabled: false,
         ..ServerConfig::default()
     };
