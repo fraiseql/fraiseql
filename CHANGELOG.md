@@ -208,6 +208,13 @@ disagreed, and the promise was the part that was wrong.
   enabled source's connector at `<module_dir>/<function>.ts` (or disable the source), and fix
   any schedule the error names.
 
+- **`fraiseql_functions::FunctionStore` is removed (#1345).** The trait, `InMemoryFunctionStore`,
+  `FunctionRecord` and `FunctionStatus` lost their last consumer when `POST /functions/v1/{name}`
+  was retired (#1329), and the module's doc advertised a `PgFunctionStore` that never existed.
+  Functions deploy from `[functions] module_dir`, the one deployment path the server loads.
+  **Upgrade:** nothing in FraiseQL reads a function store; code that implemented the trait can
+  drop it.
+
 ### Added
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds

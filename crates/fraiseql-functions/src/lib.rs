@@ -15,7 +15,6 @@ pub mod migrations;
 pub mod observer;
 pub mod outbound;
 pub mod runtime;
-pub mod store;
 pub mod triggers;
 pub mod types;
 
@@ -35,7 +34,6 @@ pub use reqwest;
 pub use runtime::{FunctionRuntime, SendFunctionRuntime};
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
-pub use store::{FunctionRecord, FunctionStatus, FunctionStore, memory::InMemoryFunctionStore};
 pub use triggers::{
     cron::{CronScheduler, CronSchedulerHandle, CronTrigger},
     ingest::{

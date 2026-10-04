@@ -566,7 +566,7 @@ lint-expect:
 # `#[async_trait::async_trait]`, which this grep has never counted (see above) — each one
 # replaces write methods that sat in that double's `DatabaseAdapter` impl, so no double
 # gained a dyn-dispatch trait it did not already implement.
-ASYNC_TRAIT_LIMIT := 215
+ASYNC_TRAIT_LIMIT := 212
 .PHONY: lint-async-trait
 lint-async-trait:
 	@count=$$(grep -rn "#\[async_trait\]" crates/*/src/ --include="*.rs" | wc -l); \
