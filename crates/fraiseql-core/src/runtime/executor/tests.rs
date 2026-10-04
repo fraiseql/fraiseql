@@ -66,6 +66,7 @@ mod query {
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let config = RuntimeConfig {
             query_function_resolver: None,
+            after_mutation_observer: None,
 
             cache_query_plans:    false,
             max_page_size:        Some(1000),
@@ -1242,6 +1243,7 @@ mod config {
     fn test_jsonb_strategy_in_runtime_config() {
         let config = RuntimeConfig {
             query_function_resolver: None,
+            after_mutation_observer: None,
 
             cache_query_plans:    false,
             max_page_size:        Some(1000),
@@ -1275,6 +1277,7 @@ mod config {
 
         let config = RuntimeConfig {
             query_function_resolver: None,
+            after_mutation_observer: None,
 
             cache_query_plans:    false,
             max_page_size:        Some(1000),

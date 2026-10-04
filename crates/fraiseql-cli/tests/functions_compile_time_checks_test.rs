@@ -215,10 +215,51 @@ fn an_after_mutation_trigger_naming_a_mutation_rather_than_its_return_type_fails
         "runtime": "Deno"
     })));
     assert!(
-        message.contains("no declared mutation returns") && message.contains("Order"),
+        message.contains("no declared mutation writes") && message.contains("Order"),
         "the refusal must explain that after:mutation matches the return type, and name the \
          types that are returned; got: {message}"
     );
+}
+
+/// #1340: `auto_error_union` rewrites `updateOrder -> Order` to `-> UpdateOrderResult`,
+/// but the mutation still writes an `Order`, and that is what the trigger names. Both
+/// features on, the trigger compiles — and the dispatcher matches it on the same rule
+/// (`CompiledSchema::success_types`).
+#[test]
+fn an_after_mutation_trigger_compiles_with_auto_error_union_on() {
+    let intermediate: IntermediateSchema = serde_json::from_value(schema_with_function(json!({
+        "name": "notify",
+        "trigger": "after:mutation:Order:update",
+        "runtime": "Deno"
+    })))
+    .unwrap();
+    let artifact = SchemaConverter::convert_artifact(
+        intermediate,
+        &ConvertOptions {
+            auto_error_union: true,
+        },
+    )
+    .expect("after:mutation:Order must compile when Order is wrapped in an error union");
+    let mutation = artifact.schema.mutations.iter().find(|m| m.name == "updateOrder").unwrap();
+    assert_ne!(mutation.return_type, "Order", "precondition: the union wrapped the return type");
+    assert_eq!(artifact.schema.success_types(&mutation.return_type), ["Order"]);
+}
+
+/// A cascade mutation returns a synthesized payload around the entity it writes. The
+/// trigger names the entity, which is what the engine reports, and it compiles (#1340).
+#[test]
+fn an_after_mutation_trigger_on_a_cascade_mutation_names_the_entity() {
+    let mut corpus = schema_with_function(json!({
+        "name": "notify",
+        "trigger": "after:mutation:Order:update",
+        "runtime": "Deno"
+    }));
+    corpus["mutations"][0]["cascade"] = json!(true);
+    let intermediate: IntermediateSchema = serde_json::from_value(corpus).unwrap();
+    let artifact = SchemaConverter::convert_artifact(intermediate, &ConvertOptions::default())
+        .expect("after:mutation:Order must compile on a cascade mutation writing an Order");
+    let mutation = artifact.schema.mutations.iter().find(|m| m.name == "updateOrder").unwrap();
+    assert_ne!(mutation.return_type, "Order", "precondition: a payload wraps the entity");
 }
 
 #[test]

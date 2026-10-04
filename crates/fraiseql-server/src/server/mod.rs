@@ -40,6 +40,8 @@ pub(crate) mod initialization;
 mod lifecycle;
 mod routing;
 
+#[cfg(all(test, feature = "functions-runtime"))]
+mod after_mutation_wiring_tests;
 #[cfg(test)]
 mod parity_tests;
 
@@ -256,6 +258,13 @@ pub struct Server {
     /// the `functions-runtime` feature is off.
     #[cfg(feature = "functions-runtime")]
     pub(super) functions_hooks: Option<Arc<crate::subsystems::BeforeMutationHooks>>,
+
+    /// The after-mutation observer installed on the executor alongside the hooks (#1340,
+    /// #1440). Held here so the serve path can give it the `AppState`'s executor handle,
+    /// which its functions' query bridge runs against.
+    #[cfg(feature = "functions-runtime")]
+    pub(super) after_mutation_observer:
+        Option<Arc<crate::routes::after_mutation::FunctionDispatchObserver>>,
 
     /// The compiled schema's `functions` section, supplied by whoever built this
     /// server (#896).

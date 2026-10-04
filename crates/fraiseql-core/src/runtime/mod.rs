@@ -44,6 +44,7 @@
 //! # }
 //! ```
 
+pub mod after_mutation;
 mod aggregate_parser;
 mod aggregate_projector;
 pub mod aggregation;
@@ -78,6 +79,9 @@ mod window_projector;
 
 use std::sync::Arc;
 
+pub use after_mutation::{
+    AfterMutationObserver, CommittedMutation, current_dispatch_depth, dispatched_at,
+};
 pub use aggregate_parser::AggregateQueryParser;
 pub use aggregate_projector::AggregationProjector;
 pub use aggregation::{AggregationSqlGenerator, ParameterizedAggregationSql};
@@ -177,6 +181,7 @@ use crate::security::{
 /// | `authorizer` | `None` | No operation-level authorization |
 /// | `before_mutation_gate` | `None` | No `before:mutation` enforcement |
 /// | `query_function_resolver` | `None` | A function-backed root field refuses, by name |
+/// | `after_mutation_observer` | `None` | No one is told a write committed |
 ///
 /// # Example
 ///
@@ -369,6 +374,13 @@ pub struct RuntimeConfig {
     ///
     /// See [`QueryFunctionResolver`].
     pub query_function_resolver: Option<Arc<dyn QueryFunctionResolver>>,
+
+    /// Optional observer told of every committed mutation (#1340, #1440).
+    ///
+    /// Called from `execute_mutation_impl` once per committed success, with the type the
+    /// write produced and the full entity, so every transport fires the same
+    /// `after:mutation` work and a failed write never does. See [`AfterMutationObserver`].
+    pub after_mutation_observer: Option<Arc<dyn AfterMutationObserver>>,
 }
 
 /// Response-size limits for the typed cascade surface, per the graphql-cascade
@@ -421,6 +433,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("cascade_limits", &self.cascade_limits)
             .field("before_mutation_gate", &self.before_mutation_gate.is_some())
             .field("query_function_resolver", &self.query_function_resolver.is_some())
+            .field("after_mutation_observer", &self.after_mutation_observer.is_some())
             .finish()
     }
 }
@@ -446,6 +459,7 @@ impl Default for RuntimeConfig {
             cascade_limits:          CascadeLimits::default(),
             before_mutation_gate:    None,
             query_function_resolver: None,
+            after_mutation_observer: None,
         }
     }
 }
@@ -618,6 +632,19 @@ impl RuntimeConfig {
         self
     }
 
+    /// Register the observer told of every committed mutation (#1340, #1440).
+    ///
+    /// Parallel to [`with_before_mutation_gate`](Self::with_before_mutation_gate): one
+    /// slot on the config, consulted at the write chokepoint every transport converges on.
+    #[must_use]
+    pub fn with_after_mutation_observer(
+        mut self,
+        observer: Arc<dyn AfterMutationObserver>,
+    ) -> Self {
+        self.after_mutation_observer = Some(observer);
+        self
+    }
+
     /// Build a [`RuntimeConfig`] from a compiled schema, applying every
     /// schema-derived runtime setting that an executor must honor.
     ///
@@ -742,6 +769,7 @@ impl RuntimeConfig {
             cascade_limits,
             before_mutation_gate,
             query_function_resolver,
+            after_mutation_observer,
         } = self;
 
         Ok(Self {
@@ -763,6 +791,7 @@ impl RuntimeConfig {
             cascade_limits,
             before_mutation_gate,
             query_function_resolver,
+            after_mutation_observer,
         })
     }
 }

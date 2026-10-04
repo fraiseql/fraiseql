@@ -1,8 +1,9 @@
 //! After-mutation function-trigger dispatch (#460).
 //!
-//! When a GraphQL or REST mutation commits, the server looks up any matching
-//! `after:mutation` function triggers and dispatches each as a fire-and-forget
-//! task. Failures are logged; they never affect the mutation response.
+//! When a mutation commits, over any transport, the engine tells the
+//! [`FunctionDispatchObserver`], which looks up any matching `after:mutation` function
+//! triggers and dispatches each as a fire-and-forget task. Failures are logged; they never
+//! affect the mutation response.
 //!
 //! The work is split in two:
 //!
@@ -16,7 +17,9 @@
 //! A stock server binary compiles only the planner; the runtime + live host
 //! context are opt-in (see the crate's `functions-runtime` feature).
 
-use fraiseql_core::schema::{CompiledSchema, MutationOperation};
+#[cfg(feature = "functions-runtime")]
+use fraiseql_core::runtime::AfterMutationObserver;
+use fraiseql_core::{runtime::CommittedMutation, schema::MutationOperation};
 use fraiseql_functions::{EntityEvent, EventKind, EventPayload, FunctionModule};
 
 use crate::subsystems::BeforeMutationHooks;
@@ -46,34 +49,22 @@ pub const fn event_kind_for(operation: &MutationOperation) -> Option<EventKind> 
 
 /// Plan the after:mutation dispatch for a committed mutation.
 ///
-/// Resolves the mutation definition (→ entity type + DML verb), builds the
-/// [`EntityEvent`] from the response, finds matching `after:mutation` triggers,
-/// and pairs each with its function module. Returns an empty vector when the
-/// operation is not a state-changing mutation, the mutation is unknown, or no
-/// trigger matches — all of which are the common, allocation-cheap fast path.
-///
-/// `response_data` is the full GraphQL execution result (`{"data": {...}}`); the
-/// affected entity is read from `data.<mutation_name>`.
+/// Builds the [`EntityEvent`] from what the engine reported: the type the write produced
+/// (never a synthesized error union's name), the DML verb, and the function's full entity
+/// (never the client's selection, so a `when` predicate can read any field). Finds the
+/// matching `after:mutation` triggers and pairs each with its function module. Returns an
+/// empty vector for a custom (non-DML) operation, or when no trigger matches: the common,
+/// allocation-cheap fast path.
 pub fn plan_after_mutation_dispatch(
     hooks: &BeforeMutationHooks,
-    schema: &CompiledSchema,
-    mutation_name: &str,
-    response_data: &serde_json::Value,
+    mutation: &CommittedMutation<'_>,
 ) -> Vec<AfterMutationDispatch> {
-    let Some(definition) = schema.find_mutation(mutation_name) else {
-        return Vec::new();
-    };
-    let Some(event_kind) = event_kind_for(&definition.operation) else {
+    let Some(event_kind) = event_kind_for(mutation.operation) else {
         return Vec::new();
     };
 
-    // The affected entity is flattened under `data.<mutation_name>` in the
-    // GraphQL response. A null result (e.g. a no-op delete) carries no entity.
-    let entity_value = response_data
-        .get("data")
-        .and_then(|data| data.get(mutation_name))
-        .filter(|value| !value.is_null())
-        .cloned();
+    // A null entity (e.g. a no-op delete) carries no row image.
+    let entity_value = Some(mutation.entity).filter(|value| !value.is_null()).cloned();
 
     // A delete reports the removed row as the *old* state; insert/update report
     // the resulting row as the *new* state. The complementary pre-image is not
@@ -84,7 +75,7 @@ pub fn plan_after_mutation_dispatch(
     };
 
     let event = EntityEvent {
-        entity: definition.return_type.clone(),
+        entity: mutation.entity_type.to_string(),
         event_kind,
         old,
         new,
@@ -114,6 +105,92 @@ pub fn plan_after_mutation_dispatch(
             Some(AfterMutationDispatch { module, payload })
         })
         .collect()
+}
+
+/// The engine's [`AfterMutationObserver`]: plans and spawns the `after:mutation`
+/// functions for every committed write, whichever transport made it (#1340, #1440).
+///
+/// Installed on the executor with the other function seams, so GraphQL, REST, MCP and
+/// gRPC writes all dispatch from one place, and a failed write, served as union data or
+/// not, never does.
+///
+/// **A bridge write never dispatches (M-bridge).** Writes a dispatched function or a
+/// scheduled source makes through its query bridge run inside
+/// [`dispatched_at`](fraiseql_core::runtime::dispatched_at), at depth `1`. An
+/// `after:mutation` function that writes the entity it is triggered by would otherwise
+/// trigger itself without end. This used to hold only because dispatch sat in the route
+/// handlers, which a bridge write bypasses; it is now a rule the observer checks.
+#[cfg(feature = "functions-runtime")]
+pub struct FunctionDispatchObserver {
+    hooks:    std::sync::Arc<BeforeMutationHooks>,
+    /// The hot-reloadable executor the dispatched functions' `fraiseql_query` bridge runs
+    /// against. Bound once the `AppState` owning it exists, and held weakly: the executor
+    /// holds this observer, so a strong handle would be a reference cycle.
+    executor:
+        std::sync::OnceLock<std::sync::Weak<arc_swap::ArcSwap<fraiseql_core::runtime::Executor>>>,
+}
+
+#[cfg(feature = "functions-runtime")]
+impl FunctionDispatchObserver {
+    /// An observer dispatching into `hooks`; [`bind_executor`](Self::bind_executor) gives
+    /// its functions a query bridge.
+    #[must_use]
+    pub const fn new(hooks: std::sync::Arc<BeforeMutationHooks>) -> Self {
+        Self {
+            hooks,
+            executor: std::sync::OnceLock::new(),
+        }
+    }
+
+    /// Give dispatched functions a `fraiseql_query` bridge over `executor`. The first
+    /// binding wins: there is one serving executor per server.
+    pub fn bind_executor(
+        &self,
+        executor: &std::sync::Arc<arc_swap::ArcSwap<fraiseql_core::runtime::Executor>>,
+    ) {
+        let _ = self.executor.set(std::sync::Arc::downgrade(executor));
+    }
+
+    /// The executor this observer is bound to, if it is still alive.
+    #[cfg(test)]
+    pub(crate) fn bound_executor(
+        &self,
+    ) -> Option<std::sync::Arc<arc_swap::ArcSwap<fraiseql_core::runtime::Executor>>> {
+        self.executor.get().and_then(std::sync::Weak::upgrade)
+    }
+
+    /// The dispatches a committed write calls for: none for a bridge write (M-bridge, see
+    /// the type docs), else the matching triggers' plans.
+    fn plans_for(&self, mutation: &CommittedMutation<'_>) -> Vec<AfterMutationDispatch> {
+        if mutation.dispatch_depth > 0 {
+            return Vec::new();
+        }
+        plan_after_mutation_dispatch(&self.hooks, mutation)
+    }
+}
+
+#[cfg(feature = "functions-runtime")]
+impl AfterMutationObserver for FunctionDispatchObserver {
+    fn on_committed(&self, mutation: &CommittedMutation<'_>) {
+        let plans = self.plans_for(mutation);
+        if plans.is_empty() {
+            return;
+        }
+        // #594: each dispatched function gets the `fraiseql_query` bridge, run under its
+        // own `run_as` ceiling.
+        let query_executor_factory = self
+            .executor
+            .get()
+            .and_then(std::sync::Weak::upgrade)
+            .map(make_query_executor_factory);
+        spawn_after_mutation(
+            &self.hooks,
+            plans,
+            query_executor_factory,
+            // #803: the dispatched host reflects the caller whose write triggered it.
+            mutation.security_ctx.cloned(),
+        );
+    }
 }
 
 /// Plan the `after:ingest` dispatch for a persisted inbound message.

@@ -319,6 +319,7 @@ fn test_executor_projection_fields_filtered_by_scope() {
 fn test_executor_runtime_config_with_field_filter() {
     let config = RuntimeConfig {
         query_function_resolver: None,
+        after_mutation_observer: None,
 
         cache_query_plans:    true,
         max_page_size:        Some(1000),

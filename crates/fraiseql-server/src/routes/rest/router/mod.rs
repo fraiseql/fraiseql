@@ -155,7 +155,6 @@ fn derive_rest_context(
         error_sanitizer: Arc::clone(&state.error_sanitizer),
         #[cfg(feature = "auth")]
         identity_resolver: state.identity_resolver.clone(),
-        function_hooks: state.before_mutation_hooks.clone(),
         #[cfg(feature = "observers")]
         event_fanout: state.entity_event_fanout.clone(),
         #[cfg(feature = "observers")]
@@ -434,10 +433,6 @@ struct RestState {
     /// by one transport.
     #[cfg(feature = "auth")]
     identity_resolver: Option<Arc<crate::identity::IdentityResolver>>,
-    /// After-mutation function-trigger hooks (#460), forwarded to the mutation
-    /// handlers so a committed REST mutation can dispatch `after:mutation`
-    /// functions. `None` when the functions subsystem is absent.
-    function_hooks:    Option<Arc<crate::subsystems::BeforeMutationHooks>>,
     /// Export-format configuration from `[export]` in `fraiseql.toml` (#917).
     ///
     /// Carried on the state rather than rebuilt per request: the CSV, XLSX and Parquet
@@ -742,8 +737,7 @@ async fn rest_post_handler(
     let schema = rest.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
     let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table)
-        .with_idempotency_store(&rest.idempotency_store)
-        .with_function_hooks(rest.function_hooks.as_ref());
+        .with_idempotency_store(&rest.idempotency_store);
 
     let result = handler
         .handle_post(&relative_path, &body_value, &parts.headers, security_ctx.as_ref())
@@ -768,8 +762,7 @@ async fn rest_put_handler(
 
     let schema = rest.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
-    let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table)
-        .with_function_hooks(rest.function_hooks.as_ref());
+    let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
 
     let result = handler
         .handle_put(&relative_path, &body_value, &parts.headers, security_ctx.as_ref())
@@ -798,8 +791,7 @@ async fn rest_patch_handler(
 
     let schema = rest.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
-    let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table)
-        .with_function_hooks(rest.function_hooks.as_ref());
+    let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
 
     let result = handler
         .handle_patch(
@@ -829,8 +821,7 @@ async fn rest_delete_handler(
 
     let schema = rest.executor.schema();
     let config = schema.rest_config.as_ref().expect("REST config must exist: handler is only reached via a matched REST route, which requires rest_config to be present in the schema");
-    let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table)
-        .with_function_hooks(rest.function_hooks.as_ref());
+    let handler = RestHandler::new(&rest.executor, schema, config, &rest.route_table);
 
     let result = handler
         .handle_delete(&relative_path, &query_refs, &parts.headers, security_ctx.as_ref())

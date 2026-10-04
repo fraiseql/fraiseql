@@ -23,7 +23,15 @@ impl Server {
     /// configured subsystem cannot be provisioned.
     pub(in crate::server) async fn provisioned_app_state(&mut self) -> crate::Result<AppState> {
         self.provision_persistent_schemas().await?;
-        Ok(self.assemble_app_state())
+        let state = self.assemble_app_state();
+        // The dispatched functions' query bridge runs against the executor this state
+        // serves, so the observer learns it here, the one place every entry point's state
+        // is made.
+        #[cfg(feature = "functions-runtime")]
+        if let Some(observer) = &self.after_mutation_observer {
+            observer.bind_executor(&state.executor);
+        }
+        Ok(state)
     }
 
     /// The `AppState` without provisioning, for tests that drive a router or a

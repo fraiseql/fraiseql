@@ -146,6 +146,21 @@ server's own executor and are unaffected.
 
 ### Durable After-Mutation Dispatch
 
+**Where it is dispatched (#1340, #1440).** The engine dispatches it, not a transport:
+`execute_mutation_impl`, the write chokepoint every transport converges on, tells the
+server's `FunctionDispatchObserver` about each committed write. So a write fires the same
+functions whether it came over GraphQL, REST, MCP or gRPC. A failed write never does,
+including one served as an error member of an `auto_error_union` result, which is data
+rather than an error. A dry run commits nothing and fires nothing. The event carries:
+
+- the entity type the write **produced**: the function's stamp, or the one type its success
+  can be. Never the synthesized union's or a cascade payload's name.
+- the function's whole entity, not the fields a client selected. So a `when` predicate can
+  read any field.
+
+Dispatch used to read the response in the GraphQL and REST handlers. That is why MCP and gRPC
+writes fired nothing, and why a union failure looked like a success.
+
 `after:mutation` function dispatch is **durable by default** (ADR 0015): a
 transient failure is retried with backoff and, once retries are exhausted, the
 invocation is dead-lettered so money- and send-path work is never silently lost.
@@ -307,8 +322,8 @@ predicate produces no dispatch record at all (not a skipped/failed dispatch):
   (back-compat). Exactly one operator per predicate; unknown keys are a load error.
   This is a dispatch filter, not a rules engine — anything richer stays guest code.
 
-> **Pre-image caveat.** The after:mutation **route** path carries only the after-image
-> (the mutation response), so `changed_to` there gates on `new.field == v` and cannot
+> **Pre-image caveat.** The after:mutation path carries only the after-image (the entity
+> the mutation function returned), so `changed_to` there gates on `new.field == v` and cannot
 > distinguish a real transition from a re-save. Full transition detection needs the
 > pre-image — the `after:capture` path (backed by the change log) with `pre_image=True`.
 
@@ -335,12 +350,14 @@ compiled schema:
 - **Audited.** A function-authored write is stamped `system_job:<function-name>`
   under `ActorType::SystemJob` in the change log — the same audit envelope a source
   write carries — so a bridge write is attributable to the function that issued it.
-- **Bridge-write asymmetry (deliberate).** A write a function issues through
-  `fraiseql_query` does **not** itself fire `after:mutation` functions: after-mutation
-  dispatch is invoked only from the GraphQL/REST route handlers, and the bridge wraps
-  the core executor, bypassing them. So a bridge-written `Order` update does **not**
-  fire `notify_approved`. This is an invariant, not a race — there is no
-  bridge→after:mutation loop to guard against.
+- **Bridge-write asymmetry (deliberate).** A write a function or a scheduled source issues
+  through `fraiseql_query` does **not** fire `after:mutation` functions. So a bridge-written
+  `Order` update does **not** fire `notify_approved`, and a function that writes the entity
+  it is triggered by cannot trigger itself. The bridge runs its writes at dispatch depth 1
+  (`fraiseql_core::runtime::dispatched_at`), a task-local a client cannot set, and the
+  dispatch observer skips any write above depth 0. This used to hold only because dispatch
+  sat in the route handlers, which the bridge bypasses. It is now a rule, pinned by
+  `query_bridge::tests` and `routes::after_mutation::tests`.
 
 From a TypeScript guest these are `Deno.core.ops.fraiseql_*` (typed via the
 `FRAISEQL_HOST_TYPES` declarations); from a WASM guest they are the
@@ -475,7 +492,7 @@ A bad declaration fails `fraiseql compile`, not server boot:
 | `changed_to` on a non-`update` trigger | `after:mutation:Order:insert` + `changed_to` |
 | `http:` / `after:storage:` | nothing mounts them (#871) |
 | `before:mutation:` names a declared mutation | `before:mutation:deleteOrder` with no such mutation |
-| `after:mutation:` names a **returned type** | `after:mutation:updateOrder` — it matches the mutation's *return type*, not its name |
+| `after:mutation:` names an entity a mutation **writes** | `after:mutation:updateOrder`: it matches the entity a mutation's success produces (its return type, the success member of its `auto_error_union` result, or a cascade payload's entity), not the mutation's name |
 | `when` fields exist on that type | `{"field": "statuss"}` on an `Order` with `status` |
 | the module is on disk, with an extension the runtime loads | `runtime: "Wasm"` beside a `notify.ts` |
 | a query's `function` names a **declared** function | `function = "preview_qoute"` |

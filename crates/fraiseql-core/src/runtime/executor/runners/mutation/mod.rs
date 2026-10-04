@@ -127,7 +127,7 @@ fn unstamped_type(schema: &CompiledSchema, return_type: &str, is_cascade: bool) 
     if is_cascade {
         return payload_entity_type(&resolve_payload_type(return_type, schema), schema);
     }
-    match payload_gates::success_types(schema, return_type).as_slice() {
+    match schema.success_types(return_type).as_slice() {
         [only] => Some(only.clone()),
         _ => None,
     }
@@ -1856,6 +1856,42 @@ pub(in super::super) async fn execute_mutation_impl(
                 .unwrap_or(""),
             "mutation.executed"
         );
+    }
+
+    // 8. Tell the after-mutation observer (#1340, #1440). Here, rather than in a transport, so
+    //    every transport fires the same `after:mutation` work: this is the one place that knows the
+    //    write committed and what it produced. A failure is `MutationOutcome::Error` even when it
+    //    is served as union data, and a dry run committed nothing, so neither reaches the observer.
+    //    The row is the function's whole entity, not the client's selection.
+    if committed {
+        if let (
+            Some(observer),
+            MutationOutcome::Success {
+                entity,
+                entity_type,
+                entity_id,
+                ..
+            },
+        ) = (ctx.config.after_mutation_observer.as_deref(), &envelope)
+        {
+            // The produced type: the stamp the gates validated, else the one type an
+            // unstamped success can be. An ambiguous unstamped success was refused, and
+            // rolled back, before the commit, so one of the two is always present here.
+            let produced = entity_type.clone().or_else(|| {
+                unstamped_type(&ctx.schema, &mutation_def.return_type, mutation_def.cascade)
+            });
+            if let Some(produced) = produced {
+                observer.on_committed(&crate::runtime::CommittedMutation {
+                    mutation_name,
+                    entity_type: &produced,
+                    operation: &mutation_def.operation,
+                    entity,
+                    entity_id: entity_id.as_deref(),
+                    security_ctx,
+                    dispatch_depth: crate::runtime::current_dispatch_depth(),
+                });
+            }
+        }
     }
 
     let response = ResultProjector::wrap_in_data_envelope(result_json, &response_key_owned);

@@ -202,5 +202,5 @@ ceiling).
 - **Payload.** `new` = the captured after-image; a DELETE reports the removed row as
   `old`. The full pre-image for an UPDATE is not carried on this path, so `old` is
   `None` there (`changed_to` predicates gate on the after-value — same limitation as
-  the after:mutation route path). Actor fields may be NULL ("degraded but valid").
+  the after:mutation path). Actor fields may be NULL ("degraded but valid").
 - **Predicates.** `when` (#597) evaluates identically on the capture payload.

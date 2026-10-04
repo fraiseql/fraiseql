@@ -987,6 +987,8 @@ impl Server {
             #[cfg(feature = "functions-runtime")]
             functions_hooks: None,
             #[cfg(feature = "functions-runtime")]
+            after_mutation_observer: None,
+            #[cfg(feature = "functions-runtime")]
             functions_config: None,
             tenant_executor_factory: None,
             #[cfg(feature = "rest")]

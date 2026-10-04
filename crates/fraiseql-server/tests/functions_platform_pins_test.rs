@@ -120,13 +120,15 @@ fn capture_dispatch_keys_on_the_documented_discriminator() {
     );
 }
 
-// ── bridge-write dispatch: after:mutation dispatch is route-layer only ───────
+// ── bridge-write dispatch: a bridge write never dispatches after:mutation ────
 //
-// The sources query bridge (`SourceQueryExecutor` → core `Executor`) writes by
-// calling `Executor::execute_with_security` directly, bypassing the route
-// handlers where after:mutation dispatch is invoked. So a bridge write fires no
-// after:mutation function today — settling phase 02's recursion question (no
-// bridge→after:mutation loop can exist) and phase 05's loop analysis.
+// after:mutation dispatch is the engine's (#1340, #1440): `execute_mutation_impl` tells
+// the server's `FunctionDispatchObserver` about every committed write, from every
+// transport. A write made through the query bridge (`RunAsQueryExecutor`, which scheduled
+// sources and dispatched functions use) runs at dispatch depth 1, and the observer does
+// not dispatch on it — so a function writing the entity it is triggered by cannot
+// trigger itself (M-bridge). Behaviour is pinned by `query_bridge::tests` and
+// `routes::after_mutation::tests::a_bridge_write_is_not_dispatched`; these pin the shape.
 
 #[test]
 fn pin_bridge_write_executor_does_not_dispatch_after_mutation() {
@@ -136,24 +138,33 @@ fn pin_bridge_write_executor_does_not_dispatch_after_mutation() {
             code_occurrences(&bridge, marker),
             0,
             "M-bridge: the sources query bridge must not invoke after:mutation dispatch \
-             (`{marker}`) — dispatch is route-layer only, which is why a bridge write cannot \
-             loop back into after:mutation. Phase 02 (option a) keeps this as an invariant."
+             (`{marker}`)."
         );
     }
 }
 
 #[test]
-fn pin_after_mutation_dispatch_lives_only_in_route_handlers() {
-    // The two dispatch sites: the GraphQL handler and the REST mutation handler.
-    let graphql = read_ws("crates/fraiseql-server/src/routes/graphql/handler.rs");
-    let rest = read_ws("crates/fraiseql-server/src/routes/rest/handler/mutation.rs");
+fn pin_after_mutation_dispatch_is_the_engines_not_a_routes() {
+    // One dispatch site: the observer the engine calls. A route that dispatched as well
+    // would fire every function twice, and a route is exactly where a failure served as
+    // union data looks like a success.
+    for route in [
+        "crates/fraiseql-server/src/routes/graphql/handler.rs",
+        "crates/fraiseql-server/src/routes/rest/handler/mutation.rs",
+    ] {
+        let source = read_ws(route);
+        for marker in ["plan_after_mutation_dispatch", "spawn_after_mutation"] {
+            assert_eq!(
+                code_occurrences(&source, marker),
+                0,
+                "{route} must not dispatch after:mutation (`{marker}`): the engine does"
+            );
+        }
+    }
+    let setup = read_ws("crates/fraiseql-server/src/server/functions_setup.rs");
     assert!(
-        code_occurrences(&graphql, "spawn_after_mutation") > 0,
-        "M-bridge: expected the GraphQL route handler to be an after:mutation dispatch site."
-    );
-    assert!(
-        code_occurrences(&rest, "spawn_after_mutation") > 0,
-        "M-bridge: expected the REST mutation handler to be an after:mutation dispatch site."
+        code_occurrences(&setup, "with_after_mutation_observer") > 0,
+        "the functions setup must install the after-mutation observer on the executor"
     );
 }
 

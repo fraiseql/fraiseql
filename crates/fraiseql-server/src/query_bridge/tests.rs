@@ -3,8 +3,8 @@
 //!
 //! The live `execute_query` round-trip (a guest actually mutating through the
 //! server `Executor`) is exercised end-to-end by the scheduler integration test
-//! against real PostgreSQL; here we pin the identity/variable logic that has no
-//! database dependency.
+//! against real PostgreSQL. Here: the identity/variable logic, and the dispatch depth a
+//! bridge write carries, over a mock writer.
 #![allow(clippy::unwrap_used)] // Reason: test module
 
 use fraiseql_core::{security::SecurityContext, types::TenantId};
@@ -80,4 +80,63 @@ fn split_strips_a_blank_tenant_without_scoping() {
     let (cleaned, tenant) = split_tenant_override(Some(&vars));
     assert!(tenant.is_none(), "a blank tenant scopes nothing");
     assert!(cleaned.unwrap().get(SOURCE_TENANT_VAR).is_none(), "but the key is stripped");
+}
+
+/// A write made through the bridge is observed at dispatch depth 1, so the
+/// after-mutation observer never dispatches on it (M-bridge, #1340, #1440). The same
+/// write made directly, as a request makes it, is depth 0: the control.
+#[tokio::test]
+async fn a_bridge_write_runs_at_dispatch_depth_one() {
+    use std::sync::{Arc, Mutex};
+
+    use arc_swap::ArcSwap;
+    use fraiseql_core::{
+        runtime::{AfterMutationObserver, CommittedMutation, Executor, RuntimeConfig},
+        schema::CompiledSchema,
+    };
+    use fraiseql_functions::host::live::QueryExecutor as _;
+    use fraiseql_test_utils::failing_adapter::FailingAdapter;
+
+    #[derive(Default)]
+    struct Depths(Mutex<Vec<u8>>);
+    impl AfterMutationObserver for Depths {
+        fn on_committed(&self, mutation: &CommittedMutation<'_>) {
+            self.0.lock().unwrap().push(mutation.dispatch_depth);
+        }
+    }
+
+    let schema: CompiledSchema = serde_json::from_value(json!({
+        "types": [{
+            "name": "Order",
+            "sql_source": "v_order",
+            "fields": [ { "name": "id", "field_type": "ID" } ]
+        }],
+        "mutations": [{
+            "name": "updateOrder",
+            "return_type": "Order",
+            "sql_source": "fn_update_order",
+            "operation": { "Update": { "table": "tb_order" } },
+            "arguments": []
+        }]
+    }))
+    .unwrap();
+    let row = std::collections::HashMap::from([
+        ("succeeded".to_string(), json!(true)),
+        ("state_changed".to_string(), json!(true)),
+        ("entity".to_string(), json!({ "id": "o1" })),
+        ("entity_type".to_string(), json!("Order")),
+        ("cascade".to_string(), serde_json::Value::Null),
+    ]);
+    let adapter = FailingAdapter::new().with_function_response("fn_update_order", vec![row]);
+    let depths = Arc::new(Depths::default());
+    let config = RuntimeConfig::default().with_after_mutation_observer(depths.clone());
+    let executor = Arc::new(Executor::with_config(schema, Arc::new(adapter), config));
+    let mutation = "mutation { updateOrder { id } }";
+
+    executor.execute(mutation, None).await.unwrap();
+    let bridge =
+        super::RunAsQueryExecutor::new(Arc::new(ArcSwap::from(Arc::clone(&executor))), base(None));
+    bridge.execute_query(mutation, None).await.unwrap();
+
+    assert_eq!(*depths.0.lock().unwrap(), [0, 1]);
 }

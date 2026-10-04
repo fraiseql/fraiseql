@@ -222,6 +222,11 @@ disagreed, and the promise was the part that was wrong.
   is unchanged. **Upgrade:** sign sessions with `with_hs256_secret`, or mint tokens with your own
   signer (a KMS, or ES256/EdDSA through `jsonwebtoken`) and let FraiseQL verify them.
 
+- **`RestHandler::with_function_hooks` is removed (#1440).** The REST handler no longer
+  dispatches `after:mutation` functions; the engine does, for every transport (see Fixed).
+  **Upgrade:** drop the call. Install `fraiseql_core::runtime::AfterMutationObserver` with
+  `RuntimeConfig::with_after_mutation_observer` to observe committed writes.
+
 ### Added
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds
@@ -244,6 +249,24 @@ disagreed, and the promise was the part that was wrong.
   applies.
 
 ### Fixed
+
+- **`after:mutation` functions fire for every transport, only on success, and see the whole
+  row (#1340, #1440).** Dispatch read the response in the GraphQL and REST handlers, which got
+  three things wrong:
+  - MCP and gRPC writes fired nothing.
+  - Under `auto_error_union`, the trigger had to name the synthesized union, so a failed write
+    (an error member, served as data) dispatched as though it had succeeded. The compiler also
+    refused the natural `after:mutation:Order`.
+  - The event's row was the client's selection, so a `when` predicate on an unselected field
+    never matched.
+
+  The engine now tells an `AfterMutationObserver` about each committed write. The event names
+  the entity type the write produced: the stamp, the success member of the union, or a cascade
+  payload's entity. It carries the function's full entity. A failure or a dry run never reaches
+  it. The compiler accepts a trigger on exactly those produced types. Writes made through the
+  `fraiseql_query` bridge still do not dispatch, so a function cannot trigger itself. That rule
+  is now enforced by a dispatch depth no client can set, rather than following from where the
+  dispatch call happened to sit.
 
 - **A project whose only code is a source connector compiles (#1399).** `fraiseql compile`
   refused the `[functions]` table as configuring nothing when no function was declared, so the

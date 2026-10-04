@@ -551,10 +551,6 @@ async fn execute_graphql_request(
     // Preserve subject for audit logging before security_context is consumed.
     #[cfg(feature = "auth")]
     let audit_subject = security_context.as_ref().map(|ctx| ctx.user_id.to_string());
-    // Preserve the caller for after:mutation dispatch (#803): the dispatched
-    // host's `auth_context` reflects the caller whose request triggered it.
-    #[cfg(feature = "functions-runtime")]
-    let dispatch_caller = security_context.clone();
     // Error propagation is deferred so the circuit-breaker outcome is recorded first.
     // GraphQL § 6.1 — the request's `operationName` selects which operation runs.
     // Before this was threaded, a document carrying two operations always ran the
@@ -680,38 +676,6 @@ async fn execute_graphql_request(
 
     #[cfg(feature = "secrets")]
     Box::pin(stages::decrypt_response_fields(&state, &mut response_json)).await?;
-
-    // After-mutation function triggers (#460): once the mutation has committed,
-    // fire-and-forget any matching `after:mutation` functions on a live,
-    // I/O-capable host context. Gated on `functions-runtime` (the WASM runtime +
-    // live host are opt-in); a single `HashMap::get` of zero overhead when no
-    // hooks are registered. Errors are logged inside the spawned tasks and never
-    // affect the response that was already produced above.
-    #[cfg(feature = "functions-runtime")]
-    if let Some(ref hooks) = state.before_mutation_hooks {
-        if let Some(mutation_name) = detect_mutation_name(&query) {
-            let plans = crate::routes::after_mutation::plan_after_mutation_dispatch(
-                hooks,
-                executor.schema(),
-                &mutation_name,
-                &response_json,
-            );
-            if !plans.is_empty() {
-                // #594: give each dispatched function the `fraiseql_query` bridge
-                // over the request-path executor, run under its own `run_as` ceiling.
-                let query_executor_factory =
-                    crate::routes::after_mutation::make_query_executor_factory(
-                        state.executor.clone(),
-                    );
-                crate::routes::after_mutation::spawn_after_mutation(
-                    hooks,
-                    plans,
-                    Some(query_executor_factory),
-                    dispatch_caller,
-                );
-            }
-        }
-    }
 
     // Idempotency (#747): persist the successful response so a re-send of the
     // same mutation under the same key replays it instead of executing again.

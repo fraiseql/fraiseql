@@ -120,9 +120,13 @@ impl QueryExecutor for RunAsQueryExecutor {
         let (variables, tenant) = split_tenant_override(variables);
         let identity = resolve_identity(&self.identity, tenant.as_deref());
         let query = query.to_owned();
-        Box::pin(async move {
+        // Every write a bridge makes is a dispatched function's or a scheduled source's,
+        // never a request's, so it runs at dispatch depth 1: the after-mutation observer
+        // does not dispatch on it (M-bridge), and a function writing the entity it is
+        // triggered by cannot trigger itself (#1340, #1440).
+        Box::pin(fraiseql_core::runtime::dispatched_at(1, async move {
             executor.execute_with_security(&query, variables.as_ref(), &identity).await
-        })
+        }))
     }
 }
 

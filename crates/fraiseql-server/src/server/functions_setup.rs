@@ -121,8 +121,9 @@ impl Server {
         Vec::new()
     }
 
-    /// Install both function seams on the executor: the `before:mutation`
-    /// enforcement gate (#1327) and the function-backed query resolver (#1329).
+    /// Install the function seams on the executor: the `before:mutation` enforcement
+    /// gate (#1327), the function-backed query resolver (#1329), and the
+    /// `after:mutation` dispatch observer (#1340, #1440).
     ///
     /// The chain is enforcement, so it has to run wherever a mutation runs — which
     /// is the engine's write chokepoint, not one HTTP handler. The gate therefore
@@ -145,13 +146,20 @@ impl Server {
         // the write-side gate. Two rebuilds would discard the first one's config the
         // way `with_compiled_schema` carries caller-owned config forward only once.
         let query_budget = QueryFunctionBudget::from_env();
-        let resolver = Arc::new(FunctionQueryResolver::new(hooks).with_budget(query_budget));
+        let resolver =
+            Arc::new(FunctionQueryResolver::new(Arc::clone(&hooks)).with_budget(query_budget));
+        // #1340, #1440: after:mutation dispatch, in the same rebuild. The engine tells this
+        // observer about every committed write, from every transport.
+        let observer =
+            Arc::new(crate::routes::after_mutation::FunctionDispatchObserver::new(hooks));
+        self.after_mutation_observer = Some(Arc::clone(&observer));
         let config = self
             .executor
             .config()
             .clone()
             .with_before_mutation_gate(gate)
-            .with_query_function_resolver(resolver);
+            .with_query_function_resolver(resolver)
+            .with_after_mutation_observer(observer);
         let schema = self.executor.schema().clone();
         self.executor = Arc::new(self.executor.rebuild_with(schema, config));
         if query_budget.is_enforced() {

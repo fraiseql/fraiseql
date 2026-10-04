@@ -1526,7 +1526,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// (`fraiseql_test_support::postgres()`, `try_database_url()`) and the only
 		// leg compiling them was the service-less workspace run, where every
 		// DB-backed case returned early and read exactly like a pass.
-		"cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1",
+		"cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: server::after_mutation_wiring_tests:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1",
 		// #1297: saga_store's Postgres orchestration proof, same shape — skip-clean
 		// on `try_database_url()`, compiled only by the DB-less `Test` leg.
 		"cargo test -p fraiseql-saga --lib saga_store::tests -- --test-threads=1",

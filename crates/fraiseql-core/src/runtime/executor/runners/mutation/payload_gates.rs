@@ -78,7 +78,7 @@ impl StampContract {
             super::payload_entity_type(&payload_type, schema)
                 .map_or_else(|| cascade_node_types(schema), |t| vec![t])
         } else {
-            success_types(schema, return_type)
+            schema.success_types(return_type)
         };
         Self {
             success,
@@ -341,28 +341,6 @@ fn push_root<'s>(
     {
         roots.push(root);
     }
-}
-
-/// The types a successful mutation returning `return_type` can produce: the non-error members
-/// of a union, the implementors of an interface, or the type itself.
-pub(super) fn success_types(schema: &CompiledSchema, return_type: &str) -> Vec<String> {
-    if let Some(union) = schema.find_union(return_type) {
-        return union
-            .member_types
-            .iter()
-            .filter(|t| schema.find_type(t).is_none_or(|td| !td.is_error))
-            .cloned()
-            .collect();
-    }
-    if schema.find_interface(return_type).is_some() {
-        return schema
-            .types
-            .iter()
-            .filter(|t| t.implements.iter().any(|i| i == return_type))
-            .map(|t| t.name.to_string())
-            .collect();
-    }
-    vec![return_type.to_string()]
 }
 
 /// The error types a failed mutation returning `return_type` can be served as (ruling AG 2):

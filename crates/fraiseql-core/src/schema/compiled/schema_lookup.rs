@@ -209,6 +209,34 @@ impl CompiledSchema {
         self.unions.iter().find(|u| u.name == name)
     }
 
+    /// The types a successful mutation returning `return_type` can produce: the non-error
+    /// members of a union, the implementors of an interface, or the type itself.
+    ///
+    /// The one answer to "what entity does this mutation write" — the mutation runner's
+    /// stamp check, the after-mutation dispatcher and the compiler's trigger
+    /// cross-reference all read it, so a synthesized error union (`auto_error_union`)
+    /// cannot rename the entity for one of them and not the others (#1340).
+    #[must_use]
+    pub fn success_types(&self, return_type: &str) -> Vec<String> {
+        if let Some(union) = self.find_union(return_type) {
+            return union
+                .member_types
+                .iter()
+                .filter(|t| self.find_type(t).is_none_or(|td| !td.is_error))
+                .cloned()
+                .collect();
+        }
+        if self.find_interface(return_type).is_some() {
+            return self
+                .types
+                .iter()
+                .filter(|t| t.implements.iter().any(|i| i == return_type))
+                .map(|t| t.name.to_string())
+                .collect();
+        }
+        vec![return_type.to_string()]
+    }
+
     /// Find a query definition by name.
     ///
     /// Uses the O(1) pre-built index when available; falls back to O(n) linear

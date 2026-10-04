@@ -822,6 +822,7 @@ mod runtime_config_drift {
             cascade_limits,
             before_mutation_gate,
             query_function_resolver,
+            after_mutation_observer,
         } = server;
 
         let mut out = Vec::new();
@@ -845,6 +846,10 @@ mod runtime_config_drift {
         }
         if query_function_resolver.is_some() != tenant.query_function_resolver.is_some() {
             out.push("query_function_resolver");
+        }
+        // #1340, #1440: a tenant's writes must dispatch `after:mutation` too.
+        if after_mutation_observer.is_some() != tenant.after_mutation_observer.is_some() {
+            out.push("after_mutation_observer");
         }
 
         // Operator-owned scalars: the same reason `database_tls`, `read_replica_policy`

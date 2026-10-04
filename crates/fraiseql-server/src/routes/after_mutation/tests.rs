@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use fraiseql_core::schema::{CompiledSchema, MutationDefinition, MutationOperation};
+use fraiseql_core::{runtime::CommittedMutation, schema::MutationOperation};
 use fraiseql_functions::{
     FunctionDefinition, FunctionModule, FunctionObserver, RuntimeType, TriggerRegistry,
 };
@@ -38,12 +38,31 @@ fn hooks(triggers: &[(&str, &str)], modules: &[&str]) -> BeforeMutationHooks {
     BeforeMutationHooks::new(trigger_registry, module_registry, Arc::new(FunctionObserver::new()))
 }
 
-fn schema_with(name: &str, return_type: &str, operation: MutationOperation) -> CompiledSchema {
-    let mut definition = MutationDefinition::new(name, return_type);
-    definition.operation = operation;
-    let mut schema = CompiledSchema::default();
-    schema.mutations.push(definition);
-    schema
+/// Plan the dispatch for a committed `entity_type` write, as the engine would report it.
+fn plan(
+    hooks: &BeforeMutationHooks,
+    entity_type: &str,
+    operation: &MutationOperation,
+    entity: &serde_json::Value,
+) -> Vec<AfterMutationDispatch> {
+    plan_after_mutation_dispatch(hooks, &committed(entity_type, operation, entity, 0))
+}
+
+fn committed<'a>(
+    entity_type: &'a str,
+    operation: &'a MutationOperation,
+    entity: &'a serde_json::Value,
+    dispatch_depth: u8,
+) -> CommittedMutation<'a> {
+    CommittedMutation {
+        mutation_name: "aMutation",
+        entity_type,
+        operation,
+        entity,
+        entity_id: None,
+        security_ctx: None,
+        dispatch_depth,
+    }
 }
 
 fn insert(table: &str) -> MutationOperation {
@@ -73,10 +92,9 @@ fn event_kind_maps_dml_verbs_and_skips_custom() {
 #[test]
 fn plans_dispatch_for_matching_insert_trigger() {
     let hooks = hooks(&[("onUserCreated", "after:mutation:User:insert")], &["onUserCreated"]);
-    let schema = schema_with("createUser", "User", insert("tb_user"));
-    let response = json!({ "data": { "createUser": { "id": "u1", "name": "Ada" } } });
+    let entity = json!({ "id": "u1", "name": "Ada" });
 
-    let plans = plan_after_mutation_dispatch(&hooks, &schema, "createUser", &response);
+    let plans = plan(&hooks, "User", &insert("tb_user"), &entity);
 
     assert_eq!(plans.len(), 1);
     assert_eq!(plans[0].module.name, "onUserCreated");
@@ -90,16 +108,11 @@ fn plans_dispatch_for_matching_insert_trigger() {
 #[test]
 fn delete_reports_entity_as_old_not_new() {
     let hooks = hooks(&[("onUserDeleted", "after:mutation:User:delete")], &["onUserDeleted"]);
-    let schema = schema_with(
-        "deleteUser",
-        "User",
-        MutationOperation::Delete {
-            table: "tb_user".to_string(),
-        },
-    );
-    let response = json!({ "data": { "deleteUser": { "id": "u1" } } });
+    let delete = MutationOperation::Delete {
+        table: "tb_user".to_string(),
+    };
 
-    let plans = plan_after_mutation_dispatch(&hooks, &schema, "deleteUser", &response);
+    let plans = plan(&hooks, "User", &delete, &json!({ "id": "u1" }));
 
     assert_eq!(plans.len(), 1);
     let data = &plans[0].payload.data;
@@ -112,33 +125,18 @@ fn delete_reports_entity_as_old_not_new() {
 fn custom_mutation_emits_no_dispatch() {
     // A trigger keyed on the entity exists, but a Custom op has no event kind.
     let hooks = hooks(&[("onAnything", "after:mutation:Report")], &["onAnything"]);
-    let schema = schema_with("generateReport", "Report", MutationOperation::Custom);
-    let response = json!({ "data": { "generateReport": { "id": "r1" } } });
 
-    let plans = plan_after_mutation_dispatch(&hooks, &schema, "generateReport", &response);
-
-    assert!(plans.is_empty());
-}
-
-#[test]
-fn unknown_mutation_emits_no_dispatch() {
-    let hooks = hooks(&[("onUserCreated", "after:mutation:User:insert")], &["onUserCreated"]);
-    let schema = schema_with("createUser", "User", insert("tb_user"));
-    let response = json!({ "data": { "createPost": { "id": "p1" } } });
-
-    let plans = plan_after_mutation_dispatch(&hooks, &schema, "createPost", &response);
+    let plans = plan(&hooks, "Report", &MutationOperation::Custom, &json!({ "id": "r1" }));
 
     assert!(plans.is_empty());
 }
 
 #[test]
 fn non_matching_entity_emits_no_dispatch() {
-    // Trigger is for Post, but the mutation returns User.
+    // Trigger is for Post, but the write produced a User.
     let hooks = hooks(&[("onPostCreated", "after:mutation:Post:insert")], &["onPostCreated"]);
-    let schema = schema_with("createUser", "User", insert("tb_user"));
-    let response = json!({ "data": { "createUser": { "id": "u1" } } });
 
-    let plans = plan_after_mutation_dispatch(&hooks, &schema, "createUser", &response);
+    let plans = plan(&hooks, "User", &insert("tb_user"), &json!({ "id": "u1" }));
 
     assert!(plans.is_empty());
 }
@@ -147,10 +145,8 @@ fn non_matching_entity_emits_no_dispatch() {
 fn wrong_event_kind_filter_emits_no_dispatch() {
     // Trigger only fires on update; the mutation is an insert.
     let hooks = hooks(&[("onUserUpdated", "after:mutation:User:update")], &["onUserUpdated"]);
-    let schema = schema_with("createUser", "User", insert("tb_user"));
-    let response = json!({ "data": { "createUser": { "id": "u1" } } });
 
-    let plans = plan_after_mutation_dispatch(&hooks, &schema, "createUser", &response);
+    let plans = plan(&hooks, "User", &insert("tb_user"), &json!({ "id": "u1" }));
 
     assert!(plans.is_empty());
 }
@@ -159,10 +155,8 @@ fn wrong_event_kind_filter_emits_no_dispatch() {
 fn all_kinds_trigger_matches_insert() {
     // No operation filter → matches every event kind for the entity.
     let hooks = hooks(&[("onUserChange", "after:mutation:User")], &["onUserChange"]);
-    let schema = schema_with("createUser", "User", insert("tb_user"));
-    let response = json!({ "data": { "createUser": { "id": "u1" } } });
 
-    let plans = plan_after_mutation_dispatch(&hooks, &schema, "createUser", &response);
+    let plans = plan(&hooks, "User", &insert("tb_user"), &json!({ "id": "u1" }));
 
     assert_eq!(plans.len(), 1);
     assert_eq!(plans[0].module.name, "onUserChange");
@@ -172,10 +166,8 @@ fn all_kinds_trigger_matches_insert() {
 fn trigger_without_loaded_module_is_skipped() {
     // Trigger is registered but its module never loaded → dropped, not panicked.
     let hooks = hooks(&[("ghost", "after:mutation:User:insert")], &[]);
-    let schema = schema_with("createUser", "User", insert("tb_user"));
-    let response = json!({ "data": { "createUser": { "id": "u1" } } });
 
-    let plans = plan_after_mutation_dispatch(&hooks, &schema, "createUser", &response);
+    let plans = plan(&hooks, "User", &insert("tb_user"), &json!({ "id": "u1" }));
 
     assert!(plans.is_empty());
 }
@@ -183,13 +175,28 @@ fn trigger_without_loaded_module_is_skipped() {
 #[test]
 fn null_entity_yields_empty_new_but_still_dispatches() {
     let hooks = hooks(&[("onUserCreated", "after:mutation:User:insert")], &["onUserCreated"]);
-    let schema = schema_with("createUser", "User", insert("tb_user"));
-    let response = json!({ "data": { "createUser": null } });
 
-    let plans = plan_after_mutation_dispatch(&hooks, &schema, "createUser", &response);
+    let plans = plan(&hooks, "User", &insert("tb_user"), &serde_json::Value::Null);
 
     assert_eq!(plans.len(), 1);
     assert!(plans[0].payload.data["new"].is_null());
+}
+
+/// M-bridge: a write a dispatched function or a scheduled source made through its query
+/// bridge never dispatches, so a function writing the entity it is triggered by cannot
+/// trigger itself. The same write at depth 0 (a request's) does.
+#[cfg(feature = "functions-runtime")]
+#[test]
+fn a_bridge_write_is_not_dispatched() {
+    let hooks = Arc::new(hooks(&[("onOrder", "after:mutation:Order")], &["onOrder"]));
+    let observer = FunctionDispatchObserver::new(hooks);
+    let update = MutationOperation::Update {
+        table: "tb_order".to_string(),
+    };
+    let entity = json!({ "id": "o1" });
+
+    assert_eq!(observer.plans_for(&committed("Order", &update, &entity, 0)).len(), 1);
+    assert!(observer.plans_for(&committed("Order", &update, &entity, 1)).is_empty());
 }
 
 // ── after:ingest planning ───────────────────────────────────────────────────
@@ -911,30 +918,28 @@ fn when_predicate_produces_no_dispatch_on_non_matching_update() {
     let hooks =
         BeforeMutationHooks::new(registry, module_registry, Arc::new(FunctionObserver::new()));
 
-    let schema = schema_with(
-        "updateOrder",
-        "Order",
-        MutationOperation::Update {
-            table: "tb_order".to_string(),
-        },
-    );
+    let update = MutationOperation::Update {
+        table: "tb_order".to_string(),
+    };
 
-    // The after:mutation ROUTE path carries only the after-image (no pre-image), so
+    // The after:mutation path carries only the after-image (no pre-image), so
     // `changed_to` gates on `new.status == v`. An update whose result is NOT the
     // target value produces no dispatch record at all (predicate false).
-    let other_value = json!({ "data": { "updateOrder": { "id": "o1", "status": "rejected" } } });
+    let other_value = json!({ "id": "o1", "status": "rejected" });
     assert!(
-        plan_after_mutation_dispatch(&hooks, &schema, "updateOrder", &other_value).is_empty(),
+        plan_after_mutation_dispatch(&hooks, &committed("Order", &update, &other_value, 0))
+            .is_empty(),
         "a predicate-false update produces no dispatch (no record, not a skipped dispatch)"
     );
 
-    // An update to the target value fires. (On the route path the pre-image is
-    // absent, so `changed_to` cannot distinguish a transition from a re-save — full
-    // transition detection needs the pre-image, i.e. the after:capture path with
-    // `pre_image=True`. Documented in functions.md.)
-    let to_target = json!({ "data": { "updateOrder": { "id": "o1", "status": "approved" } } });
+    // An update to the target value fires. (The pre-image is absent here, so
+    // `changed_to` cannot distinguish a transition from a re-save — full transition
+    // detection needs the pre-image, i.e. the after:capture path with
+    // `pre_image=True`. Documented in functions.md.) The row is the function's whole
+    // entity, so the predicate reads `status` whether or not a client selected it.
+    let to_target = json!({ "id": "o1", "status": "approved" });
     assert_eq!(
-        plan_after_mutation_dispatch(&hooks, &schema, "updateOrder", &to_target).len(),
+        plan_after_mutation_dispatch(&hooks, &committed("Order", &update, &to_target, 0)).len(),
         1,
         "an update to the target value fires the predicate function"
     );

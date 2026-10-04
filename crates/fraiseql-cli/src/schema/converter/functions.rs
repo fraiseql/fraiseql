@@ -87,18 +87,24 @@ pub fn validate_against_schema(
             },
             ParsedTrigger::BeforeMutation { .. } => {},
             ParsedTrigger::AfterMutation { entity_type, .. } => {
-                // The dispatcher keys on the *mutation's return type*, not its name
-                // (`plan_after_mutation_dispatch` builds the entity event from
-                // `definition.return_type`). A trigger naming anything else is dead.
-                if !schema.mutations.iter().any(|m| m.return_type == entity_type) {
+                // The engine reports the entity a write produced: a type its success can be
+                // served as (`StampContract::success`, the contract the runner enforces). So
+                // an `auto_error_union` wrapper or a cascade payload does not rename it
+                // (#1340). A trigger naming anything else is dead.
+                let written: Vec<String> = schema
+                    .mutations
+                    .iter()
+                    .flat_map(|m| fraiseql_core::runtime::StampContract::of(schema, m).success)
+                    .collect();
+                if !written.contains(&entity_type) {
                     failures.push(format!(
                         "  function `{}`: trigger `{}` names `{entity_type}`, which no declared \
-                         mutation returns — the trigger would never fire. after:mutation matches \
-                         the mutation's RETURN TYPE, not its name (and `auto_error_union` rewrites \
-                         that to the union); types returned by a mutation are: {}",
+                         mutation writes — the trigger would never fire. after:mutation matches \
+                         the entity a mutation writes (its return type, or the success member of \
+                         its result union), not its name; entities written by a mutation are: {}",
                         definition.name,
                         definition.trigger,
-                        name_list(schema.mutations.iter().map(|m| m.return_type.as_str())),
+                        name_list(written.iter().map(String::as_str)),
                     ));
                 } else {
                     failures.extend(unknown_predicate_fields(definition, &entity_type, schema));
