@@ -6,7 +6,7 @@ name: Dagger — feature matrix
 # combo list as typed Go data (.dagger/feature-combos.go). cargo check / clippy only
 # — no test binaries, so NO backing services: it only pulls the rust:1.95.0 base (from
 # the private ghcr.io/fraiseql mirror, see mirror-base-images.yml). Runs on the
-# self-hosted runner (fraiseql-8core) at ~$0/min, reusing the box's cargo/sccache
+# self-hosted runner archbox at ~$0/min, reusing the box's cargo/sccache
 # cache volumes (warm = fast). See docs/contributing/dagger-parity-notes.md.
 #
 # ONE job, `dagger call feature-matrix`, which fans the combos across N lanes
@@ -49,15 +49,29 @@ on:
 permissions:
   contents: read
   packages: read
+  # actions: read lets already-passed.yml see this workflow's earlier runs.
+  actions: read
 
 concurrency:
   group: dagger-feature-matrix-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Skips the leg when this SHA already passed it — the fast-forward to `dev`
+  # pushes a commit its branch push just tested. See already-passed.yml.
+  already-passed:
+    name: already passed
+    uses: ./.github/workflows/already-passed.yml
+    with:
+      workflow: dagger-feature-matrix.yml
+
   matrix:
+    needs: already-passed
+    if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
     name: feature matrix
-    runs-on: [self-hosted, fraiseql-8core]
+    # archbox only: on forge this leg runs 2-3x slower (test (msrv) ~85 min
+    # against a 90 min cap), and pinning it keeps one Dagger cache warm for it.
+    runs-on: [self-hosted, archbox]
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6

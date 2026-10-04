@@ -1,0 +1,66 @@
+name: Already passed?
+
+# Reusable guard: has THIS commit already passed the calling workflow?
+#
+# Every commit reaches `dev` by fast-forward, and the `dev` ruleset only accepts a
+# commit whose SHA already carries green required checks — which the branch push
+# produced. So the `dev` push re-ran the heavy legs on a tree they had just passed.
+# Dagger's exec cache does not absorb that: measured 2026-09-08, `Dagger —
+# integration` took 2h06m on `dev` straight after 2h23m on the branch, for the
+# identical SHA. With two self-hosted runners and ~25 pushes a day, that rerun was
+# half the runner budget.
+#
+# The answer is per (workflow, SHA): a successful `push` or `workflow_dispatch` run
+# of the same workflow file at the same commit. Same SHA means same tree AND same
+# workflow definition, so the earlier run is the run this one would be.
+#
+# Fails toward running. A non-push event (a deliberate dispatch is a request to
+# run), an API error, or no earlier success all answer `false`; callers gate on
+# `!cancelled() && … != 'true'`, so even this job failing outright runs the leg.
+on:
+  workflow_call:
+    inputs:
+      workflow:
+        description: Workflow file name of the caller, e.g. dagger-test.yml
+        type: string
+        required: true
+    outputs:
+      passed:
+        description: "'true' when this SHA already has a successful run of the workflow"
+        value: ${{ jobs.check.outputs.passed }}
+
+permissions:
+  actions: read
+
+jobs:
+  check:
+    name: already passed?
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      passed: ${{ steps.query.outputs.passed }}
+    steps:
+      - name: Look for a successful run of ${{ inputs.workflow }} at this SHA
+        id: query
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.sha }}
+          EVENT: ${{ github.event_name }}
+          WORKFLOW: ${{ inputs.workflow }}
+        run: |
+          set -uo pipefail
+          passed=false
+          if [ "$EVENT" = push ]; then
+            # The in-flight run is not `success` yet, so it never counts itself.
+            if count=$(gh api "repos/$REPO/actions/workflows/$WORKFLOW/runs?head_sha=$SHA&status=success&per_page=1" --jq '.total_count'); then
+              if [ "${count:-0}" -gt 0 ]; then passed=true; fi
+              echo "$WORKFLOW at $SHA: $count earlier successful run(s)"
+            else
+              echo "::warning::could not query earlier runs of $WORKFLOW; running the leg"
+            fi
+          else
+            echo "event is $EVENT, not push: running the leg"
+          fi
+          echo "passed=$passed" >> "$GITHUB_OUTPUT"
+          echo "passed=$passed"

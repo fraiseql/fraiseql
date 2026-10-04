@@ -1,10 +1,13 @@
----
-# actionlint configuration — registers custom org-provisioned runner labels
-# so the `runner-label` lint accepts them. Add new entries here when a new
-# larger-runner is provisioned at the org level and used by any workflow.
+# actionlint configuration — registers the custom self-hosted runner labels so
+# the `runner-label` lint accepts them. Add an entry here when a runner gains a
+# label that a workflow targets.
 self-hosted-runner:
   labels:
-    # 8 vCPU / 32 GB / 300 GB SSD, Ubuntu 24.04, org-provisioned via
-    # GitHub-hosted larger runners. Cap: maximum_runners: 2 per org.
-    # See `gh api /orgs/fraiseql/actions/hosted-runners`.
+    # Shared by every self-hosted runner (archbox and forge): a job on this
+    # label lands on whichever box is free.
     - fraiseql-8core
+    # archbox only (i7-13700K). The heavy legs — test, feature matrix — pin here:
+    # on forge (Xeon E5-1650 v4) they run 2-3x slower.
+    - archbox
+    # forge only (OVH, Xeon E5-1650 v4, 125 GiB).
+    - forge

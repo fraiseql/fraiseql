@@ -25,13 +25,25 @@ on:
 permissions:
   contents: read
   packages: read
+  # actions: read lets already-passed.yml see this workflow's earlier runs.
+  actions: read
 
 concurrency:
   group: dagger-preflight-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Skips the leg when this SHA already passed it — the fast-forward to `dev`
+  # pushes a commit its branch push just tested. See already-passed.yml.
+  already-passed:
+    name: already passed
+    uses: ./.github/workflows/already-passed.yml
+    with:
+      workflow: dagger-preflight.yml
+
   preflight:
+    needs: already-passed
+    if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
     name: preflight
     runs-on: [self-hosted, fraiseql-8core]
     timeout-minutes: 45

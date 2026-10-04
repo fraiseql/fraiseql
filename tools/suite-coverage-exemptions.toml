@@ -15,9 +15,12 @@
 #                   requires (#1299).  target = a check context name, e.g.
 #                   "Changelog Completeness" — not a suite id.
 #
-# There are no `[[unrequired]]` rows today: both contexts the gate found are
-# required as of #1299. A row here is for a check that must run and must NOT
-# gate — a flaky third-party probe, say — and the reason has to say which.
+# A row here is for a check that must run and must NOT gate — a flaky
+# third-party probe, say — and the reason has to say which.
+
+[[unrequired]]
+target = "already passed"
+reason = "a routing decision, not a verdict: it only decides whether the leg after it runs, and it fails toward running that leg, whose own required context is what gates the merge (.github/workflows/already-passed.yml)"
 
 # ── Arrow Flight DB-backed binaries — pending gate G1 (#908 → P05) ───────────
 # The Flight write/query surface itself is under a user decision (gate or

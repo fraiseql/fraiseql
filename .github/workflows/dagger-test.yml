@@ -1,7 +1,7 @@
 name: Dagger — test
 
 # Phase 03 workspace test suite (Track 0). Runs the workspace test suite
-# on the self-hosted runner (fraiseql-8core) at ~$0/min, for both the MSRV (1.95.0)
+# on the self-hosted runner archbox at ~$0/min, for both the MSRV (1.95.0)
 # and latest-stable toolchains. `dagger call test --rust=<tc>` does the full
 # cargo build --all-features + the feature-scoped cargo test invocations + doctests,
 # reusing the box's cargo/target/sccache cache volumes (warm = fast).
@@ -19,10 +19,10 @@ name: Dagger — test
 # against the code being merged, which is how `231c3a25c` landed green and
 # reddened this leg on `config_coverage_manifest_test`.
 #
-# The cost is bounded by Dagger's content-addressed exec cache: the fast-forward
-# to `dev` pushes the identical tree, so that run replays this one rather than
-# repeating it. What it does add is runner occupancy on intermediate branch
-# pushes — `cancel-in-progress` keeps only the head of each ref.
+# The fast-forward to `dev` pushes the identical SHA, and the `already-passed` job
+# skips the leg there when the branch run passed — Dagger's exec cache did NOT
+# replay it (measured: a full second run). What remains is runner occupancy on
+# intermediate branch pushes — `cancel-in-progress` keeps only the head of each ref.
 #
 # push-only (maintainer-controlled). fraiseql/fraiseql is PUBLIC, so a self-hosted
 # runner must NOT execute fork `pull_request` code — NO pull_request trigger here.
@@ -38,15 +38,29 @@ on:
 permissions:
   contents: read
   packages: read
+  # actions: read lets already-passed.yml see this workflow's earlier runs.
+  actions: read
 
 concurrency:
   group: dagger-test-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Skips the leg when this SHA already passed it — the fast-forward to `dev`
+  # pushes a commit its branch push just tested. See already-passed.yml.
+  already-passed:
+    name: already passed
+    uses: ./.github/workflows/already-passed.yml
+    with:
+      workflow: dagger-test.yml
+
   test:
+    needs: already-passed
+    if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
     name: test (${{ matrix.rust }})
-    runs-on: [self-hosted, fraiseql-8core]
+    # archbox only: on forge this leg runs 2-3x slower (test (msrv) ~85 min
+    # against a 90 min cap), and pinning it keeps one Dagger cache warm for it.
+    runs-on: [self-hosted, archbox]
     timeout-minutes: 90
     strategy:
       fail-fast: false
