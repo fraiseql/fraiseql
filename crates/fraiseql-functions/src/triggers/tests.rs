@@ -1986,3 +1986,39 @@ async fn test_cron_scheduler_empty_starts_cleanly() {
     let handle = scheduler.start(observer, HashMap::new());
     handle.stop();
 }
+
+/// Test: #1399 — a schedule that can never fire is refused, not parsed into a
+/// trigger that silently never runs. Each refusal names the field.
+#[test]
+fn test_cron_refuses_a_schedule_that_can_never_fire() {
+    for (expression, field) in [
+        ("61 * * * *", "minute"),
+        ("0 24 * * *", "hour"),
+        ("0 0 0 * *", "day-of-month"),
+        ("0 0 32 * *", "day-of-month"),
+        ("0 0 * 13 *", "month"),
+        ("0 0 * * 8", "day-of-week"),
+        ("*/0 * * * *", "minute"),
+        ("0 9-5 * * *", "hour"),
+        ("0,60 * * * *", "minute"),
+        ("70/5 * * * *", "minute"),
+    ] {
+        let error = CronSchedule::parse(expression)
+            .err()
+            .unwrap_or_else(|| panic!("`{expression}` can never fire and must be refused"));
+        assert!(error.contains(field), "`{expression}`: {error}");
+    }
+}
+
+/// Test: #1399 — the bounds are inclusive at both ends of every field.
+#[test]
+fn test_cron_accepts_every_field_at_its_bounds() {
+    for expression in [
+        "0 0 1 1 0",
+        "59 23 31 12 7",
+        "0-59 0-23 1-31 1-12 0-7",
+        "*/1 * * * *",
+    ] {
+        assert!(CronSchedule::parse(expression).is_ok(), "`{expression}`");
+    }
+}

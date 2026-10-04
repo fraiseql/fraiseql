@@ -25,7 +25,7 @@
 use anyhow::{Result, bail};
 use fraiseql_core::schema::CompiledSchema;
 use fraiseql_functions::{
-    FunctionsConfig,
+    FunctionsConfig, RuntimeType,
     triggers::registry::{ParsedTrigger, QueryFunctionBinding, TriggerRegistry},
 };
 
@@ -120,11 +120,12 @@ pub fn validate_against_schema(
             failures.extend(module_failures);
         }
     }
+    failures.extend(unloadable_connectors(functions, schema));
 
     if !failures.is_empty() {
         bail!(
-            "the compiled `functions` section declares {} function(s) that cannot run as \
-             written:\n{}",
+            "the compiled schema declares {} function(s) or source connector(s) that cannot run \
+             as written:\n{}",
             failures.len(),
             failures.join("\n")
         );
@@ -210,6 +211,52 @@ fn modules_are_present(functions: &FunctionsConfig) -> Result<(), Vec<String>> {
     } else {
         Err(failures)
     }
+}
+
+/// Every enabled source's connector can be loaded (#1399).
+///
+/// A connector is a Deno module bound by name — `<module_dir>/<function>.<ext>`, the
+/// rule the server's loader applies, from [`RuntimeType::resolve_module_path`] — or a
+/// declared function of that name. With no `functions` section there is no
+/// `module_dir` at all, so the source can never run. The file itself is checked only
+/// when `module_dir` exists at compile time, for the reason [`modules_are_present`]
+/// gives.
+fn unloadable_connectors(
+    functions: Option<&FunctionsConfig>,
+    schema: &CompiledSchema,
+) -> Vec<String> {
+    let enabled = schema.sources.iter().filter(|source| source.enabled);
+    let Some(functions) = functions else {
+        return enabled
+            .map(|source| {
+                format!(
+                    "  source `{}`: runs the connector `{}`, but there is no `functions` \
+                     section to load it from — declare `[functions] module_dir` with `{}.ts` \
+                     in it, or disable the source",
+                    source.name, source.function, source.function,
+                )
+            })
+            .collect();
+    };
+    if !functions.module_dir.is_dir() {
+        return Vec::new();
+    }
+    let runtime = RuntimeType::Deno;
+    enabled
+        .filter(|source| !functions.definitions.iter().any(|d| d.name == source.function))
+        .filter(|source| {
+            runtime.resolve_module_path(&functions.module_dir, &source.function).is_none()
+        })
+        .map(|source| {
+            format!(
+                "  source `{}`: no connector module at {} — the server loads a source's \
+                 connector from `<module_dir>/<function>.<ext>`, so the file name must match \
+                 the source's `function`",
+                source.name,
+                runtime.module_path_pattern(&functions.module_dir, &source.function),
+            )
+        })
+        .collect()
 }
 
 /// The function-backed queries in a compiled schema, as bindings to check (#1329).

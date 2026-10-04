@@ -20,6 +20,9 @@ mod metrics;
 mod poller;
 mod scheduler;
 
+#[cfg(test)]
+mod connector_boot_tests;
+
 pub use executor::{SOURCE_TENANT_VAR, SourceQueryExecutor};
 pub use poller::SourcePoller;
 pub use scheduler::{build_source_pollers, source_host_config, sources_enabled};

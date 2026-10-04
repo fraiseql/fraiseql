@@ -1,6 +1,9 @@
 //! Core types for function execution.
 
-use std::{path::PathBuf, time::Duration};
+use std::{
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -37,6 +40,39 @@ impl RuntimeType {
             RuntimeType::Wasm => &[".wasm"],
             RuntimeType::Deno => &[".js", ".ts", ".mjs", ".mts"],
         }
+    }
+
+    /// The module file named `name` under `module_dir` for this runtime, if one is
+    /// there: `<module_dir>/<name>.<ext>` for each supported extension, first existing
+    /// file wins.
+    ///
+    /// The **one** rule for where code lives. A declared function resolves through it
+    /// ([`FunctionDefinition::resolve_module_path`]), and so does a scheduled source's
+    /// connector, which is a Deno module bound by name with no function definition
+    /// (#1399). The server's loader, `fraiseql functions invoke` and the compiler all
+    /// resolve through it, so the compiler cannot approve a layout the server cannot
+    /// load.
+    #[must_use]
+    pub fn resolve_module_path(self, module_dir: &Path, name: &str) -> Option<PathBuf> {
+        self.supported_extensions()
+            .iter()
+            .map(|extension| module_dir.join(format!("{name}{extension}")))
+            .find(|path| path.exists())
+    }
+
+    /// The module-file candidates for `name`, rendered for a diagnostic:
+    /// `<module_dir>/<name>.{ext,ext}`.
+    #[must_use]
+    pub fn module_path_pattern(self, module_dir: &Path, name: &str) -> String {
+        format!(
+            "{}/{name}.{{{}}}",
+            module_dir.display(),
+            self.supported_extensions()
+                .iter()
+                .map(|ext| ext.trim_start_matches('.'))
+                .collect::<Vec<_>>()
+                .join(","),
+        )
     }
 }
 
@@ -288,41 +324,21 @@ impl FunctionDefinition {
     }
 
     /// The module file this definition resolves to under `module_dir`, if one is
-    /// there: `<module_dir>/<name>.<ext>` for each extension the declared runtime
-    /// supports, first existing file wins.
-    ///
-    /// The **one** definition of where a function's code lives. The server's
-    /// `build_functions_subsystem` loads through it, `fraiseql functions invoke`
-    /// resolves through it, and the compiler checks through it (#1325) — three sites
-    /// that each carried their own copy of this loop, which is three chances for the
-    /// compiler to approve a layout the server cannot load.
+    /// there — [`RuntimeType::resolve_module_path`] for the declared runtime and name,
+    /// the one rule for where code lives (#1325, #1399).
     ///
     /// Returns `None` when no module is present, which the caller reports in its own
     /// terms: a compile error, a boot failure, or a harness error.
     #[must_use]
-    pub fn resolve_module_path(&self, module_dir: &std::path::Path) -> Option<PathBuf> {
-        self.runtime
-            .supported_extensions()
-            .iter()
-            .map(|extension| module_dir.join(format!("{}{extension}", self.name)))
-            .find(|path| path.exists())
+    pub fn resolve_module_path(&self, module_dir: &Path) -> Option<PathBuf> {
+        self.runtime.resolve_module_path(module_dir, &self.name)
     }
 
     /// The module-file candidates this definition names, rendered for a diagnostic:
     /// `<module_dir>/<name>.{ext,ext}`.
     #[must_use]
-    pub fn module_path_pattern(&self, module_dir: &std::path::Path) -> String {
-        format!(
-            "{}/{}.{{{}}}",
-            module_dir.display(),
-            self.name,
-            self.runtime
-                .supported_extensions()
-                .iter()
-                .map(|ext| ext.trim_start_matches('.'))
-                .collect::<Vec<_>>()
-                .join(","),
-        )
+    pub fn module_path_pattern(&self, module_dir: &Path) -> String {
+        self.runtime.module_path_pattern(module_dir, &self.name)
     }
 
     /// Check if this function is a before:mutation trigger.

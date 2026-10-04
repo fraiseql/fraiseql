@@ -11,8 +11,9 @@ mod tests;
 /// An observer is egress ("a database change → tell the world"); a source is
 /// ingress ("on a schedule → fetch the world → write the database via mutations",
 /// resuming from a durable cursor). The `function` runs on the cron `schedule`;
-/// authoring is metadata-only — the body is a Deno function (Model B) or a built-in
-/// native `PullSource` (Model A).
+/// authoring is metadata-only — the body is a Deno connector (Model B) loaded by name
+/// from `<module_dir>/<function>.<ext>`. (A native `PullSource`, Model A, is configured
+/// by its own section — poll-IMAP by `[mailbox.*.imap]` — never through `sources`.)
 ///
 /// This desugars to a `cron:<schedule>` scheduling of `function`, bound to a durable
 /// cursor named [`cursor_name`](Self::cursor_name) — sugar over the existing cron
@@ -40,8 +41,9 @@ pub struct SourceDefinition {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cursor: Option<String>,
 
-    /// The bound handler: a Deno function name (Model B) or a built-in native
-    /// `PullSource` name (Model A).
+    /// The bound Deno connector: the server loads `<module_dir>/<function>.<ext>` at
+    /// boot, and an enabled source whose connector cannot load refuses the boot
+    /// (#1399). A declared function of the same name is used as-is.
     pub function: String,
 
     /// Whether the source is enabled. A disabled source is compiled but not

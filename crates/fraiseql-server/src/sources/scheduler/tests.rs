@@ -1,4 +1,4 @@
-//! Tests for the source-scheduler assembly: the pure `schedulable` filter and the
+//! Tests for the source-scheduler assembly: the pure `schedulable` resolution and the
 //! env-overridable config resolution. The full poller-wiring (`build_source_pollers`)
 //! is exercised by the lifecycle integration and the poller's `build_host` composition.
 #![allow(clippy::unwrap_used)] // Reason: test module
@@ -21,28 +21,42 @@ fn registry() -> HashMap<String, FunctionModule> {
 }
 
 #[test]
-fn schedulable_keeps_only_enabled_backed_valid_sources() {
+fn schedulable_keeps_every_enabled_source_and_skips_a_disabled_one() {
     let sources = vec![
-        // Kept: enabled, module loaded, valid cron.
         SourceDefinition::new("orders", "*/5 * * * *", "pollOrders"),
-        // Skipped: disabled.
-        SourceDefinition::new("disabled", "*/5 * * * *", "pollOrders").disabled(),
-        // Skipped: no loaded module (e.g. a native source).
-        SourceDefinition::new("native", "*/5 * * * *", "nativeThing"),
-        // Skipped: invalid cron.
-        SourceDefinition::new("bad-cron", "not-a-cron", "pollOrders"),
+        // Disabled: compiled but intentionally not scheduled, so its connector is
+        // never consulted.
+        SourceDefinition::new("disabled", "*/5 * * * *", "unloaded").disabled(),
     ];
-    let kept = schedulable(&sources, &registry());
+    let kept = schedulable(&sources, &registry()).unwrap();
     let names: Vec<&str> = kept.iter().map(|(source, _, _)| source.name.as_str()).collect();
-    assert_eq!(names, ["orders"], "only the enabled, backed, valid-cron source is scheduled");
+    assert_eq!(names, ["orders"]);
     // The parsed schedule rides along.
     assert_eq!(kept[0].2.expression, "*/5 * * * *");
 }
 
+/// #1399: an enabled source whose connector is not loaded refuses, naming both. It
+/// used to log a warning and never run.
 #[test]
-fn schedulable_is_empty_when_nothing_qualifies() {
-    let sources = vec![SourceDefinition::new("native", "*/5 * * * *", "unloaded")];
-    assert!(schedulable(&sources, &registry()).is_empty());
+fn an_enabled_source_with_no_loaded_connector_is_an_error() {
+    let sources = vec![SourceDefinition::new(
+        "invoices",
+        "*/5 * * * *",
+        "pollInvoices",
+    )];
+    let message = schedulable(&sources, &registry()).err().unwrap().to_string();
+    assert!(
+        message.contains("\"invoices\"") && message.contains("\"pollInvoices\""),
+        "{message}"
+    );
+}
+
+/// An enabled source whose schedule does not parse refuses rather than being skipped.
+#[test]
+fn an_enabled_source_with_an_invalid_schedule_is_an_error() {
+    let sources = vec![SourceDefinition::new("orders", "61 * * * *", "pollOrders")];
+    let message = schedulable(&sources, &registry()).err().unwrap().to_string();
+    assert!(message.contains("\"orders\"") && message.contains("61 * * * *"), "{message}");
 }
 
 #[test]

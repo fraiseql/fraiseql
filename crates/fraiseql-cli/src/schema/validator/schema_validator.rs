@@ -568,13 +568,14 @@ impl SchemaValidator {
                     });
                 }
 
-                // The schedule must be a 5-field POSIX cron expression (the runtime parses it
-                // fully).
-                if source.schedule.split_whitespace().count() != 5 {
+                // The schedule must parse as the runtime parses it: the same parser, so
+                // a schedule the compiler approves is one the scheduler can run (#1399).
+                if let Err(error) =
+                    fraiseql_functions::triggers::CronSchedule::parse(&source.schedule)
+                {
                     report.errors.push(ValidationError {
                         message:    format!(
-                            "Source '{}' has an invalid cron schedule '{}': expected 5 \
-                             whitespace-separated fields",
+                            "Source '{}' has an invalid cron schedule '{}': {error}",
                             source.name, source.schedule
                         ),
                         path:       format!("sources[{idx}].schedule"),

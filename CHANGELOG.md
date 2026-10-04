@@ -195,6 +195,19 @@ disagreed, and the promise was the part that was wrong.
   `functions-runtime` (the `-full` release tarball), or remove the functions to use
   `fraiseql run`.
 
+- **An enabled source whose connector cannot run refuses the boot, and a schedule that can
+  never fire is refused (#1399).** A source's connector is now loaded by name, from
+  `<module_dir>/<function>.{ts,js,mjs,mts}`, with no function definition. An enabled source
+  whose connector is missing, or that has no `functions` section to load from, used to log a
+  warning and never run; it now fails the boot, and fails `fraiseql compile` when `module_dir`
+  exists at compile time. A cron expression with an out-of-range value (minute `61`, month
+  `13`), a step of `0`, or a backwards range used to parse and then never match; the one
+  parser behind `cron:` functions, sources and the compiler now refuses it, naming the field.
+  `fraiseql run`, which has no function runtime, refuses an enabled source as it refuses a
+  function. `fraiseql_server::sources::build_source_pollers` now returns `Result`. **Upgrade:** put each
+  enabled source's connector at `<module_dir>/<function>.ts` (or disable the source), and fix
+  any schedule the error names.
+
 ### Added
 
 - **More than one trusted token issuer (#1400).** `[[auth.additional_issuers]]` adds
@@ -217,6 +230,12 @@ disagreed, and the promise was the part that was wrong.
   applies.
 
 ### Fixed
+
+- **A project whose only code is a source connector compiles (#1399).** `fraiseql compile`
+  refused the `[functions]` table as configuring nothing when no function was declared, so the
+  documented connector layout could only be reached by hand-editing the compiled schema. An
+  enabled source now keeps the `functions` section (with its `module_dir`, default
+  `functions/`) in the compiled schema.
 
 - **A human acting on someone's behalf is no longer recorded as an AI (#1401).** Any token
   with an RFC 8693 `act` claim was classified `ai_agent`, though `act` means *delegated*,

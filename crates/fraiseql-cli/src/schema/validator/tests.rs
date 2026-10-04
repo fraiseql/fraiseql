@@ -946,6 +946,25 @@ fn invalid_cron_schedule_is_rejected() {
     );
 }
 
+/// #1399: the validator parses a schedule with the scheduler's own parser, so a
+/// five-field schedule that can never fire is refused here rather than compiled into a
+/// source that never runs.
+#[test]
+fn a_schedule_that_can_never_fire_is_rejected() {
+    use fraiseql_core::schema::SourceDefinition;
+    let schema = IntermediateSchema {
+        sources: Some(vec![SourceDefinition::new("orders", "61 * * * *", "pollOrders")]),
+        ..Default::default()
+    };
+    let report = SchemaValidator::validate(&schema).unwrap();
+    let error = report
+        .errors
+        .iter()
+        .find(|e| e.path == "sources[0].schedule")
+        .expect("the schedule is reported");
+    assert!(error.message.contains("minute"), "{}", error.message);
+}
+
 #[test]
 fn duplicate_source_cursor_is_rejected() {
     use fraiseql_core::schema::SourceDefinition;

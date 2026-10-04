@@ -2324,7 +2324,7 @@ mod run_tests {
     /// refused rather than served with them silently dropped.
     #[test]
     fn run_refuses_a_schema_that_declares_functions() {
-        refuse_declared_functions(None).expect("no functions declared: nothing to refuse");
+        refuse_declared_functions(None, &[]).expect("no functions declared: nothing to refuse");
 
         let functions: fraiseql_functions::FunctionsConfig =
             serde_json::from_value(serde_json::json!({
@@ -2334,11 +2334,35 @@ mod run_tests {
                 ]
             }))
             .unwrap();
-        let message = refuse_declared_functions(Some(&functions)).unwrap_err().to_string();
+        let message = refuse_declared_functions(Some(&functions), &[]).unwrap_err().to_string();
         assert!(
             message.contains("notify") && message.contains("fraiseql-server"),
             "the refusal must name the function and where it can run: {message}"
         );
+    }
+
+    /// #1399: a connector-only schema compiles to a `functions` section with no
+    /// definitions; `run` refuses it for its source, naming the source and connector, and
+    /// ignores a disabled one.
+    #[test]
+    fn run_refuses_an_enabled_source_naming_its_connector() {
+        use fraiseql_core::schema::SourceDefinition;
+        let functions: fraiseql_functions::FunctionsConfig = serde_json::from_value(
+            serde_json::json!({"module_dir": "functions", "definitions": []}),
+        )
+        .unwrap();
+        let enabled = [SourceDefinition::new("orders", "*/5 * * * *", "pollOrders")];
+        let message =
+            refuse_declared_functions(Some(&functions), &enabled).unwrap_err().to_string();
+        assert!(
+            message.contains("source `orders` (connector `pollOrders`)")
+                && !message.contains("function `"),
+            "{message}"
+        );
+
+        let disabled = [SourceDefinition::new("orders", "*/5 * * * *", "pollOrders").disabled()];
+        refuse_declared_functions(Some(&functions), &disabled)
+            .expect("a disabled source runs nothing, and the section declares no function");
     }
 
     #[test]

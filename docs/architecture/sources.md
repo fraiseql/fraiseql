@@ -152,10 +152,17 @@ The decorator is metadata only — it emits a `sources` entry, it never runs.
 @fraiseql.source(schedule="*/5 * * * *", cursor="orders", run_as={"roles": ["order:write"]})
 ```
 
-The connector body (Model B) is a separate `.ts` handler bound by name; see the runnable
-`sdks/official/fraiseql-typescript/examples/sources/poll_orders.connector.ts` for the
-`ctx.cursor` → fetch → `ctx.query` upsert → `ctx.advance` loop and the
-`ctx.query(mutation, vars, { tenant })` per-message tenant sugar.
+The connector body (Model B) is a separate `.ts` handler bound by name. The server loads
+`<module_dir>/<function>.ts` (or `.js`/`.mjs`/`.mts`) from the `[functions] module_dir`
+(default `functions/`); no function definition is needed. An enabled source whose
+connector cannot be loaded fails `fraiseql compile` (when `module_dir` exists at compile
+time) and refuses the server's boot, so a source is never silently unscheduled. A schedule
+that can never fire (minute `61`, a step of `0`) is refused the same way.
+
+See the runnable `sdks/official/fraiseql-typescript/examples/sources/poll_orders.connector.ts`
+(deployed as `functions/pollOrders.ts`) for the `ctx.cursor` → fetch → `ctx.query` upsert
+→ `ctx.advance` loop and the `ctx.query(mutation, vars, { tenant })` per-message tenant
+sugar.
 
 ---
 

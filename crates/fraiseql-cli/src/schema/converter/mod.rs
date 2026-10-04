@@ -174,12 +174,13 @@ impl SchemaConverter {
 
     /// Pair the authored function declarations with their `[functions]` settings.
     ///
-    /// Returns `None` when the project declares no functions, so a schema that has
-    /// never heard of them serialises exactly as it did before.
+    /// Returns `None` when the project declares no functions and no enabled source, so
+    /// a schema that has never heard of them serialises exactly as it did before.
     ///
     /// # Errors
     ///
-    /// Refuses a `[functions]` table configured for functions that are not declared.
+    /// Refuses a `[functions]` table when neither a function nor an enabled source would
+    /// use it.
     /// There is nothing to apply the settings to, so carrying them would write a
     /// section the server reads and cannot act on, and dropping them would be the
     /// silent-default failure this whole seam exists to remove (#1008 refuses a
@@ -196,12 +197,17 @@ impl SchemaConverter {
         // project has ever heard of functions — and an emitted section is one #1326
         // refuses to boot on a build that cannot serve it.
         let definitions = intermediate.functions.take().unwrap_or_default();
-        if definitions.is_empty() {
+        // An enabled source's connector is loaded from `module_dir` too (#1399), so a
+        // project whose only code is a connector still needs the section — with no
+        // definitions in it. Refusing the table here made the documented connector
+        // layout impossible to compile.
+        let runs_a_connector = intermediate.sources.iter().flatten().any(|source| source.enabled);
+        if definitions.is_empty() && !runs_a_connector {
             anyhow::ensure!(
                 settings.module_dir.is_none() && settings.dlq_store.is_none(),
                 "the `[functions]` table configures the functions subsystem but the schema \
-                 declares no function, so nothing would use it. Declare a function, or remove \
-                 the table."
+                 declares no function and no enabled source, so nothing would use it. Declare \
+                 a function or a source, or remove the table."
             );
             return Ok(None);
         }

@@ -9,16 +9,16 @@
 use std::sync::Arc;
 
 use super::{Server, ServerError};
-use crate::subsystems::loader::build_functions_subsystem;
+use crate::subsystems::loader::{SourceConnector, build_functions_subsystem};
 
 impl Server {
     /// Prepare functions-runtime dispatch from the functions section this server
     /// was built with.
     ///
-    /// When it declares functions, builds the subsystem (modules loaded from
-    /// `module_dir`, runtimes registered), attaches the `send_email` wiring, and
-    /// stores the resulting hooks. A no-op (hooks stay `None`) when no functions are
-    /// declared.
+    /// When it declares functions, or an enabled source needs its connector, builds the
+    /// subsystem (modules loaded from `module_dir`, runtimes registered), attaches the
+    /// `send_email` wiring, and stores the resulting hooks. A no-op (hooks stay `None`)
+    /// when there is nothing to load.
     ///
     /// Reads [`Server::functions_config`], **not** `config.schema_path` (#896). The
     /// disk re-read could configure the functions subsystem from a different artifact
@@ -28,16 +28,31 @@ impl Server {
     ///
     /// # Errors
     ///
-    /// Returns [`ServerError::ConfigError`] if a declared function's module is
-    /// missing/unreadable (fail-loud: a declared function that can never run is a
-    /// misconfiguration).
+    /// Returns [`ServerError::ConfigError`] if a declared function's module, or an
+    /// enabled source's connector, is missing/unreadable, or a connector has no
+    /// `functions` section to load from (fail-loud: code declared to run that never
+    /// can is a misconfiguration).
     pub(super) async fn prepare_functions_runtime(&mut self) -> Result<(), ServerError> {
+        let connectors = self.scheduled_source_connectors();
         let Some(functions_config) = self.functions_config.take() else {
-            return Ok(()); // no `functions` section was supplied
+            // No `functions` section, so no `module_dir` to load a connector from: an
+            // enabled source would never run (#1399).
+            if let Some((source, function)) = connectors.first() {
+                return Err(ServerError::ConfigError(format!(
+                    "source {source:?} runs the connector {function:?}, but the schema has no \
+                     `functions` section to load it from — declare `[functions] module_dir` \
+                     with `{function}.ts` in it, or disable the source"
+                )));
+            }
+            return Ok(());
         };
-        if functions_config.definitions.is_empty() {
+        if functions_config.definitions.is_empty() && connectors.is_empty() {
             return Ok(());
         }
+        let connectors: Vec<SourceConnector<'_>> = connectors
+            .iter()
+            .map(|(source, function)| SourceConnector { source, function })
+            .collect();
 
         // Resolve the DLQ store choice (#598) before the config is consumed —
         // `FRAISEQL_FUNCTIONS_DLQ_STORE` overrides the compiled `[functions] dlq_store`.
@@ -46,9 +61,10 @@ impl Server {
             |key| std::env::var(key).ok(),
         );
 
-        let subsystem = build_functions_subsystem(functions_config).map_err(|error| {
-            ServerError::ConfigError(format!("functions-runtime setup failed: {error}"))
-        })?;
+        let subsystem =
+            build_functions_subsystem(functions_config, &connectors).map_err(|error| {
+                ServerError::ConfigError(format!("functions-runtime setup failed: {error}"))
+            })?;
 
         // Sign the per-dispatch idempotency token when an HMAC secret is
         // configured; unsigned digest otherwise (zero-config default).
@@ -77,6 +93,32 @@ impl Server {
         self.functions_hooks = Some(hooks);
         tracing::info!(functions = function_count, "functions-runtime dispatch enabled");
         Ok(())
+    }
+
+    /// The `(source, connector)` pairs this server will schedule: every enabled source,
+    /// when the source scheduler is compiled in and enabled. Their connectors are
+    /// loaded with the declared functions, so a connector that cannot load refuses
+    /// the boot rather than leaving its source silently unscheduled (#1399).
+    #[cfg(feature = "sources")]
+    fn scheduled_source_connectors(&self) -> Vec<(String, String)> {
+        let config = self.config.sources.clone().unwrap_or_default();
+        if !crate::sources::sources_enabled(&config) {
+            return Vec::new();
+        }
+        self.executor
+            .schema()
+            .sources
+            .iter()
+            .filter(|source| source.enabled)
+            .map(|source| (source.name.clone(), source.function.clone()))
+            .collect()
+    }
+
+    /// Without the source scheduler compiled in, nothing is scheduled (a schema that
+    /// declares sources is refused at load, as a feature-gated section).
+    #[cfg(not(feature = "sources"))]
+    const fn scheduled_source_connectors(&self) -> Vec<(String, String)> {
+        Vec::new()
     }
 
     /// Install both function seams on the executor: the `before:mutation`

@@ -327,3 +327,83 @@ fn an_absent_module_dir_does_not_fail_the_compile() {
 
     accepts(corpus);
 }
+
+// ── A source's connector (#1399) ─────────────────────────────────────────────
+
+/// A schema with one type and one enabled source bound to the `pollOrders` connector.
+fn schema_with_source() -> Value {
+    json!({
+        "types": [{
+            "name": "Order",
+            "sql_source": "v_order",
+            "is_input": false,
+            "fields": [{"name": "id", "type": "ID", "nullable": false}]
+        }],
+        "sources": [{"name": "orders", "schedule": "*/5 * * * *", "function": "pollOrders"}]
+    })
+}
+
+fn compile(corpus: Value) -> fraiseql_cli::schema::CompiledArtifact {
+    let intermediate: IntermediateSchema =
+        serde_json::from_value(corpus).expect("the corpus must deserialize");
+    SchemaConverter::convert_artifact(intermediate, &ConvertOptions::default())
+        .expect("this declaration must compile")
+}
+
+/// The documented layout: the connector is the only code in `module_dir`, with no
+/// function definition. It compiles, and the compiled `functions` section survives
+/// with no definitions so the server knows where to load the connector from. The
+/// compiler used to refuse the `[functions]` table here as configuring nothing.
+#[test]
+fn a_connector_with_no_function_definition_compiles_and_keeps_module_dir() {
+    let dir = TempDir::new().unwrap();
+    let modules = dir.path().join("mods");
+    std::fs::create_dir(&modules).unwrap();
+    std::fs::write(modules.join("pollOrders.ts"), "export default async () => {};\n").unwrap();
+
+    let mut corpus = schema_with_source();
+    corpus["functions_config"] = json!({"module_dir": modules.to_str().unwrap()});
+
+    let functions = compile(corpus).functions.expect("a connector needs the functions section");
+    assert_eq!(functions.module_dir, modules);
+    assert!(functions.definitions.is_empty());
+}
+
+/// With `module_dir` present, a connector that is not on disk fails the compile,
+/// naming the source and the paths tried.
+#[test]
+fn a_connector_that_is_not_on_disk_fails_the_compile() {
+    let dir = TempDir::new().unwrap();
+    let modules = dir.path().join("mods");
+    std::fs::create_dir(&modules).unwrap();
+
+    let mut corpus = schema_with_source();
+    corpus["functions_config"] = json!({"module_dir": modules.to_str().unwrap()});
+
+    let message = refusal(corpus);
+    assert!(
+        message.contains("source `orders`") && message.contains("pollOrders.{js,ts,mjs,mts}"),
+        "{message}"
+    );
+}
+
+/// With no `[functions]` table at all, the section defaults like a function's does,
+/// so the connector has somewhere to load from.
+#[test]
+fn a_connector_with_no_functions_table_gets_the_default_module_dir() {
+    let functions = compile(schema_with_source())
+        .functions
+        .expect("a connector needs the functions section");
+    assert_eq!(functions.module_dir, std::path::PathBuf::from("functions"));
+}
+
+/// A disabled source runs no connector, so it needs no section and keeps a stray
+/// `[functions]` table refused.
+#[test]
+fn a_disabled_source_does_not_justify_a_functions_table() {
+    let mut corpus = schema_with_source();
+    corpus["sources"][0]["enabled"] = json!(false);
+    corpus["functions_config"] = json!({"module_dir": "functions"});
+    let message = refusal(corpus);
+    assert!(message.contains("no enabled source"), "{message}");
+}

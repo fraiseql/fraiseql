@@ -477,7 +477,7 @@ pub(crate) async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema:
     let (artifact, _report) = compile_to_schema(CompileOptions::new(input))
         .await
         .context("Schema compilation failed")?;
-    refuse_declared_functions(artifact.functions.as_ref())?;
+    refuse_declared_functions(artifact.functions.as_ref(), &artifact.schema.sources)?;
     let schema = artifact.schema;
 
     println!(
@@ -491,7 +491,8 @@ pub(crate) async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema:
     Ok(schema)
 }
 
-/// Refuse a schema that declares functions: `fraiseql run` has no function runtime (#1339).
+/// Refuse a schema that declares functions or enabled sources: `fraiseql run` has no
+/// function runtime (#1339), and a source's connector is a Deno module (#1399).
 ///
 /// The rule the server applies at boot (#1326), at the seam that bypasses its loader:
 /// `fraiseql run` hands the compiled schema straight to the server, so the server's
@@ -501,23 +502,31 @@ pub(crate) async fn compile_schema(path: &Path) -> Result<fraiseql_core::schema:
 ///
 /// # Errors
 ///
-/// When the compiled artifact carries a `functions` section (it is `None` when the
-/// project declares none).
+/// When the schema declares a function, or an enabled source whose connector would
+/// never run.
 pub(crate) fn refuse_declared_functions(
     functions: Option<&fraiseql_functions::FunctionsConfig>,
+    sources: &[fraiseql_core::schema::SourceDefinition],
 ) -> Result<()> {
-    let Some(functions) = functions else {
+    let unrunnable: Vec<String> =
+        functions
+            .iter()
+            .flat_map(|functions| &functions.definitions)
+            .map(|definition| format!("function `{}`", definition.name))
+            .chain(sources.iter().filter(|source| source.enabled).map(|source| {
+                format!("source `{}` (connector `{}`)", source.name, source.function)
+            }))
+            .collect();
+    if unrunnable.is_empty() {
         return Ok(());
-    };
-    let names: Vec<&str> = functions.definitions.iter().map(|d| d.name.as_str()).collect();
+    }
     anyhow::bail!(
-        "this schema declares {} function(s) ({}), but `fraiseql run` has no function \
-         runtime, so none of them would ever run — the server would start clean and drop \
-         them. To run them, serve the compiled schema with `fraiseql-server` built with the \
-         `functions-runtime` feature (the `-full` release tarball). To run without them, \
-         remove the functions from the schema.",
-        names.len(),
-        names.join(", ")
+        "this schema declares code that `fraiseql run` cannot run: {}. It has no function \
+         runtime, so none of it would ever run — the server would start clean and drop it. To \
+         run it, serve the compiled schema with `fraiseql-server` built with the \
+         `functions-runtime` feature (`sources` for a source; the `-full` release tarball). To \
+         run without it, remove the functions and disable the sources.",
+        unrunnable.join(", ")
     )
 }
 

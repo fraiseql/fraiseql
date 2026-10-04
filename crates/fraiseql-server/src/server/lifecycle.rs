@@ -542,18 +542,20 @@ impl Server {
                         &host_config,
                         &fraiseql_functions::ResourceLimits::default(),
                         sources_config.log_payloads,
-                    );
+                    )?;
                     let started = pollers.len();
                     for poller in pollers {
                         self.tasks.spawn(async move { poller.run_forever().await });
                     }
                     info!(sources = started, "source scheduler started");
-                } else {
-                    warn!(
-                        count = sources.len(),
-                        "compiled schema declares sources but the functions subsystem is not \
-                         configured — no source scheduler started"
-                    );
+                } else if let Some(source) = sources.iter().find(|source| source.enabled) {
+                    // Provisioning refuses this case first (#1399); a backstop, so an
+                    // enabled source can never be left silently unscheduled.
+                    return Err(ServerError::ConfigError(format!(
+                        "source {:?} is enabled but no functions subsystem was built to run \
+                         its connector {:?}",
+                        source.name, source.function
+                    )));
                 }
             }
         }

@@ -109,6 +109,42 @@ impl CronField {
 
         Ok(CronField::Value(value))
     }
+
+    /// Refuse a field that can never match inside `min..=max`, naming the field.
+    ///
+    /// Each refused shape used to parse and then never match: minute `61`, a step of
+    /// `0`, a range whose start is past its end. A schedule built from one never fires,
+    /// so a function or source declared on it silently never runs (#1399).
+    fn within(self, name: &str, min: u32, max: u32) -> Result<Self, String> {
+        let out_of_range = |value: u32| {
+            if (min..=max).contains(&value) {
+                Ok(())
+            } else {
+                Err(format!("{name} value {value} is outside {min}-{max}"))
+            }
+        };
+        match &self {
+            CronField::Any => {},
+            CronField::Value(value) => out_of_range(*value)?,
+            CronField::List(values) => values.iter().try_for_each(|value| out_of_range(*value))?,
+            CronField::Step { base, step } => {
+                if *step == 0 {
+                    return Err(format!("{name} step must be at least 1"));
+                }
+                if let Some(base) = base {
+                    out_of_range(*base)?;
+                }
+            },
+            CronField::Range { start, end } => {
+                out_of_range(*start)?;
+                out_of_range(*end)?;
+                if start > end {
+                    return Err(format!("{name} range {start}-{end} runs backwards"));
+                }
+            },
+        }
+        Ok(self)
+    }
 }
 
 /// A cron expression with validation.
@@ -124,7 +160,7 @@ pub struct CronSchedule {
     day:            CronField,
     /// Parsed month field (1-12)
     month:          CronField,
-    /// Parsed day-of-week field (0-6, 0=Sunday)
+    /// Parsed day-of-week field (0-7, 0 and 7 = Sunday)
     weekday:        CronField,
 }
 
@@ -141,11 +177,12 @@ impl CronSchedule {
             return Err(format!("Cron expression must have 5 fields, got {}", parts.len()));
         }
 
-        let minute = CronField::parse(parts[0])?;
-        let hour = CronField::parse(parts[1])?;
-        let day = CronField::parse(parts[2])?;
-        let month = CronField::parse(parts[3])?;
-        let weekday = CronField::parse(parts[4])?;
+        let minute = CronField::parse(parts[0])?.within("minute", 0, 59)?;
+        let hour = CronField::parse(parts[1])?.within("hour", 0, 23)?;
+        let day = CronField::parse(parts[2])?.within("day-of-month", 1, 31)?;
+        let month = CronField::parse(parts[3])?.within("month", 1, 12)?;
+        // 7 is POSIX's alternate Sunday (see `matches`).
+        let weekday = CronField::parse(parts[4])?.within("day-of-week", 0, 7)?;
 
         Ok(CronSchedule {
             expression: expression.to_string(),
