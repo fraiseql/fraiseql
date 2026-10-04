@@ -67,17 +67,10 @@ that reason.
 | Advisory | Crate | Path | Exposure | Mitigation | Deadline |
 |----------|-------|------|----------|------------|---------|
 | RUSTSEC-2023-0071 | `rsa@0.9.10` | `jsonwebtoken` 10.4 → `fraiseql-auth` | `default-build` | No fixed `rsa` release exists. The exposure is RS256 access-token signing (`session_postgres.rs:175`), an attacker-triggerable private-key operation — the shape Marvin targets. Re-argue on this path by the deadline; do not re-approve on the old `sqlx-mysql` text | 2026-10-31 |
-| RUSTSEC-2025-0134 | `rustls-pemfile@2.2.0` | direct dependency of `fraiseql-wire`; optional in `fraiseql-db` | `default-build` | Deprecated/unmaintained-crate advisory, not an exploitable defect, so presence in the build is not itself an exploit path. Blocked on `bollard` migrating off `pem` 0.x upstream | 2026-10-31 |
-| RUSTSEC-2026-0194 | `quick-xml@0.37.5` | `samael` 0.0.21 → `fraiseql-auth` | `feature-gated:auth-saml` | Quadratic run time checking a start tag for duplicate attribute names. SAML SP only, opt-in; `samael` pins `quick-xml` 0.37.5 and no fix is in range | 2026-10-31 |
-| RUSTSEC-2026-0195 | `quick-xml@0.37.5` | `samael` 0.0.21 → `fraiseql-auth` | `feature-gated:auth-saml` | Unbounded namespace-declaration allocation in `NsReader`. Same path and same upstream block as RUSTSEC-2026-0194 | 2026-10-31 |
-| RUSTSEC-2026-0204 | `crossbeam-epoch@0.9.18` | `moka` 0.12 → `fraiseql-core` | `default-build` | Invalid-pointer dereference reachable only when `fmt::Pointer` Debug-formats an invalid `Atomic`/`Shared`, which `moka` does not do. Accepted on usage grounds, not on absence from the build | 2026-10-31 |
 
-⚠ Three of these rows were corrected on 2026-08-16 after being checked against `cargo tree`
-rather than trusted: RUSTSEC-2023-0071 claimed `sqlx-mysql` (gone since #374, and `rsa` in
-fact arrives via `jsonwebtoken` in the **default** build — #1110); RUSTSEC-2025-0134 claimed
-dev-dependency-only; RUSTSEC-2026-0204 claimed criterion dev-dependencies (#1137). All three
-acceptances still stand, but two of them stood on sentences that were false, which is the
-condition the `Exposure` gate now makes impossible to leave in place.
+⚠ This row was corrected on 2026-08-16 after being checked against `cargo tree` rather than
+trusted: it claimed `sqlx-mysql`, which has been gone since #374; `rsa` in fact arrives via
+`jsonwebtoken` in the **default** build (#1110).
 
 ## Resolution Tracking
 
@@ -104,58 +97,28 @@ dependency edge.
 sidechannel on RS256 signing and moving RS256 issuance off `jsonwebtoken`'s `rsa` backend.
 Decide that, on this path. Re-approving on the removed MySQL text is not a review.
 
-### RUSTSEC-2025-0134 (rustls-pemfile deprecated)
-
-**Root cause**: `rustls-pemfile` is deprecated in favour of `rustls-pki-types`' own PEM
-support. This is a maintenance advisory, not an exploitable defect.
-
-**Status**: `rustls-pemfile@2.2.0` is a direct `[dependencies]` entry of `fraiseql-wire`
-(`Cargo.toml:37`) and an optional one of `fraiseql-db`, so it **is** in the default build.
-The acceptance previously recorded "DEV-dependency only … no production runtime exposure",
-which was false (#1137). It stands anyway — a deprecated crate in the build is a maintenance
-risk, not an attack path — but on those grounds, not the old ones.
-
-**Blocked on**: `bollard` migrating off `pem` 0.x upstream, and on `fraiseql-wire` moving its
-own PEM parsing to `rustls-pki-types`. The second is in FraiseQL's hands and is the real
-resolution path.
-
-**Review action by 2026-10-31**: migrate `fraiseql-wire` off `rustls-pemfile`, or re-accept
-with the maintenance risk stated.
-
-### RUSTSEC-2026-0194 / -0195 (quick-xml DoS pair)
-
-**Root cause**: quadratic duplicate-attribute checking, and unbounded namespace-declaration
-allocation in `NsReader`.
-
-**Status**: `feature-gated:auth-saml`. `quick-xml@0.37.5` arrives via
-`samael 0.0.21 → fraiseql-auth` and is absent from the default build. A deployment that
-enables SAML SP support is parsing attacker-supplied XML assertions, so the exposure is real
-for that configuration.
-
-**Blocked on**: `samael` pinning `quick-xml` 0.37.5 with no fixed version in range.
-
-**Review action by 2026-10-31**: check for a `samael` release that relaxes the pin; otherwise
-state whether SAML SP deployments should carry a request-size limit in front of assertion
-parsing.
-
-### RUSTSEC-2026-0204 (crossbeam-epoch invalid pointer)
-
-**Root cause**: `fmt::Pointer` on an invalid `Atomic`/`Shared` dereferences it.
-
-**Status**: `default-build` — `crossbeam-epoch@0.9.18` arrives via `moka 0.12 → fraiseql-core`,
-the result cache, not via `rayon`/`criterion` dev-dependencies as previously recorded
-(#1137). Accepted on **usage** grounds: reaching the defect requires Debug-formatting an
-invalid pointer, which `moka` does not do and FraiseQL does not do.
-
-**Blocked on**: a `crossbeam-epoch` release `moka` will take.
-
-**Review action by 2026-10-31**: re-check `moka`'s dependency range for a fixed
-`crossbeam-epoch`.
-
 ## Resolved acceptances
 
 Kept as a record, not as acceptances. Nothing below is ignored in `deny.toml` or
 `.cargo/audit.toml` any more.
+
+### RUSTSEC-2025-0134, -2026-0194, -2026-0195, -2026-0204 — resolved 2026-10-04
+
+Each acceptance was due to lapse on 2026-10-31. Each was resolved rather than re-accepted:
+
+- **RUSTSEC-2026-0204** (`crossbeam-epoch@0.9.18`, via `moka` in the default build): the lockfile
+  moved to 0.9.21, inside `moka`'s range. No pin was needed.
+- **RUSTSEC-2026-0194 / -0195** (`quick-xml@0.37.5`, via `samael` under `auth-saml`): `samael`
+  0.0.22 moved to `quick-xml` 0.41.0, inside the patched range (`>= 0.41.0`). The SAML suites
+  pass against PostgreSQL.
+- **RUSTSEC-2025-0134** (`rustls-pemfile`): both CA-bundle readers (`fraiseql-wire`,
+  `fraiseql-db`) parse PEM with rustls' `pki_types::pem::PemObject`, and the dependency is gone.
+  It was never blocked on `bollard`: FraiseQL's own direct dependency was the whole edge.
+
+Proven in both directions: the previous `Cargo.lock` under the new configuration fails
+`cargo deny check advisories` (crossbeam-epoch) and `cargo audit` (all four). The current one
+passes both. `cargo deny` resolves default features only, so the `auth-saml` pair was visible to
+`cargo audit` alone.
 
 ### RUSTSEC-2026-0098 / -0099 / -0104 (rustls-webpki 0.101.7) and -0258 (h2 0.3.27) — resolved
 

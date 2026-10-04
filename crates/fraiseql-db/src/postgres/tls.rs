@@ -46,7 +46,7 @@ use fraiseql_error::{FraiseQLError, Result};
 use rustls::{
     ClientConfig, DigitallySignedStruct, Error as RustlsError, RootCertStore, SignatureScheme,
     client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier},
-    pki_types::{CertificateDer, ServerName, UnixTime},
+    pki_types::{CertificateDer, ServerName, UnixTime, pem::PemObject},
 };
 use tokio_postgres_rustls::MakeRustlsConnect;
 
@@ -287,7 +287,7 @@ impl PostgresTlsConfig {
                     path.display()
                 ),
             })?;
-            let certs = rustls_pemfile::certs(&mut pem.as_slice())
+            let certs = CertificateDer::pem_slice_iter(&pem)
                 .collect::<std::result::Result<Vec<_>, _>>()
                 .map_err(|e| FraiseQLError::Configuration {
                     message: format!(

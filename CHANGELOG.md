@@ -363,6 +363,19 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **Four accepted advisories resolved rather than re-accepted.** Each acceptance was due to lapse
+  on 2026-10-31; each is now gone from `deny.toml` and `.cargo/audit.toml` because the advisory
+  no longer applies to the tree:
+  - **RUSTSEC-2026-0204** (crossbeam-epoch, in the default build via moka): 0.9.18 → 0.9.21.
+  - **RUSTSEC-2026-0194 / RUSTSEC-2026-0195** (quick-xml DoS pair, via samael under
+    `auth-saml`): samael 0.0.21 → 0.0.22, which moves to quick-xml 0.41.0, inside the patched
+    range. The SAML suites (unit, SSO, replay, IdP store) pass against PostgreSQL.
+  - **RUSTSEC-2025-0134** (rustls-pemfile, unmaintained, in the default build via
+    fraiseql-wire and fraiseql-db): both CA-bundle readers now parse PEM with rustls'
+    `pki_types::pem::PemObject`, and the dependency is gone.
+  - Yanked `chacha20` 0.10.0 and `spin` 0.9.8 / 0.10.0 are updated to their unyanked
+    successors.
+
 - **The MCP stdio transport runs declared functions and provisions the auth schemas (#1332).**
   `serve_mcp_stdio` (`--mcp-stdio` / `FRAISEQL_MCP_STDIO=1`) built its state without the
   provisioning step the HTTP entry points run first. No function module was loaded, so an MCP

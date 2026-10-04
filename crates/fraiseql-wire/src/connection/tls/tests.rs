@@ -116,7 +116,7 @@ fn test_normal_tls_config_works() {
 
 /// Valid PEM armour around bytes that are not a parsable certificate.
 ///
-/// `rustls_pemfile` yields this as `Item::X509Certificate` — it only base64-decodes
+/// The PEM reader yields this as a `CertificateDer` — it only base64-decodes
 /// the body — and `add_parsable_certificates` then rejects the DER. That gap is
 /// exactly where the miscount lived.
 const UNPARSABLE_DER_IN_VALID_PEM: &str = "-----BEGIN CERTIFICATE-----\n\

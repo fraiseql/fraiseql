@@ -5,10 +5,9 @@
 
 use crate::{Result, WireError};
 use rustls::client::danger::{HandshakeSignatureValid, ServerCertVerified, ServerCertVerifier};
-use rustls::pki_types::{CertificateDer, ServerName, UnixTime};
+use rustls::pki_types::{pem::PemObject, CertificateDer, ServerName, UnixTime};
 use rustls::RootCertStore;
 use rustls::{ClientConfig, DigitallySignedStruct, SignatureScheme};
-use rustls_pemfile::Item;
 use std::fmt::Debug;
 use std::fs;
 use std::sync::Arc;
@@ -244,38 +243,22 @@ impl TlsConfigBuilder {
             ))
         })?;
 
-        let mut reader = std::io::Cursor::new(&ca_cert_data);
         let mut root_store = RootCertStore::empty();
         let mut found_certs = 0;
 
-        // Parse PEM file and extract certificates
-        loop {
-            match rustls_pemfile::read_one(&mut reader) {
-                Ok(Some(Item::X509Certificate(cert))) => {
-                    // Count what rustls ACCEPTED, not what the PEM reader yielded
-                    // (#887). The reader only base64-decodes the armour; whether the
-                    // DER is a usable certificate is decided here. Counting items
-                    // read made `found_certs > 0` answer "did the file contain
-                    // something shaped like a certificate" instead of "does the
-                    // trust store now trust anything".
-                    let (added, _ignored) =
-                        root_store.add_parsable_certificates(std::iter::once(cert));
-                    found_certs += added;
-                }
-                Ok(Some(_)) => {
-                    // Skip non-certificate items (private keys, etc.)
-                }
-                Ok(None) => {
-                    // End of file
-                    break;
-                }
-                Err(_) => {
-                    return Err(WireError::Config(format!(
-                        "Failed to parse CA certificate from '{}'",
-                        ca_path
-                    )));
-                }
-            }
+        // Every CERTIFICATE section, in order; other sections (private keys, etc.)
+        // are skipped by the reader itself.
+        for cert in CertificateDer::pem_slice_iter(&ca_cert_data) {
+            let cert = cert.map_err(|_| {
+                WireError::Config(format!("Failed to parse CA certificate from '{}'", ca_path))
+            })?;
+            // Count what rustls ACCEPTED, not what the PEM reader yielded (#887).
+            // The reader only base64-decodes the armour; whether the DER is a usable
+            // certificate is decided here. Counting items read made
+            // `found_certs > 0` answer "did the file contain something shaped like a
+            // certificate" instead of "does the trust store now trust anything".
+            let (added, _ignored) = root_store.add_parsable_certificates(std::iter::once(cert));
+            found_certs += added;
         }
 
         if found_certs == 0 {

@@ -17,7 +17,6 @@ regex = {workspace = true}
 # either fail at runtime or downgrade, and the second is the bug being fixed.
 rustls = {version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"], optional = true}
 rustls-native-certs = {version = "0.8.3", optional = true}
-rustls-pemfile = {version = "2.2", optional = true}
 serde = {workspace = true}
 serde_json = {workspace = true}
 thiserror = {workspace = true}
@@ -48,7 +47,6 @@ postgres = [
     "dep:deadpool-postgres",
     "dep:rustls",
     "dep:rustls-native-certs",
-    "dep:rustls-pemfile",
     "dep:tokio-postgres-rustls",
 ]
 # Integration test features

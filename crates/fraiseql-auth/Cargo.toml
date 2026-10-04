@@ -28,7 +28,7 @@ reqwest = {workspace = true}
 openssl = {version = "0.10", optional = true}
 # SAML 2.0 SP support (#381) — heavy XML/crypto C stack (libxml2 + openssl), kept
 # behind the opt-in `auth-saml` feature so the default build stays lean.
-samael = {version = "0.0.21", optional = true}
+samael = {version = "0.0.22", optional = true}
 serde = {version = "1.0", features = ["derive"]}
 serde_json = {workspace = true}
 sha1 = "0.11"
