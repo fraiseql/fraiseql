@@ -757,7 +757,7 @@ async fn pagination_index_checks(db_url: &str, schema_path: &Path) -> Vec<Doctor
         },
     };
 
-    let introspector = match crate::commands::compile::build_postgres_introspector(db_url) {
+    let introspector = match crate::commands::compile::build_postgres_introspector(db_url).await {
         Ok(i) => i,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1074,7 +1074,7 @@ pub(crate) fn minimal_mutation_probe(
 async fn body_resolution_checks(db_url: &str, schemas: &[String]) -> Vec<DoctorCheck> {
     const NAME: &str = "PL/pgSQL body resolution";
 
-    let catalog = match PgCatalog::connect(db_url) {
+    let catalog = match PgCatalog::connect(db_url).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1186,7 +1186,7 @@ async fn mutation_contract_checks(db_url: &str, schema_path: &Path) -> Vec<Docto
         },
     };
 
-    let catalog = match PgCatalog::connect(db_url) {
+    let catalog = match PgCatalog::connect(db_url).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1284,7 +1284,7 @@ const CHANGELOG_CONTRACT_NAME: &str = "Change-log contract";
 /// and classifies the drift via [`changelog_contract_drift`]. A connection or
 /// introspection failure becomes a single `Fail` check (never panics).
 async fn changelog_contract_checks(db_url: &str) -> Vec<DoctorCheck> {
-    let catalog = match PgCatalog::connect(db_url) {
+    let catalog = match PgCatalog::connect(db_url).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1314,7 +1314,7 @@ const CHANGELOG_RLS_NAME: &str = "Change-log RLS";
 /// [`changelog_rls_check`]. A connection or introspection failure becomes a single
 /// `Fail` check (never panics).
 async fn changelog_rls_checks(db_url: &str) -> Vec<DoctorCheck> {
-    let catalog = match PgCatalog::connect(db_url) {
+    let catalog = match PgCatalog::connect(db_url).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1393,7 +1393,7 @@ const CHANGELOG_ACTOR_NAME: &str = "Change-log actor attribution";
 /// classifies via [`changelog_actor_check`]. A connection or introspection
 /// failure becomes a single `Fail` check (never panics).
 async fn changelog_actor_checks(db_url: &str) -> Vec<DoctorCheck> {
-    let catalog = match PgCatalog::connect(db_url) {
+    let catalog = match PgCatalog::connect(db_url).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1501,7 +1501,7 @@ const CHANGELOG_PUBLIC_GRANTS_NAME: &str = "Change-log PUBLIC grants";
 /// two views, and classifies via [`changelog_public_grants_check`]. A connection
 /// or introspection failure becomes a single `Fail` check (never panics).
 async fn changelog_public_grants_checks(db_url: &str) -> Vec<DoctorCheck> {
-    let catalog = match PgCatalog::connect(db_url) {
+    let catalog = match PgCatalog::connect(db_url).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1607,7 +1607,7 @@ async fn rls_security_invoker_checks(db_url: &str, schema_path: &Path) -> Vec<Do
         )];
     }
 
-    let catalog = match PgCatalog::connect(db_url) {
+    let catalog = match PgCatalog::connect(db_url).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1666,7 +1666,7 @@ const CAPTURE_FN_SECURITY_NAME: &str = "Change-log capture function";
 /// [`capture_fn_security_check`]. A connection or introspection failure becomes a
 /// single `Fail` check (never panics).
 async fn capture_fn_security_checks(db_url: &str) -> Vec<DoctorCheck> {
-    let catalog = match PgCatalog::connect(db_url) {
+    let catalog = match PgCatalog::connect(db_url).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(

@@ -89,7 +89,7 @@ docker-compose -f docker-compose.multi-database.yml up
 ### Software Requirements
 
 - **Docker**: 20.10+ (with Compose V2)
-- **PostgreSQL**: 12+ (for database migrations)
+- **PostgreSQL**: 18+ (for database migrations)
 - **Optional**:
   - **Redis**: 6+ (for topologies 2-4)
   - **NATS**: 2.9+ (for topologies 3-4)

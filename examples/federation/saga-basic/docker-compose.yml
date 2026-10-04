@@ -12,7 +12,7 @@ services:
   # since a single connection cannot span them. FraiseQL is PostgreSQL-only
   # since v2.15.0 (#374), and a `mysql://` DATABASE_URL is a boot refusal.
   postgres:
-    image: postgres:15-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_DB: fraiseql
       POSTGRES_USER: fraiseql
@@ -21,7 +21,7 @@ services:
       - "5432:5432"
     volumes:
       - ./fixtures/postgres-init.sql:/docker-entrypoint-initdb.d/init.sql
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fraiseql"]
       interval: 10s

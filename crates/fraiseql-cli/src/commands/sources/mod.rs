@@ -281,7 +281,7 @@ pub async fn run(args: SourcesArgs) -> Result<()> {
     // for cursor state).
     let (cursors, database_connected) = match resolve_database_url(args.database.as_deref()) {
         Ok(db_url) => {
-            let reader = SourceCursorReader::connect(&db_url)?;
+            let reader = SourceCursorReader::connect(&db_url).await?;
             let rows = reader.load_cursors().await?;
             let map: HashMap<String, CursorRow> =
                 rows.into_iter().map(|row| (row.source_name.clone(), row)).collect();

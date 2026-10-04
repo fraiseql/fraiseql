@@ -8,7 +8,7 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:18-alpine
     container_name: fraiseql-postgres
     ports:
       - "5433:5432"
@@ -23,7 +23,7 @@ services:
       retries: 5
       start_period: 10s
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
       - ../fraiseql-test-support/fixtures/sample_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
       - ../fraiseql-test-support/fixtures/sample_seed.sql:/docker-entrypoint-initdb.d/02-seed.sql
       - ./tests/fixtures/pg_hba.conf:/docker-entrypoint-initdb.d/00-pg_hba.conf

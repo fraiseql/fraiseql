@@ -26,7 +26,7 @@ services:
     # Local demo backing store — weak credential by design, port bound to
     # 127.0.0.1 (locally usable, not network-reachable). Override POSTGRES_PASSWORD
     # before any non-local use.
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpass}

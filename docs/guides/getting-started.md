@@ -9,7 +9,7 @@ PostgreSQL (`tools/quickstart-smoke.sh`), so if it is printed here, it works.
 ## Prerequisites
 
 - **Rust** 1.95.0+ (install via [rustup](https://rustup.rs))
-- **PostgreSQL** 14+ running locally (or Docker: `docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16`)
+- **PostgreSQL** 18+ running locally (or Docker: `docker run -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:18`). Older servers are refused at connect time.
 - **Python 3.11+** for schema authoring
 
 ## 1. Install the CLI and Server

@@ -684,7 +684,7 @@ fn binary_metrics_carry_the_bit_operators_and_ops_classes() {
 }
 
 /// pgvector 0.8 ships `bit_jaccard_ops` for `hnsw` only — verified against
-/// `pg_opclass` on the pgvector/pgvector:pg16 rig.
+/// `pg_opclass` on the pgvector/pgvector:pg18 rig.
 #[test]
 fn ivfflat_has_no_jaccard_operator_class() {
     assert_eq!(

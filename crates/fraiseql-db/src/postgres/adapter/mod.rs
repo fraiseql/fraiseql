@@ -31,6 +31,7 @@ use tokio::sync::Semaphore;
 use tokio_postgres::{NoTls, Row};
 
 use super::{
+    server_version::require_supported_server,
     tls::{PostgresConnector, PostgresSslMode, PostgresTlsConfig},
     where_generator::PostgresWhereGenerator,
 };
@@ -779,6 +780,14 @@ async fn build_read_replica_set(
             }
         })?;
         let in_recovery: bool = row.get(0);
+        // A standby replays the primary's WAL, so it is the same major version in a
+        // physical setup, but a logical replica or a misconfigured URL need not be.
+        require_supported_server(&client).await.map_err(|e| match e {
+            FraiseQLError::Unsupported { message } => FraiseQLError::Unsupported {
+                message: format!("Read replica {index}: {message}"),
+            },
+            other => other,
+        })?;
         if !in_recovery {
             tracing::warn!(
                 replica = index,
@@ -1169,15 +1178,12 @@ impl PostgresAdapter {
             &cfg.tls,
         )?;
 
-        // Startup health check — establishes the first connection.
+        // Startup health check — establishes the first connection, and refuses a
+        // server below the supported floor before anything else runs against it.
         let client = pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
             message: format!("Failed to acquire connection: {e}"),
         })?;
-
-        client.query("SELECT 1", &[]).await.map_err(|e| FraiseQLError::Database {
-            message:   format!("Failed to connect to database: {}", pg_detail(&e)),
-            sql_state: e.code().map(|c| c.code().to_string()),
-        })?;
+        require_supported_server(&client).await?;
 
         // Drop client back to the pool before pre-warming so that the health-check
         // connection counts as idle slot #1.

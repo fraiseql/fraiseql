@@ -12,10 +12,10 @@
 
 services:
   postgres-test:
-    # pgvector/pgvector:pg16 = the official postgres:16 (bookworm) image plus the
+    # pgvector/pgvector:pg18 = the official postgres:18 (bookworm) image plus the
     # pgvector extension, which the #386 vector-similarity suites CREATE and
-    # execute against. Matches CI's `ghcr.io/fraiseql/pgvector:pg16` mirror.
-    image: pgvector/pgvector:pg16
+    # execute against. Matches CI's `ghcr.io/fraiseql/pgvector:pg18` mirror.
+    image: pgvector/pgvector:pg18
     environment:
       POSTGRES_DB: test_fraiseql
       POSTGRES_USER: fraiseql_test
@@ -52,7 +52,7 @@ services:
   # The suite induces lag deterministically with `pg_wal_replay_pause()`, which
   # is why the standby streams through a replication slot — see the entrypoint.
   postgres-standby-test:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg18
     depends_on:
       postgres-test:
         condition: service_healthy
@@ -84,7 +84,7 @@ services:
   # a writable server or not, depending on which test libtest happened to run
   # first — a rig whose meaning depends on test ordering is not a rig.
   postgres-failover-test:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg18
     depends_on:
       postgres-test:
         condition: service_healthy
@@ -111,10 +111,10 @@ services:
   # separate service from postgres-test: the tests need one server that speaks TLS
   # *and* one that does not, since "require refuses a plaintext server" and
   # "verify-full rejects an untrusted certificate" are different assertions.
-  # postgres:16 (bookworm) rather than -alpine: the init script needs openssl's
+  # postgres:18 (bookworm) rather than -alpine: the init script needs openssl's
   # output, and alpine ships no openssl.
   postgres-tls-test:
-    image: postgres:16
+    image: postgres:18
     environment:
       POSTGRES_DB: test_fraiseql
       POSTGRES_USER: fraiseql_test
@@ -143,6 +143,24 @@ services:
       retries: 5
 
   # One-shot container that waits for SQL Server to be healthy, then seeds data
+  # PostgreSQL 17, one major release BELOW the supported floor (#1452). Every other
+  # database here runs 18, where a connection that never asked the server its
+  # version passes as well as one that did, so the floor-refusal suites need a
+  # server that is actually older. Bare: they assert a refusal, not a fixture.
+  postgres-below-floor-test:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: test_fraiseql
+      POSTGRES_USER: fraiseql_test
+      POSTGRES_PASSWORD: fraiseql_test_password
+    ports:
+      - "127.0.0.1:5440:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fraiseql_test -d test_fraiseql"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
   redis-test:
     image: redis:7-alpine
     ports:

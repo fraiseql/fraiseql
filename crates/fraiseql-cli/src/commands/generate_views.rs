@@ -216,6 +216,7 @@ async fn validate_ddl_against_database(sql: &str) -> Result<()> {
     tokio::spawn(async move {
         let _ = connection.await;
     });
+    fraiseql_db::postgres::require_supported_server(&client).await?;
 
     let txn = client.transaction().await.context("--validate: failed to open transaction")?;
     txn.batch_execute(sql)

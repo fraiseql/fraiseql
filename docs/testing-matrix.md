@@ -82,7 +82,10 @@ Started via `make db-up` (uses `docker/docker-compose.test.yml`):
 
 | Service | Image | Port | Used By |
 |---------|-------|------|---------|
-| PostgreSQL | postgres:16-alpine | 5433 | Core DB tests, server, observers, federation (incl. `saga` integration tests) |
+| PostgreSQL | pgvector/pgvector:pg18 | 5433 | Core DB tests, server, observers, federation (incl. `saga` integration tests) |
+| PostgreSQL (standbys) | pgvector/pgvector:pg18 | 5436, 5437 | Read-replica lag and failover suites |
+| PostgreSQL (TLS) | postgres:18 | 5435 | Database-TLS suites |
+| PostgreSQL 17 | postgres:17 | 5440 | Floor-refusal suites only: a server below the supported version |
 | Redis | redis:7-alpine | 6379 | APQ, caching, queue, rate limiting, PKCE |
 | NATS | nats:2.10-alpine | 4222 | Observer transport, bridge |
 | Vault | hashicorp/vault:1.17 | 8200 | Secrets manager integration |

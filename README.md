@@ -76,9 +76,9 @@ Python and TypeScript are authoring languages only. The runtime is pure Rust wit
 
 ## Database Support
 
-**PostgreSQL 14+ only.** MySQL, SQLite and SQL Server adapters were removed in
-v2.15.0 — they had never been exercised against a real database and failed on
-the primary query shape. A `mysql://`, `sqlite://` or `sqlserver://` URL is
+**PostgreSQL 18+ only.** An older PostgreSQL server is refused at connect time.
+MySQL, SQLite and SQL Server adapters were removed in v2.15.0 — they had never
+been exercised against a real database and failed on the primary query shape. A `mysql://`, `sqlite://` or `sqlserver://` URL is
 refused at startup with an explanatory error.
 
 See [docs/database-compatibility.md](docs/database-compatibility.md) for what was

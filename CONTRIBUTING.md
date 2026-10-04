@@ -103,7 +103,7 @@ Work in: `docs/`
 ### Prerequisites
 
 - **Rust** 1.75+ (install via [rustup](https://rustup.rs/))
-- **PostgreSQL** 14+ (for integration tests)
+- **PostgreSQL** 18+ (for integration tests; `make db-up` starts the whole rig)
 - **Make** (optional, for convenience commands)
 
 ### Install Development Tools

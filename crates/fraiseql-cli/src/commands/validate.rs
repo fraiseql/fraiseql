@@ -207,7 +207,7 @@ pub async fn run_against_db(input: &str, db_url: &str, json: bool) -> Result<()>
         format!("`{input}` is not a valid compiled schema (run `fraiseql compile` first)")
     })?;
 
-    let catalog = PgCatalog::connect(db_url)?;
+    let catalog = PgCatalog::connect(db_url).await?;
     let report = validate_mutation_contract(&schema, &catalog).await?;
 
     if json {

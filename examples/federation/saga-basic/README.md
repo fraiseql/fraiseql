@@ -55,7 +55,7 @@ When a customer places an order, the saga orchestrates these steps:
 └────────┬────────┘      └────────┬────────┘      └────────┬────────┘
          │                        │                        │
          │      ┌─────────────────┴────────────────┐       │
-         └──────┤     PostgreSQL 15  (5432)        ├───────┘
+         └──────┤     PostgreSQL 18  (5432)        ├───────┘
                 │                                  │
                 │  fraiseql            saga, users │
                 │  fraiseql_orders           orders│

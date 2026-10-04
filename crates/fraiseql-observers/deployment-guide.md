@@ -29,7 +29,7 @@
 
 ### Infrastructure Readiness
 
-- [ ] PostgreSQL 12+ deployed and healthy
+- [ ] PostgreSQL 18+ deployed and healthy
 - [ ] Redis 6+ deployed (if using caching/dedup)
 - [ ] Elasticsearch 7+ deployed (if using search)
 - [ ] Prometheus scrape configured

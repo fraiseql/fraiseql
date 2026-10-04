@@ -64,14 +64,7 @@ impl ValidationIssue {
 
 /// Create a PostgreSQL introspector from a database URL
 async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector> {
-    let pool = crate::connection::postgres_pool(database_url, "fact-table validation")?;
-
-    // Test connection
-    let _client = pool
-        .get()
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to connect to database: {e}"))?;
-
+    let pool = crate::connection::postgres_pool(database_url, "fact-table validation").await?;
     Ok(PostgresIntrospector::new(pool))
 }
 

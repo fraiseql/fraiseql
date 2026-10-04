@@ -403,7 +403,7 @@ Database: your-database-name
 User: grafana_readonly  (recommended)
 Password: ***
 SSL Mode: require (for production)
-Version: 14+ (or your PostgreSQL version)
+Version: 18 (FraiseQL requires PostgreSQL 18 or newer)
 ```
 
 ### Create Read-Only User (Recommended)

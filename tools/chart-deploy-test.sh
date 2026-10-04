@@ -75,10 +75,10 @@ set -euo pipefail
 # supply-chain property the mirror would. Override with FRAISEQL_K3S_IMAGE.
 K3S_IMAGE="${FRAISEQL_K3S_IMAGE:-rancher/k3s:v1.36.3-k3s1@sha256:d0f79175794edd9694b4a12bafc5c52ae1977369a2f7cf256264e7bd2dae0be9}"
 
-# Postgres: the mirrored plain postgres:16, not the pgvector mirror the Dagger
+# Postgres: the mirrored plain postgres:18, not the pgvector mirror the Dagger
 # rig uses. docker/e2e/init-postgres.sql needs no extension, and this image is
 # imported into the cluster layer by layer — a smaller one is a faster import.
-PG_IMAGE="${FRAISEQL_PG_IMAGE:-ghcr.io/fraiseql/postgres:16}"
+PG_IMAGE="${FRAISEQL_PG_IMAGE:-ghcr.io/fraiseql/postgres:18}"
 
 # helm, checksum-pinned exactly as tools' gitleaks is (.dagger/security.go).
 # helm 3 rather than 4: this is an `apiVersion: v2` chart, `helm.yml` has always
@@ -552,14 +552,15 @@ spec:
         - {name: POSTGRES_USER,     value: "$PG_USER"}
         - {name: POSTGRES_PASSWORD, value: "$PG_PASSWORD"}
         - {name: POSTGRES_DB,       value: "$PG_DATABASE"}
-        - {name: PGDATA,            value: /var/lib/postgresql/data/pgdata}
         ports: [{containerPort: 5432}]
         readinessProbe:
           exec: {command: ["pg_isready", "-U", "$PG_USER", "-d", "$PG_DATABASE"]}
           initialDelaySeconds: 2
           periodSeconds: 2
           failureThreshold: 60
-        volumeMounts: [{name: data, mountPath: /var/lib/postgresql/data}]
+        # postgres:18 keeps PGDATA under /var/lib/postgresql/18/docker and
+        # refuses a volume at the old /var/lib/postgresql/data mount point.
+        volumeMounts: [{name: data, mountPath: /var/lib/postgresql}]
       volumes: [{name: data, emptyDir: {}}]
 ---
 apiVersion: v1

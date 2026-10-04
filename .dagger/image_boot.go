@@ -241,7 +241,7 @@ func (m *FraiseqlCi) ImageBoot(
 		Stdout(ctx)
 }
 
-// imageBootPgService is a BARE postgres:16 — no /docker-entrypoint-initdb.d.
+// imageBootPgService is a BARE pgImage Postgres — no /docker-entrypoint-initdb.d.
 //
 // ⚠ The fixture is loaded by the client below instead, under `ON_ERROR_STOP=1`,
 // into a schema it drops first, and the row count is asserted afterwards. That is

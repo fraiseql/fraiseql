@@ -109,7 +109,7 @@ FraiseQL provides a layered architecture where features are opt-in via Cargo fea
 - Apollo Federation v2 (entity resolution, federated subscriptions)
 - Query validation and projection optimization
 - Connection pooling and health checks
-- PostgreSQL 14+ (the only supported backend)
+- PostgreSQL 18+ (the only supported backend)
 
 **No external dependencies beyond database drivers. Minimal binary footprint (~15MB).**
 

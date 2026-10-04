@@ -114,11 +114,7 @@ fn mask_password(url: &str) -> String {
 
 /// Connect to the database using a deadpool connection pool
 async fn connect_to_database(db_url: &str) -> Result<deadpool_postgres::Pool> {
-    let pool = crate::connection::postgres_pool(db_url, "setup")?;
-
-    // Test connection
-    let _client = pool.get().await.context("Failed to acquire database connection")?;
-
+    let pool = crate::connection::postgres_pool(db_url, "setup").await?;
     info!("Connected to database");
 
     Ok(pool)

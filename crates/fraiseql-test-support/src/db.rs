@@ -72,6 +72,27 @@ pub fn failover_standby_database_url() -> String {
     )
 }
 
+/// Returns the URL of a server BELOW the supported PostgreSQL floor, from
+/// `BELOW_FLOOR_DATABASE_URL`.
+///
+/// Every other test database runs the supported version, so a connection that
+/// forgot to ask the server its version would pass all of them. This one exists to
+/// be refused. Both rigs provide it — `postgres-below-floor-test` in
+/// `docker/docker-compose.test.yml`, `pgBelowFloorService` in `.dagger/main.go` —
+/// so a missing variable panics rather than skipping the only test of the refusal.
+///
+/// # Panics
+///
+/// Panics with an actionable message if `BELOW_FLOOR_DATABASE_URL` is not set.
+#[must_use]
+pub fn below_floor_database_url() -> String {
+    resolve_or_panic(
+        "BELOW_FLOOR_DATABASE_URL",
+        "postgresql://…:5438/… (see `make db-up`)",
+        env_url("BELOW_FLOOR_DATABASE_URL"),
+    )
+}
+
 /// Resolve a database URL or panic loudly. Split out so the loud-failure contract is
 /// unit-testable without manipulating process env. A swallowed or silently-defaulted URL
 /// here would let every DB-backed test skip when CI fails to inject the URL — a false-green

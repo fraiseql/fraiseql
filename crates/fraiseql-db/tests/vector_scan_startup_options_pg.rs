@@ -21,7 +21,7 @@
 //! setting that never left the struct — cannot pass all three.
 //!
 //! **Execution engine:** `PostgreSQL` + pgvector · **Infrastructure:**
-//! `DATABASE_URL` (the rigs run `pgvector/pgvector:pg16`).
+//! `DATABASE_URL` (the rigs run `pgvector/pgvector:pg18`).
 
 use fraiseql_db::{
     DatabaseAdapter as _,

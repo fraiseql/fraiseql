@@ -39,5 +39,8 @@ pub mod db;
 pub mod sample_schema;
 pub mod services;
 
-pub use db::{database_url, failover_standby_database_url, standby_database_url, try_database_url};
+pub use db::{
+    below_floor_database_url, database_url, failover_standby_database_url, standby_database_url,
+    try_database_url,
+};
 pub use services::{Service, Vault, azure_blob, gcs, minio, nats, postgres, redis, vault};

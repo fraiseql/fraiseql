@@ -31,7 +31,7 @@ const CHANGE_LOG_RELATIONS: [&str; 3] = [
 
 async fn catalog() -> Option<PgCatalog> {
     let url = fraiseql_test_support::try_database_url()?;
-    match PgCatalog::connect(&url) {
+    match PgCatalog::connect(&url).await {
         Ok(c) => Some(c),
         Err(e) => {
             eprintln!("skipping #409 against-db test: {e}");
@@ -131,7 +131,10 @@ async fn body_resolution_degrades_gracefully_when_extension_absent() {
 async fn non_postgres_url_is_rejected() {
     // PgCatalog::connect rejects non-postgres URLs up front (the --against-db
     // checks are PostgreSQL-only).
-    assert!(PgCatalog::connect("mysql://localhost/db").is_err(), "non-postgres URL rejected");
+    assert!(
+        PgCatalog::connect("mysql://localhost/db").await.is_err(),
+        "non-postgres URL rejected"
+    );
 }
 
 /// `table_columns` reads column names + `udt_name` for the exact `PostgreSQL`
@@ -172,7 +175,7 @@ async fn table_columns_reads_name_and_udt() {
         .await
         .expect("create probe table");
 
-    let catalog = PgCatalog::connect(&url).expect("connect catalog");
+    let catalog = PgCatalog::connect(&url).await.expect("connect catalog");
     let cols = catalog
         .table_columns("public", "tb_changelog_drift_probe_380")
         .await
@@ -317,7 +320,7 @@ async fn change_log_actor_stats_sees_null_unknown_and_constraint() {
         .await
         .expect("plant actor-stats probe rows");
 
-    let catalog = PgCatalog::connect(&url).expect("connect catalog");
+    let catalog = PgCatalog::connect(&url).await.expect("connect catalog");
     let tokens: Vec<String> = fraiseql_core::security::ActorType::ALL
         .iter()
         .map(|a| a.as_str().to_string())

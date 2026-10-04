@@ -86,7 +86,7 @@ async fn reader_decodes_contract_rows_and_applies_window() {
         return;
     }
 
-    let reader = PerfReader::connect(&url).expect("connect perf reader");
+    let reader = PerfReader::connect(&url).await.expect("connect perf reader");
     let samples = reader.load_samples(30, None).await.expect("load samples");
 
     // The 60-day-old row is outside the 30-day window.
@@ -125,7 +125,7 @@ async fn object_type_filter_restricts_rows() {
         return;
     }
 
-    let reader = PerfReader::connect(&url).expect("connect perf reader");
+    let reader = PerfReader::connect(&url).await.expect("connect perf reader");
     let samples = reader.load_samples(30, Some("PerfProbeOrder")).await.expect("load samples");
 
     assert!(!samples.is_empty(), "the filtered object_type has a row in-window");
@@ -160,7 +160,7 @@ async fn regression_scan_flags_a_real_regression_end_to_end() {
         .await
         .unwrap();
 
-    let reader = PerfReader::connect(&url).expect("connect perf reader");
+    let reader = PerfReader::connect(&url).await.expect("connect perf reader");
     let now_epoch = reader.db_now_epoch().await.expect("db clock");
     let samples = reader.load_samples(30, None).await.expect("load samples");
 
@@ -183,7 +183,7 @@ async fn regression_scan_flags_a_real_regression_end_to_end() {
 #[tokio::test]
 async fn non_postgres_url_is_rejected() {
     assert!(
-        PerfReader::connect("mysql://localhost/db").is_err(),
+        PerfReader::connect("mysql://localhost/db").await.is_err(),
         "non-postgres URL rejected"
     );
 }

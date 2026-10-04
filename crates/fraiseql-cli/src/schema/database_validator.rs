@@ -1215,10 +1215,10 @@ pub fn refuse_removed_engine_url(db_url: &str) -> anyhow::Result<()> {
 /// # Errors
 ///
 /// Returns error if the URL is not a PostgreSQL connection string (see
-/// [`crate::connection::require_postgres`]) or the connection pool cannot be created.
-#[allow(clippy::unused_async)] // Reason: callers always .await this; feature-gated branches do use await
+/// [`crate::connection::require_postgres`]), the server cannot be reached, or it is
+/// older than PostgreSQL 18.
 pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector> {
-    let pool = crate::connection::postgres_pool(db_url, "schema introspection")?;
+    let pool = crate::connection::postgres_pool(db_url, "schema introspection").await?;
     Ok(AnyIntrospector::Postgres(fraiseql_core::db::PostgresIntrospector::new(pool)))
 }
 

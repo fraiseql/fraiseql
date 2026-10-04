@@ -435,6 +435,7 @@ pub async fn compile_to_schema(
     if let Some(db_url) = opts.database {
         info!("Validating native columns for direct query arguments...");
         let pg_introspector = build_postgres_introspector(db_url)
+            .await
             .context("Failed to connect for native column validation")?;
         let db_report = validate_schema_against_database(&schema, &pg_introspector).await?;
 
@@ -458,6 +459,7 @@ pub async fn compile_to_schema(
         // libpq `key=value` included (#1403).
         info!("Validating mutation contract against the database...");
         let catalog = PgCatalog::connect(db_url)
+            .await
             .context("Failed to connect for mutation-contract validation")?;
         let contract = validate_mutation_contract(&schema, &catalog).await?;
         let mut caused_by_default: std::collections::BTreeMap<String, Vec<String>> =
@@ -1232,11 +1234,12 @@ fn warn_jsonb_preserve_mismatch(schema: &CompiledSchema) {
 ///
 /// # Errors
 ///
-/// Returns error if the pool cannot be created or the connection URL is invalid.
-pub(crate) fn build_postgres_introspector(
+/// Returns error if the connection URL is invalid, the server cannot be reached, or
+/// it is older than PostgreSQL 18.
+pub(crate) async fn build_postgres_introspector(
     db_url: &str,
 ) -> Result<fraiseql_core::db::postgres::PostgresIntrospector> {
-    let pool = crate::connection::postgres_pool(db_url, "database validation")?;
+    let pool = crate::connection::postgres_pool(db_url, "database validation").await?;
     Ok(fraiseql_core::db::postgres::PostgresIntrospector::new(pool))
 }
 

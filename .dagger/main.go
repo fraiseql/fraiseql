@@ -1147,11 +1147,17 @@ func (m *FraiseqlCi) rustBaseFor(toolchain string) *dagger.Container {
 // self-hosted workflow does. See docs/contributing/dagger-parity-notes.md Phase 04.
 
 const (
-	// pgImage pins the integration Postgres.
-	// pgvector/pgvector:pg16 = the official postgres:16 plus the pgvector
+	// pgImage pins the integration Postgres at the supported floor, PostgreSQL 18
+	// (#1452). pgvector/pgvector:pg18 = the official postgres:18 plus the pgvector
 	// extension (#386's executed vector-similarity suites CREATE and query it);
 	// mirrored by mirror-base-images.yml like every other base image.
-	pgImage = "ghcr.io/fraiseql/pgvector:pg16"
+	pgImage = "ghcr.io/fraiseql/pgvector:pg18"
+	// pgBelowFloorImage is the newest major release BELOW the floor. Every other
+	// service runs pgImage, where a connection that never asked the server its
+	// version passes as well as one that did; the floor-refusal suites need a
+	// server that is actually older.
+	pgBelowFloorImage    = "ghcr.io/fraiseql/postgres:17"
+	pgBelowFloorBindHost = "postgres-below-floor"
 	// pgUser/pgPassword/pgDatabase are the test-only Postgres credentials.
 	pgUser     = "fraiseql_test"
 	pgPassword = "fraiseql_test_password"
@@ -1408,7 +1414,7 @@ func (m *FraiseqlCi) integrationExamples(ctx context.Context, source *dagger.Dir
 		Stdout(ctx)
 }
 
-// integrationPostgres binds a seeded postgres:16 service — plus a real streaming
+// integrationPostgres binds a seeded PostgreSQL 18 service — plus a real streaming
 // standby of it (#957) — and runs the PostgreSQL integration tests that already
 // route through the harness. The harness reads DATABASE_URL (injected below) and
 // connects to the bound service; the read-replica lag suite additionally reads
@@ -1417,6 +1423,7 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 	dbURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBindHost, pgDatabase)
 	standbyURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgStandbyBindHost, pgDatabase)
 	failoverURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgFailoverBindHost, pgDatabase)
+	belowFloorURL := fmt.Sprintf("postgresql://%s:%s@%s:5432/%s", pgUser, pgPassword, pgBelowFloorBindHost, pgDatabase)
 
 	script := strings.Join([]string{
 		"set -e",
@@ -1596,6 +1603,8 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-cli --features test-postgres --test validate_sql_sources_gate -- --test-threads=1",
 		"cargo test -p fraiseql-cli --features test-postgres --test runtime_smoke -- --test-threads=1",
 		"cargo test -p fraiseql-cli --features test-postgres --test perf_against_db -- --test-threads=1",
+		// #1452: the CLI's own connections refuse PostgreSQL 17 (BELOW_FLOOR_DATABASE_URL).
+		"cargo test -p fraiseql-cli --features test-postgres --test server_version_floor_pg -- --test-threads=1",
 		// #936: the seed-fixture integrity gate runs LAST — any clobber a suite
 		// above introduced fails here, naming the fixture.
 		"echo '### cargo test -p fraiseql-db --test seed_fixture_integrity (#936 gate, runs last)'",
@@ -1616,6 +1625,8 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		WithEnvVariable("DATABASE_URL", dbURL).
 		WithEnvVariable("STANDBY_DATABASE_URL", standbyURL).
 		WithEnvVariable("FAILOVER_STANDBY_DATABASE_URL", failoverURL).
+		WithServiceBinding(pgBelowFloorBindHost, m.pgBelowFloorService()).
+		WithEnvVariable("BELOW_FLOOR_DATABASE_URL", belowFloorURL).
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)
 }
@@ -2080,10 +2091,22 @@ func (m *FraiseqlCi) integrationWire(ctx context.Context, source *dagger.Directo
 		Stdout(ctx)
 }
 
-// wirePgService is a postgres:16 with SCRAM-SHA-256 forced on (matching the auth
+// wirePgService is a pgImage Postgres with SCRAM-SHA-256 forced on (matching the auth
 // config the old wire testcontainer used). It is otherwise blank: the wire test
 // helper creates the `test` schema and seeds it on first connect (idempotent +
 // seed-if-empty), so no initdb fixtures are mounted.
+// pgBelowFloorService is a bare PostgreSQL 17, which exists to be refused: the
+// #1452 floor suites connect to it and assert the version refusal.
+func (m *FraiseqlCi) pgBelowFloorService() *dagger.Service {
+	return dag.Container().
+		From(pgBelowFloorImage).
+		WithEnvVariable("POSTGRES_USER", pgUser).
+		WithEnvVariable("POSTGRES_PASSWORD", pgPassword).
+		WithEnvVariable("POSTGRES_DB", pgDatabase).
+		WithExposedPort(5432).
+		AsService()
+}
+
 func (m *FraiseqlCi) wirePgService() *dagger.Service {
 	return dag.Container().
 		From(pgImage).
@@ -2367,7 +2390,7 @@ func (m *FraiseqlCi) apolloRouterService(supergraph string, subgraphA *dagger.Se
 		})
 }
 
-// fedPgService returns a postgres:16 seeded with a federation fixture
+// fedPgService returns a pgImage Postgres seeded with a federation fixture
 // (tests/fixtures/federation/<initSQL>) mounted into the initdb directory.
 func (m *FraiseqlCi) fedPgService(source *dagger.Directory, initSQL string) *dagger.Service {
 	initDir := dag.Directory().
@@ -2579,7 +2602,7 @@ func (m *FraiseqlCi) tlsCerts() *dagger.Directory {
 		Directory("/out")
 }
 
-// tlsPgService is a postgres:16 that enables TLS using the pre-generated server cert.
+// tlsPgService is a pgImage Postgres that enables TLS using the pre-generated server cert.
 // A small initdb script copies the cert/key into $PGDATA (as the postgres user, then
 // chmod 600), turns on ssl, and seeds v_test_entity (the wire TLS tests query it and
 // expect >= 10 rows).
@@ -2679,7 +2702,7 @@ func (m *FraiseqlCi) serverE2eService(source *dagger.Directory) *dagger.Service 
 		AsService(dagger.ContainerAsServiceOpts{Args: []string{"/usr/local/bin/fraiseql-server"}})
 }
 
-// pgE2eService is a postgres:16 seeded with the E2E fixture (docker/e2e/
+// pgE2eService is a pgImage Postgres seeded with the E2E fixture (docker/e2e/
 // init-postgres.sql — tb_e2e_user + v_users), distinct from the main integration seed.
 func (m *FraiseqlCi) pgE2eService(source *dagger.Directory) *dagger.Service {
 	initDir := dag.Directory().
@@ -3011,7 +3034,7 @@ func (m *FraiseqlCi) vaultService() *dagger.Service {
 		AsService(dagger.ContainerAsServiceOpts{UseEntrypoint: true, Args: []string{"server", "-dev"}})
 }
 
-// pgService returns a started postgres:16 service seeded with the repo's
+// pgService returns a started pgImage service seeded with the repo's
 // integration fixtures. The two SQL files are mounted into
 // /docker-entrypoint-initdb.d under numeric names so the entrypoint runs them in
 // load order (init before init-analytics) on first boot. Dagger waits for the

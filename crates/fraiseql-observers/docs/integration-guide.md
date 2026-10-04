@@ -23,7 +23,7 @@ This guide provides step-by-step integration instructions for each Phase 8 featu
 
 ### Prerequisites
 
-- PostgreSQL 12+
+- PostgreSQL 18+
 - Network access to database
 
 ### Integration Steps

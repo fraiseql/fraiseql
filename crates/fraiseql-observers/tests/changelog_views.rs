@@ -6,7 +6,7 @@
 //! ## Running
 //!
 //! ```bash
-//! docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:16
+//! docker run -d --name postgres -p 5432:5432 -e POSTGRES_PASSWORD=postgres postgres:18
 //! psql -h localhost -U postgres -c "CREATE DATABASE fraiseql_test"
 //! DATABASE_URL=postgres://postgres:postgres@localhost/fraiseql_test \
 //!   cargo test -p fraiseql-observers --test changelog_views -- --ignored

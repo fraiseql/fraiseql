@@ -45,6 +45,11 @@ drop_stale_slot() {
                                    AND NOT active)"
 }
 
+# The image's own entrypoint, which this replaces, is what creates $PGDATA. Since
+# PostgreSQL 18 the image puts it in a version-specific directory
+# (/var/lib/postgresql/18/docker) that does not exist until then.
+mkdir -p "$PGDATA"
+
 # Always re-clone. A data directory left by an earlier run belongs to an earlier
 # primary — a different cluster system identifier — and streaming from it fails
 # with a message about the timeline rather than about the stale volume.

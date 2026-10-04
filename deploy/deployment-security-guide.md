@@ -562,7 +562,7 @@ kubectl get networkpolicies -n fraiseql-production
 
 # Test database connectivity
 kubectl run -n fraiseql-production test-pod \
-  --image=postgres:16-alpine \
+  --image=postgres:18-alpine \
   --rm -it --restart=Never \
   -- psql "postgresql://user:pass@postgres:5432/db"
 

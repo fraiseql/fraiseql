@@ -69,7 +69,7 @@ async fn reader_decodes_the_advanced_watermark_and_lag() {
         return;
     }
 
-    let reader = SourceCursorReader::connect(&url).expect("connect source cursor reader");
+    let reader = SourceCursorReader::connect(&url).await.expect("connect source cursor reader");
     let rows = reader.load_cursors().await.expect("load cursors");
 
     // The advanced row: opaque JSONB value + version + a positive DB-clock lag.
@@ -92,7 +92,7 @@ async fn reader_decodes_the_advanced_watermark_and_lag() {
 #[tokio::test]
 async fn non_postgres_url_is_rejected() {
     assert!(
-        SourceCursorReader::connect("mysql://localhost/db").is_err(),
+        SourceCursorReader::connect("mysql://localhost/db").await.is_err(),
         "non-postgres URL rejected"
     );
 }

@@ -362,7 +362,7 @@ be triggered manually with a scenario selector via `workflow_dispatch`.
 
 The workflow:
 
-1. Provisions a PostgreSQL 16 service container
+1. Provisions a PostgreSQL 18 service container
 2. Builds `fraiseql-server` in release mode
 3. Initializes the test database with `tests/sql/postgres/init.sql`
 4. Starts the server against `docker/e2e/schema.compiled.json`

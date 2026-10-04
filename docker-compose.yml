@@ -107,7 +107,7 @@ services:
       - fraiseql-net
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     restart: always
     environment:
       POSTGRES_USER: fraiseql
@@ -119,7 +119,7 @@ services:
       # Host side movable for the same reason as the app's, container side fixed.
       - "127.0.0.1:${FRAISEQL_DB_HOST_PORT:-5432}:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U fraiseql"]
       interval: 5s

@@ -14,6 +14,7 @@
 
 use anyhow::{Context, Result};
 use deadpool_postgres::{Config, ManagerConfig, Pool, PoolConfig, RecyclingMethod, Runtime};
+use fraiseql_db::postgres::require_supported_server;
 use tokio_postgres::NoTls;
 
 use crate::schema::database_validator::refuse_removed_engine_url;
@@ -42,13 +43,15 @@ pub fn require_postgres(db_url: &str) -> Result<()> {
 /// A small connection pool for a CLI read, after [`require_postgres`].
 ///
 /// `purpose` completes "failed to create a PostgreSQL connection pool for …".
-/// Connection failures surface lazily, on the first query.
+/// The first connection is opened here, and the server is refused below the
+/// supported PostgreSQL floor before the command reads anything through it.
 ///
 /// # Errors
 ///
-/// Returns the [`require_postgres`] error, or one naming `purpose` when the pool
-/// cannot be created.
-pub(crate) fn postgres_pool(db_url: &str, purpose: &str) -> Result<Pool> {
+/// Returns the [`require_postgres`] error, one naming `purpose` when the pool
+/// cannot be created or cannot connect, and the floor refusal for a server older
+/// than PostgreSQL 18.
+pub(crate) async fn postgres_pool(db_url: &str, purpose: &str) -> Result<Pool> {
     require_postgres(db_url)?;
     let mut cfg = Config::new();
     cfg.url = Some(db_url.to_string());
@@ -56,8 +59,15 @@ pub(crate) fn postgres_pool(db_url: &str, purpose: &str) -> Result<Pool> {
         recycling_method: RecyclingMethod::Fast,
     });
     cfg.pool = Some(PoolConfig::new(CLI_POOL_SIZE));
-    cfg.create_pool(Some(Runtime::Tokio1), NoTls)
-        .with_context(|| format!("failed to create a PostgreSQL connection pool for {purpose}"))
+    let pool = cfg
+        .create_pool(Some(Runtime::Tokio1), NoTls)
+        .with_context(|| format!("failed to create a PostgreSQL connection pool for {purpose}"))?;
+    let client = pool
+        .get()
+        .await
+        .with_context(|| format!("failed to connect to PostgreSQL for {purpose}"))?;
+    require_supported_server(&client).await?;
+    Ok(pool)
 }
 
 #[cfg(test)]

@@ -18,7 +18,7 @@ services:
   # (locally usable, not network-reachable). Override POSTGRES_PASSWORD before any
   # non-local use.
   postgres-users:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpass}
@@ -27,7 +27,7 @@ services:
       - "127.0.0.1:5442:5432"
     volumes:
       - ./init-users.sql:/docker-entrypoint-initdb.d/init.sql:ro
-      - postgres_users_data:/var/lib/postgresql/data
+      - postgres_users_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -35,7 +35,7 @@ services:
       retries: 5
 
   postgres-orders:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpass}
@@ -44,7 +44,7 @@ services:
       - "127.0.0.1:5443:5432"
     volumes:
       - ./init-orders.sql:/docker-entrypoint-initdb.d/init.sql:ro
-      - postgres_orders_data:/var/lib/postgresql/data
+      - postgres_orders_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

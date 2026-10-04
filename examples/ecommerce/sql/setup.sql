@@ -1,5 +1,5 @@
 -- FraiseQL E-Commerce Example — database setup (Trinity pattern)
--- PostgreSQL 14+
+-- PostgreSQL 18+
 --
 -- Naming: tb_* (table), pk_* (INTEGER surrogate key), fk_* (INTEGER foreign key),
 -- id (UUID, the identity the GraphQL surface exposes), v_* (view).

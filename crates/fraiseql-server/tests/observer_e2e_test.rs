@@ -20,7 +20,7 @@
 //!   -e POSTGRES_PASSWORD=postgres \
 //!   -e POSTGRES_DB=fraiseql_test \
 //!   -p 5432:5432 \
-//!   postgres:16
+//!   postgres:18
 //! ```
 //!
 //! 2. Set environment variable:

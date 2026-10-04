@@ -146,7 +146,7 @@ ip route
 
    ```bash
    # Try connecting directly from another container/host
-   docker run --rm postgres:15 psql "$DATABASE_URL" -c "SELECT 1"
+   docker run --rm postgres:18 psql "$DATABASE_URL" -c "SELECT 1"
    ```
 
 3. **Do not look for a cache-only fallback mode — there isn't one.** FraiseQL fails

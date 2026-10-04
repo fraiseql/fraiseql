@@ -8,7 +8,7 @@
 //!
 //!    ```bash
 //!    docker run -d --name postgres -p 5432:5432 -e \
-//!      POSTGRES_PASSWORD=postgres postgres:16
+//!      POSTGRES_PASSWORD=postgres postgres:18
 //!    docker run -d --name nats -p 4222:4222 nats:latest -js
 //!    ```
 //!

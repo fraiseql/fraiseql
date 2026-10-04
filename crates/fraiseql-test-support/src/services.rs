@@ -274,15 +274,15 @@ async fn spawn_postgres() -> Option<Service> {
     let password = "fraiseql_test_password";
     let database = "test_fraiseql";
 
-    // Pinned to match the docker-compose stack (PG 16). testcontainers-modules 0.15
-    // defaults to `postgres:11-alpine`, which predates built-in `gen_random_uuid()`
-    // (PG 13): DDL that every other environment accepts failed here with 42883, and
-    // a local spawn quietly validating against PG 11 is a false-negative source.
+    // Pinned to the supported floor, PostgreSQL 18 (#1452), as the docker-compose
+    // stack is. testcontainers-modules 0.15 defaults to `postgres:11-alpine`, which
+    // the adapter now refuses outright; before the floor existed, a local spawn
+    // quietly validating against PG 11 was a false-negative source.
     let container = Postgres::default()
         .with_user(user)
         .with_password(password)
         .with_db_name(database)
-        .with_tag("16-alpine")
+        .with_tag("18-alpine")
         .start()
         .await
         .expect("failed to start local postgres testcontainer");

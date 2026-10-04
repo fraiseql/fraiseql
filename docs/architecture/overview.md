@@ -658,7 +658,7 @@ extends to all query paths.
 
 ### Database Backend
 
-PostgreSQL 14+ is the only supported backend: queries, mutations (direct-SQL and
+PostgreSQL 18+ is the only supported backend: queries, mutations (direct-SQL and
 stored-procedure `fn_*`), Relay pagination, JSONB fact tables, and LISTEN/NOTIFY
 subscriptions are all available. Non-PostgreSQL adapters were removed in v2.15.0 —
 see [Database Compatibility](../database-compatibility.md) for the record.

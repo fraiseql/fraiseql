@@ -198,6 +198,7 @@ test-integration: test-integration-postgres
 test-integration-postgres: export DATABASE_URL := postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql
 test-integration-postgres: export STANDBY_DATABASE_URL := postgresql://fraiseql_test:fraiseql_test_password@localhost:5436/test_fraiseql
 test-integration-postgres: export FAILOVER_STANDBY_DATABASE_URL := postgresql://fraiseql_test:fraiseql_test_password@localhost:5437/test_fraiseql
+test-integration-postgres: export BELOW_FLOOR_DATABASE_URL := postgresql://fraiseql_test:fraiseql_test_password@localhost:5440/test_fraiseql
 # Mirrors integrationBase/rustBase: RUST_LOG=debug is what CI's assertions run
 # under, so a test that only fails at that level must fail here too.
 test-integration-postgres: export RUST_LOG := debug
@@ -263,6 +264,7 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-cli --features test-postgres --test validate_sql_sources_gate -- --test-threads=1
 	@cargo test -p fraiseql-cli --features test-postgres --test runtime_smoke -- --test-threads=1
 	@cargo test -p fraiseql-cli --features test-postgres --test perf_against_db -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test server_version_floor_pg -- --test-threads=1
 	@echo ""
 	@echo "### seed-fixture integrity (runs last: names any clobber a suite above left)"
 	@cargo test -p fraiseql-db --features postgres,wire-backend,test-postgres --test seed_fixture_integrity -- --test-threads=1
@@ -305,7 +307,7 @@ test-leg: export CARGO_BUILD_JOBS := 8
 test-leg: export RUST_BACKTRACE := 1
 .PHONY: test-leg
 test-leg:
-	@leaked="$$(env | grep -E '^(DATABASE_URL|TEST_DATABASE_URL|STANDBY_DATABASE_URL|FAILOVER_STANDBY_DATABASE_URL|REDIS_URL|NATS_URL|VAULT_ADDR|VAULT_TOKEN)=' || true)"; \
+	@leaked="$$(env | grep -E '^(DATABASE_URL|TEST_DATABASE_URL|STANDBY_DATABASE_URL|FAILOVER_STANDBY_DATABASE_URL|BELOW_FLOOR_DATABASE_URL|REDIS_URL|NATS_URL|VAULT_ADDR|VAULT_TOKEN)=' || true)"; \
 	if [ -n "$$leaked" ]; then \
 		echo "test-leg: refusing to run — a backing-service URL is exported:"; \
 		printf '%s\n' "$$leaked" | sed 's/^/    /'; \
@@ -1552,7 +1554,7 @@ clean:
 # locally between runs — CI is unaffected because each job has a fresh Docker env).
 clean-test-containers:
 	@echo "Stopping leaked testcontainers postgres containers..."
-	@docker ps -q --filter "ancestor=postgres:11-alpine" | xargs -r docker stop
+	@docker ps -q --filter "ancestor=postgres:18-alpine" | xargs -r docker stop
 	@docker container prune -f
 	@echo "Done."
 
@@ -1692,7 +1694,7 @@ db-up:
 	@bash docker/tls/gen-certs.sh
 	@docker compose -f docker/docker-compose.test.yml up -d
 	@echo "Waiting for all services to be healthy..."
-	@for svc in postgres-test postgres-standby-test postgres-failover-test postgres-tls-test redis-test nats-test vault-test; do \
+	@for svc in postgres-test postgres-standby-test postgres-failover-test postgres-tls-test postgres-below-floor-test redis-test nats-test vault-test; do \
 		printf "  Waiting for %-20s" "$$svc..."; \
 		for i in $$(seq 1 60); do \
 			status=$$(docker inspect --format='{{.State.Health.Status}}' \

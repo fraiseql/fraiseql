@@ -4,11 +4,11 @@ name: Mirror base images to ghcr.io
 # periodically red-lines the self-hosted runner — one authenticated `fraiseql`
 # Docker Hub account is shared across the whole release+CI load, so a busy day
 # (a release + Dependabot + a few pushes) exhausts the 6-hour pull budget and every
-# `dagger call` leg fails resolving `rust:1.94` / `postgres:16` / etc.
+# `dagger call` leg fails resolving `rust:1.95` / `postgres:18` / etc.
 #
 # This job mirrors each of those images into ghcr.io/fraiseql/*, which the Dagger
 # engine then pulls with the workflow GITHUB_TOKEN (`permissions: packages: read`) and
-# NO Docker Hub involvement. All ten mirrors are PRIVATE packages; the legs authenticate
+# NO Docker Hub involvement. All the mirrors are PRIVATE packages; the legs authenticate
 # rather than pulling anonymously, unlike the public ghcr.io/apollographql/router. crane
 # copies registry-to-registry (all platforms, no local `docker pull`), so it does not
 # itself touch the self-hosted runner: it runs on a GitHub-hosted runner with a fresh
@@ -67,6 +67,10 @@ jobs:
           # MSRV), and the 1.94 pair stays so an older checkout still resolves. Docker's
           # rust:1.95 tracks the newest 1.95.x, so a leg pinned to it silently stops testing
           # the rust-version we declare the day 1.95.1 ships; .dagger pins the exact patch.
+          #
+          # PostgreSQL 18 is the supported floor (#1452): pgvector:pg18 is the service image.
+          # postgres:17 is mirrored because the floor-refusal suites need a server below it.
+          # The pg16 pair stays so an older checkout still resolves.
           IMAGES="
           docker.io/library/rust:1.94|ghcr.io/fraiseql/rust:1.94
           docker.io/library/rust:1.94.1|ghcr.io/fraiseql/rust:1.94.1
@@ -75,6 +79,9 @@ jobs:
           docker.io/library/ubuntu:24.04|ghcr.io/fraiseql/ubuntu:24.04
           docker.io/library/postgres:16|ghcr.io/fraiseql/postgres:16
           docker.io/pgvector/pgvector:pg16|ghcr.io/fraiseql/pgvector:pg16
+          docker.io/library/postgres:17|ghcr.io/fraiseql/postgres:17
+          docker.io/library/postgres:18|ghcr.io/fraiseql/postgres:18
+          docker.io/pgvector/pgvector:pg18|ghcr.io/fraiseql/pgvector:pg18
           docker.io/library/redis:7-alpine|ghcr.io/fraiseql/redis:7-alpine
           docker.io/library/nats:2.10-alpine|ghcr.io/fraiseql/nats:2.10-alpine
           docker.io/apache/kafka:4.3.1|ghcr.io/fraiseql/kafka:4.3.1
@@ -102,7 +109,7 @@ jobs:
 
       - name: Reminder — a NEW package name needs repository access, a new tag does not
         run: |
-          echo "Mirror complete. All ten mirrored packages are PRIVATE, and every Dagger leg"
+          echo "Mirror complete. All the mirrored packages are PRIVATE, and every Dagger leg"
           echo "pulls them fine: the legs authenticate with the workflow GITHUB_TOKEN under"
           echo "'permissions: packages: read'. Nothing here needs to be made public."
           echo

@@ -55,10 +55,10 @@ impl PerfReader {
     /// # Errors
     ///
     /// Returns an error if `db_url` is not a PostgreSQL connection string (see
-    /// [`crate::connection::require_postgres`]) or the pool cannot be created.
-    /// (Connection failures surface lazily on first query.)
-    pub fn connect(db_url: &str) -> Result<Self> {
-        let pool = crate::connection::postgres_pool(db_url, "perf reads")?;
+    /// [`crate::connection::require_postgres`]), the server cannot be reached, or
+    /// it is older than PostgreSQL 18.
+    pub async fn connect(db_url: &str) -> Result<Self> {
+        let pool = crate::connection::postgres_pool(db_url, "perf reads").await?;
         Ok(Self { pool })
     }
 

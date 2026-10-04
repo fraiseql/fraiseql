@@ -6,7 +6,7 @@
 //! These tests assert **row identity and row order** returned by a real pgvector
 //! instance through the real `/graphql` handler.
 //!
-//! Requires the pgvector extension (the rigs run `pgvector/pgvector:pg16`;
+//! Requires the pgvector extension (the rigs run `pgvector/pgvector:pg18`;
 //! `CREATE EXTENSION` here fails loudly on a non-pgvector server rather than
 //! self-skipping — a silently skipped suite reads as passing).
 //!

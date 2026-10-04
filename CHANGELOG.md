@@ -18,6 +18,20 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **PostgreSQL 18 is the minimum supported version (#1452).** The server, every configured
+  read replica and each CLI command that connects now ask the server its version first and
+  refuse anything below 18 with `Unsupported operation: PostgreSQL <found> is not supported:
+  FraiseQL requires PostgreSQL 18 or newer…`, naming the upgrade path. There is no override.
+  The documented floor was "14+", but CI ran only 16, so 14 and 15 were never verified.
+  FraiseQL's SQL and migrations may now use PostgreSQL 18 features without a fallback.
+  `PostgresAdapter::new`/`with_pool_config` return `FraiseQLError::Unsupported` for an older
+  server, and the CLI's catalogue readers (`PgCatalog::connect`, `PerfReader::connect`,
+  `SourceCursorReader::connect`) became `async` because they now connect eagerly.
+  **Upgrade:** move the cluster to 18 with `pg_upgrade`, or dump and restore it into an 18
+  cluster. With the official Docker image, mount the volume at `/var/lib/postgresql`, not
+  `/var/lib/postgresql/data`: the 18 image refuses the old mount point. See
+  `docs/database-compatibility.md`.
+
 - **A tenant's role can be assigned only in that tenant (#1089).** `POST /api/user-roles`
   answers `400 tenant_mismatch` when the role belongs to a tenant other than the
   assignment's. Before, it stored the assignment. A global role may still be assigned in any
