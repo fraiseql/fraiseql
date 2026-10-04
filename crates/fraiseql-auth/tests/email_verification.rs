@@ -95,7 +95,7 @@ impl Harness {
     /// `multi_provider::callback` takes for `google`/`apple`/`github`/`discord`.
     async fn trusted_signin(&self, email: &str, provider_id: &str) -> String {
         self.accounts
-            .link_or_create_user(Some(email), true, TRUSTED_PROVIDER, provider_id)
+            .link_or_create_user(None, Some(email), true, TRUSTED_PROVIDER, provider_id)
             .await
             .unwrap()
             .user_id
@@ -605,7 +605,7 @@ async fn an_untrusted_providers_verified_claim_still_cannot_reach_the_promoted_a
     // What `multi_provider::callback` passes for a provider outside the trusted set.
     let untrusted = h
         .accounts
-        .link_or_create_user(Some(VICTIM_EMAIL), false, "some_custom_idp", "idp-sub-1")
+        .link_or_create_user(None, Some(VICTIM_EMAIL), false, "some_custom_idp", "idp-sub-1")
         .await
         .unwrap();
 
@@ -640,5 +640,33 @@ async fn confirming_the_same_address_twice_is_idempotent() {
     assert_eq!(
         verified.email, VICTIM_EMAIL,
         "already-verified confirms as success, not failure"
+    );
+}
+
+/// An address is unique per account space (#1088). A tenant's account holding the address
+/// neither blocks a platform account from verifying it nor is touched by that verification.
+#[tokio::test]
+async fn an_address_held_in_a_tenant_does_not_block_a_platform_account() {
+    let h = skip_if_no_db!();
+    let tenant = uuid::Uuid::from_u128(0xaaaa_aaaa_aaaa_4aaa_8aaa_aaaa_aaaa_aaaa);
+    let in_tenant = h
+        .accounts
+        .link_or_create_user(Some(tenant), Some(VICTIM_EMAIL), true, "saml:acme", "n-1")
+        .await
+        .unwrap()
+        .user_id;
+    let platform = h.signup(VICTIM_EMAIL).await;
+    let token = h.issue_token(&platform).await;
+
+    h.auth
+        .confirm_email_verification(&platform, &token)
+        .await
+        .expect("another account space's address is not a claim on this one");
+    assert_eq!(h.account_email(&platform).await.as_deref(), Some(VICTIM_EMAIL));
+    assert_eq!(h.account_email(&in_tenant).await.as_deref(), Some(VICTIM_EMAIL));
+    assert_eq!(
+        h.linked_providers(&in_tenant).await,
+        vec!["saml:acme"],
+        "the tenant's is untouched"
     );
 }

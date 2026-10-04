@@ -214,7 +214,7 @@ fn config_idp(name: &str, tenant: Option<&str>) -> SamlIdpConfig {
     SamlIdpConfig::builder(name, SP_ENTITY, SP_ACS)
         .idp_metadata_xml(&metadata_xml(3650))
         .unwrap()
-        .tenant_id(tenant.map(str::to_string))
+        .tenant_id(tenant.map(|t| uuid::Uuid::parse_str(t).unwrap()))
         .build()
         .unwrap()
 }
@@ -302,33 +302,28 @@ async fn a_stored_idp_may_not_shadow_a_config_file_idp() {
     ));
 }
 
-// ─── The linking policy is unchanged by the store (answered gate) ────────────
+// ─── The linking policy ──────────────────────────────────────────────────────
 
+/// A stored, tenant-bound IdP's opt-in is honoured: the account store confines its merge to
+/// the IdP's tenant (#1088), so there is no longer a population the flag is inert for. The
+/// merge itself is proven against PostgreSQL in `saml_sso.rs`.
 #[tokio::test]
-async fn a_stored_tenant_bound_idp_still_cannot_email_merge() {
+async fn a_stored_tenant_bound_idp_honours_its_email_opt_in() {
     let store = skip_if_no_db!();
     let registry = SamlIdpRegistry::new().with_store(Arc::new(store));
 
     let mut trusting = spec("acme-okta", Some(tenant_a()));
     trusting.trust_asserted_email = true;
-    let record = registry.create(&trusting).await.unwrap();
-    assert!(record.trust_asserted_email, "the opt-in is recorded …");
-
+    registry.create(&trusting).await.unwrap();
     let resolved = registry.resolve("acme-okta", Some(&tenant_a().to_string())).unwrap();
-    // … and still inert. core.tb_user keys verified email GLOBALLY (uq_user_email), so a
-    // merge cannot be bounded to one tenant: honouring the opt-in here would let a
-    // tenant-bound IdP absorb another tenant's account with the same address. The store
-    // does not change that; #1088 tracks the tenant-scoped account store that would.
-    assert!(
-        !effective_saml_email_verified(&resolved),
-        "a tenant-bound IdP must stay fail-closed even when it opted in"
-    );
+    assert_eq!(resolved.tenant_id, Some(tenant_a()), "the binding survives the store");
+    assert!(effective_saml_email_verified(&resolved));
 
-    // The untenanted case is the one the opt-in is actually for, and it still works.
-    let mut single_tenant = spec("solo", None);
-    single_tenant.trust_asserted_email = true;
-    registry.create(&single_tenant).await.unwrap();
-    assert!(effective_saml_email_verified(&registry.resolve("solo", None).unwrap()));
+    let mut not_trusting = spec("beta-okta", Some(tenant_a()));
+    not_trusting.trust_asserted_email = false;
+    registry.create(&not_trusting).await.unwrap();
+    let resolved = registry.resolve("beta-okta", Some(&tenant_a().to_string())).unwrap();
+    assert!(!effective_saml_email_verified(&resolved), "the default stays off");
 }
 
 // ─── Certificate expiry ──────────────────────────────────────────────────────

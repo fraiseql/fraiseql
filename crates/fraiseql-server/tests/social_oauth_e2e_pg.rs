@@ -635,7 +635,7 @@ async fn google_and_github_full_loops_link_verified_emails() {
     // email: linking the same email from the same provider again is not new.
     let store = fraiseql_auth::PostgresAccountStore::new(pool.clone());
     let relink = store
-        .link_or_create_user(Some("alice@example.com"), true, "google", "g-sub-1")
+        .link_or_create_user(None, Some("alice@example.com"), true, "google", "g-sub-1")
         .await
         .expect("relink google identity");
     assert!(!relink.is_new, "the callback must have created the account already");
@@ -649,7 +649,7 @@ async fn google_and_github_full_loops_link_verified_emails() {
     assert_eq!(github_tokens["provider"], "github");
     let github_user = jwt_sub(github_tokens["access_token"].as_str().expect("access_token"));
     let cross = store
-        .link_or_create_user(Some("bob@example.com"), true, "google", "g-sub-bob")
+        .link_or_create_user(None, Some("bob@example.com"), true, "google", "g-sub-bob")
         .await
         .expect("cross-provider link");
     assert!(
@@ -796,7 +796,7 @@ async fn apple_form_post_loop_links_only_the_id_tokens_email() {
     // The account is keyed on the address APPLE asserted: another trusted
     // provider presenting it lands on the same account.
     let same = store
-        .link_or_create_user(Some(APPLE_EMAIL), true, "google", "g-sub-apple-twin")
+        .link_or_create_user(None, Some(APPLE_EMAIL), true, "google", "g-sub-apple-twin")
         .await
         .expect("link the id_token email");
     assert!(
@@ -809,7 +809,7 @@ async fn apple_form_post_loop_links_only_the_id_tokens_email() {
     // been honoured, this would resolve to an existing account — the account
     // takeover this provider must not permit.
     let forged = store
-        .link_or_create_user(Some(APPLE_FORGED_EMAIL), true, "google", "g-sub-victim")
+        .link_or_create_user(None, Some(APPLE_FORGED_EMAIL), true, "google", "g-sub-victim")
         .await
         .expect("link the forged email");
     assert!(
@@ -901,7 +901,13 @@ async fn discord_and_facebook_keep_unverified_emails_out_of_the_linking_space() 
     let discord_user = jwt_sub(discord["access_token"].as_str().expect("access_token"));
 
     let discord_claim = store
-        .link_or_create_user(Some(DISCORD_UNVERIFIED_EMAIL), true, "google", "g-sub-discord-twin")
+        .link_or_create_user(
+            None,
+            Some(DISCORD_UNVERIFIED_EMAIL),
+            true,
+            "google",
+            "g-sub-discord-twin",
+        )
         .await
         .expect("claim the discord address from a trusted provider");
     assert!(
@@ -926,7 +932,7 @@ async fn discord_and_facebook_keep_unverified_emails_out_of_the_linking_space() 
     let facebook_user = jwt_sub(facebook["access_token"].as_str().expect("access_token"));
 
     let facebook_claim = store
-        .link_or_create_user(Some(FACEBOOK_EMAIL), true, "google", "g-sub-facebook-twin")
+        .link_or_create_user(None, Some(FACEBOOK_EMAIL), true, "google", "g-sub-facebook-twin")
         .await
         .expect("claim the facebook address from a trusted provider");
     assert!(

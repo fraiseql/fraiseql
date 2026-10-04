@@ -18,6 +18,28 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Accounts live in an account space: the platform, or one tenant (#1088).**
+  `AccountStore::link_or_create_user` takes a leading `tenant: Option<Uuid>` and confines
+  every lookup and insert to it. Email, SCIM `userName` and `(provider, provider_id)` are
+  unique per space, so the same address in two tenants is two accounts. Only an authority of
+  a tenant puts an account in it: a tenant-bound SAML IdP (its `tenant_id`) or a
+  tenant-scoped SCIM token. Password, email OTP, phone OTP and social sign-in are platform
+  paths. As a result, a platform sign-in (for example Google) with the address of a
+  tenant's SCIM-provisioned user creates a platform account instead of linking into the
+  tenant's. `PostgresAccountStore::init` replaces the global keys in place; no row moves.
+  **Upgrade:** a custom `AccountStore` implementation adds the parameter and scopes by it;
+  a caller with no tenant authority passes `None`. A tenant's users sign in through the
+  tenant's IdP to reach their tenant account.
+- **A SAML IdP's `tenant_id` is a UUID (#1088).** `SamlIdpConfig::tenant_id` and its
+  builder take `Option<Uuid>`, and `CertExpiryWarning::tenant_id` is `Option<Uuid>`. A
+  `[saml.idps.<name>] tenant_id` that is not a UUID refuses boot, naming the IdP. It was
+  free text, which no account, SCIM token or stored IdP could share. `/auth/saml/login`'s
+  `?tenant=` is parsed the same way: a value that is not a UUID matches no IdP, and letter
+  case no longer distinguishes tenants. **Upgrade:** set the tenant's UUID.
+- **`/api/saml/idps` no longer reports `email_linking_effective` (#1088).** It equalled
+  `trust_asserted_email` for every IdP once tenant-bound IdPs could merge. **Upgrade:** read
+  `trust_asserted_email`.
+
 - **A tenant-scoped SCIM token reaches only its own tenant's users.** See Security. A token
   minted with a `tenant_id` used to read and write every row of `core.tb_user`, including
   accounts a login path created, which carry no tenant. It now sees only users whose
@@ -26,9 +48,10 @@ disagreed, and the promise was the part that was wrong.
   tenant (or no user at all) is refused with `400 invalidValue` instead of being stored.
   **Upgrade:** if a tenant's IdP must deprovision accounts that predate its provisioning
   (created by password, OTP, social or SAML sign-in, so `tenant_id IS NULL`), assign them to
-  that tenant first: `UPDATE core.tb_user SET tenant_id = '<tenant uuid>' WHERE user_id = ANY(…)`.
-  Until sign-in binds accounts to a tenant (#1088), a tenant token cannot reach accounts it did
-  not provision; its IdP sees `404` for them rather than silently managing another tenant's.
+  that tenant first: `UPDATE core.tb_user SET tenant_id = '<tenant uuid>' WHERE user_id = ANY(…)`
+  (and the same `tenant_id` on their `core.tb_auth_identity` rows). From this release on,
+  sign-in through a tenant-bound SAML IdP creates the account in the tenant (#1088), so the
+  tenant's token reaches it; platform sign-ins stay out of its reach, and its IdP sees `404`.
 
 - **`jwt:<claim>` reads the claim the token carries, on every path (#1388).** Inject
   parameters, `[session_variables]` with `source = "jwt"` and identity-enrichment `$param`
@@ -261,6 +284,17 @@ disagreed, and the promise was the part that was wrong.
   applies.
 
 ### Fixed
+
+- **`trust_asserted_email` works for tenant-bound SAML IdPs (#1088).** It was refused for
+  every IdP with a `tenant_id`, because the account store keyed verified email globally,
+  and a tenant's IdP could have merged into another tenant's account (the nOAuth class).
+  That covered every IdP #947's store exists to serve. The ACS now signs a tenant-bound
+  IdP's users into that tenant's account space, and the merge stays inside it. A tenant's
+  SCIM token can then deprovision them.
+- **Email verification no longer treats another account space's address as a claim
+  (#1088).** A tenant's account holding an address refused a platform account's
+  verification of the same address, and the refusal revealed that the address exists in
+  some tenant. Password sign-in and reset likewise answer only platform credentials.
 
 - **`after:mutation` functions fire for every transport, only on success, and see the whole
   row (#1340, #1440).** Dispatch read the response in the GraphQL and REST handlers, which got

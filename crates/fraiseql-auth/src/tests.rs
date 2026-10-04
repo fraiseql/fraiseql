@@ -724,7 +724,7 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         let result = store
-            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
+            .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
 
@@ -744,11 +744,11 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         let r1 = store
-            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
+            .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
         let r2 = store
-            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
+            .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
 
@@ -761,11 +761,11 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         let r1 = store
-            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
+            .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
         let r2 = store
-            .link_or_create_user(Some("alice@example.com"), true, "google", "google-456")
+            .link_or_create_user(None, Some("alice@example.com"), true, "google", "google-456")
             .await
             .unwrap();
 
@@ -782,11 +782,11 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         let r_a = store
-            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-alice")
+            .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh-alice")
             .await
             .unwrap();
         let r_b = store
-            .link_or_create_user(Some("bob@example.com"), true, "github", "gh-bob")
+            .link_or_create_user(None, Some("bob@example.com"), true, "github", "gh-bob")
             .await
             .unwrap();
 
@@ -799,11 +799,11 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         let r1 = store
-            .link_or_create_user(Some("Alice@Example.COM"), true, "github", "gh-123")
+            .link_or_create_user(None, Some("Alice@Example.COM"), true, "github", "gh-123")
             .await
             .unwrap();
         let r2 = store
-            .link_or_create_user(Some("alice@example.com"), true, "google", "google-456")
+            .link_or_create_user(None, Some("alice@example.com"), true, "google", "google-456")
             .await
             .unwrap();
 
@@ -815,15 +815,15 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         let r1 = store
-            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-1")
+            .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh-1")
             .await
             .unwrap();
         let r2 = store
-            .link_or_create_user(Some("alice@example.com"), true, "google", "gg-2")
+            .link_or_create_user(None, Some("alice@example.com"), true, "google", "gg-2")
             .await
             .unwrap();
         let r3 = store
-            .link_or_create_user(Some("alice@example.com"), true, "azure_ad", "az-3")
+            .link_or_create_user(None, Some("alice@example.com"), true, "azure_ad", "az-3")
             .await
             .unwrap();
 
@@ -847,7 +847,7 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         let created = store
-            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
+            .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
         let account = store.get_account(&created.user_id).await.unwrap();
@@ -860,20 +860,20 @@ mod account_linking_tests {
         let store = InMemoryAccountStore::new();
 
         store
-            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
+            .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
         store
-            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
+            .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
         store
-            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
+            .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
 
         let r = store
-            .link_or_create_user(Some("alice@example.com"), true, "github", "gh-123")
+            .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh-123")
             .await
             .unwrap();
         let account = store.get_account(&r.user_id).await.unwrap();

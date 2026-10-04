@@ -92,10 +92,8 @@ pub struct SamlIdpRecord {
     pub idp_entity_id:          String,
     /// Whether a verified assertion's email may be used as a cross-provider linking key.
     ///
-    /// Stored, but subject to [`super::effective_saml_email_verified`] — which keeps
-    /// returning `false` for every tenant-bound IdP while the account store keys verified
-    /// email globally. For a stored, tenant-bound IdP this flag is therefore recorded and
-    /// **inert**; see that function's docs and #1088.
+    /// See [`super::effective_saml_email_verified`]: for a tenant-bound IdP the merge is
+    /// confined to its tenant (#1088).
     pub trust_asserted_email:   bool,
     /// Earliest `NotAfter` among the IdP's signing certificates, parsed from the metadata.
     pub certificate_expires_at: Option<DateTime<Utc>>,
@@ -233,7 +231,7 @@ fn derive(spec: &SamlIdpSpec) -> Result<(String, Option<DateTime<Utc>>), SamlErr
         spec.acs_url.clone(),
     )
     .idp_metadata_xml(&spec.metadata_xml)?
-    .tenant_id(spec.tenant_id.map(|t| t.to_string()))
+    .tenant_id(spec.tenant_id)
     .trust_asserted_email(spec.trust_asserted_email)
     .build()?;
 

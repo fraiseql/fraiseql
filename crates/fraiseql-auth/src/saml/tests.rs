@@ -434,17 +434,18 @@ fn effective_email_verified_optin_single_tenant() {
 }
 
 #[tokio::test]
-async fn effective_email_verified_optin_multitenant_fails_closed() {
+async fn effective_email_verified_optin_tenant_bound_is_honored() {
     let test_idp = new_idp();
     let config = SamlIdpConfig::builder("test-idp", SP_ENTITY, SP_ACS)
         .idp_parts(IDP_ENTITY, IDP_SSO, test_idp.cert.der_data())
         .unwrap()
         .trust_asserted_email(true)
-        .tenant_id(Some("tenant-a".to_string()))
+        .tenant_id(Some(uuid::Uuid::parse_str(TENANT_A).unwrap()))
         .build()
         .unwrap();
-    // Multi-tenant intent the global store can't bound -> fail closed even though opted in.
-    assert!(!effective_saml_email_verified(&config));
+    // The merge is confined to the IdP's tenant by the account store (#1088), so the opt-in
+    // means the same thing for a tenant-bound IdP as for an untenanted one.
+    assert!(effective_saml_email_verified(&config));
 }
 
 #[tokio::test]
@@ -452,12 +453,12 @@ async fn default_saml_does_not_merge_into_trusted_email_account() {
     let store = InMemoryAccountStore::new();
     // A Google account verified the email globally.
     let google = store
-        .link_or_create_user(Some("shared@example.com"), true, "google", "g-1")
+        .link_or_create_user(None, Some("shared@example.com"), true, "google", "g-1")
         .await
         .unwrap();
     // A SAML login (default: email_verified=false) for the same email keys on (saml, NameID).
     let saml = store
-        .link_or_create_user(Some("shared@example.com"), false, "saml:okta", "nameid-1")
+        .link_or_create_user(None, Some("shared@example.com"), false, "saml:okta", "nameid-1")
         .await
         .unwrap();
     assert_ne!(google.user_id, saml.user_id, "default SAML must not merge on email");
@@ -467,12 +468,12 @@ async fn default_saml_does_not_merge_into_trusted_email_account() {
 async fn optin_single_tenant_saml_merges_with_trusted_email_account() {
     let store = InMemoryAccountStore::new();
     let google = store
-        .link_or_create_user(Some("shared@example.com"), true, "google", "g-1")
+        .link_or_create_user(None, Some("shared@example.com"), true, "google", "g-1")
         .await
         .unwrap();
     // Opt-in single-tenant -> email_verified=true -> merges on the verified email.
     let saml = store
-        .link_or_create_user(Some("shared@example.com"), true, "saml:okta", "nameid-1")
+        .link_or_create_user(None, Some("shared@example.com"), true, "saml:okta", "nameid-1")
         .await
         .unwrap();
     assert_eq!(google.user_id, saml.user_id, "opt-in single-tenant should link on email");
@@ -483,12 +484,12 @@ async fn pre_hijack_unverified_local_is_not_absorbed_by_trusted_saml() {
     let store = InMemoryAccountStore::new();
     // Attacker pre-seeds an UNVERIFIED local account under the victim's email.
     let local = store
-        .link_or_create_user(Some("victim@example.com"), false, "local", "victim@example.com")
+        .link_or_create_user(None, Some("victim@example.com"), false, "local", "victim@example.com")
         .await
         .unwrap();
     // Victim later signs in via an opt-in trusted SAML IdP (email_verified=true).
     let saml = store
-        .link_or_create_user(Some("victim@example.com"), true, "saml:okta", "nameid-1")
+        .link_or_create_user(None, Some("victim@example.com"), true, "saml:okta", "nameid-1")
         .await
         .unwrap();
     assert_ne!(
@@ -522,7 +523,7 @@ fn tenant_config(cert: &CertificateDer, idp_name: &str, tenant: Option<&str>) ->
     let mut config = SamlIdpConfig::builder(idp_name, SP_ENTITY, SP_ACS)
         .idp_parts(IDP_ENTITY, IDP_SSO, cert.der_data())
         .unwrap()
-        .tenant_id(tenant.map(str::to_string))
+        .tenant_id(tenant.map(|t| uuid::Uuid::parse_str(t).unwrap()))
         .build()
         .unwrap();
     config.sp.allowed_signature_algorithms = None;
@@ -595,6 +596,32 @@ async fn login_refuses_a_tenant_qualified_request_for_an_untenanted_idp() {
         login_status(state, &format!("idp=global-idp&tenant={TENANT_A}")).await,
         axum::http::StatusCode::NOT_FOUND,
         "an untenanted IdP must not answer a tenant-qualified request"
+    );
+}
+
+/// A claimed tenant that is not a UUID names no tenant, so it matches no IdP. It must not be
+/// read as "no tenant", which would hand the caller the untenanted IdP.
+#[tokio::test]
+async fn login_refuses_a_tenant_that_does_not_parse() {
+    let test_idp = new_idp();
+    let (state, _) = auth_state_with(tenant_config(&test_idp.cert, "global-idp", None));
+    assert_eq!(
+        login_status(state, "idp=global-idp&tenant=not-a-uuid").await,
+        axum::http::StatusCode::NOT_FOUND,
+        "an unparseable tenant must not fall back to the untenanted IdP"
+    );
+}
+
+/// A UUID is one tenant whatever its letter case.
+#[tokio::test]
+async fn login_matches_a_tenant_regardless_of_uuid_case() {
+    const LOWER: &str = "abcdefab-cdef-4abc-8def-abcdefabcdef";
+    let test_idp = new_idp();
+    let (state, _) = auth_state_with(tenant_config(&test_idp.cert, "acme-okta", Some(LOWER)));
+    assert_eq!(
+        login_status(state, &format!("idp=acme-okta&tenant={}", LOWER.to_uppercase())).await,
+        axum::http::StatusCode::SEE_OTHER,
+        "the same UUID in another letter case is the same tenant"
     );
 }
 
@@ -672,6 +699,49 @@ async fn acs_happy_path_creates_session() {
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert!(json.get("access_token").is_some(), "session token returned: {json}");
     assert_eq!(json.get("provider").and_then(|p| p.as_str()), Some("saml:test-idp"));
+}
+
+/// The ACS signs a tenant-bound IdP's user into that tenant's account space (#1088): the
+/// same identity is a known re-login inside the tenant and a stranger on the platform.
+#[tokio::test]
+async fn acs_creates_the_account_in_the_idps_tenant() {
+    use axum::{extract::Form, response::IntoResponse};
+    let test_idp = new_idp();
+    let tenant = uuid::Uuid::parse_str(TENANT_A).unwrap();
+    let accounts = Arc::new(InMemoryAccountStore::new());
+    let state_store = Arc::new(InMemoryStateStore::new());
+    let state = SamlAuthState::new(state_store.clone(), Arc::new(InMemorySessionStore::new()))
+        .with_idp(tenant_config(&test_idp.cert, "test-idp", Some(TENANT_A)))
+        .with_user_store(accounts.clone());
+
+    let relay = "relay-token-tenant".to_string();
+    let now = crate::session::unix_now().unwrap();
+    state_store
+        .store(relay.clone(), format!("test-idp\n{TENANT_A}\n{REQ_ID}"), now + 600)
+        .await
+        .unwrap();
+    let b64 = signed_response(&test_idp, "nameid-123", SP_ENTITY, SP_ACS, REQ_ID, &[]);
+    let resp = saml_acs(
+        axum::extract::State(state),
+        Form(AcsForm {
+            saml_response: b64,
+            relay_state:   relay,
+        }),
+    )
+    .await
+    .into_response();
+    assert_eq!(resp.status(), axum::http::StatusCode::OK, "ACS should succeed");
+
+    let in_tenant = accounts
+        .link_or_create_user(Some(tenant), None, false, "saml:test-idp", "nameid-123")
+        .await
+        .unwrap();
+    assert!(!in_tenant.is_new, "the ACS must have created the account in the IdP's tenant");
+    let on_platform = accounts
+        .link_or_create_user(None, None, false, "saml:test-idp", "nameid-123")
+        .await
+        .unwrap();
+    assert!(on_platform.is_new, "the ACS must not have created a platform account");
 }
 
 #[tokio::test]

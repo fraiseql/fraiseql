@@ -467,7 +467,10 @@ pub async fn otp_verify(
     // instead of a parallel one.
     let user_id = match &state.account_store {
         Some(accounts) => {
-            match accounts.link_or_create_user(Some(&email), true, OTP_PROVIDER, &email).await {
+            match accounts
+                .link_or_create_user(None, Some(&email), true, OTP_PROVIDER, &email)
+                .await
+            {
                 Ok(result) => result.user_id,
                 Err(e) => {
                     tracing::error!(error = %e, "OTP account resolution failed");

@@ -480,14 +480,20 @@ impl LocalPasswordAuthenticator {
                 })?
                 .get("email");
 
-        let claimed_by_other =
-            sqlx::query("SELECT 1 AS claimed FROM core.tb_user WHERE email = $1 AND pk_user <> $2")
-                .bind(&email)
-                .bind(fk_user)
-                .fetch_optional(&mut *tx)
-                .await
-                .map_err(|e| db_error("check email ownership", &e))?
-                .is_some();
+        // An address is unique per account space (#1088), so only an account in this one's
+        // space can hold a claim on it.
+        let claimed_by_other = sqlx::query(
+            "SELECT 1 AS claimed FROM core.tb_user o \
+             WHERE o.email = $1 AND o.pk_user <> $2 \
+               AND o.tenant_id IS NOT DISTINCT FROM \
+                   (SELECT u.tenant_id FROM core.tb_user u WHERE u.pk_user = $2)",
+        )
+        .bind(&email)
+        .bind(fk_user)
+        .fetch_optional(&mut *tx)
+        .await
+        .map_err(|e| db_error("check email ownership", &e))?
+        .is_some();
 
         let decision = decide_promotion(account_email.as_deref(), &email, claimed_by_other);
 

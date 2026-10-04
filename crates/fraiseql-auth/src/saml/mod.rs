@@ -35,11 +35,12 @@
 //!
 //! A successfully verified assertion maps to a local user via the existing
 //! [`crate::account_linking::AccountStore::link_or_create_user`] keyed on
-//! `("saml:<idp>", NameID)`. Whether the asserted email is allowed to *merge* across
+//! `("saml:<idp>", NameID)`, in the IdP's own account space (its `tenant_id`, or the
+//! platform; #1088). Whether the asserted email is allowed to *merge* across
 //! providers is governed by [`effective_saml_email_verified`] — opt-in per IdP, default
 //! off, and **never** by registering the IdP into the global
-//! [`crate::account_linking::TrustedEmailProviders`] set. See that function's docs for the
-//! tenant-bounding rule that prevents a cross-tenant nOAuth merge.
+//! [`crate::account_linking::TrustedEmailProviders`] set. See that function's docs for why
+//! the account space is what prevents a cross-tenant nOAuth merge.
 
 mod config;
 mod handler;

@@ -223,7 +223,7 @@ async fn start_is_a_silent_noop_for_an_oauth_only_user() {
     // A user with a verified email but only a social identity — no local credential.
     let accounts: Arc<dyn AccountStore> = Arc::new(PostgresAccountStore::new(h.admin.clone()));
     accounts
-        .link_or_create_user(Some(EMAIL), true, "google", "google-subject-123")
+        .link_or_create_user(None, Some(EMAIL), true, "google", "google-subject-123")
         .await
         .unwrap();
 
@@ -489,4 +489,26 @@ async fn rls_denies_reset_tokens_by_default_and_scopes_per_tenant() {
         "with the tenant GUC the reader sees exactly that tenant's token"
     );
     assert_eq!(reader_token_count(&h.admin, None).await, 2, "owner bypasses RLS");
+}
+
+/// Reset is a platform path too (#1088): a tenant account's local credential is not a
+/// reset target, and the refusal is the same silent no-op as an unknown address.
+#[tokio::test]
+async fn start_is_a_silent_noop_for_a_tenant_accounts_local_credential() {
+    let h = skip_if_no_db!();
+    let user_id = h.auth.signup(EMAIL, "correct horse battery staple").await.unwrap();
+    for table in ["core.tb_user", "core.tb_auth_identity"] {
+        sqlx::query(&format!(
+            "UPDATE {table} SET tenant_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' WHERE user_id = $1"
+        ))
+        .bind(&user_id)
+        .execute(&h.admin)
+        .await
+        .unwrap();
+    }
+
+    h.auth.start_password_reset(EMAIL).await.unwrap();
+    settle().await;
+    assert!(h.sender.sent.lock().unwrap().is_empty(), "no email for a tenant's credential");
+    assert_eq!(token_count(&h.admin).await, 0, "no token row for a tenant's credential");
 }

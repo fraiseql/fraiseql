@@ -430,7 +430,7 @@ async fn otp_identity_resolves_through_the_account_store() {
     );
     let store = fraiseql_auth::PostgresAccountStore::new(pool.clone());
     let cross = store
-        .link_or_create_user(Some("dave@example.com"), true, "google", "g-sub-dave")
+        .link_or_create_user(None, Some("dave@example.com"), true, "google", "g-sub-dave")
         .await
         .expect("cross-provider link");
     assert!(!cross.is_new, "a verified same-email login must land on the OTP account");

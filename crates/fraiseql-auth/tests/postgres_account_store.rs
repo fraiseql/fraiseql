@@ -56,7 +56,7 @@ macro_rules! skip_if_no_db {
 async fn first_sign_in_creates_new_account() {
     let (store, _admin) = skip_if_no_db!();
     let r = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_123")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_123")
         .await
         .unwrap();
     assert!(r.is_new, "first sign-in creates a new account");
@@ -68,11 +68,11 @@ async fn first_sign_in_creates_new_account() {
 async fn github_then_google_same_verified_email_links_to_one_user() {
     let (store, _admin) = skip_if_no_db!();
     let gh = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_123")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_123")
         .await
         .unwrap();
     let gg = store
-        .link_or_create_user(Some("alice@example.com"), true, "google", "google_456")
+        .link_or_create_user(None, Some("alice@example.com"), true, "google", "google_456")
         .await
         .unwrap();
     assert!(!gg.is_new, "second sign-in does not create a new account");
@@ -87,11 +87,11 @@ async fn github_then_google_same_verified_email_links_to_one_user() {
 async fn different_emails_create_different_accounts() {
     let (store, _admin) = skip_if_no_db!();
     let a = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "gh_a")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh_a")
         .await
         .unwrap();
     let b = store
-        .link_or_create_user(Some("bob@example.com"), true, "github", "gh_b")
+        .link_or_create_user(None, Some("bob@example.com"), true, "github", "gh_b")
         .await
         .unwrap();
     assert_ne!(a.user_id, b.user_id);
@@ -101,11 +101,11 @@ async fn different_emails_create_different_accounts() {
 async fn same_provider_twice_does_not_duplicate_link() {
     let (store, _admin) = skip_if_no_db!();
     store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_123")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_123")
         .await
         .unwrap();
     let second = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_123")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_123")
         .await
         .unwrap();
     assert!(!second.is_new);
@@ -119,12 +119,12 @@ async fn multiple_providers_link_to_single_account() {
     let (store, _admin) = skip_if_no_db!();
     for (provider, id) in [("github", "gh1"), ("google", "gg1"), ("okta", "ok1")] {
         store
-            .link_or_create_user(Some("alice@example.com"), true, provider, id)
+            .link_or_create_user(None, Some("alice@example.com"), true, provider, id)
             .await
             .unwrap();
     }
     let r = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "gh1")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh1")
         .await
         .unwrap();
     let record = store.get_account(&r.user_id).await.unwrap();
@@ -141,7 +141,7 @@ async fn multiple_providers_link_to_single_account() {
 async fn get_account_returns_record_and_errors_on_unknown() {
     let (store, _admin) = skip_if_no_db!();
     let r = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_123")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_123")
         .await
         .unwrap();
     let record = store.get_account(&r.user_id).await.unwrap();
@@ -160,11 +160,11 @@ async fn get_account_returns_record_and_errors_on_unknown() {
 #[tokio::test]
 async fn h26_emailless_identities_do_not_collapse() {
     let (store, _admin) = skip_if_no_db!();
-    let a = store.link_or_create_user(None, false, "github", "gh-1").await.unwrap();
-    let b = store.link_or_create_user(None, false, "google", "gg-2").await.unwrap();
+    let a = store.link_or_create_user(None, None, false, "github", "gh-1").await.unwrap();
+    let b = store.link_or_create_user(None, None, false, "google", "gg-2").await.unwrap();
     assert_ne!(a.user_id, b.user_id, "email-less identities must not collapse (H26)");
 
-    let again = store.link_or_create_user(None, false, "github", "gh-1").await.unwrap();
+    let again = store.link_or_create_user(None, None, false, "github", "gh-1").await.unwrap();
     assert_eq!(again.user_id, a.user_id);
     assert!(!again.is_new);
 
@@ -176,11 +176,11 @@ async fn h26_emailless_identities_do_not_collapse() {
 async fn h26_unverified_email_does_not_link_across_providers() {
     let (store, _admin) = skip_if_no_db!();
     let a = store
-        .link_or_create_user(Some("victim@example.com"), false, "github", "gh-1")
+        .link_or_create_user(None, Some("victim@example.com"), false, "github", "gh-1")
         .await
         .unwrap();
     let b = store
-        .link_or_create_user(Some("victim@example.com"), false, "evil", "evil-1")
+        .link_or_create_user(None, Some("victim@example.com"), false, "evil", "evil-1")
         .await
         .unwrap();
     assert_ne!(a.user_id, b.user_id, "unverified email must not link (H26)");
@@ -190,12 +190,15 @@ async fn h26_unverified_email_does_not_link_across_providers() {
 #[tokio::test]
 async fn h26_empty_and_whitespace_email_treated_as_emailless() {
     let (store, _admin) = skip_if_no_db!();
-    let a = store.link_or_create_user(Some(""), true, "github", "gh-1").await.unwrap();
-    let b = store.link_or_create_user(Some("   "), true, "google", "gg-2").await.unwrap();
+    let a = store.link_or_create_user(None, Some(""), true, "github", "gh-1").await.unwrap();
+    let b = store
+        .link_or_create_user(None, Some("   "), true, "google", "gg-2")
+        .await
+        .unwrap();
     assert_ne!(a.user_id, b.user_id, "empty/whitespace email is not a linking key (H26)");
 }
 
-// ── RLS — deny-by-default + forward-compatible per-tenant read ─────────────────
+// ── RLS — deny-by-default + per-tenant read ─────────────────────────────────────
 
 /// Connect as the `NOBYPASSRLS` reader role (credentials swapped onto the same DSN).
 async fn reader_pool(admin_url: &str) -> PgPool {
@@ -260,10 +263,10 @@ async fn rls_denies_by_default_and_scopes_per_tenant() {
 
     // The store writes a NULL-tenant (single-tenant) user…
     store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "gh-1")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh-1")
         .await
         .unwrap();
-    // …and a tenant-stamped row goes in directly (forward-compat path).
+    // …and a tenant-stamped row goes in directly.
     let tenant = "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa";
     sqlx::query("INSERT INTO core.tb_user (user_id, email, tenant_id) VALUES ($1, $2, $3::uuid)")
         .bind("user_tenant_a")
@@ -283,4 +286,148 @@ async fn rls_denies_by_default_and_scopes_per_tenant() {
 
     // The owner (admin) bypasses RLS and sees everything.
     assert_eq!(count(&admin, None).await, 2, "owner bypasses RLS");
+}
+
+// ── Tenant-scoped accounts (#1088) ─────────────────────────────────────────────
+
+const TENANT_T: uuid::Uuid = uuid::Uuid::from_u128(0x7777_7777_7777_4777_8777_7777_7777_7777);
+const TENANT_U: uuid::Uuid = uuid::Uuid::from_u128(0x5555_5555_5555_4555_8555_5555_5555_5555);
+
+/// The same verified email in two tenants and on the platform is three accounts: a merge
+/// never crosses an account space.
+#[tokio::test]
+async fn the_same_verified_email_is_one_account_per_tenant() {
+    let (store, _admin) = skip_if_no_db!();
+    let email = Some("alice@example.com");
+    let in_t = store
+        .link_or_create_user(Some(TENANT_T), email, true, "saml:t", "t-1")
+        .await
+        .unwrap();
+    let in_u = store
+        .link_or_create_user(Some(TENANT_U), email, true, "saml:u", "u-1")
+        .await
+        .unwrap();
+    let platform = store.link_or_create_user(None, email, true, "google", "g-1").await.unwrap();
+
+    assert!(in_u.is_new, "tenant U must not merge into tenant T's account");
+    assert!(platform.is_new, "the platform must not merge into a tenant's account");
+    assert_ne!(in_t.user_id, in_u.user_id);
+    assert_ne!(in_t.user_id, platform.user_id);
+    assert_ne!(in_u.user_id, platform.user_id);
+
+    // Within one tenant the verified email still merges.
+    let again_t = store
+        .link_or_create_user(Some(TENANT_T), email, true, "github", "gh-1")
+        .await
+        .unwrap();
+    assert_eq!(again_t.user_id, in_t.user_id, "a verified email merges inside its tenant");
+    assert!(again_t.linked);
+}
+
+/// A provider identity is scoped too: the same `(provider, provider_id)` under two tenants
+/// is two accounts, and a re-login finds the one in its own tenant.
+#[tokio::test]
+async fn a_provider_identity_is_scoped_to_its_tenant() {
+    let (store, _admin) = skip_if_no_db!();
+    let in_t = store
+        .link_or_create_user(Some(TENANT_T), None, false, "saml:x", "n-1")
+        .await
+        .unwrap();
+    let in_u = store
+        .link_or_create_user(Some(TENANT_U), None, false, "saml:x", "n-1")
+        .await
+        .unwrap();
+    let platform = store.link_or_create_user(None, None, false, "saml:x", "n-1").await.unwrap();
+    assert!(in_u.is_new, "an identity in tenant U must not resolve to tenant T's account");
+    assert!(platform.is_new, "a platform identity must not resolve to a tenant's account");
+    assert_ne!(in_t.user_id, in_u.user_id);
+
+    let relogin = store
+        .link_or_create_user(Some(TENANT_T), None, false, "saml:x", "n-1")
+        .await
+        .unwrap();
+    assert_eq!(relogin.user_id, in_t.user_id);
+    assert!(!relogin.is_new && !relogin.linked, "a re-login is idempotent within its tenant");
+}
+
+/// The tenant is recorded on both rows, which is what SCIM scoping and RLS read.
+#[tokio::test]
+async fn the_tenant_is_stored_on_the_account_and_the_identity() {
+    let (store, admin) = skip_if_no_db!();
+    let r = store
+        .link_or_create_user(Some(TENANT_T), Some("bob@example.com"), true, "saml:t", "t-9")
+        .await
+        .unwrap();
+    let user_tenant: Option<uuid::Uuid> =
+        sqlx::query_scalar("SELECT tenant_id FROM core.tb_user WHERE user_id = $1")
+            .bind(&r.user_id)
+            .fetch_one(&admin)
+            .await
+            .unwrap();
+    let identity_tenant: Option<uuid::Uuid> =
+        sqlx::query_scalar("SELECT tenant_id FROM core.tb_auth_identity WHERE user_id = $1")
+            .bind(&r.user_id)
+            .fetch_one(&admin)
+            .await
+            .unwrap();
+    assert_eq!(user_tenant, Some(TENANT_T));
+    assert_eq!(identity_tenant, Some(TENANT_T));
+}
+
+/// A database initialised by an earlier release holds the GLOBAL keys. `init` must replace
+/// them in place, or the first second-tenant sign-in with a shared email is a unique
+/// violation.
+#[tokio::test]
+async fn init_replaces_the_global_keys_of_an_existing_database() {
+    let (store, admin) = skip_if_no_db!();
+    sqlx::raw_sql(
+        "DROP INDEX IF EXISTS core.uq_user_email; \
+         DROP INDEX IF EXISTS core.uq_user_email_platform; \
+         DROP INDEX IF EXISTS core.uq_user_email_tenant; \
+         DROP INDEX IF EXISTS core.uq_user_user_name; \
+         DROP INDEX IF EXISTS core.uq_user_user_name_platform; \
+         DROP INDEX IF EXISTS core.uq_user_user_name_tenant; \
+         DROP INDEX IF EXISTS core.uq_auth_identity_platform; \
+         DROP INDEX IF EXISTS core.uq_auth_identity_tenant; \
+         ALTER TABLE core.tb_auth_identity \
+             DROP CONSTRAINT IF EXISTS tb_auth_identity_provider_provider_id_key; \
+         CREATE UNIQUE INDEX uq_user_email ON core.tb_user (email) WHERE email IS NOT NULL; \
+         CREATE UNIQUE INDEX uq_user_user_name ON core.tb_user (user_name) \
+             WHERE user_name IS NOT NULL; \
+         ALTER TABLE core.tb_auth_identity \
+             ADD CONSTRAINT tb_auth_identity_provider_provider_id_key \
+             UNIQUE (provider, provider_id);",
+    )
+    .execute(&admin)
+    .await
+    .unwrap();
+
+    store.init().await.unwrap();
+
+    let email = Some("carol@example.com");
+    store
+        .link_or_create_user(Some(TENANT_T), email, true, "saml:x", "n-1")
+        .await
+        .unwrap();
+    store
+        .link_or_create_user(Some(TENANT_U), email, true, "saml:x", "n-1")
+        .await
+        .expect("after init, a shared email and identity in a second tenant must not collide");
+    for (user_name, tenant) in [("carol", TENANT_T), ("carol", TENANT_U)] {
+        sqlx::query("INSERT INTO core.tb_user (user_id, user_name, tenant_id) VALUES ($1, $2, $3)")
+            .bind(format!("user_{}", uuid::Uuid::new_v4().as_simple()))
+            .bind(user_name)
+            .bind(tenant)
+            .execute(&admin)
+            .await
+            .expect("a SCIM userName is unique per tenant, not globally");
+    }
+
+    // The platform keeps today's rule: one account per email and per identity.
+    store.link_or_create_user(None, email, true, "saml:x", "n-1").await.unwrap();
+    let dup = sqlx::query("INSERT INTO core.tb_user (user_id, email) VALUES ('user_dup', $1)")
+        .bind("carol@example.com")
+        .execute(&admin)
+        .await;
+    assert!(dup.is_err(), "the platform email key must stay unique");
 }

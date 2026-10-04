@@ -326,7 +326,7 @@ pub async fn verify_sms_otp(
     // email, so it is keyed on (provider="phone", provider_id=e164) — the phone number
     // itself is the stable identity.
     let user_id = if let Some(account_store) = &state.user_store {
-        match account_store.link_or_create_user(None, false, "phone", &e164).await {
+        match account_store.link_or_create_user(None, None, false, "phone", &e164).await {
             Ok(result) => result.user_id,
             Err(e) => {
                 tracing::error!(error = %e, "account store lookup failed");

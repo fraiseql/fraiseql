@@ -46,7 +46,7 @@ fn idp_cert() -> CertificateDer {
     .unwrap()
 }
 
-fn idp_config(cert: &CertificateDer, trust: bool, tenant: Option<String>) -> SamlIdpConfig {
+fn idp_config(cert: &CertificateDer, trust: bool, tenant: Option<uuid::Uuid>) -> SamlIdpConfig {
     SamlIdpConfig::builder(
         "test-idp",
         "https://sp.example.com/metadata",
@@ -99,12 +99,13 @@ async fn default_saml_does_not_merge_into_trusted_account() {
 
     // A Google account verified the email.
     let google = store
-        .link_or_create_user(Some("shared@example.com"), true, "google", "g-1")
+        .link_or_create_user(None, Some("shared@example.com"), true, "google", "g-1")
         .await
         .unwrap();
     // A default SAML login (policy → email_verified=false) keys on (saml:test-idp, NameID).
     let saml = store
         .link_or_create_user(
+            config.tenant_id,
             Some("shared@example.com"),
             effective_saml_email_verified(&config),
             &config.provider_key(),
@@ -123,11 +124,12 @@ async fn optin_single_tenant_saml_merges_with_trusted_account() {
     assert!(effective_saml_email_verified(&config), "opt-in single-tenant is honored");
 
     let google = store
-        .link_or_create_user(Some("shared@example.com"), true, "google", "g-1")
+        .link_or_create_user(None, Some("shared@example.com"), true, "google", "g-1")
         .await
         .unwrap();
     let saml = store
         .link_or_create_user(
+            config.tenant_id,
             Some("shared@example.com"),
             effective_saml_email_verified(&config),
             &config.provider_key(),
@@ -138,28 +140,43 @@ async fn optin_single_tenant_saml_merges_with_trusted_account() {
     assert_eq!(google.user_id, saml.user_id, "opt-in single-tenant should link on email");
 }
 
+/// A tenant-bound IdP that opted in merges on the verified email — inside its own tenant
+/// only (#1088). The platform account and another tenant's account with the same address
+/// are untouched: that is the nOAuth class the policy used to refuse the opt-in to avoid.
 #[tokio::test]
-async fn optin_multitenant_saml_fails_closed() {
+async fn optin_tenant_bound_saml_merges_only_inside_its_tenant() {
     let store = skip_if_no_db!();
     let cert = idp_cert();
-    let config = idp_config(&cert, true, Some("tenant-a".to_string()));
-    // Opted in, but tenant-bound → the global store can't bound it → fail closed.
-    assert!(!effective_saml_email_verified(&config));
+    let tenant_a = uuid::Uuid::from_u128(0xaaaa_aaaa_aaaa_4aaa_8aaa_aaaa_aaaa_aaaa);
+    let tenant_b = uuid::Uuid::from_u128(0xbbbb_bbbb_bbbb_4bbb_8bbb_bbbb_bbbb_bbbb);
+    let config = idp_config(&cert, true, Some(tenant_a));
+    assert!(effective_saml_email_verified(&config), "the opt-in is honoured");
 
-    let google = store
-        .link_or_create_user(Some("shared@example.com"), true, "google", "g-1")
+    let email = Some("shared@example.com");
+    let platform = store.link_or_create_user(None, email, true, "google", "g-1").await.unwrap();
+    let other_tenant = store
+        .link_or_create_user(Some(tenant_b), email, true, "saml:rival", "r-1")
         .await
         .unwrap();
+    let own_tenant = store
+        .link_or_create_user(Some(tenant_a), email, true, "github", "gh-1")
+        .await
+        .unwrap();
+
     let saml = store
         .link_or_create_user(
-            Some("shared@example.com"),
+            config.tenant_id,
+            email,
             effective_saml_email_verified(&config),
             &config.provider_key(),
             "nameid-1",
         )
         .await
         .unwrap();
-    assert_ne!(google.user_id, saml.user_id, "tenant-bound opt-in must not merge globally");
+    assert_eq!(saml.user_id, own_tenant.user_id, "it merges into its own tenant's account");
+    assert!(saml.linked);
+    assert_ne!(saml.user_id, platform.user_id, "it must not reach the platform account");
+    assert_ne!(saml.user_id, other_tenant.user_id, "it must not reach another tenant's account");
 }
 
 #[tokio::test]
@@ -170,12 +187,13 @@ async fn pre_hijack_unverified_local_is_not_absorbed_by_trusted_saml() {
 
     // Attacker pre-seeds an unverified local account under the victim's email.
     let local = store
-        .link_or_create_user(Some("victim@example.com"), false, "local", "victim@example.com")
+        .link_or_create_user(None, Some("victim@example.com"), false, "local", "victim@example.com")
         .await
         .unwrap();
     // Victim later signs in via the opt-in trusted SAML IdP.
     let saml = store
         .link_or_create_user(
+            config.tenant_id,
             Some("victim@example.com"),
             effective_saml_email_verified(&config),
             &config.provider_key(),

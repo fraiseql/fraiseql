@@ -185,7 +185,7 @@ async fn users_round_trip_and_meet_the_accounts_other_paths_resolve() {
     // verified email lands on this very account rather than creating a second one.
     let linked = rig
         .accounts
-        .link_or_create_user(Some("carol@example.com"), true, "google", "g-carol")
+        .link_or_create_user(None, Some("carol@example.com"), true, "google", "g-carol")
         .await
         .unwrap();
     assert_eq!(linked.user_id, created.id, "SCIM provisions the account other paths reach");

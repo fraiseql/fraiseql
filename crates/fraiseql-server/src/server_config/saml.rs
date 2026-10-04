@@ -202,9 +202,9 @@ pub struct SamlIdpEntry {
     #[serde(default)]
     pub metadata_xml: Option<String>,
 
-    /// Tenant this `IdP` provisions for (`None` = single-tenant deployment).
-    /// Load-bearing for the email-linking fail-closed policy: a tenant-bound
-    /// `IdP` never email-merges through the v1 global account store.
+    /// Tenant this `IdP` is the authority for (`None` = single-tenant deployment). A UUID:
+    /// the account space its sign-ins create accounts in, and the only space its
+    /// `trust_asserted_email` merge can reach (#1088). Boot refuses any other value.
     #[serde(default)]
     pub tenant_id: Option<String>,
 

@@ -457,7 +457,7 @@ async fn pre_hijack_unverified_local_account_is_not_absorbed_by_trusted_sign_in(
     // Pre-seed an unverified local identity (as local_password::signup would:
     // email_verified=false).
     let local = accounts
-        .link_or_create_user(Some("victim@example.com"), false, "local", "victim@example.com")
+        .link_or_create_user(None, Some("victim@example.com"), false, "local", "victim@example.com")
         .await
         .unwrap();
 

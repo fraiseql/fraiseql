@@ -19,7 +19,7 @@ Two tables in the `core` schema, created idempotently by `PostgresAccountStore::
 | Table | Purpose |
 | --- | --- |
 | `core.tb_user` | One row per stable account: `user_id` (the `"user_<uuid>"` identifier shared with `_system.sessions.user_id`), optional verified `email`, `tenant_id`. |
-| `core.tb_auth_identity` | One row per linked `(provider, provider_id)`, FK to `tb_user`. `UNIQUE (provider, provider_id)` makes a provider login resolve to exactly one account. |
+| `core.tb_auth_identity` | One row per linked `(provider, provider_id)`, FK to `tb_user`. `(provider, provider_id)` is unique per account space, so a provider login resolves to exactly one account in it. |
 
 Account linking is identical to the in-memory semantics: a **verified, non-empty**
 email links across providers; an absent/unverified email keys the identity on
@@ -36,10 +36,29 @@ the change-log RLS (observers migration `12`):
   the `fraiseql.tenant_id` GUC to a row's tenant.
 - `REVOKE ALL … FROM PUBLIC` — never world-readable.
 
-v1 operates **single-tenant** (`tenant_id` left `NULL`, since the `AccountStore`
-trait carries no tenant parameter). Per-tenant scoping — threading `tenant_id` through
-the trait and stamping it on write — is a forward-compatible extension; the schema and
-RLS policies are already in place for it.
+## Account spaces (#1088)
+
+`tenant_id` partitions accounts. `NULL` is the **platform**; a UUID is that **tenant**.
+Email, SCIM `userName` and `(provider, provider_id)` are each unique *within* a space, so
+the same address in two tenants is two accounts, and an email merge never crosses a space.
+`link_or_create_user(tenant, …)` confines every lookup and insert to `tenant`.
+
+Who decides the space is the security property. A tenant account is created only by an
+**authority of that tenant**:
+
+| Path | Account space |
+| --- | --- |
+| SAML sign-in through a tenant-bound IdP | that IdP's `tenant_id` |
+| SCIM provisioning with a tenant-scoped token | that token's tenant |
+| Password, email OTP, phone OTP, social OAuth | platform |
+
+Nothing the client sends picks the space. A header or a body field naming a tenant would let
+anyone sign up into, or link into, any tenant.
+
+`init` migrates an older database in place: it drops the global keys an earlier release
+created and installs the per-space pairs (two partial unique indexes each, because the
+PostgreSQL 14 floor has no `NULLS NOT DISTINCT`). No row moves, and existing accounts stay
+platform accounts.
 
 ## Usage
 

@@ -440,6 +440,80 @@ async fn configured_but_broken_shapes_refuse_to_boot() {
     drop_scratch(&url, db).await;
 }
 
+/// A config-file `IdP`'s `tenant_id` is the account space its sign-ins land in (#1088), keyed
+/// by UUID in every auth table. Boot refuses anything else, naming the `IdP`; a UUID is
+/// honoured, in any letter case, by the login route's tenant scoping.
+#[tokio::test]
+async fn a_config_file_idp_tenant_must_be_a_uuid_and_is_honoured() {
+    let Some(url) = database_url_or_skip("config_file_idp_tenant") else {
+        return;
+    };
+    std::env::set_var(SECRET_ENV, HS256_SECRET);
+    let db = "fraiseql_saml_config_tenant";
+    let pool = scratch_pool(&url, db).await;
+    let scratch_url = with_database(&url, db);
+    let with_tenant = |tenant: &str| {
+        let mut config = saml_config(idp_metadata_xml());
+        config.database_url.clone_from(&scratch_url);
+        if let Some(saml) = config.saml.as_mut() {
+            for entry in saml.idps.values_mut() {
+                entry.tenant_id = Some(tenant.to_string());
+            }
+        }
+        config
+    };
+
+    let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("adapter"));
+    let result =
+        Box::pin(Server::new(with_tenant("acme"), empty_schema(), adapter, Some(pool.clone())))
+            .await;
+    let msg = result.err().map(|e| e.to_string()).unwrap_or_default();
+    assert!(
+        msg.contains("test-idp") && msg.contains("UUID"),
+        "a non-UUID tenant must refuse to boot, naming the IdP: {msg}"
+    );
+
+    let tenant = "abcdefab-cdef-4abc-8def-abcdefabcdef";
+    let adapter = Arc::new(PostgresAdapter::new(&scratch_url).await.expect("adapter"));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.expect("bind");
+    let port = listener.local_addr().expect("local addr").port();
+    let server = Box::pin(Server::new(
+        with_tenant(&tenant.to_uppercase()),
+        empty_schema(),
+        adapter,
+        Some(pool.clone()),
+    ))
+    .await
+    .expect("a UUID tenant must boot");
+    let (tx, rx) = tokio::sync::oneshot::channel::<()>();
+    let handle = tokio::spawn(async move {
+        server
+            .serve_on_listener(listener, async {
+                let _ = rx.await;
+            })
+            .await
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .build()
+        .expect("client");
+    let base = format!("http://127.0.0.1:{port}");
+
+    let own = client
+        .get(format!("{base}/auth/saml/login?idp=test-idp&tenant={tenant}"))
+        .send()
+        .await
+        .expect("login");
+    assert!(own.status().is_redirection(), "its own tenant must start SSO: {}", own.status());
+    let bare = client.get(format!("{base}/auth/saml/login?idp=test-idp")).send().await.unwrap();
+    assert_eq!(bare.status(), 404, "a tenant-bound IdP must not serve the untenanted path");
+
+    let _ = tx.send(());
+    let _ = handle.await;
+    drop_scratch(&url, db).await;
+}
+
 /// #948, the operator's path: a deployment with an `SP` key pair signs its `AuthnRequest`s
 /// and publishes metadata an `IdP` can consume.
 #[tokio::test]

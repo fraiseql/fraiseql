@@ -801,6 +801,17 @@ impl Server {
                             )));
                         },
                     };
+                    // The tenant is the account space this IdP signs people into, keyed by
+                    // UUID in every auth table; a value that is not one would be a tenant no
+                    // account, SCIM token or stored IdP could ever share.
+                    let tenant_id =
+                        entry.tenant_id.as_deref().map(uuid::Uuid::parse_str).transpose().map_err(
+                            |e| {
+                                ServerError::ConfigError(format!(
+                                    "[saml.idps.{name}] tenant_id must be a UUID: {e}"
+                                ))
+                            },
+                        )?;
                     let mut idp_builder = fraiseql_auth::saml::SamlIdpConfig::builder(
                         name.clone(),
                         entry.sp_entity_id.clone(),
@@ -812,7 +823,7 @@ impl Server {
                             "[saml.idps.{name}] metadata does not parse: {e}"
                         ))
                     })?
-                    .tenant_id(entry.tenant_id.clone())
+                    .tenant_id(tenant_id)
                     .trust_asserted_email(entry.trust_asserted_email);
                     // The SP key pair is deployment-level, so a config-file IdP gets the
                     // same signing/decryption posture as a stored one (#948).

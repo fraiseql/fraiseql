@@ -16,9 +16,17 @@
 //! observers migration `12`). RLS is `ENABLE`, not `FORCE`: this store runs as the
 //! table owner and bypasses the policies — exactly like the executor/poller for the
 //! change-log — while any other (non-`BYPASSRLS`) role reads zero rows unless it sets
-//! the `fraiseql.tenant_id` GUC. v1 operates single-tenant (`tenant_id` NULL, since the
-//! [`AccountStore`](super::AccountStore) trait carries no tenant parameter); per-tenant
-//! scoping is a forward-compatible extension.
+//! the `fraiseql.tenant_id` GUC.
+//!
+//! # Account spaces (#1088)
+//!
+//! `tenant_id` partitions accounts: `NULL` is the platform, a UUID is that tenant. Every key
+//! is unique *within* a space — email, SCIM `userName`, `(provider, provider_id)` — so the
+//! same address in two tenants is two accounts, and a merge can never cross a space. The
+//! supported floor is PostgreSQL 14, which has no `NULLS NOT DISTINCT`, so each key is a
+//! pair of partial unique indexes (platform rows; tenant rows). [`SCHEMA_SQL`] drops the
+//! global keys an earlier release created, so `init` migrates an existing database in place
+//! without moving any row: existing accounts are platform accounts, as before.
 
 use async_trait::async_trait;
 use sqlx::{Row, postgres::PgPool};
@@ -44,7 +52,13 @@ CREATE TABLE IF NOT EXISTS core.tb_user (
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_email ON core.tb_user (email) WHERE email IS NOT NULL;
+-- Keys are unique per account space (#1088): see the module docs. The global index an
+-- earlier release created is replaced in place.
+DROP INDEX IF EXISTS core.uq_user_email;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_email_platform
+    ON core.tb_user (email) WHERE tenant_id IS NULL AND email IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_email_tenant
+    ON core.tb_user (tenant_id, email) WHERE tenant_id IS NOT NULL AND email IS NOT NULL;
 
 -- SCIM 2.0 provisioning (#946). ADD COLUMN IF NOT EXISTS so a database that predates
 -- provisioning upgrades in place.
@@ -63,8 +77,11 @@ ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS display_name TEXT;
 -- clock tick would share a version.
 ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS version     BIGINT NOT NULL DEFAULT 1;
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_user_name
-    ON core.tb_user (user_name) WHERE user_name IS NOT NULL;
+DROP INDEX IF EXISTS core.uq_user_user_name;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_user_name_platform
+    ON core.tb_user (user_name) WHERE tenant_id IS NULL AND user_name IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_user_name_tenant
+    ON core.tb_user (tenant_id, user_name) WHERE tenant_id IS NOT NULL AND user_name IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_user_external_id
     ON core.tb_user (external_id) WHERE external_id IS NOT NULL;
 
@@ -76,9 +93,14 @@ CREATE TABLE IF NOT EXISTS core.tb_auth_identity (
     provider    TEXT NOT NULL,
     provider_id TEXT NOT NULL,
     tenant_id   UUID,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (provider, provider_id)
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+ALTER TABLE core.tb_auth_identity
+    DROP CONSTRAINT IF EXISTS tb_auth_identity_provider_provider_id_key;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_auth_identity_platform
+    ON core.tb_auth_identity (provider, provider_id) WHERE tenant_id IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_auth_identity_tenant
+    ON core.tb_auth_identity (tenant_id, provider, provider_id) WHERE tenant_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_auth_identity_user    ON core.tb_auth_identity (fk_user);
 CREATE INDEX IF NOT EXISTS idx_auth_identity_user_id ON core.tb_auth_identity (user_id);
 
@@ -164,6 +186,7 @@ fn db_error(context: &str, e: &sqlx::Error) -> AuthError {
 impl AccountStore for PostgresAccountStore {
     async fn link_or_create_user(
         &self,
+        tenant: Option<Uuid>,
         email: Option<&str>,
         email_verified: bool,
         provider: &str,
@@ -171,13 +194,15 @@ impl AccountStore for PostgresAccountStore {
     ) -> Result<AccountLinkResult> {
         let mut tx = self.db.begin().await.map_err(|e| db_error("begin tx", &e))?;
 
-        // 1. A known (provider, provider_id) is an idempotent re-login: same user, no new link. The
-        //    UNIQUE(provider, provider_id) constraint makes this the authoritative lookup.
+        // 1. A known (provider, provider_id) in this account space is an idempotent re-login: same
+        //    user, no new link. The per-space unique index makes this the authoritative lookup.
         if let Some(row) = sqlx::query(
-            "SELECT user_id FROM core.tb_auth_identity WHERE provider = $1 AND provider_id = $2",
+            "SELECT user_id FROM core.tb_auth_identity \
+             WHERE provider = $1 AND provider_id = $2 AND tenant_id IS NOT DISTINCT FROM $3",
         )
         .bind(provider)
         .bind(provider_id)
+        .bind(tenant)
         .fetch_optional(&mut *tx)
         .await
         .map_err(|e| db_error("lookup identity", &e))?
@@ -196,39 +221,43 @@ impl AccountStore for PostgresAccountStore {
         //    (H26).
         let verified_email = email.map(normalize_email).filter(|e| !e.is_empty() && email_verified);
 
-        // 3. Find the email-keyed user, or create a fresh account.
+        // 3. Find the email-keyed user in this account space, or create a fresh account.
         let (user_id, pk_user, is_new, linked) = if let Some(em) = verified_email.as_deref() {
-            if let Some(row) =
-                sqlx::query("SELECT pk_user, user_id FROM core.tb_user WHERE email = $1")
-                    .bind(em)
-                    .fetch_optional(&mut *tx)
-                    .await
-                    .map_err(|e| db_error("lookup user by email", &e))?
+            if let Some(row) = sqlx::query(
+                "SELECT pk_user, user_id FROM core.tb_user \
+                 WHERE email = $1 AND tenant_id IS NOT DISTINCT FROM $2",
+            )
+            .bind(em)
+            .bind(tenant)
+            .fetch_optional(&mut *tx)
+            .await
+            .map_err(|e| db_error("lookup user by email", &e))?
             {
                 let pk_user: i64 = row.get("pk_user");
                 let user_id: String = row.get("user_id");
                 (user_id, pk_user, false, true)
             } else {
                 let user_id = new_user_id();
-                let pk_user = insert_user(&mut tx, &user_id, Some(em)).await?;
+                let pk_user = insert_user(&mut tx, &user_id, Some(em), tenant).await?;
                 (user_id, pk_user, true, false)
             }
         } else {
             let user_id = new_user_id();
-            let pk_user = insert_user(&mut tx, &user_id, None).await?;
+            let pk_user = insert_user(&mut tx, &user_id, None, tenant).await?;
             (user_id, pk_user, true, false)
         };
 
         // 4. Link the provider identity (new for this account by construction — step 1 ruled out an
         //    existing one).
         sqlx::query(
-            "INSERT INTO core.tb_auth_identity (fk_user, user_id, provider, provider_id) \
-             VALUES ($1, $2, $3, $4)",
+            "INSERT INTO core.tb_auth_identity (fk_user, user_id, provider, provider_id, tenant_id) \
+             VALUES ($1, $2, $3, $4, $5)",
         )
         .bind(pk_user)
         .bind(&user_id)
         .bind(provider)
         .bind(provider_id)
+        .bind(tenant)
         .execute(&mut *tx)
         .await
         .map_err(|e| db_error("insert identity", &e))?;
@@ -292,17 +321,20 @@ impl AccountStore for PostgresAccountStore {
     }
 }
 
-/// Insert a new user row and return its `pk_user`.
+/// Insert a new user row in `tenant`'s account space and return its `pk_user`.
 async fn insert_user(
     tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
     user_id: &str,
     email: Option<&str>,
+    tenant: Option<Uuid>,
 ) -> Result<i64> {
-    let row =
-        sqlx::query("INSERT INTO core.tb_user (user_id, email) VALUES ($1, $2) RETURNING pk_user")
-            .bind(user_id)
-            .bind(email)
-            .fetch_one(&mut **tx)
+    let row = sqlx::query(
+        "INSERT INTO core.tb_user (user_id, email, tenant_id) VALUES ($1, $2, $3) RETURNING pk_user",
+    )
+    .bind(user_id)
+    .bind(email)
+    .bind(tenant)
+    .fetch_one(&mut **tx)
             .await
             .map_err(|e| db_error("insert user", &e))?;
     Ok(row.get("pk_user"))

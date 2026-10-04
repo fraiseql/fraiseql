@@ -46,9 +46,10 @@ the #411 identity tables it FK-references):
 
 It mirrors the #411 tables exactly: Trinity `pk_`/`fk_`/`id` columns and deny-by-default
 RLS (`ENABLE`, not `FORCE`; the owning store bypasses, any other non-`BYPASSRLS` role
-reads zero rows without the `fraiseql.tenant_id` GUC; `REVOKE ALL … FROM PUBLIC`). v1 is
-single-tenant (`tenant_id` left `NULL`); per-tenant scoping is a forward-compatible
-extension, identical to the identity store.
+reads zero rows without the `fraiseql.tenant_id` GUC; `REVOKE ALL … FROM PUBLIC`).
+Password sign-in, reset and email verification are **platform** paths: they create and reach
+platform accounts only, and an address held by a tenant's account neither answers nor blocks
+them (see [account spaces](identity-store.md#account-spaces-1088)).
 
 ## Security design
 

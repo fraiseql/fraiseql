@@ -42,51 +42,44 @@ pub struct SamlIdpManagementState {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SamlIdpDto {
     /// Surrogate row identifier.
-    pub id: Uuid,
+    pub id:                     Uuid,
     /// Logical `IdP` name — globally unique, and the `saml:<name>` provider namespace.
-    pub idp_name: String,
+    pub idp_name:               String,
     /// Tenant binding (`null` = untenanted).
-    pub tenant_id: Option<Uuid>,
+    pub tenant_id:              Option<Uuid>,
     /// SP entity ID.
-    pub sp_entity_id: String,
+    pub sp_entity_id:           String,
     /// Assertion Consumer Service URL.
-    pub acs_url: String,
+    pub acs_url:                String,
     /// The `IdP` metadata XML as stored.
-    pub metadata_xml: String,
+    pub metadata_xml:           String,
     /// `IdP` entity ID, parsed from the metadata.
-    pub idp_entity_id: String,
-    /// Email-linking opt-in as stored.
-    pub trust_asserted_email: bool,
-    /// Whether the opt-in is actually honoured. `false` for every tenant-bound `IdP` while
-    /// the account store keys verified email globally — reported so an operator is never
-    /// left believing a recorded flag is in effect (#1088).
-    pub email_linking_effective: bool,
+    pub idp_entity_id:          String,
+    /// Email-linking opt-in. Honoured for every `IdP`; a tenant-bound `IdP`'s merge is
+    /// confined to its tenant (#1088).
+    pub trust_asserted_email:   bool,
     /// Earliest signing-certificate expiry, parsed from the metadata.
     pub certificate_expires_at: Option<chrono::DateTime<chrono::Utc>>,
     /// Row creation time.
-    pub created_at: chrono::DateTime<chrono::Utc>,
+    pub created_at:             chrono::DateTime<chrono::Utc>,
     /// Last update time.
-    pub updated_at: chrono::DateTime<chrono::Utc>,
+    pub updated_at:             chrono::DateTime<chrono::Utc>,
 }
 
 impl From<SamlIdpRecord> for SamlIdpDto {
     fn from(r: SamlIdpRecord) -> Self {
-        // Mirrors `effective_saml_email_verified`: opted in AND provably bounded to one
-        // tenant, which the global-email account store can only guarantee when unbound.
-        let email_linking_effective = r.trust_asserted_email && r.tenant_id.is_none();
         Self {
-            id: r.id,
-            idp_name: r.idp_name,
-            tenant_id: r.tenant_id,
-            sp_entity_id: r.sp_entity_id,
-            acs_url: r.acs_url,
-            metadata_xml: r.metadata_xml,
-            idp_entity_id: r.idp_entity_id,
-            trust_asserted_email: r.trust_asserted_email,
-            email_linking_effective,
+            id:                     r.id,
+            idp_name:               r.idp_name,
+            tenant_id:              r.tenant_id,
+            sp_entity_id:           r.sp_entity_id,
+            acs_url:                r.acs_url,
+            metadata_xml:           r.metadata_xml,
+            idp_entity_id:          r.idp_entity_id,
+            trust_asserted_email:   r.trust_asserted_email,
             certificate_expires_at: r.certificate_expires_at,
-            created_at: r.created_at,
-            updated_at: r.updated_at,
+            created_at:             r.created_at,
+            updated_at:             r.updated_at,
         }
     }
 }

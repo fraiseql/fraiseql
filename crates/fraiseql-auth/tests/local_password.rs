@@ -337,3 +337,31 @@ async fn rls_denies_credentials_by_default_and_scopes_per_tenant() {
     // The owner (admin) bypasses RLS and sees both.
     assert_eq!(reader_credential_count(&admin, None).await, 2, "owner bypasses RLS");
 }
+
+/// Re-home an account into a tenant, as if a tenant authority had created it (#1088).
+async fn move_to_tenant(pool: &PgPool, user_id: &str) {
+    for table in ["core.tb_user", "core.tb_auth_identity"] {
+        sqlx::query(&format!(
+            "UPDATE {table} SET tenant_id = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' WHERE user_id = $1"
+        ))
+        .bind(user_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+}
+
+/// The password route is a platform path (#1088): a local credential that lives in a
+/// tenant's account space is not reachable through it, even with the right password.
+#[tokio::test]
+async fn a_tenant_accounts_local_credential_is_not_a_platform_login() {
+    let (auth, _accounts, admin) = skip_if_no_db!();
+    let user_id = auth.signup("ada@example.com", PASSWORD).await.unwrap();
+    move_to_tenant(&admin, &user_id).await;
+
+    let refused = auth.login("ada@example.com", PASSWORD).await;
+    assert!(
+        matches!(refused, Err(AuthError::InvalidCredentials)),
+        "a tenant's local identity must not answer a platform login: {refused:?}"
+    );
+}

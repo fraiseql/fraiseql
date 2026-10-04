@@ -683,6 +683,7 @@ async fn complete_callback(
     let local_user_id = if let Some(account_store) = &state.user_store {
         match account_store
             .link_or_create_user(
+                None,
                 user_info.email.as_deref(),
                 email_verified,
                 &provider_name,

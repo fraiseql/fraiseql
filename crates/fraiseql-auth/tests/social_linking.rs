@@ -60,6 +60,7 @@ async fn untrusted_provider_verified_email_does_not_merge_into_trusted_account()
 
     let google = store
         .link_or_create_user(
+            None,
             Some("victim@example.com"),
             effective_verified(&trusted, "google", true),
             "google",
@@ -71,6 +72,7 @@ async fn untrusted_provider_verified_email_does_not_merge_into_trusted_account()
 
     let evil = store
         .link_or_create_user(
+            None,
             Some("victim@example.com"),
             effective_verified(&trusted, "evilcorp", true), // claims verified, but untrusted
             "evilcorp",
@@ -95,6 +97,7 @@ async fn two_trusted_providers_same_verified_email_link_to_one_account() {
 
     let google = store
         .link_or_create_user(
+            None,
             Some("user@example.com"),
             effective_verified(&trusted, "google", true),
             "google",
@@ -104,6 +107,7 @@ async fn two_trusted_providers_same_verified_email_link_to_one_account() {
         .unwrap();
     let apple = store
         .link_or_create_user(
+            None,
             Some("user@example.com"),
             effective_verified(&trusted, "apple", true),
             "apple",

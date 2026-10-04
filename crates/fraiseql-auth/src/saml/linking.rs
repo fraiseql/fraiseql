@@ -22,30 +22,21 @@ pub fn saml_provider_key(idp_name: &str) -> String {
 ///
 /// # Policy (fail-closed, #381 — opt-in per IdP, default OFF)
 ///
-/// Returns `true` only when **both** hold:
+/// Returns `true` only when the operator opted this IdP in (`trust_asserted_email = true`).
 ///
-/// 1. the operator opted this IdP in (`trust_asserted_email = true`), and
-/// 2. the merge is provably bounded to a single tenant — i.e. no `tenant_id` is configured on the
-///    IdP.
-///
-/// # Why the tenant clause is load-bearing
+/// # Why a tenant-bound IdP may merge (#1088)
 ///
 /// A SAML IdP only has authority over *its own* tenant's users; "Okta is trusted" is
-/// meaningless globally because every Okta tenant asserts whatever its admin configured.
-/// The v1 account store keys verified email **globally** (`email:<normalized>`) and cannot
-/// restrict a merge to one tenant. So if an IdP is bound to a tenant (multi-tenant intent),
-/// honoring its email here could merge a verified assertion for `victim@x.com` into a
-/// *different* tenant's Google/Apple account that shares that address — cross-tenant
-/// account takeover (the nOAuth class) reintroduced behind an opt-in switch. We therefore
-/// fail closed for tenant-bound IdPs until per-tenant account scoping lands (#1088). In a
-/// single-tenant deployment (`tenant_id = None`) the global store *is* the one tenant, so
-/// the opt-in merge is within-tenant and safe.
+/// meaningless globally, because every Okta tenant asserts whatever its admin configured.
+/// The merge is safe because it cannot leave that authority: the ACS passes the IdP's
+/// `tenant_id` as the account space, and the account store confines every lookup to it.
+/// A verified assertion for `victim@x.com` from tenant A's IdP can reach only tenant A's
+/// accounts, never a platform account or another tenant's (the nOAuth class). An untenanted
+/// IdP's space is the platform, as before.
 ///
-/// The per-tenant IdP store (#947) does **not** change this. It makes tenant-bound IdPs
-/// storable and manageable, which is precisely the population this clause refuses; the flag
-/// is recorded, reported as `email_linking_effective: false` by `/api/saml/idps`, and inert.
-/// Relaxing the clause requires the tenant-scoped account store in #1088 first — on its own
-/// it is a one-boolean cross-tenant takeover.
+/// Until #1088 the store keyed email globally. This function then refused every
+/// tenant-bound IdP, and the flag was inert for the whole population #947's IdP store
+/// serves.
 ///
 /// This function never registers the IdP into the global
 /// [`crate::account_linking::TrustedEmailProviders`] set; SAML trust is computed here and
@@ -60,5 +51,5 @@ pub fn saml_provider_key(idp_name: &str) -> String {
 /// victim's email is never absorbed by a later trusted SAML sign-in.
 #[must_use]
 pub const fn effective_saml_email_verified(idp: &SamlIdpConfig) -> bool {
-    idp.trust_asserted_email && idp.tenant_id.is_none()
+    idp.trust_asserted_email
 }

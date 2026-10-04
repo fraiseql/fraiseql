@@ -86,6 +86,17 @@ pub trait AccountStore: Send + Sync {
     ///   collapse two distinct provider identities into one account, and can never link into
     ///   another user's email-keyed account (H26).
     ///
+    /// # Tenant (security-critical)
+    ///
+    /// `tenant` is the account space the identity lives in: `None` is the platform, `Some(t)`
+    /// is tenant `t`. Every lookup and every insert is confined to it, so an identity — and a
+    /// verified email — in one space never reaches an account in another. The same email in
+    /// two tenants is two accounts (#1088).
+    ///
+    /// The caller must take `tenant` from an authority *of that tenant* (a tenant-bound SAML
+    /// `IdP`'s own binding), never from anything the client sent. A login path with no such
+    /// authority passes `None`.
+    ///
     /// # Semantics
     ///
     /// - If no account exists for the resolved identity key: creates a new account, stores the
@@ -99,6 +110,7 @@ pub trait AccountStore: Send + Sync {
     /// Returns [`AuthError::DatabaseError`] if the backing store fails.
     async fn link_or_create_user(
         &self,
+        tenant: Option<Uuid>,
         email: Option<&str>,
         email_verified: bool,
         provider: &str,
@@ -135,10 +147,12 @@ pub struct AccountLinkResult {
 ///
 /// Uses `DashMap` for lock-free concurrent reads and fine-grained write locking.
 pub struct InMemoryAccountStore {
-    /// identity key → user_id (fast lookup). The key is either `email:<normalized>`
-    /// for verified-email identities or `provider:<provider>\u{1f}<provider_id>` for
-    /// email-less / unverified identities — see [`identity_key`].
-    by_identity: DashMap<String, String>,
+    /// (account space, identity key) → user_id (fast lookup). The space is the tenant
+    /// (`None` = platform), so a key never resolves across spaces (#1088). The key is either
+    /// `email:<normalized>` for verified-email identities or
+    /// `provider:<provider>\u{1f}<provider_id>` for email-less / unverified identities — see
+    /// [`identity_key`].
+    by_identity: DashMap<(Option<Uuid>, String), String>,
     /// user_id → AccountRecord
     by_user_id:  DashMap<String, AccountRecord>,
 }
@@ -177,6 +191,7 @@ impl Default for InMemoryAccountStore {
 impl AccountStore for InMemoryAccountStore {
     async fn link_or_create_user(
         &self,
+        tenant: Option<Uuid>,
         email: Option<&str>,
         email_verified: bool,
         provider: &str,
@@ -187,7 +202,7 @@ impl AccountStore for InMemoryAccountStore {
         // anything else is keyed on (provider, provider_id) so distinct identities can
         // never collapse (H26).
         let verified_email = email.map(normalize_email).filter(|e| !e.is_empty() && email_verified);
-        let key = identity_key(verified_email.as_deref(), provider, provider_id);
+        let key = (tenant, identity_key(verified_email.as_deref(), provider, provider_id));
         let new_link = ProviderLink {
             provider:    provider.to_string(),
             provider_id: provider_id.to_string(),
@@ -198,7 +213,7 @@ impl AccountStore for InMemoryAccountStore {
             let mut record = self.by_user_id.get_mut(&existing_user_id).ok_or_else(|| {
                 AuthError::DatabaseError {
                     message: format!(
-                        "account store inconsistency: identity '{key}' maps to missing user_id \
+                        "account store inconsistency: identity {key:?} maps to missing user_id \
                          '{existing_user_id}'"
                     ),
                 }

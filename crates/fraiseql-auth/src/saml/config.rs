@@ -13,6 +13,7 @@ use samael::{
     metadata::EntityDescriptor,
     service_provider::{ServiceProvider, ServiceProviderBuilder},
 };
+use uuid::Uuid;
 
 use super::SamlError;
 
@@ -144,12 +145,12 @@ pub struct SamlIdpConfig {
     /// Logical IdP name. Used as the account-store provider key `"saml:<idp_name>"` and in
     /// audit logs. Must be stable for an IdP across restarts.
     pub idp_name:             String,
-    /// Tenant this IdP provisions for. `None` = single-tenant deployment.
+    /// Tenant this IdP is the authority for. `None` = the platform (single-tenant deployment).
     ///
-    /// Load-bearing for [`super::effective_saml_email_verified`]: when set, the v1
-    /// global-email account store cannot bound an email merge to this tenant, so email
-    /// auto-linking fails closed even if `trust_asserted_email` is on.
-    pub tenant_id:            Option<String>,
+    /// The account space every sign-in through this IdP lives in: its accounts, and any email
+    /// merge, are confined to this tenant (#1088). A UUID, like every tenant column of the
+    /// account, SCIM and IdP stores.
+    pub tenant_id:            Option<Uuid>,
     /// Whether a verified assertion's email may be used as a cross-provider auto-linking
     /// key. Default `false` (fail-closed). See [`super::effective_saml_email_verified`].
     pub trust_asserted_email: bool,
@@ -361,7 +362,7 @@ pub struct SamlIdpConfigBuilder {
     sp_entity_id:         String,
     acs_url:              String,
     idp_metadata:         Option<EntityDescriptor>,
-    tenant_id:            Option<String>,
+    tenant_id:            Option<Uuid>,
     trust_asserted_email: bool,
     attribute_mapping:    SamlAttributeMapping,
     sp_key_pair:          Option<SpKeyPair>,
@@ -403,7 +404,7 @@ impl SamlIdpConfigBuilder {
 
     /// Bind this IdP to a tenant. See [`SamlIdpConfig::tenant_id`].
     #[must_use]
-    pub fn tenant_id(mut self, tenant_id: Option<String>) -> Self {
+    pub const fn tenant_id(mut self, tenant_id: Option<Uuid>) -> Self {
         self.tenant_id = tenant_id;
         self
     }

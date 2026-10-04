@@ -53,9 +53,13 @@ token's (an untenanted token sees untenanted users). Another tenant's user is `4
 route, and a group member outside the tenant is `400 invalidValue`, worded the same whether
 the id belongs to another tenant or to no one.
 
-Accounts created by a sign-in path (password, OTP, social, SAML) carry no tenant today, so a
-tenant-scoped token does not reach them. To let a tenant's IdP manage such an account, assign
-it to the tenant: `UPDATE core.tb_user SET tenant_id = '<tenant uuid>' WHERE user_id = '…'`.
+A tenant's token reaches the accounts in its tenant's space: the ones it provisioned, and the
+ones created by sign-in through the tenant's own SAML IdP, which lands in that tenant
+([account spaces](identity-store.md#account-spaces-1088)). Platform accounts (password, OTP,
+social sign-in) are out of its reach. An account created before tenant-bound sign-in existed
+is a platform account. To hand one to a tenant, assign it:
+`UPDATE core.tb_user SET tenant_id = '<tenant uuid>' WHERE user_id = '…'`, and set the same
+`tenant_id` on its `core.tb_auth_identity` rows.
 
 ## Endpoints
 

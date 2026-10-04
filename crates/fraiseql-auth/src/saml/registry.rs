@@ -28,6 +28,7 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use arc_swap::ArcSwap;
 use chrono::{DateTime, Utc};
+use uuid::Uuid;
 
 use super::{
     SamlError, SamlIdpConfig,
@@ -58,7 +59,7 @@ pub struct CertExpiryWarning {
     /// Logical IdP name.
     pub idp_name:   String,
     /// Tenant binding, if any.
-    pub tenant_id:  Option<String>,
+    pub tenant_id:  Option<Uuid>,
     /// When the earliest signing certificate expires.
     pub expires_at: DateTime<Utc>,
     /// Whether SSO is already broken or about to be.
@@ -125,14 +126,14 @@ impl Default for SamlIdpRegistry {
     }
 }
 
-/// Normalize a tenant identifier for comparison: absent and blank are the same thing.
+/// The tenant a caller claims, parsed: `Ok(None)` for absent or blank, `Ok(Some)` for a
+/// UUID, and `Err` for anything else.
 ///
-/// Comparison is exact (after trimming) rather than case-insensitive on purpose. Store
-/// tenants are UUIDs rendered canonically, so exactness costs nothing there; config-file
-/// tenants are free-form strings, where folding case would merge two operator-declared
-/// tenants that differ only in case into one.
-fn normalize_tenant(tenant: Option<&str>) -> Option<&str> {
-    tenant.map(str::trim).filter(|t| !t.is_empty())
+/// The error is not folded into `None`: a claim that does not parse must match no IdP, where
+/// `None` would match every untenanted one. Parsing makes the comparison canonical, so a
+/// UUID's letter case cannot make one tenant look like two.
+fn parse_claimed_tenant(tenant: Option<&str>) -> Result<Option<Uuid>, uuid::Error> {
+    tenant.map(str::trim).filter(|t| !t.is_empty()).map(Uuid::parse_str).transpose()
 }
 
 impl SamlIdpRegistry {
@@ -190,7 +191,8 @@ impl SamlIdpRegistry {
             .cloned()
             .or_else(|| self.cached.load().get(idp_name).cloned())?;
 
-        (normalize_tenant(idp.tenant_id.as_deref()) == normalize_tenant(tenant)).then_some(idp)
+        let claimed = parse_claimed_tenant(tenant).ok()?;
+        (idp.tenant_id == claimed).then_some(idp)
     }
 
     /// Names of every registered IdP, both sources, sorted. For introspection and tests —
@@ -348,7 +350,7 @@ impl SamlIdpRegistry {
                 let expires_at = idp.signing_certificate_expiry()?;
                 (expires_at <= horizon).then(|| CertExpiryWarning {
                     idp_name: idp.idp_name.clone(),
-                    tenant_id: idp.tenant_id.clone(),
+                    tenant_id: idp.tenant_id,
                     expires_at,
                     expired: expires_at <= now,
                 })
@@ -413,7 +415,7 @@ fn config_from_record(
         record.acs_url.clone(),
     )
     .idp_metadata_xml(&record.metadata_xml)?
-    .tenant_id(record.tenant_id.map(|t| t.to_string()))
+    .tenant_id(record.tenant_id)
     .trust_asserted_email(record.trust_asserted_email);
 
     if let Some(keys) = sp_keys {

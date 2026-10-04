@@ -67,11 +67,11 @@ path, keyed on `("saml:<idp>", NameID)`. By default a SAML identity **never** au
 with another provider's account on a shared email.
 
 Per-IdP opt-in `trust_asserted_email` allows a verified SAML email to link across
-providers, but only when the merge is provably bounded to a single tenant. If an IdP is
-configured with a `tenant_id` (multi-tenant intent), the policy **fails closed** — because
-the single-tenant account store cannot scope a global email merge to one tenant, honoring
-it could merge a verified assertion into another tenant's account (the nOAuth class). SAML
-trust is never added to the global trusted-provider set; it is computed per IdP.
+providers *within the IdP's account space*. A tenant-bound IdP signs people into its own
+tenant's accounts ([account spaces](identity-store.md#account-spaces-1088)), so its merge can
+reach only that tenant's accounts. It can never reach a platform account or another tenant's
+that shares the address (the nOAuth class). SAML trust is never added to the global
+trusted-provider set; it is computed per IdP.
 
 This applies to stored IdPs exactly as it does to config-file ones: the per-tenant store
 (#947) changed where an IdP lives, not what its asserted email is trusted for.
@@ -143,10 +143,11 @@ answer `404` — so the route cannot enumerate other tenants' IdPs.
 - **An IdP name is never reissued, not even after deletion.** The logical name *is* the
   account namespace (`saml:<name>`), so reusing it would hand the new IdP every account the
   old one created. Deletes are tombstones; a re-create answers `409`.
-- **`trust_asserted_email` is inert for tenant-bound IdPs.** It is stored and reported, but
-  `/api/saml/idps` also reports `email_linking_effective: false` for them, because the
-  account store still keys verified email globally. See [#1088] for what would lift it —
-  and do not relax the policy without it.
+- **A tenant-bound IdP signs people into its tenant's accounts.** Its `tenant_id` (a UUID)
+  is the account space: a first sign-in creates an account in that tenant, and
+  `trust_asserted_email` merges only with accounts of the same tenant, never with a platform
+  account or another tenant's that shares the address ([#1088]). The same person in two
+  tenants is two accounts. A tenant's SCIM token manages exactly these accounts.
 - Admin credentials are **not** tenant-scoped: the admin token manages every tenant's IdPs.
   See [#1089].
 

@@ -239,7 +239,7 @@ pub async fn saml_login(
     let relay_state = generate_secure_state();
     let payload = RelayPayload {
         idp_name:   idp.idp_name.clone(),
-        tenant:     idp.tenant_id.clone(),
+        tenant:     idp.tenant_id.map(|t| t.to_string()),
         request_id: authn_request.id.clone(),
     }
     .encode();
@@ -366,12 +366,15 @@ pub async fn saml_acs(State(state): State<SamlAuthState>, Form(form): Form<AcsFo
         },
     };
 
-    // Resolve the local user. Email auto-linking is tenant-bounded (default off).
+    // Resolve the local user in the IdP's own account space: the IdP is the authority for
+    // its tenant, so the account — and any email merge (opt-in, default off) — is confined
+    // to that tenant (#1088).
     let provider = idp.provider_key();
     let email_verified = effective_saml_email_verified(idp);
     let local_user_id = if let Some(store) = &state.user_store {
         match store
             .link_or_create_user(
+                idp.tenant_id,
                 assertion.email.as_deref(),
                 email_verified,
                 &provider,

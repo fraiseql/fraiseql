@@ -261,7 +261,7 @@ impl LocalPasswordAuthenticator {
         // never merges into an existing verified-email account.
         let link = self
             .accounts
-            .link_or_create_user(Some(&normalized), false, LOCAL_PROVIDER, &normalized)
+            .link_or_create_user(None, Some(&normalized), false, LOCAL_PROVIDER, &normalized)
             .await?;
         let user_id = link.user_id;
 
@@ -321,12 +321,13 @@ impl LocalPasswordAuthenticator {
         let normalized = normalize_email(email);
 
         // Resolve email → credential FIRST so the database round-trip runs on every path
-        // (a missing-row early return would itself be a timing oracle).
+        // (a missing-row early return would itself be a timing oracle). Password sign-in is a
+        // platform path, so only a platform identity answers it (#1088).
         let row = sqlx::query(
             "SELECT c.user_id, c.password_hash, (c.disabled_at IS NOT NULL) AS disabled \
              FROM core.tb_password_credential c \
              JOIN core.tb_auth_identity i ON i.user_id = c.user_id \
-             WHERE i.provider = $1 AND i.provider_id = $2",
+             WHERE i.provider = $1 AND i.provider_id = $2 AND i.tenant_id IS NULL",
         )
         .bind(LOCAL_PROVIDER)
         .bind(&normalized)

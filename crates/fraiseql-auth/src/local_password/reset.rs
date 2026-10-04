@@ -170,12 +170,13 @@ impl LocalPasswordAuthenticator {
         let normalized = normalize_email(email);
         let logger = get_audit_logger();
 
-        // The lookup runs on every path so a missing account cannot be timed apart.
+        // The lookup runs on every path so a missing account cannot be timed apart. Reset is
+        // a platform path, like the sign-in it restores (#1088).
         let row = sqlx::query(
             "SELECT c.fk_user, c.user_id \
              FROM core.tb_password_credential c \
              JOIN core.tb_auth_identity i ON i.fk_user = c.fk_user \
-             WHERE i.provider = $1 AND i.provider_id = $2",
+             WHERE i.provider = $1 AND i.provider_id = $2 AND i.tenant_id IS NULL",
         )
         .bind(LOCAL_PROVIDER)
         .bind(&normalized)

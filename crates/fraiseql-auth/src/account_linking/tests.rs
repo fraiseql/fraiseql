@@ -8,7 +8,7 @@ use super::*;
 async fn test_first_sign_in_creates_new_account() {
     let store = InMemoryAccountStore::new();
     let result = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_123")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_123")
         .await
         .unwrap();
 
@@ -25,7 +25,7 @@ async fn test_github_then_google_same_email_returns_same_user_id() {
 
     // Step 1: user signs in with GitHub
     let github_result = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_123")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_123")
         .await
         .unwrap();
     assert!(github_result.is_new);
@@ -33,7 +33,7 @@ async fn test_github_then_google_same_email_returns_same_user_id() {
 
     // Step 2: same user signs in with Google (same email)
     let google_result = store
-        .link_or_create_user(Some("alice@example.com"), true, "google", "google_456")
+        .link_or_create_user(None, Some("alice@example.com"), true, "google", "google_456")
         .await
         .unwrap();
     assert!(!google_result.is_new, "second sign-in should not create a new account");
@@ -52,11 +52,11 @@ async fn test_different_emails_create_different_accounts() {
     let store = InMemoryAccountStore::new();
 
     let alice = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_alice")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_alice")
         .await
         .unwrap();
     let bob = store
-        .link_or_create_user(Some("bob@example.com"), true, "github", "github_bob")
+        .link_or_create_user(None, Some("bob@example.com"), true, "github", "github_bob")
         .await
         .unwrap();
 
@@ -70,13 +70,13 @@ async fn test_same_provider_twice_does_not_duplicate_link() {
 
     // First sign-in
     store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_123")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_123")
         .await
         .unwrap();
 
     // Same provider + same provider_id — should NOT add a duplicate link
     let second = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_123")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_123")
         .await
         .unwrap();
     assert!(!second.is_new, "should not create a new account on second sign-in");
@@ -91,20 +91,20 @@ async fn test_multiple_providers_linked_to_single_account() {
     let store = InMemoryAccountStore::new();
 
     store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_123")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_123")
         .await
         .unwrap();
     store
-        .link_or_create_user(Some("alice@example.com"), true, "google", "google_456")
+        .link_or_create_user(None, Some("alice@example.com"), true, "google", "google_456")
         .await
         .unwrap();
     store
-        .link_or_create_user(Some("alice@example.com"), true, "okta", "okta_789")
+        .link_or_create_user(None, Some("alice@example.com"), true, "okta", "okta_789")
         .await
         .unwrap();
 
     let result = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_123")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_123")
         .await
         .unwrap();
     let record = store.get_account(&result.user_id).await.unwrap();
@@ -120,7 +120,7 @@ async fn test_multiple_providers_linked_to_single_account() {
 async fn test_get_account_returns_correct_record() {
     let store = InMemoryAccountStore::new();
     let result = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_123")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_123")
         .await
         .unwrap();
 
@@ -162,13 +162,13 @@ fn test_normalize_email_idempotent() {
 async fn h26_emailless_identities_do_not_collapse() {
     let store = InMemoryAccountStore::new();
     // Two providers that omit email entirely (GitHub private-email is the canonical case).
-    let a = store.link_or_create_user(None, false, "github", "gh-1").await.unwrap();
-    let b = store.link_or_create_user(None, false, "google", "gg-2").await.unwrap();
+    let a = store.link_or_create_user(None, None, false, "github", "gh-1").await.unwrap();
+    let b = store.link_or_create_user(None, None, false, "google", "gg-2").await.unwrap();
     assert_ne!(a.user_id, b.user_id, "email-less identities collapsed into one account (H26)");
     assert_eq!(store.len(), 2);
 
     // The same email-less identity signing in again resolves to the SAME account.
-    let a2 = store.link_or_create_user(None, false, "github", "gh-1").await.unwrap();
+    let a2 = store.link_or_create_user(None, None, false, "github", "gh-1").await.unwrap();
     assert_eq!(a2.user_id, a.user_id);
     assert!(!a2.is_new);
     assert_eq!(store.len(), 2);
@@ -177,8 +177,11 @@ async fn h26_emailless_identities_do_not_collapse() {
 #[tokio::test]
 async fn h26_empty_and_whitespace_email_treated_as_emailless() {
     let store = InMemoryAccountStore::new();
-    let a = store.link_or_create_user(Some(""), true, "github", "gh-1").await.unwrap();
-    let b = store.link_or_create_user(Some("   "), true, "google", "gg-2").await.unwrap();
+    let a = store.link_or_create_user(None, Some(""), true, "github", "gh-1").await.unwrap();
+    let b = store
+        .link_or_create_user(None, Some("   "), true, "google", "gg-2")
+        .await
+        .unwrap();
     assert_ne!(a.user_id, b.user_id, "empty/whitespace email must not be a linking key (H26)");
     // The account stores no email when keyed on the provider identity.
     let record = store.get_account(&a.user_id).await.unwrap();
@@ -190,11 +193,11 @@ async fn h26_unverified_email_does_not_link_across_providers() {
     let store = InMemoryAccountStore::new();
     // Same email, but neither provider asserts verification → must NOT link.
     let a = store
-        .link_or_create_user(Some("victim@example.com"), false, "github", "gh-1")
+        .link_or_create_user(None, Some("victim@example.com"), false, "github", "gh-1")
         .await
         .unwrap();
     let b = store
-        .link_or_create_user(Some("victim@example.com"), false, "evil", "evil-1")
+        .link_or_create_user(None, Some("victim@example.com"), false, "evil", "evil-1")
         .await
         .unwrap();
     assert_ne!(
@@ -208,11 +211,11 @@ async fn h26_unverified_email_does_not_link_across_providers() {
 async fn h26_verified_email_links_across_providers() {
     let store = InMemoryAccountStore::new();
     let a = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "gh-1")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "gh-1")
         .await
         .unwrap();
     let b = store
-        .link_or_create_user(Some("alice@example.com"), true, "google", "gg-2")
+        .link_or_create_user(None, Some("alice@example.com"), true, "google", "gg-2")
         .await
         .unwrap();
     assert_eq!(a.user_id, b.user_id, "verified shared email should link (intended feature)");
@@ -224,7 +227,7 @@ async fn h26_verified_email_links_across_providers() {
 async fn test_account_store_as_trait_object() {
     let store: Arc<dyn AccountStore> = Arc::new(InMemoryAccountStore::new());
     let result = store
-        .link_or_create_user(Some("alice@example.com"), true, "github", "github_123")
+        .link_or_create_user(None, Some("alice@example.com"), true, "github", "github_123")
         .await
         .unwrap();
     assert!(result.is_new);
@@ -298,4 +301,53 @@ fn trusted_can_be_emptied_down_to_none_via_builder() {
         .distrust("github")
         .distrust("discord");
     assert!(trusted.is_empty());
+}
+
+// ── Tenant-scoped accounts (#1088) ──────────────────────────────────────
+
+const TENANT_T: Uuid = Uuid::from_u128(0x7777_7777_7777_4777_8777_7777_7777_7777);
+const TENANT_U: Uuid = Uuid::from_u128(0x5555_5555_5555_4555_8555_5555_5555_5555);
+
+#[tokio::test]
+async fn the_same_verified_email_is_one_account_per_tenant() {
+    let store = InMemoryAccountStore::new();
+    let email = Some("alice@example.com");
+    let in_t = store
+        .link_or_create_user(Some(TENANT_T), email, true, "saml:t", "t-1")
+        .await
+        .unwrap();
+    let in_u = store
+        .link_or_create_user(Some(TENANT_U), email, true, "saml:u", "u-1")
+        .await
+        .unwrap();
+    let platform = store.link_or_create_user(None, email, true, "google", "g-1").await.unwrap();
+    assert!(in_u.is_new, "tenant U must not merge into tenant T's account");
+    assert!(platform.is_new, "the platform must not merge into a tenant's account");
+    assert_eq!(store.len(), 3);
+
+    let again_t = store
+        .link_or_create_user(Some(TENANT_T), email, true, "github", "gh-1")
+        .await
+        .unwrap();
+    assert_eq!(again_t.user_id, in_t.user_id, "a verified email merges inside its tenant");
+}
+
+#[tokio::test]
+async fn a_provider_identity_is_scoped_to_its_tenant() {
+    let store = InMemoryAccountStore::new();
+    let in_t = store
+        .link_or_create_user(Some(TENANT_T), None, false, "saml:x", "n-1")
+        .await
+        .unwrap();
+    let in_u = store
+        .link_or_create_user(Some(TENANT_U), None, false, "saml:x", "n-1")
+        .await
+        .unwrap();
+    assert!(in_u.is_new, "an identity in tenant U must not resolve to tenant T's account");
+    assert_ne!(in_t.user_id, in_u.user_id);
+    let relogin = store
+        .link_or_create_user(Some(TENANT_T), None, false, "saml:x", "n-1")
+        .await
+        .unwrap();
+    assert_eq!(relogin.user_id, in_t.user_id);
 }
