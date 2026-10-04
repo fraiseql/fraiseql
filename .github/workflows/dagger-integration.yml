@@ -7,8 +7,14 @@ name: Dagger — integration
 # the self-hosted runner (fraiseql-8core) at ~$0/min, reusing the box's
 # cargo/target/sccache cache volumes (warm = fast). See docs/contributing/dagger-parity-notes.md Phase 04.
 #
-# max-parallel: 1 — the runner box is RAM-bound (31 GiB); suites run one at a time
-# (preflight/test may still run alongside, up to the org-wide 2-runner cap).
+# max-parallel: 2 — one suite per runner box. Every suite builds into ONE target
+# cache volume (integrationBase), mounted PRIVATE, so two suites on the same
+# engine serialize on it. Each box runs its own engine with its own copy of the
+# volume, so with one runner per box (archbox, forge) two suites never share one.
+# Raising this past the number of boxes, or adding a second runner to a box,
+# buys queueing inside Dagger, not parallelism — that needs per-lane target
+# volumes first, as feature-combos.go does. RAM is not the limit: the 31 GiB
+# ceiling that set this to 1 is gone (archbox 94 GiB, forge 125 GiB).
 #
 # Runs on a push to every in-repo branch, not only `dev` (#1289). It used to be
 # `branches: [dev]`, which is the same reasoning #1257 already had to undo for
@@ -71,7 +77,7 @@ jobs:
     timeout-minutes: 60
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 2
       matrix:
         suite: [postgres, nats, observers, http-e2e, tls, server, redis, vault, wire, storage, server-storage, federation, federation-compose, saml, quickstart, examples]
     steps:
