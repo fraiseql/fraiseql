@@ -7,8 +7,35 @@ use super::super::Server;
 use crate::routes::graphql::AppState;
 
 impl Server {
-    /// Build the shared `AppState` with all configured subsystems attached.
+    /// Provision what the routes depend on, then build the `AppState` every transport
+    /// shares — the one way a serve entry point obtains its state.
+    ///
+    /// Provisioning loads the declared functions and installs their before-mutation
+    /// gate, and creates the persistent auth schemas; the state built afterwards
+    /// carries what it produced. A state built without it serves a server with no
+    /// functions and no tables behind its auth routes, so the unprovisioned builder
+    /// exists only in test builds and no entry point can reach for it. #896 and #1332
+    /// were each an entry point that built its state without provisioning first.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ServerError::ConfigError`](crate::ServerError::ConfigError) if a
+    /// configured subsystem cannot be provisioned.
+    pub(in crate::server) async fn provisioned_app_state(&mut self) -> crate::Result<AppState> {
+        self.provision_persistent_schemas().await?;
+        Ok(self.assemble_app_state())
+    }
+
+    /// The `AppState` without provisioning, for tests that drive a router or a
+    /// transport and have nothing to provision. Not available to production code: see
+    /// [`Self::provisioned_app_state`].
+    #[cfg(test)]
     pub(crate) fn build_app_state(&self) -> AppState {
+        self.assemble_app_state()
+    }
+
+    /// Build the shared `AppState` with all configured subsystems attached.
+    fn assemble_app_state(&self) -> AppState {
         let mut state = AppState::new(self.executor.clone())
             .with_reload_config(self.config.schema_path.clone());
 

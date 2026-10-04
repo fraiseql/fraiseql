@@ -29,21 +29,23 @@ impl Server {
     /// must **fail the boot** rather than leave an endpoint mounted over a table that
     /// does not exist. `build_router` is synchronous, so it cannot do any of it.
     ///
-    /// Shared by [`Self::serve_with_shutdown`] and [`Self::serve_on_listener`]
-    /// deliberately. It used to be inlined in the former only, so the in-process test
-    /// harness — which serves on a listener — reached the routes without ever running
-    /// the DDL behind them. #748 (a parse error in the RBAC schema that aborted boot
-    /// outright) was therefore invisible to every integration test in the workspace:
-    /// they got a happily-running server that answered `500` on the RBAC routes. A
-    /// boot step that only one of two entry points performs is the same class of
-    /// defect as a guard only one of two call sites consults.
+    /// Reached only through `provisioned_app_state`, which every serve entry point —
+    /// [`Self::serve_with_shutdown`], [`Self::serve_on_listener`] and `serve_mcp_stdio`
+    /// — obtains its state from. It used to be inlined in the first only, so the
+    /// in-process test harness — which serves on a listener — reached the routes
+    /// without ever running the DDL behind them. #748 (a parse error in the RBAC schema
+    /// that aborted boot outright) was therefore invisible to every integration test in
+    /// the workspace: they got a happily-running server that answered `500` on the RBAC
+    /// routes. A boot step that only some entry points perform is the same class of
+    /// defect as a guard only some call sites consult; #1332 was the stdio transport
+    /// skipping it.
     ///
     /// **Scope is deliberately "what the mounted routes need in place", not "every
     /// startup step".** Subsystem startup that opens external connections — the
     /// observer runtime, Flight, the IMAP/cron/source pollers — stays in
     /// `serve_with_shutdown`, which `serve_on_listener` documents itself as skipping.
     /// The functions runtime moved here in #896, once it stopped needing a file on
-    /// disk: both entry points must mount the same before-mutation hooks, or the
+    /// disk: every entry point must mount the same before-mutation hooks, or the
     /// in-process one greens a dispatch surface that never ran.
     ///
     /// # Errors
@@ -52,7 +54,7 @@ impl Server {
     /// created. Usage persistence is the one deliberate exception: it degrades to
     /// in-memory counters with a warning, because losing metering is not worth
     /// refusing to serve traffic.
-    async fn provision_persistent_schemas(&mut self) -> Result<()> {
+    pub(super) async fn provision_persistent_schemas(&mut self) -> Result<()> {
         // Ensure RBAC schema exists before the router mounts RBAC endpoints.
         // Must run here (async context) rather than inside build_router() (sync).
         #[cfg(feature = "observers")]
@@ -407,9 +409,8 @@ impl Server {
     where
         F: std::future::Future<Output = ()> + Send + 'static,
     {
-        self.provision_persistent_schemas().await?;
-
-        let (app, app_state) = self.build_router();
+        let app_state = self.provisioned_app_state().await?;
+        let app = self.build_router(&app_state);
 
         // Start the async-operation workers (#391) on the server's JoinSet, so
         // graceful shutdown aborts them (an aborted execution's row goes stale
@@ -848,7 +849,7 @@ impl Server {
             // so the wiring lives here rather than in the constructor. Without it
             // Flight is the one transport that skips tenant resolution, the
             // suspended-tenant gate, per-tenant quotas and trusted documents.
-            let app_state = self.build_app_state();
+            let app_state = app_state.clone();
 
             // #1349: the same wiring point, for the same reason. Flight builds its own
             // principal from a session token and, until now, dispatched it unresolved —
@@ -991,9 +992,8 @@ impl Server {
     where
         F: std::future::Future<Output = ()> + Send + 'static,
     {
-        self.provision_persistent_schemas().await?;
-
-        let (app, app_state) = self.build_router();
+        let app_state = self.provisioned_app_state().await?;
+        let app = self.build_router(&app_state);
         // Same worker spawn as `serve_with_shutdown` — the two entry points must
         // not drift (#858's construction-path rule): a test harness that mounts
         // the routes but never executes submissions would green a dead surface.

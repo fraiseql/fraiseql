@@ -1534,7 +1534,8 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// built with, on BOTH serving entry points. Its own binary, and
 		// functions-runtime-gated, so it belongs on this line rather than in
 		// serverInProcessTests — which omits the feature and would run zero tests.
-		"cargo test -p fraiseql-server --features functions-runtime --test functions_schema_seam_test",
+		// `mcp` adds the third entry point, serve_mcp_stdio (#1332).
+		"cargo test -p fraiseql-server --features functions-runtime,mcp --test functions_schema_seam_test",
 		// #1082: same argument as the line above, and the case that proved the gate
 		// blind. This binary is `#![cfg(feature = "functions-runtime")]` at file level,
 		// which cargo cannot see, so naming it in serverInProcessTests built an EMPTY

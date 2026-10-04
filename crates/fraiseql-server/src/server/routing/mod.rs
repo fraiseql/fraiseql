@@ -145,19 +145,17 @@ impl Server {
             .with_revocation(self.revocation_manager.clone())
     }
 
-    /// Build application router and return the shared `AppState`.
+    /// Build the application router over the shared `AppState`.
     ///
-    /// The returned `AppState` is needed by the lifecycle module for
-    /// SIGUSR1 schema reload handling.
-    pub(super) fn build_router(&self) -> (Router, AppState) {
-        let state = self.build_app_state();
-
+    /// Takes the state rather than building it, so the router cannot be mounted over
+    /// a state that skipped provisioning (see `Server::provisioned_app_state`).
+    pub(super) fn build_router(&self, state: &AppState) -> Router {
         // Build GraphQL route (possibly with auth + Content-Type enforcement).
-        let graphql_router = self.build_graphql_router(&state);
+        let graphql_router = self.build_graphql_router(state);
 
         // Mount base routes, studio, admin, introspection, metrics, design audit.
         let mut app = Router::new();
-        app = self.mount_base_and_admin_routes(app.merge(graphql_router), &state);
+        app = self.mount_base_and_admin_routes(app.merge(graphql_router), state);
 
         // Mount auth routes (PKCE, social, MFA, /auth/me, revocation).
         #[cfg(feature = "auth")]
@@ -166,11 +164,11 @@ impl Server {
         }
 
         // Mount extension routes (MCP, API, RBAC, storage, functions, REST).
-        app = self.mount_extensions(app, &state);
+        app = self.mount_extensions(app, state);
 
         // Apply global middleware layers (metrics, tracing, CORS, limits, timeout, rate limiting).
-        app = self.apply_middleware(app, &state);
+        app = self.apply_middleware(app, state);
 
-        (app, state)
+        app
     }
 }

@@ -1713,7 +1713,7 @@ impl Server {
     ///
     /// Returns an error if MCP is not configured or the stdio transport fails.
     #[cfg(feature = "mcp")]
-    pub async fn serve_mcp_stdio(self) -> Result<()> {
+    pub async fn serve_mcp_stdio(mut self) -> Result<()> {
         use rmcp::ServiceExt;
 
         let mcp_cfg = self.mcp_config.clone().ok_or_else(|| {
@@ -1723,6 +1723,11 @@ impl Server {
                     .into(),
             )
         })?;
+
+        // Provisioned like every other entry point (#1332): without it no declared
+        // function is loaded, so an MCP client's mutation skips its before-mutation
+        // chain and fires no after-mutation function.
+        let app_state = self.provisioned_app_state().await?;
 
         // Built from the same `AppState` the HTTP mount uses (#858): stdio carries
         // no headers, but the tenant registry, the suspended-tenant gate and the
@@ -1736,7 +1741,7 @@ impl Server {
             .clone()
             .map(crate::mcp::handler::McpTokenValidator::Oidc)
             .or_else(|| self.hs256_auth.clone().map(crate::mcp::handler::McpTokenValidator::Hs256));
-        let service = crate::mcp::handler::FraiseQLMcpService::new(self.build_app_state(), mcp_cfg)
+        let service = crate::mcp::handler::FraiseQLMcpService::new(app_state, mcp_cfg)
             .with_token_validator(validator);
         // Same store as the HTTP transport (#967). stdio carries no
         // `mcp-session-id` header, so continuity resolves to none there — but the

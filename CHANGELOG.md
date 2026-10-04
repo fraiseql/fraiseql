@@ -337,6 +337,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **The MCP stdio transport runs declared functions and provisions the auth schemas (#1332).**
+  `serve_mcp_stdio` (`--mcp-stdio` / `FRAISEQL_MCP_STDIO=1`) built its state without the
+  provisioning step the HTTP entry points run first. No function module was loaded, so an MCP
+  client's mutation skipped its `before:mutation` chain and fired no `after:mutation`
+  function, and the local-auth and SCIM tables were never created. Every serve entry point now
+  obtains its state from one provisioning path, and the builder that skips it exists only in
+  test builds, so a future entry point cannot drift the same way. Arrow Flight now shares the
+  serve path's state rather than building a second one.
+
 - **wasmtime and wasmtime-wasi 48.0.5** (was 48.0.3) for the `runtime-wasm` feature of
   `fraiseql-functions`: RUSTSEC-2026-0321, -0322, -0323, -0324 (wasmtime-wasi: a WASI
   preview 0 `poll_oneoff` that bypasses fuel metering, host memory allocated for guests

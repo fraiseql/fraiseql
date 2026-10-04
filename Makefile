@@ -240,7 +240,7 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-server --features sources --lib sources:: -- --test-threads=1
 	@cargo test -p fraiseql-server --features functions-runtime,observers,auth --lib -- cron:: routes::after_mutation:: query_bridge:: subsystems::loader:: schema::tests:: function_metrics:: observers::pg_function_dlq:: identity:: observers::changelog_handlers:: --test-threads=1
 	@cargo test -p fraiseql-saga --lib saga_store::tests -- --test-threads=1
-	@cargo test -p fraiseql-server --features functions-runtime --test functions_schema_seam_test
+	@cargo test -p fraiseql-server --features functions-runtime,mcp --test functions_schema_seam_test
 	@cargo test -p fraiseql-server --features functions-runtime --test functions_query_bridge_pin_test
 	@echo ""
 	@echo "### saga: forward execution, compensation, recovery, remote dispatch"
