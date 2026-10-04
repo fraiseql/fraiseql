@@ -389,6 +389,9 @@ async fn init_replaces_the_global_keys_of_an_existing_database() {
          DROP INDEX IF EXISTS core.uq_user_user_name_tenant; \
          DROP INDEX IF EXISTS core.uq_auth_identity_platform; \
          DROP INDEX IF EXISTS core.uq_auth_identity_tenant; \
+         DROP INDEX IF EXISTS core.uq_user_email_per_space; \
+         DROP INDEX IF EXISTS core.uq_user_user_name_per_space; \
+         DROP INDEX IF EXISTS core.uq_auth_identity_per_space; \
          ALTER TABLE core.tb_auth_identity \
              DROP CONSTRAINT IF EXISTS tb_auth_identity_provider_provider_id_key; \
          CREATE UNIQUE INDEX uq_user_email ON core.tb_user (email) WHERE email IS NOT NULL; \
@@ -430,4 +433,145 @@ async fn init_replaces_the_global_keys_of_an_existing_database() {
         .execute(&admin)
         .await;
     assert!(dup.is_err(), "the platform email key must stay unique");
+}
+
+/// The unique definitions of `core.tb_user` / `core.tb_auth_identity`, keyed by name.
+async fn unique_indexes(admin: &PgPool) -> Vec<(String, String)> {
+    sqlx::query(
+        "SELECT indexname::text, indexdef FROM pg_indexes \
+         WHERE schemaname = 'core' AND tablename IN ('tb_user', 'tb_auth_identity') \
+           AND indexdef LIKE 'CREATE UNIQUE INDEX%' AND indexname NOT LIKE '%_pkey' \
+           AND indexname NOT LIKE '%user_id_key' \
+         ORDER BY indexname",
+    )
+    .fetch_all(admin)
+    .await
+    .unwrap()
+    .into_iter()
+    .map(|row| (row.get(0), row.get(1)))
+    .collect()
+}
+
+/// Each key is ONE unique index over its account space, `NULLS NOT DISTINCT` on
+/// `tenant_id`, so the platform (`NULL`) is a space like any tenant (#1452). The
+/// PostgreSQL 14 floor needed a partial pair per key; nothing may be left of it.
+#[tokio::test]
+async fn each_key_is_one_nulls_not_distinct_index_over_its_space() {
+    let (_store, admin) = skip_if_no_db!();
+    let defs = unique_indexes(&admin).await;
+    let names: Vec<&str> = defs.iter().map(|(n, _)| n.as_str()).collect();
+    assert_eq!(
+        names,
+        [
+            "uq_auth_identity_per_space",
+            "uq_user_email_per_space",
+            "uq_user_user_name_per_space"
+        ],
+        "{defs:#?}"
+    );
+    for (name, def) in &defs {
+        assert!(def.contains("NULLS NOT DISTINCT"), "{name}: {def}");
+        assert!(def.contains("tenant_id"), "{name} keys the space: {def}");
+    }
+}
+
+/// Every key is unique within its space — the platform included — and only there.
+#[tokio::test]
+async fn every_key_is_unique_within_its_space_and_only_there() {
+    let (_store, admin) = skip_if_no_db!();
+    let user = |user_id: &str, email: &str, user_name: &str, tenant: Option<uuid::Uuid>| {
+        sqlx::query(
+            "INSERT INTO core.tb_user (user_id, email, user_name, tenant_id) \
+             VALUES ($1, $2, $3, $4) RETURNING pk_user",
+        )
+        .bind(user_id.to_string())
+        .bind(email.to_string())
+        .bind(user_name.to_string())
+        .bind(tenant)
+    };
+    for tenant in [None, Some(TENANT_T)] {
+        let tag = tenant.map_or("p".to_string(), |t| t.to_string());
+        let pk: i64 = user(&format!("u1-{tag}"), "k@example.com", "k", tenant)
+            .fetch_one(&admin)
+            .await
+            .unwrap()
+            .get(0);
+        let same_email = user(&format!("u2-{tag}"), "k@example.com", "other", tenant)
+            .fetch_one(&admin)
+            .await;
+        assert!(same_email.is_err(), "email is unique in space {tag}");
+        let same_name =
+            user(&format!("u3-{tag}"), "o@example.com", "k", tenant).fetch_one(&admin).await;
+        assert!(same_name.is_err(), "userName is unique in space {tag}");
+
+        let identity = |n: &str| {
+            sqlx::query(
+                "INSERT INTO core.tb_auth_identity (fk_user, user_id, provider, provider_id, \
+                 tenant_id) VALUES ($1, $2, 'saml:x', 'n-1', $3)",
+            )
+            .bind(pk)
+            .bind(n.to_string())
+            .bind(tenant)
+        };
+        identity(&format!("u1-{tag}")).execute(&admin).await.unwrap();
+        assert!(
+            identity(&format!("u1-{tag}")).execute(&admin).await.is_err(),
+            "(provider, provider_id) is unique in space {tag}"
+        );
+    }
+    // The same three keys in a second tenant are a different space.
+    let pk: i64 = user("u1-u", "k@example.com", "k", Some(TENANT_U))
+        .fetch_one(&admin)
+        .await
+        .expect("keys are unique per space, not globally")
+        .get(0);
+    sqlx::query(
+        "INSERT INTO core.tb_auth_identity (fk_user, user_id, provider, provider_id, tenant_id) \
+         VALUES ($1, 'u1-u', 'saml:x', 'n-1', $2)",
+    )
+    .bind(pk)
+    .bind(TENANT_U)
+    .execute(&admin)
+    .await
+    .expect("an identity is unique per space, not globally");
+}
+
+/// A database initialised from development builds between #1088 and #1452 holds the
+/// partial-index pairs. `init` replaces them with the per-space indexes in place.
+#[tokio::test]
+async fn init_replaces_the_partial_pairs_of_an_earlier_build() {
+    let (store, admin) = skip_if_no_db!();
+    sqlx::raw_sql(
+        "DROP INDEX IF EXISTS core.uq_user_email_per_space; \
+         DROP INDEX IF EXISTS core.uq_user_user_name_per_space; \
+         DROP INDEX IF EXISTS core.uq_auth_identity_per_space; \
+         CREATE UNIQUE INDEX uq_user_email_platform ON core.tb_user (email) \
+             WHERE tenant_id IS NULL AND email IS NOT NULL; \
+         CREATE UNIQUE INDEX uq_user_email_tenant ON core.tb_user (tenant_id, email) \
+             WHERE tenant_id IS NOT NULL AND email IS NOT NULL; \
+         CREATE UNIQUE INDEX uq_user_user_name_platform ON core.tb_user (user_name) \
+             WHERE tenant_id IS NULL AND user_name IS NOT NULL; \
+         CREATE UNIQUE INDEX uq_user_user_name_tenant ON core.tb_user (tenant_id, user_name) \
+             WHERE tenant_id IS NOT NULL AND user_name IS NOT NULL; \
+         CREATE UNIQUE INDEX uq_auth_identity_platform \
+             ON core.tb_auth_identity (provider, provider_id) WHERE tenant_id IS NULL; \
+         CREATE UNIQUE INDEX uq_auth_identity_tenant \
+             ON core.tb_auth_identity (tenant_id, provider, provider_id) \
+             WHERE tenant_id IS NOT NULL;",
+    )
+    .execute(&admin)
+    .await
+    .unwrap();
+
+    store.init().await.unwrap();
+
+    let names: Vec<String> = unique_indexes(&admin).await.into_iter().map(|(n, _)| n).collect();
+    assert_eq!(
+        names,
+        [
+            "uq_auth_identity_per_space",
+            "uq_user_email_per_space",
+            "uq_user_user_name_per_space"
+        ]
+    );
 }

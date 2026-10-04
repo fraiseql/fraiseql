@@ -55,10 +55,10 @@ Who decides the space is the security property. A tenant account is created only
 Nothing the client sends picks the space. A header or a body field naming a tenant would let
 anyone sign up into, or link into, any tenant.
 
-`init` migrates an older database in place: it drops the global keys an earlier release
-created and installs the per-space pairs (two partial unique indexes each, because the
-PostgreSQL 14 floor has no `NULLS NOT DISTINCT`). No row moves, and existing accounts stay
-platform accounts.
+Each key is one unique index over `(key, tenant_id) NULLS NOT DISTINCT`, so the platform
+(`tenant_id IS NULL`) is a space like any tenant. `init` migrates an older database in
+place: it drops the global keys an earlier release created and installs the per-space
+indexes. No row moves, and existing accounts stay platform accounts.
 
 ## Usage
 

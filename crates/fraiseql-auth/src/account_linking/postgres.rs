@@ -22,11 +22,14 @@
 //!
 //! `tenant_id` partitions accounts: `NULL` is the platform, a UUID is that tenant. Every key
 //! is unique *within* a space — email, SCIM `userName`, `(provider, provider_id)` — so the
-//! same address in two tenants is two accounts, and a merge can never cross a space. The
-//! supported floor is PostgreSQL 14, which has no `NULLS NOT DISTINCT`, so each key is a
-//! pair of partial unique indexes (platform rows; tenant rows). [`SCHEMA_SQL`] drops the
-//! global keys an earlier release created, so `init` migrates an existing database in place
-//! without moving any row: existing accounts are platform accounts, as before.
+//! same address in two tenants is two accounts, and a merge can never cross a space. Each
+//! key is one unique index whose `tenant_id` column is `NULLS NOT DISTINCT`, so the platform
+//! is a space like any tenant rather than a set of rows that never collide. The key columns
+//! lead and `tenant_id` comes last: lookups match the key with `=` and the space with
+//! `IS NOT DISTINCT FROM`, which an index cannot use as a leading column. [`SCHEMA_SQL`]
+//! drops the global keys an earlier release created, so `init` migrates an existing
+//! database in place without moving any row: existing accounts are platform accounts, as
+//! before.
 
 use async_trait::async_trait;
 use sqlx::{Row, postgres::PgPool};
@@ -55,10 +58,10 @@ CREATE TABLE IF NOT EXISTS core.tb_user (
 -- Keys are unique per account space (#1088): see the module docs. The global index an
 -- earlier release created is replaced in place.
 DROP INDEX IF EXISTS core.uq_user_email;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_email_platform
-    ON core.tb_user (email) WHERE tenant_id IS NULL AND email IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_email_tenant
-    ON core.tb_user (tenant_id, email) WHERE tenant_id IS NOT NULL AND email IS NOT NULL;
+DROP INDEX IF EXISTS core.uq_user_email_platform;
+DROP INDEX IF EXISTS core.uq_user_email_tenant;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_email_per_space
+    ON core.tb_user (email, tenant_id) NULLS NOT DISTINCT WHERE email IS NOT NULL;
 
 -- SCIM 2.0 provisioning (#946). ADD COLUMN IF NOT EXISTS so a database that predates
 -- provisioning upgrades in place.
@@ -78,10 +81,10 @@ ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS display_name TEXT;
 ALTER TABLE core.tb_user ADD COLUMN IF NOT EXISTS version     BIGINT NOT NULL DEFAULT 1;
 
 DROP INDEX IF EXISTS core.uq_user_user_name;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_user_name_platform
-    ON core.tb_user (user_name) WHERE tenant_id IS NULL AND user_name IS NOT NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_user_user_name_tenant
-    ON core.tb_user (tenant_id, user_name) WHERE tenant_id IS NOT NULL AND user_name IS NOT NULL;
+DROP INDEX IF EXISTS core.uq_user_user_name_platform;
+DROP INDEX IF EXISTS core.uq_user_user_name_tenant;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_user_user_name_per_space
+    ON core.tb_user (user_name, tenant_id) NULLS NOT DISTINCT WHERE user_name IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_user_external_id
     ON core.tb_user (external_id) WHERE external_id IS NOT NULL;
 
@@ -97,10 +100,10 @@ CREATE TABLE IF NOT EXISTS core.tb_auth_identity (
 );
 ALTER TABLE core.tb_auth_identity
     DROP CONSTRAINT IF EXISTS tb_auth_identity_provider_provider_id_key;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_auth_identity_platform
-    ON core.tb_auth_identity (provider, provider_id) WHERE tenant_id IS NULL;
-CREATE UNIQUE INDEX IF NOT EXISTS uq_auth_identity_tenant
-    ON core.tb_auth_identity (tenant_id, provider, provider_id) WHERE tenant_id IS NOT NULL;
+DROP INDEX IF EXISTS core.uq_auth_identity_platform;
+DROP INDEX IF EXISTS core.uq_auth_identity_tenant;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_auth_identity_per_space
+    ON core.tb_auth_identity (provider, provider_id, tenant_id) NULLS NOT DISTINCT;
 CREATE INDEX IF NOT EXISTS idx_auth_identity_user    ON core.tb_auth_identity (fk_user);
 CREATE INDEX IF NOT EXISTS idx_auth_identity_user_id ON core.tb_auth_identity (user_id);
 
