@@ -127,7 +127,10 @@ async fn server_and_cli_agree_on_unbacked_set() {
     let adapter = PostgresAdapter::new(&url).await.unwrap();
     let server_set = names(&server_find_unbacked(&schema, &adapter).await.unwrap());
 
-    let introspector = create_introspector(&url).await.unwrap();
+    let introspector =
+        create_introspector(&url, &fraiseql_core::db::postgres::PostgresTlsConfig::default())
+            .await
+            .unwrap();
     let cli_set = names(&cli_find_unbacked(&schema, &introspector).await.unwrap());
 
     assert_eq!(server_set, cli_set, "server boot check and CLI gate must agree on 'backed'");

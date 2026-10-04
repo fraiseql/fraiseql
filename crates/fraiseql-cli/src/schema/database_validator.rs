@@ -24,6 +24,7 @@ use fraiseql_core::{
         CompiledSchema, FieldType, PaginationOrder, SourceKind, SourceProbe, sql_source_probes,
     },
 };
+use fraiseql_db::postgres::PostgresTlsConfig;
 
 use super::mutation_contract::Severity;
 
@@ -1217,8 +1218,11 @@ pub fn refuse_removed_engine_url(db_url: &str) -> anyhow::Result<()> {
 /// Returns error if the URL is not a PostgreSQL connection string (see
 /// [`crate::connection::require_postgres`]), the server cannot be reached, or it is
 /// older than PostgreSQL 18.
-pub async fn create_introspector(db_url: &str) -> anyhow::Result<AnyIntrospector> {
-    let pool = crate::connection::postgres_pool(db_url, "schema introspection").await?;
+pub async fn create_introspector(
+    db_url: &str,
+    tls: &PostgresTlsConfig,
+) -> anyhow::Result<AnyIntrospector> {
+    let pool = crate::connection::postgres_pool(db_url, "schema introspection", tls).await?;
     Ok(AnyIntrospector::Postgres(fraiseql_core::db::PostgresIntrospector::new(pool)))
 }
 

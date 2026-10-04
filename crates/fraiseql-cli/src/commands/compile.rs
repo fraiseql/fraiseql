@@ -8,6 +8,7 @@ use anyhow::{Context, Result};
 use fraiseql_core::schema::{
     CompiledSchema, FieldType, InputStyle, MutationOperation, NamingConvention, content_hash_of,
 };
+use fraiseql_db::postgres::PostgresTlsConfig;
 use tracing::{info, warn};
 
 use crate::{
@@ -262,6 +263,16 @@ pub async fn compile_to_schema(
     // The TomlSchema path carries its own naming_convention via the merger and is
     // left untouched (see the `if !is_toml` apply below).
     let mut naming_convention = NamingConvention::CamelCase;
+    // Transport security for the `--database` checks (#1429): `[database] ssl_mode` from
+    // the config this compile loaded. Unset leaves the URL's own `?sslmode=` in charge.
+    let mut database_tls = if is_toml && opts.database.is_some() {
+        crate::config::TomlSchema::from_file(opts.input)
+            .with_context(|| format!("Failed to load TOML from {}", opts.input))?
+            .database
+            .postgres_tls()?
+    } else {
+        PostgresTlsConfig::default()
+    };
     if let Some(config_path) = config_source.project_config() {
         info!("Loading security configuration from {}...", config_path.display());
         let config_file = config_path.to_str().ok_or_else(|| {
@@ -276,6 +287,7 @@ pub async fn compile_to_schema(
                 naming_acronyms.clone_from(&config.fraiseql.naming.acronyms);
                 operation_cost_weights.clone_from(&config.fraiseql.cost_weights);
                 naming_convention = config.fraiseql.naming.convention;
+                database_tls = config.database.postgres_tls()?;
 
                 info!("Applying security configuration to schema...");
                 // Merge security config into intermediate schema
@@ -434,9 +446,11 @@ pub async fn compile_to_schema(
     // 5b. Optional: Validate native columns against database.
     if let Some(db_url) = opts.database {
         info!("Validating native columns for direct query arguments...");
-        let pg_introspector = build_postgres_introspector(db_url)
+        // One pool, one connection decision, for every check below (#1429).
+        let pool = crate::connection::postgres_pool(db_url, "database validation", &database_tls)
             .await
-            .context("Failed to connect for native column validation")?;
+            .context("Failed to connect for database validation")?;
+        let pg_introspector = fraiseql_core::db::postgres::PostgresIntrospector::new(pool.clone());
         let db_report = validate_schema_against_database(&schema, &pg_introspector).await?;
 
         // Error-severity drift fails the compile (#384) — collected here, raised
@@ -458,9 +472,7 @@ pub async fn compile_to_schema(
         // a removed engine's was refused up front — so this runs for every form of it,
         // libpq `key=value` included (#1403).
         info!("Validating mutation contract against the database...");
-        let catalog = PgCatalog::connect(db_url)
-            .await
-            .context("Failed to connect for mutation-contract validation")?;
+        let catalog = PgCatalog::from_pool(pool);
         let contract = validate_mutation_contract(&schema, &catalog).await?;
         let mut caused_by_default: std::collections::BTreeMap<String, Vec<String>> =
             std::collections::BTreeMap::new();
@@ -1238,8 +1250,9 @@ fn warn_jsonb_preserve_mismatch(schema: &CompiledSchema) {
 /// it is older than PostgreSQL 18.
 pub(crate) async fn build_postgres_introspector(
     db_url: &str,
+    tls: &PostgresTlsConfig,
 ) -> Result<fraiseql_core::db::postgres::PostgresIntrospector> {
-    let pool = crate::connection::postgres_pool(db_url, "database validation").await?;
+    let pool = crate::connection::postgres_pool(db_url, "database validation", tls).await?;
     Ok(fraiseql_core::db::postgres::PostgresIntrospector::new(pool))
 }
 

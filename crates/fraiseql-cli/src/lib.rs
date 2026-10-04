@@ -29,6 +29,8 @@ pub mod schema;
 pub use anyhow;
 /// The `clap` this crate's public API is built against (#1198).
 pub use clap;
+/// The `deadpool_postgres` behind [`connection::postgres_pool`]'s `Pool` (#1198).
+pub use deadpool_postgres;
 /// The `indexmap` this crate's public API is built against (#1198).
 pub use indexmap;
 pub use runner::run;

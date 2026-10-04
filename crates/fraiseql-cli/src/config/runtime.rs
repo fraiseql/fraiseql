@@ -261,6 +261,23 @@ impl DatabaseRuntimeConfig {
         Ok(())
     }
 
+    /// The `[database]` section of a parsed `fraiseql.toml`, or the default when the file
+    /// has none.
+    ///
+    /// Reads that one section rather than the whole document, so it serves any
+    /// `fraiseql.toml` a command was given, whichever other sections it carries.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `[database]` holds a key this struct does not know or a value
+    /// of the wrong type.
+    pub fn from_document(document: &toml::Value) -> Result<Self> {
+        document.get("database").map_or_else(
+            || Ok(Self::default()),
+            |section| section.clone().try_into().map_err(|e| anyhow::anyhow!("[database]: {e}")),
+        )
+    }
+
     /// Transport security for the pool `fraiseql run` builds.
     ///
     /// # Errors

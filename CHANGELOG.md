@@ -338,6 +338,23 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The CLI reaches a PostgreSQL that requires TLS (#1429).** Every CLI database connection
+  was `NoTls`: `?sslmode=require` failed with "no TLS implementation configured", and the
+  default `prefer` connected in cleartext even to a server offering TLS. The CLI now builds
+  its connections with the server's own connector. The URL's `sslmode` applies (`disable`,
+  `prefer`, `require`) to `compile --database`, `validate --against-db`, `doctor`,
+  `setup`, `perf`, `sources`, the fact-table commands and `generate-views --validate`.
+  Where a command read `fraiseql.toml`, its `[database] ssl_mode` applies too, including
+  `verify-full`: `compile` (its `--config`, or a TOML input), `doctor` (its `--config`),
+  and `setup` / `perf` / `sources` when they took the URL from that file. An `ssl_mode`
+  the connector cannot honour (`allow`, `verify-ca`) is an error, never a quiet fallback:
+  `doctor` reports it and skips its database checks, and `sources` now fails on it, and on
+  an unparseable `fraiseql.toml`, instead of listing definitions without cursor state.
+  Library callers: `PgCatalog::connect`, `PerfReader::connect`,
+  `SourceCursorReader::connect` and `connection::postgres_pool` take a
+  `&PostgresTlsConfig`.
+
+
 - **The observer guides call constructors that exist (#1406).** `integration-guide.md` and
   `migration-guide.md` showed `ObserverExecutor::with_checkpoint_store`, `with_dedup`,
   `with_metrics`, `with_circuit_breaker` and a chain of builder methods, none of which exist.

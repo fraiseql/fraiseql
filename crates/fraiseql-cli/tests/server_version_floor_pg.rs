@@ -43,7 +43,9 @@ async fn the_catalogue_pool_refuses_postgresql_17() {
     let Some(url) = below_floor_url("the_catalogue_pool_refuses_postgresql_17") else {
         return;
     };
-    let Err(err) = PgCatalog::connect(&url).await else {
+    let Err(err) =
+        PgCatalog::connect(&url, &fraiseql_db::postgres::PostgresTlsConfig::default()).await
+    else {
         panic!("PgCatalog connected to PostgreSQL 17");
     };
     assert_names_the_floor(&format!("{err:#}"));

@@ -8,7 +8,7 @@
 use std::{net::TcpStream, path::Path, sync::Arc, time::Duration};
 
 use fraiseql_core::{
-    db::postgres::PostgresAdapter,
+    db::postgres::PostgresTlsConfig,
     runtime::{Executor, RuntimeConfig},
     schema::{ArgumentDefinition, CompiledSchema, MutationDefinition, QueryDefinition},
 };
@@ -665,6 +665,29 @@ pub fn run_checks(
     checks
 }
 
+/// Name of the check that reports an unusable `[database] ssl_mode`.
+const DATABASE_TLS_NAME: &str = "Database TLS settings";
+
+/// `[database] ssl_mode` from the doctor's config file (#1429), or the default (the URL's
+/// own `sslmode` decides) when there is no such file.
+///
+/// # Errors
+///
+/// Returns an error when the file cannot be read or parsed, or names a mode the
+/// connector cannot honour.
+fn database_tls(config: &Path) -> anyhow::Result<PostgresTlsConfig> {
+    if !config.exists() {
+        return Ok(PostgresTlsConfig::default());
+    }
+    let content = anyhow::Context::with_context(std::fs::read_to_string(config), || {
+        format!("failed to read {}", config.display())
+    })?;
+    let document: toml::Value = anyhow::Context::with_context(toml::from_str(&content), || {
+        format!("failed to parse {}", config.display())
+    })?;
+    crate::config::DatabaseRuntimeConfig::from_document(&document)?.postgres_tls()
+}
+
 /// Execute the doctor command.
 ///
 /// Returns `true` if all checks passed (exit 0), `false` if any check failed
@@ -692,23 +715,42 @@ pub async fn run_with_db_checks(
     // Precedence: --db-url > --against-db > env (the env fallback lives in the
     // checks themselves, for the no-flag case).
     let mut checks = run_checks(config, schema, effective_db_url(db_url, against_db));
-    if let Some(url) = against_db {
-        checks.extend(changelog_contract_checks(url).await);
-        checks.extend(changelog_rls_checks(url).await);
-        checks.extend(changelog_public_grants_checks(url).await);
-        checks.extend(changelog_actor_checks(url).await);
-        checks.extend(capture_fn_security_checks(url).await);
-        checks.extend(body_resolution_checks(url, schemas).await);
-        checks.extend(mutation_contract_checks(url, schema).await);
-        checks.extend(view_drift_checks(url, schema).await);
-        checks.extend(rls_security_invoker_checks(url, schema).await);
-        checks.extend(pagination_index_checks(url, schema).await);
+    let wants_database = against_db.is_some() || runtime;
+    // `[database] ssl_mode` from the same config the static checks read (#1429). A mode
+    // that cannot be honoured stops the database checks rather than falling back to a
+    // weaker one.
+    let tls = if wants_database {
+        match database_tls(config) {
+            Ok(tls) => Some(tls),
+            Err(e) => {
+                checks.push(DoctorCheck::fail(
+                    DATABASE_TLS_NAME,
+                    format!("{e:#}"),
+                    "Fix [database] ssl_mode in the config file; database checks were skipped.",
+                ));
+                None
+            },
+        }
+    } else {
+        None
+    };
+    if let (Some(url), Some(tls)) = (against_db, tls.as_ref()) {
+        checks.extend(changelog_contract_checks(url, tls).await);
+        checks.extend(changelog_rls_checks(url, tls).await);
+        checks.extend(changelog_public_grants_checks(url, tls).await);
+        checks.extend(changelog_actor_checks(url, tls).await);
+        checks.extend(capture_fn_security_checks(url, tls).await);
+        checks.extend(body_resolution_checks(url, tls, schemas).await);
+        checks.extend(mutation_contract_checks(url, tls, schema).await);
+        checks.extend(view_drift_checks(url, tls, schema).await);
+        checks.extend(rls_security_invoker_checks(url, tls, schema).await);
+        checks.extend(pagination_index_checks(url, tls, schema).await);
     }
 
     // Runtime smoke (#501): actually execute each probeable root operation. Prefers
     // the live `--against-db` URL, falling back to `--db-url`.
-    if runtime {
-        checks.extend(runtime_probe_checks(against_db.or(db_url), schema).await);
+    if let (true, Some(tls)) = (runtime, tls.as_ref()) {
+        checks.extend(runtime_probe_checks(against_db.or(db_url), tls, schema).await);
     }
 
     if json {
@@ -738,7 +780,11 @@ const PAGINATION_INDEX_NAME: &str = "Pagination index";
 /// Indexes are read from the view's **base** relation, resolved through
 /// `pg_rewrite`: a view carries no indexes of its own, so introspecting the
 /// `sql_source` directly could only ever report "no index".
-async fn pagination_index_checks(db_url: &str, schema_path: &Path) -> Vec<DoctorCheck> {
+async fn pagination_index_checks(
+    db_url: &str,
+    tls: &PostgresTlsConfig,
+    schema_path: &Path,
+) -> Vec<DoctorCheck> {
     use crate::commands::pagination_index_advice::{Advice, advise};
 
     let schema = match std::fs::read_to_string(schema_path)
@@ -757,16 +803,17 @@ async fn pagination_index_checks(db_url: &str, schema_path: &Path) -> Vec<Doctor
         },
     };
 
-    let introspector = match crate::commands::compile::build_postgres_introspector(db_url).await {
-        Ok(i) => i,
-        Err(e) => {
-            return vec![DoctorCheck::fail(
-                PAGINATION_INDEX_NAME,
-                format!("cannot connect: {e}"),
-                "Pass a reachable postgres:// URL to --against-db",
-            )];
-        },
-    };
+    let introspector =
+        match crate::commands::compile::build_postgres_introspector(db_url, tls).await {
+            Ok(i) => i,
+            Err(e) => {
+                return vec![DoctorCheck::fail(
+                    PAGINATION_INDEX_NAME,
+                    format!("cannot connect: {e}"),
+                    "Pass a reachable postgres:// URL to --against-db",
+                )];
+            },
+        };
 
     let mut checks = Vec::new();
     let mut examined = 0_usize;
@@ -868,7 +915,11 @@ const RUNTIME_MUTATION_LABEL: &str = "Runtime mutation probe (dry-run)";
 ///
 /// Never panics: a missing URL, an unreadable schema, or a connection failure all
 /// become a single `Fail` check.
-pub async fn runtime_probe_checks(db_url: Option<&str>, schema_path: &Path) -> Vec<DoctorCheck> {
+pub async fn runtime_probe_checks(
+    db_url: Option<&str>,
+    tls: &PostgresTlsConfig,
+    schema_path: &Path,
+) -> Vec<DoctorCheck> {
     let Some(url) = db_url else {
         return vec![DoctorCheck::fail(
             RUNTIME_NAME,
@@ -895,7 +946,7 @@ pub async fn runtime_probe_checks(db_url: Option<&str>, schema_path: &Path) -> V
         },
     };
 
-    let adapter = match PostgresAdapter::new(url).await {
+    let adapter = match crate::connection::postgres_adapter(url, "the runtime smoke", tls).await {
         Ok(adapter) => Arc::new(adapter),
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1071,10 +1122,14 @@ pub(crate) fn minimal_mutation_probe(
 /// Never panics: connection or analysis failures become `Fail` checks, an
 /// absent `plpgsql_check` extension becomes a `Warn` (skipped), and each
 /// unresolved internal call becomes its own `Fail`.
-async fn body_resolution_checks(db_url: &str, schemas: &[String]) -> Vec<DoctorCheck> {
+async fn body_resolution_checks(
+    db_url: &str,
+    tls: &PostgresTlsConfig,
+    schemas: &[String],
+) -> Vec<DoctorCheck> {
     const NAME: &str = "PL/pgSQL body resolution";
 
-    let catalog = match PgCatalog::connect(db_url).await {
+    let catalog = match PgCatalog::connect(db_url, tls).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1169,7 +1224,11 @@ pub(crate) fn mutation_contract_drift(report: &ContractReport) -> Vec<DoctorChec
 ///
 /// Never panics: a schema-load, connection, or catalog failure becomes a single
 /// check rather than aborting the doctor run.
-async fn mutation_contract_checks(db_url: &str, schema_path: &Path) -> Vec<DoctorCheck> {
+async fn mutation_contract_checks(
+    db_url: &str,
+    tls: &PostgresTlsConfig,
+    schema_path: &Path,
+) -> Vec<DoctorCheck> {
     let schema = match std::fs::read_to_string(schema_path)
         .map_err(|e| format!("cannot read schema: {e}"))
         .and_then(|c| {
@@ -1186,7 +1245,7 @@ async fn mutation_contract_checks(db_url: &str, schema_path: &Path) -> Vec<Docto
         },
     };
 
-    let catalog = match PgCatalog::connect(db_url).await {
+    let catalog = match PgCatalog::connect(db_url, tls).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1217,7 +1276,11 @@ const VIEW_DRIFT_NAME: &str = "View drift";
 /// `Fail`, a warn-severity finding a `Warn`, a clean report a single `Pass`.
 /// A connection or introspection failure becomes a single `Fail` check (never
 /// panics).
-async fn view_drift_checks(db_url: &str, schema_path: &Path) -> Vec<DoctorCheck> {
+async fn view_drift_checks(
+    db_url: &str,
+    tls: &PostgresTlsConfig,
+    schema_path: &Path,
+) -> Vec<DoctorCheck> {
     let schema = match std::fs::read_to_string(schema_path)
         .map_err(|e| format!("cannot read schema: {e}"))
         .and_then(|c| {
@@ -1234,7 +1297,7 @@ async fn view_drift_checks(db_url: &str, schema_path: &Path) -> Vec<DoctorCheck>
         },
     };
 
-    let introspector = match create_introspector(db_url).await {
+    let introspector = match create_introspector(db_url, tls).await {
         Ok(i) => i,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1283,8 +1346,8 @@ const CHANGELOG_CONTRACT_NAME: &str = "Change-log contract";
 /// Connects, reads `core.tb_entity_change_log` from `information_schema.columns`,
 /// and classifies the drift via [`changelog_contract_drift`]. A connection or
 /// introspection failure becomes a single `Fail` check (never panics).
-async fn changelog_contract_checks(db_url: &str) -> Vec<DoctorCheck> {
-    let catalog = match PgCatalog::connect(db_url).await {
+async fn changelog_contract_checks(db_url: &str, tls: &PostgresTlsConfig) -> Vec<DoctorCheck> {
+    let catalog = match PgCatalog::connect(db_url, tls).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1313,8 +1376,8 @@ const CHANGELOG_RLS_NAME: &str = "Change-log RLS";
 /// whether the connecting role can read it, and classifies via
 /// [`changelog_rls_check`]. A connection or introspection failure becomes a single
 /// `Fail` check (never panics).
-async fn changelog_rls_checks(db_url: &str) -> Vec<DoctorCheck> {
-    let catalog = match PgCatalog::connect(db_url).await {
+async fn changelog_rls_checks(db_url: &str, tls: &PostgresTlsConfig) -> Vec<DoctorCheck> {
+    let catalog = match PgCatalog::connect(db_url, tls).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1392,8 +1455,8 @@ const CHANGELOG_ACTOR_NAME: &str = "Change-log actor attribution";
 /// (NULL / out-of-contract `actor_type` values, CHECK constraint presence), and
 /// classifies via [`changelog_actor_check`]. A connection or introspection
 /// failure becomes a single `Fail` check (never panics).
-async fn changelog_actor_checks(db_url: &str) -> Vec<DoctorCheck> {
-    let catalog = match PgCatalog::connect(db_url).await {
+async fn changelog_actor_checks(db_url: &str, tls: &PostgresTlsConfig) -> Vec<DoctorCheck> {
+    let catalog = match PgCatalog::connect(db_url, tls).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1500,8 +1563,8 @@ const CHANGELOG_PUBLIC_GRANTS_NAME: &str = "Change-log PUBLIC grants";
 /// Connects, reads which privileges `PUBLIC` holds on the change-log table and its
 /// two views, and classifies via [`changelog_public_grants_check`]. A connection
 /// or introspection failure becomes a single `Fail` check (never panics).
-async fn changelog_public_grants_checks(db_url: &str) -> Vec<DoctorCheck> {
-    let catalog = match PgCatalog::connect(db_url).await {
+async fn changelog_public_grants_checks(db_url: &str, tls: &PostgresTlsConfig) -> Vec<DoctorCheck> {
+    let catalog = match PgCatalog::connect(db_url, tls).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1579,7 +1642,11 @@ const SECURITY_INVOKER_NAME: &str = "RLS view security_invoker";
 /// cross-tenant rows. Turns that silent leak class into a diagnosable one.
 ///
 /// A connection or introspection failure becomes a single `Fail` (never panics).
-async fn rls_security_invoker_checks(db_url: &str, schema_path: &Path) -> Vec<DoctorCheck> {
+async fn rls_security_invoker_checks(
+    db_url: &str,
+    tls: &PostgresTlsConfig,
+    schema_path: &Path,
+) -> Vec<DoctorCheck> {
     let schema = match load_compiled_schema(schema_path) {
         Ok(s) => s,
         Err(e) => {
@@ -1607,7 +1674,7 @@ async fn rls_security_invoker_checks(db_url: &str, schema_path: &Path) -> Vec<Do
         )];
     }
 
-    let catalog = match PgCatalog::connect(db_url).await {
+    let catalog = match PgCatalog::connect(db_url, tls).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(
@@ -1665,8 +1732,8 @@ const CAPTURE_FN_SECURITY_NAME: &str = "Change-log capture function";
 /// `SECURITY DEFINER` with a pinned `search_path`, and classifies via
 /// [`capture_fn_security_check`]. A connection or introspection failure becomes a
 /// single `Fail` check (never panics).
-async fn capture_fn_security_checks(db_url: &str) -> Vec<DoctorCheck> {
-    let catalog = match PgCatalog::connect(db_url).await {
+async fn capture_fn_security_checks(db_url: &str, tls: &PostgresTlsConfig) -> Vec<DoctorCheck> {
+    let catalog = match PgCatalog::connect(db_url, tls).await {
         Ok(c) => c,
         Err(e) => {
             return vec![DoctorCheck::fail(

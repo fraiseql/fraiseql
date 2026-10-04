@@ -102,7 +102,11 @@ async fn setup() -> Option<PgCatalog> {
         let _ = connection.await;
     });
     client.batch_execute(SETUP).await.expect("setup DDL failed");
-    Some(PgCatalog::connect(&url).await.expect("PgCatalog connect"))
+    Some(
+        PgCatalog::connect(&url, &fraiseql_db::postgres::PostgresTlsConfig::default())
+            .await
+            .expect("PgCatalog connect"),
+    )
 }
 
 async fn teardown() {

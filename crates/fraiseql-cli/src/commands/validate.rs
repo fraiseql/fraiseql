@@ -207,7 +207,8 @@ pub async fn run_against_db(input: &str, db_url: &str, json: bool) -> Result<()>
         format!("`{input}` is not a valid compiled schema (run `fraiseql compile` first)")
     })?;
 
-    let catalog = PgCatalog::connect(db_url).await?;
+    let catalog =
+        PgCatalog::connect(db_url, &fraiseql_db::postgres::PostgresTlsConfig::default()).await?;
     let report = validate_mutation_contract(&schema, &catalog).await?;
 
     if json {
@@ -219,7 +220,8 @@ pub async fn run_against_db(input: &str, db_url: &str, json: bool) -> Result<()>
     // #487 existence gate: every declared `sql_source` (query relation / mutation
     // function) must be backed by a live database object. Distinct, named output;
     // turns "declared-but-unbacked → opaque per-request 500" into a loud CLI failure.
-    let introspector = create_introspector(db_url).await?;
+    let introspector =
+        create_introspector(db_url, &fraiseql_db::postgres::PostgresTlsConfig::default()).await?;
     let unbacked = find_unbacked_sources(&schema, &introspector).await?;
     if !unbacked.is_empty() {
         if json {

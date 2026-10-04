@@ -77,7 +77,10 @@ fn mutation(name: &str, sql_source: &str) -> MutationDefinition {
 }
 
 async fn warnings_for(url: &str, schema: CompiledSchema) -> Vec<DatabaseWarning> {
-    let introspector = create_introspector(url).await.expect("introspector");
+    let introspector =
+        create_introspector(url, &fraiseql_db::postgres::PostgresTlsConfig::default())
+            .await
+            .expect("introspector");
     validate_schema_against_database(&schema, &introspector).await.unwrap().warnings
 }
 

@@ -13,6 +13,7 @@
 
 use anyhow::{Context, Result};
 use deadpool_postgres::Pool;
+use fraiseql_db::postgres::PostgresTlsConfig;
 
 /// The framework-owned read-path view shipped by the change-log contract
 /// migration (`08_create_entity_change_log_contract.sql`). Trusted identifier —
@@ -57,8 +58,8 @@ impl PerfReader {
     /// Returns an error if `db_url` is not a PostgreSQL connection string (see
     /// [`crate::connection::require_postgres`]), the server cannot be reached, or
     /// it is older than PostgreSQL 18.
-    pub async fn connect(db_url: &str) -> Result<Self> {
-        let pool = crate::connection::postgres_pool(db_url, "perf reads").await?;
+    pub async fn connect(db_url: &str, tls: &PostgresTlsConfig) -> Result<Self> {
+        let pool = crate::connection::postgres_pool(db_url, "perf reads", tls).await?;
         Ok(Self { pool })
     }
 

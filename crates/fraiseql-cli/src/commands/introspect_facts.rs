@@ -43,7 +43,12 @@ impl OutputFormat {
 
 /// Create a PostgreSQL introspector from a database URL
 async fn create_introspector(database_url: &str) -> Result<PostgresIntrospector> {
-    let pool = crate::connection::postgres_pool(database_url, "fact-table introspection").await?;
+    let pool = crate::connection::postgres_pool(
+        database_url,
+        "fact-table introspection",
+        &fraiseql_db::postgres::PostgresTlsConfig::default(),
+    )
+    .await?;
     Ok(PostgresIntrospector::new(pool))
 }
 

@@ -25,7 +25,7 @@ use self::{
     analysis::{NullRateReport, NullRateRow, RegressionParams, RegressionReport, SkipReason},
     reader::{ChangeLogSample, PerfReader},
 };
-use crate::commands::migrate::resolve_database_url;
+use crate::commands::migrate::resolve_database;
 
 /// Arguments for `perf regression-scan`.
 pub struct RegressionScanArgs {
@@ -63,8 +63,8 @@ pub struct RegressionScanArgs {
 ///
 /// Returns an error if no database URL can be resolved or a query fails.
 pub async fn run_regression_scan(args: RegressionScanArgs) -> Result<bool> {
-    let url = resolve_database_url(args.database.as_deref())?;
-    let reader = PerfReader::connect(&url).await?;
+    let db = resolve_database(args.database.as_deref())?;
+    let reader = PerfReader::connect(&db.url, &db.tls).await?;
 
     let now_epoch = reader.db_now_epoch().await?;
     let window_days = i32::try_from(args.recent_days + args.baseline_days).unwrap_or(i32::MAX);
@@ -147,8 +147,8 @@ async fn load(
     days: i32,
     object_type: Option<&str>,
 ) -> Result<Vec<ChangeLogSample>> {
-    let url = resolve_database_url(database)?;
-    let reader = PerfReader::connect(&url).await?;
+    let db = resolve_database(database)?;
+    let reader = PerfReader::connect(&db.url, &db.tls).await?;
     reader.load_samples(days, object_type).await
 }
 

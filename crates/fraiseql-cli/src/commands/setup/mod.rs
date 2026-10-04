@@ -48,8 +48,8 @@ pub async fn run(
     }
 
     // Resolve database URL for actual execution
-    let db_url = super::migrate::resolve_database_url(database_url)
-        .context("Failed to resolve database URL")?;
+    let db =
+        super::migrate::resolve_database(database_url).context("Failed to resolve database URL")?;
 
     formatter.progress(&format!(
         "🔧 Installing FraiseQL mutation helpers (v{}) to database...",
@@ -57,7 +57,9 @@ pub async fn run(
     ));
 
     // Connect to database and get a pool
-    let pool = connect_to_database(&db_url).await.context("Failed to connect to database")?;
+    let pool = connect_to_database(&db.url, &db.tls)
+        .await
+        .context("Failed to connect to database")?;
 
     // Apply the SQL helpers
     apply_helpers(&pool, formatter).await.context("Failed to apply helpers")?;
@@ -113,8 +115,11 @@ fn mask_password(url: &str) -> String {
 }
 
 /// Connect to the database using a deadpool connection pool
-async fn connect_to_database(db_url: &str) -> Result<deadpool_postgres::Pool> {
-    let pool = crate::connection::postgres_pool(db_url, "setup").await?;
+async fn connect_to_database(
+    db_url: &str,
+    tls: &fraiseql_db::postgres::PostgresTlsConfig,
+) -> Result<deadpool_postgres::Pool> {
+    let pool = crate::connection::postgres_pool(db_url, "setup", tls).await?;
     info!("Connected to database");
 
     Ok(pool)

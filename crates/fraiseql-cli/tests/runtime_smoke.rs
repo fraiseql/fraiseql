@@ -89,7 +89,12 @@ async fn doctor_runtime_passes_on_resolvable_schema() {
     let client = setup_view(&url).await;
     let file = schema_file(&thing_schema("v_rt_smoke_thing_501"));
 
-    let checks = runtime_probe_checks(Some(&url), file.path()).await;
+    let checks = runtime_probe_checks(
+        Some(&url),
+        &fraiseql_db::postgres::PostgresTlsConfig::default(),
+        file.path(),
+    )
+    .await;
 
     client.batch_execute(&format!("DROP VIEW IF EXISTS {VIEW};")).await.ok();
 
@@ -114,7 +119,12 @@ async fn doctor_runtime_fails_on_missing_view() {
     // Schema points the query at a view that does not exist → the probe must FAIL.
     let file = schema_file(&thing_schema("v_rt_smoke_absent_501"));
 
-    let checks = runtime_probe_checks(Some(&url), file.path()).await;
+    let checks = runtime_probe_checks(
+        Some(&url),
+        &fraiseql_db::postgres::PostgresTlsConfig::default(),
+        file.path(),
+    )
+    .await;
 
     assert!(
         checks.iter().any(|c| c.status == CheckStatus::Fail),

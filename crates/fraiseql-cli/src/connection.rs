@@ -13,9 +13,10 @@
 //! connection string, which may carry a password.
 
 use anyhow::{Context, Result};
-use deadpool_postgres::{Config, ManagerConfig, Pool, PoolConfig, RecyclingMethod, Runtime};
-use fraiseql_db::postgres::require_supported_server;
-use tokio_postgres::NoTls;
+use deadpool_postgres::Pool;
+use fraiseql_db::postgres::{
+    PoolPrewarmConfig, PostgresAdapter, PostgresTlsConfig, VectorScanConfig,
+};
 
 use crate::schema::database_validator::refuse_removed_engine_url;
 
@@ -42,32 +43,56 @@ pub fn require_postgres(db_url: &str) -> Result<()> {
 
 /// A small connection pool for a CLI read, after [`require_postgres`].
 ///
-/// `purpose` completes "failed to create a PostgreSQL connection pool for …".
-/// The first connection is opened here, and the server is refused below the
-/// supported PostgreSQL floor before the command reads anything through it.
+/// Built by `fraiseql-db`'s own pool constructor, so the CLI and the server share one
+/// TLS policy (#1429): the URL's `sslmode` applies when `tls` sets no mode, a mode in
+/// `tls` (from `[database] ssl_mode`) overrides it, and the connector negotiates TLS
+/// rather than refusing it. The first connection is opened here, and the server is
+/// refused below the supported PostgreSQL floor before the command reads anything.
+///
+/// `purpose` completes "failed to connect to PostgreSQL for …".
 ///
 /// # Errors
 ///
-/// Returns the [`require_postgres`] error, one naming `purpose` when the pool
-/// cannot be created or cannot connect, and the floor refusal for a server older
-/// than PostgreSQL 18.
-pub(crate) async fn postgres_pool(db_url: &str, purpose: &str) -> Result<Pool> {
+/// Returns the [`require_postgres`] error, one naming `purpose` when the server cannot
+/// be reached or the TLS settings cannot be honoured, and the floor refusal for a server
+/// older than PostgreSQL 18.
+pub async fn postgres_pool(db_url: &str, purpose: &str, tls: &PostgresTlsConfig) -> Result<Pool> {
+    Ok(postgres_adapter(db_url, purpose, tls).await?.pool().clone())
+}
+
+/// The adapter behind [`postgres_pool`], for a command that executes through the
+/// runtime rather than reading the catalogue (`doctor --runtime`).
+///
+/// # Errors
+///
+/// As [`postgres_pool`].
+pub async fn postgres_adapter(
+    db_url: &str,
+    purpose: &str,
+    tls: &PostgresTlsConfig,
+) -> Result<PostgresAdapter> {
     require_postgres(db_url)?;
-    let mut cfg = Config::new();
-    cfg.url = Some(db_url.to_string());
-    cfg.manager = Some(ManagerConfig {
-        recycling_method: RecyclingMethod::Fast,
-    });
-    cfg.pool = Some(PoolConfig::new(CLI_POOL_SIZE));
-    let pool = cfg
-        .create_pool(Some(Runtime::Tokio1), NoTls)
-        .with_context(|| format!("failed to create a PostgreSQL connection pool for {purpose}"))?;
-    let client = pool
-        .get()
-        .await
-        .with_context(|| format!("failed to connect to PostgreSQL for {purpose}"))?;
-    require_supported_server(&client).await?;
-    Ok(pool)
+    PostgresAdapter::with_pool_config(
+        db_url,
+        PoolPrewarmConfig {
+            min_size:            0,
+            max_size:            CLI_POOL_SIZE,
+            timeout_secs:        None,
+            search_path:         None,
+            tls:                 tls.clone(),
+            read_replicas:       None,
+            max_streaming_reads: None,
+            vector_scan:         VectorScanConfig::default(),
+        },
+    )
+    .await
+    .map_err(anyhow::Error::new)
+    .with_context(|| {
+        format!(
+            "failed to connect to PostgreSQL for {purpose} (ssl_mode = {})",
+            tls.effective_mode()
+        )
+    })
 }
 
 #[cfg(test)]

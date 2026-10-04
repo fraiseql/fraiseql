@@ -2567,6 +2567,10 @@ func (m *FraiseqlCi) integrationTLS(ctx context.Context, source *dagger.Director
 		// is encrypted according to pg_stat_ssl rather than according to the client.
 		"echo '### integration: tls (fraiseql-db connection pool)'",
 		"cargo test -p fraiseql-db --features postgres,test-postgres --test postgres_tls_verify_test -- --test-threads=1",
+		// #1429: the CLI's connections negotiate TLS through the same connector, honour the
+		// URL's sslmode and, where a command loaded fraiseql.toml, its [database] ssl_mode.
+		"echo '### integration: tls (fraiseql-cli database connections)'",
+		"cargo test -p fraiseql-cli --features test-postgres --test database_tls_pg -- --test-threads=1",
 		"echo 'test-integration OK: tls suite passed'",
 	}, "\n")
 

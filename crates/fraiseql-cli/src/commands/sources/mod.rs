@@ -30,7 +30,7 @@ use fraiseql_core::schema::{CompiledSchema, SourceDefinition};
 use serde::Serialize;
 
 use self::reader::{CursorRow, SourceCursorReader};
-use crate::commands::migrate::resolve_database_url;
+use crate::commands::migrate::resolve_configured_database;
 
 /// Arguments for `fraiseql sources`.
 pub struct SourcesArgs {
@@ -279,15 +279,16 @@ pub async fn run(args: SourcesArgs) -> Result<()> {
     // `unknown` cursor state rather than failing — the definitions are still useful.
     // When a URL *does* resolve, a read failure is a real error (the operator asked
     // for cursor state).
-    let (cursors, database_connected) = match resolve_database_url(args.database.as_deref()) {
-        Ok(db_url) => {
-            let reader = SourceCursorReader::connect(&db_url).await?;
+    let (cursors, database_connected) = match resolve_configured_database(args.database.as_deref())?
+    {
+        Some(db) => {
+            let reader = SourceCursorReader::connect(&db.url, &db.tls).await?;
             let rows = reader.load_cursors().await?;
             let map: HashMap<String, CursorRow> =
                 rows.into_iter().map(|row| (row.source_name.clone(), row)).collect();
             (Some(map), true)
         },
-        Err(_) => (None, false),
+        None => (None, false),
     };
 
     let statuses = build_status(&schema.sources, cursors.as_ref());

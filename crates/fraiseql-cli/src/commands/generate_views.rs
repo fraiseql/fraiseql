@@ -209,14 +209,14 @@ async fn validate_ddl_against_database(sql: &str) -> Result<()> {
              (everything runs in a rolled-back transaction; a scratch database is fine)"
         )
     })?;
-    crate::connection::require_postgres(&db_url)?;
-    let (mut client, connection) = tokio_postgres::connect(&db_url, tokio_postgres::NoTls)
-        .await
-        .context("--validate: failed to connect to DATABASE_URL")?;
-    tokio::spawn(async move {
-        let _ = connection.await;
-    });
-    fraiseql_db::postgres::require_supported_server(&client).await?;
+    // The shared pool: the URL's `sslmode` applies, and the server floor is checked.
+    let pool = crate::connection::postgres_pool(
+        &db_url,
+        "--validate",
+        &fraiseql_db::postgres::PostgresTlsConfig::default(),
+    )
+    .await?;
+    let mut client = pool.get().await.context("--validate: failed to connect to DATABASE_URL")?;
 
     let txn = client.transaction().await.context("--validate: failed to open transaction")?;
     txn.batch_execute(sql)

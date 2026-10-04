@@ -18,6 +18,7 @@
 
 use anyhow::{Context, Result};
 use deadpool_postgres::Pool;
+use fraiseql_db::postgres::PostgresTlsConfig;
 
 /// A single output column of a `PostgreSQL` function's result row.
 ///
@@ -187,6 +188,12 @@ pub struct PgCatalog {
 }
 
 impl PgCatalog {
+    /// Read the catalogue through a pool the caller already connected.
+    #[must_use]
+    pub(crate) const fn from_pool(pool: Pool) -> Self {
+        Self { pool }
+    }
+
     /// Connect to `db_url` (`PostgreSQL` only) for catalog introspection.
     ///
     /// # Errors
@@ -194,8 +201,8 @@ impl PgCatalog {
     /// Returns an error if `db_url` is not a PostgreSQL connection string (see
     /// [`crate::connection::require_postgres`]), the server cannot be reached, or
     /// it is older than PostgreSQL 18.
-    pub async fn connect(db_url: &str) -> Result<Self> {
-        let pool = crate::connection::postgres_pool(db_url, "catalogue introspection").await?;
+    pub async fn connect(db_url: &str, tls: &PostgresTlsConfig) -> Result<Self> {
+        let pool = crate::connection::postgres_pool(db_url, "catalogue introspection", tls).await?;
         Ok(Self { pool })
     }
 

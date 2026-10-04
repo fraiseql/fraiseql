@@ -6,9 +6,10 @@
 use std::{path::Path, process::Command};
 
 use anyhow::{Context, Result};
+use fraiseql_db::postgres::PostgresTlsConfig;
 use tracing::info;
 
-use crate::output::OutputFormatter;
+use crate::{config::DatabaseRuntimeConfig, output::OutputFormatter};
 
 /// Migration subcommand
 #[derive(Debug, Clone)]
@@ -98,8 +99,56 @@ pub fn run(action: &MigrateAction, formatter: &OutputFormatter) -> Result<()> {
 /// Returns an error if `fraiseql.toml` exists but cannot be read or parsed, or
 /// if no database URL can be found from any source (flag, TOML, or `DATABASE_URL`).
 pub fn resolve_database_url(explicit: Option<&str>) -> Result<String> {
+    resolve_database(explicit).map(|db| db.url)
+}
+
+/// A database URL and the transport security to connect to it with.
+#[derive(Debug, Clone)]
+pub struct ResolvedDatabase {
+    /// The connection string.
+    pub url: String,
+    /// `[database] ssl_mode` when the URL came from `fraiseql.toml`; otherwise unset,
+    /// which leaves the URL's own `sslmode` in charge.
+    pub tls: PostgresTlsConfig,
+}
+
+/// Resolve the database URL like [`resolve_database_url`], together with its TLS
+/// settings (#1429).
+///
+/// A URL taken from `fraiseql.toml`'s `[database]` section brings that section's
+/// `ssl_mode` with it: the two are one setting written in two keys. A URL from the flag
+/// or `DATABASE_URL` carries its own `?sslmode=`.
+///
+/// # Errors
+///
+/// Returns an error if `fraiseql.toml` exists but cannot be read or parsed, if its
+/// `ssl_mode` names a mode the connector cannot honour, or if no database URL can be
+/// found from any source (flag, TOML, or `DATABASE_URL`).
+pub fn resolve_database(explicit: Option<&str>) -> Result<ResolvedDatabase> {
+    resolve_configured_database(explicit)?.ok_or_else(|| {
+        anyhow::anyhow!(
+            "No database URL provided. Use --database, set [database].url in fraiseql.toml, \
+             or set DATABASE_URL environment variable."
+        )
+    })
+}
+
+/// [`resolve_database`] for a command whose database is optional.
+///
+/// "No source names a database" is `Ok(None)` rather than an error. A configuration that
+/// names one badly — an unparseable `fraiseql.toml`, an unknown `ssl_mode` — is still an
+/// error.
+///
+/// # Errors
+///
+/// Returns an error if `fraiseql.toml` exists but cannot be read or parsed, or if its
+/// `ssl_mode` names a mode the connector cannot honour.
+pub fn resolve_configured_database(explicit: Option<&str>) -> Result<Option<ResolvedDatabase>> {
     if let Some(url) = explicit {
-        return Ok(url.to_string());
+        return Ok(Some(ResolvedDatabase {
+            url: url.to_string(),
+            tls: PostgresTlsConfig::default(),
+        }));
     }
 
     // Try loading from fraiseql.toml
@@ -109,26 +158,27 @@ pub fn resolve_database_url(explicit: Option<&str>) -> Result<String> {
         let parsed: toml::Value =
             toml::from_str(&content).context("Failed to parse fraiseql.toml")?;
 
-        if let Some(url) = parsed
-            .get("database")
-            .and_then(|db| db.get("url"))
-            .and_then(toml::Value::as_str)
-        {
+        let database = DatabaseRuntimeConfig::from_document(&parsed)
+            .context("Failed to parse [database] in fraiseql.toml")?;
+        if let Some(url) = &database.url {
             info!("Using database URL from fraiseql.toml");
-            return Ok(url.to_string());
+            return Ok(Some(ResolvedDatabase {
+                url: url.clone(),
+                tls: database.postgres_tls()?,
+            }));
         }
     }
 
     // Try DATABASE_URL env var
     if let Ok(url) = std::env::var("DATABASE_URL") {
         info!("Using DATABASE_URL environment variable");
-        return Ok(url);
+        return Ok(Some(ResolvedDatabase {
+            url,
+            tls: PostgresTlsConfig::default(),
+        }));
     }
 
-    anyhow::bail!(
-        "No database URL provided. Use --database, set [database].url in fraiseql.toml, \
-         or set DATABASE_URL environment variable."
-    )
+    Ok(None)
 }
 
 /// Resolve the migration directory: use explicit flag, or auto-discover
