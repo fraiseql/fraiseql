@@ -333,14 +333,14 @@ impl SendTracker for PgSendTracker {
         record: SentRecord<'a>,
     ) -> Pin<Box<dyn Future<Output = Result<()>> + Send + 'a>> {
         Box::pin(async move {
-            // ON CONFLICT on the exactly-once expression index keeps a
+            // ON CONFLICT on the exactly-once key keeps a
             // crash-retry (or a race) from writing two `Sent` rows for one send.
             sqlx::query(
                 "INSERT INTO _fraiseql_send_status \
                      (send_id, tenant_id, recipient, sending_address, status, message_id, \
                       sent_at, updated_at) \
                  VALUES ($1, $2, $3, $4, 'Sent', $5, now(), now()) \
-                 ON CONFLICT (COALESCE(tenant_id, ''), send_id) DO NOTHING",
+                 ON CONFLICT (send_id, tenant_id) DO NOTHING",
             )
             .bind(record.send_id)
             .bind(record.tenant)
@@ -512,7 +512,7 @@ impl SendCorrelator for PgSendTracker {
             sqlx::query(
                 "INSERT INTO _fraiseql_suppression (tenant_id, address_hash, reason, ttl) \
                  VALUES ($1, $2, $3, $4) \
-                 ON CONFLICT (COALESCE(tenant_id, ''), address_hash) DO UPDATE \
+                 ON CONFLICT (address_hash, tenant_id) DO UPDATE \
                      SET reason = EXCLUDED.reason, ttl = EXCLUDED.ttl, \
                          since = now(), updated_at = now() \
                      WHERE _fraiseql_suppression.ttl IS NOT NULL",

@@ -122,8 +122,8 @@ CREATE INDEX IF NOT EXISTS idx_inbound_message_received
 /// - `_fraiseql_send_status` — one row per tracked send, keyed by the per-dispatch VERP `send_id`.
 ///   It records the recipient, the sending address, the send-status lifecycle (`Sent` → `Bounced` /
 ///   `ChallengePending` / `Replied` / …), the challenge count, and the relay message id. The
-///   exactly-once unique key on `(COALESCE(tenant_id, ''), send_id)` is what makes a durable retry
-///   skip an already-sent dispatch instead of double-sending.
+///   exactly-once unique key on `(send_id, tenant_id) NULLS NOT DISTINCT` is what makes a durable
+///   retry skip an already-sent dispatch instead of double-sending.
 /// - `_fraiseql_suppression` — the do-not-contact list checked before every send, keyed on a
 ///   **keyed hash** of the address (never the raw address, so the match survives a GDPR erasure of
 ///   the recipient's PII elsewhere) plus a granular reason (`hard_bounce` / `challenge_unanswered`
@@ -135,9 +135,10 @@ CREATE INDEX IF NOT EXISTS idx_inbound_message_received
 /// app-facing reads, mirroring #443's `tb_entity_change_log`. The platform writes
 /// through the table-owning role (which bypasses RLS) and stamps `tenant_id`
 /// explicitly; app reads through a non-owner role are filtered to the session's
-/// `fraiseql.tenant_id`. `COALESCE(tenant_id, '')` in the unique indexes keeps the
-/// exactly-once and suppression keys correct for single-tenant (NULL) rows, which a
-/// bare `UNIQUE (tenant_id, …)` would treat as always-distinct.
+/// `fraiseql.tenant_id`. The unique keys are `NULLS NOT DISTINCT`, so single-tenant
+/// (NULL) rows are one space, which a bare `UNIQUE (…, tenant_id)` would treat as
+/// always-distinct. 2.15 expressed this as a `COALESCE(tenant_id, '')` expression index;
+/// the DDL creates the new key before dropping that one, so uniqueness never lapses.
 ///
 /// The DDL is idempotent: `CREATE … IF NOT EXISTS` for tables/indexes, `ENABLE ROW
 /// LEVEL SECURITY` is a no-op when already enabled, and each policy is dropped-if-
@@ -167,8 +168,9 @@ CREATE TABLE IF NOT EXISTS _fraiseql_send_status (
     updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_send_status_tenant_send
-    ON _fraiseql_send_status (COALESCE(tenant_id, ''), send_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_send_status_per_space
+    ON _fraiseql_send_status (send_id, tenant_id) NULLS NOT DISTINCT;
+DROP INDEX IF EXISTS uq_send_status_tenant_send;
 
 -- The correlation path looks a send up by send_id alone (from the inbound
 -- Return-Path plus-tag), without a session tenant, so it needs its own index.
@@ -200,8 +202,9 @@ CREATE TABLE IF NOT EXISTS _fraiseql_suppression (
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_suppression_tenant_addr
-    ON _fraiseql_suppression (COALESCE(tenant_id, ''), address_hash);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_suppression_per_space
+    ON _fraiseql_suppression (address_hash, tenant_id) NULLS NOT DISTINCT;
+DROP INDEX IF EXISTS uq_suppression_tenant_addr;
 
 ALTER TABLE _fraiseql_suppression ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS p_suppression_tenant ON _fraiseql_suppression;

@@ -26,8 +26,8 @@ CREATE TABLE IF NOT EXISTS _fraiseql_migration_lock_probe (
     seen_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS uq_migration_lock_probe_label
-    ON _fraiseql_migration_lock_probe (COALESCE(tenant_id, ''), label);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_migration_lock_probe_label_per_space
+    ON _fraiseql_migration_lock_probe (label, tenant_id) NULLS NOT DISTINCT;
 
 CREATE INDEX IF NOT EXISTS idx_migration_lock_probe_seen_at
     ON _fraiseql_migration_lock_probe (seen_at);

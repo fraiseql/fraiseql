@@ -42,7 +42,7 @@ use std::sync::Arc;
 
 use fraiseql_server::api::rbac_management::db_backend::{RbacDbBackend, RbacDbError};
 use fraiseql_test_support::try_database_url;
-use sqlx::{PgPool, Row};
+use sqlx::PgPool;
 
 // ---------------------------------------------------------------------------
 // Scratch-database plumbing
@@ -270,33 +270,61 @@ async fn rbac_store_round_trips_against_real_postgres() {
     drop_scratch(&url, db).await;
 }
 
-/// The unique index #748's fix introduces must actually be an index on the
-/// expression, not a plain `(name, tenant_id)` one — otherwise two roles named
-/// `x` with `tenant_id IS NULL` would both be accepted (NULLs compare distinct).
+/// Role names are unique per tenant AND among global roles: the key is
+/// `(name, tenant_id) NULLS NOT DISTINCT`, so two global roles named `x` collide. A plain
+/// `(name, tenant_id)` key would accept both (NULLs compare distinct); #748's
+/// `COALESCE(tenant_id, '0000…')` expression index was the pre-15 way to say this, and
+/// `ensure_schema` replaces it in place (#1452).
 ///
 /// Asserted structurally as well as behaviourally so a future refactor that keeps
 /// the behaviour by accident still records the intent.
 #[tokio::test]
-async fn role_uniqueness_is_backed_by_an_expression_index() {
-    let Some(url) = database_url_or_skip("role_uniqueness_is_backed_by_an_expression_index") else {
+async fn role_names_are_unique_per_tenant_and_among_global_roles() {
+    let Some(url) = database_url_or_skip("role_names_are_unique_per_tenant_and_among_global_roles")
+    else {
         return;
     };
     let db = "fraiseql_p05_index";
     let pool = scratch_pool(&url, db).await;
-    RbacDbBackend::new(pool.clone()).ensure_schema().await.expect("ensure_schema");
+    let backend = RbacDbBackend::new(pool.clone());
+    backend.ensure_schema().await.expect("ensure_schema");
+    // A database 2.15 initialised: the expression index, then this release's boot.
+    sqlx::raw_sql(
+        "DROP INDEX IF EXISTS uq_fraiseql_roles_name_per_space; \
+         CREATE UNIQUE INDEX IF NOT EXISTS idx_fraiseql_roles_name_tenant ON fraiseql_roles \
+             (name, COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::uuid));",
+    )
+    .execute(&pool)
+    .await
+    .expect("recreate the 2.15 key");
+    backend.ensure_schema().await.expect("ensure_schema over a 2.15 database");
 
-    let rows = sqlx::query(
+    let defs: Vec<String> = sqlx::query_scalar(
         "SELECT indexdef FROM pg_indexes
-         WHERE tablename = 'fraiseql_roles' AND indexdef LIKE '%UNIQUE%'",
+         WHERE tablename = 'fraiseql_roles' AND indexdef LIKE 'CREATE UNIQUE INDEX%'
+           AND indexname <> 'fraiseql_roles_pkey'",
     )
     .fetch_all(&pool)
     .await
     .expect("pg_indexes probe");
-
-    let defs: Vec<String> = rows.iter().map(|r| r.get::<String, _>("indexdef")).collect();
+    assert_eq!(defs.len(), 1, "one role-name key: {defs:?}");
     assert!(
-        defs.iter().any(|d| d.contains("COALESCE")),
-        "expected a UNIQUE index over COALESCE(tenant_id, …); found: {defs:?}"
+        defs[0].contains("(name, tenant_id) NULLS NOT DISTINCT"),
+        "the key is NULLS NOT DISTINCT over (name, tenant_id): {defs:?}"
+    );
+
+    let insert = |tenant: Option<uuid::Uuid>| {
+        sqlx::query("INSERT INTO fraiseql_roles (id, name, tenant_id) VALUES ($1, 'x', $2)")
+            .bind(uuid::Uuid::new_v4())
+            .bind(tenant)
+    };
+    let t = uuid::Uuid::new_v4();
+    insert(None).execute(&pool).await.expect("a global role");
+    assert!(insert(None).execute(&pool).await.is_err(), "a second global `x` collides");
+    insert(Some(t)).execute(&pool).await.expect("a tenant's `x` is another space");
+    assert!(
+        insert(Some(t)).execute(&pool).await.is_err(),
+        "a second `x` in the tenant collides"
     );
 
     pool.close().await;

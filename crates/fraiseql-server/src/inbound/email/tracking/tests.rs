@@ -9,7 +9,9 @@
 use fraiseql_functions::{Classification, InboundMessage, IngestSource};
 use sqlx::PgPool;
 
-use super::{PgSendTracker, RecordedSend, SendTracker, SentRecord, SuppressionReason};
+use super::{
+    PgSendTracker, RecordedSend, SendCorrelator, SendTracker, SentRecord, SuppressionReason,
+};
 use crate::inbound::email::correlate;
 
 #[test]
@@ -268,4 +270,87 @@ async fn challenge_then_reply_suppresses_then_lifts_through_postgres() {
             .unwrap();
     assert_eq!(status, "Replied");
     assert_eq!(tracker.suppression_reason(None, &hash).await.unwrap(), None, "lifted on reply");
+}
+
+/// The unique definitions on the two tracking tables.
+async fn tracking_unique_indexes(pool: &PgPool) -> Vec<String> {
+    sqlx::query_scalar(
+        "SELECT indexdef FROM pg_indexes \
+         WHERE tablename IN ('_fraiseql_send_status', '_fraiseql_suppression') \
+           AND indexdef LIKE 'CREATE UNIQUE INDEX%' AND indexname NOT LIKE '%_pkey' \
+         ORDER BY indexname",
+    )
+    .fetch_all(pool)
+    .await
+    .unwrap()
+}
+
+/// A database initialised by 2.15 keys both tables on a `COALESCE(tenant_id, '')`
+/// expression. `init` replaces each with a `NULLS NOT DISTINCT` index in place (#1452),
+/// and the exactly-once and suppression upserts then conflict on the new key — for the
+/// single-tenant (NULL) space too, which a bare `(tenant_id, …)` key would never collide.
+#[tokio::test]
+async fn init_moves_the_tracking_keys_to_nulls_not_distinct_and_the_upserts_follow() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!("SKIP init_moves_the_tracking_keys_to_nulls_not_distinct: no postgres");
+        return;
+    };
+    let tracker = PgSendTracker::new(pool.clone());
+    tracker.init().await.unwrap();
+    sqlx::raw_sql(
+        "DROP INDEX IF EXISTS uq_send_status_per_space; \
+         DROP INDEX IF EXISTS uq_suppression_per_space; \
+         CREATE UNIQUE INDEX IF NOT EXISTS uq_send_status_tenant_send \
+             ON _fraiseql_send_status (COALESCE(tenant_id, ''), send_id); \
+         CREATE UNIQUE INDEX IF NOT EXISTS uq_suppression_tenant_addr \
+             ON _fraiseql_suppression (COALESCE(tenant_id, ''), address_hash); \
+         DELETE FROM _fraiseql_send_status WHERE send_id = 'send-nnd'; \
+         DELETE FROM _fraiseql_suppression WHERE address_hash = 'hash-nnd';",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+
+    tracker.init().await.unwrap();
+
+    let defs = tracking_unique_indexes(&pool).await;
+    assert_eq!(defs.len(), 2, "one key per table: {defs:#?}");
+    for def in &defs {
+        assert!(def.contains("NULLS NOT DISTINCT"), "{def}");
+        assert!(!def.contains("COALESCE"), "{def}");
+    }
+
+    let record = SentRecord {
+        send_id:         "send-nnd",
+        tenant:          None,
+        recipient:       "nnd@example.com",
+        sending_address: "sales@example.com",
+        message_id:      Some("<nnd-1@smtp>"),
+    };
+    tracker.record_sent(record).await.unwrap();
+    tracker
+        .record_sent(record)
+        .await
+        .expect("a retry conflicts on the key, not an error");
+    let sent: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM _fraiseql_send_status WHERE send_id = 'send-nnd'")
+            .fetch_one(&pool)
+            .await
+            .unwrap();
+    assert_eq!(sent, 1, "exactly-once holds for the NULL tenant");
+
+    let later = chrono::Utc::now() + chrono::Duration::days(7);
+    for _ in 0..2 {
+        tracker
+            .suppress(None, "hash-nnd", SuppressionReason::ChallengeUnanswered, Some(later))
+            .await
+            .expect("a refresh conflicts on the key, not an error");
+    }
+    let suppressed: i64 = sqlx::query_scalar(
+        "SELECT count(*) FROM _fraiseql_suppression WHERE address_hash = 'hash-nnd'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(suppressed, 1, "one suppression per address for the NULL tenant");
 }

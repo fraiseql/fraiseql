@@ -190,12 +190,26 @@ fn test_send_tracking_migration_ddl_is_valid_sql() {
         assert!(ddl.contains(col), "DDL must contain column: {col}");
     }
 
-    // Exactly-once + suppression keys coalesce NULL tenants so single-tenant rows
-    // are not treated as always-distinct.
-    assert!(
-        ddl.contains("COALESCE(tenant_id, '')"),
-        "unique keys must coalesce NULL tenant_id"
-    );
+    // Exactly-once + suppression keys treat a NULL tenant as one space
+    // (NULLS NOT DISTINCT), so single-tenant rows are not always-distinct. The
+    // COALESCE expression indexes this replaces are dropped in place (#1452).
+    for key in [
+        "uq_send_status_per_space ON _fraiseql_send_status (send_id, tenant_id) NULLS NOT DISTINCT",
+        "uq_suppression_per_space ON _fraiseql_suppression (address_hash, tenant_id) NULLS NOT \
+         DISTINCT",
+    ] {
+        assert!(
+            ddl.split_whitespace().collect::<Vec<_>>().join(" ").contains(key),
+            "missing {key}"
+        );
+    }
+    assert!(!ddl.contains("COALESCE"), "no expression key is left: {ddl}");
+    for old in ["uq_send_status_tenant_send", "uq_suppression_tenant_addr"] {
+        assert!(
+            ddl.contains(&format!("DROP INDEX IF EXISTS {old};")),
+            "{old} is dropped in place"
+        );
+    }
     // Tenant-scoped RLS for app-facing reads.
     assert!(ddl.contains("ENABLE ROW LEVEL SECURITY"), "DDL must enable RLS");
     assert!(

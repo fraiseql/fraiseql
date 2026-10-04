@@ -322,6 +322,20 @@ disagreed, and the promise was the part that was wrong.
   declares, is a compile error — a stale opt-out must not read as one while the default still
   applies.
 
+### Changed
+
+- **Per-tenant unique keys are `NULLS NOT DISTINCT` indexes (#1452).** With PostgreSQL 18 as
+  the floor, the keys that treat "no tenant" as one space no longer need a workaround. On
+  boot, each store creates the new index, then drops the old one, so uniqueness never
+  lapses and no row moves: `fraiseql_roles` (`uq_fraiseql_roles_name_per_space` replaces the
+  `COALESCE(tenant_id, '0000…')` index `idx_fraiseql_roles_name_tenant`), the function
+  send-status and suppression tables (`uq_send_status_per_space`, `uq_suppression_per_space`
+  replace the `COALESCE(tenant_id, '')` indexes), and the account store's email, SCIM
+  `userName` and provider-identity keys (one index each instead of a partial pair). One
+  edge moves: on the send-status and suppression tables, whose `tenant_id` is text, a `NULL`
+  tenant and an empty-string tenant were one space under the old expression and are two
+  now.
+
 ### Fixed
 
 - **The observer guides call constructors that exist (#1406).** `integration-guide.md` and

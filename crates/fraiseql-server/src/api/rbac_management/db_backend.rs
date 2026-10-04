@@ -113,14 +113,12 @@ impl RbacDbBackend {
     /// Creates all required tables and indexes if they don't already exist.
     /// This operation is idempotent.
     ///
-    /// Per-tenant role-name uniqueness is expressed as a **unique index over an
-    /// expression**, not as a table-level `UNIQUE` constraint: PostgreSQL accepts
-    /// only bare column names inside a table constraint, so the original
-    /// `UNIQUE(name, COALESCE(tenant_id, …))` was a parse error that made this DDL —
-    /// and therefore the whole server, since boot runs it whenever `admin_token` is
-    /// set — fail outright (#748). The `COALESCE` is load-bearing: a plain
-    /// `UNIQUE (name, tenant_id)` would let two identically-named global roles
-    /// coexist, because NULLs compare distinct.
+    /// Role names are unique per tenant and among global roles: the key is
+    /// `(name, tenant_id) NULLS NOT DISTINCT`. `NULLS NOT DISTINCT` is load-bearing: a
+    /// plain `(name, tenant_id)` key would let two identically-named global roles
+    /// coexist, because NULLs compare distinct. 2.15 expressed the same rule as an
+    /// index over `COALESCE(tenant_id, '0000…')` (#748); the DDL creates the new key
+    /// before dropping that one, so uniqueness never lapses.
     ///
     /// # Errors
     ///
@@ -136,11 +134,9 @@ impl RbacDbBackend {
                 updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
             );
 
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_fraiseql_roles_name_tenant
-                ON fraiseql_roles (
-                    name,
-                    COALESCE(tenant_id, '00000000-0000-0000-0000-000000000000'::uuid)
-                );
+            CREATE UNIQUE INDEX IF NOT EXISTS uq_fraiseql_roles_name_per_space
+                ON fraiseql_roles (name, tenant_id) NULLS NOT DISTINCT;
+            DROP INDEX IF EXISTS idx_fraiseql_roles_name_tenant;
 
             CREATE TABLE IF NOT EXISTS fraiseql_permissions (
                 id UUID PRIMARY KEY,
