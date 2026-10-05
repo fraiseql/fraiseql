@@ -18,6 +18,18 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A session minted by FraiseQL carries the account's tenant (#1450).** Password, OTP,
+  social, MFA and SAML sign-in used to mint tokens with no tenant, so a tenant account's
+  requests ran as the platform's: no per-tenant dispatch, no tenant-scoped RLS or caches.
+  The session store now reads the tenant from the account row (never from the request) and
+  mints it under the schema's `[fraiseql.tenancy] tenant_claim`, as the 32-hex simple form
+  of the UUID; `_system.sessions` gains a `tenant_id` column. Platform accounts are
+  unchanged. **Upgrade:** with `[tenancy.runtime]` per-tenant dispatch, register every tenant
+  whose accounts sign in through FraiseQL under its simple-form UUID
+  (`PUT /api/v1/admin/tenants/<32-hex-uuid>`), or its users' requests are refused as an
+  unregistered tenant. `SessionStore` implementations are unaffected: the tenant is read
+  inside `PostgresSessionStore`.
+
 - **The observer performance config no longer accepts the concurrency keys (#1451).**
   `performance.enable_concurrent`, `max_concurrent_actions` and `concurrent_timeout_ms`
   were accepted and never read, so `enable_concurrent = true` (the default) ran a matched

@@ -220,6 +220,7 @@ test-integration-postgres: db-up db-failover-reset
 	@echo ""
 	@echo "### auth: durable identity store, password, reset, verification, linking, single-use, sweeps"
 	@cargo test -p fraiseql-auth --test postgres_account_store -- --test-threads=1
+	@cargo test -p fraiseql-auth --test postgres_session_tenant -- --test-threads=1
 	@cargo test -p fraiseql-auth --test local_password -- --test-threads=1
 	@cargo test -p fraiseql-auth --test password_reset -- --test-threads=1
 	@cargo test -p fraiseql-auth --test email_verification -- --test-threads=1

@@ -1440,6 +1440,8 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1",
 		// #411 durable identity store (PostgresAccountStore: core.tb_user / tb_auth_identity + RLS).
 		"cargo test -p fraiseql-auth --test postgres_account_store -- --test-threads=1",
+		// #1450: a minted session carries the account's tenant under the tenant claim.
+		"cargo test -p fraiseql-auth --test postgres_session_tenant -- --test-threads=1",
 		// #412 local-password authenticator (Argon2id signup/login/rehash/disabled + RLS).
 		"cargo test -p fraiseql-auth --test local_password -- --test-threads=1",
 		// #367 password reset (selector+verifier tokens, single-use, expiry, RLS).

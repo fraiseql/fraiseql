@@ -679,8 +679,13 @@ impl Server {
             Some(social_cfg) => {
                 // Boxed for the same reason as `build_local_auth_states` below.
                 Some(
-                    Box::pin(Self::build_social_state(social_cfg, &config, db_pool.clone()))
-                        .await?,
+                    Box::pin(Self::build_social_state(
+                        social_cfg,
+                        &config,
+                        db_pool.clone(),
+                        executor.schema().tenant_claim(),
+                    ))
+                    .await?,
                 )
             },
             None => None,
@@ -699,6 +704,7 @@ impl Server {
                     local_cfg,
                     &config,
                     db_pool.clone(),
+                    executor.schema().tenant_claim(),
                 ))
                 .await?
             },
@@ -736,20 +742,12 @@ impl Server {
                 let secret = hs.load_secret().map_err(ServerError::ConfigError)?;
                 // Mint sessions with the claims the configured HS256 validator
                 // demands — defaults would 401 on the first validated request.
-                let session_store = Arc::new(
-                    fraiseql_auth::PostgresSessionStore::with_hs256_secret(
-                        pool.clone(),
-                        secret.into_bytes(),
-                    )
-                    .with_token_claims(
-                        hs.issuer.clone().unwrap_or_else(|| {
-                            fraiseql_auth::session_postgres::DEFAULT_TOKEN_ISSUER.to_string()
-                        }),
-                        hs.audience.clone().unwrap_or_else(|| {
-                            fraiseql_auth::session_postgres::DEFAULT_TOKEN_AUDIENCE.to_string()
-                        }),
-                    ),
-                );
+                let session_store = Arc::new(crate::auth_local::minting_session_store(
+                    pool.clone(),
+                    hs,
+                    secret.into_bytes(),
+                    executor.schema().tenant_claim(),
+                ));
                 let account_store =
                     Arc::new(fraiseql_auth::PostgresAccountStore::new(pool.clone()));
                 let state_store = Arc::new(fraiseql_auth::InMemoryStateStore::new());
@@ -1357,6 +1355,7 @@ impl Server {
         social: &fraiseql_core::schema::SocialAuthConfig,
         config: &ServerConfig,
         db_pool: Option<sqlx::PgPool>,
+        tenant_claim: &str,
     ) -> Result<Arc<fraiseql_auth::MultiProviderAuthState>> {
         use fraiseql_auth::provider::OAuthProvider;
 
@@ -1518,20 +1517,12 @@ impl Server {
         let secret = hs.load_secret().map_err(ServerError::ConfigError)?;
         // Mint sessions with the claims the configured HS256 validator demands
         // — defaults would 401 on the first validated request.
-        let session_store = Arc::new(
-            fraiseql_auth::PostgresSessionStore::with_hs256_secret(
-                pool.clone(),
-                secret.into_bytes(),
-            )
-            .with_token_claims(
-                hs.issuer.clone().unwrap_or_else(|| {
-                    fraiseql_auth::session_postgres::DEFAULT_TOKEN_ISSUER.to_string()
-                }),
-                hs.audience.clone().unwrap_or_else(|| {
-                    fraiseql_auth::session_postgres::DEFAULT_TOKEN_AUDIENCE.to_string()
-                }),
-            ),
-        );
+        let session_store = Arc::new(crate::auth_local::minting_session_store(
+            pool.clone(),
+            hs,
+            secret.into_bytes(),
+            tenant_claim,
+        ));
         let account_store = Arc::new(fraiseql_auth::PostgresAccountStore::new(pool));
         let state_store = Arc::new(fraiseql_auth::InMemoryStateStore::new());
         let mut state = fraiseql_auth::MultiProviderAuthState::new(state_store, session_store)

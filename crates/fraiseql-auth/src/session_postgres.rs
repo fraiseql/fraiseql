@@ -11,6 +11,9 @@ use crate::{
 pub const DEFAULT_TOKEN_ISSUER: &str = "fraiseql";
 /// Default `aud` claim for minted access tokens (see [`PostgresSessionStore::with_token_claims`]).
 pub const DEFAULT_TOKEN_AUDIENCE: &str = "fraiseql-api";
+/// Default claim a minted access token carries the account's tenant under (#1450): the
+/// default of `[fraiseql.tenancy] tenant_claim`. See [`PostgresSessionStore::with_tenant_claim`].
+pub const DEFAULT_TENANT_CLAIM: &str = "tenant_id";
 
 /// PostgreSQL-backed session store
 pub struct PostgresSessionStore {
@@ -26,6 +29,8 @@ pub struct PostgresSessionStore {
     /// `aud` claim minted into access tokens. Must match what the validating
     /// side expects — see [`Self::with_token_claims`].
     token_audience: String,
+    /// The claim the account's tenant is minted under — see [`Self::with_tenant_claim`].
+    tenant_claim:   String,
 }
 
 impl PostgresSessionStore {
@@ -43,6 +48,7 @@ impl PostgresSessionStore {
             hs256_secret: None,
             token_issuer: DEFAULT_TOKEN_ISSUER.to_string(),
             token_audience: DEFAULT_TOKEN_AUDIENCE.to_string(),
+            tenant_claim: DEFAULT_TENANT_CLAIM.to_string(),
         }
     }
 
@@ -61,6 +67,15 @@ impl PostgresSessionStore {
             hs256_secret: Some(secret),
             ..Self::new(db)
         }
+    }
+
+    /// Mint the account's tenant under `claim`: the schema's
+    /// `[fraiseql.tenancy] tenant_claim`, so a FraiseQL-minted token's tenant reaches
+    /// `SecurityContext::tenant_id` exactly as an external IdP's does (#1450).
+    #[must_use]
+    pub fn with_tenant_claim(mut self, claim: impl Into<String>) -> Self {
+        self.tenant_claim = claim.into();
+        self
     }
 
     /// Set the `iss` / `aud` claims minted into access tokens.
@@ -104,6 +119,10 @@ impl PostgresSessionStore {
                 revoked_at TIMESTAMPTZ
             );
 
+            -- The account's tenant when the session was minted (#1450), for revocation and
+            -- audit. NULL for a platform account or a principal with no account row.
+            ALTER TABLE _system.sessions ADD COLUMN IF NOT EXISTS tenant_id UUID;
+
             CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON _system.sessions(user_id);
             CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON _system.sessions(expires_at);
             CREATE INDEX IF NOT EXISTS idx_sessions_revoked_at ON _system.sessions(revoked_at);
@@ -125,7 +144,12 @@ impl PostgresSessionStore {
     /// Returns [`AuthError::ConfigError`] when no signing key is configured. Minting
     /// a token nobody can verify is worse than failing: it produces a login that
     /// "succeeds" and then 401s on every subsequent request.
-    fn generate_access_token(&self, user_id: &str, expires_in: u64) -> Result<String> {
+    fn generate_access_token(
+        &self,
+        user_id: &str,
+        tenant: Option<uuid::Uuid>,
+        expires_in: u64,
+    ) -> Result<String> {
         // SECURITY: Propagate clock errors; unwrap_or_default would produce iat=0.
         let now = unix_now()?;
 
@@ -146,6 +170,16 @@ impl PostgresSessionStore {
             .extra
             .insert("jti".to_string(), serde_json::json!(uuid::Uuid::new_v4().to_string()));
 
+        // The account's tenant, under the schema's tenant claim (#1450). The simple form
+        // (32 hex digits) is the one rendering that is both a valid tenant key (registry,
+        // `X-Tenant-ID`, schema mode) and a valid `::uuid` cast for the auth tables' RLS.
+        if let Some(tenant) = tenant {
+            claims.extra.insert(
+                self.tenant_claim.clone(),
+                serde_json::json!(tenant.as_simple().to_string()),
+            );
+        }
+
         match &self.hs256_secret {
             Some(secret) => crate::jwt::generate_hs256_token(&claims, secret),
             None => Err(AuthError::ConfigError {
@@ -158,7 +192,12 @@ impl PostgresSessionStore {
     }
 }
 
-/// Refuse to mint a session for an account SCIM has deactivated (#946).
+/// The account a session is minted for: refused if SCIM deactivated it (#946), and its
+/// tenant otherwise (#1450).
+///
+/// The tenant comes from the account row, which only a tenant authority can set (#1088),
+/// and never from the request: no caller can choose the tenant a session carries. Every
+/// credential path converges on `create_session`, so every one of them gets it.
 ///
 /// # Why a missing table is allowed through
 ///
@@ -169,19 +208,20 @@ impl PostgresSessionStore {
 /// `active = false` — refuses. A deployment running SCIM always has the table (SCIM
 /// provisions into it), so the tolerated branch is unreachable there.
 ///
-/// A user with no row is allowed: anonymous sessions and JWT-only principals live in a
-/// different identity space and were never provisioned.
-async fn refuse_deactivated_account(db: &PgPool, user_id: &str) -> Result<()> {
-    let row = sqlx::query("SELECT active FROM core.tb_user WHERE user_id = $1")
+/// A user with no row is allowed, in no tenant: anonymous sessions and JWT-only
+/// principals live in a different identity space and were never provisioned.
+async fn account_for_session(db: &PgPool, user_id: &str) -> Result<Option<uuid::Uuid>> {
+    let row = sqlx::query("SELECT active, tenant_id FROM core.tb_user WHERE user_id = $1")
         .bind(user_id)
         .fetch_optional(db)
         .await;
 
-    let active: Option<bool> = match row {
-        Ok(row) => row.map(|r| r.get("active")),
+    let (active, tenant): (Option<bool>, Option<uuid::Uuid>) = match row {
+        Ok(Some(row)) => (Some(row.get("active")), row.get("tenant_id")),
+        Ok(None) => (None, None),
         Err(sqlx::Error::Database(e)) if e.code().as_deref() == Some("42P01") => {
             // No account store in this deployment; nothing was ever provisioned.
-            return Ok(());
+            return Ok(None);
         },
         Err(e) => {
             return Err(AuthError::DatabaseError {
@@ -197,7 +237,7 @@ async fn refuse_deactivated_account(db: &PgPool, user_id: &str) -> Result<()> {
         );
         return Err(AuthError::AccountDeactivated);
     }
-    Ok(())
+    Ok(tenant)
 }
 
 // Reason: SessionStore is defined with #[async_trait]; all implementations must match
@@ -210,7 +250,7 @@ impl SessionStore for PostgresSessionStore {
         // This is the single place every credential path converges on — password login,
         // MFA's second factor, social callback, OTP, SAML ACS all end here — which is why
         // the check lives here rather than in each of them.
-        refuse_deactivated_account(&self.db, user_id).await?;
+        let tenant = account_for_session(&self.db, user_id).await?;
 
         let refresh_token = generate_refresh_token();
         let refresh_token_hash = hash_token(&refresh_token);
@@ -222,19 +262,20 @@ impl SessionStore for PostgresSessionStore {
         // Mint the access token before writing the session row: if signing is not
         // configured this fails, and doing it first keeps an orphan row out of
         // _system.sessions for a session that was never handed to anyone.
-        let access_token = self.generate_access_token(user_id, expires_in)?;
+        let access_token = self.generate_access_token(user_id, tenant, expires_in)?;
 
         sqlx::query(
             r"
             INSERT INTO _system.sessions
-            (user_id, refresh_token_hash, issued_at, expires_at)
-            VALUES ($1, $2, $3, $4)
+            (user_id, refresh_token_hash, issued_at, expires_at, tenant_id)
+            VALUES ($1, $2, $3, $4, $5)
             ",
         )
         .bind(user_id)
         .bind(&refresh_token_hash)
         .bind(now.cast_signed())
         .bind(expires_at.cast_signed())
+        .bind(tenant)
         .execute(&self.db)
         .await
         .map_err(|e| {

@@ -244,6 +244,31 @@ fn missing_email_feature(method: &str) -> ServerError {
     ))
 }
 
+/// The Postgres session store every FraiseQL sign-in mints through (#1450).
+///
+/// Signed with the `[auth_hs256]` secret, minting the issuer and audience that validator
+/// demands, and the account's tenant under the schema's `tenant_claim`, so a minted
+/// token's tenant reaches `SecurityContext::tenant_id` exactly as an external identity provider's
+/// does. One constructor for local, social and SAML sign-in: a new path cannot mint tokens the
+/// validator rejects, or drop the tenant.
+pub fn minting_session_store(
+    pool: sqlx::PgPool,
+    hs: &crate::server_config::Hs256Config,
+    secret: Vec<u8>,
+    tenant_claim: &str,
+) -> fraiseql_auth::PostgresSessionStore {
+    fraiseql_auth::PostgresSessionStore::with_hs256_secret(pool, secret)
+        .with_token_claims(
+            hs.issuer.clone().unwrap_or_else(|| {
+                fraiseql_auth::session_postgres::DEFAULT_TOKEN_ISSUER.to_string()
+            }),
+            hs.audience.clone().unwrap_or_else(|| {
+                fraiseql_auth::session_postgres::DEFAULT_TOKEN_AUDIENCE.to_string()
+            }),
+        )
+        .with_tenant_claim(tenant_claim)
+}
+
 /// Build every state `[auth.local]` enables.
 ///
 /// # Errors
@@ -255,6 +280,7 @@ pub async fn build_local_auth_states(
     local: &LocalAuthConfig,
     config: &ServerConfig,
     db_pool: Option<sqlx::PgPool>,
+    tenant_claim: &str,
 ) -> Result<LocalAuthStates> {
     // Every enabled method persists something (credentials, enrollments, OTP
     // budgets, sessions), so all of them need the signing config and the pool.
@@ -289,10 +315,8 @@ pub async fn build_local_auth_states(
         .clone()
         .unwrap_or_else(|| fraiseql_auth::session_postgres::DEFAULT_TOKEN_AUDIENCE.to_string());
     let secret_bytes = secret.into_bytes();
-    let session_store: Arc<dyn fraiseql_auth::SessionStore> = Arc::new(
-        fraiseql_auth::PostgresSessionStore::with_hs256_secret(pool.clone(), secret_bytes.clone())
-            .with_token_claims(token_issuer.clone(), token_audience.clone()),
-    );
+    let session_store: Arc<dyn fraiseql_auth::SessionStore> =
+        Arc::new(minting_session_store(pool.clone(), hs, secret_bytes.clone(), tenant_claim));
     let account_store = Arc::new(fraiseql_auth::PostgresAccountStore::new(pool.clone()));
 
     // The mail sender is built once and shared by OTP, password reset and email

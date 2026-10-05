@@ -60,6 +60,22 @@ Each key is one unique index over `(key, tenant_id) NULLS NOT DISTINCT`, so the 
 place: it drops the global keys an earlier release created and installs the per-space
 indexes. No row moves, and existing accounts stay platform accounts.
 
+## Sessions carry the account's tenant (#1450)
+
+A session minted by FraiseQL's own sign-in (SAML, password, OTP, social, MFA) carries the
+tenant of the account it signs into. The session store reads it from `core.tb_user`, never
+from the request, and mints it under the schema's `[fraiseql.tenancy] tenant_claim`
+(default `tenant_id`), so the token's tenant reaches `SecurityContext::tenant_id` exactly as
+an external identity provider's does. A platform account's session carries no tenant claim.
+
+The claim value is the tenant UUID in **simple form**: 32 lowercase hex digits, no hyphens
+(for example `77777777777747778777777777777777`). That is the one rendering that is both a valid
+tenant key and a valid `::uuid` cast in the auth tables' row-level policies. A deployment
+running per-tenant dispatch (`[tenancy.runtime]`) must therefore register each tenant whose
+accounts sign in through FraiseQL under that simple-form UUID
+(`PUT /api/v1/admin/tenants/<simple-form-uuid>`); a request whose tenant is not registered
+is refused. `_system.sessions.tenant_id` records the tenant for revocation and audit.
+
 ## Usage
 
 ```rust

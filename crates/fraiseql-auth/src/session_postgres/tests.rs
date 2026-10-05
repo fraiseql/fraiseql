@@ -25,7 +25,7 @@ fn hs256_validation() -> Validation {
 async fn unconfigured_store_refuses_to_mint_an_access_token() {
     let store = PostgresSessionStore::new(lazy_pool());
 
-    let result = store.generate_access_token("u1", 3_600);
+    let result = store.generate_access_token("u1", None, 3_600);
 
     assert!(
         matches!(result, Err(AuthError::ConfigError { .. })),
@@ -39,7 +39,7 @@ async fn hs256_store_mints_a_token_verifiable_with_the_configured_secret() {
     let secret = b"a-shared-secret-of-at-least-32-bytes!".to_vec();
     let store = PostgresSessionStore::with_hs256_secret(lazy_pool(), secret.clone());
 
-    let token = store.generate_access_token("u1", 3_600).unwrap();
+    let token = store.generate_access_token("u1", None, 3_600).unwrap();
 
     let decoded = decode::<Claims>(&token, &DecodingKey::from_secret(&secret), &hs256_validation())
         .expect("token must verify under the secret the store retained");
@@ -54,8 +54,8 @@ async fn hs256_tokens_are_stable_across_calls_not_per_token_random() {
     let secret = b"a-shared-secret-of-at-least-32-bytes!".to_vec();
     let store = PostgresSessionStore::with_hs256_secret(lazy_pool(), secret.clone());
 
-    let first = store.generate_access_token("u1", 3_600).unwrap();
-    let second = store.generate_access_token("u2", 3_600).unwrap();
+    let first = store.generate_access_token("u1", None, 3_600).unwrap();
+    let second = store.generate_access_token("u2", None, 3_600).unwrap();
 
     for token in [&first, &second] {
         decode::<Claims>(token, &DecodingKey::from_secret(&secret), &hs256_validation())

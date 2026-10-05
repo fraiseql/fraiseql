@@ -407,6 +407,9 @@ pub async fn auth_refresh(
         "token issuance not implemented (JWT signing not configured)",
     );
 
+    // When refresh mints a new access token, it must re-read the account's tenant from
+    // `core.tb_user` (as `PostgresSessionStore::create_session` does), not copy it from the
+    // session row: a re-homed account must not keep its old tenant (#1450).
     Err(AuthError::Internal {
         message: "JWT signing not yet implemented — configure an OIDC provider for token issuance"
             .to_string(),
