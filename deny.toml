@@ -234,11 +234,6 @@ reason = "transitive via rustix 1.x chain"
 version = "=0.12.1"
 
 [[bans.skip]]
-name = "lru"
-reason = "transitive via aws-sdk-s3 1.137 (lru 0.16.x); workspace direct on lru 0.18"
-version = "=0.16.4"
-
-[[bans.skip]]
 name = "hmac"
 reason = "transitive via sqlx-postgres / jsonwebtoken / hkdf (hmac 0.12.x); workspace direct on hmac 0.13"
 version = "=0.12.1"
