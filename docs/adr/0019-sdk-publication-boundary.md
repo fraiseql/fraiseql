@@ -98,7 +98,9 @@ long as this repository has existed and was never published once.
 - Eight SDKs a reader might have expected on a registry are visibly not there. This is a
   change in what is *said*, not in what was *available* — none of the eight had ever been
   published.
-- v2.15.0 creates a new public crates.io package, `fraiseql-rust`. It is permanent: a
+- The first release that runs its publisher creates a new public crates.io package,
+  `fraiseql-rust` (planned for v2.15.0; that run failed before uploading, #1488, so it is
+  v2.16.0). It is permanent: a
   crates.io name cannot be released once taken, and a published version cannot be
   withdrawn. The alternative was to leave the README naming a registry a reader would find
   empty.

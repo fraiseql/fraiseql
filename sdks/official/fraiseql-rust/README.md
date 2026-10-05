@@ -34,11 +34,15 @@ All 30 core features available across 10 languages:
 
 ## Installation
 
-Add to your `Cargo.toml`:
+```bash
+cargo add fraiseql-rust
+```
+
+or, in `Cargo.toml` (the SDK is versioned with the engine):
 
 ```toml
 [dependencies]
-fraiseql-rust = "1.0.0"
+fraiseql-rust = "2"
 ```
 
 ## Quick Start

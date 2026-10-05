@@ -379,6 +379,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The Rust SDK's install instructions name a version that exists.** Its README pinned
+  `fraiseql-rust = "1.0.0"`, a version never published, and the root README said the crate
+  first reached crates.io at 2.15.0, whose publish job failed (#1488). The SDK README now uses
+  `cargo add fraiseql-rust` (or `"2"`), and the root README and ADR-0019 say 2.16.0.
+
 - **The release smoke consumes the published artifacts after they are published (#1488).**
   `consume-published-artifacts` fires on the same tag push as `release.yml` and
   `npm-publish.yml`; on v2.15.0 it started at 10:03Z, retried for about two minutes and failed,
