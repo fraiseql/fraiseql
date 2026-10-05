@@ -11,11 +11,13 @@ on:
     paths:
       - 'sdks/official/fraiseql-fsharp/**'
       - '.github/workflows/fsharp-sdk.yml'
+      - 'tools/sdk-suite.sh'
     tags:
       - 'fsharp-sdk/v*'
   pull_request:
     paths:
       - 'sdks/official/fraiseql-fsharp/**'
+      - 'tools/sdk-suite.sh'
 
 jobs:
   test:
@@ -29,12 +31,13 @@ jobs:
       - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4
         with:
           dotnet-version: '9.0.x'
-      - name: Restore dependencies
-        run: dotnet restore
-      - name: Build
-        run: dotnet build --configuration Release --no-restore
-      - name: Test
-        run: dotnet test --no-build --configuration Release --collect:"XPlat Code Coverage" --verbosity normal
+      # The suite's commands live in tools/sdk-suite.sh, which `make test-sdks` also runs,
+      # so this job and the local run cannot drift (#1346).
+      - name: Restore, build and test (with coverage)
+        working-directory: .
+        env:
+          FRAISEQL_SDK_COVERAGE: '1'
+        run: bash tools/sdk-suite.sh fsharp
       - name: Upload coverage
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         if: always()

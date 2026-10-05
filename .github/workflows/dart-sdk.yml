@@ -5,10 +5,12 @@ on:
     paths:
       - 'sdks/official/fraiseql-dart/**'
       - '.github/workflows/dart-sdk.yml'
+      - 'tools/sdk-suite.sh'
   pull_request:
     paths:
       - 'sdks/official/fraiseql-dart/**'
       - '.github/workflows/dart-sdk.yml'
+      - 'tools/sdk-suite.sh'
 
 jobs:
   test:
@@ -31,14 +33,8 @@ jobs:
         with:
           sdk: ${{ matrix.dart-sdk }}
 
-      - name: Install dependencies
-        run: dart pub get
-
-      - name: Analyze
-        run: dart analyze --fatal-infos
-
-      - name: Format check
-        run: dart format --output=none --set-exit-if-changed .
-
-      - name: Run tests
-        run: dart test
+      # The suite's commands live in tools/sdk-suite.sh, which `make test-sdks` also runs,
+      # so this job and the local run cannot drift (#1346).
+      - name: Analyze, format check and test
+        working-directory: .
+        run: bash tools/sdk-suite.sh dart

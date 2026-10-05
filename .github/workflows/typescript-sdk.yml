@@ -5,10 +5,12 @@ on:
     paths:
       - 'sdks/official/fraiseql-typescript/**'
       - '.github/workflows/typescript-sdk.yml'
+      - 'tools/sdk-suite.sh'
   pull_request:
     paths:
       - 'sdks/official/fraiseql-typescript/**'
       - '.github/workflows/typescript-sdk.yml'
+      - 'tools/sdk-suite.sh'
 
 jobs:
   test:
@@ -33,20 +35,11 @@ jobs:
           cache: npm
           cache-dependency-path: sdks/official/fraiseql-typescript/package-lock.json
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Lint with ESLint
-        run: npm run lint --if-present
-
-      - name: Type check
-        run: npm run typecheck --if-present || npx tsc --noEmit
-
-      - name: Run tests
-        run: npm test
-
-      - name: Build
-        run: npm run build --if-present
+      # The suite's commands live in tools/sdk-suite.sh, which `make test-sdks` also runs,
+      # so this job and the local run cannot drift (#1346).
+      - name: Lint, type-check, test and build
+        working-directory: .
+        run: bash tools/sdk-suite.sh typescript
 
   # npm publishing is handled exclusively by .github/workflows/npm-publish.yml
   # (Trusted Publishing / OIDC, no NPM_TOKEN). This workflow is CI-only.

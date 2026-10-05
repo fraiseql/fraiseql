@@ -5,10 +5,12 @@ on:
     paths:
       - 'sdks/official/fraiseql-rust/**'
       - '.github/workflows/rust-sdk.yml'
+      - 'tools/sdk-suite.sh'
   pull_request:
     paths:
       - 'sdks/official/fraiseql-rust/**'
       - '.github/workflows/rust-sdk.yml'
+      - 'tools/sdk-suite.sh'
 
 env:
   SCCACHE_GHA_ENABLED: "true"
@@ -39,18 +41,11 @@ jobs:
       - name: Setup sccache
         uses: mozilla-actions/sccache-action@7d986dd989559c6ecdb630a3fd2557667be217ad  # v0.0.9
 
-      - name: Check format
-        run: cargo fmt --check
-
-      - name: Clippy
-        # --locked on the FIRST lock-touching command, not just the last: cargo
-        # resolves and may REWRITE Cargo.lock, so a bare clippy here would quietly
-        # repair a stale lock and let a later `--locked` step pass on the lock it
-        # had just fixed (#1225).
-        run: cargo clippy --locked --all-targets --all-features -- -D warnings
-
-      - name: Tests
-        run: cargo test --locked --all-features
+      # The suite's commands live in tools/sdk-suite.sh, which `make test-sdks` also runs,
+      # so this job and the local run cannot drift (#1346).
+      - name: Format, clippy and tests
+        working-directory: .
+        run: bash tools/sdk-suite.sh rust
 
       - name: Build (release)
         run: cargo build --locked --release

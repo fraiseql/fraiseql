@@ -5,10 +5,12 @@ on:
     paths:
       - 'sdks/official/fraiseql-python/**'
       - '.github/workflows/python-sdk.yml'
+      - 'tools/sdk-suite.sh'
   pull_request:
     paths:
       - 'sdks/official/fraiseql-python/**'
       - '.github/workflows/python-sdk.yml'
+      - 'tools/sdk-suite.sh'
 
 jobs:
   test:
@@ -39,28 +41,11 @@ jobs:
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
 
-      - name: Install dependencies
-        # --locked: fail on a lockfile that disagrees with pyproject.toml rather
-        # than silently re-resolving it. This is the first uv command in the job,
-        # so a stale lock stops it here instead of being repaired for the `uv run`
-        # steps below (#1225).
-        run: uv sync --all-extras --locked
-
-      # `conformance` and `examples` are linted too: they are shipped Python that
-      # authors copy, and leaving them out is how three examples rotted into code
-      # that does not run (#925). Two stale `noqa`s in `conformance/` had been
-      # invisible for exactly as long as this list said `src tests`.
-      - name: Lint with ruff
-        run: uv run ruff check src tests conformance examples
-
-      - name: Format check
-        run: uv run ruff format --check src tests conformance examples
-
-      - name: Type check with ty
-        run: uv run ty check src
-
-      - name: Run tests
-        run: uv run pytest tests -v
+      # The suite's commands live in tools/sdk-suite.sh, which `make test-sdks` also runs,
+      # so this job and the local run cannot drift (#1346).
+      - name: Lint, type-check and test
+        working-directory: .
+        run: bash tools/sdk-suite.sh python
 
   publish:
     name: Publish to PyPI

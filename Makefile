@@ -1254,6 +1254,14 @@ test-suite-coverage-filters:
 lint-crate-sizes:
 	@bash tools/check-crate-sizes.sh
 
+# Every official SDK's own test suite and linters (#1346): SDK conformance checks what
+# each SDK emits, not its unit tests, and no other local target runs those. A missing
+# toolchain falls back to the SDK's container; anything that could not run fails the
+# target, by name. One SDK: `make test-sdks SDKS=python`.
+.PHONY: test-sdks
+test-sdks:
+	@bash tools/test-sdks.sh $(SDKS)
+
 # Gate: every official SDK is gated by a workflow that runs on a BRANCH push. Four of
 # the eleven were not — two declared `tags` with no `branches` (which suppresses every
 # branch push), one was post-merge-only, and the official Ruby SDK's tests ran nowhere

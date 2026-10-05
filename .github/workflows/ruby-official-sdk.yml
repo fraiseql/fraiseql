@@ -19,10 +19,12 @@ on:
     paths:
       - 'sdks/official/fraiseql-ruby/**'
       - '.github/workflows/ruby-official-sdk.yml'
+      - 'tools/sdk-suite.sh'
   pull_request:
     paths:
       - 'sdks/official/fraiseql-ruby/**'
       - '.github/workflows/ruby-official-sdk.yml'
+      - 'tools/sdk-suite.sh'
 
 jobs:
   test:
@@ -48,26 +50,8 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby-version }}
 
-      # No Gemfile here, unlike the community copy: this SDK depends on nothing but
-      # the standard library, and its tests on minitest alone.
-      - name: Install minitest
-        run: gem install minitest --no-document
-
-      - name: Run tests
-        # `test/test_helper.rb` requires `minitest/autorun`, so requiring every test
-        # file is enough to run them. Loud when the glob matches nothing — an empty
-        # run is the false green this workflow exists to prevent.
-        run: |
-          shopt -s nullglob
-          files=(test/*_test.rb)
-          if [ ${#files[@]} -eq 0 ]; then
-            echo "::error::no test/*_test.rb files found — the suite would pass vacuously"
-            exit 1
-          fi
-          echo "Running ${#files[@]} test file(s): ${files[*]}"
-          ruby -Ilib -Itest -e 'ARGV.each { |f| require File.expand_path(f) }' "${files[@]}"
-
-      - name: Gemspec is loadable
-        # `gem build` evaluates the gemspec, which `require_relative`s lib/fraiseql/version.
-        # #853 was a LoadError nobody saw because nothing loaded the entry point.
-        run: gem build ./fraiseql.gemspec
+      # The suite's commands live in tools/sdk-suite.sh, which `make test-sdks` also runs,
+      # so this job and the local run cannot drift (#1346).
+      - name: Tests and gemspec
+        working-directory: .
+        run: bash tools/sdk-suite.sh ruby

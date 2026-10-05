@@ -12,11 +12,13 @@ on:
     paths:
       - 'sdks/official/fraiseql-elixir/**'
       - '.github/workflows/elixir-sdk.yml'
+      - 'tools/sdk-suite.sh'
     tags:
       - 'elixir-sdk/v*'
   pull_request:
     paths:
       - 'sdks/official/fraiseql-elixir/**'
+      - 'tools/sdk-suite.sh'
 
 jobs:
   test:
@@ -43,9 +45,11 @@ jobs:
             sdks/official/fraiseql-elixir/deps
             sdks/official/fraiseql-elixir/_build
           key: ${{ runner.os }}-mix-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('sdks/official/fraiseql-elixir/mix.lock') }}
-      - run: mix deps.get
-      - run: mix credo
-      - run: mix test
+      # The suite's commands live in tools/sdk-suite.sh, which `make test-sdks` also runs,
+      # so this job and the local run cannot drift (#1346).
+      - name: Credo and tests
+        working-directory: .
+        run: bash tools/sdk-suite.sh elixir
 
   dialyzer:
     name: Dialyzer

@@ -5,10 +5,12 @@ on:
     paths:
       - 'sdks/official/fraiseql-php/**'
       - '.github/workflows/php-sdk.yml'
+      - 'tools/sdk-suite.sh'
   pull_request:
     paths:
       - 'sdks/official/fraiseql-php/**'
       - '.github/workflows/php-sdk.yml'
+      - 'tools/sdk-suite.sh'
 
 jobs:
   test:
@@ -34,24 +36,8 @@ jobs:
           extensions: json
           coverage: none
 
-      - name: Install dependencies
-        run: composer install --no-progress --prefer-dist
-
-      # #1184: PSR-4 compliance is not checked by anything else here. A plain
-      # `composer install` autoloader cannot find a class whose file name does not
-      # match it, so `SubscriptionBuilder::argument()` was an uncatchable fatal error
-      # in any process that had not already loaded some other class from the same
-      # file. `--optimize` alone hides it — the classmap it builds finds every class
-      # in every scanned file regardless of name — which is why a production deploy
-      # would not reproduce what a fresh install does. `--strict-psr` exits 1.
-      - name: Check PSR-4 autoload correctness
-        run: composer dump-autoload --optimize --strict-psr
-
-      - name: Run PHPStan (level 8)
-        run: vendor/bin/phpstan analyse src --level 8
-
-      - name: Check code style
-        run: vendor/bin/php-cs-fixer check src --diff
-
-      - name: Run tests
-        run: vendor/bin/phpunit
+      # The suite's commands live in tools/sdk-suite.sh, which `make test-sdks` also runs,
+      # so this job and the local run cannot drift (#1346).
+      - name: Install, PSR-4, PHPStan, style and tests
+        working-directory: .
+        run: bash tools/sdk-suite.sh php

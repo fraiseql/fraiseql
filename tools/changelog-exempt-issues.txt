@@ -50,3 +50,4 @@
 #1421  CI plumbing: Dagger target volumes mounted PRIVATE + sources stamped per leg, so a leg never links another run's crates; no change to any shipped artifact
 #1370  fraiseql-db's database-backed tests moved from src/ to tests/; test layout only
 #1361  deleted a saga benchmark that measured an in-file mock and never ran; no shipped code
+#1346  SDK suites run locally (make test-sdks, tools/sdk-suite.sh); CI/developer tooling only

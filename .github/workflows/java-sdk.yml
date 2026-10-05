@@ -5,10 +5,12 @@ on:
     paths:
       - 'sdks/official/fraiseql-java/**'
       - '.github/workflows/java-sdk.yml'
+      - 'tools/sdk-suite.sh'
   pull_request:
     paths:
       - 'sdks/official/fraiseql-java/**'
       - '.github/workflows/java-sdk.yml'
+      - 'tools/sdk-suite.sh'
 
 jobs:
   test:
@@ -33,14 +35,8 @@ jobs:
           distribution: temurin
           cache: maven
 
-      - name: Verify and test
-        run: mvn -B verify
-
-      # No `continue-on-error`. It was there, over a checkstyle with no configured
-      # ruleset, so 2149 `sun_checks.xml` violations rendered as a green check — a gate
-      # that cannot fail, which reads as coverage (#1252). `pom.xml` now declares the
-      # plugin against `checkstyle.xml` with `violationSeverity=warning`, and the tree is
-      # clean, so this step failing means somebody introduced a violation.
-      - name: Check style
-        working-directory: sdks/official/fraiseql-java
-        run: mvn -B checkstyle:check
+      # The suite's commands live in tools/sdk-suite.sh, which `make test-sdks` also runs,
+      # so this job and the local run cannot drift (#1346).
+      - name: Verify, test and check style
+        working-directory: .
+        run: bash tools/sdk-suite.sh java
