@@ -199,6 +199,8 @@ tokio-postgres = {workspace = true}
 tokio-stream = {version = "0.1", features = ["net"]}
 tokio-test = "0.4"
 tonic-reflection = "0.14"
+# 0.29 matches axum 0.8's transitive tokio-tungstenite, so one WebSocket stack is
+# compiled, not two (L-ws-stacks).
 tokio-tungstenite = "0.29"
 # Utilities for E2E tests
 wiremock = "0.6"
