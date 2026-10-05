@@ -28,7 +28,6 @@
 //!             field_type: "Int!".to_string(),
 //!             nullable: false,
 //!             description: None,
-//!             sql_column: None,
 //!         }
 //!     ],
 //!     sql_source: Some("v_user".to_string()),
@@ -144,9 +143,6 @@ pub struct IRField {
 
     /// Field description.
     pub description: Option<String>,
-
-    /// SQL column mapping.
-    pub sql_column: Option<String>,
 }
 
 /// IR Query definition.

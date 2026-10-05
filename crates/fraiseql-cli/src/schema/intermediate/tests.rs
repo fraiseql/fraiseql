@@ -4,6 +4,17 @@
 mod intermediate_tests {
     use super::super::*;
 
+    /// `sql_column` on a field is refused, naming the key (#1423). 2.14 accepted it and no
+    /// stage ever read it: the field always resolved through the view's `data` (or a native
+    /// column of the field's own name). Accepting it again would promise a column mapping
+    /// the compiler does not perform.
+    #[test]
+    fn a_field_sql_column_is_refused_by_name() {
+        let json = r#"{"name": "id", "type": "UUID", "nullable": false, "sql_column": "pk_order"}"#;
+        let err = serde_json::from_str::<IntermediateField>(json).unwrap_err().to_string();
+        assert!(err.contains("unknown field `sql_column`"), "{err}");
+    }
+
     #[test]
     fn test_federation_key_aliases_into_federation_config() {
         // SDKs emit the federation block under the top-level `federation` key; it

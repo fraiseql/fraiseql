@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A field's `sql_column` is refused, as it has been since 2.15.0 (#1423).** 2.14 accepted the
+  key in `schema.json` and nothing read it: the field always resolved through the view's `data`
+  (or a native column of the field's own name), so a schema that relied on it to rename a
+  column was already reading the wrong key, or `null`. 2.15.0 began refusing it (`unknown field
+  \`sql_column\``) without saying so; this release keeps the refusal and removes the core IR's
+  `IRField::sql_column`, which the parser filled and no stage consumed. **Upgrade:** delete the
+  key, and expose the column under the field's name in the view (`SELECT pk_order AS id …`, or
+  in the view's `data` object).
+
 - **A session minted by FraiseQL carries the account's tenant (#1450).** Password, OTP,
   social, MFA and SAML sign-in used to mint tokens with no tenant, so a tenant account's
   requests ran as the platform's: no per-tenant dispatch, no tenant-scoped RLS or caches.

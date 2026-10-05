@@ -240,7 +240,6 @@ impl SchemaParser {
             field_type,
             nullable,
             description: obj.get("description").and_then(|v| v.as_str()).map(String::from),
-            sql_column: obj.get("sql_column").and_then(|v| v.as_str()).map(String::from),
         })
     }
 
