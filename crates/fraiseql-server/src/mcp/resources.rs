@@ -21,10 +21,7 @@
 use std::fmt::Write as _;
 
 use fraiseql_core::schema::{CompiledSchema, McpConfig};
-use rmcp::model::{
-    Annotated, Prompt, PromptArgument, PromptMessage, PromptMessageRole, RawResource,
-    RawResourceTemplate, Resource, ResourceTemplate,
-};
+use rmcp::model::{Prompt, PromptArgument, PromptMessage, Resource, ResourceTemplate, Role};
 
 use super::tools::{ExposedOperation, exposed_operations};
 
@@ -55,21 +52,14 @@ pub fn schema_to_resources(schema: &CompiledSchema, config: &McpConfig) -> Vec<R
             ExposedOperation::Mutation(_) => None,
         })
         .map(|(display, q)| {
-            Annotated::new(
-                RawResource {
-                    uri:         format!("{QUERY_URI_PREFIX}{display}"),
-                    name:        display.clone(),
-                    title:       Some(display.clone()),
-                    description: Some(q.description.clone().unwrap_or_else(|| {
-                        format!("Rows of {} returned by the '{display}' query", q.return_type)
-                    })),
-                    mime_type:   Some(RESOURCE_MIME.to_string()),
-                    size:        None,
-                    icons:       None,
-                    meta:        None,
-                },
-                None,
-            )
+            let mut resource =
+                Resource::new(format!("{QUERY_URI_PREFIX}{display}"), display.clone());
+            resource.title = Some(display.clone());
+            resource.description = Some(q.description.clone().unwrap_or_else(|| {
+                format!("Rows of {} returned by the '{display}' query", q.return_type)
+            }));
+            resource.mime_type = Some(RESOURCE_MIME.to_string());
+            resource
         })
         .collect()
 }
@@ -96,22 +86,19 @@ pub fn schema_to_resource_templates(
         })
         .filter(|(_, q)| returns_a_vector_type(schema, &q.return_type))
         .map(|(display, q)| {
-            Annotated::new(
-                RawResourceTemplate {
-                    uri_template: format!("{QUERY_URI_PREFIX}{display}{{?nearest,limit}}"),
-                    name:         format!("{display} similarity-search"),
-                    title:        Some(format!("{display} (similarity search)")),
-                    description:  Some(format!(
-                        "Nearest-neighbour search over {}'s vector field. Pass `nearest` (the \
-                         query embedding) and an optional `limit` as tool arguments; the same \
-                         operation is callable as the '{display}' tool.",
-                        q.return_type
-                    )),
-                    mime_type:    Some(RESOURCE_MIME.to_string()),
-                    icons:        None,
-                },
-                None,
-            )
+            let mut template = ResourceTemplate::new(
+                format!("{QUERY_URI_PREFIX}{display}{{?nearest,limit}}"),
+                format!("{display} similarity-search"),
+            );
+            template.title = Some(format!("{display} (similarity search)"));
+            template.description = Some(format!(
+                "Nearest-neighbour search over {}'s vector field. Pass `nearest` (the query \
+                 embedding) and an optional `limit` as tool arguments; the same operation is \
+                 callable as the '{display}' tool.",
+                q.return_type
+            ));
+            template.mime_type = Some(RESOURCE_MIME.to_string());
+            template
         })
         .collect()
 }
@@ -236,5 +223,5 @@ pub fn render_prompt(
         text.push('.');
     }
 
-    Some((description, vec![PromptMessage::new_text(PromptMessageRole::User, text)]))
+    Some((description, vec![PromptMessage::new_text(Role::User, text)]))
 }

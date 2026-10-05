@@ -45,17 +45,17 @@ wildcards = "allow"
 # only those exact duplicates are exempt; bump these if samael's tree moves.
 [[bans.skip]]
 name = "darling"
-reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling 0.20; workspace on 0.23"
+reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling 0.20; workspace on 0.24"
 version = "=0.20.11"
 
 [[bans.skip]]
 name = "darling_core"
-reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling_core 0.20; workspace on 0.23"
+reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling_core 0.20; workspace on 0.24"
 version = "=0.20.11"
 
 [[bans.skip]]
 name = "darling_macro"
-reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling_macro 0.20; workspace on 0.23"
+reason = "samael (#381 auth-saml) → derive_builder 0.20 → darling_macro 0.20; workspace on 0.24"
 version = "=0.20.11"
 
 [[bans.skip]]
@@ -192,6 +192,11 @@ version = "=0.1.0"
 name = "md-5"
 reason = "transitive via aws-smithy-checksums and sqlx-mysql"
 version = "=0.10.6"
+
+[[bans.skip]]
+name = "base64"
+reason = "rmcp 3.5 (the `mcp` feature) → base64 0.23; the workspace is on 0.22. rmcp 1.x carried the GHSA-9pj6-vhgr-3mwh session leak, so the bump is not optional"
+version = "=0.23.1"
 
 [[bans.skip]]
 name = "base64-simd"

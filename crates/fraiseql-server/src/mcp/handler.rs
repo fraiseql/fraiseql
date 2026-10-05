@@ -15,10 +15,11 @@ use fraiseql_core::{
 use rmcp::{
     ServerHandler,
     model::{
-        CallToolRequestParams, CallToolResult, GetPromptRequestParams, GetPromptResult,
-        ListPromptsResult, ListResourceTemplatesResult, ListResourcesResult, ListToolsResult,
-        PaginatedRequestParams, ReadResourceRequestParams, ReadResourceResult, ResourceContents,
-        ServerCapabilities, ServerInfo, Tool,
+        CallToolRequestParams, CallToolResponse, CallToolResult, GetPromptRequestParams,
+        GetPromptResponse, GetPromptResult, ListPromptsResult, ListResourceTemplatesResult,
+        ListResourcesResult, ListToolsResult, PaginatedRequestParams, ReadResourceRequestParams,
+        ReadResourceResponse, ReadResourceResult, ResourceContents, ServerCapabilities,
+        ServerConfig, Tool,
     },
     service::RequestContext,
 };
@@ -416,8 +417,8 @@ pub(crate) fn sanitize(
 }
 
 impl ServerHandler for FraiseQLMcpService {
-    fn get_info(&self) -> ServerInfo {
-        ServerInfo::new(
+    fn get_info(&self) -> ServerConfig {
+        ServerConfig::new(
             ServerCapabilities::builder()
                 .enable_tools()
                 // #967: Resources and Prompts are advertised only because they are
@@ -440,19 +441,14 @@ impl ServerHandler for FraiseQLMcpService {
         _context: RequestContext<rmcp::RoleServer>,
     ) -> impl std::future::Future<Output = Result<ListToolsResult, rmcp::ErrorData>> + Send + '_
     {
-        let result = ListToolsResult {
-            tools:       self.tools.clone(),
-            next_cursor: None,
-            meta:        None,
-        };
-        std::future::ready(Ok(result))
+        std::future::ready(Ok(ListToolsResult::with_all_items(self.tools.clone())))
     }
 
     fn call_tool(
         &self,
         request: CallToolRequestParams,
         context: RequestContext<rmcp::RoleServer>,
-    ) -> impl std::future::Future<Output = Result<CallToolResult, rmcp::ErrorData>> + Send + '_
+    ) -> impl std::future::Future<Output = Result<CallToolResponse, rmcp::ErrorData>> + Send + '_
     {
         let tool_name = request.name.to_string();
         let arguments = request.arguments;
@@ -487,7 +483,7 @@ impl ServerHandler for FraiseQLMcpService {
                 MCP_TOOL_ERRORS_TOTAL.fetch_add(1, Ordering::Relaxed);
             }
 
-            Ok(result)
+            Ok(result.into())
         }
     }
 
@@ -534,7 +530,7 @@ impl ServerHandler for FraiseQLMcpService {
         &self,
         request: ReadResourceRequestParams,
         context: RequestContext<rmcp::RoleServer>,
-    ) -> impl std::future::Future<Output = Result<ReadResourceResult, rmcp::ErrorData>> + Send + '_
+    ) -> impl std::future::Future<Output = Result<ReadResourceResponse, rmcp::ErrorData>> + Send + '_
     {
         // Same synchronous pre-extraction as `call_tool`: the HTTP request parts
         // are not `Sync` and must not be held across the validation await.
@@ -544,7 +540,11 @@ impl ServerHandler for FraiseQLMcpService {
         let headers = parts.map(|parts| parts.headers.clone()).unwrap_or_default();
         let uri = request.uri;
 
-        async move { self.read_resource_authenticated(&uri, token, request_id, &headers).await }
+        async move {
+            self.read_resource_authenticated(&uri, token, request_id, &headers)
+                .await
+                .map(Into::into)
+        }
     }
 
     /// Every exposed operation, advertised as a Prompt (#967).
@@ -572,7 +572,7 @@ impl ServerHandler for FraiseQLMcpService {
         &self,
         request: GetPromptRequestParams,
         _context: RequestContext<rmcp::RoleServer>,
-    ) -> impl std::future::Future<Output = Result<GetPromptResult, rmcp::ErrorData>> + Send + '_
+    ) -> impl std::future::Future<Output = Result<GetPromptResponse, rmcp::ErrorData>> + Send + '_
     {
         let rendered = super::resources::render_prompt(
             &request.name,
@@ -582,7 +582,7 @@ impl ServerHandler for FraiseQLMcpService {
         );
         std::future::ready(match rendered {
             Some((description, messages)) => {
-                Ok(GetPromptResult::new(messages).with_description(description))
+                Ok(GetPromptResult::new(messages).with_description(description).into())
             },
             None => Err(rmcp::ErrorData::invalid_params(
                 format!("Unknown prompt: {}", request.name),

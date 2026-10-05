@@ -642,6 +642,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **The MCP HTTP endpoint no longer leaks a session per unauthenticated request (#1489,
+  GHSA-9pj6-vhgr-3mwh).** rmcp 1.x allocated a transport session for a POST before validating
+  it and never released it when the body was not an `initialize`. FraiseQL authenticates inside
+  the session, so anyone who could reach `[mcp] path` could grow the server's memory one entry
+  per request, with or without `require_auth`; 2.15.0's `-full` build is affected. rmcp moves to
+  3.5, which also clears GHSA-33f5-2c5q-wgwj, GHSA-c9xm-49cp-xcr9 and GHSA-9g45-5xwm-f3wc (in
+  client paths FraiseQL does not use). The transport keeps its settings: per-session state for
+  pre-2026-07-28 clients, and the same accepted `Host` values. A request body is now capped at
+  4 MiB (rmcp's default).
+
 - **SCIM provisioning tokens were not confined to their tenant.** `PgScimStore` scoped
   groups by the token's tenant but not users: `GET /Users` listed every tenant's users (email,
   names), and `PUT`/`PATCH`/`DELETE /Users/{id}` replaced, deactivated or deleted any of them.

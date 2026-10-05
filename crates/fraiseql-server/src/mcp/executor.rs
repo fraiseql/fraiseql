@@ -9,7 +9,7 @@ use fraiseql_core::{
     schema::{CompiledSchema, FieldType, McpConfig},
     security::SecurityContext,
 };
-use rmcp::model::{CallToolResult, Content};
+use rmcp::model::{CallToolResult, ContentBlock};
 
 use crate::config::error_sanitization::ErrorSanitizer;
 
@@ -80,7 +80,7 @@ pub async fn call_tool(
     match exec_result {
         Ok(result) => {
             let result_text = result.to_string();
-            CallToolResult::success(vec![Content::text(result_text)])
+            CallToolResult::success(vec![ContentBlock::text(result_text)])
         },
         // Sanitized exactly as `/graphql` sanitizes it: a raw `FraiseQLError::Database`
         // carries the driver message and SQLSTATE, internal relation names included,
@@ -299,5 +299,5 @@ pub(crate) fn is_scalar_field_type(field_type: &FieldType) -> bool {
 }
 
 pub(super) fn error_result(message: &str) -> CallToolResult {
-    CallToolResult::error(vec![Content::text(message.to_string())])
+    CallToolResult::error(vec![ContentBlock::text(message.to_string())])
 }

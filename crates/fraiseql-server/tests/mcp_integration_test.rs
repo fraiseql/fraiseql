@@ -42,7 +42,7 @@ use fraiseql_test_utils::{
 use rmcp::ServerHandler;
 
 /// Extract text from an MCP Content object.
-fn content_as_text(content: &rmcp::model::Content) -> &str {
+fn content_as_text(content: &rmcp::model::ContentBlock) -> &str {
     content.as_text().expect("expected text content").text.as_str()
 }
 

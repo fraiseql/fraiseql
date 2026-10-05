@@ -6,6 +6,7 @@
 
 pub mod executor;
 pub mod handler;
+pub(crate) mod http;
 pub mod resources;
 pub mod session;
 pub mod tools;

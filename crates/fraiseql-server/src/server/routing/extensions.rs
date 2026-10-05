@@ -418,10 +418,7 @@ impl Server {
             };
 
             if mount_mcp {
-                use rmcp::transport::{
-                    StreamableHttpServerConfig, StreamableHttpService,
-                    streamable_http_server::session::local::LocalSessionManager,
-                };
+                use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
 
                 // The session is built from the whole `AppState`, so an MCP tool
                 // call reaches the same tenant registry, domain registry and error
@@ -437,7 +434,7 @@ impl Server {
                 // operator's.
                 #[cfg(feature = "auth")]
                 let session_store = self.session_state.clone();
-                let mcp_service = StreamableHttpService::new(
+                let mcp_service = crate::mcp::http::streamable_http_service(
                     move || {
                         let validator =
                             oidc.clone().map(crate::mcp::handler::McpTokenValidator::Oidc).or_else(
@@ -450,10 +447,9 @@ impl Server {
                         .with_token_validator(validator);
                         #[cfg(feature = "auth")]
                         let service = service.with_session_state(session_store.clone());
-                        Ok(service)
+                        service
                     },
                     std::sync::Arc::new(LocalSessionManager::default()),
-                    StreamableHttpServerConfig::default(),
                 );
                 app = app.nest_service(&mcp_cfg.path, mcp_service);
                 info!(path = %mcp_cfg.path, "MCP HTTP endpoint mounted");

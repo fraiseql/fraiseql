@@ -642,3 +642,88 @@ mod resource_tests {
         assert!(alpha < zeta, "arguments render in sorted order, not map order: {text}");
     }
 }
+
+/// GHSA-9pj6-vhgr-3mwh: rmcp's Streamable HTTP transport allocated a session for a POST
+/// before validating it, and never released it when the body was not an `initialize`. Every
+/// such request — no credentials needed, since FraiseQL authenticates inside the session — left
+/// one entry in the session table for the life of the process.
+mod http_transport_tests {
+    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+
+    use std::sync::Arc;
+
+    use axum::body::Body;
+    use fraiseql_core::{runtime::Executor, schema::CompiledSchema};
+    use fraiseql_test_utils::failing_adapter::FailingAdapter;
+    use http::{Request, StatusCode};
+    use rmcp::transport::streamable_http_server::session::local::LocalSessionManager;
+    use tower::ServiceExt;
+
+    use super::super::{McpConfig, handler::FraiseQLMcpService, http::streamable_http_service};
+    use crate::routes::graphql::AppState;
+
+    fn service(sessions: &Arc<LocalSessionManager>) -> super::super::http::McpHttpService {
+        let executor = Arc::new(Executor::read_only(
+            CompiledSchema::default(),
+            Arc::new(FailingAdapter::new()),
+        ));
+        let state = AppState::new(executor);
+        streamable_http_service(
+            move || FraiseQLMcpService::new(state.clone(), McpConfig::default()),
+            Arc::clone(sessions),
+        )
+    }
+
+    fn post(body: &str) -> Request<Body> {
+        Request::post("/")
+            .header("host", "localhost")
+            .header("content-type", "application/json")
+            .header("accept", "application/json, text/event-stream")
+            .body(Body::from(body.to_owned()))
+            .unwrap()
+    }
+
+    async fn session_count(sessions: &LocalSessionManager) -> usize {
+        sessions.sessions.read().await.len()
+    }
+
+    /// The counter below sees sessions: a real `initialize` opens exactly one. Without this,
+    /// a transport that refused every request before allocating would pass the leak test.
+    #[tokio::test]
+    async fn an_initialize_request_opens_one_session() {
+        let sessions = Arc::new(LocalSessionManager::default());
+        let response = service(&sessions)
+            .oneshot(post(
+                r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}"#,
+            ))
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(session_count(&sessions).await, 1);
+    }
+
+    #[tokio::test]
+    async fn a_non_initialize_request_without_a_session_leaves_no_session_behind() {
+        let sessions = Arc::new(LocalSessionManager::default());
+        let svc = service(&sessions);
+        for id in 0..50 {
+            let response = svc
+                .clone()
+                .oneshot(post(&format!(r#"{{"jsonrpc":"2.0","id":{id},"method":"tools/list"}}"#)))
+                .await
+                .unwrap();
+            // Refused by the transport's body validation, not before it: a request stopped
+            // earlier (Host check, content type) never reaches the allocation at all.
+            assert!(
+                response.status().is_client_error(),
+                "expected a 4xx refusal, got {}",
+                response.status()
+            );
+        }
+        assert_eq!(
+            session_count(&sessions).await,
+            0,
+            "each refused request left a session in the table (GHSA-9pj6-vhgr-3mwh)"
+        );
+    }
+}

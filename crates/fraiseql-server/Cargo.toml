@@ -107,7 +107,7 @@ reqwest = {workspace = true}
 # MessagePack serialization for Redis idempotency store
 rmp-serde = {version = "1", optional = true}
 # MCP (Model Context Protocol) server (optional)
-rmcp = {version = "1.4", default-features = false, features = ["server", "macros", "transport-async-rw", "transport-streamable-http-server"], optional = true}
+rmcp = {version = "3.5", default-features = false, features = ["server", "macros", "transport-async-rw", "transport-streamable-http-server"], optional = true}
 schemars = {version = "1", optional = true}
 # Embed static assets (studio SPA) into the binary
 rust-embed = {version = "8", features = ["interpolate-folder-path"]}
