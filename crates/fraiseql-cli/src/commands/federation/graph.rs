@@ -1,13 +1,25 @@
-//! Federation graph export command
+//! Federation graph export command.
 //!
-//! Usage: fraiseql federation graph <schema.compiled.json> [--format=json|dot|mermaid]
+//! Usage: fraiseql federation graph <schema.compiled.json>... [--format=json|dot|mermaid]
+//!
+//! One compiled schema describes one subgraph: its `service_name`, the entities it owns
+//! and the ones it extends. The graph is drawn from the schemas given: one node per
+//! subgraph, and an edge `A → B` labelled `E` when `A` extends entity `E` and `B` owns
+//! it. An entity a subgraph extends that no input owns is listed under `unresolved`, so
+//! a missing input reads as a gap rather than as a smaller federation.
+//!
+//! This command used to read its input, discard it and print the same three-subgraph
+//! graph for anything, `{}` included (#1404).
 
-use std::{fmt::Display, fs, str::FromStr};
+use std::{fmt::Display, str::FromStr};
 
 use anyhow::Result;
 use serde::Serialize;
 
+use super::check::load;
 use crate::output::CommandResult;
+
+const COMMAND: &str = "federation graph";
 
 /// Export format for federation graph
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -44,137 +56,184 @@ impl Display for GraphFormat {
     }
 }
 
-/// Federation graph data
+/// The federation the given subgraphs form.
 #[derive(Debug, Serialize)]
 pub struct FederationGraph {
-    /// Subgraphs in the federation
-    pub subgraphs: Vec<Subgraph>,
-
-    /// Edges representing entity relationships
-    pub edges: Vec<Edge>,
+    /// One node per input, in input order.
+    pub subgraphs:  Vec<Subgraph>,
+    /// `from` extends `entity`, which `to` owns.
+    pub edges:      Vec<Edge>,
+    /// Entities a subgraph extends that no input owns.
+    pub unresolved: Vec<Unresolved>,
 }
 
-/// Subgraph in federation
+/// One subgraph: a compiled schema's `federation` block.
 #[derive(Debug, Serialize)]
 pub struct Subgraph {
-    /// Subgraph name
-    pub name: String,
-
-    /// Subgraph endpoint URL
-    pub url: String,
-
-    /// Entities provided by this subgraph
-    pub entities: Vec<String>,
+    /// The subgraph's `service_name`.
+    pub name:    String,
+    /// Entities this subgraph declares and resolves.
+    pub owns:    Vec<String>,
+    /// Entities this subgraph extends from another subgraph.
+    pub extends: Vec<String>,
 }
 
-/// Edge representing entity relationship between subgraphs
+/// `from` extends `entity`, which `to` owns.
 #[derive(Debug, Serialize)]
 pub struct Edge {
-    /// Source subgraph
-    pub from: String,
-
-    /// Target subgraph
-    pub to: String,
-
-    /// Entity linking the subgraphs
+    /// The extending subgraph.
+    pub from:   String,
+    /// The owning subgraph.
+    pub to:     String,
+    /// The entity linking them.
     pub entity: String,
 }
 
-/// Run federation graph command
+/// An entity a subgraph extends that none of the inputs owns.
+#[derive(Debug, Serialize)]
+pub struct Unresolved {
+    /// The extending subgraph.
+    pub subgraph: String,
+    /// The entity with no owner among the inputs.
+    pub entity:   String,
+}
+
+/// Run federation graph command.
 ///
 /// # Errors
 ///
-/// Returns an error if the schema file cannot be read, cannot be parsed as JSON,
-/// or if JSON serialization of the graph output fails.
-pub fn run(schema_path: &str, format: GraphFormat) -> Result<CommandResult> {
-    // Load schema file
-    let schema_content = fs::read_to_string(schema_path)?;
+/// Returns an error if a schema file cannot be read, or the graph cannot be serialized.
+/// An input that is not a compiled schema, or has no federation block or `service_name`,
+/// is a `validation-failed` result naming it.
+pub fn run(schema_paths: &[String], format: GraphFormat) -> Result<CommandResult> {
+    let mut subgraphs = Vec::with_capacity(schema_paths.len());
+    let mut problems = Vec::new();
+    for path in schema_paths {
+        let schema = match load(path)? {
+            Ok(schema) => schema,
+            Err(problem) => {
+                problems.push(problem);
+                continue;
+            },
+        };
+        let Some(federation) = schema.federation.filter(|f| f.enabled) else {
+            problems
+                .push(format!("{path} declares no federation; compile it with federation enabled"));
+            continue;
+        };
+        let Some(name) = federation.service_name else {
+            problems.push(format!("{path} has no federation service_name"));
+            continue;
+        };
+        let (extended, owned): (Vec<_>, Vec<_>) =
+            federation.entities.into_iter().partition(|e| e.extends);
+        subgraphs.push(Subgraph {
+            name,
+            owns: owned.into_iter().map(|e| e.name).collect(),
+            extends: extended.into_iter().map(|e| e.name).collect(),
+        });
+    }
+    if !problems.is_empty() {
+        return Ok(CommandResult::validation_failed(COMMAND, problems, "INVALID_SCHEMA"));
+    }
 
-    // Parse as JSON to verify structure (validation only)
-    let _schema: serde_json::Value = serde_json::from_str(&schema_content)?;
-
-    // Build federation graph (simulated for now)
-    let graph = FederationGraph {
-        subgraphs: vec![
-            Subgraph {
-                name:     "users".to_string(),
-                url:      "http://users.service/graphql".to_string(),
-                entities: vec!["User".to_string()],
-            },
-            Subgraph {
-                name:     "posts".to_string(),
-                url:      "http://posts.service/graphql".to_string(),
-                entities: vec!["Post".to_string()],
-            },
-            Subgraph {
-                name:     "comments".to_string(),
-                url:      "http://comments.service/graphql".to_string(),
-                entities: vec!["Comment".to_string()],
-            },
-        ],
-        edges:     vec![
-            Edge {
-                from:   "users".to_string(),
-                to:     "posts".to_string(),
-                entity: "User".to_string(),
-            },
-            Edge {
-                from:   "posts".to_string(),
-                to:     "comments".to_string(),
-                entity: "Post".to_string(),
-            },
-        ],
-    };
-
-    // Export in requested format
+    let graph = build(subgraphs);
     let output = match format {
         GraphFormat::Json => serde_json::to_value(&graph)?,
         GraphFormat::Dot => serde_json::Value::String(to_dot(&graph)),
         GraphFormat::Mermaid => serde_json::Value::String(to_mermaid(&graph)),
     };
-
     Ok(CommandResult::success("federation/graph", output))
 }
 
-/// Convert federation graph to DOT format (Graphviz)
+/// Connect each extension to every input that owns the entity.
+fn build(subgraphs: Vec<Subgraph>) -> FederationGraph {
+    let mut edges = Vec::new();
+    let mut unresolved = Vec::new();
+    for from in &subgraphs {
+        for entity in &from.extends {
+            let owners: Vec<&Subgraph> =
+                subgraphs.iter().filter(|s| s.owns.contains(entity)).collect();
+            if owners.is_empty() {
+                unresolved.push(Unresolved {
+                    subgraph: from.name.clone(),
+                    entity:   entity.clone(),
+                });
+            }
+            for to in owners {
+                edges.push(Edge {
+                    from:   from.name.clone(),
+                    to:     to.name.clone(),
+                    entity: entity.clone(),
+                });
+            }
+        }
+    }
+    FederationGraph {
+        subgraphs,
+        edges,
+        unresolved,
+    }
+}
+
+/// A DOT double-quoted string.
+///
+/// A JSON string literal is one: DOT reads `\"`, `\\` and `\n` inside quotes exactly as
+/// JSON writes them, so the escaping is serde_json's rather than a hand-rolled copy (#719).
+fn dot_quoted(s: &str) -> String {
+    serde_json::Value::String(s.to_owned()).to_string()
+}
+
+/// Mermaid label text: its quote and markup characters as HTML entities.
+fn mermaid_text(s: &str) -> String {
+    s.replace('"', "#quot;")
+        .replace('<', "#lt;")
+        .replace('>', "#gt;")
+        .replace('\n', " ")
+}
+
+/// Convert federation graph to DOT format (Graphviz).
+///
+/// Node ids are positional (`n0`, `n1`, …) and names appear only as quoted labels, so a
+/// name cannot inject DOT syntax.
 pub(crate) fn to_dot(graph: &FederationGraph) -> String {
     let mut dot = String::from("digraph federation {\n");
-
-    // Add subgraph nodes
-    for subgraph in &graph.subgraphs {
-        let entities = subgraph.entities.join(", ");
+    let id = |name: &str| graph.subgraphs.iter().position(|s| s.name == name).unwrap_or(0);
+    for (i, subgraph) in graph.subgraphs.iter().enumerate() {
+        let label = format!("{}\n[{}]", subgraph.name, subgraph.owns.join(", "));
+        dot.push_str(&format!("    n{i} [label={}];\n", dot_quoted(&label)));
+    }
+    for edge in &graph.edges {
         dot.push_str(&format!(
-            "    {} [label=\"{}\\n[{}]\"];\n",
-            subgraph.name, subgraph.name, entities
+            "    n{} -> n{} [label={}];\n",
+            id(&edge.from),
+            id(&edge.to),
+            dot_quoted(&edge.entity)
         ));
     }
-
-    // Add edges
-    for edge in &graph.edges {
-        dot.push_str(&format!("    {} -> {} [label=\"{}\"];\n", edge.from, edge.to, edge.entity));
-    }
-
     dot.push_str("}\n");
     dot
 }
 
-/// Convert federation graph to Mermaid format
+/// Convert federation graph to Mermaid format, with positional node ids and quoted labels.
 pub(crate) fn to_mermaid(graph: &FederationGraph) -> String {
     let mut mermaid = String::from("graph LR\n");
-
-    // Add nodes
-    for subgraph in &graph.subgraphs {
-        let entities = subgraph.entities.join("<br/>");
+    let id = |name: &str| graph.subgraphs.iter().position(|s| s.name == name).unwrap_or(0);
+    for (i, subgraph) in graph.subgraphs.iter().enumerate() {
+        let owns: Vec<String> = subgraph.owns.iter().map(|e| mermaid_text(e)).collect();
         mermaid.push_str(&format!(
-            "    {}[\"{}\\n[{}\\n]\"]\n",
-            subgraph.name, subgraph.name, entities
+            "    n{i}[\"{}<br/>[{}]\"]\n",
+            mermaid_text(&subgraph.name),
+            owns.join("<br/>")
         ));
     }
-
-    // Add edges
     for edge in &graph.edges {
-        mermaid.push_str(&format!("    {} -->|{}| {}\n", edge.from, edge.entity, edge.to));
+        mermaid.push_str(&format!(
+            "    n{} -->|\"{}\"| n{}\n",
+            id(&edge.from),
+            mermaid_text(&edge.entity),
+            id(&edge.to)
+        ));
     }
-
     mermaid
 }

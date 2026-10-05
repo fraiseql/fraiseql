@@ -218,14 +218,15 @@ EXAMPLES:
         format: String,
     },
 
-    /// Export federation dependency graph
+    /// Federation tools: draw the graph subgraphs form, check a subgraph
     ///
-    /// Visualize federation structure in multiple formats.
+    /// `graph` takes each subgraph's compiled schema and draws who extends whose entities.
     #[command(after_help = "\
 EXAMPLES:
-    fraiseql federation graph schema.compiled.json
-    fraiseql federation graph schema.compiled.json -f dot
-    fraiseql federation graph schema.compiled.json -f mermaid")]
+    fraiseql federation graph users.compiled.json orders.compiled.json
+    fraiseql federation graph users.compiled.json orders.compiled.json -f dot
+    fraiseql federation graph users.compiled.json orders.compiled.json -f mermaid
+    fraiseql federation check schema.compiled.json --against other.compiled.json")]
     Federation {
         /// Schema path (positional argument passed to subcommand)
         #[command(subcommand)]
@@ -1054,11 +1055,11 @@ pub(crate) enum GenerateClientCommands {
 
 #[derive(Subcommand)]
 pub(crate) enum FederationCommands {
-    /// Export federation graph
+    /// Draw the federation the given subgraphs form
     Graph {
-        /// Path to schema.compiled.json
-        #[arg(value_name = "SCHEMA")]
-        schema: String,
+        /// Each subgraph's schema.compiled.json
+        #[arg(value_name = "SCHEMA", required = true, num_args = 1..)]
+        schema: Vec<String>,
 
         /// Output format (json, dot, mermaid)
         #[arg(short, long, value_name = "FORMAT", default_value = "json")]

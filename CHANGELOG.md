@@ -346,6 +346,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`fraiseql federation graph` draws the federation its inputs form (#1404).** It read its
+  input, discarded it, and printed the same `users → posts → comments` graph for any file,
+  `{}` included. It now takes one or more compiled schemas: a node per subgraph
+  (`service_name`, the entities it owns and extends), and an edge `A → B` labelled `E` when
+  `A` extends `E` and `B` owns it. An entity extended but owned by no input is listed under
+  `unresolved`. An input with no enabled federation block or no `service_name` is a
+  validation failure naming it. The JSON shape changed: each subgraph has `owns` and
+  `extends` instead of `entities`, and the invented `url` is gone. DOT and Mermaid output
+  quote every name, so a name cannot inject syntax.
+
 - **The CLI reaches a PostgreSQL that requires TLS (#1429).** Every CLI database connection
   was `NoTls`: `?sslmode=require` failed with "no TLS implementation configured", and the
   default `prefer` connected in cleartext even to a server offering TLS. The CLI now builds

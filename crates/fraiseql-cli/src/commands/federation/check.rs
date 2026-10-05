@@ -113,7 +113,7 @@ fn check(schema_path: &str, against: Option<&str>) -> Result<CommandResult> {
 
 /// Read a compiled schema. The inner `Err` is a refusal of the document's shape, worded
 /// for the report; the outer one is a file that could not be read.
-fn load(path: &str) -> Result<std::result::Result<CompiledSchema, String>> {
+pub(super) fn load(path: &str) -> Result<std::result::Result<CompiledSchema, String>> {
     let content =
         fs::read_to_string(path).map_err(|e| anyhow::anyhow!("Failed to read {path}: {e}"))?;
     Ok(serde_json::from_str::<CompiledSchema>(&content).map_err(|e| {

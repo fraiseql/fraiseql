@@ -25,36 +25,121 @@ mod graph_tests {
         );
     }
 
-    #[test]
-    fn test_to_dot_format() {
-        let graph = FederationGraph {
-            subgraphs: vec![Subgraph {
-                name:     "a".to_string(),
-                url:      "http://a".to_string(),
-                entities: vec!["A".to_string()],
-            }],
-            edges:     vec![],
-        };
+    use fraiseql_core::schema::{CompiledSchema, FederationConfig, FederationEntity};
 
-        let dot = to_dot(&graph);
-        assert!(dot.contains("digraph"));
-        assert!(dot.contains('a'));
+    fn entity(name: &str, extends: bool) -> FederationEntity {
+        FederationEntity {
+            name: name.to_string(),
+            key_fields: vec!["id".to_string()],
+            extends,
+            ..FederationEntity::default()
+        }
     }
 
-    #[test]
-    fn test_to_mermaid_format() {
-        let graph = FederationGraph {
-            subgraphs: vec![Subgraph {
-                name:     "a".to_string(),
-                url:      "http://a".to_string(),
-                entities: vec!["A".to_string()],
-            }],
-            edges:     vec![],
-        };
+    /// Write a compiled schema for one subgraph and return its path.
+    fn subgraph(dir: &std::path::Path, service: &str, entities: Vec<FederationEntity>) -> String {
+        let mut schema = CompiledSchema::new();
+        schema.federation = Some(FederationConfig {
+            enabled: true,
+            service_name: Some(service.to_string()),
+            entities,
+            ..FederationConfig::default()
+        });
+        let path = dir.join(format!("{service}.compiled.json"));
+        std::fs::write(&path, schema.to_json().unwrap()).unwrap();
+        path.to_str().unwrap().to_string()
+    }
 
+    fn graph_json(paths: &[String]) -> serde_json::Value {
+        let result = run(paths, GraphFormat::Json).unwrap();
+        assert_eq!(result.status, "success", "{result:?}");
+        result.data.unwrap()
+    }
+
+    /// The graph is the inputs': one node per subgraph, and an edge from a subgraph that
+    /// extends an entity to the one that owns it (#1404).
+    #[test]
+    fn the_graph_is_built_from_the_compiled_schemas() {
+        let dir = tempfile::tempdir().unwrap();
+        let users = subgraph(dir.path(), "users", vec![entity("User", false)]);
+        let orders =
+            subgraph(dir.path(), "orders", vec![entity("Order", false), entity("User", true)]);
+        let graph = graph_json(&[users, orders]);
+        assert_eq!(
+            graph,
+            serde_json::json!({
+                "subgraphs": [
+                    {"name": "users", "owns": ["User"], "extends": []},
+                    {"name": "orders", "owns": ["Order"], "extends": ["User"]},
+                ],
+                "edges": [{"from": "orders", "to": "users", "entity": "User"}],
+                "unresolved": [],
+            })
+        );
+    }
+
+    /// An entity extended but owned by no input is reported, not dropped.
+    #[test]
+    fn an_extension_with_no_owner_among_the_inputs_is_reported() {
+        let dir = tempfile::tempdir().unwrap();
+        let orders = subgraph(dir.path(), "orders", vec![entity("User", true)]);
+        let graph = graph_json(&[orders]);
+        assert_eq!(graph["edges"], serde_json::json!([]));
+        assert_eq!(
+            graph["unresolved"],
+            serde_json::json!([{"subgraph": "orders", "entity": "User"}])
+        );
+    }
+
+    /// The old command printed a fixed three-subgraph graph for any input, `{}` included.
+    #[test]
+    fn an_input_that_is_not_a_federated_subgraph_fails() {
+        let dir = tempfile::tempdir().unwrap();
+        let empty = dir.path().join("empty.json");
+        std::fs::write(&empty, "{}").unwrap();
+        let plain = dir.path().join("plain.compiled.json");
+        std::fs::write(&plain, CompiledSchema::new().to_json().unwrap()).unwrap();
+        let disabled = dir.path().join("disabled.compiled.json");
+        let mut schema = CompiledSchema::new();
+        schema.federation = Some(FederationConfig {
+            enabled: false,
+            service_name: Some("users".to_string()),
+            entities: vec![entity("User", false)],
+            ..FederationConfig::default()
+        });
+        std::fs::write(&disabled, schema.to_json().unwrap()).unwrap();
+        let unnamed = dir.path().join("unnamed.compiled.json");
+        let mut schema = CompiledSchema::new();
+        schema.federation = Some(FederationConfig {
+            enabled: true,
+            entities: vec![entity("User", false)],
+            ..FederationConfig::default()
+        });
+        std::fs::write(&unnamed, schema.to_json().unwrap()).unwrap();
+        for path in [empty, plain, disabled, unnamed] {
+            let result = run(&[path.to_str().unwrap().to_string()], GraphFormat::Json).unwrap();
+            assert_eq!(result.status, "validation-failed", "{path:?}: {result:?}");
+        }
+    }
+
+    /// Names reach DOT and Mermaid as quoted labels: a quote in a service name cannot end
+    /// the label and inject syntax.
+    #[test]
+    fn names_are_quoted_in_dot_and_mermaid() {
+        let graph = FederationGraph {
+            subgraphs:  vec![Subgraph {
+                name:    "evil\"] ; x -> y [".to_string(),
+                owns:    vec!["A".to_string()],
+                extends: vec![],
+            }],
+            edges:      vec![],
+            unresolved: vec![],
+        };
+        let dot = to_dot(&graph);
+        assert!(dot.contains(r#"label="evil\"] ; x -> y [\n[A]""#), "{dot}");
         let mermaid = to_mermaid(&graph);
-        assert!(mermaid.contains("graph"));
-        assert!(mermaid.contains('a'));
+        assert!(!mermaid.contains(r#"evil"]"#), "{mermaid}");
+        assert!(mermaid.contains("evil#quot;]"), "{mermaid}");
     }
 }
 
