@@ -17,14 +17,6 @@ version.workspace = true
 harness = false
 name = "mutation_http_bench"
 
-# Declared with `harness = false` because it is a criterion bench. It was
-# auto-discovered before the move, which defaults to `harness = true`, so
-# `criterion_main!`'s `main` was ignored and it ran zero benchmarks. Declaring it
-# makes it run; it still measures a local mock rather than the saga (#1361).
-[[bench]]
-harness = false
-name = "saga_performance_bench"
-
 [dependencies]
 chrono = {workspace = true}
 deadpool = {workspace = true}

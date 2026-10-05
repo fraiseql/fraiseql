@@ -49,3 +49,4 @@
 #1186  test infra: same defect as #1114, reported as nondeterministic parallel failures
 #1421  CI plumbing: Dagger target volumes mounted PRIVATE + sources stamped per leg, so a leg never links another run's crates; no change to any shipped artifact
 #1370  fraiseql-db's database-backed tests moved from src/ to tests/; test layout only
+#1361  deleted a saga benchmark that measured an in-file mock and never ran; no shipped code
