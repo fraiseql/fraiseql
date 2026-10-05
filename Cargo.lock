@@ -3949,6 +3949,7 @@ name = "fraiseql-guard"
 version = "2.15.0"
 dependencies = [
  "temp-env",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]

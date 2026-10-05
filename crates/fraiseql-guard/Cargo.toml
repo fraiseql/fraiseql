@@ -1,9 +1,12 @@
 [dependencies]
+# `lookup_host`, for the one resolve-and-check every outbound path runs (#1360).
+tokio = {workspace = true}
 # Facade only: lets a refused escape hatch be reported from the single place that
 # decides it (#882), without making this crate unreachable from any leaf crate.
 tracing = "0.1"
 
 [dev-dependencies]
+tokio = {workspace = true, features = ["macros", "rt"]}
 temp-env = {workspace = true}
 tracing-subscriber = {workspace = true}
 

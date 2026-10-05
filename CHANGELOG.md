@@ -335,6 +335,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **Every outbound path resolves and checks a host the same way (#1360).** Federation subgraph
+  calls, observer webhooks and Slack sends, JWKS fetches and function HTTP requests each
+  carried their own resolve-then-check, and two of the four skipped the hostname alias list.
+  They now share `fraiseql_guard::net::resolve::resolve_and_check`: the loopback and metadata
+  aliases and blocked literals are refused before any lookup, and then every resolved address
+  is checked. Federation and observers therefore now refuse `localhost.<anything>` and
+  `metadata.google.internal` at dispatch time, as JWKS and functions already did. The
+  development bypasses (JWKS's loopback-literal path, `FRAISEQL_OBSERVERS_ALLOW_INSECURE`)
+  are unchanged.
+
 - **A Deno function invocation no longer rebuilds `deno_core`'s environment (#1343).**
   Each invocation's isolate now starts from a V8 startup snapshot, built once per process.
   Building the isolate took ~4.0 ms of a ~4.6 ms trivial invocation; with the snapshot it

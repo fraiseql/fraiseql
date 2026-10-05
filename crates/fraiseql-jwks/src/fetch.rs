@@ -160,23 +160,16 @@ impl Endpoint {
 /// A message naming what happened, for the caller to wrap: resolution failed,
 /// resolved to nothing, or resolved to an address the guard refuses.
 pub async fn resolve_and_guard(host: &str, port: u16) -> Result<Vec<SocketAddr>, String> {
-    let addrs: Vec<SocketAddr> = tokio::net::lookup_host((host, port))
+    // The one resolve-and-check (#1360): the alias list, then every resolved address.
+    fraiseql_guard::net::resolve::resolve_and_check(host, port)
         .await
-        .map_err(|error| format!("DNS resolution failed for {host:?}: {error}"))?
-        .collect();
-    if addrs.is_empty() {
-        return Err(format!("DNS resolved {host:?} to no addresses"));
-    }
-    for addr in &addrs {
-        if fraiseql_guard::net::is_blocked_ip(&addr.ip()) {
-            return Err(format!(
-                "{host:?} resolves to {}, which is not an address a published key set may be \
-                 fetched from",
-                addr.ip()
-            ));
-        }
-    }
-    Ok(addrs)
+        .map_err(|refusal| match refusal {
+            fraiseql_guard::net::resolve::Refusal::BlockedAddress(ip) => format!(
+                "{host:?} resolves to {ip}, which is not an address a published key set may be \
+             fetched from"
+            ),
+            other => format!("{host:?} refused: {other}"),
+        })
 }
 
 /// A client pinned to pre-validated addresses, with redirects refused.

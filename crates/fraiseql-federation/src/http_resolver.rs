@@ -169,31 +169,19 @@ pub async fn dns_resolve_and_check(url: &str) -> fraiseql_error::Result<()> {
         source:  None,
     })?;
     let port = parsed.port_or_known_default().unwrap_or(443);
-    let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host, port))
+    // The one resolve-and-check (#1360): the alias list, then every resolved address.
+    fraiseql_guard::net::resolve::resolve_and_check(host, port)
         .await
-        .map_err(|e| fraiseql_error::FraiseQLError::Internal {
-            message: format!("DNS resolution failed for host '{host}': {e}"),
-            source:  None,
-        })?
-        .collect();
-    if addrs.is_empty() {
-        return Err(fraiseql_error::FraiseQLError::Internal {
-            message: format!("DNS resolved to no addresses for host '{host}'"),
-            source:  None,
-        });
-    }
-    for addr in &addrs {
-        if is_ssrf_blocked_ip(&addr.ip()) {
-            return Err(fraiseql_error::FraiseQLError::Internal {
-                message: format!(
-                    "DNS rebinding attack blocked: host '{host}' resolved to private/reserved IP {}",
-                    addr.ip()
+        .map(drop)
+        .map_err(|refusal| fraiseql_error::FraiseQLError::Internal {
+            message: match refusal {
+                fraiseql_guard::net::resolve::Refusal::BlockedAddress(ip) => format!(
+                    "DNS rebinding attack blocked: host '{host}' resolved to private/reserved IP {ip}"
                 ),
-                source:  None,
-            });
-        }
-    }
-    Ok(())
+                other => format!("Subgraph host '{host}' refused: {other}"),
+            },
+            source:  None,
+        })
 }
 
 impl HttpEntityResolver {

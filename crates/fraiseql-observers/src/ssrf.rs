@@ -4,7 +4,7 @@
 //! workspace's single outbound guard. This module owns only URL parsing, the
 //! observer error mapping, and the `FRAISEQL_OBSERVERS_ALLOW_INSECURE` policy.
 
-use fraiseql_guard::net::{blocked_host_reason, is_blocked_ip as is_ssrf_blocked_ip};
+use fraiseql_guard::net::blocked_host_reason;
 
 use crate::error::ObserverError;
 
@@ -69,28 +69,18 @@ pub async fn dns_resolve_and_check(url: &str) -> crate::error::Result<()> {
         message: format!("URL has no host: {url}"),
     })?;
     let port = parsed.port_or_known_default().unwrap_or(443);
-    let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host, port))
+    // The one resolve-and-check (#1360): the alias list, then every resolved address.
+    fraiseql_guard::net::resolve::resolve_and_check(host, port)
         .await
-        .map_err(|e| ObserverError::InvalidConfig {
-            message: format!("DNS resolution failed for host '{host}': {e}"),
-        })?
-        .collect();
-    if addrs.is_empty() {
-        return Err(ObserverError::InvalidConfig {
-            message: format!("DNS resolved to no addresses for host '{host}'"),
-        });
-    }
-    for addr in &addrs {
-        if is_ssrf_blocked_ip(&addr.ip()) {
-            return Err(ObserverError::InvalidConfig {
-                message: format!(
-                    "DNS rebinding attack blocked: host '{host}' resolved to private/reserved IP {}",
-                    addr.ip()
+        .map(drop)
+        .map_err(|refusal| ObserverError::InvalidConfig {
+            message: match refusal {
+                fraiseql_guard::net::resolve::Refusal::BlockedAddress(ip) => format!(
+                    "DNS rebinding attack blocked: host '{host}' resolved to private/reserved IP {ip}"
                 ),
-            });
-        }
-    }
-    Ok(())
+                other => format!("host '{host}' refused: {other}"),
+            },
+        })
 }
 
 /// Validate that a NATS URL is safe to connect to.
@@ -185,6 +175,26 @@ mod ssrf_tests {
     fn allows_public_host_and_ip() {
         assert!(validate_outbound_url("https://api.example.com/hook").is_ok());
         assert!(validate_outbound_url("https://8.8.8.8/hook").is_ok());
+    }
+
+    /// The dispatch-time check every webhook and Slack send runs, through the shared
+    /// resolve-and-check (#1360): blocked literals, mapped-private literals and the
+    /// loopback and metadata aliases are refused; an allowed literal passes without DNS.
+    #[test]
+    fn the_dispatch_time_check_refuses_a_blocked_destination() {
+        with_ssrf_env_cleared(|| {
+            let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
+            for url in [
+                "https://127.0.0.1/hook",
+                "https://[::ffff:10.0.0.1]/hook",
+                "https://localhost.evil.com/hook",
+                "http://metadata.google.internal/",
+            ] {
+                assert!(rt.block_on(dns_resolve_and_check(url)).is_err(), "must refuse {url}");
+            }
+            rt.block_on(dns_resolve_and_check("https://8.8.8.8/hook"))
+                .expect("an allowed literal passes without a lookup");
+        });
     }
 
     #[test]

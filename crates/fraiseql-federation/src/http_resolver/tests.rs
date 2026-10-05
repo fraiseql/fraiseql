@@ -417,3 +417,21 @@ async fn entity_resolver_valid_response_is_parsed() {
     let result = resolver.resolve_entities(&url, &[repr], &selection).await;
     assert!(result.is_ok(), "valid entity response must be accepted");
 }
+
+/// The dispatch-time check every subgraph call runs, through the shared
+/// resolve-and-check (#1360): blocked literals, mapped-private literals and the
+/// loopback and metadata aliases are refused; an allowed literal passes without DNS.
+#[tokio::test]
+async fn the_dispatch_time_check_refuses_a_blocked_destination() {
+    for url in [
+        "http://127.0.0.1:4001/graphql",
+        "http://[::ffff:10.0.0.1]/graphql",
+        "http://localhost.evil.com/graphql",
+        "http://metadata.google.internal/",
+    ] {
+        assert!(dns_resolve_and_check(url).await.is_err(), "must refuse {url}");
+    }
+    dns_resolve_and_check("https://8.8.8.8/graphql")
+        .await
+        .expect("an allowed literal passes without a lookup");
+}

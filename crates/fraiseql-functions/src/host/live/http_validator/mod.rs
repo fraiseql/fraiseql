@@ -6,9 +6,8 @@
 //! - Blocking private IP addresses (RFC 1918, loopback, link-local)
 //! - Blocking `IPv6` private ranges
 
-use std::net::IpAddr;
-
 use fraiseql_error::{FraiseQLError, Result};
+use fraiseql_guard::net::{BlockedReason, resolve::Refusal};
 
 /// Configuration for HTTP client validation.
 #[derive(Debug, Clone)]
@@ -90,48 +89,35 @@ pub async fn validate_outbound_url(url: &str, config: &HttpClientConfig) -> Resu
         });
     }
 
-    // Loopback and metadata hostname aliases, before any lookup. `localhost` was
-    // only ever caught if it happened to resolve to 127.0.0.1, and `api.localhost`
-    // / `localhost.evil.com` were not caught at all — the latter is registrable by
-    // anyone.
-    if let Some(reason) = fraiseql_guard::net::blocked_host_reason(host) {
-        return Err(FraiseQLError::Authorization {
-            message:  format!("host '{host}' not allowed: {reason}"),
-            action:   Some("http_request".to_string()),
-            resource: Some(host.to_string()),
-        });
-    }
-
-    // Check for private/reserved IPs in a literal-IP host.
-    if let Ok(ip) = parse_ip_from_host(host) {
-        validate_ip(&ip)?;
-        // A literal IP cannot be rebound via DNS; the literal check above is
-        // sufficient and `lookup_host` on a literal would only echo it back.
-        return Ok(());
-    }
-
-    // DNS-rebinding guard: resolve the host and reject if ANY address is
-    // private/reserved. A public name that resolves to an internal IP is the
-    // classic SSRF bypass; checking literal IPs alone does not cover it.
+    // The one resolve-and-check (#1360): the loopback and metadata aliases and a
+    // blocked literal before any lookup, then every resolved address, since a public
+    // name that resolves to an internal one is the classic SSRF bypass.
     let port = parsed_url.port_or_known_default().unwrap_or(443);
-    let addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host, port))
-        .await
-        .map_err(|e| FraiseQLError::Validation {
-            message: format!("DNS resolution failed for host '{host}': {e}"),
-            path:    None,
-        })?
-        .collect();
-    if addrs.is_empty() {
-        return Err(FraiseQLError::Validation {
-            message: format!("DNS resolved to no addresses for host '{host}'"),
-            path:    None,
-        });
+    let refused = |message: String, resource: String| FraiseQLError::Authorization {
+        message,
+        action: Some("http_request".to_string()),
+        resource: Some(resource),
+    };
+    match fraiseql_guard::net::resolve::resolve_and_check(host, port).await {
+        Ok(_) => Ok(()),
+        Err(Refusal::Host(BlockedReason::ReservedAddress)) => Err(refused(
+            format!("private/reserved IP address not allowed: {host}"),
+            host.to_string(),
+        )),
+        Err(Refusal::Host(reason)) => {
+            Err(refused(format!("host '{host}' not allowed: {reason}"), host.to_string()))
+        },
+        Err(Refusal::BlockedAddress(ip)) => Err(refused(
+            format!("private/reserved IP address not allowed: {ip}"),
+            ip.to_string(),
+        )),
+        Err(other @ (Refusal::ResolutionFailed(_) | Refusal::NoAddresses)) => {
+            Err(FraiseQLError::Validation {
+                message: format!("host '{host}': {other}"),
+                path:    None,
+            })
+        },
     }
-    for addr in &addrs {
-        validate_ip(&addr.ip())?;
-    }
-
-    Ok(())
 }
 
 /// Check if a host (domain or IP) is in the allowlist.
@@ -170,42 +156,6 @@ fn is_domain_allowed(host: &str, allowlist: &[String]) -> bool {
     }
 
     false
-}
-
-/// Parse IP address from a host string, handling `IPv6` brackets.
-/// `IPv6` addresses in URLs are bracketed: `[::1]`
-fn parse_ip_from_host(host: &str) -> Result<IpAddr> {
-    // Strip IPv6 brackets if present
-    let clean_host = if host.starts_with('[') && host.ends_with(']') {
-        &host[1..host.len() - 1]
-    } else {
-        host
-    };
-
-    clean_host.parse::<IpAddr>().map_err(|e| FraiseQLError::Validation {
-        message: format!("failed to parse IP address: {}", e),
-        path:    None,
-    })
-}
-
-/// Validate that an IP address is not private/reserved.
-///
-/// The ranges are [`fraiseql_guard::net`]'s, shared with every other outbound
-/// guard in the workspace. This function owns only the error mapping.
-///
-/// The `IPv6` arm previously tested `is_loopback`/`is_unique_local`/
-/// `is_unicast_link_local` directly, none of which fire for an `IPv4`-mapped
-/// address, so `::ffff:169.254.169.254` was accepted and a dual-stack socket
-/// carried the request to the metadata service (#802).
-fn validate_ip(ip: &IpAddr) -> Result<()> {
-    if fraiseql_guard::net::is_blocked_ip(ip) {
-        return Err(FraiseQLError::Authorization {
-            message:  format!("private/reserved IP address not allowed: {ip}"),
-            action:   Some("http_request".to_string()),
-            resource: Some(ip.to_string()),
-        });
-    }
-    Ok(())
 }
 
 #[cfg(test)]

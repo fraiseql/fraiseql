@@ -28,15 +28,16 @@
 //! canonicalised and re-checked under the `IPv4` rules rather than blanket-blocked,
 //! so `::ffff:8.8.8.8` stays usable while `::ffff:169.254.169.254` does not.
 //!
-//! # What is *not* blocked
+//! # DNS
 //!
-//! DNS. A hostname that resolves to a blocked address is only caught once it is
-//! resolved, so a caller must check every resolved address with [`is_blocked_ip`]
-//! **and** pin the connection to those addresses — validating and then letting the
-//! HTTP client re-resolve leaves a rebinding window open.
+//! A hostname that resolves to a blocked address is only caught once it is resolved:
+//! [`resolve::resolve_and_check`] does that, for every caller. It returns the addresses
+//! that passed, and a caller must **pin** its connection to them, since validating and
+//! then letting the HTTP client re-resolve leaves a rebinding window open.
 
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 
+pub mod resolve;
 pub mod vectors;
 
 /// Why an outbound destination was refused.
