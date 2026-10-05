@@ -15,7 +15,7 @@
  * ```
  */
 
-import { tool } from "ai";
+import { type Tool, tool } from "ai";
 import type { z } from "zod";
 import type { FraiseQLClient } from "../client";
 
@@ -28,11 +28,13 @@ export function fraiseqlTool<TParams extends z.ZodType>(
     parameters: TParams;
     transform?: (data: Record<string, unknown>) => unknown;
   }
-): ReturnType<typeof tool> {
+): Tool<z.infer<TParams>, unknown> {
   return tool({
     description: options.description,
-    parameters: options.parameters,
-    execute: async (params) => {
+    // AI SDK 5+ reads the schema from `inputSchema`; under the old key `parameters` the
+    // tool reached the model with no arguments at all.
+    inputSchema: options.parameters,
+    execute: async (params: z.infer<TParams>) => {
       const data = await client.query(options.query, params as Record<string, unknown>);
       return options.transform ? options.transform(data as Record<string, unknown>) : data;
     },

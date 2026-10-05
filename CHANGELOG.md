@@ -379,6 +379,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The TypeScript SDK's Vercel AI tool now hands the model its parameters.** `fraiseqlTool`
+  passed its schema to `ai`'s `tool()` as `parameters`, a key AI SDK 5+ no longer reads, so
+  the model was offered a tool with no arguments. It now passes `inputSchema`; the
+  `fraiseqlTool` options are unchanged. Nothing caught it because the integration was
+  type-checked against a local stub of `ai`, which shadowed the real package, and tested
+  against a mocked `tool()` that echoed back any key. Both are gone: the SDK type-checks
+  against the real `ai`, `zod`, `@langchain/core` and `@mastra/core`, and the integration
+  test runs the real `ai`.
+
 - **`fraiseql federation graph` draws the federation its inputs form (#1404).** It read its
   input, discarded it, and printed the same `users → posts → comments` graph for any file,
   `{}` included. It now takes one or more compiled schemas: a node per subgraph
