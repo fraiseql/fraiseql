@@ -874,13 +874,23 @@ jobs:
       - name: Validate PyPI package
         id: validate-pypi
         run: |
-          echo "Waiting for PyPI to index..."
-          sleep 10
-          echo "Testing PyPI package installation..."
           # Assert the NEW release version specifically — not whatever the manifest
           # happens to carry — so a no-op publish can never validate green (H30).
           VERSION="${GITHUB_REF#refs/tags/v}"
-          python -m pip install --upgrade "fraiseql==${VERSION}"
+          # Bounded retry-then-FAIL. On v2.15.0 one attempt after a fixed 10 s sleep ran
+          # before the index served the upload, and a published, working wheel reddened
+          # the release. pip's own cache would replay the miss, hence --no-cache-dir.
+          for attempt in $(seq 1 20); do
+            if python -m pip install --no-cache-dir --upgrade "fraiseql==${VERSION}"; then
+              break
+            fi
+            if [ "$attempt" -eq 20 ]; then
+              echo "::error::fraiseql==${VERSION} not installable from PyPI after 20 attempts"
+              exit 1
+            fi
+            echo "PyPI does not serve fraiseql==${VERSION} yet (attempt ${attempt}/20); retrying in 15s"
+            sleep 15
+          done
           python -c "import fraiseql, sys; assert fraiseql.__version__ == '${VERSION}', f'installed {fraiseql.__version__}, expected ${VERSION}'; print(f'✅ fraiseql {fraiseql.__version__} successfully published to PyPI')"
 
       - name: Report Python publishing results
@@ -891,7 +901,13 @@ jobs:
 
           [ "${{ steps.build-python.outcome }}" = "success" ] && echo "- ✅ Build: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ Build: FAILED" >> "$GITHUB_STEP_SUMMARY"
           [ "${{ steps.publish-pypi.outcome }}" = "success" ] && echo "- ✅ PyPI upload: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ❌ PyPI upload: FAILED" >> "$GITHUB_STEP_SUMMARY"
-          [ "${{ steps.validate-pypi.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" >> "$GITHUB_STEP_SUMMARY" || echo "- ⚠️ Validation: SKIPPED" >> "$GITHUB_STEP_SUMMARY"
+          # `outcome` is success, failure, cancelled or skipped; print the one it is. The old
+          # line printed "SKIPPED" for anything but success, including v2.15.0's failure.
+          case "${{ steps.validate-pypi.outcome }}" in
+            success) echo "- ✅ Validation: SUCCESS" ;;
+            failure) echo "- ❌ Validation: FAILED" ;;
+            *)       echo "- ⚠️ Validation: ${{ steps.validate-pypi.outcome }}" ;;
+          esac >> "$GITHUB_STEP_SUMMARY"
 
   # Build and publish the Rust SDK crate
   #
@@ -912,6 +928,12 @@ jobs:
     needs: create-github-release
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # The workflow-level `RUSTC_WRAPPER: "sccache"` reaches every job, and this one never
+    # installs sccache: v2.15.0's `cargo publish` died on `sccache … No such file or
+    # directory` and fraiseql-rust never shipped. `tools/check-rustc-wrapper.py` now
+    # refuses a job that runs cargo under a wrapper it does not install.
+    env:
+      RUSTC_WRAPPER: ""
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6

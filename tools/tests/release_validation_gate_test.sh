@@ -5,7 +5,7 @@
 # Exits non-zero if any assertion fails.
 #
 # A fixture pair of workflows that pass, then one mutation per rule: continue-on-error back
-# on, the install unpinned, the load removed, the version comparison removed, the step renamed
+# on, the retry loop removed, the install unpinned, the load removed, the version comparison removed, the step renamed
 # away, the workflow missing, the workflow unparseable. Each must be red for its own reason.
 # shellcheck disable=SC2016  # the ${VERSION} in the sed patterns is meant literally: it is the workflow's text
 set -euo pipefail
@@ -29,7 +29,10 @@ jobs:
     steps:
       - name: Validate PyPI package
         run: |
-          python -m pip install "fraiseql==${VERSION}"
+          for attempt in $(seq 1 20); do
+            if python -m pip install "fraiseql==${VERSION}"; then break; fi
+            sleep 15
+          done
           python -c "import fraiseql; assert fraiseql.__version__ == '${VERSION}'"
 EOF
     cat > "$r/.github/workflows/npm-publish.yml" <<'EOF'
@@ -38,7 +41,10 @@ jobs:
     steps:
       - name: Validate npm package
         run: |
-          npm install "fraiseql@${VERSION}" --prefix /tmp/v
+          for attempt in $(seq 1 20); do
+            if npm install "fraiseql@${VERSION}" --prefix /tmp/v; then break; fi
+            sleep 15
+          done
           node -e "const p = require('/tmp/v/node_modules/fraiseql/package.json'); if (p.version !== '${VERSION}') throw 1; require('/tmp/v/node_modules/fraiseql')"
 EOF
 }
@@ -70,6 +76,14 @@ assert_gate "continue-on-error is red" 1 "continue-on-error is True" "$r"
 
 r="$WORK/unpinned"; good_root "$r"; sed -i 's/fraiseql==${VERSION}/fraiseql/' "$r/.github/workflows/release.yml"
 assert_gate "unpinned install is red" 1 "does not install the release version" "$r"
+
+r="$WORK/noretry"; good_root "$r"; python3 - "$r/.github/workflows/release.yml" <<'PY'
+import re, sys
+p = sys.argv[1]; s = open(p).read()
+s = re.sub(r"          for attempt.*?\n          done\n", '          python -m pip install "fraiseql==${VERSION}"\n', s, flags=re.S)
+open(p, "w").write(s)
+PY
+assert_gate "a single install attempt is red (v2.15.0's race)" 1 "installs once" "$r"
 
 r="$WORK/noload"; good_root "$r"; sed -i "s/; require('\/tmp\/v\/node_modules\/fraiseql')//" "$r/.github/workflows/npm-publish.yml"
 assert_gate "npm step that never loads the package is red" 1 "does not load the package" "$r"

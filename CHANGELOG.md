@@ -379,6 +379,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The release publishers can publish the Rust SDK, and they stop reddening on registry lag
+  (#1488).** On v2.15.0, `release.yml`'s `publish-rust-sdk` inherited the workflow-level
+  `RUSTC_WRAPPER: "sccache"`, never installed sccache, and died on its first rustc, so
+  `fraiseql-rust` never reached crates.io; `rust-sdk.yml`'s publisher had the same shape. Both
+  jobs now clear the wrapper, and `tools/check-rustc-wrapper.py` (preflight) refuses any job that
+  runs cargo under a wrapper it never installs, following local composite actions. The PyPI and
+  npm post-publish validations each made one install attempt 10 s after the upload and both
+  failed on v2.15.0 although the packages were fine (`ETARGET` on npm). They now retry for up to
+  5 minutes before failing, `check-release-validation.py` requires the retry, and their summaries
+  print the real outcome instead of "SKIPPED" for a failure.
+
 - **The TypeScript SDK's Vercel AI tool now hands the model its parameters.** `fraiseqlTool`
   passed its schema to `ai`'s `tool()` as `parameters`, a key AI SDK 5+ no longer reads, so
   the model was offered a tool with no arguments. It now passes `inputSchema`; the

@@ -16,7 +16,11 @@ Rules, per (workflow, step name):
   2. it does not carry a truthy ``continue-on-error``;
   3. its ``run`` installs the package pinned to the release version (``==${VERSION}`` /
      ``@${VERSION}``) and loads it (``import fraiseql`` / a ``require()`` of the package itself) and compares the
-     installed version to the expected one (a ``__version__``/``.version`` check).
+     installed version to the expected one (a ``__version__``/``.version`` check);
+  4. the install sits inside a shell loop (``for``/``until``/``while`` … ``done``). v2.15.0's
+     PyPI step made one attempt after a fixed ``sleep 10``, ran before the index served the
+     upload, and reddened a release whose wheel was fine. A red that timing alone produces
+     teaches people to ignore red.
 
 A workflow that cannot be read or a step that is absent is a failure, not a pass.
 
@@ -118,12 +122,14 @@ def main() -> int:
                 failures.append(f"{label}: does not load the package (no match for {load!r} in run)")
             if compare not in run:
                 failures.append(f"{label}: does not compare the installed version ({compare!r} not in run)")
+            if not re.search(r"\b(?:for|until|while)\b[^\n]*(?:\n[\s\S]*?)?\bdo\b[\s\S]*?" + re.escape(install) + r"[\s\S]*?\bdone\b", run):
+                failures.append(f"{label}: installs once; retry it in a bounded loop, or a slow index reddens a good release")
     if failures:
         print("release validation:", file=sys.stderr)
         for f in failures:
             print(f"  {f}", file=sys.stderr)
         return 1
-    print(f"release validation: ok — {len(CHECKS)} post-publish validations are blocking, install the release version, load it and compare the version")
+    print(f"release validation: ok — {len(CHECKS)} post-publish validations are blocking, install the release version with a retry, load it and compare the version")
     return 0
 
 

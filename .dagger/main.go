@@ -468,6 +468,7 @@ func (m *FraiseqlCi) ShellGates(
 		"make test-docs-env-vars-gate",
 		"make test-doc-claims-gate",
 		"make test-release-validation-gate",
+		"make test-rustc-wrapper-gate",
 		// The changelog gate's SELF-TEST only. The gate itself needs real git
 		// history and would pass vacuously here — this function ignores `.git`
 		// and runs `git init -q .` below, so `Closes #N` over the release range
@@ -599,6 +600,9 @@ func (m *FraiseqlCi) ShellGates(
 		"bash tools/check-audit-ledger.sh",
 		"bash tools/check-doc-claims.sh",
 		"python3 tools/check-release-validation.py",
+		// A job that runs cargo under a RUSTC_WRAPPER it never installs fails at its
+		// first rustc (v2.15.0's publish-rust-sdk); the workflow env reaches every job.
+		"python3 tools/check-rustc-wrapper.py",
 		// The no-orphan-suites gate: every test target × feature combo maps to a
 		// leg that executes it (it parses THIS file, so legs and gate cannot
 		// drift). Retrospective rule 1 of the 2026-07-27 program.

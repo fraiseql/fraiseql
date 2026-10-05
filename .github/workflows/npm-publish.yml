@@ -96,10 +96,20 @@ jobs:
       - name: Validate npm package
         id: validate
         run: |
-          echo "Waiting for npm to index..."
-          sleep 10
           VERSION="${{ steps.ver.outputs.version }}"
-          npm install "fraiseql@${VERSION}" --prefix /tmp/npm-validate
+          # Bounded retry-then-FAIL: one attempt after a fixed sleep races the registry,
+          # and a published, working package must not redden the release for timing.
+          for attempt in $(seq 1 20); do
+            if npm install --prefer-online "fraiseql@${VERSION}" --prefix /tmp/npm-validate; then
+              break
+            fi
+            if [ "$attempt" -eq 20 ]; then
+              echo "::error::fraiseql@${VERSION} not installable from npm after 20 attempts"
+              exit 1
+            fi
+            echo "npm does not serve fraiseql@${VERSION} yet (attempt ${attempt}/20); retrying in 15s"
+            sleep 15
+          done
           node -e "
             const pkg = require('/tmp/npm-validate/node_modules/fraiseql/package.json');
             if (pkg.version !== '${VERSION}') { throw new Error('installed ' + pkg.version + ', expected ${VERSION}'); }
@@ -116,5 +126,9 @@ jobs:
             echo "- Version: ${{ steps.ver.outputs.version }} (from ${{ steps.ver.outputs.source }})"
             [ "${{ steps.build.outcome }}" = "success" ] && echo "- ✅ Build: SUCCESS" || echo "- ❌ Build: FAILED"
             [ "${{ steps.publish.outcome }}" = "success" ] && echo "- ✅ npm upload: SUCCESS" || echo "- ❌ npm upload: FAILED"
-            [ "${{ steps.validate.outcome }}" = "success" ] && echo "- ✅ Validation: SUCCESS" || echo "- ⚠️ Validation: SKIPPED/PENDING"
+            case "${{ steps.validate.outcome }}" in
+              success) echo "- ✅ Validation: SUCCESS" ;;
+              failure) echo "- ❌ Validation: FAILED" ;;
+              *)       echo "- ⚠️ Validation: ${{ steps.validate.outcome }}" ;;
+            esac
           } >> "$GITHUB_STEP_SUMMARY"

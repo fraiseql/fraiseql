@@ -747,6 +747,12 @@ test-doc-claims-gate:
 test-release-validation-gate:
 	@bash tools/tests/release_validation_gate_test.sh
 
+# Unit tests for the rustc-wrapper gate: a job that runs cargo under a RUSTC_WRAPPER it
+# never installs is red, including through a local composite action.
+.PHONY: test-rustc-wrapper-gate
+test-rustc-wrapper-gate:
+	@bash tools/tests/rustc_wrapper_gate_test.sh
+
 # Unit tests for the changelog-completeness gate (#1127). The gate ITSELF cannot
 # run in ShellGates — it needs real git history, and `.dagger/main.go` ignores
 # `.git` and runs `git init -q .` in the container, so it would find zero
@@ -1494,7 +1500,7 @@ lint-required-checks:
 # test suite or service-backed integration tests — those are `make test` and the
 # separate Dagger test/integration legs.
 .PHONY: preflight
-preflight: lint-fmt-toolchain fmt-check lint-sdk-dead-surface test-e2e-documents-gate test-e2e-documents lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-release-validation lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown lint-gated-sections lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-release-validation-gate test-write-selections-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-ci-install-pins-gate test-ci-stale-artifacts-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
+preflight: lint-fmt-toolchain fmt-check lint-sdk-dead-surface test-e2e-documents-gate test-e2e-documents lint-tests-layout lint-expect lint-async-trait lint-gate-db lint-gate-core lint-deadlines lint-audit-ledger lint-doc-claims lint-release-validation lint-rustc-wrapper lint-deploy-security lint-deploy-versions lint-compiled-schema-stamp lint-fuzz-targets lint-compose-references lint-doc-image-refs lint-ci-install-pins lint-phases-citations lint-image-context lint-publish-parity lint-routes lint-guard-parity lint-guard-test-lock test-guard-test-lock-gate lint-internal-flag lint-value-json lint-graphql-parse lint-mutation-dispatch lint-write-selections lint-principal-producers lint-rls-policy-construction lint-config-deny-unknown lint-gated-sections lint-docs-env-vars lint-docs-version lint-config-loaders lint-public-api-reexports lint-sdk-publication-claims lint-examples-postgres-only lint-examples-integrity lint-r-examples lint-suite-coverage lint-snapshot-pairing lint-empty-tests lint-test-subject lint-feature-chains lint-crate-sizes lint-sdk-workflows lint-workflow-reachability lint-trigger-rule-copies lint-fixture-collisions lint-preflight-parity lint-shard-parity lint-deny-flags lint-dockerfile-msrv lint-dockerfile-members lint-image-parity lint-delivery-coverage lint-sdk-lockfile-freshness test-release-tooling test-changelog-gate test-deadline-gate test-audit-ledger-gate test-docs-env-vars-gate test-doc-claims-gate test-release-validation-gate test-rustc-wrapper-gate test-write-selections-gate test-preflight-parity test-shard-parity test-imports-gate test-suite-coverage-workflows test-workflow-reachability-gate test-workflow-trigger-rule test-fixture-collisions-gate test-deny-flags-gate test-dockerfile-msrv-gate test-compiled-schema-stamp-gate test-dockerfile-members-gate test-image-parity-gate test-delivery-coverage-gate test-sdk-lockfile-freshness-gate test-feature-matrix-gate test-test-subject-gate test-suite-coverage-inner-gates test-suite-coverage-gating test-suite-coverage-filters test-suite-marker-prelude test-conformance-selftest test-public-api-reexports-gate test-sdk-publication-claims-gate test-fuzz-compiles-gate test-compose-references-gate test-doc-image-refs-gate test-ci-install-pins-gate test-ci-stale-artifacts-gate test-example-crates-gate test-r-examples-gate test-phases-citations-gate test-image-context-gate
 	@echo "=== preflight: lint-unwrap (UNWRAP_ALLOW_LIMIT=3) ==="
 	@$(MAKE) --no-print-directory lint-unwrap UNWRAP_ALLOW_LIMIT=3
 	@echo "=== preflight: check-test-imports ==="
@@ -1835,6 +1841,12 @@ lint-doc-claims:
 # and exercise the published package.
 lint-release-validation:
 	python3 tools/check-release-validation.py
+
+# Gate: no workflow job runs cargo under a RUSTC_WRAPPER it never installs. v2.15.0's
+# publish-rust-sdk inherited `sccache` from the workflow env and died on its first rustc.
+.PHONY: lint-rustc-wrapper
+lint-rustc-wrapper:
+	python3 tools/check-rustc-wrapper.py
 
 # Gate: every [workspace] members entry must reach the release Dockerfile's builder
 # stage. cargo loads the whole workspace manifest before building anything, so an
