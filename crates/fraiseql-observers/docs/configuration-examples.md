@@ -5,7 +5,7 @@ This guide shows configurations for different deployment scenarios.
 `ObserverRuntimeConfig` (`src/config/runtime.rs`) derives `Deserialize` and has no `Default`
 and no loader of its own, so the examples below are TOML that you parse with
 `toml::from_str::<ObserverRuntimeConfig>(..)` (add the `toml` crate to your own
-`Cargo.toml`). Its fields are:
+`Cargo.toml`). It refuses keys it does not know. Its fields are:
 
 | Field | Type | Default |
 |-------|------|---------|
@@ -13,11 +13,7 @@ and no loader of its own, so the examples below are TOML that you parse with
 | `redis` | `Option<RedisConfig>` | absent |
 | `clickhouse` | `Option<ClickHouseConfig>` | absent |
 | `job_queue` | `Option<JobQueueConfig>` | absent |
-| `performance` | `PerformanceConfig` | dedup off, caching off, concurrent on |
-| `channel_capacity` | `usize` | `1000` |
-| `max_concurrency` | `usize` | `50` |
-| `backlog_alert_threshold` | `usize` | `500` |
-| `shutdown_timeout` | `String` | `"30s"` |
+| `performance` | `PerformanceConfig` | dedup off, caching off |
 | `max_dlq_size` | `Option<usize>` | unbounded |
 | `observers` | map of name → `ObserverDefinition` | empty |
 
@@ -64,10 +60,6 @@ and `metrics`.
 ### Runtime Configuration
 
 ```toml
-channel_capacity = 5000
-max_concurrency = 100
-backlog_alert_threshold = 2000
-shutdown_timeout = "30s"
 # When the dead letter queue reaches this size the newest entry is dropped, with a warning.
 max_dlq_size = 10000
 
@@ -249,9 +241,6 @@ fraiseql-observers = { version = "2", features = ["checkpoint", "dedup", "cachin
 ### Runtime Configuration
 
 ```toml
-channel_capacity = 20000
-max_concurrency = 200
-backlog_alert_threshold = 10000
 max_dlq_size = 50000
 
 [transport]
@@ -310,9 +299,6 @@ fraiseql-observers = { version = "2", features = ["checkpoint"] }
 ### Runtime Configuration
 
 ```toml
-channel_capacity = 1000
-max_concurrency = 20
-
 [transport]
 transport = "postgres"
 
@@ -533,8 +519,8 @@ Add capabilities one at a time; each is a Cargo feature plus a config section.
 1. **Larger listener batches**: `ChangeLogListenerConfig.batch_size = 1000`. Fewer round trips;
    more events are in flight if the process crashes.
 2. **Longer cache TTL**: `redis.cache_ttl_secs = 600`. Staler results.
-3. **More concurrency**: raise `max_concurrency` and `job_queue.worker_concurrency`. More
-   resource use. One observer's actions always run one after another.
+3. **More concurrency**: raise `job_queue.worker_concurrency` for actions run through the job
+   queue. More resource use. One observer's actions always run one after another.
 
 ### Reduce Latency
 
@@ -552,7 +538,6 @@ Add capabilities one at a time; each is a Cargo feature plus a config section.
 - [ ] Set `max_dlq_size` if any observer uses `on_failure = "dlq"`
 - [ ] Set the `redis` TTLs and windows, and the `[performance]` flags that depend on them
 - [ ] Configured `MultiListenerConfig` if running more than one listener
-- [ ] Set `channel_capacity` and `backlog_alert_threshold`
 - [ ] Supplied secrets through `*_env` keys or environment overrides, not literals
 - [ ] Ran `ObserverRuntimeConfig::validate()` on the loaded config
 - [ ] Tested the configuration with sample events

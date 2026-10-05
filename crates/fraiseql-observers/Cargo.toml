@@ -48,6 +48,9 @@ fraiseql-webhooks = {path = "../fraiseql-webhooks"}
 fraiseql-test-utils = {path = "../fraiseql-test-utils"}
 fraiseql-test-support = {path = "../fraiseql-test-support"}
 proptest = {workspace = true}
+# The shipped example configs and the guide's TOML blocks are parsed by a test, so a key
+# the struct no longer accepts reddens CI instead of the reader's first boot.
+toml = {workspace = true}
 # #884: the idempotency token must be canonical whatever `serde_json::Map` the
 # final binary unifies to. The defect was invisible crate-scoped, because only a
 # workspace build pulled `preserve_order` in (via deno_core) and no CI leg runs

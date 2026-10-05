@@ -12,7 +12,14 @@ use crate::error::{ObserverError, Result};
 // ============================================================================
 
 /// Observer runtime configuration
+///
+/// `deny_unknown_fields`: `channel_capacity`, `max_concurrency`, `backlog_alert_threshold` and
+/// `shutdown_timeout` were accepted here and read by nothing (`fraiseql-server` tunes its
+/// observer runtime in its own `[observers.runtime]`). They are gone, and a document that still
+/// sets one fails to load instead of promising a behaviour the runtime does not have (#1451's
+/// rule for `[performance]`, applied to the struct that holds it).
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct ObserverRuntimeConfig {
     /// Transport configuration (postgres, nats, `in_memory`)
     #[serde(default)]
@@ -33,22 +40,6 @@ pub struct ObserverRuntimeConfig {
     /// Performance optimization features
     #[serde(default)]
     pub performance: PerformanceConfig,
-
-    /// Channel buffer size for incoming events (default: 1000)
-    #[serde(default = "default_channel_capacity")]
-    pub channel_capacity: usize,
-
-    /// Maximum concurrent action executions (default: 50)
-    #[serde(default = "default_max_concurrency")]
-    pub max_concurrency: usize,
-
-    /// Backlog threshold for alerts (default: 500)
-    #[serde(default = "default_backlog_threshold")]
-    pub backlog_alert_threshold: usize,
-
-    /// Graceful shutdown timeout (default: "30s")
-    #[serde(default = "default_shutdown_timeout")]
-    pub shutdown_timeout: String,
 
     /// Maximum number of entries the dead letter queue may hold.
     ///
@@ -84,22 +75,6 @@ impl ObserverRuntimeConfig {
         }
         Ok(())
     }
-}
-
-pub(super) const fn default_channel_capacity() -> usize {
-    1000
-}
-
-pub(super) const fn default_max_concurrency() -> usize {
-    50
-}
-
-pub(super) const fn default_backlog_threshold() -> usize {
-    500
-}
-
-pub(super) fn default_shutdown_timeout() -> String {
-    "30s".to_string()
 }
 
 // ============================================================================

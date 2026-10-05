@@ -5,15 +5,6 @@ use super::*;
 use crate::error::ObserverError;
 
 #[test]
-fn test_observer_runtime_config_defaults() {
-    let config: ObserverRuntimeConfig = serde_json::from_str("{}").unwrap();
-    assert_eq!(config.channel_capacity, 1000);
-    assert_eq!(config.max_concurrency, 50);
-    assert_eq!(config.backlog_alert_threshold, 500);
-    assert_eq!(config.shutdown_timeout, "30s");
-}
-
-#[test]
 fn test_max_dlq_size_defaults_to_none() {
     let config: ObserverRuntimeConfig = serde_json::from_str("{}").unwrap();
     assert!(config.max_dlq_size.is_none());

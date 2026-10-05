@@ -2,6 +2,13 @@
 
 This directory contains example configurations for different deployment topologies.
 
+> **What these files are.** Each `.toml` here is an `ObserverRuntimeConfig` document for code
+> built on this crate (`toml::from_str::<fraiseql_observers::config::ObserverRuntimeConfig>`,
+> then `fraiseql_observers::factory`). `tests/config_documents.rs` parses and validates every
+> one. This repository ships no `fraiseql-observer` binary, so the `fraiseql-observer --config`
+> commands below describe a binary you build yourself. To run observers inside
+> `fraiseql-server`, configure them in `fraiseql.toml` under `[observers]` instead.
+
 ## Deployment Topologies
 
 ### 1. PostgreSQL-Only (`01-postgresql-only.toml`)

@@ -1089,7 +1089,7 @@ func (m *FraiseqlCi) Test(
 		// queue,metrics,testing: job_queue_integration is cfg-gated on them and
 		// runs ZERO tests without (verified — a plain run reads ok. 0 passed).
 		"echo '### cargo test -p fraiseql-observers in-process test binaries (#992)'",
-		"cargo test -p fraiseql-observers --features 'queue,metrics,testing' --test job_queue_integration --test property_state_machine --test stress_tests --test transport_pipeline_test",
+		"cargo test -p fraiseql-observers --features 'queue,metrics,testing' --test job_queue_integration --test property_state_machine --test stress_tests --test transport_pipeline_test --test config_documents",
 		// #429 wired saga forward executor: the gated path is off in the workspace
 		// run above, so run its Docker-free lib tests explicitly — the pure decision
 		// helpers and the remote-dispatch/honest-failure lib tests (the real execute_step

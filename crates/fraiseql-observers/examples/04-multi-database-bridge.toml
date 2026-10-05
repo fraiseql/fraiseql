@@ -1,6 +1,9 @@
 # Multi-Database Bridge Configuration
 # ======================================
 #
+# An `ObserverRuntimeConfig` document (parse it with
+# `toml::from_str::<fraiseql_observers::config::ObserverRuntimeConfig>`).
+#
 # This deployment runs the PostgreSQL → NATS bridge:
 # - Reads from PostgreSQL change log (tb_entity_change_log)
 # - Publishes events to NATS JetStream
@@ -30,14 +33,9 @@ transport = "nats"  # Use NATS transport
 
 # Bridge configuration (PostgreSQL → NATS)
 [transport.bridge]
-backlog_alert_threshold = 500
 batch_size = 100  # Events per batch
-# Runtime settings (minimal for bridge)
-channel_capacity = 1000
-max_concurrency = 10  # Not used (no observers)
 notify_channel = "fraiseql_events"  # PostgreSQL NOTIFY channel
 poll_interval_secs = 1  # Poll frequency when idle
-shutdown_timeout = "30s"
 transport_name = "pg_to_nats_db1"  # Unique per database
 
 # NATS transport settings

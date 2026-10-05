@@ -1002,20 +1002,16 @@ mod factory_tests {
     #[tokio::test]
     async fn test_build_postgres_only_topology() {
         let config = ObserverRuntimeConfig {
-            transport:               TransportConfig {
+            transport:    TransportConfig {
                 transport: TransportKind::Postgres,
                 ..Default::default()
             },
-            redis:                   None, // No Redis
-            clickhouse:              None,
-            job_queue:               None,
-            performance:             PerformanceConfig::default(),
-            observers:               HashMap::new(),
-            channel_capacity:        1000,
-            max_concurrency:         50,
-            backlog_alert_threshold: 500,
-            shutdown_timeout:        "30s".to_string(),
-            max_dlq_size:            None,
+            redis:        None, // No Redis
+            clickhouse:   None,
+            job_queue:    None,
+            performance:  PerformanceConfig::default(),
+            observers:    HashMap::new(),
+            max_dlq_size: None,
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
@@ -1026,20 +1022,16 @@ mod factory_tests {
     #[tokio::test]
     async fn test_build_rejects_dedup_without_redis() {
         let config = ObserverRuntimeConfig {
-            transport:               TransportConfig::default(),
-            redis:                   None, // No Redis but dedup enabled
-            clickhouse:              None,
-            job_queue:               None,
-            performance:             PerformanceConfig {
+            transport:    TransportConfig::default(),
+            redis:        None, // No Redis but dedup enabled
+            clickhouse:   None,
+            job_queue:    None,
+            performance:  PerformanceConfig {
                 enable_dedup: true, // Invalid!
                 ..Default::default()
             },
-            observers:               HashMap::new(),
-            channel_capacity:        1000,
-            max_concurrency:         50,
-            backlog_alert_threshold: 500,
-            shutdown_timeout:        "30s".to_string(),
-            max_dlq_size:            None,
+            observers:    HashMap::new(),
+            max_dlq_size: None,
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());
@@ -1087,17 +1079,13 @@ mod factory_tests {
     #[tokio::test]
     async fn test_build_with_queue_requires_config() {
         let config = ObserverRuntimeConfig {
-            transport:               TransportConfig::default(),
-            redis:                   None,
-            clickhouse:              None,
-            job_queue:               None, // No job queue config
-            performance:             PerformanceConfig::default(),
-            observers:               HashMap::new(),
-            channel_capacity:        1000,
-            max_concurrency:         50,
-            backlog_alert_threshold: 500,
-            shutdown_timeout:        "30s".to_string(),
-            max_dlq_size:            None,
+            transport:    TransportConfig::default(),
+            redis:        None,
+            clickhouse:   None,
+            job_queue:    None, // No job queue config
+            performance:  PerformanceConfig::default(),
+            observers:    HashMap::new(),
+            max_dlq_size: None,
         };
 
         let dlq = Arc::new(MockDeadLetterQueue::new());

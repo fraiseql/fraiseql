@@ -1,6 +1,9 @@
 # PostgreSQL-Only Observer Configuration
 # ==========================================
 #
+# An `ObserverRuntimeConfig` document (parse it with
+# `toml::from_str::<fraiseql_observers::config::ObserverRuntimeConfig>`).
+#
 # This is the simplest deployment:
 # - PostgreSQL LISTEN/NOTIFY for event sourcing (default)
 # - No Redis (no deduplication, no caching)
@@ -11,41 +14,32 @@
 # - Low event volume (<1000 events/sec)
 # - Simple deployment (no additional infrastructure)
 
-# Example observer: Send email when order is shipped
-[[observers]]
+# Example observer: send an email when an order ships
+[observers.order_shipped_email]
 condition = "data.status == 'shipped'"
 entity = "Order"
 event_type = "UPDATE"
+on_failure = "log"  # Log errors (no DLQ without Redis)
 
-[[observers.actions]]
+[[observers.order_shipped_email.actions]]
 body_template = "Order #{{ data.id }} is on its way."
 subject = "Your order has shipped!"
 to_template = "{{ data.customer_email }}"
 type = "email"
 
-[observers.on_failure]
-
-[observers.retry]
+[observers.order_shipped_email.retry]
 backoff_strategy = "exponential"
 initial_delay_ms = 100
 max_attempts = 3
 max_delay_ms = 30000
 
-# Performance features (all disabled without Redis)
+# Performance features (both need Redis, so both off)
 [performance]
-backlog_alert_threshold = 500
-# Runtime settings
-channel_capacity = 1000
 enable_caching = false  # No action result caching
 enable_dedup = false  # No deduplication (at-most-once delivery)
-max_concurrency = 50
-shutdown_timeout = "30s"
 
 # Transport configuration
 [transport]
 run_bridge = false  # No NATS bridge
 run_executors = true  # Run observers in-process
-# Use PostgreSQL LISTEN/NOTIFY (default)
-transport = "postgres"
-
-# Log errors (no DLQ without Redis)
+transport = "postgres"  # PostgreSQL LISTEN/NOTIFY (default)

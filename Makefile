@@ -379,7 +379,7 @@ test-leg:
 	@echo ""
 	@echo "### observers (--lib + in-process binaries), saga"
 	cargo test -p fraiseql-observers --lib --features 'caching,cli,arrow,checkpoint,dedup,metrics,nats,postgres,queue,search'
-	cargo test -p fraiseql-observers --features 'queue,metrics,testing' --test job_queue_integration --test property_state_machine --test stress_tests --test transport_pipeline_test
+	cargo test -p fraiseql-observers --features 'queue,metrics,testing' --test job_queue_integration --test property_state_machine --test stress_tests --test transport_pipeline_test --test config_documents
 	cargo test -p fraiseql-saga --lib
 	@echo ""
 	@echo "### cargo test --doc --all-features"

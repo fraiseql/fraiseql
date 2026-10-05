@@ -1,29 +1,31 @@
 # NATS Distributed Observer Configuration
 # ==========================================
 #
+# An `ObserverRuntimeConfig` document (parse it with
+# `toml::from_str::<fraiseql_observers::config::ObserverRuntimeConfig>`).
+#
 # This deployment uses NATS JetStream for distributed event sourcing:
 # - NATS JetStream for at-least-once event delivery
 # - Redis for deduplication (prevents duplicate processing)
-# - Redis for action result caching (performance optimization)
-# - PostgreSQL → NATS bridge (publishes events from change log)
+# - Redis for action result caching
+# - PostgreSQL → NATS bridge runs separately (see 04-multi-database-bridge.toml)
 #
 # Best for:
 # - Multiple observer workers (horizontal scaling)
 # - High availability (worker failures tolerated)
 # - High event volume (10000+ events/sec)
-# - Geographic distribution
 #
 # Architecture:
 # PostgreSQL → Bridge → NATS JetStream → Workers (this config)
 # ↓
 # Redis (dedup + cache)
 
-# Example observer: Webhook for all order events
-[[observers]]
+# Example observer: webhook for every new order
+[observers.order_created_webhook]
 entity = "Order"
 event_type = "INSERT"
 
-[[observers.actions]]
+[[observers.order_created_webhook.actions]]
 body_template = '''
 {
   "event_id": "{{ event.id }}",
@@ -36,39 +38,34 @@ headers = {"Authorization" = "Bearer ${API_TOKEN}"}
 type = "webhook"
 url_env = "ANALYTICS_WEBHOOK_URL"
 
-[observers.retry]
+[observers.order_created_webhook.retry]
 backoff_strategy = "exponential"
 initial_delay_ms = 100
 max_attempts = 3
 max_delay_ms = 30000
 
-# Example observer: Email on order shipped (deduplicated + cached)
-[[observers]]
+# Example observer: email when an order ships (deduplicated)
+[observers.order_shipped_email]
 condition = "data.status == 'shipped'"
 entity = "Order"
 event_type = "UPDATE"
 
-[[observers.actions]]
+[[observers.order_shipped_email.actions]]
 body_template = "Order #{{ data.id }} is on its way. Tracking: {{ data.tracking_number }}"
 subject = "Your order has shipped!"
 to_template = "{{ data.customer_email }}"
 type = "email"
 
-[observers.retry]
+[observers.order_shipped_email.retry]
 backoff_strategy = "exponential"
 initial_delay_ms = 200
 max_attempts = 5  # More retries for critical emails
 max_delay_ms = 60000
 
-# Performance features (all enabled)
+# Performance features
 [performance]
-backlog_alert_threshold = 1000
-# Runtime settings (tuned for high throughput)
-channel_capacity = 2000  # Larger buffer for NATS bursts
-enable_caching = true  # ✅ Cache expensive operations
-enable_dedup = true  # ✅ CRITICAL: Prevents duplicate processing with at-least-once NATS delivery
-max_concurrency = 100  # Higher concurrency (worker is dedicated)
-shutdown_timeout = "60s"  # Longer timeout for graceful NATS shutdown
+enable_caching = true  # Cache expensive operations
+enable_dedup = true  # Prevents duplicate processing under at-least-once NATS delivery
 
 # Redis configuration (required for dedup + caching)
 [redis]
@@ -76,18 +73,18 @@ cache_ttl_secs = 60
 command_timeout_secs = 2
 connect_timeout_secs = 5
 dedup_window_secs = 300  # 5 minutes (matches JetStream)
-pool_size = 20  # Higher pool for distributed workers
+pool_size = 20  # Larger pool for distributed workers
 url = "redis://redis-cluster:6379"
 
 # Transport configuration
 [transport]
 run_bridge = false  # Bridge runs separately
 run_executors = true  # This worker processes events
-transport = "nats"  # ✅ NATS JetStream transport
+transport = "nats"  # NATS JetStream transport
 
 # NATS transport settings
 [transport.nats]
-consumer_name = "fraiseql_observer_worker_group_1"  # Workers with same name compete for messages
+consumer_name = "fraiseql_observer_worker_group_1"  # Workers with the same name share messages
 stream_name = "fraiseql_events"
 subject_prefix = "fraiseql.mutation"
 url = "nats://nats-1:4222,nats://nats-2:4222,nats://nats-3:4222"  # HA cluster
@@ -98,5 +95,5 @@ ack_wait_secs = 30  # Wait 30s for ack before redelivery
 dedup_window_minutes = 5  # NATS-level deduplication window
 max_age_days = 7  # Keep events for 7 days
 max_bytes = 10_737_418_240  # 10 GB max
-max_deliver = 3  # Retry up to 3 times before DLQ
+max_deliver = 3  # Redeliver up to 3 times
 max_msgs = 10_000_000  # 10M messages max

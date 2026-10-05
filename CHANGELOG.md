@@ -49,6 +49,16 @@ disagreed, and the promise was the part that was wrong.
   so are the `FRAISEQL_ENABLE_CONCURRENT`, `FRAISEQL_MAX_CONCURRENT_ACTIONS` and
   `FRAISEQL_CONCURRENT_TIMEOUT_MS` overrides. **Upgrade:** delete the three keys; actions
   keep running sequentially, as they always did.
+- **`fraiseql_observers::config::ObserverRuntimeConfig` refuses keys it does not read
+  (#1451).** `channel_capacity`, `max_concurrency`, `backlog_alert_threshold` and
+  `shutdown_timeout` were accepted, documented, and read by nothing: `fraiseql-server` tunes its
+  observer runtime in its own `[observers.runtime]`, and the crate's factory never looked at
+  them. The four fields are removed and the struct refuses unknown keys. The crate's example
+  configs set them (inside `[performance]`, which already refused them), wrote `[[observers]]`
+  as an array where the struct reads a map, and so had never loaded; they are rewritten, and a
+  test now parses every example and every TOML block of `docs/configuration-examples.md`.
+  **Upgrade:** delete the four keys; nothing honoured them. Embedders building the struct as a
+  literal drop the four fields.
 
 - **PostgreSQL 18 is the minimum supported version (#1452).** The server, every configured
   read replica and each CLI command that connects (`fraiseql migrate up|down|status`

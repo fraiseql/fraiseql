@@ -75,23 +75,19 @@ fn test_redis_config() -> RedisConfig {
 #[allow(dead_code)] // Reason: test utility called by subset of observer tests
 fn test_runtime_config() -> ObserverRuntimeConfig {
     ObserverRuntimeConfig {
-        transport:               TransportConfig {
+        transport:    TransportConfig {
             transport: TransportKind::InMemory,
             ..Default::default()
         },
-        redis:                   Some(test_redis_config()),
-        clickhouse:              None,
-        job_queue:               None,
-        performance:             PerformanceConfig {
+        redis:        Some(test_redis_config()),
+        clickhouse:   None,
+        job_queue:    None,
+        performance:  PerformanceConfig {
             enable_dedup:   true,
             enable_caching: true,
         },
-        observers:               HashMap::new(),
-        channel_capacity:        100,
-        max_concurrency:         50,
-        shutdown_timeout:        "30s".to_string(),
-        backlog_alert_threshold: 1000,
-        max_dlq_size:            None,
+        observers:    HashMap::new(),
+        max_dlq_size: None,
     }
 }
 

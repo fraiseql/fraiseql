@@ -1,23 +1,37 @@
 # PostgreSQL + Redis Observer Configuration
 # ============================================
 #
-# This deployment adds Redis for performance optimization:
+# An `ObserverRuntimeConfig` document (parse it with
+# `toml::from_str::<fraiseql_observers::config::ObserverRuntimeConfig>`).
+#
+# This deployment adds Redis:
 # - PostgreSQL LISTEN/NOTIFY for event sourcing
 # - Redis for deduplication (at-least-once delivery guarantee)
-# - Redis for action result caching (100x faster for repeated actions)
+# - Redis for action result caching
 #
 # Best for:
 # - Single PostgreSQL database
 # - Medium event volume (1000-10000 events/sec)
-# - Needs reliability (deduplication) and performance (caching)
-# - Can run Redis instance
+# - Needs reliability (deduplication) and repeated-action caching
+# - Can run a Redis instance
 
-# Example observer 1: Webhook on order creation
-[[observers]]
+# Example observer 3: Slack notification for high-value orders
+[observers.high_value_order_slack]
+condition = "data.total > 1000"
 entity = "Order"
 event_type = "INSERT"
 
-[[observers.actions]]
+[[observers.high_value_order_slack.actions]]
+message_template = "High-value order! ${{ data.total }} from {{ data.customer_email }}"
+type = "slack"
+webhook_url_env = "SLACK_WEBHOOK_URL"
+
+# Example observer 1: webhook on order creation
+[observers.order_created_webhook]
+entity = "Order"
+event_type = "INSERT"
+
+[[observers.order_created_webhook.actions]]
 body_template = '''
 {
   "order_id": "{{ data.id }}",
@@ -28,48 +42,33 @@ body_template = '''
 type = "webhook"
 url = "https://analytics.example.com/orders"
 
-[observers.retry]
+[observers.order_created_webhook.retry]
 backoff_strategy = "exponential"
 initial_delay_ms = 100
 max_attempts = 3
 max_delay_ms = 30000
 
-# Example observer 3: Slack notification for high-value orders
-[[observers]]
+# Example observer 2: email when an order ships
+[observers.order_shipped_email]
 condition = "data.status == 'shipped'"
 entity = "Order"
 event_type = "UPDATE"
 
-[[observers.actions]]
+[[observers.order_shipped_email.actions]]
 body_template = "Order #{{ data.id }} is on its way. Tracking: {{ data.tracking_number }}"
 subject = "Your order has shipped!"
 to_template = "{{ data.customer_email }}"
 type = "email"
 
-[observers.retry]
+[observers.order_shipped_email.retry]
 initial_delay_ms = 200
 max_attempts = 3
 max_delay_ms = 30000
 
-[[observers]]
-condition = "data.total > 1000"
-entity = "Order"
-event_type = "INSERT"
-
-[[observers.actions]]
-message_template = "🎉 High-value order! ${{ data.total }} from {{ data.customer_email }}"
-type = "slack"
-webhook_url_env = "SLACK_WEBHOOK_URL"
-
 # Performance features (Redis-backed)
 [performance]
-backlog_alert_threshold = 500
-# Runtime settings
-channel_capacity = 1000
-enable_caching = true  # ✅ Action result caching (100x faster cache hits)
-enable_dedup = true  # ✅ Event deduplication (prevents duplicate processing)
-max_concurrency = 50
-shutdown_timeout = "30s"
+enable_caching = true  # Action result caching
+enable_dedup = true  # Event deduplication (prevents duplicate processing)
 
 # Redis configuration (dedup + caching)
 [redis]

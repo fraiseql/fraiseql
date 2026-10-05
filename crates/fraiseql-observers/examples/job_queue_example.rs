@@ -127,17 +127,13 @@ async fn main() -> fraiseql_observers::Result<()> {
     // Create and queue some test jobs
     let queued_executor = ExecutorFactory::build_with_queue(
         &ObserverRuntimeConfig {
-            transport:               TransportConfig::default(),
-            redis:                   None,
-            clickhouse:              None,
-            job_queue:               Some(job_queue_config.clone()),
-            performance:             PerformanceConfig::default(),
-            observers:               HashMap::new(),
-            channel_capacity:        1000,
-            max_concurrency:         50,
-            backlog_alert_threshold: 500,
-            shutdown_timeout:        "30s".to_string(),
-            max_dlq_size:            None,
+            transport:    TransportConfig::default(),
+            redis:        None,
+            clickhouse:   None,
+            job_queue:    Some(job_queue_config.clone()),
+            performance:  PerformanceConfig::default(),
+            observers:    HashMap::new(),
+            max_dlq_size: None,
         },
         Arc::new(MockDeadLetterQueue::new()),
     )
