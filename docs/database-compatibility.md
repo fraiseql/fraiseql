@@ -21,7 +21,9 @@ not silently downgraded and it does not reach a driver.
 
 FraiseQL is built to be self-hosted, so it supports one PostgreSQL major line rather
 than whatever a managed provider happens to run. Every connection the server and the
-CLI open asks the server its version first. Below 18, startup stops with:
+CLI open asks the server its version first, including `fraiseql migrate up|down|status`
+before it hands the URL to confiture. (The one exception is the `wire-backend` server build,
+which no release ships.) Below 18, startup stops with:
 
 ```text
 Unsupported operation: PostgreSQL 16.4 is not supported: FraiseQL requires PostgreSQL 18

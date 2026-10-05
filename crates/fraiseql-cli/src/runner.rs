@@ -370,8 +370,7 @@ pub async fn run() {
             let formatter = output::OutputFormatter::new(cli.json, cli.quiet);
             match command {
                 MigrateCommands::Up { database, dir } => {
-                    let db_url = commands::migrate::resolve_database_url(database.as_deref());
-                    match db_url {
+                    match migrate_database(database.as_deref(), &formatter).await {
                         Ok(url) => {
                             let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
                             let action = commands::migrate::MigrateAction::Up {
@@ -387,24 +386,20 @@ pub async fn run() {
                     database,
                     dir,
                     steps,
-                } => {
-                    let db_url = commands::migrate::resolve_database_url(database.as_deref());
-                    match db_url {
-                        Ok(url) => {
-                            let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
-                            let action = commands::migrate::MigrateAction::Down {
-                                database_url: url,
-                                dir: mig_dir,
-                                steps,
-                            };
-                            commands::migrate::run(&action, &formatter)
-                        },
-                        Err(e) => Err(e),
-                    }
+                } => match migrate_database(database.as_deref(), &formatter).await {
+                    Ok(url) => {
+                        let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
+                        let action = commands::migrate::MigrateAction::Down {
+                            database_url: url,
+                            dir: mig_dir,
+                            steps,
+                        };
+                        commands::migrate::run(&action, &formatter)
+                    },
+                    Err(e) => Err(e),
                 },
                 MigrateCommands::Status { database, dir } => {
-                    let db_url = commands::migrate::resolve_database_url(database.as_deref());
-                    match db_url {
+                    match migrate_database(database.as_deref(), &formatter).await {
                         Ok(url) => {
                             let mig_dir = commands::migrate::resolve_migration_dir(dir.as_deref());
                             let action = commands::migrate::MigrateAction::Status {
@@ -854,4 +849,16 @@ fn handle_introspection_flags() -> Option<i32> {
     );
     println!("{}", pretty_or_exit(&result, "command result"));
     Some(1)
+}
+
+/// The URL `fraiseql migrate up|down|status` hands confiture, once confiture is installed and
+/// the server has passed the PostgreSQL floor (#1452).
+async fn migrate_database(
+    explicit: Option<&str>,
+    formatter: &crate::output::OutputFormatter,
+) -> anyhow::Result<String> {
+    crate::commands::migrate::require_confiture(formatter)?;
+    let database = crate::commands::migrate::resolve_database(explicit)?;
+    crate::commands::migrate::refuse_unsupported_server(&database).await?;
+    Ok(database.url)
 }

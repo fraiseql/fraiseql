@@ -78,11 +78,7 @@ pub enum MigrateAction {
 /// Returns an error if `confiture` is not installed, or if the underlying
 /// `confiture` subprocess fails (non-zero exit status or spawn failure).
 pub fn run(action: &MigrateAction, formatter: &OutputFormatter) -> Result<()> {
-    // Check if confiture is installed
-    if !is_confiture_installed() {
-        print_install_instructions(formatter);
-        anyhow::bail!("confiture is not installed. See instructions above.");
-    }
+    require_confiture(formatter)?;
 
     let (command, done, failed) = match action {
         MigrateAction::Up { database_url, dir } => {
@@ -164,6 +160,38 @@ pub fn run(action: &MigrateAction, formatter: &OutputFormatter) -> Result<()> {
     } else {
         anyhow::bail!("{failed}")
     }
+}
+
+/// Fail, with install instructions, when `confiture` is not on `PATH`.
+///
+/// Checked before anything connects: a missing confiture is the error a user can act on
+/// first, whatever the database turns out to be.
+///
+/// # Errors
+///
+/// Returns an error when `confiture --version` cannot be run.
+pub fn require_confiture(formatter: &OutputFormatter) -> Result<()> {
+    if is_confiture_installed() {
+        return Ok(());
+    }
+    print_install_instructions(formatter);
+    anyhow::bail!("confiture is not installed. See instructions above.")
+}
+
+/// Refuse a PostgreSQL server below FraiseQL's floor before confiture touches it.
+///
+/// `up`, `down` and `status` hand the URL to confiture, which would run migrations against
+/// any server; every other connection FraiseQL opens asks the version first (#1452). This
+/// opens the same checked connection the catalogue commands use, with the TLS settings the
+/// URL was resolved with, and drops it.
+///
+/// # Errors
+///
+/// Returns the floor refusal for a server below PostgreSQL 18, or the connection error.
+pub async fn refuse_unsupported_server(database: &ResolvedDatabase) -> Result<()> {
+    crate::connection::postgres_adapter(&database.url, "migration", &database.tls)
+        .await
+        .map(drop)
 }
 
 /// The `confiture migrate` verbs this wrapper invokes.

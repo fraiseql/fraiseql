@@ -82,3 +82,50 @@ fn generate_views_validate_refuses_postgresql_17() {
     assert!(!output.status.success(), "--validate must fail on PostgreSQL 17");
     assert_names_the_floor(&String::from_utf8_lossy(&output.stderr));
 }
+
+/// `fraiseql migrate up|down|status` hand the URL to confiture, which ran the migrations
+/// against any server: the floor was checked by every connection FraiseQL opened except the
+/// one that changes the schema. Each verb now asks first, before confiture runs.
+///
+/// A stub `confiture` leads `PATH`: it answers the install probe (`--version`) and fails,
+/// saying so, if it is ever asked to migrate. So the test needs no real confiture, and a
+/// floor check that ran after confiture would show up as the stub's message.
+#[cfg(unix)]
+#[test]
+fn migrate_refuses_postgresql_17_before_running_confiture() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let Some(url) = below_floor_url("migrate_refuses_postgresql_17_before_running_confiture")
+    else {
+        return;
+    };
+    let bin = tempfile::tempdir().unwrap();
+    let stub = bin.path().join("confiture");
+    std::fs::write(
+        &stub,
+        "#!/bin/sh\n[ \"$1\" = \"--version\" ] && { echo 'confiture 0.0.0-stub'; exit 0; }\n\
+         echo 'STUB CONFITURE RAN: the floor check came too late' >&2\nexit 99\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&stub, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let path = format!("{}:{}", bin.path().display(), std::env::var("PATH").unwrap_or_default());
+
+    let dir = tempfile::tempdir().unwrap();
+    for verb in [&["up"][..], &["down", "--steps", "1"], &["status"]] {
+        let output = Command::new(env!("CARGO_BIN_EXE_fraiseql-cli"))
+            .arg("migrate")
+            .args(verb)
+            .args(["--database", &url, "--dir", dir.path().to_str().unwrap()])
+            .env_remove("DATABASE_URL")
+            .env("PATH", &path)
+            .output()
+            .expect("spawn fraiseql-cli");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        assert!(!output.status.success(), "migrate {verb:?} must fail on PostgreSQL 17");
+        assert!(
+            !stderr.contains("STUB CONFITURE RAN"),
+            "migrate {verb:?} ran confiture: {stderr}"
+        );
+        assert_names_the_floor(&stderr);
+    }
+}
