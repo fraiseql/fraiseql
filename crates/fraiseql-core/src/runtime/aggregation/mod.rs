@@ -117,9 +117,16 @@ impl AggregationSqlGenerator {
         }
     }
 
-    /// Convert `WhereOperator` to SQL operator
-    pub(super) const fn operator_to_sql(&self, operator: &WhereOperator) -> &'static str {
-        match operator {
+    /// Convert `WhereOperator` to SQL operator.
+    ///
+    /// # Errors
+    ///
+    /// `FraiseQLError::Validation` for an operator this generator does not implement. It used
+    /// to fall through to `=`, so `descendantOf "a.b"` matched only the row whose path *is*
+    /// `a.b` and the aggregate was computed over the wrong rows with no error (#1460).
+    pub(super) fn operator_to_sql(&self, operator: &WhereOperator) -> Result<&'static str> {
+        Ok(match operator {
+            WhereOperator::Eq => "=",
             WhereOperator::Neq => "!=",
             WhereOperator::Gt => ">",
             WhereOperator::Gte => ">=",
@@ -137,9 +144,14 @@ impl AggregationSqlGenerator {
             | WhereOperator::Iendswith => match self.database_type {
                 DatabaseType::PostgreSQL => "ILIKE",
             },
-            // Eq and any future operators default to equality
-            _ => "=",
-        }
+            // Reason: `WhereOperator` is non_exhaustive across crates. Refusing is the safe
+            // default for an operator added later, too.
+            other => {
+                return Err(FraiseQLError::validation(format!(
+                    "operator {other:?} is not supported in a fact-table aggregate filter"
+                )));
+            },
+        })
     }
 
     /// Quote a validated field alias/column name using the database-appropriate identifier syntax.

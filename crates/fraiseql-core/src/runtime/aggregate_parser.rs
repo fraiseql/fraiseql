@@ -192,30 +192,37 @@ impl AggregateQueryParser {
         for (key, value) in obj {
             // Parse field_operator format (e.g., "customer_id_eq" -> field="customer_id",
             // operator="eq")
-            if let Some((field, operator_str)) = Self::parse_where_field_and_operator(key)? {
-                let operator = WhereOperator::from_str(operator_str)?;
+            let Some((field, operator_str)) = Self::parse_where_field_and_operator(key)? else {
+                // Skipping the key ran the aggregate over every row the other keys allow:
+                // a typo, or an operator spelled with underscores, silently widened the
+                // result (#1460).
+                return Err(FraiseQLError::validation(format!(
+                    "aggregate `where` key `{key}` is not `<field>_<operator>` with a supported \
+                     operator"
+                )));
+            };
+            let operator = WhereOperator::from_str(operator_str)?;
 
-                let clause = if let Some(pg_cast) = native_columns.get(field) {
-                    WhereClause::NativeField {
-                        column: field.to_string(),
-                        pg_cast: pg_cast.clone(),
-                        operator,
-                        value: value.clone(),
-                    }
-                } else {
-                    WhereClause::Field {
-                        // Recase the JSONB key so a camelCase aggregate filter
-                        // (`organizationId_eq`) builds `data->>'organization_id'`
-                        // rather than a never-matching `organizationId` key (#486).
-                        // Only the non-native branch recases — the native lookup
-                        // above stays on the surface name (mirror `query_params`).
-                        path: vec![crate::utils::to_snake_case(field)],
-                        operator,
-                        value: value.clone(),
-                    }
-                };
-                conditions.push(clause);
-            }
+            let clause = if let Some(pg_cast) = native_columns.get(field) {
+                WhereClause::NativeField {
+                    column: field.to_string(),
+                    pg_cast: pg_cast.clone(),
+                    operator,
+                    value: value.clone(),
+                }
+            } else {
+                WhereClause::Field {
+                    // Recase the JSONB key so a camelCase aggregate filter
+                    // (`organizationId_eq`) builds `data->>'organization_id'`
+                    // rather than a never-matching `organizationId` key (#486).
+                    // Only the non-native branch recases — the native lookup
+                    // above stays on the surface name (mirror `query_params`).
+                    path: vec![crate::utils::to_snake_case(field)],
+                    operator,
+                    value: value.clone(),
+                }
+            };
+            conditions.push(clause);
         }
 
         Ok(WhereClause::And(conditions))
@@ -232,14 +239,11 @@ impl AggregateQueryParser {
             // Validate operator is known
             match WhereOperator::from_str(operator) {
                 Ok(_) => Ok(Some((field, operator))),
-                Err(_) => {
-                    // Not a valid operator suffix, treat entire key as field (might be used
-                    // elsewhere)
-                    Ok(None)
-                },
+                // Not an operator suffix: the caller refuses the key.
+                Err(_) => Ok(None),
             }
         } else {
-            // No underscore, not a WHERE condition
+            // No underscore, so no operator: the caller refuses the key.
             Ok(None)
         }
     }

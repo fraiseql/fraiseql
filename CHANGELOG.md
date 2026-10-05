@@ -400,6 +400,19 @@ disagreed, and the promise was the part that was wrong.
   - TypeScript: `fraiseqlTool` returns `ai`'s `Tool<z.infer<TParams>, unknown>` (was
     `ReturnType<typeof tool>`).
 
+- **A fact-table aggregate refuses a filter it cannot apply (#1460).** Three filters used to be
+  computed over the wrong rows with no error: an operator the aggregate generator does not
+  implement (`descendantOf`, `ancestorOf`, `matchesLquery`, …) became `=`; a `where` key whose
+  suffix is not an operator (a typo such as `customer_id_eqq`, or an operator spelled with
+  underscores such as `_is_not_null`, `_descendant_of`) was skipped, so the aggregate ran over
+  every row the other keys allowed; and `isnull: false` filtered for `NULL`, while `isnotnull`
+  became `=`. Each unimplemented operator and unrecognised key now fails the query with a
+  validation error naming it, and both null tests follow their boolean operand, as on ordinary
+  queries. **Upgrade:** a client that sent one of these filters was receiving totals over the
+  wrong rows; spell the filter as `<field>_<operator>` with a supported operator (`eq`, `neq`,
+  `gt`, `gte`, `lt`, `lte`, `in`, `nin`, the `like`/`contains`/`startswith`/`endswith` family
+  and their case-insensitive forms, `isnull`, `isnotnull`).
+
 ### Added
 
 - **Tenant administrators (#1089).** The platform mints a tenant admin token for one tenant at

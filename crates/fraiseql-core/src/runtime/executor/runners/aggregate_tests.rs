@@ -169,11 +169,13 @@ async fn aggregate_rls_composes_with_user_where() {
     let executor = Executor::with_config(schema, adapter.clone(), config);
 
     let ctx = tenant_security_context("tenant-abc");
-    // User-supplied WHERE on a denormalized filter
+    // User-supplied WHERE on a denormalized filter, in the aggregate `field_operator` form.
+    // The nested `{"tenant_id": {"eq": …}}` this test used to send was never an aggregate
+    // filter: the parser skipped it and the test passed on the RLS predicate alone (#1460).
     let vars = serde_json::json!({
         "table": "tf_sales",
         "aggregates": [{"count": {}}],
-        "where": {"tenant_id": {"eq": "tenant-abc"}}
+        "where": {"tenant_id_eq": "tenant-abc"}
     });
     let _result = executor
         .execute_with_security("{ sales_aggregate }", Some(&vars), &ctx)
@@ -184,6 +186,10 @@ async fn aggregate_rls_composes_with_user_where() {
     // Both RLS and user WHERE should be present (AND-composed)
     assert!(sql.contains("WHERE"), "combined WHERE expected in SQL: {sql}");
     assert!(sql.contains("AND"), "RLS + user WHERE should be AND-composed: {sql}");
+    assert!(
+        sql.matches("tenant_id").count() >= 2,
+        "the RLS predicate and the user's own filter must both reach the SQL: {sql}"
+    );
 }
 
 // ── Window RLS tests ────────────────────────────────────────────────────────

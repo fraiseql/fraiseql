@@ -1406,3 +1406,109 @@ fn test_native_dimension_mapping_sql_output() {
     );
     assert!(!sql.sql.contains("data->"), "should not contain JSONB extraction: {}", sql.sql);
 }
+
+// ========================================
+// #1460: a filter the aggregate path cannot honour is refused, never approximated
+// ========================================
+
+mod fail_closed_filters {
+    use std::collections::HashMap;
+
+    use fraiseql_db::where_clause::{WhereClause, WhereOperator};
+
+    use super::*;
+    use crate::runtime::aggregate_parser::AggregateQueryParser;
+
+    fn sql_for(clause: WhereClause) -> crate::Result<String> {
+        let mut plan = create_test_plan();
+        plan.request.where_clause = Some(clause);
+        AggregationSqlGenerator::new(DatabaseType::PostgreSQL)
+            .generate_parameterized(&plan)
+            .map(|q| q.sql)
+    }
+
+    fn native(operator: WhereOperator, value: serde_json::Value) -> WhereClause {
+        WhereClause::NativeField {
+            column: "customer_id".to_string(),
+            pg_cast: String::new(),
+            operator,
+            value,
+        }
+    }
+
+    fn field(operator: WhereOperator, value: serde_json::Value) -> WhereClause {
+        WhereClause::Field {
+            path: vec!["customer_id".to_string()],
+            operator,
+            value,
+        }
+    }
+
+    /// An operator the generator does not implement used to become `=`: `descendantOf "a.b"`
+    /// matched only the row whose path IS `a.b`. It is refused on both column kinds.
+    #[test]
+    fn an_unimplemented_operator_is_refused_not_turned_into_equality() {
+        for op in [
+            WhereOperator::DescendantOf,
+            WhereOperator::AncestorOf,
+            WhereOperator::MatchesLquery,
+        ] {
+            for clause in [
+                native(op.clone(), serde_json::json!("a.b")),
+                field(op.clone(), serde_json::json!("a.b")),
+            ] {
+                let err = sql_for(clause).expect_err("must be refused");
+                assert!(err.to_string().contains("not supported"), "{op:?}: {err}");
+            }
+        }
+    }
+
+    /// `IsNotNull` also fell through to `=`, and `IsNull` ignored its operand, so
+    /// `isnull: false` filtered for NULL. Both follow the operand, as the main WHERE generator
+    /// does (#828).
+    #[test]
+    fn null_tests_follow_their_operand() {
+        for (clause, want) in [
+            (native(WhereOperator::IsNull, serde_json::json!(true)), "IS NULL"),
+            (native(WhereOperator::IsNull, serde_json::json!(false)), "IS NOT NULL"),
+            (native(WhereOperator::IsNotNull, serde_json::json!(true)), "IS NOT NULL"),
+            (field(WhereOperator::IsNull, serde_json::json!(false)), "IS NOT NULL"),
+            (field(WhereOperator::IsNotNull, serde_json::json!(false)), "IS NULL"),
+        ] {
+            let sql = sql_for(clause.clone()).unwrap();
+            let negated = if want == "IS NULL" {
+                "IS NOT NULL"
+            } else {
+                "IS NULL"
+            };
+            assert!(
+                sql.contains(want) && !sql.contains(&format!("{negated} ")),
+                "{clause:?}: {sql}"
+            );
+        }
+        let err = sql_for(native(WhereOperator::IsNull, serde_json::json!("yes"))).unwrap_err();
+        assert!(err.to_string().contains("boolean"), "{err}");
+    }
+
+    /// A `where` key whose suffix is no operator used to be skipped, and the aggregate ran over
+    /// the whole table: a typo, or an operator spelled with underscores (`_is_not_null`,
+    /// `_descendant_of`). The key is refused, named.
+    #[test]
+    fn a_where_key_with_no_known_operator_is_refused() {
+        let metadata = create_aggregation_test_metadata();
+        for key in [
+            "customer_id_eqq",
+            "customer_id_is_not_null",
+            "customer_id_descendant_of",
+            "customer",
+        ] {
+            let query = serde_json::json!({
+                "table": "tf_sales", "where": { key: 1 },
+                "groupBy": { "status": true }, "aggregates": [{ "count": {} }]
+            });
+            let err = AggregateQueryParser::parse(&query, &metadata, &HashMap::new())
+                .expect_err("must be refused");
+            assert!(err.to_string().contains(key), "names {key}: {err}");
+        }
+    }
+}

@@ -105,11 +105,11 @@ impl AggregationSqlGenerator {
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        if matches!(operator, WhereOperator::IsNull) {
-            return Ok(format!("{field} IS NULL"));
+        if let Some(test) = null_test(operator, value)? {
+            return Ok(format!("{field} {test}"));
         }
 
-        let op_sql = self.operator_to_sql(operator);
+        let op_sql = self.operator_to_sql(operator)?;
 
         if matches!(operator, WhereOperator::In | WhereOperator::Nin) {
             let arr = value.as_array().ok_or_else(|| {
@@ -160,11 +160,12 @@ impl AggregationSqlGenerator {
         let field_path = &path[0];
         let db_field_path = to_snake_case(field_path);
         let jsonb_extract = self.jsonb_extract_sql(jsonb_column, &db_field_path);
-        let op_sql = self.operator_to_sql(operator);
 
-        if matches!(operator, WhereOperator::IsNull) {
-            return Ok(format!("{jsonb_extract} IS NULL"));
+        if let Some(test) = null_test(operator, value)? {
+            return Ok(format!("{jsonb_extract} {test}"));
         }
+
+        let op_sql = self.operator_to_sql(operator)?;
 
         if operator.is_case_insensitive() {
             let s = value.as_str().ok_or_else(|| {
@@ -210,7 +211,7 @@ impl AggregationSqlGenerator {
         value_str: &str,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        let op = self.operator_to_sql(operator);
+        let op = self.operator_to_sql(operator)?;
         if self.database_type == DatabaseType::PostgreSQL {
             let (ph, needs_escape) = self.emit_like_pattern_param(operator, value_str, params);
             Ok(if needs_escape {
@@ -269,4 +270,32 @@ impl AggregationSqlGenerator {
         }
         Ok(format!("HAVING {}", conditions.join(" AND ")))
     }
+}
+
+/// `IS NULL` / `IS NOT NULL` for a null-test operator, following its operand; `None` for any
+/// other operator.
+///
+/// The operand decides, as in the main WHERE generator (#828): `isnull: false` asks for the
+/// rows that are NOT null. This path used to emit `IS NULL` whatever the operand said, and sent
+/// `IsNotNull` through the operator table, where it became `=` (#1460).
+fn null_test(operator: &WhereOperator, value: &serde_json::Value) -> Result<Option<&'static str>> {
+    let negated = match operator {
+        WhereOperator::IsNull => false,
+        WhereOperator::IsNotNull => true,
+        _ => return Ok(None),
+    };
+    let asserted = match value {
+        serde_json::Value::Bool(b) => *b,
+        serde_json::Value::Null => true,
+        other => {
+            return Err(FraiseQLError::validation(format!(
+                "{operator:?} takes a boolean operand, got {other}"
+            )));
+        },
+    };
+    Ok(Some(if asserted == negated {
+        "IS NOT NULL"
+    } else {
+        "IS NULL"
+    }))
 }
