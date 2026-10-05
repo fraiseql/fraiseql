@@ -14,7 +14,7 @@
 # Out of scope (intentional, opt-in — NOT default builds, so this gate ignores
 # them): the `metrics` feature pulls metrics-exporter-prometheus -> hyper-rustls
 # (aws-lc-rs by default), the `aws-s3` feature pulls the legacy aws rustls 0.21
-# stack (tracked separately in deny.toml, deadline 2026-09-01), and dev-deps pull
+# stack (tracked separately in deny.toml, #1111, re-evaluate by 2026-12-01), and dev-deps pull
 # aws-lc-rs via metrics-exporter-prometheus.
 set -euo pipefail
 
