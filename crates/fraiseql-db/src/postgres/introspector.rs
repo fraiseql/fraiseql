@@ -552,6 +552,3 @@ impl PostgresIntrospector {
         Ok(columns)
     }
 }
-
-#[cfg(test)]
-mod tests;

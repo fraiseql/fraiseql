@@ -1,34 +1,25 @@
-//! PostgreSQL integration tests.
-#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::panic)] // Reason: test code, panics acceptable
-//! These tests require a running PostgreSQL database with test data.
+//! PostgreSQL adapter integration tests.
 //!
-//! ## Running the tests
+//! These run against a live PostgreSQL with the seeded fixtures. They live in `tests/`, where
+//! `cargo test --lib` cannot reach them, so a database-free run never trips over them
+//! whatever features it enables.
 //!
-//! ```bash
-//! # Start test database
-//! docker compose -f docker-compose.test.yml up -d postgres-test
-//!
-//! # Run tests with the test-postgres feature
-//! cargo test -p fraiseql-core --features test-postgres db::postgres::adapter::tests
-//!
-//! # Or run all tests including ignored ones (legacy method)
-//! cargo test -p fraiseql-core -- --ignored
-//!
-//! # Stop test database
-//! docker compose -f docker-compose.test.yml down
-//! ```
+//! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` (and
+//! `STANDBY_DATABASE_URL` / `FAILOVER_STANDBY_DATABASE_URL` for the replica tests).
 
+#![cfg(all(feature = "postgres", feature = "test-postgres"))]
+#![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
+#![allow(clippy::items_after_statements)] // Reason: test helpers declared near their use
+#![allow(clippy::panic)] // Reason: test code, panics acceptable
+
+use fraiseql_db::{
+    WhereClause, WhereOperator, Writer as _,
+    postgres::*,
+    traits::{DatabaseAdapter, ProjectionRequest},
+    types::{DatabaseType, ReadRouting},
+};
 use fraiseql_error::FraiseQLError;
 use serde_json::json;
-
-use super::*;
-use crate::{
-    WhereClause, WhereOperator, Writer as _,
-    traits::{DatabaseAdapter, ProjectionRequest},
-    types::DatabaseType,
-};
 
 // Test DB URL from the `fraiseql_test_support` env-URL harness (`DATABASE_URL`), so this
 // suite runs against a Dagger-bound service (local == CI) instead of a hardcoded host.
@@ -627,7 +618,7 @@ async fn test_execute_function_call_with_timing_disabled() {
     // Calling a nonexistent function should produce a Database error,
     // not a timing-related error — verifying the non-timing path is taken.
     let result = adapter
-        .execute_write(&crate::WriteRequest::new("fn_nonexistent", &[]), &|_| Ok(()))
+        .execute_write(&fraiseql_db::WriteRequest::new("fn_nonexistent", &[]), &|_| Ok(()))
         .await;
     assert!(
         matches!(result, Err(FraiseQLError::Database { .. })),
@@ -642,7 +633,7 @@ async fn test_execute_function_call_with_timing_enabled() {
     // Calling a nonexistent function should still produce a Database error,
     // but the timing transaction wrapping should not cause a different error type.
     let result = adapter
-        .execute_write(&crate::WriteRequest::new("fn_nonexistent", &[]), &|_| Ok(()))
+        .execute_write(&fraiseql_db::WriteRequest::new("fn_nonexistent", &[]), &|_| Ok(()))
         .await;
     assert!(
         matches!(result, Err(FraiseQLError::Database { .. })),
@@ -816,7 +807,7 @@ async fn pool_timeout_causes_fast_failure_when_exhausted() {
     let _held = adapter.pool().get().await.expect("first get ok");
 
     let start = std::time::Instant::now();
-    let result = adapter.acquire_connection_with_retry().await;
+    let result = test_hooks::acquire_connection_with_retry(&adapter).await;
     let elapsed = start.elapsed();
 
     assert!(result.is_err(), "should fail when pool exhausted");
@@ -849,7 +840,7 @@ async fn acquire_does_not_retry_on_timeout_error() {
 
     let _hold = adapter.pool().get().await.unwrap();
 
-    let err = adapter.acquire_connection_with_retry().await.unwrap_err();
+    let err = test_hooks::acquire_connection_with_retry(&adapter).await.unwrap_err();
     let msg = err.to_string();
     assert!(
         msg.contains("timeout") || msg.contains("busy"),
@@ -868,7 +859,8 @@ async fn acquire_does_not_retry_on_timeout_error() {
 #[tokio::test]
 async fn execute_raw_null_data_column_errors_instead_of_panicking() {
     let adapter = create_test_adapter().await;
-    let result = adapter.execute_raw("SELECT NULL::jsonb AS data", &[], ReadRouting::Any).await;
+    let result =
+        test_hooks::execute_raw(&adapter, "SELECT NULL::jsonb AS data", ReadRouting::Any).await;
     match result {
         Err(FraiseQLError::Database { message, .. }) => {
             assert!(
@@ -885,7 +877,7 @@ async fn execute_raw_null_data_column_errors_instead_of_panicking() {
 #[tokio::test]
 async fn execute_raw_non_jsonb_data_column_errors_instead_of_panicking() {
     let adapter = create_test_adapter().await;
-    let result = adapter.execute_raw("SELECT 42 AS data", &[], ReadRouting::Any).await;
+    let result = test_hooks::execute_raw(&adapter, "SELECT 42 AS data", ReadRouting::Any).await;
     assert!(
         matches!(result, Err(FraiseQLError::Database { .. })),
         "expected FraiseQLError::Database for a non-JSONB data column, got: {result:?}"
@@ -1115,12 +1107,11 @@ async fn numeric_decode_matches_postgres_own_text_rendering() {
             .query_one(&stmt, &[input])
             .await
             .unwrap_or_else(|e| panic!("query failed for input {input}: {e}"));
-        let ours: super::numeric::PgNumericText = row
-            .try_get("bin")
+        let ours = test_hooks::decode_numeric(&row, "bin")
             .unwrap_or_else(|e| panic!("decode failed for input {input}: {e}"));
         let oracle: String = row.try_get("txt").expect("text column");
         assert_eq!(
-            ours.0, oracle,
+            ours, oracle,
             "decoder disagrees with PostgreSQL's own text rendering for input {input}"
         );
     }
@@ -1181,7 +1172,7 @@ fn pseudo_random_decimal_strings(count: usize) -> Vec<String> {
 // sort silently dropped. It also skipped the cast, so a numeric field sorted
 // lexicographically ("9" after "10").
 
-/// Seeds a table whose JSONB `data` carries snake_case keys — the convention
+/// Seeds a table whose JSONB `data` carries `snake_case` keys — the convention
 /// the projection generator, the WHERE parser and the offset ORDER BY renderer
 /// all use — and returns the view name.
 async fn setup_relay_order_fixture(adapter: &PostgresAdapter, suffix: &str) -> String {
@@ -1217,7 +1208,7 @@ async fn drop_relay_order_fixture(adapter: &PostgresAdapter, suffix: &str) {
 
 #[tokio::test]
 async fn relay_order_by_camel_case_field_reaches_the_snake_case_storage_key() {
-    use crate::{OrderByClause, OrderDirection, traits::RelayDatabaseAdapter};
+    use fraiseql_db::{OrderByClause, OrderDirection, traits::RelayDatabaseAdapter};
 
     let adapter = create_test_adapter().await;
     let view = setup_relay_order_fixture(&adapter, "camel").await;
@@ -1247,14 +1238,14 @@ async fn relay_order_by_camel_case_field_reaches_the_snake_case_storage_key() {
 
 #[tokio::test]
 async fn relay_order_by_numeric_field_sorts_numerically_not_lexicographically() {
-    use crate::{OrderByClause, OrderDirection, traits::RelayDatabaseAdapter};
+    use fraiseql_db::{OrderByClause, OrderDirection, traits::RelayDatabaseAdapter};
 
     let adapter = create_test_adapter().await;
     let view = setup_relay_order_fixture(&adapter, "numeric").await;
 
     // Declared Numeric → the cast must be applied, or "10" sorts before "9".
     let mut clause = OrderByClause::new("amount".to_string(), OrderDirection::Asc);
-    clause.field_type = crate::types::sql_hints::ScalarFieldType::Numeric;
+    clause.field_type = fraiseql_db::types::sql_hints::ScalarFieldType::Numeric;
     let page = adapter
         .execute_relay_page(&view, "pk", None, None, 10, true, None, Some(&[clause]), false)
         .await
@@ -1305,7 +1296,7 @@ async fn rr_admin_connect(url: &str) -> tokio_postgres::Client {
 }
 
 /// Create the primary/replica database pair for one test, with a marker row
-/// telling us which database served a read. Returns (primary_url, replica_url).
+/// telling us which database served a read. Returns `(primary_url, replica_url)`.
 async fn rr_fixture(test_tag: &str) -> (String, String) {
     let base = test_db_url();
     let admin = rr_admin_connect(&base).await;
@@ -1371,7 +1362,7 @@ async fn rr_adapter(
             search_path:         None,
             tls:                 PostgresTlsConfig::default(),
             max_streaming_reads: None,
-            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
+            read_replicas:       Some(fraiseql_db::postgres::ReadReplicaConfig {
                 urls: vec![replica_url.to_string()],
                 pin_after_write,
                 // No staleness budget: these tests assert *where* a read is
@@ -1427,7 +1418,10 @@ async fn writes_route_to_primary_with_replicas_configured() {
 
     adapter
         .execute_write(
-            &crate::WriteRequest::new("fn_rr_insert", &[json!({"id": 2, "label": "written"})]),
+            &fraiseql_db::WriteRequest::new(
+                "fn_rr_insert",
+                &[json!({"id": 2, "label": "written"})],
+            ),
             &|_| Ok(()),
         )
         .await
@@ -1463,7 +1457,10 @@ async fn read_after_write_cannot_serve_the_stale_replica_row() {
 
     adapter
         .execute_write(
-            &crate::WriteRequest::new("fn_rr_insert", &[json!({"id": 2, "label": "own-write"})]),
+            &fraiseql_db::WriteRequest::new(
+                "fn_rr_insert",
+                &[json!({"id": 2, "label": "own-write"})],
+            ),
             &|_| Ok(()),
         )
         .await
@@ -1503,7 +1500,10 @@ async fn reads_return_to_the_replica_after_the_pin_expires() {
 
     adapter
         .execute_write(
-            &crate::WriteRequest::new("fn_rr_insert", &[json!({"id": 2, "label": "written"})]),
+            &fraiseql_db::WriteRequest::new(
+                "fn_rr_insert",
+                &[json!({"id": 2, "label": "written"})],
+            ),
             &|_| Ok(()),
         )
         .await
@@ -1562,7 +1562,7 @@ async fn replica_pool_carries_the_tenant_search_path() {
             search_path:         Some(SearchPath::new(["tenant_rr", "public"]).unwrap()),
             tls:                 PostgresTlsConfig::default(),
             max_streaming_reads: None,
-            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
+            read_replicas:       Some(fraiseql_db::postgres::ReadReplicaConfig {
                 urls:                  vec![replica_url.clone()],
                 pin_after_write:       std::time::Duration::from_secs(30),
                 max_lag:               None,
@@ -1602,7 +1602,7 @@ async fn unreachable_replica_refuses_to_boot() {
             search_path:         None,
             tls:                 PostgresTlsConfig::default(),
             max_streaming_reads: None,
-            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
+            read_replicas:       Some(fraiseql_db::postgres::ReadReplicaConfig {
                 // Port 9 (discard) on loopback: reliably connection-refused.
                 urls:                  vec![
                     "postgres://nobody:nothing@127.0.0.1:9/nowhere".to_string(),
@@ -1644,7 +1644,7 @@ async fn empty_replica_url_list_is_refused() {
             search_path:         None,
             tls:                 PostgresTlsConfig::default(),
             max_streaming_reads: None,
-            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
+            read_replicas:       Some(fraiseql_db::postgres::ReadReplicaConfig {
                 urls:                  vec![],
                 pin_after_write:       std::time::Duration::from_secs(5),
                 max_lag:               None,
@@ -1772,7 +1772,7 @@ async fn bs_adapter(
             search_path:         None,
             tls:                 PostgresTlsConfig::default(),
             max_streaming_reads: None,
-            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
+            read_replicas:       Some(fraiseql_db::postgres::ReadReplicaConfig {
                 urls: vec![standby_db_url()],
                 // The fixtures are written through admin connections rather than
                 // the mutation pipeline, so no pin is ever armed; zero states
@@ -1923,7 +1923,7 @@ async fn a_replica_whose_lag_cannot_be_measured_is_never_eligible() {
             search_path:         None,
             tls:                 PostgresTlsConfig::default(),
             max_streaming_reads: None,
-            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
+            read_replicas:       Some(fraiseql_db::postgres::ReadReplicaConfig {
                 urls:                  vec![replica_url.clone()],
                 pin_after_write:       std::time::Duration::ZERO,
                 max_lag:               Some(std::time::Duration::from_mins(1)),
@@ -1951,7 +1951,7 @@ async fn a_replica_whose_lag_cannot_be_measured_is_never_eligible() {
 async fn bs_read_origin_routed(
     adapter: &PostgresAdapter,
     tag: &str,
-    routing: crate::types::ReadRouting,
+    routing: fraiseql_db::types::ReadRouting,
 ) -> String {
     let rows = adapter
         .execute_where_query_arc_with_session(
@@ -1981,14 +1981,14 @@ async fn a_query_routed_to_the_primary_never_reads_a_replica() {
     // adapter that had simply stopped using replicas would satisfy the assertion
     // below for entirely the wrong reason.
     assert_eq!(
-        bs_read_origin_routed(&adapter, tag, crate::types::ReadRouting::Any).await,
+        bs_read_origin_routed(&adapter, tag, fraiseql_db::types::ReadRouting::Any).await,
         "replica",
         "with no routing override, an unpinned read is replica-served"
     );
 
     // Same adapter, same view, same instant — only the annotation differs.
     assert_eq!(
-        bs_read_origin_routed(&adapter, tag, crate::types::ReadRouting::Primary).await,
+        bs_read_origin_routed(&adapter, tag, fraiseql_db::types::ReadRouting::Primary).await,
         "primary",
         "read_routing = primary must keep the query off replicas entirely; a replica \
          cannot promise freshness, which is the only reason to ask for the primary"
@@ -2010,7 +2010,7 @@ async fn a_query_routed_to_a_replica_ignores_the_read_your_writes_pin() {
             search_path:         None,
             tls:                 PostgresTlsConfig::default(),
             max_streaming_reads: None,
-            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
+            read_replicas:       Some(fraiseql_db::postgres::ReadReplicaConfig {
                 urls:                  vec![standby_db_url()],
                 // Long enough that nothing expires during the test.
                 pin_after_write:       std::time::Duration::from_mins(5),
@@ -2024,10 +2024,10 @@ async fn a_query_routed_to_a_replica_ignores_the_read_your_writes_pin() {
     .expect("pinning adapter should boot");
 
     // Arm the pin the way the mutation pipeline does.
-    adapter.mark_write();
+    test_hooks::mark_write(&adapter);
 
     assert_eq!(
-        bs_read_origin_routed(&adapter, tag, crate::types::ReadRouting::Any).await,
+        bs_read_origin_routed(&adapter, tag, fraiseql_db::types::ReadRouting::Any).await,
         "primary",
         "inside the pin window an unannotated read is primary-served — read-your-writes"
     );
@@ -2035,7 +2035,7 @@ async fn a_query_routed_to_a_replica_ignores_the_read_your_writes_pin() {
         bs_read_origin_routed(
             &adapter,
             tag,
-            crate::types::ReadRouting::Replica { max_lag_ms: None }
+            fraiseql_db::types::ReadRouting::Replica { max_lag_ms: None }
         )
         .await,
         "replica",
@@ -2080,7 +2080,7 @@ async fn a_per_query_lag_budget_overrides_the_servers() {
 
     // A query that declares it tolerates only 300 ms must fall to the primary long
     // before the server's budget would have excluded anything.
-    let tight = crate::types::ReadRouting::Replica {
+    let tight = fraiseql_db::types::ReadRouting::Replica {
         max_lag_ms: Some(300),
     };
     let mut routed = String::new();
@@ -2169,7 +2169,7 @@ async fn a_replica_promoted_by_a_failover_stops_serving_reads() {
             search_path:         None,
             tls:                 PostgresTlsConfig::default(),
             max_streaming_reads: None,
-            read_replicas:       Some(crate::postgres::ReadReplicaConfig {
+            read_replicas:       Some(fraiseql_db::postgres::ReadReplicaConfig {
                 urls:                  vec![failover_url.clone()],
                 pin_after_write:       std::time::Duration::ZERO,
                 max_lag:               None,
@@ -2519,9 +2519,8 @@ async fn an_open_streaming_read_still_holds_its_transaction() {
 /// does — the gRPC transport encodes positionally against the declared columns.
 #[tokio::test]
 async fn streaming_row_query_decodes_typed_columns() {
+    use fraiseql_db::{dialect::RowViewColumnType, types::ColumnSpec};
     use futures::StreamExt as _;
-
-    use crate::{dialect::RowViewColumnType, types::ColumnSpec};
 
     let adapter = create_test_adapter().await;
     let view = "v_stream_rowquery";

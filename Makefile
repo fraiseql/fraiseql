@@ -143,9 +143,7 @@ test-full: db-up
 # the per-crate enumeration in .github/workflows/coverage.yml.
 test-unit:
 	@echo "Running unit tests..."
-	@cargo test --lib --workspace --all-features --exclude fraiseql-db
-# SYNC:DB_FEATURES - test-postgres deliberately omitted: --lib runs without a database
-	@cargo test --lib -p fraiseql-db --features "postgres,wire-backend"
+	@cargo test --lib --workspace --all-features
 
 # Run integration tests (requires Docker databases)
 # Runs each suite with the correct feature flags and env vars.
@@ -218,7 +216,6 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-db --features 'postgres,wire-backend,test-postgres' --test '*' -- --test-threads=1
 	@echo ""
 	@echo "### live-PostgreSQL lib tests"
-	@cargo test -p fraiseql-db --lib --features 'postgres,wire-backend,test-postgres' -- --test-threads=1
 	@cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1
 	@echo ""
 	@echo "### auth: durable identity store, password, reset, verification, linking, single-use, sweeps"

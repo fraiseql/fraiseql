@@ -7,14 +7,13 @@ mod numeric;
 mod query_stats;
 mod relay;
 mod streaming;
+#[cfg(feature = "test-postgres")]
+pub mod test_hooks;
 
 #[cfg(test)]
 mod composed_tests;
 #[cfg(test)]
 mod tests;
-
-#[cfg(all(test, feature = "test-postgres"))]
-mod integration_tests;
 
 use std::{
     fmt::Write,

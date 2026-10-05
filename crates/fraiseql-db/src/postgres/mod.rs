@@ -8,6 +8,9 @@ mod server_version;
 mod tls;
 mod where_generator;
 
+#[cfg(feature = "test-postgres")]
+#[doc(hidden)]
+pub use adapter::test_hooks;
 pub use adapter::{
     HnswIterativeScan, IvfflatIterativeScan, PoolPrewarmConfig, PostgresAdapter, ReadReplicaConfig,
     ReadReplicaPolicy, SearchPath, VectorScanConfig,

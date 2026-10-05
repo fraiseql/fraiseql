@@ -1434,13 +1434,8 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		"bash tools/ci-target-canary.sh -- test -p fraiseql-core --features '" + coreTestFeatures + ",test-postgres' --test '*'", // #880 canary
 		"cargo test -p fraiseql-core --features '" + coreTestFeatures + ",test-postgres' --test '*' -- --test-threads=1",
 		"cargo test -p fraiseql-db --features '" + dbTestFeatures + ",test-postgres' --test '*' -- --test-threads=1",
-		// `--test '*'` runs only tests/ binaries. `postgres::adapter::integration_tests`
-		// is a LIB module gated on `test-postgres`, so it was compiled out of the
-		// DB-less test leg (which omits that feature) AND skipped by the line above
-		// — 24 live-PostgreSQL tests, including the #832 relay ORDER BY proofs, ran
-		// in NO leg. Same shape as P09/P16/P18/P20/P21.
-		"echo '### cargo test -p fraiseql-db --lib --features test-postgres (live-PG lib tests)'",
-		"cargo test -p fraiseql-db --lib --features '" + dbTestFeatures + ",test-postgres' -- --test-threads=1",
+		// fraiseql-db keeps every database-backed test in tests/ (#1370): the line above
+		// runs them, and `--lib` can never reach one, whatever features it enables.
 		// Tier-C migrated: fraiseql-functions cron-state migration (lib tests; harness postgres()).
 		"cargo test -p fraiseql-functions --lib migrations::tests -- --test-threads=1",
 		// #411 durable identity store (PostgresAccountStore: core.tb_user / tb_auth_identity + RLS).
