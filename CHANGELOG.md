@@ -110,9 +110,13 @@ disagreed, and the promise was the part that was wrong.
   **Upgrade:** if a tenant's IdP must deprovision accounts that predate its provisioning
   (created by password, OTP, social or SAML sign-in, so `tenant_id IS NULL`), assign them to
   that tenant first: `UPDATE core.tb_user SET tenant_id = '<tenant uuid>' WHERE user_id = ANY(…)`
-  (and the same `tenant_id` on their `core.tb_auth_identity` rows). From this release on,
-  sign-in through a tenant-bound SAML IdP creates the account in the tenant (#1088), so the
-  tenant's token reaches it; platform sign-ins stay out of its reach, and its IdP sees `404`.
+  (and the same `tenant_id` on their `core.tb_auth_identity` rows). **A moved account leaves the
+  platform:** password sign-in and password reset look it up with `tenant_id IS NULL`, so it can no
+  longer sign in with its password, and an email-OTP, phone-OTP or social sign-in with its
+  address creates a second, platform account. Move only accounts that sign in through the
+  tenant's SAML IdP. From this release on, sign-in through a tenant-bound SAML IdP creates the
+  account in the tenant (#1088), so the tenant's token reaches it; platform sign-ins stay out of
+  its reach, and its IdP sees `404`.
 
 - **`jwt:<claim>` reads the claim the token carries, on every path (#1388).** Inject
   parameters, `[session_variables]` with `source = "jwt"` and identity-enrichment `$param`
@@ -318,12 +322,72 @@ disagreed, and the promise was the part that was wrong.
   session HS256), and they were the only caller-triggerable RSA private-key operation in the
   tree: the shape the `rsa` Marvin advisory (RUSTSEC-2023-0071) targets. RS256 *verification*
   is unchanged. **Upgrade:** sign sessions with `with_hs256_secret`, or mint tokens with your own
-  signer (a KMS, or ES256/EdDSA through `jsonwebtoken`) and let FraiseQL verify them.
+  signer (a KMS, or RS256/ES256 through `jsonwebtoken`) and let FraiseQL verify them. A static
+  verification key is HS256 or an RS256 PEM; ES256 verifies only through a JWKS or OIDC issuer.
+  EdDSA is refused: nothing in FraiseQL verifies Ed25519 tokens yet.
 
 - **`RestHandler::with_function_hooks` is removed (#1440).** The REST handler no longer
   dispatches `after:mutation` functions; the engine does, for every transport (see Fixed).
   **Upgrade:** drop the call. Install `fraiseql_core::runtime::AfterMutationObserver` with
   `RuntimeConfig::with_after_mutation_observer` to observe committed writes.
+
+- **Field names with a registered acronym read different JSONB keys and columns (#1372).** See
+  Fixed. `to_snake_case` runs at request time, so the key a field reads changes with it:
+  `hostIpv4` reads `host_ipv4` (was `host_ipv_4`), `emissionEc2Kg` reads `emission_ec2_kg`, and
+  `consolePs3` reads `console_ps_3` (was `console_ps3`). Type names go through it too: the
+  inferred primary key of `Ec2Instance` is `pk_ec2_instance` (was `pk_ec_2_instance`), and so is
+  the `--emit-ddl` table name. A 2.15 deployment whose views store the old keys reads `null` for
+  those fields after the upgrade. **Upgrade:** run `fraiseql compile --database` against the
+  database before upgrading; it names each field whose key the view lacks. Rename the keys or
+  columns in the views, and register `ps3`-style acronyms under `[fraiseql.naming] acronyms` to
+  keep a word whole.
+
+- **An authenticated request's `X-Tenant-ID` or `Host` must name its token's tenant.** See
+  Security. A platform or service token that carries no tenant, and addressed tenants by header,
+  is now refused with `403 FORBIDDEN` (the async-operations routes answered 400 for every tenant
+  error and now answer 403). **Upgrade:** give such a caller a token carrying the tenant under
+  `[fraiseql.tenancy] tenant_claim`, one per tenant it acts in. Anonymous routing by `X-Tenant-ID`
+  and `Host` is unchanged.
+
+- **An `after:mutation` trigger names the entity a mutation writes, not its result union
+  (#1340).** See Fixed. Under `auto_error_union` a trigger had to name the synthesized union. The
+  compiler now refuses that name, and a 2.15 artifact that still carries one boots but the trigger
+  never fires: the engine reports the success type. **Upgrade:** name the success type
+  (`after:mutation:Order`) and recompile.
+
+- **Four error codes change (#1374).** See Fixed. An authorization-policy backend error is
+  `503 SERVICE_UNAVAILABLE` on GraphQL, `UNAVAILABLE` on gRPC and a `SERVICE_UNAVAILABLE` frame on
+  subscriptions (was `403 FORBIDDEN`). A `ServiceUnavailable` reaching GraphQL is a 503 (was 500).
+  A refused gRPC mutation is `PERMISSION_DENIED` (was `INTERNAL`). **Upgrade:** a client, alert or
+  dashboard that keys on the old codes updates them, and a client retries the 503.
+
+- **`compile --database` refuses a query argument the relation cannot provide (#1394).** See
+  Fixed. #1382 refused unresolvable `inject_params` keys; this covers every argument with neither
+  a column of its snake_case name nor a key in the sampled rows' `data`. The check reads a few
+  rows' top-level keys, so an optional key absent from every sampled row also fails the compile.
+  **Upgrade:** add the column or the key to the view, or compile with `--allow-drift`.
+
+- **A compiled schema whose field links an undeclared hierarchy no longer loads (#1396).** See
+  Fixed. 2.15 compiled such a link, and both hierarchy operators failed on every query anyway. A
+  2.15 artifact that carries one now refuses to boot, naming the field. **Upgrade:** declare the
+  hierarchy under `[hierarchies]`, or remove the link, and recompile.
+
+- **Embedder API changes in the published crates.** For code that links FraiseQL as a library:
+  - `fraiseql_core::runtime::resolve_session_variables` takes the `CompiledSchema` after the
+    config.
+  - `IdentityResolver::postgres` takes a third argument, the schema's `tenant_claim`.
+  - `fraiseql_functions::build_functions_subsystem` takes the source connectors
+    (`&[SourceConnector]`); pass `&[]` for none.
+  - Fields are added to structs that are not `#[non_exhaustive]`, so a struct literal stops
+    compiling: `RuntimeConfig::after_mutation_observer`, `OidcConfig::additional_issuers`, and
+    the Deno runtime's `ExecutionResult::phases`. Start from `Default`, or add the field.
+  - `fraiseql-cli`'s `DatabaseWarning` gains `UnresolvableFilter`; an exhaustive `match` needs
+    the arm.
+  - `fraiseql-server`'s `mcp` module returns rmcp 3 types (`schema_to_resources` returns
+    `rmcp::model::Resource`, tool results carry `ContentBlock`) since rmcp moved from 1.7 to 3.5
+    (see Security).
+  - TypeScript: `fraiseqlTool` returns `ai`'s `Tool<z.infer<TParams>, unknown>` (was
+    `ReturnType<typeof tool>`).
 
 ### Added
 
@@ -657,6 +721,30 @@ disagreed, and the promise was the part that was wrong.
   A client could not tell "no customer" from "a customer whose fields are null", and a non-null
   sub-field was answered with `null`, contradicting the schema the server publishes. The object
   is now built only when the stored value is an object, at every depth.
+- **A camelCase query argument resolves to its snake_case column under `compile --database`
+  (#1394).** The SDKs emit `customer_id` as `customerId`; the compiler looked that name up among
+  the view's columns, missed `customer_id`, and fell back to `data->>'customer_id'`, which the
+  view's `data` did not carry: every call returned `[]` with no error. The lookup now uses the
+  snake_case form the runtime filters on, so the argument compiles to `WHERE customer_id = $1`.
+  An argument the relation can provide neither as a column nor as a key in its sampled `data`
+  now fails the compile, as an unresolvable `inject_params` key does (#1382), and the JSONB
+  fallback advisory names the key the runtime actually reads.
+- **`descendantOfId` and `ancestorOfId` execute (#1396).** Every use failed with "requires
+  HierarchyContext — configure [hierarchies] in fraiseql.toml", whatever was configured: the
+  compiled `hierarchies_config` was loaded and never consulted, because the only entry point that
+  passed a hierarchy had no caller. The parser now resolves the filtered field's `hierarchy` link
+  and attaches its table and path column to the filter. Three defects behind it are fixed too: a
+  schema-qualified table (`app.tb_node`) was quoted as one identifier, the node id was bound
+  uncast against the table's UUID `id` (refused by the driver), and a field linking an undeclared
+  hierarchy compiled. It is now refused when the schema loads, and either operator on a field with
+  no `hierarchy` is refused when the query is parsed, naming what to configure.
+- **`node(id:)` accepts the id an object returns (#1398).** `id` fields return the object's
+  UUID, but `node(id:)` accepted only `base64("Type:uuid")`, which nothing in production
+  produced, so a Relay client could never refetch an object. A bare UUID is now resolved among
+  the `relay` types, each probed under its own query's scoping (role, actor, authorizer, RLS,
+  `inject_params`), so an id the caller may not read is `null` and resolves nowhere. An id two
+  readable relay types share (one entity exposed twice) is refused with the candidate types
+  named; the typed `base64("Type:uuid")` form is still accepted and resolves it.
 
 ### Security
 
@@ -766,30 +854,6 @@ Lockfile and patch-level pin changes only; no source changed. The runtime crates
   GHSA-wjgm-6hv5-3cvf).
 - **Dagger module (Go):** `google.golang.org/grpc` 1.84.0 (GHSA-2v4p-qf9q-27wj,
   GHSA-qc2q-p7wx-3px3, GHSA-vp52-pcj8-j9qc).
-- **A camelCase query argument resolves to its snake_case column under `compile --database`
-  (#1394).** The SDKs emit `customer_id` as `customerId`; the compiler looked that name up among
-  the view's columns, missed `customer_id`, and fell back to `data->>'customer_id'`, which the
-  view's `data` did not carry: every call returned `[]` with no error. The lookup now uses the
-  snake_case form the runtime filters on, so the argument compiles to `WHERE customer_id = $1`.
-  An argument the relation can provide neither as a column nor as a key in its sampled `data`
-  now fails the compile, as an unresolvable `inject_params` key does (#1382), and the JSONB
-  fallback advisory names the key the runtime actually reads.
-- **`descendantOfId` and `ancestorOfId` execute (#1396).** Every use failed with "requires
-  HierarchyContext — configure [hierarchies] in fraiseql.toml", whatever was configured: the
-  compiled `hierarchies_config` was loaded and never consulted, because the only entry point that
-  passed a hierarchy had no caller. The parser now resolves the filtered field's `hierarchy` link
-  and attaches its table and path column to the filter. Three defects behind it are fixed too: a
-  schema-qualified table (`app.tb_node`) was quoted as one identifier, the node id was bound
-  uncast against the table's UUID `id` (refused by the driver), and a field linking an undeclared
-  hierarchy compiled. It is now refused when the schema loads, and either operator on a field with
-  no `hierarchy` is refused when the query is parsed, naming what to configure.
-- **`node(id:)` accepts the id an object returns (#1398).** `id` fields return the object's
-  UUID, but `node(id:)` accepted only `base64("Type:uuid")`, which nothing in production
-  produced, so a Relay client could never refetch an object. A bare UUID is now resolved among
-  the `relay` types, each probed under its own query's scoping (role, actor, authorizer, RLS,
-  `inject_params`), so an id the caller may not read is `null` and resolves nowhere. An id two
-  readable relay types share (one entity exposed twice) is refused with the candidate types
-  named; the typed `base64("Type:uuid")` form is still accepted and resolves it.
 
 ## [2.15.0] - 2026-09-30
 
