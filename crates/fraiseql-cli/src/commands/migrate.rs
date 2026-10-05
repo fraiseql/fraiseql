@@ -5,7 +5,7 @@
 //! holds. Confiture must be installed and on `PATH`; `run` says so and stops when it is not.
 //!
 //! The call shape follows confiture's CLI reference, `docs/reference/cli.md` in
-//! <https://github.com/fraiseql/confiture> at tag `v1.19.0`, section "`confiture migrate`".
+//! <https://github.com/fraiseql/confiture> at tag `v1.29.0`, section "`confiture migrate`".
 //! That is the confiture the `integration (postgres)` leg installs from
 //! `tools/confiture-requirements.txt` and runs `tests/migrate_against_confiture.rs` against;
 //! a bump of that pin is where a change to the table gets checked (#1376).
@@ -197,7 +197,7 @@ impl ConfitureVerb {
     }
 
     /// Whether the verb has a `--no-config` option: `up`, `down`, `status` and `preflight`
-    /// do, `generate` and `validate` do not (`confiture migrate <verb> --help`, 1.19.0).
+    /// do, `generate` and `validate` do not (`confiture migrate <verb> --help`, 1.29.0).
     pub(crate) const fn accepts_no_config(self) -> bool {
         matches!(self, Self::Up | Self::Down | Self::Status | Self::Preflight)
     }

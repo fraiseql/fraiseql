@@ -389,6 +389,51 @@ disagreed, and the promise was the part that was wrong.
   `extends` instead of `entities`, and the invented `url` is gone. DOT and Mermaid output
   quote every name, so a name cannot inject syntax.
 
+- **`fraiseql migrate` calls the confiture verbs and options that exist (#1376).**
+
+  Every verb shelled a shape no confiture release has had: `confiture status|up|down|create
+  … --source DIR` and `confiture migrate validate --source DIR`. Confiture's migration verbs
+  live under `confiture migrate`, the directory option on each is `--migrations-dir`, and
+  the verb that writes a migration file is `migrate generate`; only `generate` and
+  `preflight` were called correctly. Nothing noticed because the wrapper's only tests
+  self-skipped whenever confiture was present.
+
+  Each verb now runs `confiture migrate <verb> --migrations-dir DIR` (`create` →
+  `migrate generate NAME`; `down` keeps `--steps N`), every option checked against
+  `confiture migrate <verb> --help`, and one `ConfitureCommand` builder holds the table.
+  Under the CLI's global `--json`, confiture gets `--format json`, so its report is the one
+  JSON document on stdout. The `integration (postgres)` leg installs a pinned confiture
+  (`tools/confiture-requirements.txt`, 1.29.0) and runs the wrapper against it with no
+  skip; five unit pins keep `--source` and the top-level verbs from coming back.
+
+  The DSN handoff, which this left as an ambient `DATABASE_URL` confiture ignores for
+  `status` and refuses for `up`/`down`, and the `migrate --help` precedence text are #1378,
+  next.
+
+- **`fraiseql migrate` hands confiture the DSN it resolved, not an ambient variable (#1378).**
+
+  `fraiseql migrate up|down|status` resolve a database URL — `--database`, else
+  `[database].url` in `fraiseql.toml`, else `DATABASE_URL` — and exported it to confiture as
+  `DATABASE_URL` with no `--no-config`. Confiture's connection ladder treats that variable as
+  ambient by design: `status` never connected and reported every migration "unknown (no
+  config)" with exit 0, and `up`/`down` refused with `CONFIG_010`. A mutating run could not
+  proceed, and the status read that would have shown it looked like success.
+
+  The DSN now reaches confiture as `CONFITURE_DATABASE_URL`, its canonical variable, with
+  `--no-config`, under which the environment is the sole DSN source: the URL fraiseql
+  resolved is the one confiture connects with, and a `confiture.yaml` or
+  `db/environments/*.yaml` in the working directory no longer shadows it. `preflight`, which
+  is handed no DSN, keeps confiture's own discovery. `fraiseql migrate --help` now states the
+  order the code implements (`--database` > `fraiseql.toml` > `DATABASE_URL`, unchanged) and
+  names the handoff; `fraiseql setup --help`, which resolves through the same function, no
+  longer lists the environment first. The `integration (postgres)` leg proves the handoff
+  end to end: `up` → `status` reports `applied` → `down` → `status` reports `pending`,
+  against the pinned confiture and a real database.
+
+  Observed, not changed: confiture's `migrate status` exits 1 when migrations are pending and
+  2 when the tracking table is absent; the wrapper reports both as "Failed to get migration
+  status." with exit 1.
+
 - **The CLI reaches a PostgreSQL that requires TLS (#1429).** Every CLI database connection
   was `NoTls`: `?sslmode=require` failed with "no TLS implementation configured", and the
   default `prefer` connected in cleartext even to a server offering TLS. The CLI now builds
@@ -7778,51 +7823,6 @@ Lockfile and patch-level pin changes only; no source changed. The runtime crates
   pin and committing the reformat now belong to one commit, which is the only way the gate
   stays green. `FUZZ_NIGHTLY` in `.github/workflows/fuzz.yml` had already learned this in
   July; the fmt gate had not.
-
-- **`fraiseql migrate` calls the confiture verbs and options that exist (#1376).**
-
-  Every verb shelled a shape no confiture release has had: `confiture status|up|down|create
-  … --source DIR` and `confiture migrate validate --source DIR`. Confiture's migration verbs
-  live under `confiture migrate`, the directory option on each is `--migrations-dir`, and
-  the verb that writes a migration file is `migrate generate`; only `generate` and
-  `preflight` were called correctly. Nothing noticed because the wrapper's only tests
-  self-skipped whenever confiture was present.
-
-  Each verb now runs `confiture migrate <verb> --migrations-dir DIR` (`create` →
-  `migrate generate NAME`; `down` keeps `--steps N`), every option checked against
-  `confiture migrate <verb> --help`, and one `ConfitureCommand` builder holds the table.
-  Under the CLI's global `--json`, confiture gets `--format json`, so its report is the one
-  JSON document on stdout. The `integration (postgres)` leg installs a pinned confiture
-  (`tools/confiture-requirements.txt`, 1.19.0) and runs the wrapper against it with no
-  skip; five unit pins keep `--source` and the top-level verbs from coming back.
-
-  The DSN handoff, which this left as an ambient `DATABASE_URL` confiture ignores for
-  `status` and refuses for `up`/`down`, and the `migrate --help` precedence text are #1378,
-  next.
-
-- **`fraiseql migrate` hands confiture the DSN it resolved, not an ambient variable (#1378).**
-
-  `fraiseql migrate up|down|status` resolve a database URL — `--database`, else
-  `[database].url` in `fraiseql.toml`, else `DATABASE_URL` — and exported it to confiture as
-  `DATABASE_URL` with no `--no-config`. Confiture's connection ladder treats that variable as
-  ambient by design: `status` never connected and reported every migration "unknown (no
-  config)" with exit 0, and `up`/`down` refused with `CONFIG_010`. A mutating run could not
-  proceed, and the status read that would have shown it looked like success.
-
-  The DSN now reaches confiture as `CONFITURE_DATABASE_URL`, its canonical variable, with
-  `--no-config`, under which the environment is the sole DSN source: the URL fraiseql
-  resolved is the one confiture connects with, and a `confiture.yaml` or
-  `db/environments/*.yaml` in the working directory no longer shadows it. `preflight`, which
-  is handed no DSN, keeps confiture's own discovery. `fraiseql migrate --help` now states the
-  order the code implements (`--database` > `fraiseql.toml` > `DATABASE_URL`, unchanged) and
-  names the handoff; `fraiseql setup --help`, which resolves through the same function, no
-  longer lists the environment first. The `integration (postgres)` leg proves the handoff
-  end to end: `up` → `status` reports `applied` → `down` → `status` reports `pending`,
-  against the pinned confiture and a real database.
-
-  Observed, not changed: confiture's `migrate status` exits 1 when migrations are pending and
-  2 when the tracking table is absent; the wrapper reports both as "Failed to get migration
-  status." with exit 1.
 
 - **Two schema roundtrip properties no longer generate the duplicate names the load path
   refuses (#1367).**

@@ -2351,7 +2351,7 @@ mod migrate_tests {
         }
     }
 
-    /// `--no-config` is an option of exactly the verbs confiture 1.19.0's
+    /// `--no-config` is an option of exactly the verbs confiture 1.29.0's
     /// `confiture migrate <verb> --help` lists it for.
     #[test]
     fn no_config_is_an_option_of_up_down_status_and_preflight_only() {
@@ -2365,7 +2365,7 @@ mod migrate_tests {
                 ConfitureVerb::Status,
                 ConfitureVerb::Preflight
             ],
-            "measured against confiture 1.19.0"
+            "measured against confiture 1.29.0"
         );
     }
 
