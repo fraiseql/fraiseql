@@ -11,7 +11,7 @@ This project is committed to providing a welcoming and inspiring community for a
 ### Prerequisites
 
 - Rust 1.75+ (install via [rustup](https://rustup.rs/))
-- Postgres 17 (for integration tests)
+- PostgreSQL 18 (for integration tests)
 - Docker (optional, for containerized Postgres)
 
 ### Initial Setup
@@ -314,7 +314,7 @@ Every push to `main` and pull request triggers:
 - **Build & Test**: Compiles with Rust stable, runs unit tests
 - **Code Coverage**: Generates coverage report (target: >85%)
 - **MSRV**: Tests with Rust 1.70 for backward compatibility
-- **Integration Tests**: Runs against Postgres 15 service
+- **Integration Tests**: the repository's `integration (wire)` CI leg, against PostgreSQL 18
 - **Documentation**: Checks for doc warnings
 - **Security Audit**: Runs `cargo audit` to detect vulnerabilities
 

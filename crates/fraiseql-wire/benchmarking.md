@@ -431,7 +431,7 @@ jobs:
 
     services:
       postgres:
-        image: postgres:17
+        image: postgres:18
         env:
           POSTGRES_DB: fraiseql_test
           POSTGRES_PASSWORD: postgres

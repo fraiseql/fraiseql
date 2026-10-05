@@ -466,6 +466,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`fraiseql-wire` states the PostgreSQL version it supports.** Its crates.io description said
+  "for Postgres 17" and its README and guides claimed PostgreSQL 15–18 support and a chunked-rows
+  mode the crate does not implement. CI runs it against PostgreSQL 18 only, FraiseQL's floor
+  (#1452); the description, README, `postgres-compatibility.md` and the setup guides now say so.
+
 - **The mutation-timing and tenant-claim docs describe what the server reads.**
   `docs/features/mutation-timing.md` documented a `[database.mutation_timing]` section no config
   reads and said the timestamp was off by default; it is on, stamps mutations only, and is turned

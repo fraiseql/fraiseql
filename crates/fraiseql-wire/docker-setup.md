@@ -59,9 +59,11 @@ docker-compose down
 
 ### Dockerfile
 
-Alpine Linux-based PostgreSQL 15 container with:
+Alpine Linux-based PostgreSQL container (a CI/dev test fixture only) with:
 
-- PostgreSQL 15 installed from Alpine packages
+- PostgreSQL installed from the Alpine packages of `alpine:latest`, so its major version
+  follows Alpine; `docker-compose.yml` instead runs `postgres:18-alpine`, the supported
+  version
 - Pre-initialized database with test data
 - Startup script that waits for PostgreSQL readiness
 - Health checks configured
@@ -144,40 +146,12 @@ make docker-logs       # View PostgreSQL logs
 make docker-clean      # Remove containers and volumes
 ```
 
-## GitHub Actions CI/CD
+## Continuous integration
 
-The project includes automated CI/CD with GitHub Actions:
-
-### Workflows
-
-1. **Build & Test** (on every push/PR)
-   - Builds project
-   - Runs unit tests
-   - Runs clippy linter
-   - Checks code formatting
-
-2. **Integration Tests** (on every push/PR)
-   - Spins up PostgreSQL 15 service
-   - Runs integration tests
-   - Runs streaming tests
-
-3. **Documentation** (on every push/PR)
-   - Builds documentation
-   - Checks for doc warnings
-
-### Workflow File
-
-Location: `.github/workflows/ci.yml`
-
-Runs on:
-
-- Push to `main` or `develop` branches
-- Pull requests to `main` or `develop` branches
-
-Services:
-
-- PostgreSQL 15 (Alpine) automatically started for integration tests
-- Caches dependencies for faster builds
+This crate has no workflow of its own. The repository's Dagger CI runs
+`cargo test -p fraiseql-wire --lib --all-features` in the unit-test leg, and every `tests/*`
+binary in the `integration (wire)` leg against PostgreSQL 18 with SCRAM-SHA-256
+authentication.
 
 ## Development Script
 

@@ -43,7 +43,7 @@ This guide explains how to run the fraiseql-wire test suite, including unit test
 
 ### Prerequisites
 
-1. **Postgres 17** (or compatible)
+1. **PostgreSQL 18** (the supported version)
 
    ```bash
    # Check if Postgres is running

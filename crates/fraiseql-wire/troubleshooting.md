@@ -53,7 +53,7 @@ Is Postgres running?
    brew services start postgresql
 
    # Docker
-   docker run -d --name postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:17
+   docker run -d --name postgres -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:18
    ```
 
 3. **Verify connection string**:

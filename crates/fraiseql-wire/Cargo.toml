@@ -89,7 +89,7 @@ workspace = true
 [package]
 authors = ["Lionel Hamayon <lionel@evolution-digitale.fr>"]
 categories = ["database", "asynchronous"]
-description = "Streaming JSON query engine for Postgres 17"
+description = "Streaming JSON query engine for PostgreSQL 18+"
 documentation = "https://docs.rs/fraiseql-wire"
 edition = "2021"
 homepage = "https://github.com/fraiseql/fraiseql-wire"

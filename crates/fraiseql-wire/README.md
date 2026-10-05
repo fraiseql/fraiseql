@@ -7,7 +7,7 @@
 [![MSRV: 1.75+](https://img.shields.io/badge/MSRV-1.75%2B-blue)](https://github.com/fraiseql/fraiseql-wire)
 [![Documentation](https://docs.rs/fraiseql-wire/badge.svg)](https://docs.rs/fraiseql-wire)
 
-**Streaming JSON queries for Postgres 17, built for FraiseQL**
+**Streaming JSON queries for PostgreSQL 18+, built for FraiseQL**
 
 `fraiseql-wire` is a **minimal, async Rust query engine** that streams JSON data from Postgres with low latency and bounded memory usage.
 
@@ -176,11 +176,12 @@ This prevents runaway queries and resource leaks.
 
 ---
 
-## Postgres 17 & Chunked Rows Mode
+## PostgreSQL versions
 
-`fraiseql-wire` is designed to take advantage of **Postgres 17 streaming behavior**, and can optionally leverage **chunked rows mode** via a libpq-based backend.
-
-The public API remains the same regardless of backend; chunking is an internal optimization.
+`fraiseql-wire` speaks the PostgreSQL frontend/backend protocol (3.0) directly and streams
+rows as the server sends them. It is tested against PostgreSQL 18, FraiseQL's minimum
+supported version (see `docs/database-compatibility.md` in the repository); older servers are
+not supported. The crate does not check the server version itself.
 
 ---
 
@@ -416,7 +417,7 @@ RUST_LOG=fraiseql_wire=debug cargo run
 
 All core features implemented with comprehensive CI validation:
 
-* ✅ Async JSON streaming (integration tests across PostgreSQL 15-18)
+* ✅ Async JSON streaming (integration tests against PostgreSQL 18)
 * ✅ Hybrid SQL + Rust predicates (25+ WHERE operators with full test coverage)
 * ✅ Type-safe deserialization (generic streaming API with custom struct support)
 * ✅ Stream pause/resume (backpressure-aware flow control)
@@ -427,7 +428,7 @@ All core features implemented with comprehensive CI validation:
 * ✅ Metrics & tracing (comprehensive observability via metrics crate)
 * ✅ Error handling (detailed error types and recovery patterns)
 * ✅ Connection pooling support (documented integration patterns)
-* ✅ TLS/SCRAM authentication (PostgreSQL 17+ security features)
+* ✅ TLS and SCRAM-SHA-256 authentication
 
 ---
 
@@ -435,7 +436,7 @@ All core features implemented with comprehensive CI validation:
 
 * [x] Connection pooling integration guide
 * [x] Advanced filtering patterns
-* [x] PostgreSQL 15-18 compatibility
+* [x] PostgreSQL 18 (FraiseQL's floor)
 * [x] SCRAM/TLS end-to-end integration tests in CI
 * [x] Comprehensive metrics and tracing
 * [x] Server-side ordering (ORDER BY with COLLATE)
