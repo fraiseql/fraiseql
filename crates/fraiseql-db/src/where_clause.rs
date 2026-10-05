@@ -293,8 +293,7 @@ impl WhereClause {
     /// 4. Emit `Field { path: ["machine", "id"], operator: Eq, value: "..." }`.
     ///
     /// The multi-segment path is then handled by `GenericWhereGenerator`, which
-    /// checks `IndexedColumnsCache` for `machine__id` (native column with index)
-    /// and falls back to JSONB extraction (`data->'machine'->>'id'`).
+    /// extracts it from the JSONB column (`data->'machine'->>'id'`).
     ///
     /// `level` is the set of keys legal *at this depth* — the entry type's at the
     /// top, and the relation target's below it. `None` means the schema cannot

@@ -290,9 +290,10 @@ disagreed, and the promise was the part that was wrong.
   by a wrapping adapter.
 
 - **The never-used indexed-column WHERE path is removed (#1313).**
-  `GenericWhereGenerator::with_indexed_columns`, `PostgresWhereGenerator::postgres_with_indexed_columns`
-  and `PostgresIntrospector::get_indexed_nested_columns` are deleted, and `compile --database`
-  no longer prints an "Indexed column validation" report. No runtime path ever set the
+  `GenericWhereGenerator::with_indexed_columns`, `PostgresWhereGenerator::postgres_with_indexed_columns`,
+  `PostgresIntrospector::get_indexed_nested_columns` and the `IndexedColumnsCache` alias are
+  deleted, and `compile --database` no longer prints an "Indexed column validation" report or
+  advertises one in `--help`. No runtime path ever set the
   indexed-column set, so the `items__product__code` convention it read never changed a single
   query, while the report suggested it did. Filtering on a real column is what
   `native_columns` does, and `compile --database` fills it from the view's columns.

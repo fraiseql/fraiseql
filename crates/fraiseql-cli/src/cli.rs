@@ -93,8 +93,11 @@ EXAMPLES:
         #[arg(long)]
         skip_hash: bool,
 
-        /// Optional database URL for indexed column validation
-        /// When provided, validates that indexed columns exist in database views
+        /// Optional database URL: check the schema against the live database
+        ///
+        /// Validates each `sql_source`, mutation function, JSONB key and query argument
+        /// against the relations it names, and fills `native_columns` from the views'
+        /// columns. Drift classified as an error fails the compile (see `--allow-drift`).
         #[arg(long, value_name = "DATABASE_URL")]
         database: Option<String>,
 

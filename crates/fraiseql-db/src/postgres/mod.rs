@@ -20,7 +20,7 @@ pub use server_version::{
     MINIMUM_SERVER_VERSION_NUM, check_server_version, require_supported_server,
 };
 pub use tls::{PostgresConnector, PostgresSslMode, PostgresTlsConfig};
-pub use where_generator::{IndexedColumnsCache, PostgresWhereGenerator};
+pub use where_generator::PostgresWhereGenerator;
 
 /// The human-readable half of a `tokio_postgres::Error` (#888).
 ///
