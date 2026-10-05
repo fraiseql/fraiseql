@@ -466,6 +466,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The mutation-timing and tenant-claim docs describe what the server reads.**
+  `docs/features/mutation-timing.md` documented a `[database.mutation_timing]` section no config
+  reads and said the timestamp was off by default; it is on, stamps mutations only, and is turned
+  off with `[fraiseql.session_variables] inject_started_at = false` (#1373). `docs/mcp.md`,
+  `docs/auth/auth0.md` and `docs/architecture/enriched-identity-rls.md` still said the tenant came
+  from `org_id`; it comes from `[fraiseql.tenancy] tenant_claim` (#1388), and the Auth0
+  Organizations guide now sets `tenant_claim = "org_id"`.
+
 - **The Rust SDK's install instructions name a version that exists.** Its README pinned
   `fraiseql-rust = "1.0.0"`, a version never published, and the root README said the crate
   first reached crates.io at 2.15.0, whose publish job failed (#1488). The SDK README now uses

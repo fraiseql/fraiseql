@@ -135,7 +135,19 @@ For multi-tenant setups using Auth0 Organizations:
 
 1. Enable Organizations in Auth0
 2. Auth0 adds the `org_id` claim to tokens
-3. Map `org_id` to `tenant_id` using FraiseQL's `inject` feature:
+3. Tell FraiseQL that `org_id` carries the tenant, and recompile:
+
+```toml
+# fraiseql.toml
+[fraiseql.tenancy]
+tenant_claim = "org_id"
+```
+
+The request's tenant (per-tenant dispatch, the default RLS policy, caches, subscriptions) is
+read from the configured `tenant_claim`, which defaults to `tenant_id`. Without this line an
+Organizations token carries no tenant FraiseQL reads.
+
+A query parameter can then take the tenant from the same claim:
 
 ```python
 @fraiseql.query(inject={"tenant_id": "jwt:org_id"})

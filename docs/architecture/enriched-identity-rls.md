@@ -50,9 +50,11 @@ query   = "SELECT email_address AS sending_address FROM tb_sales_mailbox m \
 map     = { sending_address = "sending_address" }
 ```
 
-- `$name` tokens are bound from the request's claims (and the well-known
-  identity fields `sub` / `tenant_id` / `org_id` / `email` / `name` / `iss`);
-  values are bound out-of-band, **never** interpolated into the SQL.
+- `$name` tokens are bound through the resolver `jwt:<claim>` uses everywhere: the
+  claim as the token carries it; else a field the validator lifts out of the token
+  (`sub`, `email`, `name`, `iss`); else, for the schema's configured `tenant_claim`
+  only, the request's tenant. `org_id` is an ordinary claim unless `tenant_claim`
+  names it. Values are bound out-of-band, **never** interpolated into the SQL.
 - `$claims` binds the whole verified claim set as one **`jsonb`** value — the
   forwarded attributes (inbound `fraiseql.*` claims are stripped by the request
   extractor) plus those well-known fields. Any claim whose value is a JSON object
