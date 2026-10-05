@@ -50,7 +50,7 @@
   "author": "FraiseQL Team",
   "license": "MIT",
   "dependencies": {
-    "zod": "^4.4.3"
+    "zod": "^4.6.5"
   },
   "overrides": {
     "js-yaml": "^4.2.0",
@@ -59,7 +59,7 @@
   "peerDependencies": {
     "@langchain/core": "^1.1.47",
     "@mastra/core": "^1.35.0",
-    "ai": "^6.0.185"
+    "ai": "^6.0.185 || ^7.0.0"
   },
   "peerDependenciesMeta": {
     "ai": {
@@ -74,11 +74,11 @@
   },
   "devDependencies": {
     "@langchain/core": "^1.1.47",
-    "@mastra/core": "^1.35.0",
-    "@types/node": "^26.1.0",
-    "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@mastra/core": "^1.71.0",
+    "@types/node": "^26.6.3",
+    "@typescript-eslint/eslint-plugin": "^8.71.0",
     "@typescript-eslint/parser": "^8.0.0",
-    "ai": "^6.0.185",
+    "ai": "^7.0.122",
     "eslint": "^10.4.0",
     "msw": "^2.0.0",
     "prettier": "^3.0.0",
