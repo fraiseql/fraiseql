@@ -868,6 +868,9 @@ Lockfile and patch-level pin changes only; no source changed. The runtime crates
   GHSA-rhp5-r9x4-f5g2, GHSA-rrv8-h7p8-rx55, GHSA-vp2x-qp44-57v7, GHSA-w3v8-gmh9-3wv7,
   GHSA-ww6m-cw3f-q94g, GHSA-x5ph-mj9p-rfr8, GHSA-x99w-6fgc-pmfw, GHSA-xh95-f55m-82fw). nltk
   GHSA-8mgp-746c-j5xp has no patched release and stays open.
+- **Python SDK (lockfile only, through the optional `llamaindex` extra):** `urllib3` 2.8.0
+  (GHSA-gh4c-6fx4-qh6g, GHSA-vxq7-64xx-v4gw, GHSA-8988-9cw3-xx77) and `banks` 2.5.1
+  (GHSA-x8wg-4xgc-vr54). nltk GHSA-8mgp-746c-j5xp still has no patched release.
 - **TypeScript SDK (dev tooling):** `fast-uri` 3.1.8, `js-yaml` 4.3.2, `postcss` 8.5.28,
   `ip-address` 10.7.2 (fast-uri GHSA-5jgf-p345-68v8, GHSA-7p8r-x3mc-p8w7, GHSA-f65p-4m7j-42xc,
   GHSA-fph4-wmhf-6fwf, GHSA-jqff-g426-hqxp, GHSA-qw65-cvwx-89v3; js-yaml GHSA-2883-xcg3-v3hh,
