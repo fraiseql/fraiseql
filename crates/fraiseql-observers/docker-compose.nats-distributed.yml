@@ -165,8 +165,6 @@ services:
       # Performance features (all enabled for HA)
       FRAISEQL_ENABLE_DEDUP: "true"               # ✅ CRITICAL: Prevents duplicate processing
       FRAISEQL_ENABLE_CACHING: "true"             # ✅ Cache expensive operations
-      FRAISEQL_ENABLE_CONCURRENT: "true"          # ✅ Parallel action execution
-      FRAISEQL_MAX_CONCURRENT_ACTIONS: "20"
 
       # Runtime settings (tuned for high throughput)
       FRAISEQL_CHANNEL_CAPACITY: "2000"

@@ -59,8 +59,6 @@ services:
       # Performance features (all disabled without Redis)
       FRAISEQL_ENABLE_DEDUP: "false"
       FRAISEQL_ENABLE_CACHING: "false"
-      FRAISEQL_ENABLE_CONCURRENT: "true"
-      FRAISEQL_MAX_CONCURRENT_ACTIONS: "10"
 
       # Runtime settings
       FRAISEQL_CHANNEL_CAPACITY: "1000"

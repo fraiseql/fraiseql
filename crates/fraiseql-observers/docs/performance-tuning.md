@@ -377,20 +377,6 @@ watch -n 1 'fraiseql-observers metrics | grep queue'
 
 ## Complete Optimization Pipeline
 
-### Low Hanging Fruit (Week 1)
-
-```rust
-// Step 1: Add concurrent execution
-let executor = ConcurrentActionExecutor::new(
-    base_executor,
-    Duration::from_secs(30),
-);
-
-// Expected: 3-5x latency improvement
-// Effort: Minimal
-// Risk: Low
-```
-
 ### Caching (Week 2)
 
 ```rust
@@ -593,7 +579,6 @@ num_workers: (num_cpus::get() * 2).min(64)
 
 - [ ] Baseline metrics captured
 - [ ] Bottleneck identified
-- [ ] Concurrent execution enabled
 - [ ] Caching configured
 - [ ] Checkpoint batch size optimized
 - [ ] Connection pooling tuned

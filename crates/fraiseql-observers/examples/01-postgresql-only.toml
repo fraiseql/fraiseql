@@ -36,12 +36,9 @@ max_delay_ms = 30000
 backlog_alert_threshold = 500
 # Runtime settings
 channel_capacity = 1000
-concurrent_timeout_ms = 30000
 enable_caching = false  # No action result caching
-enable_concurrent = true  # Still use concurrent action execution
 enable_dedup = false  # No deduplication (at-most-once delivery)
 max_concurrency = 50
-max_concurrent_actions = 10
 shutdown_timeout = "30s"
 
 # Transport configuration

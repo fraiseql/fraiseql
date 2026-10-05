@@ -1009,12 +1009,7 @@ mod factory_tests {
             redis:                   None, // No Redis
             clickhouse:              None,
             job_queue:               None,
-            performance:             PerformanceConfig {
-                enable_dedup: false,
-                enable_caching: false,
-                enable_concurrent: true,
-                ..Default::default()
-            },
+            performance:             PerformanceConfig::default(),
             observers:               HashMap::new(),
             channel_capacity:        1000,
             max_concurrency:         50,
@@ -1096,12 +1091,7 @@ mod factory_tests {
             redis:                   None,
             clickhouse:              None,
             job_queue:               None, // No job queue config
-            performance:             PerformanceConfig {
-                enable_dedup: false,
-                enable_caching: false,
-                enable_concurrent: true,
-                ..Default::default()
-            },
+            performance:             PerformanceConfig::default(),
             observers:               HashMap::new(),
             channel_capacity:        1000,
             max_concurrency:         50,

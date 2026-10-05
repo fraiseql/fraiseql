@@ -212,9 +212,6 @@ cache_ttl_secs = 60
 [performance]
 enable_dedup = true          # Event deduplication (requires Redis)
 enable_caching = true        # Action result caching (requires Redis)
-enable_concurrent = true     # Concurrent action execution
-max_concurrent_actions = 10
-concurrent_timeout_ms = 30000
 ```
 
 ### Observers
@@ -259,8 +256,6 @@ export FRAISEQL_REDIS_CACHE_TTL_SECS=60
 # Performance
 export FRAISEQL_ENABLE_DEDUP=true
 export FRAISEQL_ENABLE_CACHING=true
-export FRAISEQL_ENABLE_CONCURRENT=true
-export FRAISEQL_MAX_CONCURRENT_ACTIONS=20
 ```
 
 ---

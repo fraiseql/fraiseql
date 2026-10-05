@@ -18,6 +18,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **The observer performance config no longer accepts the concurrency keys (#1451).**
+  `performance.enable_concurrent`, `max_concurrent_actions` and `concurrent_timeout_ms`
+  were accepted and never read, so `enable_concurrent = true` (the default) ran a matched
+  observer's actions one after another without a word. The keys are removed, and
+  `[performance]` now refuses any key it does not know, so a config that still sets one
+  fails to load instead of promising a behaviour the runtime does not have. The unwired
+  `ConcurrentActionExecutor` (`fraiseql_observers::concurrent`) is removed with them, and
+  so are the `FRAISEQL_ENABLE_CONCURRENT`, `FRAISEQL_MAX_CONCURRENT_ACTIONS` and
+  `FRAISEQL_CONCURRENT_TIMEOUT_MS` overrides. **Upgrade:** delete the three keys; actions
+  keep running sequentially, as they always did.
+
 - **PostgreSQL 18 is the minimum supported version (#1452).** The server, every configured
   read replica and each CLI command that connects now ask the server its version first and
   refuse anything below 18 with `Unsupported operation: PostgreSQL <found> is not supported:

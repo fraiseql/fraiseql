@@ -5,15 +5,14 @@ This guide provides step-by-step integration instructions for each Phase 8 featu
 ## Table of Contents
 
 1. [Phase 8.1: Persistent Checkpoints](#phase-81-persistent-checkpoints)
-2. [Phase 8.2: Concurrent Action Execution](#phase-82-concurrent-action-execution)
-3. [Phase 8.3: Event Deduplication](#phase-83-event-deduplication)
-4. [Phase 8.4: Redis Caching](#phase-84-redis-caching)
-5. [Phase 8.5: Elasticsearch Integration](#phase-85-elasticsearch-integration)
-6. [Phase 8.6: Job Queue System](#phase-86-job-queue-system)
-7. [Phase 8.7: Prometheus Metrics](#phase-87-prometheus-metrics)
-8. [Phase 8.8: Circuit Breaker](#phase-88-circuit-breaker)
-9. [Phase 8.9: Multi-Listener Failover](#phase-89-multi-listener-failover)
-10. [Phase 8.10: CLI Tools](#phase-810-cli-tools)
+2. [Phase 8.3: Event Deduplication](#phase-83-event-deduplication)
+3. [Phase 8.4: Redis Caching](#phase-84-redis-caching)
+4. [Phase 8.5: Elasticsearch Integration](#phase-85-elasticsearch-integration)
+5. [Phase 8.6: Job Queue System](#phase-86-job-queue-system)
+6. [Phase 8.7: Prometheus Metrics](#phase-87-prometheus-metrics)
+7. [Phase 8.8: Circuit Breaker](#phase-88-circuit-breaker)
+8. [Phase 8.9: Multi-Listener Failover](#phase-89-multi-listener-failover)
+9. [Phase 8.10: CLI Tools](#phase-810-cli-tools)
 
 ---
 
@@ -132,80 +131,6 @@ observer_checkpoints:
  id | listener_id | event_id | last_processed_at
 ----+-------------+----------+-------------------
   1 | listener-1  |      100 | 2026-01-22 12:00:00
-```
-
----
-
-## Phase 8.2: Concurrent Action Execution
-
-**Purpose**: Execute multiple actions in parallel for 5x latency improvement
-
-### Prerequisites
-
-- Phase 1-7 already working
-- Understanding of action execution
-
-### Integration Steps
-
-#### Step 1: Update Cargo.toml
-
-```toml
-[dependencies]
-futures = "0.3"
-
-[features]
-concurrent = []
-```
-
-#### Step 2: Wrap Executor
-
-**Before**:
-
-```rust
-let executor = ObserverExecutor::new(matcher, dlq);
-
-// Executes: A (100ms) → B (100ms) → C (100ms) = 300ms
-executor.execute_actions(actions).await?;
-```
-
-**After**:
-
-```rust
-use fraiseql_observers::concurrent::ConcurrentActionExecutor;
-
-let base_executor = ObserverExecutor::new(matcher, dlq);
-let executor = ConcurrentActionExecutor::new(
-    base_executor,
-    Duration::from_secs(30),  // Per-action timeout
-);
-
-// Executes: A, B, C in parallel = 100ms
-executor.execute_actions(actions).await?;
-```
-
-#### Step 3: Configuration
-
-```rust
-let executor = ConcurrentActionExecutor::with_config(
-    base_executor,
-    ConcurrentConfig {
-        timeout: Duration::from_secs(30),
-        max_parallelism: 100,  // Max concurrent actions
-        buffer_size: 10000,
-    }
-);
-```
-
-#### Step 4: Benchmark
-
-```bash
-# Before optimization
-time cargo run --example process_100_events
-# Output: real  0m5.234s (300ms per event × 100)
-
-# After optimization
-time cargo run --example process_100_events --features concurrent
-# Output: real  0m1.845s (100ms per event × 100) = 2.8x improvement
 ```
 
 ---
@@ -924,8 +849,8 @@ let executor = ExecutorFactory::build(&runtime_config, dlq).await?;
 ```
 
 Search indexing, the job queue (`QueuedObserverExecutor`) and metrics are separate components,
-not builder methods on the executor. `performance.enable_concurrent` is accepted but not
-honoured yet ([#1451](https://github.com/fraiseql/fraiseql/issues/1451)).
+not builder methods on the executor. A matched observer's actions run one after another;
+there is no concurrent mode ([#1451](https://github.com/fraiseql/fraiseql/issues/1451)).
 
 ### Pattern 3: Migration (add features gradually)
 

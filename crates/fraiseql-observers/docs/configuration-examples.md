@@ -93,9 +93,6 @@ max_delay_ms = 30000
 [performance]
 enable_dedup = true       # requires [redis]
 enable_caching = true     # requires [redis]
-enable_concurrent = true
-max_concurrent_actions = 50
-concurrent_timeout_ms = 30000
 
 [observers.order_created]
 event_type = "INSERT"
@@ -286,9 +283,6 @@ poll_interval_ms = 200
 [performance]
 enable_dedup = true
 enable_caching = true
-enable_concurrent = true
-max_concurrent_actions = 100
-concurrent_timeout_ms = 15000
 ```
 
 `run_bridge = true` (the Postgres-to-NATS bridge, configured under `[transport.bridge]`)
@@ -325,7 +319,6 @@ transport = "postgres"
 [performance]
 enable_dedup = false      # both need [redis]; PerformanceConfig::validate rejects them without it
 enable_caching = false
-max_concurrent_actions = 5
 ```
 
 `ExecutorFactory::build_postgres_only` builds this shape and returns
@@ -509,7 +502,7 @@ fn load(toml_text: &str) -> Result<ObserverRuntimeConfig, Box<dyn std::error::Er
 |---------|-----------|
 | `redis` | `FRAISEQL_REDIS_URL`, `FRAISEQL_REDIS_POOL_SIZE`, `FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS`, `FRAISEQL_REDIS_COMMAND_TIMEOUT_SECS`, `FRAISEQL_REDIS_DEDUP_WINDOW_SECS`, `FRAISEQL_REDIS_CACHE_TTL_SECS` |
 | `job_queue` | `FRAISEQL_JOB_QUEUE_URL`, `FRAISEQL_JOB_QUEUE_BATCH_SIZE`, `FRAISEQL_JOB_QUEUE_BATCH_TIMEOUT_SECS`, `FRAISEQL_JOB_QUEUE_MAX_RETRIES`, `FRAISEQL_JOB_QUEUE_WORKER_CONCURRENCY`, `FRAISEQL_JOB_QUEUE_POLL_INTERVAL_MS`, `FRAISEQL_JOB_QUEUE_INITIAL_DELAY_MS`, `FRAISEQL_JOB_QUEUE_MAX_DELAY_MS` |
-| `performance` | `FRAISEQL_ENABLE_DEDUP`, `FRAISEQL_ENABLE_CACHING`, `FRAISEQL_ENABLE_CONCURRENT`, `FRAISEQL_MAX_CONCURRENT_ACTIONS`, `FRAISEQL_CONCURRENT_TIMEOUT_MS` |
+| `performance` | `FRAISEQL_ENABLE_DEDUP`, `FRAISEQL_ENABLE_CACHING` |
 | `transport` | `FRAISEQL_OBSERVER_TRANSPORT` (`postgres`, `nats`, `in_memory`), `FRAISEQL_NATS_URL`, `FRAISEQL_NATS_ENABLE_BRIDGE`, `FRAISEQL_NATS_RUN_EXECUTORS`, plus the other `FRAISEQL_NATS_*` and `FRAISEQL_BRIDGE_*` variables read in `src/config/transport.rs` |
 | `clickhouse` | `FRAISEQL_CLICKHOUSE_URL`, `FRAISEQL_CLICKHOUSE_DATABASE`, `FRAISEQL_CLICKHOUSE_TABLE`, `FRAISEQL_CLICKHOUSE_BATCH_SIZE`, `FRAISEQL_CLICKHOUSE_BATCH_TIMEOUT_SECS`, `FRAISEQL_CLICKHOUSE_MAX_RETRIES` |
 
@@ -540,8 +533,8 @@ Add capabilities one at a time; each is a Cargo feature plus a config section.
 1. **Larger listener batches**: `ChangeLogListenerConfig.batch_size = 1000`. Fewer round trips;
    more events are in flight if the process crashes.
 2. **Longer cache TTL**: `redis.cache_ttl_secs = 600`. Staler results.
-3. **More concurrency**: raise `max_concurrency`, `performance.max_concurrent_actions` and
-   `job_queue.worker_concurrency`. More resource use.
+3. **More concurrency**: raise `max_concurrency` and `job_queue.worker_concurrency`. More
+   resource use. One observer's actions always run one after another.
 
 ### Reduce Latency
 

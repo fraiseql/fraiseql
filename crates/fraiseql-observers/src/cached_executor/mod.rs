@@ -92,19 +92,6 @@ use crate::{
 /// - **Cache hit**: <1ms (cache lookup)
 /// - **Cache miss**: Normal execution time + ~1ms (store result)
 /// - **Expected hit rate**: 60-80% for typical workflows
-///
-/// # Composability
-///
-/// Can be composed with other wrappers:
-///
-/// ```ignore
-/// // Concurrent + Cached composition
-/// let webhook = WebhookAction::new();
-/// let cached = CachedActionExecutor::new(webhook, cache);
-/// let concurrent = ConcurrentActionExecutor::new(cached, 30000);
-///
-/// // Result: Parallel execution with cache checking
-/// ```
 #[cfg(feature = "caching")]
 pub struct CachedActionExecutor<E: ActionExecutor, C: CacheBackend> {
     /// Inner action executor

@@ -50,7 +50,6 @@ pub mod cached_executor;
 pub mod checkpoint;
 #[cfg(feature = "cli")]
 pub mod cli;
-pub mod concurrent;
 pub mod condition;
 pub mod config;
 pub mod dedup;
@@ -109,7 +108,6 @@ pub use checkpoint::{
 };
 /// The `chrono` this crate's public API is built against (#1198).
 pub use chrono;
-pub use concurrent::ConcurrentActionExecutor;
 pub use condition::{ConditionAst, ConditionParser};
 pub use config::{
     ActionConfig, BackoffStrategy, EmailSmtpConfig, FailurePolicy, MultiListenerConfig,

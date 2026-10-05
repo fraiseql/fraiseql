@@ -88,8 +88,6 @@ services:
       # Performance features (Redis-backed)
       FRAISEQL_ENABLE_DEDUP: "true"               # ✅ Event deduplication
       FRAISEQL_ENABLE_CACHING: "true"             # ✅ Action result caching
-      FRAISEQL_ENABLE_CONCURRENT: "true"          # ✅ Concurrent execution
-      FRAISEQL_MAX_CONCURRENT_ACTIONS: "10"
 
       # Runtime settings
       FRAISEQL_CHANNEL_CAPACITY: "1000"

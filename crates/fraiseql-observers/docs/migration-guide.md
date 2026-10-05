@@ -153,55 +153,6 @@ cargo build --release
 
 ---
 
-### Week 2: Phase 8.2 - Concurrent Execution
-
-**Goal**: 5x latency improvement
-
-#### Step 1: Add Dependency
-
-```toml
-[dependencies]
-futures = "0.3"
-```
-
-#### Step 2: Wrap Executor
-
-> **Not available yet.** `ConcurrentActionExecutor` wraps an `ActionExecutor`, not an
-> `ObserverExecutor`, and nothing in the runtime constructs it. `performance.enable_concurrent`
-> is accepted but not honoured: actions still run sequentially. Tracked in
-> [#1451](https://github.com/fraiseql/fraiseql/issues/1451). Skip this phase until it lands.
-
-#### Step 3: Testing
-
-```bash
-# Benchmark before/after
-time cargo run --release --example 1000_events --features checkpoint
-# Before: ~5 seconds
-
-cargo run --release --example 1000_events --features checkpoint,concurrent
-# After: ~2 seconds (2.5x improvement)
-```
-
-#### Step 4: Monitor
-
-```bash
-fraiseql-observers metrics | grep action_duration_seconds
-# Expect: P99 latency reduced to 30-50% of previous
-```
-
-#### Verify No Regressions
-
-```bash
-# Run full test suite
-cargo test --features checkpoint,concurrent
-
-# Check all actions still work
-fraiseql-observers debug-event --history 20
-# Verify each event has matching actions
-```
-
----
-
 ### Week 3: Phase 8.3 - Deduplication
 
 **Goal**: Prevent duplicate side effects
@@ -427,9 +378,8 @@ cargo test --test integration --features all -- --test-threads=1
 
 # Key scenarios to test:
 # 1. Event → checkpoint → recovery
-# 2. Concurrent actions complete correctly
-# 3. Duplicate events skipped
-# 4. Cache hits used, misses handled
+# 2. Duplicate events skipped
+# 3. Cache hits used, misses handled
 ```
 
 ### Load Tests
@@ -547,8 +497,8 @@ docker-compose scale observer-v1=0
 
 ```rust
 if env::var("FRAISEQL_OBSERVERS_V2").unwrap_or("false") == "true" {
-    // Use Phase 8 features
-    let executor = ConcurrentActionExecutor::new(...);
+    // Use Phase 8 features: the factory reads them from the runtime config
+    let executor = ExecutorFactory::build(&runtime_config, dlq).await?;
 } else {
     // Use Phase 1-7 (fallback)
     let executor = ObserverExecutor::new(...);
@@ -721,7 +671,6 @@ kill $(pgrep fraiseql)
 ```
 Week 0:     Preparation (setup databases, review docs)
 Week 1:     Phase 8.1 (Checkpoints) + Testing
-Week 2:     Phase 8.2 (Concurrent) + Performance verification
 Week 3:     Phase 8.3 (Dedup) + Duplicate testing
 Week 4:     Phase 8.4 (Caching) + Benchmark
 Week 5:     Optional Phase 8.5-9 (Search, Queue, Metrics, etc.)

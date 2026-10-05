@@ -65,12 +65,9 @@ max_delay_ms = 60000
 backlog_alert_threshold = 1000
 # Runtime settings (tuned for high throughput)
 channel_capacity = 2000  # Larger buffer for NATS bursts
-concurrent_timeout_ms = 30000
 enable_caching = true  # ✅ Cache expensive operations
-enable_concurrent = true  # ✅ Parallel action execution
 enable_dedup = true  # ✅ CRITICAL: Prevents duplicate processing with at-least-once NATS delivery
 max_concurrency = 100  # Higher concurrency (worker is dedicated)
-max_concurrent_actions = 20  # Higher concurrency for worker
 shutdown_timeout = "60s"  # Longer timeout for graceful NATS shutdown
 
 # Redis configuration (required for dedup + caching)

@@ -251,8 +251,6 @@ services:
       # Performance features
       FRAISEQL_ENABLE_DEDUP: "true"
       FRAISEQL_ENABLE_CACHING: "true"
-      FRAISEQL_ENABLE_CONCURRENT: "true"
-      FRAISEQL_MAX_CONCURRENT_ACTIONS: "20"
 
       # Runtime settings
       FRAISEQL_CHANNEL_CAPACITY: "2000"

@@ -560,9 +560,6 @@ fn test_performance_config_defaults() {
     let config = PerformanceConfig::default();
     assert!(!config.enable_dedup);
     assert!(!config.enable_caching);
-    assert!(config.enable_concurrent);
-    assert_eq!(config.max_concurrent_actions, 10);
-    assert_eq!(config.concurrent_timeout_ms, 30000);
 }
 
 #[test]
@@ -600,17 +597,6 @@ fn test_performance_config_validation() {
     config
         .validate(true)
         .unwrap_or_else(|e| panic!("caching with redis should pass: {e}")); // OK with Redis
-
-    // Invalid: max_concurrent_actions = 0
-    let config = PerformanceConfig {
-        max_concurrent_actions: 0,
-        ..Default::default()
-    };
-    let result = config.validate(false);
-    assert!(
-        matches!(result, Err(ObserverError::InvalidConfig { .. })),
-        "max_concurrent=0 should fail: {result:?}"
-    );
 }
 
 // ========================================================================
@@ -812,27 +798,17 @@ fn performance_config_from_env_enables_caching() {
 }
 
 #[test]
-fn performance_config_from_env_overrides_max_concurrent_actions() {
-    temp_env::with_vars([("FRAISEQL_MAX_CONCURRENT_ACTIONS", Some("20"))], || {
-        let cfg = PerformanceConfig::default().with_env_overrides();
-        assert_eq!(cfg.max_concurrent_actions, 20);
-    });
-}
-
-#[test]
 fn performance_config_from_env_unset_preserves_defaults() {
     temp_env::with_vars(
         [
             ("FRAISEQL_ENABLE_DEDUP", None::<&str>),
             ("FRAISEQL_ENABLE_CACHING", None::<&str>),
-            ("FRAISEQL_MAX_CONCURRENT_ACTIONS", None::<&str>),
         ],
         || {
             let default = PerformanceConfig::default();
             let cfg = PerformanceConfig::default().with_env_overrides();
             assert_eq!(cfg.enable_dedup, default.enable_dedup);
             assert_eq!(cfg.enable_caching, default.enable_caching);
-            assert_eq!(cfg.max_concurrent_actions, default.max_concurrent_actions);
         },
     );
 }
@@ -1070,4 +1046,24 @@ fn test_cache_action_config_rejects_empty_key_pattern() {
         matches!(action.validate(), Err(ObserverError::InvalidActionConfig { .. })),
         "an empty key_pattern must fail loud (#428)"
     );
+}
+
+/// The three concurrency keys were accepted and never read (#1451): `enable_concurrent =
+/// true` ran actions sequentially, without a word. They are removed, and a config that still
+/// sets one is refused rather than silently honoured by nothing.
+#[test]
+fn a_removed_concurrency_key_is_refused() {
+    for (key, value) in [
+        ("enable_concurrent", serde_json::json!(true)),
+        ("max_concurrent_actions", serde_json::json!(20)),
+        ("concurrent_timeout_ms", serde_json::json!(30000)),
+    ] {
+        let err = serde_json::from_value::<PerformanceConfig>(serde_json::json!({ key: value }))
+            .expect_err("a performance key nothing reads must not parse");
+        assert!(err.to_string().contains(key), "{key}: {err}");
+    }
+    serde_json::from_value::<PerformanceConfig>(
+        serde_json::json!({ "enable_dedup": false, "enable_caching": false }),
+    )
+    .expect("the keys that are read still parse");
 }

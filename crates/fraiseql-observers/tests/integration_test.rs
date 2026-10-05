@@ -83,11 +83,8 @@ fn test_runtime_config() -> ObserverRuntimeConfig {
         clickhouse:              None,
         job_queue:               None,
         performance:             PerformanceConfig {
-            enable_dedup:           true,
-            enable_caching:         true,
-            enable_concurrent:      true,
-            max_concurrent_actions: 10,
-            concurrent_timeout_ms:  5000,
+            enable_dedup:   true,
+            enable_caching: true,
         },
         observers:               HashMap::new(),
         channel_capacity:        100,
@@ -299,7 +296,6 @@ async fn test_full_stack_all_features() -> Result<()> {
     // Enable all performance features
     config.performance.enable_dedup = true;
     config.performance.enable_caching = true;
-    config.performance.enable_concurrent = true;
 
     let dlq = Arc::new(MockDeadLetterQueue::new());
 
@@ -531,7 +527,6 @@ async fn test_executor_factory_all_features() -> Result<()> {
 
     config.performance.enable_dedup = true;
     config.performance.enable_caching = true;
-    config.performance.enable_concurrent = true;
 
     let dlq = Arc::new(MockDeadLetterQueue::new());
     let executor = ExecutorFactory::build(&config, dlq).await?;
