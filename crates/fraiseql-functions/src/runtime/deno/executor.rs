@@ -15,9 +15,10 @@ use std::{
         Arc, Mutex,
         atomic::{AtomicBool, Ordering},
     },
+    time::{Duration, Instant},
 };
 
-use deno_core::{Extension, JsRuntime, OpState, RuntimeOptions, op2, v8};
+use deno_core::{Extension, JsRuntime, JsRuntimeForSnapshot, OpState, RuntimeOptions, op2, v8};
 use serde_json::Value;
 
 use super::{ops::DenoHostContext, watchdog};
@@ -49,6 +50,37 @@ fn ensure_v8_platform() {
             v8::new_unprotected_default_platform(0, false).make_shared(),
         ));
     });
+}
+
+// ── Startup snapshot ───────────────────────────────────────────────────────────
+
+/// A V8 startup snapshot of a fresh fraiseql isolate, built once per process (#1343).
+///
+/// Every invocation gets its own isolate. Without a snapshot, each one re-runs
+/// `deno_core`'s built-in `JavaScript` to build the global environment — measured at
+/// ~3.9 ms of a ~4.6 ms trivial invocation (`benches/deno_invocation_bench.rs`), against
+/// ~0.4 ms for everything the guest itself does. A snapshot captures that environment
+/// once and each later isolate deserialises it instead.
+///
+/// Built at runtime rather than in a build script so the crate does not compile V8 a
+/// second time as a build dependency; the first invocation in the process pays for it.
+/// The snapshot is made with the same extension the invocations register, which is what
+/// `deno_core` requires of a runtime started from it. The extension carries ops only, no
+/// `JavaScript`, so nothing guest-visible is frozen into it, and every invocation still
+/// gets a fresh isolate and its own `OpState`.
+fn startup_snapshot() -> &'static [u8] {
+    static SNAPSHOT: std::sync::OnceLock<&'static [u8]> = std::sync::OnceLock::new();
+    SNAPSHOT.get_or_init(|| {
+        let collector = LogCollector {
+            logs:        Arc::new(Mutex::new(Vec::new())),
+            max_entries: 0,
+        };
+        let runtime = JsRuntimeForSnapshot::new(RuntimeOptions {
+            extensions: vec![make_fraiseql_extension(collector, None)],
+            ..Default::default()
+        });
+        Box::leak(runtime.snapshot())
+    })
 }
 
 // ── Log collector state stored in OpState ─────────────────────────────────────
@@ -169,9 +201,45 @@ fn wrap_source(source: &str, event_json: &str) -> String {
 /// Result returned from the blocking deno thread back to the async caller.
 pub struct ExecutionResult {
     /// The value returned by the function (serialised → deserialised).
-    pub value: Value,
+    pub value:  Value,
     /// Log entries captured during execution.
-    pub logs:  Vec<LogEntry>,
+    pub logs:   Vec<LogEntry>,
+    /// Where the invocation's time went, phase by phase (#1343).
+    pub phases: PhaseTimings,
+}
+
+/// Wall-clock time of each phase of one invocation, in the order they run.
+///
+/// Reported separately because a single total hides which term moved: building the
+/// isolate is a fixed cost paid on every invocation, while script and event-loop time
+/// belong to the guest. `benches/deno_invocation_bench.rs` reports each one.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PhaseTimings {
+    /// Building the invocation's single-threaded tokio runtime.
+    pub tokio_runtime: Duration,
+    /// Constructing the `JsRuntime`: the V8 isolate, its context and the fraiseql ops.
+    pub isolate:       Duration,
+    /// Compiling and running the wrapped guest script up to its first `await`.
+    pub script:        Duration,
+    /// Driving the event loop until the guest's promise settles.
+    pub event_loop:    Duration,
+    /// Reading the result and error globals back out of the isolate.
+    pub result:        Duration,
+    /// Dropping the isolate and the tokio runtime once the result is out.
+    pub teardown:      Duration,
+}
+
+impl PhaseTimings {
+    /// The sum of the phases.
+    #[must_use]
+    pub fn total(&self) -> Duration {
+        self.tokio_runtime
+            + self.isolate
+            + self.script
+            + self.event_loop
+            + self.result
+            + self.teardown
+    }
 }
 
 // ── Core execution (runs on a dedicated thread with its own Tokio runtime) ─────
@@ -241,21 +309,27 @@ pub fn run_in_dedicated_thread(
 
     // Create a single-threaded Tokio runtime for deno's event loop.
     // This is safe because we're in a fresh OS thread with no existing Tokio context.
+    let mut phases = PhaseTimings::default();
+    let phase_started = Instant::now();
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .map_err(|e| format!("Failed to create tokio runtime: {e}"))?;
+    phases.tokio_runtime = phase_started.elapsed();
 
-    let result = rt.block_on(async move {
+    let result = rt.block_on(async {
         // Hard heap limit enforced by V8: the isolate may not grow past
         // `max_memory_bytes`. `0` initial lets V8 pick a sane starting size.
         let create_params = v8::CreateParams::default().heap_limits(0, max_memory_bytes);
 
+        let phase_started = Instant::now();
         let mut js_runtime = JsRuntime::new(RuntimeOptions {
             extensions: vec![make_fraiseql_extension(collector, host)],
+            startup_snapshot: Some(startup_snapshot()),
             create_params: Some(create_params),
             ..Default::default()
         });
+        phases.isolate = phase_started.elapsed();
 
         // Watchdog: terminate the isolate after `max_duration`. This catches tight
         // *synchronous* loops (`while (true) {}`) that never yield to the async
@@ -319,7 +393,9 @@ pub fn run_in_dedicated_thread(
         // (#804): the guest's continuations after `await` run inside
         // `run_event_loop` below, and a synchronous spin there is only
         // stoppable by the watchdog's `terminate_execution`.
+        let phase_started = Instant::now();
         let exec_outcome = js_runtime.execute_script("<fraiseql-function>", wrapped);
+        phases.script = phase_started.elapsed();
 
         if let Err(e) = exec_outcome {
             // Stop and reap the watchdog before returning.
@@ -333,11 +409,13 @@ pub fn run_in_dedicated_thread(
         // resolves — no JS running, so `terminate_execution` has nothing to
         // terminate); the still-armed watchdog covers *synchronous* spins that
         // never yield back to tokio. Both share the single invocation budget.
+        let phase_started = Instant::now();
         let loop_outcome = tokio::time::timeout(
             invocation_deadline.saturating_duration_since(std::time::Instant::now()),
             js_runtime.run_event_loop(deno_core::PollEventLoopOptions::default()),
         )
         .await;
+        phases.event_loop = phase_started.elapsed();
 
         // The event loop is done (or timed out): stop and reap the watchdog.
         watchdog_done.finish();
@@ -354,6 +432,7 @@ pub fn run_in_dedicated_thread(
         }
 
         // Retrieve the result stored in globalThis.__fraiseql_result
+        let phase_started = Instant::now();
         let result_global = js_runtime
             .execute_script("<get-result>", "globalThis.__fraiseql_result")
             .map_err(|e| format!("Failed to read result: {e}"))?;
@@ -402,15 +481,32 @@ pub fn run_in_dedicated_thread(
             Some(json_str) => serde_json::from_str(&json_str).unwrap_or(Value::String(json_str)),
             None => Value::Null,
         };
+        phases.result = phase_started.elapsed();
+
+        // Timed here rather than left to the end of the block, so teardown is a phase
+        // of its own instead of an unexplained gap in the total.
+        let phase_started = Instant::now();
+        drop(js_runtime);
+        phases.teardown = phase_started.elapsed();
 
         Ok(value)
     });
+    let phase_started = Instant::now();
+    drop(rt);
+    phases.teardown += phase_started.elapsed();
 
     // Collect logs
     let logs = logs_arc.lock().expect("log mutex poisoned").clone();
 
     match result {
-        Ok(value) => Ok(ExecutionResult { value, logs }),
+        Ok(value) => Ok(ExecutionResult {
+            value,
+            logs,
+            phases,
+        }),
         Err(e) => Err(e),
     }
 }
+
+#[cfg(test)]
+mod tests;

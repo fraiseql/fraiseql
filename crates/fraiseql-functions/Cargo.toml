@@ -52,6 +52,11 @@ criterion = { version = "0.5" }
 name = "functions_bench"
 harness = false
 
+[[bench]]
+name = "deno_invocation_bench"
+harness = false
+required-features = ["runtime-deno"]
+
 [features]
 runtime-wasm = ["wasmtime", "wasmtime-wasi"]
 runtime-deno = ["deno_core", "deno_ast"]

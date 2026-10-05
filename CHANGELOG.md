@@ -324,6 +324,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **A Deno function invocation no longer rebuilds `deno_core`'s environment (#1343).**
+  Each invocation's isolate now starts from a V8 startup snapshot, built once per process.
+  Building the isolate took ~4.0 ms of a ~4.6 ms trivial invocation; with the snapshot it
+  takes ~1.5 ms, against ~4.4 ms for an isolate built without it in the same run. Every
+  invocation still gets a fresh isolate and its own op state. `benches/deno_invocation_bench.rs`
+  reports each phase separately (tokio runtime, isolate, script, event loop, result,
+  teardown), and records the measured floor; `ExecutionResult::phases` carries the same split.
+
 - **Per-tenant unique keys are `NULLS NOT DISTINCT` indexes (#1452).** With PostgreSQL 18 as
   the floor, the keys that treat "no tenant" as one space no longer need a workaround. On
   boot, each store creates the new index, then drops the old one, so uniqueness never
