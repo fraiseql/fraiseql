@@ -714,6 +714,7 @@ test-release-tooling:
 	@bash tools/tests/release_helpers_test.sh
 	@bash tools/tests/dry_run_tolerance_test.sh
 	@bash tools/tests/publish_parity_test.sh
+	@bash tools/tests/wait_for_workflow_runs_test.sh
 
 # Unit tests for the advisory-deadline gate. Its boundary behaviour is worth
 # pinning: an off-by-one is a day on which every open branch is blocked by a

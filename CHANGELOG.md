@@ -379,6 +379,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The release smoke consumes the published artifacts after they are published (#1488).**
+  `consume-published-artifacts` fires on the same tag push as `release.yml` and
+  `npm-publish.yml`; on v2.15.0 it started at 10:03Z, retried for about two minutes and failed,
+  while crates.io received 2.15.0 at 10:24–10:43Z. It now waits (up to 2 h) for both publishers'
+  runs on the tag's commit to finish, whatever their conclusion, so a half-published release is
+  still consumed and reported. A publisher run that never appears or never finishes fails the job.
+
 - **The release publishers can publish the Rust SDK, and they stop reddening on registry lag
   (#1488).** On v2.15.0, `release.yml`'s `publish-rust-sdk` inherited the workflow-level
   `RUSTC_WRAPPER: "sccache"`, never installed sccache, and died on its first rustc, so

@@ -707,12 +707,22 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-    # Generous: this compiles a scratch crate against the published `fraiseql`, runs
-    # `cargo install` for two binary crates, and downloads eleven release assets that
-    # release.yml's build-binaries job may still be producing in parallel.
-    timeout-minutes: 60
+      actions: read  # wait-for-workflow-runs.sh reads the publishers' runs
+    # Up to 2 h waiting for release.yml and npm-publish.yml to finish, then the
+    # consumption itself: a scratch crate against the published `fraiseql`, two
+    # `cargo install`s, eleven release assets.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      # This job fires on the same tag push as the publishers. Started beside them, it
+      # consumed before anything was published and went red on v2.15.0 (#1488). Wait for
+      # them to FINISH, whatever their conclusion: a half-published release is still
+      # consumed, so the report below names what is missing.
+      - name: Wait for the publishers to finish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: bash tools/wait-for-workflow-runs.sh "$GITHUB_SHA" release.yml npm-publish.yml
 
       - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
 
