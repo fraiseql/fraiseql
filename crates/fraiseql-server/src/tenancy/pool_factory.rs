@@ -223,6 +223,8 @@ impl<A: FromPoolConfig> FromPoolConfig for CachedDatabaseAdapter<A> {
 /// Returns `FraiseQLError::ConnectionPool` / `FraiseQLError::Database` if the pool
 /// cannot be created, schema DDL fails, or the pool's connections do not carry the
 /// tenant search path.
+/// Returns `FraiseQLError::Configuration` if the tenant's reads go to its own read
+/// replicas and a source depends on an UNLOGGED or temporary table (#1390).
 #[doc(hidden)] // Internal-pub: tenant pool builder used by TenantExecutorRegistry; downstream wires tenants via TenancyConfig, not this fn directly.
 pub async fn create_tenant_executor<A: FromPoolConfig + Writer>(
     tenant_key: &str,
@@ -291,7 +293,13 @@ pub async fn create_tenant_executor_with_adapter<A: FromPoolConfig + Writer>(
         schema_isolation::verify_search_path(tenant_key, &adapter).await?;
     }
 
-    // 5. Assemble the executor through the same composition every other constructor uses (#1333).
+    // 5. With the tenant's own replicas, every source must be readable on a hot standby (#1390):
+    //    the check boot and hot reload run for the server's replicas. A tenant's replica pool is
+    //    its own, so skipping it here let registration succeed for a source every replica read then
+    //    failed on.
+    fraiseql_core::schema::refuse_standby_unreadable_sources(&adapter, &schema).await?;
+
+    // 6. Assemble the executor through the same composition every other constructor uses (#1333).
     //    `Executor::new` is `with_config(..., RuntimeConfig::default())`, so this path used to run
     //    with the `Authorizer`, the `before:mutation` gate, the RLS policy, field filters, the
     //    page-size and cost ceilings and the change-log toggle all absent — a fourth constructor

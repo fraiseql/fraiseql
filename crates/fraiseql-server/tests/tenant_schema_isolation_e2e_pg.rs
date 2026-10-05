@@ -365,6 +365,78 @@ async fn a_tenants_own_replicas_serve_its_reads_under_its_search_path() {
     );
 }
 
+/// #1390 at tenant registration. The server's boot and hot reload refuse a source a hot
+/// standby cannot read when reads go to replicas; a tenant registered with its OWN
+/// `read_replica_urls` builds its own replica pool, and registration skipped the check, so
+/// every query on such a source failed on the tenant's replicas while registration answered
+/// success. The same registration without replicas is accepted: the refusal is about where
+/// reads go, not about UNLOGGED tables as such.
+#[tokio::test]
+async fn a_tenant_with_replicas_is_refused_a_source_its_standby_cannot_read() {
+    const SCHEMA: &str = "issue_1390_tenant";
+    let Some(url) = try_database_url() else {
+        eprintln!("SKIP: DATABASE_URL not set");
+        return;
+    };
+    let admin = PostgresAdapter::new(&url).await.expect("connect to the test database");
+    for sql in [
+        format!("DROP SCHEMA IF EXISTS {SCHEMA} CASCADE"),
+        format!("CREATE SCHEMA {SCHEMA}"),
+        format!("CREATE UNLOGGED TABLE {SCHEMA}.tv_post (id int PRIMARY KEY, data jsonb NOT NULL)"),
+        format!("CREATE VIEW {SCHEMA}.v_post AS SELECT id, data FROM {SCHEMA}.tv_post"),
+    ] {
+        exec(&admin, &sql).await;
+    }
+    let schema_json = serde_json::to_string(&serde_json::json!({
+        "fraiseql_version": fraiseql_core::schema::CURRENT_FRAISEQL_VERSION,
+        "types": [{
+            "name": "Post",
+            "sql_source": format!("{SCHEMA}.v_post"),
+            "fields": [{ "name": "id", "field_type": "Int" }]
+        }],
+        "queries": [{
+            "name": "posts",
+            "return_type": "Post",
+            "returns_list": true,
+            "nullable": false,
+            "sql_source": format!("{SCHEMA}.v_post")
+        }],
+        "mutations": [],
+    }))
+    .unwrap();
+    let runtime = fraiseql_core::runtime::RuntimeConfig::default();
+
+    let primary_only = create_tenant_executor_with_adapter::<PostgresAdapter>(
+        TENANT_A,
+        &schema_json,
+        &pool_config(&url),
+        &runtime,
+    )
+    .await;
+    let with_replica = create_tenant_executor_with_adapter::<PostgresAdapter>(
+        TENANT_A,
+        &schema_json,
+        &pool_config_with_replica(&url, &fraiseql_test_support::standby_database_url()),
+        &runtime,
+    )
+    .await;
+    exec(&admin, &format!("DROP SCHEMA IF EXISTS {SCHEMA} CASCADE")).await;
+
+    assert!(
+        primary_only.is_ok(),
+        "without replicas the source is readable: {:?}",
+        primary_only.err()
+    );
+    let err = with_replica
+        .err()
+        .expect("a tenant whose reads go to hot standbys must be refused an UNLOGGED source")
+        .to_string();
+    assert!(
+        err.contains("v_post") && err.contains("tv_post"),
+        "names the source and the table: {err}"
+    );
+}
+
 /// Block until the standby has replayed everything the primary has sent it.
 async fn wait_for_standby_catch_up(standby_url: &str) {
     let standby = PostgresAdapter::new(standby_url).await.expect("connect to the standby");

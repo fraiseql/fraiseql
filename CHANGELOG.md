@@ -265,7 +265,9 @@ disagreed, and the promise was the part that was wrong.
   creates its `tv_*` tables UNLOGGED by default, so with `read_replica_urls` set every query on a
   TVIEW-backed type failed on every replica while the boot health check passed. The server now
   reads the catalog at boot (and on a schema hot-reload), follows views to the tables they read,
-  and refuses to start naming each source and the UNLOGGED table behind it. **Upgrade:** make
+  and refuses to start naming each source and the UNLOGGED table behind it. A tenant registered
+  with its own `read_replica_urls` (`PUT /api/v1/admin/tenants/{key}`) is checked the same way
+  against its own replicas, and its registration is refused with the same message. **Upgrade:** make
   those tables LOGGED (`pg_tviews.unlogged_by_default = off` and recreate the TVIEWs, or
   `ALTER TABLE … SET LOGGED`) — every refresh then writes WAL — or remove `read_replica_urls`.
   Embedders: `DatabaseAdapter::serves_reads_from_standbys` (default `false`) must be forwarded
