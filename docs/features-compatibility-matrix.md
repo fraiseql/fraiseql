@@ -110,7 +110,6 @@ fraiseql (umbrella)
 | `search` | no | Search capability | (empty) |
 | `checkpoint` | no | Checkpoint support | (empty) |
 | `metrics` | no | Prometheus metrics | `dep:prometheus` |
-| `cli` | no | CLI interface | `dep:clap`, `dep:colored`, `dep:tabwriter` |
 | `enterprise` | no | HA feature bundle | `checkpoint`, `dedup`, `caching`, `queue`, `search`, `metrics` |
 | `testing` | no | Test helpers | (empty) |
 

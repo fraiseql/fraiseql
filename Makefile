@@ -378,7 +378,7 @@ test-leg:
 	cargo test -p fraiseql-server --features 'arrow,auth,aws-s3,federation,grpc,mcp,metrics,observers,redis-apq,redis-pkce,redis-rate-limiting,rest,secrets,storage-transforms,testing,tracing-opentelemetry,webhooks,wire-backend,export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka' --test config_coverage_manifest_test --test doc_config_examples_test
 	@echo ""
 	@echo "### observers (--lib + in-process binaries), saga"
-	cargo test -p fraiseql-observers --lib --features 'caching,cli,arrow,checkpoint,dedup,metrics,nats,postgres,queue,search'
+	cargo test -p fraiseql-observers --lib --features 'caching,arrow,checkpoint,dedup,metrics,nats,postgres,queue,search'
 	cargo test -p fraiseql-observers --features 'queue,metrics,testing' --test job_queue_integration --test property_state_machine --test stress_tests --test transport_pipeline_test --test config_documents
 	cargo test -p fraiseql-saga --lib
 	@echo ""

@@ -37,6 +37,14 @@ disagreed, and the promise was the part that was wrong.
   takes them. For embedders, `fraiseql_observers::transport::NatsConfig` gains
   `duplicate_window`, `max_age` and `max_deliver`.
 
+- **`fraiseql-observers` loses its `cli` feature and `fraiseql_observers::cli` module
+  (#1497).** No binary ran the module: the crate has no `[[bin]]` and no crate enabled the
+  feature. Four of its five commands (`status`, `debug-event`, `validate-config`, `metrics`)
+  printed hard-coded JSON, and `dlq` was a thin HTTP client for the server's
+  `/api/observers/dlq*` routes. The feature and its optional `clap`, `colored` and `tabwriter`
+  dependencies are gone. **Upgrade:** remove `cli` from any `fraiseql-observers` feature list;
+  call the DLQ routes directly.
+
 - **A field's `sql_column` is refused, as it has been since 2.15.0 (#1423).** 2.14 accepted the
   key in `schema.json` and nothing read it: the field always resolved through the view's `data`
   (or a native column of the field's own name), so a schema that relied on it to rename a

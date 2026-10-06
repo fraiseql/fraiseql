@@ -327,9 +327,8 @@ unreachable = "deny"
 panic = "deny"
 # Reason: `println!`/`print!` and `eprintln!`/`eprint!` should not appear in
 # production library/server code (which uses `tracing` for structured logs).
-# The legitimate CLI surfaces (`fraiseql-cli` lib, `fraiseql-observers`
-# `cli` submodule, `fraiseql-server` binary) carry a crate/module-level
-# allow with `// Reason:`. Tests, examples, build scripts, and benches
+# The legitimate CLI surfaces (`fraiseql-cli` lib, `fraiseql-server`
+# binary) carry a crate/module-level allow with `// Reason:`. Tests, examples, build scripts, and benches
 # print directly and carry module-level allows.
 print_stdout = "deny"
 print_stderr = "deny"

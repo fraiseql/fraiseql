@@ -48,8 +48,6 @@ pub mod cache;
 pub mod cached_executor;
 #[cfg(feature = "checkpoint")]
 pub mod checkpoint;
-#[cfg(feature = "cli")]
-pub mod cli;
 pub mod condition;
 pub mod config;
 pub mod dedup;

@@ -6,8 +6,6 @@ async-nats = {version = "0.49", optional = true}
 async-trait = "0.1"
 base64 = "0.22"
 chrono = {workspace = true}
-clap = {version = "4.5", features = ["derive"], optional = true}
-colored = {version = "2.1", optional = true}
 dashmap = {workspace = true}
 # Arrow Flight Dependencies
 fraiseql-arrow = {workspace = true, optional = true}
@@ -32,7 +30,6 @@ serde_json = {workspace = true}
 sha2 = "0.11"
 # sqlx with multiple database backends (features enabled conditionally)
 sqlx = {version = "0.8", features = ["runtime-tokio", "uuid", "chrono"]}
-tabwriter = {version = "1.4", optional = true}
 thiserror = "2.0"
 tokio = {workspace = true}
 tokio-util = {version = "0.7", features = ["compat"], optional = true}
@@ -73,7 +70,6 @@ analytics = ["arrow"]
 arrow = ["fraiseql-arrow", "dep:arrow"]
 caching = ["redis"]
 checkpoint = []
-cli = ["dep:clap", "dep:colored", "dep:tabwriter"]
 dedup = ["redis"]
 # Default features (PostgreSQL for backward compatibility)
 default = ["postgres"]

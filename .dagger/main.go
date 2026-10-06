@@ -1069,9 +1069,8 @@ func (m *FraiseqlCi) Test(
 		// list whenever a new feature adds a config section (#381 added `saml`).
 		"cargo test -p fraiseql-server --features '" + serverTestFeatures + ",export-csv,export-xlsx,sources,inbound,inbound-email,auth-saml,cdc-outbound,subscription-kafka' --test config_coverage_manifest_test --test doc_config_examples_test",
 		// fraiseql-observers --lib: the Docker-free unit tests (config, executor,
-		// DLQ, email, CLI). DB/redis/nats tests are #[ignore]d (or skip-on-None)
-		// and run in the integration legs; `--features cli` pulls in the CLI
-		// subcommand tests. Previously observers was excluded from the workspace
+		// DLQ, email). DB/redis/nats tests are #[ignore]d (or skip-on-None)
+		// and run in the integration legs. Previously observers was excluded from the workspace
 		// run and only its #[ignore]d/name-filtered tests ran (in integration),
 		// so these unit tests never executed in CI.
 		// arrow/checkpoint/dedup/metrics/search are pure lib features whose unit
@@ -1082,8 +1081,8 @@ func (m *FraiseqlCi) Test(
 		// only invocations enabling `queue` are the redis leg's `-- --ignored`
 		// line (they carry no #[ignore], so it runs none of them) and the
 		// `--test job_queue_integration` binaries. They ran nowhere at all.
-		"echo '### cargo test -p fraiseql-observers --lib --features caching,cli,arrow,checkpoint,dedup,metrics,nats,postgres,queue,search (Docker-free unit tests; DB/redis/nats tests are #[ignore]d → integration legs)'",
-		"cargo test -p fraiseql-observers --lib --features 'caching,cli,arrow,checkpoint,dedup,metrics,nats,postgres,queue,search'",
+		"echo '### cargo test -p fraiseql-observers --lib --features caching,arrow,checkpoint,dedup,metrics,nats,postgres,queue,search (Docker-free unit tests; DB/redis/nats tests are #[ignore]d → integration legs)'",
+		"cargo test -p fraiseql-observers --lib --features 'caching,arrow,checkpoint,dedup,metrics,nats,postgres,queue,search'",
 		// #992: observers in-process test binaries — the crate is excluded from
 		// the workspace run, so these executed nowhere.
 		// queue,metrics,testing: job_queue_integration is cfg-gated on them and
