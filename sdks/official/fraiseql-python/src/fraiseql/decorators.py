@@ -1478,6 +1478,11 @@ def interface(cls: type[T]) -> type[T]:
     return cls
 
 
+_OUTPUT_ONLY_FIELD_OPTIONS = frozenset(
+    {"requires_scope", "on_deny", "computed", "vector_config", "vector_distance", "federation"}
+)
+
+
 def input(cls: type[T]) -> type[T]:
     """Decorator to mark a Python class as a GraphQL input object.
 
@@ -1526,6 +1531,21 @@ def input(cls: type[T]) -> type[T]:
             "type": info["type"],
             "nullable": info["nullable"],
         }
+
+        # An input field takes a deprecation and a description from its
+        # Annotated fraiseql.field(...) config. Every other option configures an
+        # output field; refuse it rather than export a field without it (#1447).
+        unsupported = sorted(set(info) & _OUTPUT_ONLY_FIELD_OPTIONS)
+        if unsupported:
+            msg = (
+                f"@fraiseql.input {cls.__name__}.{field_name}: "
+                f"{', '.join(unsupported)} applies to output fields only; an input field "
+                "takes deprecated= and description="
+            )
+            raise TypeError(msg)
+        for key in ("deprecated", "description"):
+            if key in info:
+                field[key] = info[key]
 
         # Check for default value
         if hasattr(cls, field_name):

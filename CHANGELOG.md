@@ -538,6 +538,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Python SDK: an `@fraiseql.input` field keeps its `deprecated=` and `description=` (#1447).**
+  `input()` exported only `name`, `type`, `nullable` and `default`, so
+  `Annotated[bool, fraiseql.field(deprecated="…")]` on an input field was dropped and the field
+  could not be deprecated, although the compiler and introspection support it. Both now reach
+  the schema. An option that only an output field can honour (`requires_scope`, `on_deny`,
+  `computed`, the vector settings, the federation directives) raises `TypeError` when the class
+  is declared, instead of being dropped.
+
 - **The observers guides query the series the server records (#1501).** The PromQL examples and
   alert rules in `crates/fraiseql-observers/docs/` (troubleshooting, performance tuning,
   integration and migration guides) used unprefixed names (`observer_events_processed_total`,

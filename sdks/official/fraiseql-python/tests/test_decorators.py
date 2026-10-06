@@ -2081,3 +2081,52 @@ def test_field_no_federation_directives_omits_key() -> None:
     user = next(t for t in schema["types"] if t["name"] == "User")
     for f in user["fields"]:
         assert "federation" not in f
+
+
+# ── #1447: @fraiseql.input carries an input field's Annotated configuration ──
+
+
+def _input_field(name: str) -> dict:
+    (input_type,) = SchemaRegistry.get_schema()["input_types"]
+    return next(f for f in input_type["fields"] if f["name"] == name)
+
+
+def test_input_field_carries_its_deprecation() -> None:
+    """`deprecated=` on an input field reaches the exported schema (#1447)."""
+
+    @fraiseql.input
+    class DeleteOrderInput:
+        hard_delete: Annotated[
+            bool, fraiseql.field(deprecated="Deletion is always soft; the flag is ignored.")
+        ] = False
+
+    field = _input_field("hardDelete")
+    assert field["deprecated"] == {"reason": "Deletion is always soft; the flag is ignored."}
+    assert field["default"] is False
+
+
+def test_input_field_carries_its_description() -> None:
+    """`description=` on an input field reaches the exported schema (#1447)."""
+
+    @fraiseql.input
+    class RenameInput:
+        name: Annotated[str, fraiseql.field(description="The new display name")]
+
+    assert _input_field("name")["description"] == "The new display name"
+
+
+@pytest.mark.parametrize(
+    "config",
+    [
+        {"requires_scope": "write:orders"},
+        {"computed": True},
+    ],
+)
+def test_input_field_refuses_configuration_an_input_cannot_honour(config: dict) -> None:
+    """A field option the compiler has no input-field slot for is refused when the
+    class is declared, not dropped (#1447)."""
+    with pytest.raises(TypeError, match=next(iter(config))):
+
+        @fraiseql.input
+        class OrderInput:
+            note: Annotated[str, fraiseql.field(**config)]
