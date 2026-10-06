@@ -154,49 +154,112 @@ impl Executor {
         Ok(())
     }
 
-    /// Project a pre-built introspection response onto the client's selection
-    /// set (GraphQL § 6.3), memoised by the shape of that selection set.
+    /// Answer an introspection document: every root, under its response key
+    /// (GraphQL § 2.7), with `__type`'s name read from this request (#1445).
     ///
-    /// `memo_root` keys the cache and must distinguish responses that differ for
+    /// A data root cannot be answered here, and is refused rather than dropped.
+    fn execute_introspection(
+        &self,
+        parsed: &crate::graphql::ParsedQuery,
+        variables: Option<&serde_json::Value>,
+    ) -> Result<serde_json::Value> {
+        let vars: std::collections::HashMap<String, serde_json::Value> = match variables {
+            Some(serde_json::Value::Object(map)) => {
+                map.iter().map(|(k, v)| (k.clone(), v.clone())).collect()
+            },
+            _ => std::collections::HashMap::new(),
+        };
+
+        let mut data = serde_json::Map::new();
+        for root in &parsed.selections {
+            let included = crate::graphql::DirectiveEvaluator::evaluate_directives(root, &vars)
+                .map_err(|e| FraiseQLError::Validation {
+                    message: e.to_string(),
+                    path:    Some("directives".to_string()),
+                })?;
+            if !included {
+                continue;
+            }
+            let value = match root.name.as_str() {
+                "__schema" => self.project_introspection(
+                    "__schema",
+                    &self.ctx.introspection.schema_response,
+                    root,
+                    parsed,
+                ),
+                "__type" => {
+                    let type_name = introspection_type_name(root, parsed, &vars)?;
+                    let built = Arc::new(self.ctx.introspection.get_type_response(&type_name));
+                    // The type name is part of the memo key: two `__type` roots
+                    // with the same selection set but different names project
+                    // different values.
+                    self.project_introspection(
+                        &format!("__type\u{1}{type_name}"),
+                        &built,
+                        root,
+                        parsed,
+                    )
+                },
+                "__typename" => {
+                    serde_json::Value::String(root_type_name(&parsed.operation_type).to_string())
+                },
+                other => {
+                    return Err(FraiseQLError::Validation {
+                        message: format!(
+                            "`{other}` cannot be selected in the same operation as `__schema` or \
+                             `__type`: send it as a separate request"
+                        ),
+                        path:    Some(root.response_key().to_string()),
+                    });
+                },
+            };
+            data.insert(root.response_key().to_string(), value);
+        }
+        Ok(serde_json::json!({ "data": data }))
+    }
+
+    /// Project the value a pre-built introspection response holds for `root`
+    /// onto that root's selection set (GraphQL § 6.3), memoised by the shape of
+    /// the selection set.
+    ///
+    /// `memo_root` keys the cache and must distinguish values that differ for
     /// reasons other than the selection set — hence the type name is folded into
     /// it for `__type`.
     ///
-    /// Falls back to the unprojected response when there is no AST or no root
-    /// selection to project against: over-delivering is the previous behaviour,
-    /// and is strictly better than answering with nothing.
+    /// Falls back to the unprojected value when there is no selection to project
+    /// against: over-delivering is strictly better than answering with nothing.
     fn project_introspection(
         &self,
         memo_root: &str,
         built: &Arc<serde_json::Value>,
-        parsed: Option<&crate::graphql::ParsedQuery>,
+        root: &crate::graphql::FieldSelection,
+        parsed: &crate::graphql::ParsedQuery,
     ) -> serde_json::Value {
         use support::introspection_projection as projection;
 
-        let Some(parsed) = parsed else {
-            return built.as_ref().clone();
-        };
-        // The root field carries the selections; fragments and directives are
-        // resolved first so a spread projects like an inline selection.
-        let Some(root) = parsed.selections.first() else {
-            return built.as_ref().clone();
-        };
+        let inner = built
+            .get("data")
+            .and_then(|d| d.get(&root.name))
+            .cloned()
+            .unwrap_or(serde_json::Value::Null);
+        // Fragments and directives are resolved first so a spread projects like
+        // an inline selection.
         let Ok(selections) = crate::graphql::selection_set::resolve(
             &root.nested_fields,
             &parsed.fragments,
             self.max_query_depth(),
         ) else {
-            return built.as_ref().clone();
+            return inner;
         };
         if selections.is_empty() {
-            return built.as_ref().clone();
+            return inner;
         }
 
-        let root_field = root.name.clone();
         let key = projection::selection_shape_hash(memo_root, &selections);
         if let Some(hit) = self.ctx.introspection_projections.get(&key) {
             return hit.as_ref().clone();
         }
-        let projected = Arc::new(projection::project_response(built, &root_field, &selections));
+        let projected = Arc::new(projection::project(&inner, &selections));
         self.ctx.introspection_projections.insert(key, Arc::clone(&projected));
         projected.as_ref().clone()
     }
@@ -464,20 +527,14 @@ impl Executor {
                     path:    None,
                 })
             },
-            QueryType::IntrospectionSchema => {
-                let built = Arc::clone(&self.ctx.introspection.schema_response);
-                Ok(self.project_introspection("__schema", &built, maybe_parsed.as_ref()))
-            },
-            QueryType::IntrospectionType(type_name) => {
-                let built = Arc::new(self.ctx.introspection.get_type_response(&type_name));
-                // The type name is part of the memo key: two `__type` queries
-                // with the same selection set but different `name` arguments
-                // project different values.
-                Ok(self.project_introspection(
-                    &format!("__type\u{1}{type_name}"),
-                    &built,
-                    maybe_parsed.as_ref(),
-                ))
+            QueryType::Introspection => {
+                let parsed = maybe_parsed.ok_or_else(|| FraiseQLError::Internal {
+                    message: "classifier returned Introspection without a parsed query — this \
+                              is a bug"
+                        .to_string(),
+                    source:  None,
+                })?;
+                self.execute_introspection(&parsed, variables)
             },
             QueryType::Mutation { roots } => {
                 self.execute_mutation_roots(&roots, variables, security_context).await
@@ -701,4 +758,47 @@ fn parse_cache_key(query: &str, operation_name: Option<&str>) -> u64 {
         // Seeded with the document hash so the pair is mixed, not concatenated.
         Some(name) => xxhash_rust::xxh3::xxh3_64_with_seed(name.as_bytes(), document),
     }
+}
+
+/// The type `__type(name:)` names in this request (#1445).
+///
+/// The argument is `String!`: a literal, or a variable read from the request,
+/// falling back to the variable's declared default (GraphQL § 6.4.1). A missing,
+/// null or non-string name is refused: answering `null` would read as "no such
+/// type".
+fn introspection_type_name(
+    root: &crate::graphql::FieldSelection,
+    parsed: &crate::graphql::ParsedQuery,
+    variables: &std::collections::HashMap<String, serde_json::Value>,
+) -> Result<String> {
+    use crate::graphql::value_json;
+
+    let refuse = |why: &str| FraiseQLError::Validation {
+        message: format!("`__type` takes a `name: String!` argument, and {why}"),
+        path:    Some(root.response_key().to_string()),
+    };
+    let arg = root
+        .arguments
+        .iter()
+        .find(|a| a.name == "name")
+        .ok_or_else(|| refuse("none was given"))?;
+    let literal = value_json::decode(&arg.value_json)?;
+    let value = match value_json::variable_name(&literal) {
+        Some(var) => match variables.get(var) {
+            Some(supplied) => supplied.clone(),
+            None => parsed
+                .variables
+                .iter()
+                .find(|def| def.name == var)
+                .and_then(|def| def.default_value.as_deref())
+                .map(value_json::decode)
+                .transpose()?
+                .unwrap_or(serde_json::Value::Null),
+        },
+        None => literal,
+    };
+    value
+        .as_str()
+        .map(str::to_string)
+        .ok_or_else(|| refuse("it was null or not a string"))
 }

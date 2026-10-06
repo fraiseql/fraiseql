@@ -65,14 +65,6 @@ fn an_empty_selection_set_returns_the_value_whole() {
 }
 
 #[test]
-fn the_envelope_is_preserved() {
-    let response = json!({"data": {"__schema": {"queryType": {"name": "Q"}, "types": []}}});
-    let projected =
-        project_response(&response, "__schema", &[sel("queryType", vec![sel("name", vec![])])]);
-    assert_eq!(projected, json!({"data": {"__schema": {"queryType": {"name": "Q"}}}}));
-}
-
-#[test]
 fn different_shapes_hash_differently_and_the_same_shape_is_stable() {
     let a = [sel("queryType", vec![sel("name", vec![])])];
     let b = [sel("types", vec![sel("name", vec![])])];

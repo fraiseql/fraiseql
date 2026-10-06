@@ -100,23 +100,6 @@ pub fn project(value: &serde_json::Value, selections: &[FieldSelection]) -> serd
     }
 }
 
-/// Project a full introspection response envelope (`{"data":{"__schema":…}}`)
-/// onto the selections written under `root_field`.
-///
-/// Returns the envelope with the root field's value projected, leaving the
-/// `data` wrapper intact.
-#[must_use]
-pub fn project_response(
-    response: &serde_json::Value,
-    root_field: &str,
-    selections: &[FieldSelection],
-) -> serde_json::Value {
-    let Some(inner) = response.get("data").and_then(|d| d.get(root_field)) else {
-        return response.clone();
-    };
-    serde_json::json!({ "data": { root_field: project(inner, selections) } })
-}
-
 #[cfg(test)]
 #[path = "introspection_projection_tests.rs"]
 mod tests;

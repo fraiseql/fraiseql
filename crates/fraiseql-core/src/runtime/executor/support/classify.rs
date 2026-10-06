@@ -106,12 +106,8 @@ impl Executor {
         // pre-built response onto the client's selection set (§ 6.3). It is
         // memoised in the parse cache alongside the classification, so carrying
         // it costs one clone per distinct query string, not one per request.
-        if root_field == "__schema" {
-            return Ok((QueryType::IntrospectionSchema, Some(parsed)));
-        }
-        if root_field == "__type" {
-            let type_name = extract_root_string_arg(&parsed, "name");
-            return Ok((QueryType::IntrospectionType(type_name.unwrap_or_default()), Some(parsed)));
+        if root_field == "__schema" || root_field == "__type" {
+            return Ok((QueryType::Introspection, Some(parsed)));
         }
 
         // Root `__typename` meta-field (GraphQL spec §"Type Name Introspection"):
@@ -221,22 +217,4 @@ impl Executor {
         // the multi-root pipeline path.
         Ok((QueryType::Regular, Some(parsed)))
     }
-}
-
-/// Extract the value of a named string argument from the first (root) field of
-/// a parsed query.
-///
-/// For `{ __type(name: "User") { ... } }`, calling `extract_root_string_arg(parsed, "name")`
-/// returns `Some("User".to_string())`.
-///
-/// Returns `None` if the argument is absent or is not a JSON string literal.
-fn extract_root_string_arg(parsed: &crate::graphql::ParsedQuery, arg_name: &str) -> Option<String> {
-    let root_field = parsed.selections.first()?;
-    let arg = root_field.arguments.iter().find(|a| a.name == arg_name)?;
-
-    // `value_json` holds a JSON document. Peeling the outer quotes by hand and
-    // unescaping only `\"` is the same defect as #719's writer: a value
-    // containing a backslash or a newline came back mangled.
-    let decoded = crate::graphql::value_json::decode(&arg.value_json).ok()?;
-    Some(decoded.as_str()?.to_string())
 }

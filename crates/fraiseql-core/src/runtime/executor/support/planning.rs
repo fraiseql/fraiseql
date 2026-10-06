@@ -122,7 +122,7 @@ impl Executor {
                     query_type:     "window".to_string(),
                 })
             },
-            QueryType::IntrospectionSchema | QueryType::IntrospectionType(_) => Ok(ExplainPlan {
+            QueryType::Introspection => Ok(ExplainPlan {
                 sql:            String::new(),
                 parameters:     Vec::new(),
                 estimated_cost: 0,

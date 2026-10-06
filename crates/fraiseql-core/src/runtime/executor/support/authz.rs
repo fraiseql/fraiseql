@@ -57,14 +57,15 @@ pub(in crate::runtime::executor) fn collect_authz_ops(
 ) -> Vec<AuthzOperation> {
     let query = |name: &str| root_operation(schema, OperationKind::Query, name);
     match query_type {
-        QueryType::Regular => parsed_for_regular.map_or_else(Vec::new, |parsed| {
-            parsed.selections.iter().map(|sel| query(&sel.name)).collect()
-        }),
+        // An introspection document is answered root by root, so it is
+        // authorized root by root too.
+        QueryType::Regular | QueryType::Introspection => parsed_for_regular
+            .map_or_else(Vec::new, |parsed| {
+                parsed.selections.iter().map(|sel| query(&sel.name)).collect()
+            }),
         QueryType::Aggregate(name) | QueryType::Window(name) | QueryType::Federation(name) => {
             vec![query(name)]
         },
-        QueryType::IntrospectionSchema => vec![query("__schema")],
-        QueryType::IntrospectionType(_) => vec![query("__type")],
         QueryType::NodeQuery { .. } => vec![query("node")],
         // Both yield an empty op-list:
         // - `Mutation` is gated downstream at `execute_mutation_impl` (see fn-level docs).

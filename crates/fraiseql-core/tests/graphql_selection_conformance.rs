@@ -1732,6 +1732,133 @@ async fn two_type_introspections_with_the_same_shape_do_not_collide() {
     assert_eq!(profile["data"]["__type"]["name"], "Profile", "{profile}");
 }
 
+// `__type(name:)` read only a string literal, and the response was keyed on the
+// root field's name (#1445). A variable is the shape generated clients send, so
+// it answered `null`, which reads as "no such type"; an alias was ignored, so
+// two aliased lookups in one document could not be served.
+
+/// The type name may arrive as a variable (§ 5.8).
+#[tokio::test]
+async fn type_introspection_reads_its_name_from_a_variable() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute(
+            "query T($n: String!) { __type(name: $n) { name } }",
+            Some(&json!({"n": "User"})),
+        )
+        .await
+        .expect("introspection must run");
+    assert_eq!(response["data"]["__type"]["name"], "User", "{response}");
+}
+
+/// A variable the request omits takes its declared default (§ 6.4.1).
+#[tokio::test]
+async fn type_introspection_falls_back_to_the_variable_default() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute(r#"query T($n: String = "User") { __type(name: $n) { name } }"#, None)
+        .await
+        .expect("introspection must run");
+    assert_eq!(response["data"]["__type"]["name"], "User", "{response}");
+}
+
+/// The classification is cached by document, so the name must be read per
+/// request: the same document with another variable value names another type.
+#[tokio::test]
+async fn one_type_introspection_document_answers_each_requests_variable() {
+    let (exec, _) = executor();
+    let doc = "query T($n: String!) { __type(name: $n) { name } }";
+    let user = exec.execute(doc, Some(&json!({"n": "User"}))).await.expect("User");
+    let profile = exec.execute(doc, Some(&json!({"n": "Profile"}))).await.expect("Profile");
+    assert_eq!(user["data"]["__type"]["name"], "User", "{user}");
+    assert_eq!(profile["data"]["__type"]["name"], "Profile", "{profile}");
+}
+
+/// An alias names the response key of an introspection root (§ 2.7).
+#[tokio::test]
+async fn an_aliased_type_introspection_answers_under_its_alias() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute(r#"{ t: __type(name: "User") { name } }"#, None)
+        .await
+        .expect("introspection must run");
+    assert_eq!(response["data"]["t"]["name"], "User", "{response}");
+    assert!(response["data"].get("__type").is_none(), "keyed on the alias only: {response}");
+}
+
+/// The same for `__schema`.
+#[tokio::test]
+async fn an_aliased_schema_introspection_answers_under_its_alias() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute("{ s: __schema { queryType { name } } }", None)
+        .await
+        .expect("introspection must run");
+    assert!(response["data"]["s"].get("queryType").is_some(), "{response}");
+    assert!(
+        response["data"].get("__schema").is_none(),
+        "keyed on the alias only: {response}"
+    );
+}
+
+/// Every root of an introspection document is answered, each under its own key.
+#[tokio::test]
+async fn several_aliased_type_lookups_are_each_answered() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute(
+            r#"{ a: __type(name: "User") { name } b: __type(name: "Profile") { name } }"#,
+            None,
+        )
+        .await
+        .expect("introspection must run");
+    assert_eq!(response["data"]["a"]["name"], "User", "{response}");
+    assert_eq!(response["data"]["b"]["name"], "Profile", "{response}");
+}
+
+/// `name` is `String!`: a lookup without one is an error, not a type that does
+/// not exist.
+#[tokio::test]
+async fn type_introspection_without_a_name_is_refused() {
+    let (exec, _) = executor();
+    let refused = exec.execute("query T($n: String) { __type(name: $n) { name } }", None).await;
+    assert!(refused.is_err(), "a null name must be refused, got {refused:?}");
+}
+
+/// The same when the argument is missing altogether.
+#[tokio::test]
+async fn type_introspection_without_a_name_argument_is_refused() {
+    let (exec, _) = executor();
+    let refused = exec.execute("{ __type { name } }", None).await;
+    assert!(refused.is_err(), "a missing name must be refused, got {refused:?}");
+}
+
+/// `@skip` / `@include` apply to an introspection root like any other field.
+#[tokio::test]
+async fn a_skipped_introspection_root_is_omitted() {
+    let (exec, _) = executor();
+    let response = exec
+        .execute(
+            r#"query T($hide: Boolean!) { s: __schema @skip(if: $hide) { queryType { name } } t: __type(name: "User") { name } }"#,
+            Some(&json!({"hide": true})),
+        )
+        .await
+        .expect("introspection must run");
+    assert!(response["data"].get("s").is_none(), "skipped root came back: {response}");
+    assert_eq!(response["data"]["t"]["name"], "User", "{response}");
+}
+
+/// A data root beside an introspection root was dropped without a word.
+#[tokio::test]
+async fn a_data_root_beside_an_introspection_root_is_not_dropped_silently() {
+    let (exec, _) = executor();
+    let result = exec.execute(r#"{ __type(name: "User") { name } users { id } }"#, None).await;
+    assert!(
+        result.as_ref().map_or(true, |r| r["data"].get("users").is_some()),
+        "`users` was neither answered nor refused: {result:?}"
+    );
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // B2. `__typename` on a nested object — #912
 // ══════════════════════════════════════════════════════════════════════════════

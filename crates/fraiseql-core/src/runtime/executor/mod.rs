@@ -234,12 +234,13 @@ enum QueryType {
     /// Contains the query name ("_service" or "_entities").
     Federation(String),
 
-    /// Introspection query (`__schema`).
-    IntrospectionSchema,
-
-    /// Introspection query (`__type(name: "...")`).
-    /// Contains the requested type name.
-    IntrospectionType(String),
+    /// Introspection document: its first root is `__schema` or `__type`.
+    ///
+    /// Carries nothing: every root is answered at execution, where the request's
+    /// variables are available, because this classification is cached by
+    /// document and `__type(name: $n)` names a different type per request
+    /// (#1445).
+    Introspection,
 
     /// GraphQL mutation — **every** root field of the operation, in document
     /// order.

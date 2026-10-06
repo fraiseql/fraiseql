@@ -529,6 +529,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Introspection reads `__type(name:)` from variables and answers every root under its alias
+  (#1445).** `query T($n: String!) { __type(name: $n) { name } }` answered `{"__type": null}`,
+  which reads as "no such type", because only a string literal was read; a variable's default
+  was not read either. `{ t: __type(name: "Order") { name } }` answered under `__type`, and only
+  the first root of a document was answered, so `a: __type(...) b: __type(...)` lost `b`. The
+  name is now read per request (literal, variable, or the variable's default), each root is
+  answered under its response key, `@skip`/`@include` apply to it, and the operation authorizer
+  is asked about every root. A `__type` without a name, or with a null one, is refused instead
+  of answering `null`, and a data root beside `__schema`/`__type` is refused instead of being
+  dropped from the response. Variable defaults elsewhere are still ignored (#1504).
+
 - **Replicas on the PostgreSQL observer transport dispatch a change-log row once, not once per
   replica (#1500).** Every `fraiseql-server` replica polled `core.tb_entity_change_log` under the
   same listener, and a row is recorded in the dispatch ledger only after its actions run, so two

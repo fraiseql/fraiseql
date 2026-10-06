@@ -259,7 +259,7 @@ mod classify {
         let executor = Executor::new(schema, adapter);
 
         let query = r"{ __schema { types { name } } }";
-        assert_eq!(executor.classify_query(query, None).unwrap(), QueryType::IntrospectionSchema);
+        assert_eq!(executor.classify_query(query, None).unwrap(), QueryType::Introspection);
     }
 
     #[test]
@@ -269,10 +269,7 @@ mod classify {
         let executor = Executor::new(schema, adapter);
 
         let query = r#"{ __type(name: "User") { fields { name } } }"#;
-        assert_eq!(
-            executor.classify_query(query, None).unwrap(),
-            QueryType::IntrospectionType("User".to_string()),
-        );
+        assert_eq!(executor.classify_query(query, None).unwrap(), QueryType::Introspection);
     }
 
     #[test]
@@ -418,25 +415,20 @@ mod classify {
         assert_eq!(executor.classify_query(query, None).unwrap(), QueryType::Regular);
     }
 
-    #[test]
-    fn test_classify_introspection_type_extracts_name() {
+    #[tokio::test]
+    async fn test_introspection_type_reads_the_name_argument() {
         let schema = test_schema();
         let adapter = Arc::new(MockAdapter::new(vec![]));
         let executor = Executor::new(schema, adapter);
 
-        // Standard double-quoted argument
-        let q = r#"{ __type(name: "User") { name } }"#;
-        assert_eq!(
-            executor.classify_query(q, None).unwrap(),
-            QueryType::IntrospectionType("User".to_string()),
-        );
-
-        // No space after colon
-        let q2 = r#"{ __type(name:"Query") { name } }"#;
-        assert_eq!(
-            executor.classify_query(q2, None).unwrap(),
-            QueryType::IntrospectionType("Query".to_string()),
-        );
+        // Standard double-quoted argument, and no space after the colon.
+        for (q, name) in [
+            (r#"{ __type(name: "User") { name } }"#, "User"),
+            (r#"{ __type(name:"Query") { name } }"#, "Query"),
+        ] {
+            let response = executor.execute(q, None).await.unwrap();
+            assert_eq!(response["data"]["__type"]["name"], name, "{q}: {response}");
+        }
     }
 
     #[test]

@@ -253,3 +253,19 @@ async fn an_operation_only_authorizer_allows_the_nested_levels() {
     graphql(&operations_only, "{ users { id orders { id } } }").await.unwrap();
     rest_embed(&operations_only).await.unwrap();
 }
+
+/// An introspection document is put to the authorizer root by root (#1445). Each
+/// root is answered, so each is asked: a `__schema` beside `__type` must not be
+/// answered on the strength of the first root's verdict.
+#[tokio::test]
+async fn every_introspection_root_is_asked() {
+    let authorizer = Recording::new(|req| req.name == "__schema");
+    let result = graphql(
+        &authorizer,
+        r#"{ t: __type(name: "User") { name } s: __schema { queryType { name } } }"#,
+    )
+    .await;
+    assert!(denied(&result), "a denied `__schema` root must refuse the document: {result:?}");
+    let names: Vec<String> = authorizer.asked().into_iter().map(|(name, ..)| name).collect();
+    assert_eq!(names, ["__type", "__schema"]);
+}
