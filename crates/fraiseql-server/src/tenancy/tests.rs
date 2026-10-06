@@ -823,6 +823,7 @@ mod runtime_config_drift {
             before_mutation_gate,
             query_function_resolver,
             after_mutation_observer,
+            root_error_renderer,
         } = server;
 
         let mut out = Vec::new();
@@ -850,6 +851,10 @@ mod runtime_config_drift {
         // #1340, #1440: a tenant's writes must dispatch `after:mutation` too.
         if after_mutation_observer.is_some() != tenant.after_mutation_observer.is_some() {
             out.push("after_mutation_observer");
+        }
+        // A tenant's failing mutation roots are sanitized like the server's.
+        if root_error_renderer.is_some() != tenant.root_error_renderer.is_some() {
+            out.push("root_error_renderer");
         }
 
         // Operator-owned scalars: the same reason `database_tls`, `read_replica_policy`
@@ -987,6 +992,7 @@ mod runtime_config_drift {
         RuntimeConfig {
             authorizer: Some(Arc::new(DenyAll)),
             before_mutation_gate: Some(Arc::new(AbortAll)),
+            root_error_renderer: Some(Arc::new(|_| serde_json::json!({}))),
             query_timeout_ms: 4321,
             ..RuntimeConfig::default()
         }

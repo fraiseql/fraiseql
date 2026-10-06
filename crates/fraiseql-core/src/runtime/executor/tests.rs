@@ -67,6 +67,7 @@ mod query {
         let config = RuntimeConfig {
             query_function_resolver: None,
             after_mutation_observer: None,
+            root_error_renderer:     None,
 
             cache_query_plans:    false,
             max_page_size:        Some(1000),
@@ -1236,6 +1237,7 @@ mod config {
         let config = RuntimeConfig {
             query_function_resolver: None,
             after_mutation_observer: None,
+            root_error_renderer:     None,
 
             cache_query_plans:    false,
             max_page_size:        Some(1000),
@@ -1270,6 +1272,7 @@ mod config {
         let config = RuntimeConfig {
             query_function_resolver: None,
             after_mutation_observer: None,
+            root_error_renderer:     None,
 
             cache_query_plans:    false,
             max_page_size:        Some(1000),
@@ -1789,6 +1792,26 @@ mod gate1_schema_derived {
             err.to_string().to_lowercase().contains("deep"),
             "rejection must name the depth limit, got: {err:?}"
         );
+    }
+
+    /// A root-error renderer the embedder installed survives a rebuild from a
+    /// compiled schema (a hot reload, a tenant executor): it is caller-installed
+    /// policy, like the validator above, and dropping it would put raw error text
+    /// back into multi-root mutation responses.
+    #[test]
+    fn caller_installed_root_error_renderer_survives_a_rebuild() {
+        let renderer: crate::runtime::RootErrorRenderer =
+            Arc::new(|_| serde_json::json!({ "message": "rendered" }));
+        let config = RuntimeConfig::default()
+            .with_root_error_renderer(renderer)
+            .with_compiled_schema(&test_schema())
+            .expect("test schema must produce a valid runtime config");
+        let render = config.root_error_renderer.expect("the renderer is kept");
+        let error = FraiseQLError::Validation {
+            message: "x".to_string(),
+            path:    None,
+        };
+        assert_eq!(render(&error)["message"], "rendered");
     }
 
     /// A schema that declares no `max_query_depth` is bounded by

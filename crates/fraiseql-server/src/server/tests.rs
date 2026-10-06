@@ -1688,3 +1688,82 @@ mod observer_transport_tests {
         }
     }
 }
+
+// ── multi_root_mutation_error_tests: a failing root is sanitized like a failed request ──
+//
+// A one-root mutation that fails propagates `Err`, which the handler sanitizes. With more
+// than one root, the executor reports a failing root inside the `200` body instead, and
+// that entry carried the error's raw text: the database's message, constraint name and
+// all, past a sanitizer configured to withhold it.
+
+mod multi_root_mutation_error_tests {
+    use std::sync::Arc;
+
+    use fraiseql_core::{
+        runtime::Executor,
+        schema::{ErrorSanitizationConfig, FieldType, SecurityConfig},
+    };
+    use fraiseql_test_utils::{
+        failing_adapter::{FailError, FailingAdapter},
+        schema_builder::{TestSchemaBuilder, TestTypeBuilder},
+    };
+
+    use crate::server_config::ServerConfig;
+
+    const CONSTRAINT: &str = "uq_user_secret_email";
+
+    fn executor() -> Executor {
+        let mut schema = TestSchemaBuilder::new()
+            .with_type(
+                TestTypeBuilder::new("User", "v_user")
+                    .with_simple_field("id", FieldType::Int)
+                    .build(),
+            )
+            .with_simple_mutation("createUser", "User")
+            .with_simple_mutation("renameUser", "User")
+            .with_security(SecurityConfig {
+                error_sanitization: Some(ErrorSanitizationConfig {
+                    enabled: true,
+                    ..ErrorSanitizationConfig::default()
+                }),
+                ..SecurityConfig::default()
+            })
+            .build();
+        schema.build_indexes();
+        let config = crate::server::initialization::executor_runtime_config(
+            &schema,
+            &ServerConfig::default(),
+        )
+        .expect("runtime config");
+        let adapter = FailingAdapter::new().fail_with_error(FailError::Database {
+            message:   format!("duplicate key value violates unique constraint \"{CONSTRAINT}\""),
+            sql_state: Some("23505".to_string()),
+        });
+        Executor::with_config(schema, Arc::new(adapter), config)
+    }
+
+    #[tokio::test]
+    async fn a_failing_root_of_a_multi_root_mutation_is_sanitized() {
+        let response = executor()
+            .execute("mutation { a: createUser { id } b: renameUser { id } }", None)
+            .await
+            .expect("a multi-root mutation reports each root's outcome");
+
+        let errors = response["errors"].as_array().expect("both roots failed");
+        assert_eq!(errors.len(), 2, "{response}");
+        for error in errors {
+            let message = error["message"].as_str().unwrap_or_default();
+            assert!(
+                !message.contains(CONSTRAINT),
+                "the database's text reached the client: {error}"
+            );
+            assert_eq!(
+                message, "The request conflicts with the current state of the data",
+                "the replacement a one-root failure gets: {error}"
+            );
+            assert_eq!(error["code"], "CONSTRAINT_VIOLATION", "{error}");
+        }
+        assert_eq!(errors[0]["path"][0], "a");
+        assert_eq!(errors[1]["path"][0], "b");
+    }
+}

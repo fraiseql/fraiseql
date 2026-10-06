@@ -718,10 +718,17 @@ impl Executor {
                 },
                 Err(e) => {
                     data.insert(root.response_key.clone(), serde_json::Value::Null);
-                    errors.push(serde_json::json!({
-                        "message": e.to_string(),
-                        "path": [root.response_key.as_str()],
-                    }));
+                    let mut entry = self.ctx.config.root_error_renderer.as_ref().map_or_else(
+                        || serde_json::json!({ "message": e.to_string() }),
+                        |render| render(&e),
+                    );
+                    if let Some(entry) = entry.as_object_mut() {
+                        entry.insert(
+                            "path".to_string(),
+                            serde_json::json!([root.response_key.as_str()]),
+                        );
+                    }
+                    errors.push(entry);
                 },
             }
         }

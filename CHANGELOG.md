@@ -930,6 +930,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Security
 
+- **A failing root of a multi-root mutation is sanitized like a failed request.** A mutation
+  with one root that fails returns an error the handler passes through `error_sanitization`.
+  With two or more roots, the engine reports a failing root as `null` plus an `errors` entry in
+  a `200` response, and that entry carried the error's own text, which no sanitizer saw: the
+  database's message, constraint names included, reached the client although sanitization is
+  on by default in production. The entry is now rendered as the handler renders a failed
+  request, with the same replacement message and the same `code` (`CONSTRAINT_VIOLATION`,
+  …), on every transport and on tenant executors. Embedders register their own renderer with
+  `RuntimeConfig::with_root_error_renderer`.
+
 - **The MCP HTTP endpoint no longer leaks a session per unauthenticated request (#1489,
   GHSA-9pj6-vhgr-3mwh).** rmcp 1.x allocated a transport session for a POST before validating
   it and never released it when the body was not an `initialize`. FraiseQL authenticates inside

@@ -182,6 +182,7 @@ use crate::security::{
 /// | `before_mutation_gate` | `None` | No `before:mutation` enforcement |
 /// | `query_function_resolver` | `None` | A function-backed root field refuses, by name |
 /// | `after_mutation_observer` | `None` | No one is told a write committed |
+/// | `root_error_renderer` | `None` | A failing root's `errors` entry carries the error's text |
 ///
 /// # Example
 ///
@@ -381,7 +382,22 @@ pub struct RuntimeConfig {
     /// write produced and the full entity, so every transport fires the same
     /// `after:mutation` work and a failed write never does. See [`AfterMutationObserver`].
     pub after_mutation_observer: Option<Arc<dyn AfterMutationObserver>>,
+
+    /// Optional renderer for the `errors` entry of a failing root that the engine
+    /// reports inside a response rather than as an `Err`.
+    ///
+    /// A mutation with more than one root reports a failing root as `null` plus an
+    /// `errors` entry, and the response is still `Ok`, so the embedder's own error
+    /// handling (sanitization above all) never sees that error. The renderer gives
+    /// the entry the treatment a failed request gets; the engine adds its `path`.
+    /// `None` renders `{"message": <the error's text>}`.
+    pub root_error_renderer: Option<RootErrorRenderer>,
 }
+
+/// Renders an engine error as a GraphQL `errors` entry, without its `path`
+/// (see [`RuntimeConfig::root_error_renderer`]).
+pub type RootErrorRenderer =
+    Arc<dyn Fn(&crate::error::FraiseQLError) -> serde_json::Value + Send + Sync>;
 
 /// Response-size limits for the typed cascade surface, per the graphql-cascade
 /// spec's security requirements (`specification/16_security.md`).
@@ -434,6 +450,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("before_mutation_gate", &self.before_mutation_gate.is_some())
             .field("query_function_resolver", &self.query_function_resolver.is_some())
             .field("after_mutation_observer", &self.after_mutation_observer.is_some())
+            .field("root_error_renderer", &self.root_error_renderer.is_some())
             .finish()
     }
 }
@@ -460,6 +477,7 @@ impl Default for RuntimeConfig {
             before_mutation_gate:    None,
             query_function_resolver: None,
             after_mutation_observer: None,
+            root_error_renderer:     None,
         }
     }
 }
@@ -645,6 +663,16 @@ impl RuntimeConfig {
         self
     }
 
+    /// Register the renderer for a failing root's in-response `errors` entry.
+    ///
+    /// Parallel to [`with_before_mutation_gate`](Self::with_before_mutation_gate). See
+    /// [`root_error_renderer`](Self::root_error_renderer).
+    #[must_use]
+    pub fn with_root_error_renderer(mut self, renderer: RootErrorRenderer) -> Self {
+        self.root_error_renderer = Some(renderer);
+        self
+    }
+
     /// Build a [`RuntimeConfig`] from a compiled schema, applying every
     /// schema-derived runtime setting that an executor must honor.
     ///
@@ -770,6 +798,7 @@ impl RuntimeConfig {
             before_mutation_gate,
             query_function_resolver,
             after_mutation_observer,
+            root_error_renderer,
         } = self;
 
         Ok(Self {
@@ -792,6 +821,7 @@ impl RuntimeConfig {
             before_mutation_gate,
             query_function_resolver,
             after_mutation_observer,
+            root_error_renderer,
         })
     }
 }

@@ -75,7 +75,27 @@ pub(super) fn executor_runtime_config(
         rt.max_response_bytes = Some(bytes);
     }
 
+    // A mutation with several roots reports a failing root inside a `200` body, which
+    // the handler's sanitizer never sees: render that entry with the sanitizer the
+    // handler applies to a failed request, so it carries the same code and withholds
+    // the same database text.
+    let sanitizer = schema_error_sanitizer(schema);
+    rt.root_error_renderer = Some(std::sync::Arc::new(move |error| {
+        let rendered = sanitizer.sanitize(crate::error::GraphQLError::from_fraiseql_error(error));
+        serde_json::to_value(rendered)
+            .unwrap_or_else(|_| serde_json::json!({ "message": "An internal error occurred" }))
+    }));
+
     Ok(rt)
+}
+
+/// The deployment's error sanitizer, from the compiled schema's
+/// `security.error_sanitization` and the environment (see [`build_error_sanitizer`]).
+fn schema_error_sanitizer(
+    schema: &CompiledSchema,
+) -> crate::config::error_sanitization::ErrorSanitizer {
+    let compiled = schema.security.as_ref().and_then(|s| s.error_sanitization.clone());
+    build_error_sanitizer(compiled, crate::ServerConfig::is_production_mode())
 }
 
 /// Which per-replica-capable subsystems are running on per-process state (#874).
@@ -207,8 +227,7 @@ impl Server {
     pub(super) fn error_sanitizer_from_schema(
         schema: &CompiledSchema,
     ) -> Arc<crate::config::error_sanitization::ErrorSanitizer> {
-        let compiled = schema.security.as_ref().and_then(|s| s.error_sanitization.clone());
-        Arc::new(build_error_sanitizer(compiled, crate::ServerConfig::is_production_mode()))
+        Arc::new(schema_error_sanitizer(schema))
     }
 
     /// Build a `TrustedDocumentStore` from `security.trusted_documents` in the
