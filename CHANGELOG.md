@@ -408,10 +408,15 @@ disagreed, and the promise was the part that was wrong.
   every row the other keys allowed; and `isnull: false` filtered for `NULL`, while `isnotnull`
   became `=`. Each unimplemented operator and unrecognised key now fails the query with a
   validation error naming it, and both null tests follow their boolean operand, as on ordinary
-  queries. **Upgrade:** a client that sent one of these filters was receiving totals over the
-  wrong rows; spell the filter as `<field>_<operator>` with a supported operator (`eq`, `neq`,
-  `gt`, `gte`, `lt`, `lte`, `in`, `nin`, the `like`/`contains`/`startswith`/`endswith` family
-  and their case-insensitive forms, `isnull`, `isnotnull`).
+  queries. A key now splits against the operator table rather than at its last underscore, so a
+  key that reads two ways (`x_depth_eq`: `x` + `depth_eq`, or `x_depth` + `eq`) takes the reading
+  whose field the fact table declares, and is refused when neither or both are declared.
+  **Upgrade:** a client that sent one of these filters was receiving totals over the wrong rows;
+  spell the filter as `<field>_<operator>` with an operator the aggregate implements (`eq`, `neq`,
+  `gt`, `gte`, `lt`, `lte`, `in`, `nin`, the `like`/`contains`/`startswith`/`endswith` family and
+  their case-insensitive forms, `isnull`, `is_not_null`, and the ltree operators below). A filter
+  on an undeclared JSONB key ending in `_depth` (`x_depth_eq`) is now ambiguous: declare the key as
+  a dimension path.
 
 - **`[observers.runtime.redis]` holds only what the server uses, and its `FRAISEQL_REDIS_*`
   overrides apply (#1466).** The block was the observer library's `RedisConfig`: the server read
@@ -430,6 +435,15 @@ disagreed, and the promise was the part that was wrong.
   `Option<ObserverRedisConfig>`. `RedisCacheInvalidator::connect` applies the config's timeouts.
 
 ### Added
+
+- **Fact-table aggregates filter on ltree hierarchies (#1460).** An aggregate `where` key takes
+  `descendant_of`, `ancestor_of`, `matches_lquery`, `matches_ltxtquery`, `matches_any_lquery`,
+  `lca` and `depth_eq` … `depth_lte`, on a denormalized filter column, a native column or a JSONB
+  dimension path, with the SQL the main `where` generator emits. `path_descendant_of: "a.b"`
+  totals the subtree under `a.b`. Operators spelled with underscores (`is_not_null`,
+  `descendant_of`) parse, as their camelCase forms already did. `descendant_of_id` /
+  `ancestor_of_id` need a declared hierarchy, which a fact table has none of, and are refused with
+  the path operator to use instead.
 
 - **Tenant administrators (#1089).** The platform mints a tenant admin token for one tenant at
   `/api/admin-tokens` (`core.tb_admin_token`; only `sha256(token)` is stored). On

@@ -1445,13 +1445,14 @@ mod fail_closed_filters {
     }
 
     /// An operator the generator does not implement used to become `=`: `descendantOf "a.b"`
-    /// matched only the row whose path IS `a.b`. It is refused on both column kinds.
+    /// matched only the row whose path IS `a.b`. One it still does not implement is refused on
+    /// both column kinds.
     #[test]
     fn an_unimplemented_operator_is_refused_not_turned_into_equality() {
         for op in [
-            WhereOperator::DescendantOf,
-            WhereOperator::AncestorOf,
-            WhereOperator::MatchesLquery,
+            WhereOperator::CosineDistance,
+            WhereOperator::Matches,
+            WhereOperator::InSubnet,
         ] {
             for clause in [
                 native(op.clone(), serde_json::json!("a.b")),
@@ -1461,6 +1462,47 @@ mod fail_closed_filters {
                 assert!(err.to_string().contains("not supported"), "{op:?}: {err}");
             }
         }
+    }
+
+    /// The ltree operators render the main WHERE generator's SQL; the native column's cast
+    /// suffix is not appended to an operand the operator already casts.
+    #[test]
+    fn ltree_operators_render_the_dialect_sql() {
+        let native_ltree = |operator, value| WhereClause::NativeField {
+            column: "path".to_string(),
+            pg_cast: "ltree".to_string(),
+            operator,
+            value,
+        };
+        for (clause, want) in [
+            (
+                native_ltree(WhereOperator::DescendantOf, serde_json::json!("a.b")),
+                r#"("path")::ltree <@ $1::ltree"#,
+            ),
+            (
+                native_ltree(WhereOperator::MatchesLquery, serde_json::json!("a.*")),
+                r#"("path")::ltree ~ $1::lquery"#,
+            ),
+            (
+                native_ltree(WhereOperator::DepthGt, serde_json::json!(2)),
+                r#"nlevel(("path")::ltree) > $1::text::int"#,
+            ),
+        ] {
+            let sql = sql_for(clause.clone()).unwrap();
+            assert!(sql.contains(want), "{clause:?}: {sql}");
+        }
+        // `field` is the JSONB `customer_id`: AncestorOf is `@>`, not `<@`.
+        let sql = sql_for(field(WhereOperator::AncestorOf, serde_json::json!("a.b"))).unwrap();
+        assert!(sql.contains("::ltree @> $1::ltree"), "{sql}");
+    }
+
+    /// `descendantOfId` resolves an id through a declared hierarchy; a fact-table filter has
+    /// none, so it is refused with the path operator to use instead.
+    #[test]
+    fn an_id_based_hierarchy_operator_is_refused_with_its_alternative() {
+        let err = sql_for(native(WhereOperator::DescendantOfId, serde_json::json!("x")))
+            .expect_err("no hierarchy on a fact table");
+        assert!(err.to_string().contains("descendant_of"), "{err}");
     }
 
     /// `IsNotNull` also fell through to `=`, and `IsNull` ignored its operand, so
@@ -1491,17 +1533,11 @@ mod fail_closed_filters {
     }
 
     /// A `where` key whose suffix is no operator used to be skipped, and the aggregate ran over
-    /// the whole table: a typo, or an operator spelled with underscores (`_is_not_null`,
-    /// `_descendant_of`). The key is refused, named.
+    /// the whole table. The key is refused, named.
     #[test]
     fn a_where_key_with_no_known_operator_is_refused() {
         let metadata = create_aggregation_test_metadata();
-        for key in [
-            "customer_id_eqq",
-            "customer_id_is_not_null",
-            "customer_id_descendant_of",
-            "customer",
-        ] {
+        for key in ["customer_id_eqq", "customer", "customer_id_descendant_off"] {
             let query = serde_json::json!({
                 "table": "tf_sales", "where": { key: 1 },
                 "groupBy": { "status": true }, "aggregates": [{ "count": {} }]
@@ -1510,5 +1546,61 @@ mod fail_closed_filters {
                 .expect_err("must be refused");
             assert!(err.to_string().contains(key), "names {key}: {err}");
         }
+    }
+
+    fn where_of(
+        metadata: &crate::compiler::fact_table::FactTableMetadata,
+        key: &str,
+    ) -> crate::Result<WhereClause> {
+        let query = serde_json::json!({
+            "table": "tf_sales", "where": { key: 1 }, "aggregates": [{ "count": {} }]
+        });
+        AggregateQueryParser::parse(&query, metadata, &HashMap::new())
+            .map(|r| r.where_clause.expect("a where clause"))
+    }
+
+    fn only_field(clause: &WhereClause) -> (&str, &WhereOperator) {
+        match clause {
+            WhereClause::And(c) => match c.as_slice() {
+                [WhereClause::Field { path, operator, .. }] => (path[0].as_str(), operator),
+                other => panic!("one field condition expected, got {other:?}"),
+            },
+            other => panic!("an And expected, got {other:?}"),
+        }
+    }
+
+    /// Splitting at the last underscore could not reach an operator spelled with one.
+    #[test]
+    fn an_operator_spelled_with_underscores_is_parsed() {
+        let metadata = create_aggregation_test_metadata();
+        for (key, want) in [
+            ("customer_id_is_not_null", WhereOperator::IsNotNull),
+            ("customer_id_descendant_of", WhereOperator::DescendantOf),
+            ("customer_id_matches_any_lquery", WhereOperator::MatchesAnyLquery),
+            ("customer_id_eq", WhereOperator::Eq),
+        ] {
+            let clause = where_of(&metadata, key).unwrap();
+            assert_eq!(only_field(&clause), ("customer_id", &want), "{key}");
+        }
+    }
+
+    /// `x_depth_eq` reads as `x` + `depth_eq` or `x_depth` + `eq`. The declared field decides;
+    /// with none or both declared, the key is refused rather than guessed.
+    #[test]
+    fn an_ambiguous_key_is_settled_by_the_declared_field_or_refused() {
+        let mut metadata = create_aggregation_test_metadata();
+        let clause = where_of(&metadata, "customer_id_depth_eq").unwrap();
+        assert_eq!(only_field(&clause), ("customer_id", &WhereOperator::DepthEq));
+
+        let err = where_of(&metadata, "region_depth_eq").expect_err("neither reading declared");
+        assert!(err.to_string().contains("ambiguous"), "{err}");
+
+        metadata.denormalized_filters.push(crate::compiler::fact_table::FilterColumn {
+            name:     "customer_id_depth".to_string(),
+            sql_type: crate::compiler::fact_table::SqlType::Int,
+            indexed:  false,
+        });
+        let err = where_of(&metadata, "customer_id_depth_eq").expect_err("both readings declared");
+        assert!(err.to_string().contains("ambiguous"), "{err}");
     }
 }

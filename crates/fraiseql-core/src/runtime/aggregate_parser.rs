@@ -113,7 +113,7 @@ impl AggregateQueryParser {
 
         // Parse WHERE clause (if present)
         let where_clause = if let Some(where_obj) = query_json.get("where") {
-            Some(Self::parse_where_clause(where_obj, native_columns)?)
+            Some(Self::parse_where_clause(where_obj, metadata, native_columns)?)
         } else {
             None
         };
@@ -181,6 +181,7 @@ impl AggregateQueryParser {
     /// [`WhereClause::Field`] (JSONB extraction).
     fn parse_where_clause(
         where_obj: &Value,
+        metadata: &FactTableMetadata,
         native_columns: &std::collections::HashMap<String, String>,
     ) -> Result<WhereClause> {
         let Some(obj) = where_obj.as_object() else {
@@ -192,16 +193,15 @@ impl AggregateQueryParser {
         for (key, value) in obj {
             // Parse field_operator format (e.g., "customer_id_eq" -> field="customer_id",
             // operator="eq")
-            let Some((field, operator_str)) = Self::parse_where_field_and_operator(key)? else {
-                // Skipping the key ran the aggregate over every row the other keys allow:
-                // a typo, or an operator spelled with underscores, silently widened the
-                // result (#1460).
-                return Err(FraiseQLError::validation(format!(
-                    "aggregate `where` key `{key}` is not `<field>_<operator>` with a supported \
-                     operator"
-                )));
-            };
-            let operator = WhereOperator::from_str(operator_str)?;
+            let (field, operator) = Self::parse_where_field_and_operator(key, |field| {
+                let snake = crate::utils::to_snake_case(field);
+                native_columns.contains_key(field)
+                    || metadata
+                        .denormalized_filters
+                        .iter()
+                        .any(|f| f.name == field || f.name == snake)
+                    || metadata.dimensions.paths.iter().any(|p| p.name == field || p.name == snake)
+            })?;
 
             let clause = if let Some(pg_cast) = native_columns.get(field) {
                 WhereClause::NativeField {
@@ -228,24 +228,48 @@ impl AggregateQueryParser {
         Ok(WhereClause::And(conditions))
     }
 
-    /// Parse WHERE field and operator from key (e.g., "`customer_id_eq`" -> ("`customer_id`",
-    /// "eq"))
-    fn parse_where_field_and_operator(key: &str) -> Result<Option<(&str, &str)>> {
-        // Find last underscore to split field from operator
-        if let Some(last_underscore) = key.rfind('_') {
-            let field = &key[..last_underscore];
-            let operator = &key[last_underscore + 1..];
-
-            // Validate operator is known
-            match WhereOperator::from_str(operator) {
-                Ok(_) => Ok(Some((field, operator))),
-                // Not an operator suffix: the caller refuses the key.
-                Err(_) => Ok(None),
-            }
-        } else {
-            // No underscore, so no operator: the caller refuses the key.
-            Ok(None)
-        }
+    /// Split a `<field>_<operator>` key against the operator table.
+    ///
+    /// Splitting at the last underscore could not reach an operator spelled with one
+    /// (`descendant_of`, `is_not_null`, `depth_eq`), so such keys were refused (#1460).
+    /// Every split whose suffix names an operator is a candidate. When several are
+    /// (`path_depth_eq` reads as `path` + `depth_eq` or as `path_depth` + `eq`), the
+    /// one whose field the fact table declares wins, and a key that stays ambiguous is
+    /// refused rather than guessed.
+    fn parse_where_field_and_operator(
+        key: &str,
+        is_declared: impl Fn(&str) -> bool,
+    ) -> Result<(&str, WhereOperator)> {
+        let candidates: Vec<(&str, &str, WhereOperator)> = key
+            .match_indices('_')
+            .filter_map(|(i, _)| {
+                let (field, suffix) = (&key[..i], &key[i + 1..]);
+                let operator = WhereOperator::from_str(suffix).ok()?;
+                (!field.is_empty()).then_some((field, suffix, operator))
+            })
+            .collect();
+        let declared: Vec<_> = candidates.iter().filter(|(f, ..)| is_declared(f)).collect();
+        let chosen = match (candidates.as_slice(), declared.as_slice()) {
+            ([], _) => {
+                return Err(FraiseQLError::validation(format!(
+                    "aggregate `where` key `{key}` is not `<field>_<operator>` with a supported \
+                     operator"
+                )));
+            },
+            ([only], _) => only,
+            (_, [only]) => *only,
+            (many, _) => {
+                let readings: Vec<String> =
+                    many.iter().map(|(f, op, _)| format!("`{f}` `{op}`")).collect();
+                return Err(FraiseQLError::validation(format!(
+                    "aggregate `where` key `{key}` is ambiguous: it reads as {}; declare the \
+                     field as a filter column or a dimension path",
+                    readings.join(" or ")
+                )));
+            },
+        };
+        let (field, _, operator) = chosen;
+        Ok((field, operator.clone()))
     }
 
     /// Parse GROUP BY selections.

@@ -65,6 +65,11 @@ impl AggregationSqlGenerator {
                 // Use quote_identifier for dialect-correct quoting (MySQL backticks, SQL
                 // Server brackets, PG/SQLite double-quotes).
                 let col_ref = self.quote_identifier(column);
+                // An ltree operator casts its own operand (`::ltree`, `::lquery`, …); the
+                // column's cast suffix below would double it.
+                if let Some(sql) = self.ltree_where(&col_ref, operator, value, params)? {
+                    return Ok(sql);
+                }
                 let pre_len = params.len();
                 let sql = self.generate_direct_column_where_parameterized(
                     &col_ref, operator, value, params,
@@ -107,6 +112,9 @@ impl AggregationSqlGenerator {
     ) -> Result<String> {
         if let Some(test) = null_test(operator, value)? {
             return Ok(format!("{field} {test}"));
+        }
+        if let Some(sql) = self.ltree_where(field, operator, value, params)? {
+            return Ok(sql);
         }
 
         let op_sql = self.operator_to_sql(operator)?;
@@ -164,6 +172,9 @@ impl AggregationSqlGenerator {
         if let Some(test) = null_test(operator, value)? {
             return Ok(format!("{jsonb_extract} {test}"));
         }
+        if let Some(sql) = self.ltree_where(&jsonb_extract, operator, value, params)? {
+            return Ok(sql);
+        }
 
         let op_sql = self.operator_to_sql(operator)?;
 
@@ -201,6 +212,68 @@ impl AggregationSqlGenerator {
 
         let ph = self.emit_value_param(value, params);
         Ok(format!("{jsonb_extract} {op_sql} {ph}"))
+    }
+
+    /// SQL for an ltree operator on `lhs` (a column or a JSONB extraction), or `None` for
+    /// any other operator.
+    ///
+    /// The SQL is the PostgreSQL dialect's, as the main WHERE generator emits it. This
+    /// generator implemented no ltree operator, so `descendantOf` became `=` and later
+    /// was refused (#1460).
+    fn ltree_where(
+        &self,
+        lhs: &str,
+        operator: &WhereOperator,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<Option<String>> {
+        use fraiseql_db::{PostgresDialect, SqlDialect};
+
+        let dialect = match self.database_type {
+            DatabaseType::PostgreSQL => PostgresDialect,
+        };
+        let binary = |pg_op: &str, rhs_type: &str, params: &mut Vec<serde_json::Value>| {
+            let ph = self.emit_value_param(value, params);
+            dialect.ltree_binary_sql(pg_op, lhs, &ph, rhs_type)
+        };
+        let depth = |op: &str, params: &mut Vec<serde_json::Value>| {
+            let ph = self.emit_value_param(value, params);
+            dialect.ltree_depth_sql(op, lhs, &ph)
+        };
+        let list = |cast: &str, params: &mut Vec<serde_json::Value>| -> Result<Vec<String>> {
+            let items = value.as_array().filter(|a| !a.is_empty()).ok_or_else(|| {
+                FraiseQLError::validation(format!("{operator:?} requires a non-empty array"))
+            })?;
+            Ok(items
+                .iter()
+                .map(|v| format!("{}::{cast}", self.emit_value_param(v, params)))
+                .collect())
+        };
+        let sql = match operator {
+            WhereOperator::AncestorOf => binary("@>", "ltree", params),
+            WhereOperator::DescendantOf => binary("<@", "ltree", params),
+            WhereOperator::MatchesLquery => binary("~", "lquery", params),
+            WhereOperator::MatchesLtxtquery => binary("@", "ltxtquery", params),
+            WhereOperator::MatchesAnyLquery => {
+                dialect.ltree_any_lquery_sql(lhs, &list("lquery", params)?)
+            },
+            WhereOperator::Lca => dialect.ltree_lca_sql(lhs, &list("ltree", params)?),
+            WhereOperator::DepthEq => depth("=", params),
+            WhereOperator::DepthNeq => depth("!=", params),
+            WhereOperator::DepthGt => depth(">", params),
+            WhereOperator::DepthGte => depth(">=", params),
+            WhereOperator::DepthLt => depth("<", params),
+            WhereOperator::DepthLte => depth("<=", params),
+            WhereOperator::DescendantOfId | WhereOperator::AncestorOfId => {
+                return Err(FraiseQLError::validation(format!(
+                    "{operator:?} resolves a node id through a declared hierarchy, which a \
+                     fact-table aggregate filter does not support; filter on the path with \
+                     descendant_of / ancestor_of"
+                )));
+            },
+            _ => return Ok(None),
+        };
+        sql.map(Some).map_err(|e| FraiseQLError::validation(e.to_string()))
     }
 
     /// Parameterized case-insensitive WHERE (ILIKE for PostgreSQL, `UPPER()` for others).
