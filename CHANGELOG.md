@@ -18,6 +18,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A constraint a mutation's function violates answers as the mutation's typed error
+  (#1424).** A class-23 SQLSTATE raised by the function reached the client as a top-level
+  `CONSTRAINT_VIOLATION`, and the mutation's `MutationError` member was never served, so a
+  function had to pre-check what its constraints already enforce. When the mutation returns a
+  union or interface with exactly one error member (every `auto_error_union` result), the
+  violation is now served as that member: `validation` (422) for not-null and check
+  violations, `conflict` (409) for the rest of the class, with a generic message and no
+  constraint name. Other mutations keep the top-level error. A client matching on
+  `CONSTRAINT_VIOLATION` for such a mutation now receives `data` with the error member.
+
 - **`[observers.runtime.transport]` refuses the bridge and executor settings the server never
   applied (#1496).** `run_bridge`, `run_executors` and the `[bridge]` table configured a
   PostgreSQL → NATS bridge and a bridge-only node; `fraiseql-server` runs the executors always

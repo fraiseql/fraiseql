@@ -134,6 +134,24 @@ RETURN QUERY SELECT * FROM fraiseql.mutation_err(
 An unstamped failure of a mutation returning a plain object type has no member to choose
 between; it is served untyped (`__typename` of the return type, plus `status`).
 
+### A constraint the function violates
+
+When the function raises an integrity-constraint violation (SQLSTATE class 23) instead of
+returning a row, the write rolls back with its transaction. If the mutation returns a union
+or interface with exactly one error member (every `auto_error_union` result), the violation
+is served as that member, as an unstamped `mutation_err` would be, so a constraint does not
+need a pre-check in the function to reach the typed error:
+
+| SQLSTATE | `status` / `errorClass` | `httpStatus` | `message` |
+|---|---|---|---|
+| `23502` not-null, `23514` check | `validation` | 422 | `The request contains an invalid value` |
+| any other `23xxx` (unique, exclusion, foreign key, …) | `conflict` | 409 | `The request conflicts with the current state of the data` |
+
+The message is always that generic text, and the constraint's name is not exposed; the
+server log records the database's error. A mutation with no error member, or with several,
+keeps the top-level `CONSTRAINT_VIOLATION` error, since nothing says which member a
+violation is.
+
 A literal stamp outside the set is caught before it ships: `fraiseql compile --database`,
 `fraiseql validate --against-db` and `fraiseql doctor --against-db` read the function body
 and fail on it ([database contract validation](../guides/database-contract-validation.md)).

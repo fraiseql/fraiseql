@@ -1072,6 +1072,56 @@ fn build_mutation_result(
     }
 }
 
+/// The typed failure an integrity-constraint violation (SQLSTATE class 23) raised by
+/// a mutation's function becomes (#1424), or `None` to keep it a request error.
+///
+/// Only a mutation whose result union or interface has exactly one error member has a
+/// typed failure to give: that member answers, as it does for an unstamped failure
+/// the function returns. The message is the same generic text error sanitization uses,
+/// whatever the configuration: the constraint's name and the database's text never
+/// reach the response.
+fn constraint_violation_outcome(
+    error: &FraiseQLError,
+    schema: &crate::schema::CompiledSchema,
+    return_type: &str,
+    contract: &payload_gates::StampContract,
+) -> Option<MutationOutcome> {
+    let FraiseQLError::Database {
+        sql_state: Some(sql_state),
+        ..
+    } = error
+    else {
+        return None;
+    };
+    let returns_members =
+        schema.find_union(return_type).is_some() || schema.find_interface(return_type).is_some();
+    if !returns_members || contract.error.len() != 1 {
+        return None;
+    }
+    let (error_class, http_status, message) = match sql_state.as_str() {
+        // not_null_violation, check_violation: the input was invalid.
+        "23502" | "23514" => (
+            crate::runtime::cascade::MutationErrorClass::Validation,
+            422,
+            "The request contains an invalid value",
+        ),
+        // unique, exclusion and foreign-key violations, and the rest of the class.
+        state if state.starts_with("23") => (
+            crate::runtime::cascade::MutationErrorClass::Conflict,
+            409,
+            "The request conflicts with the current state of the data",
+        ),
+        _ => return None,
+    };
+    Some(MutationOutcome::Error {
+        error_class,
+        message: message.to_string(),
+        http_status: Some(http_status),
+        entity_type: None,
+        metadata: serde_json::Value::Null,
+    })
+}
+
 pub(in super::super) async fn execute_mutation_impl(
     ctx: &Arc<ExecutorContext>,
     mutation_name: &str,
@@ -1786,14 +1836,47 @@ pub(in super::super) async fn execute_mutation_impl(
             .with_session_vars(&session_pairs)
             .with_changelog(changelog.as_ref())
             .with_mode(mode);
-        writer.execute_write(&request, &gate).await?;
-        built.into_inner().ok_or_else(|| FraiseQLError::Internal {
-            message: format!(
-                "Mutation '{mutation_name}': the commit gate never ran, so the write \
-                     committed unadjudicated"
-            ),
-            source:  None,
-        })?
+        match writer.execute_write(&request, &gate).await {
+            Ok(_) => built.into_inner().ok_or_else(|| FraiseQLError::Internal {
+                message: format!(
+                    "Mutation '{mutation_name}': the commit gate never ran, so the write \
+                         committed unadjudicated"
+                ),
+                source:  None,
+            })?,
+            // #1424: an integrity constraint the function violated is the data's answer
+            // to this write, and the mutation's result union has a member for it. The
+            // transaction rolled back with the error; the client gets the typed failure
+            // the function would have returned had it pre-checked the constraint.
+            Err(error) => {
+                let Some(outcome) = constraint_violation_outcome(
+                    &error,
+                    &ctx.schema,
+                    &mutation_return_type,
+                    payload_gates.contract(),
+                ) else {
+                    return Err(error);
+                };
+                tracing::info!(
+                    mutation = %mutation_name,
+                    function = %sql_source,
+                    error = %error,
+                    "constraint violation answered as the mutation's typed error"
+                );
+                let envelope = outcome.clone();
+                let result_json = build_mutation_result(
+                    ctx,
+                    security_ctx,
+                    &payload_gates,
+                    outcome,
+                    &mutation_return_type,
+                    is_cascade,
+                    selections,
+                    &authz_variables,
+                )?;
+                (envelope, result_json)
+            },
+        }
     };
 
     // What follows a commit follows only a commit (ruling AD 3): a dry run rolled back,

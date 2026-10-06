@@ -842,6 +842,133 @@ mod mutation {
         );
     }
 
+    /// #1424: a constraint the mutation's function violates answers as the mutation's
+    /// typed error, not a top-level `CONSTRAINT_VIOLATION`, when its result union has
+    /// one error member. No constraint name reaches the response.
+    mod constraint_violation {
+        use std::sync::Arc;
+
+        use fraiseql_test_utils::failing_adapter::{FailError, FailingAdapter};
+
+        use crate::{
+            error::FraiseQLError,
+            runtime::Executor,
+            schema::{
+                CompiledSchema, FieldDefinition, FieldType, MutationDefinition, TypeDefinition,
+                UnionDefinition,
+            },
+        };
+
+        const CONSTRAINT: &str = "tb_invoice_line_mapping_source_excl";
+        const DOCUMENT: &str = "mutation { createUser { __typename ... on MutationError { \
+                                status message httpStatus errorClass } } }";
+
+        fn error_type(name: &str) -> TypeDefinition {
+            TypeDefinition {
+                is_error: true,
+                fields: vec![
+                    FieldDefinition::new("status", FieldType::String),
+                    FieldDefinition::new("message", FieldType::String),
+                    FieldDefinition::new("httpStatus", FieldType::Int),
+                    FieldDefinition::new("errorClass", FieldType::String),
+                ],
+                ..TypeDefinition::new(name, "")
+            }
+        }
+
+        /// `createUser` returning `return_type`; the union holds `User` and `error_members`.
+        fn schema(return_type: &str, error_members: &[&str]) -> CompiledSchema {
+            let mut schema = CompiledSchema::new();
+            schema.types.push(TypeDefinition::new("User", "v_user"));
+            let mut members = vec!["User".to_string()];
+            for name in error_members {
+                schema.types.push(error_type(name));
+                members.push((*name).to_string());
+            }
+            schema
+                .unions
+                .push(UnionDefinition::new("CreateUserResult").with_members(members));
+            schema.mutations.push(MutationDefinition {
+                sql_source: Some("fn_create_user".to_string()),
+                ..MutationDefinition::new("createUser", return_type)
+            });
+            schema
+        }
+
+        async fn run(
+            schema: CompiledSchema,
+            sql_state: &str,
+        ) -> crate::error::Result<serde_json::Value> {
+            let adapter = FailingAdapter::new().fail_with_error(FailError::Database {
+                message:   format!(
+                    "conflicting key value violates exclusion constraint \"{CONSTRAINT}\""
+                ),
+                sql_state: Some(sql_state.to_string()),
+            });
+            Executor::new(schema, Arc::new(adapter)).execute(DOCUMENT, None).await
+        }
+
+        #[tokio::test]
+        async fn a_conflict_answers_as_the_typed_error() {
+            let response = run(schema("CreateUserResult", &["MutationError"]), "23P01")
+                .await
+                .expect("a typed failure, not a request error");
+            let data = &response["data"]["createUser"];
+            assert_eq!(data["__typename"], "MutationError", "{response}");
+            assert_eq!(data["status"], "conflict", "{response}");
+            assert_eq!(data["errorClass"], "conflict", "{response}");
+            assert_eq!(data["httpStatus"], 409, "{response}");
+            assert_eq!(
+                data["message"], "The request conflicts with the current state of the data",
+                "{response}"
+            );
+            assert!(response.get("errors").is_none(), "{response}");
+            assert!(!response.to_string().contains(CONSTRAINT), "no constraint name: {response}");
+        }
+
+        #[tokio::test]
+        async fn a_check_violation_answers_as_a_validation_error() {
+            let response = run(schema("CreateUserResult", &["MutationError"]), "23514")
+                .await
+                .expect("a typed failure, not a request error");
+            let data = &response["data"]["createUser"];
+            assert_eq!(data["errorClass"], "validation", "{response}");
+            assert_eq!(data["httpStatus"], 422, "{response}");
+            assert_eq!(data["message"], "The request contains an invalid value", "{response}");
+        }
+
+        /// A mutation returning its entity, not the union, has no typed error to answer
+        /// with, even in a schema that declares one.
+        #[tokio::test]
+        async fn without_an_error_union_the_violation_stays_a_request_error() {
+            let err = run(schema("User", &["MutationError"]), "23505")
+                .await
+                .expect_err("no error union");
+            assert!(
+                matches!(&err, FraiseQLError::Database { sql_state: Some(s), .. } if s == "23505"),
+                "{err:?}"
+            );
+        }
+
+        /// Two error members: nothing says which one a constraint violation is.
+        #[tokio::test]
+        async fn with_two_error_members_the_violation_stays_a_request_error() {
+            let err = run(schema("CreateUserResult", &["MutationError", "OtherError"]), "23505")
+                .await
+                .expect_err("ambiguous");
+            assert!(matches!(err, FraiseQLError::Database { .. }), "{err:?}");
+        }
+
+        /// Only integrity-constraint violations (class 23) are the data's answer.
+        #[tokio::test]
+        async fn another_database_error_stays_a_request_error() {
+            let err = run(schema("CreateUserResult", &["MutationError"]), "40001")
+                .await
+                .expect_err("a serialization failure is not a constraint violation");
+            assert!(matches!(err, FraiseQLError::Database { .. }), "{err:?}");
+        }
+    }
+
     /// #465: when the mutation's return type is the bare success entity (no result
     /// union) and the schema declares an `is_error` type, a genuine failure must
     /// project that declared error type — driven by the response's `entity_type` —
