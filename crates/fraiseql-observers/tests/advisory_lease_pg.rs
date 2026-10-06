@@ -150,3 +150,92 @@ async fn dropped_lease_holds_the_lock_until_the_connection_dies() {
 
     contender.release().await.unwrap();
 }
+
+/// Terminate the backend that holds the advisory lock on `key`, as a database
+/// restart, a failover or an idle-session timeout would. Returns how many
+/// backends were terminated.
+async fn terminate_lock_holder(pool: &PgPool, key: i64) -> i64 {
+    // A bigint advisory key is stored split: high 32 bits in `classid`, low 32
+    // bits in `objid`, with `objsubid = 1`.
+    #[allow(clippy::cast_sign_loss)] // Reason: reinterpreting the key's bit pattern
+    let bits = key as u64;
+    let classid = i64::from(u32::try_from(bits >> 32).unwrap());
+    let objid = i64::from(u32::try_from(bits & 0xffff_ffff).unwrap());
+    sqlx::query_scalar(
+        "SELECT count(pg_terminate_backend(pid)) FROM pg_locks \
+         WHERE locktype = 'advisory' AND granted AND objsubid = 1 \
+           AND classid::bigint = $1 AND objid::bigint = $2",
+    )
+    .bind(classid)
+    .bind(objid)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+}
+
+/// A holder whose session ended no longer holds the lock, and must not say it
+/// does (#1500): once another replica has taken the lock over, the old holder's
+/// `acquire()` answering `true` from its own cached state would let two
+/// replicas poll at once.
+#[tokio::test]
+async fn a_holder_whose_session_died_no_longer_claims_the_lock() {
+    let Some((admin_pool, svc)) = connect_pool().await else {
+        eprintln!(
+            "SKIP a_holder_whose_session_died_no_longer_claims_the_lock: no postgres (set DATABASE_URL or enable fraiseql-test-support/local-testcontainers)"
+        );
+        return;
+    };
+    let holder_pool = PgPool::connect(svc.url()).await.unwrap();
+    let contender_pool = PgPool::connect(svc.url()).await.unwrap();
+    let key = random_lock_key();
+
+    let holder = CheckpointLease::postgres(holder_pool, "holder".to_string(), key);
+    let contender = CheckpointLease::postgres(contender_pool, "contender".to_string(), key);
+
+    assert!(holder.acquire().await.unwrap(), "holder acquires the lock");
+    assert_eq!(
+        terminate_lock_holder(&admin_pool, key).await,
+        1,
+        "the holder's session is ended"
+    );
+    assert!(
+        acquire_within(&contender, 40).await,
+        "the lock is free once its session ended, so the contender takes it"
+    );
+
+    assert!(
+        !holder.acquire().await.unwrap(),
+        "the old holder must not claim a lock another session now holds"
+    );
+    assert!(!holder.is_valid().await.unwrap(), "the old holder's lease is no longer valid");
+
+    contender.release().await.unwrap();
+}
+
+/// Every way of asking a holder whether it still holds the lock answers from the
+/// session, not from the cached connection (#1500): `is_valid`, `renew` and
+/// `get_holder` are each asked of their own holder whose session just ended.
+#[tokio::test]
+async fn every_holder_query_sees_that_its_session_died() {
+    let Some((admin_pool, svc)) = connect_pool().await else {
+        eprintln!(
+            "SKIP every_holder_query_sees_that_its_session_died: no postgres (set DATABASE_URL or enable fraiseql-test-support/local-testcontainers)"
+        );
+        return;
+    };
+
+    for query in ["is_valid", "renew", "get_holder"] {
+        let holder_pool = PgPool::connect(svc.url()).await.unwrap();
+        let key = random_lock_key();
+        let holder = CheckpointLease::postgres(holder_pool, "holder".to_string(), key);
+        assert!(holder.acquire().await.unwrap(), "{query}: holder acquires the lock");
+        assert_eq!(terminate_lock_holder(&admin_pool, key).await, 1, "{query}: session ended");
+
+        let still_held = match query {
+            "is_valid" => holder.is_valid().await.unwrap(),
+            "renew" => holder.renew().await.unwrap(),
+            _ => holder.get_holder().await.unwrap().is_some(),
+        };
+        assert!(!still_held, "{query} must not report a lock whose session ended");
+    }
+}

@@ -1555,3 +1555,170 @@ async fn test_admin_create_reloads_matcher() {
 
     cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
 }
+
+/// Clean the tables a replica test reads, and seed one observer whose webhook
+/// answers only after `webhook_delay` — long enough that a second poller would
+/// see the row before the first one records it.
+async fn seed_replica_test(
+    pool: &sqlx::PgPool,
+    test_id: &str,
+    webhook_delay: Duration,
+) -> (MockWebhookServer, String) {
+    setup_observer_schema(pool).await.expect("Failed to setup schema");
+    for table in [
+        "tb_observer_log",
+        "tb_observer",
+        "core.tb_entity_change_log",
+    ] {
+        sqlx::query(&format!("DELETE FROM {table}"))
+            .execute(pool)
+            .await
+            .expect("Failed to clean table");
+    }
+
+    let mock_server = MockWebhookServer::start().await;
+    mock_server.mock_delayed_response(webhook_delay).await;
+
+    let entity_type = format!("Order_{test_id}");
+    create_test_observer(
+        pool,
+        &format!("test-replicas-{test_id}"),
+        Some(&entity_type),
+        Some("INSERT"),
+        None,
+        &mock_server.webhook_url(),
+    )
+    .await
+    .expect("Failed to create observer");
+
+    (mock_server, entity_type)
+}
+
+async fn insert_order(pool: &sqlx::PgPool, entity_type: &str) -> Uuid {
+    let order_id = Uuid::new_v4();
+    insert_change_log_entry(
+        pool,
+        "INSERT",
+        entity_type,
+        &order_id.to_string(),
+        serde_json::json!({"id": order_id.to_string()}),
+        None,
+    )
+    .await
+    .expect("Failed to insert change log entry");
+    order_id
+}
+
+/// Two replicas of one deployment (#1500): each has its own pool, both run the
+/// runtime under the same listener id against one database. One change-log row
+/// must produce exactly one dispatch, not one per replica that polls it.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_two_replicas_dispatch_a_row_once() {
+    init_test_tracing();
+
+    let test_id = Uuid::new_v4().to_string();
+    let listener_id = format!("replicas-{test_id}");
+    let pool_a = create_test_pool().await;
+    let pool_b = create_test_pool().await;
+    let (mock_server, entity_type) =
+        seed_replica_test(&pool_a, &test_id, Duration::from_millis(1500)).await;
+
+    let mut replica_a = ObserverRuntime::new(
+        ObserverRuntimeConfig::new(pool_a.clone())
+            .with_poll_interval(50)
+            .with_listener_id(listener_id.clone()),
+    );
+    let mut replica_b = ObserverRuntime::new(
+        ObserverRuntimeConfig::new(pool_b.clone())
+            .with_poll_interval(50)
+            .with_listener_id(listener_id.clone()),
+    );
+    replica_a.start().await.expect("Failed to start replica A");
+    replica_b.start().await.expect("Failed to start replica B");
+
+    let order_id = insert_order(&pool_a, &entity_type).await;
+
+    wait_for_webhook(&mock_server, 1, Duration::from_secs(20)).await;
+    // The webhook answers after 1.5 s, so a second poller has had the whole
+    // window in which the row is handed out but not yet recorded. Wait past it.
+    tokio::time::sleep(Duration::from_secs(4)).await;
+
+    let deliveries = mock_server.request_count().await;
+    replica_a.stop().await.expect("Failed to stop replica A");
+    replica_b.stop().await.expect("Failed to stop replica B");
+    cleanup_test_data(&pool_a, &test_id).await.expect("Failed to cleanup");
+
+    assert_eq!(
+        deliveries, 1,
+        "one change-log row ({order_id}) was dispatched {deliveries} times across two replicas"
+    );
+}
+
+/// The replica that is not polling stands by, and takes over when the poller
+/// stops (#1500): the lease must not turn a stopped leader into a stalled
+/// deployment. The standby starts before the leader's last dispatch, so it takes
+/// over from the stored checkpoint rather than the one it read at start.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_standby_replica_takes_over_when_the_poller_stops() {
+    init_test_tracing();
+
+    let test_id = Uuid::new_v4().to_string();
+    let listener_id = format!("takeover-{test_id}");
+    let pool_a = create_test_pool().await;
+    let pool_b = create_test_pool().await;
+    let (mock_server, entity_type) =
+        seed_replica_test(&pool_a, &test_id, Duration::from_millis(0)).await;
+
+    // A starts alone and dispatches the first row, so A is the poller.
+    let mut replica_a = ObserverRuntime::new(
+        ObserverRuntimeConfig::new(pool_a.clone())
+            .with_poll_interval(50)
+            .with_listener_id(listener_id.clone()),
+    );
+    replica_a.start().await.expect("Failed to start replica A");
+    insert_order(&pool_a, &entity_type).await;
+    wait_for_webhook(&mock_server, 1, Duration::from_secs(20)).await;
+
+    // B starts while A polls, so B stands by; A dispatches one more row.
+    let mut replica_b = ObserverRuntime::new(
+        ObserverRuntimeConfig::new(pool_b.clone())
+            .with_poll_interval(50)
+            .with_listener_id(listener_id.clone()),
+    );
+    replica_b.start().await.expect("Failed to start replica B");
+    insert_order(&pool_a, &entity_type).await;
+    wait_for_webhook(&mock_server, 2, Duration::from_secs(20)).await;
+    replica_a.stop().await.expect("Failed to stop replica A");
+
+    let third = insert_order(&pool_b, &entity_type).await;
+    wait_for_webhook(&mock_server, 3, Duration::from_secs(20)).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
+    let ids: Vec<String> = mock_server
+        .received_requests()
+        .await
+        .iter()
+        .filter_map(|r| r["id"].as_str().map(str::to_string))
+        .collect();
+    let (event_count,): (i32,) =
+        sqlx::query_as("SELECT event_count FROM observer_checkpoints WHERE listener_id = $1")
+            .bind(&listener_id)
+            .fetch_one(&pool_a)
+            .await
+            .expect("the checkpoint is stored");
+    replica_b.stop().await.expect("Failed to stop replica B");
+    cleanup_test_data(&pool_a, &test_id).await.expect("Failed to cleanup");
+
+    assert_eq!(ids.len(), 3, "expected each of three rows once, got {ids:?}");
+    assert_eq!(
+        ids[2],
+        third.to_string(),
+        "the standby must dispatch the row inserted after takeover"
+    );
+    assert_eq!(
+        event_count, 3,
+        "the standby must continue the stored checkpoint, not the one it read at start"
+    );
+}

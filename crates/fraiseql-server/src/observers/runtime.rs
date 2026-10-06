@@ -19,8 +19,9 @@ use arc_swap::ArcSwap;
 use fraiseql_core::runtime::subscription::{ChangeSpineEnvelope, SubscriptionOperation};
 use fraiseql_observers::{
     ActionConfig as ObserverActionConfig, ActionExecutionDetail, ChangeLogListener,
-    ChangeLogListenerConfig, EntityEvent as ObserverEntityEvent, EventMatcher, FailurePolicy,
-    InMemoryTransport, ObserverDefinition, ObserverExecutor, RetryConfig as ObserverRetryConfig,
+    ChangeLogListenerConfig, CheckpointLease, EntityEvent as ObserverEntityEvent, EventMatcher,
+    FailurePolicy, InMemoryTransport, ObserverDefinition, ObserverExecutor,
+    RetryConfig as ObserverRetryConfig,
     checkpoint::{
         CheckpointState as ObserverCheckpointState, CheckpointStore, PostgresCheckpointStore,
     },
@@ -43,6 +44,23 @@ use crate::{
 
 #[cfg(test)]
 mod tests;
+
+/// How often a replica that does not hold the change-log poll lease retries it.
+/// It bounds how long the change log goes unpolled after the poller stops.
+const STANDBY_RETRY_INTERVAL: Duration = Duration::from_secs(1);
+
+/// The advisory-lock key replicas contend on to poll the change log under
+/// `listener_id` (#1500). Namespaced so it can never equal a source's key
+/// ([`fraiseql_observers::lock_id`] of the bare source name).
+fn change_log_poll_lock_key(listener_id: &str) -> i64 {
+    fraiseql_observers::lock_id(&format!("observer change log poll: {listener_id}"))
+}
+
+/// How long a standby replica waits between attempts at the poll lease: never
+/// more often than it would poll.
+fn poll_interval_or_standby_retry(poll_interval_ms: u64) -> Duration {
+    Duration::from_millis(poll_interval_ms).max(STANDBY_RETRY_INTERVAL)
+}
 
 /// Which event-source path [`ObserverRuntime::start`] takes for a given transport.
 ///
@@ -155,7 +173,8 @@ pub struct ObserverRuntimeConfig {
     /// `core.tb_entity_change_log` — so a restarted runtime resumes from the
     /// last processed row instead of replaying the entire change log. All
     /// replicas of one deployment share this identity (they are the same
-    /// logical consumer). Default: `"change_log"`.
+    /// logical consumer), and it keys the advisory lock that lets exactly one
+    /// of them poll at a time (#1500). Default: `"change_log"`.
     pub listener_id: String,
 
     /// Redis backend for the `cache`/`invalidate` observer transport (#985).
@@ -584,6 +603,24 @@ impl ObserverRuntime {
             listener_config = listener_config.with_resume_from(state.last_processed_id);
         }
 
+        // #1500: replicas of one deployment share this listener, its checkpoint
+        // and its dispatch ledger, and a row is recorded in the ledger only after
+        // its actions ran. Two replicas polling at once would both dispatch it, so
+        // only the holder of a PostgreSQL advisory lock polls; the others stand by
+        // and take over when the holder releases it or its session ends. The lock
+        // lives on its own one-connection pool: it does not take a connection from
+        // the request pool for the server's lifetime, and when the poll task ends
+        // without releasing, dropping that pool closes the session and frees it.
+        let lease_pool = sqlx::postgres::PgPoolOptions::new()
+            .max_connections(1)
+            .connect_lazy_with((*self.config.pool.connect_options()).clone());
+        let lease = CheckpointLease::postgres(
+            lease_pool.clone(),
+            self.config.listener_id.clone(),
+            change_log_poll_lock_key(&self.config.listener_id),
+        );
+        let standby_retry = poll_interval_or_standby_retry(self.config.poll_interval_ms);
+
         // Create shutdown channel
         let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
         self.shutdown_tx = Some(shutdown_tx);
@@ -643,7 +680,8 @@ impl ObserverRuntime {
         // Spawn background processing task
         debug!("Calling tokio::spawn()");
         let handle = tokio::spawn(async move {
-            let mut listener = ChangeLogListener::new(listener_config);
+            let mut listener = ChangeLogListener::new(listener_config.clone());
+            let mut polling = false;
             // Start with the values captured at launch time; hot-reload replaces them.
             let mut current_matcher = initial_matcher;
             let mut current_executor = initial_executor;
@@ -656,6 +694,55 @@ impl ObserverRuntime {
             let _ = ready_tx.send(());
 
             loop {
+                // #1500: poll only while holding the lease. `acquire` is
+                // idempotent for the holder and checks that its session is
+                // still alive, so a holder whose session ended stops polling.
+                let leading = match lease.acquire().await {
+                    Ok(leading) => leading,
+                    Err(e) => {
+                        errors.fetch_add(1, Ordering::Relaxed);
+                        warn!(%listener_id, "Could not take the change-log poll lease: {e}");
+                        false
+                    },
+                };
+                if !leading {
+                    if polling {
+                        warn!(%listener_id, "Lost the change-log poll lease; standing by");
+                        polling = false;
+                    }
+                    tokio::select! {
+                        _ = shutdown_rx.recv() => {
+                            info!("Observer runtime received shutdown signal");
+                            break;
+                        }
+                        () = tokio::time::sleep(standby_retry) => continue,
+                    }
+                }
+                if !polling {
+                    // Taking over (or starting): another replica may have moved
+                    // the shared cursor since this one last polled, so resume
+                    // from the stored checkpoint, as a restart would.
+                    match checkpoint_store.load(&listener_id).await {
+                        Ok(stored) => {
+                            let mut config = listener_config.clone();
+                            if let Some(state) = stored {
+                                config = config.with_resume_from(state.last_processed_id);
+                                last_checkpoint.store(state.last_processed_id, Ordering::Relaxed);
+                                checkpoint_event_count = state.event_count;
+                            }
+                            listener = ChangeLogListener::new(config);
+                        },
+                        Err(e) => {
+                            errors.fetch_add(1, Ordering::Relaxed);
+                            error!(%listener_id, "Failed to reload the change-log checkpoint: {e}");
+                            tokio::time::sleep(Duration::from_secs(1)).await;
+                            continue;
+                        },
+                    }
+                    info!(%listener_id, "Holding the change-log poll lease; this replica polls");
+                    polling = true;
+                }
+
                 tokio::select! {
                     _ = shutdown_rx.recv() => {
                         info!("Observer runtime received shutdown signal");
@@ -780,6 +867,11 @@ impl ObserverRuntime {
                     break;
                 }
             }
+
+            // Hand the lease to a standby now: closing its pool ends the session
+            // that holds the lock. (Dropping the pool would too; this waits for it.)
+            drop(lease);
+            lease_pool.close().await;
 
             info!("Observer runtime stopped");
         });

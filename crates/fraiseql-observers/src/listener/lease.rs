@@ -140,8 +140,11 @@ impl InProcessLease {
 /// as long as the underlying `PoolConnection` is alive; `release()` explicitly
 /// calls `pg_advisory_unlock` before returning the connection to the pool.
 ///
-/// Because advisory locks have no TTL, `renew()` is a no-op that returns
-/// `true` while the lock is held, and `time_remaining_ms()` returns `u64::MAX`.
+/// Because advisory locks have no TTL, `renew()` takes no lease time and
+/// `time_remaining_ms()` returns `u64::MAX`. Every method that reports the lock
+/// as held first checks that the holding session is still alive: a session that
+/// ended (database restart, failover, an idle-session timeout) took the lock with
+/// it, and another session may hold it now.
 #[cfg(feature = "postgres")]
 pub struct PostgresAdvisoryLease {
     pool:          sqlx::PgPool,
@@ -164,10 +167,31 @@ impl PostgresAdvisoryLease {
         }
     }
 
+    /// Whether the session that took the lock is still alive, and so still holds
+    /// it: a session advisory lock is released only by `pg_advisory_unlock`, which
+    /// only [`release`](Self::release) runs, or by the session ending. A dead
+    /// connection is closed and forgotten, since the lock went with its session.
+    async fn holding_session_alive(
+        conn_guard: &mut Option<sqlx::pool::PoolConnection<sqlx::Postgres>>,
+    ) -> bool {
+        let Some(conn) = conn_guard.as_mut() else {
+            return false;
+        };
+        if sqlx::query("SELECT 1").execute(&mut **conn).await.is_ok() {
+            return true;
+        }
+        if let Some(dead) = conn_guard.take() {
+            // The session is already gone; closing only frees the pool slot.
+            let _ = dead.close().await;
+        }
+        false
+    }
+
     /// Attempt to acquire the session advisory lock.
     ///
-    /// Returns `true` when the lock is now held (including if we already held it),
-    /// `false` when another session holds the lock.
+    /// Returns `true` when the lock is now held (including if we already held it
+    /// and our session is still alive), `false` when another session holds the
+    /// lock.
     ///
     /// # Errors
     ///
@@ -176,8 +200,9 @@ impl PostgresAdvisoryLease {
     pub async fn acquire(&self) -> Result<bool> {
         let mut conn_guard = self.conn.lock().await;
 
-        // Already held — idempotent.
-        if conn_guard.is_some() {
+        // Already held — idempotent, as long as the holding session survived.
+        // If it died, the lock is free or someone else's: try for it afresh.
+        if Self::holding_session_alive(&mut conn_guard).await {
             return Ok(true);
         }
 
@@ -226,24 +251,25 @@ impl PostgresAdvisoryLease {
         }
     }
 
-    /// No-op: PostgreSQL session advisory locks have no TTL.
+    /// PostgreSQL session advisory locks have no TTL, so there is nothing to
+    /// extend.
     ///
-    /// Returns `true` while the lock is held, `false` otherwise.
+    /// Returns `true` while the lock is held by a live session, `false` otherwise.
     ///
     /// # Errors
     ///
     /// This function currently always returns `Ok`.
     pub async fn renew(&self) -> Result<bool> {
-        Ok(self.conn.lock().await.is_some())
+        Ok(Self::holding_session_alive(&mut *self.conn.lock().await).await)
     }
 
-    /// Returns `true` if we currently hold the advisory lock.
+    /// Returns `true` if we currently hold the advisory lock through a live session.
     ///
     /// # Errors
     ///
     /// This function currently always returns `Ok`.
     pub async fn is_valid(&self) -> Result<bool> {
-        Ok(self.conn.lock().await.is_some())
+        Ok(Self::holding_session_alive(&mut *self.conn.lock().await).await)
     }
 
     /// Returns our `listener_id` if we hold the lock, `None` otherwise.
@@ -255,7 +281,7 @@ impl PostgresAdvisoryLease {
     ///
     /// This function currently always returns `Ok`.
     pub async fn get_holder(&self) -> Result<Option<String>> {
-        if self.conn.lock().await.is_some() {
+        if Self::holding_session_alive(&mut *self.conn.lock().await).await {
             Ok(Some(self.listener_id.clone()))
         } else {
             Ok(None)

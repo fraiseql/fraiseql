@@ -138,14 +138,23 @@ consumers: each message goes to one replica, and an unacknowledged message is
 redelivered after `ack_wait_secs`. The server only consumes the stream: it does not run
 the PostgreSQL → NATS bridge (`run_bridge` is not applied, issue #1496).
 
-**PostgreSQL.** Every replica polls `core.tb_entity_change_log` under the same
-listener id (`change_log`, not configurable in `fraiseql.toml`) and shares one
-checkpoint and one dispatch ledger. Nothing elects a single poller across replicas,
-and a row is recorded in the ledger only after its actions run, so two replicas
-polling at the same time can both dispatch the same row. Delivery is at-least-once.
-If duplicate side effects matter, run the runtime on a single replica
-(`[observers] enabled = false` on the others), use the NATS transport, or make actions
-idempotent (see [observer-idempotency.md](observer-idempotency.md)).
+**PostgreSQL.** Replicas share one listener id (`change_log`, not configurable in
+`fraiseql.toml`), and with it one checkpoint and one dispatch ledger. Exactly one replica
+polls `core.tb_entity_change_log`: the one holding a PostgreSQL advisory lock keyed on the
+listener id. The others stand by and retry the lock every second. When the poller stops, or
+PostgreSQL ends its session, a standby takes the lock at its next retry and resumes from the
+stored checkpoint. Each replica keeps the lock on its own one-connection pool, outside the
+request pool. The log says which replica polls ("Holding the change-log poll lease").
+
+A row is recorded in the ledger after its actions run, so delivery stays at-least-once: a
+poller that crashes, or loses its session, between running a batch's actions and recording
+them leaves that batch to be dispatched again by the next poller. Make actions idempotent
+where a repeat matters (see [observer-idempotency.md](observer-idempotency.md)).
+
+GraphQL subscriptions and REST `/{resource}/stream` deliveries are fed by the events the
+replica's own runtime consumed, so a subscriber connected to a standby replica receives no
+change events (on NATS, each replica's subscribers see the share of messages that replica
+consumed). Route subscribers to the polling replica; issue #1503 tracks per-replica fan-out.
 
 ---
 

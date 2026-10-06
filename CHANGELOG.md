@@ -529,6 +529,19 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Replicas on the PostgreSQL observer transport dispatch a change-log row once, not once per
+  replica (#1500).** Every `fraiseql-server` replica polled `core.tb_entity_change_log` under the
+  same listener, and a row is recorded in the dispatch ledger only after its actions run, so two
+  replicas polling the same window both ran its webhooks, emails and functions. Only the replica
+  holding a PostgreSQL advisory lock (keyed on the listener id) now polls. The others stand by,
+  retry each second, and take over from the stored checkpoint when the holder stops or its
+  database session ends. The lock lives on its own connection, outside the request pool.
+  `CheckpointLease::postgres` now checks that the holding session is alive before reporting the
+  lock as held: after a database restart it said it still held a lock another session had taken.
+  GraphQL subscriptions and REST `/stream` fed by the change log are now served by the polling
+  replica only; before, each replica served the rows it happened to win (#1503 tracks
+  per-replica fan-out).
+
 - **The release bumps the Compose stack and the runbooks with the other deploy artifacts.**
   `tools/check-deploy-versions.sh` has required `docker-compose.yml`'s server image to match the
   workspace version since 2026-08-28, but `tools/release.sh` never bumped it, so the first
