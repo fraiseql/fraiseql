@@ -117,13 +117,12 @@ cargo test --features checkpoint
 # 2. Verify checkpoint saved
 psql $DATABASE_URL -c "SELECT * FROM observer_checkpoints LIMIT 5;"
 
-# 3. Test recovery: stop observer, restart, verify no re-processing
-pkill fraiseql-observer
-sleep 2
-cargo run --features checkpoint
+# 3. Test recovery: restart fraiseql-server, verify no re-processing.
+#    On start its log shows "Restored observer change-log checkpoint; resuming (no replay)"
 
-# 4. Verify metrics
-fraiseql-observers metrics | grep checkpoint
+# 4. Verify the runtime's cursor
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://localhost:8000/api/observers/runtime/health | jq .last_checkpoint
 ```
 
 #### Step 4: Monitoring
@@ -198,8 +197,9 @@ INSERT INTO tb_entity_change_log (...) VALUES (...);
 INSERT INTO tb_entity_change_log (...) VALUES (...);  # Duplicate
 
 # 2. Verify first processed, second skipped
-fraiseql-observers metrics | grep dedup_skips_total
-# Should show: 1 skip
+#    ($METRICS_URL: the /metrics endpoint serving the fraiseql_observer_* registry)
+curl -s "$METRICS_URL" | grep fraiseql_observer_dedup_detected_total
+# Should show: 1 duplicate detected
 
 # 3. Verify action not executed twice
 # Check webhook logs, email logs, etc.
@@ -208,7 +208,8 @@ fraiseql-observers metrics | grep dedup_skips_total
 #### Step 4: Monitor
 
 ```bash
-fraiseql-observers metrics | grep dedup_rate
+curl -s "$METRICS_URL" | grep -E "fraiseql_observer_(dedup_detected|events_processed)_total"
+# dedup rate = dedup_detected / events_processed
 # Expect: 5-20% for normal workloads (retries, duplicates)
 ```
 
@@ -276,16 +277,16 @@ time cargo run --release --example 1000_webhook_calls --features all
 # Verify correctness
 cargo test --features checkpoint,concurrent,dedup,caching
 
-# Check cache hit rate
-fraiseql-observers metrics | grep cache_hit_rate
+# Check cache hit rate: hits / (hits + misses)
+curl -s "$METRICS_URL" | grep -E "fraiseql_observer_cache_(hits|misses)_total"
 # Expect: 70-80%+ for typical workloads
 ```
 
 #### Step 4: Monitor
 
 ```bash
-fraiseql-observers metrics | grep cache
-# Track: hit_rate, memory_usage, eviction_rate
+curl -s "$METRICS_URL" | grep fraiseql_observer_cache_
+# Track: hits, misses, evictions
 
 # Alert if hit_rate drops below 60%
 # (May indicate too short TTL or too small cache)
@@ -453,14 +454,16 @@ docker-compose -f docker-compose.green.yml up
 
 # 2. Verify green is healthy
 curl http://green-observer:8000/health
-fraiseql-observers status --host green-observer
+curl -H "Authorization: Bearer $ADMIN_TOKEN" \
+  http://green-observer:8000/api/observers/runtime/health
 
 # 3. Switch traffic from blue to green
 docker-compose down
 docker-compose -f docker-compose.green.yml up -d
 
 # 4. Monitor
-fraiseql-observers metrics
+curl -s -H "Authorization: Bearer $METRICS_TOKEN" \
+  http://green-observer:8000/metrics | grep fraiseql_observer_
 
 # 5. Rollback if needed
 docker-compose down
@@ -612,20 +615,16 @@ Before moving to each phase:
 
 ```bash
 # 1. Monitor metrics continuously
-watch -n 5 'fraiseql-observers metrics'
+watch -n 5 'curl -s -H "Authorization: Bearer $METRICS_TOKEN" http://localhost:8000/metrics | grep fraiseql_observer_'
 
 # 2. Check DLQ daily
-fraiseql-observers dlq stats
+curl -s -H "Authorization: Bearer $ADMIN_TOKEN" http://localhost:8000/api/observers/dlq/stats
 
 # 3. Verify checkpoints working
 psql $DATABASE_URL -c "SELECT COUNT(*) FROM observer_checkpoints;"
 
 # 4. Review logs for issues
-docker logs observer-listener | grep -i error
-
-# 5. Test failover scenario (if HA configured)
-kill $(pgrep fraiseql)
-# Verify automatic recovery
+docker logs <fraiseql-server container> | grep -i error
 ```
 
 ### Month 1 After Phase 8 Migration

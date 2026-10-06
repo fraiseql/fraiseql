@@ -4,6 +4,9 @@
 # An `ObserverRuntimeConfig` document (parse it with
 # `toml::from_str::<fraiseql_observers::config::ObserverRuntimeConfig>`).
 #
+# A library document: `fraiseql-server` does not run the bridge (#1496), and no
+# observer binary or image ships, so you run this from your own program.
+#
 # This deployment runs the PostgreSQL → NATS bridge:
 # - Reads from PostgreSQL change log (tb_entity_change_log)
 # - Publishes events to NATS JetStream
@@ -53,49 +56,3 @@ max_age_days = 7
 max_bytes = 10_737_418_240
 max_deliver = 3
 max_msgs = 10_000_000
-
-# Kubernetes Example
-# ===================
-#
-# apiVersion: apps/v1
-# kind: Deployment
-# metadata:
-# name: fraiseql-bridge-db1
-# spec:
-# replicas: 1  # Only one bridge per database
-# selector:
-# matchLabels:
-# app: fraiseql-bridge
-# database: db1
-# template:
-# metadata:
-# labels:
-# app: fraiseql-bridge
-# database: db1
-# spec:
-# containers:
-# - name: bridge
-# image: fraiseql-observers:latest
-# env:
-# - name: FRAISEQL_OBSERVER_TRANSPORT
-# value: "nats"
-# - name: FRAISEQL_NATS_ENABLE_BRIDGE
-# value: "true"
-# - name: FRAISEQL_NATS_RUN_EXECUTORS
-# value: "false"
-# - name: FRAISEQL_NATS_URL
-# value: "nats://nats-cluster:4222"
-# - name: FRAISEQL_BRIDGE_TRANSPORT_NAME
-# value: "pg_to_nats_db1"
-# - name: DATABASE_URL
-# valueFrom:
-# secretKeyRef:
-# name: db1-credentials
-# key: connection-string
-# resources:
-# requests:
-# memory: "256Mi"
-# cpu: "100m"
-# limits:
-# memory: "512Mi"
-# cpu: "500m"

@@ -23,10 +23,10 @@ Welcome to the comprehensive documentation for the FraiseQL Observer System, inc
 
 ### For Operations
 
-1. **Monitoring & Debugging** → [CLI Tools](cli-tools.md)
-   - Check system status: `fraiseql-observers status`
-   - Debug events: `fraiseql-observers debug-event`
-   - Manage failures: `fraiseql-observers dlq list`
+1. **Monitoring & Debugging** → [Operating Observers](../../../docs/operations/observers.md)
+   - Check runtime status: `GET /api/observers/runtime/health`
+   - Inspect execution logs: `GET /api/observers/logs`
+   - Manage failures: `GET /api/observers/dlq`
 
 2. **Performance Issues** → [Performance Tuning Guide](performance-tuning.md)
    - Identify bottlenecks
@@ -61,7 +61,7 @@ Welcome to the comprehensive documentation for the FraiseQL Observer System, inc
 | **[Architecture Overview](../../../../docs/architecture/overview.md)** | Understand Phase 8 design, features, and patterns | Everyone | 23 KB |
 | **[Configuration Examples](configuration-examples.md)** | Real-world configs for different scenarios | Operators, DevOps | 18 KB |
 | **[Integration Guide](integration-guide.md)** | Step-by-step feature integration | Developers | 22 KB |
-| **[CLI Tools](cli-tools.md)** | Command reference and workflows | Operators | 16 KB |
+| **[Operating Observers](../../../docs/operations/observers.md)** | Admin HTTP API, environment overrides, scaling, metrics | Operators | 8 KB |
 | **[Troubleshooting](troubleshooting.md)** | Problem diagnosis and solutions | Operators, Support | 18 KB |
 | **[Performance Tuning](performance-tuning.md)** | Optimization strategies and benchmarking | DevOps, Developers | 13 KB |
 | **[Migration Guide](migration-guide.md)** | Safe Phase 1-7 → Phase 8 migration | Operators, Tech Leads | 15 KB |
@@ -157,7 +157,7 @@ For Production → All (recommended)
 
 1. Read: [Architecture Overview](../../../../docs/architecture/overview.md)
 2. Follow: [Integration Guide - 8.3](integration-guide.md#phase-83-event-deduplication)
-3. Monitor: [CLI Tools - DLQ](cli-tools.md#3-dlq-commands)
+3. Monitor: [Operating Observers - Admin HTTP API](../../../docs/operations/observers.md#admin-http-api)
 
 **Expected Result**: No duplicate side effects
 
@@ -181,14 +181,14 @@ For Production → All (recommended)
 
 **Issue**: Poor observability
 
-**Solution**: Use CLI tools for diagnosis
+**Solution**: Use the server's admin HTTP API for diagnosis
 
 **Steps**:
 
-1. Check status: `fraiseql-observers status`
-2. View DLQ: `fraiseql-observers dlq stats`
-3. Debug event: `fraiseql-observers debug-event --event-id evt-123`
-4. View metrics: `fraiseql-observers metrics`
+1. Check status: `GET /api/observers/runtime/health`
+2. View DLQ: `GET /api/observers/dlq/stats`
+3. Inspect an event's executions: `GET /api/observers/logs?event_id=<uuid>`
+4. View metrics: scrape the server's `/metrics` (`fraiseql_observer_*`)
 5. Read: [Troubleshooting Guide](troubleshooting.md)
 
 **Expected Result**: Complete visibility into system state
@@ -341,7 +341,7 @@ Results + Dead Letter Queue (for failures)
 - Understand the system → [Architecture Overview](../../../../docs/architecture/overview.md)
 - Set up for your scenario → [Configuration Examples](configuration-examples.md)
 - Fix a problem → [Troubleshooting Guide](troubleshooting.md)
-- Monitor/debug → [CLI Tools](cli-tools.md)
+- Monitor/debug → [Operating Observers](../../../docs/operations/observers.md)
 - Make it faster → [Performance Tuning](performance-tuning.md)
 - Migrate safely → [Migration Guide](migration-guide.md)
 - Integrate a feature → [Integration Guide](integration-guide.md)
@@ -350,7 +350,7 @@ Results + Dead Letter Queue (for failures)
 
 1. Check relevant documentation
 2. Search troubleshooting for similar issue
-3. Review CLI tools for diagnosis
+3. Use the admin HTTP API for diagnosis
 4. Contact platform team if still stuck
 
 ---
@@ -384,7 +384,7 @@ All documentation includes:
 1. **New to the system?** Start with [Architecture Overview](../../../../docs/architecture/overview.md)
 2. **Setting up?** Use [Configuration Examples](configuration-examples.md)
 3. **Running into issues?** Check [Troubleshooting Guide](troubleshooting.md)
-4. **Operating in production?** Use [CLI Tools](cli-tools.md) and set up [Performance Tuning](performance-tuning.md)
+4. **Operating in production?** Use [Operating Observers](../../../docs/operations/observers.md) and set up [Performance Tuning](performance-tuning.md)
 
 ---
 

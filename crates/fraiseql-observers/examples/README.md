@@ -5,9 +5,9 @@ This directory contains example configurations for different deployment topologi
 > **What these files are.** Each `.toml` here is an `ObserverRuntimeConfig` document for code
 > built on this crate (`toml::from_str::<fraiseql_observers::config::ObserverRuntimeConfig>`,
 > then `fraiseql_observers::factory`). `tests/config_documents.rs` parses and validates every
-> one. This repository ships no `fraiseql-observer` binary, so the `fraiseql-observer --config`
-> commands below describe a binary you build yourself. To run observers inside
-> `fraiseql-server`, configure them in `fraiseql.toml` under `[observers]` instead.
+> one. This repository ships no standalone observer binary: load these documents from your own
+> binary. To run observers inside `fraiseql-server`, configure them in `fraiseql.toml` under
+> `[observers]` instead ([Operating Observers](../../../docs/operations/observers.md)).
 
 ## Deployment Topologies
 
@@ -39,11 +39,8 @@ PostgreSQL (LISTEN/NOTIFY) → Observer Workers (in-process)
 - ❌ No horizontal scaling
 - ❌ Single point of failure
 
-**Running:**
-
-```bash
-fraiseql-observer --config examples/01-postgresql-only.toml
-```
+**Running:** under `fraiseql-server` this is the default transport
+(`[observers.runtime.transport] transport = "postgres"`).
 
 ---
 
@@ -80,10 +77,10 @@ PostgreSQL (LISTEN/NOTIFY) → Observer Workers
 ```bash
 # Start Redis
 docker run -d -p 6379:6379 redis:7
-
-# Start observer
-fraiseql-observer --config examples/02-postgresql-redis.toml
 ```
+
+`fraiseql-server` runs no Redis deduplication or result cache, so this topology applies only
+to code built on this crate.
 
 ---
 
@@ -127,15 +124,11 @@ docker run -d -p 4222:4222 nats:latest -js
 
 # Terminal 2: Start Redis
 docker run -d -p 6379:6379 redis:7
-
-# Terminal 3: Start Bridge (see 04-multi-database-bridge.toml)
-fraiseql-observer --config examples/04-multi-database-bridge.toml
-
-# Terminal 4-6: Start Workers (3 instances for HA)
-fraiseql-observer --config examples/03-nats-distributed.toml
-fraiseql-observer --config examples/03-nats-distributed.toml
-fraiseql-observer --config examples/03-nats-distributed.toml
 ```
+
+Under `fraiseql-server`, the workers are server replicas with `transport = "nats"` and the
+same `consumer_name`, which compete for messages; the server does not run the bridge
+(see [Operating Observers - Scaling](../../../docs/operations/observers.md#scaling)).
 
 ---
 
@@ -167,26 +160,6 @@ Database 3 → Bridge 3 ┘          Worker 2
 
 - ❌ Most complex deployment
 - ❌ Highest operational overhead
-
-**Running:**
-
-```bash
-# Terminal 1: Start NATS cluster
-docker-compose -f nats-cluster.yml up
-
-# Terminal 2: Start Redis cluster
-docker-compose -f redis-cluster.yml up
-
-# Terminal 3-5: Start Bridges (one per database)
-fraiseql-observer --config bridge-db1.toml
-fraiseql-observer --config bridge-db2.toml
-fraiseql-observer --config bridge-db3.toml
-
-# Terminal 6-8: Start Workers
-fraiseql-observer --config worker1.toml
-fraiseql-observer --config worker2.toml
-fraiseql-observer --config worker3.toml
-```
 
 ---
 
@@ -323,26 +296,9 @@ export FRAISEQL_ENABLE_CACHING=true
 ## Testing Configurations
 
 ```bash
-# Validate configuration without running
-fraiseql-observer --config examples/01-postgresql-only.toml --validate
-
-# Dry-run (connects but doesn't process events)
-fraiseql-observer --config examples/02-postgresql-redis.toml --dry-run
-
-# Enable debug logging
-RUST_LOG=debug fraiseql-observer --config examples/03-nats-distributed.toml
+# Parse and validate every example document
+cargo test -p fraiseql-observers --test config_documents
 ```
-
----
-
-## Docker Compose Examples
-
-See `docker-compose.*.yml` files for complete deployment examples:
-
-- `docker-compose.postgres-only.yml` - Topology 1
-- `docker-compose.postgres-redis.yml` - Topology 2
-- `docker-compose.nats-distributed.yml` - Topology 3
-- `docker-compose.multi-database.yml` - Topology 4
 
 ---
 
@@ -397,13 +353,8 @@ redis-cli -u redis://localhost:6379 KEYS "action_result:*"
 **High latency:**
 
 ```bash
-# Check backlog
-RUST_LOG=info fraiseql-observer --config config.toml
-
-# Metrics output shows:
-# - backlog_size: Current event queue depth
-# - cache_hit_rate: Action cache effectiveness
-# - dedup_hit_rate: Duplicate event rate
+# Check action latency and cache/dedup effectiveness on /metrics
+curl -s "$METRICS_URL" | grep -E "fraiseql_observer_(action_duration_seconds|cache_|dedup_)"
 ```
 
 ---

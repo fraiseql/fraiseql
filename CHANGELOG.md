@@ -510,6 +510,20 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The observers docs describe the process observers run in (#1466).** Four
+  `crates/fraiseql-observers/docker-compose.*.yml` files ran a `fraiseql-observer` image, and
+  `deployment.md`, `deployment-guide.md` and `docs/cli-tools.md` documented that image, a
+  `fraiseql-observer --config` binary and a `fraiseql-observers` CLI. None of them ships:
+  observers run inside `fraiseql-server`. The seven files are removed. The commands in the
+  remaining observers docs now point at the server, its logs and its admin API, or are removed
+  where nothing real replaces them. The new `docs/operations/observers.md` documents what was
+  real in them and documented nowhere else: the `/api/observers` admin API (DLQ, checkpoints,
+  runtime health and reload, mounted with `[auth]`), the environment overrides the server
+  honours, scaling with NATS competing consumers, and the series on `/metrics`. It also says that
+  replicas on the PostgreSQL transport can dispatch a row twice (#1500), and that lowering a
+  checkpoint does not replay dispatched rows. `observer-idempotency.md`'s replay runbook now
+  clears the dispatch ledger too.
+
 - **`fraiseql-wire` states the PostgreSQL version it supports.** Its crates.io description said
   "for Postgres 17" and its README and guides claimed PostgreSQL 15–18 support and a chunked-rows
   mode the crate does not implement. CI runs it against PostgreSQL 18 only, FraiseQL's floor

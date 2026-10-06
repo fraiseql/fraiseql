@@ -7,24 +7,32 @@ Start with this checklist to identify the issue:
 ```
 
 1. System not processing events?
-   → Check: Listener health status
-   → Run: fraiseql-observers status
+   → Check: Runtime health status
+   → Run: GET /api/observers/runtime/health
 
 2. Events processed but wrong actions executed?
    → Check: Condition evaluation
-   → Run: fraiseql-observers debug-event --event-id <id>
+   → Run: GET /api/observers/logs?event_id=<id>
 
 3. Dead Letter Queue growing?
    → Check: Action failures
-   → Run: fraiseql-observers dlq list --limit 20
+   → Run: GET /api/observers/dlq?limit=20
 
 4. System slow?
    → Check: Cache hit rate, latency metrics
-   → Run: fraiseql-observers metrics
+   → Run: scrape /metrics (fraiseql_observer_*)
 
 5. Event loss on restart?
    → Check: Checkpoint configuration
    → Verify: Database connectivity
+```
+
+The `/api/observers/*` routes are the `fraiseql-server` admin API; they need a token with
+the `fraiseql:admin` scope (see [Operating Observers](../../../docs/operations/observers.md)). The examples below assume:
+
+```bash
+alias obs='curl -s -H "Authorization: Bearer $ADMIN_TOKEN"'
+API=http://localhost:8000/api/observers
 ```
 
 ---
@@ -50,11 +58,10 @@ Status: Unable to process events
 **Diagnostic Steps**:
 
 ```bash
-# 1. Check listener status
-fraiseql-observers status
+# 1. Check runtime status
+obs $API/runtime/health
 
-# 2. Check logs
-docker logs observer-listener
+# 2. Check the fraiseql-server logs
 
 # 3. Verify database connectivity
 psql postgresql://user:pass@localhost/fraiseql -c "SELECT version();"
@@ -74,8 +81,8 @@ echo $DATABASE_URL
 # Test connection
 psql $DATABASE_URL -c "SELECT 1;"
 
-# Restart listener with correct URL
-DATABASE_URL="postgresql://user:pass@host:5432/db" fraiseql-observer start
+# Restart fraiseql-server with the correct URL
+DATABASE_URL="postgresql://user:pass@host:5432/db" fraiseql-server
 ```
 
 #### If permission denied
@@ -122,17 +129,19 @@ Listener appears running
 **Diagnostic Steps**:
 
 ```bash
-# 1. Check listener state
-fraiseql-observers status --detailed
+# 1. Check runtime state
+obs $API/runtime/health
 
-# 2. Inspect specific event
-fraiseql-observers debug-event --event-id <event_id>
+# 2. Inspect the execution logs for a specific event
+obs "$API/logs?event_id=<event_id>"
 
-# 3. Check condition evaluation
-fraiseql-observers debug-event --event-id <event_id> | grep -A5 "matched_observers"
+# 3. Check condition evaluation: run fraiseql-server with
+#    RUST_LOG=fraiseql_server=debug and look for
+#    "Event <event_id> processed: N actions succeeded, M skipped"
 
 # 4. Check metrics for hung actions
-fraiseql-observers metrics --metric observer_action_duration_seconds
+curl -s -H "Authorization: Bearer $METRICS_TOKEN" http://localhost:8000/metrics \
+  | grep fraiseql_observer_action_duration_seconds
 ```
 
 **Solutions**:
@@ -140,14 +149,8 @@ fraiseql-observers metrics --metric observer_action_duration_seconds
 #### If condition always false
 
 ```bash
-# Debug the condition
-fraiseql-observers debug-event --event-id evt-123
-
-# Expected output:
-# matched_observers:
-#   - name: "OrderNotifier"
-#     condition_result: false  ← Problem here
-#     condition_expression: "status == 'shipped' && total > 100"
+# With RUST_LOG=fraiseql_server=debug, a condition that filtered the event out shows as:
+# Event <event_id> processed: 0 actions succeeded, 1 skipped
 ```
 
 **Fix**: Review and correct the condition in your observer definition:
@@ -189,9 +192,8 @@ circuit_breaker: CircuitBreakerConfig {
 **Symptoms**:
 
 ```
-fraiseql-observers dlq stats
-Total Items: 1,250 (growing)
-Failure Rate: 85%
+GET /api/observers/dlq/stats
+{"total_items": 1250, ...}   (growing)
 ```
 
 **Root Causes**:
@@ -204,24 +206,17 @@ Failure Rate: 85%
 **Diagnostic Steps**:
 
 ```bash
-# 1. List recent failures
-fraiseql-observers dlq list --limit 20 --observer obs-webhook
+# 1. List recent failures of one action type
+obs "$API/dlq?action=webhook&limit=20"
 
 # 2. Show specific failure
-fraiseql-observers dlq show dlq-001
+obs $API/dlq/<id>
 
-# Expected output:
-# ID: dlq-001
-# Observer: obs-webhook
-# Error: Connection timeout after 30s
-# Retry Count: 3/5
-# Last Retry: 2026-01-22T12:15:00Z
+# Expected fields: id, event_id, entity_type, entity_id, event_type,
+# action_type, error_message, attempts
 
-# 3. Check which action is failing
-fraiseql-observers dlq stats --by-observer
-
-# 4. Check error types
-fraiseql-observers dlq stats --by-error
+# 3. Check which action type is failing
+obs $API/dlq/stats   # see "by_action"
 ```
 
 **Solutions**:
@@ -251,7 +246,7 @@ nslookup webhook.example.com
 
 ```bash
 # Check DLQ item for details
-fraiseql-observers dlq show dlq-001 | grep -A5 "Error"
+obs $API/dlq/<id> | jq .error_message
 
 # Verify webhook URL in observer definition
 grep "url" observers.yaml  # or config
@@ -266,7 +261,7 @@ curl -X POST https://webhook.example.com/notify \
 
 ```bash
 # Check error details
-fraiseql-observers dlq show dlq-001
+obs $API/dlq/<id> | jq .error_message
 
 # Look for rate limit indicators
 # Common signs: HTTP 429, "too many requests", "quota exceeded"
@@ -284,15 +279,15 @@ batch_size: 100,  // Process multiple at once
 **Manual Retry**:
 
 ```bash
-# Dry run first (show what would be retried)
-fraiseql-observers dlq retry-all --observer obs-webhook --dry-run
-# Returns: "Would retry 15 items"
+# Retry one item
+obs -X POST $API/dlq/<id>/retry
 
-# Actually retry
-fraiseql-observers dlq retry-all --observer obs-webhook
+# Or retry every item (there is no per-observer filter or dry run)
+obs -X POST $API/dlq/retry-all
+# Returns: items_retried, items_failed
 
 # Verify success
-fraiseql-observers dlq stats
+obs $API/dlq/stats
 ```
 
 ---
@@ -321,11 +316,9 @@ Slack message posted multiple times
 cargo build --features "dedup" 2>&1 | grep -i dedup
 # If not in features: that's the issue
 
-# 2. Check deduplication stats
-fraiseql-observers metrics --metric observer_dedup_checks_total
-
-# 3. Check cache hit rate
-fraiseql-observers metrics --metric observer_cache_hit_rate
+# 2. Check deduplication stats (embedders only: fraiseql-server runs no dedup)
+#    ($METRICS_URL: the /metrics endpoint serving the fraiseql_observer_* registry)
+curl -s "$METRICS_URL" | grep fraiseql_observer_dedup_detected_total
 ```
 
 **Solutions**:
@@ -364,8 +357,8 @@ INSERT INTO fraiseql_events (entity_type, entity_id, ...)
 VALUES ('Order', 'order-123', ...);
 
 # 4. Verify dedup worked
-fraiseql-observers debug-event --entity-id order-123
-# Should show: Event skipped due to dedup (or similar)
+curl -s "$METRICS_URL" | grep fraiseql_observer_dedup_detected_total
+# Should have increased by 1
 ```
 
 ---
@@ -392,7 +385,7 @@ Cache hit rate declining
 
 ```bash
 # 1. Check metrics
-fraiseql-observers metrics | grep -E "cache_hit|duration_seconds|queue"
+curl -s "$METRICS_URL" | grep -E "fraiseql_observer_(cache_|action_duration_seconds|job_queue_depth)"
 
 # 2. Check Redis memory
 redis-cli INFO memory
@@ -475,26 +468,10 @@ Events stop processing
 
 **Diagnostic Steps**:
 
-```bash
-# 1. Check listener status
-fraiseql-observers status --detailed
-# Expected: All 3 listeners showing healthy
-
-# 2. Check leader
-fraiseql-observers status | grep Leader
-
-# 3. Check failover metrics
-fraiseql-observers metrics --metric failover_events_total
-
-# 4. Simulate primary failure
-# Kill primary listener process
-kill <listener_pid>
-
-# 5. Check if failover happened (within timeout)
-sleep 65
-fraiseql-observers status | grep Leader
-# Expected: Different listener now leader
-```
+`MultiListenerCoordinator` and `FailoverManager` are process-local: they elect among the
+listeners registered in one process and cannot fail over across processes (#872). For
+several `fraiseql-server` replicas, see
+[Operating Observers - Scaling](../../../docs/operations/observers.md#scaling).
 
 **Solutions**:
 
@@ -521,21 +498,6 @@ psql $DATABASE_URL -c "\d observer_checkpoints"
 # Should show: UNIQUE INDEX listener_id
 ```
 
-#### To test failover recovery
-
-```bash
-# 1. Monitor before failure
-watch -n 1 'fraiseql-observers status'
-
-# 2. In another terminal, crash primary
-kill $(pgrep fraiseql-observer | head -1)
-
-# 3. Watch automatic failover
-# Expected: New leader elected within 30 seconds
-# New leader resumes from last checkpoint
-# Events continue processing
-```
-
 ---
 
 ### Issue 7: Circuit Breaker Opening Too Easily
@@ -558,14 +520,13 @@ All requests fail until timeout
 **Diagnostic Steps**:
 
 ```bash
-# 1. Check circuit breaker state
-fraiseql-observers status | grep -i "circuit"
+# 1. Count actions refused by an open circuit
+curl -s -H "Authorization: Bearer $METRICS_TOKEN" http://localhost:8000/metrics \
+  | grep 'fraiseql_observer_action_errors_total{.*error_type="circuit_breaker_open"'
 
-# 2. Check action failure rate
-fraiseql-observers metrics --metric observer_circuit_breaker_state
-
-# 3. Check external service reliability
-fraiseql-observers metrics --metric observer_action_failures_by_service
+# 2. Check action failure rate per action type
+curl -s -H "Authorization: Bearer $METRICS_TOKEN" http://localhost:8000/metrics \
+  | grep -E "fraiseql_observer_action_(errors|executed)_total"
 ```
 
 **Solutions**:
@@ -663,7 +624,7 @@ groups:
 
 ```bash
 # Full debug logs
-RUST_LOG=debug fraiseql-observer start 2>&1 | tee observer.log
+RUST_LOG=fraiseql_server=debug,fraiseql_observers=debug fraiseql-server 2>&1 | tee observer.log
 
 # Filter for errors
 grep -i "error\|panic" observer.log
@@ -678,28 +639,29 @@ grep "circuit" observer.log    # Circuit breaker issues
 
 When reporting issues, include:
 
-1. **Configuration**:
+1. **Runtime status**:
 
    ```bash
-   fraiseql-observers status --detailed > status.json
+   obs $API/runtime/health > status.json
    ```
 
 2. **Recent Metrics**:
 
    ```bash
-   fraiseql-observers metrics > metrics.txt
+   curl -s -H "Authorization: Bearer $METRICS_TOKEN" \
+     http://localhost:8000/metrics | grep fraiseql_observer_ > metrics.txt
    ```
 
 3. **DLQ Status**:
 
    ```bash
-   fraiseql-observers dlq stats > dlq-stats.json
+   obs $API/dlq/stats > dlq-stats.json
    ```
 
-4. **Recent Logs** (last 100 lines):
+4. **Recent Logs** (last 100 lines of the `fraiseql-server` output):
 
    ```bash
-   docker logs observer-listener --tail 100 > recent-logs.txt
+   docker logs <fraiseql-server container> --tail 100 > recent-logs.txt
    ```
 
 5. **Configuration (redacted)**:
@@ -735,12 +697,8 @@ When reporting issues, include:
 
 ### 4. Load Testing
 
-```bash
-# Simulate load before production
-fraiseql-load-test \
-  --events-per-second 1000 \
-  --duration 300  # 5 minutes
-```
+Simulate load before production with the load test script in
+[Performance Tuning](performance-tuning.md#load-test-script).
 
 ### 5. Failover Testing
 
@@ -761,7 +719,7 @@ fraiseql-load-test \
 1. **Identify bottleneck**:
 
    ```bash
-   fraiseql-observers metrics | grep duration_seconds
+   curl -s "$METRICS_URL" | grep fraiseql_observer_action_duration_seconds
    # Check which action type is slowest
    ```
 
@@ -775,7 +733,7 @@ fraiseql-load-test \
 
    ```bash
    # Compare before/after metrics
-   fraiseql-observers metrics > after.txt
+   curl -s "$METRICS_URL" | grep fraiseql_observer_ > after.txt
    ```
 
 ### High Memory Usage
@@ -805,5 +763,5 @@ fraiseql-load-test \
 
 - Architecture Guide: `../../../../docs/architecture/overview.md`
 - Configuration Examples: `configuration-examples.md`
-- CLI Tools: `cli-tools.md`
+- Operating observers under `fraiseql-server`: `../../../docs/operations/observers.md`
 - Performance Tuning: `performance-tuning.md`

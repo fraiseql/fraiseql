@@ -56,10 +56,10 @@ The integration tests validate:
 
 ```bash
 # Start Redis (required for most tests)
-docker-compose -f docker-compose.postgres-redis.yml up -d redis
+docker compose -f "$(git rev-parse --show-toplevel)/docker/docker-compose.test.yml" up -d redis-test
 
-# Or start full stack (Redis + NATS + PostgreSQL)
-docker-compose -f docker-compose.nats-distributed.yml up -d
+# Or start Redis + NATS + PostgreSQL
+docker compose -f "$(git rev-parse --show-toplevel)/docker/docker-compose.test.yml" up -d redis-test nats-test postgres-test
 ```
 
 ### Running Tests
@@ -126,7 +126,7 @@ test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 
 ```bash
 # Check Redis is running
-docker-compose -f docker-compose.postgres-redis.yml ps redis
+docker compose -f "$(git rev-parse --show-toplevel)/docker/docker-compose.test.yml" ps redis-test
 
 # Or start Redis manually
 docker run -d -p 6379:6379 redis:7-alpine
@@ -172,11 +172,11 @@ Benchmark results:
 
 ## Manual Testing
 
-For manual testing with Docker Compose, see:
+For manual testing, see:
 
-- `deployment.md` - Complete deployment guide
-- `docker-compose.*.yml` - Docker Compose configurations
+- `docker/docker-compose.test.yml` (repository root) - Redis, NATS and PostgreSQL test services
 - `examples/*.toml` - Configuration examples
+- `docs/operations/observers.md` (repository root) - Operating observers under `fraiseql-server`
 
 ## CI/CD Integration
 
@@ -221,7 +221,7 @@ jobs:
 After completing integration tests:
 
 1. Review performance benchmarks: `cargo bench`
-2. Deploy to staging using Docker Compose: see `deployment.md`
+2. Deploy to staging: see `docs/operations/observers.md` (repository root)
 3. Run production smoke tests with real workload
 4. Monitor metrics: cache hit rate, dedup hit rate, throughput
 5. Tune configuration based on observed performance
@@ -238,6 +238,6 @@ When adding new integration tests:
 
 ## Support
 
-- **Documentation**: See `deployment.md` and `examples/README.md`
+- **Documentation**: See `examples/README.md` and `docs/operations/observers.md` (repository root)
 - **Issues**: https://github.com/your-org/fraiseql/issues
 - **Discussions**: https://github.com/your-org/fraiseql/discussions

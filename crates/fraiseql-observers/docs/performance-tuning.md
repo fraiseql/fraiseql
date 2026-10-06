@@ -9,15 +9,16 @@
 ### Step 1: Establish Baseline
 
 ```bash
-# Measure current performance
-fraiseql-observers metrics > baseline-metrics.txt
+# Measure current performance (fraiseql-server /metrics, see
+# ../../../docs/operations/observers.md#metrics)
+curl -s -H "Authorization: Bearer $METRICS_TOKEN" \
+  http://localhost:8000/metrics | grep fraiseql_observer_ > baseline-metrics.txt
 
 # Key metrics to capture
 
-- observer_events_processed_total
-- observer_action_duration_seconds (P50, P95, P99)
-- observer_cache_hit_rate
-- observer_actions_failed_total
+- fraiseql_observer_events_processed_total
+- fraiseql_observer_action_duration_seconds (P50, P95, P99)
+- fraiseql_observer_action_errors_total
 ```
 
 ### Step 2: Identify Bottleneck
@@ -102,8 +103,9 @@ eviction: EvictionPolicy::LRU,  // LRU, LFU, Random
 **Verification**:
 
 ```bash
-# Measure cache impact
-fraiseql-observers metrics | grep cache_hit_rate
+# Measure cache impact: hits / (hits + misses)
+# ($METRICS_URL: the /metrics endpoint serving the fraiseql_observer_* registry)
+curl -s "$METRICS_URL" | grep -E "fraiseql_observer_cache_(hits|misses)_total"
 # Target: >70% for good performance
 # Excellent: >85%
 ```
@@ -363,7 +365,7 @@ let queue = RedisJobQueue::with_workers(
 
 ```bash
 # Monitor CPU and throughput
-watch -n 1 'fraiseql-observers metrics | grep queue'
+watch -n 1 'curl -s "$METRICS_URL" | grep fraiseql_observer_job_queue_depth'
 
 # If CPU ~100% and throughput low:
 #   → Increase workers
@@ -441,11 +443,7 @@ RATE=${2:-1000}  # events/second
 
 echo "Running performance test: $N events at $RATE/sec"
 
-# Start observer
-cargo run --release --features phase8 &
-OBSERVER_PID=$!
-
-sleep 5
+# Assumes fraiseql-server (built with observers-metrics) is running
 
 # Insert events
 for i in $(seq 1 $N); do
@@ -460,10 +458,8 @@ done
 
 # Measure
 echo "Events processed:"
-fraiseql-observers metrics | grep events_processed_total
-
-# Cleanup
-kill $OBSERVER_PID
+curl -s -H "Authorization: Bearer $METRICS_TOKEN" \
+  http://localhost:8000/metrics | grep fraiseql_observer_events_processed_total
 ```
 
 ### Benchmark Scenarios

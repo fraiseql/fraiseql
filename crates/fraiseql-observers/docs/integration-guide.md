@@ -12,7 +12,6 @@ This guide provides step-by-step integration instructions for each Phase 8 featu
 6. [Phase 8.7: Prometheus Metrics](#phase-87-prometheus-metrics)
 7. [Phase 8.8: Circuit Breaker](#phase-88-circuit-breaker)
 8. [Phase 8.9: Multi-Listener Failover](#phase-89-multi-listener-failover)
-9. [Phase 8.10: CLI Tools](#phase-810-cli-tools)
 
 ---
 
@@ -195,19 +194,20 @@ VALUES ('Order', 'order-1', 'INSERT', '{"status": "new"}');
 INSERT INTO tb_entity_change_log (object_type, object_id, modification_type, object_data)
 VALUES ('Order', 'order-1', 'INSERT', '{"status": "new"}');
 
-# Check metrics
-fraiseql-observers metrics --metric observer_dedup_skips_total
-# Should show: 1 (one event skipped)
+# Check metrics ($METRICS_URL: the /metrics endpoint serving the
+# fraiseql_observer_* registry, see Phase 8.7)
+curl -s "$METRICS_URL" | grep fraiseql_observer_dedup_detected_total
+# Should show: 1 (one duplicate detected)
 ```
 
 #### Step 5: Monitor Effectiveness
 
 ```bash
 # Check dedup rate
-fraiseql-observers metrics | grep dedup_skips_total
+curl -s "$METRICS_URL" | grep -E "fraiseql_observer_(dedup_detected|events_processed)_total"
 
 # Calculate dedup rate
-dedup_skips / events_processed = dedup_rate
+dedup_detected / events_processed = dedup_rate
 # Expect: 10-40% depending on retry patterns
 ```
 
@@ -520,13 +520,10 @@ loop {
 
 ```bash
 # Check job metrics
-fraiseql-observers metrics | grep job_queue
+curl -s "$METRICS_URL" | grep fraiseql_observer_job_
 
 # Check queue depth
-fraiseql-observers metrics --metric observer_job_queue_depth
-
-# Check worker health
-fraiseql-observers status | grep workers
+curl -s "$METRICS_URL" | grep fraiseql_observer_job_queue_depth
 ```
 
 ---
@@ -564,7 +561,9 @@ global:
   scrape_interval: 15s
 
 scrape_configs:
-  - job_name: 'fraiseql-observer'
+  - job_name: 'fraiseql-server'
+    authorization:
+      credentials: '<metrics_token>'
     static_configs:
       - targets: ['localhost:8000']
 ```
@@ -710,105 +709,6 @@ tokio::spawn(async move {
 });
 ```
 
-#### Step 4: Test Failover
-
-```bash
-# 1. Start all 3 listeners
-cargo run --example multi_listener
-
-# 2. Verify leader elected
-fraiseql-observers status | grep Leader
-
-# 3. Kill primary listener
-kill <primary_pid>
-
-# 4. Verify automatic failover (within 60 seconds)
-sleep 65
-fraiseql-observers status | grep Leader
-# Should show: Different listener now leader
-
-# 5. Resume listener
-cargo run --example listener-2
-
-# 6. Verify re-registration
-fraiseql-observers status
-# Should show: All 3 listeners healthy
-```
-
----
-
-## Phase 8.10: CLI Tools
-
-**Purpose**: Developer experience and debugging
-
-### Prerequisites
-
-- Rust toolchain
-- Observer system running
-- Understanding of CLI usage
-
-### Integration Steps
-
-#### Step 1: Build CLI
-
-```bash
-cd crates/fraiseql-observers
-cargo build --release --bin fraiseql-observers
-```
-
-#### Step 2: Install CLI
-
-```bash
-cargo install --path crates/fraiseql-observers --bin fraiseql-observers
-
-# Verify installation
-fraiseql-observers --version
-```
-
-#### Step 3: Common Commands
-
-```bash
-# Check status
-fraiseql-observers status
-fraiseql-observers status --listener listener-1 --detailed
-
-# Debug event
-fraiseql-observers debug-event --event-id evt-123
-fraiseql-observers debug-event --entity-type Order --kind created --history 10
-
-# Manage DLQ
-fraiseql-observers dlq list --limit 20
-fraiseql-observers dlq show dlq-001
-fraiseql-observers dlq retry dlq-001
-fraiseql-observers dlq retry-all --observer obs-webhook --dry-run
-
-# Validate config
-fraiseql-observers validate-config observers.yaml --detailed
-
-# View metrics
-fraiseql-observers metrics
-fraiseql-observers metrics --metric observer_events_processed_total
-```
-
-#### Step 4: Integrate into Scripts
-
-```bash
-#!/bin/bash
-# deployment/health_check.sh
-
-# Check observer health
-STATUS=$(fraiseql-observers status --format json)
-HEALTHY=$(echo $STATUS | jq '.healthy_listeners')
-
-if [ "$HEALTHY" -lt 3 ]; then
-    echo "ALERT: Only $HEALTHY listeners healthy (expected 3)"
-    exit 1
-fi
-
-echo "Observer health check passed"
-exit 0
-```
-
 ---
 
 ## Integration Checklist
@@ -837,9 +737,11 @@ A plain `ObserverExecutor::new(matcher, dlq)`, driven by the checkpointed loop i
 
 ### Pattern 2: Production setup
 
-Let the factory compose the executor from `[observers.runtime]`. It wraps the base executor in
+Let the factory compose the executor from the library's `ObserverRuntimeConfig`. It wraps the base executor in
 deduplication and/or result caching according to `performance.enable_dedup` and
-`performance.enable_caching`, and contacts Redis only when one of them is on:
+`performance.enable_caching`, and contacts Redis only when one of them is on. This is for
+embedders of the library: `fraiseql-server` runs neither (see
+[Operating Observers](../../../docs/operations/observers.md)):
 
 ```rust
 use fraiseql_observers::factory::ExecutorFactory;
@@ -858,7 +760,7 @@ Each step is a configuration change, not a code change, once the factory builds 
 
 1. Checkpoints: drive the executor with the checkpointed loop. Verify that a restart neither
    loses nor re-delivers events beyond one batch.
-2. Caching: set `performance.enable_caching = true` with a `[observers.runtime.redis]` section.
+2. Caching: set `performance.enable_caching = true` with a `redis` section in the same config.
 3. Deduplication: set `performance.enable_dedup = true`. Verify that a redelivered event inside
    the window is skipped.
 
@@ -884,4 +786,4 @@ For integration help:
 - Check Architecture Guide: `../../../../docs/architecture/overview.md`
 - Review Configuration Examples: `configuration-examples.md`
 - Troubleshoot Issues: `troubleshooting.md`
-- Check CLI Documentation: `cli-tools.md`
+- Operate observers under `fraiseql-server`: `../../../docs/operations/observers.md`

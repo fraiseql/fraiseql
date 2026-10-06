@@ -8,6 +8,9 @@ This prevents duplicate processing of non-idempotent operations: billing charges
 writes, email sends, and external API calls where duplicate execution would be visible to
 end users.
 
+For running observers in general (admin API, DLQ, checkpoints, scaling), see
+[observers.md](observers.md).
+
 ---
 
 ## Table Schema
@@ -198,8 +201,16 @@ Clearing idempotency keys allows events to be reprocessed. Do this with care:
 DELETE FROM observer_idempotency_keys WHERE listener_id = 'my-observer-name';
 ```
 
-After clearing, also delete the checkpoint so the observer starts from the beginning:
+The checkpoint and the dispatch ledger also stand in the way. Under `fraiseql-server` the
+listener id is `change_log`, and a change-log row recorded in `core.tb_observer_dispatch` is never
+dispatched again by that listener, whatever the checkpoint says (see
+[observers.md](observers.md#checkpoints)). Stop the server first (a running runtime overwrites
+the checkpoint after every batch), then clear both:
 
 ```sql
-DELETE FROM observer_checkpoints WHERE listener_id = 'my-observer-name';
+DELETE FROM core.tb_observer_dispatch WHERE listener_id = 'change_log';
+DELETE FROM observer_checkpoints WHERE listener_id = 'change_log';
 ```
+
+On restart the runtime dispatches every change-log row again, so every action runs again for
+every row still in `core.tb_entity_change_log`.
