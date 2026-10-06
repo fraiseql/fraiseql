@@ -7,7 +7,7 @@
 //! ```graphql
 //! query {
 //!   sales_window(
-//!     where: { customer_id: { _eq: "uuid-123" } }
+//!     where: { customer_id_eq: "uuid-123" }
 //!     orderBy: { occurred_at: ASC }
 //!     limit: 100
 //!   ) {
@@ -50,8 +50,9 @@
 
 use serde_json::Value;
 
+use super::aggregate_parser::split_where_key;
 use crate::{
-    backend::where_clause::{WhereClause, WhereOperator},
+    backend::where_clause::WhereClause,
     compiler::{
         aggregation::OrderDirection,
         fact_table::FactTableMetadata,
@@ -73,12 +74,12 @@ impl WindowQueryParser {
     /// # Arguments
     ///
     /// * `query_json` - JSON representation of the window query
-    /// * `_metadata` - Fact table metadata (for validation, optional future use)
+    /// * `metadata` - Fact table metadata: its declared fields settle an ambiguous `where` key
     ///
     /// # Errors
     ///
     /// Returns error if the query structure is invalid.
-    pub fn parse(query_json: &Value, _metadata: &FactTableMetadata) -> Result<WindowRequest> {
+    pub fn parse(query_json: &Value, metadata: &FactTableMetadata) -> Result<WindowRequest> {
         // Extract table name
         let table_name = query_json
             .get("table")
@@ -105,7 +106,7 @@ impl WindowQueryParser {
 
         // Parse WHERE clause
         let where_clause = if let Some(where_obj) = query_json.get("where") {
-            Some(Self::parse_where_clause(where_obj)?)
+            Some(Self::parse_where_clause(where_obj, metadata)?)
         } else {
             None
         };
@@ -472,47 +473,27 @@ impl WindowQueryParser {
             .collect()
     }
 
-    /// Parse WHERE clause from JSON.
-    fn parse_where_clause(where_obj: &Value) -> Result<WhereClause> {
+    /// Parse WHERE clause from JSON: `{ "<field>_<operator>": value, … }`.
+    fn parse_where_clause(where_obj: &Value, metadata: &FactTableMetadata) -> Result<WhereClause> {
         let Some(obj) = where_obj.as_object() else {
             return Ok(WhereClause::And(vec![]));
         };
 
+        let no_native_columns = std::collections::HashMap::new();
         let mut conditions = Vec::new();
-
         for (key, value) in obj {
-            // Parse field_operator format (e.g., "customer_id_eq" -> field="customer_id",
-            // operator="eq")
-            if let Some((field, operator_str)) = Self::parse_where_field_and_operator(key)? {
-                let operator = WhereOperator::from_str(operator_str)?;
-
-                conditions.push(WhereClause::Field {
-                    // Recase the JSONB key so a camelCase window filter
-                    // (`organizationId_eq`) builds `data->>'organization_id'`
-                    // rather than a never-matching `organizationId` key (#486).
-                    path: vec![crate::utils::to_snake_case(field)],
-                    operator,
-                    value: value.clone(),
-                });
-            }
+            let (field, operator) = split_where_key(key, metadata, &no_native_columns)?;
+            conditions.push(WhereClause::Field {
+                // Recase the JSONB key so a camelCase window filter
+                // (`organizationId_eq`) builds `data->>'organization_id'`
+                // rather than a never-matching `organizationId` key (#486).
+                path: vec![crate::utils::to_snake_case(field)],
+                operator,
+                value: value.clone(),
+            });
         }
 
         Ok(WhereClause::And(conditions))
-    }
-
-    /// Parse WHERE field and operator from key.
-    fn parse_where_field_and_operator(key: &str) -> Result<Option<(&str, &str)>> {
-        if let Some(last_underscore) = key.rfind('_') {
-            let field = &key[..last_underscore];
-            let operator = &key[last_underscore + 1..];
-
-            match WhereOperator::from_str(operator) {
-                Ok(_) => Ok(Some((field, operator))),
-                Err(_) => Ok(None),
-            }
-        } else {
-            Ok(None)
-        }
     }
 
     /// Parse window frame from JSON.

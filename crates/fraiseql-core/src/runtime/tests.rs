@@ -4568,7 +4568,9 @@ mod window_parser_tests {
             fact_table::{
                 DimensionColumn, FactTableMetadata, FilterColumn, MeasureColumn, SqlType,
             },
-            window_functions::{PartitionByColumn, WindowFunctionSpec, WindowSelectColumn},
+            window_functions::{
+                PartitionByColumn, WindowFunctionSpec, WindowRequest, WindowSelectColumn,
+            },
         },
         runtime::window_parser::*,
     };
@@ -4899,6 +4901,49 @@ mod window_parser_tests {
         let result = WindowQueryParser::parse(&query, &metadata);
         let err = result.expect_err("expected Err for invalid window function type");
         assert!(err.to_string().contains("Unknown"), "unexpected error message: {err}");
+    }
+
+    fn window_where(key: &str, value: &serde_json::Value) -> crate::Result<WindowRequest> {
+        let query = json!({
+            "table": "tf_sales",
+            "where": { key: value },
+            "windows": [{ "function": {"type": "row_number"}, "alias": "rank",
+                          "orderBy": [{"field": "revenue"}] }]
+        });
+        WindowQueryParser::parse(&query, &create_test_metadata())
+    }
+
+    /// #1499: a key whose suffix is no operator was skipped and the window ran over every
+    /// row: a typo, a key with no operator, or the nested shape the module doc showed.
+    #[test]
+    fn a_where_key_that_is_not_field_operator_is_refused() {
+        for (key, value) in [
+            ("customer_id_eqq", json!(1)),
+            ("customer_id", json!({ "_eq": 1 })),
+        ] {
+            let err = window_where(key, &value).expect_err(key);
+            assert!(err.to_string().contains(key), "names {key}: {err}");
+        }
+    }
+
+    /// #1499: splitting at the last underscore could not reach `is_not_null`, so the filter
+    /// was dropped.
+    #[test]
+    fn an_operator_spelled_with_underscores_is_parsed() {
+        use crate::db::where_clause::{WhereClause, WhereOperator};
+
+        let request = window_where("customer_id_is_not_null", &json!(true)).unwrap();
+        let Some(WhereClause::And(conditions)) = request.where_clause else {
+            panic!("an And clause expected");
+        };
+        assert!(
+            matches!(
+                conditions.as_slice(),
+                [WhereClause::Field { path, operator: WhereOperator::IsNotNull, .. }]
+                    if path == &["customer_id".to_string()]
+            ),
+            "{conditions:?}"
+        );
     }
 }
 

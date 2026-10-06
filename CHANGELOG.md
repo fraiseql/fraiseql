@@ -434,6 +434,16 @@ disagreed, and the promise was the part that was wrong.
   load or boot with them. Embedders: `ObserverRuntimeSettings::redis` is now
   `Option<ObserverRedisConfig>`. `RedisCacheInvalidator::connect` applies the config's timeouts.
 
+- **A window query refuses a `where` key it cannot apply (#1499).** The window parser split each
+  key at its last underscore and silently dropped any key whose suffix was not an operator: a typo
+  (`customer_id_eqq`), an operator spelled with underscores (`customer_id_is_not_null`,
+  `path_descendant_of`), or the nested `{ customer_id: { _eq: … } }` shape its own module
+  documentation showed. The window then ran over every row the other keys allowed. Keys now split
+  against the operator table with the aggregate parser's rules (#1460), so underscore-spelled
+  operators apply and anything else is refused, naming the key. **Upgrade:** a client whose
+  window filter was silently dropped now gets a validation error; spell it as
+  `<field>_<operator>`.
+
 ### Added
 
 - **Fact-table aggregates filter on ltree hierarchies (#1460).** An aggregate `where` key takes
