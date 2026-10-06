@@ -86,7 +86,6 @@ Welcome to the comprehensive documentation for the FraiseQL Observer System, inc
 
  (Excellence)
 ├─ 8.1: Persistent Checkpoints (zero-event-loss)
-├─ 8.2: Concurrent Execution (5x latency improvement)
 ├─ 8.3: Event Deduplication (duplicate prevention)
 ├─ 8.4: Redis Caching (100x cache hits)
 ├─ 8.5: Elasticsearch Integration (searchable audit trail)
@@ -103,7 +102,7 @@ Welcome to the comprehensive documentation for the FraiseQL Observer System, inc
 
 ```
 For Zero Event Loss → 8.1 (Checkpoints)
-For Performance → 8.2 (Concurrent) + 8.4 (Caching)
+For Performance → 8.4 (Caching)
 For Reliability → 8.3 (Dedup) + 8.8 (Circuit Breaker)
 For Observability → 8.7 (Metrics) + 8.5 (Search)
 For High Availability → 8.9 (Failover)
@@ -135,15 +134,14 @@ For Production → All (recommended)
 
 **Issue**: Sequential action execution (100ms + 100ms + 100ms = 300ms)
 
-**Solution**: Enable Phase 8.2 (Concurrent Execution)
+**Solution**: The actions of one event run one after another, and no setting runs them in
+parallel (#1451 removed the keys that claimed to). Find the slow action with
+`fraiseql_observer_action_duration_seconds` and lower its timeout or speed up its target.
 
 **Steps**:
 
-1. Read: [Architecture Overview](../../../../docs/architecture/overview.md)
-2. Follow: [Integration Guide - 8.2](integration-guide.md#phase-82-concurrent-action-execution)
-3. Benchmark: [Performance Tuning](performance-tuning.md)
-
-**Expected Result**: 3-5x latency improvement
+1. Measure: [Operating Observers - Metrics](../../../docs/operations/observers.md#metrics)
+2. Tune: [Performance Tuning](performance-tuning.md)
 
 ---
 
@@ -170,8 +168,7 @@ For Production → All (recommended)
 **Solution**: Multi-step optimization
 
 1. Enable caching for 100x cache hits
-2. Enable concurrent execution for parallelism
-3. Optimize configuration with [Performance Tuning](performance-tuning.md)
+2. Optimize configuration with [Performance Tuning](performance-tuning.md)
 
 **Expected Result**: 10-100x overall improvement
 
@@ -297,10 +294,10 @@ PostgreSQL LISTEN/NOTIFY
 ├─────────────────────────────┤
 │  Condition Evaluation
 ├─────────────────────────────┤
-│  Concurrent Actions (8.2) ──┐
-│  ├─ Webhook                 │
-│  ├─ Email                   ├─ Parallel
-│  └─ Slack                   │
+│  Actions, in order
+│  ├─ Webhook
+│  ├─ Email
+│  └─ Slack
 ├─────────────────────────────┤
 │  Circuit Breaker (8.8) ────→ Fast Fail
 ├─────────────────────────────┤

@@ -726,7 +726,6 @@ Simulate load before production with the load test script in
 2. **Optimize identified bottleneck**:
    - Increase cache TTL
    - Add circuit breaker
-   - Enable concurrent execution
    - Batch operations
 
 3. **Verify improvement**:

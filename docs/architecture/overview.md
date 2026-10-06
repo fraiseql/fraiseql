@@ -56,12 +56,10 @@ FraiseQL v2 achieves four goals simultaneously:
 │  ├── Delivery: retry with backoff, dead letter queue, dedup │
 │  ├── Transports: in-memory, NATS, PG NOTIFY                │
 │  ├── Job queue: persistent async jobs (Redis or PG)         │
-│  ├── High availability: multi-listener with lease mgmt      │
-│  └── CLI: observer management (80+ commands)                │
+│  └── Admin HTTP API: DLQ, checkpoints, runtime health       │
 │                                                              │
 │  Resource budget when enabled:                               │
 │  - 1 additional PostgreSQL connection (LISTEN/NOTIFY)       │
-│  - 1 configurable thread pool (max_concurrency, default 50) │
 │  - Memory: channel_capacity events buffered (default 1000)  │
 │             + DLQ entries up to max_dlq_size                │
 │                                                              │
@@ -271,7 +269,6 @@ password_env = "FRAISEQL_SMTP_PASSWORD"
 > Minimum additional resources per instance:
 >
 > - 1 PostgreSQL connection
-> - `max_concurrency` × (average action memory) of working memory
 > - `channel_capacity` × (average event size) of channel buffer
 > - Up to `max_dlq_size` × (average DLQ entry size) for the dead letter queue
 
@@ -754,8 +751,8 @@ of Rust and a second PostgreSQL connection to any deployment that enables it.
 
 **Tradeoff:** Users choosing `--features observers` are getting a second
 runtime embedded in their server process. They should size their pod/container
-accordingly and configure `max_concurrency`, `channel_capacity`, and
-`max_dlq_size` for their workload.
+accordingly and configure `channel_capacity` and `max_dlq_size` for their
+workload. The actions of one event run one after another.
 
 ### Why Remove RuntimeServer?
 

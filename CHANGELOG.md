@@ -529,6 +529,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **No observers doc promises concurrent action execution (#1451).** #1451 removed the
+  `[performance]` concurrency keys, which nothing read, but the observers README,
+  `docs/README.md`, `performance-tuning.md` (a "Concurrent Execution" section built on a private
+  `execute_action` and a `max_parallelism` setting, and benchmarks of an example that does not
+  exist), `troubleshooting.md` and `docs/architecture/overview.md` (a `max_concurrency` thread
+  pool, a lease-managed multi-listener HA and an 80-command CLI) still described it. They now say
+  that the actions of one event run in order, and the overview lists what the server mounts.
+
 - **The observers docs describe the process observers run in (#1466).** Four
   `crates/fraiseql-observers/docker-compose.*.yml` files ran a `fraiseql-observer` image, and
   `deployment.md`, `deployment-guide.md` and `docs/cli-tools.md` documented that image, a

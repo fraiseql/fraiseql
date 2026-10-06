@@ -327,7 +327,7 @@ println!("Success rate: {}/{}",
 
 ## Performance Considerations
 
-- **Event Processing**: Non-blocking, concurrent execution
+- **Event Processing**: Non-blocking; the actions of one event run in order
 - **Connection Pooling**: Reuse database connections
 - **Bounded Channels**: Configurable backpressure (default: 1000 events)
 - **Timeout Handling**: Configurable per action

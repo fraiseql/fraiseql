@@ -40,11 +40,9 @@ rate(observer_actions_failed_total[5m]) / rate(observer_actions_executed_total[5
 ### Step 3: Profile
 
 ```bash
-# CPU profiling
-RUST_LOG=debug cargo flamegraph --features phase8 -- --example process_100k_events
-
-# Memory profiling
-HEAPPROFILE=/tmp/heap cargo run --release --features phase8
+# CPU profiling of the running server (observers run inside it)
+perf record -g -p "$(pgrep -x fraiseql-server)" -- sleep 30
+perf report
 
 # Database profiling
 # In PostgreSQL:
@@ -112,60 +110,7 @@ curl -s "$METRICS_URL" | grep -E "fraiseql_observer_cache_(hits|misses)_total"
 
 ---
 
-### 2. Concurrent Execution (3-5x improvement)
-
-**When**: Multiple independent actions per event
-
-**Before**:
-
-```rust
-// Sequential: 100ms + 100ms + 100ms = 300ms
-executor.execute_action(&action1).await?;
-executor.execute_action(&action2).await?;
-executor.execute_action(&action3).await?;
-```
-
-**After**:
-
-```rust
-// Parallel: max(100ms, 100ms, 100ms) = 100ms
-use futures::future::join_all;
-
-let futures = vec![
-    executor.execute_action(&action1),
-    executor.execute_action(&action2),
-    executor.execute_action(&action3),
-];
-
-join_all(futures).await;
-```
-
-**Configuration**:
-
-```rust
-// Max parallelism
-max_parallelism: 100,  // Don't exceed 100-200
-// - Higher = more throughput but resource usage
-// - Lower = less resource usage but throughput limited
-
-// Per-action timeout
-timeout: Duration::from_secs(30),
-// - Prevents hung requests
-// - Trade-off: May kill slow-but-working requests
-```
-
-**Measurement**:
-
-```bash
-# Compare latency before/after
-time cargo run --example 100_events
-time cargo run --release --example 100_events  # 100ms per event
-time CONCURRENT=1 cargo run --release --example 100_events  # 30ms per event (3.3x improvement)
-```
-
----
-
-### 3. Batch Checkpoint Writes (2-3x improvement)
+### 2. Batch Checkpoint Writes (2-3x improvement)
 
 **When**: Throughput-focused scenarios, acceptable event loss window
 
@@ -205,7 +150,7 @@ checkpoint_batch_size: 100,
 
 ---
 
-### 4. Database Connection Pooling
+### 3. Database Connection Pooling
 
 **Problem**: Connection creation overhead, connection leaks
 
@@ -248,7 +193,7 @@ SELECT count(*) FROM pg_stat_activity WHERE datname = 'fraiseql_observers';
 
 ---
 
-### 5. Index Optimization
+### 4. Index Optimization
 
 **Problem**: Slow checkpoint queries, slow dedup checks
 
@@ -288,7 +233,7 @@ redis-cli CONFIG SET maxmemory-policy allkeys-lru
 
 ---
 
-### 6. Elasticsearch Tuning
+### 5. Elasticsearch Tuning
 
 **Problem**: Slow indexing, large disk usage
 
@@ -335,7 +280,7 @@ curl -X PUT "localhost:9200/_ilm/policy/fraiseql_events_policy" \
 
 ---
 
-### 7. Worker Pool Sizing
+### 6. Worker Pool Sizing
 
 **Problem**: Too few workers (bottleneck), too many (resource exhaustion)
 
@@ -460,26 +405,6 @@ done
 echo "Events processed:"
 curl -s -H "Authorization: Bearer $METRICS_TOKEN" \
   http://localhost:8000/metrics | grep fraiseql_observer_events_processed_total
-```
-
-### Benchmark Scenarios
-
-```bash
-# Baseline (no Phase 8)
-cargo run --release --example 100k_events
-# Expected: ~30 seconds (300ms per event × 100k)
-
-# With concurrent execution
-CONCURRENT=1 cargo run --release --example 100k_events
-# Expected: ~10 seconds (100ms per event × 100k) = 3x
-
-# With caching + concurrent
-CONCURRENT=1 CACHE=1 cargo run --release --example 100k_events
-# Expected: ~2 seconds (<20ms per event × 100k) = 15x
-
-# With all optimizations
-cargo run --release --features phase8 --example 100k_events
-# Expected: ~1 second (<10ms per event × 100k) = 30x
 ```
 
 ---
