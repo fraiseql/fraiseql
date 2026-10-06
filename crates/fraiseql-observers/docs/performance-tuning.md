@@ -25,16 +25,15 @@ curl -s -H "Authorization: Bearer $METRICS_TOKEN" \
 
 ```promql
 # Is processing throughput too low?
-rate(observer_events_processed_total[5m]) < target_rate
+rate(fraiseql_observer_events_processed_total[5m]) < target_rate
 
-# Is latency too high?
-histogram_quantile(0.99, observer_action_duration_seconds) > acceptable_latency
+# Is latency too high? (successful actions; failures are not timed)
+histogram_quantile(0.99, sum by (le) (rate(fraiseql_observer_action_duration_seconds_bucket[5m]))) > acceptable_latency
 
-# Is failure rate too high?
-rate(observer_actions_failed_total[5m]) / rate(observer_actions_executed_total[5m]) > threshold
-
-# Is cache effectiveness low?
-(observer_cache_hits_total / (observer_cache_hits_total + observer_cache_misses_total)) < 0.6
+# Is failure rate too high? (`action_executed_total` counts successes only)
+sum(rate(fraiseql_observer_action_errors_total[5m]))
+  / (sum(rate(fraiseql_observer_action_executed_total[5m]))
+     + sum(rate(fraiseql_observer_action_errors_total[5m]))) > threshold
 ```
 
 ### Step 3: Profile
@@ -101,8 +100,9 @@ eviction: EvictionPolicy::LRU,  // LRU, LFU, Random
 **Verification**:
 
 ```bash
-# Measure cache impact: hits / (hits + misses)
-# ($METRICS_URL: the /metrics endpoint serving the fraiseql_observer_* registry)
+# Measure cache impact: hits / (hits + misses). Only a runtime you build with
+# the cache recorded these; fraiseql-server runs no result cache.
+# ($METRICS_URL: the /metrics endpoint serving your fraiseql_observer_* registry)
 curl -s "$METRICS_URL" | grep -E "fraiseql_observer_cache_(hits|misses)_total"
 # Target: >70% for good performance
 # Excellent: >85%
@@ -309,7 +309,8 @@ let queue = RedisJobQueue::with_workers(
 **Verification**:
 
 ```bash
-# Monitor CPU and throughput
+# Monitor CPU and throughput (the job queue is a library component: only a
+# runtime you build with it records this; fraiseql-server runs no job queue)
 watch -n 1 'curl -s "$METRICS_URL" | grep fraiseql_observer_job_queue_depth'
 
 # If CPU ~100% and throughput low:
@@ -415,16 +416,15 @@ curl -s -H "Authorization: Bearer $METRICS_TOKEN" \
 
 ```bash
 # Throughput
-rate(observer_events_processed_total[5m])
+rate(fraiseql_observer_events_processed_total[5m])
 
 # Latency (P99)
-histogram_quantile(0.99, observer_action_duration_seconds)
-
-# Cache effectiveness
-observer_cache_hit_rate
+histogram_quantile(0.99, sum by (le) (rate(fraiseql_observer_action_duration_seconds_bucket[5m])))
 
 # Error rate
-rate(observer_actions_failed_total[5m]) / rate(observer_actions_executed_total[5m])
+sum(rate(fraiseql_observer_action_errors_total[5m]))
+  / (sum(rate(fraiseql_observer_action_executed_total[5m]))
+     + sum(rate(fraiseql_observer_action_errors_total[5m])))
 
 # Resource usage
 process_resident_memory_bytes
@@ -435,15 +435,14 @@ process_cpu_seconds_total
 
 ```yaml
 - alert: PerformanceDegradation
-  expr: histogram_quantile(0.99, observer_action_duration_seconds) > 2
+  expr: histogram_quantile(0.99, sum by (le) (rate(fraiseql_observer_action_duration_seconds_bucket[5m]))) > 2
   for: 5m
 
-- alert: CacheHitRateLow
-  expr: observer_cache_hit_rate < 0.7
-  for: 10m
-
 - alert: HighActionFailureRate
-  expr: rate(observer_actions_failed_total[5m]) / rate(observer_actions_executed_total[5m]) > 0.05
+  expr: |
+    sum(rate(fraiseql_observer_action_errors_total[5m]))
+      / (sum(rate(fraiseql_observer_action_executed_total[5m]))
+         + sum(rate(fraiseql_observer_action_errors_total[5m]))) > 0.05
   for: 5m
 ```
 

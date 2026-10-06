@@ -538,6 +538,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The observers guides query the series the server records (#1501).** The PromQL examples and
+  alert rules in `crates/fraiseql-observers/docs/` (troubleshooting, performance tuning,
+  integration and migration guides) used unprefixed names (`observer_events_processed_total`,
+  `observer_actions_failed_total`, …) and series that exist nowhere (`observer_cache_hit_rate`,
+  `observer_listener_health`), so every query returned nothing. They now use
+  `fraiseql_observer_events_processed_total`, `_action_executed_total`, `_action_errors_total`
+  and `_action_duration_seconds_bucket`; the failure rate divides errors by errors plus
+  successes, since `action_executed_total` counts successes only. The DLQ and runtime health
+  are read from the admin API, and the cache, deduplication and job-queue series are marked as
+  recorded only by a runtime an embedder builds.
+
 - **The NATS observer transport applies `dedup_window_minutes`, `max_age_days` and
   `max_deliver` (#1496).** The server copied only the URL, names, `ack_wait_secs`, `max_msgs`
   and `max_bytes` into the transport, so the three were validated, overridable through

@@ -194,8 +194,9 @@ VALUES ('Order', 'order-1', 'INSERT', '{"status": "new"}');
 INSERT INTO tb_entity_change_log (object_type, object_id, modification_type, object_data)
 VALUES ('Order', 'order-1', 'INSERT', '{"status": "new"}');
 
-# Check metrics ($METRICS_URL: the /metrics endpoint serving the
-# fraiseql_observer_* registry, see Phase 8.7)
+# Check metrics ($METRICS_URL: the /metrics endpoint serving your
+# fraiseql_observer_* registry). Only the deduplicating executor you build
+# records this; fraiseql-server runs no deduplication.
 curl -s "$METRICS_URL" | grep fraiseql_observer_dedup_detected_total
 # Should show: 1 (one duplicate detected)
 ```
@@ -291,11 +292,11 @@ time cargo run --example 1000_webhook_calls --features caching
 
 #### Step 6: Monitor Cache Effectiveness
 
-```rust
-// Metrics to track
-observer_cache_hits_total
-observer_cache_misses_total
-observer_cache_hit_rate  // Should be 70-80%+
+```promql
+# Hit rate, which should stay above 70-80%. Only the cached executor you
+# build records these; fraiseql-server runs no result cache.
+fraiseql_observer_cache_hits_total
+  / (fraiseql_observer_cache_hits_total + fraiseql_observer_cache_misses_total)
 ```
 
 ---
@@ -519,7 +520,8 @@ loop {
 #### Step 5: Monitor Job Processing
 
 ```bash
-# Check job metrics
+# Check job metrics (recorded by the job queue you build; fraiseql-server
+# runs no job queue)
 curl -s "$METRICS_URL" | grep fraiseql_observer_job_
 
 # Check queue depth
@@ -603,7 +605,7 @@ async fn main() -> std::io::Result<()> {
         "title": "Events Processed",
         "targets": [
           {
-            "expr": "rate(observer_events_processed_total[5m])"
+            "expr": "rate(fraiseql_observer_events_processed_total[5m])"
           }
         ]
       },
@@ -611,7 +613,7 @@ async fn main() -> std::io::Result<()> {
         "title": "Action Failure Rate",
         "targets": [
           {
-            "expr": "rate(observer_actions_failed_total[5m]) / rate(observer_actions_executed_total[5m])"
+            "expr": "sum(rate(fraiseql_observer_action_errors_total[5m])) / (sum(rate(fraiseql_observer_action_executed_total[5m])) + sum(rate(fraiseql_observer_action_errors_total[5m])))"
           }
         ]
       }
@@ -628,7 +630,10 @@ groups:
   - name: fraiseql_alerts
     rules:
       - alert: HighActionFailureRate
-        expr: rate(observer_actions_failed_total[5m]) / rate(observer_actions_executed_total[5m]) > 0.05
+        expr: |
+          sum(rate(fraiseql_observer_action_errors_total[5m]))
+            / (sum(rate(fraiseql_observer_action_executed_total[5m]))
+               + sum(rate(fraiseql_observer_action_errors_total[5m]))) > 0.05
         for: 5m
         annotations:
           summary: "Action failure rate > 5%"

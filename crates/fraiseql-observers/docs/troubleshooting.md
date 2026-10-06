@@ -356,7 +356,7 @@ VALUES ('Order', 'order-123', ...);
 INSERT INTO fraiseql_events (entity_type, entity_id, ...)
 VALUES ('Order', 'order-123', ...);
 
-# 4. Verify dedup worked
+# 4. Verify dedup worked (embedders only: fraiseql-server runs no dedup)
 curl -s "$METRICS_URL" | grep fraiseql_observer_dedup_detected_total
 # Should have increased by 1
 ```
@@ -558,31 +558,26 @@ max_retry_attempts: 10,  // More attempts
 
 ### Critical Metrics to Watch
 
+`fraiseql-server` records four observer series on `/metrics` (see
+[docs/operations/observers.md#metrics](../../../docs/operations/observers.md#metrics)).
+`fraiseql_observer_action_executed_total` and the duration histogram count successful
+actions only.
+
 ```promql
 # 1. Is anything processing?
-rate(observer_events_processed_total[5m]) > 0
+rate(fraiseql_observer_events_processed_total[5m]) > 0
 
-# 2. Are actions succeeding?
-(rate(observer_actions_failed_total[5m]) /
- rate(observer_actions_executed_total[5m])) < 0.05  # < 5% failure rate
+# 2. Are actions succeeding? (< 5% failure rate)
+sum(rate(fraiseql_observer_action_errors_total[5m]))
+  / (sum(rate(fraiseql_observer_action_executed_total[5m]))
+     + sum(rate(fraiseql_observer_action_errors_total[5m]))) < 0.05
 
-# 3. Is DLQ growing?
-observer_dlq_items_total < 50  # Alert if exceeded
-
-# 4. Is latency acceptable?
-histogram_quantile(0.99, observer_action_duration_seconds) < 1
-
-# 5. Are listeners healthy?
-observer_listener_health == 1 for all listeners
-
-# 6. Is cache working?
-(observer_cache_hits_total /
- (observer_cache_hits_total + observer_cache_misses_total)) > 0.7
-
-# 7. Is deduplication effective?
-(observer_dedup_skips_total /
- observer_events_processed_total) > 0.1
+# 3. Is latency acceptable?
+histogram_quantile(0.99, sum by (le) (rate(fraiseql_observer_action_duration_seconds_bucket[5m]))) < 1
 ```
+
+The dead letter queue and the runtime's health are not metrics. Read them from the admin
+API: `GET /api/observers/dlq/stats` and `GET /api/observers/runtime/health`.
 
 ### Recommended Alerts
 
@@ -591,29 +586,19 @@ groups:
   - name: observer_critical
     rules:
       - alert: NoEventsProcessing
-        expr: rate(observer_events_processed_total[5m]) == 0
+        expr: rate(fraiseql_observer_events_processed_total[5m]) == 0
         for: 5m
         annotations:
           summary: "No events processed in 5 minutes"
 
       - alert: HighActionFailureRate
-        expr: (rate(observer_actions_failed_total[5m]) /
-               rate(observer_actions_executed_total[5m])) > 0.1
+        expr: |
+          sum(rate(fraiseql_observer_action_errors_total[5m]))
+            / (sum(rate(fraiseql_observer_action_executed_total[5m]))
+               + sum(rate(fraiseql_observer_action_errors_total[5m]))) > 0.1
         for: 5m
         annotations:
           summary: "Action failure rate > 10%"
-
-      - alert: DLQBacklog
-        expr: observer_dlq_items_total > 100
-        for: 10m
-        annotations:
-          summary: "Dead letter queue has {{ $value }} items"
-
-      - alert: ListenerUnhealthy
-        expr: observer_listener_health == 0
-        for: 1m
-        annotations:
-          summary: "Listener {{ $labels.listener_id }} is unhealthy"
 ```
 
 ---

@@ -197,7 +197,8 @@ INSERT INTO tb_entity_change_log (...) VALUES (...);
 INSERT INTO tb_entity_change_log (...) VALUES (...);  # Duplicate
 
 # 2. Verify first processed, second skipped
-#    ($METRICS_URL: the /metrics endpoint serving the fraiseql_observer_* registry)
+#    ($METRICS_URL: the /metrics endpoint serving your fraiseql_observer_* registry;
+#    only the deduplicating executor you build records this, fraiseql-server runs none)
 curl -s "$METRICS_URL" | grep fraiseql_observer_dedup_detected_total
 # Should show: 1 duplicate detected
 
@@ -277,7 +278,8 @@ time cargo run --release --example 1000_webhook_calls --features all
 # Verify correctness
 cargo test --features checkpoint,concurrent,dedup,caching
 
-# Check cache hit rate: hits / (hits + misses)
+# Check cache hit rate: hits / (hits + misses) (only the cached executor you
+# build records these; fraiseql-server runs no result cache)
 curl -s "$METRICS_URL" | grep -E "fraiseql_observer_cache_(hits|misses)_total"
 # Expect: 70-80%+ for typical workloads
 ```
