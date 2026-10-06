@@ -95,7 +95,9 @@ expect 0 "OK:" "2. taking the lock directly passes"
 
 # ── 3. Two levels of helper still counts as holding the lock ─────────────────────────
 # A gate that only looks one level deep condemns correct code, and a gate that
-# condemns correct code gets deleted.
+# condemns correct code gets deleted. The test calls the guard ITSELF, inside the
+# closure: until 2026-10-06 it called only the helper, so the gate never checked it
+# and this case stayed green with the transitive closure deleted outright.
 root="${tmp}/c3"; seed_guard "$root"
 mkf "${root}/crates/fraiseql-x/src/tests.rs" <<'RS'
 fn with_guard_engaged<T>(f: impl FnOnce() -> T) -> T {
@@ -104,8 +106,8 @@ fn with_guard_engaged<T>(f: impl FnOnce() -> T) -> T {
     out.unwrap()
 }
 
-fn under_engaged_guard(addr: &str) -> bool {
-    with_guard_engaged(|| guard_thing(addr))
+fn under_engaged_guard<T>(f: impl FnOnce() -> T) -> T {
+    with_guard_engaged(f)
 }
 
 #[test]
@@ -117,7 +119,7 @@ fn hatch_is_refused_in_production() {
 
 #[test]
 fn addr_is_blocked() {
-    assert!(!under_engaged_guard(""));
+    under_engaged_guard(|| assert!(!guard_thing("")));
 }
 RS
 run_gate "$root"
@@ -258,6 +260,63 @@ fn addr_is_blocked() {
 RS
 run_gate "$root"
 expect 0 "OK:" "10. the same shape, locked after a nested block, stays green"
+
+# ── 12. A lock-taking helper does not lend its lock to a namesake ────────────────────
+# On 2026-10-06 a test helper `resolve` in fraiseql-server wrapped `with_redis_env`.
+# The crate holds ten functions called `resolve`; keyed by bare name, all ten became
+# lock-taking, then `authenticate`, then the HTTP handlers — 3019 of the --lib
+# binary's functions, at ~450 s per scan instead of ~3 s. A test reaching a guard
+# through the PRODUCTION `resolve` holds no lock, and must still be flagged.
+root="${tmp}/c12"; seed_guard "$root"
+mkf "${root}/crates/fraiseql-x/src/tests.rs" <<'RS'
+fn resolve() -> u8 {
+    temp_env::with_vars([("FRAISEQL_ENV", Some("production"))], || 1)
+}
+
+#[test]
+fn hatch_is_refused_in_production() {
+    assert_eq!(resolve(), 1);
+    temp_env::with_vars([("FRAISEQL_ENV", Some("production"))], || {
+        assert!(guard_thing("https://example.com"));
+    });
+}
+RS
+mkf "${root}/crates/fraiseql-x/src/registry.rs" <<'RS'
+pub fn resolve(name: &str) -> u8 {
+    name.len() as u8
+}
+RS
+mkf "${root}/crates/fraiseql-x/src/registry_tests.rs" <<'RS'
+#[test]
+fn registry_reads_the_guard() {
+    assert_eq!(resolve("x"), 1);
+    assert!(!guard_thing(""));
+}
+RS
+run_gate "$root"
+expect 1 "::registry_reads_the_guard" "12. a helper's lock does not spread to a namesake"
+
+# ── 13. …but a uniquely named helper in another file still holds the lock ─────────────
+root="${tmp}/c13"; seed_guard "$root"
+mkf "${root}/crates/fraiseql-x/src/test_support.rs" <<'RS'
+pub fn with_production_env<R>(f: impl FnOnce() -> R) -> R {
+    temp_env::with_vars([("FRAISEQL_ENV", Some("production"))], f)
+}
+RS
+mkf "${root}/crates/fraiseql-x/src/tests.rs" <<'RS'
+#[test]
+fn hatch_is_refused_in_production() {
+    with_production_env(|| assert!(guard_thing("https://example.com")));
+    temp_env::with_vars([("FRAISEQL_X_ALLOW_INSECURE", Some("1"))], || {});
+}
+
+#[test]
+fn addr_is_blocked() {
+    with_production_env(|| assert!(!guard_thing("")));
+}
+RS
+run_gate "$root"
+expect 0 "OK:" "13. a uniquely named helper in another file still holds the lock"
 
 # ── 11. The live repo is clean ───────────────────────────────────────────────────────
 run_gate "$repo_root"

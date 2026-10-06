@@ -59,6 +59,13 @@ Entry points are resolved per *function*, not per branch. `create_secrets_manage
 flagged although it can never reach the read. That case is exempted below by name, with
 its reason, and the exemption is verified to still resolve — an exemption that has
 rotted into naming nothing is a gate hole, so it aborts rather than passing quietly.
+
+Calls are resolved by name, not by type, and names collide: fraiseql-server's --lib
+binary holds ten functions called `resolve`. A call `h(…)` therefore counts as taking
+the lock only if the calling file's own `h` takes it or, when the file defines no `h`,
+EVERY `h` in the binary does. Keyed by bare name instead, one test helper `resolve`
+wrapping `temp_env` (2026-10-06) made all ten lock-taking, then their callers, then
+3019 of the binary's functions — a gate that passed everything, in ~450 s a scan.
 """
 
 from __future__ import annotations
@@ -98,6 +105,7 @@ MUTATES_ENV_RE = re.compile(r"temp_env::|env::set_var|env::remove_var")
 # file — arms the gate on crates that merely mention a hatch in unrelated source.
 MUTATION_ARGS_WINDOW = 500
 TEST_ATTR_RE = re.compile(r"#\[(tokio::)?test\]|#\[test\(")
+CALL_RE = re.compile(r"\b([A-Za-z_][A-Za-z0-9_]*)\s*\(")
 
 # (path suffix, test fn, reason). Verified to resolve; see "Known approximation".
 EXEMPTIONS = [
@@ -177,27 +185,43 @@ def test_binaries() -> list[tuple[str, list[Path]]]:
     return out
 
 
-def lock_taking_fns(texts: list[str]) -> set[str]:
-    """Fn names that reach `temp_env::`, transitively within the binary.
+class LockIndex:
+    """Which calls, made from which file, reach `temp_env::` within one test binary.
 
     One level is not enough: a helper that wraps `with_guard_engaged` is still holding
-    the lock, and flagging its callers would train people to ignore this gate.
+    the lock, and flagging its callers would train people to ignore this gate. So the
+    lock is closed over transitively — per (file, fn), never per bare name; see "Known
+    approximation" for why.
     """
-    bodies = {}
-    for text in texts:
-        for name, body, _ in iter_fns(text):
-            bodies[name] = bodies.get(name, "") + body
-    locky = {n for n, b in bodies.items() if "temp_env::" in b}
-    changed = True
-    while changed:
-        changed = False
-        for name, body in bodies.items():
-            if name in locky:
-                continue
-            if any(re.search(rf"\b{re.escape(h)}\s*\(", body) for h in locky):
-                locky.add(name)
-                changed = True
-    return locky
+
+    def __init__(self, files: list[tuple[str, str]]) -> None:
+        bodies: dict[tuple[str, str], str] = {}
+        for path, text in files:
+            for name, body, _ in iter_fns(text):
+                key = (path, name)
+                bodies[key] = bodies.get(key, "") + body
+        self._owners: dict[str, set[str]] = {}
+        for path, name in bodies:
+            self._owners.setdefault(name, set()).add(path)
+        calls = {key: set(CALL_RE.findall(body)) for key, body in bodies.items()}
+        self._locky = {key for key, body in bodies.items() if "temp_env::" in body}
+        changed = True
+        while changed:
+            changed = False
+            for key, called in calls.items():
+                if key not in self._locky and any(self.holds(key[0], c) for c in called):
+                    self._locky.add(key)
+                    changed = True
+
+    def holds(self, path: str, callee: str) -> bool:
+        """Does calling `callee(…)` from `path` take the lock?"""
+        owners = self._owners.get(callee, set())
+        if path in owners:
+            return (path, callee) in self._locky
+        return bool(owners) and all((o, callee) in self._locky for o in owners)
+
+    def body_holds(self, path: str, body: str) -> bool:
+        return any(self.holds(path, c) for c in set(CALL_RE.findall(body)))
 
 
 def main() -> int:
@@ -240,7 +264,7 @@ def main() -> int:
         ):
             continue
         binaries_with_mutators += 1
-        locky = lock_taking_fns([t for _, t in texts])
+        locks = LockIndex([(p.as_posix(), t) for p, t in texts])
 
         for path, text in texts:
             for name, body, off in iter_fns(text):
@@ -253,7 +277,7 @@ def main() -> int:
                 seen.add((rel, name))
                 if "temp_env::" in body:
                     continue
-                if any(re.search(rf"\b{re.escape(h)}\s*\(", body) for h in locky):
+                if locks.body_holds(path.as_posix(), body):
                     continue
                 if any(rel.endswith(p) and name == f for p, f, _ in EXEMPTIONS):
                     continue
