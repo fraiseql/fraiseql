@@ -663,6 +663,13 @@ mod http_transport_tests {
     use crate::routes::graphql::AppState;
 
     fn service(sessions: &Arc<LocalSessionManager>) -> super::super::http::McpHttpService {
+        service_with(sessions, true)
+    }
+
+    fn service_with(
+        sessions: &Arc<LocalSessionManager>,
+        require_auth: bool,
+    ) -> super::super::http::McpHttpService {
         let executor = Arc::new(Executor::read_only(
             CompiledSchema::default(),
             Arc::new(FailingAdapter::new()),
@@ -671,12 +678,17 @@ mod http_transport_tests {
         streamable_http_service(
             move || FraiseQLMcpService::new(state.clone(), McpConfig::default()),
             Arc::clone(sessions),
+            require_auth,
         )
     }
 
     fn post(body: &str) -> Request<Body> {
+        post_to("localhost", body)
+    }
+
+    fn post_to(host: &str, body: &str) -> Request<Body> {
         Request::post("/")
-            .header("host", "localhost")
+            .header("host", host)
             .header("content-type", "application/json")
             .header("accept", "application/json, text/event-stream")
             .body(Body::from(body.to_owned()))
@@ -700,6 +712,36 @@ mod http_transport_tests {
             .unwrap();
         assert_eq!(response.status(), StatusCode::OK);
         assert_eq!(session_count(&sessions).await, 1);
+    }
+
+    const INITIALIZE: &str = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}"#;
+
+    /// A deployment is reached by its own hostname, and a tenant by its domain (the `Host`
+    /// tenant resolution in docs/mcp.md). rmcp's default `allowed_hosts` is loopback only,
+    /// so every such request was refused with 403 before reaching FraiseQL.
+    #[tokio::test]
+    async fn a_request_addressed_to_the_deployments_hostname_is_served() {
+        let sessions = Arc::new(LocalSessionManager::default());
+        for host in [
+            "api.example.com",
+            "tenant-a.example.com:8443",
+            "10.0.0.5:8000",
+        ] {
+            let response = service(&sessions).oneshot(post_to(host, INITIALIZE)).await.unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "Host: {host}");
+        }
+    }
+
+    /// Without `require_auth` (development only) nothing but the `Host` check stands between
+    /// a DNS-rebinding page and the endpoint, so it keeps rmcp's loopback allowlist.
+    #[tokio::test]
+    async fn without_require_auth_only_a_loopback_host_is_served() {
+        let sessions = Arc::new(LocalSessionManager::default());
+        let svc = service_with(&sessions, false);
+        let local = svc.clone().oneshot(post_to("localhost", INITIALIZE)).await.unwrap();
+        assert_eq!(local.status(), StatusCode::OK);
+        let rebound = svc.oneshot(post_to("attacker.example", INITIALIZE)).await.unwrap();
+        assert_eq!(rebound.status(), StatusCode::FORBIDDEN);
     }
 
     #[tokio::test]

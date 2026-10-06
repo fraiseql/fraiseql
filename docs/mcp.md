@@ -316,6 +316,12 @@ claims feed RLS session variables, and the #390
 actor classification is derived — so an MCP call is authorized exactly like a
 GraphQL request, by construction.
 
+The `Host` header follows the same switch. With `require_auth = true` the endpoint
+answers any `Host`, so it works behind the deployment's own hostname and a tenant's
+domain. With `require_auth = false` (development only) it answers only `localhost`,
+`127.0.0.1` and `::1` and refuses any other `Host` with 403. That stops a web page
+from reaching an unauthenticated local server through DNS rebinding.
+
 ### Behaviour hints (tool annotations)
 
 Every advertised tool carries MCP `annotations` so agent clients can behave

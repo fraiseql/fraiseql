@@ -529,6 +529,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The MCP HTTP endpoint answers requests addressed to the deployment's hostname.** rmcp's
+  Streamable HTTP transport accepts only a loopback `Host` by default, against DNS rebinding, and
+  the server mounted it with that default. So every MCP request to `api.example.com`, and every
+  tenant addressed by its domain, was refused with 403 before reaching FraiseQL. This was the case
+  under rmcp 1.7 too. With `[mcp] require_auth = true` (the default), where a tool call needs a
+  bearer token that a browser never attaches to a rebound host, the `Host` check is off. With
+  `require_auth = false` (development only) the loopback allowlist stays.
+
 - **No observers doc promises concurrent action execution (#1451).** #1451 removed the
   `[performance]` concurrency keys, which nothing read, but the observers README,
   `docs/README.md`, `performance-tuning.md` (a "Concurrent Execution" section built on a private

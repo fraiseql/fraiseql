@@ -127,3 +127,66 @@ async fn storage_state_is_mounted_with_a_storage_token() {
          method), not absent (404)",
     );
 }
+
+/// The MCP endpoint as the server mounts it, addressed by a real hostname. rmcp's
+/// default `Host` allowlist is loopback only, so every request to a deployment's own
+/// name was refused with 403; with `require_auth` the check is off, without it the
+/// loopback allowlist still guards an unauthenticated local server against DNS
+/// rebinding.
+#[cfg(feature = "mcp")]
+mod mcp_host_check {
+    use super::*;
+
+    const INITIALIZE: &str = r#"{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}"#;
+
+    async fn mounted_mcp(require_auth: bool) -> Router {
+        let mut schema = CompiledSchema::new();
+        schema.mcp_config = Some(fraiseql_core::schema::McpConfig {
+            enabled: true,
+            transport: "http".to_string(),
+            path: "/mcp".to_string(),
+            require_auth,
+            ..fraiseql_core::schema::McpConfig::default()
+        });
+        std::env::set_var("FRAISEQL_TEST_MCP_HOST_HS256", "mcp-host-check-hs256-secret-32by!");
+        let config = ServerConfig {
+            cors_enabled: false,
+            auth_hs256: Some(crate::server_config::hs256::Hs256Config {
+                secret_env: "FRAISEQL_TEST_MCP_HOST_HS256".to_string(),
+                issuer:     None,
+                audience:   Some("fraiseql".to_string()),
+            }),
+            ..ServerConfig::default()
+        };
+        let server = Box::pin(Server::new(config, schema, Arc::new(FailingAdapter::new()), None))
+            .await
+            .expect("Server::new with [mcp] and [auth_hs256]");
+        let state = server.build_app_state();
+        server.mount_extensions(Router::new(), &state)
+    }
+
+    async fn initialize_status(app: Router, host: &str) -> StatusCode {
+        let request = Request::post("/mcp")
+            .header("host", host)
+            .header("content-type", "application/json")
+            .header("accept", "application/json, text/event-stream")
+            .body(Body::from(INITIALIZE))
+            .unwrap();
+        app.oneshot(request).await.unwrap().status()
+    }
+
+    #[tokio::test]
+    async fn with_require_auth_the_deployments_hostname_is_served() {
+        let app = mounted_mcp(true).await;
+        for host in ["api.example.com", "tenant-a.example.com:8443"] {
+            assert_eq!(initialize_status(app.clone(), host).await, StatusCode::OK, "{host}");
+        }
+    }
+
+    #[tokio::test]
+    async fn without_require_auth_a_foreign_host_is_refused() {
+        let app = mounted_mcp(false).await;
+        assert_eq!(initialize_status(app.clone(), "localhost").await, StatusCode::OK);
+        assert_eq!(initialize_status(app, "attacker.example").await, StatusCode::FORBIDDEN);
+    }
+}

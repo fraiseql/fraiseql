@@ -450,6 +450,7 @@ impl Server {
                         service
                     },
                     std::sync::Arc::new(LocalSessionManager::default()),
+                    mcp_cfg.require_auth,
                 );
                 app = app.nest_service(&mcp_cfg.path, mcp_service);
                 info!(path = %mcp_cfg.path, "MCP HTTP endpoint mounted");
