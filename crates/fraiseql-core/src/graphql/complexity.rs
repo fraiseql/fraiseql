@@ -294,8 +294,13 @@ impl RequestValidator {
         variables: Option<&'a serde_json::Value>,
     ) -> QueryMetrics {
         let fragments = collect_fragments(document);
-        let mut analyzer =
-            DocumentAnalyzer::new(&fragments, self.max_depth, self.max_complexity, variables);
+        let mut analyzer = DocumentAnalyzer::new(
+            document,
+            &fragments,
+            self.max_depth,
+            self.max_complexity,
+            variables,
+        );
         analyzer.analyze_document(document)
     }
 
@@ -449,15 +454,34 @@ struct DocumentAnalyzer<'a> {
     /// (#869). `None` means unavailable: a variable-valued `first`/`limit`/
     /// `take`/`last` then scores the clamp ceiling (fail closed), never 1.
     variables:      Option<&'a serde_json::Map<String, serde_json::Value>>,
+    /// Integer defaults the document's operations declare for their variables: an
+    /// omitted pagination variable takes its default (§ 6.4.1, #1504), so it scores
+    /// that value. Two operations declaring the same name keep the larger default.
+    defaults:       HashMap<&'a str, i64>,
 }
 
 impl<'a> DocumentAnalyzer<'a> {
     fn new(
+        document: &'a Document<'a, String>,
         fragments: &[&'a FragmentDefinition<'a, String>],
         max_depth: usize,
         max_complexity: usize,
         variables: Option<&'a serde_json::Value>,
     ) -> Self {
+        let mut defaults: HashMap<&'a str, i64> = HashMap::new();
+        for def in &document.definitions {
+            let Definition::Operation(op) = def else {
+                continue;
+            };
+            for var in operation_variable_definitions(op) {
+                if let Some(graphql_parser::query::Value::Int(n)) = &var.default_value {
+                    if let Some(n) = n.as_i64() {
+                        let slot = defaults.entry(var.name.as_str()).or_insert(n);
+                        *slot = (*slot).max(n);
+                    }
+                }
+            }
+        }
         let mut by_name = HashMap::with_capacity(fragments.len());
         for frag in fragments {
             // First definition wins, matching the previous `.find()` lookup.
@@ -470,6 +494,7 @@ impl<'a> DocumentAnalyzer<'a> {
             max_depth,
             max_complexity,
             variables: variables.and_then(serde_json::Value::as_object),
+            defaults,
         }
     }
 
@@ -571,7 +596,11 @@ impl<'a> DocumentAnalyzer<'a> {
                         }
                     } else {
                         let nested = self.selection_metrics(&field.selection_set, budget);
-                        let multiplier = extract_limit_multiplier(&field.arguments, self.variables);
+                        let multiplier = extract_limit_multiplier(
+                            &field.arguments,
+                            self.variables,
+                            &self.defaults,
+                        );
                         SelectionMetrics {
                             depth:      nested.depth,
                             // Saturating: the multiplier compounds per nesting
@@ -617,7 +646,8 @@ impl<'a> DocumentAnalyzer<'a> {
             1
         } else {
             let nested = self.selection_metrics(&field.selection_set, budget);
-            let multiplier = extract_limit_multiplier(&field.arguments, self.variables);
+            let multiplier =
+                extract_limit_multiplier(&field.arguments, self.variables, &self.defaults);
             1usize.saturating_add(nested.complexity.saturating_mul(multiplier))
         }
     }
@@ -688,7 +718,8 @@ pub fn estimate_query_cost<'a, S: std::hash::BuildHasher>(
     let fragments = collect_fragments(document);
     // usize::MAX sentinels so a fragment cycle yields a saturating (rejected) cost
     // rather than an artificial cap.
-    let mut analyzer = DocumentAnalyzer::new(&fragments, usize::MAX, usize::MAX, variables);
+    let mut analyzer =
+        DocumentAnalyzer::new(document, &fragments, usize::MAX, usize::MAX, variables);
     analyzer.document_cost(document, root_cost_weights)
 }
 
@@ -812,6 +843,18 @@ pub fn estimate_direct_read_cost<S: std::hash::BuildHasher>(
 }
 
 /// The top-level selection set of any operation kind.
+fn operation_variable_definitions<'a>(
+    op: &'a graphql_parser::query::OperationDefinition<'a, String>,
+) -> &'a [graphql_parser::query::VariableDefinition<'a, String>] {
+    use graphql_parser::query::OperationDefinition as Op;
+    match op {
+        Op::SelectionSet(_) => &[],
+        Op::Query(q) => &q.variable_definitions,
+        Op::Mutation(m) => &m.variable_definitions,
+        Op::Subscription(s) => &s.variable_definitions,
+    }
+}
+
 const fn operation_selection_set<'a>(
     op: &'a OperationDefinition<'a, String>,
 ) -> &'a SelectionSet<'a, String> {
@@ -865,6 +908,7 @@ const PAGINATION_MULTIPLIER_CEILING: usize = 100;
 fn extract_limit_multiplier(
     arguments: &[(String, graphql_parser::query::Value<String>)],
     variables: Option<&serde_json::Map<String, serde_json::Value>>,
+    defaults: &HashMap<&str, i64>,
 ) -> usize {
     for (name, value) in arguments {
         if matches!(name.as_str(), "first" | "limit" | "take" | "last") {
@@ -877,9 +921,14 @@ fn extract_limit_multiplier(
                     return limit.clamp(1, PAGINATION_MULTIPLIER_CEILING);
                 },
                 graphql_parser::query::Value::Variable(var) => {
-                    return variables
-                        .and_then(|vars| vars.get(var))
-                        .and_then(serde_json::Value::as_i64)
+                    // A supplied value wins, `null` included (it scores the ceiling);
+                    // an omitted variable takes its declared default.
+                    let supplied = variables.and_then(|vars| vars.get(var));
+                    return supplied
+                        .map_or_else(
+                            || defaults.get(var.as_str()).copied(),
+                            serde_json::Value::as_i64,
+                        )
                         .map_or(PAGINATION_MULTIPLIER_CEILING, |n| {
                             #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
                             // Reason: value is clamped to [1, 100] immediately after; truncation

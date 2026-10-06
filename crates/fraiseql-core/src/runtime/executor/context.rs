@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use moka::sync::Cache as MokaCache;
 
-use super::{QueryType, support::relay::RelayDispatch};
+use super::support::relay::RelayDispatch;
 use crate::{
     backend::{
         AdminSqlOutcome, AdminSqlRequest, ResultCacheStats,
@@ -17,7 +17,6 @@ use crate::{
     },
     cache::ViewName,
     error::Result,
-    graphql::ParsedQuery,
     runtime::{QueryMatcher, QueryPlanner, RuntimeConfig},
     schema::{CompiledSchema, IntrospectionResponses},
 };
@@ -92,7 +91,7 @@ pub(super) struct ExecutorContext {
     pub(super) gate1: crate::security::QueryValidator,
 
     /// Parsed GraphQL AST cache, keyed by xxHash64 of the query string.
-    pub(super) parse_cache: MokaCache<u64, Arc<(QueryType, Option<ParsedQuery>)>>,
+    pub(super) parse_cache: MokaCache<u64, Arc<super::support::classify::Classification>>,
 
     /// Projected introspection responses, keyed by a hash of the normalised
     /// selection set (#F7).

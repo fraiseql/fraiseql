@@ -89,6 +89,9 @@ struct RecordingAdapter {
     /// The `orderBy` each read was handed — a re-serialized argument that fails
     /// to *apply* is as silent as one that fails to parse (#902).
     order_bys:      std::sync::Mutex<Vec<Option<String>>>,
+    /// The `limit` and `where` each read was handed (#1504).
+    limits:         std::sync::Mutex<Vec<Option<u32>>>,
+    wheres:         std::sync::Mutex<Vec<Option<String>>>,
     function_calls: std::sync::Mutex<Vec<String>>,
     /// Database function whose call fails, for the partial-failure case.
     failing_fn:     Option<String>,
@@ -114,6 +117,14 @@ impl RecordingAdapter {
 
     fn recorded_function_calls(&self) -> Vec<String> {
         self.function_calls.lock().unwrap().clone()
+    }
+
+    fn recorded_limits(&self) -> Vec<Option<u32>> {
+        self.limits.lock().unwrap().clone()
+    }
+
+    fn recorded_wheres(&self) -> Vec<Option<String>> {
+        self.wheres.lock().unwrap().clone()
     }
 
     fn recorded_order_bys(&self) -> Vec<Option<String>> {
@@ -144,11 +155,13 @@ impl DatabaseAdapter for RecordingAdapter {
     async fn execute_where_query(
         &self,
         _view: &str,
-        _where_clause: Option<&WhereClause>,
-        _limit: Option<u32>,
+        where_clause: Option<&WhereClause>,
+        limit: Option<u32>,
         _offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
     ) -> Result<Vec<JsonbValue>> {
+        self.limits.lock().unwrap().push(limit);
+        self.wheres.lock().unwrap().push(where_clause.map(|w| format!("{w:?}")));
         self.order_bys.lock().unwrap().push(order_by.map(|o| format!("{o:?}")));
         Ok(vec![alice_row()])
     }
@@ -1023,6 +1036,66 @@ fn paginating_executor() -> (Executor, Arc<RecordingAdapter>) {
     }
     let adapter = Arc::new(RecordingAdapter::new());
     (Executor::new_with_relay(schema, Arc::clone(&adapter)), adapter)
+}
+
+// ── #1504: a variable the request omits takes its declared default (§ 6.4.1) ──
+
+/// `$l: Int = 1` with no `l` in the request runs with a limit of 1, not with no limit.
+#[tokio::test]
+async fn an_omitted_variable_takes_its_default() {
+    let (exec, adapter) = paginating_executor();
+    exec.execute("query Q($l: Int = 1) { users(limit: $l) { id } }", None)
+        .await
+        .expect("a defaulted variable needs no value");
+    assert_eq!(adapter.recorded_limits(), [Some(1)]);
+}
+
+/// A supplied value wins over the default.
+#[tokio::test]
+async fn a_supplied_variable_overrides_its_default() {
+    let (exec, adapter) = paginating_executor();
+    exec.execute("query Q($l: Int = 1) { users(limit: $l) { id } }", Some(&json!({"l": 2})))
+        .await
+        .expect("valid");
+    assert_eq!(adapter.recorded_limits(), [Some(2)]);
+}
+
+/// An explicit `null` is a supplied value: the default does not replace it.
+#[tokio::test]
+async fn an_explicit_null_is_not_replaced_by_the_default() {
+    let (exec, adapter) = paginating_executor();
+    exec.execute("query Q($l: Int = 1) { users(limit: $l) { id } }", Some(&json!({"l": null})))
+        .await
+        .expect("valid");
+    assert_eq!(adapter.recorded_limits(), [None]);
+}
+
+/// The widening shape: a defaulted `where` was dropped, so the read was unfiltered.
+#[tokio::test]
+async fn a_defaulted_where_filters_the_read() {
+    let (exec, adapter) = paginating_executor();
+    exec.execute(
+        r#"query Q($w: UserWhereInput = {name: {eq: "alice"}}) { users(where: $w) { id } }"#,
+        None,
+    )
+    .await
+    .expect("valid");
+    let wheres = adapter.recorded_wheres();
+    assert!(
+        wheres.len() == 1 && wheres[0].as_deref().is_some_and(|w| w.contains("alice")),
+        "the default filter must reach the read: {wheres:?}"
+    );
+}
+
+/// The classification is cached by document; the defaults must still apply on a
+/// cached run, and a supplied value on one request must not leak into the next.
+#[tokio::test]
+async fn defaults_apply_per_request_on_a_cached_document() {
+    let (exec, adapter) = paginating_executor();
+    let doc = "query Q($l: Int = 1) { users(limit: $l) { id } }";
+    exec.execute(doc, Some(&json!({"l": 5}))).await.expect("first");
+    exec.execute(doc, None).await.expect("second");
+    assert_eq!(adapter.recorded_limits(), [Some(5), Some(1)]);
 }
 
 /// The issue's repro: an offset that silently vanished, returning every row.

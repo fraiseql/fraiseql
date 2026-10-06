@@ -1129,6 +1129,26 @@ async fn ws_ae1_a_routed_subscription_still_answers_the_tenant_check() {
     assert_eq!(frame["payload"][0]["extensions"]["code"], "TENANT_MISMATCH", "{frame}");
 }
 
+/// A tenant that arrives as a variable's declared default is checked like a supplied one
+/// (§ 6.4.1, #1504): the default is the variable's value, so it cannot name another tenant
+/// past the check.
+#[tokio::test]
+async fn ws_a_defaulted_tenant_variable_still_answers_the_tenant_check() {
+    let schema = Arc::new(schema_with_subscription("orderCreated", "Order"));
+    let manager = Arc::new(SubscriptionManager::new(schema));
+    let state = SubscriptionState::new(manager);
+    let answer = answer_to_subscribe(
+        state,
+        &[("x-tenant-id", "tenant_a")],
+        r#"subscription S($tenant_id: String = "tenant_b") { orderCreated(tenant_id: $tenant_id) { id } }"#,
+        json!({}),
+    )
+    .await;
+    let frame = answer.expect("the tenant check must refuse the subscribe");
+    assert_eq!(frame["type"], "error", "{frame}");
+    assert_eq!(frame["payload"][0]["extensions"]["code"], "TENANT_MISMATCH", "{frame}");
+}
+
 /// A subscription whose type declares a row policy (#596) is refused to a subscriber whose
 /// identity the policy cannot resolve.
 #[tokio::test]

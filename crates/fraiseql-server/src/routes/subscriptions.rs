@@ -1224,6 +1224,19 @@ async fn handle_client_message(
             // HashMap<String, Value> serialization is infallible; the error path cannot occur.
             let variables_value = serde_json::to_value(&payload.variables)
                 .expect("HashMap<String, serde_json::Value> serialization is infallible");
+            // § 6.4.1 (#1504): an omitted variable takes its declared default before
+            // anything below reads the variables: the authorizer, the plan, the lifecycle
+            // hook, the tenant check and the registered subscription.
+            let variables_value =
+                fraiseql_core::graphql::value_json::variable_defaults(&parsed.variables)
+                    .ok()
+                    .and_then(|defaults| {
+                        fraiseql_core::graphql::value_json::with_variable_defaults(
+                            &defaults,
+                            Some(&variables_value),
+                        )
+                    })
+                    .unwrap_or(variables_value);
 
             // #422: operation-level authorization at subscription establishment.
             // The per-event delivery does not route through the executor, so the

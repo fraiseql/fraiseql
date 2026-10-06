@@ -188,7 +188,7 @@ impl Executor {
                     parsed,
                 ),
                 "__type" => {
-                    let type_name = introspection_type_name(root, parsed, &vars)?;
+                    let type_name = introspection_type_name(root, &vars)?;
                     let built = Arc::new(self.ctx.introspection.get_type_response(&type_name));
                     // The type name is part of the memo key: two `__type` roots
                     // with the same selection set but different names project
@@ -280,7 +280,7 @@ impl Executor {
         &self,
         query: &str,
         operation_name: Option<&str>,
-    ) -> Result<(QueryType, Option<crate::graphql::ParsedQuery>)> {
+    ) -> Result<support::classify::Classification> {
         let cache_key = parse_cache_key(query, operation_name);
         if let Some(arc) = self.ctx.parse_cache.get(&cache_key) {
             return Ok(arc.as_ref().clone());
@@ -339,7 +339,7 @@ impl Executor {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
-        let (query_type, parsed) = self.classify_cached(query, None)?;
+        let (query_type, parsed, _) = self.classify_cached(query, None)?;
         if matches!(query_type, QueryType::Mutation { .. }) {
             return Err(FraiseQLError::Authorization {
                 message:  "the before:mutation read bridge is read-only: this document is a \
@@ -427,7 +427,17 @@ impl Executor {
         // GATE-1 itself parses with (`validate_with_variables`, and
         // `parse_graphql_document` again for `max_operation_cost`), so the
         // parser sees nothing it was not already going to see.
-        let (query_type, maybe_parsed) = self.classify_cached(query, operation_name)?;
+        let (query_type, maybe_parsed, variable_defaults) =
+            self.classify_cached(query, operation_name)?;
+
+        // GraphQL § 6.4.1 (#1504): a variable the request omits takes its declared
+        // default, before anything reads the variables — GATE-1, the authorizer and
+        // every runner — so `$l: Int = 1` limits the read and a defaulted `where`
+        // filters it. The defaults belong to the document, so they are cached with
+        // its classification and merged here, per request.
+        let defaulted =
+            crate::graphql::value_json::with_variable_defaults(&variable_defaults, variables);
+        let variables = defaulted.as_ref().or(variables);
 
         // GATE 1: query-structure validation (DoS protection for direct embedders).
         // Runs on BOTH the anonymous and authenticated paths (L-gate1-skip).
@@ -769,13 +779,12 @@ fn parse_cache_key(query: &str, operation_name: Option<&str>) -> u64 {
 
 /// The type `__type(name:)` names in this request (#1445).
 ///
-/// The argument is `String!`: a literal, or a variable read from the request,
-/// falling back to the variable's declared default (GraphQL § 6.4.1). A missing,
+/// The argument is `String!`: a literal, or a variable read from the request (with
+/// its declared default already applied by the dispatch, § 6.4.1). A missing,
 /// null or non-string name is refused: answering `null` would read as "no such
 /// type".
 fn introspection_type_name(
     root: &crate::graphql::FieldSelection,
-    parsed: &crate::graphql::ParsedQuery,
     variables: &std::collections::HashMap<String, serde_json::Value>,
 ) -> Result<String> {
     use crate::graphql::value_json;
@@ -790,18 +799,9 @@ fn introspection_type_name(
         .find(|a| a.name == "name")
         .ok_or_else(|| refuse("none was given"))?;
     let literal = value_json::decode(&arg.value_json)?;
+    // The dispatch has already given an omitted variable its default (§ 6.4.1).
     let value = match value_json::variable_name(&literal) {
-        Some(var) => match variables.get(var) {
-            Some(supplied) => supplied.clone(),
-            None => parsed
-                .variables
-                .iter()
-                .find(|def| def.name == var)
-                .and_then(|def| def.default_value.as_deref())
-                .map(value_json::decode)
-                .transpose()?
-                .unwrap_or(serde_json::Value::Null),
-        },
+        Some(var) => variables.get(var).cloned().unwrap_or(serde_json::Value::Null),
         None => literal,
     };
     value

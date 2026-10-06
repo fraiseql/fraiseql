@@ -188,3 +188,43 @@ fn a_cost_weight_short_circuits_the_projection() {
     // and a query the map does not name is still walked
     assert_eq!(estimate_direct_read_cost("orders", &weights, &composed), 20_201);
 }
+
+/// A pagination variable the request omits scores its declared default (§ 6.4.1,
+/// #1504), as the executor will run it — not the fail-closed ceiling, which refused
+/// `query($n: Int = 3) { items(limit: $n) { id } }` as if it were unbounded.
+#[test]
+fn an_omitted_pagination_variable_scores_its_default() {
+    let validator = RequestValidator::new();
+    let literal = validator.analyze("{ items(limit: 3) { id name } }").unwrap();
+    let defaulted = validator
+        .analyze_with_variables("query Q($n: Int = 3) { items(limit: $n) { id name } }", None)
+        .unwrap();
+    assert_eq!(defaulted.complexity, literal.complexity);
+
+    let supplied = validator
+        .analyze_with_variables(
+            "query Q($n: Int = 3) { items(limit: $n) { id name } }",
+            Some(&serde_json::json!({"n": 50})),
+        )
+        .unwrap();
+    let literal_50 = validator.analyze("{ items(limit: 50) { id name } }").unwrap();
+    assert_eq!(supplied.complexity, literal_50.complexity, "a supplied value wins");
+}
+
+/// Two operations declaring the same variable with different defaults: the larger one
+/// scores, so the shared name cannot lower another operation's cost.
+#[test]
+fn a_variable_defaulted_differently_by_two_operations_scores_the_larger() {
+    let validator = RequestValidator::new();
+    let both = validator
+        .analyze_with_variables(
+            "query A($n: Int = 50) { items(limit: $n) { id } } \
+             query B($n: Int = 2) { items(limit: $n) { id } }",
+            None,
+        )
+        .unwrap();
+    let literal = validator
+        .analyze("query A { items(limit: 50) { id } } query B { items(limit: 50) { id } }")
+        .unwrap();
+    assert_eq!(both.complexity, literal.complexity);
+}

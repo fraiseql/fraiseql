@@ -160,6 +160,21 @@ fn an_argument_filter_is_a_reference_only_when_the_subscriber_binds_it() {
     assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
 }
 
+/// A subscription variable the subscriber omits takes its declared default (§ 6.4.1,
+/// #1504), so a defaulted argument binds its filter exactly as a supplied one does.
+#[test]
+fn a_defaulted_variable_binds_its_argument_filter() {
+    let mut schema = schema();
+    schema.subscriptions[0].filter = Some(SubscriptionFilter {
+        argument_paths: HashMap::from([("secret".to_string(), "/secret".to_string())]),
+        static_filters: vec![],
+    });
+    let exec = executor(schema, RuntimeConfig::default());
+    let query = r#"subscription S($secret: String = "s") { orderCreated { id } }"#;
+    let err = plan(&exec, query, &json!({}), None).unwrap_err();
+    assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+}
+
 struct DenyReject;
 impl FieldAuthorizer for DenyReject {
     fn authorize_field(&self, _r: &FieldAuthzRequest<'_>) -> Result<FieldAuthzDecision> {

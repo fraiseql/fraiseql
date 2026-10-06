@@ -137,7 +137,12 @@ impl Executor {
     ) -> Result<SubscriptionPlan> {
         let ctx = &self.ctx;
         let schema = &ctx.schema;
-        let variables_map = crate::graphql::selection_set::variables_map(variables);
+        // § 6.4.1 (#1504): an omitted variable takes its declared default, so a
+        // defaulted argument binds its filter as a supplied one does.
+        let defaults = crate::graphql::value_json::variable_defaults(&document.variables)?;
+        let defaulted = crate::graphql::value_json::with_variable_defaults(&defaults, variables);
+        let variables_map =
+            crate::graphql::selection_set::variables_map(defaulted.as_ref().or(variables));
         let resolved = crate::graphql::selection_set::resolve_and_filter(
             &document.selections,
             &document.fragments,

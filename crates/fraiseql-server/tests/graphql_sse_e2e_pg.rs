@@ -337,6 +337,29 @@ async fn stream_respects_the_client_row_limit() {
     assert_eq!(payloads.last().unwrap()["hasNext"], json!(false));
 }
 
+/// The row budget may arrive as a variable's declared default (§ 6.4.1, #1504): the
+/// plan reads the same values the batches execute with, so `$n: Int = 3` bounds the
+/// whole delivery, as a literal `limit: 3` does.
+#[tokio::test]
+async fn stream_respects_a_row_limit_given_as_a_variable_default() {
+    if database_url_or_skip("stream_default_limit").is_none() {
+        return;
+    }
+    let server = Box::pin(boot(sse_config(1))).await.unwrap();
+
+    let query = r"query Q($n: Int = 3) { items(limit: $n, orderBy: {id: ASC}) @stream(initialCount: 1) { id } }";
+    let resp = sse_post(&server, &json!({"query": query}), None).await;
+    assert_eq!(resp.status(), 200);
+    let events = parse_sse(&resp.text().await.unwrap());
+    let payloads = next_payloads(&events);
+
+    assert_eq!(
+        streamed_ids(&payloads, "items"),
+        vec![1, 2, 3],
+        "the defaulted limit is the total row budget"
+    );
+}
+
 // ── multipart/mixed, the second framing (#958) ───────────────────────────────
 
 /// Split a `multipart/mixed` body into its parts' JSON bodies.

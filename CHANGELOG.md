@@ -538,6 +538,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A GraphQL variable the request omits takes its declared default (#1504).** Defaults were
+  parsed and never applied (GraphQL § 6.4.1), so `query Q($l: Int = 1) { users(limit: $l) }`
+  ran with no limit and a defaulted `where` was dropped, widening the read. The executor now
+  applies each operation's defaults to the request's variables before GATE-1, the authorizer
+  and every runner read them; a supplied value, `null` included, is kept. Subscriptions apply
+  them before the plan, the lifecycle hook and the tenant check (a defaulted `$tenant_id` is
+  checked like a supplied one), and `@stream` before it plans its row budget. The cost
+  scorer, on the server's validator and on GATE-1, scores an omitted pagination variable at
+  its default rather than at the unbounded ceiling, so such a query is no longer refused as
+  too complex.
+
 - **Python SDK: an `@fraiseql.input` field keeps its `deprecated=` and `description=` (#1447).**
   `input()` exported only `name`, `type`, `nullable` and `default`, so
   `Annotated[bool, fraiseql.field(deprecated="…")]` on an input field was dropped and the field

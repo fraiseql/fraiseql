@@ -3,12 +3,17 @@
 use super::super::{Executor, MutationRoot, QueryType};
 use crate::{
     error::Result,
-    graphql::{operation_selection_error, parse_query_with_operation_name},
+    graphql::{operation_selection_error, parse_query_with_operation_name, value_json},
     runtime::{
         collect_variable_references, validate_variable_types, validate_variable_uses,
         validate_variables_used,
     },
 };
+
+/// A classified document: its type, its AST where the dispatch needs it, and its
+/// variables' declared defaults.
+pub(in crate::runtime::executor) type Classification =
+    (QueryType, Option<crate::graphql::ParsedQuery>, Vec<(String, serde_json::Value)>);
 
 impl Executor {
     /// Classify a GraphQL query into its operation type for routing.
@@ -44,14 +49,17 @@ impl Executor {
         query: &str,
         operation_name: Option<&str>,
     ) -> Result<QueryType> {
-        self.classify_query_with_parse(query, operation_name).map(|(qt, _)| qt)
+        self.classify_query_with_parse(query, operation_name).map(|(qt, ..)| qt)
     }
 
     /// Classify a query and simultaneously return the parsed AST for `Regular`
     /// queries, avoiding a redundant parse in the multi-root pipeline path.
     ///
-    /// Returns `(QueryType, Some(ParsedQuery))` for `Regular` queries and
-    /// `(QueryType, None)` for all other types (introspection, federation, etc.).
+    /// Returns `(QueryType, Some(ParsedQuery), defaults)` for `Regular` queries and
+    /// `(QueryType, None, defaults)` for all other types (introspection, federation,
+    /// etc.). `defaults` are the operation's declared variable defaults, decoded: a
+    /// property of the document, applied to each request's variables at dispatch
+    /// (§ 6.4.1, #1504).
     ///
     /// # Errors
     ///
@@ -60,7 +68,7 @@ impl Executor {
         &self,
         query: &str,
         operation_name: Option<&str>,
-    ) -> Result<(QueryType, Option<crate::graphql::ParsedQuery>)> {
+    ) -> Result<Classification> {
         // Parse the query once; the AST is the canonical source of truth.
         // Substring scans on the raw string produce false-positives on aliases,
         // comments, and string argument values (e.g. `{ search(q: "_service") }`
@@ -71,7 +79,16 @@ impl Executor {
         // keeps a two-operation document from answering with the wrong one.
         let parsed = parse_query_with_operation_name(query, operation_name)
             .map_err(|e| operation_selection_error(&e))?;
+        let defaults = value_json::variable_defaults(&parsed.variables)?;
+        let (query_type, parsed) = self.classify_parsed(parsed)?;
+        Ok((query_type, parsed, defaults))
+    }
 
+    /// The routing half of [`classify_query_with_parse`](Self::classify_query_with_parse).
+    fn classify_parsed(
+        &self,
+        parsed: crate::graphql::ParsedQuery,
+    ) -> Result<(QueryType, Option<crate::graphql::ParsedQuery>)> {
         // GraphQL § 5.8.3 / § 5.8.2 / § 5.8.4 — variable definitions.
         //
         // Placed here, immediately after the parse and *before* the routing

@@ -741,6 +741,15 @@ fn plan_stream(
         ));
     }
 
+    // The batches run through the executor, which gives an omitted variable its
+    // declared default (§ 6.4.1, #1504); the plan must read the same values, or a
+    // defaulted `limit` would bound every batch and not the plan's budget.
+    let defaults = fraiseql_core::graphql::value_json::variable_defaults(&parsed.variables)
+        .map_err(|e| bad_request(&format!("@stream planning failed: {e}")))?;
+    let defaulted =
+        fraiseql_core::graphql::value_json::with_variable_defaults(&defaults, variables);
+    let variables = defaulted.as_ref().or(variables);
+
     // The matcher resolves fragments, @skip/@include and variables exactly as
     // the executor will, so the plan is built against the same effective
     // document the batches will execute.

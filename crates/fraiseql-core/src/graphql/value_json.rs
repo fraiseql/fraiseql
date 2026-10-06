@@ -201,6 +201,52 @@ pub fn to_graphql(value: &Value) -> String {
     }
 }
 
+/// The declared defaults of an operation's variables, decoded: `(name, value)` for
+/// each variable definition that declares one (GraphQL § 6.4.1).
+///
+/// # Errors
+///
+/// Returns `FraiseQLError::Internal` if a stored default is not valid JSON (see
+/// [`decode`]).
+pub fn variable_defaults(
+    definitions: &[crate::graphql::VariableDefinition],
+) -> Result<Vec<(String, Value)>> {
+    definitions
+        .iter()
+        .filter_map(|def| def.default_value.as_deref().map(|json| (def.name.as_str(), json)))
+        .map(|(name, json)| Ok((name.to_string(), decode(json)?)))
+        .collect()
+}
+
+/// The request's variables, with every omitted variable that declares a default
+/// set to it (GraphQL § 6.4.1 `CoerceVariableValues`).
+///
+/// A variable the request supplies, `null` included, keeps the request's value.
+///
+/// `None` when nothing was added, so the caller keeps the request's own value; a
+/// `variables` that is not an object is left for validation to refuse.
+#[must_use]
+pub fn with_variable_defaults(
+    defaults: &[(String, Value)],
+    variables: Option<&Value>,
+) -> Option<Value> {
+    let supplied = match variables {
+        None | Some(Value::Null) => Map::new(),
+        Some(Value::Object(map)) => map.clone(),
+        Some(_) => return None,
+    };
+    let missing: Vec<&(String, Value)> =
+        defaults.iter().filter(|(name, _)| !supplied.contains_key(name)).collect();
+    if missing.is_empty() {
+        return None;
+    }
+    let mut merged = supplied;
+    for (name, value) in missing {
+        merged.insert(name.clone(), value.clone());
+    }
+    Some(Value::Object(merged))
+}
+
 #[cfg(test)]
 #[path = "value_json_tests.rs"]
 mod value_json_tests;
