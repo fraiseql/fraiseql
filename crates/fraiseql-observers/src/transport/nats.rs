@@ -62,6 +62,18 @@ pub struct NatsConfig {
     /// `JetStream` retention policy: max bytes
     pub retention_max_bytes: i64,
 
+    /// Window within which `JetStream` drops a message whose `Nats-Msg-Id` it has
+    /// already stored (the stream's `duplicate_window`).
+    pub duplicate_window: Duration,
+
+    /// Age past which `JetStream` discards a message (the stream's `max_age`).
+    /// Zero keeps messages until a size or count limit removes them.
+    pub max_age: Duration,
+
+    /// Deliveries of one message before `JetStream` stops redelivering it (the
+    /// consumer's `max_deliver`). `-1` redelivers without limit.
+    pub max_deliver: i64,
+
     /// Subject for dead-letter queue messages.
     ///
     /// When set, messages that cannot be deserialized are published to this NATS subject
@@ -84,6 +96,11 @@ impl Default for NatsConfig {
             ack_wait_secs:          30,
             retention_max_messages: 1_000_000,
             retention_max_bytes:    1_073_741_824, // 1 GB
+            // JetStream's own defaults, so a config that does not set these
+            // creates the stream and consumer JetStream would.
+            duplicate_window:       Duration::from_mins(2),
+            max_age:                Duration::ZERO,
+            max_deliver:            -1,
             dead_letter_subject:    None,
         }
     }
@@ -180,8 +197,12 @@ impl NatsTransport {
     /// # Stream Configuration
     ///
     /// - **Subjects**: `{subject_prefix}.>`
-    /// - **Retention**: Limits-based (max messages or max bytes)
+    /// - **Retention**: Limits-based (max messages, max bytes, max age)
+    /// - **Duplicate window**: [`NatsConfig::duplicate_window`]
     /// - **Discard policy**: Old messages when limits reached
+    ///
+    /// An existing stream is used as it is: these settings apply only when this
+    /// transport creates it.
     async fn ensure_stream(jetstream: &jetstream::Context, config: &NatsConfig) -> Result<()> {
         let subjects = vec![format!("{}.>", config.subject_prefix)];
 
@@ -194,6 +215,8 @@ impl NatsTransport {
                     subjects,
                     max_messages: config.retention_max_messages,
                     max_bytes: config.retention_max_bytes,
+                    max_age: config.max_age,
+                    duplicate_window: config.duplicate_window,
                     ..Default::default()
                 })
                 .await
@@ -262,6 +285,7 @@ impl EventTransport for NatsTransport {
                     deliver_policy: jetstream::consumer::DeliverPolicy::All,
                     ack_policy: jetstream::consumer::AckPolicy::Explicit,
                     ack_wait: Duration::from_secs(config.ack_wait_secs),
+                    max_deliver: config.max_deliver,
                     ..Default::default()
                 },
                 &config.stream_name,

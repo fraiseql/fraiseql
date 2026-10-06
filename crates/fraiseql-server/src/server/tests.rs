@@ -1567,3 +1567,124 @@ mod observer_redis_env_tests {
         }
     }
 }
+
+// ── observer_transport_tests: #1496 — every transport key is honoured or refused ──
+//
+// Driven through `Server::observer_runtime_config`, as the Redis tests above are:
+// the JetStream values were parsed, validated and overridable from the
+// environment, and never reached the stream or the consumer.
+
+#[cfg(feature = "observers")]
+mod observer_transport_tests {
+    use sqlx::PgPool;
+
+    use crate::{Server, observers::ObserverRuntimeConfig, server_config::ObserverConfig};
+
+    /// Every transport variable the library reads, unset unless a test sets it.
+    const TRANSPORT_VARS: [&str; 13] = [
+        "FRAISEQL_OBSERVER_TRANSPORT",
+        "FRAISEQL_NATS_URL",
+        "FRAISEQL_NATS_DEDUP_WINDOW_MINUTES",
+        "FRAISEQL_NATS_MAX_AGE_DAYS",
+        "FRAISEQL_NATS_MAX_DELIVER",
+        "FRAISEQL_NATS_MAX_MSGS",
+        "FRAISEQL_NATS_RUN_EXECUTORS",
+        "FRAISEQL_NATS_ENABLE_BRIDGE",
+        "FRAISEQL_BRIDGE_TRANSPORT_NAME",
+        "FRAISEQL_BRIDGE_BATCH_SIZE",
+        "FRAISEQL_BRIDGE_POLL_INTERVAL_SECS",
+        "FRAISEQL_BRIDGE_NOTIFY_CHANNEL",
+        "FRAISEQL_ENV",
+    ];
+
+    fn resolve(toml_src: &str, env: &[(&str, &str)]) -> crate::Result<ObserverRuntimeConfig> {
+        let pool = PgPool::connect_lazy("postgres://test:test@localhost/test").expect("lazy pool");
+        let vars: Vec<(&str, Option<&str>)> = TRANSPORT_VARS
+            .iter()
+            .map(|name| (*name, env.iter().find(|(k, _)| k == name).map(|(_, v)| *v)))
+            .collect();
+        temp_env::with_vars(vars, || {
+            let observers: ObserverConfig = toml::from_str(toml_src)
+                .map_err(|e| crate::ServerError::ConfigError(e.to_string()))?;
+            Server::observer_runtime_config(&observers, &pool)
+        })
+    }
+
+    const NATS: &str = r#"
+        [runtime.transport]
+        transport = "nats"
+
+        [runtime.transport.nats]
+        url = "nats://broker:4222"
+    "#;
+
+    /// The `nats.jetstream` values reach the runtime's transport config, from TOML
+    /// and from the environment. That they reach the stream and consumer the
+    /// runtime creates is pinned against a live broker in
+    /// `tests/observer_runtime_integration_test.rs`.
+    /// The NATS section without selecting NATS: the values are parsed and overridden
+    /// whichever transport runs, so this needs no `observers-nats` build.
+    const NATS_SECTION: &str = "[runtime.transport.nats]\nurl = \"nats://broker:4222\"\n";
+
+    #[tokio::test]
+    async fn jetstream_settings_reach_the_runtime_config() {
+        let toml_src = format!(
+            "{NATS_SECTION}\n[runtime.transport.nats.jetstream]\ndedup_window_minutes = 3\n\
+             max_age_days = 2\nmax_deliver = 9\n"
+        );
+        let jetstream = resolve(&toml_src, &[]).expect("valid").transport.nats.jetstream;
+        assert_eq!(jetstream.dedup_window_minutes, 3);
+        assert_eq!(jetstream.max_age_days, 2);
+        assert_eq!(jetstream.max_deliver, 9);
+
+        let jetstream = resolve(
+            NATS_SECTION,
+            &[
+                ("FRAISEQL_NATS_DEDUP_WINDOW_MINUTES", "4"),
+                ("FRAISEQL_NATS_MAX_AGE_DAYS", "1"),
+                ("FRAISEQL_NATS_MAX_DELIVER", "7"),
+            ],
+        )
+        .expect("valid")
+        .transport
+        .nats
+        .jetstream;
+        assert_eq!(jetstream.dedup_window_minutes, 4);
+        assert_eq!(jetstream.max_age_days, 1);
+        assert_eq!(jetstream.max_deliver, 7);
+    }
+
+    /// The server consumes the stream and runs no PostgreSQL → NATS bridge, so
+    /// each bridge or executor setting is refused rather than accepted and
+    /// ignored.
+    #[tokio::test]
+    async fn bridge_and_executor_keys_are_refused() {
+        for (key, extra) in [
+            ("run_bridge", "run_bridge = true"),
+            ("run_executors", "run_executors = false"),
+        ] {
+            let toml_src =
+                NATS.replace("transport = \"nats\"", &format!("transport = \"nats\"\n{extra}"));
+            let err = resolve(&toml_src, &[]).expect_err("the key must be refused");
+            assert!(err.to_string().contains(key), "{key}: got {err}");
+        }
+        let err = resolve(&format!("{NATS}\n[runtime.transport.bridge]\nbatch_size = 10\n"), &[])
+            .expect_err("[bridge] must be refused");
+        assert!(err.to_string().contains("bridge"), "got {err}");
+    }
+
+    #[tokio::test]
+    async fn bridge_and_executor_variables_refuse_boot() {
+        for var in [
+            "FRAISEQL_NATS_RUN_EXECUTORS",
+            "FRAISEQL_NATS_ENABLE_BRIDGE",
+            "FRAISEQL_BRIDGE_TRANSPORT_NAME",
+            "FRAISEQL_BRIDGE_BATCH_SIZE",
+            "FRAISEQL_BRIDGE_POLL_INTERVAL_SECS",
+            "FRAISEQL_BRIDGE_NOTIFY_CHANNEL",
+        ] {
+            let err = resolve(NATS, &[(var, "1")]).expect_err("the variable must refuse boot");
+            assert!(err.to_string().contains(var), "{var}: got {err}");
+        }
+    }
+}

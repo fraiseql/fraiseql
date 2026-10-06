@@ -98,7 +98,7 @@ pub(crate) const fn listener_selection(kind: TransportKind) -> ListenerSelection
 /// `stream_name` surfaces as a loud connection/stream-creation error from
 /// `NatsTransport::new` rather than a silent fallback.
 #[cfg(feature = "observers-nats")]
-fn nats_config_from(
+pub(crate) fn nats_config_from(
     cfg: &fraiseql_observers::config::NatsTransportConfig,
 ) -> fraiseql_observers::transport::NatsConfig {
     fraiseql_observers::transport::NatsConfig {
@@ -109,6 +109,9 @@ fn nats_config_from(
         ack_wait_secs: cfg.jetstream.ack_wait_secs,
         retention_max_messages: cfg.jetstream.max_msgs,
         retention_max_bytes: cfg.jetstream.max_bytes,
+        duplicate_window: Duration::from_mins(cfg.jetstream.dedup_window_minutes),
+        max_age: Duration::from_secs(cfg.jetstream.max_age_days.saturating_mul(24 * 60 * 60)),
+        max_deliver: cfg.jetstream.max_deliver,
         ..Default::default()
     }
 }

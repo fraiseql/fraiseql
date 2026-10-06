@@ -74,6 +74,9 @@ mod nats_tests {
             ack_wait_secs:          60,
             retention_max_messages: 500_000,
             retention_max_bytes:    512_000_000,
+            duplicate_window:       Duration::from_mins(1),
+            max_age:                Duration::from_hours(24),
+            max_deliver:            5,
             dead_letter_subject:    None,
         };
 
@@ -411,6 +414,71 @@ mod nats_tests {
 
             assert_eq!(received.entity_type, "DurableTest");
         }
+    }
+
+    /// The stream and consumer the transport creates carry the configured
+    /// dedup window, message age and delivery limit (#1496): the fields existed
+    /// in the server's config and never reached `JetStream`.
+    #[tokio::test]
+    #[ignore = "requires NATS server - run with: cargo test --test nats_integration --features nats -- --ignored"]
+    async fn test_nats_stream_and_consumer_carry_the_configured_limits() {
+        let test_id = Uuid::new_v4();
+        let stream_name = format!("test-limits-stream-{test_id}");
+        let consumer_name = format!("test-limits-consumer-{test_id}");
+        let config = with_nats_url(NatsConfig {
+            stream_name: stream_name.clone(),
+            consumer_name: consumer_name.clone(),
+            subject_prefix: format!("test.limits.{test_id}"),
+            duplicate_window: Duration::from_secs(90),
+            max_age: Duration::from_hours(1),
+            max_deliver: 4,
+            // Small, so the stream does not reserve the default 1 GB of the
+            // server's JetStream storage.
+            retention_max_bytes: 1024 * 1024,
+            ..Default::default()
+        });
+        let url = config.url.clone();
+
+        let transport = NatsTransport::new(config).await.expect("Should connect to NATS server");
+        let _events = transport
+            .subscribe(EventFilter::all_tenants())
+            .await
+            .expect("Subscribe creates the durable consumer");
+
+        let jetstream = async_nats::jetstream::new(
+            async_nats::connect(&url).await.expect("a second client connects"),
+        );
+        let mut stream = jetstream.get_stream(&stream_name).await.expect("the stream exists");
+        let stream_config = stream.info().await.expect("stream info").config.clone();
+        let mut consumer: async_nats::jetstream::consumer::PullConsumer =
+            stream.get_consumer(&consumer_name).await.expect("the consumer exists");
+        let max_deliver = consumer.info().await.expect("consumer info").config.max_deliver;
+
+        // A restart with another limit updates the existing durable consumer, as
+        // an upgrade from a server that created it without one does.
+        let restarted = NatsTransport::new(with_nats_url(NatsConfig {
+            stream_name: stream_name.clone(),
+            consumer_name: consumer_name.clone(),
+            subject_prefix: format!("test.limits.{test_id}"),
+            max_deliver: 6,
+            retention_max_bytes: 1024 * 1024,
+            ..Default::default()
+        }))
+        .await
+        .expect("Should reconnect to NATS server");
+        let _events = restarted
+            .subscribe(EventFilter::all_tenants())
+            .await
+            .expect("Subscribe updates the durable consumer");
+        let mut consumer: async_nats::jetstream::consumer::PullConsumer =
+            stream.get_consumer(&consumer_name).await.expect("the consumer exists");
+        let updated_max_deliver = consumer.info().await.expect("consumer info").config.max_deliver;
+        jetstream.delete_stream(&stream_name).await.expect("clean up the stream");
+
+        assert_eq!(stream_config.duplicate_window, Duration::from_secs(90));
+        assert_eq!(stream_config.max_age, Duration::from_hours(1));
+        assert_eq!(max_deliver, 4);
+        assert_eq!(updated_max_deliver, 6, "an existing consumer takes the new limit");
     }
 
     /// Test event with user context

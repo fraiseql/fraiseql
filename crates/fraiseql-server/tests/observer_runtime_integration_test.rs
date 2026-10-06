@@ -1722,3 +1722,58 @@ async fn test_standby_replica_takes_over_when_the_poller_stops() {
         "the standby must continue the stored checkpoint, not the one it read at start"
     );
 }
+
+/// The runtime on the NATS transport creates its stream and durable consumer with
+/// the `nats.jetstream` values (#1496): the dedup window, message age and
+/// delivery limit were parsed, validated and overridable, and never reached
+/// `JetStream`. Driven through `ObserverRuntime::start`, the path the server runs.
+#[cfg(feature = "observers-nats")]
+#[tokio::test]
+#[ignore = "requires PostgreSQL and NATS"]
+async fn test_nats_runtime_creates_its_stream_and_consumer_with_the_configured_limits() {
+    use fraiseql_observers::config::{TransportConfig, TransportKind};
+
+    init_test_tracing();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("Failed to setup schema");
+
+    let test_id = Uuid::new_v4().simple().to_string();
+    let url =
+        std::env::var("NATS_URL").expect("NATS_URL must be set (the observers leg binds NATS)");
+    let mut transport = TransportConfig {
+        transport: TransportKind::Nats,
+        ..TransportConfig::default()
+    };
+    transport.nats.url.clone_from(&url);
+    transport.nats.stream_name = format!("limits-{test_id}");
+    transport.nats.consumer_name = format!("limits-consumer-{test_id}");
+    transport.nats.subject_prefix = format!("limits.{test_id}");
+    transport.nats.jetstream.dedup_window_minutes = 3;
+    transport.nats.jetstream.max_age_days = 2;
+    transport.nats.jetstream.max_deliver = 9;
+    transport.nats.jetstream.max_bytes = 1024 * 1024;
+
+    let mut runtime =
+        ObserverRuntime::new(ObserverRuntimeConfig::new(pool.clone()).with_transport(transport));
+    runtime.start().await.expect("the runtime starts on the NATS transport");
+
+    let jetstream = async_nats::jetstream::new(async_nats::connect(&url).await.expect("connect"));
+    let stream_name = format!("limits-{test_id}");
+    let mut stream = jetstream
+        .get_stream(&stream_name)
+        .await
+        .expect("the runtime created the stream");
+    let stream_config = stream.info().await.expect("stream info").config.clone();
+    let mut consumer: async_nats::jetstream::consumer::PullConsumer = stream
+        .get_consumer(&format!("limits-consumer-{test_id}"))
+        .await
+        .expect("the runtime created the durable consumer");
+    let max_deliver = consumer.info().await.expect("consumer info").config.max_deliver;
+
+    runtime.stop().await.expect("Failed to stop runtime");
+    jetstream.delete_stream(&stream_name).await.expect("clean up the stream");
+
+    assert_eq!(stream_config.duplicate_window, Duration::from_mins(3));
+    assert_eq!(stream_config.max_age, Duration::from_hours(48));
+    assert_eq!(max_deliver, 9);
+}

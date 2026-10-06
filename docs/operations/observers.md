@@ -45,6 +45,9 @@ The server applies these over the compiled configuration at boot:
 | `FRAISEQL_NATS_ACK_WAIT_SECS` | `nats.jetstream.ack_wait_secs` |
 | `FRAISEQL_NATS_MAX_MSGS` | `nats.jetstream.max_msgs` |
 | `FRAISEQL_NATS_MAX_BYTES` | `nats.jetstream.max_bytes` |
+| `FRAISEQL_NATS_DEDUP_WINDOW_MINUTES` | `nats.jetstream.dedup_window_minutes` |
+| `FRAISEQL_NATS_MAX_AGE_DAYS` | `nats.jetstream.max_age_days` |
+| `FRAISEQL_NATS_MAX_DELIVER` | `nats.jetstream.max_deliver` |
 | `FRAISEQL_REDIS_URL` | `[observers.runtime.redis] url` (supplies the block when none is declared) |
 | `FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS` | `[observers.runtime.redis] connect_timeout_secs` |
 | `FRAISEQL_REDIS_COMMAND_TIMEOUT_SECS` | `[observers.runtime.redis] command_timeout_secs` |
@@ -54,8 +57,18 @@ no Redis deduplication or action-result cache, and refuses to boot when
 `FRAISEQL_REDIS_POOL_SIZE`, `FRAISEQL_REDIS_DEDUP_WINDOW_SECS` or
 `FRAISEQL_REDIS_CACHE_TTL_SECS` is set. `FRAISEQL_ENABLE_DEDUP`,
 `FRAISEQL_ENABLE_CACHING`, `FRAISEQL_JOB_QUEUE_*` and `FRAISEQL_CLICKHOUSE_*`
-configure the `fraiseql-observers` library only. The remaining NATS JetStream and
-bridge variables are read but not applied by the server (issue #1496).
+configure the `fraiseql-observers` library only.
+
+The server always runs the observer executors and runs no PostgreSQL → NATS bridge.
+`[observers.runtime.transport]` therefore takes only `transport` and `nats`: `run_bridge`,
+`run_executors` and a `[bridge]` table are refused at load, and the server refuses to boot
+when `FRAISEQL_NATS_RUN_EXECUTORS`, `FRAISEQL_NATS_ENABLE_BRIDGE` or any
+`FRAISEQL_BRIDGE_*` variable is set.
+
+The stream settings (`dedup_window_minutes`, `max_age_days`, `max_msgs`, `max_bytes`) apply
+when the server creates the stream; a stream that already exists keeps its own. The
+consumer settings (`ack_wait_secs`, `max_deliver`) are applied to the durable consumer at
+every boot, so an existing consumer takes new values.
 
 ---
 
@@ -135,8 +148,9 @@ JetStream pull consumer named `nats.consumer_name` (default
 `fraiseql_observer_worker`) with explicit acks. Replicas sharing the same
 `consumer_name` and `stream_name` share that consumer and so act as competing
 consumers: each message goes to one replica, and an unacknowledged message is
-redelivered after `ack_wait_secs`. The server only consumes the stream: it does not run
-the PostgreSQL → NATS bridge (`run_bridge` is not applied, issue #1496).
+redelivered after `ack_wait_secs`, up to `max_deliver` deliveries. The server only
+consumes the stream: it does not run the PostgreSQL → NATS bridge, so something else must
+publish change events to it.
 
 **PostgreSQL.** Replicas share one listener id (`change_log`, not configurable in
 `fraiseql.toml`), and with it one checkpoint and one dispatch ledger. Exactly one replica

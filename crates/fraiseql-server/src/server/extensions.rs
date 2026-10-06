@@ -266,7 +266,15 @@ impl Server {
         // Resolve the event transport from compiled config + env overrides, then
         // fail loud (#350) on a selection this binary cannot run before validating
         // the finer NATS/JetStream bounds — never a silent fallback to PostgreSQL.
-        let mut transport = observer_config.runtime.transport.clone().with_env_overrides();
+        if let Some(name) =
+            UNRUN_TRANSPORT_VARS.iter().find(|name| std::env::var_os(name).is_some())
+        {
+            return Err(crate::ServerError::ConfigError(format!(
+                "{name} is set, but fraiseql-server always runs the observer executors and runs no \
+                 PostgreSQL → NATS bridge for it to configure; unset it"
+            )));
+        }
+        let mut transport = observer_config.runtime.transport.to_runtime().with_env_overrides();
         let compiled_in = cfg!(feature = "observers-nats");
         let nats_url_present = !transport.nats.url.is_empty();
         crate::server::initialization::observer_transport_check(
@@ -307,6 +315,18 @@ impl Server {
         Ok(runtime_config)
     }
 }
+
+/// Transport variables that configure a bridge or a bridge-only node. The
+/// server runs neither, so setting one is refused (#1496).
+#[cfg(feature = "observers")]
+const UNRUN_TRANSPORT_VARS: [&str; 6] = [
+    "FRAISEQL_NATS_RUN_EXECUTORS",
+    "FRAISEQL_NATS_ENABLE_BRIDGE",
+    "FRAISEQL_BRIDGE_TRANSPORT_NAME",
+    "FRAISEQL_BRIDGE_BATCH_SIZE",
+    "FRAISEQL_BRIDGE_POLL_INTERVAL_SECS",
+    "FRAISEQL_BRIDGE_NOTIFY_CHANNEL",
+];
 
 /// `FRAISEQL_REDIS_*` variables that configure the library's dedup and
 /// result cache. The server runs neither, so setting one is refused.

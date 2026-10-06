@@ -50,6 +50,7 @@ pub use observers::AdmissionConfig;
 #[cfg(feature = "observers")]
 pub use observers::{
     ObserverConfig, ObserverPoolConfig, ObserverRedisConfig, ObserverRuntimeSettings,
+    ObserverTransportConfig,
 };
 #[cfg(feature = "auth-saml")]
 pub use saml::{SamlIdpEntry, SamlServerConfig};

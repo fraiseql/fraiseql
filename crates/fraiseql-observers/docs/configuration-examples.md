@@ -492,8 +492,10 @@ fn load(toml_text: &str) -> Result<ObserverRuntimeConfig, Box<dyn std::error::Er
 | `transport` | `FRAISEQL_OBSERVER_TRANSPORT` (`postgres`, `nats`, `in_memory`), `FRAISEQL_NATS_URL`, `FRAISEQL_NATS_ENABLE_BRIDGE`, `FRAISEQL_NATS_RUN_EXECUTORS`, plus the other `FRAISEQL_NATS_*` and `FRAISEQL_BRIDGE_*` variables read in `src/config/transport.rs` |
 | `clickhouse` | `FRAISEQL_CLICKHOUSE_URL`, `FRAISEQL_CLICKHOUSE_DATABASE`, `FRAISEQL_CLICKHOUSE_TABLE`, `FRAISEQL_CLICKHOUSE_BATCH_SIZE`, `FRAISEQL_CLICKHOUSE_BATCH_TIMEOUT_SECS`, `FRAISEQL_CLICKHOUSE_MAX_RETRIES` |
 
-`fraiseql-server` builds the runtime from `[observers.runtime]`, not from this struct. It reads
-the `transport` variables (several NATS and bridge values are then ignored, #1496), and its own
+`fraiseql-server` builds the runtime from `[observers.runtime]`, not from this struct. Its
+`[observers.runtime.transport]` takes `transport` and `nats` and the variables that override
+them; it runs no bridge, so it refuses `run_bridge`, `run_executors`, `[bridge]`,
+`FRAISEQL_NATS_ENABLE_BRIDGE`, `FRAISEQL_NATS_RUN_EXECUTORS` and `FRAISEQL_BRIDGE_*`. Its own
 `[observers.runtime.redis]` takes `url`, `connect_timeout_secs` and `command_timeout_secs` with
 `FRAISEQL_REDIS_URL`, `FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS` and
 `FRAISEQL_REDIS_COMMAND_TIMEOUT_SECS`. It has no `job_queue`, `performance` or `clickhouse`

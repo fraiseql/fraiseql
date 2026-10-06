@@ -18,6 +18,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`[observers.runtime.transport]` refuses the bridge and executor settings the server never
+  applied (#1496).** `run_bridge`, `run_executors` and the `[bridge]` table configured a
+  PostgreSQL → NATS bridge and a bridge-only node; `fraiseql-server` runs the executors always
+  and the bridge never, and ignored them. They are now refused at load, and the server refuses
+  to boot when `FRAISEQL_NATS_RUN_EXECUTORS`, `FRAISEQL_NATS_ENABLE_BRIDGE` or a
+  `FRAISEQL_BRIDGE_*` variable is set. Remove them; the library's own `TransportConfig` still
+  takes them. For embedders, `fraiseql_observers::transport::NatsConfig` gains
+  `duplicate_window`, `max_age` and `max_deliver`.
+
 - **A field's `sql_column` is refused, as it has been since 2.15.0 (#1423).** 2.14 accepted the
   key in `schema.json` and nothing read it: the field always resolved through the view's `data`
   (or a native column of the field's own name), so a schema that relied on it to rename a
@@ -528,6 +537,19 @@ disagreed, and the promise was the part that was wrong.
   now.
 
 ### Fixed
+
+- **The NATS observer transport applies `dedup_window_minutes`, `max_age_days` and
+  `max_deliver` (#1496).** The server copied only the URL, names, `ack_wait_secs`, `max_msgs`
+  and `max_bytes` into the transport, so the three were validated, overridable through
+  `FRAISEQL_NATS_DEDUP_WINDOW_MINUTES` / `_MAX_AGE_DAYS` / `_MAX_DELIVER`, and ignored: the
+  stream kept JetStream's 2-minute dedup window and unlimited age, and the consumer redelivered
+  a failing message without limit. They now set the stream's `duplicate_window` and `max_age`
+  when the server creates the stream, and the consumer's `max_deliver` at every boot. With the
+  defaults, a new stream keeps messages for 7 days, and the consumer stops redelivering a message
+  after 3 deliveries, including an existing consumer after the upgrade. An existing stream keeps
+  its settings. `fraiseql_observers::transport::NatsConfig` gains `duplicate_window`, `max_age`
+  and `max_deliver`, defaulting to JetStream's own values (a struct literal without
+  `..Default::default()` must now name them).
 
 - **Introspection reads `__type(name:)` from variables and answers every root under its alias
   (#1445).** `query T($n: String!) { __type(name: $n) { name } }` answered `{"__type": null}`,

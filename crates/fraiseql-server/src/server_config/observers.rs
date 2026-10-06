@@ -4,7 +4,9 @@
 mod tests;
 
 #[cfg(feature = "observers")]
-use fraiseql_observers::config::{EmailSmtpConfig, TransportConfig};
+use fraiseql_observers::config::{
+    BridgeTransportConfig, EmailSmtpConfig, NatsTransportConfig, TransportConfig, TransportKind,
+};
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "observers")]
@@ -165,7 +167,7 @@ pub struct ObserverRuntimeSettings {
     /// compiled in, or NATS without a URL) fails loud at boot in production —
     /// the server never silently falls back to PostgreSQL (#350).
     #[serde(default)]
-    pub transport: TransportConfig,
+    pub transport: ObserverTransportConfig,
 
     /// SMTP configuration for the email observer action (`[observers.runtime.email]`).
     ///
@@ -214,6 +216,44 @@ pub struct ObserverRuntimeSettings {
     /// declared (#1466).
     #[serde(default)]
     pub redis: Option<ObserverRedisConfig>,
+}
+
+/// The event transport (`[observers.runtime.transport]`): what the server runs.
+///
+/// The library's [`TransportConfig`] also carries `run_bridge`, `run_executors`
+/// and a `[bridge]` table, which configure a PostgreSQL → NATS bridge and a
+/// bridge-only node. The server always runs the observer executors and never
+/// the bridge, so this block refuses those keys rather than accepting values
+/// nothing reads (#1496).
+#[cfg(feature = "observers")]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ObserverTransportConfig {
+    /// Where change events come from: `postgres` (default), `nats` or
+    /// `in_memory`.
+    #[serde(default)]
+    pub transport: TransportKind,
+
+    /// The NATS `JetStream` stream and durable consumer
+    /// (`[observers.runtime.transport.nats]`).
+    #[serde(default)]
+    pub nats: NatsTransportConfig,
+}
+
+#[cfg(feature = "observers")]
+impl ObserverTransportConfig {
+    /// The library transport configuration the runtime takes: executors on, no
+    /// bridge.
+    #[must_use]
+    pub fn to_runtime(&self) -> TransportConfig {
+        TransportConfig {
+            transport:     self.transport,
+            run_bridge:    false,
+            run_executors: true,
+            nats:          self.nats.clone(),
+            bridge:        BridgeTransportConfig::default(),
+        }
+    }
 }
 
 /// The Redis backend for `cache` observer actions (`[observers.runtime.redis]`).
@@ -272,7 +312,7 @@ impl Default for ObserverRuntimeSettings {
             auto_reload:          default_auto_reload(),
             reload_interval_secs: default_reload_interval_secs(),
             max_dlq_size:         None,
-            transport:            TransportConfig::default(),
+            transport:            ObserverTransportConfig::default(),
             email:                None,
             pool:                 ObserverPoolConfig::default(),
             log_payloads:         false,
