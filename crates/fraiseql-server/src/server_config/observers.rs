@@ -207,8 +207,59 @@ pub struct ObserverRuntimeSettings {
     /// Declaring a `cache` action without this block is a boot error, and so is
     /// declaring one in a binary built without the `observers-cache` feature:
     /// the operator learns once, at startup, rather than once per event.
+    ///
+    /// `FRAISEQL_REDIS_URL`, `FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS` and
+    /// `FRAISEQL_REDIS_COMMAND_TIMEOUT_SECS` override the declared values at
+    /// boot; `FRAISEQL_REDIS_URL` alone supplies the block when none is
+    /// declared (#1466).
     #[serde(default)]
-    pub redis: Option<fraiseql_observers::config::RedisConfig>,
+    pub redis: Option<ObserverRedisConfig>,
+}
+
+/// The Redis backend for `cache` observer actions (`[observers.runtime.redis]`).
+///
+/// Only what the server uses: the URL and the two connection timeouts. The
+/// library's `RedisConfig` also carries `pool_size`, `dedup_window_secs` and
+/// `cache_ttl_secs`, which configure event deduplication and action-result
+/// caching. The server runs neither, so this block refuses those keys rather
+/// than accepting values nothing reads (#1466).
+#[cfg(feature = "observers")]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ObserverRedisConfig {
+    /// Redis connection URL (`redis://…` or `rediss://…`). Required, here or
+    /// through `FRAISEQL_REDIS_URL`.
+    #[serde(default)]
+    pub url: String,
+
+    /// Timeout for each connection attempt, in seconds (default: 5).
+    #[serde(default = "default_redis_connect_timeout_secs")]
+    pub connect_timeout_secs: u64,
+
+    /// Timeout for each command's response, in seconds (default: 2).
+    #[serde(default = "default_redis_command_timeout_secs")]
+    pub command_timeout_secs: u64,
+}
+
+#[cfg(feature = "observers")]
+const fn default_redis_connect_timeout_secs() -> u64 {
+    5
+}
+
+#[cfg(feature = "observers")]
+const fn default_redis_command_timeout_secs() -> u64 {
+    2
+}
+
+#[cfg(feature = "observers")]
+impl Default for ObserverRedisConfig {
+    fn default() -> Self {
+        Self {
+            url:                  String::new(),
+            connect_timeout_secs: default_redis_connect_timeout_secs(),
+            command_timeout_secs: default_redis_command_timeout_secs(),
+        }
+    }
 }
 
 #[cfg(feature = "observers")]

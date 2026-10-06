@@ -48,7 +48,9 @@ use fraiseql_core::{
 pub use hs256::Hs256Config;
 pub use observers::AdmissionConfig;
 #[cfg(feature = "observers")]
-pub use observers::{ObserverConfig, ObserverPoolConfig, ObserverRuntimeSettings};
+pub use observers::{
+    ObserverConfig, ObserverPoolConfig, ObserverRedisConfig, ObserverRuntimeSettings,
+};
 #[cfg(feature = "auth-saml")]
 pub use saml::{SamlIdpEntry, SamlServerConfig};
 pub use scim::ScimServerConfig;

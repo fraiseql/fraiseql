@@ -196,3 +196,23 @@ mod redis_tests {
         // Actual Redis tests require a Redis server
     }
 }
+
+// #1466: the invalidator connected with redis-rs's own timeouts (1 s connect,
+// 500 ms response) whatever `connect_timeout_secs` / `command_timeout_secs` said.
+// `ConnectionManagerConfig` has no getters; its `Debug` is the only window.
+#[cfg(feature = "caching")]
+mod invalidator_connection_tests {
+    use crate::{cache::redis::connection_manager_config, config::RedisConfig};
+
+    #[test]
+    fn the_invalidator_connects_with_the_configured_timeouts() {
+        let config = RedisConfig {
+            connect_timeout_secs: 7,
+            command_timeout_secs: 3,
+            ..RedisConfig::default()
+        };
+        let debug = format!("{:?}", connection_manager_config(&config));
+        assert!(debug.contains("connection_timeout: Some(7s)"), "{debug}");
+        assert!(debug.contains("response_timeout: Some(3s)"), "{debug}");
+    }
+}

@@ -1433,3 +1433,137 @@ mod async_operations_boot_tests {
         assert!(parsed.is_err(), "worker_count (typo) must be refused");
     }
 }
+
+// ── observer_redis_env_tests: #1466 — `FRAISEQL_REDIS_*` reach the runtime ──
+//
+// Driven through `Server::observer_runtime_config`, the resolution the boot
+// path runs, not through `RedisConfig::with_env_overrides` on its own: the
+// override existed and was tested for years while the server never called it.
+
+#[cfg(feature = "observers")]
+mod observer_redis_env_tests {
+    use sqlx::PgPool;
+
+    use crate::{Server, observers::ObserverRuntimeConfig, server_config::ObserverConfig};
+
+    const REDIS_VARS: [&str; 6] = [
+        "FRAISEQL_REDIS_URL",
+        "FRAISEQL_REDIS_POOL_SIZE",
+        "FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS",
+        "FRAISEQL_REDIS_COMMAND_TIMEOUT_SECS",
+        "FRAISEQL_REDIS_DEDUP_WINDOW_SECS",
+        "FRAISEQL_REDIS_CACHE_TTL_SECS",
+    ];
+
+    fn lazy_pool() -> PgPool {
+        PgPool::connect_lazy("postgres://test:test@localhost/test").expect("lazy pool")
+    }
+
+    fn observers(toml_src: &str) -> ObserverConfig {
+        toml::from_str(toml_src).expect("valid [observers] TOML")
+    }
+
+    /// Every `FRAISEQL_REDIS_*` variable unset, then `set` applied on top.
+    fn with_redis_env<R>(set: &[(&str, &str)], f: impl FnOnce() -> R) -> R {
+        let vars: Vec<(&str, Option<&str>)> = REDIS_VARS
+            .iter()
+            .map(|name| (*name, set.iter().find(|(k, _)| k == name).map(|(_, v)| *v)))
+            .collect();
+        temp_env::with_vars(vars, f)
+    }
+
+    const WITH_SECTION: &str = r#"
+        [runtime.redis]
+        url = "redis://from-toml:6379"
+        connect_timeout_secs = 4
+    "#;
+
+    fn resolve(toml_src: &str, env: &[(&str, &str)]) -> crate::Result<ObserverRuntimeConfig> {
+        let pool = lazy_pool();
+        with_redis_env(env, || Server::observer_runtime_config(&observers(toml_src), &pool))
+    }
+
+    #[tokio::test]
+    async fn redis_env_overrides_the_declared_section() {
+        let cfg = resolve(
+            WITH_SECTION,
+            &[
+                ("FRAISEQL_REDIS_URL", "redis://from-env:6379"),
+                ("FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS", "9"),
+                ("FRAISEQL_REDIS_COMMAND_TIMEOUT_SECS", "3"),
+            ],
+        )
+        .expect("valid observer config");
+        let redis = cfg.redis.expect("the declared [observers.runtime.redis] block");
+        assert_eq!(redis.url, "redis://from-env:6379");
+        assert_eq!(redis.connect_timeout_secs, 9);
+        assert_eq!(redis.command_timeout_secs, 3);
+    }
+
+    #[tokio::test]
+    async fn the_declared_section_reaches_the_runtime() {
+        let redis = resolve(WITH_SECTION, &[]).expect("valid").redis.expect("declared block");
+        assert_eq!(redis.url, "redis://from-toml:6379");
+        assert_eq!(redis.connect_timeout_secs, 4);
+        assert_eq!(redis.command_timeout_secs, 2, "the default");
+    }
+
+    #[tokio::test]
+    async fn redis_url_alone_supplies_an_undeclared_section() {
+        let cfg = resolve("", &[("FRAISEQL_REDIS_URL", "redis://from-env:6379")])
+            .expect("valid observer config");
+        let redis = cfg.redis.expect("FRAISEQL_REDIS_URL supplies the Redis backend");
+        assert_eq!(redis.url, "redis://from-env:6379");
+    }
+
+    #[tokio::test]
+    async fn no_section_and_no_url_leaves_redis_absent() {
+        let cfg = resolve("", &[("FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS", "9")])
+            .expect("valid observer config");
+        assert!(cfg.redis.is_none(), "no URL anywhere: there is no Redis to configure");
+    }
+
+    #[tokio::test]
+    async fn a_declared_section_with_no_url_anywhere_refuses_boot() {
+        let err = resolve("[runtime.redis]\nconnect_timeout_secs = 4", &[])
+            .expect_err("no url in the block and none in the environment");
+        assert!(err.to_string().contains("url"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn an_out_of_range_redis_override_refuses_boot() {
+        let err = resolve(WITH_SECTION, &[("FRAISEQL_REDIS_COMMAND_TIMEOUT_SECS", "0")])
+            .expect_err("command_timeout_secs = 0 is out of range");
+        assert!(err.to_string().contains("command_timeout_secs"), "got: {err}");
+    }
+
+    #[tokio::test]
+    async fn an_unparseable_redis_override_refuses_boot() {
+        let err = resolve(WITH_SECTION, &[("FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS", "5s")])
+            .expect_err("`5s` is not a number of seconds");
+        assert!(err.to_string().contains("FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS"), "got: {err}");
+    }
+
+    /// The server runs no Redis dedup or result cache: the variables that would
+    /// configure them are refused, not accepted and ignored.
+    #[tokio::test]
+    async fn a_redis_variable_the_server_cannot_honour_refuses_boot() {
+        for name in [
+            "FRAISEQL_REDIS_POOL_SIZE",
+            "FRAISEQL_REDIS_DEDUP_WINDOW_SECS",
+            "FRAISEQL_REDIS_CACHE_TTL_SECS",
+        ] {
+            let err = resolve(WITH_SECTION, &[(name, "10")]).expect_err(name);
+            assert!(err.to_string().contains(name), "got: {err}");
+        }
+    }
+
+    #[test]
+    fn a_redis_key_the_server_cannot_honour_is_refused_at_load() {
+        for key in ["pool_size", "dedup_window_secs", "cache_ttl_secs"] {
+            let src = format!("[runtime.redis]\nurl = \"redis://r:6379\"\n{key} = 10");
+            let err = toml::from_str::<ObserverConfig>(&src).expect_err(key);
+            assert!(err.to_string().contains(key), "got: {err}");
+        }
+    }
+}

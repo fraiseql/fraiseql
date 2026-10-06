@@ -3,7 +3,9 @@
 //! Provides high-performance caching of action results using Redis with
 //! automatic TTL-based expiration.
 
-use redis::aio::ConnectionManager;
+use std::time::Duration;
+
+use redis::aio::{ConnectionManager, ConnectionManagerConfig};
 
 use super::{CacheBackend, CacheBackendDyn, CachedActionResult, glob};
 use crate::{
@@ -11,6 +13,15 @@ use crate::{
     error::{ObserverError, Result},
     event::EntityEvent,
 };
+
+/// The connection settings [`RedisCacheInvalidator::connect`] applies: the
+/// config's connect and command timeouts. It used redis-rs's own (1 s connect,
+/// 500 ms response) whatever the config said (#1466).
+pub(super) fn connection_manager_config(config: &RedisConfig) -> ConnectionManagerConfig {
+    ConnectionManagerConfig::new()
+        .set_connection_timeout(Some(Duration::from_secs(config.connect_timeout_secs)))
+        .set_response_timeout(Some(Duration::from_secs(config.command_timeout_secs)))
+}
 
 /// Redis-backed cache backend.
 ///
@@ -156,8 +167,9 @@ impl RedisCacheInvalidator {
             redis::Client::open(config.url.as_str()).map_err(|e| ObserverError::InvalidConfig {
                 message: format!("cache invalidation: invalid Redis URL {:?}: {e}", config.url),
             })?;
-        let conn =
-            ConnectionManager::new(client).await.map_err(|e| ObserverError::InvalidConfig {
+        let conn = ConnectionManager::new_with_config(client, connection_manager_config(config))
+            .await
+            .map_err(|e| ObserverError::InvalidConfig {
                 message: format!(
                     "cache invalidation: cannot connect to Redis at {:?}: {e}",
                     config.url

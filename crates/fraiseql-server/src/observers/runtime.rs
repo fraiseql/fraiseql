@@ -165,6 +165,9 @@ pub struct ObserverRuntimeConfig {
     /// invalidates keys.
     /// `None` with a declared `cache` action is a **boot error** — the operator
     /// learns at startup rather than one failed dispatch at a time.
+    ///
+    /// The invalidator reads `url`, `connect_timeout_secs` and
+    /// `command_timeout_secs`; the dedup and result-cache fields are unused here.
     pub redis: Option<fraiseql_observers::config::RedisConfig>,
 }
 

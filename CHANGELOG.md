@@ -413,6 +413,22 @@ disagreed, and the promise was the part that was wrong.
   `gt`, `gte`, `lt`, `lte`, `in`, `nin`, the `like`/`contains`/`startswith`/`endswith` family
   and their case-insensitive forms, `isnull`, `isnotnull`).
 
+- **`[observers.runtime.redis]` holds only what the server uses, and its `FRAISEQL_REDIS_*`
+  overrides apply (#1466).** The block was the observer library's `RedisConfig`: the server read
+  its `url` and nothing else, so `connect_timeout_secs` and `command_timeout_secs` were ignored
+  (redis-rs's 1 s / 500 ms applied), `pool_size`, `dedup_window_secs` and `cache_ttl_secs`
+  configured a deduplication and result cache the server does not run, and every
+  `FRAISEQL_REDIS_*` variable was accepted and ignored. The block now takes `url`,
+  `connect_timeout_secs` and `command_timeout_secs`, and the cache invalidator connects with both
+  timeouts. `FRAISEQL_REDIS_URL`, `FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS` and
+  `FRAISEQL_REDIS_COMMAND_TIMEOUT_SECS` override them at boot, and `FRAISEQL_REDIS_URL` alone
+  supplies the block when none is declared. An unparseable or out-of-range value refuses boot.
+  **Upgrade:** remove `pool_size`, `dedup_window_secs` and `cache_ttl_secs` from
+  `[observers.runtime.redis]`, and unset `FRAISEQL_REDIS_POOL_SIZE`,
+  `FRAISEQL_REDIS_DEDUP_WINDOW_SECS` and `FRAISEQL_REDIS_CACHE_TTL_SECS`; the server refuses to
+  load or boot with them. Embedders: `ObserverRuntimeSettings::redis` is now
+  `Option<ObserverRedisConfig>`. `RedisCacheInvalidator::connect` applies the config's timeouts.
+
 ### Added
 
 - **Tenant administrators (#1089).** The platform mints a tenant admin token for one tenant at

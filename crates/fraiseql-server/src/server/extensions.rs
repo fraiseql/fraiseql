@@ -228,8 +228,6 @@ impl Server {
         config: &ServerConfig,
         pool: Option<&sqlx::PgPool>,
     ) -> crate::Result<Option<Arc<RwLock<ObserverRuntime>>>> {
-        use fraiseql_observers::config::TransportKind;
-
         // Check if enabled
         let observer_config = match &config.observers {
             Some(cfg) if cfg.enabled => cfg,
@@ -245,6 +243,25 @@ impl Server {
         };
 
         info!("Initializing observer runtime");
+
+        let runtime_config = Self::observer_runtime_config(observer_config, pool)?;
+        let runtime = ObserverRuntime::new(runtime_config);
+        Ok(Some(Arc::new(RwLock::new(runtime))))
+    }
+
+    /// Resolve `[observers.runtime]` plus its environment overrides into the
+    /// runtime's configuration: the half of [`Self::init_observer_runtime`] that
+    /// reads the environment and validates, without starting anything.
+    ///
+    /// # Errors
+    ///
+    /// See [`Self::init_observer_runtime`].
+    #[cfg(feature = "observers")]
+    pub(super) fn observer_runtime_config(
+        observer_config: &crate::server_config::ObserverConfig,
+        pool: &sqlx::PgPool,
+    ) -> crate::Result<ObserverRuntimeConfig> {
+        use fraiseql_observers::config::TransportKind;
 
         // Resolve the event transport from compiled config + env overrides, then
         // fail loud (#350) on a selection this binary cannot run before validating
@@ -285,9 +302,79 @@ impl Server {
             .with_log_payloads(observer_config.runtime.log_payloads)
             // #985: the Redis backend that makes a `type = "cache"` action work.
             // Same `[observers.runtime.redis]` block dedup/result-cache use.
-            .with_redis(observer_config.runtime.redis.clone());
+            .with_redis(observer_redis(observer_config.runtime.redis.as_ref())?);
 
-        let runtime = ObserverRuntime::new(runtime_config);
-        Ok(Some(Arc::new(RwLock::new(runtime))))
+        Ok(runtime_config)
     }
+}
+
+/// `FRAISEQL_REDIS_*` variables that configure the library's dedup and
+/// result cache. The server runs neither, so setting one is refused.
+#[cfg(feature = "observers")]
+const UNUSED_REDIS_VARS: [&str; 3] = [
+    "FRAISEQL_REDIS_POOL_SIZE",
+    "FRAISEQL_REDIS_DEDUP_WINDOW_SECS",
+    "FRAISEQL_REDIS_CACHE_TTL_SECS",
+];
+
+/// The `[observers.runtime.redis]` block with its `FRAISEQL_REDIS_*` overrides
+/// applied, as the runtime's `RedisConfig`, validated (#1466).
+///
+/// A deployment that declares no block can supply one through
+/// `FRAISEQL_REDIS_URL`: the URL is the one value without which there is no
+/// Redis to configure, so the timeout variables alone leave the backend absent.
+#[cfg(feature = "observers")]
+fn observer_redis(
+    declared: Option<&crate::server_config::ObserverRedisConfig>,
+) -> crate::Result<Option<fraiseql_observers::config::RedisConfig>> {
+    use crate::{ServerError::ConfigError, server_config::ObserverRedisConfig};
+
+    if let Some(name) = UNUSED_REDIS_VARS.iter().find(|name| std::env::var_os(name).is_some()) {
+        return Err(ConfigError(format!(
+            "{name} is set, but fraiseql-server runs no Redis deduplication or result cache \
+             for it to configure; unset it"
+        )));
+    }
+
+    let env_url = std::env::var("FRAISEQL_REDIS_URL").ok();
+    let Some(mut redis) = declared
+        .cloned()
+        .or_else(|| env_url.as_ref().map(|_| ObserverRedisConfig::default()))
+    else {
+        return Ok(None);
+    };
+    if let Some(url) = env_url {
+        redis.url = url;
+    }
+    if let Some(secs) = env_secs("FRAISEQL_REDIS_CONNECT_TIMEOUT_SECS")? {
+        redis.connect_timeout_secs = secs;
+    }
+    if let Some(secs) = env_secs("FRAISEQL_REDIS_COMMAND_TIMEOUT_SECS")? {
+        redis.command_timeout_secs = secs;
+    }
+
+    let config = fraiseql_observers::config::RedisConfig {
+        url: redis.url,
+        connect_timeout_secs: redis.connect_timeout_secs,
+        command_timeout_secs: redis.command_timeout_secs,
+        ..fraiseql_observers::config::RedisConfig::default()
+    };
+    config.validate().map_err(|e| {
+        ConfigError(format!(
+            "invalid [observers.runtime.redis] (after FRAISEQL_REDIS_* overrides): {e}"
+        ))
+    })?;
+    Ok(Some(config))
+}
+
+/// A whole-seconds environment variable; unset is `None`, unparseable an error.
+#[cfg(feature = "observers")]
+fn env_secs(name: &str) -> crate::Result<Option<u64>> {
+    std::env::var(name).ok().map_or(Ok(None), |v| {
+        v.parse().map(Some).map_err(|_| {
+            crate::ServerError::ConfigError(format!(
+                "{name}={v:?} is not a whole number of seconds"
+            ))
+        })
+    })
 }
