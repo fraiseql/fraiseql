@@ -1,7 +1,7 @@
 name: Dagger — preflight
 
 # Phase 02 fast-gate umbrella (Track 0). Runs the cheap-but-frequent lint/format/doc
-# gates on the self-hosted runner (fraiseql-8core) at ~$0/min, replacing the retired legacy hosted workflow's
+# gates on the self-hosted runner forge at ~$0/min, replacing the retired legacy hosted workflow's
 # fmt / clippy / documentation / check-test-imports / axum-route-syntax jobs.
 # `dagger call preflight` runs shell-gates → fmt → rustdoc → clippy fail-fast; the
 # clippy compile reuses the box's cargo/target/sccache cache volumes (shared with
@@ -45,7 +45,12 @@ jobs:
     needs: already-passed
     if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
     name: preflight
-    runs-on: [self-hosted, fraiseql-8core]
+    # forge only. Every push queues preflight at the same moment as archbox's test
+    # and feature-matrix legs; on archbox the four together loaded 24 threads to 76
+    # and stretched preflight to 33 min (2026-10-06), against ~12 on forge, which
+    # has no test leg to compete with. It is a lint/compile gate that starts at once,
+    # so forge's slower cores land nowhere near the push's critical path.
+    runs-on: [self-hosted, forge]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6

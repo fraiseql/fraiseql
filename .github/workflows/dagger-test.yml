@@ -1,10 +1,18 @@
 name: Dagger — test
 
 # Phase 03 workspace test suite (Track 0). Runs the workspace test suite
-# on the self-hosted runner archbox at ~$0/min, for both the MSRV (1.95.0)
-# and latest-stable toolchains. `dagger call test --rust=<tc>` does the full
-# cargo build --all-features + the feature-scoped cargo test invocations + doctests,
-# reusing the box's cargo/target/sccache cache volumes (warm = fast).
+# on the self-hosted runner archbox at ~$0/min, on latest stable. `dagger call test
+# --rust=stable` does the full cargo build --all-features + the feature-scoped cargo
+# test invocations + doctests, reusing the box's cargo/target/sccache cache volumes.
+#
+# The MSRV (1.95.0) promise is that the crates BUILD there, and that is gated
+# elsewhere: rust-toolchain.toml pins the MSRV, so preflight's `cargo clippy
+# --workspace --all-features --all-targets` and default-feature `cargo check`, every
+# feature-matrix combo, and every integration suite compile on 1.95.0. A second full
+# run of the unit tests on 1.95 (`test (msrv)`, until 2026-10-06) re-ran the same
+# tests on the floor toolchain for ~27 min of archbox's CPU per push, the heaviest
+# job on the busiest box. `dagger call test` (default `--rust=msrv`) still runs it
+# locally on demand.
 #
 # Testcontainers-backed tests (storage/functions lib + fraiseql-wire tests/*) are
 # skipped here — the engine has no Docker socket. Dagger-native service bindings
@@ -57,15 +65,11 @@ jobs:
   test:
     needs: already-passed
     if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
-    name: test (${{ matrix.rust }})
-    # archbox only: on forge this leg runs 2-3x slower (test (msrv) ~85 min
-    # against a 90 min cap), and pinning it keeps one Dagger cache warm for it.
+    name: test (stable)
+    # archbox only: on forge this leg runs ~1.7x slower and would become the
+    # longest job of every push; pinning it also keeps one Dagger cache warm for it.
     runs-on: [self-hosted, archbox]
     timeout-minutes: 90
-    strategy:
-      fail-fast: false
-      matrix:
-        rust: [stable, msrv]
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -74,8 +78,8 @@ jobs:
       - name: Log in to ghcr.io (private base-image mirror)
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
-      - name: dagger call test --rust=${{ matrix.rust }}
+      - name: dagger call test --rust=stable
         run: |
           export PATH="$HOME/.local/bin:$PATH"
           dagger version
-          dagger call test --source=. --rust=${{ matrix.rust }}
+          dagger call test --source=. --rust=stable

@@ -75,9 +75,10 @@ required = [
   "preflight",
   # dagger-security.yml:security — cargo-deny, audit lockstep, secret scanning.
   "security",
-  # dagger-test.yml:test — the workspace test suite, both toolchains. Binds no
-  # service, so every DB-backed suite self-skips here (#1257 made it required).
-  "test (msrv)",
+  # dagger-test.yml:test — the workspace test suite on stable. Binds no service, so
+  # every DB-backed suite self-skips here (#1257 made it required). `test (msrv)`
+  # left on 2026-10-06: the MSRV build is gated by preflight, feature matrix and
+  # integration, which all compile on the pinned 1.95.0 (see dagger-test.yml).
   "test (stable)",
   # dagger-integration.yml:integration — the service-bound suites, one context per
   # matrix entry. Required as of #1289; the matrix in that workflow and this list

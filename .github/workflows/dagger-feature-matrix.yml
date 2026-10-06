@@ -69,8 +69,8 @@ jobs:
     needs: already-passed
     if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
     name: feature matrix
-    # archbox only: on forge this leg runs 2-3x slower (test (msrv) ~85 min
-    # against a 90 min cap), and pinning it keeps one Dagger cache warm for it.
+    # archbox only: its combos fan across per-lane target volumes, and keeping the
+    # leg on one box keeps those volumes warm (cold on forge it ran ~20 min, ~6 here).
     runs-on: [self-hosted, archbox]
     timeout-minutes: 30
     steps:

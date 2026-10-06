@@ -72,7 +72,7 @@ its deliberate absence.)
 
 Push-triggered check runs attach to the commit SHA, so they show on any open PR for
 that branch, and the **`dev` ruleset requires `preflight`, `security`,
-`test (msrv)`, `test (stable)`, the sixteen `integration (<suite>)` contexts and
+`test (stable)`, the sixteen `integration (<suite>)` contexts and
 `Generated clients compile (…)`** — a PR cannot merge until all of them are green on
 its head. That is what prevents "merged before CI was verified."
 
