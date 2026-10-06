@@ -223,7 +223,6 @@
     content_type.rs       application/json enforcement
     metrics.rs            Per-request metrics recording
     rate_limit/           Token bucket + Redis rate limiting
-    tenant.rs             Tenant header extraction (TenantContext)
     trace.rs              OpenTelemetry span creation
 
   config/                 Runtime configuration (fraiseql.toml)

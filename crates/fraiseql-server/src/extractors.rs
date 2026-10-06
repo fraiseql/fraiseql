@@ -95,9 +95,6 @@ where
                     tenant_claim.as_ref().map(|c| &*c.0),
                 );
                 context.ip_address = extract_ip_address(headers);
-                if let Some(tenant_id) = extract_tenant_id(headers) {
-                    context.tenant_id = Some(fraiseql_core::types::TenantId::new(tenant_id));
-                }
                 context
             });
 
@@ -173,20 +170,5 @@ pub(crate) const fn extract_ip_address(_headers: &axum::http::HeaderMap) -> Opti
     // SECURITY: IP extraction from headers removed. User-supplied X-Forwarded-For
     // and X-Real-IP headers are trivially spoofable and must not be trusted without
     // proxy chain validation. Use ConnectInfo<SocketAddr> or ProxyConfig instead.
-    None
-}
-
-/// Extract tenant ID.
-///
-/// # Security
-///
-/// Does NOT trust the X-Tenant-ID header directly. An authenticated user could
-/// set an arbitrary tenant ID to access another organization's data. Tenant ID
-/// should be set from `TenantContext` (populated by the secured `tenant_middleware`
-/// which requires authentication) or from JWT claims.
-pub(crate) const fn extract_tenant_id(_headers: &axum::http::HeaderMap) -> Option<String> {
-    // SECURITY: Tenant ID extraction from headers removed. The X-Tenant-ID header
-    // is user-controlled and could be used for tenant isolation bypass. Tenant context
-    // should come from the authenticated tenant_middleware or JWT claims.
     None
 }

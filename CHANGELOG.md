@@ -444,6 +444,15 @@ disagreed, and the promise was the part that was wrong.
   window filter was silently dropped now gets a validation error; spell it as
   `<field>_<operator>`.
 
+- **`fraiseql_server::middleware::tenant_middleware` and its `TenantContext` are removed.** The
+  middleware was exported but mounted nowhere, and it set the tenant from the `X-Org-ID` header of
+  any authenticated request: its documentation said the header was "validated by auth"; it was
+  not, so an embedder who mounted it let every user pick any tenant. The tenant comes from the
+  token's `[fraiseql.tenancy] tenant_claim` (#1388), and a test now drives `X-Org-ID` and
+  `X-Tenant-ID` through the request extractor to pin that neither moves it. **Upgrade:**
+  embedders using `tenant_middleware` or `fraiseql_server::middleware::TenantContext` read the
+  tenant from `SecurityContext::tenant_id` instead (`fraiseql_core::TenantContext` is unchanged).
+
 ### Added
 
 - **Fact-table aggregates filter on ltree hierarchies (#1460).** An aggregate `where` key takes

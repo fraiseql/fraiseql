@@ -837,58 +837,6 @@ mod oidc_auth_tests {
     }
 }
 
-mod tenant_tests {
-    #![allow(clippy::unwrap_used)] // Reason: test code, panics are acceptable
-    #![allow(clippy::cast_precision_loss)] // Reason: test fixture values are small; precision is irrelevant
-    #![allow(clippy::cast_sign_loss)] // Reason: test fixture values are non-negative
-    #![allow(clippy::cast_possible_truncation)] // Reason: test fixture values are small
-    #![allow(clippy::cast_possible_wrap)] // Reason: test fixture values are small
-    #![allow(clippy::missing_panics_doc)] // Reason: test code
-    #![allow(clippy::missing_errors_doc)] // Reason: test code
-    #![allow(missing_docs)] // Reason: test module
-    #![allow(clippy::items_after_statements)] // Reason: test-local helpers defined next to their use
-
-    use super::super::tenant::TenantContext;
-
-    #[test]
-    fn test_tenant_context_scoped() {
-        let ctx = TenantContext {
-            org_id: Some("org-123".to_string()),
-        };
-        assert!(ctx.is_tenant_scoped());
-        assert_eq!(ctx.get_org_id(), Some("org-123"));
-    }
-
-    #[test]
-    fn test_tenant_context_unscoped() {
-        let ctx = TenantContext { org_id: None };
-        assert!(!ctx.is_tenant_scoped());
-        assert_eq!(ctx.get_org_id(), None);
-    }
-
-    #[test]
-    fn test_require_org_id_success() {
-        let ctx = TenantContext {
-            org_id: Some("org-123".to_string()),
-        };
-        assert_eq!(ctx.require_org_id().unwrap(), "org-123");
-    }
-
-    #[test]
-    fn test_require_org_id_failure() {
-        let ctx = TenantContext { org_id: None };
-        assert!(
-            ctx.require_org_id().is_err(),
-            "expected Err when org_id is None, got: {:?}",
-            ctx.require_org_id()
-        );
-        assert_eq!(
-            ctx.require_org_id().unwrap_err(),
-            "Request must be tenant-scoped (missing org_id)"
-        );
-    }
-}
-
 mod trace_tests {
     use super::super::trace::trace_layer;
 

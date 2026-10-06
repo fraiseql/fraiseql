@@ -10,7 +10,6 @@ pub mod metrics;
 pub mod oidc_auth;
 pub mod rate_limit;
 pub mod stream_auth;
-pub mod tenant;
 pub mod trace;
 
 pub use auth::{
@@ -30,7 +29,6 @@ pub use rate_limit::{
     RateLimitConfig, RateLimitOverrides, RateLimiter, RateLimitingSecurityConfig,
     rate_limit_middleware,
 };
-pub use tenant::{TenantContext, tenant_middleware};
 pub use trace::trace_layer;
 
 #[cfg(test)]

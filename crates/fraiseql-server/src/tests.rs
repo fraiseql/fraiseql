@@ -854,22 +854,6 @@ mod extractors_tests {
     }
 
     #[test]
-    fn test_extract_tenant_id_ignores_header() {
-        let mut headers = axum::http::HeaderMap::new();
-        headers.insert("x-tenant-id", "tenant-acme".parse().unwrap());
-
-        let tenant_id = extract_tenant_id(&headers);
-        assert_eq!(tenant_id, None, "Must not trust X-Tenant-ID header");
-    }
-
-    #[test]
-    fn test_extract_tenant_id_none_when_missing() {
-        let headers = axum::http::HeaderMap::new();
-        let tenant_id = extract_tenant_id(&headers);
-        assert_eq!(tenant_id, None);
-    }
-
-    #[test]
     fn test_optional_security_context_creation_from_auth_user() {
         use chrono::Utc;
 
@@ -884,21 +868,18 @@ mod extractors_tests {
 
         let mut headers = axum::http::HeaderMap::new();
         headers.insert("x-request-id", "req-test-123".parse().unwrap());
-        headers.insert("x-tenant-id", "tenant-acme".parse().unwrap());
         headers.insert("x-forwarded-for", "192.0.2.100".parse().unwrap());
 
         let security_context = Some(auth_user).map(|auth_user| {
             let authenticated_user = auth_user.0;
             let request_id = extract_request_id(&headers);
             let ip_address = extract_ip_address(&headers);
-            let tenant_id = extract_tenant_id(&headers);
 
             let mut context = fraiseql_core::security::SecurityContext::from_user(
                 &authenticated_user,
                 request_id,
             );
             context.ip_address = ip_address;
-            context.tenant_id = tenant_id.map(fraiseql_core::types::TenantId::new);
             context
         });
 

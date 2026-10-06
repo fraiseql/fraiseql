@@ -172,3 +172,32 @@ mod shared_security_context {
         assert_ne!(ctx.attributes.get("fraiseql.actor_type"), Some(&json!("system")));
     }
 }
+
+/// A tenant header never sets the tenant: it comes from the token's tenant claim (#1388).
+/// `X-Org-ID` was trusted from any authenticated caller by the exported, unmounted
+/// `tenant_middleware`, removed with this test; `X-Tenant-ID` by an older extractor path.
+#[tokio::test]
+async fn a_tenant_header_does_not_set_the_tenant() {
+    for (claims, want) in [
+        (HashMap::from([("tenant_id".to_string(), json!("tenant-a"))]), Some("tenant-a")),
+        (HashMap::new(), None),
+    ] {
+        let (mut parts, _body) = axum::http::Request::builder()
+            .header("x-org-id", "tenant-evil")
+            .header("x-tenant-id", "tenant-evil")
+            .body(axum::body::Body::empty())
+            .expect("request builds")
+            .into_parts();
+        parts.extensions.insert(AuthUser(user_with_claims(claims)));
+        parts
+            .extensions
+            .insert(crate::middleware::oidc_auth::TenantClaim("tenant_id".into()));
+
+        let OptionalSecurityContext(ctx) =
+            OptionalSecurityContext::from_request_parts(&mut parts, &())
+                .await
+                .expect("OptionalSecurityContext extraction is infallible here");
+        let tenant = ctx.expect("an AuthUser yields a SecurityContext").tenant_id;
+        assert_eq!(tenant.as_ref().map(|t| t.as_str()), want);
+    }
+}
