@@ -132,8 +132,29 @@ else
     || fail "$COMPOSE pins '$compose_ref', workspace is '$version'."
 fi
 
+# ── runbooks ────────────────────────────────────────────────────────────────
+# The operator copies these commands during an incident. They pinned 2.14.1 through
+# the 2.15.0 release because nothing bumped or checked them; tools/release.sh now bumps
+# them with the rest (bump_deploy_artifacts), and this keeps them from drifting again.
+# Same anchors as the bump: a server image (`fraiseql/server`, `-full`, `-platform`) and
+# an `IMAGE_TAG=` assignment. A version in prose is not a pin.
+shopt -s nullglob
+runbooks=(docs/runbooks/*.md)
+shopt -u nullglob
+runbook_pins=0
+while IFS= read -r hit; do
+  [ -n "$hit" ] || continue
+  runbook_pins=$((runbook_pins + 1))
+  pin="${hit##*:}"
+  [ "$pin" = "$version" ] || fail "${hit%%:*}: pins '${hit#*:}', workspace is '$version'."
+done < <(
+  [ "${#runbooks[@]}" -eq 0 ] || grep -oHE \
+    '(ghcr\.io/)?fraiseql/server(-full|-platform)?:[0-9]+\.[0-9]+\.[0-9]+[^[:space:]"'"'"']*|^IMAGE_TAG=[0-9][^[:space:]]*' \
+    -- "${runbooks[@]}" | sed -E 's/^([^:]+):IMAGE_TAG=/\1:IMAGE_TAG:/'
+)
+
 if [ "$status" -eq 0 ]; then
-  echo "OK: deploy artifacts all name v${version}, and the chart and compose images are"
-  echo "    published ones."
+  echo "OK: deploy artifacts all name v${version}, the chart and compose images are"
+  echo "    published ones, and the runbooks' ${runbook_pins} image pins match."
 fi
 exit "$status"

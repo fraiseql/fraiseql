@@ -529,6 +529,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The release bumps the Compose stack and the runbooks with the other deploy artifacts.**
+  `tools/check-deploy-versions.sh` has required `docker-compose.yml`'s server image to match the
+  workspace version since 2026-08-28, but `tools/release.sh` never bumped it, so the first
+  release after that, this one, would have failed its own preflight on the release commit. The
+  runbooks (`01-deployment.md`, `04-memory-pressure.md`) pinned `2.14.1` through the 2.15.0
+  release because nothing bumped or checked them. `bump_deploy_artifacts` now rewrites the server
+  image pins (`fraiseql/server`, `-full`, `-platform`, and a runbook's `IMAGE_TAG=`) in both, and
+  the gate checks the runbooks' pins too.
+
 - **The MCP HTTP endpoint answers requests addressed to the deployment's hostname.** rmcp's
   Streamable HTTP transport accepts only a loopback `Host` by default, against DNS rebinding, and
   the server mounted it with that default. So every MCP request to `api.example.com`, and every

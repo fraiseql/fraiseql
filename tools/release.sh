@@ -106,11 +106,17 @@ echo "      Bumped Python + TypeScript SDK manifests."
 # the product shipped 2.14.1. tools/check-deploy-versions.sh (ShellGates) fails the
 # moment they drift again — including immediately after this script runs, if this
 # call is ever removed.
+#
+# The Compose stack and the runbooks pin the server image too. Compose has been gated
+# since 2026-08-28 and was never bumped here, so the first release after it would have
+# failed its own preflight; the runbooks sat at 2.14.1 through 2.15.0.
 bump_deploy_artifacts "$VERSION" \
     Dockerfile \
     deploy/kubernetes/helm/fraiseql/Chart.yaml \
-    deploy/kubernetes/helm/fraiseql/values.yaml
-echo "      Bumped Dockerfile label + Helm chart/values."
+    deploy/kubernetes/helm/fraiseql/values.yaml \
+    docker-compose.yml \
+    docs/runbooks/*.md
+echo "      Bumped Dockerfile label + Helm chart/values + Compose and runbook image pins."
 
 # Restamp the compiled schemas CI boots. Since #1304 the server refuses an artifact
 # produced by another build, so a release commit that leaves these naming the previous
@@ -206,6 +212,8 @@ RELEASE_FILES=(
     Dockerfile
     deploy/kubernetes/helm/fraiseql/Chart.yaml
     deploy/kubernetes/helm/fraiseql/values.yaml
+    docker-compose.yml
+    docs/runbooks/*.md
     docs/value-proposition.md
     docs/architecture/overview.md
     "$CHANGELOG"

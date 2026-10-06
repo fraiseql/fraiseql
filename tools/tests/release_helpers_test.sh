@@ -251,7 +251,43 @@ resources:
     memory: 2.0.0Gi
 EOF
 
-bump_deploy_artifacts 2.15.0 "$WORK/Dockerfile" "$WORK/Chart.yaml" "$WORK/values.yaml"
+# Image pins beyond the chart: the Compose stack (gated by check-deploy-versions since
+# 2026-08-28, but never bumped: the first release after it would have reddened its own
+# preflight) and the runbooks, which sat at 2.14.1 through 2.15.0. Neighbours that a
+# blanket rewrite would eat: another service's image, the `$IMAGE_TAG` reference, prose.
+cat > "$WORK/docker-compose.yml" <<'EOF'
+services:
+  fraiseql:
+    image: fraiseql/server:2.14.1
+  postgres:
+    image: postgres:18-alpine
+EOF
+
+cat > "$WORK/runbook.md" <<'EOF'
+IMAGE_TAG=2.14.1
+docker pull ghcr.io/fraiseql/server:$IMAGE_TAG
+     ghcr.io/fraiseql/server:2.14.1 --config /etc/fraiseql/server.toml
+  ghcr.io/fraiseql/server-full:2.13.0 --config /etc/fraiseql/server.toml
+Upgrading from 2.14.1 is covered in the changelog.
+EOF
+
+bump_deploy_artifacts 2.15.0 "$WORK/Dockerfile" "$WORK/Chart.yaml" "$WORK/values.yaml" \
+    "$WORK/docker-compose.yml" "$WORK/runbook.md"
+
+check "bump-deploy: compose server image → 2.15.0" \
+    "$(grep -c 'image: fraiseql/server:2.15.0$' "$WORK/docker-compose.yml")" "1"
+check "bump-deploy: compose postgres image untouched" \
+    "$(grep -c 'image: postgres:18-alpine$' "$WORK/docker-compose.yml")" "1"
+check "bump-deploy: runbook IMAGE_TAG → 2.15.0" \
+    "$(grep -c '^IMAGE_TAG=2.15.0$' "$WORK/runbook.md")" "1"
+check "bump-deploy: runbook \$IMAGE_TAG reference untouched" \
+    "$(grep -c 'server:\$IMAGE_TAG$' "$WORK/runbook.md")" "1"
+check "bump-deploy: runbook server image → 2.15.0" \
+    "$(grep -c 'ghcr.io/fraiseql/server:2.15.0 --config' "$WORK/runbook.md")" "1"
+check "bump-deploy: runbook server-full image → 2.15.0" \
+    "$(grep -c 'ghcr.io/fraiseql/server-full:2.15.0 --config' "$WORK/runbook.md")" "1"
+check "bump-deploy: a version in prose untouched" \
+    "$(grep -c '^Upgrading from 2.14.1 is' "$WORK/runbook.md")" "1"
 
 check "bump-deploy: OCI version label → 2.15.0" \
     "$(grep -c 'org.opencontainers.image.version="2.15.0"' "$WORK/Dockerfile")" "1"

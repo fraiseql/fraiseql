@@ -158,9 +158,10 @@ bump_ts_sdk_version() {
 # concern, owned by #1107. Likewise `appVersion:` must not be caught by the `version:`
 # pattern, which is why the chart edits anchor at the start of the line.
 #
-# Usage: bump_deploy_artifacts <version> <Dockerfile> <Chart.yaml> <values.yaml>
+# Usage: bump_deploy_artifacts <version> <Dockerfile> <Chart.yaml> <values.yaml> [image-pin file...]
 bump_deploy_artifacts() {
     local version="$1" dockerfile="$2" chart="$3" values="$4"
+    shift 4
     # OCI label only — keyed on the label name, never on a bare version shape.
     sed -i -E "s|org\.opencontainers\.image\.version=\"[^\"]*\"|org.opencontainers.image.version=\"${version}\"|" "$dockerfile"
     # Chart: `^version:` and `^appVersion:` are distinct anchors; appVersion keeps its quotes.
@@ -168,6 +169,17 @@ bump_deploy_artifacts() {
     sed -i -E "s/^appVersion: .*/appVersion: \"${version}\"/" "$chart"
     # values.yaml: the indented `tag:` under `image:`. The file has exactly one.
     sed -i -E "s/^( *)tag: \"[^\"]*\"/\1tag: \"${version}\"/" "$values"
+    # The remaining files pin a published server image: the Compose stack and the
+    # runbooks. Keyed on the image name (`fraiseql/server`, `-full`, `-platform`, with or
+    # without the ghcr.io registry) and on a runbook's `IMAGE_TAG=` assignment; a version
+    # anywhere else in the file (another image, prose) is left alone.
+    local file
+    for file in "$@"; do
+        sed -i -E \
+            -e "s#((ghcr\.io/)?fraiseql/server(-full|-platform)?:)[0-9]+\.[0-9]+\.[0-9]+[^[:space:]\"']*#\1${version}#g" \
+            -e "s#^IMAGE_TAG=[0-9][^[:space:]]*#IMAGE_TAG=${version}#" \
+            "$file"
+    done
 }
 
 # Restamp the compiled schemas CI boots with the version being released.
