@@ -15,7 +15,7 @@ use fraiseql_webhooks::{
 use uuid::Uuid;
 use wiremock::{Mock, MockServer, ResponseTemplate, matchers::method};
 
-use super::{WEBHOOK_SIGNATURE_HEADER, WebhookAction, webhook_signature};
+use super::{WEBHOOK_EVENT_ID_HEADER, WEBHOOK_SIGNATURE_HEADER, WebhookAction, webhook_signature};
 use crate::event::{EntityEvent, EventKind};
 
 /// Drive `StripeVerifier` the way a receiving route does: the signature goes under
@@ -150,6 +150,57 @@ async fn execute_without_secret_sends_no_signature_header() {
         requests[0].headers.get(WEBHOOK_SIGNATURE_HEADER).is_none(),
         "no signature header when signing is not configured"
     );
+}
+
+// ── Event id: the receiver's dedup key (#1505) ──────────────────────────────
+
+/// Delivery is at-least-once, so a receiver must be able to recognise a repeat.
+/// The body is the entity row (or a template over it) and carries no event
+/// identity, so the id travels in a header, and it is the event's own id: the
+/// change-log row UUID, identical on every redelivery of that row.
+#[tokio::test]
+async fn execute_sends_the_event_id_header() {
+    let _bypass = crate::insecure_guard::test_override::force(true);
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&server)
+        .await;
+
+    let event = test_event();
+    WebhookAction::new()
+        .execute(&server.uri(), None, &HashMap::new(), None, None, &event)
+        .await
+        .expect("webhook dispatch should succeed");
+
+    let requests = server.received_requests().await.expect("recorded requests");
+    let ids: Vec<_> = requests[0].headers.get_all(WEBHOOK_EVENT_ID_HEADER).iter().collect();
+    assert_eq!(ids.len(), 1, "exactly one event id header");
+    assert_eq!(ids[0].to_str().unwrap(), event.id.to_string());
+}
+
+/// An operator header of the same name would let configuration replace the dedup
+/// key with a constant, so every delivery would look like a repeat of the first.
+#[tokio::test]
+async fn an_operator_header_cannot_replace_the_event_id() {
+    let _bypass = crate::insecure_guard::test_override::force(true);
+    let server = MockServer::start().await;
+    Mock::given(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&server)
+        .await;
+
+    let event = test_event();
+    let headers = HashMap::from([("x-fraiseql-event-id".to_string(), "constant".to_string())]);
+    WebhookAction::new()
+        .execute(&server.uri(), None, &headers, None, None, &event)
+        .await
+        .expect("webhook dispatch should succeed");
+
+    let requests = server.received_requests().await.expect("recorded requests");
+    let ids: Vec<_> = requests[0].headers.get_all(WEBHOOK_EVENT_ID_HEADER).iter().collect();
+    assert_eq!(ids.len(), 1, "the operator's copy is not sent alongside");
+    assert_eq!(ids[0].to_str().unwrap(), event.id.to_string());
 }
 
 // ── HTTP method threading (#612 item 12) ────────────────────────────────────

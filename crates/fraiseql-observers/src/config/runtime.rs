@@ -303,6 +303,10 @@ pub enum ActionConfig {
         method:             Option<String>,
         /// Optional HTTP headers
         ///
+        /// `X-FraiseQL-Event-Id` is reserved: every request carries the event id
+        /// there as the receiver's dedup key, and a configured header of that name
+        /// is not sent (#1505).
+        ///
         /// `deserialize_with` treats an explicit JSON `null` the same as an
         /// absent key (an empty map). `#[serde(default)]` alone only covers an
         /// absent key; the admin-API writer (`fraiseql-server`'s `ActionConfig`)

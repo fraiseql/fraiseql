@@ -7,62 +7,6 @@ mod checkpoint_tests {
 
     use crate::checkpoint::*;
 
-    // ── CheckpointStrategy ────────────────────────────────────────────────────
-
-    #[test]
-    fn test_strategy_default_is_at_least_once() {
-        assert_eq!(CheckpointStrategy::default(), CheckpointStrategy::AtLeastOnce);
-    }
-
-    #[test]
-    fn test_strategy_is_effectively_once() {
-        assert!(!CheckpointStrategy::AtLeastOnce.is_effectively_once());
-        assert!(
-            CheckpointStrategy::EffectivelyOnce {
-                idempotency_table: "t".to_string(),
-            }
-            .is_effectively_once()
-        );
-    }
-
-    #[test]
-    fn test_strategy_idempotency_table() {
-        assert!(CheckpointStrategy::AtLeastOnce.idempotency_table().is_none());
-        assert_eq!(
-            CheckpointStrategy::EffectivelyOnce {
-                idempotency_table: "observer_idempotency_keys".to_string(),
-            }
-            .idempotency_table(),
-            Some("observer_idempotency_keys")
-        );
-    }
-
-    /// `AtLeastOnce` must short-circuit without touching the database.
-    #[tokio::test]
-    async fn test_strategy_at_least_once_is_never_duplicate() {
-        // We pass a deliberately broken pool URL — if it were used the test would fail.
-        // AtLeastOnce must return Ok(false) without making any connection.
-        let strategy = CheckpointStrategy::AtLeastOnce;
-
-        // Use a pool that's never connected — any database call would panic.
-        // We rely on the fact that AtLeastOnce never calls sqlx.
-        // Testing via the `is_duplicate` signature but with no real pool.
-        // Can't actually test without a pool, but we test the logic branch:
-        assert!(strategy.idempotency_table().is_none());
-        assert!(!strategy.is_effectively_once());
-    }
-
-    #[test]
-    fn test_strategy_clone_eq() {
-        let s1 = CheckpointStrategy::EffectivelyOnce {
-            idempotency_table: "keys".to_string(),
-        };
-        let s2 = s1.clone();
-        assert_eq!(s1, s2);
-
-        assert_ne!(s1, CheckpointStrategy::AtLeastOnce);
-    }
-
     #[test]
     fn test_checkpoint_state_default() {
         let state = CheckpointState::default();

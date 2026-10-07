@@ -42,6 +42,13 @@ pub(crate) const DEFAULT_WEBHOOK_TIMEOUT_SECS: u64 = 30;
 /// `fraiseql-webhooks`'s `StripeVerifier` (#345).
 pub(crate) const WEBHOOK_SIGNATURE_HEADER: &str = "X-FraiseQL-Signature-256";
 
+/// Header carrying the event id: the change-log row UUID, identical on every
+/// redelivery of that row, so a receiver can drop a repeat (#1505).
+///
+/// The body is the entity row or a template over it and carries no event identity.
+/// The header is not covered by the signature, which signs `t.body` only.
+pub(crate) const WEBHOOK_EVENT_ID_HEADER: &str = "X-FraiseQL-Event-Id";
+
 /// Compute the Stripe-shape signature header value for the exact `body_bytes`.
 ///
 /// Returns `t=<ts>,v1=<hex>` where the HMAC-SHA256 is taken over the byte
@@ -380,11 +387,17 @@ impl WebhookAction {
             if key.eq_ignore_ascii_case("content-type") {
                 has_content_type = true;
             }
+            // The event id is the receiver's dedup key; configuration must not be
+            // able to replace it with a constant.
+            if key.eq_ignore_ascii_case(WEBHOOK_EVENT_ID_HEADER) {
+                continue;
+            }
             request = request.header(key, value);
         }
         if !has_content_type {
             request = request.header(reqwest::header::CONTENT_TYPE, "application/json");
         }
+        request = request.header(WEBHOOK_EVENT_ID_HEADER, event_id.to_string());
 
         // Sign the exact transmitted bytes if a signing secret is configured.
         if let Some(secret) = signing_secret {

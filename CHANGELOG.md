@@ -18,6 +18,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql-observers` loses `CheckpointStrategy` (#1505).** The type and its
+  `EffectivelyOnce { idempotency_table }` variant, `create_table_if_not_exists`, `is_duplicate`
+  and `record_idempotency_key` had no caller: neither `fraiseql-server` nor the library's own
+  runtime ran them, so choosing `EffectivelyOnce` suppressed nothing. Delivery is at-least-once;
+  dedup on the event id in the consumer instead (see `docs/operations/observer-idempotency.md`).
+
 - **A constraint a mutation's function violates answers as the mutation's typed error
   (#1424).** A class-23 SQLSTATE raised by the function reached the client as a top-level
   `CONSTRAINT_VIOLATION`, and the mutation's `MutationError` member was never served, so a
@@ -481,6 +487,15 @@ disagreed, and the promise was the part that was wrong.
   tenant from `SecurityContext::tenant_id` instead (`fraiseql_core::TenantContext` is unchanged).
 
 ### Added
+
+- **Observer webhooks carry the event id in `X-FraiseQL-Event-Id` (#1505).** Delivery is
+  at-least-once, and the request body (the entity row, or a template over it) did not identify
+  the event, so a receiver could not tell a repeat from a new change. The header carries the
+  change-log row UUID, which is the same on every redelivery of that row. A header of the same
+  name in an observer's configuration is no longer sent. `docs/operations/observer-idempotency.md`
+  now describes what the server does (the dispatch ledger, when actions repeat, building an
+  idempotent consumer) in place of the effectively-once mode, idempotency table, SDK API and
+  deduplication metrics it documented and nothing ran.
 
 - **Fact-table aggregates filter on ltree hierarchies (#1460).** An aggregate `where` key takes
   `descendant_of`, `ancestor_of`, `matches_lquery`, `matches_ltxtquery`, `matches_any_lquery`,

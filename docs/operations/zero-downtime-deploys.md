@@ -261,5 +261,5 @@ unnecessary:
   analysis and rollback for a compiled-schema update.
 - [runbooks/13-schema-hot-reload-failure.md](../runbooks/13-schema-hot-reload-failure.md) —
   triggering an in-place `SIGUSR1` / admin-endpoint reload and diagnosing a failed reload.
-- [observer-idempotency.md](observer-idempotency.md) — `EffectivelyOnce` checkpoints, which
-  keep observer delivery correct across a fleet roll.
+- [observer-idempotency.md](observer-idempotency.md) — why an observer action can run twice
+  when a replica stops mid-batch during a fleet roll, and how consumers drop the repeat.

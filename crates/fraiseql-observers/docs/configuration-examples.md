@@ -333,10 +333,9 @@ let mut fast = ChangeLogListenerConfig::new(pool.clone());
 fast.batch_size = 1000;
 ```
 
-Delivery is at-least-once by default (`CheckpointStrategy::AtLeastOnce`): a crash between the
-side effect and the checkpoint write redelivers the event. Use
-`CheckpointStrategy::EffectivelyOnce { idempotency_table }` when side effects are not
-idempotent; it costs one extra database round trip per event.
+Delivery is at-least-once: a crash between an action and the dispatch-ledger write redelivers
+the event. Make side effects idempotent on the event id, which webhooks receive in the
+`X-FraiseQL-Event-Id` header (see `docs/operations/observer-idempotency.md`).
 
 ---
 
