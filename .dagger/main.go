@@ -552,6 +552,12 @@ func (m *FraiseqlCi) ShellGates(
 		// tools/sdk-suite.sh, and neither subsumes the other.
 		"python3 tools/check-sdk-lockfile-freshness.py",
 		"make test-sdk-lockfile-freshness-gate",
+		// The general rule beneath it, over every Cargo.lock in the tree: a path package
+		// is recorded at its manifest's version. The 2.16.0 cut left the seven fuzz
+		// lockfiles at 2.15.0 and fraiseql-client's at 2.3.0, because no build of those
+		// workspaces runs --locked.
+		"python3 tools/check-cargo-lock-path-versions.py",
+		"make test-cargo-lock-path-versions-gate",
 		// The local feature-matrix runner's red-capability pin (#1227). The RUNNER is
 		// local-only — the leg it mirrors is this repo's `Dagger — feature matrix`, so
 		// running it here would be running the matrix twice. What belongs here is the

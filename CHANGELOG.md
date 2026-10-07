@@ -735,6 +735,14 @@ disagreed, and the promise was the part that was wrong.
   `--locked` installs on its release commit. `bump_lockfile_package_version` now rewrites the
   SDK's own `[[package]]` record in each, and refuses a lockfile that has none.
 
+- **Every committed `Cargo.lock` records its path packages at their manifests' version.** The
+  release bumped the fuzz crates' and `fraiseql-client`'s manifests but not their lockfiles,
+  which are workspaces of their own: the seven fuzz lockfiles recorded the previous release
+  and `fraiseql-client`'s still recorded 2.3.0, and `cargo metadata --locked` refused each.
+  No build of them runs `--locked`, so nothing noticed. `bump_lockfile_path_packages` now
+  rewrites them in the release, and `tools/check-cargo-lock-path-versions.py` (preflight)
+  fails any lockfile whose path-package record disagrees with its manifest.
+
 - **The MCP HTTP endpoint answers requests addressed to the deployment's hostname.** rmcp's
   Streamable HTTP transport accepts only a loopback `Host` by default, against DNS rebinding, and
   the server mounted it with that default. So every MCP request to `api.example.com`, and every

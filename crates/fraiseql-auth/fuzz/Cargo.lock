@@ -752,7 +752,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-auth"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -793,7 +793,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-auth-fuzz"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "fraiseql-auth",
  "jsonwebtoken",
@@ -802,7 +802,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -812,7 +812,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-guard"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "tokio",
  "tracing",
@@ -820,7 +820,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-jwks"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "fraiseql-guard",
  "jsonwebtoken",

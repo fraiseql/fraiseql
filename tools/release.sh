@@ -109,6 +109,16 @@ bump_lockfile_package_version "$VERSION" sdks/official/fraiseql-python/uv.lock f
 bump_lockfile_package_version "$VERSION" sdks/official/fraiseql-rust/Cargo.lock fraiseql-rust
 echo "      Bumped the Python and Rust SDK lockfiles."
 
+# The fuzz workspaces and the Rust SDK's nested fraiseql-client are workspaces of their
+# own, so `cargo check --workspace` below never rewrites their lockfiles, and none of
+# their builds runs `--locked`. The 2.16.0 cut left the fuzz locks recording 2.15.0 and
+# fraiseql-client's 2.3.0. tools/check-cargo-lock-path-versions.py (ShellGates → the
+# REQUIRED preflight check) fails the release commit if this loop is ever removed.
+for lock in crates/*/fuzz/Cargo.lock sdks/official/fraiseql-rust/fraiseql-client/Cargo.lock; do
+    bump_lockfile_path_packages "$VERSION" "$lock"
+done
+echo "      Bumped the fuzz and fraiseql-client lockfiles."
+
 # Bump the shipped deployment artifacts too. Until #1129 nothing here touched them,
 # so the Dockerfile's OCI label sat at 2.1.1 and the Helm chart at 2.1.1/2.1.0 while
 # the product shipped 2.14.1. tools/check-deploy-versions.sh (ShellGates) fails the
@@ -210,7 +220,9 @@ RELEASE_FILES=(
     Cargo.toml
     crates/*/Cargo.toml
     crates/*/fuzz/Cargo.toml
+    crates/*/fuzz/Cargo.lock
     sdks/official/fraiseql-rust/Cargo.toml
+    sdks/official/fraiseql-rust/fraiseql-client/Cargo.lock
     sdks/official/fraiseql-rust/*/Cargo.toml
     sdks/official/fraiseql-rust/Cargo.lock
     sdks/official/fraiseql-python/pyproject.toml

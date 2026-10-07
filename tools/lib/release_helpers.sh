@@ -170,6 +170,47 @@ bump_lockfile_package_version() {
     mv "${lock}.tmp" "$lock"
 }
 
+# Bump the version a Cargo.lock records for every PATH package: each `[[package]]`
+# block with no `source` line, i.e. a crate built from a manifest in this repository.
+#
+# For the lockfiles of workspaces whose every path package moves with the release —
+# the fuzz workspaces and the Rust SDK's nested fraiseql-client. The 2.16.0 cut bumped
+# their manifests and left these records at 2.15.0 (fraiseql-client's at 2.3.0); no
+# build of them runs `--locked`, so nothing noticed until
+# tools/check-cargo-lock-path-versions.py. Cargo writes `source` after `version`, so
+# each block is buffered and rewritten only once it is known to have no source.
+# Registry and git records, and the lock format's own `version`, are left as they are.
+# Fails when the lockfile holds no path package.
+#
+# Usage: bump_lockfile_path_packages <version> <lockfile>
+bump_lockfile_path_packages() {
+    local version="$1" lock="$2"
+    awk -v ver="$version" '
+        function flush(   i) {
+            for (i = 1; i <= n; i++) {
+                if (!sourced && i == vline) { sub(/"[^"]*"/, "\"" ver "\"", buf[i]); bumped++ }
+                print buf[i]
+            }
+            n = 0; vline = 0; sourced = 0; block = 0
+        }
+        /^\[\[package\]\]$/ { flush(); block = 1 }
+        block && /^$/       { flush(); print; next }
+        block {
+            buf[++n] = $0
+            if ($0 ~ /^version = "/) vline = n
+            if ($0 ~ /^source = /)   sourced = 1
+            next
+        }
+        { print }
+        END { flush(); exit (bumped > 0 ? 0 : 1) }
+    ' "$lock" > "${lock}.tmp" || {
+        rm -f "${lock}.tmp"
+        echo "ERROR: ${lock} records no path package." >&2
+        return 1
+    }
+    mv "${lock}.tmp" "$lock"
+}
+
 # Bump the version strings in the shipped deployment artifacts: the Dockerfile's OCI
 # version label, the Helm chart's `version` + `appVersion` (lockstep, see Chart.yaml's
 # header), and values.yaml's `image.tag`.

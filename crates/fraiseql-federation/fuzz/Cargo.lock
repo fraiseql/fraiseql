@@ -337,7 +337,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-db"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -357,7 +357,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -367,7 +367,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-federation"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "chrono",
  "dashmap",
@@ -389,7 +389,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-federation-fuzz"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "arbitrary",
  "fraiseql-error",
@@ -400,7 +400,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-guard"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "tokio",
  "tracing",
