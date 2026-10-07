@@ -275,9 +275,16 @@ sdk_fixture() {
     mkdir -p "$dir/tools" "$dir/sdks/official/fraiseql-demo" "$dir/.github/workflows"
     cp "$REPO_ROOT/tools/check-sdk-workflow-coverage.py" \
        "$REPO_ROOT/tools/check-suite-coverage.py" "$dir/tools/"
-    { echo "name: Demo"; echo "on:"; printf '%s' "$push"
-      echo "jobs:"; echo "  t:"; echo "    runs-on: ubuntu-latest"
-      echo "    steps:"; echo "      - run: echo hi"; } >"$dir/.github/workflows/demo.yml"
+    printf 'VERSIONS = {"demo": ["1"]}\n' >"$dir/tools/sdk-suites-matrix.py"
+    printf 'required = [\n  "SDK suites",\n]\n' >"$dir/tools/required-checks.toml"
+    { echo "name: SDK suites"; echo "on:"; printf '%s' "$push"
+      echo "jobs:"
+      echo "  suite:"; echo "    runs-on: ubuntu-latest"; echo "    steps:"
+      echo "      - if: \${{ matrix.sdk == 'demo' }}"; echo "        run: true"
+      echo "      - run: bash tools/sdk-suite.sh demo"
+      echo "  aggregate:"; echo "    name: SDK suites"; echo "    needs: [suite]"
+      echo "    if: \${{ always() }}"; echo "    runs-on: ubuntu-latest"
+      echo "    steps:"; echo "      - run: true"; } >"$dir/.github/workflows/sdk-suites.yml"
 }
 
 sdk_expect() {
@@ -300,11 +307,9 @@ sdk_expect() {
 # so the SDK is NOT gated. The old regex saw no `tags:` key and answered "covered".
 sdk_fixture "$WORK/sdk_tagsig" "  push:
     tags-ignore: ['v*']
-    paths:
-      - 'sdks/official/fraiseql-demo/**'
 "
 sdk_expect "a tags-ignore-only workflow does not gate an SDK" 1 "$WORK/sdk_tagsig" \
-    "sdks/official/fraiseql-demo"
+    "does not reach every working branch"
 
 # The mirror: `branches-ignore` DOES define the branch half, so every branch but
 # the excluded ones runs it. The old regex saw no `branches:` key, saw `tags:`,
@@ -312,8 +317,6 @@ sdk_expect "a tags-ignore-only workflow does not gate an SDK" 1 "$WORK/sdk_tagsi
 sdk_fixture "$WORK/sdk_brig" "  push:
     branches-ignore: [gh-pages]
     tags: ['v*']
-    paths:
-      - 'sdks/official/fraiseql-demo/**'
 "
 sdk_expect "a branches-ignore workflow beside tags DOES gate an SDK" 0 "$WORK/sdk_brig"
 
@@ -322,19 +325,17 @@ sdk_expect "a branches-ignore workflow beside tags DOES gate an SDK" 0 "$WORK/sd
 # resolves one level of flow and raises on a nested collection rather than
 # handing back `"['**']"`, which every caller would have read as "branches is
 # not a list". Neither answer gates the SDK — but one of them says so.
-sdk_fixture "$WORK/sdk_flow" "  push: {branches: ['**'], paths: ['sdks/official/fraiseql-demo/**']}
+sdk_fixture "$WORK/sdk_flow" "  push: {branches: ['**'], tags: ['v*']}
 "
 sdk_expect "a nested flow collection is refused LOUDLY, not skipped" 2 "$WORK/sdk_flow" \
     "nested flow collection"
 
 # A flow mapping whose values are plain scalars is within the parser's one level
 # and still reads — the refusal above is about NESTING, not about flow style.
-sdk_fixture "$WORK/sdk_flow_ok" "  push: {branches: dev}
-    paths:
-      - 'sdks/official/fraiseql-demo/**'
+sdk_fixture "$WORK/sdk_flow_ok" "  push: {tags: v1}
 "
 sdk_expect "a single-level flow mapping still parses" 1 "$WORK/sdk_flow_ok" \
-    "sdks/official/fraiseql-demo"
+    "does not reach every working branch"
 
 echo
 echo "── 4. no fifth copy ──"

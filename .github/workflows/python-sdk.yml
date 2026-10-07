@@ -1,59 +1,18 @@
 name: Python SDK
 
+# Publish only. The SDK's own suite gates every push in sdk-suites.yml (#1467), whose
+# aggregate is a required check; the paths-filtered test job that used to live here
+# could not be required and gated nothing.
 on:
   push:
-    paths:
-      - 'sdks/official/fraiseql-python/**'
-      - '.github/workflows/python-sdk.yml'
-      - 'tools/sdk-suite.sh'
-  pull_request:
-    paths:
-      - 'sdks/official/fraiseql-python/**'
-      - '.github/workflows/python-sdk.yml'
-      - 'tools/sdk-suite.sh'
+    tags: ['python-sdk/v*']
 
 jobs:
-  test:
-    name: Python ${{ matrix.python-version }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: sdks/official/fraiseql-python
-
-    strategy:
-      matrix:
-        # Both ENDS of the supported range, not just the middle. pyproject
-        # declares `requires-python = ">=3.10"` with classifiers through 3.13,
-        # but this matrix ran 3.11/3.12 only — so #1057, a 3.10-only crash in
-        # ChangelogConsumer.run(), shipped invisibly. Testing the interior of a
-        # claimed range tests the one place divergences do not live.
-        python-version: ['3.10', '3.11', '3.12', '3.13']
-
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9  # v7
-        with:
-          version: latest
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
-
-      # The suite's commands live in tools/sdk-suite.sh, which `make test-sdks` also runs,
-      # so this job and the local run cannot drift (#1346).
-      - name: Lint, type-check and test
-        working-directory: .
-        run: bash tools/sdk-suite.sh python
-
   publish:
     name: Publish to PyPI
     environment: release
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    needs: test
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/python-sdk/v')
     permissions:
       id-token: write
 
@@ -62,6 +21,11 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9  # v7
+
+      # The tagged tree's own suite, once, before anything is built: the per-push gate
+      # is sdk-suites.yml, and a tag is not a push it reports on.
+      - name: Lint, type-check and test
+        run: bash tools/sdk-suite.sh python
 
       # Honesty gate (audit H30, #1130): refuse to publish when the manifest version
       # does not match the tag. release.yml's Python publish has had this since H30,

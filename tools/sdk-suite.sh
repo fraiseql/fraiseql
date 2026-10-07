@@ -5,8 +5,8 @@
 #
 # <sdk> is a key of sdks/official/conformance/manifest.json (python, typescript, go, php,
 # java, csharp, fsharp, elixir, ruby, dart, rust). Runs from the SDK's directory, whatever
-# the caller's, and assumes the SDK's toolchain is installed. Each per-SDK workflow
-# calls this after its setup steps, and `make test-sdks` calls it for every SDK
+# the caller's, and assumes the SDK's toolchain is installed. `.github/workflows/sdk-suites.yml`
+# calls this after its setup steps (#1467), and `make test-sdks` calls it for every SDK
 # (tools/test-sdks.sh, which falls back to a container when a toolchain is missing).
 #
 # Why one script (#1346): SDK conformance drives what each SDK *emits*, which is a

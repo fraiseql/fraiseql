@@ -1,37 +1,34 @@
 #!/usr/bin/env python3
-"""Every official SDK must be gated by a workflow that runs on a BRANCH push.
+"""Every official SDK's own suite runs under ONE unfiltered, required check.
 
-`sdk-conformance.yml` runs on every push and is a real gate — it compiles what each
-SDK authors, so an SDK cannot silently stop producing a valid schema. The per-SDK
-workflows are a different check: they run each SDK's own test suite and linter. For
-four of the eleven, that check was decoration (#1119):
+`sdk-conformance.yml` drives what each SDK *emits*. Each SDK's own unit suite and
+linters are a different check, and for a long time they gated nothing:
 
-  * `elixir-sdk.yml` and `fsharp-sdk.yml` declared `push:` with `paths` and `tags`
-    and no `branches`. GitHub ANDs the ref filter with the path filter, so a push to
-    a branch matched no ref pattern at all and the suites ran only on a release tag.
-  * `csharp-sdk.yml` restricted `push` to `[dev, main]` — post-merge only.
-  * `ruby-sdk.yml` watches `sdks/community/fraiseql-ruby/**`. The *official* Ruby
-    SDK's unit tests ran nowhere.
+  * #1119: four of eleven per-SDK workflows could not run on a branch push at all
+    (`tags` without `branches`, `branches: [dev, main]`, and the official Ruby SDK
+    watched by no workflow).
+  * #1467: the per-SDK workflows that did run were `paths:`-filtered, and GitHub
+    reports a filtered-out required check as "not run", never "passed". None of them
+    could be required, so a merge could land with every SDK suite red.
 
-None of that was visible from a green checks list, which is the shape this gate
-exists to make loud: a twelfth SDK must not be able to arrive ungated, and an
-existing one must not be able to lose its branch trigger silently.
+`.github/workflows/sdk-suites.yml` replaced them. This gate holds its shape:
 
-What "covered" means here, deliberately narrow:
+  A. its `push:` carries no `paths`/`paths-ignore` and reaches every working branch;
+  B. every directory under sdks/official/ (minus NOT_AN_SDK) has a row in
+     `tools/sdk-suites-matrix.py`, and every row names an existing directory —
+     a twelfth SDK cannot arrive ungated;
+  C. the `suite` job has a setup step per SDK (`if: matrix.sdk == '<key>'`) and
+     runs `tools/sdk-suite.sh`;
+  D. a job named `SDK suites` needs that job, runs under `always()`, and is listed in
+     `tools/required-checks.toml` — the aggregate is the context that gates;
+  E. no OTHER workflow runs `tools/sdk-suite.sh` on a branch push: a filtered copy
+     is the shape #1467 removed, and it would run beside the gate without gating.
 
-  a workflow whose `on.push` names the SDK's directory in `paths`
-  AND whose `on.push` can match a branch — i.e. it imposes no branch allow-list
-  (every branch), or one that is not restricted to a fixed list.
+Which halves a `push:` defines is GitHub's rule, implemented once as
+`push_ref_filter` in tools/check-suite-coverage.py; `tools/check-trigger-rule-copies.py`
+refuses a second copy.
 
-A `branches` list naming specific branches fails: it is exactly the C# case. A
-`tags` key alongside is fine — that is how the publish jobs are triggered — as long
-as the branch half is also defined, because `tags` without it is the Elixir case.
-
-Which halves a `push:` defines is not decided here. It is GitHub's rule, four gates
-need it, and this one had its own wrong copy until #1301: `branches-ignore:` and
-`tags-ignore:` matched neither of its regexes, inverting the verdict in both
-directions. `push_ref_filter` in tools/check-suite-coverage.py is the one
-implementation, and `tools/check-trigger-rule-copies.py` refuses a second.
+Exit codes: 0 = clean, 1 = findings, 2 = FATAL (an input the gate cannot read).
 
 Overrides, for testing:
   SDK_WORKFLOW_ROOT=<dir>   tree to check instead of the repo root
@@ -41,12 +38,18 @@ from __future__ import annotations
 
 import importlib.util
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
 
 # Directories under sdks/official/ that are not SDKs.
 NOT_AN_SDK = {"conformance", "tests"}
+
+WORKFLOW = "sdk-suites.yml"
+AGGREGATE = "SDK suites"
+SUITE_JOB = "suite"
+SUITE_SCRIPT = "tools/sdk-suite.sh"
 
 
 def repo_root() -> Path:
@@ -63,187 +66,201 @@ def repo_root() -> Path:
     )
 
 
-_YAML_MODULE = None
+def fatal(message: str) -> None:
+    print(f"FATAL: {message}", file=sys.stderr)
+    raise SystemExit(2)
 
 
-def _yaml_module():
-    """`parse_yaml` / `push_ref_filter` from tools/check-suite-coverage.py.
-
-    One hand-written YAML-subset parser and one copy of GitHub's push ref-filter
-    rule serve every gate that reads a workflow; this is the fourth to import
-    them, by the pattern check-workflow-job-reachability.py established. Until
-    #1301 this gate regexed the `push:` block out of raw text and applied its own
-    copy of the rule, and both halves were wrong in ways no fixture covered:
-
-      * `branches-ignore:` and `tags-ignore:` matched neither of its two regexes,
-        so a `branches-ignore` push read as having no branch key (verdict False
-        where the truth is True) and a `tags-ignore` push read as having no tag
-        key (True where the truth is False).
-      * a flow-style `push: {tags: ['v*']}` produced no push block at all, so the
-        workflow was silently skipped rather than judged.
-
-    A missing or unloadable sibling is FATAL, never a skip: a coverage gate that
-    quietly scans nothing is the failure it exists to prevent.
-    """
-    global _YAML_MODULE
-    if _YAML_MODULE is not None:
-        return _YAML_MODULE
-    # Relative to THIS FILE, not to `repo_root()`: `SDK_WORKFLOW_ROOT` names the
-    # tree being checked, which is data, while the parser is this gate's own code.
-    # The two coincide in normal use and differ under a fixture that copies both
-    # gates into a scratch tree.
-    path = Path(__file__).resolve().parent / "check-suite-coverage.py"
-    spec = importlib.util.spec_from_file_location("_fraiseql_suite_coverage", path)
+def _load(path: Path, name: str):
+    """Import a sibling module by path. Missing or broken is FATAL, never a skip."""
+    if not path.is_file():
+        fatal(f"cannot load {path}")
+    spec = importlib.util.spec_from_file_location(name, path)
     if spec is None or spec.loader is None:
-        print(f"FATAL: cannot load the YAML parser from {path}", file=sys.stderr)
-        raise SystemExit(2)
+        fatal(f"cannot load {path}")
     module = importlib.util.module_from_spec(spec)
-    # Registered before execution: `@dataclass`/`NamedTuple` in an imported module
-    # resolve their own `sys.modules[__module__]`, and an unregistered module makes
-    # that lookup return None.
-    sys.modules[spec.name] = module
+    # Registered before execution: `@dataclass`/`NamedTuple` resolve their own
+    # `sys.modules[__module__]`.
+    sys.modules[name] = module
     spec.loader.exec_module(module)  # type: ignore[union-attr]
-    _YAML_MODULE = module
     return module
 
 
-def push_trigger(text: str) -> dict | None:
-    """The parsed `on.push` mapping of a workflow, or None if it has no `push:`.
+def yaml_module():
+    # Relative to THIS FILE: the parser is this gate's own code, while
+    # SDK_WORKFLOW_ROOT names the tree being checked.
+    return _load(
+        Path(__file__).resolve().parent / "check-suite-coverage.py",
+        "_fraiseql_suite_coverage",
+    )
 
-    `parse_yaml` leaves `on:` a string key deliberately — the YAML 1.1 coercion
-    that turns `on` into `True` is the kind of quiet reshaping it refuses.
-    """
-    yaml = _yaml_module()
+
+def parse(path: Path, yaml) -> dict:
     try:
-        doc = yaml.parse_yaml(text)
+        doc = yaml.parse_yaml(path.read_text(encoding="utf-8"))
     except yaml.YamlError as exc:
-        # A shape the parser refuses is FATAL, never a skip. Silently passing over
-        # an unreadable workflow is how a gate reports coverage it never checked.
-        print(
-            f"FATAL: {exc} — teach tools/check-suite-coverage.py this YAML shape",
-            file=sys.stderr,
-        )
-        raise SystemExit(2) from None
+        fatal(f"{path.name}: {exc} — teach tools/check-suite-coverage.py this YAML shape")
     if not isinstance(doc, dict):
-        return None
+        fatal(f"{path.name}: not a mapping")
+    return doc
+
+
+def push_cfg(doc: dict, name: str) -> dict | None:
+    """The parsed `on.push` mapping, `{}` for a bare `push:`, None for no push."""
     autos = doc.get("on")
     if isinstance(autos, str):
-        # `on: push` — a single event name, no filters.
         autos = {autos: None}
     elif isinstance(autos, list):
-        autos = {str(k): None for k in autos}
+        autos = dict.fromkeys(str(k) for k in autos)
     if not isinstance(autos, dict) or "push" not in autos:
         return None
     cfg = autos["push"]
     if cfg is None:
-        return {}  # a bare `push:` — no ref filter, no path filter
+        return {}
     if not isinstance(cfg, dict):
-        # Not understood is not "probably fine": treating an unreadable `push:` as
-        # an empty one would silently make it look like it gates everything.
-        print(
-            f"FATAL: unreadable `push:` trigger {cfg!r} — teach the gate this shape",
-            file=sys.stderr,
-        )
-        raise SystemExit(2)
+        fatal(f"{name}: unreadable `push:` trigger {cfg!r}")
     return cfg
 
 
-def branch_reachable(cfg: dict) -> bool:
-    """True when a push to SOME branch can trigger this workflow.
-
-    This gate's policy over the shared rule: an SDK is "gated" if a contributor
-    pushing a branch runs its suite. A wildcard allow-list qualifies; a fixed
-    list naming concrete branches does not — that is the `csharp-sdk.yml`
-    post-merge-only case (#1119).
-    """
-    return _yaml_module().push_ref_filter(cfg).reaches_any_branch()
+def ref_filter(yaml, cfg: dict, name: str):
+    """GitHub's push ref-filter rule over `cfg`; a shape it cannot read is FATAL."""
+    try:
+        return yaml.push_ref_filter(cfg)
+    except yaml.WorkflowUnresolvable as exc:
+        fatal(f"{name}: {exc}")
 
 
-def _names_path(cfg: dict, needle: str) -> bool:
-    """Does this `push:` watch a path under `needle`?
+def as_list(value) -> list[str]:
+    if value is None:
+        return []
+    return [str(v) for v in value] if isinstance(value, list) else [str(value)]
 
-    Structured where the old test was a substring search over the raw `push:`
-    text, which counted a needle appearing in a comment, in a `branches:` name,
-    or — backwards — in `paths-ignore`, where naming the SDK means the workflow
-    skips it.
-    """
-    raw = cfg.get("paths")
-    return isinstance(raw, list) and any(needle in str(p) for p in raw)
+
+def run_steps(job: dict) -> list[str]:
+    steps = job.get("steps") or []
+    return [str(s.get("run")) for s in steps if isinstance(s, dict) and s.get("run")]
 
 
 def main() -> int:
     root = repo_root()
+    yaml = yaml_module()
+    findings: list[str] = []
+
     sdk_dir = root / "sdks" / "official"
-    wf_dir = root / ".github" / "workflows"
-
     if not sdk_dir.is_dir():
-        print(f"sdk-workflow-coverage: FAIL — no {sdk_dir}", file=sys.stderr)
-        return 1
-
-    sdks = sorted(
+        fatal(f"no {sdk_dir}")
+    dirs = sorted(
         d.name for d in sdk_dir.iterdir() if d.is_dir() and d.name not in NOT_AN_SDK
     )
-    if not sdks:
-        print(
-            "sdk-workflow-coverage: FAIL — found zero SDKs under sdks/official; "
-            "the layout changed and this gate went blind",
-            file=sys.stderr,
+    if not dirs:
+        fatal("found zero SDKs under sdks/official; the layout changed and this gate went blind")
+
+    # B. the matrix table and the directories agree, both ways.
+    table = _load(root / "tools" / "sdk-suites-matrix.py", "_fraiseql_sdk_matrix").VERSIONS
+    keys = set(table)
+    for d in dirs:
+        if d.removeprefix("fraiseql-") not in keys:
+            findings.append(
+                f"sdks/official/{d} has no row in tools/sdk-suites-matrix.py, "
+                "so no push runs its suite"
+            )
+    for key in sorted(keys):
+        if f"fraiseql-{key}" not in dirs:
+            findings.append(
+                f"tools/sdk-suites-matrix.py row `{key}` names no sdks/official/fraiseql-{key}"
+            )
+
+    wf_dir = root / ".github" / "workflows"
+    path = wf_dir / WORKFLOW
+    if not path.is_file():
+        findings.append(
+            f".github/workflows/{WORKFLOW} is missing: no required check runs the SDK suites"
         )
-        return 1
+        return report(findings, len(dirs))
+    doc = parse(path, yaml)
 
-    workflows = sorted(wf_dir.glob("*.yml")) + sorted(wf_dir.glob("*.yaml"))
+    # A. unfiltered, every branch.
+    cfg = push_cfg(doc, WORKFLOW)
+    if cfg is None:
+        findings.append(f"{WORKFLOW} has no `push:` trigger, so it reports on no push")
+    else:
+        for key in ("paths", "paths-ignore"):
+            if key in cfg:
+                findings.append(
+                    f"{WORKFLOW}: `push.{key}` filters the workflow, and GitHub reports a "
+                    'filtered-out required check as "not run", never "passed"'
+                )
+        if not ref_filter(yaml, cfg, WORKFLOW).reaches_every_branch():
+            findings.append(f"{WORKFLOW}: `push:` does not reach every working branch")
 
-    uncovered: list[str] = []
-    tag_only: list[tuple[str, str]] = []
+    jobs = doc.get("jobs") or {}
+    if not isinstance(jobs, dict):
+        fatal(f"{WORKFLOW}: `jobs` is not a mapping")
 
-    for sdk in sdks:
-        needle = f"sdks/official/{sdk}/"
-        covered = False
-        named_but_unreachable: str | None = None
+    # C. a setup step per SDK, and the shared suite script.
+    suite = jobs.get(SUITE_JOB)
+    if not isinstance(suite, dict):
+        findings.append(f"{WORKFLOW} has no `{SUITE_JOB}` job")
+    else:
+        conds = " ".join(
+            str(s.get("if", "")) for s in suite.get("steps") or [] if isinstance(s, dict)
+        )
+        for key in sorted(keys):
+            if not re.search(rf"matrix\.sdk\s*==\s*'{re.escape(key)}'", conds):
+                findings.append(f"{WORKFLOW}: job `{SUITE_JOB}` has no setup step for `{key}`")
+        if not any(SUITE_SCRIPT in r for r in run_steps(suite)):
+            findings.append(f"{WORKFLOW}: job `{SUITE_JOB}` never runs {SUITE_SCRIPT}")
 
-        for wf in workflows:
-            cfg = push_trigger(wf.read_text(encoding="utf-8"))
-            if cfg is None or not _names_path(cfg, needle):
-                continue
-            if branch_reachable(cfg):
-                covered = True
-                break
-            named_but_unreachable = wf.name
+    # D. the aggregate, and that it is what the ruleset requires.
+    aggregates = [
+        (jid, j) for jid, j in jobs.items() if isinstance(j, dict) and j.get("name") == AGGREGATE
+    ]
+    if len(aggregates) != 1:
+        findings.append(
+            f"{WORKFLOW}: wanted exactly one job named `{AGGREGATE}`, found {len(aggregates)}"
+        )
+    else:
+        jid, job = aggregates[0]
+        if SUITE_JOB not in as_list(job.get("needs")):
+            findings.append(f"{WORKFLOW}: `{AGGREGATE}` ({jid}) does not need `{SUITE_JOB}`")
+        if "always()" not in str(job.get("if", "")):
+            findings.append(
+                f"{WORKFLOW}: `{AGGREGATE}` ({jid}) must run under `always()`, or a failed "
+                "suite skips it and GitHub reads the skipped context as passing"
+            )
+    required = (root / "tools" / "required-checks.toml").read_text(encoding="utf-8")
+    if not re.search(rf'^\s*"{re.escape(AGGREGATE)}",', required, re.M):
+        findings.append(
+            f"tools/required-checks.toml does not list `{AGGREGATE}`, so it gates nothing"
+        )
 
-        if covered:
+    # E. no second, filtered copy.
+    for other in sorted(wf_dir.glob("*.yml")) + sorted(wf_dir.glob("*.yaml")):
+        if other.name == WORKFLOW:
             continue
-        if named_but_unreachable:
-            tag_only.append((sdk, named_but_unreachable))
-        else:
-            uncovered.append(sdk)
+        odoc = parse(other, yaml)
+        ocfg = push_cfg(odoc, other.name)
+        if ocfg is None or not ref_filter(yaml, ocfg, other.name).reaches_any_branch():
+            continue
+        for jid, job in (odoc.get("jobs") or {}).items():
+            if isinstance(job, dict) and any(SUITE_SCRIPT in r for r in run_steps(job)):
+                findings.append(
+                    f"{other.name}: job `{jid}` runs {SUITE_SCRIPT} on a branch push beside "
+                    f"{WORKFLOW}; a second copy runs without gating — delete it"
+                )
 
-    if uncovered or tag_only:
+    return report(findings, len(dirs))
+
+
+def report(findings: list[str], count: int) -> int:
+    if findings:
         print("sdk-workflow-coverage: FAIL", file=sys.stderr)
-        if uncovered:
-            print(
-                "\nNo workflow runs these SDKs' own tests on a branch push:\n",
-                file=sys.stderr,
-            )
-            for sdk in uncovered:
-                print(f"  sdks/official/{sdk}", file=sys.stderr)
-        if tag_only:
-            print(
-                "\nNamed by a workflow whose `on.push` cannot match a branch "
-                "(tags-only, or a fixed branch list):\n",
-                file=sys.stderr,
-            )
-            for sdk, wf in tag_only:
-                print(f"  sdks/official/{sdk}  →  {wf}", file=sys.stderr)
-            print(
-                "\n  Add `branches: ['**']` beside the existing filter. Keep `tags` "
-                "if a publish job is gated on it.",
-                file=sys.stderr,
-            )
+        for line in findings:
+            print(f"  {line}", file=sys.stderr)
         return 1
-
     print(
-        f"sdk-workflow-coverage: OK — all {len(sdks)} official SDKs are gated by a "
-        "workflow that runs on a branch push."
+        f"sdk-workflow-coverage: OK — all {count} official SDKs run under the required "
+        f"`{AGGREGATE}` check ({WORKFLOW}, unfiltered)."
     )
     return 0
 

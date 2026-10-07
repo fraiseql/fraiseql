@@ -545,11 +545,11 @@ func (m *FraiseqlCi) ShellGates(
 		// A published SDK's lockfile may not pin a version its manifest no longer
 		// claims (#1225): the 2.15.0 bump edited the SDK manifests and left
 		// fraiseql-python's uv.lock and fraiseql-rust's Cargo.lock at 2.14.1.
-		// fraiseql-typescript stayed correct only because typescript-sdk.yml runs
-		// `npm ci`, which refuses a disagreeing lockfile — one SDK gated by accident
-		// of tooling and two not. Pure text, so it runs here on every push rather
-		// than behind the SDK legs' path filters; dependency drift is covered by the
-		// `--locked` flags on those legs, and neither subsumes the other.
+		// fraiseql-typescript stayed correct only because its suite runs `npm ci`,
+		// which refuses a disagreeing lockfile — one SDK gated by accident of tooling
+		// and two not. Pure text, so it runs here on every push, whichever SDKs the
+		// push touched; dependency drift is covered by the `--locked` flags in
+		// tools/sdk-suite.sh, and neither subsumes the other.
 		"python3 tools/check-sdk-lockfile-freshness.py",
 		"make test-sdk-lockfile-freshness-gate",
 		// The local feature-matrix runner's red-capability pin (#1227). The RUNNER is
@@ -689,11 +689,12 @@ func (m *FraiseqlCi) ShellGates(
 		// nowhere while four crates went over budget and five acquired no budget
 		// row — and Cargo.toml claimed all along that CI enforced it (#1055/#990).
 		"bash tools/check-crate-sizes.sh",
-		// Every official SDK must be gated by a workflow that runs on a branch push.
-		// Four of eleven were not: two declared `tags` with no `branches`, which
-		// suppresses every branch push; one was post-merge-only; and the official
-		// Ruby SDK's tests ran nowhere at all (#1119).
+		// Every official SDK's own suite runs under ONE unfiltered, required check,
+		// sdk-suites.yml. Four of eleven per-SDK workflows could not run on a branch
+		// push (#1119), and the rest were paths-filtered, which a required check
+		// cannot be, so they gated nothing (#1467).
 		"python3 tools/check-sdk-workflow-coverage.py",
+		"bash tools/tests/sdk_workflow_coverage_test.sh",
 		// A job `if:` may not name an event or a ref its own workflow cannot
 		// receive. The 2026-05-31 migration stripped triggers and left the
 		// conditions: docker-build.yml kept two jobs that read as image coverage

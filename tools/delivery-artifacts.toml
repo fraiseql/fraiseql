@@ -184,7 +184,7 @@ id = "sdk:official/fraiseql-python"
 kind = "sdk-package"
 consumed_as = "pypi.org/project/fraiseql"
 publishes = ["workflow:release.yml:publish-python"]
-builds = ["workflow:python-sdk.yml:test"]
+builds = ["workflow:sdk-suites.yml:suite"]
 executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
@@ -192,7 +192,7 @@ id = "sdk:official/fraiseql-typescript"
 kind = "sdk-package"
 consumed_as = "npmjs.com/package/fraiseql"
 publishes = ["workflow:npm-publish.yml:publish-npm"]
-builds = ["workflow:typescript-sdk.yml:test"]
+builds = ["workflow:sdk-suites.yml:suite"]
 executes = ["tool:tools/consume-published-artifacts.sh"]
 
 [[artifact]]
@@ -200,7 +200,7 @@ id = "sdk:official/fraiseql-csharp"
 kind = "sdk-package"
 consumed_as = "source only — vendor sdks/official/fraiseql-csharp (ADR-0019); NuGet FraiseQL / FraiseQL.Tool holds no version"
 publishes = []
-builds = ["workflow:csharp-sdk.yml:test"]
+builds = ["workflow:sdk-suites.yml:suite"]
 executes = []
 
 [[artifact]]
@@ -208,7 +208,7 @@ id = "sdk:official/fraiseql-dart"
 kind = "sdk-package"
 consumed_as = "source only — vendor sdks/official/fraiseql-dart (ADR-0019); pub.dev fraiseql holds no version"
 publishes = []
-builds = ["workflow:dart-sdk.yml:test"]
+builds = ["workflow:sdk-suites.yml:suite"]
 executes = []
 
 [[artifact]]
@@ -216,7 +216,7 @@ id = "sdk:official/fraiseql-elixir"
 kind = "sdk-package"
 consumed_as = "source only — vendor sdks/official/fraiseql-elixir (ADR-0019); Hex fraiseql holds no version"
 publishes = []
-builds = ["workflow:elixir-sdk.yml:test"]
+builds = ["workflow:sdk-suites.yml:suite"]
 executes = []
 
 [[artifact]]
@@ -224,7 +224,7 @@ id = "sdk:official/fraiseql-fsharp"
 kind = "sdk-package"
 consumed_as = "source only — vendor sdks/official/fraiseql-fsharp (ADR-0019); NuGet FraiseQL.FSharp / FraiseQL.Tool.FSharp holds no version"
 publishes = []
-builds = ["workflow:fsharp-sdk.yml:test"]
+builds = ["workflow:sdk-suites.yml:suite"]
 executes = []
 
 [[artifact]]
@@ -232,7 +232,7 @@ id = "sdk:official/fraiseql-go"
 kind = "sdk-package"
 consumed_as = "go get github.com/fraiseql/fraiseql-go — the repository does not exist (#1224)"
 publishes = []
-builds = ["workflow:go-sdk.yml:test"]
+builds = ["workflow:sdk-suites.yml:suite"]
 executes = []
 
 [[artifact]]
@@ -240,7 +240,7 @@ id = "sdk:official/fraiseql-java"
 kind = "sdk-package"
 consumed_as = "source only — vendor sdks/official/fraiseql-java (ADR-0019); Maven Central com.fraiseql:fraiseql-java holds no version"
 publishes = []
-builds = ["workflow:java-sdk.yml:test"]
+builds = ["workflow:sdk-suites.yml:suite"]
 executes = []
 
 [[artifact]]
@@ -248,15 +248,15 @@ id = "sdk:official/fraiseql-php"
 kind = "sdk-package"
 consumed_as = "source only — vendor sdks/official/fraiseql-php (ADR-0019); Packagist fraiseql/fraiseql holds no version"
 publishes = []
-builds = ["workflow:php-sdk.yml:test"]
+builds = ["workflow:sdk-suites.yml:suite"]
 executes = []
 
 [[artifact]]
 id = "sdk:official/fraiseql-ruby"
 kind = "sdk-package"
-consumed_as = "source only — no publish path, by decision (ruby-official-sdk.yml is test-only)"
+consumed_as = "source only — no publish path, by decision (#1119 left the gem unpublished)"
 publishes = []
-builds = ["workflow:ruby-official-sdk.yml:test"]
+builds = ["workflow:sdk-suites.yml:suite"]
 executes = []
 
 [[artifact]]
@@ -264,7 +264,7 @@ id = "sdk:official/fraiseql-rust"
 kind = "sdk-package"
 consumed_as = "crates.io/crates/fraiseql-rust — first published at 2.15.0"
 publishes = ["workflow:release.yml:publish-rust-sdk", "workflow:rust-sdk.yml:publish"]
-builds = ["workflow:rust-sdk.yml:test"]
+builds = ["workflow:sdk-suites.yml:suite"]
 executes = []
 
 

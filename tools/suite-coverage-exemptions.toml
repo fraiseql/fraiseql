@@ -19,6 +19,10 @@
 # third-party probe, say — and the reason has to say which.
 
 [[unrequired]]
+target = "which SDKs changed"
+reason = "a routing decision, not a verdict: it lists the SDK suites a push needs, and the required `SDK suites` aggregate fails whenever it fails (.github/workflows/sdk-suites.yml)"
+
+[[unrequired]]
 target = "already passed"
 reason = "a routing decision, not a verdict: it only decides whether the leg after it runs, and it fails toward running that leg, whose own required context is what gates the merge (.github/workflows/already-passed.yml)"
 

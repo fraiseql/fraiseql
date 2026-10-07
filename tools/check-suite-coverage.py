@@ -1476,8 +1476,25 @@ class WorkflowUnresolvable(Exception):
     pass
 
 
+_DYNAMIC_MATRIX = re.compile(r"\$\{\{.*\}\}", re.S)
+
+
+def _is_dynamic_matrix(job: dict) -> bool:
+    """`strategy.matrix: ${{ fromJSON(...) }}` — computed at run time, not enumerable.
+
+    `sdk-suites.yml` (#1467) builds its matrix from the push's diff. Such a job's
+    contexts cannot be listed offline, so it can never be a required context or a
+    leg here: it is read with one empty combination, and `extract_leg_gating`
+    refuses it if it runs anything this gate tracks.
+    """
+    matrix = (job.get("strategy") or {}).get("matrix")
+    return isinstance(matrix, str) and bool(_DYNAMIC_MATRIX.fullmatch(matrix.strip()))
+
+
 def _expand_matrix(matrix: dict) -> list[dict]:
     """`strategy.matrix` → the list of combinations, as GitHub computes it."""
+    if not isinstance(matrix, dict):
+        raise WorkflowUnresolvable(f"`strategy.matrix` is not a mapping: {matrix!r}")
     if "exclude" in matrix:
         raise WorkflowUnresolvable("`matrix.exclude` — teach the gate this shape")
     axes = {k: v for k, v in matrix.items() if k not in ("include", "exclude")}
@@ -1627,7 +1644,11 @@ def extract_workflow_invocations() -> tuple[list[Invocation], list[str]]:
             if not isinstance(steps, list):
                 die(f"{leg}: `steps:` is not a list")
             try:
-                combos = _expand_matrix((job.get("strategy") or {}).get("matrix") or {})
+                combos = (
+                    [{}]
+                    if _is_dynamic_matrix(job)
+                    else _expand_matrix((job.get("strategy") or {}).get("matrix") or {})
+                )
             except WorkflowUnresolvable as e:
                 die(f"{leg}: {e}")
 
@@ -2009,13 +2030,29 @@ def extract_leg_gating(
         for job_id, job in doc["jobs"].items():
             if not isinstance(job, dict):
                 continue
+            steps = job.get("steps") or []
+            if not isinstance(steps, list):
+                continue
+            if _is_dynamic_matrix(job):
+                # No enumerable contexts, so it cannot gate; it must not run a leg
+                # either, or that leg's coverage would rest on contexts nobody can name.
+                where = f"{wf.name}:{job_id}"
+                for step in steps:
+                    script = step.get("run") if isinstance(step, dict) else None
+                    if not isinstance(script, str):
+                        continue
+                    if (_cargo_commands(script) and where in known_legs) or DAGGER_CALL.search(
+                        re.sub(r"\\\n\s*", " ", script)
+                    ):
+                        die(
+                            f"{where}: a job with a run-time matrix cannot run a leg — its "
+                            "contexts cannot be enumerated, so nothing could require them"
+                        )
+                continue
             try:
                 combos = _expand_matrix((job.get("strategy") or {}).get("matrix") or {})
             except WorkflowUnresolvable as e:
                 die(f"{wf.name}:{job_id}: {e}")
-            steps = job.get("steps") or []
-            if not isinstance(steps, list):
-                continue
 
             for combo in combos:
                 where = f"{wf.name}:{job_id}"

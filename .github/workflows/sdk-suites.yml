@@ -1,0 +1,209 @@
+name: SDK suites
+
+# Every official SDK's own test suite and linters, as ONE required check (#1467).
+#
+# The per-SDK workflows this replaced were `paths:`-filtered. GitHub reports a
+# filtered-out required check as "not run", never "passed", so none of them could be
+# required, and together they gated nothing: a merge could land with every SDK suite
+# red. This workflow has no path filter, so it reports on every push, and decides
+# inside itself what to run:
+#
+#   changes    tools/sdk-suites-matrix.py diffs the push against its base and lists
+#              one matrix entry per (SDK, toolchain version) whose directory changed.
+#              A change to the suite's definition runs every SDK; an unresolvable
+#              base runs every SDK too.
+#   suite      the matrix: the SDK's setup action, then `bash tools/sdk-suite.sh
+#              <sdk>`, the same script `make test-sdks` runs, so CI and the local
+#              run cannot drift (#1346).
+#   SDK suites the aggregate, and the REQUIRED context: green when nothing needed to
+#              run or every entry passed, red otherwise (including a failed `changes`).
+#
+# GitHub-hosted runners only: about two minutes per entry, and independent of the
+# self-hosted Dagger legs. push-only like the Dagger legs, so the check attaches to the
+# pushed SHA. `dependabot/**` and merge-queue refs are excluded as they are there.
+#
+# tools/check-sdk-workflow-coverage.py (preflight) requires this file to stay
+# unfiltered, every SDK directory to have a row in the matrix script and a setup step
+# below, and the aggregate to keep its name.
+on:
+  push:
+    branches-ignore: ['dependabot/**', 'gh-readonly-queue/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sdk-suites-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  changes:
+    name: which SDKs changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+      any: ${{ steps.matrix.outputs.any }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          fetch-depth: 0
+
+      # A dispatch carries no push base and is a deliberate request: every SDK.
+      - name: List the SDK suites this push needs
+        id: matrix
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = push ]; then
+            python3 tools/sdk-suites-matrix.py --base "$BASE" --head "$GITHUB_SHA"
+          else
+            python3 tools/sdk-suites-matrix.py --all
+          fi
+
+  suite:
+    needs: changes
+    if: ${{ needs.changes.outputs.any == 'true' }}
+    name: ${{ matrix.sdk }} ${{ matrix.version }}${{ matrix.task == 'dialyzer' && ' (dialyzer)' || '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.changes.outputs.matrix) }}
+    env:
+      # Pins the interpreter `uv sync` resolves to the entry's version. Without it the
+      # matrix entry named a version and the suite could run on another one.
+      UV_PYTHON: ${{ matrix.sdk == 'python' && matrix.version || '' }}
+      FRAISEQL_SDK_COVERAGE: ${{ matrix.sdk == 'fsharp' && '1' || '' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      # ── Setup, one step per SDK ──────────────────────────────────────────────
+      - if: ${{ matrix.sdk == 'python' }}
+        uses: astral-sh/setup-uv@94527f2e458b27549849d47d273a16bec83a01e9  # v7
+        with:
+          version: latest
+      - if: ${{ matrix.sdk == 'python' }}
+        run: uv python install "${{ matrix.version }}"
+
+      - if: ${{ matrix.sdk == 'typescript' }}
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020  # v7.0.0
+        with:
+          node-version: ${{ matrix.version }}
+          cache: npm
+          cache-dependency-path: sdks/official/fraiseql-typescript/package-lock.json
+
+      - if: ${{ matrix.sdk == 'go' }}
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c  # v6
+        with:
+          go-version: ${{ matrix.version }}
+          cache-dependency-path: sdks/official/fraiseql-go/go.sum
+
+      - if: ${{ matrix.sdk == 'php' }}
+        uses: shivammathur/setup-php@7c071dfe9dc99bdf297fa79cb49ea005b9fcadbc  # v2
+        with:
+          php-version: ${{ matrix.version }}
+          extensions: json
+          coverage: none
+
+      - if: ${{ matrix.sdk == 'java' }}
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
+        with:
+          java-version: ${{ matrix.version }}
+          distribution: temurin
+          cache: maven
+
+      - if: ${{ matrix.sdk == 'csharp' || matrix.sdk == 'fsharp' }}
+        uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9  # v4
+        with:
+          dotnet-version: ${{ matrix.version }}
+
+      - if: ${{ matrix.sdk == 'elixir' }}
+        id: beam
+        uses: erlef/setup-beam@fc68ffb90438ef2936bbb3251622353b3dcb2f93  # v1
+        with:
+          elixir-version: ${{ matrix.elixir }}
+          otp-version: ${{ matrix.otp }}
+      - if: ${{ matrix.sdk == 'elixir' && matrix.task == 'suite' }}
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5
+        with:
+          path: |
+            sdks/official/fraiseql-elixir/deps
+            sdks/official/fraiseql-elixir/_build
+          key: ${{ runner.os }}-mix-${{ matrix.elixir }}-${{ matrix.otp }}-${{ hashFiles('sdks/official/fraiseql-elixir/mix.lock') }}
+
+      - if: ${{ matrix.sdk == 'ruby' }}
+        uses: ruby/setup-ruby@97ecb7b512899eb71ab1bf2310a624c6f1589ac6  # v1
+        with:
+          ruby-version: ${{ matrix.version }}
+
+      - if: ${{ matrix.sdk == 'dart' }}
+        uses: dart-lang/setup-dart@65eb853c7ba17dde3be364c3d2858773e7144260  # v1
+        with:
+          sdk: ${{ matrix.version }}
+
+      - if: ${{ matrix.sdk == 'rust' }}
+        uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
+        with:
+          toolchain: ${{ matrix.version }}
+          components: rustfmt, clippy
+
+      # ── The suite ────────────────────────────────────────────────────────────
+      - name: tools/sdk-suite.sh ${{ matrix.sdk }}
+        if: ${{ matrix.task == 'suite' }}
+        run: bash tools/sdk-suite.sh "${{ matrix.sdk }}"
+
+      - name: Build (release)
+        if: ${{ matrix.sdk == 'rust' }}
+        working-directory: sdks/official/fraiseql-rust
+        run: cargo build --locked --release
+
+      - name: Upload coverage
+        if: ${{ always() && matrix.sdk == 'fsharp' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
+        with:
+          name: coverage-fsharp-sdk
+          path: sdks/official/fraiseql-fsharp/tests/FraiseQL.Tests/TestResults/
+          retention-days: 30
+
+      # ── Elixir Dialyzer (its PLT takes minutes, so it is not in the local suite) ─
+      - if: ${{ matrix.task == 'dialyzer' }}
+        uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae  # v5
+        with:
+          path: sdks/official/fraiseql-elixir/priv/plts
+          # Keyed on the RESOLVED toolchain versions: setup-beam floats to the newest
+          # patch, and a PLT built by another OTP is refused as "Old PLT file" (#979).
+          key: ${{ runner.os }}-dialyzer-${{ steps.beam.outputs.elixir-version }}-${{ steps.beam.outputs.otp-version }}-${{ hashFiles('sdks/official/fraiseql-elixir/mix.lock') }}
+      - name: mix dialyzer
+        if: ${{ matrix.task == 'dialyzer' }}
+        working-directory: sdks/official/fraiseql-elixir
+        run: |
+          mix deps.get
+          mix dialyzer --format github
+
+  aggregate:
+    name: SDK suites
+    needs: [changes, suite]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every SDK suite this push needed passed
+        env:
+          CHANGES: ${{ needs.changes.result }}
+          ANY: ${{ needs.changes.outputs.any }}
+          SUITE: ${{ needs.suite.result }}
+        run: |
+          echo "changes=$CHANGES any=$ANY suite=$SUITE"
+          if [ "$CHANGES" != success ]; then
+            echo "::error::could not decide which SDK suites to run"; exit 1
+          fi
+          if [ "$ANY" != true ]; then
+            echo "no official SDK changed: nothing to run"; exit 0
+          fi
+          if [ "$SUITE" != success ]; then
+            echo "::error::an SDK suite did not pass (result: $SUITE)"; exit 1
+          fi
+          echo "every SDK suite passed"

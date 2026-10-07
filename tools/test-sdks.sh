@@ -3,7 +3,7 @@
 #
 #   tools/test-sdks.sh [sdk ...]        # default: all eleven
 #
-# Each suite is tools/sdk-suite.sh <sdk>, the same script the per-SDK workflows run.
+# Each suite is tools/sdk-suite.sh <sdk>, the same script sdk-suites.yml runs in CI.
 # An SDK whose toolchain is missing here runs in the container image
 # sdks/official/conformance/manifest.json names for it (this box has no ruby, elixir or
 # dart, and php without composer). FRAISEQL_SDK_FORCE_CONTAINER="java,php" forces the

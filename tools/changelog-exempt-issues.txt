@@ -52,3 +52,4 @@
 #1361  deleted a saga benchmark that measured an in-file mock and never ran; no shipped code
 #1346  SDK suites run locally (make test-sdks, tools/sdk-suite.sh); CI/developer tooling only
 #1453  CI: base-image mirror pins minio (Chainguard build, by digest) and fake-gcs-server; test-rig images only, nothing shipped
+#1467  CI: one unfiltered, required `SDK suites` workflow replaces the paths-filtered per-SDK test workflows; CI gating only, no shipped artifact changes

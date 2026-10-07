@@ -12,7 +12,7 @@ regenerated. Nothing noticed, because every `--locked` in this repository is
 checked.
 
 The asymmetry is itself the argument for this gate. TypeScript stayed correct because
-`typescript-sdk.yml` runs `npm ci`, which refuses a lockfile disagreeing with its
+its CI suite ran `npm ci`, which refuses a lockfile disagreeing with its
 manifest; Python ran `uv sync` and Rust ran `cargo test`, neither with `--locked`, so
 both drifted silently. One SDK was gated by accident of tooling and two were not.
 

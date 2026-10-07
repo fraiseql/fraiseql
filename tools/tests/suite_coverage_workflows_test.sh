@@ -413,6 +413,52 @@ YML
 )"
 expect "a workflow \`--test\` naming no binary is a GHOST" 1 "$WORK/ghost" "GHOST"
 
+# ── 15. A run-time matrix (`fromJSON`) is read, and produces no context ─────
+#
+# sdk-suites.yml (#1467) builds its matrix from the push's diff. Its contexts
+# cannot be enumerated offline, so the job must neither crash the gate nor count
+# as one; the `gates` job beside it still covers the suite.
+make_fixture "$WORK/dynamic" "$(cat <<'YML'
+name: Probe
+on:
+  push:
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cargo test -p demo --test consumer -- --ignored
+  fan:
+    name: ${{ matrix.sdk }} ${{ matrix.version }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJSON('{"include":[]}') }}
+    steps:
+      - run: bash tools/sdk-suite.sh "${{ matrix.sdk }}"
+YML
+)"
+expect "a run-time matrix job is read and produces no context" 0 "$WORK/dynamic" "all covered"
+
+# ── 16. …and may not run a leg, whose contexts nothing could then require ────
+make_fixture "$WORK/dynamic-leg" "$(cat <<'YML'
+name: Probe
+on:
+  push:
+jobs:
+  gates:
+    runs-on: ubuntu-latest
+    steps:
+      - run: cargo test -p demo --test consumer -- --ignored
+  fan:
+    name: ${{ matrix.suite }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJSON('{"include":[]}') }}
+    steps:
+      - run: dagger call nothing
+YML
+)"
+expect "a run-time matrix job that runs a leg is FATAL" 2 "$WORK/dynamic-leg" "run-time matrix"
+
 echo
 if [ "$TESTS_FAILED" -gt 0 ]; then
     echo "suite-coverage workflow self-test: $TESTS_FAILED of $TESTS_RUN FAILED"
