@@ -101,6 +101,14 @@ bump_ts_sdk_version "$VERSION" \
     sdks/official/fraiseql-typescript/src/index.ts
 echo "      Bumped Python + TypeScript SDK manifests."
 
+# The Python and Rust SDK lockfiles record the SDK's own version. Left behind, the
+# SDK suites' `--locked` installs and tools/check-sdk-lockfile-freshness.py (the
+# REQUIRED preflight check) refuse the release commit, as they did the 2.16.0 cut
+# (#1225). package-lock.json is bumped with its manifest above.
+bump_lockfile_package_version "$VERSION" sdks/official/fraiseql-python/uv.lock fraiseql
+bump_lockfile_package_version "$VERSION" sdks/official/fraiseql-rust/Cargo.lock fraiseql-rust
+echo "      Bumped the Python and Rust SDK lockfiles."
+
 # Bump the shipped deployment artifacts too. Until #1129 nothing here touched them,
 # so the Dockerfile's OCI label sat at 2.1.1 and the Helm chart at 2.1.1/2.1.0 while
 # the product shipped 2.14.1. tools/check-deploy-versions.sh (ShellGates) fails the
@@ -204,7 +212,9 @@ RELEASE_FILES=(
     crates/*/fuzz/Cargo.toml
     sdks/official/fraiseql-rust/Cargo.toml
     sdks/official/fraiseql-rust/*/Cargo.toml
+    sdks/official/fraiseql-rust/Cargo.lock
     sdks/official/fraiseql-python/pyproject.toml
+    sdks/official/fraiseql-python/uv.lock
     sdks/official/fraiseql-python/src/fraiseql/__init__.py
     sdks/official/fraiseql-typescript/package.json
     sdks/official/fraiseql-typescript/package-lock.json

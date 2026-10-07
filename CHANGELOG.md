@@ -726,6 +726,13 @@ disagreed, and the promise was the part that was wrong.
   image pins (`fraiseql/server`, `-full`, `-platform`, and a runbook's `IMAGE_TAG=`) in both, and
   the gate checks the runbooks' pins too.
 
+- **The release bumps the Python and Rust SDK lockfiles with their manifests.**
+  `tools/check-sdk-lockfile-freshness.py` has required each SDK lockfile to record its manifest's
+  version since #1225, but `tools/release.sh` never bumped `uv.lock` or the Rust SDK's
+  `Cargo.lock`, so the first cut after the gate, this one, failed preflight and the SDK suites'
+  `--locked` installs on its release commit. `bump_lockfile_package_version` now rewrites the
+  SDK's own `[[package]]` record in each, and refuses a lockfile that has none.
+
 - **The MCP HTTP endpoint answers requests addressed to the deployment's hostname.** rmcp's
   Streamable HTTP transport accepts only a loopback `Host` by default, against DNS rebinding, and
   the server mounted it with that default. So every MCP request to `api.example.com`, and every

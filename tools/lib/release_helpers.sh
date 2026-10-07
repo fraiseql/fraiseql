@@ -143,6 +143,33 @@ bump_ts_sdk_version() {
     sed -i -E "s/^export const version = \"[^\"]*\"/export const version = \"${version}\"/" "$index_ts"
 }
 
+# Bump the version a TOML lockfile (uv.lock, Cargo.lock) records for one package: the
+# `version` line of the `[[package]]` block whose `name` is exactly <package>.
+#
+# The SDK manifests were bumped while their lockfiles kept the old version, so
+# `uv sync --locked` and `cargo test --locked` refused the release commit (#1225).
+# tools/check-sdk-lockfile-freshness.py is the gate. Only the package's own record
+# moves: dependency entries, a namesake-prefixed package and the lock format's own
+# `version` are left as they are. Fails when no record names the package.
+#
+# Usage: bump_lockfile_package_version <version> <lockfile> <package>
+bump_lockfile_package_version() {
+    local version="$1" lock="$2" package="$3"
+    awk -v ver="$version" -v pkg="$package" '
+        /^\[\[package\]\]$/       { block = 1; named = 0; print; next }
+        /^$/                       { block = 0; named = 0 }
+        block && $0 == "name = \"" pkg "\"" { named = 1; print; next }
+        named && /^version = "/    { sub(/"[^"]*"/, "\"" ver "\""); named = 0; bumped++ }
+        { print }
+        END { exit (bumped == 1 ? 0 : 1) }
+    ' "$lock" > "${lock}.tmp" || {
+        rm -f "${lock}.tmp"
+        echo "ERROR: ${lock} has no single [[package]] record named \"${package}\"." >&2
+        return 1
+    }
+    mv "${lock}.tmp" "$lock"
+}
+
 # Bump the version strings in the shipped deployment artifacts: the Dockerfile's OCI
 # version label, the Helm chart's `version` + `appVersion` (lockstep, see Chart.yaml's
 # header), and values.yaml's `image.tag`.

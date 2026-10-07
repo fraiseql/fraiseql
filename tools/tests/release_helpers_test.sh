@@ -216,6 +216,45 @@ check "bump-ts: lockfile dependency version (zod 3.22.0) untouched" \
 check "bump-ts: index.ts version constant → 2.8.0 (L-ts-version)" \
     "$(grep -c '^export const version = "2.8.0"' "$WORK/index.ts")" "1"
 
+# ── bump_lockfile_package_version ──────────────────────────────────────────────
+#
+# The 2.15.0 and 2.16.0 cuts both bumped the Python and Rust SDK manifests and left
+# their lockfiles recording the old version (#1225). The fixture carries a package
+# that depends on the bumped one and a namesake prefix, neither of which may move.
+
+cat > "$WORK/uv.lock" <<'EOF'
+version = 1
+
+[[package]]
+name = "fraiseql"
+version = "2.1.6"
+source = { editable = "." }
+dependencies = [
+    { name = "fraiseql-extra" },
+]
+
+[[package]]
+name = "fraiseql-extra"
+version = "2.1.6"
+dependencies = [
+    { name = "fraiseql" },
+]
+EOF
+
+bump_lockfile_package_version 2.8.0 "$WORK/uv.lock" fraiseql
+check "bump-lock: the package's own record → 2.8.0" \
+    "$(grep -A1 '^name = "fraiseql"$' "$WORK/uv.lock" | grep -c '^version = "2.8.0"')" "1"
+check "bump-lock: a namesake-prefixed package is untouched" \
+    "$(grep -A1 '^name = "fraiseql-extra"$' "$WORK/uv.lock" | grep -c '^version = "2.1.6"')" "1"
+check "bump-lock: the lockfile format version is untouched" \
+    "$(grep -c '^version = 1$' "$WORK/uv.lock")" "1"
+
+if bump_lockfile_package_version 2.8.0 "$WORK/uv.lock" fraiseql-missing 2>/dev/null; then
+    check "bump-lock: a lockfile without the package fails loudly" "rc=0" "rc≠0"
+else
+    check "bump-lock: a lockfile without the package fails loudly" "rc≠0" "rc≠0"
+fi
+
 # ── bump_deploy_artifacts (#1129) ──────────────────────────────────────────────
 #
 # The fixtures carry the neighbouring version-shaped strings that a blanket rewrite
