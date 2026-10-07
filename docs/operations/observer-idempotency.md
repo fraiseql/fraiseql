@@ -37,7 +37,9 @@ An action runs again for the same change-log row when:
 With the NATS transport the record is the JetStream acknowledgement, which the server sends
 after the event's actions ran (retried or dead-lettered). A message not acknowledged within
 `ack_wait_secs`, because the server stopped mid-dispatch, is redelivered, up to `max_deliver`
-deliveries, so the same repeats apply.
+deliveries, so the same repeats apply. No progress is reported while actions run, so a
+dispatch that outlasts `ack_wait_secs` (default 30), retries included, is also redelivered and
+runs again while the first run continues: set `ack_wait_secs` above the longest dispatch.
 
 ---
 

@@ -587,7 +587,49 @@ disagreed, and the promise was the part that was wrong.
   tenant and an empty-string tenant were one space under the old expression and are two
   now.
 
+- **On NATS, an observer event is acknowledged after its actions ran, so delivery is
+  at-least-once (#1510).** The transport acknowledged each JetStream message as soon as it
+  decoded, before the runtime ran any action, so a server that stopped mid-dispatch (a crash, an
+  OOM kill, a deploy without a drain) lost the event: nothing redelivered it, and `ack_wait_secs` /
+  `max_deliver` never applied. The runtime now acknowledges once `process_event` returns, and an
+  unacknowledged event is redelivered. What changes for a deployment:
+  - An event in flight when a server stops is redelivered and its actions run again, where it was
+    lost before. Actions must tolerate a repeat (see `docs/operations/observer-idempotency.md`).
+  - `ack_wait_secs` (default 30) now bounds a whole dispatch, the executor's retries included: an
+    event whose actions take longer is redelivered while they still run, and runs again. Set it
+    above the longest dispatch you expect.
+  - An action that fails is still the executor's to retry and dead-letter, not the broker's: a
+    failed action does not make the broker redeliver the event.
+
+  For embedders, `EventTransport::subscribe_with_ack` yields each event with the `Acker` that
+  acknowledges it; `subscribe` keeps acknowledging as it yields.
+
+- **Every replica delivers every change to its own subscribers (#1503).** GraphQL
+  subscriptions and REST `/{resource}/stream` were fed by the observer runtime's dispatch, which
+  runs on one replica: on PostgreSQL only the poll-lease holder (#1500), so subscribers connected
+  to any other replica received no changes; on NATS each replica got the share of messages its
+  competing consumer pulled. Each replica now reads the changes for its own subscribers, while
+  actions still run once. What changes for a deployment:
+  - On PostgreSQL, every replica polls `core.tb_entity_change_log` every `poll_interval_ms`,
+    not only the lease holder. The tail ignores the dispatch ledger and writes nothing; it
+    delivers a row whose transaction commits after a later row was read. Sixteen replicas polling
+    at 10 Hz had no measurable effect on write throughput.
+  - On NATS, every replica opens its own ephemeral JetStream consumer next to the shared durable
+    one. It starts at new messages, acknowledges nothing, and the broker removes it a minute
+    after the replica stops pulling.
+  - A subscriber receives the changes committed after its replica started, and a change reaches
+    subscribers whether or not its observer actions succeed. Routing subscribers to the polling
+    replica is no longer needed.
+
+  Polling was chosen over `LISTEN`/`NOTIFY` by measurement: a `pg_notify` trigger cut mutation
+  throughput on PostgreSQL 18 from 53 078 to 3 640 transactions per second at 64 clients. For
+  embedders, `fraiseql-observers` adds `listener::ChangeLogTail` and
+  `EventTransport::subscribe_broadcast`.
+
 ### Fixed
+
+- **The Row-Level Security boot refusal reads as one sentence.** Its message printed runs of
+  spaces mid-sentence ("is not in                  force on 3 of its source relation(s)").
 
 - **`--validate-sql-sources` checks that the server's role may use each source (#1426).** It
   proved a declared view or mutation function existed, not that the role the server connects as
@@ -597,15 +639,6 @@ disagreed, and the promise was the part that was wrong.
   privilege beside any missing source (`app.create_order (function): EXECUTE not granted to
   api_role`). A schema-qualified view in a schema the role cannot use made the existence probe
   itself fail with "permission denied for schema"; it is now reported in that list.
-
-- **On NATS, an observer event is acknowledged after its actions ran (#1510).** The transport
-  acknowledged each JetStream message as soon as it decoded, before the runtime ran any action,
-  so a server that stopped mid-dispatch (a crash, an OOM kill, a deploy without a drain) lost the
-  event: nothing redelivered it, and `ack_wait_secs` / `max_deliver` never applied. The runtime
-  now acknowledges once `process_event` returns (an action that failed is the executor's to retry
-  and dead-letter, not the broker's), and an unacknowledged event is redelivered. For embedders,
-  `EventTransport::subscribe_with_ack` yields each event with the `Acker` that acknowledges it;
-  `subscribe` keeps acknowledging as it yields.
 
 - **`jwt:scope` injects the granted scopes (#1417).** The validator lifts the `scope` claim into
   the principal's scopes, so it never reached the claim map and `jwt:scope` failed every call
@@ -618,19 +651,6 @@ disagreed, and the promise was the part that was wrong.
   reports an extension type's `data_type` as `USER-DEFINED`, so the fact-table detector filed an
   `ltree` column as `Other("user-defined")` and its type was lost. The PostgreSQL introspector
   now reads `udt_name` for such columns (`ltree`, `vector`).
-
-- **Every replica delivers every change to its own subscribers (#1503).** GraphQL
-  subscriptions and REST `/{resource}/stream` were fed by the observer runtime's dispatch, which
-  runs on one replica: on PostgreSQL only the poll-lease holder (#1500), so subscribers connected
-  to any other replica received no changes; on NATS each replica got the share of messages its
-  competing consumer pulled. Each replica now reads the changes for its own subscribers, while
-  actions still run once: on PostgreSQL a per-replica tail of `core.tb_entity_change_log` that
-  ignores the dispatch ledger and writes nothing (it delivers a row whose transaction commits
-  after a later row was read); on NATS a per-replica ephemeral consumer next to the shared
-  durable one. A change also reaches subscribers when its observer actions fail. Polling was
-  chosen over `LISTEN`/`NOTIFY` by measurement: a `pg_notify` trigger cut mutation throughput on
-  PostgreSQL 18 from 53 078 to 3 640 transactions per second at 64 clients. For embedders,
-  `fraiseql-observers` adds `listener::ChangeLogTail` and `EventTransport::subscribe_broadcast`.
 
 - **A GraphQL variable the request omits takes its declared default (#1504).** Defaults were
   parsed and never applied (GraphQL § 6.4.1), so `query Q($l: Int = 1) { users(limit: $l) }`
