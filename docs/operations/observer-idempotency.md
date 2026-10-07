@@ -34,10 +34,10 @@ An action runs again for the same change-log row when:
 | An operator retries a DLQ item (`POST /api/observers/dlq/{id}/retry` or `retry-all`) | That action |
 | An operator clears the ledger to replay (see [Replaying from the Start](#replaying-from-the-start)) | Every action of every row still in the change log |
 
-With the NATS transport the record is the JetStream acknowledgement, and the server sends
-it when it receives and decodes the message, before the actions run. Retries and DLQ retries
-repeat an action as above, but a crash after the acknowledgement loses the event instead of
-repeating it (#1510).
+With the NATS transport the record is the JetStream acknowledgement, which the server sends
+after the event's actions ran (retried or dead-lettered). A message not acknowledged within
+`ack_wait_secs`, because the server stopped mid-dispatch, is redelivered, up to `max_deliver`
+deliveries, so the same repeats apply.
 
 ---
 

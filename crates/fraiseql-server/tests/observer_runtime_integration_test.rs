@@ -1955,3 +1955,87 @@ async fn test_every_nats_replica_delivers_every_change_to_its_subscribers() {
     }
     assert_eq!(deliveries, 4, "each change must still be dispatched once, not once per replica");
 }
+
+/// #1510: on NATS the runtime acknowledges an event only after its actions ran. While a
+/// slow webhook is still running, the durable consumer must hold the message as pending;
+/// it used to be acknowledged on receipt, so a crash mid-dispatch lost it.
+#[cfg(feature = "observers-nats")]
+#[tokio::test]
+#[ignore = "requires PostgreSQL and NATS"]
+async fn test_nats_runtime_acknowledges_an_event_after_its_actions_ran() {
+    use fraiseql_observers::{
+        EntityEvent, EventKind,
+        config::{TransportConfig, TransportKind},
+    };
+
+    init_test_tracing();
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    let (mock_server, entity_type) =
+        seed_replica_test(&pool, &test_id, Duration::from_secs(3)).await;
+
+    let url =
+        std::env::var("NATS_URL").expect("NATS_URL must be set (the observers leg binds NATS)");
+    let mut transport = TransportConfig {
+        transport: TransportKind::Nats,
+        ..TransportConfig::default()
+    };
+    transport.nats.url.clone_from(&url);
+    transport.nats.stream_name = format!("ack-{test_id}");
+    transport.nats.consumer_name = format!("ack-consumer-{test_id}");
+    transport.nats.subject_prefix = format!("ack.{test_id}");
+    transport.nats.jetstream.max_bytes = 1024 * 1024;
+    let mut runtime =
+        ObserverRuntime::new(ObserverRuntimeConfig::new(pool.clone()).with_transport(transport));
+    runtime.start().await.expect("the runtime starts on the NATS transport");
+
+    let jetstream = async_nats::jetstream::new(async_nats::connect(&url).await.expect("connect"));
+    let id = Uuid::new_v4();
+    let event = EntityEvent::new(
+        EventKind::Created,
+        entity_type.clone(),
+        id,
+        serde_json::json!({"id": id.to_string()}),
+    );
+    jetstream
+        .publish(
+            format!("ack.{test_id}.{entity_type}.INSERT"),
+            serde_json::to_vec(&event).expect("serialize").into(),
+        )
+        .await
+        .expect("publish")
+        .await
+        .expect("the stream stores the event");
+
+    let pending = |jetstream: async_nats::jetstream::Context| {
+        let (stream, consumer) = (format!("ack-{test_id}"), format!("ack-consumer-{test_id}"));
+        async move {
+            let mut consumer: async_nats::jetstream::consumer::PullConsumer = jetstream
+                .get_stream(&stream)
+                .await
+                .expect("stream")
+                .get_consumer(&consumer)
+                .await
+                .expect("consumer");
+            consumer.info().await.expect("consumer info").num_ack_pending
+        }
+    };
+    // The webhook answers after 3 s: wait for the request to arrive, then look.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while mock_server.request_count().await == 0 && tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    let while_running = pending(jetstream.clone()).await;
+    tokio::time::sleep(Duration::from_secs(5)).await;
+    let after = pending(jetstream.clone()).await;
+
+    runtime.stop().await.expect("Failed to stop runtime");
+    jetstream
+        .delete_stream(&format!("ack-{test_id}"))
+        .await
+        .expect("clean up the stream");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
+
+    assert_eq!(while_running, 1, "the event must stay unacknowledged while its webhook runs");
+    assert_eq!(after, 0, "the event must be acknowledged once its actions ran");
+}

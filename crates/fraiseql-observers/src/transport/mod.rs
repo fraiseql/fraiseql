@@ -29,7 +29,7 @@
 //! - **Transport-managed reconnection**: Transports handle retry/backoff internally
 //! - **At-least-once delivery**: Transport ACKs after `ObserverExecutor` processes event
 
-use std::pin::Pin;
+use std::{future::Future, pin::Pin};
 
 use async_trait::async_trait;
 use futures::Stream;
@@ -62,6 +62,61 @@ pub use postgres_notify::PostgresNotifyTransport;
 /// Event stream type (async stream of `EntityEvents`)
 pub type EventStream = Pin<Box<dyn Stream<Item = Result<EntityEvent>> + Send>>;
 
+/// An event stream whose events are acknowledged by the caller (#1510): each item
+/// carries the [`Acker`] that acknowledges it.
+pub type AckedEventStream = Pin<Box<dyn Stream<Item = Result<(EntityEvent, Acker)>> + Send>>;
+
+type AckFn = Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send>;
+
+/// Acknowledges one delivered event to its transport.
+///
+/// Call [`ack`](Self::ack) once the event is handled. Dropping it unacknowledged leaves
+/// the event to the transport's redelivery (for NATS, after `ack_wait_secs`): a crash
+/// between delivery and acknowledgement repeats the event rather than losing it.
+pub struct Acker(Option<AckFn>);
+
+impl Acker {
+    /// An acker with nothing to do: the transport acknowledged on delivery, or has no
+    /// acknowledgement at all.
+    #[must_use]
+    pub fn none() -> Self {
+        Self(None)
+    }
+
+    /// An acker that runs `ack` when called: how a transport that defers its
+    /// acknowledgement implements [`EventTransport::subscribe_with_ack`].
+    pub fn new<F, Fut>(ack: F) -> Self
+    where
+        F: FnOnce() -> Fut + Send + 'static,
+        Fut: Future<Output = Result<()>> + Send + 'static,
+    {
+        Self(Some(Box::new(move || Box::pin(ack()))))
+    }
+
+    /// Acknowledge the event.
+    ///
+    /// # Errors
+    ///
+    /// The transport's error when the acknowledgement does not reach it; the event may
+    /// then be delivered again.
+    pub async fn ack(self) -> Result<()> {
+        match self.0 {
+            Some(ack) => ack().await,
+            None => Ok(()),
+        }
+    }
+}
+
+impl std::fmt::Debug for Acker {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(if self.0.is_some() {
+            "Acker(pending)"
+        } else {
+            "Acker(none)"
+        })
+    }
+}
+
 /// Core event transport abstraction
 ///
 /// Implementors must:
@@ -82,11 +137,27 @@ pub trait EventTransport: Send + Sync {
     /// - Stream ends on fatal errors (consumers restart loop)
     ///
     /// # ACK Semantics
-    /// - `NatsTransport` ACKs a message once it is decoded, before the stream yields it, so before
-    ///   any action runs: a crash after that point loses the event (#1510).
+    /// - Each event is acknowledged as the stream yields it, before the caller handles it. A caller
+    ///   that must not lose an event to a crash uses
+    ///   [`subscribe_with_ack`](Self::subscribe_with_ack) and acknowledges afterwards.
     /// - Replicas sharing one durable consumer compete: each message reaches one of them.
     ///   [`subscribe_broadcast`](Self::subscribe_broadcast) reaches every one.
     async fn subscribe(&self, filter: EventFilter) -> Result<EventStream>;
+
+    /// [`subscribe`](Self::subscribe), with each event acknowledged by the caller through its
+    /// [`Acker`] (#1510). An event whose acker is dropped unacknowledged is redelivered by a
+    /// transport that redelivers (NATS, after `ack_wait_secs`).
+    ///
+    /// # Errors
+    ///
+    /// As [`subscribe`](Self::subscribe).
+    async fn subscribe_with_ack(&self, filter: EventFilter) -> Result<AckedEventStream> {
+        // A transport with no deferred acknowledgement: `subscribe` already acked.
+        let stream = self.subscribe(filter).await?;
+        Ok(Box::pin(futures::StreamExt::map(stream, |item| {
+            item.map(|event| (event, Acker::none()))
+        })))
+    }
 
     /// Subscribe THIS process to every event matching `filter`, independently of
     /// every other process and of [`subscribe`](Self::subscribe) (#1503).

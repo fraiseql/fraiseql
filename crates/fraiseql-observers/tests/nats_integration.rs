@@ -177,6 +177,71 @@ mod nats_tests {
         assert!(matches!(received.event_type, EventKind::Created));
     }
 
+    /// #1510: the durable consumer is acknowledged only when the caller says the event is
+    /// handled, so a crash before then leaves it to be redelivered after `ack_wait`. It
+    /// used to be acknowledged as soon as it decoded, before any action ran, and a crash
+    /// lost it. Read from the consumer's own state: a delivered, unacknowledged message is
+    /// `num_ack_pending`.
+    #[tokio::test]
+    #[ignore = "requires NATS server - run with: cargo test --test nats_integration --features nats -- --ignored"]
+    async fn an_event_is_acknowledged_only_when_the_caller_acks_it() {
+        let test_id = Uuid::new_v4();
+        let config = NatsConfig {
+            stream_name: format!("test-ack-{test_id}"),
+            consumer_name: format!("test-ack-consumer-{test_id}"),
+            subject_prefix: format!("test.ack.{test_id}"),
+            retention_max_bytes: 1024 * 1024,
+            ..Default::default()
+        };
+        let transport = NatsTransport::new(with_nats_url(config))
+            .await
+            .expect("Should connect to NATS server");
+        let jetstream = async_nats::jetstream::new(
+            async_nats::connect(std::env::var("NATS_URL").expect("NATS_URL"))
+                .await
+                .expect("connect"),
+        );
+        let pending = || async {
+            let mut consumer: async_nats::jetstream::consumer::PullConsumer = jetstream
+                .get_stream(format!("test-ack-{test_id}"))
+                .await
+                .expect("stream")
+                .get_consumer(&format!("test-ack-consumer-{test_id}"))
+                .await
+                .expect("consumer");
+            consumer.info().await.expect("consumer info").num_ack_pending
+        };
+
+        let mut stream = transport
+            .subscribe_with_ack(EventFilter::all_tenants())
+            .await
+            .expect("Subscribe should succeed");
+        let event = EntityEvent::new(
+            EventKind::Created,
+            "Invoice".to_string(),
+            Uuid::new_v4(),
+            json!({ "amount": 42 }),
+        );
+        transport.publish(event.clone()).await.expect("Publish should succeed");
+        let (received, acker) = tokio::time::timeout(Duration::from_secs(5), stream.next())
+            .await
+            .expect("Should receive the event")
+            .expect("Stream should not end")
+            .expect("Event should be valid");
+        assert_eq!(received.id, event.id);
+
+        let before = pending().await;
+        acker.ack().await.expect("ack");
+        let after = pending().await;
+        jetstream
+            .delete_stream(format!("test-ack-{test_id}"))
+            .await
+            .expect("clean up the stream");
+
+        assert_eq!(before, 1, "a delivered event stays pending until the caller acks it");
+        assert_eq!(after, 0, "the caller's ack acknowledges it");
+    }
+
     /// Test NATS filtering by entity type
     ///
     /// Requires: NATS server running on localhost:4222

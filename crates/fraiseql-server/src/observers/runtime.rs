@@ -997,10 +997,13 @@ impl ObserverRuntime {
         }
         self.entity_type_index.store(Arc::new(entity_type_index));
 
-        // Subscribe to the event stream (a second connection-time failure point).
-        let mut stream = transport.subscribe(EventFilter::all_tenants()).await.map_err(|e| {
-            ServerError::ConfigError(format!("failed to subscribe to observer transport: {e}"))
-        })?;
+        // Subscribe to the event stream (a second connection-time failure point). Each
+        // event is acknowledged after its actions ran (#1510), so a crash mid-dispatch
+        // leaves it to the broker's redelivery instead of losing it.
+        let mut stream =
+            transport.subscribe_with_ack(EventFilter::all_tenants()).await.map_err(|e| {
+                ServerError::ConfigError(format!("failed to subscribe to observer transport: {e}"))
+            })?;
 
         // #1503: `subscribe` is a competing consumer, so on a broker each message
         // reaches one replica. Subscriptions get a per-replica broadcast read of the
@@ -1073,7 +1076,7 @@ impl ObserverRuntime {
                         }
 
                         match maybe_event {
-                            Some(Ok(event)) => {
+                            Some(Ok((event, acker))) => {
                                 process_entity_event(
                                     &event,
                                     &current_matcher,
@@ -1086,6 +1089,17 @@ impl ObserverRuntime {
                                     log_payloads,
                                 )
                                 .await;
+                                // After the actions ran, retried or dead-lettered: a
+                                // failed action is the executor's to retry, not the
+                                // broker's to redeliver.
+                                if let Err(e) = acker.ack().await {
+                                    errors.fetch_add(1, Ordering::Relaxed);
+                                    error!(
+                                        "Failed to acknowledge observer event {}; the broker \
+                                         may deliver it again: {e}",
+                                        event.id
+                                    );
+                                }
                             },
                             Some(Err(e)) => {
                                 errors.fetch_add(1, Ordering::Relaxed);

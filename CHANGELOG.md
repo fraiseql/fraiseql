@@ -589,6 +589,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **On NATS, an observer event is acknowledged after its actions ran (#1510).** The transport
+  acknowledged each JetStream message as soon as it decoded, before the runtime ran any action,
+  so a server that stopped mid-dispatch (a crash, an OOM kill, a deploy without a drain) lost the
+  event: nothing redelivered it, and `ack_wait_secs` / `max_deliver` never applied. The runtime
+  now acknowledges once `process_event` returns (an action that failed is the executor's to retry
+  and dead-letter, not the broker's), and an unacknowledged event is redelivered. For embedders,
+  `EventTransport::subscribe_with_ack` yields each event with the `Acker` that acknowledges it;
+  `subscribe` keeps acknowledging as it yields.
+
 - **`jwt:scope` injects the granted scopes (#1417).** The validator lifts the `scope` claim into
   the principal's scopes, so it never reached the claim map and `jwt:scope` failed every call
   with "claim 'scope' not present in token". It now resolves to the scopes as the token carries

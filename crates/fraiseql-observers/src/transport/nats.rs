@@ -25,7 +25,8 @@ use crate::{
     error::{ObserverError, Result},
     event::EntityEvent,
     transport::{
-        EventFilter, EventStream, EventTransport, HealthStatus, TransportHealth, TransportType,
+        AckedEventStream, Acker, EventFilter, EventStream, EventTransport, HealthStatus,
+        TransportHealth, TransportType,
     },
 };
 
@@ -272,6 +273,18 @@ impl NatsTransport {
 #[async_trait]
 impl EventTransport for NatsTransport {
     async fn subscribe(&self, filter: EventFilter) -> Result<EventStream> {
+        // Acknowledged as each event is yielded, before the caller handles it.
+        let deferred = self.subscribe_with_ack(filter).await?;
+        Ok(Box::pin(deferred.then(|item| async move {
+            let (event, acker) = item?;
+            if let Err(e) = acker.ack().await {
+                tracing::error!("Failed to acknowledge NATS message: {e}");
+            }
+            Ok(event)
+        })))
+    }
+
+    async fn subscribe_with_ack(&self, filter: EventFilter) -> Result<AckedEventStream> {
         let subject_filter = self.build_subject_filter(&filter);
         let jetstream = Arc::clone(&self.jetstream);
         let config = self.config.clone();
@@ -345,12 +358,17 @@ impl EventTransport for NatsTransport {
                                     return None;
                                 }
 
-                                // Acknowledge message after successful parsing
-                                if let Err(e) = msg.ack().await {
-                                    tracing::error!("Failed to acknowledge NATS message: {}", e);
-                                }
-
-                                Some(Ok(event))
+                                // Acknowledged by the caller once it has handled the
+                                // event (#1510). Acking here, before any action ran, made
+                                // a crash mid-dispatch lose the event.
+                                let acker = Acker::new(move || async move {
+                                    msg.ack().await.map_err(|e| {
+                                        ObserverError::TransportSubscribeFailed {
+                                            reason: format!("Failed to acknowledge NATS message: {e}"),
+                                        }
+                                    })
+                                });
+                                Some(Ok((event, acker)))
                             },
                             Err(e) => {
                                 // Increment counter so operators can monitor decode failures.
