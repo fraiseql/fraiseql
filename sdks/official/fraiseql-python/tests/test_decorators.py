@@ -666,6 +666,41 @@ def test_mutation_inject_valid_passes_through() -> None:
     assert m["inject_params"] == {"tenant_id": {"source": "jwt", "claim": "tenant_id"}}
 
 
+def test_mutation_inject_optional_claim_passes_through() -> None:
+    """``jwt_optional:`` reaches the schema on a mutation (#1418)."""
+
+    @fraiseql.type
+    class Invoice:
+        id: int
+
+    @fraiseql.mutation(
+        sql_source="app.create_invoice",
+        inject={"p_user": "jwt:sub", "p_actor": "jwt_optional:act"},
+    )
+    def create_invoice(amount: int) -> Invoice:
+        """Create an invoice, directly or on someone's behalf."""
+
+    m = SchemaRegistry.get_schema()["mutations"][0]
+    assert m["inject_params"] == {
+        "p_user": {"source": "jwt", "claim": "sub"},
+        "p_actor": {"source": "jwt_optional", "claim": "act"},
+    }
+
+
+def test_query_inject_optional_claim_is_refused() -> None:
+    """A query's inject params filter rows; an absent claim cannot (#1418)."""
+
+    @fraiseql.type
+    class Invoice:
+        id: int
+
+    with pytest.raises(ValueError, match="jwt_optional"):
+
+        @fraiseql.query(sql_source="v_invoice", inject={"act": "jwt_optional:act"})
+        def invoices() -> list[Invoice]:
+            """Never registered."""
+
+
 def test_exclude_inject_defaults_passes_through() -> None:
     """exclude_inject_defaults= reaches the schema on queries and mutations (#1383)."""
 

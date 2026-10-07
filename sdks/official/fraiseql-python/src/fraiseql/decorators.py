@@ -29,7 +29,7 @@ from fraiseql.types import extract_field_info, extract_function_signature
 
 _VALID_REST_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 _VALID_INPUT_STYLES = {"flatten", "jsonb"}
-_INJECT_SOURCE_RE = re.compile(r"^jwt:[A-Za-z_][A-Za-z0-9_]*$")
+_INJECT_SOURCE_RE = re.compile(r"^jwt(_optional)?:[A-Za-z_][A-Za-z0-9_]*$")
 _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _SQL_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*)?$")
 
@@ -122,7 +122,16 @@ def _validate_inject(
             msg = (
                 f"{context}: inject source {source!r} for param {param_name!r} is "
                 "invalid. Supported format: 'jwt:<claim_name>' "
-                "(e.g. 'jwt:org_id', 'jwt:sub')."
+                "(e.g. 'jwt:org_id', 'jwt:sub'), and on a mutation "
+                "'jwt_optional:<claim_name>'."
+            )
+            raise ValueError(msg)
+        if source.startswith("jwt_optional:") and context.startswith("@fraiseql.query"):
+            msg = (
+                f"{context}: inject source {source!r} for param {param_name!r} is "
+                "optional, but a query's inject params filter rows and an absent claim "
+                "cannot. 'jwt_optional' is for mutation arguments; use "
+                f"'jwt:{source.split(':', 1)[1]}'."
             )
             raise ValueError(msg)
 

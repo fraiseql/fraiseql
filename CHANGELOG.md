@@ -488,6 +488,14 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A mutation can inject a JWT claim the token may lack: `jwt_optional:<claim>` (#1418).** One
+  mutation can now serve a direct token and a delegated one (an RFC 8693 `act` claim): the
+  function receives SQL `NULL` when the claim is absent, where `jwt:<claim>` fails the call.
+  Accepted in `inject_params` in both wire shapes and by the Python and TypeScript SDKs'
+  `inject=`. Refused at compile time on queries and on a type's `inject_params`, where an inject
+  param filters rows, and for the tenant claim, which is never optional; the runtime refuses
+  both too.
+
 - **Observer webhooks carry the event id in `X-FraiseQL-Event-Id` (#1505).** Delivery is
   at-least-once, and the request body (the entity row, or a template over it) did not identify
   the event, so a receiver could not tell a repeat from a new change. The header carries the

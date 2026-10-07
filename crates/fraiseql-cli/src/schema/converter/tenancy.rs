@@ -76,6 +76,24 @@ pub fn validate_tenant_annotations(
     schema: &mut IntermediateSchema,
     tenant_claim: &str,
 ) -> Result<()> {
+    // #1418: an optional claim passes NULL when the token lacks it, and a function must
+    // never receive a NULL tenant. Checked on every operation, annotated or not.
+    let optional_tenant = format!("jwt_optional:{tenant_claim}");
+    let operations = schema
+        .queries
+        .iter()
+        .map(|q| ("Query", &q.name, &q.inject))
+        .chain(schema.mutations.iter().map(|m| ("Mutation", &m.name, &m.inject)));
+    for (kind, name, inject) in operations {
+        if let Some((param, _)) = inject.iter().find(|(_, source)| **source == optional_tenant) {
+            bail!(
+                "{kind} '{name}': inject param '{param}' makes the tenant claim \
+                 '{tenant_claim}' optional. The tenant claim is never optional; use \
+                 'jwt:{tenant_claim}'."
+            );
+        }
+    }
+
     let index = AnnotatedTypeIndex::build(&schema.types);
 
     // #1386: a warning here read as "configured, with a note", while every query stayed

@@ -269,6 +269,26 @@ describe("inject validation (M-ts-inject)", () => {
     ).toThrow(/inject source/);
   });
 
+  it("emits jwt_optional on a mutation (#1418)", () => {
+    registerMutation("createInvoice", "Invoice", false, false, [], undefined, {
+      sqlSource: "app.create_invoice",
+      inject: { p_user: "jwt:sub", p_actor: "jwt_optional:act" },
+    });
+    expect(SchemaRegistry.getSchema().mutations[0].inject_params).toEqual({
+      p_user: { source: "jwt", claim: "sub" },
+      p_actor: { source: "jwt_optional", claim: "act" },
+    });
+  });
+
+  it("refuses jwt_optional on a query, whose inject params filter rows (#1418)", () => {
+    expect(() =>
+      registerQuery("invoices", "Invoice", true, false, [], undefined, {
+        sqlSource: "v_invoice",
+        inject: { act: "jwt_optional:act" },
+      })
+    ).toThrow(/jwt_optional/);
+  });
+
   it("throws on an inject source with an empty claim", () => {
     expect(() =>
       registerQuery("emptyClaim", "X", true, false, [], undefined, {

@@ -1451,6 +1451,57 @@ mod mutation {
         schema
     }
 
+    /// #1418: one mutation serves a direct token and a delegated one. The function
+    /// receives the optional `act` claim as NULL when the token lacks it, after the
+    /// required `sub` claim, and the call goes through.
+    #[tokio::test]
+    async fn an_optional_claim_the_token_lacks_is_passed_to_the_function_as_null() {
+        use crate::schema::InjectedParamSource;
+        let mut schema = schema_with_insert_mutation();
+        let mutation = &mut schema.mutations[0];
+        mutation
+            .inject_params
+            .insert("p_user".to_string(), InjectedParamSource::Jwt("sub".to_string()));
+        mutation
+            .inject_params
+            .insert("p_actor".to_string(), InjectedParamSource::JwtOptional("act".to_string()));
+        schema.build_indexes();
+        let adapter = Arc::new(CapturingFunctionCallAdapter::new());
+        let adapter_ref = Arc::clone(&adapter);
+        let executor = Executor::new(schema, adapter);
+        let direct = crate::security::SecurityContext {
+            user_id:          "user-1".into(),
+            roles:            vec![],
+            tenant_id:        None,
+            scopes:           vec![],
+            attributes:       std::collections::HashMap::default(),
+            request_id:       "req-1".to_string(),
+            ip_address:       None,
+            expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+            authenticated_at: chrono::Utc::now(),
+            issuer:           None,
+            audience:         None,
+            email:            None,
+            display_name:     None,
+        };
+
+        executor
+            .execute_mutation_with_security(
+                "create_user",
+                &serde_json::json!({"input": {"name": "Alice", "email": "a@example.com"}}),
+                Some(&direct),
+            )
+            .await
+            .expect("a direct token, with no `act` claim, must still call the function");
+
+        let args = adapter_ref.args();
+        assert_eq!(
+            &args[args.len() - 2..],
+            &[serde_json::json!("user-1"), serde_json::Value::Null],
+            "inject params follow the arguments, the absent optional claim as NULL: {args:?}"
+        );
+    }
+
     /// Update mutations must pass the entire input object as a single JSONB arg,
     /// not flattened positional args. This is the prerequisite for three-state semantics.
     #[tokio::test]

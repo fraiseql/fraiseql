@@ -487,12 +487,16 @@ const VALID_INPUT_STYLES = new Set(["flatten", "jsonb"]);
 
 /** An inject param name must be a plain identifier (ports the Python SDK rule). */
 const INJECT_KEY_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
-/** An inject source must be `jwt:<claim>` with an identifier claim. */
-const INJECT_SOURCE_RE = /^jwt:[A-Za-z_][A-Za-z0-9_]*$/;
+/**
+ * An inject source must be `jwt:<claim>` with an identifier claim, or on a mutation
+ * `jwt_optional:<claim>`, which passes NULL when the token lacks the claim (#1418).
+ */
+const INJECT_SOURCE_RE = /^jwt(_optional)?:[A-Za-z_][A-Za-z0-9_]*$/;
 
 function normaliseConfig(
   config: Record<string, unknown>,
-  argNames?: Set<string>
+  argNames?: Set<string>,
+  operation: "query" | "mutation" = "query"
 ): Record<string, unknown> {
   const keyMap: Record<string, string> = {
     sqlSource: "sql_source",
@@ -596,7 +600,15 @@ function normaliseConfig(
         if (typeof spec !== "string" || !INJECT_SOURCE_RE.test(spec)) {
           throw new Error(
             `inject source '${String(spec)}' for param '${param}' is invalid. Supported ` +
-              "format: 'jwt:<claim_name>' (e.g. 'jwt:org_id', 'jwt:sub')."
+              "format: 'jwt:<claim_name>' (e.g. 'jwt:org_id', 'jwt:sub'), and on a " +
+              "mutation 'jwt_optional:<claim_name>'."
+          );
+        }
+        if (operation === "query" && spec.startsWith("jwt_optional:")) {
+          throw new Error(
+            `inject source '${spec}' for param '${param}' is optional, but a query's ` +
+              "inject params filter rows and an absent claim cannot. 'jwt_optional' is " +
+              `for mutation arguments; use 'jwt:${spec.slice(spec.indexOf(":") + 1)}'.`
           );
         }
         const colonIdx = spec.indexOf(":");
@@ -1025,7 +1037,7 @@ export class SchemaRegistry {
 
     // Normalise camelCase config keys to snake_case for the compiler
     const normalisedConfig = config
-      ? normaliseConfig(config, new Set(args.map((a) => a.name)))
+      ? normaliseConfig(config, new Set(args.map((a) => a.name)), "mutation")
       : undefined;
 
     // Default REST method to POST for mutations

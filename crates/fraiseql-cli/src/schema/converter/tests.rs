@@ -4493,3 +4493,76 @@ fn the_count_sibling_carries_no_pagination_order() {
     assert_eq!(parent.pagination_order, Some(PaginationOrder::JsonIdentity));
     assert_eq!(parent.count_sibling().pagination_order, None);
 }
+
+// ── #1418: `jwt_optional` — a mutation argument may be absent, a row filter may not ──
+
+mod optional_claim {
+    use fraiseql_core::schema::InjectedParamSource;
+
+    use crate::schema::{
+        SchemaConverter, converter::tenancy::validate_tenant_annotations,
+        intermediate::IntermediateSchema,
+    };
+
+    fn schema(json: &str) -> IntermediateSchema {
+        serde_json::from_str(json).unwrap()
+    }
+
+    const INVOICE: &str =
+        r#"{"name": "Invoice", "fields": [{"name": "id", "type": "ID", "nullable": false}]}"#;
+
+    #[test]
+    fn a_mutation_may_inject_an_optional_claim_in_either_wire_shape() {
+        for inject in [
+            r#""jwt_optional:act""#,
+            r#"{"source": "jwt_optional", "claim": "act"}"#,
+        ] {
+            let compiled = SchemaConverter::convert(schema(&format!(
+                r#"{{"types": [{INVOICE}], "mutations": [{{"name": "createInvoice",
+                    "return_type": "Invoice", "sql_source": "app.create_invoice",
+                    "inject_params": {{"p_actor": {inject}}}}}]}}"#
+            )))
+            .expect("an optional claim is a valid mutation argument");
+            assert_eq!(
+                compiled.mutations[0].inject_params.get("p_actor"),
+                Some(&InjectedParamSource::JwtOptional("act".to_string()))
+            );
+        }
+    }
+
+    #[test]
+    fn a_query_may_not_filter_rows_on_an_optional_claim() {
+        let err = SchemaConverter::convert(schema(&format!(
+            r#"{{"types": [{INVOICE}], "queries": [{{"name": "invoices",
+                "return_type": "Invoice", "returns_list": true, "sql_source": "v_invoice",
+                "inject_params": {{"act": "jwt_optional:act"}}}}]}}"#
+        )))
+        .unwrap_err();
+        let err = format!("{err:#}");
+        assert!(err.contains("invoices") && err.contains("jwt_optional"), "{err}");
+    }
+
+    #[test]
+    fn a_type_may_not_scope_its_rows_on_an_optional_claim() {
+        let err = SchemaConverter::convert(schema(
+            r#"{"types": [{"name": "Invoice", "fields": [{"name": "id", "type": "ID", "nullable": false}],
+                "sql_source": "v_invoice", "inject_params": {"act": "jwt_optional:act"}}]}"#,
+        ))
+        .unwrap_err();
+        let err = format!("{err:#}");
+        assert!(err.contains("Invoice") && err.contains("jwt_optional"), "{err}");
+    }
+
+    #[test]
+    fn the_tenant_claim_is_never_optional() {
+        let mut intermediate = schema(&format!(
+            r#"{{"types": [{INVOICE}], "mutations": [{{"name": "createInvoice",
+                "return_type": "Invoice", "sql_source": "app.create_invoice",
+                "inject_params": {{"p_tenant": "jwt_optional:org_id"}}}}]}}"#
+        ));
+        let err = validate_tenant_annotations(&mut intermediate, "org_id")
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("createInvoice") && err.contains("org_id"), "{err}");
+    }
+}

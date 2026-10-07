@@ -24,6 +24,14 @@ impl SchemaConverter {
     /// Returns an error if the string uses an unsupported prefix, or if the
     /// `jwt:` prefix is present but the claim name is empty.
     pub(super) fn parse_inject_source(raw: &str) -> Result<InjectedParamSource> {
+        if let Some(claim) = raw.strip_prefix("jwt_optional:") {
+            if claim.is_empty() {
+                bail!(
+                    "inject source 'jwt_optional:' requires a claim name (e.g. 'jwt_optional:act')"
+                );
+            }
+            return Ok(InjectedParamSource::JwtOptional(claim.to_owned()));
+        }
         if let Some(claim) = raw.strip_prefix("jwt:") {
             if claim.is_empty() {
                 bail!("inject source 'jwt:' requires a claim name (e.g. 'jwt:org_id')");
@@ -32,15 +40,37 @@ impl SchemaConverter {
         }
         bail!(
             "Unknown inject source prefix in {raw:?}. \
-             Supported: 'jwt:<claim_name>' (e.g. 'jwt:org_id', 'jwt:sub')"
+             Supported: 'jwt:<claim_name>' (e.g. 'jwt:org_id', 'jwt:sub'), and on a \
+             mutation 'jwt_optional:<claim_name>' (e.g. 'jwt_optional:act')"
         )
     }
 
+    /// Refuse a `jwt_optional` source where an inject param filters rows (#1418): a
+    /// query's or a type's `inject_params`. An absent claim must not become a filter.
+    pub(super) fn refuse_optional_row_filter(
+        owner: &str,
+        param: &str,
+        source: &InjectedParamSource,
+    ) -> Result<()> {
+        if let InjectedParamSource::JwtOptional(claim) = source {
+            bail!(
+                "{owner}: inject param '{param}' is 'jwt_optional:{claim}', but here it filters \
+                 rows, and an absent claim cannot. 'jwt_optional' is for mutation arguments; \
+                 use 'jwt:{claim}'."
+            );
+        }
+        Ok(())
+    }
+
     /// Convert inject map from intermediate format (raw strings) to compiled format.
+    ///
+    /// `row_filter` is true for a query, whose inject params become WHERE predicates,
+    /// and false for a mutation, whose inject params are function arguments.
     pub(super) fn convert_inject_params(
         op_name: &str,
         arg_names: &HashSet<&str>,
         inject: indexmap::IndexMap<String, String>,
+        row_filter: bool,
     ) -> Result<indexmap::IndexMap<String, InjectedParamSource>> {
         inject
             .into_iter()
@@ -51,7 +81,15 @@ impl SchemaConverter {
                          argument name. Rename either the inject param or the argument."
                     );
                 }
-                Ok((name, Self::parse_inject_source(&source)?))
+                let parsed = Self::parse_inject_source(&source)?;
+                if row_filter {
+                    Self::refuse_optional_row_filter(
+                        &format!("Query '{op_name}'"),
+                        &name,
+                        &parsed,
+                    )?;
+                }
+                Ok((name, parsed))
             })
             .collect()
     }
@@ -128,7 +166,7 @@ impl SchemaConverter {
 
         let arg_names: HashSet<&str> = arguments.iter().map(|a| a.name.as_str()).collect();
         let inject_params =
-            Self::convert_inject_params(&intermediate.name, &arg_names, intermediate.inject)
+            Self::convert_inject_params(&intermediate.name, &arg_names, intermediate.inject, true)
                 .context(format!(
                     "Failed to convert inject params for query '{}'",
                     intermediate.name

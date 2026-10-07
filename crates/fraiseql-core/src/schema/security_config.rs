@@ -26,6 +26,14 @@ pub enum InjectedParamSource {
     /// claim as the token carried it. A claim the token does not carry is an error;
     /// no other claim and no derived value stands in for it (#1388).
     Jwt(String),
+    /// A JWT claim the token may lack (#1418): `NULL` when it is absent, so one
+    /// mutation serves a direct token and a delegated one (an RFC 8693 `act` claim).
+    ///
+    /// Valid only as a **mutation function argument**. On a query, or a type's
+    /// `inject_params`, an inject param is a row filter, and an absent claim must not
+    /// become one: the compiler refuses it there and the runtime refuses it too. The
+    /// tenant claim is never optional.
+    JwtOptional(String),
     /// Extract a DB-resolved enriched-identity field, read from the reserved
     /// `fraiseql.enriched.*` attribute namespace (#539).
     ///

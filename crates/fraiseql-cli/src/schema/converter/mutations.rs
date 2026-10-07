@@ -21,7 +21,7 @@ impl SchemaConverter {
 
         let arg_names: HashSet<&str> = arguments.iter().map(|a| a.name.as_str()).collect();
         let inject_params =
-            Self::convert_inject_params(&intermediate.name, &arg_names, intermediate.inject)
+            Self::convert_inject_params(&intermediate.name, &arg_names, intermediate.inject, false)
                 .context(format!(
                     "Failed to convert inject params for mutation '{}'",
                     intermediate.name

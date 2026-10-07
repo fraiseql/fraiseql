@@ -1336,6 +1336,57 @@ mod inject {
         assert_eq!(result, serde_json::Value::String("user-42".to_string()));
     }
 
+    /// `jwt_optional:<claim>` (#1418): one mutation serves a direct token and a
+    /// delegated one. An absent claim reaches the function as SQL `NULL`.
+    #[test]
+    fn an_optional_claim_the_token_lacks_reaches_a_mutation_as_null() {
+        let ctx = make_security_ctx("user-1", None, &[]);
+        let source = InjectedParamSource::JwtOptional("act".to_string());
+        let value =
+            resolve_mutation_inject_value("p_actor", &source, &ctx, DEFAULT_TENANT_CLAIM).unwrap();
+        assert_eq!(value, serde_json::Value::Null);
+    }
+
+    #[test]
+    fn an_optional_claim_the_token_carries_reaches_a_mutation_as_the_claim() {
+        let act = serde_json::json!({"sub": "agent-7"});
+        let ctx = make_security_ctx("user-1", None, &[("act", act.clone())]);
+        let source = InjectedParamSource::JwtOptional("act".to_string());
+        let value =
+            resolve_mutation_inject_value("p_actor", &source, &ctx, DEFAULT_TENANT_CLAIM).unwrap();
+        assert_eq!(value, act);
+    }
+
+    /// A required claim stays fail-closed on the mutation path.
+    #[test]
+    fn a_required_claim_the_token_lacks_still_fails_a_mutation() {
+        let ctx = make_security_ctx("user-1", None, &[]);
+        let source = InjectedParamSource::Jwt("act".to_string());
+        assert!(
+            resolve_mutation_inject_value("p_actor", &source, &ctx, DEFAULT_TENANT_CLAIM).is_err()
+        );
+    }
+
+    /// A function must never receive a NULL tenant, whatever the compiler checked.
+    #[test]
+    fn the_tenant_claim_is_refused_as_an_optional_mutation_argument() {
+        let ctx = make_security_ctx("user-1", None, &[]);
+        let source = InjectedParamSource::JwtOptional(DEFAULT_TENANT_CLAIM.to_string());
+        let err = resolve_mutation_inject_value("p_tenant", &source, &ctx, DEFAULT_TENANT_CLAIM)
+            .unwrap_err();
+        assert!(err.to_string().contains("cannot be optional"), "{err}");
+    }
+
+    /// On a query an inject param is a row filter, and an absent claim must not
+    /// become one. The compiler refuses `jwt_optional` there; the runtime does too.
+    #[test]
+    fn an_optional_claim_is_refused_as_a_row_filter() {
+        let ctx = make_security_ctx("user-1", None, &[("act", serde_json::json!("x"))]);
+        let source = InjectedParamSource::JwtOptional("act".to_string());
+        let err = resolve_inject_value("act", &source, &ctx, DEFAULT_TENANT_CLAIM).unwrap_err();
+        assert!(err.to_string().contains("jwt_optional"), "{err}");
+    }
+
     /// `jwt:<claim>` reads the claim the token carries (#1388). The contexts below are
     /// shaped as `build_security_context` produces them: every non-reserved claim is in
     /// `attributes`, and `tenant_id` is derived from the token separately — here from a

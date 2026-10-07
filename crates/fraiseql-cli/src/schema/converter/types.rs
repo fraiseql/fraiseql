@@ -85,6 +85,7 @@ impl SchemaConverter {
             .map(|(column, source)| {
                 let parsed = Self::parse_inject_source(&source)
                     .with_context(|| format!("Type '{type_name}': inject param '{column}'"))?;
+                Self::refuse_optional_row_filter(&format!("Type '{type_name}'"), &column, &parsed)?;
                 Ok((column, parsed))
             })
             .collect::<Result<indexmap::IndexMap<_, _>>>()?;

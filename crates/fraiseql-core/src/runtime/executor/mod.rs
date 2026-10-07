@@ -411,6 +411,14 @@ fn resolve_inject_value(
     tenant_claim: &str,
 ) -> Result<serde_json::Value> {
     match source {
+        // A row filter: an absent claim must not become one (#1418).
+        InjectedParamSource::JwtOptional(claim) => Err(FraiseQLError::Validation {
+            message: format!(
+                "Inject param '{param_name}': 'jwt_optional:{claim}' can only be a mutation \
+                 argument; a row filter cannot be optional"
+            ),
+            path:    None,
+        }),
         InjectedParamSource::Jwt(claim) => {
             security_ctx
                 .jwt_claim(claim, tenant_claim)
@@ -440,4 +448,31 @@ fn resolve_inject_value(
                 })
         },
     }
+}
+
+/// [`resolve_inject_value`] for a mutation's function arguments, where a
+/// `jwt_optional` claim the token lacks is passed as SQL `NULL` (#1418).
+///
+/// # Errors
+///
+/// As [`resolve_inject_value`], and for an optional source naming the tenant claim:
+/// a function must never receive a `NULL` tenant.
+fn resolve_mutation_inject_value(
+    param_name: &str,
+    source: &InjectedParamSource,
+    security_ctx: &SecurityContext,
+    tenant_claim: &str,
+) -> Result<serde_json::Value> {
+    let InjectedParamSource::JwtOptional(claim) = source else {
+        return resolve_inject_value(param_name, source, security_ctx, tenant_claim);
+    };
+    if claim == tenant_claim {
+        return Err(FraiseQLError::Validation {
+            message: format!(
+                "Inject param '{param_name}': the tenant claim '{claim}' cannot be optional"
+            ),
+            path:    None,
+        });
+    }
+    Ok(security_ctx.jwt_claim(claim, tenant_claim).unwrap_or(serde_json::Value::Null))
 }

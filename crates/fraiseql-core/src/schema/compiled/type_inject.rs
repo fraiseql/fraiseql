@@ -93,6 +93,7 @@ impl CompiledSchema {
 fn describe_source(source: &InjectedParamSource) -> String {
     match source {
         InjectedParamSource::Jwt(claim) => format!("jwt claim '{claim}'"),
+        InjectedParamSource::JwtOptional(claim) => format!("optional jwt claim '{claim}'"),
         InjectedParamSource::Enrichment(field) => format!("enriched field '{field}'"),
     }
 }

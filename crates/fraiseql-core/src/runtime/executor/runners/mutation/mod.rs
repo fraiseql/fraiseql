@@ -17,7 +17,7 @@ pub use payload_gates::{StampContract, mutation_contract_errors};
 
 use self::payload_gates::{PayloadGates, PayloadPosition};
 use super::{
-    super::{context::ExecutorContext, mutation::WriteSelections, resolve_inject_value},
+    super::{context::ExecutorContext, mutation::WriteSelections, resolve_mutation_inject_value},
     query_projection::selections_contain_field,
 };
 use crate::{
@@ -1593,7 +1593,7 @@ pub(in super::super) async fn execute_mutation_impl(
             path:    None,
         })?;
         for (param_name, source) in &mutation_def.inject_params {
-            args.push(resolve_inject_value(
+            args.push(resolve_mutation_inject_value(
                 param_name,
                 source,
                 sec_ctx,
