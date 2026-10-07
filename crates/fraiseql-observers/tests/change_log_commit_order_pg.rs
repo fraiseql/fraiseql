@@ -25,7 +25,7 @@
 use std::str::FromStr;
 
 use fraiseql_observers::{
-    listener::{ChangeLogListener, ChangeLogListenerConfig},
+    listener::{ChangeLogListener, ChangeLogListenerConfig, ChangeLogTail},
     migrations::entity_change_log_contract_sql,
 };
 use fraiseql_test_utils::database_url;
@@ -495,4 +495,102 @@ async fn a_resume_from_the_last_received_event_recovers_the_straggler() {
         vec![straggler_seq],
         "resuming from seq {anchor_seq} must return the straggler (seq {straggler_seq});          `WHERE seq > {anchor_seq}` returns nothing and loses it silently"
     );
+}
+
+// ── The per-process fan-out tail (#1503) ────────────────────────────────────
+
+async fn insert(pool: &PgPool, n: i64) -> i64 {
+    sqlx::query_scalar(INSERT_RETURNING_PK)
+        .bind("User")
+        .bind(serde_json::json!({ "n": n }))
+        .fetch_one(pool)
+        .await
+        .unwrap()
+}
+
+async fn tail_ids(tail: &mut ChangeLogTail) -> Vec<i64> {
+    tail.next_batch().await.unwrap().iter().map(|e| e.id).collect()
+}
+
+/// The #935 shape against the fan-out tail. The settle delay is zero, so only the
+/// transaction-horizon rule can keep the floor below the straggler: while session A
+/// is open, no later poll may move the floor past A's pk.
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn the_tail_delivers_a_row_that_commits_below_a_pk_it_already_handed_out() {
+    let pool = pool().await;
+    fresh_contract(&pool).await;
+    let mut tail = ChangeLogTail::start_with_settle(pool.clone(), 100, std::time::Duration::ZERO)
+        .await
+        .unwrap();
+
+    let mut session_a = pool.begin().await.unwrap();
+    let pk_a: i64 = sqlx::query_scalar(INSERT_RETURNING_PK)
+        .bind("User")
+        .bind(serde_json::json!({ "n": 1 }))
+        .fetch_one(&mut *session_a)
+        .await
+        .unwrap();
+    let pk_b = insert(&pool, 2).await;
+    assert!(pk_b > pk_a, "test setup: B must hold the higher pk (a={pk_a}, b={pk_b})");
+
+    assert_eq!(tail_ids(&mut tail).await, vec![pk_b], "only the committed row is visible");
+    // More polls while A is still open: each one is a chance to raise the floor.
+    for _ in 0..3 {
+        assert_eq!(tail_ids(&mut tail).await, Vec::<i64>::new());
+    }
+
+    session_a.commit().await.unwrap();
+    assert_eq!(
+        tail_ids(&mut tail).await,
+        vec![pk_a],
+        "pk {pk_a} committed after pk {pk_b} was handed out and must still be delivered"
+    );
+    assert_eq!(tail_ids(&mut tail).await, Vec::<i64>::new(), "and only once");
+}
+
+/// Each committed row once, in pk order, and nothing written before the tail
+/// started: a process has no subscriber for changes older than itself.
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn the_tail_hands_out_each_new_row_once_and_none_from_before_it_started() {
+    let pool = pool().await;
+    fresh_contract(&pool).await;
+    sqlx::query(
+        "INSERT INTO core.tb_entity_change_log \
+         (object_type, modification_type, object_id, object_data, created_at) \
+         VALUES ('User', 'INSERT', gen_random_uuid(), '{}', now() - interval '1 hour')",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    insert(&pool, 0).await; // inside the settle delay: also before the start
+
+    let mut tail = ChangeLogTail::start(pool.clone(), 100).await.unwrap();
+    assert_eq!(tail_ids(&mut tail).await, Vec::<i64>::new(), "no row from before the start");
+
+    let first = insert(&pool, 1).await;
+    let second = insert(&pool, 2).await;
+    assert_eq!(tail_ids(&mut tail).await, vec![first, second]);
+    assert_eq!(tail_ids(&mut tail).await, Vec::<i64>::new(), "each row once");
+}
+
+/// The tail does not read the dispatch ledger, and two tails do not share
+/// anything: a row the lease holder already dispatched still reaches every
+/// process's subscribers.
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn every_tail_delivers_a_row_the_dispatcher_already_recorded() {
+    let pool = pool().await;
+    fresh_contract(&pool).await;
+    let mut replica_a = ChangeLogTail::start(pool.clone(), 100).await.unwrap();
+    let mut replica_b = ChangeLogTail::start(pool.clone(), 100).await.unwrap();
+
+    let pk = insert(&pool, 1).await;
+    let mut dispatcher = ChangeLogListener::new(ChangeLogListenerConfig::new(pool.clone()));
+    let batch = dispatcher.next_batch().await.unwrap();
+    dispatcher.record_dispatched(&batch).await.unwrap();
+
+    assert_eq!(tail_ids(&mut replica_a).await, vec![pk]);
+    assert_eq!(tail_ids(&mut replica_b).await, vec![pk]);
 }

@@ -26,7 +26,8 @@ use fraiseql_observers::{
         CheckpointState as ObserverCheckpointState, CheckpointStore, PostgresCheckpointStore,
     },
     config::{EmailSmtpConfig, TransportConfig, TransportKind},
-    transport::{EventFilter, EventTransport},
+    listener::ChangeLogTail,
+    transport::{EventFilter, EventStream, EventTransport},
 };
 use futures::StreamExt;
 use sqlx::PgPool;
@@ -304,6 +305,8 @@ pub struct ObserverRuntime {
     running:             Arc<AtomicBool>,
     /// Handle to the background processing task
     task_handle:         Option<JoinHandle<()>>,
+    /// Handle to this replica's subscription fan-out task (#1503), when it has one.
+    fanout_handle:       Option<JoinHandle<()>>,
     /// Channel to send shutdown signal
     shutdown_tx:         Option<mpsc::Sender<()>>,
     /// Statistics
@@ -359,6 +362,7 @@ impl ObserverRuntime {
             repository,
             running: Arc::new(AtomicBool::new(false)),
             task_handle: None,
+            fanout_handle: None,
             shutdown_tx: None,
             events_processed: Arc::new(std::sync::atomic::AtomicU64::new(0)),
             errors: Arc::new(std::sync::atomic::AtomicU64::new(0)),
@@ -648,8 +652,25 @@ impl ObserverRuntime {
         let executor_ref = Arc::clone(&self.executor);
         let entity_type_index_ref = Arc::clone(&self.entity_type_index);
 
-        // Clone optional EventBridge sender for forwarding CDC events to subscriptions
-        let bridge_sender = self.event_bridge_sender.clone();
+        // #1503: subscriptions are fed by this replica's own read of the change log,
+        // not by dispatch. Dispatch runs on one replica only (the lease above), and a
+        // subscriber is connected to any of them. The tail starts here, before
+        // `start` returns, so a change committed right after start reaches it.
+        if let Some(sender) = self.event_bridge_sender.clone() {
+            let tail = ChangeLogTail::start(self.config.pool.clone(), self.config.batch_size)
+                .await
+                .map_err(|e| {
+                    ServerError::ConfigError(format!(
+                        "failed to start the subscription fan-out reader: {e}"
+                    ))
+                })?;
+            self.fanout_handle = Some(tokio::spawn(run_change_log_fanout(
+                tail,
+                sender,
+                Duration::from_millis(self.config.poll_interval_ms),
+                self.errors.clone(),
+            )));
+        }
 
         // Extract non-optional initial values for the background task.
         // SAFETY: These were populated immediately above in this function before we
@@ -793,7 +814,7 @@ impl ObserverRuntime {
                                         &current_executor,
                                         &entity_type_index_ref,
                                         &pool,
-                                        bridge_sender.as_ref(),
+                                        None,
                                         &events_processed,
                                         &errors,
                                         log_payloads,
@@ -981,6 +1002,29 @@ impl ObserverRuntime {
             ServerError::ConfigError(format!("failed to subscribe to observer transport: {e}"))
         })?;
 
+        // #1503: `subscribe` is a competing consumer, so on a broker each message
+        // reaches one replica. Subscriptions get a per-replica broadcast read of the
+        // same stream instead. The in-memory transport lives in one process, which is
+        // the whole deployment, so dispatch keeps feeding its subscribers.
+        let dispatch_bridge = match (self.event_bridge_sender.clone(), kind) {
+            (Some(sender), TransportKind::InMemory) => Some(sender),
+            (Some(sender), _) => {
+                let broadcast = transport
+                    .subscribe_broadcast(EventFilter::all_tenants())
+                    .await
+                    .map_err(|e| {
+                        ServerError::ConfigError(format!(
+                            "failed to subscribe to the observer transport for \
+                                 subscription fan-out: {e}"
+                        ))
+                    })?;
+                self.fanout_handle =
+                    Some(tokio::spawn(run_stream_fanout(broadcast, sender, self.errors.clone())));
+                None
+            },
+            (None, _) => None,
+        };
+
         // Shutdown + readiness channels (same protocol as the PG path).
         let (shutdown_tx, mut shutdown_rx) = mpsc::channel::<()>(1);
         self.shutdown_tx = Some(shutdown_tx);
@@ -995,7 +1039,7 @@ impl ObserverRuntime {
         let matcher_ref = Arc::clone(&self.matcher);
         let executor_ref = Arc::clone(&self.executor);
         let entity_type_index_ref = Arc::clone(&self.entity_type_index);
-        let bridge_sender = self.event_bridge_sender.clone();
+        let bridge_sender = dispatch_bridge;
 
         let mut current_matcher = matcher;
         let mut current_executor = executor;
@@ -1096,6 +1140,12 @@ impl ObserverRuntime {
         // Wait for task to complete
         if let Some(handle) = self.task_handle.take() {
             let _ = tokio::time::timeout(Duration::from_secs(10), handle).await;
+        }
+        // The fan-out holds no durable state: it records nothing and acknowledges
+        // nothing, so stopping it mid-poll loses only events no subscriber here
+        // will be connected to receive.
+        if let Some(handle) = self.fanout_handle.take() {
+            handle.abort();
         }
 
         info!("Observer runtime stopped");
@@ -1439,6 +1489,64 @@ pub(crate) fn bridge_event_for(event: &ObserverEntityEvent) -> Option<BridgeEnti
     }
 
     Some(bridge_event)
+}
+
+/// This replica's subscription fan-out on PostgreSQL (#1503): read every committed
+/// change-log row through a per-process [`ChangeLogTail`] and forward it to the
+/// `EventBridge`. Independent of dispatch, so a standby's subscribers see every
+/// change, and an observer action that fails does not hide the change from them.
+async fn run_change_log_fanout(
+    mut tail: ChangeLogTail,
+    sender: mpsc::Sender<BridgeEntityEvent>,
+    poll_interval: Duration,
+    errors: Arc<std::sync::atomic::AtomicU64>,
+) {
+    loop {
+        match tail.next_batch().await {
+            Ok(entries) if entries.is_empty() => tokio::time::sleep(poll_interval).await,
+            Ok(entries) => {
+                for entry in entries {
+                    match entry.to_entity_event() {
+                        Ok(event) => forward_event(&sender, &event).await,
+                        Err(e) => {
+                            errors.fetch_add(1, Ordering::Relaxed);
+                            warn!("Fan-out could not convert change-log row {}: {e}", entry.id);
+                        },
+                    }
+                }
+            },
+            Err(e) => {
+                errors.fetch_add(1, Ordering::Relaxed);
+                warn!("Subscription fan-out failed to read the change log: {e}");
+                tokio::time::sleep(Duration::from_secs(1)).await;
+            },
+        }
+    }
+}
+
+/// This replica's subscription fan-out on a broker transport (#1503): every event of
+/// its own broadcast subscription goes to the `EventBridge`.
+async fn run_stream_fanout(
+    mut stream: EventStream,
+    sender: mpsc::Sender<BridgeEntityEvent>,
+    errors: Arc<std::sync::atomic::AtomicU64>,
+) {
+    while let Some(next) = stream.next().await {
+        match next {
+            Ok(event) => forward_event(&sender, &event).await,
+            Err(e) => {
+                errors.fetch_add(1, Ordering::Relaxed);
+                warn!("Subscription fan-out stream error: {e}");
+            },
+        }
+    }
+    warn!("Subscription fan-out stream ended; this replica's subscribers receive no changes");
+}
+
+async fn forward_event(sender: &mpsc::Sender<BridgeEntityEvent>, event: &ObserverEntityEvent) {
+    if let Some(bridge_event) = bridge_event_for(event) {
+        forward_to_bridge(sender, bridge_event, &event.id.to_string()).await;
+    }
 }
 
 /// Forward one subscriber-visible event into the `EventBridge` channel.

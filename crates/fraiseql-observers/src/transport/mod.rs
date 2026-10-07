@@ -82,11 +82,34 @@ pub trait EventTransport: Send + Sync {
     /// - Stream ends on fatal errors (consumers restart loop)
     ///
     /// # ACK Semantics
-    /// - `NatsTransport` ACKs only after `ObserverExecutor::process_event()` returns `Ok()`
-    /// - At-least-once delivery preserved (redelivery on processing failure)
-    /// - If processing fails, message is NOT `ACKed` and will be redelivered
-    /// - Idempotent consumers required (duplicates possible on retry)
+    /// - `NatsTransport` ACKs a message once it is decoded, before the stream yields it, so before
+    ///   any action runs: a crash after that point loses the event (#1510).
+    /// - Replicas sharing one durable consumer compete: each message reaches one of them.
+    ///   [`subscribe_broadcast`](Self::subscribe_broadcast) reaches every one.
     async fn subscribe(&self, filter: EventFilter) -> Result<EventStream>;
+
+    /// Subscribe THIS process to every event matching `filter`, independently of
+    /// every other process and of [`subscribe`](Self::subscribe) (#1503).
+    ///
+    /// `subscribe` is a competing consumer: replicas sharing it split the stream,
+    /// which is right for dispatching actions once and wrong for subscription
+    /// fan-out, where every replica's subscribers must see every change. A broadcast
+    /// subscription acknowledges nothing and records nothing; an event arriving while
+    /// the process is down is not replayed to it.
+    ///
+    /// # Errors
+    ///
+    /// The default returns [`crate::error::ObserverError::TransportSubscribeFailed`]:
+    /// a transport that cannot broadcast says so rather than silently competing.
+    async fn subscribe_broadcast(&self, filter: EventFilter) -> Result<EventStream> {
+        let _ = filter;
+        Err(crate::error::ObserverError::TransportSubscribeFailed {
+            reason: format!(
+                "the {:?} transport has no per-process broadcast subscription",
+                self.transport_type()
+            ),
+        })
+    }
 
     /// Publish event (for observers that trigger new events)
     async fn publish(&self, event: EntityEvent) -> Result<()>;

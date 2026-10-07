@@ -723,10 +723,10 @@ impl Server {
 
                 // Create EventBridge to forward CDC events to GraphQL subscriptions,
                 // and — since #1309 — to the entity-event fan-out the REST
-                // `/{resource}/stream` mount reads. Both consumers are downstream of the
-                // observer executor, which is what keeps a browser tab from taking
-                // events away from it: `EventTransport::subscribe` is a competing
-                // consumer on every transport, so subscribing per request would have.
+                // `/{resource}/stream` mount reads. The runtime feeds it from this
+                // replica's own read of the changes (#1503), never from a per-request
+                // subscription: `EventTransport::subscribe` is a competing consumer, so a
+                // browser tab subscribing would have taken events away from dispatch.
                 let mut bridge =
                     EventBridge::new(self.subscription_manager.clone(), EventBridgeConfig::new());
                 if let Some(ref fanout) = self.entity_event_fanout {

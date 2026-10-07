@@ -165,10 +165,26 @@ poller that crashes, or loses its session, between running a batch's actions and
 them leaves that batch to be dispatched again by the next poller. Make actions idempotent
 where a repeat matters (see [observer-idempotency.md](observer-idempotency.md)).
 
-GraphQL subscriptions and REST `/{resource}/stream` deliveries are fed by the events the
-replica's own runtime consumed, so a subscriber connected to a standby replica receives no
-change events (on NATS, each replica's subscribers see the share of messages that replica
-consumed). Route subscribers to the polling replica; issue #1503 tracks per-replica fan-out.
+**Subscriptions on every replica.** Dispatch and subscription delivery are separate reads.
+Actions run once per deployment, as described above; GraphQL subscriptions and REST
+`/{resource}/stream` deliveries are fed by each replica's own read, so a subscriber receives
+every change whichever replica it is connected to:
+
+- *PostgreSQL:* each replica tails `core.tb_entity_change_log` for its own subscribers,
+  independently of the poll lease and the dispatch ledger, and writes nothing to the
+  database. It polls every `poll_interval_ms` and hands each committed row out once, including
+  a row whose transaction commits after a later row was already read. A replica delivers the
+  changes committed after it started.
+- *NATS:* each replica reads the stream through its own ephemeral JetStream consumer, next to
+  the shared durable consumer that dispatch uses. It starts at new messages and acknowledges
+  nothing; the broker removes it a minute after the replica stops pulling.
+
+A change reaches subscribers whether or not its observer actions succeed.
+
+The PostgreSQL read polls rather than using `LISTEN`/`NOTIFY` by measurement: a `pg_notify`
+trigger on the change log serialises committing transactions (on PostgreSQL 18, 53 078 → 3 640
+mutation transactions per second at 64 clients), while sixteen replicas polling at 10 Hz had
+no measurable effect on write throughput.
 
 ---
 

@@ -571,6 +571,19 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Every replica delivers every change to its own subscribers (#1503).** GraphQL
+  subscriptions and REST `/{resource}/stream` were fed by the observer runtime's dispatch, which
+  runs on one replica: on PostgreSQL only the poll-lease holder (#1500), so subscribers connected
+  to any other replica received no changes; on NATS each replica got the share of messages its
+  competing consumer pulled. Each replica now reads the changes for its own subscribers, while
+  actions still run once: on PostgreSQL a per-replica tail of `core.tb_entity_change_log` that
+  ignores the dispatch ledger and writes nothing (it delivers a row whose transaction commits
+  after a later row was read); on NATS a per-replica ephemeral consumer next to the shared
+  durable one. A change also reaches subscribers when its observer actions fail. Polling was
+  chosen over `LISTEN`/`NOTIFY` by measurement: a `pg_notify` trigger cut mutation throughput on
+  PostgreSQL 18 from 53 078 to 3 640 transactions per second at 64 clients. For embedders,
+  `fraiseql-observers` adds `listener::ChangeLogTail` and `EventTransport::subscribe_broadcast`.
+
 - **A GraphQL variable the request omits takes its declared default (#1504).** Defaults were
   parsed and never applied (GraphQL § 6.4.1), so `query Q($l: Int = 1) { users(limit: $l) }`
   ran with no limit and a defaulted `where` was dropped, widening the read. The executor now
@@ -634,9 +647,7 @@ disagreed, and the promise was the part that was wrong.
   database session ends. The lock lives on its own connection, outside the request pool.
   `CheckpointLease::postgres` now checks that the holding session is alive before reporting the
   lock as held: after a database restart it said it still held a lock another session had taken.
-  GraphQL subscriptions and REST `/stream` fed by the change log are now served by the polling
-  replica only; before, each replica served the rows it happened to win (#1503 tracks
-  per-replica fan-out).
+  Subscriptions no longer depend on which replica polls: see #1503 above.
 
 - **The release bumps the Compose stack and the runbooks with the other deploy artifacts.**
   `tools/check-deploy-versions.sh` has required `docker-compose.yml`'s server image to match the

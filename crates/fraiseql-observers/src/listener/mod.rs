@@ -28,6 +28,8 @@ pub mod lease;
 #[cfg(feature = "postgres")]
 pub mod replay;
 pub mod state;
+#[cfg(feature = "postgres")]
+pub mod tail;
 
 #[cfg(feature = "postgres")]
 pub use change_log::{ChangeLogEntry, ChangeLogListener, ChangeLogListenerConfig};
@@ -37,6 +39,8 @@ pub use lease::CheckpointLease;
 #[cfg(feature = "postgres")]
 pub use replay::{ChangeLogReplayReader, ReplayScope, ReplayedEvent, ResumeAnchor, ResumePosition};
 pub use state::{ListenerState, ListenerStateMachine};
+#[cfg(feature = "postgres")]
+pub use tail::ChangeLogTail;
 
 #[cfg(test)]
 mod tests;

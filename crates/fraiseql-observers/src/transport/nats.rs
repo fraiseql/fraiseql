@@ -405,6 +405,59 @@ impl EventTransport for NatsTransport {
         Ok(Box::pin(event_stream))
     }
 
+    async fn subscribe_broadcast(&self, filter: EventFilter) -> Result<EventStream> {
+        // An ephemeral consumer per process: no durable name, so every process gets
+        // its own and each sees every message, unlike the shared durable consumer
+        // `subscribe` creates. It starts at new messages, needs no acks, and the
+        // server deletes it once the process stops pulling (#1503).
+        let consumer = self
+            .jetstream
+            .create_consumer_on_stream(
+                jetstream::consumer::pull::Config {
+                    filter_subject: self.build_subject_filter(&filter),
+                    deliver_policy: jetstream::consumer::DeliverPolicy::New,
+                    ack_policy: jetstream::consumer::AckPolicy::None,
+                    inactive_threshold: Duration::from_mins(1),
+                    ..Default::default()
+                },
+                &self.config.stream_name,
+            )
+            .await
+            .map_err(|e| ObserverError::TransportSubscribeFailed {
+                reason: format!("Failed to create broadcast consumer: {e}"),
+            })?;
+        let messages: jetstream::consumer::pull::Stream =
+            consumer.messages().await.map_err(|e| ObserverError::TransportSubscribeFailed {
+                reason: format!("Failed to get broadcast message stream: {e}"),
+            })?;
+
+        let filter = Arc::new(filter);
+        let undecodable_count = Arc::clone(&self.undecodable_count);
+        let events = messages.filter_map(move |msg_result| {
+            let filter = Arc::clone(&filter);
+            let undecodable_count = Arc::clone(&undecodable_count);
+            async move {
+                match msg_result {
+                    Ok(msg) => match Self::parse_message(&msg) {
+                        Ok(event) if filter.matches(&event) => Some(Ok(event)),
+                        Ok(_) => None,
+                        // Counted, not dead-lettered: the durable consumer dead-letters
+                        // the same message once, and every replica doing it too would
+                        // copy it once per replica.
+                        Err(e) => {
+                            undecodable_count.fetch_add(1, Ordering::Relaxed);
+                            Some(Err(e))
+                        },
+                    },
+                    Err(e) => Some(Err(ObserverError::TransportSubscribeFailed {
+                        reason: format!("Failed to receive broadcast message: {e}"),
+                    })),
+                }
+            }
+        });
+        Ok(Box::pin(events))
+    }
+
     async fn publish(&self, event: EntityEvent) -> Result<()> {
         // Build subject: entity.change.{entity_type}.{operation}
         let operation = match event.event_type {

@@ -1777,3 +1777,181 @@ async fn test_nats_runtime_creates_its_stream_and_consumer_with_the_configured_l
     assert_eq!(stream_config.max_age, Duration::from_hours(48));
     assert_eq!(max_deliver, 9);
 }
+
+/// Drain every bridge event a replica's subscribers would receive until `want`
+/// distinct entity ids have arrived or `timeout` passes. Returns the ids in arrival
+/// order, duplicates included, so a test can assert "each once".
+async fn collect_bridge_ids(
+    rx: &mut tokio::sync::mpsc::Receiver<fraiseql_server::subscriptions::EntityEvent>,
+    want: usize,
+    timeout: Duration,
+) -> Vec<String> {
+    let mut ids = Vec::new();
+    let deadline = tokio::time::Instant::now() + timeout;
+    loop {
+        let distinct: std::collections::HashSet<&String> = ids.iter().collect();
+        if distinct.len() >= want {
+            // Linger briefly so a duplicate delivery would be seen too.
+            while let Ok(Some(e)) =
+                tokio::time::timeout(Duration::from_millis(300), rx.recv()).await
+            {
+                ids.push(e.entity_id);
+            }
+            return ids;
+        }
+        match tokio::time::timeout_at(deadline, rx.recv()).await {
+            Ok(Some(e)) => ids.push(e.entity_id),
+            Ok(None) | Err(_) => return ids,
+        }
+    }
+}
+
+/// Every replica's subscribers see every change (#1503). On PostgreSQL only the
+/// lease holder dispatches (#1500), and subscriptions used to be fed by dispatch,
+/// so a subscriber on the standby received nothing. Each replica now reads the
+/// change log for its own subscribers, while the action still runs once.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn test_every_replica_delivers_every_change_to_its_subscribers() {
+    init_test_tracing();
+
+    let test_id = Uuid::new_v4().to_string();
+    let listener_id = format!("fanout-{test_id}");
+    let pool_a = create_test_pool().await;
+    let pool_b = create_test_pool().await;
+    let (mock_server, entity_type) =
+        seed_replica_test(&pool_a, &test_id, Duration::from_millis(0)).await;
+
+    let mut replicas = Vec::new();
+    let mut receivers = Vec::new();
+    for pool in [&pool_a, &pool_b] {
+        let (tx, rx) = tokio::sync::mpsc::channel(64);
+        let mut replica = ObserverRuntime::new(
+            ObserverRuntimeConfig::new(pool.clone())
+                .with_poll_interval(50)
+                .with_listener_id(listener_id.clone()),
+        );
+        replica.set_event_bridge_sender(tx);
+        replica.start().await.expect("Failed to start replica");
+        replicas.push(replica);
+        receivers.push(rx);
+    }
+
+    let mut orders = Vec::new();
+    for _ in 0..3 {
+        orders.push(insert_order(&pool_a, &entity_type).await.to_string());
+    }
+    wait_for_webhook(&mock_server, 3, Duration::from_secs(20)).await;
+
+    let mut seen = Vec::new();
+    for rx in &mut receivers {
+        seen.push(collect_bridge_ids(rx, 3, Duration::from_secs(20)).await);
+    }
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let deliveries = mock_server.request_count().await;
+    for replica in &mut replicas {
+        replica.stop().await.expect("Failed to stop replica");
+    }
+    cleanup_test_data(&pool_a, &test_id).await.expect("Failed to cleanup");
+
+    for (name, ids) in ["A", "B"].iter().zip(&seen) {
+        let mut sorted = ids.clone();
+        sorted.sort();
+        let mut want = orders.clone();
+        want.sort();
+        assert_eq!(sorted, want, "replica {name}'s subscribers must see each change once");
+    }
+    assert_eq!(deliveries, 3, "each change must still be dispatched once, not once per replica");
+}
+
+/// The same on NATS (#1503): replicas share one durable consumer for dispatch, so
+/// each message reached one replica, and so did its subscription event. Each
+/// replica now reads the stream through its own consumer for its subscribers.
+#[cfg(feature = "observers-nats")]
+#[tokio::test]
+#[ignore = "requires PostgreSQL and NATS"]
+async fn test_every_nats_replica_delivers_every_change_to_its_subscribers() {
+    use fraiseql_observers::{
+        EntityEvent, EventKind,
+        config::{TransportConfig, TransportKind},
+    };
+
+    init_test_tracing();
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    let (mock_server, entity_type) =
+        seed_replica_test(&pool, &test_id, Duration::from_millis(0)).await;
+
+    let url =
+        std::env::var("NATS_URL").expect("NATS_URL must be set (the observers leg binds NATS)");
+    let mut transport = TransportConfig {
+        transport: TransportKind::Nats,
+        ..TransportConfig::default()
+    };
+    transport.nats.url.clone_from(&url);
+    transport.nats.stream_name = format!("fanout-{test_id}");
+    transport.nats.consumer_name = format!("fanout-consumer-{test_id}");
+    transport.nats.subject_prefix = format!("fanout.{test_id}");
+    // A stream reserves its max_bytes up front; keep it within a test broker's store.
+    transport.nats.jetstream.max_bytes = 1024 * 1024;
+
+    let mut replicas = Vec::new();
+    let mut receivers = Vec::new();
+    for _ in 0..2 {
+        let (tx, rx) = tokio::sync::mpsc::channel(64);
+        let mut replica = ObserverRuntime::new(
+            ObserverRuntimeConfig::new(pool.clone()).with_transport(transport.clone()),
+        );
+        replica.set_event_bridge_sender(tx);
+        replica.start().await.expect("the replica starts on the NATS transport");
+        replicas.push(replica);
+        receivers.push(rx);
+    }
+
+    let jetstream = async_nats::jetstream::new(async_nats::connect(&url).await.expect("connect"));
+    let mut orders = Vec::new();
+    for _ in 0..4 {
+        let id = Uuid::new_v4();
+        let event = EntityEvent::new(
+            EventKind::Created,
+            entity_type.clone(),
+            id,
+            serde_json::json!({"id": id.to_string()}),
+        );
+        jetstream
+            .publish(
+                format!("fanout.{test_id}.{entity_type}.INSERT"),
+                serde_json::to_vec(&event).expect("serialize").into(),
+            )
+            .await
+            .expect("publish")
+            .await
+            .expect("the stream stores the event");
+        orders.push(id.to_string());
+    }
+    wait_for_webhook(&mock_server, 4, Duration::from_secs(20)).await;
+
+    let mut seen = Vec::new();
+    for rx in &mut receivers {
+        seen.push(collect_bridge_ids(rx, 4, Duration::from_secs(20)).await);
+    }
+    tokio::time::sleep(Duration::from_millis(500)).await;
+    let deliveries = mock_server.request_count().await;
+    for replica in &mut replicas {
+        replica.stop().await.expect("Failed to stop replica");
+    }
+    jetstream
+        .delete_stream(&format!("fanout-{test_id}"))
+        .await
+        .expect("clean up the stream");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
+
+    for (name, ids) in ["A", "B"].iter().zip(&seen) {
+        let mut sorted = ids.clone();
+        sorted.sort();
+        let mut want = orders.clone();
+        want.sort();
+        assert_eq!(sorted, want, "replica {name}'s subscribers must see each change once");
+    }
+    assert_eq!(deliveries, 4, "each change must still be dispatched once, not once per replica");
+}
