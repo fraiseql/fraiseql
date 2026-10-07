@@ -38,13 +38,28 @@ on:
 permissions:
   contents: read
   packages: read
+  # actions: read lets already-passed.yml see this workflow's earlier runs.
+  actions: read
 
 concurrency:
   group: dagger-image-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Skips the leg when this SHA already passed it. A chain is validated by
+  # dispatching this workflow on its branch (it has no feature-branch trigger), and
+  # the guard counts that successful dispatch, so the fast-forward to `dev` costs
+  # seconds instead of a second ~36-min build of the identical tree. See
+  # already-passed.yml and tools/check-already-passed-guard.py.
+  already-passed:
+    name: already passed
+    uses: ./.github/workflows/already-passed.yml
+    with:
+      workflow: dagger-image.yml
+
   image:
+    needs: already-passed
+    if: ${{ !cancelled() && needs.already-passed.outputs.passed != 'true' }}
     name: image
     # archbox's main runner only. On forge `images` alone took 31 min with the box
     # otherwise idle, and the leg hit its cap on all seven forge runs from 2026-10-04

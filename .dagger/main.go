@@ -701,6 +701,11 @@ func (m *FraiseqlCi) ShellGates(
 		// list rather than reported as skipped (#1206).
 		"python3 tools/check-workflow-job-reachability.py",
 		"bash tools/tests/workflow_job_reachability_test.sh",
+		// Every self-hosted job a push can start skips a SHA that already passed
+		// it. The guard was opt-in, so `Dagger — image` reran ~36 min on every
+		// fast-forward to dev over a tree its chain-branch dispatch had just built.
+		"python3 tools/check-already-passed-guard.py",
+		"bash tools/tests/already_passed_guard_test.sh",
 		// GitHub's push ref-filter rule — which halves a `push:` leaves defined —
 		// had four implementations in tools/, and two were wrong in opposite
 		// directions: one read `branches-ignore`/`tags-ignore` as neither key, the
