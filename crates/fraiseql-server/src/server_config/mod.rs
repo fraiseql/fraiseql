@@ -77,7 +77,7 @@ pub struct ServerConfig {
     pub schema_path: PathBuf,
 
     /// Fail boot if any declared `sql_source` (query view / mutation function) is
-    /// not backed by the database (#487).
+    /// not backed by the database (#487), or the server's role may not use it (#1426).
     ///
     /// Default `false` — the boot path is unchanged. Postgres-only. The
     /// `--validate-sql-sources` CLI flag and the `FRAISEQL_VALIDATE_SQL_SOURCES`

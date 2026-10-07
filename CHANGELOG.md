@@ -589,6 +589,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`--validate-sql-sources` checks that the server's role may use each source (#1426).** It
+  proved a declared view or mutation function existed, not that the role the server connects as
+  could use it, so a revoked `EXECUTE` or a view nobody granted `SELECT` on booted clean and failed
+  the first request with `permission denied`. Boot now also checks, as the connected role,
+  `USAGE` on each source's schema and `SELECT` / `EXECUTE` on the source, and lists every missing
+  privilege beside any missing source (`app.create_order (function): EXECUTE not granted to
+  api_role`). A schema-qualified view in a schema the role cannot use made the existence probe
+  itself fail with "permission denied for schema"; it is now reported in that list.
+
 - **On NATS, an observer event is acknowledged after its actions ran (#1510).** The transport
   acknowledged each JetStream message as soon as it decoded, before the runtime ran any action,
   so a server that stopped mid-dispatch (a crash, an OOM kill, a deploy without a drain) lost the

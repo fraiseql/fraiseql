@@ -683,11 +683,13 @@ async fn run_postgres(config: ServerConfig, loaded: LoadedSchema, cli: &Cli) -> 
     // precise list instead of surfacing as an opaque per-request 500 later. Runs
     // here, after the adapter exists, where schema + adapter coexist.
     if config.validate_sql_sources {
-        let unbacked =
-            fraiseql_server::sql_source_check::find_unbacked_sources(&schema, adapter.as_ref())
-                .await?;
-        if !unbacked.is_empty() {
-            anyhow::bail!("{}", fraiseql_server::sql_source_check::format_unbacked(&unbacked));
+        use fraiseql_server::sql_source_check as check;
+        let unbacked = check::find_unbacked_sources(&schema, adapter.as_ref()).await?;
+        // #1426: present is not enough; the server's own role must be able to use it.
+        let unusable = check::find_unusable_sources(&schema, adapter.as_ref()).await?;
+        if !unbacked.is_empty() || !unusable.is_empty() {
+            let role = check::connected_role(adapter.as_ref()).await?;
+            anyhow::bail!("{}", check::format_source_problems(&unbacked, &unusable, &role));
         }
         tracing::info!(
             sources = schema.queries.len() + schema.mutations.len(),

@@ -110,8 +110,9 @@ pub struct ServerArgs {
     pub flight_bind_addr: Option<SocketAddr>,
 
     /// Fail boot if any declared `sql_source` (query view / mutation function) is
-    /// not backed by the database, printing a precise list. Default OFF;
-    /// Postgres-only. Overrides the `validate_sql_sources` config key. (#487)
+    /// not backed by the database, or is one the server's role may not use (`USAGE`
+    /// on its schema, `SELECT` / `EXECUTE`), printing a precise list. Default OFF;
+    /// Postgres-only. Overrides the `validate_sql_sources` config key. (#487, #1426)
     #[arg(long, env = "FRAISEQL_VALIDATE_SQL_SOURCES", value_parser = BoolishValueParser::new(), num_args = 0..=1, default_missing_value = "true")]
     pub validate_sql_sources: Option<bool>,
 

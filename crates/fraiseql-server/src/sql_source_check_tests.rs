@@ -23,10 +23,13 @@ fn function(schema: Option<&str>, name: &str) -> SourceProbe {
 }
 
 #[test]
-fn qualified_relation_uses_quoted_to_regclass() {
-    // Verbatim, case-sensitive — exactly how the runtime resolves it.
+fn qualified_relation_is_looked_up_by_its_exact_names() {
+    // Verbatim, case-sensitive — exactly how the runtime's quoted identifier resolves.
+    // Through the catalogs, not `to_regclass`, which raises for a schema the role
+    // cannot use (#1426).
     let sql = existence_sql(&relation(Some("events"), "V_Orders"));
-    assert!(sql.contains(r#"to_regclass('"events"."V_Orders"')"#), "got: {sql}");
+    assert!(sql.contains("n.nspname = 'events' AND c.relname = 'V_Orders'"), "got: {sql}");
+    assert!(!sql.contains("to_regclass"), "got: {sql}");
     assert!(sql.contains("AS source_exists"), "got: {sql}");
 }
 

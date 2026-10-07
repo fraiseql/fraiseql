@@ -137,3 +137,113 @@ async fn server_and_cli_agree_on_unbacked_set() {
 
     run_sql(&url, TEARDOWN).await;
 }
+
+// ── #1426: a source the server's role may not use ─────────────────────────────
+
+const ROLE: &str = "fql_1426_api";
+
+const PRIVILEGE_SETUP: &str = "\
+DROP SCHEMA IF EXISTS fql_1426_test CASCADE;
+DROP SCHEMA IF EXISTS fql_1426_hidden CASCADE;
+DROP ROLE IF EXISTS fql_1426_api;
+CREATE ROLE fql_1426_api LOGIN PASSWORD 'fql_1426_api';
+CREATE SCHEMA fql_1426_test;
+GRANT USAGE ON SCHEMA fql_1426_test TO fql_1426_api;
+CREATE VIEW fql_1426_test.v_granted AS SELECT '{}'::jsonb AS data;
+GRANT SELECT ON fql_1426_test.v_granted TO fql_1426_api;
+CREATE VIEW fql_1426_test.v_ungranted AS SELECT '{}'::jsonb AS data;
+CREATE FUNCTION fql_1426_test.fn_granted(p_input jsonb)
+  RETURNS jsonb LANGUAGE sql AS $$ SELECT p_input $$;
+CREATE FUNCTION fql_1426_test.fn_revoked(p_input jsonb)
+  RETURNS jsonb LANGUAGE sql AS $$ SELECT p_input $$;
+REVOKE EXECUTE ON FUNCTION fql_1426_test.fn_revoked(jsonb) FROM PUBLIC;
+CREATE SCHEMA fql_1426_hidden;
+CREATE VIEW fql_1426_hidden.v_orders AS SELECT '{}'::jsonb AS data;
+";
+
+const PRIVILEGE_TEARDOWN: &str = "\
+DROP SCHEMA IF EXISTS fql_1426_test CASCADE;
+DROP SCHEMA IF EXISTS fql_1426_hidden CASCADE;
+DROP ROLE IF EXISTS fql_1426_api;
+";
+
+/// `DATABASE_URL` with the credentials of the under-privileged role.
+fn as_role(url: &str) -> String {
+    let (scheme, rest) = url.split_once("://").unwrap();
+    let host = rest.rsplit_once('@').map_or(rest, |(_, host)| host);
+    format!("{scheme}://{ROLE}:{ROLE}@{host}")
+}
+
+fn schema_with_privilege_gaps() -> CompiledSchema {
+    CompiledSchema {
+        queries: vec![
+            query("granted", "fql_1426_test.v_granted"),
+            query("ungranted", "fql_1426_test.v_ungranted"),
+            query("hidden", "fql_1426_hidden.v_orders"),
+        ],
+        mutations: vec![
+            mutation("granted", "fql_1426_test.fn_granted"),
+            mutation("revoked", "fql_1426_test.fn_revoked"),
+        ],
+        ..Default::default()
+    }
+}
+
+/// Every source exists, so the existence check passes; as the server's role, three of
+/// them cannot be used, and each is reported with the privilege it lacks. The view in a
+/// schema without USAGE used to fail the existence probe itself with "permission denied
+/// for schema" instead of being reported.
+#[tokio::test]
+async fn boot_check_reports_each_source_the_role_may_not_use() {
+    let Some(url) = try_database_url() else {
+        eprintln!("skipping #1426 boot-check test: no DATABASE_URL");
+        return;
+    };
+    run_sql(&url, PRIVILEGE_SETUP).await;
+
+    let adapter = PostgresAdapter::new(&as_role(&url)).await.unwrap();
+    let schema = schema_with_privilege_gaps();
+    let unbacked = server_find_unbacked(&schema, &adapter).await;
+    let unusable =
+        fraiseql_server::sql_source_check::find_unusable_sources(&schema, &adapter).await;
+
+    run_sql(&url, PRIVILEGE_TEARDOWN).await;
+    assert!(unbacked.unwrap().is_empty(), "every source exists");
+    let unusable: BTreeSet<(String, String)> = unusable
+        .unwrap()
+        .into_iter()
+        .map(|(probe, missing)| (probe.display_name(), missing))
+        .collect();
+    assert_eq!(
+        unusable,
+        BTreeSet::from([
+            ("fql_1426_test.v_ungranted".to_string(), "SELECT".to_string()),
+            ("fql_1426_test.fn_revoked".to_string(), "EXECUTE".to_string()),
+            (
+                "fql_1426_hidden.v_orders".to_string(),
+                "USAGE on schema fql_1426_hidden".to_string()
+            ),
+        ])
+    );
+}
+
+/// The boot message names the role and each missing privilege beside any missing source.
+#[test]
+fn the_boot_message_names_the_role_and_each_missing_privilege() {
+    use fraiseql_core::schema::SourceKind;
+    let probe = |kind, name: &str| SourceProbe {
+        kind,
+        schema: Some("app".to_string()),
+        name: name.to_string(),
+    };
+    let message = fraiseql_server::sql_source_check::format_source_problems(
+        &[probe(SourceKind::Relation, "v_missing")],
+        &[(probe(SourceKind::Function, "create_order"), "EXECUTE".to_string())],
+        "api_role",
+    );
+    assert!(message.contains("app.v_missing (relation) does not exist"), "{message}");
+    assert!(
+        message.contains("app.create_order (function): EXECUTE not granted to api_role"),
+        "{message}"
+    );
+}
