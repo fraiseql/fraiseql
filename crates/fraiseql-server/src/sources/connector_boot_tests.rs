@@ -90,6 +90,36 @@ async fn an_enabled_source_with_no_functions_section_refuses_the_boot() {
     assert!(message.contains("\"orders\"") && message.contains("module_dir"), "{message}");
 }
 
+/// The schema release-smoke boots with the full platform surface boots here too.
+///
+/// Release-smoke runs only on `release/*` and tags, so when #1399 made a connector-less
+/// source refuse the boot, the fixture's `example_source` broke the smoke and nothing
+/// before the release cut could see it. This leg runs on every push. `module_dir` is
+/// resolved from the working directory, which in the smoke is the repository root.
+#[tokio::test]
+async fn the_release_smoke_source_schema_boots() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let extended = crate::schema::CompiledSchemaLoader::new(
+        root.join("docker/e2e/schema.with-source.compiled.json"),
+    )
+    .load_extended()
+    .await
+    .unwrap();
+    assert!(
+        extended.schema.sources.iter().any(|source| source.enabled),
+        "the fixture must keep an enabled source, or this boot proves nothing"
+    );
+    let functions = extended.functions.map(|mut functions| {
+        assert!(
+            functions.module_dir.is_relative(),
+            "the smoke resolves module_dir from the repository root"
+        );
+        functions.module_dir = root.join(&functions.module_dir);
+        functions
+    });
+    boot(extended.schema, functions, true).await.unwrap();
+}
+
 /// A disabled source, or a disabled scheduler, needs no connector.
 #[tokio::test]
 async fn a_source_that_will_not_run_needs_no_connector() {

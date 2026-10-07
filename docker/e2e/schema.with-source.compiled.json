@@ -37,5 +37,9 @@
       "enabled": true,
       "run_as": {"roles": ["ingest_writer"], "scopes": ["write:order"]}
     }
-  ]
+  ],
+  "functions": {
+    "module_dir": "docker/e2e/functions",
+    "definitions": []
+  }
 }
