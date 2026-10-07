@@ -706,6 +706,11 @@ func (m *FraiseqlCi) ShellGates(
 		// fast-forward to dev over a tree its chain-branch dispatch had just built.
 		"python3 tools/check-already-passed-guard.py",
 		"bash tools/tests/already_passed_guard_test.sh",
+		// Every ghcr.io/fraiseql image above is mirrored from a pinned source. The
+		// minio row rode `docker.io/minio/minio:latest`, which stopped resolving, and
+		// the weekly mirror stayed red while the legs pulled a stale copy (#1453).
+		"python3 tools/check-image-mirror.py",
+		"bash tools/tests/image_mirror_test.sh",
 		// GitHub's push ref-filter rule — which halves a `push:` leaves defined —
 		// had four implementations in tools/, and two were wrong in opposite
 		// directions: one read `branches-ignore`/`tags-ignore` as neither key, the
@@ -1217,8 +1222,7 @@ const (
 	// localstackImage / localstackBindHost — the AWS emulator backing the #975
 	// Kinesis outbound CDC sink. Only the `kinesis` service is enabled; the image
 	// starts every service in SERVICES and nothing else here needs the rest.
-	// Pinned like every other broker image — only `minio` and `fake-gcs-server`
-	// ride `:latest`, and those are weekly-refreshed by design.
+	// Pinned like every other mirrored image (tools/check-image-mirror.py).
 	localstackImage    = "ghcr.io/fraiseql/localstack:3.8"
 	localstackBindHost = "localstack"
 
@@ -1253,13 +1257,15 @@ const (
 	// fakeGcsImage / fakeGcsBindHost — the GCS emulator for the fraiseql-storage
 	// gcs_emulator test. The backend reaches it at http://<alias>:4443 via GCS_ENDPOINT;
 	// -external-url must match so the emulator's media links point back at the alias.
-	fakeGcsImage    = "ghcr.io/fraiseql/fake-gcs-server:latest"
+	fakeGcsImage    = "ghcr.io/fraiseql/fake-gcs-server:1.56.1"
 	fakeGcsBindHost = "fake-gcs"
 
 	// minioImage / minioBindHost / minioUser / minioPass — the S3-compatible MinIO
 	// service for fraiseql-server's storage_minio integration test. The test reads
 	// MINIO_ENDPOINT (http://<alias>:9000) and authenticates with the constants below.
-	minioImage    = "ghcr.io/fraiseql/minio:latest"
+	// Chainguard's from-source build, mirrored by digest (#1453): MinIO no longer
+	// publishes community images. Its entrypoint is `minio`, as upstream's was.
+	minioImage    = "ghcr.io/fraiseql/minio:RELEASE.2026-09-22T19-25-18Z"
 	minioBindHost = "minio"
 	minioUser     = "minioadmin"
 	minioPass     = "minioadmin"

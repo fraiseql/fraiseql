@@ -51,3 +51,4 @@
 #1370  fraiseql-db's database-backed tests moved from src/ to tests/; test layout only
 #1361  deleted a saga benchmark that measured an in-file mock and never ran; no shipped code
 #1346  SDK suites run locally (make test-sdks, tools/sdk-suite.sh); CI/developer tooling only
+#1453  CI: base-image mirror pins minio (Chainguard build, by digest) and fake-gcs-server; test-rig images only, nothing shipped

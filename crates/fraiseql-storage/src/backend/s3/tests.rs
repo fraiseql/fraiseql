@@ -4,7 +4,7 @@
 //! To run with `MinIO` locally:
 //!
 //! ```bash
-//! docker run -d -p 9000:9000 -p 9001:9001 minio/minio server /data
+//! docker run -d -p 9000:9000 -p 9001:9001 cgr.dev/chainguard/minio server /data
 //! export AWS_ACCESS_KEY_ID=minioadmin
 //! export AWS_SECRET_ACCESS_KEY=minioadmin
 //! cargo test -p fraiseql-storage --lib --features aws-s3 s3::tests

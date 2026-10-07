@@ -530,7 +530,7 @@ the router over MinIO plus a real metadata table. In CI it is the
 
 ```bash
 docker run -d -p 9000:9000 -e MINIO_ROOT_USER=minioadmin \
-    -e MINIO_ROOT_PASSWORD=minioadmin minio/minio server /data
+    -e MINIO_ROOT_PASSWORD=minioadmin cgr.dev/chainguard/minio server /data
 export MINIO_ENDPOINT=http://127.0.0.1:9000 DATABASE_URL=postgres://…
 export AWS_ACCESS_KEY_ID=minioadmin AWS_SECRET_ACCESS_KEY=minioadmin \
        AWS_DEFAULT_REGION=us-east-1

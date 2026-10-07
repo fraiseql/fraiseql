@@ -16,13 +16,22 @@ name: Mirror base images to ghcr.io
 #
 # Keep IMAGES below in sync with the image constants in `.dagger/main.go` (and the
 # shared `rustImage` used by `.dagger/security.go`). The `.dagger` side points at the
-# ghcr.io/fraiseql/* tags this job publishes.
+# ghcr.io/fraiseql/* tags this job publishes. tools/check-image-mirror.py (preflight)
+# requires every one of those tags to be a destination here, and every row to be
+# pinned on both sides: a version tag or a @sha256: digest, never `:latest`.
+#
+# MinIO stopped publishing community images in 2025: docker.io/minio/minio stopped
+# resolving anonymously, and quay.io/minio/minio now grants an anonymous token no pull
+# access. The minio row copies Chainguard's from-source build, which publishes only a
+# moving `:latest`, so the row pins its multi-arch index digest and names the
+# destination tag after the MinIO release inside it (`minio --version`) (#1453).
 
 on:
   workflow_dispatch:
   schedule:
-    # Weekly refresh so the `:latest`-tagged mirrors (minio, fake-gcs-server) track
-    # upstream; the pinned tags are idempotent re-copies. Monday 04:17 UTC.
+    # Weekly re-copy, so a deleted or expired ghcr package comes back within a week
+    # and an upstream that stops serving a pinned row turns this job red. Every row is
+    # pinned, so a re-copy changes no bytes. Monday 04:17 UTC.
     - cron: "17 4 * * 1"
 
 permissions:
@@ -88,8 +97,8 @@ jobs:
           docker.io/localstack/localstack:3.8|ghcr.io/fraiseql/localstack:3.8
           docker.io/hashicorp/vault:1.17|ghcr.io/fraiseql/vault:1.17
           docker.io/mailhog/mailhog:v1.0.1|ghcr.io/fraiseql/mailhog:v1.0.1
-          docker.io/fsouza/fake-gcs-server:latest|ghcr.io/fraiseql/fake-gcs-server:latest
-          docker.io/minio/minio:latest|ghcr.io/fraiseql/minio:latest
+          docker.io/fsouza/fake-gcs-server:1.56.1|ghcr.io/fraiseql/fake-gcs-server:1.56.1
+          cgr.dev/chainguard/minio@sha256:e7ca559d9f7c0b5f24f5f669bb92f40f3ca88d56273b808bf3a7c116c17d2ffa|ghcr.io/fraiseql/minio:RELEASE.2026-09-22T19-25-18Z
           "
           rc=0
           # here-string, not `echo | while`: a pipe would run the loop in a subshell
@@ -97,7 +106,13 @@ jobs:
           while IFS='|' read -r src dst; do
             [ -z "${src// }" ] && continue
             echo "::group::$src -> $dst"
-            if crane copy "$src" "$dst"; then
+            # A digest-pinned row whose destination already holds that digest is done:
+            # nothing upstream can change it, and an upstream that has since dropped
+            # the digest (Chainguard's free tier keeps only a moving tag) must not
+            # redden a mirror that is already correct.
+            if [[ "$src" == *@sha256:* ]] && [ "$(crane digest "$dst" 2>/dev/null)" = "${src##*@}" ]; then
+              echo "✅ $dst already holds ${src##*@}"
+            elif crane copy "$src" "$dst"; then
               echo "✅ mirrored $dst"
             else
               echo "::error::failed to mirror $src -> $dst"
