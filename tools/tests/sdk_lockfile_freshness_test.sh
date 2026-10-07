@@ -92,6 +92,29 @@ expect() {
 
 noop() { :; }
 
+# Replace every line of <file> equal to <old> with <new>, and fail when none is. A `sed`
+# that matches nothing exits 0, so a mutation pinned to a version the tree has moved past
+# leaves the fixture untouched and the case scores what the unmutated tree scores: every
+# case below that names a version was green at 2.15.0 and red at the 2.16.0 cut.
+replace_line() {
+    python3 - "$@" <<'PY'
+import pathlib, sys
+path, old, new = sys.argv[1:]
+p = pathlib.Path(path)
+lines = p.read_text().split("\n")
+if old not in lines:
+    sys.exit(f"mutation matched nothing: {old!r} in {path}")
+p.write_text("\n".join(new if line == old else line for line in lines))
+PY
+}
+
+# The versions the SDKs declare now, so the mutations follow every release. STALE and
+# NEXT are versions no release will ever carry.
+PY_VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' "$REPO_ROOT/sdks/official/fraiseql-python/pyproject.toml")"
+RS_VERSION="$(sed -n 's/^version = "\(.*\)"$/\1/p' "$REPO_ROOT/sdks/official/fraiseql-rust/Cargo.toml")"
+STALE="0.0.1"
+NEXT="999.0.0"
+
 echo "sdk-lockfile-freshness gate self-test"
 echo
 
@@ -101,10 +124,10 @@ expect pass P0 "repository as it stands" noop
 echo
 echo "── a lockfile pinning a version its manifest no longer claims ──"
 expect fail V1 "uv.lock keeps the previous version (the measured #1225 shape)" \
-    sed -i 's|^version = "2.15.0"$|version = "2.14.1"|' sdks/official/fraiseql-python/uv.lock
+    replace_line sdks/official/fraiseql-python/uv.lock "version = \"$PY_VERSION\"" "version = \"$STALE\""
 
 expect fail V2 "Cargo.lock keeps the previous version (the measured #1225 shape)" \
-    sed -i 's|^version = "2.15.0"$|version = "2.14.1"|' sdks/official/fraiseql-rust/Cargo.lock
+    replace_line sdks/official/fraiseql-rust/Cargo.lock "version = \"$RS_VERSION\"" "version = \"$STALE\""
 
 expect fail V3 "package-lock.json's top-level .version drifts" \
     python3 -c 'import json,pathlib
@@ -119,7 +142,7 @@ p=pathlib.Path("sdks/official/fraiseql-typescript/package-lock.json")
 d=json.loads(p.read_text()); d["packages"][""]["version"]="2.14.1"; p.write_text(json.dumps(d))'
 
 expect fail V5 "the manifest is bumped and the lockfile is left behind" \
-    sed -i 's|^version = "2.15.0"$|version = "2.16.0"|' sdks/official/fraiseql-rust/Cargo.toml
+    replace_line sdks/official/fraiseql-rust/Cargo.toml "version = \"$RS_VERSION\"" "version = \"$NEXT\""
 
 echo
 echo "── a format or manifest the gate cannot read is FATAL, never a silent skip ──"
@@ -130,18 +153,16 @@ expect fatal C2 "a version-recording lock loses the manifest declaring its versi
     rm sdks/official/fraiseql-rust/Cargo.toml
 
 expect fatal C3 "uv.lock no longer records an editable root package" \
-    sed -i 's|^source = { editable = "." }$|source = { registry = "https://pypi.org/simple" }|' sdks/official/fraiseql-python/uv.lock
+    replace_line sdks/official/fraiseql-python/uv.lock 'source = { editable = "." }' 'source = { registry = "https://pypi.org/simple" }'
 
 expect fatal C4 "Cargo.lock no longer records its own root package" \
-    sed -i 's|^name = "fraiseql-rust"$|name = "fraiseql-rust-renamed"|' sdks/official/fraiseql-rust/Cargo.lock
+    replace_line sdks/official/fraiseql-rust/Cargo.lock 'name = "fraiseql-rust"' 'name = "fraiseql-rust-renamed"'
 
 expect fatal C5 "pyproject declares a dynamic version the gate cannot resolve" \
-    python3 -c 'import pathlib,re
-p=pathlib.Path("sdks/official/fraiseql-python/pyproject.toml")
-p.write_text(re.sub(r"^version = \"2\.15\.0\"$", "dynamic = [\"version\"]", p.read_text(), count=1, flags=re.M))'
+    replace_line sdks/official/fraiseql-python/pyproject.toml "version = \"$PY_VERSION\"" 'dynamic = ["version"]'
 
 expect fatal C6 "Cargo.toml inherits its version from a workspace" \
-    sed -i 's|^version = "2.15.0"$|version.workspace = true|' sdks/official/fraiseql-rust/Cargo.toml
+    replace_line sdks/official/fraiseql-rust/Cargo.toml "version = \"$RS_VERSION\"" 'version.workspace = true'
 
 expect fatal C7 "package-lock.json records the root version in neither known site" \
     python3 -c 'import json,pathlib
