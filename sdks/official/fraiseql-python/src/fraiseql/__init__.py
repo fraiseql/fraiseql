@@ -106,7 +106,7 @@ input = input_decorator
 interface = interface_decorator
 union = union_decorator
 
-__version__ = "2.15.0"
+__version__ = "2.16.0"
 
 __all__ = [
     "ID",

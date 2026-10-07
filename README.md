@@ -135,7 +135,7 @@ Source-only is a statement about distribution, not quality: conformance scores a
 
 ```toml
 [dependencies]
-fraiseql = { version = "2.15.0", features = ["server"] }
+fraiseql = { version = "2.16.0", features = ["server"] }
 ```
 
 **Schema authoring:**

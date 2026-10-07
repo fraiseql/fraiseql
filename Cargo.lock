@@ -3567,7 +3567,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "fraiseql-arrow",
  "fraiseql-cli",
@@ -3581,7 +3581,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-arrow"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "arrow",
  "arrow-flight",
@@ -3617,7 +3617,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-auth"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "aes-gcm",
  "anyhow",
@@ -3668,7 +3668,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-cdc-sinks"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "async-nats 0.49.1",
  "aws-config",
@@ -3690,7 +3690,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-cli"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "anyhow",
  "assert_cmd",
@@ -3733,7 +3733,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-codegen"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "fraiseql-core",
  "fraiseql-error",
@@ -3746,7 +3746,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-core"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "ahash",
  "arrow",
@@ -3810,7 +3810,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-db"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3841,7 +3841,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-error"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "axum",
  "serde",
@@ -3912,7 +3912,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-federation"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "chrono",
  "criterion",
@@ -3939,7 +3939,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-functions"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "async-trait",
  "bytes",
@@ -3972,7 +3972,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-guard"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "temp-env",
  "tokio",
@@ -3982,7 +3982,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-jwks"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "fraiseql-guard",
  "futures",
@@ -4000,7 +4000,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-kafka"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "fraiseql-guard",
  "rdkafka",
@@ -4012,7 +4012,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-observers"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "arrow",
  "async-nats 0.49.1",
@@ -4055,7 +4055,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-saga"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "chrono",
  "criterion",
@@ -4079,7 +4079,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-secrets"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "aes-gcm",
  "async-trait",
@@ -4108,7 +4108,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-server"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "aes-gcm",
  "ahash",
@@ -4211,7 +4211,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-storage"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "ab_glyph",
  "arc-swap",
@@ -4249,7 +4249,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-test-support"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "testcontainers",
  "testcontainers-modules",
@@ -4258,7 +4258,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-test-utils"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "async-trait",
  "fraiseql-core",
@@ -4271,7 +4271,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-webhooks"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "base64 0.22.1",
  "ed25519-dalek",
@@ -4300,7 +4300,7 @@ dependencies = [
 
 [[package]]
 name = "fraiseql-wire"
-version = "2.15.0"
+version = "2.16.0"
 dependencies = [
  "base64 0.22.1",
  "bytes",

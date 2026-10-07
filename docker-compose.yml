@@ -80,7 +80,7 @@ services:
     # tools/check-deploy-security.sh. The tag must equal the workspace version;
     # tools/check-deploy-versions.sh holds this file, the Dockerfile's OCI label and
     # the Helm chart to Cargo.toml together, which is the drift #1129 was.
-    image: fraiseql/server:2.15.0
+    image: fraiseql/server:2.16.0
     restart: always
     ports:
       # The CONTAINER side is fixed at 8000 and must stay a literal: it is the port
