@@ -241,6 +241,16 @@ impl AggregateRunner {
             security_context,
         )?;
 
+        // 1a'. Node-id filters resolve through the hierarchy their column declares (#1498).
+        //      The caller's clause only: the policy below never carries one.
+        if let Some(clause) = request.where_clause.take() {
+            request.where_clause = Some(super::aggregate_hierarchy::attach_hierarchies(
+                clause,
+                metadata,
+                self.ctx.schema.hierarchies_config.as_ref(),
+            )?);
+        }
+
         // 1b. Evaluate RLS policy and compose with user-supplied WHERE.
         //     RLS WHERE is always AND-composed first so it cannot be bypassed.
         if let Some(ctx) = security_context {

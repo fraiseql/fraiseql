@@ -196,14 +196,16 @@ pub fn create_sales_metadata() -> FactTableMetadata {
         },
         denormalized_filters:     vec![
             FilterColumn {
-                name:     "customer_id".to_string(),
-                sql_type: SqlType::Text,
-                indexed:  true,
+                name:      "customer_id".to_string(),
+                sql_type:  SqlType::Text,
+                indexed:   true,
+                hierarchy: None,
             },
             FilterColumn {
-                name:     "occurred_at".to_string(),
-                sql_type: SqlType::Timestamp,
-                indexed:  true,
+                name:      "occurred_at".to_string(),
+                sql_type:  SqlType::Timestamp,
+                indexed:   true,
+                hierarchy: None,
             },
         ],
         calendar_dimensions:      vec![],

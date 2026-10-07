@@ -916,9 +916,10 @@ impl SchemaConverter {
                 .denormalized_filters
                 .into_iter()
                 .map(|f| FilterColumn {
-                    name:     f.name,
-                    sql_type: Self::parse_sql_type(&f.sql_type),
-                    indexed:  f.indexed,
+                    name:      f.name,
+                    sql_type:  Self::parse_sql_type(&f.sql_type),
+                    indexed:   f.indexed,
+                    hierarchy: f.hierarchy,
                 })
                 .collect(),
             calendar_dimensions:      vec![],
@@ -946,6 +947,7 @@ impl SchemaConverter {
             },
             "DATE" => SqlType::Date,
             "BOOLEAN" | "BOOL" => SqlType::Boolean,
+            "LTREE" => SqlType::Ltree,
             _ => SqlType::Other(s.to_string()),
         }
     }

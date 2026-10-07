@@ -132,6 +132,10 @@ pub enum SqlType {
     Date,
     /// BOOLEAN
     Boolean,
+    /// LTREE (PostgreSQL `ltree` extension): a materialized tree path (#1498). A filter
+    /// column of this type takes the path operators, groups by tree level or depth, and
+    /// resolves node ids through its declared `hierarchy`.
+    Ltree,
     /// Other types
     Other(String),
 }
@@ -218,11 +222,16 @@ pub struct CalendarBucket {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FilterColumn {
     /// Column name (e.g., "`customer_id`")
-    pub name:     String,
+    pub name:      String,
     /// SQL data type
-    pub sql_type: SqlType,
+    pub sql_type:  SqlType,
     /// Is indexed (for performance)
-    pub indexed:  bool,
+    pub indexed:   bool,
+    /// The declared hierarchy (`[hierarchies.<name>]`) an `ltree` path column is a path
+    /// of, so `descendant_of_id` / `ancestor_of_id` can resolve a node id to its path
+    /// (#1498). `None`: the column takes the path operators only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hierarchy: Option<String>,
 }
 
 /// Configuration for partial-period awareness (UNION ALL optimization).
@@ -397,6 +406,7 @@ impl SqlType {
             | "timestamp without time zone" => Self::Timestamp,
             "date" => Self::Date,
             "boolean" | "bool" => Self::Boolean,
+            "ltree" => Self::Ltree,
             other => Self::Other(other.to_string()),
         }
     }

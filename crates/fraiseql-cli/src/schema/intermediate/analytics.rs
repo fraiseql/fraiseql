@@ -70,11 +70,15 @@ pub struct IntermediateDimensionPath {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateFilter {
     /// Filter column name
-    pub name:     String,
+    pub name:      String,
     /// SQL data type of the filter
-    pub sql_type: String,
+    pub sql_type:  String,
     /// Whether this column should be indexed
-    pub indexed:  bool,
+    pub indexed:   bool,
+    /// For an `LTREE` path column: the `[hierarchies.<name>]` its paths belong to, so
+    /// `descendant_of_id` / `ancestor_of_id` can resolve a node id (#1498).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hierarchy: Option<String>,
 }
 
 /// Aggregate query definition (Analytics)

@@ -247,6 +247,11 @@ export interface DenormalizedFilter {
   name: string;
   sql_type: string;
   indexed: boolean;
+  /**
+   * For an `LTREE` path column: the `[hierarchies.<name>]` its paths belong to, so an
+   * aggregate `where` can filter by node id (`descendant_of_id` / `ancestor_of_id`).
+   */
+  hierarchy?: string;
 }
 
 /**

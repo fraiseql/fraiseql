@@ -488,6 +488,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **Fact-table aggregates roll a tree path up by level, group it by depth, and filter it by node
+  id (#1498).** On an `LTREE` denormalized filter column, `groupBy: {"path": {"level": n}}` groups
+  by `subpath(path, 0, n)` (a shorter path is kept whole) and `{"path": "depth"}` by
+  `nlevel(path)`, answered as `path_depth`. A filter column now takes `"hierarchy": "<name>"`
+  naming a `[hierarchies.<name>]` table, and `path_descendant_of_id` / `path_ancestor_of_id`
+  resolve the node id to its path through it; an aggregate refused them before. A schema whose
+  fact-table filter names an undeclared hierarchy, or links one to a non-`LTREE` column, is
+  refused at load. `SqlType` gains `Ltree` (`"sql_type": "LTREE"`), cast as `ltree` on a native
+  column. The TypeScript SDK's `DenormalizedFilter` takes `hierarchy`.
+
 - **A mutation can inject a JWT claim the token may lack: `jwt_optional:<claim>` (#1418).** One
   mutation can now serve a direct token and a delegated one (an RFC 8693 `act` claim): the
   function receives SQL `NULL` when the claim is absent, where `jwt:<claim>` fails the call.
@@ -578,6 +588,11 @@ disagreed, and the promise was the part that was wrong.
   now.
 
 ### Fixed
+
+- **Introspection reads an `ltree` column as a path filter (#1498).** `information_schema`
+  reports an extension type's `data_type` as `USER-DEFINED`, so the fact-table detector filed an
+  `ltree` column as `Other("user-defined")` and its type was lost. The PostgreSQL introspector
+  now reads `udt_name` for such columns (`ltree`, `vector`).
 
 - **Every replica delivers every change to its own subscribers (#1503).** GraphQL
   subscriptions and REST `/{resource}/stream` were fed by the observer runtime's dispatch, which

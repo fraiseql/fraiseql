@@ -22,9 +22,10 @@ fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableM
             paths: vec![],
         },
         denormalized_filters:     vec![FilterColumn {
-            name:     "customer_id".to_string(),
-            sql_type: SqlType::BigInt,
-            indexed:  true,
+            name:      "customer_id".to_string(),
+            sql_type:  SqlType::BigInt,
+            indexed:   true,
+            hierarchy: None,
         }],
         calendar_dimensions:      vec![],
         partial_period:           None,
@@ -47,9 +48,10 @@ fn create_test_plan() -> AggregationPlan {
             paths: vec![],
         },
         denormalized_filters:     vec![FilterColumn {
-            name:     "occurred_at".to_string(),
-            sql_type: SqlType::Timestamp,
-            indexed:  true,
+            name:      "occurred_at".to_string(),
+            sql_type:  SqlType::Timestamp,
+            indexed:   true,
+            hierarchy: None,
         }],
         calendar_dimensions:      vec![],
         partial_period:           None,
@@ -666,9 +668,10 @@ fn make_string_where_plan(_db: DatabaseType) -> AggregationPlan {
             paths: vec![],
         },
         denormalized_filters:     vec![FilterColumn {
-            name:     "status".to_string(),
-            sql_type: SqlType::Timestamp,
-            indexed:  true,
+            name:      "status".to_string(),
+            sql_type:  SqlType::Timestamp,
+            indexed:   true,
+            hierarchy: None,
         }],
         calendar_dimensions:      vec![],
         partial_period:           None,
@@ -736,14 +739,16 @@ fn test_parameterized_postgres_placeholder_numbering() {
         },
         denormalized_filters:     vec![
             FilterColumn {
-                name:     "occurred_at".to_string(),
-                sql_type: SqlType::Timestamp,
-                indexed:  true,
+                name:      "occurred_at".to_string(),
+                sql_type:  SqlType::Timestamp,
+                indexed:   true,
+                hierarchy: None,
             },
             FilterColumn {
-                name:     "channel".to_string(),
-                sql_type: SqlType::Timestamp,
-                indexed:  true,
+                name:      "channel".to_string(),
+                sql_type:  SqlType::Timestamp,
+                indexed:   true,
+                hierarchy: None,
             },
         ],
         calendar_dimensions:      vec![],
@@ -811,9 +816,10 @@ fn test_parameterized_in_array_expands_to_multiple_placeholders() {
             paths: vec![],
         },
         denormalized_filters:     vec![FilterColumn {
-            name:     "status".to_string(),
-            sql_type: SqlType::Timestamp,
-            indexed:  true,
+            name:      "status".to_string(),
+            sql_type:  SqlType::Timestamp,
+            indexed:   true,
+            hierarchy: None,
         }],
         calendar_dimensions:      vec![],
         partial_period:           None,
@@ -891,14 +897,16 @@ mod partial_period_builder_tests {
             },
             denormalized_filters:     vec![
                 FilterColumn {
-                    name:     "tenant_id".to_string(),
-                    sql_type: SqlType::BigInt,
-                    indexed:  true,
+                    name:      "tenant_id".to_string(),
+                    sql_type:  SqlType::BigInt,
+                    indexed:   true,
+                    hierarchy: None,
                 },
                 FilterColumn {
-                    name:     "period_start".to_string(),
-                    sql_type: SqlType::Date,
-                    indexed:  true,
+                    name:      "period_start".to_string(),
+                    sql_type:  SqlType::Date,
+                    indexed:   true,
+                    hierarchy: None,
                 },
             ],
             calendar_dimensions:      vec![],
@@ -1596,9 +1604,10 @@ mod fail_closed_filters {
         assert!(err.to_string().contains("ambiguous"), "{err}");
 
         metadata.denormalized_filters.push(crate::compiler::fact_table::FilterColumn {
-            name:     "customer_id_depth".to_string(),
-            sql_type: crate::compiler::fact_table::SqlType::Int,
-            indexed:  false,
+            name:      "customer_id_depth".to_string(),
+            sql_type:  crate::compiler::fact_table::SqlType::Int,
+            indexed:   false,
+            hierarchy: None,
         });
         let err = where_of(&metadata, "customer_id_depth_eq").expect_err("both readings declared");
         assert!(err.to_string().contains("ambiguous"), "{err}");

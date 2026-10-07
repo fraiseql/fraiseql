@@ -4,6 +4,7 @@ use super::{
     AggregateExpression, AggregateFunction, AggregationSqlGenerator, DatabaseType,
     GroupByExpression, OrderByClause, OrderDirection, Result, TemporalBucket,
 };
+use crate::compiler::aggregation::TreeGrouping;
 
 impl AggregationSqlGenerator {
     /// Build SELECT clause.
@@ -26,6 +27,7 @@ impl AggregationSqlGenerator {
                 GroupByExpression::JsonbPath { alias, .. }
                 | GroupByExpression::TemporalBucket { alias, .. }
                 | GroupByExpression::CalendarPath { alias, .. }
+                | GroupByExpression::TreeLevel { alias, .. }
                 | GroupByExpression::NativeColumn { alias, .. } => alias,
             };
             columns.push(format!("{} AS {}", column, alias));
@@ -68,6 +70,17 @@ impl AggregationSqlGenerator {
             } => {
                 // Calendar dimension: reuse JSONB extraction for all 4 databases
                 Ok(self.jsonb_extract_sql(calendar_column, json_key))
+            },
+            GroupByExpression::TreeLevel {
+                column, grouping, ..
+            } => {
+                let col = self.quote_identifier(column);
+                Ok(match grouping {
+                    // A length past the path's end keeps the whole path, so a path
+                    // shallower than the level groups as itself.
+                    TreeGrouping::Level(n) => format!("subpath({col}, 0, {n})"),
+                    TreeGrouping::Depth => format!("nlevel({col})"),
+                })
             },
             GroupByExpression::NativeColumn { column, .. } => {
                 // Direct column reference, dialect-quoted to handle reserved words

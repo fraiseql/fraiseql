@@ -939,9 +939,10 @@ fn create_native_metadata() -> fraiseql_core::compiler::fact_table::FactTableMet
             }],
         },
         denormalized_filters:     vec![FilterColumn {
-            name:     "device_id".to_string(),
-            sql_type: SqlType::Text,
-            indexed:  true,
+            name:      "device_id".to_string(),
+            sql_type:  SqlType::Text,
+            indexed:   true,
+            hierarchy: None,
         }],
         calendar_dimensions:      vec![],
         partial_period:           None,

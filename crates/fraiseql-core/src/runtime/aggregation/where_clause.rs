@@ -94,6 +94,9 @@ impl AggregationSqlGenerator {
             WhereClause::Typed { inner, .. } => {
                 self.where_clause_to_sql_parameterized(inner, metadata, params)
             },
+            WhereClause::InHierarchy { context, inner } => {
+                self.node_id_where(context, inner, metadata, params)
+            },
             // Reason: non_exhaustive requires catch-all for cross-crate matches
             _ => Err(crate::FraiseQLError::Validation {
                 message: "Unknown WhereClause variant".to_string(),
@@ -212,6 +215,65 @@ impl AggregationSqlGenerator {
 
         let ph = self.emit_value_param(value, params);
         Ok(format!("{jsonb_extract} {op_sql} {ph}"))
+    }
+
+    /// SQL for a node-id filter on a path column (#1498): the path is compared against
+    /// the node's own path, read from the declared hierarchy's table.
+    fn node_id_where(
+        &self,
+        context: &fraiseql_db::where_generator::HierarchyContext,
+        inner: &WhereClause,
+        metadata: &FactTableMetadata,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
+        use fraiseql_db::{PostgresDialect, SqlDialect};
+
+        let (lhs, operator, value) = match inner {
+            WhereClause::NativeField {
+                column,
+                operator,
+                value,
+                ..
+            } => (self.quote_identifier(column), operator, value),
+            WhereClause::Field {
+                path,
+                operator,
+                value,
+            } if metadata.denormalized_filters.iter().any(|f| Some(&f.name) == path.first()) => {
+                (self.quote_identifier(&path[0]), operator, value)
+            },
+            other => {
+                return Err(FraiseQLError::validation(format!(
+                    "a node-id filter applies to a denormalized path column, not {other:?}"
+                )));
+            },
+        };
+        let pg_op = match operator {
+            WhereOperator::DescendantOfId => "<@",
+            WhereOperator::AncestorOfId => "@>",
+            other => {
+                return Err(FraiseQLError::validation(format!(
+                    "{other:?} is not a node-id operator"
+                )));
+            },
+        };
+        let dialect = match self.database_type {
+            DatabaseType::PostgreSQL => PostgresDialect,
+        };
+        // The hierarchy table's `id` is a UUID; an uncast text parameter against it is
+        // rejected by the driver's binary bind (the #1396 lowering does the same).
+        let ph = self.emit_value_param(value, params);
+        let ph = dialect.cast_native_param(&ph, "uuid");
+        dialect
+            .ltree_id_subquery_sql(
+                pg_op,
+                &lhs,
+                &context.table,
+                &context.path_column,
+                context.fk_column.as_deref(),
+                &ph,
+            )
+            .map_err(|e| FraiseQLError::validation(e.to_string()))
     }
 
     /// SQL for an ltree operator on `lhs` (a column or a JSONB extraction), or `None` for

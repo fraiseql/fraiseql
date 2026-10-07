@@ -140,9 +140,10 @@ impl FactTableDetector {
                     // them vanish from the metadata entirely (#825 secondary).
                     if name.ends_with("_id") {
                         filters.push(FilterColumn {
-                            name:     name.clone(),
-                            sql_type: sql_type.clone(),
-                            indexed:  indexed_set.contains(name.as_str()),
+                            name:      name.clone(),
+                            sql_type:  sql_type.clone(),
+                            indexed:   indexed_set.contains(name.as_str()),
+                            hierarchy: None,
                         });
                     }
                 },
@@ -157,6 +158,7 @@ impl FactTableDetector {
                             name: name.clone(),
                             sql_type,
                             indexed: indexed_set.contains(name.as_str()),
+                            hierarchy: None,
                         });
                     } else if (name == "occurred_at" || name == "created_at")
                         && indexed_set.contains(name.as_str())
@@ -166,6 +168,7 @@ impl FactTableDetector {
                             name: name.clone(),
                             sql_type,
                             indexed: true,
+                            hierarchy: None,
                         });
                     }
                 },
@@ -636,6 +639,7 @@ impl FactTableDetector {
                             name: name.to_string(),
                             sql_type,
                             indexed: false,
+                            hierarchy: None,
                         });
                     }
                 },
@@ -645,7 +649,8 @@ impl FactTableDetector {
                         filters.push(FilterColumn {
                             name: name.to_string(),
                             sql_type,
-                            indexed: false, // Would need to query indexes to determine
+                            indexed: false, // Would need to query indexes to determine,
+                            hierarchy: None,
                         });
                     }
                 },

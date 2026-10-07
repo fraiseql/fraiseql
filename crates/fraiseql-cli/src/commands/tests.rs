@@ -2133,9 +2133,10 @@ mod introspect_facts_tests {
                 paths: vec![],
             },
             denormalized_filters:     vec![FilterColumn {
-                name:     "customer_id".to_string(),
-                sql_type: SqlType::Uuid,
-                indexed:  true,
+                name:      "customer_id".to_string(),
+                sql_type:  SqlType::Uuid,
+                indexed:   true,
+                hierarchy: None,
             }],
             calendar_dimensions:      vec![],
             partial_period:           None,
@@ -3600,9 +3601,10 @@ mod validate_facts_tests {
             ],
             "data",
             vec![FilterColumn {
-                name:     "customer_id".to_string(),
-                sql_type: SqlType::Uuid,
-                indexed:  true,
+                name:      "customer_id".to_string(),
+                sql_type:  SqlType::Uuid,
+                indexed:   true,
+                hierarchy: None,
             }],
         );
         let actual = declared.clone();

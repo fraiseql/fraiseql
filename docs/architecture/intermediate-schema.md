@@ -71,7 +71,7 @@ SDK authors should pin to a minor version and test against the current compiler.
 | `fragments` | `IntermediateFragment[]?` | no | Reusable field selections |
 | `directives` | `IntermediateDirective[]?` | no | Custom directive definitions |
 | `fact_tables` | `IntermediateFactTable[]?` | no | Analytics fact tables |
-| `aggregate_queries` | `IntermediateAggregateQuery[]?` | no | Analytics aggregate queries |
+| `aggregate_queries` | — | — | Refused: a fact table alone gives the `<name>_aggregate` root field |
 | `observers` | `IntermediateObserver[]?` | no | Database change event listeners |
 | `custom_scalars` | `IntermediateScalar[]?` | no | Custom scalar type definitions |
 | `security` | `object?` | no | Security config (from `fraiseql.toml`) |
@@ -486,22 +486,16 @@ OLAP-style fact table for aggregate queries.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `name` | `string` | Fact table name |
-| `sql_source` | `string` | Underlying view/table |
-| `measures` | `IntermediateMeasure[]` | Numeric measures |
-| `dimensions` | `IntermediateDimensions?` | Dimension groupings |
+| `table_name` | `string` | Fact table name (`tf_*`) |
+| `type_name` | `string?` | The type the table is read as (alias `type`) |
+| `measures` | `{name, sql_type, nullable}[]` | Numeric measures |
+| `dimensions` | `{name, paths: {name, json_path, data_type}[]}` | The JSONB dimensions column |
+| `denormalized_filters` | `{name, sql_type, indexed, hierarchy?}[]` | Filter columns. `hierarchy` names the `[hierarchies.<name>]` an `LTREE` path column belongs to, for node-id filters |
+| `native_measures` | `{[path]: column}?` | Measures stored as flat columns |
+| `native_dimension_mapping` | `{[path]: column}?` | Dimensions stored as flat columns |
 
-### `IntermediateAggregateQuery`
-
-Pre-defined aggregate query (COUNT, SUM, AVG, etc.).
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `name` | `string` | Query name |
-| `fact_table` | `string` | Source fact table |
-| `measures` | `string[]` | Measure names to aggregate |
-| `group_by` | `IntermediateDimensionPath[]?` | Grouping dimensions |
-| `filters` | `IntermediateFilter[]?` | WHERE conditions |
+A fact table gives the `<name>_aggregate` root field. There is no `aggregate_queries`
+section: the compiler refuses one.
 
 ---
 

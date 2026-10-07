@@ -115,6 +115,17 @@ pub enum GroupBySelection {
         /// Alias for result
         alias:           String,
     },
+    /// Group by a level or the depth of an `ltree` path column (#1498): `{"path":
+    /// {"level": n}}` rolls each path up to its first `n` labels, `{"path": "depth"}`
+    /// groups by the number of labels.
+    TreeLevel {
+        /// The denormalized filter column holding the path.
+        column:   String,
+        /// Which part of the tree to group by.
+        grouping: TreeGrouping,
+        /// Alias for result
+        alias:    String,
+    },
     /// Group by a native SQL column (not JSONB-extracted).
     ///
     /// Produced by [`crate::runtime::AggregateQueryParser`] when the GROUP BY field
@@ -127,6 +138,16 @@ pub enum GroupBySelection {
     },
 }
 
+/// What a tree grouping keeps of an `ltree` path (#1498).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
+pub enum TreeGrouping {
+    /// The first `n` labels (`subpath(path, 0, n)`); a shorter path is kept whole.
+    Level(u32),
+    /// The number of labels (`nlevel(path)`).
+    Depth,
+}
+
 impl GroupBySelection {
     /// Get the result alias for this selection
     #[must_use]
@@ -134,7 +155,8 @@ impl GroupBySelection {
         match self {
             Self::Dimension { alias, .. }
             | Self::TemporalBucket { alias, .. }
-            | Self::CalendarDimension { alias, .. } => alias,
+            | Self::CalendarDimension { alias, .. }
+            | Self::TreeLevel { alias, .. } => alias,
             // NativeDimension uses the column name as its alias by convention.
             Self::NativeDimension { column, .. } => column,
         }
@@ -246,6 +268,15 @@ pub enum GroupByExpression {
         json_key:        String,
         /// Result alias
         alias:           String,
+    },
+    /// A level or the depth of an `ltree` path column (#1498).
+    TreeLevel {
+        /// The path column.
+        column:   String,
+        /// Which part of the tree to group by.
+        grouping: TreeGrouping,
+        /// Result alias
+        alias:    String,
     },
     /// A native SQL column on the view/fact table — referenced directly,
     /// not via JSONB extraction. Generates a dialect-quoted column reference in
@@ -471,6 +502,28 @@ impl AggregationPlanner {
                         calendar_column: calendar_column.clone(),
                         json_key:        json_key.clone(),
                         alias:           alias.clone(),
+                    });
+                },
+                GroupBySelection::TreeLevel {
+                    column,
+                    grouping,
+                    alias,
+                } => {
+                    let filter = metadata.denormalized_filters.iter().find(|f| f.name == *column);
+                    if filter.map(|f| &f.sql_type) != Some(&super::fact_table::SqlType::Ltree) {
+                        return Err(FraiseQLError::Validation {
+                            message: format!(
+                                "Grouping '{column}' by a tree level or depth needs an ltree \
+                                 denormalized filter column on fact table '{}'",
+                                metadata.table_name
+                            ),
+                            path:    None,
+                        });
+                    }
+                    expressions.push(GroupByExpression::TreeLevel {
+                        column:   column.clone(),
+                        grouping: *grouping,
+                        alias:    alias.clone(),
                     });
                 },
                 GroupBySelection::NativeDimension { column, pg_cast } => {

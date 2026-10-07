@@ -2571,3 +2571,71 @@ fn an_unlinked_or_completely_linked_fact_table_loads() {
     }"#;
     CompiledSchema::from_json(json, false).unwrap();
 }
+
+// ── #1498: a fact-table path column's hierarchy is checked at load ─────────────
+
+mod fact_table_hierarchy {
+    use std::collections::HashMap;
+
+    use crate::{
+        compiler::fact_table::{DimensionColumn, FactTableMetadata, FilterColumn, SqlType},
+        schema::{CompiledSchema, HierarchyDefinition},
+    };
+
+    fn schema_with(sql_type: SqlType, hierarchy: &str, declared: bool) -> String {
+        let mut schema = CompiledSchema::new();
+        schema.add_fact_table(
+            "tf_org".to_string(),
+            FactTableMetadata {
+                table_name:               "tf_org".to_string(),
+                type_name:                None,
+                measures:                 vec![],
+                dimensions:               DimensionColumn {
+                    name:  "data".to_string(),
+                    paths: vec![],
+                },
+                denormalized_filters:     vec![FilterColumn {
+                    name: "org_path".to_string(),
+                    sql_type,
+                    indexed: true,
+                    hierarchy: Some(hierarchy.to_string()),
+                }],
+                calendar_dimensions:      vec![],
+                partial_period:           None,
+                native_measures:          HashMap::new(),
+                native_dimension_mapping: HashMap::new(),
+            },
+        );
+        if declared {
+            schema.hierarchies_config = Some(HashMap::from([(
+                "org".to_string(),
+                HierarchyDefinition {
+                    table:       "tb_org_unit".to_string(),
+                    path_column: "path".to_string(),
+                },
+            )]));
+        }
+        serde_json::to_string(&schema).unwrap()
+    }
+
+    #[test]
+    fn a_declared_hierarchy_on_an_ltree_column_loads() {
+        CompiledSchema::from_json(&schema_with(SqlType::Ltree, "org", true), false).unwrap();
+    }
+
+    #[test]
+    fn an_undeclared_hierarchy_is_refused() {
+        let err = CompiledSchema::from_json(&schema_with(SqlType::Ltree, "org", false), false)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("tf_org.org_path") && err.contains("[hierarchies.org]"), "{err}");
+    }
+
+    #[test]
+    fn a_hierarchy_on_a_column_that_is_not_a_path_is_refused() {
+        let err = CompiledSchema::from_json(&schema_with(SqlType::Text, "org", true), false)
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("tf_org.org_path") && err.contains("ltree"), "{err}");
+    }
+}

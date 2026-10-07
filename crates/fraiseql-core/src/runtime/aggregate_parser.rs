@@ -53,7 +53,7 @@ use crate::{
         aggregate_types::{AggregateFunction, HavingOperator, TemporalBucket},
         aggregation::{
             AggregateSelection, AggregationRequest, GroupBySelection, HavingCondition,
-            OrderByClause, OrderDirection,
+            OrderByClause, OrderDirection, TreeGrouping,
         },
         fact_table::FactTableMetadata,
     },
@@ -282,6 +282,22 @@ impl AggregateQueryParser {
                             alias: key.clone(),
                         });
                     }
+                } else if value.as_str() == Some("depth") {
+                    // Format 4: tree depth of an ltree path {"path": "depth"} (#1498)
+                    selections.push(Self::tree_level(key, TreeGrouping::Depth, metadata)?);
+                } else if let Some(level) = value.as_object().and_then(|o| o.get("level")) {
+                    // Format 5: roll a path up to a tree level {"path": {"level": 2}} (#1498)
+                    let level = level
+                        .as_u64()
+                        .filter(|n| *n >= 1)
+                        .and_then(|n| u32::try_from(n).ok())
+                        .ok_or_else(|| FraiseQLError::Validation {
+                            message: format!(
+                                "groupBy '{key}': level must be a positive integer, got {level}"
+                            ),
+                            path:    None,
+                        })?;
+                    selections.push(Self::tree_level(key, TreeGrouping::Level(level), metadata)?);
                 } else if let Some(bucket_str) = value.as_str() {
                     // Format 3: String bucket name {"occurred_at": "day"}
                     let bucket = TemporalBucket::from_str(bucket_str)?;
@@ -318,6 +334,34 @@ impl AggregateQueryParser {
         }
 
         Ok(selections)
+    }
+
+    /// A tree grouping of the denormalized filter column `key` (#1498). The column's
+    /// type is checked when the request is planned.
+    fn tree_level(
+        key: &str,
+        grouping: TreeGrouping,
+        metadata: &FactTableMetadata,
+    ) -> Result<GroupBySelection> {
+        if !metadata.denormalized_filters.iter().any(|f| f.name == key) {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "groupBy '{key}': a tree level or depth needs an ltree denormalized filter \
+                     column, and '{key}' is not a denormalized filter of '{}'",
+                    metadata.table_name
+                ),
+                path:    None,
+            });
+        }
+        let alias = match grouping {
+            TreeGrouping::Depth => format!("{key}_depth"),
+            TreeGrouping::Level(_) => key.to_string(),
+        };
+        Ok(GroupBySelection::TreeLevel {
+            column: key.to_string(),
+            grouping,
+            alias,
+        })
     }
 
     /// Parse temporal bucket if the key matches pattern

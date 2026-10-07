@@ -6,6 +6,7 @@
 
 pub(super) mod aggregate;
 mod aggregate_gates;
+mod aggregate_hierarchy;
 pub(super) mod mutation;
 pub(super) mod query;
 pub(super) mod query_composed;

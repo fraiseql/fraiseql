@@ -71,14 +71,16 @@ fn metadata() -> FactTableMetadata {
         },
         denormalized_filters:     vec![
             FilterColumn {
-                name:     "path".to_string(),
-                sql_type: SqlType::Other("ltree".to_string()),
-                indexed:  true,
+                name:      "path".to_string(),
+                sql_type:  SqlType::Other("ltree".to_string()),
+                indexed:   true,
+                hierarchy: None,
             },
             FilterColumn {
-                name:     "customer_id".to_string(),
-                sql_type: SqlType::Text,
-                indexed:  true,
+                name:      "customer_id".to_string(),
+                sql_type:  SqlType::Text,
+                indexed:   true,
+                hierarchy: None,
             },
         ],
         calendar_dimensions:      vec![],

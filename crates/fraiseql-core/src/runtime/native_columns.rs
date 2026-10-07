@@ -48,6 +48,7 @@ pub const fn sql_type_to_pg_cast(sql_type: &SqlType) -> &'static str {
         SqlType::Boolean => "bool",
         SqlType::Timestamp => "timestamptz",
         SqlType::Date => "date",
+        SqlType::Ltree => "ltree",
         // text, varchar, jsonb, json, other — no cast needed.
         SqlType::Text | SqlType::Jsonb | SqlType::Json | SqlType::Other(_) => "",
     }

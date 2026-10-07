@@ -96,7 +96,11 @@ impl DatabaseIntrospector for PostgresIntrospector {
             let (schema, name) = (&table_name[..dot], &table_name[dot + 1..]);
             client
                 .query(
-                    r"SELECT column_name, data_type, is_nullable = 'YES' as is_nullable
+                    r"SELECT column_name,
+                             -- An extension type (ltree, vector) reads as USER-DEFINED
+                             -- here; its own name is in udt_name (#1498).
+                             CASE WHEN data_type = 'USER-DEFINED' THEN udt_name ELSE data_type END,
+                             is_nullable = 'YES' as is_nullable
                       FROM information_schema.columns
                       WHERE table_name = $1 AND table_schema = $2
                       ORDER BY ordinal_position",
@@ -106,7 +110,11 @@ impl DatabaseIntrospector for PostgresIntrospector {
         } else {
             client
                 .query(
-                    r"SELECT column_name, data_type, is_nullable = 'YES' as is_nullable
+                    r"SELECT column_name,
+                             -- An extension type (ltree, vector) reads as USER-DEFINED
+                             -- here; its own name is in udt_name (#1498).
+                             CASE WHEN data_type = 'USER-DEFINED' THEN udt_name ELSE data_type END,
+                             is_nullable = 'YES' as is_nullable
                       FROM information_schema.columns
                       WHERE table_name = $1
                         AND table_schema = ANY(current_schemas(false))

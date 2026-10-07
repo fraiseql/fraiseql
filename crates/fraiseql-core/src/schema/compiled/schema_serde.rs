@@ -197,7 +197,9 @@ impl CompiledSchema {
     /// cannot be served, see [`CompiledSchema::federation_key_problems`], or when a
     /// relationship names a target, a join column or a list query the embed executor
     /// cannot resolve, see [`CompiledSchema::relationship_violations`].
-    /// Every field whose `hierarchy` names no `[hierarchies.<name>]` entry.
+    /// Every field whose `hierarchy` names no `[hierarchies.<name>]` entry, and every
+    /// fact-table filter whose `hierarchy` names none or sits on a column that is not an
+    /// ltree path.
     fn hierarchy_link_violations(&self) -> Vec<String> {
         let declared = self.hierarchies_config.as_ref();
         let mut violations: Vec<String> = self
@@ -216,6 +218,27 @@ impl CompiledSchema {
                 ))
             })
             .collect();
+        // A fact table's path column resolves node ids through its hierarchy too (#1498).
+        for (table, metadata) in &self.fact_tables {
+            for filter in &metadata.denormalized_filters {
+                let Some(name) = filter.hierarchy.as_deref() else {
+                    continue;
+                };
+                if filter.sql_type != crate::compiler::fact_table::SqlType::Ltree {
+                    violations.push(format!(
+                        "fact table filter `{table}.{}` links hierarchy `{name}` but is not an \
+                         ltree path column (sql_type {:?})",
+                        filter.name, filter.sql_type
+                    ));
+                } else if !declared.is_some_and(|h| h.contains_key(name)) {
+                    violations.push(format!(
+                        "fact table filter `{table}.{}` links hierarchy `{name}`, which no \
+                         `[hierarchies.{name}]` table declares (table + path_column)",
+                        filter.name
+                    ));
+                }
+            }
+        }
         violations.sort();
         violations
     }

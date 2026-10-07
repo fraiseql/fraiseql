@@ -150,6 +150,19 @@ describe("SchemaRegistry", () => {
       expect(schema.fact_tables![0].measures).toHaveLength(2);
     });
 
+    it("emits a path column's ltree type and hierarchy (#1498)", () => {
+      SchemaRegistry.registerFactTable(
+        "tf_org",
+        [{ name: "revenue", sql_type: "Float", nullable: false }],
+        { name: "data", paths: [] },
+        [{ name: "org_path", sql_type: "LTREE", indexed: true, hierarchy: "org" }]
+      );
+
+      expect(SchemaRegistry.getSchema().fact_tables![0].denormalized_filters).toEqual([
+        { name: "org_path", sql_type: "LTREE", indexed: true, hierarchy: "org" },
+      ]);
+    });
+
     it("emits type_name when the fact table is read as a type", () => {
       SchemaRegistry.registerFactTable(
         "tf_sales",

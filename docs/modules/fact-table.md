@@ -82,8 +82,9 @@ For each table:
   Classify each column:
       numeric AND NOT ends with "_id" AND NOT named "id"  → Measure
       JSONB or JSON                                        → DimensionColumn
-      ends with "_id" AND indexed                         → Filter (UUID/INT FK)
-      TIMESTAMPTZ/TIMESTAMP AND indexed                   → Filter (time)
+      numeric AND ends with "_id"                          → Filter (INT FK)
+      any other type (text, uuid, ltree, …)               → Filter
+      created_at / occurred_at AND indexed                 → Filter (time)
   DatabaseIntrospector::get_sample_jsonb(table_name, "dimensions")
       ↓ SELECT dimensions FROM table LIMIT 100
   extract_dimension_paths(sample_jsonb, "dimensions", db_type)
@@ -139,6 +140,57 @@ The sampler infers types from the observed JSON value type:
   paths must be declared explicitly if needed.
 - **Max depth 3**: Deeply nested structures are truncated. For `{a: {b: {c: {d: ...}}}}`,
   paths up to `a.b.c` are discovered; `a.b.c.d` is not.
+
+---
+
+## Tree Paths (`ltree`)
+
+A fact table whose rows sit in a tree (an org chart, a location, a taxonomy) keeps each
+row's path in an `ltree` column, declared as a denormalized filter with
+`"sql_type": "LTREE"`. Introspection classifies such a column as an `Ltree` filter.
+
+```sql
+CREATE TABLE tf_headcount (
+    salary    NUMERIC NOT NULL,
+    org_path  LTREE NOT NULL,          -- e.g. 'acme.engineering.platform'
+    data      JSONB NOT NULL DEFAULT '{}'
+);
+CREATE INDEX ON tf_headcount USING gist (org_path);
+```
+
+**Filter** on the path with the ltree operators: `org_path_descendant_of`,
+`org_path_ancestor_of`, `org_path_matches_lquery`, `org_path_depth_eq` and the rest.
+
+**Roll up** to a level of the tree, or group by depth:
+
+```json
+{ "groupBy": { "org_path": { "level": 2 } }, "aggregates": [{ "salary_sum": {} }] }
+{ "groupBy": { "org_path": "depth" },        "aggregates": [{ "salary_sum": {} }] }
+```
+
+`{"level": n}` groups by `subpath(org_path, 0, n)`: each path cut to its first `n` labels,
+with a shorter path kept whole. The result keeps the column's name (`org_path`).
+`"depth"` groups by `nlevel(org_path)` and answers as `org_path_depth`. Both need the
+column to be an `LTREE` denormalized filter.
+
+**Filter by node id.** `org_path_descendant_of_id` and `org_path_ancestor_of_id` take the
+`id` of a node and compare against that node's path. The column names the hierarchy the
+node lives in, declared in `fraiseql.toml`:
+
+```toml
+[hierarchies.org]
+table = "tb_org_unit"      # holds id (UUID) + path
+path_column = "path"
+```
+
+```json
+"denormalized_filters": [
+  {"name": "org_path", "sql_type": "LTREE", "indexed": true, "hierarchy": "org"}
+]
+```
+
+A schema whose filter names an undeclared hierarchy, or links one to a column that is not
+`LTREE`, is refused when the server loads it.
 
 ---
 

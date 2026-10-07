@@ -787,9 +787,11 @@ impl AggregateTypeGenerator {
             SqlType::Boolean => "Boolean".to_string(),
             SqlType::Jsonb | SqlType::Json => "JSON".to_string(),
             SqlType::Uuid => "ID".to_string(),
-            SqlType::Text | SqlType::Timestamp | SqlType::Date | SqlType::Other(_) => {
-                "String".to_string()
-            },
+            SqlType::Text
+            | SqlType::Timestamp
+            | SqlType::Date
+            | SqlType::Ltree
+            | SqlType::Other(_) => "String".to_string(),
         }
     }
 

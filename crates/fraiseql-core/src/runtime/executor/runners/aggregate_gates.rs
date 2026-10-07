@@ -95,7 +95,8 @@ impl<'r> References<'r> {
 fn group_by_name<'m>(selection: &'m GroupBySelection, metadata: &'m FactTableMetadata) -> &'m str {
     match selection {
         GroupBySelection::Dimension { path, .. } => path,
-        GroupBySelection::TemporalBucket { column, .. } => column,
+        GroupBySelection::TemporalBucket { column, .. }
+        | GroupBySelection::TreeLevel { column, .. } => column,
         GroupBySelection::CalendarDimension { source_column, .. } => source_column,
         GroupBySelection::NativeDimension { column, .. } => metadata
             .native_dimension_mapping

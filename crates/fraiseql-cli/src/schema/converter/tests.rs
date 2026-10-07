@@ -4566,3 +4566,23 @@ mod optional_claim {
         assert!(err.contains("createInvoice") && err.contains("org_id"), "{err}");
     }
 }
+
+// ── #1498: a fact table's path column declares its hierarchy ──────────────────
+
+#[test]
+fn a_fact_table_filter_carries_its_ltree_type_and_hierarchy_into_the_compiled_schema() {
+    use fraiseql_core::compiler::fact_table::SqlType;
+
+    let intermediate: IntermediateSchema = serde_json::from_str(
+        r#"{"fact_tables": [{"table_name": "tf_org", "measures": [],
+            "dimensions": {"name": "data", "paths": []},
+            "denormalized_filters": [
+                {"name": "org_path", "sql_type": "LTREE", "indexed": true, "hierarchy": "org"}
+            ]}]}"#,
+    )
+    .unwrap();
+    let compiled = SchemaConverter::convert(intermediate).unwrap();
+    let filter = &compiled.fact_tables["tf_org"].denormalized_filters[0];
+    assert_eq!(filter.sql_type, SqlType::Ltree);
+    assert_eq!(filter.hierarchy.as_deref(), Some("org"));
+}

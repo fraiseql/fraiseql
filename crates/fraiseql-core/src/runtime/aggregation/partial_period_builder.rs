@@ -276,6 +276,7 @@ fn group_by_alias(expr: &GroupByExpression) -> &str {
         GroupByExpression::JsonbPath { alias, .. }
         | GroupByExpression::TemporalBucket { alias, .. }
         | GroupByExpression::CalendarPath { alias, .. }
+        | GroupByExpression::TreeLevel { alias, .. }
         | GroupByExpression::NativeColumn { alias, .. } => alias,
     }
 }

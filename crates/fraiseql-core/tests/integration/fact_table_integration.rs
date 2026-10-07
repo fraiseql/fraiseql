@@ -409,3 +409,44 @@ async fn test_calendar_fact_table_dimensions_by_role() {
 
     client.batch_execute("DROP TABLE IF EXISTS tf_p23_calendar_sales;").await.ok();
 }
+
+/// #1498: an `ltree` column is a filter column of type ltree. PostgreSQL reports an
+/// extension type as `USER-DEFINED` in `information_schema.columns.data_type`, so the
+/// detector filed the column under that name and the ltree type was lost: tree-level
+/// grouping and the hierarchy operators could not tell it was a path.
+#[tokio::test]
+async fn test_an_ltree_column_is_a_path_filter() {
+    let Some((pg, introspector)) = create_test_introspector().await else {
+        eprintln!("SKIP fact_table integration: no postgres (set DATABASE_URL)");
+        return;
+    };
+    let (client, connection) = tokio_postgres::connect(pg.url(), NoTls).await.unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    client
+        .batch_execute(
+            "CREATE EXTENSION IF NOT EXISTS ltree;
+             DROP TABLE IF EXISTS tf_issue_1498_introspect;
+             CREATE TABLE tf_issue_1498_introspect (
+                 revenue NUMERIC NOT NULL,
+                 org_path LTREE NOT NULL,
+                 data JSONB NOT NULL DEFAULT '{}'
+             );
+             CREATE INDEX ON tf_issue_1498_introspect USING gist (org_path);",
+        )
+        .await
+        .expect("create ltree fact table");
+
+    let metadata = FactTableDetector::introspect(&introspector, "tf_issue_1498_introspect")
+        .await
+        .expect("an ltree fact table must introspect");
+
+    let path = metadata
+        .denormalized_filters
+        .iter()
+        .find(|f| f.name == "org_path")
+        .expect("org_path must be classified as a denormalized filter");
+    assert_eq!(path.sql_type, SqlType::Ltree);
+    assert!(path.indexed, "the GiST index counts as an index");
+}
