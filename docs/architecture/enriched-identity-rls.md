@@ -52,7 +52,8 @@ map     = { sending_address = "sending_address" }
 
 - `$name` tokens are bound through the resolver `jwt:<claim>` uses everywhere: the
   claim as the token carries it; else a field the validator lifts out of the token
-  (`sub`, `email`, `name`, `iss`); else, for the schema's configured `tenant_claim`
+  (`sub`, `email`, `name`, `iss`, and `scope` as the space-separated granted scopes);
+  else, for the schema's configured `tenant_claim`
   only, the request's tenant. `org_id` is an ordinary claim unless `tenant_claim`
   names it. Values are bound out-of-band, **never** interpolated into the SQL.
 - `$claims` binds the whole verified claim set as one **`jsonb`** value — the

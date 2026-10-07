@@ -717,7 +717,8 @@ impl SecurityContext {
     /// 2. a **registered** claim the validator lifts out of the claim map into its own field, so it
     ///    never reaches `attributes`: `sub` (also spelled `user_id`) → [`Self::user_id`], `email` →
     ///    [`Self::email`], `name` (also `display_name`) → [`Self::display_name`], `iss` →
-    ///    [`Self::issuer`];
+    ///    [`Self::issuer`], `scope` → [`Self::scopes`] as the space-separated string an OAuth token
+    ///    carries (#1417; absent when no scope is granted);
     /// 3. `tenant_claim` — the schema's configured tenant claim, and only that name — →
     ///    [`Self::tenant_id`].
     ///
@@ -737,6 +738,7 @@ impl SecurityContext {
             "email" => self.email.clone(),
             "name" | "display_name" => self.display_name.clone(),
             "iss" => self.issuer.clone(),
+            "scope" => (!self.scopes.is_empty()).then(|| self.scopes.join(" ")),
             _ if claim == tenant_claim => self.tenant_id.as_ref().map(|t| t.0.clone()),
             _ => None,
         };

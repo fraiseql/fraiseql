@@ -589,6 +589,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`jwt:scope` injects the granted scopes (#1417).** The validator lifts the `scope` claim into
+  the principal's scopes, so it never reached the claim map and `jwt:scope` failed every call
+  with "claim 'scope' not present in token". It now resolves to the scopes as the token carries
+  them, one space-separated string (absent when none is granted), on every path that reads a
+  claim: inject params, session variables and enrichment bindings. A mutation's function can
+  tell a `write`-scoped caller from a `read`-scoped one.
+
 - **Introspection reads an `ltree` column as a path filter (#1498).** `information_schema`
   reports an extension type's `data_type` as `USER-DEFINED`, so the fact-table detector filed an
   `ltree` column as `Other("user-defined")` and its type was lost. The PostgreSQL introspector

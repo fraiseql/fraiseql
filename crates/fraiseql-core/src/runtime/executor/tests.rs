@@ -1336,6 +1336,31 @@ mod inject {
         assert_eq!(result, serde_json::Value::String("user-42".to_string()));
     }
 
+    /// #1417: the `scope` claim is parsed into `SecurityContext::scopes`, not kept in
+    /// `attributes`, so `jwt:scope` found nothing and failed the call. It injects the
+    /// granted scopes the way the token carries them: one space-separated string.
+    #[test]
+    fn jwt_scope_injects_the_granted_scopes() {
+        let mut ctx = make_security_ctx("user-1", None, &[]);
+        ctx.scopes = vec!["read".to_string(), "write".to_string()];
+        assert_eq!(inject("scope", &ctx).unwrap(), serde_json::json!("read write"));
+        let value = resolve_mutation_inject_value(
+            "p_scope",
+            &InjectedParamSource::Jwt("scope".into()),
+            &ctx,
+            DEFAULT_TENANT_CLAIM,
+        )
+        .unwrap();
+        assert_eq!(value, serde_json::json!("read write"));
+    }
+
+    /// A token granting no scope carries no `scope` claim: absent, not an empty string.
+    #[test]
+    fn jwt_scope_is_absent_when_no_scope_is_granted() {
+        let ctx = make_security_ctx("user-1", None, &[]);
+        assert!(inject("scope", &ctx).is_err());
+    }
+
     /// `jwt_optional:<claim>` (#1418): one mutation serves a direct token and a
     /// delegated one. An absent claim reaches the function as SQL `NULL`.
     #[test]
