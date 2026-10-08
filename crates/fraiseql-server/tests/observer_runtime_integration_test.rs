@@ -2157,3 +2157,75 @@ async fn test_nats_runtime_does_not_redeliver_a_dispatch_longer_than_ack_wait() 
     assert_eq!(requests, 1, "the webhook must be called once");
     assert_eq!(info.num_ack_pending, 0, "the event must be acknowledged once its actions ran");
 }
+
+/// #1511 keeps #1510's property: progress acknowledgements extend a dispatch only while
+/// a server is running it. A runtime that dies mid-dispatch stops signalling, so once
+/// the deadline passes the broker redelivers the event to another runtime.
+///
+/// The first runtime runs on its own tokio runtime, shut down mid-dispatch: its tasks
+/// and its NATS connection go with it, as they would with the process.
+#[cfg(feature = "observers-nats")]
+#[tokio::test]
+#[ignore = "requires PostgreSQL and NATS"]
+async fn test_nats_event_of_a_runtime_that_died_mid_dispatch_is_redelivered() {
+    init_test_tracing();
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    let (mock_server, entity_type) =
+        seed_replica_test(&pool, &test_id, Duration::from_secs(6)).await;
+
+    let url =
+        std::env::var("NATS_URL").expect("NATS_URL must be set (the observers leg binds NATS)");
+    let name = format!("crash-{test_id}");
+
+    let (started_tx, started_rx) = std::sync::mpsc::channel::<()>();
+    let (crash_tx, crash_rx) = std::sync::mpsc::channel::<()>();
+    let transport = nats_test_transport(&url, &name, 2);
+    let doomed = std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap();
+        rt.block_on(async {
+            let pool = create_test_pool().await;
+            let mut runtime =
+                ObserverRuntime::new(ObserverRuntimeConfig::new(pool).with_transport(transport));
+            runtime.start().await.expect("the first runtime starts");
+            // Leaked on purpose: a crash runs no `stop`.
+            std::mem::forget(runtime);
+        });
+        started_tx.send(()).unwrap();
+        crash_rx.recv().unwrap();
+        rt.shutdown_background();
+    });
+    started_rx.recv().expect("the first runtime started");
+
+    let jetstream = async_nats::jetstream::new(async_nats::connect(&url).await.expect("connect"));
+    publish_order_event(&jetstream, &name, &entity_type).await;
+
+    // Crash while the 6 s webhook is running, after two progress signals (every 1 s):
+    // had they acknowledged the event rather than extended it, nothing would be
+    // redelivered.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while mock_server.request_count().await == 0 && tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    tokio::time::sleep(Duration::from_millis(2500)).await;
+    assert_eq!(mock_server.request_count().await, 1, "the first runtime must be dispatching");
+    crash_tx.send(()).unwrap();
+    doomed.join().unwrap();
+
+    let mut survivor = ObserverRuntime::new(
+        ObserverRuntimeConfig::new(pool.clone())
+            .with_transport(nats_test_transport(&url, &name, 2)),
+    );
+    survivor.start().await.expect("the second runtime starts");
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(45);
+    while mock_server.request_count().await < 2 && tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
+    let requests = mock_server.request_count().await;
+
+    survivor.stop().await.expect("Failed to stop runtime");
+    jetstream.delete_stream(&name).await.expect("clean up the stream");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
+
+    assert_eq!(requests, 2, "the event must be redelivered to the surviving runtime");
+}
