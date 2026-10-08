@@ -97,6 +97,11 @@ impl Pipeline {
             schema.types.push(order);
         }
         schema.subscriptions.push(definition);
+        Self::start_on(pool, schema, planned).await
+    }
+
+    /// The pipeline over `schema`; `planned` mounts an executor over it.
+    async fn start_on(pool: &sqlx::PgPool, mut schema: CompiledSchema, planned: bool) -> Self {
         schema.build_indexes();
         let manager = Arc::new(SubscriptionManager::new(Arc::new(schema.clone())));
 
@@ -179,9 +184,19 @@ async fn handshake_and_send(
     query: &str,
     variables: &serde_json::Value,
 ) -> (WsSink, WsStream) {
+    handshake_with(pipeline, &json!({}), query, variables).await
+}
+
+/// [`handshake_and_send`] with a `connection_init` payload.
+async fn handshake_with(
+    pipeline: &Pipeline,
+    init_payload: &serde_json::Value,
+    query: &str,
+    variables: &serde_json::Value,
+) -> (WsSink, WsStream) {
     let (ws_stream, _) = connect_async(&pipeline.ws_url).await.expect("connect");
     let (mut sink, mut stream) = ws_stream.split();
-    send_json(&mut sink, json!({"type": "connection_init"})).await;
+    send_json(&mut sink, json!({"type": "connection_init", "payload": init_payload})).await;
     loop {
         let msg = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
             .await
@@ -522,4 +537,75 @@ async fn an_undefined_variable_named_like_an_argument_is_refused() {
         "the refusal names the argument form: {frame}"
     );
     assert_eq!(registered, 0, "a refused subscription is not registered");
+}
+
+/// #1513 on `/ws`: a localized field of a subscription payload is delivered as the
+/// subscriber's label, resolved once from the `connection_init` payload (`{"locale": …}`)
+/// and carried to every delivery, which runs on the bridge's task, not the connection's.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_subscription_payload_is_localized_in_the_subscribers_locale() {
+    use fraiseql_core::schema::{
+        FieldDefinition, FieldType, LocaleConfig, LocaleSource, TypeDefinition,
+    };
+
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+    let entity_type = format!("Order_{test_id}");
+
+    let mut schema = CompiledSchema::new();
+    let mut order = TypeDefinition::new(entity_type.as_str(), "v_order");
+    let mut label = FieldDefinition::nullable("label", FieldType::String);
+    label.localized = true;
+    order.fields = vec![FieldDefinition::new("id", FieldType::Id), label];
+    schema.types.push(order);
+    schema
+        .subscriptions
+        .push(SubscriptionDefinition::new("orderChanged", &entity_type));
+    schema.locale = Some(
+        LocaleConfig::new(
+            "en-US",
+            vec!["en-US".into(), "fr-FR".into()],
+            std::collections::BTreeMap::new(),
+            vec![LocaleSource::Argument {
+                argument: "locale".to_string(),
+            }],
+        )
+        .unwrap(),
+    );
+    let pipeline = Pipeline::start_on(&pool, schema, true).await;
+    let (_sink, mut stream) = handshake_with(
+        &pipeline,
+        &json!({"locale": "fr-FR"}),
+        "subscription { orderChanged { id label } }",
+        &json!({}),
+    )
+    .await;
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+    while pipeline.manager.subscription_count() != 1 {
+        assert!(tokio::time::Instant::now() < deadline, "subscription must register");
+        tokio::task::yield_now().await;
+    }
+
+    let id = Uuid::new_v4().to_string();
+    insert_change_log_entry(
+        &pool,
+        "INSERT",
+        &entity_type,
+        &id,
+        json!({"id": id, "label": {"fr-FR": "Pomme", "en-US": "Apple"}}),
+        None,
+    )
+    .await
+    .expect("insert change-log row");
+    let frame = recv_next(&mut stream, std::time::Duration::from_secs(10)).await;
+
+    pipeline.stop().await;
+    cleanup_test_data(&pool, &test_id).await.ok();
+    assert_eq!(
+        frame.pointer("/payload/data/orderChanged/label"),
+        Some(&json!("Pomme")),
+        "{frame}"
+    );
 }

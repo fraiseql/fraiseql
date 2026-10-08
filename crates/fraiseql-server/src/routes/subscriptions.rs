@@ -580,6 +580,7 @@ pub async fn subscription_handler(
                 tenant_id,
                 security_context,
                 token_claims.map(|axum::Extension(claims)| claims),
+                headers,
             )
         })
         .into_response()
@@ -612,6 +613,14 @@ fn resolve_subscription_tenant(
 /// undecodable message, 4401 for anything valid that is not `connection_init`.
 /// The old loop silently discarded both violation shapes and kept waiting, so
 /// a misbehaving client saw only the generic init timeout.
+/// What a `/ws` connection keeps to resolve each subscriber's locale (#1512): the upgrade
+/// request's headers and the `connection_init` payload, whose keys are the explicit
+/// argument channel (a browser cannot set a `WebSocket` header).
+struct ConnectionLocale<'a> {
+    headers:      &'a HeaderMap,
+    init_payload: Option<&'a serde_json::Value>,
+}
+
 enum InitWait {
     Init(Box<ClientMessage>),
     ClientClosed,
@@ -627,6 +636,9 @@ async fn handle_subscription_connection(
     tenant_id: Option<String>,
     principal: Option<SecurityContext>,
     token_claims: Option<crate::middleware::oidc_auth::SessionTokenClaims>,
+    // The upgrade request's headers, for the request locale (#1512): a subscription is
+    // planned, and its events served, long after the upgrade returned.
+    headers: HeaderMap,
 ) {
     let connection_id = uuid::Uuid::new_v4().to_string();
     let codec = ProtocolCodec::new(protocol);
@@ -671,7 +683,7 @@ async fn handle_subscription_connection(
     .await;
 
     // Handle init timeout or failure
-    let _init_payload = match init_result {
+    let init_payload = match init_result {
         Ok(InitWait::Init(msg)) => {
             // Call lifecycle on_connect hook
             let params = msg.payload.clone().unwrap_or(serde_json::json!({}));
@@ -778,6 +790,7 @@ async fn handle_subscription_connection(
                             &mut sender,
                             tenant_id.as_deref(),
                             principal.as_ref(),
+                            &ConnectionLocale { headers: &headers, init_payload: init_payload.as_ref() },
                         ).await {
                             // Best-effort: connection is already being closed.
                             let _ = sender.send(Message::Close(Some(axum::extract::ws::CloseFrame {
@@ -1125,6 +1138,7 @@ async fn handle_client_message(
     sender: &mut futures::stream::SplitSink<WebSocket, Message>,
     tenant_id: Option<&str>,
     principal: Option<&SecurityContext>,
+    locale: &ConnectionLocale<'_>,
 ) -> Result<(), CloseCode> {
     let client_msg: ClientMessage = codec.decode(text).map_err(|e| {
         warn!(error = %e, "Failed to parse client message");
@@ -1312,7 +1326,18 @@ async fn handle_client_message(
             // own (ruling AE 1: nothing is forwarded to another subgraph).
             let plan = match state.live_executor.as_ref() {
                 Some(live) => {
-                    match live().plan_subscription(&parsed, Some(&variables_value), principal) {
+                    // #1513: planned in the subscriber's locale, which the plan keeps for
+                    // every event it serves.
+                    let executor = live();
+                    let request_locale = crate::request_locale::resolve(
+                        executor.schema(),
+                        Some(locale.headers),
+                        Some(&crate::request_locale::json_argument(locale.init_payload)),
+                        principal,
+                    );
+                    match fraiseql_core::runtime::with_request_locale_sync(request_locale, || {
+                        executor.plan_subscription(&parsed, Some(&variables_value), principal)
+                    }) {
                         Ok(plan) => Some(Arc::new(plan)),
                         Err(err) => {
                             WS_SUBSCRIPTIONS_REJECTED.fetch_add(1, Ordering::Relaxed);

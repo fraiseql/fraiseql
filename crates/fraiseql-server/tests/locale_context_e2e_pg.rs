@@ -588,7 +588,8 @@ async fn a_federation_entity_lookup_runs_in_the_request_locale() {
     for ddl in [
         "DROP VIEW IF EXISTS v_locale_fed_probe",
         "CREATE VIEW v_locale_fed_probe AS SELECT 'p1'::text AS id, jsonb_build_object('id', \
-         'p1', 'locale', current_setting('fraiseql.locale', true)) AS data",
+         'p1', 'locale', current_setting('fraiseql.locale', true), 'label', \
+         '{\"fr\": \"Cerise\", \"en-US\": \"Cherry\"}'::jsonb) AS data",
     ] {
         adapter.execute_raw_query(ddl).await.unwrap();
     }
@@ -600,7 +601,8 @@ async fn a_federation_entity_lookup_runs_in_the_request_locale() {
                 "sql_source": "v_locale_fed_probe",
                 "fields": [
                     {"name": "id", "field_type": "ID", "nullable": false},
-                    {"name": "locale", "field_type": "String", "nullable": true}
+                    {"name": "locale", "field_type": "String", "nullable": true},
+                    {"name": "label", "field_type": "String", "nullable": true, "localized": true}
                 ]
             }],
             "queries": [{
@@ -641,7 +643,7 @@ async fn a_federation_entity_lookup_runs_in_the_request_locale() {
         .header("accept-language", "fr-BE")
         .json(&json!({
             "query": "query($representations: [_Any!]!) { _entities(representations: \
-                      $representations) { ... on LocaleFedProbe { id locale } } }",
+                      $representations) { ... on LocaleFedProbe { id locale label } } }",
             "variables": { "representations": [{ "__typename": "LocaleFedProbe", "id": "p1" }] }
         }))
         .send()
@@ -651,6 +653,8 @@ async fn a_federation_entity_lookup_runs_in_the_request_locale() {
         .await
         .unwrap();
     assert_eq!(body["data"]["_entities"][0]["locale"], json!("fr"), "{body}");
+    // #1513: a localized field of a resolved entity is the request locale's label.
+    assert_eq!(body["data"]["_entities"][0]["label"], json!("Cerise"), "{body}");
 }
 
 /// The schema the write fixture lives in.
@@ -969,4 +973,119 @@ async fn a_locale_without_a_collation_refuses_to_boot() {
         message.contains("tlh-Latn-x-icu") && message.contains("`tlh-Latn`"),
         "names the collation and the tag: {message}"
     );
+}
+
+/// Phase 04: a `schema.json` with a localized field, compiled with [locale], plus its rows.
+const LOCALIZED_SCHEMA_JSON: &str = r#"{
+  "types": [{
+    "name": "LocalizedProduct",
+    "fields": [
+      {"name": "id", "type": "ID", "nullable": false},
+      {"name": "name", "type": "String", "nullable": true, "localized": true}
+    ],
+    "sql_source": "tv_locale_rest_product"
+  }],
+  "queries": [{
+    "name": "localized_products", "return_type": "LocalizedProduct", "returns_list": true,
+    "sql_source": "tv_locale_rest_product", "nullable": false, "arguments": []
+  }],
+  "mutations": [], "subscriptions": [], "version": "2.0.0"
+}"#;
+
+/// Compile [`LOCALIZED_SCHEMA_JSON`] with the suite's `[locale]` and seed its rows.
+async fn localized_schema(url: &str) -> CompiledSchema {
+    let adapter = PostgresAdapter::new(url).await.unwrap();
+    for ddl in [
+        "DROP TABLE IF EXISTS tv_locale_rest_product",
+        "CREATE TABLE tv_locale_rest_product (pk bigint, data jsonb)",
+        "INSERT INTO tv_locale_rest_product VALUES \
+         (1, '{\"id\": \"1\", \"name\": {\"fr-FR\": \"Pomme\", \"en-US\": \"Apple\"}}'), \
+         (2, '{\"id\": \"2\", \"name\": {\"en-US\": \"Pear\"}}')",
+    ] {
+        adapter.execute_raw_query(ddl).await.unwrap();
+    }
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join("schema.json"), LOCALIZED_SCHEMA_JSON).unwrap();
+    std::fs::write(
+        dir.path().join("fraiseql.toml"),
+        format!(
+            "[project]\nname = \"l\"\n\n[fraiseql]\nschema_file = \"schema.json\"\n{LOCALE_TOML}"
+        ),
+    )
+    .unwrap();
+    let input = dir.path().join("schema.json");
+    let (artifact, _) =
+        compile_to_schema(CompileOptions::new(input.to_str().unwrap())).await.unwrap();
+    let mut schema =
+        CompiledSchema::from_json(&serde_json::to_string(&artifact.schema).unwrap(), false)
+            .unwrap();
+    schema.rest_config = Some(RestConfig {
+        enabled: true,
+        ..RestConfig::default()
+    });
+    schema.build_indexes();
+    schema
+}
+
+/// `name` of each row of a response list, by id.
+fn names_by_id(rows: &Value) -> Vec<(String, Value)> {
+    let mut out: Vec<(String, Value)> = rows
+        .as_array()
+        .unwrap_or_else(|| panic!("{rows}"))
+        .iter()
+        .map(|r| (r["id"].as_str().unwrap().to_string(), r["name"].clone()))
+        .collect();
+    out.sort_by(|a, b| a.0.cmp(&b.0));
+    out
+}
+
+/// Phase 04 sweep: REST (JSON envelope) and MCP read a localized field as the request locale's
+/// label.
+#[tokio::test]
+async fn rest_and_mcp_return_localized_labels() {
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    let schema = localized_schema(&url).await;
+    let mcp_schema = schema.clone();
+    let Some(server) = start(schema, Auth::None).await else {
+        return;
+    };
+    let expected = vec![
+        ("1".to_string(), json!("Pomme")),
+        ("2".to_string(), json!("Pear")),
+    ];
+
+    let body: Value = reqwest::Client::new()
+        .get(format!("{}/rest/v1/localized_products", server.base))
+        .header("accept-language", "fr-CA")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(names_by_id(&body["data"]), expected, "REST: {body}");
+
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
+    let service = FraiseQLMcpService::new(
+        AppState::new(Arc::new(Executor::new(mcp_schema, adapter))),
+        McpConfig {
+            enabled: true,
+            require_auth: false,
+            ..McpConfig::default()
+        },
+    );
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert("accept-language", "fr-CA".parse().unwrap());
+    let result = service
+        .call_tool_authenticated("localizedProducts", None, None, "mcp-l".into(), &headers)
+        .await;
+    let text = result
+        .content
+        .first()
+        .and_then(|c| c.as_text().map(|t| t.text.clone()))
+        .unwrap();
+    let body: Value = serde_json::from_str(&text).unwrap();
+    assert_eq!(names_by_id(&body["data"]["localizedProducts"]), expected, "MCP: {text}");
 }

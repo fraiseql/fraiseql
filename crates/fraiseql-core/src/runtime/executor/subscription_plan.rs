@@ -67,6 +67,8 @@ pub struct SubscriptionPlan {
     type_name:    String,
     selections:   Vec<FieldSelection>,
     variables:    HashMap<String, serde_json::Value>,
+    /// The subscriber's request locale, captured when the plan was made (#1513).
+    locale:       Option<String>,
 }
 
 impl std::fmt::Debug for SubscriptionPlan {
@@ -103,14 +105,16 @@ impl SubscriptionPlan {
             SUPPRESSED.fetch_add(1, Ordering::Relaxed);
             return None;
         }
-        if let Ok(served) = self.plan.serve(
-            &self.ctx,
-            self.principal.as_ref(),
-            &self.type_name,
-            &self.selections,
-            after_image,
-            &self.variables,
-        ) {
+        if let Ok(served) = crate::runtime::with_request_locale_sync(self.locale.clone(), || {
+            self.plan.serve(
+                &self.ctx,
+                self.principal.as_ref(),
+                &self.type_name,
+                &self.selections,
+                after_image,
+                &self.variables,
+            )
+        }) {
             Some(served)
         } else {
             SUPPRESSED.fetch_add(1, Ordering::Relaxed);
@@ -265,6 +269,9 @@ impl Executor {
             type_name: type_name.to_string(),
             selections,
             variables,
+            // #1513: events are delivered on the connection's task, outside any request
+            // scope; the plan serves them in the locale it was planned in.
+            locale: crate::runtime::scoped_request_locale(),
         })
     }
 }

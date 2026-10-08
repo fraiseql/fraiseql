@@ -54,6 +54,10 @@ pub struct FieldMapping {
     /// Defaults to `false` — *not known to be scalar* — so a mapping built
     /// without schema knowledge keeps the recovery behaviour it had.
     pub declared_scalar: bool,
+    /// A localized field's chain for the request locale (#1513): a stored locale map is read
+    /// through it. Set by [`ProjectionMapper::with_declared_scalars`]; `None` otherwise, and
+    /// for a value SQL already resolved (a string), which passes through.
+    pub localized:       Option<Vec<String>>,
 }
 
 /// The stored JSONB key a declared field name resolves to, plus the legacy
@@ -101,6 +105,7 @@ impl FieldMapping {
             nested_typename: None,
             nested_fields: None,
             declared_scalar: false,
+            localized: None,
         }
     }
 
@@ -121,6 +126,7 @@ impl FieldMapping {
             nested_typename: None,
             nested_fields: None,
             declared_scalar: false,
+            localized: None,
         }
     }
 
@@ -152,6 +158,7 @@ impl FieldMapping {
             nested_typename: Some(typename.into()),
             nested_fields: Some(fields),
             declared_scalar: false,
+            localized: None,
         }
     }
 
@@ -171,6 +178,7 @@ impl FieldMapping {
             nested_typename: Some(typename.into()),
             nested_fields: Some(fields),
             declared_scalar: false,
+            localized: None,
         }
     }
 
@@ -286,6 +294,9 @@ impl ProjectionMapper {
                 .find(|f| f.name == mapping.output || f.name == mapping.source);
             if let Some(fd) = declared {
                 mapping.declared_scalar = excludes_json_composites(&fd.field_type);
+                if fd.localized {
+                    mapping.localized = crate::runtime::localization_chain(schema);
+                }
             }
         }
         self
@@ -364,6 +375,9 @@ impl ProjectionMapper {
     /// Project a nested value, adding typename if configured.
     #[allow(clippy::self_only_used_in_recursion)] // Reason: &self required for method dispatch; recursive structure is intentional
     fn project_nested_value(&self, value: &JsonValue, field: &FieldMapping) -> Result<JsonValue> {
+        if let Some(chain) = &field.localized {
+            return Ok(crate::runtime::localize(value, chain));
+        }
         match value {
             JsonValue::Object(obj) => {
                 // If this field has nested typename, add it
@@ -772,8 +786,13 @@ fn project_field_value(
     schema: &CompiledSchema,
 ) -> JsonValue {
     // An object field is projected through its sub-selection at every depth, and an empty
-    // sub-selection projects nothing of it. Only a scalar returns its stored value.
+    // sub-selection projects nothing of it. Only a scalar returns its stored value; a
+    // localized one, its label for the request locale (#1513).
     if let Some(fd) = field_def {
+        if fd.localized {
+            return crate::runtime::localization_chain(schema)
+                .map_or_else(|| value.clone(), |chain| crate::runtime::localize(value, &chain));
+        }
         if !fd.field_type.is_scalar() && !fd.field_type.is_list() {
             if let Some(child_type) = fd.field_type.type_name() {
                 match value {

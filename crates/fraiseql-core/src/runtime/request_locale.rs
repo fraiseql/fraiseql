@@ -62,6 +62,18 @@ pub fn scoped_request_locale() -> Option<String> {
     REQUEST_LOCALE.try_with(Clone::clone).ok()
 }
 
+/// Run `f` in `locale`, when there is one.
+///
+/// The synchronous twin of [`with_request_locale`], for work done outside the request's own
+/// task (a subscription event served on the bridge's task, in the locale captured when it
+/// subscribed).
+pub fn with_request_locale_sync<R>(locale: Option<String>, f: impl FnOnce() -> R) -> R {
+    match locale {
+        Some(locale) => REQUEST_LOCALE.sync_scope(locale, f),
+        None => f(),
+    }
+}
+
 /// The locale the current request runs in, when `schema` declares `[locale]`: the scoped
 /// value if it is one of `allowed`, otherwise `default`. `None` when the schema declares no
 /// locale.

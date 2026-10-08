@@ -55,6 +55,7 @@ fn descriptor_set() -> FileDescriptorSet {
         field: vec![
             field("id", 1, Type::Int64),
             field("locale", 2, Type::String),
+            field("label", 3, Type::String),
         ],
         ..Default::default()
     };
@@ -120,6 +121,11 @@ fn schema(descriptor_path: &str) -> CompiledSchema {
             TestTypeBuilder::new("Probe", VIEW)
                 .with_field(TestFieldBuilder::new("id", FieldType::Int).build())
                 .with_field(TestFieldBuilder::nullable("locale", FieldType::String).build())
+                .with_field({
+                    let mut label = TestFieldBuilder::nullable("label", FieldType::String).build();
+                    label.localized = true;
+                    label
+                })
                 .build(),
         )
         .with_query(
@@ -163,7 +169,8 @@ async fn service(dir: &std::path::Path) -> Option<DynamicGrpcService> {
         format!("DROP VIEW IF EXISTS vr_{VIEW}"),
         format!(
             "CREATE VIEW vr_{VIEW} AS SELECT 1 AS id, current_setting('fraiseql.locale', true) \
-             AS locale, jsonb_build_object('id', 1) AS data"
+             AS locale, '{{\"fr-FR\": \"Pomme\", \"en-US\": \"Apple\"}}'::jsonb AS label, \
+             jsonb_build_object('id', 1) AS data"
         ),
     ] {
         adapter.execute_raw_query(&ddl).await.unwrap();
@@ -247,4 +254,31 @@ async fn grpc_reads_run_in_the_request_locale() {
     let frames = call(&svc, "ListProbeStream", "de-DE").await;
     let locales: Vec<String> = frames.iter().map(|f| locale_of(&decode(f, "Probe"))).collect();
     assert_eq!(locales, vec!["de-DE".to_string()], "server-streaming read");
+}
+
+fn label_of(probe: &prost_reflect::DynamicMessage) -> String {
+    probe
+        .get_field_by_name("label")
+        .unwrap()
+        .as_str()
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// #1513: a localized column of the row view holds the locale map; both gRPC reads return the
+/// request locale's label.
+#[tokio::test]
+async fn grpc_reads_return_localized_labels() {
+    let dir = tempfile::tempdir().unwrap();
+    let Some(svc) = service(dir.path()).await else {
+        return;
+    };
+    let frames = call(&svc, "ListProbes", "fr-CA").await;
+    let response = decode(frames.first().unwrap(), "ListProbesResponse");
+    let items = response.get_field_by_name("items").unwrap();
+    assert_eq!(label_of(items.as_list().unwrap()[0].as_message().unwrap()), "Pomme", "unary");
+
+    let frames = call(&svc, "ListProbeStream", "en-US").await;
+    let labels: Vec<String> = frames.iter().map(|f| label_of(&decode(f, "Probe"))).collect();
+    assert_eq!(labels, vec!["Apple".to_string()], "server-streaming");
 }

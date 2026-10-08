@@ -169,6 +169,60 @@ struct RowReadPlan {
     /// #1348 found between exactly these two arms, and the reason
     /// `resolve_direct_read` is a function.
     gate:      Option<crate::security::field_authorizer::RowFieldGate>,
+    /// The localized columns and the request locale's chain (#1513), or `None` when the
+    /// read has none. Carried on the plan for the reason `gate` is: one decision for
+    /// both arms.
+    localizer: Option<RowLocalizer>,
+}
+
+/// Reads the localized columns of a row through the request locale's chain (#1513).
+///
+/// A row view's column for a localized field holds the stored locale map, which arrives as
+/// [`ColumnValue::Json`](fraiseql_db::types::ColumnValue::Json); it leaves as the label (or
+/// `Null`), through [`localize`](crate::runtime::localize), the rule the JSON path's SQL
+/// follows.
+#[derive(Clone)]
+struct RowLocalizer {
+    columns: Vec<usize>,
+    chain:   Vec<String>,
+}
+
+impl RowLocalizer {
+    fn new(
+        type_def: &crate::schema::TypeDefinition,
+        columns: &[fraiseql_db::types::ColumnSpec],
+        schema: &crate::schema::CompiledSchema,
+    ) -> Option<Self> {
+        let localized: Vec<usize> = columns
+            .iter()
+            .enumerate()
+            .filter(|(_, c)| type_def.find_field(&c.name).is_some_and(|f| f.localized))
+            .map(|(i, _)| i)
+            .collect();
+        if localized.is_empty() {
+            return None;
+        }
+        Some(Self {
+            columns: localized,
+            chain:   crate::runtime::localization_chain(schema)?,
+        })
+    }
+
+    fn apply(&self, row: &mut [fraiseql_db::types::ColumnValue]) {
+        use fraiseql_db::types::ColumnValue;
+        for &i in &self.columns {
+            let Some(cell) = row.get_mut(i) else {
+                continue;
+            };
+            if let ColumnValue::Json(text) = cell {
+                let stored = serde_json::from_str(text).unwrap_or(serde_json::Value::Null);
+                *cell = match crate::runtime::localize(&stored, &self.chain) {
+                    serde_json::Value::String(label) => ColumnValue::Text(label),
+                    _ => ColumnValue::Null,
+                };
+            }
+        }
+    }
 }
 
 /// A row-shaped read and the projection it was actually read with (#1351).
@@ -1448,6 +1502,7 @@ impl QueryRunner {
         };
 
         let gate = self.row_field_gate(query_match, security_context, &narrowed)?;
+        let localizer = RowLocalizer::new(type_def, &narrowed, &self.ctx.schema);
 
         Ok(RowReadPlan {
             resolved,
@@ -1456,6 +1511,7 @@ impl QueryRunner {
             where_sql,
             order_sql,
             gate,
+            localizer,
         })
     }
 
@@ -1583,6 +1639,11 @@ impl QueryRunner {
                 gate.adjudicate_row(&plan.columns, row)?;
             }
         }
+        if let Some(ref localizer) = plan.localizer {
+            for row in &mut rows {
+                localizer.apply(row);
+            }
+        }
 
         // The response-bytes ceiling, charged after adjudication: masking can only
         // shrink a row (`ColumnValue::Null`), so charging before it would bill the
@@ -1659,14 +1720,17 @@ impl QueryRunner {
         // Charged after adjudication, because masking can only shrink a row and the
         // caller should not be billed for bytes the gate withheld.
         let budget = plan.resolved.budget();
-        let stream = match (plan.gate, budget) {
-            (None, None) => stream,
-            (gate, budget) => {
+        let stream = match (plan.gate, budget, plan.localizer) {
+            (None, None, None) => stream,
+            (gate, budget, localizer) => {
                 let columns = plan.columns.clone();
                 Box::pin(stream.map(move |row| {
                     let mut row = row?;
                     if let Some(ref gate) = gate {
                         gate.adjudicate_row(&columns, &mut row)?;
+                    }
+                    if let Some(ref localizer) = localizer {
+                        localizer.apply(&mut row);
                     }
                     if let Some(ref budget) = budget {
                         budget.charge_column_row(&row)?;

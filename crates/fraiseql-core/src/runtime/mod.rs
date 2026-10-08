@@ -137,6 +137,7 @@ pub use query_tracing::{
 };
 pub use request_locale::{
     localization_chain, localize, request_locale, scoped_request_locale, with_request_locale,
+    with_request_locale_sync,
 };
 pub use sql_logger::{SqlOperation, SqlQueryLog, SqlQueryLogBuilder, create_sql_span};
 pub use subscription::{
