@@ -203,9 +203,9 @@ impl QueryRunner {
     /// transaction-locally on the same connection as the read (fixes #329 for
     /// RLS policies backed by `current_setting()`).
     ///
-    /// Returns an empty vec when there is no security context or no session
-    /// variables are configured; the adapter treats an empty slice as "no
-    /// session variables" with zero overhead.
+    /// The configured variables (none without a principal) plus the request locale when
+    /// the schema declares `[locale]` (#1512). An empty slice means "no session variables"
+    /// to the adapter, with zero overhead.
     ///
     /// `pub(super)` so the sibling `query_relay` impl of the same `QueryRunner` can
     /// reuse it for the node-lookup path (#610).
@@ -213,20 +213,10 @@ impl QueryRunner {
         &self,
         security_context: Option<&SecurityContext>,
     ) -> Result<Vec<(String, String)>> {
-        let sv = &self.ctx.schema.session_variables;
-        match security_context {
-            // A read carries request context only; the mutation timestamp is never
-            // set on one (#1373).
-            Some(sec) if !sv.variables.is_empty() => {
-                crate::runtime::executor::support::security::resolve_session_variables(
-                    sv,
-                    sec,
-                    self.ctx.schema.tenant_claim(),
-                    crate::runtime::executor::support::security::SessionPurpose::Read,
-                )
-            },
-            _ => Ok(Vec::new()),
-        }
+        crate::runtime::executor::support::security::read_session_variables(
+            &self.ctx.schema,
+            security_context,
+        )
     }
 
     /// AND the server's own scoping predicate

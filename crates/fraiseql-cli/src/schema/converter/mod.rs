@@ -548,6 +548,7 @@ impl SchemaConverter {
             grpc_config: intermediate.grpc_config,             // gRPC config from TOML (#780)
             naming_convention: intermediate.naming_convention, // Naming convention from TOML
             session_variables: intermediate.session_variables.unwrap_or_default(),
+            locale: intermediate.locale,
             hierarchies_config: intermediate.hierarchies_config,
             changelog: intermediate.changelog_config, // Changelog exposure config from TOML
             schema_sdl: None,                         // Raw GraphQL SDL

@@ -175,6 +175,37 @@ pub(in super::super) fn resolve_session_variables(
     Ok(vars)
 }
 
+/// The session settings a **read** runs under: the configured session variables resolved
+/// against the principal (none without one), then the request locale as
+/// [`LOCALE_SESSION_VAR`](crate::schema::LOCALE_SESSION_VAR) when the schema declares
+/// `[locale]` (#1512), principal or not.
+///
+/// The one builder every read path calls (regular, relay, aggregate, window, federation
+/// entity lookups). Writes build theirs with [`SessionPurpose::Write`] and never carry the
+/// locale, so a trigger or a projection refresh inside a write cannot read it.
+///
+/// # Errors
+///
+/// As [`resolve_session_variables`].
+pub(in super::super) fn read_session_variables(
+    schema: &CompiledSchema,
+    security_context: Option<&SecurityContext>,
+) -> Result<Vec<(String, String)>> {
+    let sv = &schema.session_variables;
+    let mut vars = match security_context {
+        // A read carries request context only; the mutation timestamp is never set on one
+        // (#1373).
+        Some(sec) if !sv.variables.is_empty() => {
+            resolve_session_variables(sv, sec, schema.tenant_claim(), SessionPurpose::Read)?
+        },
+        _ => Vec::new(),
+    };
+    if let Some(locale) = crate::runtime::request_locale(schema) {
+        vars.push((crate::schema::LOCALE_SESSION_VAR.to_string(), locale));
+    }
+    Ok(vars)
+}
+
 /// Classify each requested field as allowed, masked, or rejected.
 ///
 /// Does NOT require `&self` — all data comes from parameters.

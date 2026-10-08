@@ -73,6 +73,7 @@ fn base_schema_with_query(
         inject_defaults: None,
         naming_convention: NamingConvention::default(),
         session_variables: None,
+        locale: None,
         hierarchies_config: None,
         changelog_config: None,
     }

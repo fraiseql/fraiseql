@@ -271,6 +271,7 @@ fn test_convert_minimal_schema() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -612,6 +613,7 @@ fn test_convert_type_with_fields() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -686,6 +688,7 @@ fn test_validate_unknown_type_reference() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -784,6 +787,7 @@ fn test_convert_query_with_arguments() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -872,6 +876,7 @@ fn test_list_query_without_auto_params_defaults_to_all() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -961,6 +966,7 @@ fn test_single_item_query_without_auto_params_defaults_to_none() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -1064,6 +1070,7 @@ fn test_convert_field_with_deprecated_directive() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -1147,6 +1154,7 @@ fn test_convert_enum() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -1243,6 +1251,7 @@ fn test_convert_input_object() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -1330,6 +1339,7 @@ fn compiled_schema_advertises_no_unservable_where_operators() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -1420,6 +1430,7 @@ fn test_convert_interface() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -1543,6 +1554,7 @@ fn test_convert_type_implements_interface() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -1627,6 +1639,7 @@ fn test_validate_unknown_interface() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -1728,6 +1741,7 @@ fn test_validate_missing_interface_field() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -1844,6 +1858,7 @@ fn test_convert_union() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -1980,6 +1995,7 @@ fn test_convert_field_requires_scope() {
         inject_defaults:      None,
         naming_convention:    NamingConvention::default(),
         session_variables:    None,
+        locale:               None,
         hierarchies_config:   None,
         changelog_config:     None,
     };
@@ -4156,6 +4172,7 @@ mod auto_params_parity_tests {
             inject_defaults:      None,
             naming_convention:    NamingConvention::default(),
             session_variables:    None,
+            locale:               None,
             hierarchies_config:   None,
             changelog_config:     None,
         };

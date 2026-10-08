@@ -312,6 +312,19 @@ pub async fn compile_to_schema(
                     intermediate.session_variables = Some(config.fraiseql.session_variables);
                 }
 
+                // `[locale]` (#1512) is configuration, so it lives only in `fraiseql.toml`; a
+                // schema document carrying a different one is an authoring conflict.
+                if let Some(locale) = config.locale {
+                    if intermediate.locale.as_ref().is_some_and(|l| *l != locale) {
+                        anyhow::bail!(
+                            "[locale] in {} disagrees with the `locale` the schema document \
+                             declares; declare it once, in fraiseql.toml",
+                            config_path.display()
+                        );
+                    }
+                    intermediate.locale = Some(locale);
+                }
+
                 // `[inject_defaults]` lives in the config the SDK loaders read (#1384); a
                 // copy the SDK emitted into the schema must agree with it.
                 intermediate.inject_defaults =

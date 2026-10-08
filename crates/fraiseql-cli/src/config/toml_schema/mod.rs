@@ -130,6 +130,10 @@ pub struct TomlSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inject_defaults: Option<crate::config::inject_defaults::InjectDefaultsToml>,
 
+    /// The request locale (`[locale]`, #1512).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locale: Option<fraiseql_core::schema::LocaleConfig>,
+
     /// Observers/event system configuration
     #[serde(rename = "observers")]
     pub observers: ObserversConfig,

@@ -28,20 +28,10 @@ impl AggregateRunner {
         &self,
         security_context: Option<&SecurityContext>,
     ) -> Result<Vec<(String, String)>> {
-        let sv = &self.ctx.schema.session_variables;
-        match security_context {
-            // A read carries request context only; the mutation timestamp is never
-            // set on one (#1373).
-            Some(sec) if !sv.variables.is_empty() => {
-                crate::runtime::executor::support::security::resolve_session_variables(
-                    sv,
-                    sec,
-                    self.ctx.schema.tenant_claim(),
-                    crate::runtime::executor::support::security::SessionPurpose::Read,
-                )
-            },
-            _ => Ok(Vec::new()),
-        }
+        crate::runtime::executor::support::security::read_session_variables(
+            &self.ctx.schema,
+            security_context,
+        )
     }
 
     /// Refuse a read with no principal when a row policy is configured (ruling AB 3).

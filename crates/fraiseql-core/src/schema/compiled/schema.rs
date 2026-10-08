@@ -318,6 +318,12 @@ pub struct CompiledSchema {
     #[serde(default)]
     pub session_variables: SessionVariablesConfig,
 
+    /// The request locale (`[locale]`, #1512): the locales served, how a request picks one,
+    /// and the fallback chains derived from them. `None`: the deployment declares no locale,
+    /// and nothing locale-dependent runs. Validated (and its chains derived) at load.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locale: Option<crate::schema::LocaleConfig>,
+
     /// Hierarchy definitions for ID-based ltree operators.
     ///
     /// Maps hierarchy names to `table`/`path_column` pairs. Compiled from the

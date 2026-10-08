@@ -903,6 +903,12 @@ impl SchemaMerger {
                 .context("Failed to serialize session_variables")?;
         }
 
+        // `[locale]` (#1512): serialized from the type the runtime deserializes.
+        if let Some(locale) = &toml_schema.locale {
+            merged["locale"] =
+                serde_json::to_value(locale).context("Failed to serialize locale")?;
+        }
+
         // `[inject_defaults]` (#1384): the TOML schema's section, reconciled with a block the
         // SDK may have emitted into types.json from the same config.
         let document_defaults = merged

@@ -16,6 +16,16 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Added
+
+- **Request locale as first-class context: `[locale]` (#1512).** Declare the locales a
+  deployment serves (`default`, `allowed`, optional `fallback` and `resolve`) in
+  `fraiseql.toml`. Every request resolves to one allowed tag, from the explicit `locale`
+  argument, `Accept-Language` (q-values honoured) or an enriched-identity field, through an
+  exact match, the explicit fallback, then RFC 4647 truncation, else `default`. Read
+  transactions carry it as `fraiseql.locale` for user SQL. Tags are checked as BCP 47 at
+  compile and again at load. See `docs/features/request-locale.md`.
+
 ### Breaking
 
 - **A fact-table dimension path whose `json_path` is not `col->'key'…->>'key'` is refused at

@@ -34,8 +34,8 @@ use fraiseql_cli::schema::{
     seam::{AUTHORABLE_ARRAY_SECTIONS, AUTHORABLE_SINGLETON_SECTIONS},
 };
 use fraiseql_core::schema::{
-    ChangelogConfig, DebugConfig, GrpcConfig, HierarchiesConfig, McpConfig, NamingConvention,
-    RestConfig, SessionVariablesConfig, SubscriptionsConfig, ValidationConfig,
+    ChangelogConfig, DebugConfig, GrpcConfig, HierarchiesConfig, LocaleConfig, McpConfig,
+    NamingConvention, RestConfig, SessionVariablesConfig, SubscriptionsConfig, ValidationConfig,
 };
 
 /// Fields of `IntermediateSchema` that are **not** authored at the seam, and why.
@@ -48,6 +48,12 @@ const KNOWN_UNAUTHORED: &[(&str, &str)] = &[
         "query_defaults",
         "injected by the merger from the TOML [query_defaults] section; never present in \
          schema.json (documented on the field)",
+    ),
+    (
+        "locale",
+        "configuration, not schema: set by the compiler from `[locale]` in fraiseql.toml \
+         (both the project config and the TOML schema loader, #1512); a schema document that \
+         carries a different one is refused",
     ),
     (
         "functions_config",
@@ -134,6 +140,15 @@ fn every_field_is_classified() {
         inject_defaults:      Some(IntermediateInjectDefaults::default()),
         naming_convention:    NamingConvention::default(),
         session_variables:    Some(SessionVariablesConfig::default()),
+        locale:               Some(
+            LocaleConfig::new(
+                "en",
+                vec!["en".to_string()],
+                std::collections::BTreeMap::new(),
+                vec![],
+            )
+            .unwrap(),
+        ),
         hierarchies_config:   Some(HierarchiesConfig::default()),
         changelog_config:     Some(ChangelogConfig::default()),
     };

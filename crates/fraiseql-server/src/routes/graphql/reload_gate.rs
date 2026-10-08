@@ -109,6 +109,8 @@ pub fn boot_frozen_drift(current: &CompiledSchema, next: &CompiledSchema) -> Vec
         naming_convention: current_naming_convention,
         debug_config: current_debug,
         fact_tables: current_fact_tables,
+        // Boot-checked against the database's collations (#1512), so a reload may not change it.
+        locale: current_locale,
     } = current;
 
     let mut drifted = Vec::new();
@@ -118,6 +120,9 @@ pub fn boot_frozen_drift(current: &CompiledSchema, next: &CompiledSchema) -> Vec
     // resolved from `[security]` during `Server::schema_subsystems`.
     if differs(current_security, &next.security) {
         drifted.push("security");
+    }
+    if differs(current_locale, &next.locale) {
+        drifted.push("locale");
     }
     // The OIDC server client is constructed once at boot (discovery fetched then).
     if differs(current_auth, &next.auth) {

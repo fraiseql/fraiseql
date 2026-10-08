@@ -293,6 +293,11 @@ pub struct IntermediateSchema {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub session_variables: Option<SessionVariablesConfig>,
 
+    /// The request locale (`[locale]`, #1512), carried from `fraiseql.toml`. Validated by the
+    /// same `LocaleConfig::validate` the server runs at load.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locale: Option<fraiseql_core::schema::LocaleConfig>,
+
     /// Hierarchy definitions for ID-based ltree operators.
     ///
     /// Compiled from the `[hierarchies]` TOML section. Maps hierarchy names

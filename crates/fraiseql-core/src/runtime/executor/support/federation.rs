@@ -172,18 +172,9 @@ impl Executor {
         // App-level `rls_policy` stays trusted-gateway: its `WhereClause` targets the JSONB
         // `data->>` view shape and cannot be composed onto the columnar entity table.
         let row_filters = self.build_entities_row_filters(&representations, security_context)?;
-        let resolved_session_vars = match security_context {
-            Some(sc) if !self.ctx.schema.session_variables.variables.is_empty() => {
-                // An entity lookup is a read: request context only (#1373).
-                super::security::resolve_session_variables(
-                    &self.ctx.schema.session_variables,
-                    sc,
-                    self.ctx.schema.tenant_claim(),
-                    super::security::SessionPurpose::Read,
-                )?
-            },
-            _ => Vec::new(),
-        };
+        // An entity lookup is a read (#1373), with the request locale (#1512).
+        let resolved_session_vars =
+            super::security::read_session_variables(&self.ctx.schema, security_context)?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
 

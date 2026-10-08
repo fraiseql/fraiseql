@@ -243,6 +243,31 @@ impl CompiledSchema {
         violations
     }
 
+    /// Validate `[locale]` and derive its chains; refuse a session variable that would
+    /// shadow the setting the server owns (#1512).
+    fn validate_locale(&mut self) -> std::result::Result<(), FraiseQLError> {
+        if let Some(locale) = self.locale.as_mut() {
+            locale.validate()?;
+        }
+        if let Some(mapping) = self
+            .session_variables
+            .variables
+            .iter()
+            .find(|m| m.name == crate::schema::LOCALE_SESSION_VAR)
+        {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "[[session_variables.variables]] declares `{}`, the setting the server sets \
+                     to the request locale on every read; configure the locale with [locale] \
+                     instead",
+                    mapping.name
+                ),
+                path:    Some("session_variables".to_string()),
+            });
+        }
+        Ok(())
+    }
+
     fn finish_load(&mut self) -> std::result::Result<(), FraiseQLError> {
         // First: a name declared twice makes every later check ambiguous. `build_indexes`
         // keys by name, so the second definition silently shadows the first and the
@@ -257,6 +282,9 @@ impl CompiledSchema {
                 path:    Some("schema.names".to_string()),
             });
         }
+        // #1512: a tag reaches SQL text, so the compiled `[locale]` is checked again here,
+        // where a hand-written artifact passes too, and its chains are derived (never read).
+        self.validate_locale()?;
         self.propagate_type_roles();
         let violations = self.type_role_violations();
         if !violations.is_empty() {

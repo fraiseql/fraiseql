@@ -556,13 +556,30 @@ async fn execute_graphql_request(
     // Before this was threaded, a document carrying two operations always ran the
     // first one, whatever the client named.
     let operation_name = request.operation_name.as_deref();
-    let exec_result = if let Some(sec_ctx) = security_context {
-        executor
-            .execute_operation_with_security(&query, variables.as_ref(), &sec_ctx, operation_name)
-            .await
-    } else {
-        executor.execute_operation(&query, variables.as_ref(), operation_name).await
-    };
+    // #1512: the request's locale, from the explicit `extensions` argument, the headers and
+    // the resolved identity, under this tenant's `[locale]`.
+    let locale = crate::request_locale::resolve(
+        executor.schema(),
+        Some(headers),
+        Some(&crate::request_locale::json_argument(request.extensions.as_ref())),
+        security_context.as_ref(),
+    );
+    // Boxed for the reason the stages above are: the executor future is deep.
+    let exec_result = Box::pin(crate::request_locale::scoped(locale, async {
+        if let Some(sec_ctx) = security_context {
+            executor
+                .execute_operation_with_security(
+                    &query,
+                    variables.as_ref(),
+                    &sec_ctx,
+                    operation_name,
+                )
+                .await
+        } else {
+            executor.execute_operation(&query, variables.as_ref(), operation_name).await
+        }
+    }))
+    .await;
 
     // Record circuit breaker outcome for federation entity queries
     #[cfg(feature = "federation")]

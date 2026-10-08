@@ -55,6 +55,7 @@ pub mod graphql_value;
 mod hierarchy;
 mod introspection;
 pub mod introspection_types;
+pub mod locale;
 mod observer_types;
 mod scalar_types;
 pub mod security_config;
@@ -98,6 +99,7 @@ pub use introspection::{
     IntrospectionType, IntrospectionTypeRef, IntrospectionValidationRule, TypeKind,
     published_scalar_names,
 };
+pub use locale::{LOCALE_SESSION_VAR, LocaleConfig, LocaleInputs, LocaleSource};
 pub use observer_types::{ObserverDefinition, RetryConfig};
 pub use scalar_types::{RICH_SCALARS, is_known_scalar};
 pub use security_config::{

@@ -68,6 +68,7 @@ pub(crate) mod projection;
 pub mod query_function;
 pub mod query_tracing;
 pub mod relay;
+mod request_locale;
 pub mod sql_logger;
 pub mod subscription;
 pub mod tenant_enforcer;
@@ -134,6 +135,7 @@ pub use query_function::{QueryFunctionRequest, QueryFunctionResolver};
 pub use query_tracing::{
     QueryExecutionTrace, QueryPhaseSpan, QueryTraceBuilder, create_phase_span, create_query_span,
 };
+pub use request_locale::{request_locale, with_request_locale};
 pub use sql_logger::{SqlOperation, SqlQueryLog, SqlQueryLogBuilder, create_sql_span};
 pub use subscription::{
     ActiveSubscription, DeliveryResult, KafkaAdapter, KafkaConfig, KafkaMessage, SubscriptionError,

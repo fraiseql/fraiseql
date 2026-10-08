@@ -44,6 +44,10 @@ pub struct TomlProjectConfig {
     /// section the SDK config loaders read from this same file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub inject_defaults: Option<inject_defaults::InjectDefaultsToml>,
+
+    /// The request locale (`[locale]`, #1512): `default`, `allowed`, `fallback`, `resolve`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locale: Option<fraiseql_core::schema::LocaleConfig>,
 }
 
 /// Project metadata
