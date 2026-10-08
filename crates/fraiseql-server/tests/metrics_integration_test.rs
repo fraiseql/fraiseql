@@ -327,3 +327,76 @@ async fn federation_metrics_recording() {
     assert_eq!(collector.federation_entity_cache_misses.load(Ordering::Relaxed), 1);
     assert_eq!(collector.federation_errors_total.load(Ordering::Relaxed), 2);
 }
+
+/// The counter's value in a `/metrics` body.
+#[cfg(feature = "observers")]
+fn counter_value(body: &str, name: &str) -> u64 {
+    let value = body.lines().find_map(|line| line.strip_prefix(&format!("{name} ")));
+    assert!(value.is_some(), "{name} missing from /metrics:\n{body}");
+    value.unwrap().trim().parse().unwrap()
+}
+
+/// A `tracing` writer that keeps what it is given.
+#[cfg(feature = "observers")]
+#[derive(Clone, Default)]
+struct CapturedLog(Arc<std::sync::Mutex<Vec<u8>>>);
+
+#[cfg(feature = "observers")]
+impl std::io::Write for CapturedLog {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// #1511: a progress acknowledgement that does not reach the broker leaves a running
+/// dispatch open to redelivery. The dispatch carries on, and the failure is logged at
+/// `warn` with the event id and counted in `/metrics`.
+#[cfg(feature = "observers")]
+#[tokio::test]
+async fn a_failed_progress_acknowledgement_is_logged_and_counted() {
+    use fraiseql_observers::{Acker, ObserverError};
+
+    let log = CapturedLog::default();
+    let writer = log.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(move || writer.clone())
+        .with_ansi(false)
+        .with_max_level(tracing::Level::WARN)
+        .finish();
+    let _guard = tracing::subscriber::set_default(subscriber);
+
+    let router = metrics_router(make_metrics_state());
+    let name = "fraiseql_observer_progress_ack_failures_total";
+    let before = counter_value(&get_text(&router, "/metrics").await.1, name);
+
+    let acker = Acker::new(|| async { Ok(()) }).with_progress(
+        std::time::Duration::from_millis(10),
+        || async {
+            Err(ObserverError::TransportSubscribeFailed {
+                reason: "connection closed".to_string(),
+            })
+        },
+    );
+    let event_id = uuid::Uuid::new_v4();
+    let handled = acker
+        .hold(event_id, async {
+            tokio::time::sleep(std::time::Duration::from_millis(55)).await;
+            "handled"
+        })
+        .await;
+
+    let after = counter_value(&get_text(&router, "/metrics").await.1, name);
+    let logged = String::from_utf8(log.0.lock().unwrap().clone()).unwrap();
+
+    assert_eq!(handled, "handled", "a failed progress signal must not stop the dispatch");
+    assert!(after > before, "the failure must be counted: {before} -> {after}");
+    assert!(
+        logged.contains("WARN") && logged.contains(&event_id.to_string()),
+        "the failure must be logged at warn with the event id: {logged:?}"
+    );
+}

@@ -597,14 +597,19 @@ disagreed, and the promise was the part that was wrong.
   unacknowledged event is redelivered. What changes for a deployment:
   - An event in flight when a server stops is redelivered and its actions run again, where it was
     lost before. Actions must tolerate a repeat (see `docs/operations/observer-idempotency.md`).
-  - `ack_wait_secs` (default 30) now bounds a whole dispatch, the executor's retries included: an
-    event whose actions take longer is redelivered while they still run, and runs again. Set it
-    above the longest dispatch you expect.
+  - While its actions run, the runtime sends the broker a progress acknowledgement every half
+    `ack_wait_secs` (#1511), so a dispatch longer than `ack_wait_secs` (default 30), retries
+    included, is delivered once. `ack_wait_secs` now bounds how long a stopped server holds an
+    event before it is redelivered, not how long a dispatch may take. A progress acknowledgement
+    that fails is logged at `warn` with the event id and counted in
+    `fraiseql_observer_progress_ack_failures_total`; the dispatch carries on.
   - An action that fails is still the executor's to retry and dead-letter, not the broker's: a
     failed action does not make the broker redeliver the event.
 
   For embedders, `EventTransport::subscribe_with_ack` yields each event with the `Acker` that
-  acknowledges it; `subscribe` keeps acknowledging as it yields.
+  acknowledges it; `subscribe` keeps acknowledging as it yields. Run the handling inside
+  `Acker::hold(event_id, work)` to send the progress acknowledgements; a transport adds them
+  with `Acker::with_progress`, and the closure given to `Acker::new` must be `Sync`.
 
 - **Every replica delivers every change to its own subscribers (#1503).** GraphQL
   subscriptions and REST `/{resource}/stream` were fed by the observer runtime's dispatch, which

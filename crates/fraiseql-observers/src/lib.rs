@@ -196,7 +196,7 @@ pub use traits::{
 pub use transport::PostgresNotifyTransport;
 pub use transport::{
     AckedEventStream, Acker, EventFilter, EventStream, EventTransport, HealthStatus,
-    InMemoryTransport, TenantScope, TransportHealth, TransportType,
+    InMemoryTransport, TenantScope, TransportHealth, TransportType, progress_ack_failures,
 };
 /// The `uuid` this crate's public API is built against (#1198).
 pub use uuid;

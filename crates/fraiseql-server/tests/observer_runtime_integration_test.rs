@@ -2189,7 +2189,7 @@ async fn test_nats_event_of_a_runtime_that_died_mid_dispatch_is_redelivered() {
                 ObserverRuntime::new(ObserverRuntimeConfig::new(pool).with_transport(transport));
             runtime.start().await.expect("the first runtime starts");
             // Leaked on purpose: a crash runs no `stop`.
-            std::mem::forget(runtime);
+            Box::leak(Box::new(runtime));
         });
         started_tx.send(()).unwrap();
         crash_rx.recv().unwrap();

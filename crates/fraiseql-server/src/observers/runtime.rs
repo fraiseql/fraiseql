@@ -1080,7 +1080,7 @@ impl ObserverRuntime {
                                 // Held while the actions run, so a dispatch longer than
                                 // the broker's deadline is not delivered again (#1511).
                                 acker
-                                    .hold(process_entity_event(
+                                    .hold(event.id, process_entity_event(
                                         &event,
                                         &current_matcher,
                                         &current_executor,

@@ -29,7 +29,15 @@
 //! - **Transport-managed reconnection**: Transports handle retry/backoff internally
 //! - **At-least-once delivery**: Transport ACKs after `ObserverExecutor` processes event
 
-use std::{future::Future, pin::Pin, sync::Arc, time::Duration};
+use std::{
+    future::Future,
+    pin::Pin,
+    sync::{
+        Arc,
+        atomic::{AtomicU64, Ordering},
+    },
+    time::Duration,
+};
 
 use async_trait::async_trait;
 use futures::Stream;
@@ -67,6 +75,18 @@ pub type EventStream = Pin<Box<dyn Stream<Item = Result<EntityEvent>> + Send>>;
 pub type AckedEventStream = Pin<Box<dyn Stream<Item = Result<(EntityEvent, Acker)>> + Send>>;
 
 type AckFn = Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
+/// Progress acknowledgements that did not reach their transport, since startup.
+static PROGRESS_FAILURES: AtomicU64 = AtomicU64::new(0);
+
+/// Progress acknowledgements that failed since startup (#1511).
+///
+/// Counts failures of [`Acker::progress`] inside [`Acker::hold`]. Each one risks a
+/// redelivery of an event that is still being handled, once its deadline passes.
+#[must_use]
+pub fn progress_ack_failures() -> u64 {
+    PROGRESS_FAILURES.load(Ordering::Relaxed)
+}
+
 type ProgressFn = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
 
 /// Acknowledges one delivered event to its transport.
@@ -134,9 +154,13 @@ impl Acker {
         }
     }
 
-    /// Run `work` to completion, signalling [`progress`](Self::progress) every interval
-    /// the transport asked for while it runs. Without progress, this is `work.await`.
-    pub async fn hold<F: Future>(&self, work: F) -> F::Output {
+    /// Run `work`, the handling of event `event_id`, to completion, signalling
+    /// [`progress`](Self::progress) every interval the transport asked for while it runs.
+    /// Without progress, this is `work.await`.
+    ///
+    /// A signal that fails does not stop the work: it is logged at `warn` with the event
+    /// id and counted in [`progress_ack_failures`].
+    pub async fn hold<F: Future>(&self, event_id: uuid::Uuid, work: F) -> F::Output {
         let Some((_, every)) = &self.progress else {
             return work.await;
         };
@@ -146,7 +170,15 @@ impl Acker {
             tokio::select! {
                 output = &mut work => return output,
                 _ = ticker.tick() => {
-                    let _ = self.progress().await;
+                    if let Err(e) = self.progress().await {
+                        PROGRESS_FAILURES.fetch_add(1, Ordering::Relaxed);
+                        tracing::warn!(
+                            event_id = %event_id,
+                            error = %e,
+                            "progress acknowledgement failed; the event may be delivered \
+                             again while it is still being handled"
+                        );
+                    }
                 },
             }
         }

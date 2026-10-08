@@ -37,9 +37,12 @@ An action runs again for the same change-log row when:
 With the NATS transport the record is the JetStream acknowledgement, which the server sends
 after the event's actions ran (retried or dead-lettered). A message not acknowledged within
 `ack_wait_secs`, because the server stopped mid-dispatch, is redelivered, up to `max_deliver`
-deliveries, so the same repeats apply. No progress is reported while actions run, so a
-dispatch that outlasts `ack_wait_secs` (default 30), retries included, is also redelivered and
-runs again while the first run continues: set `ack_wait_secs` above the longest dispatch.
+deliveries, so the same repeats apply. While the actions run, the server tells the broker
+the event is still being handled every half `ack_wait_secs`, so a dispatch longer than
+`ack_wait_secs` (default 30), retries included, is not redelivered while it runs. A progress
+signal that fails is logged at `warn` with the event id and counted in
+`fraiseql_observer_progress_ack_failures_total`: if the broker then misses every signal for a
+whole `ack_wait_secs`, it redelivers the event while the first run continues.
 
 ---
 

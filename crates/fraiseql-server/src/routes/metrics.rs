@@ -169,6 +169,24 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
         );
     }
 
+    // #1511: a progress acknowledgement that did not reach the broker leaves an event that
+    // is still being handled open to redelivery. Aggregate, always present with observers.
+    #[cfg(feature = "observers")]
+    {
+        let failures = fraiseql_observers::progress_ack_failures();
+        let _ = write!(
+            output,
+            concat!(
+                "\n# HELP fraiseql_observer_progress_ack_failures_total ",
+                "Progress acknowledgements for an event still being dispatched that did not \
+                 reach the transport\n",
+                "# TYPE fraiseql_observer_progress_ack_failures_total counter\n",
+                "fraiseql_observer_progress_ack_failures_total {failures}\n",
+            ),
+            failures = failures,
+        );
+    }
+
     // #634: bridge the fraiseql-observers `prometheus`-crate registry
     // (`fraiseql_observer_*` series) into this scrape. The observer subsystem
     // records into the `prometheus` default registry while this endpoint is
