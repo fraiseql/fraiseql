@@ -135,6 +135,9 @@ pub enum GroupBySelection {
         column:  String,
         /// PostgreSQL type for cast expressions (e.g. `"int8"`).
         pg_cast: String,
+        /// The key the request grouped by, which the result answers under: the column's
+        /// own name, or the dimension a `native_dimension_mapping` maps to it (#1231).
+        alias:   String,
     },
 }
 
@@ -156,9 +159,8 @@ impl GroupBySelection {
             Self::Dimension { alias, .. }
             | Self::TemporalBucket { alias, .. }
             | Self::CalendarDimension { alias, .. }
-            | Self::TreeLevel { alias, .. } => alias,
-            // NativeDimension uses the column name as its alias by convention.
-            Self::NativeDimension { column, .. } => column,
+            | Self::TreeLevel { alias, .. }
+            | Self::NativeDimension { alias, .. } => alias,
         }
     }
 }
@@ -526,10 +528,13 @@ impl AggregationPlanner {
                         alias:    alias.clone(),
                     });
                 },
-                GroupBySelection::NativeDimension { column, pg_cast } => {
-                    // Native SQL column — alias equals the column name by convention.
+                GroupBySelection::NativeDimension {
+                    column,
+                    pg_cast,
+                    alias,
+                } => {
                     expressions.push(GroupByExpression::NativeColumn {
-                        alias:   column.clone(),
+                        alias:   alias.clone(),
                         column:  column.clone(),
                         pg_cast: pg_cast.clone(),
                     });

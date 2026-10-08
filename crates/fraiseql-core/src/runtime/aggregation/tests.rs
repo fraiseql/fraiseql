@@ -1380,6 +1380,7 @@ fn test_native_dimension_mapping_sql_output() {
         group_by:     vec![GroupBySelection::NativeDimension {
             column:  "category_id".to_string(),
             pg_cast: String::new(),
+            alias:   "category_id".to_string(),
         }],
         aggregates:   vec![AggregateSelection::Count {
             alias: "count".to_string(),

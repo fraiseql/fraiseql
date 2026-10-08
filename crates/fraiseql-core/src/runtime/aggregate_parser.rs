@@ -253,12 +253,14 @@ impl AggregateQueryParser {
                         selections.push(GroupBySelection::NativeDimension {
                             column:  mapped_col.clone(),
                             pg_cast: String::new(),
+                            alias:   key.clone(),
                         });
                     } else if let Some(pg_cast) = native_columns.get(key.as_str()) {
                         // Priority 4: Native SQL column (filter-derived) — direct reference
                         selections.push(GroupBySelection::NativeDimension {
                             column:  key.clone(),
                             pg_cast: pg_cast.clone(),
+                            alias:   key.clone(),
                         });
                     } else {
                         // Priority 5: Regular JSONB dimension. Unlike priorities 1-4
