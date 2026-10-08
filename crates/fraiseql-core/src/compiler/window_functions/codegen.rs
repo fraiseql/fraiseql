@@ -5,6 +5,60 @@ use super::{
 };
 use crate::compiler::window_allowlist::WindowAllowlist;
 
+/// What converting an `ORDER BY` key needs: the fact table, its allowlist, and the collation
+/// a text key sorts under (#1512).
+struct OrderKeys<'a> {
+    metadata:  &'a FactTableMetadata,
+    allowlist: &'a WindowAllowlist,
+    collation: Option<&'a str>,
+}
+
+impl OrderKeys<'_> {
+    /// One `ORDER BY` key, resolved to SQL, with the collation when it is text.
+    fn convert(
+        &self,
+        order: &WindowOrderBy,
+        output_aliases: &std::collections::HashSet<String>,
+        text_aliases: &std::collections::HashMap<String, String>,
+    ) -> Result<OrderByClause> {
+        let mut field = WindowPlanner::resolve_field_to_sql(
+            &order.field,
+            self.metadata,
+            self.allowlist,
+            output_aliases,
+        )?;
+        // Mirrors `resolve_field_to_sql`'s priority.
+        let is_text = if self.metadata.measures.iter().any(|m| m.name == order.field) {
+            false
+        } else if self.metadata.denormalized_filters.iter().any(|f| f.name == order.field) {
+            is_text_filter(self.metadata, &order.field)
+        } else if output_aliases.contains(&order.field) {
+            match (self.collation, text_aliases.get(&order.field)) {
+                (Some(_), Some(expression)) => {
+                    field.clone_from(expression);
+                    true
+                },
+                _ => false,
+            }
+        } else {
+            true // a dimension path: `->>` extracts text
+        };
+        let mut clause = OrderByClause::new(field, order.direction);
+        if is_text {
+            clause.collation = self.collation.map(str::to_string);
+        }
+        Ok(clause)
+    }
+}
+
+/// Whether the denormalized filter column `name` is text.
+fn is_text_filter(metadata: &FactTableMetadata, name: &str) -> bool {
+    metadata
+        .denormalized_filters
+        .iter()
+        .any(|f| f.name == name && matches!(f.sql_type, crate::compiler::fact_table::SqlType::Text))
+}
+
 /// The output aliases visible to an **in-window** clause: none.
 ///
 /// A window function's `OVER (…)` runs before any window column exists, so it
@@ -51,6 +105,22 @@ impl WindowPlanner {
         request: WindowRequest,
         metadata: &FactTableMetadata,
     ) -> Result<WindowExecutionPlan> {
+        Self::plan_in_locale(request, metadata, None)
+    }
+
+    /// [`plan`](Self::plan), with text keys of every `ORDER BY` (final and inside `OVER`)
+    /// sorting under `collation`, the request locale's (#1512). A key is text when it is a
+    /// dimension path, a text filter column, or the alias of a selected one; measures,
+    /// window results and other filter columns sort by their own type.
+    ///
+    /// # Errors
+    ///
+    /// As [`plan`](Self::plan).
+    pub fn plan_in_locale(
+        request: WindowRequest,
+        metadata: &FactTableMetadata,
+        collation: Option<&str>,
+    ) -> Result<WindowExecutionPlan> {
         // SECURITY (#795): the FROM target must be the fact table the root field already
         // resolved, never the client's `table` key. Two separate channels selected the
         // relation; only this one was checked, so a request could name any relation — or a
@@ -76,8 +146,27 @@ impl WindowPlanner {
         // Convert select columns to SQL expressions
         let select = Self::convert_select_columns(&request.select, metadata, &allowlist)?;
 
+        // The select aliases that name a text column, with the expression behind each: a
+        // collated key cannot be the alias (an output name may not appear in an expression).
+        let text_aliases: std::collections::HashMap<String, String> = request
+            .select
+            .iter()
+            .zip(&select)
+            .filter(|(c, _)| match c {
+                WindowSelectColumn::Dimension { .. } => true,
+                WindowSelectColumn::Filter { name, .. } => is_text_filter(metadata, name),
+                WindowSelectColumn::Measure { .. } => false,
+            })
+            .map(|(c, converted)| (c.alias().to_string(), converted.expression.clone()))
+            .collect();
+        let keys = OrderKeys {
+            metadata,
+            allowlist: &allowlist,
+            collation,
+        };
+
         // Convert window functions to SQL expressions
-        let windows = Self::convert_window_functions(&request.windows, metadata, &allowlist)?;
+        let windows = Self::convert_window_functions(&request.windows, &keys)?;
 
         // Convert final ORDER BY to SQL expressions
         // The FINAL ORDER BY runs *after* the window functions, so every window
@@ -90,8 +179,11 @@ impl WindowPlanner {
             .map(|w| w.alias.clone())
             .chain(request.select.iter().map(|c| c.alias().to_string()))
             .collect();
-        let order_by =
-            Self::convert_order_by(&request.order_by, metadata, &allowlist, &output_aliases)?;
+        let order_by = request
+            .order_by
+            .iter()
+            .map(|o| keys.convert(o, &output_aliases, &text_aliases))
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(WindowExecutionPlan {
             // Use the resolved name, not the request's — belt and braces with the check above.
@@ -177,20 +269,16 @@ impl WindowPlanner {
     /// Convert semantic window functions to SQL expressions.
     fn convert_window_functions(
         windows: &[WindowFunctionRequest],
-        metadata: &FactTableMetadata,
-        allowlist: &WindowAllowlist,
+        keys: &OrderKeys<'_>,
     ) -> Result<Vec<WindowFunction>> {
-        windows
-            .iter()
-            .map(|w| Self::convert_single_window_function(w, metadata, allowlist))
-            .collect()
+        windows.iter().map(|w| Self::convert_single_window_function(w, keys)).collect()
     }
 
     fn convert_single_window_function(
         request: &WindowFunctionRequest,
-        metadata: &FactTableMetadata,
-        allowlist: &WindowAllowlist,
+        keys: &OrderKeys<'_>,
     ) -> Result<WindowFunction> {
+        let (metadata, allowlist) = (keys.metadata, keys.allowlist);
         // SECURITY (#794): emitted by `write!(sql, " AS {}", window.alias)`.
         Self::validate_alias(&request.alias)?;
 
@@ -208,7 +296,7 @@ impl WindowPlanner {
         let order_by = request
             .order_by
             .iter()
-            .map(|o| Self::convert_window_order_by(o, metadata, allowlist, &NO_OUTPUT_ALIASES))
+            .map(|o| keys.convert(o, &NO_OUTPUT_ALIASES, &std::collections::HashMap::new()))
             .collect::<Result<Vec<_>>>()?;
 
         Ok(WindowFunction {
@@ -359,30 +447,6 @@ impl WindowPlanner {
                 Ok(name.clone())
             },
         }
-    }
-
-    /// Convert window ORDER BY to SQL expression.
-    fn convert_window_order_by(
-        order: &WindowOrderBy,
-        metadata: &FactTableMetadata,
-        allowlist: &WindowAllowlist,
-        output_aliases: &std::collections::HashSet<String>,
-    ) -> Result<OrderByClause> {
-        let field = Self::resolve_field_to_sql(&order.field, metadata, allowlist, output_aliases)?;
-        Ok(OrderByClause::new(field, order.direction))
-    }
-
-    /// Convert final ORDER BY to SQL expressions.
-    fn convert_order_by(
-        orders: &[WindowOrderBy],
-        metadata: &FactTableMetadata,
-        allowlist: &WindowAllowlist,
-        output_aliases: &std::collections::HashSet<String>,
-    ) -> Result<Vec<OrderByClause>> {
-        orders
-            .iter()
-            .map(|o| Self::convert_window_order_by(o, metadata, allowlist, output_aliases))
-            .collect()
     }
 
     /// Resolve a semantic field name to its SQL expression.

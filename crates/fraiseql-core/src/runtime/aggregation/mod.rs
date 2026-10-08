@@ -300,7 +300,11 @@ impl AggregationSqlGenerator {
 
         let native_aliases = plan.native_aliases();
         let order_sql = if !plan.request.order_by.is_empty() {
-            self.build_order_by_clause(&plan.request.order_by, &native_aliases)?
+            self.build_order_by_clause(
+                &plan.request.order_by,
+                &plan.group_by_expressions,
+                &native_aliases,
+            )?
         } else {
             String::new()
         };

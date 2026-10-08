@@ -349,6 +349,7 @@ impl AggregationSqlGenerator {
     pub(super) fn build_order_by_clause(
         &self,
         order_by: &[OrderByClause],
+        group_by_expressions: &[GroupByExpression],
         _native_aliases: &std::collections::HashSet<&str>,
     ) -> Result<String> {
         let clauses: Vec<String> = order_by
@@ -361,9 +362,33 @@ impl AggregationSqlGenerator {
                     OrderDirection::Desc => "DESC",
                     _ => "ASC",
                 };
-                format!("{} {}", self.quote_identifier(&clause.field), direction)
+                // A text group-by key carries the request locale's collation (#1512). An
+                // output alias may not appear inside an expression (`"word" COLLATE …` reads
+                // an input column `word`), so a collated key orders by the group-by
+                // expression the alias names.
+                let key = match clause.collation.as_deref() {
+                    Some(collation) => {
+                        let expr = group_by_expressions
+                            .iter()
+                            .find(|e| {
+                                super::partial_period_builder::group_by_alias(e) == clause.field
+                            })
+                            .ok_or_else(|| {
+                                crate::error::FraiseQLError::validation(format!(
+                                    "orderBy `{}` names no group-by output",
+                                    clause.field
+                                ))
+                            })?;
+                        crate::backend::order_by::collated(
+                            &self.group_by_expression_to_sql(expr)?,
+                            Some(collation),
+                        )?
+                    },
+                    None => self.quote_identifier(&clause.field),
+                };
+                Ok(format!("{key} {direction}"))
             })
-            .collect();
+            .collect::<Result<_>>()?;
 
         Ok(format!("ORDER BY {}", clauses.join(", ")))
     }

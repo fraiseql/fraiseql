@@ -860,3 +860,87 @@ async fn the_result_cache_keeps_each_locale_apart() {
         }
     }
 }
+
+/// Phase 03: a REST `?sort=` on a text field sorts under the request locale's collation (the
+/// direct-read entry, which REST, exports and gRPC share).
+#[tokio::test]
+async fn a_rest_sort_follows_the_request_locale() {
+    use fraiseql_core::schema::{
+        FieldDefinition, FieldType, LocaleConfig, LocaleSource, QueryDefinition, TypeDefinition,
+    };
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
+    let words = ["cote", "côte", "coté", "côté", "apfel", "Äpfel", "Zebra"];
+    let values: Vec<String> = words
+        .iter()
+        .enumerate()
+        .map(|(i, w)| format!("({i}, jsonb_build_object('id', '{i}', 'word', '{w}'))"))
+        .collect();
+    for ddl in [
+        "DROP TABLE IF EXISTS v_locale_rest_word".to_string(),
+        "CREATE TABLE v_locale_rest_word (pk bigint, data jsonb)".to_string(),
+        format!("INSERT INTO v_locale_rest_word VALUES {}", values.join(", ")),
+    ] {
+        adapter.execute_raw_query(&ddl).await.unwrap();
+    }
+    let oracle: Vec<String> = adapter
+        .execute_raw_query(
+            "SELECT data->>'word' AS w FROM v_locale_rest_word ORDER BY data->>'word' COLLATE \
+             \"fr-CA-x-icu\"",
+        )
+        .await
+        .unwrap()
+        .iter()
+        .map(|r| r["w"].as_str().unwrap().to_string())
+        .collect();
+
+    let mut schema = CompiledSchema::new();
+    let mut word = TypeDefinition::new("RestWord", "v_locale_rest_word");
+    word.fields = vec![
+        FieldDefinition::new("id", FieldType::Id),
+        FieldDefinition::new("word", FieldType::String),
+    ];
+    schema.types.push(word);
+    schema.queries.push(
+        QueryDefinition::new("restWords", "RestWord")
+            .returning_list()
+            .with_sql_source("v_locale_rest_word"),
+    );
+    schema.rest_config = Some(RestConfig {
+        enabled: true,
+        ..RestConfig::default()
+    });
+    schema.locale = Some(
+        LocaleConfig::new(
+            "en-US",
+            vec!["en-US".into(), "fr-CA".into()],
+            std::collections::BTreeMap::new(),
+            vec![LocaleSource::Header {
+                header: "accept-language".to_string(),
+            }],
+        )
+        .unwrap(),
+    );
+    schema.build_indexes();
+    let Some(server) = start(schema, Auth::None).await else {
+        return;
+    };
+    let body: Value = reqwest::Client::new()
+        .get(format!("{}/rest/v1/restWords?sort=word", server.base))
+        .header("accept-language", "fr-CA")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let got: Vec<String> = body["data"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{body}"))
+        .iter()
+        .map(|r| r["word"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(got, oracle, "{body}");
+}

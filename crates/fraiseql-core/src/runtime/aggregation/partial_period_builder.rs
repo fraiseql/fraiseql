@@ -271,7 +271,7 @@ impl AggregationSqlGenerator {
 }
 
 /// Extracts the alias from a `GroupByExpression`.
-fn group_by_alias(expr: &GroupByExpression) -> &str {
+pub(super) fn group_by_alias(expr: &GroupByExpression) -> &str {
     match expr {
         GroupByExpression::JsonbPath { alias, .. }
         | GroupByExpression::TemporalBucket { alias, .. }

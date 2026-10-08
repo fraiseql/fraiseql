@@ -10,6 +10,36 @@ use crate::{
     security::{RlsWhereClause, SecurityContext, rls_policy::RlsTarget},
 };
 
+/// Give every `ORDER BY` key that names a **text** group-by output `collation` (#1512): a
+/// JSONB or calendar dimension (both `->>` extractions), or a native dimension whose cast
+/// is text. Temporal buckets, tree levels and aggregates sort by their own type.
+fn collate_text_group_keys(
+    request: &mut crate::compiler::aggregation::AggregationRequest,
+    collation: &str,
+) {
+    use crate::compiler::aggregation::GroupBySelection;
+
+    let text_aliases: Vec<&str> = request
+        .group_by
+        .iter()
+        .filter_map(|selection| match selection {
+            GroupBySelection::Dimension { alias, .. }
+            | GroupBySelection::CalendarDimension { alias, .. } => Some(alias.as_str()),
+            GroupBySelection::NativeDimension { alias, pg_cast, .. }
+                if super::query_projection::sorts_as_text(pg_cast) =>
+            {
+                Some(alias.as_str())
+            },
+            _ => None,
+        })
+        .collect();
+    for clause in &mut request.order_by {
+        if text_aliases.contains(&clause.field.as_str()) {
+            clause.collation = Some(collation.to_string());
+        }
+    }
+}
+
 /// Runner for aggregate and window analytics queries.
 pub(in super::super) struct AggregateRunner {
     ctx: Arc<ExecutorContext>,
@@ -32,6 +62,17 @@ impl AggregateRunner {
             &self.ctx.schema,
             security_context,
         )
+    }
+
+    /// The collation a text key sorts under in this request's locale, when the schema
+    /// declares `[locale]` (#1512).
+    fn request_collation(&self) -> Option<String> {
+        let schema = &self.ctx.schema;
+        schema
+            .locale
+            .as_ref()
+            .zip(crate::runtime::request_locale(schema))
+            .and_then(|(config, locale)| config.collation(&locale))
     }
 
     /// Refuse a read with no principal when a row policy is configured (ruling AB 3).
@@ -220,6 +261,10 @@ impl AggregateRunner {
         );
         let mut request =
             crate::runtime::AggregateQueryParser::parse(query_json, metadata, &native_columns)?;
+        // #1512: an ORDER BY on a text group-by key sorts under the request locale's collation.
+        if let Some(collation) = self.request_collation() {
+            collate_text_group_keys(&mut request, &collation);
+        }
 
         // 1a. A linked fact table is read as its type (ruling AB 2): every name the request
         //     references must be a field the caller may read. Before the policy is composed,
@@ -491,8 +536,13 @@ impl AggregateRunner {
             };
         }
 
-        // 2. Generate execution plan (validates semantic names against metadata)
-        let plan = crate::compiler::window_functions::WindowPlanner::plan(request, metadata)?;
+        // 2. Generate execution plan (validates semantic names against metadata) Text keys sort
+        //    under the request locale's collation (#1512).
+        let plan = crate::compiler::window_functions::WindowPlanner::plan_in_locale(
+            request,
+            metadata,
+            self.request_collation().as_deref(),
+        )?;
 
         // 3. Generate SQL
         let sql_generator =

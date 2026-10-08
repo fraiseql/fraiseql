@@ -11,12 +11,17 @@
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates and drops its own `v_locale_word` table.
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, HashMap},
+    sync::Arc,
+};
 
 use fraiseql_core::{
+    compiler::fact_table::{DimensionColumn, FactTableMetadata, MeasureColumn, SqlType},
     db::{DatabaseAdapter, postgres::PostgresAdapter},
     runtime::{Executor, with_request_locale},
     schema::{CompiledSchema, FieldType, LocaleConfig, LocaleSource},
+    security::SecurityContext,
 };
 use fraiseql_test_utils::schema_builder::{TestQueryBuilder, TestSchemaBuilder, TestTypeBuilder};
 use serde_json::Value;
@@ -27,6 +32,7 @@ const WORDS: [&str; 7] = ["cote", "côte", "coté", "côté", "apfel", "Äpfel",
 fn schema() -> CompiledSchema {
     let word = TestTypeBuilder::new("Word", VIEW)
         .relay_node()
+        .with_implements(&["Node"])
         .with_simple_field("id", FieldType::Id)
         .with_simple_field("word", FieldType::String)
         .with_simple_field("rank", FieldType::Int)
@@ -36,7 +42,21 @@ fn schema() -> CompiledSchema {
         .with_sql_source(VIEW)
         .build();
     words.auto_params.has_order_by = true;
-    let mut schema = TestSchemaBuilder::new().with_type(word).with_query(words).build();
+    let mut connection = TestQueryBuilder::new("wordsConnection", "Word")
+        .returns_list(true)
+        .with_sql_source(VIEW)
+        .relay_cursor_column("pk_word")
+        .build();
+    connection.auto_params.has_order_by = true;
+    let mut schema = TestSchemaBuilder::new()
+        .with_type(word)
+        .with_query(words)
+        .with_query(connection)
+        .build();
+    schema.interfaces.push(
+        fraiseql_core::schema::InterfaceDefinition::new("Node")
+            .with_field(fraiseql_core::schema::FieldDefinition::new("id", FieldType::Id)),
+    );
     schema.locale = Some(
         LocaleConfig::new(
             "en-US",
@@ -58,7 +78,10 @@ async fn adapter() -> Option<PostgresAdapter> {
         .iter()
         .enumerate()
         .map(|(i, w)| {
-            format!("({i}, jsonb_build_object('id', '{i}', 'word', '{w}', 'rank', {}))", 10 - i)
+            format!(
+                "({i}, jsonb_build_object('id', '{i}', 'word', '{w}', 'rank', {}, 'pk_word', {i}))",
+                10 - i
+            )
         })
         .collect();
     for ddl in [
@@ -131,4 +154,153 @@ async fn a_numeric_sort_takes_no_collation() {
     .unwrap_or_else(|e| panic!("a numeric sort in a locale must run: {e}"));
     let expected: Vec<String> = WORDS.iter().rev().map(ToString::to_string).collect();
     assert_eq!(words_of(&response), expected, "{response}");
+}
+
+fn principal() -> SecurityContext {
+    SecurityContext {
+        user_id:          fraiseql_core::prelude::UserId::new("collation"),
+        tenant_id:        None,
+        roles:            vec![],
+        scopes:           vec![],
+        attributes:       HashMap::new(),
+        request_id:       "req-collation".to_string(),
+        ip_address:       None,
+        authenticated_at: chrono::Utc::now(),
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
+    }
+}
+
+/// The fr-CA oracle order, and an executor over the words (with the relay runner).
+async fn fr_ca() -> Option<(Vec<String>, Executor)> {
+    let adapter = adapter().await?;
+    let expected = oracle(&adapter, Some("fr-CA-x-icu")).await;
+    assert_ne!(expected, oracle(&adapter, None).await, "the data must discriminate");
+    Some((expected, Executor::new_with_relay(schema(), Arc::new(adapter))))
+}
+
+/// Cycle 2: the authenticated list path (a separate runner arm from the anonymous one).
+#[tokio::test]
+async fn an_authenticated_text_sort_follows_the_request_locale() {
+    let Some((expected, executor)) = fr_ca().await else {
+        return;
+    };
+    let ctx = principal();
+    let response = with_request_locale(
+        "fr-CA",
+        executor.execute_with_security("{ words(orderBy: {word: ASC}) { word } }", None, &ctx),
+    )
+    .await
+    .unwrap();
+    assert_eq!(words_of(&response), expected, "{response}");
+}
+
+/// Cycle 2: a relay connection ordered by a text field.
+#[tokio::test]
+async fn a_relay_connection_sorts_in_the_request_locale() {
+    let Some((expected, executor)) = fr_ca().await else {
+        return;
+    };
+    let response = with_request_locale(
+        "fr-CA",
+        executor.execute(
+            "{ wordsConnection(first: 20, orderBy: {word: ASC}) { edges { node { word } } } }",
+            None,
+        ),
+    )
+    .await
+    .unwrap();
+    let words: Vec<String> = response["data"]["wordsConnection"]["edges"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"))
+        .iter()
+        .map(|e| e["node"]["word"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(words, expected, "{response}");
+}
+
+fn fact_table() -> FactTableMetadata {
+    FactTableMetadata {
+        table_name:               VIEW.to_string(),
+        type_name:                None,
+        measures:                 vec![MeasureColumn {
+            name:     "pk_word".to_string(),
+            sql_type: SqlType::BigInt,
+            nullable: false,
+        }],
+        dimensions:               DimensionColumn {
+            name:  "data".to_string(),
+            paths: vec![fraiseql_core::compiler::fact_table::DimensionPath {
+                name:      "word".to_string(),
+                json_path: "data->>'word'".to_string(),
+                data_type: "string".to_string(),
+            }],
+        },
+        denormalized_filters:     vec![],
+        calendar_dimensions:      vec![],
+        partial_period:           None,
+        native_measures:          HashMap::new(),
+        native_dimension_mapping: HashMap::new(),
+    }
+}
+
+/// Cycle 2: an aggregate grouped by a text dimension and ordered by it.
+#[tokio::test]
+async fn an_aggregate_ordered_by_a_text_dimension_sorts_in_the_request_locale() {
+    let Some((expected, executor)) = fr_ca().await else {
+        return;
+    };
+    let query = serde_json::json!({
+        "table": VIEW,
+        "groupBy": { "word": true },
+        "aggregates": [{ "count": {} }],
+        "orderBy": { "word": "ASC" }
+    });
+    let response = with_request_locale(
+        "fr-CA",
+        executor.execute_aggregate_query(&query, "words_aggregate", &fact_table()),
+    )
+    .await
+    .unwrap();
+    let words: Vec<String> = response["data"]["words_aggregate"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"))
+        .iter()
+        .map(|r| r["word"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(words, expected, "{response}");
+}
+
+/// Cycle 2: a window function ordered by a text dimension, and the final ordering by it.
+#[tokio::test]
+async fn a_window_ordered_by_a_text_dimension_sorts_in_the_request_locale() {
+    let Some((expected, executor)) = fr_ca().await else {
+        return;
+    };
+    let query = serde_json::json!({
+        "table": VIEW,
+        "select": [{ "type": "dimension", "path": "word", "alias": "word" }],
+        "windows": [{
+            "function": { "type": "row_number" },
+            "alias": "position",
+            "orderBy": [{ "field": "word", "direction": "ASC" }]
+        }],
+        "orderBy": [{ "field": "word", "direction": "ASC" }]
+    });
+    let response = with_request_locale(
+        "fr-CA",
+        executor.execute_window_query(&query, "words_window", &fact_table()),
+    )
+    .await
+    .unwrap();
+    let rows = response["data"]["words_window"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"));
+    let words: Vec<String> = rows.iter().map(|r| r["word"].as_str().unwrap().to_string()).collect();
+    assert_eq!(words, expected, "final ORDER BY: {response}");
+    let positions: Vec<i64> = rows.iter().map(|r| r["position"].as_i64().unwrap()).collect();
+    assert_eq!(positions, (1..=7).collect::<Vec<i64>>(), "OVER (ORDER BY): {response}");
 }

@@ -219,9 +219,9 @@ pub fn render_order_by_columns(
             let key = clause.storage_key();
             db_type.typed_json_field_expr(&key, clause.field_type)
         };
-        let collate = collate_suffix(clause.collation.as_deref())?;
+        let key = collated(&expr, clause.collation.as_deref())?;
         // Reason: fmt::Write for String is infallible
-        write!(columns, "{expr}{collate} {}", clause.direction.as_sql())
+        write!(columns, "{key} {}", clause.direction.as_sql())
             .expect("write to String is infallible");
     }
     if tiebreak == Tiebreak::Identity && !orders_by_identity(clauses) {
@@ -233,6 +233,22 @@ pub fn render_order_by_columns(
         write!(columns, ", {expr} ASC").expect("write to String is infallible");
     }
     Ok(Some(RenderedOrderBy { columns, params }))
+}
+
+/// `expr` as a sort key under `collation`: `(expr) COLLATE "<name>"`, or `expr` unchanged.
+///
+/// Parenthesized because `COLLATE` binds tighter than `->>`: `data->>'k' COLLATE "x"` parses
+/// as `data ->> ('k' COLLATE "x")`, collating the key literal rather than the value (it only
+/// happens to work because `->>` derives its result's collation from that argument).
+///
+/// # Errors
+///
+/// As [`collate_suffix`].
+pub fn collated(expr: &str, collation: Option<&str>) -> crate::Result<String> {
+    Ok(match collation {
+        Some(_) => format!("({}){}", expr.trim_end(), collate_suffix(collation)?),
+        None => expr.to_string(),
+    })
 }
 
 /// ` COLLATE "<name>"` for a clause sorting under a request-locale collation (#1512), or

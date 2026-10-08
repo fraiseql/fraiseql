@@ -319,7 +319,7 @@ pub fn enrich_order_by_clauses(
 /// Whether a native column of PostgreSQL type `cast` is text, and so takes a `COLLATE`
 /// (#1512). An empty cast is an untyped column read as text. Anything else (a number, a
 /// uuid, a timestamp) sorts by its own type, which a collation does not apply to.
-fn sorts_as_text(cast: &str) -> bool {
+pub(super) fn sorts_as_text(cast: &str) -> bool {
     matches!(
         cast.to_ascii_lowercase().as_str(),
         "" | "text" | "varchar" | "character varying" | "bpchar" | "character" | "citext"

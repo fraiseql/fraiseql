@@ -131,7 +131,10 @@ impl WindowSqlGenerator {
                 // Fields in the outer ORDER BY may be JSONB path expressions
                 // (e.g. `data->>'category'`) or window aliases (`"rank"`, quoted by the
                 // planner); they are validated at planner parse time and rendered there.
-                let _ = write!(sql, "{} {}", order.field, dir);
+                // A text key carries the request locale's collation (#1512).
+                let key =
+                    crate::backend::order_by::collated(&order.field, order.collation.as_deref())?;
+                let _ = write!(sql, "{key} {dir}");
             }
         }
 
@@ -178,7 +181,9 @@ impl WindowSqlGenerator {
                     OrderDirection::Desc => "DESC",
                     _ => "ASC",
                 };
-                let _ = write!(sql, "{} {}", order.field, dir);
+                let key =
+                    crate::backend::order_by::collated(&order.field, order.collation.as_deref())?;
+                let _ = write!(sql, "{key} {dir}");
             }
         }
 
