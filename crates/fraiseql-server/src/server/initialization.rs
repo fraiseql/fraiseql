@@ -1445,6 +1445,48 @@ pub fn field_encryption_unsupported_check(schema: &CompiledSchema) -> crate::Res
     )))
 }
 
+/// Refuse to boot when a `[locale]` resolve entry reads an enriched field the enrichment
+/// query's `map` does not produce (#1512).
+///
+/// The source would never match, so every request would silently skip it: a deployment
+/// that resolves the locale from the user's profile would serve every user the default.
+///
+/// # Errors
+///
+/// Returns `ServerError::ConfigError` naming each such field and the fields `map` produces.
+#[cfg(feature = "auth")]
+pub fn locale_enrichment_fields_check(
+    schema: &CompiledSchema,
+    config: &crate::ServerConfig,
+) -> crate::Result<()> {
+    let Some(locale) = schema.locale.as_ref() else {
+        return Ok(());
+    };
+    let produced: Vec<&str> = config
+        .identity
+        .as_ref()
+        .and_then(|identity| identity.enrichment.as_ref())
+        .map(|enrichment| enrichment.map.values().map(String::as_str).collect())
+        .unwrap_or_default();
+    let missing: Vec<&str> =
+        locale.enrichment_fields().filter(|field| !produced.contains(field)).collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    Err(crate::ServerError::ConfigError(format!(
+        "[locale] resolve reads the enriched field(s) {}, which [identity.enrichment] `map` \
+         does not produce (it produces: {}). The source would never match, and every request \
+         would get the next source or the default. Add the field to `map`, or remove the \
+         `enrichment` entry from [locale] resolve.",
+        missing.join(", "),
+        if produced.is_empty() {
+            "nothing".to_string()
+        } else {
+            produced.join(", ")
+        }
+    )))
+}
+
 /// Refuse to boot when the compiled schema reads enriched identity but the deployment
 /// never configured a resolver (#1336).
 ///
@@ -1483,8 +1525,9 @@ pub fn enrichment_consumer_without_resolver_check(
     }
 
     Err(crate::ServerError::ConfigError(
-        "The compiled schema reads enriched identity (a session variable or inject param \
-         with an `enrichment` source), but `[identity.enrichment]` is not enabled. Nothing \
+        "The compiled schema reads enriched identity (a session variable, inject param or \
+         [locale] resolve entry with an `enrichment` source), but `[identity.enrichment]` is \
+         not enabled. Nothing \
          would resolve an identity, so every request reading an enriched field would fail \
          and every other request would be served without the fail-closed check the schema \
          implies. Enable `[identity.enrichment]` in fraiseql.toml, or remove the \

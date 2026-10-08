@@ -280,6 +280,8 @@ impl Server {
         crate::server::initialization::enrichment_consumer_without_resolver_check(
             &schema, &config,
         )?;
+        #[cfg(feature = "auth")]
+        crate::server::initialization::locale_enrichment_fields_check(&schema, &config)?;
 
         // Read every schema-derived subsystem through the one shared seam.
         let subsystems = Self::schema_subsystems(&schema, &config).await?;

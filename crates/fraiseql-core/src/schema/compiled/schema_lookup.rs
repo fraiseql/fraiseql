@@ -48,6 +48,8 @@ impl CompiledSchema {
                 .flat_map(|q| q.inject_params.values())
                 .chain(self.mutations.iter().flat_map(|m| m.inject_params.values()))
                 .any(|source| matches!(source, InjectedParamSource::Enrichment(_)))
+            // A `[locale]` source reading the enriched identity (#1512).
+            || self.locale.as_ref().is_some_and(|l| l.enrichment_fields().next().is_some())
     }
 
     /// Build the schema's derived state: O(1) operation lookup indexes, and the

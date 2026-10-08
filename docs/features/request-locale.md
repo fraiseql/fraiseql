@@ -41,6 +41,22 @@ longer than 1024 bytes falls through to the next source. When no source matches,
 request gets `default`. The resolved locale is therefore always an allowed tag, and a
 request value never reaches SQL.
 
+## From the user's profile
+
+An `enrichment` source reads a field of the resolved identity (`[identity.enrichment]`):
+
+```toml
+[identity.enrichment]
+enabled = true
+query   = "SELECT coalesce(locale, '') AS locale FROM tb_user WHERE sub = $sub"
+map     = { locale = "user_locale" }
+```
+
+The server refuses to boot when a `[locale]` enrichment source names a field that `map`
+does not produce, or when no resolver is enabled. The resolver treats a `NULL` mapped
+column as a denial of the identity, so a user without a stored locale must map to a
+non-`NULL` value (an empty string matches nothing and falls through).
+
 ## In SQL: reads only
 
 A read transaction carries the locale as `fraiseql.locale`:
