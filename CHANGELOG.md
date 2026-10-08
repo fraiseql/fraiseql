@@ -490,6 +490,16 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`fraiseql federation sdl` prints a subgraph's SDL from its compiled schema (#1427).**
+  Composing a supergraph needed each subgraph's `_service { sdl }`, so a hermetic composition
+  gate had to boot every subgraph and mint a token for a principal it would serve.
+  `fraiseql federation sdl <schema.compiled.json> [-o subgraph.graphql]` prints the same text
+  without a server, database or credentials: `CompiledSchema::federation_service_sdl()` renders
+  both, and a test compares the two byte for byte on one artifact. A schema whose
+  `[federation]` is absent or disabled is refused. The command needs a CLI built with the
+  `federation` feature (not a default feature); whether `_service` itself should be reachable
+  without an enriched identity is #1515.
+
 - **A helper builds a mutation error entry whose `identifier` is a translation key, and an
   opt-in check finds the failures that lack one (#1425).** Clients translate a structured
   failure by `error_detail.errors[].identifier`, but nothing helped build that key, and an
