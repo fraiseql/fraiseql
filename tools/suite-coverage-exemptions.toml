@@ -33,6 +33,10 @@ reason = "a routing decision, not a verdict: it only decides whether the leg aft
 # postgres leg before G1 would build fixtures for a surface that may be deleted.
 
 [[exempt]]
+target = "fraiseql-server::session_variable_header_source_e2e_pg"
+reason = "the RED for #1520 (a `source = \"header\"` session variable is never fed from the HTTP header): #[ignore]d until that is fixed; un-ignoring it is part of the fix"
+
+[[exempt]]
 target = "fraiseql-arrow::flight_integration"
 reason = "pending G1 (#953/#954): Flight surface may be deleted; DB fixture + postgres-leg wiring owned by P05 Cycle 3 (#908)"
 
