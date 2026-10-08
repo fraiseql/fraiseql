@@ -128,3 +128,18 @@ fn federation_sdl_prints_what_service_serves() {
     assert!(written.status.success(), "{}", String::from_utf8_lossy(&written.stderr));
     assert_eq!(std::fs::read_to_string(&file).unwrap(), served_sdl, "`-o` writes the same SDL");
 }
+
+/// A schema that is not a federated subgraph has no `_service`: the command refuses it
+/// and says which section is missing, rather than printing a plain schema as a subgraph.
+#[test]
+fn federation_sdl_refuses_a_schema_without_federation() {
+    let dir = TempDir::new().unwrap();
+    let plain = FEDERATED_SCHEMA.replace("\"enabled\": true", "\"enabled\": false");
+    let artifact = compile(&dir, &plain);
+
+    let out = cli().args(["federation", "sdl", path(&artifact)]).output().unwrap();
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(!out.status.success(), "a non-federated schema must be refused");
+    assert!(out.stdout.is_empty(), "nothing is printed as SDL: {:?}", out.stdout);
+    assert!(stderr.contains("[federation]"), "the refusal names the section: {stderr}");
+}

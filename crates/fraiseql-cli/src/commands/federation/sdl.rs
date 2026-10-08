@@ -4,7 +4,7 @@
 //! `_service { sdl }`; this prints the same text from `schema.compiled.json`, so a
 //! composition gate needs neither a booted server nor a principal allowed to call it.
 
-use std::path::Path;
+use std::{io::Write as _, path::Path};
 
 use anyhow::{Context, Result};
 use fraiseql_core::schema::CompiledSchema;
@@ -33,15 +33,11 @@ pub fn render(schema_path: &Path) -> Result<String> {
 /// As [`render`], or `output` cannot be written.
 pub fn run(schema_path: &Path, output: Option<&Path>) -> Result<()> {
     let sdl = render(schema_path)?;
-    match output {
-        Some(path) => {
-            std::fs::write(path, sdl).with_context(|| format!("failed to write {}", path.display()))
-        },
-        None => {
-            use std::io::Write as _;
-            let mut stdout = std::io::stdout().lock();
-            stdout.write_all(sdl.as_bytes()).context("failed to write the SDL to stdout")?;
-            stdout.flush().context("failed to write the SDL to stdout")
-        },
+    if let Some(path) = output {
+        return std::fs::write(path, sdl)
+            .with_context(|| format!("failed to write {}", path.display()));
     }
+    let mut stdout = std::io::stdout().lock();
+    stdout.write_all(sdl.as_bytes()).context("failed to write the SDL to stdout")?;
+    stdout.flush().context("failed to write the SDL to stdout")
 }

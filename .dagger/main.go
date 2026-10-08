@@ -1617,6 +1617,8 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// shape as #960/#384 — green-while-running-zero-tests until named here.
 		"echo '### cargo test -p fraiseql-cli remaining against-db suites (#992)'",
 		"cargo test -p fraiseql-cli --features test-postgres --test setup_against_db -- --test-threads=1",
+		// #1427: `federation sdl` and `_service { sdl }` agree on one artifact.
+		"cargo test -p fraiseql-cli --features test-postgres,federation --test federation_sdl_against_db -- --test-threads=1",
 		"cargo test -p fraiseql-cli --features test-postgres --test sources_against_db -- --test-threads=1",
 		"cargo test -p fraiseql-cli --features test-postgres --test validate_sql_sources_gate -- --test-threads=1",
 		"cargo test -p fraiseql-cli --features test-postgres --test runtime_smoke -- --test-threads=1",

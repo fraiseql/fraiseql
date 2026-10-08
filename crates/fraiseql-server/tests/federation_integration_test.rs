@@ -120,6 +120,8 @@ async fn setup_users_table(db_url: &str) -> tokio_postgres::Client {
 #[tokio::test]
 async fn service_sdl_contains_federation_directives() {
     let schema = user_schema_with_federation();
+    // #1427: what `fraiseql federation sdl` prints from the same artifact.
+    let offline = schema.federation_service_sdl().expect("a federated schema renders its SDL");
     let adapter = Arc::new(FailingAdapter::new());
     let server = TestServer::start(schema, adapter).await;
 
@@ -146,6 +148,7 @@ async fn service_sdl_contains_federation_directives() {
     assert!(sdl.contains("_entities"), "SDL must declare _entities query");
     assert!(sdl.contains("_service"), "SDL must declare _service query");
     assert!(!sdl.contains("# @key"), "SDL must not contain commented @key: {sdl}");
+    assert_eq!(sdl, offline, "the HTTP `_service` serves exactly the offline rendering");
 }
 
 // ─── Test 2: _entities resolves User from PostgreSQL ─────────────────────────
