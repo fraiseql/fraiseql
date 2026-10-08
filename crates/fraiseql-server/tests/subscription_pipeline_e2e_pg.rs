@@ -504,3 +504,22 @@ async fn an_argument_of_the_wrong_type_is_refused() {
         assert_eq!(registered, 0, "a refused subscription is not registered");
     }
 }
+
+/// A filter value sent as a variable the operation never defines is refused, naming the
+/// argument form: it used to bind the argument of the same name, and dropping it silently
+/// would widen the subscription to every event.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn an_undefined_variable_named_like_an_argument_is_refused() {
+    let (frame, registered) = answer_to(
+        "subscription { orderStatusChanged { id status } }",
+        json!({"status": "shipped"}),
+    )
+    .await;
+    assert_eq!(frame["type"], "error", "the variable-only filter must be refused: {frame}");
+    assert!(
+        frame.to_string().contains("orderStatusChanged(status: $status)"),
+        "the refusal names the argument form: {frame}"
+    );
+    assert_eq!(registered, 0, "a refused subscription is not registered");
+}

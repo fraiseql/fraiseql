@@ -146,15 +146,23 @@ fn a_static_filter_on_a_field_the_subscriber_may_not_read_refuses_the_plan() {
     assert!(err.to_string().contains("Order.secret"), "{err}");
 }
 
-#[test]
-fn an_argument_filter_is_a_reference_only_when_the_subscriber_binds_it() {
+/// `orderCreated(secret: String)`, filtering on `/secret` by that argument.
+fn schema_filtering_by_secret() -> CompiledSchema {
     let mut schema = schema();
+    schema.subscriptions[0]
+        .arguments
+        .push(crate::schema::ArgumentDefinition::optional("secret", FieldType::String));
     schema.subscriptions[0].filter = Some(SubscriptionFilter {
         argument_paths: HashMap::from([("secret".to_string(), "/secret".to_string())]),
         static_filters: vec![],
     });
-    let exec = executor(schema, RuntimeConfig::default());
-    let query = "subscription { orderCreated { id } }";
+    schema
+}
+
+#[test]
+fn an_argument_filter_is_a_reference_only_when_the_subscriber_binds_it() {
+    let exec = executor(schema_filtering_by_secret(), RuntimeConfig::default());
+    let query = "subscription($secret: String) { orderCreated(secret: $secret) { id } }";
     plan(&exec, query, &json!({}), None).expect("an unbound filter filters by nothing");
     let err = plan(&exec, query, &json!({"secret": "s"}), None).unwrap_err();
     assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
@@ -164,15 +172,22 @@ fn an_argument_filter_is_a_reference_only_when_the_subscriber_binds_it() {
 /// #1504), so a defaulted argument binds its filter exactly as a supplied one does.
 #[test]
 fn a_defaulted_variable_binds_its_argument_filter() {
-    let mut schema = schema();
-    schema.subscriptions[0].filter = Some(SubscriptionFilter {
-        argument_paths: HashMap::from([("secret".to_string(), "/secret".to_string())]),
-        static_filters: vec![],
-    });
-    let exec = executor(schema, RuntimeConfig::default());
-    let query = r#"subscription S($secret: String = "s") { orderCreated { id } }"#;
+    let exec = executor(schema_filtering_by_secret(), RuntimeConfig::default());
+    let query = r#"subscription S($secret: String = "s") { orderCreated(secret: $secret) { id } }"#;
     let err = plan(&exec, query, &json!({}), None).unwrap_err();
     assert!(matches!(err, FraiseQLError::Authorization { .. }), "{err:?}");
+}
+
+/// A filter value sent as a variable the operation never defines binds nothing (#1158):
+/// it used to bind the argument of the same name. Refused, naming the fix, rather than
+/// dropped, which would widen the subscription to every event.
+#[test]
+fn an_undefined_variable_named_like_an_argument_is_refused() {
+    let exec = executor(schema_filtering_by_secret(), RuntimeConfig::default());
+    let err = plan(&exec, "subscription { orderCreated { id } }", &json!({"secret": "s"}), None)
+        .unwrap_err();
+    assert!(matches!(err, FraiseQLError::Validation { .. }), "{err:?}");
+    assert!(err.to_string().contains("orderCreated(secret: $secret)"), "{err}");
 }
 
 struct DenyReject;

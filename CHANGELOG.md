@@ -25,7 +25,11 @@ disagreed, and the promise was the part that was wrong.
   ignored (every event delivered), and a wrong-typed value compared unequal with every event
   (none delivered). They now get the query path's `VALIDATION_ERROR`
   (`Unknown argument 'stauts' on field 'orderStatusChanged'. Did you mean 'status'?`, or the
-  argument's declared type) and the subscription is not registered.
+  argument's declared type) and the subscription is not registered. So is a filter value sent
+  only as a variable the operation never defines (`subscription { orderCreated { id } }` with
+  `{"status": "shipped"}`): it used to bind the argument of the same name, and dropping it
+  silently would widen the subscription to every event, so it is refused naming the form that
+  binds, `orderCreated(status: $status)` with `$status` declared.
 
 - **A fact table that declares one dimension twice, in disagreeing ways, is refused at compile
   and load (#1231).** A `native_dimension_mapping` key that `denormalized_filters` also declares

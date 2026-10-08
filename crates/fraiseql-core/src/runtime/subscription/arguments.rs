@@ -23,8 +23,9 @@ use crate::{error::Result, graphql::ParsedQuery, schema::CompiledSchema};
 ///
 /// `Validation` for a document that selects no root field or more than one, a
 /// subscription the schema does not declare, an argument the subscription does not
-/// declare, or a value of the wrong type for its argument or variable (with the messages
-/// a query field gives).
+/// declare, a value of the wrong type for its argument or variable (with the messages
+/// a query field gives), or a supplied variable the operation does not define that is
+/// named like one of the subscription's arguments.
 pub fn subscription_arguments(
     schema: &CompiledSchema,
     document: &ParsedQuery,
@@ -68,6 +69,24 @@ pub fn subscription_arguments(
         &document.variables,
         variables,
     )?;
+
+    // A supplied variable the operation never defines, named like one of the subscription's
+    // arguments: a client binding the filter the way the defect above allowed. Dropped, it
+    // would widen the subscription to every event; refuse it and name the fix.
+    let defined = |name: &str| document.variables.iter().any(|v| v.name == name);
+    if let Some(name) = variables
+        .and_then(serde_json::Value::as_object)
+        .into_iter()
+        .flat_map(|supplied| supplied.keys())
+        .find(|name| !defined(name) && declared.iter().any(|d| d == *name))
+    {
+        return Err(crate::error::FraiseQLError::validation(format!(
+            "Variable '{name}' is not defined by the operation, so it binds nothing; \
+             '{field}' takes it as an argument: {field}({name}: ${name}) with \
+             `${name}` declared on the operation",
+            field = root.name
+        )));
+    }
 
     let mut arguments = serde_json::Map::new();
     for argument in &root.arguments {
