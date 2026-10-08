@@ -343,7 +343,7 @@ pub struct RuntimeConfig {
     pub dry_run_mutations: bool,
 
     /// Check a failed mutation's `error_detail.errors[]` (#1425): off by default, see
-    /// [`MutationErrorShapeCheck`](mutation_result::MutationErrorShapeCheck).
+    /// [`MutationErrorShapeCheck`].
     ///
     /// Sourced from the server's `mutation_error_shape_check` key.
     pub mutation_error_shape_check: mutation_result::MutationErrorShapeCheck,
