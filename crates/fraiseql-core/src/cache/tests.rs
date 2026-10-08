@@ -1558,8 +1558,10 @@ mod key_tests {
         let asc = [OrderByClause::new("name".into(), OrderDirection::Asc)];
         let desc = [OrderByClause::new("name".into(), OrderDirection::Desc)];
 
-        let key_asc = generate_view_query_key("v_user", None, None, None, Some(&asc), &[], "v1");
-        let key_desc = generate_view_query_key("v_user", None, None, None, Some(&desc), &[], "v1");
+        let key_asc =
+            generate_view_query_key("v_user", None, None, None, Some(&asc), &[], None, "v1");
+        let key_desc =
+            generate_view_query_key("v_user", None, None, None, Some(&desc), &[], None, "v1");
 
         assert_ne!(key_asc, key_desc, "Different order directions must produce different keys");
     }
@@ -1585,7 +1587,16 @@ mod key_tests {
             }),
         };
         let key = |tenant: &str| {
-            generate_view_query_key("v_member", Some(&guarded(tenant)), None, None, None, &[], "v1")
+            generate_view_query_key(
+                "v_member",
+                Some(&guarded(tenant)),
+                None,
+                None,
+                None,
+                &[],
+                None,
+                "v1",
+            )
         };
         assert_ne!(key("A"), key("B"), "callers with different guards must not share an entry");
         assert_eq!(key("A"), key("A"));
@@ -1617,7 +1628,16 @@ mod key_tests {
             }),
         };
         let key = |tenant: &str| {
-            generate_view_query_key("v_member", Some(&guarded(tenant)), None, None, None, &[], "v1")
+            generate_view_query_key(
+                "v_member",
+                Some(&guarded(tenant)),
+                None,
+                None,
+                None,
+                &[],
+                None,
+                "v1",
+            )
         };
         assert_ne!(key("A"), key("B"), "callers with different predicates must not share an entry");
         assert_eq!(key("A"), key("A"));
@@ -1629,8 +1649,10 @@ mod key_tests {
 
         let clauses = [OrderByClause::new("createdAt".into(), OrderDirection::Desc)];
 
-        let key1 = generate_view_query_key("v_user", None, None, None, Some(&clauses), &[], "v1");
-        let key2 = generate_view_query_key("v_user", None, None, None, Some(&clauses), &[], "v1");
+        let key1 =
+            generate_view_query_key("v_user", None, None, None, Some(&clauses), &[], None, "v1");
+        let key2 =
+            generate_view_query_key("v_user", None, None, None, Some(&clauses), &[], None, "v1");
 
         assert_eq!(key1, key2, "Same order_by must produce identical keys");
     }
@@ -1642,8 +1664,9 @@ mod key_tests {
         let clauses = [OrderByClause::new("name".into(), OrderDirection::Asc)];
 
         let key_with =
-            generate_view_query_key("v_user", None, None, None, Some(&clauses), &[], "v1");
-        let key_without = generate_view_query_key("v_user", None, None, None, None, &[], "v1");
+            generate_view_query_key("v_user", None, None, None, Some(&clauses), &[], None, "v1");
+        let key_without =
+            generate_view_query_key("v_user", None, None, None, None, &[], None, "v1");
 
         assert_ne!(key_with, key_without, "Presence of order_by must change key");
     }
@@ -1656,9 +1679,9 @@ mod key_tests {
         let by_date = [OrderByClause::new("createdAt".into(), OrderDirection::Asc)];
 
         let key_name =
-            generate_view_query_key("v_user", None, None, None, Some(&by_name), &[], "v1");
+            generate_view_query_key("v_user", None, None, None, Some(&by_name), &[], None, "v1");
         let key_date =
-            generate_view_query_key("v_user", None, None, None, Some(&by_date), &[], "v1");
+            generate_view_query_key("v_user", None, None, None, Some(&by_date), &[], None, "v1");
 
         assert_ne!(key_name, key_date, "Different order_by fields must produce different keys");
     }
@@ -1673,14 +1696,33 @@ mod key_tests {
             order_by: Some(&clauses),
             ..crate::backend::ProjectionRequest::new("v_user")
         };
-        let key_with = generate_projection_query_key(&ordered, &[], "v1");
+        let key_with = generate_projection_query_key(&ordered, &[], None, "v1");
         let key_without = generate_projection_query_key(
             &crate::backend::ProjectionRequest::new("v_user"),
             &[],
+            None,
             "v1",
         );
 
         assert_ne!(key_with, key_without, "Projection key must include order_by");
+    }
+
+    /// #1512: the request locale is a section of its own. Identical session variables (a
+    /// path that did not carry the locale as a setting) still key two locales apart, and
+    /// "no locale" is a third key.
+    #[test]
+    fn the_request_locale_is_its_own_key_section() {
+        let request = crate::backend::ProjectionRequest::new("v_product");
+        let fr = generate_projection_query_key(&request, &[], Some("fr"), "v1");
+        let de = generate_projection_query_key(&request, &[], Some("de-DE"), "v1");
+        let none = generate_projection_query_key(&request, &[], None, "v1");
+        assert_ne!(fr, de);
+        assert_ne!(fr, none);
+        let view = |locale| {
+            generate_view_query_key("v_product", None, None, None, None, &[], locale, "v1")
+        };
+        assert_ne!(view(Some("fr")), view(Some("de-DE")));
+        assert_ne!(view(Some("fr")), view(None));
     }
 }
 

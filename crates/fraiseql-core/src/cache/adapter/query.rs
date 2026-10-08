@@ -82,7 +82,12 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
 
         // Generate cache key — zero heap allocations on the hot path, bar the sort of
         // the session variables (#1373).
-        let cache_key = generate_projection_query_key(request, session_vars, &self.schema_version);
+        let cache_key = generate_projection_query_key(
+            request,
+            session_vars,
+            crate::runtime::scoped_request_locale().as_deref(),
+            &self.schema_version,
+        );
 
         // Hit: return cached Arc directly — zero-copy, just one atomic increment.
         if let Some(cached_arc) = self.cache.get(cache_key)? {
@@ -173,6 +178,7 @@ impl<A: DatabaseAdapter> CachedDatabaseAdapter<A> {
             offset,
             order_by,
             session_vars,
+            crate::runtime::scoped_request_locale().as_deref(),
             &self.schema_version,
         );
 

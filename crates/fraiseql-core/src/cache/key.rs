@@ -169,6 +169,7 @@ pub fn generate_cache_key(
 /// * `offset` - Optional row offset
 /// * `schema_version` - Schema hash from `CompiledSchema::content_hash()`
 #[must_use]
+#[allow(clippy::too_many_arguments)] // Reason: one argument per key section; a struct would only rename them
 pub fn generate_view_query_key(
     view: &str,
     where_clause: Option<&WhereClause>,
@@ -176,6 +177,7 @@ pub fn generate_view_query_key(
     offset: Option<u32>,
     order_by: Option<&[OrderByClause]>,
     session_vars: &[(&str, &str)],
+    locale: Option<&str>,
     schema_version: &str,
 ) -> u64 {
     let mut h = new_hasher();
@@ -208,6 +210,7 @@ pub fn generate_view_query_key(
     hash_order_by(&mut h, order_by);
     h.write(b"\0sv:");
     hash_session_vars(&mut h, session_vars);
+    hash_locale(&mut h, locale);
 
     h.write(b"\0s:");
     h.write(schema_version.as_bytes());
@@ -232,6 +235,7 @@ pub fn generate_view_query_key(
 pub fn generate_projection_query_key(
     request: &ProjectionRequest<'_>,
     session_vars: &[(&str, &str)],
+    locale: Option<&str>,
     schema_version: &str,
 ) -> u64 {
     let ProjectionRequest {
@@ -280,6 +284,7 @@ pub fn generate_projection_query_key(
     hash_order_by(&mut h, order_by);
     h.write(b"\0sv:");
     hash_session_vars(&mut h, session_vars);
+    hash_locale(&mut h, locale);
 
     h.write(b"\0s:");
     h.write(schema_version.as_bytes());
@@ -583,6 +588,22 @@ pub fn verify_deterministic(query: &str, variables: &JsonValue, schema_version: 
     let key1 = generate_cache_key(query, variables, None, schema_version);
     let key2 = generate_cache_key(query, variables, None, schema_version);
     key1 == key2
+}
+
+/// The request locale a read runs in, as its own section (#1512).
+///
+/// A localized read's rows depend on it whatever carries it to SQL (a literal in the
+/// projection, the `fraiseql.locale` setting), so the key names it outright rather than
+/// relying on either.
+fn hash_locale(h: &mut impl std::hash::Hasher, locale: Option<&str>) {
+    h.write(b"\0loc:");
+    match locale {
+        Some(tag) => {
+            h.write_u8(1);
+            h.write(tag.as_bytes());
+        },
+        None => h.write_u8(0),
+    }
 }
 
 /// Hash the session variables a read runs under, independent of the order they arrive

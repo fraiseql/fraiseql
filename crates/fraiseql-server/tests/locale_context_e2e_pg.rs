@@ -211,7 +211,11 @@ async fn graphql_locale(
     for (name, value) in headers {
         request = request.header(*name, *value);
     }
-    let body: Value = request.send().await.unwrap().json().await.unwrap();
+    let response = request.send().await.unwrap();
+    let status = response.status();
+    let text = response.text().await.unwrap();
+    let body: Value =
+        serde_json::from_str(&text).unwrap_or_else(|e| panic!("{status} ({e}): {text}"));
     assert!(body.get("errors").is_none(), "the read succeeds: {body}");
     body["data"]["localeProbes"][0]["locale"].clone()
 }
@@ -833,4 +837,26 @@ async fn a_write_never_carries_the_locale() {
         graphql_locale(&server, None, &[("accept-language", "de-DE")], None).await,
         json!("de-DE")
     );
+}
+
+/// Cycle 6: with the result cache on, the same query in two locales is two entries. The
+/// probe's answer depends on the locale, so a shared entry serves one locale the other's.
+#[tokio::test]
+async fn the_result_cache_keeps_each_locale_apart() {
+    for (auth, subject) in [(Auth::None, None), (Auth::Hs256, Some("cached"))] {
+        let mut schema = compile(LOCALE_TOML).await.unwrap();
+        // The cache is opt-in per view.
+        schema.queries[0].cache_ttl_seconds = Some(60);
+        let Some(server) = start_with(schema, auth, |config| config.cache_enabled = true).await
+        else {
+            return;
+        };
+        for (accept, expected) in [("fr", "fr"), ("de-DE", "de-DE"), ("fr", "fr")] {
+            assert_eq!(
+                graphql_locale(&server, subject, &[("accept-language", accept)], None).await,
+                json!(expected),
+                "{subject:?}, Accept-Language: {accept}"
+            );
+        }
+    }
 }

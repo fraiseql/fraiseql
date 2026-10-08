@@ -32,6 +32,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`fraiseql_core::cache::generate_view_query_key` and `generate_projection_query_key` take
+  the request locale (#1512).** A new `locale: Option<&str>` argument, before
+  `schema_version`, is hashed as its own key section, so two locales never share a result-cache
+  entry. Embedders computing keys by hand pass `None` outside a localized deployment.
+
 - **A fact-table dimension path whose `json_path` is not `col->'key'…->>'key'` is refused at
   compile and load (#1517).** The runtime now reads a declared path at its `json_path`, so the
   path has to be one it can read: the dimensions column, `->'key'` steps, one final

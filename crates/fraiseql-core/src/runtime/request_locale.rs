@@ -25,6 +25,15 @@ pub async fn with_request_locale<F: Future>(locale: impl Into<String>, future: F
     REQUEST_LOCALE.scope(locale.into(), future).await
 }
 
+/// The locale the current request was scoped in by its transport, unchecked.
+///
+/// `None` outside any scope. For a consumer with no schema at hand (the result cache's key);
+/// anything that reaches SQL uses [`request_locale`], which checks it against `allowed`.
+#[must_use]
+pub fn scoped_request_locale() -> Option<String> {
+    REQUEST_LOCALE.try_with(Clone::clone).ok()
+}
+
 /// The locale the current request runs in, when `schema` declares `[locale]`: the scoped
 /// value if it is one of `allowed`, otherwise `default`. `None` when the schema declares no
 /// locale.
