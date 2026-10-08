@@ -251,6 +251,29 @@ impl CompiledSchema {
         sources
     }
 
+    /// The SDL a federated subgraph serves as `_service { sdl }`: Apollo Federation v2
+    /// directives over the schema's types (#1427).
+    ///
+    /// The executor's `_service` arm and `fraiseql federation sdl` both call this, so what
+    /// a server serves and what the CLI prints from the same artifact cannot differ.
+    ///
+    /// # Errors
+    ///
+    /// [`FraiseQLError::Validation`](crate::error::FraiseQLError::Validation) when the
+    /// schema has no enabled `[federation]` section.
+    #[cfg(feature = "federation")]
+    pub fn federation_service_sdl(&self) -> crate::error::Result<String> {
+        let metadata =
+            self.federation_metadata()
+                .ok_or_else(|| crate::error::FraiseQLError::Validation {
+                    message: "federation is not enabled in this schema: set `[federation] enabled \
+                          = true` and recompile"
+                        .to_string(),
+                    path:    None,
+                })?;
+        Ok(crate::federation::generate_service_sdl(&self.raw_schema(), &metadata))
+    }
+
     /// Stub federation metadata when federation feature is disabled.
     #[cfg(not(feature = "federation"))]
     #[must_use]

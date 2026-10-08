@@ -229,7 +229,8 @@ EXAMPLES:
     fraiseql federation graph users.compiled.json orders.compiled.json
     fraiseql federation graph users.compiled.json orders.compiled.json -f dot
     fraiseql federation graph users.compiled.json orders.compiled.json -f mermaid
-    fraiseql federation check schema.compiled.json --against other.compiled.json")]
+    fraiseql federation check schema.compiled.json --against other.compiled.json
+    fraiseql federation sdl schema.compiled.json -o subgraph.graphql   (--features federation)")]
     Federation {
         /// Schema path (positional argument passed to subcommand)
         #[command(subcommand)]
@@ -1068,6 +1069,20 @@ pub(crate) enum FederationCommands {
         /// Output format (json, dot, mermaid)
         #[arg(short, long, value_name = "FORMAT", default_value = "json")]
         format: String,
+    },
+
+    /// Print a subgraph's federation SDL, exactly as `_service { sdl }` serves it
+    ///
+    /// Reads the compiled schema; no server, database or credentials are needed.
+    #[cfg(feature = "federation")]
+    Sdl {
+        /// Path to the subgraph's schema.compiled.json
+        #[arg(value_name = "SCHEMA")]
+        schema: std::path::PathBuf,
+
+        /// Write the SDL to this file instead of stdout
+        #[arg(short, long, value_name = "FILE")]
+        output: Option<std::path::PathBuf>,
     },
 
     /// Validate a subgraph's federation entities and keys

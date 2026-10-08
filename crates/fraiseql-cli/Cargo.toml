@@ -125,6 +125,10 @@ name = "federation_cli_compose"
 required-features = ["federation"]
 
 [[test]]
+name = "federation_sdl_against_db"
+required-features = ["federation", "test-postgres"]
+
+[[test]]
 name = "federation_composition_advanced"
 required-features = ["federation"]
 

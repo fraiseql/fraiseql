@@ -161,6 +161,10 @@ pub async fn run() {
                     Err(e) => Err(anyhow::anyhow!(e)),
                 }
             },
+            #[cfg(feature = "federation")]
+            FederationCommands::Sdl { schema, output } => {
+                commands::federation::sdl::run(&schema, output.as_deref())
+            },
             FederationCommands::Check {
                 schema,
                 against,

@@ -41,16 +41,8 @@ impl Executor {
     // generation happens to be in-memory while entity resolution is not.
     #[allow(unknown_lints, clippy::unused_async_trait_impl)]
     async fn execute_service_query(&self) -> Result<serde_json::Value> {
-        // Get federation metadata from schema
-        let fed_metadata =
-            self.ctx.schema.federation_metadata().ok_or_else(|| FraiseQLError::Validation {
-                message: "Federation not enabled in schema".to_string(),
-                path:    None,
-            })?;
-
-        // Generate SDL with federation directives
-        let raw_schema = self.ctx.schema.raw_schema();
-        let sdl = crate::federation::generate_service_sdl(&raw_schema, &fed_metadata);
+        // The same rendering `fraiseql federation sdl` prints (#1427).
+        let sdl = self.ctx.schema.federation_service_sdl()?;
 
         // Return federation response format
         let response = serde_json::json!({
