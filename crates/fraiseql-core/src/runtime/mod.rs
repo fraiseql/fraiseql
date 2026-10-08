@@ -123,6 +123,7 @@ pub use field_filter::{
 };
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
 pub use matcher::{QueryMatch, QueryMatcher, suggest_similar};
+pub use mutation_result::{MutationErrorShapeCheck, mutation_error_shape_violations};
 pub use planner::{ExecutionPlan, QueryPlanner};
 pub(crate) use projection::stored_key_candidates;
 pub use projection::{
@@ -341,6 +342,12 @@ pub struct RuntimeConfig {
     /// nothing that follows a commit follows it. Queries are unaffected (they never commit).
     pub dry_run_mutations: bool,
 
+    /// Check a failed mutation's `error_detail.errors[]` (#1425): off by default, see
+    /// [`MutationErrorShapeCheck`](mutation_result::MutationErrorShapeCheck).
+    ///
+    /// Sourced from the server's `mutation_error_shape_check` key.
+    pub mutation_error_shape_check: mutation_result::MutationErrorShapeCheck,
+
     /// Response-size guards for the typed cascade surface (graphql-cascade
     /// `16_security`). A cascade mutation returning more affected entities than
     /// [`CascadeLimits::max_updated_entities`] is truncated with `truncated`
@@ -446,6 +453,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("audit_mutations", &self.audit_mutations)
             .field("changelog_enabled", &self.changelog_enabled)
             .field("dry_run_mutations", &self.dry_run_mutations)
+            .field("mutation_error_shape_check", &self.mutation_error_shape_check)
             .field("cascade_limits", &self.cascade_limits)
             .field("before_mutation_gate", &self.before_mutation_gate.is_some())
             .field("query_function_resolver", &self.query_function_resolver.is_some())
@@ -458,26 +466,27 @@ impl std::fmt::Debug for RuntimeConfig {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
-            cache_query_plans:       true,
-            max_page_size:           Some(1000),
-            enable_tracing:          false,
-            field_filter:            None,
-            rls_policy:              None,
-            field_authorizer:        None,
-            authorizer:              None,
-            query_timeout_ms:        30_000, // 30 second default timeout
-            jsonb_optimization:      JsonbOptimizationOptions::default(),
-            query_validation:        None,
-            max_operation_cost:      None,
-            max_response_bytes:      None,
-            audit_mutations:         false,
-            changelog_enabled:       true,
-            dry_run_mutations:       false,
-            cascade_limits:          CascadeLimits::default(),
-            before_mutation_gate:    None,
-            query_function_resolver: None,
-            after_mutation_observer: None,
-            root_error_renderer:     None,
+            cache_query_plans:          true,
+            max_page_size:              Some(1000),
+            enable_tracing:             false,
+            field_filter:               None,
+            rls_policy:                 None,
+            field_authorizer:           None,
+            authorizer:                 None,
+            query_timeout_ms:           30_000, // 30 second default timeout
+            jsonb_optimization:         JsonbOptimizationOptions::default(),
+            query_validation:           None,
+            max_operation_cost:         None,
+            max_response_bytes:         None,
+            audit_mutations:            false,
+            changelog_enabled:          true,
+            dry_run_mutations:          false,
+            mutation_error_shape_check: mutation_result::MutationErrorShapeCheck::Off,
+            cascade_limits:             CascadeLimits::default(),
+            before_mutation_gate:       None,
+            query_function_resolver:    None,
+            after_mutation_observer:    None,
+            root_error_renderer:        None,
         }
     }
 }
@@ -794,6 +803,7 @@ impl RuntimeConfig {
             audit_mutations: _,    // schema-derived
             changelog_enabled: _,  // schema-derived
             dry_run_mutations,
+            mutation_error_shape_check,
             cascade_limits,
             before_mutation_gate,
             query_function_resolver,
@@ -817,6 +827,7 @@ impl RuntimeConfig {
             audit_mutations,
             changelog_enabled,
             dry_run_mutations,
+            mutation_error_shape_check,
             cascade_limits,
             before_mutation_gate,
             query_function_resolver,

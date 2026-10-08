@@ -85,6 +85,13 @@ pub struct ServerConfig {
     #[serde(default)]
     pub validate_sql_sources: bool,
 
+    /// Check a failed mutation's `error_detail.errors[]` (#1425): `"off"` (default) or
+    /// `"warn"`. With `"warn"`, a failure carrying no `errors` array, or an entry whose
+    /// `identifier` is not a translation key, is logged at `warn` and counted in
+    /// `fraiseql_mutation_error_shape_violations_total`. The response is unchanged.
+    #[serde(default)]
+    pub mutation_error_shape_check: fraiseql_core::runtime::MutationErrorShapeCheck,
+
     /// Database connection URL (PostgreSQL — the only supported backend since
     /// v2.15.0).
     #[serde(default = "defaults::default_database_url")]
@@ -1312,6 +1319,7 @@ impl Default for ServerConfig {
         Self {
             schema_path: default_schema_path(),
             validate_sql_sources: false,
+            mutation_error_shape_check: fraiseql_core::runtime::MutationErrorShapeCheck::Off,
             database_url: default_database_url(),
             bind_addr: default_bind_addr(),
             #[cfg(feature = "arrow")]

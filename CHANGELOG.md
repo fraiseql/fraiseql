@@ -490,6 +490,20 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A helper builds a mutation error entry whose `identifier` is a translation key, and an
+  opt-in check finds the failures that lack one (#1425).** Clients translate a structured
+  failure by `error_detail.errors[].identifier`, but nothing helped build that key, and an
+  identifier made from a human label (`order line_not_found`) or a type name
+  (`paymentterm_not_found`) silently missed its translation. `fraiseql setup` now installs
+  `fraiseql.error_entry(code, identifier, message, details)`, which normalises the identifier
+  (accents removed, camelCase split, other characters one `_`, `^[a-z][a-z0-9_]*$` or SQLSTATE
+  `22023`), `fraiseql.error_identifier(text)` (the normalisation alone) and
+  `fraiseql.mutation_err_entries(error_class, message, VARIADIC entries)`. The server key
+  `mutation_error_shape_check = "warn"` (default `"off"`) logs and counts, in
+  `fraiseql_mutation_error_shape_violations_total`, each failure with no `errors` array or an
+  entry whose identifier is not a key; the response is unchanged. The entry shape (`code`,
+  `identifier`, `message`, `details`) is documented in `docs/architecture/mutation-response.md`.
+
 - **Fact-table aggregates roll a tree path up by level, group it by depth, and filter it by node
   id (#1498).** On an `LTREE` denormalized filter column, `groupBy: {"path": {"level": n}}` groups
   by `subpath(path, 0, n)` (a shorter path is kept whole) and `{"path": "depth"}` by

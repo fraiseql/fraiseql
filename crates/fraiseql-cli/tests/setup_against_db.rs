@@ -272,10 +272,7 @@ async fn error_entry_normalises_the_identifier_into_a_translation_key() {
         ("Straße", "strasse"),
     ] {
         let row = client
-            .query_one(
-                "SELECT fraiseql.error_entry(1::smallint, $1, 'msg') AS e",
-                &[&identifier],
-            )
+            .query_one("SELECT fraiseql.error_entry(1::smallint, $1, 'msg') AS e", &[&identifier])
             .await;
         assert!(row.is_ok(), "error_entry({identifier:?}) failed: {row:?}");
         let entry: serde_json::Value = row.unwrap().get("e");

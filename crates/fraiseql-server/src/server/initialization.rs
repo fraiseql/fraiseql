@@ -48,6 +48,7 @@ pub(super) fn executor_runtime_config(
     config: &crate::server_config::ServerConfig,
 ) -> Result<fraiseql_core::runtime::RuntimeConfig, String> {
     let mut rt = fraiseql_core::runtime::RuntimeConfig::from_compiled_schema(schema)?;
+    rt.mutation_error_shape_check = config.mutation_error_shape_check;
     if config.validation.is_some() {
         let (depth, complexity) = effective_validation_limits(
             config.validation.as_ref(),

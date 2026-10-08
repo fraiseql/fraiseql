@@ -230,6 +230,7 @@ async fn metrics_endpoint_exports_contract_errors_and_suppressed_events() {
     let (_, body) = get_text(&router, "/metrics").await;
 
     assert!(body.contains("\nfraiseql_mutation_contract_errors_total "), "{body}");
+    assert!(body.contains("\nfraiseql_mutation_error_shape_violations_total "), "{body}");
     assert!(body.contains("\nfraiseql_subscription_events_suppressed_total "), "{body}");
 }
 

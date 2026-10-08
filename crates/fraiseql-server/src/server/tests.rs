@@ -5,6 +5,27 @@
 // ── executor_gate_config_tests: #379 — runtime [validation] merges into the
 //    executor gate (runtime TOML > compiled schema, per field) ───────────────
 
+mod mutation_error_shape_check_tests {
+    use fraiseql_core::{runtime::MutationErrorShapeCheck, schema::CompiledSchema};
+
+    use super::super::initialization::executor_runtime_config;
+    use crate::server_config::ServerConfig;
+
+    /// #1425: the `mutation_error_shape_check` key reaches the executor, which is where
+    /// the check runs; off unless an operator asks.
+    #[test]
+    fn the_shape_check_key_reaches_the_executor() {
+        let schema = CompiledSchema::default();
+        let config: ServerConfig =
+            toml::from_str("mutation_error_shape_check = \"warn\"").expect("the key parses");
+        let rt = executor_runtime_config(&schema, &config).expect("valid schema");
+        assert_eq!(rt.mutation_error_shape_check, MutationErrorShapeCheck::Warn);
+
+        let rt = executor_runtime_config(&schema, &ServerConfig::default()).expect("valid schema");
+        assert_eq!(rt.mutation_error_shape_check, MutationErrorShapeCheck::Off);
+    }
+}
+
 mod executor_gate_config_tests {
     use fraiseql_core::schema::{CompiledSchema, ValidationConfig};
 

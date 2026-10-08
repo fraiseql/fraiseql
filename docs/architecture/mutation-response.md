@@ -200,6 +200,18 @@ with a digit) raises SQLSTATE `22023`, so the mistake surfaces in the function, 
 client's missing translation. `fraiseql.error_identifier(text)` exposes the normalisation
 alone. The helpers need a UTF8 database (for `normalize`), and no extension.
 
+To find the failures that do not follow this shape, set the server key
+
+```toml
+mutation_error_shape_check = "warn"   # default "off"
+```
+
+Each failed mutation response whose `error_detail` carries no `errors` array (or an empty
+one), or an entry whose `identifier` is not a key, is then logged at `warn` (with the
+mutation, its function, and what is wrong) and counted in
+`fraiseql_mutation_error_shape_violations_total`. The response itself is unchanged: the
+check reports, it does not refuse.
+
 ---
 
 ## `mutation_error_class` enum values

@@ -1761,6 +1761,12 @@ pub(in super::super) async fn execute_mutation_impl(
                 path:    None,
             })?;
             let outcome = parse_mutation_row(row)?;
+            crate::runtime::mutation_result::check_error_shape(
+                ctx.config.mutation_error_shape_check,
+                &outcome,
+                mutation_name,
+                sql_source,
+            );
             // The caller needs the envelope; `build_mutation_result` consumes the
             // outcome to build the projection.
             let envelope = outcome.clone();

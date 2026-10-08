@@ -5,9 +5,12 @@
 //! `app.mutation_response` PostgreSQL composite type — see
 //! `docs/architecture/mutation-response.md` for the DDL and semantics table.
 
-use std::collections::HashMap;
+use std::{
+    collections::HashMap,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value as JsonValue;
 use uuid::Uuid;
 
@@ -18,6 +21,94 @@ use crate::error::{FraiseQLError, Result};
 const HTTP_STATUS_MIN: i16 = 100;
 /// Maximum legal HTTP status code (end of 5xx range).
 const HTTP_STATUS_MAX: i16 = 599;
+
+/// Whether the server checks a failed mutation's `error_detail.errors[]` (#1425).
+///
+/// Clients translate a failure by `errors[].identifier`, so a failure that carries no
+/// `errors` array, or an identifier that is not a translation key (`^[a-z][a-z0-9_]*$`),
+/// reaches a person untranslated. With [`Warn`](Self::Warn) each such response is logged
+/// at `warn` and counted in [`mutation_error_shape_violations`]; the response itself is
+/// unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum MutationErrorShapeCheck {
+    /// No check (the default).
+    #[default]
+    Off,
+    /// Log and count a malformed failure response.
+    Warn,
+}
+
+/// Failed mutation responses whose `errors[]` was malformed, since startup.
+static ERROR_SHAPE_VIOLATIONS: AtomicU64 = AtomicU64::new(0);
+
+/// How many failed mutation responses [`MutationErrorShapeCheck::Warn`] found malformed
+/// since the process started (#1425). Exported by the server as
+/// `fraiseql_mutation_error_shape_violations_total`.
+#[must_use]
+pub fn mutation_error_shape_violations() -> u64 {
+    ERROR_SHAPE_VIOLATIONS.load(Ordering::Relaxed)
+}
+
+/// Check a failed outcome's `errors[]` when `check` asks for it: log at `warn` and count
+/// a malformed one. A success, or `check` off, does nothing.
+pub(crate) fn check_error_shape(
+    check: MutationErrorShapeCheck,
+    outcome: &MutationOutcome,
+    mutation: &str,
+    function: &str,
+) {
+    if check == MutationErrorShapeCheck::Off {
+        return;
+    }
+    let MutationOutcome::Error { metadata, .. } = outcome else {
+        return;
+    };
+    let problems = error_shape_problems(metadata);
+    if problems.is_empty() {
+        return;
+    }
+    ERROR_SHAPE_VIOLATIONS.fetch_add(1, Ordering::Relaxed);
+    tracing::warn!(
+        mutation = %mutation,
+        function = %function,
+        problems = %problems.join("; "),
+        "mutation failure without a translatable errors[] entry"
+    );
+}
+
+/// What is wrong with a failure's `error_detail` as the carrier of `errors[]` entries.
+///
+/// Empty when it carries a non-empty `errors` array whose every `identifier` is a
+/// translation key (`^[a-z][a-z0-9_]*$`).
+#[must_use]
+pub fn error_shape_problems(error_detail: &JsonValue) -> Vec<String> {
+    let Some(entries) = error_detail.get("errors").and_then(JsonValue::as_array) else {
+        return vec!["no `errors` array in error_detail".to_string()];
+    };
+    if entries.is_empty() {
+        return vec!["an empty `errors` array in error_detail".to_string()];
+    }
+    entries
+        .iter()
+        .enumerate()
+        .filter_map(|(i, entry)| match entry.get("identifier").and_then(JsonValue::as_str) {
+            None => Some(format!("errors[{i}] has no string `identifier`")),
+            Some(id) if !is_translation_key(id) => Some(format!(
+                "errors[{i}].identifier '{id}' is not a translation key (^[a-z][a-z0-9_]*$)"
+            )),
+            Some(_) => None,
+        })
+        .collect()
+}
+
+/// `^[a-z][a-z0-9_]*$`: the shape `fraiseql.error_entry` normalises an identifier into.
+fn is_translation_key(identifier: &str) -> bool {
+    let mut chars = identifier.chars();
+    chars.next().is_some_and(|c| c.is_ascii_lowercase())
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
 
 /// Outcome of parsing a single `mutation_response` row.
 #[derive(Debug, Clone)]

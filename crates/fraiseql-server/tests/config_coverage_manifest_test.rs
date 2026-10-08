@@ -57,6 +57,10 @@ const MANIFEST: &[(&str, &str)] = &[
     ("introspection_enabled", "introspection enforcer (#455)"),
     ("introspection_require_auth", "introspection auth gate"),
     ("validate_sql_sources", "compile-time SQL-source validation"),
+    (
+        "mutation_error_shape_check",
+        "executor_runtime_config → RuntimeConfig.mutation_error_shape_check (#1425 errors[] check)",
+    ),
     // ── Metrics / tracing ────────────────────────────────────────────────────
     ("metrics*", "server metrics (metrics-exporter-prometheus; enabled/path/token)"),
     ("tracing_enabled", "OTLP tracing toggle"),

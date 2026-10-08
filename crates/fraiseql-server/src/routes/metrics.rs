@@ -444,6 +444,7 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
     // plan suppressed (AC 5). Aggregate, always present.
     {
         let contract_errors = fraiseql_core::runtime::mutation_contract_errors();
+        let shape_violations = fraiseql_core::runtime::mutation_error_shape_violations();
         let suppressed = fraiseql_core::runtime::suppressed_subscription_events();
         let _ = write!(
             output,
@@ -453,6 +454,11 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
                  mutation cannot return, or stamped none where several were possible\n",
                 "# TYPE fraiseql_mutation_contract_errors_total counter\n",
                 "fraiseql_mutation_contract_errors_total {contract_errors}\n",
+                "\n# HELP fraiseql_mutation_error_shape_violations_total ",
+                "Failed mutation responses without a translatable errors[] entry, with \
+                 mutation_error_shape_check = \"warn\"\n",
+                "# TYPE fraiseql_mutation_error_shape_violations_total counter\n",
+                "fraiseql_mutation_error_shape_violations_total {shape_violations}\n",
                 "\n# HELP fraiseql_subscription_events_suppressed_total ",
                 "Subscription events not delivered because the subscriber's read plan \
                  withheld them\n",
@@ -460,6 +466,7 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
                 "fraiseql_subscription_events_suppressed_total {suppressed}\n",
             ),
             contract_errors = contract_errors,
+            shape_violations = shape_violations,
             suppressed = suppressed,
         );
     }

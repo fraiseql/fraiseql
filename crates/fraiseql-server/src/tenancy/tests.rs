@@ -819,6 +819,7 @@ mod runtime_config_drift {
             audit_mutations,
             changelog_enabled,
             dry_run_mutations,
+            mutation_error_shape_check,
             cascade_limits,
             before_mutation_gate,
             query_function_resolver,
@@ -871,6 +872,9 @@ mod runtime_config_drift {
         if *dry_run_mutations != tenant.dry_run_mutations {
             out.push("dry_run_mutations");
         }
+        if *mutation_error_shape_check != tenant.mutation_error_shape_check {
+            out.push("mutation_error_shape_check");
+        }
         if format!("{jsonb_optimization:?}") != format!("{:?}", tenant.jsonb_optimization) {
             out.push("jsonb_optimization");
         }
@@ -918,6 +922,7 @@ mod runtime_config_drift {
             audit_mutations: true,
             changelog_enabled: false,
             dry_run_mutations: true,
+            mutation_error_shape_check: fraiseql_core::runtime::MutationErrorShapeCheck::Warn,
             ..RuntimeConfig::default()
         };
 
@@ -928,6 +933,7 @@ mod runtime_config_drift {
             "enable_tracing",
             "query_timeout_ms",
             "dry_run_mutations",
+            "mutation_error_shape_check",
             "max_page_size",
             "max_operation_cost",
             "max_response_bytes",
