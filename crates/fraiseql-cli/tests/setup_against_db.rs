@@ -232,3 +232,114 @@ async fn the_helpers_replace_a_2_2_0_mutation_err() {
     assert_eq!(overloads, 1, "the 2.2.0 signature must be replaced, not overloaded");
     tx.rollback().await.unwrap();
 }
+
+/// Connect and open a transaction over the helper SQL `fraiseql setup` embeds; the caller
+/// rolls it back, so the shared `fraiseql` schema never sees an unreleased helper.
+async fn helpers_in_rollback(url: &str) -> tokio_postgres::Client {
+    let (client, connection) = tokio_postgres::connect(url, NoTls).await.unwrap();
+    tokio::spawn(async move {
+        let _ = connection.await;
+    });
+    client.batch_execute("BEGIN").await.unwrap();
+    client
+        .batch_execute(include_str!("../sql/helpers/mutation_response.sql"))
+        .await
+        .unwrap();
+    client
+}
+
+/// #1425: `fraiseql.error_entry` turns the identifier a mutation function passes into the
+/// key a client translates (`t('errors.' + identifier)`): unaccented, camelCase split,
+/// every run of other characters one `_`, matching `^[a-z][a-z0-9_]*$`. The corpus is the
+/// issue's: identifiers built from a human label or a type name.
+#[tokio::test]
+async fn error_entry_normalises_the_identifier_into_a_translation_key() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1425 error_entry test: DATABASE_URL not set");
+        return;
+    };
+    let client = helpers_in_rollback(&url).await;
+
+    for (identifier, key) in [
+        ("order line_not_found", "order_line_not_found"),
+        ("Order line_not_found", "order_line_not_found"),
+        ("PaymentTerm", "payment_term"),
+        ("paymentTerm_not_found", "payment_term_not_found"),
+        ("Événement", "evenement"),
+        ("  déjà  vu!! ", "deja_vu"),
+        ("HTTPServer_error", "http_server_error"),
+        ("already_snake", "already_snake"),
+        ("Straße", "strasse"),
+    ] {
+        let row = client
+            .query_one(
+                "SELECT fraiseql.error_entry(1::smallint, $1, 'msg') AS e",
+                &[&identifier],
+            )
+            .await;
+        assert!(row.is_ok(), "error_entry({identifier:?}) failed: {row:?}");
+        let entry: serde_json::Value = row.unwrap().get("e");
+        assert_eq!(entry["identifier"], key, "error_entry({identifier:?})");
+    }
+
+    let entry: serde_json::Value = client
+        .query_one(
+            "SELECT fraiseql.error_entry(404::smallint, 'NotFound', 'No such order', \
+             '{\"id\": 7}'::jsonb) AS e",
+            &[],
+        )
+        .await
+        .unwrap()
+        .get("e");
+    assert_eq!(
+        entry,
+        serde_json::json!({
+            "code": 404, "identifier": "not_found", "message": "No such order",
+            "details": {"id": 7}
+        }),
+        "an entry carries code, identifier, message and details"
+    );
+
+    for nothing in ["--", "", "   ", "404"] {
+        let refused = client
+            .query_one("SELECT fraiseql.error_entry(1::smallint, $1, 'msg')", &[&nothing])
+            .await;
+        assert!(refused.is_err(), "{nothing:?} normalises to no valid key and must raise");
+    }
+    client.batch_execute("ROLLBACK").await.unwrap();
+}
+
+/// #1425: `fraiseql.mutation_err_entries` is `mutation_err` whose `error_detail` is the
+/// `{"errors": [...]}` the given entries make.
+#[tokio::test]
+async fn mutation_err_entries_wraps_its_entries_as_errors() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1425 mutation_err_entries test: DATABASE_URL not set");
+        return;
+    };
+    let client = helpers_in_rollback(&url).await;
+
+    let row = client
+        .query_one(
+            "SELECT succeeded, error_class, message, error_detail FROM \
+             fraiseql.mutation_err_entries('validation', 'Invalid order', \
+               fraiseql.error_entry(422::smallint, 'Order line_not_found', 'No line'), \
+               fraiseql.error_entry(422::smallint, 'quantityTooLow', 'Too low'))",
+            &[],
+        )
+        .await
+        .unwrap();
+    let succeeded: bool = row.get("succeeded");
+    let class: String = row.get("error_class");
+    let detail: serde_json::Value = row.get("error_detail");
+    assert!(!succeeded, "an error response");
+    assert_eq!(class, "validation");
+    assert_eq!(
+        detail,
+        serde_json::json!({"errors": [
+            {"code": 422, "identifier": "order_line_not_found", "message": "No line"},
+            {"code": 422, "identifier": "quantity_too_low", "message": "Too low"},
+        ]})
+    );
+    client.batch_execute("ROLLBACK").await.unwrap();
+}

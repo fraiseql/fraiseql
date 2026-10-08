@@ -165,6 +165,41 @@ Idempotent deletes with no matching row are `succeeded=true, state_changed=false
 Callers that only want "did anything happen" read `state_changed`; callers
 that want current state read `entity`.
 
+### Error entries: `error_detail.errors[]`
+
+A failure that a client must explain to a person carries its reasons as a list of entries
+under `error_detail.errors`. Each entry has this shape:
+
+| Key          | Type       | Meaning |
+|--------------|------------|---------|
+| `code`       | `SMALLINT` | A numeric code for the reason (an HTTP-like status, or the application's own). |
+| `identifier` | `TEXT`     | The key a client translates, e.g. `t('errors.' + identifier)`. Matches `^[a-z][a-z0-9_]*$`. |
+| `message`    | `TEXT`     | A fallback text for when no translation exists. |
+| `details`    | `JSONB`    | Optional: the values the translation interpolates (a field, a limit, an id). |
+
+Build entries with `fraiseql.error_entry` and return them with `fraiseql.mutation_err_entries`
+(both installed by `fraiseql setup`):
+
+```sql
+RETURN QUERY SELECT * FROM fraiseql.mutation_err_entries(
+    'validation', 'The order cannot be placed',
+    fraiseql.error_entry(422::smallint, format('%s_not_found', 'Order line'), 'No such line',
+                         jsonb_build_object('line', p_line_id)),
+    fraiseql.error_entry(422::smallint, 'quantityTooLow', 'Quantity too low'));
+-- error_detail = {"errors": [
+--   {"code": 422, "identifier": "order_line_not_found", "message": "No such line",
+--    "details": {"line": "…"}},
+--   {"code": 422, "identifier": "quantity_too_low", "message": "Quantity too low"}]}
+```
+
+`error_entry` normalises the identifier, so one built from a human label or a type name is
+still a key: accents removed (`Événement` → `evenement`), camelCase split (`PaymentTerm` →
+`payment_term`), and every run of other characters one `_` (`Order line` → `order_line`).
+An identifier that normalises to nothing of that shape (empty, only punctuation, starting
+with a digit) raises SQLSTATE `22023`, so the mistake surfaces in the function, not in a
+client's missing translation. `fraiseql.error_identifier(text)` exposes the normalisation
+alone. The helpers need a UTF8 database (for `normalize`), and no extension.
+
 ---
 
 ## `mutation_error_class` enum values

@@ -12,6 +12,8 @@
 --   RETURN QUERY SELECT * FROM fraiseql.mutation_err('not_found', 'User not found');
 --   RETURN QUERY SELECT * FROM fraiseql.mutation_err('conflict', 'Email taken',
 --                                                    p_entity_type => 'DuplicateEmailError');
+--   RETURN QUERY SELECT * FROM fraiseql.mutation_err_entries('validation', 'Invalid order',
+--       fraiseql.error_entry(422::smallint, format('%s_not_found', 'Order line'), 'No line'));
 --
 -- See: docs/architecture/mutation-response.md
 -- ============================================================================
@@ -203,6 +205,110 @@ error type this failure is) are optional.
 See fraiseql.mutation_err documentation.';
 
 -- ============================================================================
+-- fraiseql.error_identifier() / error_entry() / mutation_err_entries()
+-- ============================================================================
+-- A failure's `error_detail` carries `{"errors": [entry, ...]}`. Each entry is
+--
+--   {"code": SMALLINT, "identifier": TEXT, "message": TEXT, "details": JSONB}
+--
+-- `details` is present only when given. Clients translate `identifier`
+-- (`t('errors.' + identifier)`), so it must be a stable key: error_entry() builds it
+-- from whatever the function has at hand (a human label, a type name) by
+--
+--   1. spelling ligatures out (ß -> ss, æ -> ae, ...) and removing accents
+--      (Unicode NFD, then combining marks dropped; no extension needed, a UTF8
+--      database is);
+--   2. splitting camelCase (PaymentTerm -> Payment_Term, HTTPServer -> HTTP_Server);
+--   3. lower-casing, and turning every run of other characters into one `_`,
+--      trimmed at both ends.
+--
+-- The result matches ^[a-z][a-z0-9_]*$; an identifier that normalises to nothing
+-- of that shape (empty, punctuation only, starting with a digit) raises 22023.
+-- ============================================================================
+
+CREATE OR REPLACE FUNCTION fraiseql.error_identifier(p_identifier TEXT)
+RETURNS TEXT AS $$
+DECLARE
+    v_key TEXT := COALESCE(p_identifier, '');
+BEGIN
+    v_key := replace(replace(replace(replace(replace(replace(replace(replace(replace(
+             replace(replace(replace(v_key,
+        'ß', 'ss'), 'Æ', 'AE'), 'æ', 'ae'), 'Œ', 'OE'), 'œ', 'oe'), 'Ø', 'O'),
+        'ø', 'o'), 'Đ', 'D'), 'đ', 'd'), 'Ł', 'L'), 'ł', 'l'), 'Þ', 'TH');
+    v_key := regexp_replace(normalize(v_key, NFD), '[\u0300-\u036f]', '', 'g');
+    v_key := regexp_replace(v_key, '([A-Z]+)([A-Z][a-z])', '\1_\2', 'g');
+    v_key := regexp_replace(v_key, '([a-z0-9])([A-Z])', '\1_\2', 'g');
+    v_key := btrim(regexp_replace(lower(v_key), '[^a-z0-9]+', '_', 'g'), '_');
+    IF v_key !~ '^[a-z][a-z0-9_]*$' THEN
+        RAISE EXCEPTION USING
+            ERRCODE = '22023',
+            MESSAGE = format('error identifier %L normalises to no translation key', p_identifier),
+            HINT = 'An identifier needs a letter before any digit, e.g. ''order_not_found''.';
+    END IF;
+    RETURN v_key;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+COMMENT ON FUNCTION fraiseql.error_identifier(TEXT) IS
+'Normalise an error identifier into a translation key matching ^[a-z][a-z0-9_]*$:
+accents removed, camelCase split, other characters collapsed to _. Raises 22023 when
+nothing of that shape remains.';
+
+CREATE OR REPLACE FUNCTION fraiseql.error_entry(
+    p_code SMALLINT,
+    p_identifier TEXT,
+    p_message TEXT,
+    p_details JSONB DEFAULT NULL
+)
+RETURNS JSONB AS $$
+BEGIN
+    RETURN jsonb_build_object(
+        'code', p_code,
+        'identifier', fraiseql.error_identifier(p_identifier),
+        'message', COALESCE(p_message, '')
+    ) || CASE WHEN p_details IS NULL THEN '{}'::JSONB
+              ELSE jsonb_build_object('details', p_details) END;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+COMMENT ON FUNCTION fraiseql.error_entry(SMALLINT, TEXT, TEXT, JSONB) IS
+'Build one errors[] entry {code, identifier, message, details?}, the identifier
+normalised by fraiseql.error_identifier().';
+
+CREATE OR REPLACE FUNCTION fraiseql.mutation_err_entries(
+    p_error_class TEXT,
+    p_message TEXT,
+    VARIADIC p_entries JSONB[]
+)
+RETURNS TABLE(
+    succeeded BOOLEAN,
+    state_changed BOOLEAN,
+    error_class TEXT,
+    status_detail TEXT,
+    http_status SMALLINT,
+    message TEXT,
+    entity_id UUID,
+    entity_type TEXT,
+    entity JSONB,
+    updated_fields TEXT[],
+    cascade JSONB,
+    error_detail JSONB,
+    metadata JSONB
+) AS $$
+BEGIN
+    RETURN QUERY SELECT * FROM fraiseql.mutation_err(
+        p_error_class,
+        p_message,
+        jsonb_build_object('errors', to_jsonb(p_entries))
+    );
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;
+
+COMMENT ON FUNCTION fraiseql.mutation_err_entries(TEXT, TEXT, JSONB[]) IS
+'fraiseql.mutation_err() whose error_detail is {"errors": [entries]}; build each entry
+with fraiseql.error_entry().';
+
+-- ============================================================================
 -- Permissions
 -- ============================================================================
 -- Grant EXECUTE per function (not `ON ALL FUNCTIONS`, which is a one-time snapshot
@@ -214,6 +320,9 @@ GRANT USAGE ON SCHEMA fraiseql TO PUBLIC;
 GRANT EXECUTE ON FUNCTION fraiseql.library_version() TO PUBLIC;
 GRANT EXECUTE ON FUNCTION fraiseql.mutation_ok(JSONB, UUID, TEXT, BOOLEAN, TEXT[], JSONB, JSONB) TO PUBLIC;
 GRANT EXECUTE ON FUNCTION fraiseql.mutation_err(TEXT, TEXT, JSONB, SMALLINT, TEXT) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION fraiseql.error_identifier(TEXT) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION fraiseql.error_entry(SMALLINT, TEXT, TEXT, JSONB) TO PUBLIC;
+GRANT EXECUTE ON FUNCTION fraiseql.mutation_err_entries(TEXT, TEXT, JSONB[]) TO PUBLIC;
 
 -- ============================================================================
 -- Tests (run as: \i sql/helpers/mutation_response.sql)
@@ -319,6 +428,12 @@ BEGIN
             'mutation_err should stamp p_entity_type onto entity_type';
         ASSERT v_row.entity IS NULL, 'a stamped mutation_err still has entity=NULL';
     END;
+
+    -- Test error_entry normalising its identifier into a translation key
+    ASSERT fraiseql.error_entry(404::SMALLINT, 'Order line_not_found', 'x') ->> 'identifier'
+        = 'order_line_not_found', 'error_entry should normalise a human label';
+    ASSERT fraiseql.error_identifier('PaymentTerm') = 'payment_term',
+        'error_identifier should split camelCase';
 
     RAISE NOTICE 'All mutation response tests passed!';
 END;
