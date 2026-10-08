@@ -392,3 +392,94 @@ assert_sdk_version_matches() {
     fi
     echo "OK: ${label} manifest is at the release version ${release}."
 }
+
+# Fold `## [Unreleased]` into the existing `## [<version>] - <old date>` section and re-date
+# it to <date>: what a re-cut of a version that was prepared but never tagged needs. Without
+# it, release.sh's "is the header present?" check compared against *today's* date, so a
+# re-cut on another day inserted a second, empty `## [<version>]` section above the first.
+#
+# The version section must be the one directly below `[Unreleased]` (the untagged one):
+# a released section is history and is never reached. Each `### <Heading>` of
+# `[Unreleased]` merges into the same heading of the version section, its items first
+# (newest on top); a heading the version section lacks is added in Keep a Changelog order
+# (Breaking, Added, Changed, Deprecated, Removed, Fixed, Security, Known issues, then any
+# other). `[Unreleased]` is left empty. Idempotent: with nothing unreleased it only re-dates.
+#
+# Usage: fold_unreleased_into_version <version> <date> <changelog-file>
+fold_unreleased_into_version() {
+    local version="$1" date="$2" changelog="$3"
+    if ! grep -qE "^## \[${version//./\\.}\] - [0-9]{4}-[0-9]{2}-[0-9]{2}[[:space:]]*$" "$changelog"; then
+        echo "ERROR: fold_unreleased_into_version: no '## [${version}] - YYYY-MM-DD' section in $changelog." >&2
+        return 1
+    fi
+    local out
+    out="$(mktemp)"
+    if ! awk -v ver="$version" -v date="$date" '
+        function rank(h) {
+            if (h == "Breaking") return 0;   if (h == "Added") return 1
+            if (h == "Changed") return 2;    if (h == "Deprecated") return 3
+            if (h == "Removed") return 4;    if (h == "Fixed") return 5
+            if (h == "Security") return 6;   if (h == "Known issues") return 7
+            return 8
+        }
+        # Split body lines b[1..n] into pre (before the first ###) and per-heading blocks.
+        function parse(b, n, tag,    i, h, line) {
+            h = ""
+            for (i = 1; i <= n; i++) {
+                line = b[i]
+                if (line ~ /^### /) {
+                    h = substr(line, 5)
+                    if (!((tag, h) in body)) { body[tag, h] = ""; seen[h] = 1
+                        if (!(h in first)) { first[h] = ++nh; hs[nh] = h } }
+                    continue
+                }
+                if (h == "") pre[tag] = pre[tag] line "\n"
+                else body[tag, h] = body[tag, h] line "\n"
+            }
+        }
+        function trim(s) { sub(/^\n+/, "", s); sub(/\n+$/, "", s); return s }
+        function emit(    i, j, k, h, t, order, u, v, p) {
+            print "## [" ver "] - " date
+            p = trim(pre["V"]); u = trim(pre["U"])
+            if (u != "") p = (p == "" ? u : u "\n\n" p)
+            if (p != "") { print ""; print p }
+            # Order headings by rank, then by first appearance (version section first).
+            for (i = 1; i <= nh; i++) order[i] = hs[i]
+            for (i = 2; i <= nh; i++) { t = order[i]
+                for (j = i - 1; j >= 1 && (rank(order[j]) > rank(t) || (rank(order[j]) == rank(t) && first[order[j]] > first[t])); j--)
+                    order[j + 1] = order[j]
+                order[j + 1] = t }
+            for (k = 1; k <= nh; k++) {
+                h = order[k]; u = trim(body["U", h]); v = trim(body["V", h])
+                if (u == "" && v == "") continue
+                print ""; print "### " h; print ""
+                if (u != "" && v != "") print u "\n\n" v
+                else print (u != "" ? u : v)
+            }
+            print ""
+        }
+        state == "R" { print; next }
+        state == "" && /^## \[Unreleased\]/ { print; print ""; state = "U"; next }
+        state == "" { print; next }
+        state == "U" && /^## \[/ {
+            if (index($0, "## [" ver "] - ") != 1) { bad = 1; exit 3 }
+            state = "V"; next
+        }
+        state == "U" { u[++nu] = $0; next }
+        state == "V" && /^## \[/ {
+            parse(v, nv, "V"); parse(u, nu, "U"); emit(); print; state = "R"; next
+        }
+        state == "V" { v[++nv] = $0; next }
+        END {
+            if (bad) exit 3
+            if (state == "V") { parse(v, nv, "V"); parse(u, nu, "U"); emit() }
+            else if (state != "R") exit 4
+        }
+    ' "$changelog" > "$out"; then
+        rm -f "$out"
+        echo "ERROR: fold_unreleased_into_version: '## [${version}]' is not the section directly below '## [Unreleased]' in $changelog;" >&2
+        echo "       only the untagged section is folded into, never a released one." >&2
+        return 1
+    fi
+    mv "$out" "$changelog"
+}

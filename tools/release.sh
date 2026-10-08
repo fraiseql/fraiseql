@@ -8,7 +8,8 @@
 # Performs:
 #   1. Validates VERSION as a semver string.
 #   2. Bumps version in workspace Cargo.toml and all crate Cargo.toml files.
-#   3. Updates CHANGELOG.md — promotes [Unreleased] to a versioned section.
+#   3. Updates CHANGELOG.md — promotes [Unreleased] to a versioned section, or, on a
+#      re-cut of an untagged version, folds it into that section and re-dates it.
 #   4. Pins README.md's install snippet to the version being released.
 #   5. Commits all changes.
 #   6. Creates an annotated git tag with the CHANGELOG notes as the message.
@@ -170,8 +171,17 @@ CHANGELOG="CHANGELOG.md"
 DATE=$(date +%Y-%m-%d)
 VERSIONED_HEADER="## [${VERSION}] - ${DATE}"
 
-if grep -qF "$VERSIONED_HEADER" "$CHANGELOG"; then
-    echo "      ${VERSIONED_HEADER} already present — skipping."
+if grep -qE "^## \[${VERSION//./\\.}\] - " "$CHANGELOG"; then
+    # A section for this version exists: a re-cut of a version prepared but never
+    # tagged. Fold what landed since into it and re-date it, rather than adding a
+    # second section (the old check compared against today's date, so a re-cut on
+    # another day did exactly that). A tagged version's section is history.
+    if git rev-parse -q --verify "refs/tags/v${VERSION}" >/dev/null; then
+        echo "ERROR: v${VERSION} is already tagged; its CHANGELOG section is closed." >&2
+        exit 1
+    fi
+    fold_unreleased_into_version "$VERSION" "$DATE" "$CHANGELOG"
+    echo "      Folded [Unreleased] into the existing [${VERSION}] section, dated ${DATE}."
 else
     # Insert versioned section after the [Unreleased] line
     # Produces:  ## [Unreleased]

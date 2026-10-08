@@ -570,6 +570,83 @@ rc=$?
 set -e
 check "rotate-links: a missing link block fails loudly" "$rc" "1"
 
+# ── fold_unreleased_into_version ───────────────────────────────────────────────
+# Versions come from the tree's own CHANGELOG, never a literal: a literal is how a
+# self-test stops matching at the next bump and passes vacuously.
+
+CUR="$(sed -nE 's/^## \[([0-9]+\.[0-9]+\.[0-9]+)\] - .*/\1/p' "$REPO_ROOT/CHANGELOG.md" | sed -n 1p)"
+PREV="$(sed -nE 's/^## \[([0-9]+\.[0-9]+\.[0-9]+)\] - .*/\1/p' "$REPO_ROOT/CHANGELOG.md" | sed -n 2p)"
+check "fold: the tree names two versions to test with" "$([[ -n "$CUR" && -n "$PREV" && "$CUR" != "$PREV" ]] && echo yes)" "yes"
+TODAY="$(date +%Y-%m-%d)"
+
+write_unfolded() {
+    cat > "$WORK/CHANGELOG-fold.md" <<EOF
+# Changelog
+
+## [Unreleased]
+
+### Fixed
+
+- new fix
+
+### Added
+
+- new feature
+
+## [${CUR}] - 2000-01-02
+
+### Breaking
+
+- old break
+
+### Fixed
+
+- old fix
+
+## [${PREV}] - 2000-01-01
+
+### Fixed
+
+- released fix
+EOF
+}
+
+write_unfolded
+fold_unreleased_into_version "$CUR" "$TODAY" "$WORK/CHANGELOG-fold.md"
+F="$WORK/CHANGELOG-fold.md"
+check "fold: the section is re-dated"                    "$(grep -c "^## \[${CUR}\] - ${TODAY}$" "$F")" "1"
+check "fold: one section for the version, not two"       "$(grep -c "^## \[${CUR}\]" "$F")" "1"
+check "fold: [Unreleased] is left empty" \
+    "$(awk '/^## \[Unreleased\]/{f=1;next} /^## \[/{f=0} f && NF' "$F" | wc -l | tr -d ' ')" "0"
+section="$(awk -v h="## [${CUR}]" 'index($0,h)==1{f=1;next} /^## \[/{f=0} f' "$F")"
+check "fold: one ### Fixed in the section"               "$(grep -c '^### Fixed$' <<<"$section")" "1"
+check "fold: the unreleased fix comes first"             "$(grep -E '^- (new|old) fix$' <<<"$section" | head -1)" "- new fix"
+check "fold: both fixes kept"                            "$(grep -cE '^- (new|old) fix$' <<<"$section")" "2"
+check "fold: headings in Keep a Changelog order" \
+    "$(grep '^### ' <<<"$section" | tr '\n' ',')" "### Breaking,### Added,### Fixed,"
+check "fold: the released section is untouched" \
+    "$(awk -v h="## [${PREV}]" 'index($0,h)==1{f=1;next} f' "$F" | grep -c '^- released fix$')" "1"
+check "fold: the released section keeps its date"        "$(grep -c "^## \[${PREV}\] - 2000-01-01$" "$F")" "1"
+
+before="$(sed "s/^## \[${CUR}\] - .*/X/" "$F")"
+fold_unreleased_into_version "$CUR" "$TODAY" "$F"
+check "fold: idempotent with nothing unreleased"         "$(sed "s/^## \[${CUR}\] - .*/X/" "$F")" "$before"
+
+# Folding into a released section (one that is not directly below [Unreleased]) is refused.
+write_unfolded
+set +e
+fold_unreleased_into_version "$PREV" "$TODAY" "$WORK/CHANGELOG-fold.md" >/dev/null 2>&1
+rc=$?
+set -e
+check "fold: a section below the untagged one is refused" "$rc" "1"
+check "fold: and the file is left as it was"             "$(grep -c '^- new fix$' "$WORK/CHANGELOG-fold.md")" "1"
+
+set +e
+fold_unreleased_into_version "${CUR}9" "$TODAY" "$WORK/CHANGELOG-fold.md" >/dev/null 2>&1
+rc=$?
+set -e
+check "fold: a version with no section is refused"       "$rc" "1"
+
 # ── Summary ────────────────────────────────────────────────────────────────────
 
 echo ""

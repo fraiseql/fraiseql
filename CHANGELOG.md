@@ -16,7 +16,7 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
-## [2.16.0] - 2026-10-07
+## [2.16.0] - 2026-10-08
 
 ### Breaking
 
