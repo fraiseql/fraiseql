@@ -193,34 +193,7 @@ impl AggregateQueryParser {
         let mut conditions = Vec::new();
 
         for (key, value) in obj {
-            // Parse field_operator format (e.g., "customer_id_eq" -> field="customer_id",
-            // operator="eq")
-            let (field, operator) = split_where_key(key, metadata, native_columns)?;
-
-            let clause = if let Some(column) = mapped_column(metadata, field) {
-                // A dimension mapped to a native column is read from the column, as its
-                // `groupBy` is (#1231), cast as the column's declared filter type is.
-                WhereClause::NativeField {
-                    column: column.clone(),
-                    pg_cast: native_columns.get(column.as_str()).cloned().unwrap_or_default(),
-                    operator,
-                    value: value.clone(),
-                }
-            } else if let Some(pg_cast) = native_columns.get(field) {
-                WhereClause::NativeField {
-                    column: field.to_string(),
-                    pg_cast: pg_cast.clone(),
-                    operator,
-                    value: value.clone(),
-                }
-            } else {
-                WhereClause::Field {
-                    path: dimension_location(metadata, field)?,
-                    operator,
-                    value: value.clone(),
-                }
-            };
-            conditions.push(clause);
+            conditions.push(where_condition(key, value, metadata, native_columns)?);
         }
 
         Ok(WhereClause::And(conditions))
@@ -758,6 +731,43 @@ impl AggregateQueryParser {
 
         Ok(clauses)
     }
+}
+
+/// The condition one fact-table `where` entry, `<field>_<operator>: value`, makes.
+///
+/// One resolution for aggregate and window queries (#1517; the window parser used to send
+/// every key to the JSONB column): a dimension mapped to a native column is read from the
+/// column, as its `groupBy` is (#1231), cast as the column's declared filter type is; a
+/// filter column is read from itself; anything else is a JSONB dimension
+/// ([`dimension_location`]).
+pub(super) fn where_condition(
+    key: &str,
+    value: &Value,
+    metadata: &FactTableMetadata,
+    native_columns: &std::collections::HashMap<String, String>,
+) -> Result<WhereClause> {
+    let (field, operator) = split_where_key(key, metadata, native_columns)?;
+    Ok(if let Some(column) = mapped_column(metadata, field) {
+        WhereClause::NativeField {
+            column: column.clone(),
+            pg_cast: native_columns.get(column.as_str()).cloned().unwrap_or_default(),
+            operator,
+            value: value.clone(),
+        }
+    } else if let Some(pg_cast) = native_columns.get(field) {
+        WhereClause::NativeField {
+            column: field.to_string(),
+            pg_cast: pg_cast.clone(),
+            operator,
+            value: value.clone(),
+        }
+    } else {
+        WhereClause::Field {
+            path: dimension_location(metadata, field)?,
+            operator,
+            value: value.clone(),
+        }
+    })
 }
 
 /// The JSON keys a `where` on the JSONB dimension `field` reads (#1517).

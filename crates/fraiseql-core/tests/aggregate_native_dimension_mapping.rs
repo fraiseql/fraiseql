@@ -231,3 +231,55 @@ async fn an_int_filter_column_filters_by_a_number() {
         "category_id IN (1, 2)"
     );
 }
+
+/// Revenue of the rows a window query's `where` keeps.
+async fn window_revenue_where(
+    executor: &Executor,
+    metadata: &FactTableMetadata,
+    filter: Value,
+) -> f64 {
+    let response = executor
+        .execute_window_query(
+            &json!({
+                "table": TABLE,
+                "select": [{ "type": "measure", "name": "revenue", "alias": "revenue" }],
+                "windows": [{ "function": { "type": "row_number" }, "alias": "n",
+                              "orderBy": [{ "field": "revenue", "direction": "ASC" }] }],
+                "where": filter
+            }),
+            "sales_window",
+            metadata,
+        )
+        .await
+        .unwrap_or_else(|e| panic!("window query failed: {e}"));
+    response["data"]["sales_window"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["revenue"].as_f64().unwrap_or_else(|| panic!("revenue in {r}")))
+        .sum()
+}
+
+/// #1517: a window query resolves a `where` key as an aggregate does. Its parser handed
+/// every key to the JSONB column, so a filter column (`category_id`, which no JSONB key
+/// carries) kept nothing, and a mapped dimension read the JSONB copy, not its column.
+#[tokio::test]
+async fn a_window_filters_a_filter_column_and_a_mapped_dimension_on_their_column() {
+    let executor = executor().await;
+
+    assert_eq!(
+        window_revenue_where(&executor, &metadata(&[]), json!({ "category_id_eq": 2 })).await,
+        1.0,
+        "a filter column is read from the column"
+    );
+    assert_eq!(
+        window_revenue_where(
+            &executor,
+            &metadata(&[("category", "category_id")]),
+            json!({ "category_eq": 2 })
+        )
+        .await,
+        1.0,
+        "a mapped dimension is read from its column, not data->>'category'"
+    );
+}

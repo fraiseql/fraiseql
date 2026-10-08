@@ -4943,8 +4943,9 @@ mod window_parser_tests {
         assert!(
             matches!(
                 conditions.as_slice(),
-                [WhereClause::Field { path, operator: WhereOperator::IsNotNull, .. }]
-                    if path == &["customer_id".to_string()]
+                // `customer_id` is a filter column: read from the column (#1517).
+                [WhereClause::NativeField { column, operator: WhereOperator::IsNotNull, .. }]
+                    if column == "customer_id"
             ),
             "{conditions:?}"
         );

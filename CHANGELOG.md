@@ -43,6 +43,10 @@ disagreed, and the promise was the part that was wrong.
   shape `introspect facts` detects) was read at `data->>'machine_model_category'`, a key no
   row has: `groupBy` put every row in one `null` group and a `where …_eq` on it (aggregate or
   window) matched nothing, with no error. Both now read the declared keys.
+- **A window query's `where` resolves keys as an aggregate's does (#1517).** Its parser sent
+  every key to the JSONB column: a filter on a declared filter column (`region_eq`) read
+  `data->>'region'` and kept nothing, and a mapped dimension read its JSONB copy instead of
+  its column. Both parsers now share one resolution.
 
 - **The Rust SDK publishes with the repository's crates.io token (#1518).** Its publish jobs
   (`release.yml`, `rust-sdk.yml`) read `CARGO_REGISTRY_TOKEN`, a secret the repository does not

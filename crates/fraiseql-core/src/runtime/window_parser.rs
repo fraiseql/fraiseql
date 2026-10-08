@@ -50,7 +50,7 @@
 
 use serde_json::Value;
 
-use super::aggregate_parser::{dimension_location, split_where_key};
+use super::aggregate_parser::where_condition;
 use crate::{
     backend::where_clause::WhereClause,
     compiler::{
@@ -479,17 +479,14 @@ impl WindowQueryParser {
             return Ok(WhereClause::And(vec![]));
         };
 
-        let no_native_columns = std::collections::HashMap::new();
+        // The aggregate parser's resolution (#1517): filter columns and mapped dimensions are
+        // read from their column, declared paths at their location, other keys recased (#486).
+        let native_columns = crate::runtime::native_columns::filter_columns_to_native_map(
+            &metadata.denormalized_filters,
+        );
         let mut conditions = Vec::new();
         for (key, value) in obj {
-            let (field, operator) = split_where_key(key, metadata, &no_native_columns)?;
-            conditions.push(WhereClause::Field {
-                // The aggregate parser's resolution: a declared path at its location
-                // (#1517), any other key recased (#486).
-                path: dimension_location(metadata, field)?,
-                operator,
-                value: value.clone(),
-            });
+            conditions.push(where_condition(key, value, metadata, &native_columns)?);
         }
 
         Ok(WhereClause::And(conditions))
