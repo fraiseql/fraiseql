@@ -70,9 +70,33 @@ fn extract_fields_from_selection_set(query: &str) -> Result<Vec<String>> {
     let mut in_selection = false;
     let mut current_field = String::new();
     let mut depth = 0;
+    // An argument list (`label(locale: "en-US")`, `_entities(representations: …)`) is
+    // skipped whole: none of it is a field, and an object literal in it opens no selection
+    // set. Strings are tracked so a `)` inside one does not end it.
+    let mut paren_depth = 0_usize;
+    let mut in_string = false;
+    let mut escaped = false;
 
     for ch in query.chars() {
+        if paren_depth > 0 {
+            match ch {
+                _ if escaped => escaped = false,
+                '\\' if in_string => escaped = true,
+                '"' => in_string = !in_string,
+                '(' if !in_string => paren_depth += 1,
+                ')' if !in_string => paren_depth -= 1,
+                _ => {},
+            }
+            continue;
+        }
         match ch {
+            '(' => {
+                // The field the arguments belong to ends here, as at whitespace.
+                if in_selection && !current_field.is_empty() {
+                    fields.push(std::mem::take(&mut current_field).trim().to_string());
+                }
+                paren_depth = 1;
+            },
             '{' => {
                 // A `{` opens a (possibly nested) selection set — e.g. the body of an
                 // inline fragment. Flush any pending token first, exactly as whitespace
@@ -127,7 +151,9 @@ fn extract_fields_from_selection_set(query: &str) -> Result<Vec<String>> {
             skip_type_after_on = false;
             continue;
         }
-        if field.is_empty() || field.contains('(') || field.contains(':') {
+        // An alias (`en: label`, minified `en:label`) selects the field after its colon.
+        let field = field.rsplit(':').next().unwrap_or_default().trim();
+        if field.is_empty() {
             continue;
         }
         if field == "on" || field == "...on" {

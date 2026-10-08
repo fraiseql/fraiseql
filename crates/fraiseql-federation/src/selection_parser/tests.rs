@@ -158,3 +158,22 @@ fn test_minified_heterogeneous_inline_fragments() {
         "Product type condition is not a field: {selection:?}"
     );
 }
+
+/// A field with arguments (`label(locale: "en-US")`, #1513) is selected by its name, and
+/// nothing inside its argument list is read as a field, a `)` or `{` in a string included.
+#[test]
+fn test_field_arguments_are_skipped() {
+    let query = r#"{ _entities(representations: $r) { ... on P { id en: label(locale: "e)n{") note(a: {b: 1}) } } }"#;
+
+    let selection = parse_field_selection(query).unwrap();
+    assert_eq!(selection.fields, vec!["id", "label", "note"], "{selection:?}");
+}
+
+/// An aliased field is selected by its name, spaced (`en: label`) or minified (`en:label`).
+#[test]
+fn test_aliased_fields_are_selected_by_name() {
+    let query = "{_entities(representations:$r){...on P{id en:label fr: title}}}";
+
+    let selection = parse_field_selection(query).unwrap();
+    assert_eq!(selection.fields, vec!["id", "label", "title"], "{selection:?}");
+}
