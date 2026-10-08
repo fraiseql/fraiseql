@@ -794,3 +794,21 @@ mod event_filter_matches {
         assert_eq!(filter.tenant, TenantScope::Tenant("a".to_string()));
     }
 }
+
+#[cfg(feature = "nats")]
+mod progress_interval_tests {
+    use std::time::Duration;
+
+    use super::super::nats::progress_interval;
+
+    #[test]
+    fn a_progress_acknowledgement_is_sent_at_half_the_deadline() {
+        assert_eq!(progress_interval(30), Duration::from_secs(15));
+        assert_eq!(progress_interval(1), Duration::from_millis(500));
+    }
+
+    #[test]
+    fn the_progress_interval_is_never_zero() {
+        assert_eq!(progress_interval(0), Duration::from_millis(500));
+    }
+}

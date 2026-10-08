@@ -29,7 +29,7 @@
 //! - **Transport-managed reconnection**: Transports handle retry/backoff internally
 //! - **At-least-once delivery**: Transport ACKs after `ObserverExecutor` processes event
 
-use std::{future::Future, pin::Pin};
+use std::{future::Future, pin::Pin, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use futures::Stream;
@@ -66,31 +66,90 @@ pub type EventStream = Pin<Box<dyn Stream<Item = Result<EntityEvent>> + Send>>;
 /// carries the [`Acker`] that acknowledges it.
 pub type AckedEventStream = Pin<Box<dyn Stream<Item = Result<(EntityEvent, Acker)>> + Send>>;
 
-type AckFn = Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send>;
+type AckFn = Box<dyn FnOnce() -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
+type ProgressFn = Arc<dyn Fn() -> Pin<Box<dyn Future<Output = Result<()>> + Send>> + Send + Sync>;
 
 /// Acknowledges one delivered event to its transport.
 ///
 /// Call [`ack`](Self::ack) once the event is handled. Dropping it unacknowledged leaves
 /// the event to the transport's redelivery (for NATS, after `ack_wait_secs`): a crash
 /// between delivery and acknowledgement repeats the event rather than losing it.
-pub struct Acker(Option<AckFn>);
+///
+/// A transport that redelivers after a deadline also tells the broker, while the event
+/// is still being handled, that it is not abandoned (#1511): run the handling inside
+/// [`hold`](Self::hold) so a dispatch longer than the deadline is not delivered twice.
+pub struct Acker {
+    ack:      Option<AckFn>,
+    progress: Option<(ProgressFn, Duration)>,
+}
 
 impl Acker {
     /// An acker with nothing to do: the transport acknowledged on delivery, or has no
     /// acknowledgement at all.
     #[must_use]
     pub fn none() -> Self {
-        Self(None)
+        Self {
+            ack:      None,
+            progress: None,
+        }
     }
 
     /// An acker that runs `ack` when called: how a transport that defers its
     /// acknowledgement implements [`EventTransport::subscribe_with_ack`].
     pub fn new<F, Fut>(ack: F) -> Self
     where
-        F: FnOnce() -> Fut + Send + 'static,
+        F: FnOnce() -> Fut + Send + Sync + 'static,
         Fut: Future<Output = Result<()>> + Send + 'static,
     {
-        Self(Some(Box::new(move || Box::pin(ack()))))
+        Self {
+            ack:      Some(Box::new(move || Box::pin(ack()))),
+            progress: None,
+        }
+    }
+
+    /// Also tell the transport, every `every`, that the event is still being handled:
+    /// how a transport whose broker redelivers after a deadline keeps a long dispatch
+    /// from being redelivered while it runs (#1511).
+    #[must_use]
+    pub fn with_progress<F, Fut>(mut self, every: Duration, progress: F) -> Self
+    where
+        F: Fn() -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<()>> + Send + 'static,
+    {
+        self.progress = Some((Arc::new(move || Box::pin(progress())), every));
+        self
+    }
+
+    /// Tell the transport the event is still being handled. A no-op for an acker
+    /// without progress.
+    ///
+    /// # Errors
+    ///
+    /// The transport's error when the signal does not reach it; the event may then be
+    /// delivered again once its deadline passes.
+    pub async fn progress(&self) -> Result<()> {
+        match &self.progress {
+            Some((progress, _)) => progress().await,
+            None => Ok(()),
+        }
+    }
+
+    /// Run `work` to completion, signalling [`progress`](Self::progress) every interval
+    /// the transport asked for while it runs. Without progress, this is `work.await`.
+    pub async fn hold<F: Future>(&self, work: F) -> F::Output {
+        let Some((_, every)) = &self.progress else {
+            return work.await;
+        };
+        let mut ticker = tokio::time::interval_at(tokio::time::Instant::now() + *every, *every);
+        tokio::pin!(work);
+        loop {
+            tokio::select! {
+                output = &mut work => return output,
+                _ = ticker.tick() => {
+                    let _ = self.progress().await;
+                },
+            }
+        }
     }
 
     /// Acknowledge the event.
@@ -100,7 +159,7 @@ impl Acker {
     /// The transport's error when the acknowledgement does not reach it; the event may
     /// then be delivered again.
     pub async fn ack(self) -> Result<()> {
-        match self.0 {
+        match self.ack {
             Some(ack) => ack().await,
             None => Ok(()),
         }
@@ -109,7 +168,7 @@ impl Acker {
 
 impl std::fmt::Debug for Acker {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str(if self.0.is_some() {
+        f.write_str(if self.ack.is_some() {
             "Acker(pending)"
         } else {
             "Acker(none)"

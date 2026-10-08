@@ -266,6 +266,15 @@ impl NatsTransport {
     }
 }
 
+/// How often a message still being handled is acknowledged as in progress: half its
+/// acknowledgement deadline, so one lost signal still leaves time for the next (#1511).
+///
+/// `ack_wait_secs` is validated to be at least 1, so the interval is never zero.
+#[must_use]
+pub(crate) fn progress_interval(ack_wait_secs: u64) -> Duration {
+    Duration::from_secs(ack_wait_secs.max(1)) / 2
+}
+
 #[cfg(feature = "nats")]
 // Reason: EventTransport is defined with #[async_trait]; all implementations must match
 // its transformed method signatures to satisfy the trait contract
@@ -320,6 +329,7 @@ impl EventTransport for NatsTransport {
         let undecodable_count = Arc::clone(&self.undecodable_count);
         let dead_letter_subject = Arc::new(self.config.dead_letter_subject.clone());
         let dlq_client = Arc::clone(&self.client);
+        let ack_wait_secs = self.config.ack_wait_secs;
 
         // Convert JetStream messages to Result<EntityEvent>
         let event_stream = messages.filter_map(move |msg_result| {
@@ -361,12 +371,30 @@ impl EventTransport for NatsTransport {
                                 // Acknowledged by the caller once it has handled the
                                 // event (#1510). Acking here, before any action ran, made
                                 // a crash mid-dispatch lose the event.
+                                // While the caller handles it, progress acknowledgements
+                                // hold off redelivery (#1511): `ack_wait_secs` bounds a
+                                // stopped server, not a slow dispatch.
+                                let msg = Arc::new(msg);
+                                let in_progress = Arc::clone(&msg);
                                 let acker = Acker::new(move || async move {
                                     msg.ack().await.map_err(|e| {
                                         ObserverError::TransportSubscribeFailed {
                                             reason: format!("Failed to acknowledge NATS message: {e}"),
                                         }
                                     })
+                                })
+                                .with_progress(progress_interval(ack_wait_secs), move || {
+                                    let msg = Arc::clone(&in_progress);
+                                    async move {
+                                        msg.ack_with(jetstream::AckKind::Progress).await.map_err(
+                                            |e| ObserverError::TransportSubscribeFailed {
+                                                reason: format!(
+                                                    "Failed to send a progress acknowledgement \
+                                                     to NATS: {e}"
+                                                ),
+                                            },
+                                        )
+                                    }
                                 });
                                 Some(Ok((event, acker)))
                             },

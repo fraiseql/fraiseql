@@ -1077,18 +1077,21 @@ impl ObserverRuntime {
 
                         match maybe_event {
                             Some(Ok((event, acker))) => {
-                                process_entity_event(
-                                    &event,
-                                    &current_matcher,
-                                    &current_executor,
-                                    &entity_type_index_ref,
-                                    &pool,
-                                    bridge_sender.as_ref(),
-                                    &events_processed,
-                                    &errors,
-                                    log_payloads,
-                                )
-                                .await;
+                                // Held while the actions run, so a dispatch longer than
+                                // the broker's deadline is not delivered again (#1511).
+                                acker
+                                    .hold(process_entity_event(
+                                        &event,
+                                        &current_matcher,
+                                        &current_executor,
+                                        &entity_type_index_ref,
+                                        &pool,
+                                        bridge_sender.as_ref(),
+                                        &events_processed,
+                                        &errors,
+                                        log_payloads,
+                                    ))
+                                    .await;
                                 // After the actions ran, retried or dead-lettered: a
                                 // failed action is the executor's to retry, not the
                                 // broker's to redeliver.

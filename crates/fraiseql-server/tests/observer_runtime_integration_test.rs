@@ -2039,3 +2039,121 @@ async fn test_nats_runtime_acknowledges_an_event_after_its_actions_ran() {
     assert_eq!(while_running, 1, "the event must stay unacknowledged while its webhook runs");
     assert_eq!(after, 0, "the event must be acknowledged once its actions ran");
 }
+
+/// Publish one `INSERT` event for `entity_type` to a NATS test stream (subjects under
+/// `{prefix}.`) and wait for the stream to store it.
+#[cfg(feature = "observers-nats")]
+async fn publish_order_event(
+    jetstream: &async_nats::jetstream::Context,
+    prefix: &str,
+    entity_type: &str,
+) {
+    use fraiseql_observers::{EntityEvent, EventKind};
+
+    let id = Uuid::new_v4();
+    let event = EntityEvent::new(
+        EventKind::Created,
+        entity_type.to_string(),
+        id,
+        serde_json::json!({"id": id.to_string()}),
+    );
+    jetstream
+        .publish(
+            format!("{prefix}.{entity_type}.INSERT"),
+            serde_json::to_vec(&event).expect("serialize").into(),
+        )
+        .await
+        .expect("publish")
+        .await
+        .expect("the stream stores the event");
+}
+
+/// A NATS transport for one test: its own stream, consumer and subject prefix, and the
+/// given acknowledgement deadline.
+#[cfg(feature = "observers-nats")]
+fn nats_test_transport(
+    url: &str,
+    name: &str,
+    ack_wait_secs: u64,
+) -> fraiseql_observers::config::TransportConfig {
+    use fraiseql_observers::config::{TransportConfig, TransportKind};
+
+    let mut transport = TransportConfig {
+        transport: TransportKind::Nats,
+        ..TransportConfig::default()
+    };
+    transport.nats.url = url.to_string();
+    transport.nats.stream_name = name.to_string();
+    transport.nats.consumer_name = format!("{name}-consumer");
+    transport.nats.subject_prefix = name.to_string();
+    transport.nats.jetstream.max_bytes = 1024 * 1024;
+    transport.nats.jetstream.ack_wait_secs = ack_wait_secs;
+    transport.nats.jetstream.max_deliver = 3;
+    transport
+}
+
+/// The durable consumer's state for a [`nats_test_transport`] named `name`.
+#[cfg(feature = "observers-nats")]
+async fn nats_consumer_info(
+    jetstream: &async_nats::jetstream::Context,
+    name: &str,
+) -> async_nats::jetstream::consumer::Info {
+    let mut consumer: async_nats::jetstream::consumer::PullConsumer = jetstream
+        .get_stream(name)
+        .await
+        .expect("stream")
+        .get_consumer(&format!("{name}-consumer"))
+        .await
+        .expect("consumer");
+    consumer.info().await.expect("consumer info").clone()
+}
+
+/// #1511: a dispatch that outlasts `ack_wait_secs` is not redelivered. The runtime tells
+/// the broker the event is still being handled while its actions run, so the webhook is
+/// called once, not once per expired deadline.
+#[cfg(feature = "observers-nats")]
+#[tokio::test]
+#[ignore = "requires PostgreSQL and NATS"]
+async fn test_nats_runtime_does_not_redeliver_a_dispatch_longer_than_ack_wait() {
+    init_test_tracing();
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    // The webhook answers after 5 s: two and a half acknowledgement deadlines.
+    let (mock_server, entity_type) =
+        seed_replica_test(&pool, &test_id, Duration::from_secs(5)).await;
+
+    let url =
+        std::env::var("NATS_URL").expect("NATS_URL must be set (the observers leg binds NATS)");
+    let name = format!("progress-{test_id}");
+    let mut runtime = ObserverRuntime::new(
+        ObserverRuntimeConfig::new(pool.clone())
+            .with_transport(nats_test_transport(&url, &name, 2)),
+    );
+    runtime.start().await.expect("the runtime starts on the NATS transport");
+
+    let jetstream = async_nats::jetstream::new(async_nats::connect(&url).await.expect("connect"));
+    publish_order_event(&jetstream, &name, &entity_type).await;
+
+    // Long enough for the first dispatch to finish and for any redelivery it caused
+    // (one per expired 2 s deadline) to be dispatched too.
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    while mock_server.request_count().await == 0 && tokio::time::Instant::now() < deadline {
+        tokio::time::sleep(Duration::from_millis(50)).await;
+    }
+    tokio::time::sleep(Duration::from_secs(12)).await;
+    let info = nats_consumer_info(&jetstream, &name).await;
+    let requests = mock_server.request_count().await;
+
+    runtime.stop().await.expect("Failed to stop runtime");
+    jetstream.delete_stream(&name).await.expect("clean up the stream");
+    cleanup_test_data(&pool, &test_id).await.expect("Failed to cleanup");
+
+    // `num_redelivered` counts only redeliveries still pending, so it reads 0 once the
+    // last copy is acknowledged; the consumer's delivery sequence counts every one.
+    assert_eq!(
+        info.delivered.consumer_sequence, 1,
+        "the broker must not redeliver a running dispatch"
+    );
+    assert_eq!(requests, 1, "the webhook must be called once");
+    assert_eq!(info.num_ack_pending, 0, "the event must be acknowledged once its actions ran");
+}
