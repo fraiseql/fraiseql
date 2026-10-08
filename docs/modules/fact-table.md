@@ -116,7 +116,17 @@ The sampler walks the JSON structure recursively with a **max depth of 3** to av
 infinite recursion on circular or deeply nested structures.
 
 For each key found, it generates a PostgreSQL extraction expression, e.g.
-`dimensions->>'category'`.
+`dimensions->>'category'`, or `dimensions->'machine'->>'model'` for a nested key (named
+`machine_model`).
+
+### The `json_path` contract
+
+A declared dimension path is read where its `json_path` says, by `groupBy` and by `where`
+(aggregate and window queries alike). So `json_path` has one accepted shape: the dimensions
+column, any number of `->'key'` steps, and one final `->>'key'`, each key a single-quoted
+literal with `'` written `''`. `fraiseql compile` and the server's schema load refuse any
+other shape (an expression such as `(data->>'amount')::int`, another column, trailing text),
+naming the path. A numeric dimension is declared with its `data_type`, not with a cast.
 
 ### Data type inference
 

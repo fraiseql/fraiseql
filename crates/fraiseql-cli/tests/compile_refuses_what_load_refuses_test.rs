@@ -56,6 +56,20 @@ fn unlinked_fact_table(filters: &str, mapping: &str) -> String {
     )
 }
 
+/// A fact table whose dimension column declares `paths`.
+fn fact_table_with_paths(paths: &str) -> String {
+    format!(
+        r#"{{
+  "fact_tables": [{{
+    "table_name": "tf_sales",
+    "measures": [{{"name": "revenue", "sql_type": "numeric", "nullable": false}}],
+    "dimensions": {{"name": "data", "paths": [{paths}]}},
+    "denormalized_filters": []
+  }}]
+}}"#
+    )
+}
+
 /// A scoped field and no `security` section: no role can grant the scope.
 const SCOPE_WITHOUT_SECURITY: &str = r#"{
   "types": [{
@@ -134,6 +148,26 @@ async fn compile_refuses_what_the_server_would_refuse_to_load() {
     compile(&agreeing)
         .await
         .expect("a mapping onto a declared filter column compiles");
+
+    // #1517: a declared dimension path is read at its `json_path`, so the path must be one
+    // the runtime can read: the dimensions column, `->'key'` steps, one final `->>'key'`.
+    let expression = fact_table_with_paths(
+        r#"{"name": "amount", "json_path": "(data->>'amount')::int", "data_type": "int"}"#,
+    );
+    let err = compile(&expression)
+        .await
+        .expect_err("a json_path the runtime cannot read must not compile");
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("amount") && msg.contains("(data->>'amount')::int"),
+        "names the path and its json_path: {msg}"
+    );
+
+    // Control: a nested path of the readable shape compiles.
+    let nested = fact_table_with_paths(
+        r#"{"name": "machine_model", "json_path": "data->'machine'->>'model'", "data_type": "text"}"#,
+    );
+    compile(&nested).await.expect("a nested readable json_path compiles");
 
     // Control: the complete link compiles.
     let complete =

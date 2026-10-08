@@ -87,6 +87,28 @@ impl CompiledSchema {
         out
     }
 
+    /// Declared dimension paths whose `json_path` the runtime cannot read (#1517).
+    ///
+    /// `groupBy` and `where` read a declared path at the keys its `json_path` names
+    /// ([`DimensionPath::segments`](crate::compiler::fact_table::DimensionPath::segments)),
+    /// so a path of another shape is refused here rather than failing every request that
+    /// names it.
+    #[must_use]
+    pub fn fact_table_path_violations(&self) -> Vec<String> {
+        let mut tables: Vec<&FactTableMetadata> = self.fact_tables.values().collect();
+        tables.sort_by(|a, b| a.table_name.cmp(&b.table_name));
+        tables
+            .into_iter()
+            .flat_map(|table| {
+                table.dimensions.paths.iter().filter_map(|path| {
+                    path.segments(&table.dimensions.name)
+                        .err()
+                        .map(|e| format!("fact table `{}`: {e}", table.table_name))
+                })
+            })
+            .collect()
+    }
+
     /// The type a fact table is read as, when it is linked to one that exists.
     #[must_use]
     pub fn fact_table_type(&self, metadata: &FactTableMetadata) -> Option<&TypeDefinition> {

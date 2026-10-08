@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A fact-table dimension path whose `json_path` is not `col->'key'…->>'key'` is refused at
+  compile and load (#1517).** The runtime now reads a declared path at its `json_path`, so the
+  path has to be one it can read: the dimensions column, `->'key'` steps, one final
+  `->>'key'` (`'` written `''`). An expression such as `(data->>'amount')::int` was accepted and
+  never read; declare the type with `data_type` instead. `introspect facts` quotes keys
+  holding a `'` and no longer splits a key holding a `.`.
+
 - **`fraiseql_core::compiler::aggregation::GroupByExpression::JsonbPath::path` is a
   `Vec<String>` of JSON keys (#1517).** It was one key, so a declared nested dimension path
   could not be expressed. Embedders building the expression by hand wrap the key:

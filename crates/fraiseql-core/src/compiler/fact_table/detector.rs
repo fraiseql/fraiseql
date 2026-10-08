@@ -330,7 +330,7 @@ impl FactTableDetector {
         db_type: DatabaseType,
     ) -> Vec<DimensionPath> {
         let mut paths = Vec::new();
-        Self::extract_paths_recursive(sample, column_name, "", &mut paths, db_type, 0);
+        Self::extract_paths_recursive(sample, column_name, &[], &mut paths, db_type, 0);
         paths
     }
 
@@ -338,7 +338,7 @@ impl FactTableDetector {
     fn extract_paths_recursive(
         value: &serde_json::Value,
         column_name: &str,
-        prefix: &str,
+        prefix: &[&str],
         paths: &mut Vec<DimensionPath>,
         db_type: DatabaseType,
         depth: usize,
@@ -350,21 +350,19 @@ impl FactTableDetector {
 
         if let Some(obj) = value.as_object() {
             for (key, val) in obj {
-                let full_path = if prefix.is_empty() {
-                    key.clone()
-                } else {
-                    format!("{}.{}", prefix, key)
-                };
+                // The keys themselves, not a dotted string: a key may hold a `.` (#1517).
+                let mut keys = prefix.to_vec();
+                keys.push(key);
 
                 // Determine data type from the value
                 let data_type = Self::infer_json_type(val);
 
                 // Generate database-specific JSON path syntax
-                let json_path = Self::generate_json_path(column_name, &full_path, db_type);
+                let json_path = Self::generate_json_path(column_name, &keys, db_type);
 
                 paths.push(DimensionPath {
-                    name: full_path.replace('.', "_"), /* Convert dots to underscores for field
-                                                        * names */
+                    // Field names join the keys with underscores.
+                    name: keys.join("_").replace('.', "_"),
                     json_path,
                     data_type,
                 });
@@ -374,7 +372,7 @@ impl FactTableDetector {
                     Self::extract_paths_recursive(
                         val,
                         column_name,
-                        &full_path,
+                        &keys,
                         paths,
                         db_type,
                         depth + 1,
@@ -402,13 +400,17 @@ impl FactTableDetector {
         }
     }
 
-    /// Generate database-specific JSON path syntax
+    /// Generate database-specific JSON path syntax for `parts`, the keys outermost first.
+    ///
+    /// Each key is a single-quoted literal with `'` doubled, the shape
+    /// [`DimensionPath::segments`] reads back (#1517).
     pub(super) fn generate_json_path(
         column_name: &str,
-        path: &str,
+        parts: &[&str],
         db_type: DatabaseType,
     ) -> String {
-        let parts: Vec<&str> = path.split('.').collect();
+        let quoted: Vec<String> = parts.iter().map(|p| p.replace('\'', "''")).collect();
+        let parts = &quoted;
 
         match db_type {
             DatabaseType::PostgreSQL => {

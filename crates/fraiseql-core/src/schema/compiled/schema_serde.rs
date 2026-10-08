@@ -342,6 +342,16 @@ impl CompiledSchema {
                 path:    Some("fact_tables.native_dimension_mapping".to_string()),
             });
         }
+        let violations = self.fact_table_path_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "fact table dimension paths cannot be read:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("fact_tables.dimensions.paths".to_string()),
+            });
+        }
         let violations = self.federation_key_violations();
         if !violations.is_empty() {
             return Err(FraiseQLError::Validation {

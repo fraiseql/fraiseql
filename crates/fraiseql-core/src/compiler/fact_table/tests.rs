@@ -412,19 +412,27 @@ fn test_extract_dimension_paths_various_types() {
 fn test_generate_json_path_postgres() {
     // Top-level
     assert_eq!(
-        FactTableDetector::generate_json_path("dimensions", "category", DatabaseType::PostgreSQL),
+        FactTableDetector::generate_json_path(
+            "dimensions",
+            &["category"],
+            DatabaseType::PostgreSQL
+        ),
         "dimensions->>'category'"
     );
 
     // Nested
     assert_eq!(
-        FactTableDetector::generate_json_path("data", "customer.region", DatabaseType::PostgreSQL),
+        FactTableDetector::generate_json_path(
+            "data",
+            &["customer", "region"],
+            DatabaseType::PostgreSQL
+        ),
         "data->'customer'->>'region'"
     );
 
     // Deeply nested
     assert_eq!(
-        FactTableDetector::generate_json_path("data", "a.b.c", DatabaseType::PostgreSQL),
+        FactTableDetector::generate_json_path("data", &["a", "b", "c"], DatabaseType::PostgreSQL),
         "data->'a'->'b'->>'c'"
     );
 }
@@ -1021,4 +1029,24 @@ fn a_dimension_path_of_another_shape_is_refused() {
         let err = path(json_path).segments("data").expect_err(json_path).to_string();
         assert!(err.contains("json_path") && err.contains(json_path), "{json_path}: {err}");
     }
+}
+
+/// #1517: what `introspect facts` detects, load must accept, at the keys it was found under.
+/// A key holding a quote or a dot used to come out unreadable (an unescaped `'`) or split
+/// into keys that do not exist (`a.b` read as `a` then `b`).
+#[test]
+fn detected_dimension_paths_parse_back_to_the_keys_found() {
+    let sample = serde_json::json!({"it's": {"a.b": "x"}, "plain": "y"});
+    let paths =
+        FactTableDetector::extract_dimension_paths(&sample, "data", DatabaseType::PostgreSQL);
+    let mut found: Vec<Vec<String>> = paths.iter().map(|p| p.segments("data").unwrap()).collect();
+    found.sort();
+    assert_eq!(
+        found,
+        vec![
+            vec!["it's".to_string()],
+            vec!["it's".to_string(), "a.b".to_string()],
+            vec!["plain".to_string()]
+        ]
+    );
 }
