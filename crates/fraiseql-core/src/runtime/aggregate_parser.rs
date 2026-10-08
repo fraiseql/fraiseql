@@ -278,8 +278,8 @@ impl AggregateQueryParser {
                         // Priority 5: Regular JSONB dimension. Unlike priorities 1-4
                         // (each gated by a lookup against server-defined calendar/
                         // temporal/native metadata), this fallback echoes the raw
-                        // GraphQL key verbatim as the SELECT alias (`… AS {key}`),
-                        // which is interpolated into SQL without quoting. Reject keys
+                        // GraphQL key as the SELECT alias (quoted since #1516; it
+                        // was once interpolated bare). Reject keys
                         // that are not safe identifiers so an attacker cannot inject an
                         // extra SELECT column (H1) — e.g. `a, (SELECT …) AS leak`. This
                         // fires at parse time, independent of the compiler's dimension
@@ -768,13 +768,12 @@ impl AggregateQueryParser {
 /// Validate that a regular-JSONB-dimension GraphQL key is a safe SQL identifier
 /// (`[_A-Za-z][_0-9A-Za-z]*`).
 ///
-/// Regular dimensions echo this key verbatim as the SELECT-list alias
-/// (`… AS {key}`), interpolated into SQL with no quoting; a key containing
-/// commas, parentheses, or a subquery would inject an extra SELECT column (H1).
-/// Calendar/temporal/native dimensions are gated by lookups against server-
-/// defined metadata, so only this fallback path needs the charset guard.
-/// Rejecting (rather than quoting) keeps the response key — which equals the SQL
-/// column name — unchanged for legitimate identifiers.
+/// Regular dimensions echo this key as the SELECT-list alias and as the JSONB key read.
+/// The alias is identifier-quoted since #1516, so the response key keeps its case; this
+/// charset check stays as the first layer (H1: a key containing commas, parentheses or a
+/// subquery once injected an extra SELECT column when the alias was emitted bare).
+/// Calendar/temporal/native dimensions are gated by lookups against server-defined
+/// metadata, so only this fallback path needs the charset guard.
 ///
 /// # Errors
 ///

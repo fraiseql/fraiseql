@@ -414,14 +414,15 @@ impl WindowPlanner {
         // for the in-window clause, so a window function cannot order by its own
         // sibling's alias inside `OVER (…)`, where the column does not yet exist.
         //
-        // Emitted bare (`rank`), not as `dimensions->>'rank'` — which is NULL,
-        // which is what silently sorted nothing.
+        // Emitted as the quoted alias (`"rank"`), not as `dimensions->>'rank'` —
+        // which is NULL, which is what silently sorted nothing — and quoted as the
+        // SELECT list quotes it, so a camelCase alias names the same column (#1516).
         if output_aliases.contains(field) {
             // Already vetted by `validate_alias` when the alias was accepted;
             // re-checked here so this branch cannot become a new injection seam
             // if the two ever drift.
             Self::validate_alias(field)?;
-            return Ok(field.to_string());
+            return Ok(crate::backend::identifier::quote_postgres_identifier(field));
         }
 
         // Validate identifier before embedding in JSONB extraction expression.

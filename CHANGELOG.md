@@ -18,6 +18,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An aggregate or window output column answers under the key the request named (#1516).**
+  Output aliases were emitted unquoted, so PostgreSQL folded a camelCase key to lower case: a
+  `groupBy: {itemCategory: true}` answered `itemcategory`, and a window alias `runningTotal`
+  answered `runningtotal`. Ordering an aggregate by such a key was a SQL error
+  (`column "itemCategory" does not exist`), since the `ORDER BY` already quoted it. Every alias
+  is now quoted where it is emitted and where the window `ORDER BY` references it.
 - **A SQL `NULL` no longer logs a "column type not representable as JSON" warning (#1514).**
   Every branch of the adapter's cell decoder refused a `NULL`, so a `NULL` of any type (`text`,
   `uuid`, `jsonb`, …) fell through to the warning meant for a genuinely undecodable type: nine

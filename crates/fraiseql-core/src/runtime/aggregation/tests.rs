@@ -239,7 +239,7 @@ mod native_groupby {
         let plan = plan_with_native_groupby();
         let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
         let sql = gen.generate_parameterized(&plan).unwrap().sql;
-        assert!(sql.contains(r#""customer_id" AS customer_id"#), "got: {sql}");
+        assert!(sql.contains(r#""customer_id" AS "customer_id""#), "got: {sql}");
         assert!(!sql.contains("data->>'customer_id'"), "unexpected JSONB ref: {sql}");
     }
 
@@ -269,10 +269,10 @@ mod native_groupby {
         ];
         let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
         let sql = gen.generate_parameterized(&plan).unwrap().sql;
-        assert!(sql.contains(r#""customer_id" AS customer_id"#), "got: {sql}");
+        assert!(sql.contains(r#""customer_id" AS "customer_id""#), "got: {sql}");
         // PostgreSQL jsonb_extract_sql produces a trailing space before AS
         assert!(sql.contains("data->>'status'"), "got: {sql}");
-        assert!(sql.contains("AS status"), "got: {sql}");
+        assert!(sql.contains(r#"AS "status""#), "got: {sql}");
         assert!(sql.contains(r#""customer_id""#), "got: {sql}");
     }
 }

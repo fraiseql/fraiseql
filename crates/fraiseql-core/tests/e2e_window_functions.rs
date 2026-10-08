@@ -93,7 +93,7 @@ fn test_row_number_simple() {
             "OVER",
             "PARTITION BY data->>'category'",
             "ORDER BY revenue DESC",
-            "AS rank",
+            r#"AS "rank""#,
             "FROM tf_sales",
         ],
     );
@@ -114,7 +114,15 @@ fn test_rank_with_gaps() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &["RANK()", "OVER", "ORDER BY revenue DESC", "AS revenue_rank"]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "RANK()",
+            "OVER",
+            "ORDER BY revenue DESC",
+            r#"AS "revenue_rank""#,
+        ],
+    );
 }
 
 #[test]
@@ -150,7 +158,15 @@ fn test_ntile_quartiles() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &["NTILE(4)", "OVER", "ORDER BY revenue ASC", "AS quartile"]);
+    assert_sql_contains(
+        &sql,
+        &[
+            "NTILE(4)",
+            "OVER",
+            "ORDER BY revenue ASC",
+            r#"AS "quartile""#,
+        ],
+    );
 }
 
 #[test]
@@ -227,7 +243,7 @@ fn test_lag_previous_value() {
             "LAG(revenue, 1, 0)",
             "OVER",
             "ORDER BY occurred_at ASC",
-            "AS prev_revenue",
+            r#"AS "prev_revenue""#,
         ],
     );
 }
@@ -258,7 +274,7 @@ fn test_lead_next_value() {
             "LEAD(revenue, 1, 0)",
             "OVER",
             "ORDER BY occurred_at ASC",
-            "AS next_revenue",
+            r#"AS "next_revenue""#,
         ],
     );
 }
@@ -391,7 +407,7 @@ fn test_running_total_sum() {
             "OVER",
             "ORDER BY occurred_at ASC",
             "ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW",
-            "AS running_total",
+            r#"AS "running_total""#,
         ],
     );
 }
@@ -426,7 +442,7 @@ fn test_moving_average() {
             "OVER",
             "ORDER BY occurred_at ASC",
             "ROWS BETWEEN 2 PRECEDING AND CURRENT ROW",
-            "AS moving_avg_3",
+            r#"AS "moving_avg_3""#,
         ],
     );
 }
@@ -484,7 +500,7 @@ fn test_running_count_of_field() {
 
     let sql = plan_and_generate_pg(&query);
 
-    assert_sql_contains(&sql, &["COUNT(revenue)", "OVER", "AS non_null_revenues"]);
+    assert_sql_contains(&sql, &["COUNT(revenue)", "OVER", r#"AS "non_null_revenues""#]);
 }
 
 #[test]
@@ -707,9 +723,9 @@ fn test_multiple_window_functions() {
             "SUM(revenue)",
             "LAG(revenue, 1, 0)",
             "PARTITION BY data->>'category'",
-            "AS row_num",
-            "AS running_total",
-            "AS prev_revenue",
+            r#"AS "row_num""#,
+            r#"AS "running_total""#,
+            r#"AS "prev_revenue""#,
         ],
     );
 }

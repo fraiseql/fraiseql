@@ -2788,25 +2788,26 @@ mod window_order_by_allowlist_tests {
     }
 
     /// **#1014's literal ask.** The final ORDER BY runs after the window
-    /// functions, so `rank` is a real output column and must be emitted bare.
+    /// functions, so `rank` is a real output column and must be emitted as one: the quoted
+    /// alias the SELECT list declares (#1516).
     /// Asserting on the generated expression rather than on absence of an error
     /// is load-bearing: before this, the clause "succeeded" as
     /// `dimensions->>'rank'`, which is NULL, which sorted nothing.
     #[test]
-    fn the_final_order_by_accepts_a_window_alias_and_emits_it_bare() {
+    fn the_final_order_by_accepts_a_window_alias_and_emits_it_as_a_column() {
         let plan = WindowPlanner::plan(request_ordering_by("rank"), &metadata())
             .expect("ordering by a window alias is #1014's ask");
         assert_eq!(
-            plan.order_by[0].field, "rank",
-            "a window alias must be a bare column, not a JSONB dimension read"
+            plan.order_by[0].field, r#""rank""#,
+            "a window alias must be a column, not a JSONB dimension read"
         );
     }
 
     #[test]
-    fn the_final_order_by_accepts_a_select_alias_and_emits_it_bare() {
+    fn the_final_order_by_accepts_a_select_alias_and_emits_it_as_a_column() {
         let plan = WindowPlanner::plan(request_ordering_by("total"), &metadata())
             .expect("ordering by a select alias must work");
-        assert_eq!(plan.order_by[0].field, "total");
+        assert_eq!(plan.order_by[0].field, r#""total""#);
     }
 
     #[test]

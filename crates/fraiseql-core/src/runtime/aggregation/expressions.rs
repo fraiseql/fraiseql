@@ -30,7 +30,9 @@ impl AggregationSqlGenerator {
                 | GroupByExpression::TreeLevel { alias, .. }
                 | GroupByExpression::NativeColumn { alias, .. } => alias,
             };
-            columns.push(format!("{} AS {}", column, alias));
+            // Quoted, so PostgreSQL keeps the requested key's case (#1516): the response key
+            // is the alias, and the ORDER BY below references it quoted.
+            columns.push(format!("{column} AS {}", self.quote_identifier(alias)));
         }
 
         // Add aggregate columns to SELECT
@@ -43,7 +45,7 @@ impl AggregationSqlGenerator {
                 | AggregateExpression::AdvancedAggregate { alias, .. }
                 | AggregateExpression::BoolAggregate { alias, .. } => alias,
             };
-            columns.push(format!("{} AS {}", column, alias));
+            columns.push(format!("{column} AS {}", self.quote_identifier(alias)));
         }
 
         Ok(format!("SELECT\n  {}", columns.join(",\n  ")))

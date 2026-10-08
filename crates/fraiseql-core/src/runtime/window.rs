@@ -12,7 +12,10 @@
 use std::fmt::Write as _;
 
 use crate::{
-    backend::{GenericWhereGenerator, PostgresDialect, types::DatabaseType},
+    backend::{
+        GenericWhereGenerator, PostgresDialect, identifier::quote_postgres_identifier,
+        types::DatabaseType,
+    },
     compiler::{
         aggregation::OrderDirection,
         window_functions::{
@@ -86,7 +89,8 @@ impl WindowSqlGenerator {
             if i > 0 {
                 sql.push_str(", ");
             }
-            let _ = write!(sql, "{} AS {}", col.expression, col.alias);
+            // Quoted, so the response key keeps the requested case (#1516).
+            let _ = write!(sql, "{} AS {}", col.expression, quote_postgres_identifier(&col.alias));
         }
 
         // Add window functions
@@ -125,8 +129,8 @@ impl WindowSqlGenerator {
                     _ => "ASC",
                 };
                 // Fields in the outer ORDER BY may be JSONB path expressions
-                // (e.g. `data->>'category'`) or window aliases (e.g. `rank`); they
-                // are validated at planner parse time and must not be identifier-quoted.
+                // (e.g. `data->>'category'`) or window aliases (`"rank"`, quoted by the
+                // planner); they are validated at planner parse time and rendered there.
                 let _ = write!(sql, "{} {}", order.field, dir);
             }
         }
@@ -187,7 +191,7 @@ impl WindowSqlGenerator {
         }
 
         sql.push(')');
-        let _ = write!(sql, " AS {}", window.alias);
+        let _ = write!(sql, " AS {}", quote_postgres_identifier(&window.alias));
 
         Ok(sql)
     }

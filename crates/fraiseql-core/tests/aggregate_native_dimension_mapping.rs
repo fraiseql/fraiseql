@@ -133,12 +133,7 @@ async fn grouped(
     let mut groups: Vec<(String, f64)> = rows
         .iter()
         .map(|row| {
-            // #1516: an unquoted alias comes back folded to lower case; what this suite
-            // checks is which column a group was read from, not the alias's spelling.
-            let value = row
-                .get(key)
-                .or_else(|| row.get(key.to_lowercase()))
-                .unwrap_or_else(|| panic!("no `{key}` in {row}"));
+            let value = row.get(key).unwrap_or_else(|| panic!("no `{key}` in {row}"));
             (value.as_str().map_or_else(|| value.to_string(), str::to_string), total(row))
         })
         .collect();

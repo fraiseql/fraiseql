@@ -175,13 +175,13 @@ impl AggregationSqlGenerator {
         for expr in group_by_expressions {
             let alias = group_by_alias(expr);
             let sql = self.branch_group_by_expr_sql(expr, time_col, trunc_grain)?;
-            columns.push(format!("{sql} AS {alias}"));
+            columns.push(format!("{sql} AS {}", self.quote_identifier(alias)));
         }
 
         for expr in aggregate_expressions {
             let column = self.aggregate_expression_to_sql(expr)?;
             let alias = aggregate_alias(expr);
-            columns.push(format!("{column} AS {alias}"));
+            columns.push(format!("{column} AS {}", self.quote_identifier(alias)));
         }
 
         Ok(format!("SELECT\n  {}", columns.join(",\n  ")))
