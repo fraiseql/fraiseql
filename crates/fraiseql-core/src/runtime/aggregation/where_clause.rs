@@ -182,9 +182,14 @@ impl AggregationSqlGenerator {
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
     ) -> Result<String> {
-        let field_path = &path[0];
-        let db_field_path = to_snake_case(field_path);
-        let jsonb_extract = self.jsonb_extract_sql(jsonb_column, &db_field_path);
+        // A one-key path is a request or policy key, recased to the stored snake_case key
+        // (#486). A longer one is a declared dimension path's own JSON keys (#1517), read
+        // as written; it used to be cut to its first key.
+        let db_path: Vec<String> = match path {
+            [key] => vec![to_snake_case(key)],
+            keys => keys.to_vec(),
+        };
+        let jsonb_extract = self.jsonb_extract_sql(jsonb_column, &db_path);
 
         if let Some(test) = null_test(operator, value)? {
             return Ok(format!("{jsonb_extract} {test}"));

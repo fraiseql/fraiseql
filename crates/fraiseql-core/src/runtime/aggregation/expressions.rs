@@ -71,7 +71,7 @@ impl AggregationSqlGenerator {
                 ..
             } => {
                 // Calendar dimension: reuse JSONB extraction for all 4 databases
-                Ok(self.jsonb_extract_sql(calendar_column, json_key))
+                Ok(self.jsonb_extract_sql(calendar_column, std::slice::from_ref(json_key)))
             },
             GroupByExpression::TreeLevel {
                 column, grouping, ..

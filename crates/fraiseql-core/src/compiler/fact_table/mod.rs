@@ -95,6 +95,27 @@ pub struct FactTableMetadata {
     pub native_dimension_mapping: HashMap<String, String>,
 }
 
+impl FactTableMetadata {
+    /// Where the declared dimension path named `field` (in either casing) is read: its
+    /// [`DimensionPath::segments`]. `None` when no declared path has that name (#1517).
+    ///
+    /// # Errors
+    ///
+    /// The declared path's `json_path` does not parse (load refuses such a schema).
+    #[must_use]
+    pub fn declared_dimension_segments(
+        &self,
+        field: &str,
+    ) -> Option<crate::error::Result<Vec<String>>> {
+        let key = dimension_key(field);
+        self.dimensions
+            .paths
+            .iter()
+            .find(|p| p.name == field || dimension_key(&p.name) == key)
+            .map(|p| p.segments(&self.dimensions.name))
+    }
+}
+
 /// A dimension key in the form `native_dimension_mapping` keys compare in (#1231): each
 /// `.` segment in `snake_case`, so `itemCategory` and `item_category` name one dimension.
 #[must_use]
@@ -165,6 +186,76 @@ pub struct DimensionPath {
     pub json_path: String,
     /// Data type hint
     pub data_type: String,
+}
+
+impl DimensionPath {
+    /// The JSON keys `json_path` reads, outermost first: `data->'machine'->>'model'` on
+    /// column `data` is `["machine", "model"]` (#1517).
+    ///
+    /// The runtime reads a declared dimension at this location, by `groupBy` and by `where`,
+    /// so the path is parsed, not trusted: it must be the dimensions column followed by
+    /// `->'key'` steps and one final `->>'key'`, each key a single-quoted literal (`''`
+    /// escapes a quote). Load refuses any other shape, so a request never meets one.
+    ///
+    /// # Errors
+    ///
+    /// [`FraiseQLError::Validation`](crate::error::FraiseQLError::Validation) naming the
+    /// path and the expected shape.
+    pub fn segments(&self, column: &str) -> crate::error::Result<Vec<String>> {
+        let refuse = || {
+            crate::error::FraiseQLError::validation(format!(
+                "dimension path `{}`: json_path `{}` must read the dimensions column `{column}` \
+                 as `{column}->'key'->>'key'` (any number of `->'key'` steps, one final \
+                 `->>'key'`)",
+                self.name, self.json_path
+            ))
+        };
+        let mut rest = self.json_path.trim().strip_prefix(column).ok_or_else(refuse)?;
+        let mut segments = Vec::new();
+        loop {
+            let rest_trimmed = rest.trim_start();
+            let (last, after_arrow) = if let Some(r) = rest_trimmed.strip_prefix("->>") {
+                (true, r)
+            } else if let Some(r) = rest_trimmed.strip_prefix("->") {
+                (false, r)
+            } else {
+                return Err(refuse());
+            };
+            let (key, remainder) = quoted_literal(after_arrow.trim_start()).ok_or_else(refuse)?;
+            segments.push(key);
+            rest = remainder;
+            if last {
+                return if rest.trim().is_empty() {
+                    Ok(segments)
+                } else {
+                    Err(refuse())
+                };
+            }
+        }
+    }
+}
+
+/// A leading single-quoted SQL literal (`'it''s'` → `it's`) and the text after it.
+fn quoted_literal(text: &str) -> Option<(String, &str)> {
+    let mut chars = text.char_indices();
+    if chars.next()?.1 != '\'' {
+        return None;
+    }
+    let mut value = String::new();
+    while let Some((i, c)) = chars.next() {
+        if c != '\'' {
+            value.push(c);
+            continue;
+        }
+        match chars.clone().next() {
+            Some((_, '\'')) => {
+                value.push('\'');
+                chars.next();
+            },
+            _ => return (!value.is_empty()).then(|| (value, &text[i + 1..])),
+        }
+    }
+    None
 }
 
 /// Calendar dimension metadata (pre-computed temporal fields)

@@ -982,3 +982,43 @@ fn test_from_columns_ambiguous_dimensions_is_an_error() {
         "the error must name the ambiguous candidates: {msg}"
     );
 }
+
+fn path(json_path: &str) -> DimensionPath {
+    DimensionPath {
+        name:      "p".to_string(),
+        json_path: json_path.to_string(),
+        data_type: "string".to_string(),
+    }
+}
+
+/// #1517: a declared path is read where it says, so its `json_path` is parsed.
+#[test]
+fn a_dimension_path_parses_to_its_json_keys() {
+    let cases: [(&str, &[&str]); 4] = [
+        ("data->>'segment'", &["segment"]),
+        ("data->'machine'->'model'->>'category'", &["machine", "model", "category"]),
+        (" data -> 'a' ->> 'b' ", &["a", "b"]),
+        ("data->>'it''s'", &["it's"]),
+    ];
+    for (json_path, keys) in cases {
+        assert_eq!(path(json_path).segments("data").unwrap(), keys, "{json_path}");
+    }
+}
+
+#[test]
+fn a_dimension_path_of_another_shape_is_refused() {
+    for json_path in [
+        "data->'a'",         // no final ->>
+        "other->>'a'",       // another column
+        "data2->>'a'",       // a column that only starts with the name
+        "(data->>'a')::int", // an expression
+        "data->>'a' || 'x'", // trailing text
+        "data->>a",          // unquoted key
+        "data->>''",         // empty key
+        "data->>'a'->>'b'",  // ->> before the end
+        "data->>'unterminated",
+    ] {
+        let err = path(json_path).segments("data").expect_err(json_path).to_string();
+        assert!(err.contains("json_path") && err.contains(json_path), "{json_path}: {err}");
+    }
+}

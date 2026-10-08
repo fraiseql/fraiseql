@@ -215,12 +215,7 @@ impl AggregateQueryParser {
                 }
             } else {
                 WhereClause::Field {
-                    // Recase the JSONB key so a camelCase aggregate filter
-                    // (`organizationId_eq`) builds `data->>'organization_id'`
-                    // rather than a never-matching `organizationId` key (#486).
-                    // Only the non-native branch recases — the native lookup
-                    // above stays on the surface name (mirror `query_params`).
-                    path: vec![crate::utils::to_snake_case(field)],
+                    path: dimension_location(metadata, field)?,
                     operator,
                     value: value.clone(),
                 }
@@ -763,6 +758,18 @@ impl AggregateQueryParser {
 
         Ok(clauses)
     }
+}
+
+/// The JSON keys a `where` on the JSONB dimension `field` reads (#1517).
+///
+/// A declared dimension path is read at its declared location, whatever its depth, as
+/// `groupBy` reads it. Any other key is a top-level JSONB key, recased so a camelCase
+/// filter (`organizationId_eq`) builds `data->>'organization_id'` rather than a
+/// never-matching `organizationId` key (#486). Shared by the aggregate and window parsers.
+pub(super) fn dimension_location(metadata: &FactTableMetadata, field: &str) -> Result<Vec<String>> {
+    metadata
+        .declared_dimension_segments(field)
+        .unwrap_or_else(|| Ok(vec![crate::utils::to_snake_case(field)]))
 }
 
 /// Validate that a regular-JSONB-dimension GraphQL key is a safe SQL identifier

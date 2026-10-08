@@ -248,8 +248,9 @@ pub enum GroupByExpression {
     JsonbPath {
         /// JSONB column name (usually "data")
         jsonb_column: String,
-        /// Path to extract (e.g., "category")
-        path:         String,
+        /// JSON keys to extract, outermost first (e.g. `["category"]`, or a declared
+        /// path's `["machine", "model"]`, #1517)
+        path:         Vec<String>,
         /// Result alias
         alias:        String,
     },
@@ -452,19 +453,25 @@ impl AggregationPlanner {
                     // This prevents unrecognised paths from reaching `jsonb_extract_sql` even
                     // after SQL-level escaping (defence in depth). If no paths are declared,
                     // all paths are accepted — escaping in the runtime layer still applies.
-                    let known_paths = &metadata.dimensions.paths;
-                    if !known_paths.is_empty() && !known_paths.iter().any(|p| p.name == *path) {
-                        return Err(FraiseQLError::Validation {
-                            message: format!(
-                                "Dimension '{}' not found in fact table '{}'",
-                                path, metadata.table_name
-                            ),
-                            path:    None,
-                        });
-                    }
+                    //
+                    // A declared path is read where it says it is (#1517), not at a
+                    // top-level key named after it.
+                    let location = match metadata.declared_dimension_segments(path) {
+                        Some(segments) => segments?,
+                        None if metadata.dimensions.paths.is_empty() => vec![path.clone()],
+                        None => {
+                            return Err(FraiseQLError::Validation {
+                                message: format!(
+                                    "Dimension '{}' not found in fact table '{}'",
+                                    path, metadata.table_name
+                                ),
+                                path:    None,
+                            });
+                        },
+                    };
                     expressions.push(GroupByExpression::JsonbPath {
                         jsonb_column: metadata.dimensions.name.clone(),
-                        path:         path.clone(),
+                        path:         location,
                         alias:        alias.clone(),
                     });
                 },

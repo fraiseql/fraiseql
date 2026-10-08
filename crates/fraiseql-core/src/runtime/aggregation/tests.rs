@@ -263,7 +263,7 @@ mod native_groupby {
             },
             GroupByExpression::JsonbPath {
                 jsonb_column: "data".to_string(),
-                path:         "status".to_string(),
+                path:         vec!["status".to_string()],
                 alias:        "status".to_string(),
             },
         ];
@@ -345,7 +345,7 @@ mod native_columns_integration {
         let has_jsonb = plan
             .group_by_expressions
             .iter()
-            .any(|e| matches!(e, GroupByExpression::JsonbPath { path, .. } if path == "status"));
+            .any(|e| matches!(e, GroupByExpression::JsonbPath { path, .. } if path == &["status"]));
         assert!(has_jsonb, "expected JsonbPath for status; got: {:?}", plan.group_by_expressions);
     }
 
@@ -447,7 +447,7 @@ mod native_orderby {
             },
             GroupByExpression::JsonbPath {
                 jsonb_column: "data".to_string(),
-                path:         "status".to_string(),
+                path:         vec!["status".to_string()],
                 alias:        "status".to_string(),
             },
         ];
@@ -604,7 +604,7 @@ fn test_escape_sql_string_postgres_only_doubles_quote() {
 #[test]
 fn test_jsonb_postgres_single_quote_escaped() {
     let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = gen.jsonb_extract_sql("dimensions", "user'name");
+    let sql = gen.jsonb_extract_sql("dimensions", &["user'name".to_string()]);
     // Single quote must be doubled; must not break out of the string literal.
     assert!(sql.contains("user''name"), "Expected doubled quote, got: {sql}");
     assert!(!sql.contains("user'name'"), "Unescaped quote still present");
@@ -613,7 +613,7 @@ fn test_jsonb_postgres_single_quote_escaped() {
 #[test]
 fn test_jsonb_postgres_pg_sleep_injection_neutralised() {
     let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = gen.jsonb_extract_sql("dimensions", "a' || pg_sleep(10) --");
+    let sql = gen.jsonb_extract_sql("dimensions", &["a' || pg_sleep(10) --".to_string()]);
     // The injected payload must appear inside the string literal (quote doubled).
     assert!(sql.contains("a'' || pg_sleep(10) --"), "Escaping not applied: {sql}");
 }
@@ -621,7 +621,7 @@ fn test_jsonb_postgres_pg_sleep_injection_neutralised() {
 #[test]
 fn test_jsonb_postgres_clean_path_unchanged() {
     let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
-    let sql = gen.jsonb_extract_sql("dimensions", "category");
+    let sql = gen.jsonb_extract_sql("dimensions", &["category".to_string()]);
     assert!(sql.contains("dimensions->>'category'"), "Clean path altered: {sql}");
 }
 

@@ -594,7 +594,7 @@ mod aggregate_projector_tests {
             request,
             group_by_expressions: vec![GroupByExpression::JsonbPath {
                 jsonb_column: "data".to_string(),
-                path:         "category".to_string(),
+                path:         vec!["category".to_string()],
                 alias:        "category".to_string(),
             }],
             aggregate_expressions: vec![

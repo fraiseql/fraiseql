@@ -16,7 +16,20 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Breaking
+
+- **`fraiseql_core::compiler::aggregation::GroupByExpression::JsonbPath::path` is a
+  `Vec<String>` of JSON keys (#1517).** It was one key, so a declared nested dimension path
+  could not be expressed. Embedders building the expression by hand wrap the key:
+  `path: vec!["category".into()]`.
+
 ### Fixed
+
+- **An aggregate reads a declared dimension path at its declared location (#1517).** A fact
+  table declaring `machine_model_category` at `data->'machine'->'model'->>'category'` (the
+  shape `introspect facts` detects) was read at `data->>'machine_model_category'`, a key no
+  row has: `groupBy` put every row in one `null` group and a `where …_eq` on it (aggregate or
+  window) matched nothing, with no error. Both now read the declared keys.
 
 - **The Rust SDK publishes with the repository's crates.io token (#1518).** Its publish jobs
   (`release.yml`, `rust-sdk.yml`) read `CARGO_REGISTRY_TOKEN`, a secret the repository does not

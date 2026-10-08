@@ -50,7 +50,7 @@
 
 use serde_json::Value;
 
-use super::aggregate_parser::split_where_key;
+use super::aggregate_parser::{dimension_location, split_where_key};
 use crate::{
     backend::where_clause::WhereClause,
     compiler::{
@@ -484,10 +484,9 @@ impl WindowQueryParser {
         for (key, value) in obj {
             let (field, operator) = split_where_key(key, metadata, &no_native_columns)?;
             conditions.push(WhereClause::Field {
-                // Recase the JSONB key so a camelCase window filter
-                // (`organizationId_eq`) builds `data->>'organization_id'`
-                // rather than a never-matching `organizationId` key (#486).
-                path: vec![crate::utils::to_snake_case(field)],
+                // The aggregate parser's resolution: a declared path at its location
+                // (#1517), any other key recased (#486).
+                path: dimension_location(metadata, field)?,
                 operator,
                 value: value.clone(),
             });

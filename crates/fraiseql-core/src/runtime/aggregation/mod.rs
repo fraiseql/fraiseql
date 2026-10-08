@@ -108,11 +108,21 @@ impl AggregationSqlGenerator {
     /// out of the string literal and inject arbitrary SQL. The per-database
     /// escape functions from `fraiseql_db::path_escape` are applied here as
     /// a second line of defence after schema allowlist validation in the planner.
-    pub(super) fn jsonb_extract_sql(&self, jsonb_column: &str, path: &str) -> String {
+    ///
+    /// `path` is the JSON keys outermost first: `["machine", "model"]` reads
+    /// `col->'machine'->>'model'` (#1517).
+    pub(super) fn jsonb_extract_sql(&self, jsonb_column: &str, path: &[String]) -> String {
         match self.database_type {
             DatabaseType::PostgreSQL => {
-                let escaped = escape_postgres_jsonb_segment(path);
-                format!("{}->>'{}' ", jsonb_column, escaped)
+                let Some((last, steps)) = path.split_last() else {
+                    return format!("{jsonb_column} ");
+                };
+                let mut sql = jsonb_column.to_string();
+                for step in steps {
+                    let _ = write!(sql, "->'{}'", escape_postgres_jsonb_segment(step));
+                }
+                let _ = write!(sql, "->>'{}' ", escape_postgres_jsonb_segment(last));
+                sql
             },
         }
     }

@@ -255,7 +255,7 @@ fn test_result_projection() {
         request,
         group_by_expressions: vec![GroupByExpression::JsonbPath {
             jsonb_column: "data".to_string(),
-            path:         "category".to_string(),
+            path:         vec!["category".to_string()],
             alias:        "category".to_string(),
         }],
         aggregate_expressions: vec![AggregateExpression::Count {
