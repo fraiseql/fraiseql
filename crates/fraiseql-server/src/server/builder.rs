@@ -283,6 +283,10 @@ impl Server {
         #[cfg(feature = "auth")]
         crate::server::initialization::locale_enrichment_fields_check(&schema, &config)?;
 
+        // #1512: every allowed locale's collation must exist, or the first sorted query in
+        // that locale would fail at runtime.
+        crate::server::initialization::locale_collations_check(&schema, adapter.as_ref()).await?;
+
         // Read every schema-derived subsystem through the one shared seam.
         let subsystems = Self::schema_subsystems(&schema, &config).await?;
 

@@ -1445,6 +1445,55 @@ pub fn field_encryption_unsupported_check(schema: &CompiledSchema) -> crate::Res
     )))
 }
 
+/// Refuse to boot when an allowed locale has no ICU collation in the database (#1512).
+///
+/// A text sort in a locale runs `… COLLATE "<tag>-x-icu"`; PostgreSQL creates those
+/// collations for the ICU locales it was built with, and a tag it has none for (`tlh-Latn`)
+/// would fail the first sorted query in that locale with `collation does not exist`. Checked
+/// once, here, against `pg_collation`.
+///
+/// # Errors
+///
+/// `ServerError::ConfigError` naming each missing collation and the tag that needs it;
+/// `ServerError::Database` when the catalog cannot be read.
+pub async fn locale_collations_check<A: fraiseql_core::db::DatabaseAdapter + ?Sized>(
+    schema: &CompiledSchema,
+    adapter: &A,
+) -> crate::Result<()> {
+    let Some(locale) = schema.locale.as_ref() else {
+        return Ok(());
+    };
+    let wanted: Vec<(&str, String)> = locale.collations().collect();
+    // Tags are validated BCP 47 (letters, digits, hyphens) at compile and at load, so the
+    // names are safe literals; doubled quotes regardless.
+    let literals: Vec<String> = wanted
+        .iter()
+        .map(|(_, name)| format!("'{}'", name.replace('\'', "''")))
+        .collect();
+    let rows = adapter
+        .execute_raw_query(&format!(
+            "SELECT collname FROM pg_catalog.pg_collation WHERE collname IN ({})",
+            literals.join(", ")
+        ))
+        .await
+        .map_err(|e| crate::ServerError::Database(format!("reading pg_collation: {e}")))?;
+    let present: Vec<&str> = rows.iter().filter_map(|r| r.get("collname")?.as_str()).collect();
+    let missing: Vec<String> = wanted
+        .iter()
+        .filter(|(_, name)| !present.contains(&name.as_str()))
+        .map(|(tag, name)| format!("`{name}` (for `{tag}`)"))
+        .collect();
+    if missing.is_empty() {
+        return Ok(());
+    }
+    Err(crate::ServerError::ConfigError(format!(
+        "[locale] allows locales this database has no ICU collation for: {}. Text sorts in \
+         those locales would fail. Remove them from [locale] allowed, or use a PostgreSQL built \
+         with ICU support for them.",
+        missing.join(", ")
+    )))
+}
+
 /// Refuse to boot when a `[locale]` resolve entry reads an enriched field the enrichment
 /// query's `map` does not produce (#1512).
 ///

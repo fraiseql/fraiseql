@@ -29,6 +29,11 @@ disagreed, and the promise was the part that was wrong.
   (metadata), Arrow Flight (identity only), federation `_entities`, and async operations
   (resolved at submission, stored in a new nullable `_system.async_operations.locale` column,
   added in place). See `docs/features/request-locale.md`.
+- **Text sorts follow the request locale's collation (#1512).** With `[locale]`, an ordering on a
+  text field runs `COLLATE "<tag>-x-icu"` on every sort site (lists, relay first pages, REST
+  `?sort=`, exports, gRPC, aggregate and window `ORDER BY`); numbers, dates and IDs are
+  unaffected. The server refuses to boot when an allowed locale has no collation in
+  `pg_collation`, naming it.
 
 ### Breaking
 

@@ -944,3 +944,29 @@ async fn a_rest_sort_follows_the_request_locale() {
         .collect();
     assert_eq!(got, oracle, "{body}");
 }
+
+/// Phase 03: an allowed locale whose ICU collation the database lacks refuses the boot, naming
+/// it. Klingon (`tlh-Latn`) is well-formed BCP 47 and ships no collation.
+#[tokio::test]
+async fn a_locale_without_a_collation_refuses_to_boot() {
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    let toml = "\n[locale]\ndefault = \"en-US\"\nallowed = [\"en-US\", \"tlh-Latn\"]\n";
+    let schema = compile(toml).await.expect("a well-formed tag compiles");
+    let config = ServerConfig {
+        database_url: url.clone(),
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
+    let err = Box::pin(Server::new(config, schema, adapter, None))
+        .await
+        .err()
+        .expect("a locale with no collation must not boot");
+    let message = err.to_string();
+    assert!(
+        message.contains("tlh-Latn-x-icu") && message.contains("`tlh-Latn`"),
+        "names the collation and the tag: {message}"
+    );
+}

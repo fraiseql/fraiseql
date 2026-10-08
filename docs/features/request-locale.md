@@ -57,6 +57,21 @@ does not produce, or when no resolver is enabled. The resolver treats a `NULL` m
 column as a denial of the identity, so a user without a stored locale must map to a
 non-`NULL` value (an empty string matches nothing and falls through).
 
+## Sorting: the locale's collation
+
+With `[locale]`, an ordering on a text field sorts under the request locale's ICU
+collation, `"<tag>-x-icu"`: Canadian French orders accents from the end of the word
+(`côte` before `coté`), Swedish puts `Ä` after `Z`. This applies to list queries, relay
+connections, REST `?sort=`, exports, gRPC reads, aggregate `orderBy` on a text dimension,
+and window `ORDER BY`. Numbers, dates, IDs and enum values sort by their own type.
+
+The server checks at boot that every allowed locale has its collation in the database
+(`pg_collation`) and refuses to start, naming the missing ones, when it doesn't. A
+PostgreSQL built with ICU provides them for the locales ICU knows.
+
+Paging a relay connection with `after`/`before` under an `orderBy` on another field than
+its cursor column is refused for now (#1521). Request the first page with `orderBy`.
+
 ## In SQL: reads only
 
 A read transaction carries the locale as `fraiseql.locale`:
