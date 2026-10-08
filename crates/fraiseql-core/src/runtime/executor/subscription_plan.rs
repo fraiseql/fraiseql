@@ -166,7 +166,19 @@ impl Executor {
         refuse_undeclared_selection(schema, type_name, &root.nested_fields)?;
         refuse_undelivered_selection(definition, &root.nested_fields)?;
         self.refuse_unless_readable(&definition.name, type_name, principal)?;
-        for path in active_filter_paths(definition, &variables_map) {
+        // The filter binds the arguments the document gave the root field, however spelled
+        // (#1158): reading the variables by argument name missed an inline value and a
+        // variable of another name, and with them this check.
+        let arguments: HashMap<String, serde_json::Value> =
+            crate::runtime::subscription::subscription_arguments(
+                schema,
+                document,
+                variables,
+                self.max_query_depth(),
+            )?
+            .into_iter()
+            .collect();
+        for path in active_filter_paths(definition, &arguments) {
             let condition = crate::db::WhereClause::Field {
                 path,
                 operator: crate::db::WhereOperator::Eq,

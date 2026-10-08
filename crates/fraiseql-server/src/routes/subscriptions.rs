@@ -1238,6 +1238,32 @@ async fn handle_client_message(
                     })
                     .unwrap_or(variables_value);
 
+            // #1158: what the subscription's filter compares, by argument name: the values
+            // the document gives its root field, inline or through a variable of any name.
+            // Reading the variables by argument name instead dropped both, and the
+            // subscription delivered every event. An argument the subscription does not
+            // declare is refused here, as on a query field.
+            let arguments = match state
+                .manager
+                .subscription_arguments(&parsed, Some(&variables_value))
+            {
+                Ok(arguments) => arguments,
+                Err(e) => {
+                    let refusal = SubscriptionDocumentError::Validation(e.to_string());
+                    let error = ServerMessage::error(
+                        &op_id,
+                        vec![GraphQLError::with_code(
+                            refusal.message().to_string(),
+                            refusal.code(),
+                        )],
+                    );
+                    if let Err(e) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %e, "Could not send document error to client");
+                    }
+                    return Ok(());
+                },
+            };
+
             // #422: operation-level authorization at subscription establishment.
             // The per-event delivery does not route through the executor, so the
             // subscription is authorized once, here, with the connection's principal
@@ -1336,23 +1362,25 @@ async fn handle_client_message(
 
             // Validate client-provided tenant variable against server-resolved
             if let Some(server_tid) = tenant_id {
-                if let Some(client_tid) = variables_value.get("tenant_id").and_then(|v| v.as_str())
+                // A `tenant_id` given inline is an argument, not a variable: check both.
+                if let Some(client_tid) = [&variables_value, &arguments]
+                    .into_iter()
+                    .filter_map(|source| source.get("tenant_id").and_then(|v| v.as_str()))
+                    .find(|client_tid| *client_tid != server_tid)
                 {
-                    if client_tid != server_tid {
-                        let error = ServerMessage::error(
-                            &op_id,
-                            vec![GraphQLError::with_code(
-                                format!(
-                                    "Tenant mismatch: client provided '{client_tid}', server resolved '{server_tid}'"
-                                ),
-                                "TENANT_MISMATCH",
-                            )],
-                        );
-                        if let Err(send_err) = send_server_message(codec, sender, error).await {
-                            debug!(connection_id = %connection_id, error = %send_err, "Could not send tenant mismatch error to client");
-                        }
-                        return Ok(());
+                    let error = ServerMessage::error(
+                        &op_id,
+                        vec![GraphQLError::with_code(
+                            format!(
+                                "Tenant mismatch: client provided '{client_tid}', server resolved '{server_tid}'"
+                            ),
+                            "TENANT_MISMATCH",
+                        )],
+                    );
+                    if let Err(send_err) = send_server_message(codec, sender, error).await {
+                        debug!(connection_id = %connection_id, error = %send_err, "Could not send tenant mismatch error to client");
                     }
+                    return Ok(());
                 }
             }
 
@@ -1419,14 +1447,14 @@ async fn handle_client_message(
                 Some(plan) => state.manager.subscribe_planned(
                     plan,
                     context,
-                    variables_value,
+                    arguments,
                     connection_id,
                     rls_conditions,
                 ),
                 None => state.manager.subscribe_with_rls(
                     &subscription_name,
                     context,
-                    variables_value,
+                    arguments,
                     connection_id,
                     rls_conditions,
                 ),

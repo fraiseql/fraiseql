@@ -52,6 +52,7 @@
 
 use thiserror::Error;
 
+mod arguments;
 mod kafka;
 mod manager;
 pub mod protocol;
@@ -61,6 +62,7 @@ mod transport;
 mod types;
 mod webhook;
 
+pub use arguments::subscription_arguments;
 pub use kafka::{KafkaAdapter, KafkaConfig, KafkaMessage};
 pub use manager::SubscriptionManager;
 pub use transport::{BoxDynTransportAdapter, DeliveryResult, TransportAdapter, TransportManager};

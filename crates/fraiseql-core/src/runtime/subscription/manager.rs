@@ -308,6 +308,28 @@ impl SubscriptionManager {
             .map_or(Ok(()), |violation| Err(SubscriptionError::UnresolvableFilter(violation)))
     }
 
+    /// The arguments `document` gives its root field, resolved against `variables`, for
+    /// this manager's schema: what a subscription registered here filters with (#1158).
+    ///
+    /// # Errors
+    ///
+    /// As [`subscription_arguments`](super::subscription_arguments): a document with no
+    /// single root field, an unknown subscription or an undeclared argument.
+    pub fn subscription_arguments(
+        &self,
+        document: &crate::graphql::ParsedQuery,
+        variables: Option<&serde_json::Value>,
+    ) -> crate::error::Result<serde_json::Value> {
+        let max_depth = self
+            .schema
+            .validation_config
+            .as_ref()
+            .and_then(|v| v.max_query_depth)
+            .unwrap_or(crate::schema::DEFAULT_MAX_QUERY_DEPTH);
+        super::subscription_arguments(&self.schema, document, variables, max_depth)
+            .map(serde_json::Value::Object)
+    }
+
     /// Unsubscribe from a subscription.
     ///
     /// # Errors

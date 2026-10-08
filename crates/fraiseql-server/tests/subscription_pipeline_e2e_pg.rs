@@ -63,11 +63,42 @@ struct Pipeline {
 
 impl Pipeline {
     async fn start(pool: &sqlx::PgPool, subscription: &str, entity_type: &str) -> Self {
+        Self::start_with(pool, SubscriptionDefinition::new(subscription, entity_type)).await
+    }
+
+    async fn start_with(pool: &sqlx::PgPool, definition: SubscriptionDefinition) -> Self {
+        Self::start_over(pool, definition, false).await
+    }
+
+    /// As [`start_with`](Self::start_with); `planned` also mounts an executor over the
+    /// schema, so each subscription is planned (ruling AA 4) as it is on a server that
+    /// serves a type with fields.
+    async fn start_over(
+        pool: &sqlx::PgPool,
+        definition: SubscriptionDefinition,
+        planned: bool,
+    ) -> Self {
         let mut schema = CompiledSchema::new();
-        schema
-            .subscriptions
-            .push(SubscriptionDefinition::new(subscription, entity_type));
-        let manager = Arc::new(SubscriptionManager::new(Arc::new(schema)));
+        if planned {
+            let mut order = fraiseql_core::schema::TypeDefinition::new(
+                definition.return_type.as_str(),
+                "v_order",
+            );
+            order.fields = vec![
+                fraiseql_core::schema::FieldDefinition::new(
+                    "id",
+                    fraiseql_core::schema::FieldType::Id,
+                ),
+                fraiseql_core::schema::FieldDefinition::nullable(
+                    "status",
+                    fraiseql_core::schema::FieldType::String,
+                ),
+            ];
+            schema.types.push(order);
+        }
+        schema.subscriptions.push(definition);
+        schema.build_indexes();
+        let manager = Arc::new(SubscriptionManager::new(Arc::new(schema.clone())));
 
         // Same construction as `serve_with_shutdown`: bridge over the manager,
         // sender installed on the runtime BEFORE it starts.
@@ -81,7 +112,14 @@ impl Pipeline {
         let bridge_handle = bridge.spawn();
 
         // Production `/ws` handler over the same manager.
-        let state = SubscriptionState::new(Arc::clone(&manager));
+        let mut state = SubscriptionState::new(Arc::clone(&manager));
+        if planned {
+            let executor = Arc::new(fraiseql_core::runtime::Executor::new(
+                schema,
+                Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+            ));
+            state = state.with_live_executor(Some(Arc::new(move || Arc::clone(&executor))));
+        }
         let app = axum::Router::new()
             .route("/ws", axum::routing::get(subscription_handler))
             .with_state(state);
@@ -131,6 +169,16 @@ async fn recv_next(ws: &mut WsStream, timeout: std::time::Duration) -> serde_jso
 
 /// Handshake + subscribe against the pipeline's `/ws`, waiting for registration.
 async fn subscribe(pipeline: &Pipeline, query: &str) -> (WsSink, WsStream) {
+    subscribe_with(pipeline, query, &json!({})).await
+}
+
+/// Handshake, then send `subscribe` with `variables`; returns before registration, which
+/// the caller checks (a refused subscription never registers).
+async fn handshake_and_send(
+    pipeline: &Pipeline,
+    query: &str,
+    variables: &serde_json::Value,
+) -> (WsSink, WsStream) {
     let (ws_stream, _) = connect_async(&pipeline.ws_url).await.expect("connect");
     let (mut sink, mut stream) = ws_stream.split();
     send_json(&mut sink, json!({"type": "connection_init"})).await;
@@ -148,9 +196,19 @@ async fn subscribe(pipeline: &Pipeline, query: &str) -> (WsSink, WsStream) {
     }
     send_json(
         &mut sink,
-        json!({"type": "subscribe", "id": "op_1", "payload": {"query": query}}),
+        json!({"type": "subscribe", "id": "op_1", "payload": {"query": query, "variables": variables}}),
     )
     .await;
+    (sink, stream)
+}
+
+/// [`subscribe`] with `variables`.
+async fn subscribe_with(
+    pipeline: &Pipeline,
+    query: &str,
+    variables: &serde_json::Value,
+) -> (WsSink, WsStream) {
+    let (sink, stream) = handshake_and_send(pipeline, query, variables).await;
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
     while pipeline.manager.subscription_count() != 1 {
         assert!(tokio::time::Instant::now() < deadline, "subscription must register");
@@ -268,4 +326,112 @@ async fn change_log_burst_beyond_bridge_capacity_is_delivered_completely() {
 
     pipeline.stop().await;
     cleanup_test_data(&pool, &test_id).await.ok();
+}
+
+// ── #1158: what a subscription filter can silently ignore ───────────────────────────────
+//
+// `orderStatusChanged(status: String)` filters on `/status` (`filter_fields`). Each test
+// writes a `pending` row, then a `shipped` row, and subscribes for `shipped`: the first
+// frame must be the shipped row. Delivering the pending row first means the filter was
+// not applied, and the subscription silently matched every event.
+
+fn status_subscription(entity_type: &str) -> SubscriptionDefinition {
+    let mut definition = SubscriptionDefinition::new("orderStatusChanged", entity_type)
+        .with_argument(fraiseql_core::schema::ArgumentDefinition::optional(
+            "status",
+            fraiseql_core::schema::FieldType::String,
+        ));
+    definition.filter_fields = vec!["status".to_string()];
+    definition
+}
+
+/// Write a `pending` row, then a `shipped` row; the id of each.
+async fn write_pending_then_shipped(pool: &sqlx::PgPool, entity_type: &str) -> (String, String) {
+    let mut ids = Vec::new();
+    for status in ["pending", "shipped"] {
+        let id = Uuid::new_v4().to_string();
+        insert_change_log_entry(
+            pool,
+            "INSERT",
+            entity_type,
+            &id,
+            json!({"id": id, "status": status}),
+            None,
+        )
+        .await
+        .expect("insert change-log row");
+        ids.push(id);
+    }
+    (ids.remove(0), ids.remove(0))
+}
+
+/// The id the first `next` frame delivers.
+async fn first_delivered_id(stream: &mut WsStream) -> String {
+    let frame = recv_next(stream, std::time::Duration::from_secs(10)).await;
+    frame
+        .pointer("/payload/data/orderStatusChanged/id")
+        .and_then(|v| v.as_str())
+        .unwrap_or_else(|| panic!("next frame carries the entity id: {frame}"))
+        .to_string()
+}
+
+/// A subscription filtered by `query` (and `variables`) for `shipped` must deliver the
+/// shipped row first, the pending row never: unplanned, and planned by an executor.
+async fn assert_filtered_to_shipped(query: &str, variables: serde_json::Value) {
+    for planned in [false, true] {
+        assert_filtered_to_shipped_as(query, &variables, planned).await;
+    }
+}
+
+async fn assert_filtered_to_shipped_as(query: &str, variables: &serde_json::Value, planned: bool) {
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+    let entity_type = format!("Order_{test_id}");
+    let pipeline = Pipeline::start_over(&pool, status_subscription(&entity_type), planned).await;
+    let (_sink, mut stream) = subscribe_with(&pipeline, query, variables).await;
+
+    let (_pending, shipped) = write_pending_then_shipped(&pool, &entity_type).await;
+    let delivered = first_delivered_id(&mut stream).await;
+
+    pipeline.stop().await;
+    cleanup_test_data(&pool, &test_id).await.ok();
+    assert_eq!(
+        delivered, shipped,
+        "{query} with {variables} (planned: {planned}): the pending row was delivered, so \
+         the filter was ignored"
+    );
+}
+
+/// Control: a variable named like the argument it feeds filters (what worked before).
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_variable_named_like_its_argument_filters() {
+    assert_filtered_to_shipped(
+        "subscription($status: String) { orderStatusChanged(status: $status) { id status } }",
+        json!({"status": "shipped"}),
+    )
+    .await;
+}
+
+/// An argument given inline, as GraphQL allows, filters too.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn an_inline_argument_filters() {
+    assert_filtered_to_shipped(
+        "subscription { orderStatusChanged(status: \"shipped\") { id status } }",
+        json!({}),
+    )
+    .await;
+}
+
+/// A variable named differently from the argument it feeds filters too.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn a_variable_named_unlike_its_argument_filters() {
+    assert_filtered_to_shipped(
+        "subscription($wanted: String) { orderStatusChanged(status: $wanted) { id status } }",
+        json!({"wanted": "shipped"}),
+    )
+    .await;
 }

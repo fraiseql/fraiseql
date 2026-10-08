@@ -913,6 +913,23 @@ async fn ws_e2e_filtering_by_a_field_the_subscriber_may_not_read_is_refused() {
     assert_eq!(frame["type"], "error", "the filter must be refused: {frame}");
 }
 
+/// The same filter given inline, or through a variable named unlike the argument, is
+/// refused too (#1158): the check reads the arguments the document gives the root field,
+/// not the variables by the argument's name.
+#[tokio::test]
+async fn ws_e2e_filtering_by_a_gated_field_is_refused_however_the_argument_is_spelled() {
+    for (query, variables) in [
+        ("subscription { orderCreated(secret: \"s3cr3t\") { id } }", json!({})),
+        (
+            "subscription($guess: String) { orderCreated(secret: $guess) { id } }",
+            json!({"guess": "s3cr3t"}),
+        ),
+    ] {
+        let frame = first_frame_after_publish(gated_order_manager(), query, variables).await;
+        assert_eq!(frame["type"], "error", "{query}: the filter must be refused: {frame}");
+    }
+}
+
 /// A policy reload re-plans every live subscription (ruling AC 7): the executor serving
 /// after the reload decides what the next event is served as. Here `note` gains a scope no
 /// role grants; an event after the reload must carry it masked.
@@ -1134,7 +1151,16 @@ async fn ws_ae1_a_routed_subscription_still_answers_the_tenant_check() {
 /// past the check.
 #[tokio::test]
 async fn ws_a_defaulted_tenant_variable_still_answers_the_tenant_check() {
-    let schema = Arc::new(schema_with_subscription("orderCreated", "Order"));
+    // The document passes `tenant_id`, so the subscription declares it: an undeclared
+    // argument is refused before the tenant check (#1158).
+    let mut schema = schema_with_subscription("orderCreated", "Order");
+    schema.subscriptions[0]
+        .arguments
+        .push(fraiseql_core::schema::ArgumentDefinition::optional(
+            "tenant_id",
+            FieldType::String,
+        ));
+    let schema = Arc::new(schema);
     let manager = Arc::new(SubscriptionManager::new(schema));
     let state = SubscriptionState::new(manager);
     let answer = answer_to_subscribe(
@@ -1146,6 +1172,28 @@ async fn ws_a_defaulted_tenant_variable_still_answers_the_tenant_check() {
     .await;
     let frame = answer.expect("the tenant check must refuse the subscribe");
     assert_eq!(frame["type"], "error", "{frame}");
+    assert_eq!(frame["payload"][0]["extensions"]["code"], "TENANT_MISMATCH", "{frame}");
+}
+
+/// A tenant given inline is an argument, not a variable, and is checked too (#1158).
+#[tokio::test]
+async fn ws_an_inline_tenant_argument_still_answers_the_tenant_check() {
+    let mut schema = schema_with_subscription("orderCreated", "Order");
+    schema.subscriptions[0]
+        .arguments
+        .push(fraiseql_core::schema::ArgumentDefinition::optional(
+            "tenant_id",
+            FieldType::String,
+        ));
+    let state = SubscriptionState::new(Arc::new(SubscriptionManager::new(Arc::new(schema))));
+    let answer = answer_to_subscribe(
+        state,
+        &[("x-tenant-id", "tenant_a")],
+        r#"subscription { orderCreated(tenant_id: "tenant_b") { id } }"#,
+        json!({}),
+    )
+    .await;
+    let frame = answer.expect("the tenant check must refuse the subscribe");
     assert_eq!(frame["payload"][0]["extensions"]["code"], "TENANT_MISMATCH", "{frame}");
 }
 
