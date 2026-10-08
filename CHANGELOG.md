@@ -24,7 +24,11 @@ disagreed, and the promise was the part that was wrong.
   argument, `Accept-Language` (q-values honoured) or an enriched-identity field, through an
   exact match, the explicit fallback, then RFC 4647 truncation, else `default`. Read
   transactions carry it as `fraiseql.locale` for user SQL. Tags are checked as BCP 47 at
-  compile and again at load. See `docs/features/request-locale.md`.
+  compile and again at load. Every transport resolves it: GraphQL (POST, GET, `QUERY`, SSE
+  including `@stream` continuations), REST (`?locale=`, reads, exports, writes), MCP, gRPC
+  (metadata), Arrow Flight (identity only), federation `_entities`, and async operations
+  (resolved at submission, stored in a new nullable `_system.async_operations.locale` column,
+  added in place). See `docs/features/request-locale.md`.
 
 ### Breaking
 

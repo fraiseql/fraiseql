@@ -34,6 +34,8 @@ pub struct AsyncOperation {
     pub variables:              Option<Value>,
     /// The submitter's serialized `SecurityContext` snapshot.
     pub security_context:       Value,
+    /// The request locale resolved at submission (#1512); the execution runs in it.
+    pub locale:                 Option<String>,
     /// `queued` / `running` / `succeeded` / `failed` / `cancelled`.
     pub state:                  String,
     /// Cancellation was requested while the operation was not cancellable
@@ -63,6 +65,7 @@ fn row_to_op(row: &sqlx::postgres::PgRow) -> AsyncOperation {
         document:               row.get("document"),
         variables:              row.get("variables"),
         security_context:       row.get("security_context"),
+        locale:                 row.get("locale"),
         state:                  row.get("state"),
         cancellation_requested: row.get("cancellation_requested"),
         attempts:               row.get("attempts"),
@@ -136,6 +139,10 @@ impl AsyncOperationStore {
 
             CREATE INDEX IF NOT EXISTS idx_async_operations_claim
                 ON _system.async_operations (state, heartbeat_at);
+
+            -- #1512: the request locale, resolved at submission. Added in place so a table
+            -- created by an earlier release gains it.
+            ALTER TABLE _system.async_operations ADD COLUMN IF NOT EXISTS locale TEXT;
             ",
         )
         .execute(&self.db)
@@ -158,13 +165,14 @@ impl AsyncOperationStore {
         document: &str,
         variables: Option<&Value>,
         security_context: &Value,
+        locale: Option<&str>,
         max_attempts: u32,
     ) -> Result<Uuid> {
         let row = sqlx::query(
             "INSERT INTO _system.async_operations
                (tenant_key, submitter, operation, document, variables, security_context,
-                max_attempts)
-             VALUES ($1, $2, $3, $4, $5, $6, $7)
+                locale, max_attempts)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
              RETURNING op_id",
         )
         .bind(tenant_key)
@@ -173,6 +181,7 @@ impl AsyncOperationStore {
         .bind(document)
         .bind(variables)
         .bind(security_context)
+        .bind(locale)
         .bind(i32::try_from(max_attempts).unwrap_or(1))
         .fetch_one(&self.db)
         .await

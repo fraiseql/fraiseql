@@ -170,8 +170,10 @@ pub(in super::super) async fn handle_sse(
     state.metrics.queries_total.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
 
     // Cost is charged once for the logical operation; every batch additionally
-    // passes the executor's own GATE-1 / max_operation_cost checks.
-    {
+    // passes the executor's own GATE-1 / max_operation_cost checks. The request locale
+    // (#1512) is resolved here, once, and carried to every batch: continuation batches run
+    // after this handler returns, where neither the headers nor a scope reach them.
+    let locale = {
         let dispatch = tenant_dispatch::dispatch_to_tenant(&state, tenant_key.as_deref())
             .map_err(|e| ErrorResponse::from_error(super::tenant_dispatch_error(&e)))?;
         let estimated_cost = tenant_dispatch::estimate_request_cost(
@@ -186,7 +188,13 @@ pub(in super::super) async fn handle_sse(
             estimated_cost,
         )
         .map_err(|e| ErrorResponse::from_error(super::tenant_dispatch_error(&e)))?;
-    }
+        crate::request_locale::resolve(
+            dispatch.executor.schema(),
+            Some(&headers),
+            Some(&crate::request_locale::json_argument(request.extensions.as_ref())),
+            security_context.as_ref(),
+        )
+    };
 
     let base_variables = match request.variables.clone() {
         Some(Value::Object(map)) => map,
@@ -220,6 +228,7 @@ pub(in super::super) async fn handle_sse(
         &initial_vars,
         security_context.as_ref(),
         op,
+        locale.as_deref(),
     )
     .await
     .map_err(ErrorResponse::from_error)?;
@@ -262,6 +271,7 @@ pub(in super::super) async fn handle_sse(
         security_context,
         auth_guard,
         tenant_key,
+        locale,
         response_key: plan.response_key,
         client_limit: plan.client_limit,
         batch_size,
@@ -488,6 +498,8 @@ struct BatchState {
     /// Re-checked before every continuation batch (#958).
     auth_guard:       StreamAuthGuard,
     tenant_key:       Option<String>,
+    /// The request's locale (#1512), resolved before the first batch.
+    locale:           Option<String>,
     response_key:     String,
     client_limit:     Option<u64>,
     batch_size:       u64,
@@ -554,6 +566,7 @@ async fn batch_step(mut st: BatchState) -> Option<(Chunk, BatchState)> {
                 &vars,
                 st.security_context.as_ref(),
                 st.operation_name.as_deref(),
+                st.locale.as_deref(),
             )
             .await;
             st.batches += 1;
@@ -628,18 +641,25 @@ async fn run_batch(
     variables: &Value,
     security_context: Option<&SecurityContext>,
     operation_name: Option<&str>,
+    locale: Option<&str>,
 ) -> Result<Value, GraphQLError> {
     let dispatch = tenant_dispatch::dispatch_to_tenant(state, tenant_key)
         .map_err(|e| super::tenant_dispatch_error(&e))?;
     let executor = &dispatch.executor;
 
-    let result = if let Some(ctx) = security_context {
-        executor
-            .execute_operation_with_security(query, Some(variables), ctx, operation_name)
-            .await
-    } else {
-        executor.execute_operation(query, Some(variables), operation_name).await
-    };
+    let result = crate::request_locale::scoped(
+        locale.map(str::to_string),
+        Box::pin(async {
+            if let Some(ctx) = security_context {
+                executor
+                    .execute_operation_with_security(query, Some(variables), ctx, operation_name)
+                    .await
+            } else {
+                executor.execute_operation(query, Some(variables), operation_name).await
+            }
+        }),
+    )
+    .await;
 
     #[allow(unused_mut)]
     // Reason: mut is required by decrypt_response_fields under the secrets feature

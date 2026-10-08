@@ -16,11 +16,16 @@ use std::sync::Arc;
 
 use fraiseql_cli::commands::compile::{CompileOptions, compile_to_schema};
 use fraiseql_core::{
-    db::postgres::PostgresAdapter, prelude::DatabaseAdapter as _, schema::CompiledSchema,
+    db::postgres::PostgresAdapter,
+    prelude::DatabaseAdapter as _,
+    runtime::Executor,
+    schema::{CompiledSchema, McpConfig, RestConfig},
 };
 use fraiseql_server::{
     Server,
-    server_config::{Hs256Config, ServerConfig},
+    mcp::handler::FraiseQLMcpService,
+    routes::graphql::AppState,
+    server_config::{AsyncOperationsConfig, Hs256Config, ServerConfig},
 };
 use fraiseql_test_support::try_database_url;
 use serde_json::{Value, json};
@@ -98,9 +103,8 @@ enum Auth {
     Enriched,
 }
 
-async fn start(schema: CompiledSchema, auth: Auth) -> Option<Running> {
-    let url = try_database_url()?;
-    let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
+/// The probe view and the actor table.
+async fn seed(adapter: &PostgresAdapter) {
     for ddl in [
         format!("DROP VIEW IF EXISTS {VIEW}"),
         format!(
@@ -113,6 +117,20 @@ async fn start(schema: CompiledSchema, auth: Auth) -> Option<Running> {
     ] {
         adapter.execute_raw_query(&ddl).await.unwrap();
     }
+}
+
+async fn start(schema: CompiledSchema, auth: Auth) -> Option<Running> {
+    start_with(schema, auth, |_| {}).await
+}
+
+async fn start_with(
+    schema: CompiledSchema,
+    auth: Auth,
+    tweak: impl FnOnce(&mut ServerConfig),
+) -> Option<Running> {
+    let url = try_database_url()?;
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
+    seed(&adapter).await;
     std::env::set_var(SECRET_ENV, SECRET);
     let authenticated = auth != Auth::None;
     let mut config = ServerConfig {
@@ -125,7 +143,7 @@ async fn start(schema: CompiledSchema, auth: Auth) -> Option<Running> {
         cors_enabled: false,
         ..ServerConfig::default()
     };
-    let pool = if auth == Auth::Enriched {
+    if auth == Auth::Enriched {
         config.identity = serde_json::from_value(json!({
             "enrichment": {
                 "enabled": true,
@@ -134,10 +152,10 @@ async fn start(schema: CompiledSchema, auth: Auth) -> Option<Running> {
             }
         }))
         .unwrap();
-        Some(sqlx::PgPool::connect(&config.database_url).await.unwrap())
-    } else {
-        None
-    };
+    }
+    // The pool backs `[identity.enrichment]` and async operations; inert otherwise.
+    let pool = Some(sqlx::PgPool::connect(&config.database_url).await.unwrap());
+    tweak(&mut config);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
     let server = Box::pin(Server::new(config, schema, adapter, pool)).await.unwrap();
@@ -346,4 +364,283 @@ async fn an_enrichment_source_nothing_produces_refuses_to_boot() {
         err.to_string().contains("is not enabled"),
         "refused as an enrichment consumer without a resolver: {err}"
     );
+}
+
+/// Cycle 4: an anonymous request has no principal and so no session variables of its own, but
+/// it still has a locale. GraphQL POST and GET.
+#[tokio::test]
+async fn an_anonymous_request_gets_its_locale_too() {
+    let schema = compile(LOCALE_TOML).await.unwrap();
+    let Some(server) = start(schema, Auth::None).await else {
+        return;
+    };
+    assert_eq!(
+        graphql_locale(&server, None, &[("accept-language", "de-DE")], None).await,
+        json!("de-DE"),
+        "anonymous POST"
+    );
+    let body: Value = reqwest::Client::new()
+        .get(format!("{}/graphql", server.base))
+        .query(&[("query", "{ localeProbes { locale } }")])
+        .header("accept-language", "fr-BE")
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(body["data"]["localeProbes"][0]["locale"], json!("fr"), "anonymous GET: {body}");
+}
+
+/// Cycle 4: REST reads resolve the locale from `?locale=` (the explicit argument), the
+/// headers and the identity, for the JSON envelope and for an NDJSON export (whose statement
+/// opens in the handler and whose rows are pulled after it returns).
+#[tokio::test]
+async fn rest_reads_run_in_the_request_locale() {
+    let mut schema = compile(LOCALE_TOML).await.unwrap();
+    schema.rest_config = Some(RestConfig {
+        enabled: true,
+        ..RestConfig::default()
+    });
+    schema.queries[0].rest_stream = true;
+    let Some(server) = start(schema, Auth::None).await else {
+        return;
+    };
+    let client = reqwest::Client::new();
+    let url = format!("{}/rest/v1/locale_probes", server.base);
+    let rest = |url: String, accept_language: &'static str| {
+        let client = client.clone();
+        async move {
+            let response = client
+                .get(&url)
+                .header("accept-language", accept_language)
+                .send()
+                .await
+                .unwrap();
+            let status = response.status();
+            let text = response.text().await.unwrap();
+            assert!(status.is_success(), "GET {url}: {status} {text}");
+            serde_json::from_str::<Value>(&text).unwrap()
+        }
+    };
+
+    let body = rest(url.clone(), "fr-CA").await;
+    assert_eq!(body["data"][0]["locale"], json!("fr-FR"), "REST header: {body}");
+
+    let body = rest(format!("{url}?locale=de-DE"), "fr").await;
+    assert_eq!(body["data"][0]["locale"], json!("de-DE"), "?locale= wins: {body}");
+
+    let text = client
+        .get(&url)
+        .header("accept", "application/x-ndjson")
+        .header("accept-language", "en-GB")
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    let row: Value = serde_json::from_str(text.lines().next().unwrap_or_default())
+        .unwrap_or_else(|e| panic!("NDJSON row ({e}): {text}"));
+    assert_eq!(row["locale"], json!("en-GB"), "NDJSON export: {text}");
+}
+
+/// Cycle 4: an MCP tool call runs in the request's locale. Driven through
+/// `call_tool_authenticated`, the seam under `ServerHandler::call_tool`, with the headers the
+/// HTTP transport hands it.
+#[tokio::test]
+async fn an_mcp_tool_call_runs_in_the_request_locale() {
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    let schema = compile(LOCALE_TOML).await.unwrap();
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
+    seed(&adapter).await;
+    let service = FraiseQLMcpService::new(
+        AppState::new(Arc::new(Executor::new(schema, adapter))),
+        McpConfig {
+            enabled: true,
+            require_auth: false,
+            ..McpConfig::default()
+        },
+    );
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert("accept-language", "fr-CA".parse().unwrap());
+    let result = service
+        .call_tool_authenticated("localeProbes", None, None, "mcp-locale".to_string(), &headers)
+        .await;
+    let text = result
+        .content
+        .first()
+        .and_then(|c| c.as_text().map(|t| t.text.clone()))
+        .unwrap_or_default();
+    assert_ne!(result.is_error, Some(true), "{text}");
+    assert!(text.contains("\"fr-FR\""), "the tool read ran in fr-FR: {text}");
+}
+
+/// Cycle 4: a GraphQL `@stream` over SSE runs its continuation batches after the handler has
+/// returned, where no scope reaches. `initialCount: 0` puts the probe row in a continuation.
+#[tokio::test]
+async fn a_streamed_continuation_batch_runs_in_the_request_locale() {
+    let schema = compile(LOCALE_TOML).await.unwrap();
+    let Some(server) = start_with(schema, Auth::None, |config| {
+        config.enable_graphql_incremental = true;
+        config.graphql_incremental_batch_size = Some(1);
+    })
+    .await
+    else {
+        return;
+    };
+    let text = reqwest::Client::new()
+        .post(format!("{}/graphql", server.base))
+        .header("accept", "text/event-stream")
+        .header("accept-language", "de-DE")
+        .json(&json!({ "query": "{ localeProbes @stream(initialCount: 0) { locale } }" }))
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap();
+    let streamed: Vec<Value> = text
+        .split("\n\n")
+        .filter_map(|block| block.lines().find_map(|l| l.strip_prefix("data:")))
+        .filter_map(|data| serde_json::from_str::<Value>(data.trim()).ok())
+        .flat_map(|payload| {
+            payload["incremental"].as_array().cloned().unwrap_or_default().into_iter()
+        })
+        .flat_map(|entry| entry["items"].as_array().cloned().unwrap_or_default().into_iter())
+        .collect();
+    assert_eq!(streamed, vec![json!({ "locale": "de-DE" })], "the continuation batch: {text}");
+}
+
+/// Cycle 4: an async operation executes later, on a worker with no request to resolve a locale
+/// from. The locale is resolved at submission and stored with the operation.
+#[tokio::test]
+async fn an_async_operation_executes_in_the_locale_it_was_submitted_in() {
+    let schema = compile(LOCALE_TOML).await.unwrap();
+    let Some(server) = start_with(schema, Auth::Hs256, |config| {
+        config.async_operations = Some(AsyncOperationsConfig {
+            operations: vec!["localeProbes".to_string()],
+            workers: 1,
+            poll_interval_ms: 100,
+            ..AsyncOperationsConfig::default()
+        });
+    })
+    .await
+    else {
+        return;
+    };
+    let client = reqwest::Client::new();
+    let token = token_for("async-locale");
+    let submitted: Value = client
+        .post(format!("{}/operations/v1/localeProbes", server.base))
+        .bearer_auth(&token)
+        .header("accept-language", "fr-CA")
+        .json(&json!({ "query": "{ localeProbes { locale } }" }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    let op_id = submitted["op_id"].as_str().unwrap_or_else(|| panic!("{submitted}")).to_string();
+    let mut terminal = Value::Null;
+    for _ in 0..100 {
+        terminal = client
+            .get(format!("{}/operations/v1/{op_id}", server.base))
+            .bearer_auth(&token)
+            .send()
+            .await
+            .unwrap()
+            .json()
+            .await
+            .unwrap();
+        if terminal["status"] != json!("queued") && terminal["status"] != json!("running") {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    assert_eq!(
+        terminal["result"]["data"]["localeProbes"][0]["locale"],
+        json!("fr-FR"),
+        "executed in the submission's locale: {terminal}"
+    );
+}
+
+/// Cycle 4: a federation `_entities` lookup is a read like any other, through its own
+/// session-variable builder (one of four copies before #1512 unified them).
+#[cfg(feature = "federation")]
+#[tokio::test]
+async fn a_federation_entity_lookup_runs_in_the_request_locale() {
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
+    for ddl in [
+        "DROP VIEW IF EXISTS v_locale_fed_probe",
+        "CREATE VIEW v_locale_fed_probe AS SELECT 'p1'::text AS id, jsonb_build_object('id', \
+         'p1', 'locale', current_setting('fraiseql.locale', true)) AS data",
+    ] {
+        adapter.execute_raw_query(ddl).await.unwrap();
+    }
+    let schema = CompiledSchema::from_json(
+        &json!({
+            "fraiseql_version": env!("CARGO_PKG_VERSION"),
+            "types": [{
+                "name": "LocaleFedProbe",
+                "sql_source": "v_locale_fed_probe",
+                "fields": [
+                    {"name": "id", "field_type": "ID", "nullable": false},
+                    {"name": "locale", "field_type": "String", "nullable": true}
+                ]
+            }],
+            "queries": [{
+                "name": "localeFedProbe", "return_type": "LocaleFedProbe", "returns_list": false,
+                "nullable": true, "sql_source": "v_locale_fed_probe", "jsonb_column": "data",
+                "arguments": [{"name": "id", "arg_type": "ID", "nullable": false}]
+            }],
+            "mutations": [], "subscriptions": [],
+            "federation": {
+                "enabled": true, "version": "v2", "service_name": "locale",
+                "entities": [{"name": "LocaleFedProbe", "key_fields": ["id"]}]
+            },
+            "locale": {"default": "en-US", "allowed": ["en-US", "fr", "de-DE"]}
+        })
+        .to_string(),
+        false,
+    )
+    .unwrap();
+    let config = ServerConfig {
+        database_url: url,
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let port = listener.local_addr().unwrap().port();
+    let server = Box::pin(Server::new(config, schema, adapter, None)).await.unwrap();
+    let (_tx, rx) = tokio::sync::oneshot::channel::<()>();
+    tokio::spawn(async move {
+        server
+            .serve_on_listener(listener, async {
+                let _ = rx.await;
+            })
+            .await
+    });
+    tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+    let body: Value = reqwest::Client::new()
+        .post(format!("http://127.0.0.1:{port}/graphql"))
+        .header("accept-language", "fr-BE")
+        .json(&json!({
+            "query": "query($representations: [_Any!]!) { _entities(representations: \
+                      $representations) { ... on LocaleFedProbe { id locale } } }",
+            "variables": { "representations": [{ "__typename": "LocaleFedProbe", "id": "p1" }] }
+        }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert_eq!(body["data"]["_entities"][0]["locale"], json!("fr"), "{body}");
 }

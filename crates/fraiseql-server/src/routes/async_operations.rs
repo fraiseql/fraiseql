@@ -248,6 +248,15 @@ async fn submit(
             );
         },
     };
+    // #1512: the locale is resolved now, from this request, and stored with the operation:
+    // the worker that executes it has no request to resolve one from.
+    // The tenant's executor, read without charging its quotas a second time.
+    let locale = match state.app.executor_for_tenant(tenant_key.as_deref()) {
+        Ok(executor) => {
+            crate::request_locale::resolve(executor.schema(), Some(&headers), None, Some(&ctx))
+        },
+        Err(e) => return error_response(tenant_refusal_status(&e), &e.to_string()),
+    };
     let op_id = match state
         .runtime
         .store
@@ -258,6 +267,7 @@ async fn submit(
             &body.query,
             body.variables.as_ref(),
             &ctx_json,
+            locale.as_deref(),
             state.runtime.config.max_attempts,
         )
         .await

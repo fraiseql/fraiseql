@@ -408,7 +408,7 @@ fn build_openapi_spec(
 fn serve_openapi(
     spec: Arc<serde_json::Value>,
 ) -> impl Fn(RestSecurityContext) -> std::future::Ready<axum::Json<serde_json::Value>> + Clone {
-    move |RestSecurityContext(_)| std::future::ready(axum::Json((*spec).clone()))
+    move |RestSecurityContext(_, _)| std::future::ready(axum::Json((*spec).clone()))
 }
 
 // ---------------------------------------------------------------------------
@@ -495,7 +495,10 @@ struct RestState {
 /// enriched read failed for every caller while an unknown subject was served the rows
 /// `/graphql` refused it. The resolution runs here for the same reason the auth check
 /// does: a handler cannot hold a context this extractor did not finish building.
-struct RestSecurityContext(Option<SecurityContext>);
+///
+/// It also resolves the request's locale (#1512) — from `?locale=`, the headers and the
+/// identity it has just resolved — which the handlers scope their work in.
+struct RestSecurityContext(Option<SecurityContext>, Option<String>);
 
 impl FromRequestParts<RestState> for RestSecurityContext {
     type Rejection = Response;
@@ -510,6 +513,7 @@ impl FromRequestParts<RestState> for RestSecurityContext {
         let sanitizer = Arc::clone(&state.error_sanitizer);
         #[cfg(feature = "auth")]
         let resolver = state.identity_resolver.clone();
+        let executor = Arc::clone(&state.executor);
 
         async move {
             let OptionalSecurityContext(security_ctx) =
@@ -548,7 +552,16 @@ impl FromRequestParts<RestState> for RestSecurityContext {
                 }
             };
 
-            Ok(Self(security_ctx))
+            let query_pairs = parse_query_pairs(parts.uri.query().unwrap_or(""));
+            let argument =
+                |name: &str| query_pairs.iter().find(|(k, _)| k == name).map(|(_, v)| v.clone());
+            let locale = crate::request_locale::resolve(
+                executor.schema(),
+                Some(&parts.headers),
+                Some(&argument),
+                security_ctx.as_ref(),
+            );
+            Ok(Self(security_ctx, locale))
         }
     }
 }
@@ -556,6 +569,19 @@ impl FromRequestParts<RestState> for RestSecurityContext {
 // ---------------------------------------------------------------------------
 // Axum handlers
 // ---------------------------------------------------------------------------
+
+/// [`rest_get_handler_in_locale`], run in the request's locale (#1512).
+async fn rest_get_handler(
+    State(rest): State<RestState>,
+    RestSecurityContext(security_ctx, locale): RestSecurityContext,
+    request: Request<Body>,
+) -> Response {
+    crate::request_locale::scoped(
+        locale,
+        Box::pin(rest_get_handler_in_locale(State(rest), security_ctx, request)),
+    )
+    .await
+}
 
 /// GET handler — query execution (single resource or collection).
 ///
@@ -565,9 +591,9 @@ impl FromRequestParts<RestState> for RestSecurityContext {
 /// - `Accept: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` → XLSX workbook
 ///   (with `export-xlsx` feature)
 /// - `Accept: application/json` (default) → standard envelope response
-async fn rest_get_handler(
+async fn rest_get_handler_in_locale(
     State(rest): State<RestState>,
-    RestSecurityContext(security_ctx): RestSecurityContext,
+    security_ctx: Option<SecurityContext>,
     request: Request<Body>,
 ) -> Response {
     let (parts, _body) = request.into_parts();
@@ -720,10 +746,23 @@ async fn rest_get_handler(
     rest_result_to_response(result, &rest.error_sanitizer)
 }
 
-/// POST handler — create mutation or custom action.
+/// [`rest_post_handler_in_locale`], run in the request's locale (#1512).
 async fn rest_post_handler(
     State(rest): State<RestState>,
-    RestSecurityContext(security_ctx): RestSecurityContext,
+    RestSecurityContext(security_ctx, locale): RestSecurityContext,
+    request: Request<Body>,
+) -> Response {
+    crate::request_locale::scoped(
+        locale,
+        Box::pin(rest_post_handler_in_locale(State(rest), security_ctx, request)),
+    )
+    .await
+}
+
+/// POST handler — create mutation or custom action.
+async fn rest_post_handler_in_locale(
+    State(rest): State<RestState>,
+    security_ctx: Option<SecurityContext>,
     request: Request<Body>,
 ) -> Response {
     let (parts, body) = request.into_parts();
@@ -746,10 +785,23 @@ async fn rest_post_handler(
     rest_result_to_response(result, &rest.error_sanitizer)
 }
 
-/// PUT handler — full update mutation.
+/// [`rest_put_handler_in_locale`], run in the request's locale (#1512).
 async fn rest_put_handler(
     State(rest): State<RestState>,
-    RestSecurityContext(security_ctx): RestSecurityContext,
+    RestSecurityContext(security_ctx, locale): RestSecurityContext,
+    request: Request<Body>,
+) -> Response {
+    crate::request_locale::scoped(
+        locale,
+        Box::pin(rest_put_handler_in_locale(State(rest), security_ctx, request)),
+    )
+    .await
+}
+
+/// PUT handler — full update mutation.
+async fn rest_put_handler_in_locale(
+    State(rest): State<RestState>,
+    security_ctx: Option<SecurityContext>,
     request: Request<Body>,
 ) -> Response {
     let (parts, body) = request.into_parts();
@@ -771,10 +823,23 @@ async fn rest_put_handler(
     rest_result_to_response(result, &rest.error_sanitizer)
 }
 
-/// PATCH handler — partial update mutation or bulk update.
+/// [`rest_patch_handler_in_locale`], run in the request's locale (#1512).
 async fn rest_patch_handler(
     State(rest): State<RestState>,
-    RestSecurityContext(security_ctx): RestSecurityContext,
+    RestSecurityContext(security_ctx, locale): RestSecurityContext,
+    request: Request<Body>,
+) -> Response {
+    crate::request_locale::scoped(
+        locale,
+        Box::pin(rest_patch_handler_in_locale(State(rest), security_ctx, request)),
+    )
+    .await
+}
+
+/// PATCH handler — partial update mutation or bulk update.
+async fn rest_patch_handler_in_locale(
+    State(rest): State<RestState>,
+    security_ctx: Option<SecurityContext>,
     request: Request<Body>,
 ) -> Response {
     let (parts, body) = request.into_parts();
@@ -806,10 +871,23 @@ async fn rest_patch_handler(
     rest_result_to_response(result, &rest.error_sanitizer)
 }
 
-/// DELETE handler — single-resource delete or bulk delete.
+/// [`rest_delete_handler_in_locale`], run in the request's locale (#1512).
 async fn rest_delete_handler(
     State(rest): State<RestState>,
-    RestSecurityContext(security_ctx): RestSecurityContext,
+    RestSecurityContext(security_ctx, locale): RestSecurityContext,
+    request: Request<Body>,
+) -> Response {
+    crate::request_locale::scoped(
+        locale,
+        Box::pin(rest_delete_handler_in_locale(State(rest), security_ctx, request)),
+    )
+    .await
+}
+
+/// DELETE handler — single-resource delete or bulk delete.
+async fn rest_delete_handler_in_locale(
+    State(rest): State<RestState>,
+    security_ctx: Option<SecurityContext>,
     request: Request<Body>,
 ) -> Response {
     let (parts, _body) = request.into_parts();
@@ -905,6 +983,19 @@ async fn resume_state(
     }))
 }
 
+/// [`rest_sse_handler_in_locale`], run in the request's locale (#1512).
+async fn rest_sse_handler(
+    State(rest): State<RestState>,
+    RestSecurityContext(security_ctx, locale): RestSecurityContext,
+    request: Request<Body>,
+) -> Response {
+    crate::request_locale::scoped(
+        locale,
+        Box::pin(rest_sse_handler_in_locale(State(rest), security_ctx, request)),
+    )
+    .await
+}
+
 /// SSE handler — stream entity change events in real-time.
 ///
 /// Returns `501 Not Implemented` when the `observers` feature is disabled.
@@ -917,7 +1008,7 @@ async fn resume_state(
 ///
 /// The body reads it as well, since #1113: it scopes the event subscription to the
 /// caller's tenant. Before that it was bound as `_security_ctx` and discarded.
-async fn rest_sse_handler(
+async fn rest_sse_handler_in_locale(
     State(rest): State<RestState>,
     // Read only by the live-event branch below, which is `observers`-gated, so a
     // `rest`-without-`observers` build warns that it is unused — a warning preflight
@@ -928,8 +1019,9 @@ async fn rest_sse_handler(
     // caller's context bound and discarded — and restoring the spelling would make the
     // defect look like the intended state again. Same treatment, and the same reason, as
     // `mount` in `derive_rest_context` (#1291).
-    #[cfg_attr(not(feature = "observers"), allow(unused_variables))]
-    RestSecurityContext(security_ctx): RestSecurityContext,
+    #[cfg_attr(not(feature = "observers"), allow(unused_variables))] security_ctx: Option<
+        SecurityContext,
+    >,
     request: Request<Body>,
 ) -> Response {
     let (parts, _body) = request.into_parts();

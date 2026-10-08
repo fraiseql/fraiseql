@@ -1883,7 +1883,8 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1512 — the request locale: `[locale]` compiled through the real compiler, loaded
 		// through `from_json`, resolved per request and read back as `fraiseql.locale`
 		// through a view, on every transport the suite drives; never on a write.
-		"cargo test -p fraiseql-server --features rest,mcp --test locale_context_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server --features rest,mcp,federation --test locale_context_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server --features grpc --test locale_grpc_e2e_pg -- --test-threads=1",
 		// P13 — the REST write surface (#865) and the four defects that had to be green
 		// before it could be mounted. Every one of these suites drives real PostgreSQL;
 		// three of them drive the real `Server::serve_on_listener` mount rather than

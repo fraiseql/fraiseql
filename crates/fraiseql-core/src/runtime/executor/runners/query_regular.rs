@@ -1132,20 +1132,26 @@ impl QueryRunner {
         let order_by_clauses =
             apply_pagination_order(order_by_clauses, &query_match.query_def, limit, offset);
 
-        // No session vars: this is the unauthenticated entrypoint (no
-        // SecurityContext), so there is nothing to resolve session variables
-        // from. See #329 / resolve_session_vars.
+        // The unauthenticated entrypoint has no principal to resolve session variables
+        // from, but it still runs in the request locale (#1512): the same one builder.
+        let resolved_session_vars = self.resolve_session_vars(None)?;
+        let session_pairs: Vec<(&str, &str)> =
+            resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
         let results = self
             .ctx
             .adapter
-            .execute_with_projection_arc(&crate::backend::ProjectionRequest {
-                view: sql_source,
-                projection: projection_hint.as_ref(),
-                where_clause: user_where.as_ref(),
-                order_by: order_by_clauses.as_deref(),
-                limit,
-                offset,
-            })
+            .execute_with_projection_arc_with_session(
+                &crate::backend::ProjectionRequest {
+                    view: sql_source,
+                    projection: projection_hint.as_ref(),
+                    where_clause: user_where.as_ref(),
+                    order_by: order_by_clauses.as_deref(),
+                    limit,
+                    offset,
+                },
+                &session_pairs,
+                query_match.query_def.read_routing,
+            )
             .await?;
 
         // The response-bytes ceiling, on the anonymous document entry.

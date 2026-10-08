@@ -123,8 +123,6 @@ impl DynamicGrpcService {
         method: &str,
         req: http::Request<TonicBody>,
     ) -> http::Response<TonicBody> {
-        use http_body_util::BodyExt as _;
-
         let Some(op) = self.dispatch.get(method) else {
             return grpc_error_response(
                 tonic::Code::Unimplemented,
@@ -193,6 +191,31 @@ impl DynamicGrpcService {
         }
 
         // Collect the body bytes.
+        // #1512: everything that reaches the engine runs in the request's locale. gRPC has
+        // no explicit locale argument; the metadata (headers) and the identity apply.
+        let locale = crate::request_locale::resolve(
+            self.executor.schema(),
+            Some(req.headers()),
+            None,
+            security_context.as_ref(),
+        );
+        crate::request_locale::scoped(
+            locale,
+            Box::pin(self.handle_authenticated(method, op, req, security_context)),
+        )
+        .await
+    }
+
+    /// The rest of [`handle_request`](Self::handle_request), once the caller is known.
+    async fn handle_authenticated(
+        &self,
+        method: &str,
+        op: &handler::RpcOperation,
+        req: http::Request<TonicBody>,
+        security_context: Option<SecurityContext>,
+    ) -> http::Response<TonicBody> {
+        use http_body_util::BodyExt as _;
+
         let body_bytes: bytes::Bytes = match req.into_body().collect().await {
             Ok(collected) => collected.to_bytes(),
             Err(e) => {

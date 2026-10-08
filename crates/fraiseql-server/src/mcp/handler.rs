@@ -311,16 +311,28 @@ impl FraiseQLMcpService {
             None => Vec::new(),
         };
 
-        let mut result = super::executor::call_tool(
-            tool_name,
-            arguments,
-            &super::executor::McpCallContext {
-                schema: &self.schema,
-                executor: &dispatch.executor,
-                config: &self.config,
-                security_context,
-                error_sanitizer: sanitizer,
-            },
+        // #1512: the call runs in the request's locale. MCP has no explicit locale argument
+        // (a tool's arguments are its operation's); headers and the identity apply, and the
+        // stdio transport, which carries no headers, gets the identity's or the default.
+        let locale = crate::request_locale::resolve(
+            dispatch.executor.schema(),
+            Some(headers),
+            None,
+            security_context,
+        );
+        let mut result = crate::request_locale::scoped(
+            locale,
+            Box::pin(super::executor::call_tool(
+                tool_name,
+                arguments,
+                &super::executor::McpCallContext {
+                    schema: &self.schema,
+                    executor: &dispatch.executor,
+                    config: &self.config,
+                    security_context,
+                    error_sanitizer: sanitizer,
+                },
+            )),
         )
         .await;
 

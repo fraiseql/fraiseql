@@ -108,10 +108,13 @@ async fn execute_claimed(
     let hb_store = Arc::clone(&store);
     let hb_interval = Duration::from_secs((runtime.config.stuck_threshold_secs / 3).max(1));
     let op_id = op.op_id;
-    let execution =
+    // Run in the locale resolved at submission (#1512).
+    let execution = crate::request_locale::scoped(
+        op.locale.clone(),
         dispatch
             .executor
-            .execute_with_security(&op.document, op.variables.as_ref(), &ctx);
+            .execute_with_security(&op.document, op.variables.as_ref(), &ctx),
+    );
     tokio::pin!(execution);
     let mut hb_ticker = tokio::time::interval(hb_interval);
     hb_ticker.set_missed_tick_behavior(MissedTickBehavior::Skip);
