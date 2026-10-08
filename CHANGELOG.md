@@ -20,6 +20,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A fact table that declares one dimension twice, in disagreeing ways, is refused at compile
+  and load (#1231).** A `native_dimension_mapping` key that `denormalized_filters` also declares
+  as a column of another name, or two casings of one key (`itemCategory`, `item_category`) mapped
+  to different columns: a request read one or the other depending on the path that parsed it.
+  Declare the dimension once.
+
 - **`fraiseql-observers` loses `CheckpointStrategy` (#1505).** The type and its
   `EffectivelyOnce { idempotency_table }` variant, `create_table_if_not_exists`, `is_duplicate`
   and `record_idempotency_key` had no caller: neither `fraiseql-server` nor the library's own
@@ -658,6 +664,19 @@ disagreed, and the promise was the part that was wrong.
   `EventTransport::subscribe_broadcast`.
 
 ### Fixed
+
+- **A dimension mapped to a native column is filtered on that column, in either key casing
+  (#1231).** `native_dimension_mapping` was read by `groupBy` only: a fact table mapping
+  `category` to `category_id` grouped on the column and filtered on `data->>'category'`, and a
+  mapping declared in the other casing (`item_category` for a request's `itemCategory`) never
+  fired, silently. `where` now reads the mapped column, cast as the column's declared filter
+  type; keys compare in `snake_case` segment by segment; and a mapped `groupBy` answers under the
+  key the request used (`category`), where it answered under the column's name. Along the way:
+  no `int`, `bigint`, `uuid` or other typed denormalized filter column could be filtered on
+  PostgreSQL at all (`"col" = $1::int4` typed a text-bound parameter as a binary integer:
+  "insufficient data left in message"); a typed native comparison now casts through text
+  (`$1::text::int4`), `IN` elements included. Deep dimension paths in `where` and mappings
+  onto undeclared columns are #1517.
 
 - **The Row-Level Security boot refusal reads as one sentence.** Its message printed runs of
   spaces mid-sentence ("is not in                  force on 3 of its source relation(s)").

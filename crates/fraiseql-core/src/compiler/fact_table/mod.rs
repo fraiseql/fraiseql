@@ -95,6 +95,13 @@ pub struct FactTableMetadata {
     pub native_dimension_mapping: HashMap<String, String>,
 }
 
+/// A dimension key in the form `native_dimension_mapping` keys compare in (#1231): each
+/// `.` segment in `snake_case`, so `itemCategory` and `item_category` name one dimension.
+#[must_use]
+pub fn dimension_key(key: &str) -> String {
+    key.split('.').map(crate::utils::to_snake_case).collect::<Vec<_>>().join(".")
+}
+
 /// A measure column (aggregatable numeric type)
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MeasureColumn {

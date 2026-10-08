@@ -41,6 +41,21 @@ fn fact_table_schema(measures: &str) -> String {
     )
 }
 
+/// A fact table read as no type, with `filters` and `mapping` spliced in.
+fn unlinked_fact_table(filters: &str, mapping: &str) -> String {
+    format!(
+        r#"{{
+  "fact_tables": [{{
+    "table_name": "tf_sales",
+    "measures": [{{"name": "revenue", "sql_type": "numeric", "nullable": false}}],
+    "dimensions": {{"name": "data", "paths": []}},
+    "denormalized_filters": [{filters}],
+    "native_dimension_mapping": {mapping}
+  }}]
+}}"#
+    )
+}
+
 /// A scoped field and no `security` section: no role can grant the scope.
 const SCOPE_WITHOUT_SECURITY: &str = r#"{
   "types": [{
@@ -82,6 +97,43 @@ async fn compile_refuses_what_the_server_would_refuse_to_load() {
         .expect_err("`requires_scope` without a `security` section must not compile");
     let msg = format!("{err:#}");
     assert!(msg.contains("read:salary"), "names the scope: {msg}");
+
+    // #1231: one dimension declared twice, in two vocabularies that disagree: a filter
+    // column named `category`, and a mapping of `category` to another column. A request
+    // would read one or the other depending on which path parsed it.
+    let conflicting = unlinked_fact_table(
+        r#"{"name": "category", "sql_type": "text", "indexed": true}"#,
+        r#"{"category": "category_id"}"#,
+    );
+    let err = compile(&conflicting)
+        .await
+        .expect_err("a dimension mapped to one column and filtered as another must not compile");
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("native_dimension_mapping") && msg.contains("denormalized_filters"),
+        "names both declarations: {msg}"
+    );
+    assert!(msg.contains("category_id"), "names the mapped column: {msg}");
+
+    // #1231: two mapping keys for one dimension in two casings, to different columns.
+    let twice = unlinked_fact_table("", r#"{"itemCategory": "a_col", "item_category": "b_col"}"#);
+    let err = compile(&twice)
+        .await
+        .expect_err("one dimension mapped to two columns must not compile");
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("itemCategory") && msg.contains("item_category"),
+        "names both keys: {msg}"
+    );
+
+    // Control: a mapping that agrees with the filter columns compiles.
+    let agreeing = unlinked_fact_table(
+        r#"{"name": "category_id", "sql_type": "int", "indexed": true}"#,
+        r#"{"category": "category_id"}"#,
+    );
+    compile(&agreeing)
+        .await
+        .expect("a mapping onto a declared filter column compiles");
 
     // Control: the complete link compiles.
     let complete =

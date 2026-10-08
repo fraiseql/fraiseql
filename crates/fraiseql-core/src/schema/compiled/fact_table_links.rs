@@ -42,6 +42,51 @@ fn declared_names(metadata: &FactTableMetadata) -> Vec<&str> {
 }
 
 impl CompiledSchema {
+    /// Fact tables that declare one dimension twice, in ways a request could read two
+    /// ways (#1231): a `native_dimension_mapping` key that is also a
+    /// `denormalized_filters` column mapped to a different column, or two mapping keys
+    /// naming one dimension (in two casings) mapped to different columns. One message
+    /// per conflict, empty when every declaration agrees.
+    #[must_use]
+    pub fn fact_table_mapping_violations(&self) -> Vec<String> {
+        use crate::compiler::fact_table::dimension_key;
+
+        let mut tables: Vec<&FactTableMetadata> = self.fact_tables.values().collect();
+        tables.sort_by(|a, b| a.table_name.cmp(&b.table_name));
+        let mut out = Vec::new();
+        for table in tables {
+            let mut mapping: Vec<(&String, &String)> =
+                table.native_dimension_mapping.iter().collect();
+            mapping.sort();
+            for (i, (key, column)) in mapping.iter().enumerate() {
+                let dimension = dimension_key(key);
+                if let Some(filter) = table
+                    .denormalized_filters
+                    .iter()
+                    .find(|f| dimension_key(&f.name) == dimension && f.name != **column)
+                {
+                    out.push(format!(
+                        "fact table `{}`: native_dimension_mapping maps `{key}` to column \
+                         `{column}`, and denormalized_filters declares `{}` as a column of \
+                         its own; declare the dimension once",
+                        table.table_name, filter.name
+                    ));
+                }
+                for (other, other_column) in &mapping[i + 1..] {
+                    if dimension_key(other) == dimension && other_column != column {
+                        out.push(format!(
+                            "fact table `{}`: native_dimension_mapping maps `{key}` to \
+                             `{column}` and `{other}` to `{other_column}`, which name one \
+                             dimension; declare it once",
+                            table.table_name
+                        ));
+                    }
+                }
+            }
+        }
+        out
+    }
+
     /// The type a fact table is read as, when it is linked to one that exists.
     #[must_use]
     pub fn fact_table_type(&self, metadata: &FactTableMetadata) -> Option<&TypeDefinition> {

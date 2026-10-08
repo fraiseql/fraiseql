@@ -817,17 +817,12 @@ fn validate_dimension_key(key: &str) -> Result<()> {
 /// one declared `item_category` both serve a request for either spelling. Looking the raw
 /// request key up instead made a mapping in the other casing never fire, silently.
 pub(super) fn mapped_column<'m>(metadata: &'m FactTableMetadata, key: &str) -> Option<&'m String> {
-    let wanted = dimension_key(key);
+    let wanted = crate::compiler::fact_table::dimension_key(key);
     metadata
         .native_dimension_mapping
         .iter()
-        .find(|(declared, _)| dimension_key(declared) == wanted)
+        .find(|(declared, _)| crate::compiler::fact_table::dimension_key(declared) == wanted)
         .map(|(_, column)| column)
-}
-
-/// A dimension key in the form mapping keys compare in: each `.` segment in `snake_case`.
-pub(super) fn dimension_key(key: &str) -> String {
-    key.split('.').map(crate::utils::to_snake_case).collect::<Vec<_>>().join(".")
 }
 
 pub(super) fn split_where_key<'k>(
