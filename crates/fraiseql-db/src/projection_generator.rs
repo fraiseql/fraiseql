@@ -108,10 +108,9 @@ pub struct ProjectionField {
     /// JSONB arrays is out of scope for this first iteration.
     pub sub_fields: Option<Vec<ProjectionField>>,
 
-    /// A localized field's fallback chain for the request locale (#1513): the field reads
-    /// the first of these locales whose label is a string, `null` when none is. See
-    /// [`localized_text_expr`].
-    pub localized: Option<Vec<String>>,
+    /// How a localized field's stored locale map is read (#1513): as one label, or as its
+    /// translations sibling's list. `None` for every other field.
+    pub localized: Option<LocalizedRead>,
 
     /// A SQL expression this field's value comes from, instead of the JSONB
     /// column (#959) — the vector distance a `nearest` query ordered by.
@@ -250,6 +249,41 @@ fn validate_field_name(field: &str) -> Result<()> {
 
 use crate::utils::to_snake_case;
 
+/// How a localized field's stored locale map is projected (#1513).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum LocalizedRead {
+    /// The first label of the fallback chain that is a string, `null` when none is. See
+    /// [`localized_text_expr`].
+    Label(Vec<String>),
+    /// The translations sibling (`nameTranslations`): one object per allowed locale whose
+    /// label is a string, in `allowed`'s order. See [`localized_translations_expr`].
+    Translations {
+        /// The schema's allowed locales, in order.
+        allowed: Vec<String>,
+        /// Each element's keys: the response key and what it holds.
+        keys:    Vec<(String, TranslationPart)>,
+    },
+}
+
+/// What one key of a translations element holds.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TranslationPart {
+    /// The locale tag.
+    Locale,
+    /// Its label.
+    Value,
+    /// `__typename`: `LocalizedString`.
+    Typename,
+}
+
+/// `tag`, checked to be a language tag before it becomes a SQL literal.
+fn checked_tag(tag: &str) -> Result<&str> {
+    if tag.is_empty() || !tag.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+        return Err(FraiseQLError::validation(format!("locale `{tag}` is not a language tag")));
+    }
+    Ok(tag)
+}
+
 /// The SQL a localized field's value is read with (#1513): the first label in `chain` that is
 /// a JSON string, `NULL` when none is.
 ///
@@ -279,11 +313,7 @@ pub fn localized_text_expr(field_path: &str, chain: &[String]) -> Result<String>
     let arms = chain
         .iter()
         .map(|tag| {
-            if tag.is_empty() || !tag.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
-                return Err(FraiseQLError::validation(format!(
-                    "locale `{tag}` is not a language tag"
-                )));
-            }
+            let tag = checked_tag(tag)?;
             Ok(format!(
                 "CASE WHEN jsonb_typeof({field_path}->'{tag}') = 'string' THEN \
                  {field_path}->>'{tag}' END"
@@ -291,6 +321,51 @@ pub fn localized_text_expr(field_path: &str, chain: &[String]) -> Result<String>
         })
         .collect::<Result<Vec<_>>>()?;
     Ok(format!("COALESCE({})", arms.join(", ")))
+}
+
+/// The SQL a localized field's translations sibling is read with (#1513).
+///
+/// A JSON array with one object per locale of `allowed` whose label is a JSON string, in
+/// `allowed`'s order, `[]` when there is none. Each object carries `keys`.
+///
+/// `field_path` is the field's JSONB value, the locale map. A stored key outside `allowed` is
+/// not listed, and neither is a label that is not a string, so the sibling and the label
+/// ([`localized_text_expr`]) agree on what a label is.
+///
+/// # Errors
+///
+/// `FraiseQLError::Validation` for a locale outside `[A-Za-z0-9-]`, as for
+/// [`localized_text_expr`].
+pub fn localized_translations_expr(
+    field_path: &str,
+    allowed: &[String],
+    keys: &[(String, TranslationPart)],
+) -> Result<String> {
+    let tags = allowed
+        .iter()
+        .map(|tag| checked_tag(tag).map(|tag| format!("'{tag}'")))
+        .collect::<Result<Vec<_>>>()?;
+    if tags.is_empty() {
+        return Ok("'[]'::jsonb".to_string());
+    }
+    let pairs: Vec<String> = keys
+        .iter()
+        .map(|(key, part)| {
+            let value = match part {
+                TranslationPart::Locale => "fraiseql_l.tag".to_string(),
+                TranslationPart::Value => format!("{field_path}->>fraiseql_l.tag"),
+                TranslationPart::Typename => "'LocalizedString'".to_string(),
+            };
+            format!("'{}', {value}", key.replace('\'', "''"))
+        })
+        .collect();
+    Ok(format!(
+        "COALESCE((SELECT jsonb_agg(jsonb_build_object({}) ORDER BY fraiseql_l.ord) FROM \
+         unnest(ARRAY[{}]::text[]) WITH ORDINALITY AS fraiseql_l(tag, ord) WHERE \
+         jsonb_typeof({field_path}->fraiseql_l.tag) = 'string'), '[]'::jsonb)",
+        pairs.join(", "),
+        tags.join(", ")
+    ))
 }
 
 /// PostgreSQL SQL projection generator using jsonb_build_object.
@@ -475,10 +550,17 @@ impl PostgresProjectionGenerator {
         let jsonb_key = to_snake_case(&field.source);
         let safe_jsonb_key = Self::escape_sql_string(&jsonb_key);
 
-        // A localized field reads its chain's first string label (#1513).
-        if let Some(chain) = &field.localized {
+        // A localized field reads its chain's first string label, and its translations
+        // sibling every allowed one (#1513).
+        if let Some(read) = &field.localized {
             let field_path = format!("{path}->'{safe_jsonb_key}'");
-            return Ok(format!("'{}', {}", resp_key, localized_text_expr(&field_path, chain)?));
+            let expr = match read {
+                LocalizedRead::Label(chain) => localized_text_expr(&field_path, chain)?,
+                LocalizedRead::Translations { allowed, keys } => {
+                    localized_translations_expr(&field_path, allowed, keys)?
+                },
+            };
+            return Ok(format!("'{resp_key}', {expr}"));
         }
 
         // An object's sub-fields, at any depth — never the stored object in their place.

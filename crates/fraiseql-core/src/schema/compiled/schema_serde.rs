@@ -268,7 +268,31 @@ impl CompiledSchema {
                         type_def.name, field.name
                     ));
                 }
+                // The translations sibling and its element type are names the schema
+                // answers for, so nothing declared may take them.
+                let sibling = format!("{}{}", field.name, crate::schema::TRANSLATIONS_SUFFIX);
+                if type_def.find_field(&sibling).is_some() {
+                    localized.push(format!(
+                        "`{}.{sibling}` is declared, but it is the translations sibling of the \
+                         localized `{}.{}`: rename the field",
+                        type_def.name, type_def.name, field.name
+                    ));
+                }
             }
+        }
+        let has_localized = self.types.iter().any(|t| t.fields.iter().any(|f| f.localized));
+        let localized_string = crate::schema::LOCALIZED_STRING_TYPE;
+        if has_localized
+            && (self.types.iter().any(|t| t.name == localized_string)
+                || self.enums.iter().any(|e| e.name == localized_string)
+                || self.input_types.iter().any(|i| i.name == localized_string)
+                || self.interfaces.iter().any(|i| i.name == localized_string)
+                || self.unions.iter().any(|u| u.name == localized_string))
+        {
+            localized.push(format!(
+                "`{localized_string}` is declared, but it is the type of every localized \
+                 field's translations sibling: rename the type"
+            ));
         }
         if !localized.is_empty() {
             return Err(FraiseQLError::Validation {

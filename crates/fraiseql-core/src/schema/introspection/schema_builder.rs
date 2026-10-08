@@ -40,6 +40,10 @@ impl IntrospectionBuilder {
         for type_def in &schema.types {
             types.push(build_object_type(type_def));
         }
+        // The element type of every translations sibling (#1513).
+        if schema.types.iter().any(|t| t.fields.iter().any(|f| f.localized)) {
+            types.push(super::field_resolver::build_localized_string_type());
+        }
 
         // Add enum types
         for enum_def in &schema.enums {

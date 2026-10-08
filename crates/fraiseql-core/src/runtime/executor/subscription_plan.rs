@@ -168,7 +168,17 @@ impl Executor {
         let type_name = definition.return_type.as_str();
 
         refuse_undeclared_selection(schema, type_name, &root.nested_fields)?;
-        refuse_undelivered_selection(definition, &root.nested_fields)?;
+        refuse_undelivered_selection(schema, definition, &root.nested_fields)?;
+        // #1513: a localized field's `locale:` and translations sibling are adjudicated
+        // here, as for a query, before the subscription registers.
+        let mut selections = root.nested_fields.clone();
+        crate::runtime::resolve_locale_arguments(
+            schema,
+            type_name,
+            &mut selections,
+            &variables_map,
+            false,
+        )?;
         self.refuse_unless_readable(&definition.name, type_name, principal)?;
         // The filter binds the arguments the document gave the root field, however spelled
         // (#1158): reading the variables by argument name missed an inline value and a
@@ -190,13 +200,7 @@ impl Executor {
             };
             refuse_unreadable_where(schema, type_name, &condition, principal)?;
         }
-        self.plan_read(
-            &definition.name,
-            type_name,
-            root.nested_fields.clone(),
-            variables_map,
-            principal,
-        )
+        self.plan_read(&definition.name, type_name, selections, variables_map, principal)
     }
 
     /// Plan a stream of `type_name`'s change events for one reader — the REST
@@ -288,7 +292,8 @@ fn refuse_undeclared_selection(
         return Ok(());
     };
     for sel in effective_selections(selections, type_name, schema) {
-        if sel.name == "__typename" {
+        // A translations sibling is answered by the schema (#1513).
+        if sel.name == "__typename" || type_def.translations_of(&sel.name).is_some() {
             continue;
         }
         let Some(field) = type_def.fields.iter().find(|f| f.name == sel.name) else {
@@ -308,6 +313,7 @@ fn refuse_undeclared_selection(
 /// Refuse a top-level field outside the subscription's compile-time field list, when it
 /// declares one: the list is an upper bound on what the subscription delivers.
 fn refuse_undelivered_selection(
+    schema: &CompiledSchema,
     definition: &SubscriptionDefinition,
     selections: &[FieldSelection],
 ) -> Result<()> {
@@ -319,10 +325,13 @@ fn refuse_undelivered_selection(
         .iter()
         .filter_map(|f| f.trim_start_matches('/').split(['/', '.']).next())
         .collect();
-    match selections
-        .iter()
-        .find(|s| s.name != "__typename" && !delivered.contains(&s.name.as_str()))
-    {
+    // A translations sibling is delivered with its localized field (#1513).
+    let type_def = schema.find_type(&definition.return_type);
+    let delivered_name = |name: &str| {
+        let base = type_def.and_then(|t| t.translations_of(name)).map(|f| f.name.as_str());
+        delivered.contains(&base.unwrap_or(name))
+    };
+    match selections.iter().find(|s| s.name != "__typename" && !delivered_name(&s.name)) {
         Some(sel) => Err(FraiseQLError::Validation {
             message: format!(
                 "Subscription '{}' does not deliver field '{}'",

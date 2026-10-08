@@ -514,8 +514,24 @@ impl CompiledSchema {
                         ""
                     };
                     let _ = writeln!(sdl, "  {}{args}: {}", field.name, field.field_type);
+                    if field.localized {
+                        let _ = writeln!(
+                            sdl,
+                            "  {}{}: [{}!]!",
+                            field.name,
+                            crate::schema::TRANSLATIONS_SUFFIX,
+                            crate::schema::LOCALIZED_STRING_TYPE
+                        );
+                    }
                 }
                 sdl.push_str("}\n\n");
+            }
+            if self.types.iter().any(|t| t.fields.iter().any(|f| f.localized)) {
+                let _ = writeln!(
+                    sdl,
+                    "type {} {{\n  locale: String!\n  value: String!\n}}\n",
+                    crate::schema::LOCALIZED_STRING_TYPE
+                );
             }
 
             // Root Query type (rendered from `self.queries`, never present in `types`)

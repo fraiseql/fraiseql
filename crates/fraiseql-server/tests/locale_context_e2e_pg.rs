@@ -660,6 +660,13 @@ async fn a_federation_entity_lookup_runs_in_the_request_locale() {
     // …or its `locale:` argument's, which is refused outside `allowed`.
     let body = entities(r#"id en: label(locale: "en-US")"#).await;
     assert_eq!(body["data"]["_entities"][0]["en"], json!("Cherry"), "{body}");
+    // …and its translations sibling lists every allowed label, in `allowed`'s order.
+    let body = entities("id labelTranslations { locale value }").await;
+    assert_eq!(
+        body["data"]["_entities"][0]["labelTranslations"],
+        json!([{"locale": "en-US", "value": "Cherry"}, {"locale": "fr", "value": "Cerise"}]),
+        "{body}"
+    );
     let body = entities(r#"id label(locale: "xx")"#).await;
     assert!(
         body["errors"][0]["message"]

@@ -126,7 +126,15 @@ pub(super) fn referenced_scalar_type(name: &str) -> IntrospectionType {
 
 /// Build `__Type` for an object type definition.
 pub(super) fn build_object_type(type_def: &TypeDefinition) -> IntrospectionType {
-    let fields = type_def.fields.iter().map(build_field).collect();
+    // A localized field is followed by its translations sibling (#1513).
+    let fields = type_def
+        .fields
+        .iter()
+        .flat_map(|f| {
+            std::iter::once(build_field(f))
+                .chain(f.localized.then(|| super::field_resolver::build_translations_field(f)))
+        })
+        .collect();
 
     // Build interfaces that this type implements
     let interfaces: Vec<IntrospectionTypeRef> = type_def

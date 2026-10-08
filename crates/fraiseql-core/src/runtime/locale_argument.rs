@@ -17,10 +17,12 @@
 
 use std::collections::HashMap;
 
+use fraiseql_db::TranslationPart;
+
 use crate::{
     error::{FraiseQLError, Result},
     graphql::{FieldSelection, GraphQLArgument},
-    schema::{CompiledSchema, FieldType},
+    schema::{CompiledSchema, FieldDefinition, FieldType, LOCALIZED_STRING_TYPE},
 };
 
 /// The argument's name.
@@ -70,10 +72,14 @@ fn resolve_at(
             resolve_at(schema, condition.trim(), &mut sel.nested_fields, variables)?;
             continue;
         }
+        let label = format!("{type_name}.{}", sel.name);
+        if let Some(base) = type_def.translations_of(&sel.name) {
+            check_translations(&label, base, sel)?;
+            continue;
+        }
         let Some(field) = type_def.find_field(&sel.name) else {
             continue;
         };
-        let label = format!("{type_name}.{}", sel.name);
         if let Some(at) = sel.arguments.iter().position(|a| a.name == LOCALE_ARGUMENT) {
             if !field.localized {
                 return Err(refusal(format!(
@@ -100,6 +106,36 @@ fn resolve_at(
         };
         if let Some(child) = child.filter(|_| !sel.nested_fields.is_empty()) {
             resolve_at(schema, child, &mut sel.nested_fields, variables)?;
+        }
+    }
+    Ok(())
+}
+
+/// A translations sibling (`nameTranslations { locale value }`): it takes no argument, its
+/// sub-selection names only `LocalizedString`'s fields, and its base field carries no field
+/// gate, which the sibling would otherwise read around (#1523).
+fn check_translations(label: &str, base: &FieldDefinition, sel: &FieldSelection) -> Result<()> {
+    if base.requires_scope.is_some() || base.authorize {
+        return Err(refusal(format!(
+            "{label} lists every label of `{}`, which is field-gated: a gated field's \
+             translations are not served yet (#1523)",
+            base.name
+        )));
+    }
+    if let Some(argument) = sel.arguments.first() {
+        return Err(refusal(format!("Unknown argument '{}' on {label}", argument.name)));
+    }
+    for sub in &sel.nested_fields {
+        let name = sub.name.strip_prefix("...on ").map_or(sub.name.as_str(), str::trim);
+        let known =
+            matches!(name, "locale" | "value" | LOCALIZED_STRING_TYPE) || name.starts_with("__");
+        if !known {
+            return Err(refusal(format!(
+                "Cannot query field '{name}' on type '{LOCALIZED_STRING_TYPE}'."
+            )));
+        }
+        if name == LOCALIZED_STRING_TYPE {
+            check_translations(label, base, sub)?;
         }
     }
     Ok(())
@@ -156,4 +192,70 @@ pub fn selection_chain(schema: &CompiledSchema, selection: &FieldSelection) -> O
         .and_then(|a| serde_json::from_str::<String>(&a.value_json).ok())
         .and_then(|tag| schema.locale.as_ref()?.chain(&tag).map(<[String]>::to_vec));
     argued.or_else(|| crate::runtime::localization_chain(schema))
+}
+
+/// How a translations sibling selection reads its base field's map (#1513): every allowed
+/// locale, with the keys its sub-selection names. `None` when the schema declares no locale.
+#[must_use]
+pub fn translations_read(
+    schema: &CompiledSchema,
+    selection: &FieldSelection,
+) -> Option<fraiseql_db::LocalizedRead> {
+    Some(fraiseql_db::LocalizedRead::Translations {
+        allowed: schema.locale.as_ref()?.allowed.clone(),
+        keys:    translation_keys(&selection.nested_fields),
+    })
+}
+
+/// The keys of a translations element, by response key, as `selections` name them (an
+/// inline fragment on `LocalizedString` flattened). Anything else was refused before.
+fn translation_keys(selections: &[FieldSelection]) -> Vec<(String, TranslationPart)> {
+    let mut keys = Vec::new();
+    for sel in selections {
+        if sel.name.strip_prefix("...on ").is_some() {
+            keys.extend(translation_keys(&sel.nested_fields));
+            continue;
+        }
+        let part = match sel.name.as_str() {
+            "locale" => TranslationPart::Locale,
+            "value" => TranslationPart::Value,
+            "__typename" => TranslationPart::Typename,
+            _ => continue,
+        };
+        keys.push((sel.response_key().to_string(), part));
+    }
+    keys
+}
+
+/// The translations sibling of a stored locale map, in process: the twin of
+/// `fraiseql_db::projection_generator::localized_translations_expr`, for a document
+/// projected in Rust. A value that is not a map lists nothing.
+#[must_use]
+pub fn translations(
+    value: &serde_json::Value,
+    read: &fraiseql_db::LocalizedRead,
+) -> serde_json::Value {
+    let fraiseql_db::LocalizedRead::Translations { allowed, keys } = read else {
+        return serde_json::Value::Array(Vec::new());
+    };
+    let map = value.as_object();
+    let elements = allowed
+        .iter()
+        .filter_map(|tag| {
+            let label = map?.get(tag)?.as_str()?;
+            let element = keys
+                .iter()
+                .map(|(key, part)| {
+                    let v = match part {
+                        TranslationPart::Locale => tag.as_str(),
+                        TranslationPart::Value => label,
+                        TranslationPart::Typename => LOCALIZED_STRING_TYPE,
+                    };
+                    (key.clone(), serde_json::Value::String(v.to_string()))
+                })
+                .collect::<serde_json::Map<_, _>>();
+            Some(serde_json::Value::Object(element))
+        })
+        .collect();
+    serde_json::Value::Array(elements)
 }

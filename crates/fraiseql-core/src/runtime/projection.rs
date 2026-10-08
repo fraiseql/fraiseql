@@ -765,6 +765,19 @@ fn project_entity_at(
             out.insert(sel.response_key().to_string(), JsonValue::String(type_name.to_string()));
             continue;
         }
+        // A localized field's translations sibling lists its stored map (#1513); an absent
+        // map lists nothing, as in SQL.
+        if let Some(base) = type_def.and_then(|td| td.translations_of(&sel.name)) {
+            let listed = crate::runtime::translations_read(schema, sel).map_or_else(
+                || JsonValue::Array(Vec::new()),
+                |read| {
+                    let stored = lookup_source(obj, base.name.as_str()).unwrap_or(&JsonValue::Null);
+                    crate::runtime::translations(stored, &read)
+                },
+            );
+            out.insert(sel.response_key().to_string(), listed);
+            continue;
+        }
         let field_def =
             type_def.and_then(|td| td.fields.iter().find(|f| f.name.as_str() == sel.name));
         let Some(value) = lookup_source(obj, &sel.name) else {

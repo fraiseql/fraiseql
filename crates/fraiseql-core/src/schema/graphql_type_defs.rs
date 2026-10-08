@@ -254,6 +254,15 @@ impl TypeDefinition {
         self.fields.iter().find(|f| f.name == name)
     }
 
+    /// The localized field `name` is the translations sibling of (`nameTranslations` →
+    /// `name`, #1513). `None` for any other name. A declared field never collides with a
+    /// sibling: the schema is refused at load when one would.
+    #[must_use]
+    pub fn translations_of(&self, name: &str) -> Option<&FieldDefinition> {
+        let base = name.strip_suffix(super::TRANSLATIONS_SUFFIX)?;
+        self.find_field(base).filter(|f| f.localized)
+    }
+
     /// Find the field that publishes the SQL column `column`.
     ///
     /// A relationship's `foreign_key`/`referenced_key` are **column** names

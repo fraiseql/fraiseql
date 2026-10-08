@@ -23,6 +23,13 @@ use crate::error::{FraiseQLError, Result};
 /// stored projection cannot depend on who wrote it (`pg_tviews#193`).
 pub const LOCALE_SESSION_VAR: &str = "fraiseql.locale";
 
+/// The suffix of a localized field's translations sibling (#1513): `nameTranslations` lists
+/// every allowed label of `name`.
+pub const TRANSLATIONS_SUFFIX: &str = "Translations";
+
+/// The type of a translations sibling's elements: `LocalizedString { locale value }`.
+pub const LOCALIZED_STRING_TYPE: &str = "LocalizedString";
+
 /// The longest `Accept-Language` value considered. A longer header is ignored (the source
 /// falls through) rather than parsed: no browser sends one, and the parse stays bounded.
 pub const MAX_ACCEPT_LANGUAGE_BYTES: usize = 1024;

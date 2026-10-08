@@ -49,6 +49,17 @@ pub fn build_typed_projection_fields(
         // projection and then overwrite the value already injected by `with_typename`.
         .filter(|sel| sel.name != "__typename")
         .map(|sel| {
+            // A localized field's translations sibling reads the field's stored map (#1513).
+            if let Some(base) = type_def.and_then(|td| td.translations_of(&sel.name)) {
+                return ProjectionField {
+                    name:       sel.response_key().to_string(),
+                    source:     base.name.to_string(),
+                    kind:       FieldKind::Composite,
+                    sub_fields: None,
+                    localized:  crate::runtime::translations_read(schema, sel),
+                    computed:   None,
+                };
+            }
             let field_def =
                 type_def.and_then(|td| td.fields.iter().find(|f| f.name == sel.name.as_str()));
 
@@ -96,7 +107,8 @@ pub fn build_typed_projection_fields(
                 // #1513: a localized field reads its selection's chain.
                 localized: field_def
                     .filter(|fd| fd.localized)
-                    .and_then(|_| crate::runtime::selection_chain(schema, sel)),
+                    .and_then(|_| crate::runtime::selection_chain(schema, sel))
+                    .map(fraiseql_db::LocalizedRead::Label),
                 computed: None,
             }
         })

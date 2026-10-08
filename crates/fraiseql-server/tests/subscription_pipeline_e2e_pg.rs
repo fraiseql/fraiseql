@@ -560,9 +560,10 @@ async fn a_subscription_payload_is_localized_in_the_subscribers_locale() {
     label.localized = true;
     order.fields = vec![FieldDefinition::new("id", FieldType::Id), label];
     schema.types.push(order);
-    schema
-        .subscriptions
-        .push(SubscriptionDefinition::new("orderChanged", &entity_type));
+    let mut definition = SubscriptionDefinition::new("orderChanged", &entity_type);
+    // A declared delivery list: the translations sibling is delivered with `label`.
+    definition.fields = vec!["id".to_string(), "label".to_string()];
+    schema.subscriptions.push(definition);
     schema.locale = Some(
         LocaleConfig::new(
             "en-US",
@@ -578,8 +579,9 @@ async fn a_subscription_payload_is_localized_in_the_subscribers_locale() {
     let (_sink, mut stream) = handshake_with(
         &pipeline,
         &json!({"locale": "fr-FR"}),
-        "subscription { orderChanged { id label } }",
-        &json!({}),
+        "subscription Q($l: String) { orderChanged { id label en: label(locale: $l) \
+         labelTranslations { locale value } } }",
+        &json!({"l": "en-US"}),
     )
     .await;
     let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
@@ -606,6 +608,15 @@ async fn a_subscription_payload_is_localized_in_the_subscribers_locale() {
     assert_eq!(
         frame.pointer("/payload/data/orderChanged/label"),
         Some(&json!("Pomme")),
+        "{frame}"
+    );
+    // A `locale:` argument, from a variable, and the translations sibling.
+    assert_eq!(frame.pointer("/payload/data/orderChanged/en"), Some(&json!("Apple")), "{frame}");
+    assert_eq!(
+        frame.pointer("/payload/data/orderChanged/labelTranslations"),
+        Some(
+            &json!([{"locale": "en-US", "value": "Apple"}, {"locale": "fr-FR", "value": "Pomme"}])
+        ),
         "{frame}"
     );
 }

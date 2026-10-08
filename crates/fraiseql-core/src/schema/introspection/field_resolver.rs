@@ -4,7 +4,7 @@
 //! schema into their `__Field`, `__InputValue`, and related introspection types.
 
 use super::{
-    super::{FieldDefinition, FieldType},
+    super::{FieldDefinition, FieldType, LOCALIZED_STRING_TYPE, TRANSLATIONS_SUFFIX},
     types::{
         IntrospectionField, IntrospectionInputValue, IntrospectionType,
         IntrospectionValidationRule, TypeKind,
@@ -29,6 +29,78 @@ pub(super) fn build_field(field: &FieldDefinition) -> IntrospectionField {
         field_type:         field_type_to_introspection(&field.field_type, field.nullable),
         is_deprecated:      field.is_deprecated(),
         deprecation_reason: field.deprecation_reason().map(ToString::to_string),
+    }
+}
+
+/// A localized field's translations sibling (#1513): `<field>Translations:
+/// [LocalizedString!]!`, every allowed label of the field.
+pub(super) fn build_translations_field(field: &FieldDefinition) -> IntrospectionField {
+    let element = non_null(type_ref_with_kind(LOCALIZED_STRING_TYPE, TypeKind::Object));
+    IntrospectionField {
+        name:               format!("{}{TRANSLATIONS_SUFFIX}", field.output_name()),
+        description:        Some(format!(
+            "Every allowed locale's label of `{}`, in the order of the allowed locales.",
+            field.output_name()
+        )),
+        args:               vec![],
+        field_type:         non_null(IntrospectionType {
+            kind:               TypeKind::List,
+            name:               None,
+            description:        None,
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            Some(Box::new(element)),
+            specified_by_u_r_l: None,
+        }),
+        is_deprecated:      field.is_deprecated(),
+        deprecation_reason: field.deprecation_reason().map(ToString::to_string),
+    }
+}
+
+/// `LocalizedString { locale: String! value: String! }`, the element of every translations
+/// sibling (#1513).
+pub(super) fn build_localized_string_type() -> IntrospectionType {
+    let field = |name: &str, description: &str| IntrospectionField {
+        name:               name.to_string(),
+        description:        Some(description.to_string()),
+        args:               vec![],
+        field_type:         non_null(type_ref("String")),
+        is_deprecated:      false,
+        deprecation_reason: None,
+    };
+    IntrospectionType {
+        kind:               TypeKind::Object,
+        name:               Some(LOCALIZED_STRING_TYPE.to_string()),
+        description:        Some("One locale's label of a localized field.".to_string()),
+        fields:             Some(vec![
+            field("locale", "The locale tag."),
+            field("value", "The label in that locale."),
+        ]),
+        interfaces:         Some(vec![]),
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            None,
+        specified_by_u_r_l: None,
+    }
+}
+
+/// `inner`, wrapped in `NON_NULL`.
+fn non_null(inner: IntrospectionType) -> IntrospectionType {
+    IntrospectionType {
+        kind:               TypeKind::NonNull,
+        name:               None,
+        description:        None,
+        fields:             None,
+        interfaces:         None,
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            Some(Box::new(inner)),
+        specified_by_u_r_l: None,
     }
 }
 

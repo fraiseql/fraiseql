@@ -121,8 +121,21 @@ impl Executor {
         // not stored in the database. The database_resolver injects it into results.
         let selection = match crate::federation::selection_parser::parse_field_selection(query) {
             Ok(sel) if !sel.fields.is_empty() => {
-                let fields: Vec<String> =
+                let mut fields: Vec<String> =
                     sel.fields.into_iter().filter(|f| f != "__typename").collect();
+                // A translations sibling (#1513) is read from its localized field's stored
+                // map, so that field is loaded (and classified) too.
+                let bases: Vec<String> = representations
+                    .iter()
+                    .filter_map(|r| self.ctx.schema.find_type(&r.typename))
+                    .flat_map(|t| fields.iter().filter_map(|f| t.translations_of(f)))
+                    .map(|base| base.name.to_string())
+                    .collect();
+                for base in bases {
+                    if !fields.contains(&base) {
+                        fields.push(base);
+                    }
+                }
                 crate::federation::FieldSelection::new(fields)
             },
             _ => {

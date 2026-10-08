@@ -210,6 +210,14 @@ fn leaf_check_at(
         if sel.name.starts_with("...") || sel.name.starts_with("__") {
             continue;
         }
+        // A translations sibling is a list of `LocalizedString` objects (#1513).
+        if type_def.translations_of(&sel.name).is_some() && sel.nested_fields.is_empty() {
+            return Err(field_needs_selection_set(
+                type_name,
+                &sel.name,
+                crate::schema::LOCALIZED_STRING_TYPE,
+            ));
+        }
         let Some(field_def) = type_def.fields.iter().find(|f| f.name == sel.name) else {
             continue;
         };
@@ -295,6 +303,12 @@ fn validate_at(
             continue;
         }
 
+        // A localized field's translations sibling (#1513) is answered by the schema, not
+        // declared; its sub-selection is adjudicated with the locale arguments, on every
+        // read path (`resolve_locale_arguments`).
+        if type_def.translations_of(&sel.name).is_some() {
+            continue;
+        }
         let Some(field_def) = type_def.fields.iter().find(|f| f.name == sel.name) else {
             return Err(FraiseQLError::Validation {
                 message: format!("Cannot query field '{}' on type '{type_name}'.", sel.name),

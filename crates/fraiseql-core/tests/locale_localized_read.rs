@@ -21,11 +21,11 @@ use serde_json::{Value, json};
 
 const VIEW: &str = "tv_locale_product";
 
-/// `(pk, name map)`: French, English and German labels, English only, bare French only,
-/// nothing at all.
+/// `(pk, name map)`: French, English and German labels; English, with a label outside
+/// `allowed` and a non-string one; bare French only; nothing at all.
 const ROWS: [(i64, &str); 4] = [
     (1, r#"{"fr-FR": "Pomme", "en-US": "Apple", "de-DE": "Apfel"}"#),
-    (2, r#"{"en-US": "Pear"}"#),
+    (2, r#"{"en-US": "Pear", "it-IT": "Pera", "fr": 5}"#),
     (3, r#"{"fr": "Cerise"}"#),
     (4, r"{}"),
 ];
@@ -44,6 +44,10 @@ fn schema_with(nullable: bool) -> CompiledSchema {
     name.localized = true;
     let mut label = FieldDefinition::nullable("label", FieldType::String);
     label.localized = true;
+    let mut motto = FieldDefinition::nullable("motto", FieldType::String);
+    motto.localized = true;
+    motto.requires_scope = Some("read:motto".to_string());
+    motto.on_deny = fraiseql_core::schema::FieldDenyPolicy::Mask;
     let mut secret = FieldDefinition::nullable("secret", FieldType::String);
     secret.requires_scope = Some("read:secret".to_string());
     // Masked rather than refused, so a principal without the scope still reads the row.
@@ -59,6 +63,7 @@ fn schema_with(nullable: bool) -> CompiledSchema {
             FieldType::List(Box::new(FieldType::Object("Tag".into()))),
         ))
         .with_field(secret)
+        .with_field(motto)
         .build();
     let category = TestTypeBuilder::new("Category", "v_unused_category")
         .with_simple_field("id", FieldType::Id)
@@ -481,4 +486,215 @@ async fn introspection_and_sdl_show_the_locale_argument() {
     assert_eq!(args("id"), Vec::<Value>::new());
     let sdl = schema().raw_schema();
     assert!(sdl.contains("name(locale: String): String"), "{sdl}");
+}
+
+/// Cycle 4: every allowed label, in `allowed`'s order, row by row. A stored key outside
+/// `allowed` and a label that is not a string are not returned.
+fn all_labels() -> Vec<Value> {
+    vec![
+        json!([
+            {"locale": "en-US", "value": "Apple"},
+            {"locale": "fr-FR", "value": "Pomme"},
+            {"locale": "de-DE", "value": "Apfel"}
+        ]),
+        json!([{"locale": "en-US", "value": "Pear"}]),
+        json!([{"locale": "fr", "value": "Cerise"}]),
+        json!([]),
+    ]
+}
+
+/// Cycle 4: `<field>Translations` lists a localized field's labels, through each projector.
+#[tokio::test]
+async fn translations_list_every_allowed_label_in_order() {
+    let Some(executor) = executor().await else {
+        return;
+    };
+    let q = "{ products { id nameTranslations { locale value } } }";
+    assert_eq!(
+        read(&executor, q, "products", &["nameTranslations"]).await,
+        all_labels(),
+        "list"
+    );
+
+    let q = "{ products { id category { labelTranslations { locale value } } } }";
+    assert_eq!(
+        read(&executor, q, "products", &["category", "labelTranslations"]).await,
+        all_labels(),
+        "nested object"
+    );
+
+    let q = "{ products { id tags { labelTranslations { locale value } } } }";
+    let tags: Vec<Value> = read(&executor, q, "products", &["tags"])
+        .await
+        .into_iter()
+        .map(|tags| tags[0]["labelTranslations"].clone())
+        .collect();
+    assert_eq!(tags, all_labels(), "nested list");
+
+    let relay = Executor::new_with_relay(
+        schema(),
+        Arc::new(PostgresAdapter::new(&fraiseql_test_support::database_url()).await.unwrap()),
+    );
+    let q = "{ productsConnection(first: 10) { edges { node { id nameTranslations { locale value } } } } }";
+    assert_eq!(
+        read(&relay, q, "productsConnection", &["nameTranslations"]).await,
+        all_labels(),
+        "relay"
+    );
+
+    // Aliases and `__typename` inside the sibling's selection.
+    let q = "{ products { id nameTranslations { __typename l: locale } } }";
+    assert_eq!(
+        read(&executor, q, "products", &["nameTranslations"]).await[1],
+        json!([{"__typename": "LocalizedString", "l": "en-US"}]),
+        "sub-selection"
+    );
+}
+
+/// Cycle 4: a read projected in Rust (a policy-gated sibling selected) lists the same labels.
+#[tokio::test]
+async fn translations_through_the_rust_projector() {
+    let Some(executor) = executor().await else {
+        return;
+    };
+    let principal = fraiseql_core::security::SecurityContext {
+        user_id:          fraiseql_core::prelude::UserId::new("reader"),
+        tenant_id:        None,
+        roles:            vec![],
+        scopes:           vec![],
+        attributes:       std::collections::HashMap::new(),
+        request_id:       "req-translations".to_string(),
+        ip_address:       None,
+        authenticated_at: chrono::Utc::now(),
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
+    };
+    let response = with_request_locale(
+        "fr-CA",
+        executor.execute_with_security(
+            "{ products { id nameTranslations { locale value } secret } }",
+            None,
+            &principal,
+        ),
+    )
+    .await
+    .unwrap();
+    let mut rows: Vec<(String, Value)> = response["data"]["products"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"))
+        .iter()
+        .map(|p| (p["id"].as_str().unwrap().to_string(), p["nameTranslations"].clone()))
+        .collect();
+    rows.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(rows.into_iter().map(|(_, v)| v).collect::<Vec<_>>(), all_labels(), "{response}");
+}
+
+/// Cycle 4: an invalid sibling selection is refused before any statement: no sub-selection,
+/// an undeclared sub-field, a field that is not localized, and a field-gated one (#1523).
+#[tokio::test]
+async fn an_invalid_translations_selection_is_refused_before_any_sql() {
+    let adapter = Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new());
+    let executor = Executor::new(schema(), adapter.clone());
+    for (query, needle) in [
+        ("{ products { id nameTranslations } }", "nameTranslations"),
+        ("{ products { id nameTranslations { bogus } } }", "bogus"),
+        ("{ products { id idTranslations { value } } }", "idTranslations"),
+        ("{ products { id mottoTranslations { value } } }", "#1523"),
+        (
+            "{ productsConnection(first: 1) { edges { node { mottoTranslations { value } } } } }",
+            "#1523",
+        ),
+    ] {
+        let err = with_request_locale("fr-CA", executor.execute(query, None))
+            .await
+            .expect_err(query);
+        assert!(
+            matches!(err, fraiseql_core::error::FraiseQLError::Validation { .. })
+                && err.to_string().contains(needle),
+            "{query}: {err}"
+        );
+    }
+    assert_eq!(adapter.query_count(), 0, "no statement ran");
+}
+
+/// Cycle 4: introspection and the SDL show `<field>Translations: [LocalizedString!]!` and the
+/// `LocalizedString` type.
+#[tokio::test]
+async fn introspection_and_sdl_show_the_translations_sibling() {
+    let executor = Executor::new(
+        schema(),
+        Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+    );
+    let response = executor
+        .execute(
+            r#"{ product: __type(name: "Product") { fields { name type { kind ofType { kind ofType { kind ofType { name } } } } } }
+                 localized: __type(name: "LocalizedString") { kind fields { name type { kind ofType { name } } } } }"#,
+            None,
+        )
+        .await
+        .unwrap();
+    let fields = response["data"]["product"]["fields"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"));
+    let sibling = fields
+        .iter()
+        .find(|f| f["name"] == "nameTranslations")
+        .unwrap_or_else(|| panic!("{response}"));
+    assert_eq!(
+        sibling["type"],
+        json!({"kind": "NON_NULL", "ofType": {"kind": "LIST", "ofType": {"kind": "NON_NULL", "ofType": {"name": "LocalizedString"}}}})
+    );
+    assert!(!fields.iter().any(|f| f["name"] == "idTranslations"));
+    assert_eq!(
+        response["data"]["localized"],
+        json!({"kind": "OBJECT", "fields": [
+            {"name": "locale", "type": {"kind": "NON_NULL", "ofType": {"name": "String"}}},
+            {"name": "value", "type": {"kind": "NON_NULL", "ofType": {"name": "String"}}}
+        ]})
+    );
+    let sdl = schema().raw_schema();
+    assert!(sdl.contains("  nameTranslations: [LocalizedString!]!\n"), "{sdl}");
+    assert!(
+        sdl.contains("type LocalizedString {\n  locale: String!\n  value: String!\n}"),
+        "{sdl}"
+    );
+}
+
+/// Cycle 4: a declared field or type that would collide with the sibling or its type is
+/// refused at load.
+#[test]
+fn a_name_the_sibling_needs_is_refused_at_load() {
+    let schema = |fields: &str, extra_type: &str| {
+        format!(
+            r#"{{"types": [{{"name": "Product", "sql_source": "tv_product", "fields": [
+                {{"name": "id", "field_type": "ID", "nullable": false}},
+                {{"name": "name", "field_type": "String", "nullable": true, "localized": true}}{fields}
+            ]}}{extra_type}],
+              "queries": [], "mutations": [], "subscriptions": [],
+              "locale": {{"default": "en-US", "allowed": ["en-US", "fr"]}}}}"#
+        )
+    };
+    let err = CompiledSchema::from_json(
+        &schema(
+            r#", {"name": "nameTranslations", "field_type": "String", "nullable": true}"#,
+            "",
+        ),
+        false,
+    )
+    .expect_err("a declared `nameTranslations` collides with the sibling");
+    assert!(err.to_string().contains("`Product.nameTranslations`"), "{err}");
+    let err = CompiledSchema::from_json(
+        &schema(
+            "",
+            r#", {"name": "LocalizedString", "sql_source": "v_x", "fields": [
+                {"name": "id", "field_type": "ID", "nullable": false}]}"#,
+        ),
+        false,
+    )
+    .expect_err("a declared `LocalizedString` collides with the sibling's type");
+    assert!(err.to_string().contains("`LocalizedString`"), "{err}");
+    CompiledSchema::from_json(&schema("", ""), false).expect("control: the plain schema loads");
 }

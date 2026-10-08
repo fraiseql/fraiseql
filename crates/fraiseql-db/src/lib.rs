@@ -76,7 +76,9 @@ pub use identifier::quote_postgres_identifier;
 pub use introspector::{DatabaseIntrospector, RelationInfo, RelationKind};
 #[cfg(feature = "postgres")]
 pub use postgres::{PostgresAdapter, PostgresIntrospector};
-pub use projection_generator::{FieldKind, PostgresProjectionGenerator, ProjectionField};
+pub use projection_generator::{
+    FieldKind, LocalizedRead, PostgresProjectionGenerator, ProjectionField, TranslationPart,
+};
 /// The `serde_json` this crate's public API is built against (#1198).
 pub use serde_json;
 /// The `tokio_postgres` this crate's public API is built against (#1198).
