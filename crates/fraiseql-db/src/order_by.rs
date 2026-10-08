@@ -219,8 +219,9 @@ pub fn render_order_by_columns(
             let key = clause.storage_key();
             db_type.typed_json_field_expr(&key, clause.field_type)
         };
+        let collate = collate_suffix(clause.collation.as_deref())?;
         // Reason: fmt::Write for String is infallible
-        write!(columns, "{expr} {}", clause.direction.as_sql())
+        write!(columns, "{expr}{collate} {}", clause.direction.as_sql())
             .expect("write to String is infallible");
     }
     if tiebreak == Tiebreak::Identity && !orders_by_identity(clauses) {
@@ -232,6 +233,28 @@ pub fn render_order_by_columns(
         write!(columns, ", {expr} ASC").expect("write to String is infallible");
     }
     Ok(Some(RenderedOrderBy { columns, params }))
+}
+
+/// ` COLLATE "<name>"` for a clause sorting under a request-locale collation (#1512), or
+/// nothing.
+///
+/// The name comes from the compiled `[locale]` set (BCP 47 tags, validated at compile and
+/// at load) plus `-x-icu`; its charset is checked again here before it becomes SQL text,
+/// so a mutation of either layer is caught by the other.
+///
+/// # Errors
+///
+/// `FraiseQLError::Validation` for a name outside `[A-Za-z0-9-]`.
+pub fn collate_suffix(collation: Option<&str>) -> crate::Result<String> {
+    let Some(name) = collation else {
+        return Ok(String::new());
+    };
+    if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+        return Err(fraiseql_error::FraiseQLError::validation(format!(
+            "collation `{name}` is not a locale collation name"
+        )));
+    }
+    Ok(format!(" COLLATE {}", crate::identifier::quote_postgres_identifier(name)))
 }
 
 /// Does this ordering already carry a unique key, making a tie-breaker redundant?

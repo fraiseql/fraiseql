@@ -225,6 +225,19 @@ impl LocaleConfig {
         self.chains.get(locale).map(Vec::as_slice)
     }
 
+    /// The ICU collation a text sort uses in `locale`: `{locale}-x-icu`, the name
+    /// PostgreSQL gives the collation it creates for that ICU locale. `None` for a tag that is
+    /// not allowed. The server checks at boot that each allowed tag's collation exists.
+    #[must_use]
+    pub fn collation(&self, locale: &str) -> Option<String> {
+        self.chains.contains_key(locale).then(|| format!("{locale}-x-icu"))
+    }
+
+    /// Every allowed tag's collation, for the boot check.
+    pub fn collations(&self) -> impl Iterator<Item = (&str, String)> {
+        self.allowed.iter().map(|tag| (tag.as_str(), format!("{tag}-x-icu")))
+    }
+
     /// The enriched-identity fields `resolve` reads, for the server's boot check.
     pub fn enrichment_fields(&self) -> impl Iterator<Item = &str> {
         self.resolve.iter().filter_map(|s| match s {

@@ -132,6 +132,12 @@ pub struct OrderByClause {
     /// second, redundant sort key on every paged read of every Trinity view.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub identity:      bool,
+    /// The collation a text key sorts under (#1512): the request locale's ICU collation
+    /// (`fr-CA-x-icu`), rendered as `… COLLATE "fr-CA-x-icu"`. Set by the runtime, only for a
+    /// text key and only from a configured locale; `None` sorts under the column's own
+    /// collation, as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub collation:     Option<String>,
 }
 
 /// The full-text operand of an ORDER BY clause (#1284).
@@ -258,6 +264,7 @@ impl OrderByClause {
             vector: None,
             relevance: None,
             identity: false,
+            collation: None,
         }
     }
 
@@ -281,6 +288,7 @@ impl OrderByClause {
             vector: None,
             relevance: None,
             identity: true,
+            collation: None,
         }
     }
 
@@ -303,6 +311,7 @@ impl OrderByClause {
             vector:        None,
             relevance:     Some(relevance),
             identity:      false,
+            collation:     None,
         }
     }
 

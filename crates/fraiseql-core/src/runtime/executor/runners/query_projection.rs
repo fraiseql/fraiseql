@@ -268,6 +268,12 @@ pub fn enrich_order_by_clauses(
     // fields. Both absences produce "no field list", and rejecting on an absence
     // of evidence is what #939 forbids.
     let can_adjudicate = type_def.is_some_and(|td| !td.fields.is_empty());
+    // #1512: a text key sorts under the request locale's collation, when there is one.
+    let collation = schema
+        .locale
+        .as_ref()
+        .zip(crate::runtime::request_locale(schema))
+        .and_then(|(config, locale)| config.collation(&locale));
 
     for clause in &mut clauses {
         if can_adjudicate {
@@ -290,6 +296,13 @@ pub fn enrich_order_by_clauses(
                     "order by",
                 )?;
                 clause.field_type = field_type_to_order_by_type(&field_def.field_type);
+                if matches!(field_def.field_type, crate::schema::FieldType::String)
+                    && native_columns
+                        .get(&clause.storage_key())
+                        .is_none_or(|cast| sorts_as_text(cast))
+                {
+                    clause.collation.clone_from(&collation);
+                }
             }
         }
 
@@ -301,6 +314,16 @@ pub fn enrich_order_by_clauses(
         }
     }
     Ok(clauses)
+}
+
+/// Whether a native column of PostgreSQL type `cast` is text, and so takes a `COLLATE`
+/// (#1512). An empty cast is an untyped column read as text. Anything else (a number, a
+/// uuid, a timestamp) sorts by its own type, which a collation does not apply to.
+fn sorts_as_text(cast: &str) -> bool {
+    matches!(
+        cast.to_ascii_lowercase().as_str(),
+        "" | "text" | "varchar" | "character varying" | "bpchar" | "character" | "citext"
+    )
 }
 
 /// The error for a sort key that is neither a declared field nor a native column.
