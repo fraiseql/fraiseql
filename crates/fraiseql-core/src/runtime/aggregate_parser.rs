@@ -172,7 +172,9 @@ impl AggregateQueryParser {
 
     /// Parse WHERE clause from JSON.
     ///
-    /// For aggregate queries, WHERE works on denormalized filter columns only.
+    /// For aggregate queries, WHERE works on denormalized filter columns, on dimensions a
+    /// `native_dimension_mapping` maps to a column (read from that column), and on
+    /// top-level JSONB dimension keys.
     /// Expected format: `{ "field_operator": value }`
     /// Example: `{ "customer_id_eq": "123", "occurred_at_gte": "2024-01-01" }`
     ///
@@ -195,7 +197,16 @@ impl AggregateQueryParser {
             // operator="eq")
             let (field, operator) = split_where_key(key, metadata, native_columns)?;
 
-            let clause = if let Some(pg_cast) = native_columns.get(field) {
+            let clause = if let Some(column) = metadata.native_dimension_mapping.get(field) {
+                // A dimension mapped to a native column is read from the column, as its
+                // `groupBy` is (#1231), cast as the column's declared filter type is.
+                WhereClause::NativeField {
+                    column: column.clone(),
+                    pg_cast: native_columns.get(column.as_str()).cloned().unwrap_or_default(),
+                    operator,
+                    value: value.clone(),
+                }
+            } else if let Some(pg_cast) = native_columns.get(field) {
                 WhereClause::NativeField {
                     column: field.to_string(),
                     pg_cast: pg_cast.clone(),
@@ -252,7 +263,10 @@ impl AggregateQueryParser {
                         // Priority 3: Deep JSONB path mapped to a native column
                         selections.push(GroupBySelection::NativeDimension {
                             column:  mapped_col.clone(),
-                            pg_cast: String::new(),
+                            pg_cast: native_columns
+                                .get(mapped_col.as_str())
+                                .cloned()
+                                .unwrap_or_default(),
                             alias:   key.clone(),
                         });
                     } else if let Some(pg_cast) = native_columns.get(key.as_str()) {

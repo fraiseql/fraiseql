@@ -172,7 +172,7 @@ mod native_where {
         let plan = plan_with_native_where("order_id", "uuid", serde_json::json!("abc-123"));
         let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
         let sql = gen.generate_parameterized(&plan).unwrap().sql;
-        assert!(sql.contains(r#""order_id" = $1::uuid"#), "got: {sql}");
+        assert!(sql.contains(r#""order_id" = $1::text::uuid"#), "got: {sql}");
     }
 
     #[test]
@@ -180,7 +180,7 @@ mod native_where {
         let plan = plan_with_native_where("customer_id", "int8", serde_json::json!(42));
         let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
         let sql = gen.generate_parameterized(&plan).unwrap().sql;
-        assert!(sql.contains(r#""customer_id" = $1::int8"#), "got: {sql}");
+        assert!(sql.contains(r#""customer_id" = $1::text::int8"#), "got: {sql}");
     }
 
     #[test]
@@ -211,7 +211,7 @@ mod native_where {
         ]));
         let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
         let sql = gen.generate_parameterized(&plan).unwrap().sql;
-        assert!(sql.contains(r#""customer_id" = $1::int8"#), "got: {sql}");
+        assert!(sql.contains(r#""customer_id" = $1::text::int8"#), "got: {sql}");
         assert!(sql.contains(r#""status" = $2"#), "got: {sql}");
     }
 }
@@ -366,7 +366,7 @@ mod native_columns_integration {
         let result = gen.generate_parameterized(&plan).unwrap();
 
         assert!(result.sql.contains(r#""customer_id""#), "got: {}", result.sql);
-        assert!(result.sql.contains("$1::int8"), "got: {}", result.sql);
+        assert!(result.sql.contains("$1::text::int8"), "got: {}", result.sql);
         assert!(!result.sql.contains("data->>'customer_id'"), "unexpected JSONB: {}", result.sql);
     }
 

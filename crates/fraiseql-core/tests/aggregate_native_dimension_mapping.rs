@@ -1,4 +1,4 @@
-#![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
+#![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)] // Reason: test code; the sums compared are small exact integers
 
 //! Issue #1231 — a dimension mapped to a native column (`native_dimension_mapping`) is read
 //! from that column by `where` as well as by `groupBy`, whichever casing the mapping key
@@ -107,6 +107,17 @@ fn total(row: &Value) -> f64 {
         .unwrap_or_else(|| panic!("no revenue_sum in {row}"))
 }
 
+/// Revenue of the rows a `where` keeps.
+async fn revenue_where(executor: &Executor, metadata: &FactTableMetadata, filter: Value) -> f64 {
+    let rows = run(
+        executor,
+        metadata,
+        json!({ "table": TABLE, "where": filter, "aggregates": [{ "revenue_sum": {} }] }),
+    )
+    .await;
+    rows.first().map_or(0.0, total)
+}
+
 /// `{group value → revenue}` for a `groupBy` on `key`.
 async fn grouped(
     executor: &Executor,
@@ -147,5 +158,58 @@ async fn a_mapped_dimension_groups_under_the_requested_key() {
         grouped(&executor, &metadata, "category").await,
         vec![("1".to_string(), 10.0), ("2".to_string(), 1.0)],
         "groupBy reads category_id and answers as `category`"
+    );
+}
+
+/// The column says category 2 is the row with revenue 1; the JSONB says it is the row with
+/// revenue 10. A mapped `where` must read the column, as `groupBy` does.
+#[tokio::test]
+async fn a_mapped_dimension_filters_on_its_column() {
+    let executor = executor().await;
+    let metadata = metadata(&[("category", "category_id")]);
+
+    assert_eq!(
+        revenue_where(&executor, &metadata, json!({ "category_eq": 2 })).await,
+        1.0,
+        "where must read category_id, not data->>'category'"
+    );
+}
+
+/// The mapped column is an `int`; a filter value given as a string is cast to the column's
+/// type, as a denormalized filter's is, rather than compared as text.
+#[tokio::test]
+async fn a_mapped_filter_casts_its_value_to_the_column_type() {
+    let executor = executor().await;
+    let metadata = metadata(&[("category", "category_id")]);
+
+    assert_eq!(
+        revenue_where(&executor, &metadata, json!({ "category_eq": "2" })).await,
+        1.0,
+        "a string literal compares with the int column as an int"
+    );
+    assert_eq!(
+        revenue_where(&executor, &metadata, json!({ "category_in": ["2"] })).await,
+        1.0,
+        "and so does a list"
+    );
+}
+
+/// A denormalized `int` filter column, mapped or not, compares with a number. The value is
+/// bound as text, and a bare `$1::int4` decoded those bytes as a binary integer
+/// ("insufficient data left in message"), so no `int` filter column could be filtered.
+#[tokio::test]
+async fn an_int_filter_column_filters_by_a_number() {
+    let executor = executor().await;
+    let metadata = metadata(&[]);
+
+    assert_eq!(
+        revenue_where(&executor, &metadata, json!({ "category_id_eq": 2 })).await,
+        1.0,
+        "category_id = 2"
+    );
+    assert_eq!(
+        revenue_where(&executor, &metadata, json!({ "category_id_in": [1, 2] })).await,
+        11.0,
+        "category_id IN (1, 2)"
     );
 }

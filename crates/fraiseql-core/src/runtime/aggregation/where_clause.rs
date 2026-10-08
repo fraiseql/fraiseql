@@ -24,7 +24,7 @@ impl AggregationSqlGenerator {
                     metadata.denormalized_filters.iter().any(|f| f.name == *field_name);
                 if is_denormalized {
                     self.generate_direct_column_where_parameterized(
-                        field_name, operator, value, params,
+                        field_name, "", operator, value, params,
                     )
                 } else {
                     let jsonb_column = &metadata.dimensions.name;
@@ -70,23 +70,9 @@ impl AggregationSqlGenerator {
                 if let Some(sql) = self.ltree_where(&col_ref, operator, value, params)? {
                     return Ok(sql);
                 }
-                let pre_len = params.len();
-                let sql = self.generate_direct_column_where_parameterized(
-                    &col_ref, operator, value, params,
-                )?;
-
-                // For PostgreSQL with a non-empty type cast, append ::type to the single
-                // scalar placeholder that was just added.  IN / NOT IN push multiple params;
-                // IsNull pushes none — neither needs a cast suffix here.
-                if self.database_type == DatabaseType::PostgreSQL
-                    && !pg_cast.is_empty()
-                    && params.len() == pre_len + 1
-                {
-                    let ph = self.placeholder(pre_len);
-                    Ok(sql.replace(&ph, &format!("{ph}::{pg_cast}")))
-                } else {
-                    Ok(sql)
-                }
+                self.generate_direct_column_where_parameterized(
+                    &col_ref, pg_cast, operator, value, params,
+                )
             },
             // Declared field types steer the JSONB-extraction casts in the
             // generic WHERE generator; this path builds its own SQL from the
@@ -106,9 +92,15 @@ impl AggregationSqlGenerator {
     }
 
     /// Parameterized WHERE for a denormalized (direct column) filter.
+    ///
+    /// `pg_cast` is the column's PostgreSQL type (`""` for none). Every aggregate parameter
+    /// is bound as text, so a compared value is cast from text to it (`$1::text::int4`), in
+    /// a scalar comparison and in each `IN` element alike: a bare `$1::int4` would type the
+    /// parameter `int4` and have its text bytes decoded as a binary integer (#1231).
     pub(super) fn generate_direct_column_where_parameterized(
         &self,
         field: &str,
+        pg_cast: &str,
         operator: &WhereOperator,
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
@@ -126,7 +118,8 @@ impl AggregationSqlGenerator {
             let arr = value.as_array().ok_or_else(|| {
                 FraiseQLError::validation("IN/NOT IN operators require array values")
             })?;
-            let phs: Vec<String> = arr.iter().map(|v| self.emit_value_param(v, params)).collect();
+            let phs: Vec<String> =
+                arr.iter().map(|v| self.emit_cast_param(v, pg_cast, params)).collect();
             return Ok(format!("{field} {op_sql} ({})", phs.join(", ")));
         }
 
@@ -155,8 +148,29 @@ impl AggregationSqlGenerator {
             return self.generate_case_insensitive_where_parameterized(field, operator, s, params);
         }
 
-        let ph = self.emit_value_param(value, params);
+        let ph = self.emit_cast_param(value, pg_cast, params);
         Ok(format!("{field} {op_sql} {ph}"))
+    }
+
+    /// A placeholder for `value`, cast to `pg_cast` through text on PostgreSQL. The value is
+    /// bound as its text form (a JSON number or boolean as its literal), which is what the
+    /// cast reads; an empty `pg_cast`, or another dialect, binds it unchanged.
+    fn emit_cast_param(
+        &self,
+        value: &serde_json::Value,
+        pg_cast: &str,
+        params: &mut Vec<serde_json::Value>,
+    ) -> String {
+        if pg_cast.is_empty() || self.database_type != DatabaseType::PostgreSQL {
+            return self.emit_value_param(value, params);
+        }
+        let text = match value {
+            serde_json::Value::Number(n) => serde_json::Value::String(n.to_string()),
+            serde_json::Value::Bool(b) => serde_json::Value::String(b.to_string()),
+            other => other.clone(),
+        };
+        let ph = self.emit_value_param(&text, params);
+        format!("{ph}::text::{pg_cast}")
     }
 
     /// Parameterized WHERE for a JSONB dimension field.
