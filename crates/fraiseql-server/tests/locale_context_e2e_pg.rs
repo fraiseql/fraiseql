@@ -158,7 +158,11 @@ async fn start_with(
     tweak(&mut config);
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
-    let server = Box::pin(Server::new(config, schema, adapter, pool)).await.unwrap();
+    // REST writes are mounted only on request (#865).
+    let server = Box::pin(Server::new(config, schema, adapter, pool))
+        .await
+        .unwrap()
+        .with_rest_write_surface();
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     tokio::spawn(async move {
         server
@@ -643,4 +647,190 @@ async fn a_federation_entity_lookup_runs_in_the_request_locale() {
         .await
         .unwrap();
     assert_eq!(body["data"]["_entities"][0]["locale"], json!("fr"), "{body}");
+}
+
+/// The schema the write fixture lives in.
+const WRITE_SCHEMA: &str = "locale_write";
+
+/// A note table whose `AFTER INSERT` trigger, and the mutation function that inserts into
+/// it, each record `current_setting('fraiseql.locale', true)` in an audit table. The trigger
+/// stands for a stored projection refreshed inside the write (a TVIEW, `pg_tviews#193`).
+async fn provision_writes(adapter: &PostgresAdapter) {
+    let mut stmts = vec![
+        "CREATE SCHEMA IF NOT EXISTS app".to_string(),
+        "DO $$ BEGIN CREATE TYPE app.mutation_error_class AS ENUM ('validation','conflict',\
+         'not_found','unauthorized','forbidden','internal','transaction_failed','timeout',\
+         'rate_limited','service_unavailable'); EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+            .to_string(),
+        "DO $$ BEGIN CREATE TYPE app.mutation_response AS (succeeded BOOLEAN, state_changed \
+         BOOLEAN, error_class app.mutation_error_class, status_detail TEXT, http_status \
+         SMALLINT, message TEXT, entity_id UUID, entity_type TEXT, entity JSONB, \
+         updated_fields TEXT[], cascade JSONB, error_detail JSONB, metadata JSONB); \
+         EXCEPTION WHEN duplicate_object THEN NULL; END $$;"
+            .to_string(),
+        format!("DROP SCHEMA IF EXISTS {WRITE_SCHEMA} CASCADE"),
+        format!("CREATE SCHEMA {WRITE_SCHEMA}"),
+        format!("CREATE TABLE {WRITE_SCHEMA}.tb_audit (via text, seen text, label text)"),
+        format!("CREATE TABLE {WRITE_SCHEMA}.tb_note (id uuid PRIMARY KEY, label text NOT NULL)"),
+        format!(
+            "CREATE VIEW {WRITE_SCHEMA}.v_note AS SELECT id, jsonb_build_object('id', id, \
+             'label', label) AS data FROM {WRITE_SCHEMA}.tb_note"
+        ),
+        format!(
+            "CREATE FUNCTION {WRITE_SCHEMA}.trg_note_audit() RETURNS trigger LANGUAGE plpgsql \
+             AS $$ BEGIN INSERT INTO {WRITE_SCHEMA}.tb_audit VALUES ('trigger', \
+             current_setting('fraiseql.locale', true), NEW.label); RETURN NEW; END; $$"
+        ),
+        format!(
+            "CREATE TRIGGER note_audit AFTER INSERT ON {WRITE_SCHEMA}.tb_note FOR EACH ROW \
+             EXECUTE FUNCTION {WRITE_SCHEMA}.trg_note_audit()"
+        ),
+        format!(
+            "CREATE FUNCTION {WRITE_SCHEMA}.fn_create_note(p_label text) \
+             RETURNS app.mutation_response LANGUAGE plpgsql AS $$ \
+             DECLARE v app.mutation_response; n uuid; BEGIN \
+             INSERT INTO {WRITE_SCHEMA}.tb_audit VALUES ('function', \
+               current_setting('fraiseql.locale', true), p_label); \
+             n := gen_random_uuid(); \
+             INSERT INTO {WRITE_SCHEMA}.tb_note (id, label) VALUES (n, p_label); \
+             v.succeeded := true; v.state_changed := true; v.message := 'created'; \
+             v.entity_type := 'LocaleNote'; v.entity_id := n; \
+             v.entity := jsonb_build_object('id', n, 'label', p_label); \
+             RETURN v; END; $$"
+        ),
+    ];
+    stmts.extend(fraiseql_test_support::changelog::entity_change_log_provision_statements());
+    for stmt in stmts {
+        adapter.execute_raw_query(&stmt).await.unwrap_or_else(|e| panic!("{stmt}: {e}"));
+    }
+}
+
+/// The compiled locale schema plus `LocaleNote` and its `createLocaleNote` mutation.
+async fn schema_with_writes() -> CompiledSchema {
+    use fraiseql_core::schema::{
+        ArgumentDefinition, FieldDefinition, FieldType, MutationDefinition, MutationOperation,
+        QueryDefinition, TypeDefinition,
+    };
+    let mut schema = compile(LOCALE_TOML).await.unwrap();
+    let mut note = TypeDefinition::new("LocaleNote", format!("{WRITE_SCHEMA}.v_note"));
+    note.fields = vec![
+        FieldDefinition::new("id", FieldType::Id),
+        FieldDefinition::new("label", FieldType::String),
+    ];
+    schema.types.push(note);
+    schema.queries.push(
+        QueryDefinition::new("notes", "LocaleNote")
+            .returning_list()
+            .with_sql_source(format!("{WRITE_SCHEMA}.v_note")),
+    );
+    let mut note = QueryDefinition::new("note", "LocaleNote")
+        .with_sql_source(format!("{WRITE_SCHEMA}.v_note"));
+    note.arguments = vec![ArgumentDefinition::new("id", FieldType::Id)];
+    schema.queries.push(note);
+    let mut create = MutationDefinition::new("createLocaleNote", "LocaleNote");
+    create.sql_source = Some(format!("{WRITE_SCHEMA}.fn_create_note"));
+    create.operation = MutationOperation::Insert {
+        table: "tb_note".to_string(),
+    };
+    create.arguments = vec![ArgumentDefinition::new("label", FieldType::String)];
+    schema.mutations.push(create);
+    schema.rest_config = Some(RestConfig {
+        enabled: true,
+        ..RestConfig::default()
+    });
+    schema.build_indexes();
+    schema
+}
+
+/// What the audit table recorded for writes labelled `label`: `(via, seen)` pairs.
+async fn audited(url: &str, label: &str) -> Vec<(String, Option<String>)> {
+    let adapter = PostgresAdapter::new(url).await.unwrap();
+    let rows = adapter
+        .execute_raw_query(&format!(
+            "SELECT via, seen FROM {WRITE_SCHEMA}.tb_audit WHERE label = '{label}' ORDER BY via"
+        ))
+        .await
+        .unwrap();
+    rows.iter()
+        .map(|r| (r["via"].as_str().unwrap().to_string(), r["seen"].as_str().map(str::to_string)))
+        .collect()
+}
+
+/// Cycle 5, the projection proof: a write never carries the locale. Inside the mutation
+/// function and inside a trigger on the written table, `fraiseql.locale` is unset, whatever
+/// the request sent, on every write entry point. A read in the same deployment sees it.
+#[tokio::test]
+async fn a_write_never_carries_the_locale() {
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    provision_writes(&PostgresAdapter::new(&url).await.unwrap()).await;
+    let schema = schema_with_writes().await;
+    let mcp_schema = schema.clone();
+    let Some(server) = start(schema, Auth::None).await else {
+        return;
+    };
+    let client = reqwest::Client::new();
+    // Recorded once by the function and once by the trigger, each seeing no locale.
+    let unset = || {
+        vec![
+            ("function".to_string(), None::<String>),
+            ("trigger".to_string(), None),
+        ]
+    };
+
+    let body: Value = client
+        .post(format!("{}/graphql", server.base))
+        .header("accept-language", "de-DE")
+        .json(&json!({ "query": "mutation { createLocaleNote(label: \"via-graphql\") { id } }" }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    assert!(body.get("errors").is_none(), "GraphQL mutation: {body}");
+    assert_eq!(audited(&url, "via-graphql").await, unset(), "GraphQL mutation");
+
+    let response = client
+        .post(format!("{}/rest/v1/notes?locale=de-DE", server.base))
+        .header("accept-language", "de-DE")
+        .json(&json!({ "label": "via-rest" }))
+        .send()
+        .await
+        .unwrap();
+    let status = response.status();
+    assert!(status.is_success(), "REST POST: {status} {}", response.text().await.unwrap());
+    assert_eq!(audited(&url, "via-rest").await, unset(), "REST POST");
+
+    let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
+    let service = FraiseQLMcpService::new(
+        AppState::new(Arc::new(Executor::new(mcp_schema, adapter))),
+        McpConfig {
+            enabled: true,
+            require_auth: false,
+            read_only: false,
+            ..McpConfig::default()
+        },
+    );
+    let mut headers = axum::http::HeaderMap::new();
+    headers.insert("accept-language", "de-DE".parse().unwrap());
+    let arguments = json!({ "label": "via-mcp" });
+    let result = service
+        .call_tool_authenticated(
+            "createLocaleNote",
+            arguments.as_object(),
+            None,
+            "mcp-write".to_string(),
+            &headers,
+        )
+        .await;
+    assert_ne!(result.is_error, Some(true), "MCP mutation: {:?}", result.content);
+    assert_eq!(audited(&url, "via-mcp").await, unset(), "MCP mutation");
+
+    // The control: the same deployment's reads do see it.
+    assert_eq!(
+        graphql_locale(&server, None, &[("accept-language", "de-DE")], None).await,
+        json!("de-DE")
+    );
 }
