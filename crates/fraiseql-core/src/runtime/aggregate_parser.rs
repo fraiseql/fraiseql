@@ -197,7 +197,7 @@ impl AggregateQueryParser {
             // operator="eq")
             let (field, operator) = split_where_key(key, metadata, native_columns)?;
 
-            let clause = if let Some(column) = metadata.native_dimension_mapping.get(field) {
+            let clause = if let Some(column) = mapped_column(metadata, field) {
                 // A dimension mapped to a native column is read from the column, as its
                 // `groupBy` is (#1231), cast as the column's declared filter type is.
                 WhereClause::NativeField {
@@ -257,9 +257,7 @@ impl AggregateQueryParser {
                     } else if let Some(bucket_sel) = Self::parse_temporal_bucket(key, metadata)? {
                         // Priority 2: Fall back to DATE_TRUNC if no calendar dimension
                         selections.push(bucket_sel);
-                    } else if let Some(mapped_col) =
-                        metadata.native_dimension_mapping.get(key.as_str())
-                    {
+                    } else if let Some(mapped_col) = mapped_column(metadata, key) {
                         // Priority 3: Deep JSONB path mapped to a native column
                         selections.push(GroupBySelection::NativeDimension {
                             column:  mapped_col.clone(),
@@ -813,6 +811,25 @@ fn validate_dimension_key(key: &str) -> Result<()> {
 ///
 /// `FraiseQLError::Validation` naming the key when no split names an operator, or when the
 /// key stays ambiguous.
+/// The native column a `native_dimension_mapping` maps the dimension `key` to (#1231).
+///
+/// Keys compare in `snake_case`, segment by segment: a mapping declared `itemCategory` and
+/// one declared `item_category` both serve a request for either spelling. Looking the raw
+/// request key up instead made a mapping in the other casing never fire, silently.
+pub(super) fn mapped_column<'m>(metadata: &'m FactTableMetadata, key: &str) -> Option<&'m String> {
+    let wanted = dimension_key(key);
+    metadata
+        .native_dimension_mapping
+        .iter()
+        .find(|(declared, _)| dimension_key(declared) == wanted)
+        .map(|(_, column)| column)
+}
+
+/// A dimension key in the form mapping keys compare in: each `.` segment in `snake_case`.
+pub(super) fn dimension_key(key: &str) -> String {
+    key.split('.').map(crate::utils::to_snake_case).collect::<Vec<_>>().join(".")
+}
+
 pub(super) fn split_where_key<'k>(
     key: &'k str,
     metadata: &FactTableMetadata,

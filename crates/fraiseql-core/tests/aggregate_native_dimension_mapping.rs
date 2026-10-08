@@ -194,6 +194,29 @@ async fn a_mapped_filter_casts_its_value_to_the_column_type() {
     );
 }
 
+/// A mapping fires whichever casing its key is declared in: the request may say
+/// `itemCategory` or `item_category`, and the mapping may be declared either way.
+#[tokio::test]
+async fn a_mapping_fires_in_either_casing() {
+    let executor = executor().await;
+
+    for declared in ["itemCategory", "item_category"] {
+        let metadata = metadata(&[(declared, "category_id")]);
+        for requested in ["itemCategory", "item_category"] {
+            assert_eq!(
+                grouped(&executor, &metadata, requested).await,
+                vec![("1".to_string(), 10.0), ("2".to_string(), 1.0)],
+                "mapping declared `{declared}`, groupBy `{requested}`: grouped on the column"
+            );
+            assert_eq!(
+                revenue_where(&executor, &metadata, json!({ format!("{requested}_eq"): 2 })).await,
+                1.0,
+                "mapping declared `{declared}`, where `{requested}_eq`: filtered on the column"
+            );
+        }
+    }
+}
+
 /// A denormalized `int` filter column, mapped or not, compares with a number. The value is
 /// bound as text, and a bare `$1::int4` decoded those bytes as a binary integer
 /// ("insufficient data left in message"), so no `int` filter column could be filtered.
