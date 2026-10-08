@@ -528,6 +528,12 @@ func (m *FraiseqlCi) ShellGates(
 		// fraiseql-server it was tolerated by the pre-tag dry-run and fatal to the
 		// real publish. Nothing compared the two lists before this gate.
 		"python3 tools/check-publish-parity.py",
+		// Every secret a publish job reads is checked by release.yml's prerequisite
+		// step before anything is published. The Rust SDK read CARGO_REGISTRY_TOKEN, a
+		// secret the repository never had: empty at the upload, after every other
+		// package of v2.16.0 was already public (#1518).
+		"python3 tools/check-publish-secrets.py",
+		"make test-publish-secrets-gate",
 		// The pre-tag image leg must build exactly what docker-build.yml publishes,
 		// in both directions and across both of its matrices. Static — it reads the
 		// two lists; building the images is the heavy leg's job (#1205).

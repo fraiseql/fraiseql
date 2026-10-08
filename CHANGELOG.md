@@ -18,6 +18,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **The Rust SDK publishes with the repository's crates.io token (#1518).** Its publish jobs
+  (`release.yml`, `rust-sdk.yml`) read `CARGO_REGISTRY_TOKEN`, a secret the repository does not
+  have, so `fraiseql-rust` failed at the upload after every other v2.16.0 package was public.
+  Both now read `CARGO_TOKEN`, and a preflight gate (`tools/check-publish-secrets.py`) refuses a
+  publish job that reads a secret the release's prerequisite step does not check.
 - **An aggregate or window output column answers under the key the request named (#1516).**
   Output aliases were emitted unquoted, so PostgreSQL folded a camelCase key to lower case: a
   `groupBy: {itemCategory: true}` answered `itemcategory`, and a window alias `runningTotal`
