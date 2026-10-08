@@ -21,8 +21,9 @@ use crate::{error::Result, graphql::ParsedQuery, schema::CompiledSchema};
 ///
 /// # Errors
 ///
-/// `Validation` for a document that selects no root field or more than one, or a
-/// subscription the schema does not declare.
+/// `Validation` for a document that selects no root field or more than one, a
+/// subscription the schema does not declare, or an argument the subscription does not
+/// declare (with the message a query field gives).
 pub fn subscription_arguments(
     schema: &CompiledSchema,
     document: &ParsedQuery,
@@ -45,12 +46,15 @@ pub fn subscription_arguments(
             "a subscription operation selects exactly one root field",
         ));
     };
-    schema.find_subscription(&root.name).ok_or_else(|| {
+    let definition = schema.find_subscription(&root.name).ok_or_else(|| {
         crate::error::FraiseQLError::validation(format!(
             "Subscription '{}' not found in schema",
             root.name
         ))
     })?;
+    let declared: Vec<String> = definition.arguments.iter().map(|a| a.name.clone()).collect();
+    crate::runtime::validate_argument_names(&root.name, &declared, &root.arguments)?;
+
     let mut arguments = serde_json::Map::new();
     for argument in &root.arguments {
         if let Some(value) =

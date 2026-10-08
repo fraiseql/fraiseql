@@ -435,3 +435,53 @@ async fn a_variable_named_unlike_its_argument_filters() {
     )
     .await;
 }
+
+/// The first frame `/ws` answers a subscribe of `query` with, and whether it registered.
+async fn answer_to(query: &str, variables: serde_json::Value) -> (serde_json::Value, usize) {
+    let test_id = Uuid::new_v4().simple().to_string();
+    let pool = create_test_pool().await;
+    setup_observer_schema(&pool).await.expect("schema setup");
+    let entity_type = format!("Order_{test_id}");
+    let pipeline = Pipeline::start_with(&pool, status_subscription(&entity_type)).await;
+
+    let (_sink, mut stream) = handshake_and_send(&pipeline, query, &variables).await;
+    // A refusal answers at once; an accepted subscription answers its first event.
+    write_pending_then_shipped(&pool, &entity_type).await;
+    let frame = loop {
+        let msg = tokio::time::timeout(std::time::Duration::from_secs(5), stream.next())
+            .await
+            .expect("timed out waiting for the answer to subscribe")
+            .expect("stream ended")
+            .expect("WebSocket error");
+        if let tungstenite::Message::Text(text) = msg {
+            let value: serde_json::Value = serde_json::from_str(&text).unwrap();
+            if value["type"] != "ping" {
+                break value;
+            }
+        }
+    };
+    let registered = pipeline.manager.subscription_count();
+
+    pipeline.stop().await;
+    cleanup_test_data(&pool, &test_id).await.ok();
+    (frame, registered)
+}
+
+/// An argument the subscription does not declare is refused, as on a query field: accepted,
+/// it was ignored, and the subscription delivered every event.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn an_undeclared_argument_is_refused() {
+    let (frame, registered) = answer_to(
+        "subscription { orderStatusChanged(stauts: \"shipped\") { id status } }",
+        json!({}),
+    )
+    .await;
+    assert_eq!(frame["type"], "error", "an undeclared argument must be refused: {frame}");
+    let message = frame.to_string();
+    assert!(
+        message.contains("Unknown argument 'stauts'") && message.contains("'status'"),
+        "the refusal names the argument and suggests the declared one: {frame}"
+    );
+    assert_eq!(registered, 0, "a refused subscription is not registered");
+}
