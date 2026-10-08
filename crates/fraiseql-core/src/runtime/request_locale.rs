@@ -25,6 +25,34 @@ pub async fn with_request_locale<F: Future>(locale: impl Into<String>, future: F
     REQUEST_LOCALE.scope(locale.into(), future).await
 }
 
+/// The fallback chain a localized field is read through in the current request (#1513): the
+/// request locale's chain from `[locale]`. `None` when the schema declares no locale.
+#[must_use]
+pub fn localization_chain(schema: &CompiledSchema) -> Option<Vec<String>> {
+    let locale = request_locale(schema)?;
+    schema.locale.as_ref()?.chain(&locale).map(<[String]>::to_vec)
+}
+
+/// A localized field's stored value read through `chain` (#1513).
+///
+/// The first locale whose label is a JSON string, `null` when none is. A value that is not a
+/// locale map (a label SQL already resolved, or a stored non-map) is returned unchanged.
+///
+/// The in-process twin of `fraiseql_db::projection_generator::localized_text_expr`, for
+/// values that never pass through that SQL (a mutation's returned entity, a composed read
+/// projected in Rust). Both skip a non-string label, so they agree; a parity test runs both
+/// over one corpus on PostgreSQL.
+#[must_use]
+pub fn localize(value: &serde_json::Value, chain: &[String]) -> serde_json::Value {
+    let serde_json::Value::Object(map) = value else {
+        return value.clone();
+    };
+    chain
+        .iter()
+        .find_map(|tag| map.get(tag).filter(|label| label.is_string()).cloned())
+        .unwrap_or(serde_json::Value::Null)
+}
+
 /// The locale the current request was scoped in by its transport, unchecked.
 ///
 /// `None` outside any scope. For a consumer with no schema at hand (the result cache's key);

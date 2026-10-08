@@ -964,6 +964,7 @@ mod field_filter_tests {
             encryption:      None,
             hierarchy:       None,
             unique:          false,
+            localized:       false,
         }
     }
 
@@ -1092,6 +1093,7 @@ mod field_filter_tests {
             encryption: None,
             hierarchy: None,
             unique: false,
+            localized: false,
         }
     }
 

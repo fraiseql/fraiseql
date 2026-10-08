@@ -108,6 +108,11 @@ pub struct ProjectionField {
     /// JSONB arrays is out of scope for this first iteration.
     pub sub_fields: Option<Vec<ProjectionField>>,
 
+    /// A localized field's fallback chain for the request locale (#1513): the field reads
+    /// the first of these locales whose label is a string, `null` when none is. See
+    /// [`localized_text_expr`].
+    pub localized: Option<Vec<String>>,
+
     /// A SQL expression this field's value comes from, instead of the JSONB
     /// column (#959) — the vector distance a `nearest` query ordered by.
     ///
@@ -130,6 +135,7 @@ impl ProjectionField {
             name,
             kind: FieldKind::Text,
             sub_fields: None,
+            localized: None,
             computed: None,
         }
     }
@@ -147,6 +153,7 @@ impl ProjectionField {
             name,
             kind: FieldKind::Native,
             sub_fields: None,
+            localized: None,
             computed: None,
         }
     }
@@ -160,6 +167,7 @@ impl ProjectionField {
             name,
             kind: FieldKind::Composite,
             sub_fields: None,
+            localized: None,
             computed: None,
         }
     }
@@ -176,6 +184,7 @@ impl ProjectionField {
             name,
             kind: FieldKind::Composite,
             sub_fields: Some(sub_fields),
+            localized: None,
             computed: None,
         }
     }
@@ -194,6 +203,7 @@ impl ProjectionField {
             name,
             kind: FieldKind::Native,
             sub_fields: None,
+            localized: None,
             computed: Some(expr),
         }
     }
@@ -239,6 +249,49 @@ fn validate_field_name(field: &str) -> Result<()> {
 }
 
 use crate::utils::to_snake_case;
+
+/// The SQL a localized field's value is read with (#1513): the first label in `chain` that is
+/// a JSON string, `NULL` when none is.
+///
+/// `field_path` is the field's JSONB value (`"data"->'name'`), the locale map. For
+/// `chain = [fr-CA, fr-FR, en-US]`:
+///
+/// ```text
+/// COALESCE(CASE WHEN jsonb_typeof("data"->'name'->'fr-CA') = 'string'
+///               THEN "data"->'name'->>'fr-CA' END, …, … 'en-US' … END)
+/// ```
+///
+/// Only a string counts: `->>` would render a number, a boolean or a nested object as text, and
+/// the in-process evaluator (`fraiseql_core::runtime::localize`) treats them as absent, so the
+/// two answer alike. The one builder of this expression: the projection, the `where` and
+/// `orderBy` arms and the reported index all call it, so an index matches the query that
+/// should use it.
+///
+/// # Errors
+///
+/// `FraiseQLError::Validation` for a locale outside `[A-Za-z0-9-]`: the tags come from the
+/// compiled `[locale]` (BCP 47, validated at compile and at load) and are checked again here
+/// before they become SQL literals.
+pub fn localized_text_expr(field_path: &str, chain: &[String]) -> Result<String> {
+    if chain.is_empty() {
+        return Ok("NULL::text".to_string());
+    }
+    let arms = chain
+        .iter()
+        .map(|tag| {
+            if tag.is_empty() || !tag.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-') {
+                return Err(FraiseQLError::validation(format!(
+                    "locale `{tag}` is not a language tag"
+                )));
+            }
+            Ok(format!(
+                "CASE WHEN jsonb_typeof({field_path}->'{tag}') = 'string' THEN \
+                 {field_path}->>'{tag}' END"
+            ))
+        })
+        .collect::<Result<Vec<_>>>()?;
+    Ok(format!("COALESCE({})", arms.join(", ")))
+}
 
 /// PostgreSQL SQL projection generator using jsonb_build_object.
 ///
@@ -421,6 +474,12 @@ impl PostgresProjectionGenerator {
         }
         let jsonb_key = to_snake_case(&field.source);
         let safe_jsonb_key = Self::escape_sql_string(&jsonb_key);
+
+        // A localized field reads its chain's first string label (#1513).
+        if let Some(chain) = &field.localized {
+            let field_path = format!("{path}->'{safe_jsonb_key}'");
+            return Ok(format!("'{}', {}", resp_key, localized_text_expr(&field_path, chain)?));
+        }
 
         // An object's sub-fields, at any depth — never the stored object in their place.
         //

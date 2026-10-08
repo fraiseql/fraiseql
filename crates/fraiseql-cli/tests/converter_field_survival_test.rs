@@ -39,6 +39,7 @@ fn order_type() -> IntermediateType {
             authorize:       None,
             hierarchy:       None,
             unique:          None,
+            localized:       false,
         }],
         ..Default::default()
     }

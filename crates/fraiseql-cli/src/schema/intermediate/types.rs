@@ -361,6 +361,11 @@ pub struct IntermediateField {
     /// ```
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub unique: Option<bool>,
+
+    /// A localized `String` (#1513): stored as a locale map (`{"fr-FR": "Pomme", ...}`) and
+    /// returned as the request locale's label. Emitted by the SDKs' `Localized` type.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub localized: bool,
 }
 
 // =============================================================================

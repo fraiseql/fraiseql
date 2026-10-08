@@ -61,6 +61,7 @@ impl SchemaExtractor for SwiftExtractor {
                         authorize: None,
                         hierarchy: None,
                         unique: None,
+                        localized: false,
                     });
                 }
             }

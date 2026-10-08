@@ -135,7 +135,9 @@ pub use query_function::{QueryFunctionRequest, QueryFunctionResolver};
 pub use query_tracing::{
     QueryExecutionTrace, QueryPhaseSpan, QueryTraceBuilder, create_phase_span, create_query_span,
 };
-pub use request_locale::{request_locale, scoped_request_locale, with_request_locale};
+pub use request_locale::{
+    localization_chain, localize, request_locale, scoped_request_locale, with_request_locale,
+};
 pub use sql_logger::{SqlOperation, SqlQueryLog, SqlQueryLogBuilder, create_sql_span};
 pub use subscription::{
     ActiveSubscription, DeliveryResult, KafkaAdapter, KafkaConfig, KafkaMessage, SubscriptionError,

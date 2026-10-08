@@ -29,6 +29,11 @@ disagreed, and the promise was the part that was wrong.
   (metadata), Arrow Flight (identity only), federation `_entities`, and async operations
   (resolved at submission, stored in a new nullable `_system.async_operations.locale` column,
   added in place). See `docs/features/request-locale.md`.
+- **Localized fields (#1513).** A `String` field marked `localized` is stored as a locale map
+  (`{"fr-FR": "Pomme", "en-US": "Apple"}`) and returned as the request locale's label, read
+  through the `[locale]` fallback chain (the locale, its explicit fallbacks, its allowed
+  truncations, then `default`); a value that is not a JSON string counts as absent. The compiler
+  and the loader refuse `localized` on another type, and in a schema without `[locale]`.
 - **Text sorts follow the request locale's collation (#1512).** With `[locale]`, an ordering on a
   text field runs `COLLATE "<tag>-x-icu"` on every sort site (lists, relay first pages, REST
   `?sort=`, exports, gRPC, aggregate and window `ORDER BY`); numbers, dates and IDs are

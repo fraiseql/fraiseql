@@ -175,6 +175,7 @@ fn sample_schema() -> IntermediateSchema {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
                 IntermediateField {
                     function: None,
@@ -192,6 +193,7 @@ fn sample_schema() -> IntermediateSchema {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
                 IntermediateField {
                     function: None,
@@ -209,6 +211,7 @@ fn sample_schema() -> IntermediateSchema {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
                 IntermediateField {
                     function: None,
@@ -226,6 +229,7 @@ fn sample_schema() -> IntermediateSchema {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
             ],
             description:            None,

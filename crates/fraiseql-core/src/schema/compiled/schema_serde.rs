@@ -249,6 +249,36 @@ impl CompiledSchema {
         if let Some(locale) = self.locale.as_mut() {
             locale.validate()?;
         }
+        // #1513: a localized field is a `String` stored as a locale map, resolved through
+        // `[locale]`'s chains; on another type, or without `[locale]`, there is nothing to
+        // resolve it with.
+        let mut localized = Vec::new();
+        for type_def in &self.types {
+            for field in type_def.fields.iter().filter(|f| f.localized) {
+                if !matches!(field.field_type, crate::schema::FieldType::String) {
+                    localized.push(format!(
+                        "`{}.{}` is localized but is not a String (a localized field is a \
+                         String stored as a locale map)",
+                        type_def.name, field.name
+                    ));
+                } else if self.locale.is_none() {
+                    localized.push(format!(
+                        "`{}.{}` is localized, but the schema declares no [locale]: add \
+                         [locale] to fraiseql.toml",
+                        type_def.name, field.name
+                    ));
+                }
+            }
+        }
+        if !localized.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "localized fields cannot be served:\n  - {}",
+                    localized.join("\n  - ")
+                ),
+                path:    Some("types.fields.localized".to_string()),
+            });
+        }
         if let Some(mapping) = self
             .session_variables
             .variables

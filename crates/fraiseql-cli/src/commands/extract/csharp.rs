@@ -151,6 +151,7 @@ pub(super) fn extract_csharp_record_fields(body: &str) -> Vec<IntermediateField>
             authorize: None,
             hierarchy: None,
             unique: None,
+            localized: false,
         });
     }
     fields

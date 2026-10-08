@@ -300,6 +300,7 @@ fn convert_field_maps_authorize_true() {
         authorize:       Some(true),
         hierarchy:       None,
         unique:          None,
+        localized:       false,
     };
     let compiled = SchemaConverter::convert_field(
         intermediate,
@@ -327,6 +328,7 @@ fn convert_field_authorize_absent_defaults_false() {
         authorize:       None,
         hierarchy:       None,
         unique:          None,
+        localized:       false,
     };
     let compiled = SchemaConverter::convert_field(
         intermediate,
@@ -358,6 +360,7 @@ fn convert_field_maps_unique_true() {
         authorize:       None,
         hierarchy:       None,
         unique:          Some(true),
+        localized:       false,
     };
     let compiled = SchemaConverter::convert_field(
         intermediate,
@@ -391,6 +394,7 @@ fn convert_field_unique_absent_defaults_false() {
         authorize:       None,
         hierarchy:       None,
         unique:          None,
+        localized:       false,
     };
     let compiled = SchemaConverter::convert_field(
         intermediate,
@@ -514,6 +518,7 @@ fn convert_field_list_type_compiles_to_list() {
         authorize:       None,
         hierarchy:       None,
         unique:          None,
+        localized:       false,
     };
     let compiled = SchemaConverter::convert_field(
         intermediate,
@@ -554,6 +559,7 @@ fn test_convert_type_with_fields() {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
                 IntermediateField {
                     function: None,
@@ -571,6 +577,7 @@ fn test_convert_type_with_fields() {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
             ],
             description:            Some("User type".to_string()),
@@ -1011,6 +1018,7 @@ fn test_convert_field_with_deprecated_directive() {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
                 IntermediateField {
                     function: None,
@@ -1028,6 +1036,7 @@ fn test_convert_field_with_deprecated_directive() {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
             ],
             description:            None,
@@ -1402,6 +1411,7 @@ fn test_convert_interface() {
                 authorize:       None,
                 hierarchy:       None,
                 unique:          None,
+                localized:       false,
             }],
             description: Some("An object with a globally unique ID".to_string()),
         }],
@@ -1475,6 +1485,7 @@ fn test_convert_type_implements_interface() {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
                 IntermediateField {
                     function: None,
@@ -1492,6 +1503,7 @@ fn test_convert_type_implements_interface() {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
             ],
             description:            None,
@@ -1526,6 +1538,7 @@ fn test_convert_type_implements_interface() {
                 authorize:       None,
                 hierarchy:       None,
                 unique:          None,
+                localized:       false,
             }],
             description: None,
         }],
@@ -1598,6 +1611,7 @@ fn test_validate_unknown_interface() {
                 authorize:       None,
                 hierarchy:       None,
                 unique:          None,
+                localized:       false,
             }],
             description:            None,
             implements:             vec!["UnknownInterface".to_string()],
@@ -1679,6 +1693,7 @@ fn test_validate_missing_interface_field() {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
             ],
             description:            None,
@@ -1713,6 +1728,7 @@ fn test_validate_missing_interface_field() {
                 authorize:       None,
                 hierarchy:       None,
                 unique:          None,
+                localized:       false,
             }],
             description: None,
         }],
@@ -1780,6 +1796,7 @@ fn test_convert_union() {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 }],
                 description:            None,
                 implements:             vec![],
@@ -1812,6 +1829,7 @@ fn test_convert_union() {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 }],
                 description:            None,
                 implements:             vec![],
@@ -1902,6 +1920,7 @@ fn test_convert_field_requires_scope() {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
                 IntermediateField {
                     function: None,
@@ -1919,6 +1938,7 @@ fn test_convert_field_requires_scope() {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
                 IntermediateField {
                     function: None,
@@ -1936,6 +1956,7 @@ fn test_convert_field_requires_scope() {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
                 IntermediateField {
                     function: None,
@@ -1953,6 +1974,7 @@ fn test_convert_field_requires_scope() {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 },
             ],
             description:            None,
@@ -2129,6 +2151,7 @@ mod tenancy_tests {
             authorize:       None,
             hierarchy:       None,
             unique:          None,
+            localized:       false,
         }
     }
 
@@ -2152,6 +2175,7 @@ mod tenancy_tests {
             authorize:       None,
             hierarchy:       None,
             unique:          None,
+            localized:       false,
         }
     }
 
@@ -3202,6 +3226,7 @@ mod changelog_cascade_conformance_tests {
             authorize:       None,
             hierarchy:       None,
             unique:          None,
+            localized:       false,
         }
     }
 

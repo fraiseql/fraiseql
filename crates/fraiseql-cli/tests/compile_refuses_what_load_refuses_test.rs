@@ -181,6 +181,22 @@ async fn compile_refuses_what_the_server_would_refuse_to_load() {
     );
     compile(&nested).await.expect("a nested readable json_path compiles");
 
+    // #1513: `localized` is a String stored as a locale map, resolved through [locale].
+    let localized = |field_type: &str| {
+        format!(
+            r#"{{"types": [{{"name": "Product", "sql_source": "tv_product", "fields": [
+                {{"name": "id", "type": "ID", "nullable": false}},
+                {{"name": "name", "type": "{field_type}", "nullable": true, "localized": true}}
+            ]}}]}}"#
+        )
+    };
+    let err = compile(&localized("Int")).await.expect_err("a localized Int must not compile");
+    assert!(format!("{err:#}").contains("`Product.name` is localized but is not a String"));
+    let err = compile(&localized("String"))
+        .await
+        .expect_err("a localized field without [locale] must not compile");
+    assert!(format!("{err:#}").contains("declares no [locale]"), "{err:#}");
+
     // Control: the complete link compiles.
     let complete =
         fact_table_schema(r#"{"name": "revenue", "sql_type": "numeric", "nullable": false}"#);

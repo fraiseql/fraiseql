@@ -539,6 +539,7 @@ mod schema_validator_tests {
             authorize:       None,
             hierarchy:       None,
             unique:          None,
+            localized:       false,
         }
     }
 

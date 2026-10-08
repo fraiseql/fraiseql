@@ -2065,6 +2065,7 @@ mod field_rbac {
                 encryption:      None,
                 hierarchy:       None,
                 unique:          false,
+                localized:       false,
             },
             FieldDefinition {
                 name:            "name".into(),
@@ -2082,6 +2083,7 @@ mod field_rbac {
                 encryption:      None,
                 hierarchy:       None,
                 unique:          false,
+                localized:       false,
             },
             // Protected field: reject when unauthorized
             FieldDefinition {
@@ -2100,6 +2102,7 @@ mod field_rbac {
                 encryption:      None,
                 hierarchy:       None,
                 unique:          false,
+                localized:       false,
             },
             // Protected field: mask when unauthorized
             FieldDefinition {
@@ -2118,6 +2121,7 @@ mod field_rbac {
                 encryption:      None,
                 hierarchy:       None,
                 unique:          false,
+                localized:       false,
             },
         ];
 

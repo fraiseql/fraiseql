@@ -127,6 +127,7 @@ fn mutation_error_type() -> TypeDefinition {
         encryption: None,
         hierarchy: None,
         unique: false,
+        localized: false,
     };
     TypeDefinition {
         name:                ERROR_TYPE.into(),

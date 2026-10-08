@@ -536,6 +536,12 @@ pub struct FieldDefinition {
     /// predate it deserialize unchanged.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub unique: bool,
+
+    /// A localized `String` (#1513): stored as a map from locale to label, returned as the
+    /// label for the request locale, through the `[locale]` fallback chain. The compiler and
+    /// the loader refuse it on any other type and in a schema without `[locale]`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub localized: bool,
 }
 
 /// Encryption configuration for a field in the compiled schema.
@@ -609,6 +615,7 @@ impl FieldDefinition {
             encryption: None,
             hierarchy: None,
             unique: false,
+            localized: false,
         }
     }
 
@@ -631,6 +638,7 @@ impl FieldDefinition {
             encryption: None,
             hierarchy: None,
             unique: false,
+            localized: false,
         }
     }
 
@@ -661,6 +669,7 @@ impl FieldDefinition {
             encryption:      None,
             hierarchy:       None,
             unique:          false,
+            localized:       false,
         }
     }
 

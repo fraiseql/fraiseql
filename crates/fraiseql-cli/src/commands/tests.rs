@@ -336,6 +336,7 @@ mod compile_tests {
                     authorize:       None,
                     hierarchy:       None,
                     unique:          None,
+                    localized:       false,
                 }],
                 sql_source: Some("v_user".into()),
                 ..Default::default()
@@ -678,6 +679,7 @@ mod compile_tests {
                         encryption:      None,
                         hierarchy:       None,
                         unique:          false,
+                        localized:       false,
                     },
                     FieldDefinition {
                         name:            "email".into(),
@@ -695,6 +697,7 @@ mod compile_tests {
                         encryption:      None,
                         hierarchy:       None,
                         unique:          false,
+                        localized:       false,
                     },
                 ],
                 description:         Some("Test type".to_string()),

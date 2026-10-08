@@ -2205,6 +2205,7 @@ mod optimizer_tests {
                         encryption:      None,
                         hierarchy:       None,
                         unique:          false,
+                        localized:       false,
                     })
                     .collect(),
                 description:         None,
@@ -2269,6 +2270,7 @@ mod optimizer_tests {
                         encryption:      None,
                         hierarchy:       None,
                         unique:          false,
+                        localized:       false,
                     })
                     .collect(),
                 description:         None,
@@ -2343,6 +2345,7 @@ mod optimizer_tests {
                         encryption:      None,
                         hierarchy:       None,
                         unique:          false,
+                        localized:       false,
                     })
                     .collect(),
                 description:         None,

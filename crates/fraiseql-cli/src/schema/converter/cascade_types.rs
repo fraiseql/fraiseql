@@ -325,6 +325,7 @@ fn synth_field(name: &str, field_type: FieldType, nullable: bool, desc: &str) ->
         encryption: None,
         hierarchy: None,
         unique: false,
+        localized: false,
     }
 }
 

@@ -42,6 +42,8 @@ pub fn build_typed_projection_fields(
     parent_type_name: &str,
 ) -> Vec<ProjectionField> {
     let type_def = schema.find_type(parent_type_name);
+    // #1513: a localized field reads the request locale's chain.
+    let chain = crate::runtime::localization_chain(schema);
     selections
         .iter()
         // Skip __typename — it is a GraphQL meta-field not stored in the JSONB column.
@@ -93,6 +95,7 @@ pub fn build_typed_projection_fields(
                 source: sel.name.clone(),
                 kind,
                 sub_fields,
+                localized: field_def.filter(|fd| fd.localized).and(chain.clone()),
                 computed: None,
             }
         })

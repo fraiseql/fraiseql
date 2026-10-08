@@ -143,6 +143,7 @@ pub(super) fn extract_ts_fields(body: &str) -> Vec<IntermediateField> {
             authorize:       None,
             hierarchy:       None,
             unique:          None,
+            localized:       false,
         });
     }
     fields
