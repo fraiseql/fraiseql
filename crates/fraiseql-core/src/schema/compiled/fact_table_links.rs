@@ -87,6 +87,36 @@ impl CompiledSchema {
         out
     }
 
+    /// `native_dimension_mapping` values that name no declared `denormalized_filters`
+    /// column (#1517).
+    ///
+    /// A mapped dimension is read from its column by `groupBy` and `where`, and a filter on
+    /// it binds with the column's declared type. A column the fact table does not declare
+    /// has no type, and nothing says it exists: the mapping is refused, naming where to
+    /// declare it.
+    #[must_use]
+    pub fn fact_table_mapping_column_violations(&self) -> Vec<String> {
+        let mut tables: Vec<&FactTableMetadata> = self.fact_tables.values().collect();
+        tables.sort_by(|a, b| a.table_name.cmp(&b.table_name));
+        let mut out = Vec::new();
+        for table in tables {
+            let mut mapping: Vec<(&String, &String)> =
+                table.native_dimension_mapping.iter().collect();
+            mapping.sort();
+            for (key, column) in mapping {
+                if !table.denormalized_filters.iter().any(|f| f.name == *column) {
+                    out.push(format!(
+                        "fact table `{}`: native_dimension_mapping maps `{key}` to column \
+                         `{column}`, which denormalized_filters does not declare; declare it \
+                         there (with its sql_type)",
+                        table.table_name
+                    ));
+                }
+            }
+        }
+        out
+    }
+
     /// Declared dimension paths whose `json_path` the runtime cannot read (#1517).
     ///
     /// `groupBy` and `where` read a declared path at the keys its `json_path` names

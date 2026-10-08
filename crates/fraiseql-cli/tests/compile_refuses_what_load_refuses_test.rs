@@ -140,6 +140,18 @@ async fn compile_refuses_what_the_server_would_refuse_to_load() {
         "names both keys: {msg}"
     );
 
+    // #1517: a mapping onto a column the fact table does not declare. Nothing gives the
+    // column a type (the cast a filter on it binds with), and nothing says it exists.
+    let undeclared = unlinked_fact_table("", r#"{"category": "category_id"}"#);
+    let err = compile(&undeclared)
+        .await
+        .expect_err("a mapping onto an undeclared column must not compile");
+    let msg = format!("{err:#}");
+    assert!(
+        msg.contains("category_id") && msg.contains("denormalized_filters"),
+        "names the column and where to declare it: {msg}"
+    );
+
     // Control: a mapping that agrees with the filter columns compiles.
     let agreeing = unlinked_fact_table(
         r#"{"name": "category_id", "sql_type": "int", "indexed": true}"#,

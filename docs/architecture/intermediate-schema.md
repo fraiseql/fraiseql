@@ -492,7 +492,7 @@ OLAP-style fact table for aggregate queries.
 | `dimensions` | `{name, paths: {name, json_path, data_type}[]}` | The JSONB dimensions column |
 | `denormalized_filters` | `{name, sql_type, indexed, hierarchy?}[]` | Filter columns. `hierarchy` names the `[hierarchies.<name>]` an `LTREE` path column belongs to, for node-id filters |
 | `native_measures` | `{[path]: column}?` | Measures stored as flat columns |
-| `native_dimension_mapping` | `{[path]: column}?` | Dimensions stored as flat columns |
+| `native_dimension_mapping` | `{[path]: column}?` | Dimensions stored as flat columns; each column must be declared in `denormalized_filters` (it gives the column its type) |
 
 A fact table gives the `<name>_aggregate` root field. There is no `aggregate_queries`
 section: the compiler refuses one.

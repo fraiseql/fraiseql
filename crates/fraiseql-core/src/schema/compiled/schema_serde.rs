@@ -342,6 +342,16 @@ impl CompiledSchema {
                 path:    Some("fact_tables.native_dimension_mapping".to_string()),
             });
         }
+        let violations = self.fact_table_mapping_column_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "fact table dimensions are mapped to undeclared columns:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("fact_tables.native_dimension_mapping".to_string()),
+            });
+        }
         let violations = self.fact_table_path_violations();
         if !violations.is_empty() {
             return Err(FraiseQLError::Validation {

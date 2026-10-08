@@ -25,6 +25,12 @@ disagreed, and the promise was the part that was wrong.
   never read; declare the type with `data_type` instead. `introspect facts` quotes keys
   holding a `'` and no longer splits a key holding a `.`.
 
+- **A `native_dimension_mapping` onto a column `denormalized_filters` does not declare is
+  refused at compile and load (#1517).** A mapped dimension is read from its column, and a
+  filter on it binds with the column's declared type; an undeclared column had no type (its
+  filter bound uncast) and nothing said it existed. Declare the column as a filter column,
+  with its `sql_type`.
+
 - **`fraiseql_core::compiler::aggregation::GroupByExpression::JsonbPath::path` is a
   `Vec<String>` of JSON keys (#1517).** It was one key, so a declared nested dimension path
   could not be expressed. Embedders building the expression by hand wrap the key:
