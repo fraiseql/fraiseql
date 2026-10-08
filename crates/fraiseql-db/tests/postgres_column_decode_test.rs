@@ -4,9 +4,12 @@
 //! Integration tests for PostgreSQL column decoding (TEXT[], ENUM, NULL) via
 //! tokio-postgres `Row::get` — the decode substrate the adapter builds on.
 //!
-//! The private `row_to_map` mapper itself is covered by the in-crate
-//! `postgres::adapter::integration_tests` (`row_to_map_renders_*`).
+//! The adapter's own decode ladder (`decode_cell`, behind `execute_raw_query`) is
+//! driven at the end of the file, with the log it writes captured (#1514).
 
+use std::sync::{Arc, Mutex};
+
+use fraiseql_db::{postgres::PostgresAdapter, traits::DatabaseAdapter};
 use serde_json::json;
 
 /// Connect to the harness-provided Postgres (Dagger-bound in CI; a local spawn with
@@ -237,4 +240,97 @@ async fn pg_decodes_mixed_types_with_nulls() {
     assert!(text_val2.is_none());
     assert!(bool_val2.is_none());
     assert!(json_val2.is_none());
+}
+
+/// A `tracing` writer that keeps what it is given, so a test can read what was logged.
+#[derive(Clone, Default)]
+struct CapturedLog(Arc<Mutex<Vec<u8>>>);
+
+impl CapturedLog {
+    fn take(&self) -> String {
+        String::from_utf8(std::mem::take(&mut *self.0.lock().unwrap())).unwrap()
+    }
+}
+
+impl std::io::Write for CapturedLog {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+/// Issue #1514: a SQL `NULL` decodes to JSON `null` whatever its type, and is not
+/// reported as a type the adapter cannot represent.
+///
+/// Every branch of the decode ladder refuses a `NULL` (`WasNull`), so a `NULL` used to fall
+/// through to the last branch, which logged a `warn` claiming type drift for ordinary
+/// `text`, `uuid` or `jsonb` columns. The second half guards the other direction: a value
+/// no branch decodes must still be reported.
+#[tokio::test]
+async fn a_null_cell_of_any_type_decodes_to_null_without_a_warning() {
+    let svc = fraiseql_test_support::postgres()
+        .await
+        .expect("DATABASE_URL must be set (or enable fraiseql-test-support/local-testcontainers)");
+    let adapter = PostgresAdapter::new(svc.url()).await.expect("adapter");
+    for ddl in [
+        "DROP TYPE IF EXISTS issue_1514_mood CASCADE",
+        "CREATE TYPE issue_1514_mood AS ENUM ('calm')",
+    ] {
+        adapter.execute_raw_query(ddl).await.expect("enum type");
+    }
+
+    let log = CapturedLog::default();
+    let writer = log.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(move || writer.clone())
+        .with_ansi(false)
+        .with_max_level(tracing::Level::WARN)
+        .finish();
+    let _guard = tracing::subscriber::set_default(subscriber);
+
+    let columns = [
+        ("t", "text"),
+        ("i2", "int2"),
+        ("i4", "int4"),
+        ("i8", "int8"),
+        ("f8", "float8"),
+        ("b", "bool"),
+        ("n", "numeric"),
+        ("u", "uuid"),
+        ("tz", "timestamptz"),
+        ("ts", "timestamp"),
+        ("d", "date"),
+        ("ta", "text[]"),
+        ("e", "issue_1514_mood"),
+        ("j", "jsonb"),
+        ("p", "point"),
+    ];
+    let select: Vec<String> =
+        columns.iter().map(|(name, ty)| format!("NULL::{ty} AS {name}")).collect();
+    let rows = adapter
+        .execute_raw_query(&format!("SELECT {}", select.join(", ")))
+        .await
+        .expect("select nulls");
+
+    for (name, ty) in columns {
+        assert_eq!(rows[0][name], serde_json::Value::Null, "NULL::{ty} decodes to null");
+    }
+    assert_eq!(log.take(), "", "a NULL of any type is not a decode failure");
+
+    let rows = adapter.execute_raw_query("SELECT '(1,2)'::point AS p").await.expect("point");
+    assert_eq!(rows[0]["p"], serde_json::Value::Null);
+    let logged = log.take();
+    assert!(
+        logged.contains(" WARN ") && logged.contains("column=p") && logged.contains("point"),
+        "a non-NULL value no branch decodes is still reported: {logged:?}"
+    );
+
+    adapter
+        .execute_raw_query("DROP TYPE IF EXISTS issue_1514_mood CASCADE")
+        .await
+        .expect("cleanup");
 }

@@ -38,6 +38,7 @@ fraiseql-test-support = {path = "../fraiseql-test-support"}
 insta = {workspace = true}
 proptest = {workspace = true}
 serde_json = {workspace = true}
+tracing-subscriber = {workspace = true}
 
 [features]
 default = ["postgres"]

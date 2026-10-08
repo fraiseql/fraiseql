@@ -377,6 +377,26 @@ impl<'a> FromSql<'a> for PgEnumLabel {
     }
 }
 
+/// Accepts every PostgreSQL type and decodes none of it.
+///
+/// Read as `Option<AnyCell>`, it answers one question: is this cell SQL `NULL`. Each branch
+/// of [`decode_cell`]'s ladder refuses a `NULL` with `WasNull`, so without this a `NULL` of any
+/// type fell through to the "not representable" warning (#1514).
+struct AnyCell;
+
+impl<'a> FromSql<'a> for AnyCell {
+    fn from_sql(
+        _ty: &Type,
+        _raw: &'a [u8],
+    ) -> std::result::Result<Self, Box<dyn std::error::Error + Sync + Send>> {
+        Ok(Self)
+    }
+
+    fn accepts(_ty: &Type) -> bool {
+        true
+    }
+}
+
 /// Convert a single `tokio_postgres::Row` into a `HashMap<String, serde_json::Value>`.
 ///
 /// Tries each PostgreSQL type in priority order; falls back to `Null` for
@@ -401,7 +421,10 @@ fn row_to_map(row: &Row) -> std::collections::HashMap<String, serde_json::Value>
 /// that cannot be represented as JSON.
 pub(super) fn decode_cell(row: &Row, idx: usize) -> serde_json::Value {
     let column = &row.columns()[idx];
-    if let Ok(v) = row.try_get::<_, i16>(idx) {
+    if matches!(row.try_get::<_, Option<AnyCell>>(idx), Ok(None)) {
+        // SQL NULL, whatever the column's type: decided once, before the ladder (#1514).
+        serde_json::Value::Null
+    } else if let Ok(v) = row.try_get::<_, i16>(idx) {
         // SMALLINT/int2 columns (e.g. `app.mutation_response.http_status`).
         // Without this branch a non-null int2 fell through to `Null` because
         // `FromSql for i32` rejects int2 — which dropped `MutationError`'s

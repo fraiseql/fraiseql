@@ -16,6 +16,14 @@ disagreed, and the promise was the part that was wrong.
 
 ## [Unreleased]
 
+### Fixed
+
+- **A SQL `NULL` no longer logs a "column type not representable as JSON" warning (#1514).**
+  Every branch of the adapter's cell decoder refused a `NULL`, so a `NULL` of any type (`text`,
+  `uuid`, `jsonb`, …) fell through to the warning meant for a genuinely undecodable type: nine
+  `warn` lines per failed mutation. A `NULL` is now decided once, before the type ladder; a
+  non-`NULL` value no branch can decode is still reported.
+
 ## [2.16.0] - 2026-10-08
 
 ### Breaking
