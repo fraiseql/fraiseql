@@ -507,7 +507,13 @@ impl CompiledSchema {
             for type_def in &self.types {
                 let _ = writeln!(sdl, "type {} {{", type_def.name);
                 for field in &type_def.fields {
-                    let _ = writeln!(sdl, "  {}: {}", field.name, field.field_type);
+                    // #1513: a localized field takes `locale:`, as introspection shows.
+                    let args = if field.localized {
+                        "(locale: String)"
+                    } else {
+                        ""
+                    };
+                    let _ = writeln!(sdl, "  {}{args}: {}", field.name, field.field_type);
                 }
                 sdl.push_str("}\n\n");
             }

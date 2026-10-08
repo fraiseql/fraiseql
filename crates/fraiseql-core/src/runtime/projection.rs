@@ -771,7 +771,7 @@ fn project_entity_at(
             // Absent stored key → omit (matches query/SQL behaviour: absent stays absent).
             continue;
         };
-        let projected = project_field_value(value, field_def, &sel.nested_fields, schema);
+        let projected = project_field_value(value, field_def, sel, schema);
         out.insert(sel.response_key().to_string(), projected);
     }
 
@@ -782,15 +782,16 @@ fn project_entity_at(
 fn project_field_value(
     value: &JsonValue,
     field_def: Option<&FieldDefinition>,
-    nested: &[FieldSelection],
+    selection: &FieldSelection,
     schema: &CompiledSchema,
 ) -> JsonValue {
+    let nested = selection.nested_fields.as_slice();
     // An object field is projected through its sub-selection at every depth, and an empty
     // sub-selection projects nothing of it. Only a scalar returns its stored value; a
-    // localized one, its label for the request locale (#1513).
+    // localized one, its label for the selection's locale (#1513).
     if let Some(fd) = field_def {
         if fd.localized {
-            return crate::runtime::localization_chain(schema)
+            return crate::runtime::selection_chain(schema, selection)
                 .map_or_else(|| value.clone(), |chain| crate::runtime::localize(value, &chain));
         }
         if !fd.field_type.is_scalar() && !fd.field_type.is_list() {

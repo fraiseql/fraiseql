@@ -20,10 +20,30 @@ pub(super) fn build_field(field: &FieldDefinition) -> IntrospectionField {
     IntrospectionField {
         name:               field.output_name().to_string(),
         description:        field.description.clone(),
-        args:               vec![], // Regular fields don't have args
+        // #1513: a localized field takes `locale:`; no other field has arguments.
+        args:               if field.localized {
+            vec![locale_argument()]
+        } else {
+            vec![]
+        },
         field_type:         field_type_to_introspection(&field.field_type, field.nullable),
         is_deprecated:      field.is_deprecated(),
         deprecation_reason: field.deprecation_reason().map(ToString::to_string),
+    }
+}
+
+/// A localized field's `locale: String` argument (#1513).
+fn locale_argument() -> IntrospectionInputValue {
+    IntrospectionInputValue {
+        name:               crate::runtime::LOCALE_ARGUMENT.to_string(),
+        description:        Some(
+            "Read this field in another allowed locale than the request's.".to_string(),
+        ),
+        input_type:         type_ref("String"),
+        default_value:      None,
+        is_deprecated:      false,
+        deprecation_reason: None,
+        validation_rules:   vec![],
     }
 }
 

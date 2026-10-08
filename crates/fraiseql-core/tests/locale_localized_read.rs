@@ -21,10 +21,10 @@ use serde_json::{Value, json};
 
 const VIEW: &str = "tv_locale_product";
 
-/// `(pk, name map)`: a French label with an English one, English only, bare French only,
+/// `(pk, name map)`: French, English and German labels, English only, bare French only,
 /// nothing at all.
 const ROWS: [(i64, &str); 4] = [
-    (1, r#"{"fr-FR": "Pomme", "en-US": "Apple"}"#),
+    (1, r#"{"fr-FR": "Pomme", "en-US": "Apple", "de-DE": "Apfel"}"#),
     (2, r#"{"en-US": "Pear"}"#),
     (3, r#"{"fr": "Cerise"}"#),
     (4, r"{}"),
@@ -306,4 +306,179 @@ async fn a_gated_read_projected_in_rust_is_localized() {
         .collect();
     rows.sort_by(|a, b| a.0.cmp(&b.0));
     assert_eq!(rows.into_iter().map(|(_, n)| n).collect::<Vec<_>>(), fr_ca(), "{response}");
+}
+
+/// The `name` of each `products` row (ordered by id) under `key`, read in `fr-CA` with
+/// `variables`.
+async fn labels(executor: &Executor, query: &str, variables: Value, key: &str) -> Vec<Value> {
+    let response = with_request_locale("fr-CA", executor.execute(query, Some(&variables)))
+        .await
+        .unwrap_or_else(|e| panic!("{query}: {e}"));
+    let mut rows: Vec<(String, Value)> = response["data"]["products"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"))
+        .iter()
+        .map(|p| (p["id"].as_str().unwrap().to_string(), p[key].clone()))
+        .collect();
+    rows.sort_by(|a, b| a.0.cmp(&b.0));
+    rows.into_iter().map(|(_, v)| v).collect()
+}
+
+/// `de-DE` → `en-US`, row by row.
+fn de_de() -> Vec<Value> {
+    vec![json!("Apfel"), json!("Pear"), Value::Null, Value::Null]
+}
+
+/// Cycle 3: `locale:` reads one field selection in another allowed locale, whatever the
+/// request locale; two aliases of one field read two locales.
+#[tokio::test]
+async fn a_locale_argument_picks_the_fields_locale() {
+    let Some(executor) = executor().await else {
+        return;
+    };
+    let query = r#"{ products { id name(locale: "de-DE") } }"#;
+    assert_eq!(labels(&executor, query, json!({}), "name").await, de_de());
+
+    let query = r#"{ products { id de: name(locale: "de-DE") name } }"#;
+    assert_eq!(labels(&executor, query, json!({}), "de").await, de_de(), "aliased");
+    assert_eq!(labels(&executor, query, json!({}), "name").await, fr_ca(), "unaliased sibling");
+}
+
+/// Cycle 3: the value may come from a variable; an omitted or null one reads the request
+/// locale.
+#[tokio::test]
+async fn a_locale_argument_may_be_a_variable() {
+    let Some(executor) = executor().await else {
+        return;
+    };
+    let query = "query Q($l: String) { products { id name(locale: $l) } }";
+    assert_eq!(labels(&executor, query, json!({"l": "de-DE"}), "name").await, de_de());
+    assert_eq!(labels(&executor, query, json!({}), "name").await, fr_ca(), "omitted");
+    assert_eq!(labels(&executor, query, json!({"l": null}), "name").await, fr_ca(), "null");
+}
+
+/// Cycle 3: the argument reaches the relay node projection and the Rust projector (a gated
+/// read), not only the plain list's SQL projection.
+#[tokio::test]
+async fn a_locale_argument_reaches_relay_and_the_rust_projector() {
+    let Some(executor) = executor().await else {
+        return;
+    };
+    let relay = Executor::new_with_relay(
+        schema(),
+        Arc::new(PostgresAdapter::new(&fraiseql_test_support::database_url()).await.unwrap()),
+    );
+    assert_eq!(
+        read(
+            &relay,
+            r#"{ productsConnection(first: 10) { edges { node { id name(locale: "de-DE") } } } }"#,
+            "productsConnection",
+            &["name"]
+        )
+        .await,
+        de_de(),
+        "relay"
+    );
+
+    let principal = fraiseql_core::security::SecurityContext {
+        user_id:          fraiseql_core::prelude::UserId::new("reader"),
+        tenant_id:        None,
+        roles:            vec![],
+        scopes:           vec![],
+        attributes:       std::collections::HashMap::new(),
+        request_id:       "req-localized-arg".to_string(),
+        ip_address:       None,
+        authenticated_at: chrono::Utc::now(),
+        expires_at:       chrono::Utc::now() + chrono::Duration::hours(1),
+        issuer:           None,
+        audience:         None,
+        email:            None,
+        display_name:     None,
+    };
+    let response = with_request_locale(
+        "fr-CA",
+        executor.execute_with_security(
+            r#"{ products { id name(locale: "de-DE") secret } }"#,
+            None,
+            &principal,
+        ),
+    )
+    .await
+    .unwrap();
+    let mut rows: Vec<(String, Value)> = response["data"]["products"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"))
+        .iter()
+        .map(|p| (p["id"].as_str().unwrap().to_string(), p["name"].clone()))
+        .collect();
+    rows.sort_by(|a, b| a.0.cmp(&b.0));
+    assert_eq!(rows.into_iter().map(|(_, n)| n).collect::<Vec<_>>(), de_de(), "gated");
+}
+
+/// Cycle 3: a `locale:` outside `allowed` is a validation error naming the allowed set,
+/// literal or variable, and so is `locale:` on a field that is not localized. Each is
+/// refused before any statement: the adapter fails every call, and counts none.
+#[tokio::test]
+async fn a_locale_argument_outside_allowed_is_refused_before_any_sql() {
+    let adapter = Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new());
+    let executor = Executor::new(schema(), adapter.clone());
+    for (query, variables, needle) in [
+        (
+            r#"{ products { id name(locale: "xx") } }"#,
+            json!({}),
+            "en-US, fr, fr-CA, fr-FR, de-DE",
+        ),
+        (
+            "query Q($l: String) { products { id name(locale: $l) } }",
+            json!({"l": "xx"}),
+            "en-US, fr, fr-CA, fr-FR, de-DE",
+        ),
+        ("{ products { id name(locale: 7) } }", json!({}), "must be a String"),
+        (r#"{ products { id(locale: "fr") } }"#, json!({}), "localized"),
+        (
+            r#"{ productsConnection(first: 1) { edges { node { name(locale: "xx") } } } }"#,
+            json!({}),
+            "en-US, fr, fr-CA, fr-FR, de-DE",
+        ),
+    ] {
+        let err = with_request_locale("fr-CA", executor.execute(query, Some(&variables)))
+            .await
+            .expect_err(query);
+        assert!(
+            matches!(err, fraiseql_core::error::FraiseQLError::Validation { .. })
+                && err.to_string().contains(needle),
+            "{query} {variables}: {err}"
+        );
+    }
+    assert_eq!(adapter.query_count(), 0, "no statement ran");
+}
+
+/// Cycle 3: introspection and the SDL show `locale: String` on a localized field, and only
+/// there.
+#[tokio::test]
+async fn introspection_and_sdl_show_the_locale_argument() {
+    let executor = Executor::new(
+        schema(),
+        Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new()),
+    );
+    let response = executor
+        .execute(
+            r#"{ __type(name: "Product") { fields { name args { name type { name } } } } }"#,
+            None,
+        )
+        .await
+        .unwrap();
+    let fields = response["data"]["__type"]["fields"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"));
+    let args = |field: &str| -> Vec<Value> {
+        fields.iter().find(|f| f["name"] == field).unwrap()["args"]
+            .as_array()
+            .unwrap()
+            .clone()
+    };
+    assert_eq!(args("name"), vec![json!({"name": "locale", "type": {"name": "String"}})]);
+    assert_eq!(args("id"), Vec::<Value>::new());
+    let sdl = schema().raw_schema();
+    assert!(sdl.contains("name(locale: String): String"), "{sdl}");
 }

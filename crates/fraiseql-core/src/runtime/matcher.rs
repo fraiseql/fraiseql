@@ -293,7 +293,7 @@ impl QueryMatcher {
         //    while § 5.3.1 and everything after it want the filtered set.
         let written_selections =
             selection_set::resolve(&parsed.selections, &parsed.fragments, self.max_depth)?;
-        let final_selections = selection_set::filter(&written_selections, &variables_map)?;
+        let mut final_selections = selection_set::filter(&written_selections, &variables_map)?;
 
         // 5. Find matching query definition using root field
         let query_def = self
@@ -420,6 +420,20 @@ impl QueryMatcher {
             &parsed.variables,
             variables,
         )?;
+
+        // 5f. #1513: a localized field's `locale:` names an allowed locale, checked here
+        //     before any statement and rewritten to that tag for the projectors.
+        if !query_def.returns_count {
+            if let Some(root) = final_selections.first_mut() {
+                crate::runtime::resolve_locale_arguments(
+                    &self.schema,
+                    &query_def.return_type,
+                    &mut root.nested_fields,
+                    &variables_map,
+                    query_def.relay,
+                )?;
+            }
+        }
 
         // 6. Extract field names for backward compatibility
         let fields = self.extract_field_names(&final_selections);

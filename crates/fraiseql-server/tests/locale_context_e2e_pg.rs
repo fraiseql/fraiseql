@@ -638,23 +638,35 @@ async fn a_federation_entity_lookup_runs_in_the_request_locale() {
             .await
     });
     tokio::time::sleep(std::time::Duration::from_millis(300)).await;
-    let body: Value = reqwest::Client::new()
-        .post(format!("http://127.0.0.1:{port}/graphql"))
-        .header("accept-language", "fr-BE")
-        .json(&json!({
-            "query": "query($representations: [_Any!]!) { _entities(representations: \
-                      $representations) { ... on LocaleFedProbe { id locale label } } }",
-            "variables": { "representations": [{ "__typename": "LocaleFedProbe", "id": "p1" }] }
-        }))
-        .send()
-        .await
-        .unwrap()
-        .json()
-        .await
-        .unwrap();
+    let entities = |selection: &str| {
+        let request = reqwest::Client::new()
+            .post(format!("http://127.0.0.1:{port}/graphql"))
+            .header("accept-language", "fr-BE")
+            .json(&json!({
+                "query": format!(
+                    "query($representations: [_Any!]!) {{ _entities(representations: \
+                     $representations) {{ ... on LocaleFedProbe {{ {selection} }} }} }}"
+                ),
+                "variables": {
+                    "representations": [{ "__typename": "LocaleFedProbe", "id": "p1" }]
+                }
+            }));
+        async move { request.send().await.unwrap().json::<Value>().await.unwrap() }
+    };
+    let body = entities("id locale label").await;
     assert_eq!(body["data"]["_entities"][0]["locale"], json!("fr"), "{body}");
-    // #1513: a localized field of a resolved entity is the request locale's label.
+    // #1513: a localized field of a resolved entity is the request locale's label…
     assert_eq!(body["data"]["_entities"][0]["label"], json!("Cerise"), "{body}");
+    // …or its `locale:` argument's, which is refused outside `allowed`.
+    let body = entities(r#"id en: label(locale: "en-US")"#).await;
+    assert_eq!(body["data"]["_entities"][0]["en"], json!("Cherry"), "{body}");
+    let body = entities(r#"id label(locale: "xx")"#).await;
+    assert!(
+        body["errors"][0]["message"]
+            .as_str()
+            .is_some_and(|m| m.contains("en-US, fr, de-DE")),
+        "{body}"
+    );
 }
 
 /// The schema the write fixture lives in.

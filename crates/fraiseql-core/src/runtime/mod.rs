@@ -59,6 +59,7 @@ mod explain;
 pub mod field_filter;
 pub mod input_validator;
 pub mod jsonb_strategy;
+mod locale_argument;
 mod matcher;
 pub mod mutation_result;
 pub(crate) mod native_columns;
@@ -123,6 +124,7 @@ pub use field_filter::{
     FieldAccessResult, can_access_field, can_reference_field, classify_field_access, filter_fields,
 };
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
+pub(crate) use locale_argument::{LOCALE_ARGUMENT, resolve_locale_arguments, selection_chain};
 pub use matcher::{QueryMatch, QueryMatcher, suggest_similar};
 pub use mutation_result::{MutationErrorShapeCheck, mutation_error_shape_violations};
 pub use planner::{ExecutionPlan, QueryPlanner};

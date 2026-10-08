@@ -154,7 +154,18 @@ impl Executor {
         // the caller's role or actor type may not read — and a nested level whose type
         // scopes its rows is refused: the resolver's lookup is built in
         // `fraiseql-federation` and cannot carry a composed level. Before the read.
-        let entity_fields = entities_selection(query, variables, self.max_query_depth())?;
+        let mut entity_fields = entities_selection(query, variables, self.max_query_depth())?;
+        // #1513: a localized field's `locale:` is checked, and canonicalised, before the read.
+        let variables_map = crate::graphql::selection_set::variables_map(variables);
+        for typename in representations.iter().map(|r| r.typename.as_str()) {
+            crate::runtime::resolve_locale_arguments(
+                &self.ctx.schema,
+                typename,
+                &mut entity_fields,
+                &variables_map,
+                false,
+            )?;
+        }
         let nested_access = self.classify_entities_levels(
             &representations,
             &entity_fields,
