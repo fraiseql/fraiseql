@@ -485,3 +485,22 @@ async fn an_undeclared_argument_is_refused() {
     );
     assert_eq!(registered, 0, "a refused subscription is not registered");
 }
+
+/// An argument value of the wrong type is refused, as on a query field: accepted, `5` was
+/// compared with every event's `"shipped"` string, and the subscription matched nothing.
+#[tokio::test]
+#[ignore = "requires PostgreSQL"]
+async fn an_argument_of_the_wrong_type_is_refused() {
+    for (query, variables) in [
+        ("subscription { orderStatusChanged(status: 5) { id status } }", json!({})),
+        (
+            "subscription($s: String) { orderStatusChanged(status: $s) { id status } }",
+            json!({"s": 5}),
+        ),
+    ] {
+        let (frame, registered) = answer_to(query, variables).await;
+        assert_eq!(frame["type"], "error", "{query}: a wrong-typed value must be refused: {frame}");
+        assert!(frame.to_string().contains("String"), "names the declared type: {frame}");
+        assert_eq!(registered, 0, "a refused subscription is not registered");
+    }
+}

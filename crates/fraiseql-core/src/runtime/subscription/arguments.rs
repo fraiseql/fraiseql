@@ -22,8 +22,9 @@ use crate::{error::Result, graphql::ParsedQuery, schema::CompiledSchema};
 /// # Errors
 ///
 /// `Validation` for a document that selects no root field or more than one, a
-/// subscription the schema does not declare, or an argument the subscription does not
-/// declare (with the message a query field gives).
+/// subscription the schema does not declare, an argument the subscription does not
+/// declare, or a value of the wrong type for its argument or variable (with the messages
+/// a query field gives).
 pub fn subscription_arguments(
     schema: &CompiledSchema,
     document: &ParsedQuery,
@@ -54,6 +55,19 @@ pub fn subscription_arguments(
     })?;
     let declared: Vec<String> = definition.arguments.iter().map(|a| a.name.clone()).collect();
     crate::runtime::validate_argument_names(&root.name, &declared, &root.arguments)?;
+    // A value of the wrong type compares unequal with every event: refuse it, as a query
+    // field's is, rather than establish a subscription that matches nothing.
+    crate::runtime::validate_argument_values(
+        &format!("Subscription.{}", root.name),
+        &definition.arguments,
+        &root.arguments,
+        &document.variables,
+    )?;
+    crate::runtime::validate_variable_values(
+        document.operation_name.as_deref(),
+        &document.variables,
+        variables,
+    )?;
 
     let mut arguments = serde_json::Map::new();
     for argument in &root.arguments {

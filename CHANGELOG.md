@@ -20,6 +20,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A `/ws` subscription with an undeclared argument, or a value of the wrong type, is refused
+  (#1158).** Both were accepted and changed the answer silently: an undeclared argument was
+  ignored (every event delivered), and a wrong-typed value compared unequal with every event
+  (none delivered). They now get the query path's `VALIDATION_ERROR`
+  (`Unknown argument 'stauts' on field 'orderStatusChanged'. Did you mean 'status'?`, or the
+  argument's declared type) and the subscription is not registered.
+
 - **A fact table that declares one dimension twice, in disagreeing ways, is refused at compile
   and load (#1231).** A `native_dimension_mapping` key that `denormalized_filters` also declares
   as a column of another name, or two casings of one key (`itemCategory`, `item_category`) mapped
@@ -664,6 +671,16 @@ disagreed, and the promise was the part that was wrong.
   `EventTransport::subscribe_broadcast`.
 
 ### Fixed
+
+- **A subscription filter binds its argument however the document spells it (#1158).** The
+  filter (`filter_fields`, `argument_paths`) read each argument's value from the request's
+  variables by the argument's name, so an argument given inline
+  (`orderStatusChanged(status: "shipped")`) or through a variable named otherwise
+  (`status: $wanted`) was skipped and the subscription silently delivered every event. `/ws`
+  now resolves the root field's arguments, inline values and variables alike, and filters with
+  those, on the planned and unplanned paths. The check that refuses filtering on a field the
+  subscriber may not read, and the tenant-mismatch check, read the same resolved arguments, so
+  neither can be stepped around by spelling the argument inline.
 
 - **A dimension mapped to a native column is filtered on that column, in either key casing
   (#1231).** `native_dimension_mapping` was read by `groupBy` only: a fact table mapping
