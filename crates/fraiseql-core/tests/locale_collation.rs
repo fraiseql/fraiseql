@@ -304,3 +304,35 @@ async fn a_window_ordered_by_a_text_dimension_sorts_in_the_request_locale() {
     let positions: Vec<i64> = rows.iter().map(|r| r["position"].as_i64().unwrap()).collect();
     assert_eq!(positions, (1..=7).collect::<Vec<i64>>(), "OVER (ORDER BY): {response}");
 }
+
+/// Cycle 3, as far as it can go today: a cursor resumes on the connection's cursor column
+/// alone, so paging after a cursor under a text `orderBy` skipped and repeated rows in every
+/// collation (#1521). It is refused rather than answered wrong; the first page, which needs no
+/// cursor, still sorts in the request locale (`a_relay_connection_sorts_in_the_request_locale`).
+#[tokio::test]
+async fn paging_after_a_cursor_under_a_text_order_is_refused_not_answered_wrong() {
+    let Some((_, executor)) = fr_ca().await else {
+        return;
+    };
+    let first = with_request_locale(
+        "fr-CA",
+        executor.execute(
+            "{ wordsConnection(first: 1, orderBy: {word: ASC}) { edges { cursor } } }",
+            None,
+        ),
+    )
+    .await
+    .unwrap();
+    let cursor = first["data"]["wordsConnection"]["edges"][0]["cursor"]
+        .as_str()
+        .unwrap_or_else(|| panic!("{first}"))
+        .to_string();
+    let next = format!(
+        "{{ wordsConnection(first: 1, after: \"{cursor}\", orderBy: {{word: ASC}}) {{ edges {{ node \
+         {{ word }} }} }} }}"
+    );
+    let err = with_request_locale("fr-CA", executor.execute(&next, None))
+        .await
+        .expect_err("a cursor page under a non-cursor ordering is refused");
+    assert!(err.to_string().contains("#1521"), "{err}");
+}

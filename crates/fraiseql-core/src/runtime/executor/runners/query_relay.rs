@@ -326,6 +326,25 @@ impl QueryRunner {
         } else {
             None
         };
+        // #1521: the keyset resumes on the cursor column alone, so a page after a cursor is
+        // only correct when the connection is ordered by that column. Under any other
+        // ordering it skips and repeats rows; refused until the cursor carries the sort key.
+        if (after_cursor.is_some() || before_cursor.is_some())
+            && order_by.as_deref().is_some_and(|clauses| {
+                clauses.iter().any(|c| !c.identity && c.storage_key() != cursor_column)
+            })
+        {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "`{}`: paging with `after`/`before` is not supported together with an \
+                     `orderBy` on another field than the connection's cursor (`{cursor_column}`) \
+                     yet: the next page would skip and repeat rows (#1521). Request the first \
+                     page with `orderBy`, or page without it.",
+                    query_def.name
+                ),
+                path:    Some(format!("{}.orderBy", query_def.name)),
+            });
+        }
 
         // Detect whether the client selected `totalCount` inside the connection.
         // Named fragment spreads are already expanded by the matcher's FragmentResolver.

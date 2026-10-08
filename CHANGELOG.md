@@ -32,6 +32,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A relay page after a cursor, under an `orderBy` on another field than the connection's
+  cursor column, is refused (#1521).** The keyset resumed on the cursor column alone, so such a
+  page skipped and repeated rows (measured: a 7-row walk returned 3 rows), in every collation.
+  The first page with `orderBy` is unaffected. Paging under such an ordering needs a composite
+  cursor, tracked in #1521.
+
 - **`fraiseql_core::cache::generate_view_query_key` and `generate_projection_query_key` take
   the request locale (#1512).** A new `locale: Option<&str>` argument, before
   `schema_version`, is hashed as its own key section, so two locales never share a result-cache
