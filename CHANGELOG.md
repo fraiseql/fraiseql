@@ -33,14 +33,60 @@ disagreed, and the promise was the part that was wrong.
   (`{"fr-FR": "Pomme", "en-US": "Apple"}`) and returned as the request locale's label, read
   through the `[locale]` fallback chain (the locale, its explicit fallbacks, its allowed
   truncations, then `default`); a value that is not a JSON string counts as absent. The compiler
-  and the loader refuse `localized` on another type, and in a schema without `[locale]`.
+  and the loader refuse `localized` on another type, and in a schema without `[locale]`. A
+  stored plain string reads as itself in every locale, so rows written before a field became
+  localized keep their value. Every read path reads the label: lists, relay, nested objects
+  and lists, gated reads, REST, MCP, gRPC, federation `_entities` and `/ws` subscriptions.
+- **A localized field selection can read another locale, or all of them (#1513).**
+  `name(locale: "de-DE")` reads one field in another allowed locale (refused before any
+  statement when the locale is not allowed), and `nameTranslations { locale value }` lists every
+  allowed label in `allowed`'s order. Introspection and SDL show both.
+- **`where` and `orderBy` on a localized field read the label (#1513).** Comparisons and sorts
+  use the request locale's label under its collation. `fraiseql compile` prints the expression
+  index each allowed locale's filter or sort reads, and `fraiseql doctor --against-db` names
+  every (field, locale) no index serves, judged by plan.
+- **Localized writes (#1513).** A mutation argument or input field marked `localized` takes
+  `LocalizedInput` (`{value}` for the request locale, `{translations: [{locale, value}]}`), or a
+  string or a map over REST and MCP; every locale is validated against `allowed` before any
+  statement, and the SQL function receives a locale map (a `null` label removes a key). Write
+  transactions never carry `fraiseql.locale`.
+- **`Localized` in the Python and TypeScript SDKs (#1513).** `fraiseql.Localized[str]`
+  (Python) and `localized: true` / `"Localized<string>"` (TypeScript); observed by the
+  conformance suite, with the nine other SDKs declaring the gap (#1527).
+- **`examples/localized-catalog` and `docs/guides/localization.md` (#1513).** A Python-authored
+  catalog served end to end, with a write-session guard and a copyable catalog check that no
+  view, index or trigger reads `fraiseql.locale`.
+- **The wire backend's streaming read streams (#1115).** `FraiseWireAdapter`'s
+  `stream_with_projection` returns the wire `QueryStream` (offset and limit as skip and take)
+  instead of materialising every row first; the adapter now runs against PostgreSQL in CI.
 - **Text sorts follow the request locale's collation (#1512).** With `[locale]`, an ordering on a
   text field runs `COLLATE "<tag>-x-icu"` on every sort site (lists, relay first pages, REST
   `?sort=`, exports, gRPC, aggregate and window `ORDER BY`); numbers, dates and IDs are
   unaffected. The server refuses to boot when an allowed locale has no collation in
   `pg_collation`, naming it.
 
+### Changed
+
+- **Change-log ids are time-ordered (`uuidv7()`) (#1469).** Migration 08 defaults
+  `core.tb_entity_change_log.id` to `uuidv7()` and switches an existing table's default; rows
+  already stored keep their ids. Measured on PostgreSQL 18 at 10M rows: 2.2–2.5× the insert rate,
+  a third less WAL, a fifth smaller index (`docs/benchmarks/pg18-evaluations.md`). Other shipped
+  ids stay random v4.
+
 ### Breaking
+
+- **The wire backend refuses session variables instead of reading without them (#1115).** A
+  `fraiseql-wire` deployment with `[locale]` or `[session_variables]` refuses to boot, and a
+  session-scoped read on an adapter that cannot apply its variables is refused. Before, the
+  read ran unscoped where an RLS policy reads `current_setting`. Embedders implementing
+  `DatabaseAdapter`: the `*_with_session` defaults now refuse a non-empty set unless the adapter
+  returns `true` from the new `applies_session_variables()` (override the session methods to
+  apply them, or declare it in a test double).
+
+- **New public fields and a `WhereClause` variant for localization (#1513).**
+  `ArgumentDefinition`, `InputFieldDefinition` and `fraiseql_db::where_clause::WhereFieldInfo`
+  gain `localized: bool`, and `WhereClause` gains `Localized { chain, collation, inner }`: struct
+  literals add `localized: false`, and exhaustive matches add the arm (the leaf is in `inner`).
 
 - **A relay page after a cursor, under an `orderBy` on another field than the connection's
   cursor column, is refused (#1521).** The keyset resumed on the cursor column alone, so such a
@@ -73,6 +119,9 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **Federation `_entities` selects a field written with arguments or a minified alias.** The
+  scanner that picks an entity's columns dropped `label(locale: "en-US")` and `en:label`
+  (the field came back absent under a 200) and read tokens inside an argument list as fields.
 - **An aggregate reads a declared dimension path at its declared location (#1517).** A fact
   table declaring `machine_model_category` at `data->'machine'->'model'->>'category'` (the
   shape `introspect facts` detects) was read at `data->>'machine_model_category'`, a key no

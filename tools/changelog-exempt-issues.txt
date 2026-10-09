@@ -53,3 +53,5 @@
 #1346  SDK suites run locally (make test-sdks, tools/sdk-suite.sh); CI/developer tooling only
 #1453  CI: base-image mirror pins minio (Chainguard build, by digest) and fake-gcs-server; test-rig images only, nothing shipped
 #1467  CI: one unfiltered, required `SDK suites` workflow replaces the paths-filtered per-SDK test workflows; CI gating only, no shipped artifact changes
+#1468  evaluation: RETURNING OLD/NEW measured and recorded (docs/benchmarks/pg18-evaluations.md); the engine issues no UPDATE, nothing adopted
+#1470  evaluation: SQL/JSON measured slower in every shape and recorded (docs/benchmarks/pg18-evaluations.md); compiler SQL unchanged
