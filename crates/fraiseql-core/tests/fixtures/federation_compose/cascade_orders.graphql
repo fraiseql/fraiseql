@@ -26,27 +26,27 @@ interface CascadeNode {
 }
 
 type Order @key(fields: "id") {
-  id: ID
-  total: Float
+  id: ID!
+  total: Float!
 }
 
 type UpdatedEntity @shareable {
-  id: ID
-  operation: CascadeOperation
-  entity: CascadeNode
+  id: ID!
+  operation: CascadeOperation!
+  entity: CascadeNode!
 }
 
 type DeletedEntity @shareable {
-  id: ID
-  deletedAt: DateTime
+  id: ID!
+  deletedAt: DateTime!
 }
 
 type CascadeMetadata @shareable {
-  timestamp: DateTime
+  timestamp: DateTime!
   transactionId: ID
-  depth: Int
-  affectedCount: Int
-  truncated: Boolean
+  depth: Int!
+  affectedCount: Int!
+  truncated: Boolean!
   originalCount: Int
 }
 
@@ -55,21 +55,21 @@ type QueryInvalidation @shareable {
   queryHash: String
   arguments: JSON
   queryPattern: String
-  strategy: InvalidationStrategy
-  scope: InvalidationScope
+  strategy: InvalidationStrategy!
+  scope: InvalidationScope!
 }
 
 type CascadeUpdates @shareable {
-  updated: [UpdatedEntity]
-  deleted: [DeletedEntity]
-  metadata: CascadeMetadata
-  invalidations: [QueryInvalidation]
+  updated: [UpdatedEntity!]!
+  deleted: [DeletedEntity!]!
+  metadata: CascadeMetadata!
+  invalidations: [QueryInvalidation!]!
 }
 
 type CreateOrderPayload {
   entity: Order
   cascade: CascadeUpdates
-  updatedFields: [String]
+  updatedFields: [String!]!
 }
 
 type Query {
@@ -77,7 +77,7 @@ type Query {
 }
 
 type Mutation {
-  createOrder: CreateOrderPayload!
+  createOrder: CreateOrderPayload
 }
 
 
