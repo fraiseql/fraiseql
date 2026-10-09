@@ -855,6 +855,7 @@ pub async fn run(
         println!("  Queries: {}", schema.queries.len());
         println!("  Mutations: {}", schema.mutations.len());
         optimization_report.print();
+        print!("{}", localized_index_report_text(schema));
         return Ok(());
     }
 
@@ -892,6 +893,7 @@ pub async fn run(
     println!("  Queries: {}", schema.queries.len());
     println!("  Mutations: {}", schema.mutations.len());
     optimization_report.print();
+    print!("{}", localized_index_report_text(schema));
 
     // Emit DDL to directory if requested
     if let Some(ddl_dir) = emit_ddl {
@@ -904,6 +906,42 @@ pub async fn run(
     }
 
     Ok(())
+}
+
+/// The expression indexes a filter or sort on a localized field reads (#1513), as printed.
+///
+/// One per (field, allowed locale), each on exactly the key the query builds. Empty when the
+/// schema has no localized field.
+///
+/// A view gets the advice and no DDL: an index belongs on its base table, which the schema
+/// does not name.
+#[must_use]
+pub fn localized_index_report_text(schema: &fraiseql_core::schema::CompiledSchema) -> String {
+    use std::fmt::Write as _;
+    let report = schema.localized_index_report();
+    if report.is_empty() {
+        return String::new();
+    }
+    let mut text = String::from(
+        "\nLocalized field indexes (one per field and allowed locale; a filter or sort on the \
+         field reads it):\n",
+    );
+    for advice in &report {
+        let subject = format!(
+            "{}.{} [{}] on {}",
+            advice.type_name, advice.field, advice.locale, advice.table
+        );
+        // fmt::Write for String is infallible.
+        let _ = match &advice.index {
+            Some(index) => writeln!(text, "  {subject}:\n    {}", index.ddl),
+            None => writeln!(
+                text,
+                "  {subject}: a view; create the index on its base table, on the expression the \
+                 query reads"
+            ),
+        };
+    }
+    text
 }
 
 /// Emit `CREATE TABLE` DDL files for all compiled schema types to `output_dir`.

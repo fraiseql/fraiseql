@@ -11,7 +11,7 @@
 //! **Parallelism:** writes only to its own temp dirs.
 
 use fraiseql_cli::commands::{
-    compile::{CompileOptions, compile_to_schema, emit_ddl_to_dir},
+    compile::{CompileOptions, compile_to_schema, emit_ddl_to_dir, localized_index_report_text},
     generate_capture_triggers::build_ddl,
 };
 use tempfile::TempDir;
@@ -101,4 +101,43 @@ async fn the_ddl_emitters_ignore_the_locale() {
         plain_triggers, localized_triggers,
         "capture triggers are the same with [locale]"
     );
+}
+
+/// #1513: `compile` prints one index per localized field and allowed locale, each the DDL the
+/// schema reports (the statement a filter or sort is planned against, proven on PostgreSQL by
+/// `fraiseql-core`'s `locale_localized_index`). A project with no localized field prints none.
+#[tokio::test]
+async fn compile_prints_the_localized_index_report() {
+    let localized = SCHEMA_JSON.replace(
+        r#"{"name": "name", "type": "String", "nullable": false}"#,
+        r#"{"name": "name", "type": "String", "nullable": false, "localized": true}"#,
+    );
+    let dir = TempDir::new().unwrap();
+    std::fs::write(dir.path().join("schema.json"), &localized).unwrap();
+    std::fs::write(
+        dir.path().join("fraiseql.toml"),
+        format!("[project]\nname = \"p\"\n\n[fraiseql]\nschema_file = \"schema.json\"\n{LOCALE}"),
+    )
+    .unwrap();
+    let input = dir.path().join("schema.json");
+    let (artifact, _) =
+        compile_to_schema(CompileOptions::new(input.to_str().unwrap())).await.unwrap();
+    let report = artifact.schema.localized_index_report();
+    assert_eq!(report.len(), 2, "one per allowed locale: {report:?}");
+    let text = localized_index_report_text(&artifact.schema);
+    // What `compile` prints is what the loaded schema the server plans with reports.
+    let loaded = fraiseql_core::schema::CompiledSchema::from_json(
+        &serde_json::to_string(&artifact.schema).unwrap(),
+        false,
+    )
+    .unwrap();
+    assert_eq!(report, loaded.localized_index_report(), "compile and load agree");
+    for advice in &report {
+        let ddl = &advice.index.as_ref().expect("tv_product is a table").ddl;
+        assert!(text.contains(ddl.as_str()), "{text}");
+    }
+
+    let (plain, _, _) = emitted("").await;
+    let plain: fraiseql_core::schema::CompiledSchema = serde_json::from_value(plain).unwrap();
+    assert_eq!(localized_index_report_text(&plain), "", "nothing localized, nothing printed");
 }

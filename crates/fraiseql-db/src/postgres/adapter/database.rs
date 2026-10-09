@@ -1033,6 +1033,7 @@ impl DatabaseAdapter for PostgresAdapter {
             request.offset,
             request.order_by,
         )?;
+        tracing::debug!("SQL with projection = {}", sql);
         let param_refs = crate::types::as_sql_param_refs(&typed_params);
 
         // See `execute_where_query_arc_with_session`: the session-free path has to

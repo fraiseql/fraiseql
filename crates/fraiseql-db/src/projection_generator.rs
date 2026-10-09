@@ -358,6 +358,58 @@ pub fn localized_key_expr(
     crate::order_by::collated(&localized_text_expr(&map, chain)?, collation)
 }
 
+/// An expression index a filter or sort on a localized field reads (#1513).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocalizedIndex {
+    /// The index name: deterministic, at most 63 bytes.
+    pub name: String,
+    /// `CREATE INDEX CONCURRENTLY IF NOT EXISTS …`, on exactly the key queries read.
+    pub ddl:  String,
+}
+
+/// The index a filter or sort on a localized field reads in one locale (#1513).
+///
+/// `field` is the storage key of a field of `table`. The index is one expression index on
+/// [`localized_key_expr`], the key the `where` generator and the `ORDER BY` renderer build, so
+/// the planner matches it.
+///
+/// The name is `ix_<table>_<field>_<locale>`; one longer than PostgreSQL's 63 bytes is cut
+/// and ends with a hash of the whole, so it stays deterministic and distinct.
+///
+/// # Errors
+///
+/// As [`localized_key_expr`].
+pub fn localized_index(
+    table: &str,
+    field: &str,
+    locale: &str,
+    chain: &[String],
+    collation: Option<&str>,
+) -> Result<LocalizedIndex> {
+    let key = localized_key_expr("data", &[field.to_string()], chain, collation)?;
+    let relation = table.rsplit('.').next().unwrap_or(table);
+    let full = format!("ix_{relation}_{field}_{}", locale.to_ascii_lowercase().replace('-', "_"));
+    let name = if full.len() <= 63 {
+        full
+    } else {
+        // FNV-1a: stable across builds and platforms, unlike `DefaultHasher`.
+        let hash = full.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| {
+            (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3)
+        });
+        let mut cut = 54;
+        while !full.is_char_boundary(cut) {
+            cut -= 1;
+        }
+        format!("{}_{:08x}", &full[..cut], hash & 0xffff_ffff)
+    };
+    let quoted_table = crate::identifier::quote_postgres_identifier(table);
+    let ddl = format!(
+        "CREATE INDEX CONCURRENTLY IF NOT EXISTS {} ON {quoted_table} (({key}));",
+        crate::identifier::quote_postgres_identifier(&name)
+    );
+    Ok(LocalizedIndex { name, ddl })
+}
+
 /// The SQL a localized field's translations sibling is read with (#1513).
 ///
 /// A JSON array with one object per locale of `allowed` whose label is a JSON string, in

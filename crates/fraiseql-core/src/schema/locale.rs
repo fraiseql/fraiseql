@@ -237,7 +237,7 @@ impl LocaleConfig {
     /// not allowed. The server checks at boot that each allowed tag's collation exists.
     #[must_use]
     pub fn collation(&self, locale: &str) -> Option<String> {
-        self.chains.contains_key(locale).then(|| format!("{locale}-x-icu"))
+        self.allowed.iter().any(|a| a == locale).then(|| format!("{locale}-x-icu"))
     }
 
     /// Every allowed tag's collation, for the boot check.
@@ -313,7 +313,7 @@ impl LocaleConfig {
         }
     }
 
-    fn derive_chain(&self, tag: &str) -> Vec<String> {
+    pub(crate) fn derive_chain(&self, tag: &str) -> Vec<String> {
         let mut chain: Vec<String> = vec![tag.to_string()];
         let mut push = |t: &str| {
             if !chain.iter().any(|c| c == t) {
