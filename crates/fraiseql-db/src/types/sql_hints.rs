@@ -138,6 +138,11 @@ pub struct OrderByClause {
     /// collation, as before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub collation:     Option<String>,
+    /// A localized key's fallback chain (#1513): the clause sorts the label the chain reads
+    /// from the stored locale map, under [`collation`](Self::collation), rather than the
+    /// map. Set by the runtime from the request locale.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub localized:     Option<Vec<String>>,
 }
 
 /// The full-text operand of an ORDER BY clause (#1284).
@@ -265,6 +270,7 @@ impl OrderByClause {
             relevance: None,
             identity: false,
             collation: None,
+            localized: None,
         }
     }
 
@@ -289,6 +295,7 @@ impl OrderByClause {
             relevance: None,
             identity: true,
             collation: None,
+            localized: None,
         }
     }
 
@@ -312,6 +319,7 @@ impl OrderByClause {
             relevance:     Some(relevance),
             identity:      false,
             collation:     None,
+            localized:     None,
         }
     }
 

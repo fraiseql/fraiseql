@@ -333,6 +333,10 @@ pub fn enrich_order_by_clauses(
                 {
                     clause.collation.clone_from(&collation);
                 }
+                // #1513: a localized field sorts by its label, not its stored map.
+                if field_def.localized {
+                    clause.localized = crate::runtime::localization_chain(schema);
+                }
             }
         }
 

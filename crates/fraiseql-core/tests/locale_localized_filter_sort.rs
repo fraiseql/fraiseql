@@ -35,6 +35,7 @@ fn schema() -> CompiledSchema {
     let mut name = FieldDefinition::nullable("name", FieldType::String);
     name.localized = true;
     let product = TestTypeBuilder::new("Product", VIEW)
+        .relay_node()
         .with_simple_field("id", FieldType::Id)
         .with_field(name)
         .build();
@@ -44,7 +45,17 @@ fn schema() -> CompiledSchema {
         .build();
     products.auto_params.has_where = true;
     products.auto_params.has_order_by = true;
-    let mut schema = TestSchemaBuilder::new().with_type(product).with_query(products).build();
+    let mut connection = TestQueryBuilder::new("productsConnection", "Product")
+        .returns_list(true)
+        .with_sql_source(VIEW)
+        .relay_cursor_column("pk")
+        .build();
+    connection.auto_params.has_order_by = true;
+    let mut schema = TestSchemaBuilder::new()
+        .with_type(product)
+        .with_query(products)
+        .with_query(connection)
+        .build();
     schema.locale = Some(
         LocaleConfig::new(
             "en-US",
@@ -65,7 +76,7 @@ async fn executor() -> Option<Executor> {
     let values: Vec<String> = ROWS
         .iter()
         .map(|(pk, name)| {
-            format!("({pk}, jsonb_build_object('id', '{pk}', 'name', '{name}'::jsonb))")
+            format!("({pk}, jsonb_build_object('id', '{pk}', 'pk', {pk}, 'name', '{name}'::jsonb))")
         })
         .collect();
     for ddl in [
@@ -122,6 +133,44 @@ async fn a_filter_compares_the_request_locales_label() {
     assert_eq!(matched(e, "fr-FR", r#"{ startswith: "Zè" }"#).await, rows(&[3]), "startswith");
     assert_eq!(matched(e, "fr-FR", "{ isNull: true }").await, rows(&[4]), "isNull");
     assert_eq!(matched(e, "fr-FR", "{ isNull: false }").await, rows(&[1, 2, 3]), "not isNull");
+}
+
+/// Cycle 2: `orderBy` sorts the request locale's label under its collation, rows with no
+/// label last.
+#[tokio::test]
+async fn a_sort_orders_the_label_under_the_locales_collation() {
+    let Some(executor) = executor().await else {
+        return;
+    };
+    let order = "orderBy: { name: ASC }";
+    // fr-FR: Pear, Pomme, Zèbre.
+    assert_eq!(ids(&executor, "fr-FR", order).await, rows(&[2, 1, 3, 4]), "fr-FR");
+    // sv-SE: Päron, Zebra, Äpple (Ä after Z); the default collation would put Äpple first.
+    assert_eq!(ids(&executor, "sv-SE", order).await, rows(&[2, 3, 1, 4]), "sv-SE");
+    // en-US: Apple, Pear, Zebra.
+    assert_eq!(ids(&executor, "en-US", order).await, rows(&[1, 2, 3, 4]), "en-US");
+
+    // A relay connection's first page sorts the same way.
+    let relay = Executor::new_with_relay(
+        schema(),
+        Arc::new(PostgresAdapter::new(&fraiseql_test_support::database_url()).await.unwrap()),
+    );
+    let response = with_request_locale(
+        "sv-SE",
+        relay.execute(
+            "{ productsConnection(first: 10, orderBy: { name: ASC }) { edges { node { id } } } }",
+            None,
+        ),
+    )
+    .await
+    .unwrap();
+    let relay_ids: Vec<String> = response["data"]["productsConnection"]["edges"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"))
+        .iter()
+        .map(|e| e["node"]["id"].as_str().unwrap().to_string())
+        .collect();
+    assert_eq!(relay_ids, rows(&[2, 3, 1, 4]), "relay, sv-SE");
 }
 
 /// A response row's `name`, as a sanity check that the read and the filter agree.

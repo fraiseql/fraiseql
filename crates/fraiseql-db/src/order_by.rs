@@ -219,7 +219,17 @@ pub fn render_order_by_columns(
             let key = clause.storage_key();
             db_type.typed_json_field_expr(&key, clause.field_type)
         };
-        let key = collated(&expr, clause.collation.as_deref())?;
+        // #1513: a localized key sorts the label its chain reads, collated, by the one
+        // builder the filter and the index report use.
+        let key = match &clause.localized {
+            Some(chain) => crate::projection_generator::localized_key_expr(
+                "data",
+                &[clause.storage_key()],
+                chain,
+                clause.collation.as_deref(),
+            )?,
+            None => collated(&expr, clause.collation.as_deref())?,
+        };
         // Reason: fmt::Write for String is infallible
         write!(columns, "{key} {}", clause.direction.as_sql())
             .expect("write to String is infallible");

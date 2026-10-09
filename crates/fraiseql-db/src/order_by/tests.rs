@@ -130,6 +130,7 @@ fn test_append_order_by_native_column() {
         relevance:     None,
         identity:      false,
         collation:     None,
+        localized:     None,
     };
     let bound =
         append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
@@ -154,6 +155,7 @@ fn test_append_order_by_mixed_native_and_jsonb() {
             relevance:     None,
             identity:      false,
             collation:     None,
+            localized:     None,
         },
         {
             let mut c = OrderByClause::new("name".to_string(), OrderDirection::Asc);
@@ -543,6 +545,7 @@ mod pagination_tiebreak {
             relevance:     None,
             identity:      false,
             collation:     None,
+            localized:     None,
         }
     }
 
