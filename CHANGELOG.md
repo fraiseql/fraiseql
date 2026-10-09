@@ -47,6 +47,14 @@ disagreed, and the promise was the part that was wrong.
   `_entities`, subscriptions, mutation payloads): a mask reads `[]`, a `reject` refuses, and
   the field authorizer is asked about the base field.
 
+- **Aggregates and windows over a localized dimension read its label (#1524).** A fact-table
+  dimension that is a localized field was refused at compile and load. It now groups,
+  partitions, sorts (under the request locale's collation) and filters by its label through
+  the request locale's chain, so two rows sharing a French label are one group in `fr-FR`.
+  A measure over a localized field stays refused, now saying why (a label is text).
+  Embedders: `GroupByExpression::JsonbPath` gains `localized`, and
+  `WindowPlanner::plan_in_locale` takes a `WindowLocale`.
+
 - **`where` and `orderBy` on a localized field read the label (#1513).** Comparisons and sorts
   use the request locale's label under its collation. `fraiseql compile` prints the expression
   index each allowed locale's filter or sort reads, and `fraiseql doctor --against-db` names

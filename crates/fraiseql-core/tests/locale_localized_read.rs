@@ -789,10 +789,8 @@ async fn the_sql_and_rust_evaluators_agree() {
     assert_eq!(compared, CORPUS.len() * config.allowed.len(), "every pair was compared");
 }
 
-/// The uses of a localized field that would read the stored map where a label is
-/// meant are refused at load (and so at compile), each naming its follow-up issue: an
-/// aggregate dimension or measure (#1524), a subscription filter (#1525), a federation
-/// `@key` (#1526).
+/// The uses of a localized field with no meaning are refused at load (and so at compile):
+/// a fact-table measure (#1524), a subscription filter (#1525), a federation `@key` (#1526).
 #[test]
 fn uses_that_would_read_the_stored_map_are_refused_at_load() {
     let schema = |extra: &str| {
@@ -825,8 +823,10 @@ fn uses_that_would_read_the_stored_map_are_refused_at_load() {
             .expect_err(&format!("must not load: {extra}"));
         assert!(err.to_string().contains(needle), "{needle}: {err}");
     };
-    refused(fact_table("name", "price"), "#1524");
-    refused(fact_table("price", "name"), "#1524");
+    // A measure over a localized field has no meaning (#1524); a dimension groups by the label.
+    refused(fact_table("price", "name"), "a label is text");
+    CompiledSchema::from_json(&schema(&fact_table("name", "price")), false)
+        .expect("a localized dimension loads (#1524)");
     refused(
         subscription(
             r#""filter_fields": ["name"], "arguments": [{"name": "name", "arg_type": "String", "nullable": true}]"#,

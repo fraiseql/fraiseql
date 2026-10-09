@@ -253,6 +253,9 @@ pub enum GroupByExpression {
         path:         Vec<String>,
         /// Result alias
         alias:        String,
+        /// The request locale's fallback chain when the dimension is a localized field
+        /// (#1524): it groups by the label read through it, not by the stored locale map.
+        localized:    Option<Vec<String>>,
     },
     /// Temporal bucket with `DATE_TRUNC`
     TemporalBucket {
@@ -473,6 +476,8 @@ impl AggregationPlanner {
                         jsonb_column: metadata.dimensions.name.clone(),
                         path:         location,
                         alias:        alias.clone(),
+                        // Set by the runner, which knows the type and the request locale.
+                        localized:    None,
                     });
                 },
                 GroupBySelection::TemporalBucket {

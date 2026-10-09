@@ -5,12 +5,41 @@ use super::{
 };
 use crate::compiler::window_allowlist::WindowAllowlist;
 
-/// What converting an `ORDER BY` key needs: the fact table, its allowlist, and the collation
-/// a text key sorts under (#1512).
+/// The request locale a window query is planned in: the collation a text key sorts under
+/// (#1512), and the localized dimensions read as their label through `chain` (#1524).
+#[derive(Debug, Clone, Copy, Default)]
+pub struct WindowLocale<'a> {
+    /// The request locale's collation, when the schema names one.
+    pub collation: Option<&'a str>,
+    /// The dimension keys (`dimension_key`) that are localized fields of the fact table's type.
+    pub localized: &'a [String],
+    /// The request locale's fallback chain.
+    pub chain:     &'a [String],
+}
+
+impl WindowLocale<'_> {
+    /// A dimension `path` as text: `data->>'path'`, or a localized one's label (#1524).
+    fn dimension(&self, metadata: &FactTableMetadata, path: &str) -> Result<String> {
+        let key = crate::compiler::fact_table::dimension_key(path);
+        if self.localized.contains(&key) {
+            crate::backend::projection_generator::localized_key_expr(
+                &metadata.dimensions.name,
+                &[path.to_string()],
+                self.chain,
+                None,
+            )
+        } else {
+            Ok(format!("{}->>'{}'", metadata.dimensions.name, path))
+        }
+    }
+}
+
+/// What converting an `ORDER BY` key needs: the fact table, its allowlist, and the request
+/// locale.
 struct OrderKeys<'a> {
     metadata:  &'a FactTableMetadata,
     allowlist: &'a WindowAllowlist,
-    collation: Option<&'a str>,
+    locale:    WindowLocale<'a>,
 }
 
 impl OrderKeys<'_> {
@@ -33,7 +62,7 @@ impl OrderKeys<'_> {
         } else if self.metadata.denormalized_filters.iter().any(|f| f.name == order.field) {
             is_text_filter(self.metadata, &order.field)
         } else if output_aliases.contains(&order.field) {
-            match (self.collation, text_aliases.get(&order.field)) {
+            match (self.locale.collation, text_aliases.get(&order.field)) {
                 (Some(_), Some(expression)) => {
                     field.clone_from(expression);
                     true
@@ -41,11 +70,13 @@ impl OrderKeys<'_> {
                 _ => false,
             }
         } else {
-            true // a dimension path: `->>` extracts text
+            // A dimension path: `->>` extracts text, and a localized one reads its label.
+            field = self.locale.dimension(self.metadata, &order.field)?;
+            true
         };
         let mut clause = OrderByClause::new(field, order.direction);
         if is_text {
-            clause.collation = self.collation.map(str::to_string);
+            clause.collation = self.locale.collation.map(str::to_string);
         }
         Ok(clause)
     }
@@ -105,7 +136,7 @@ impl WindowPlanner {
         request: WindowRequest,
         metadata: &FactTableMetadata,
     ) -> Result<WindowExecutionPlan> {
-        Self::plan_in_locale(request, metadata, None)
+        Self::plan_in_locale(request, metadata, WindowLocale::default())
     }
 
     /// [`plan`](Self::plan), with text keys of every `ORDER BY` (final and inside `OVER`)
@@ -119,7 +150,7 @@ impl WindowPlanner {
     pub fn plan_in_locale(
         request: WindowRequest,
         metadata: &FactTableMetadata,
-        collation: Option<&str>,
+        locale: WindowLocale<'_>,
     ) -> Result<WindowExecutionPlan> {
         // SECURITY (#795): the FROM target must be the fact table the root field already
         // resolved, never the client's `table` key. Two separate channels selected the
@@ -144,7 +175,7 @@ impl WindowPlanner {
         let allowlist = WindowAllowlist::from_metadata(metadata);
 
         // Convert select columns to SQL expressions
-        let select = Self::convert_select_columns(&request.select, metadata, &allowlist)?;
+        let select = Self::convert_select_columns(&request.select, metadata, &allowlist, locale)?;
 
         // The select aliases that name a text column, with the expression behind each: a
         // collated key cannot be the alias (an output name may not appear in an expression).
@@ -162,7 +193,7 @@ impl WindowPlanner {
         let keys = OrderKeys {
             metadata,
             allowlist: &allowlist,
-            collation,
+            locale,
         };
 
         // Convert window functions to SQL expressions
@@ -202,10 +233,11 @@ impl WindowPlanner {
         columns: &[WindowSelectColumn],
         metadata: &FactTableMetadata,
         allowlist: &WindowAllowlist,
+        locale: WindowLocale<'_>,
     ) -> Result<Vec<SelectColumn>> {
         columns
             .iter()
-            .map(|col| Self::convert_single_select_column(col, metadata, allowlist))
+            .map(|col| Self::convert_single_select_column(col, metadata, allowlist, locale))
             .collect()
     }
 
@@ -213,6 +245,7 @@ impl WindowPlanner {
         column: &WindowSelectColumn,
         metadata: &FactTableMetadata,
         allowlist: &WindowAllowlist,
+        locale: WindowLocale<'_>,
     ) -> Result<SelectColumn> {
         // SECURITY (#794): every arm below emits `<expr> AS <alias>` verbatim, so the alias
         // is validated once here rather than in each arm — the bug was that one arm carried
@@ -240,7 +273,7 @@ impl WindowPlanner {
                 // SECURITY (#794): `path` is interpolated as a single-quoted JSONB key, so an
                 // embedded quote breaks out of the literal and appends arbitrary SQL.
                 Self::validate_dimension_path(path, metadata, allowlist)?;
-                let expression = format!("{}->>'{}'", metadata.dimensions.name, path);
+                let expression = locale.dimension(metadata, path)?;
                 Ok(SelectColumn {
                     expression,
                     alias: alias.clone(),
@@ -289,7 +322,7 @@ impl WindowPlanner {
         let partition_by = request
             .partition_by
             .iter()
-            .map(|p| Self::convert_partition_by(p, metadata, allowlist))
+            .map(|p| Self::convert_partition_by(p, metadata, allowlist, keys.locale))
             .collect::<Result<Vec<_>>>()?;
 
         // Convert ORDER BY within window to SQL expressions
@@ -422,13 +455,14 @@ impl WindowPlanner {
         partition: &PartitionByColumn,
         metadata: &FactTableMetadata,
         allowlist: &WindowAllowlist,
+        locale: WindowLocale<'_>,
     ) -> Result<String> {
         match partition {
             PartitionByColumn::Dimension { path } => {
                 // SECURITY (#794): the same unvalidated JSONB-key interpolation as the
                 // select arm. Both sinks now go through one entry point.
                 Self::validate_dimension_path(path, metadata, allowlist)?;
-                Ok(format!("{}->>'{}'", metadata.dimensions.name, path))
+                locale.dimension(metadata, path)
             },
             PartitionByColumn::Filter { name } => {
                 if !metadata.denormalized_filters.iter().any(|f| f.name == *name) {

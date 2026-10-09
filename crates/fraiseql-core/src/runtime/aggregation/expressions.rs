@@ -60,6 +60,17 @@ impl AggregationSqlGenerator {
     pub(super) fn group_by_expression_to_sql(&self, expr: &GroupByExpression) -> Result<String> {
         match expr {
             GroupByExpression::JsonbPath {
+                jsonb_column,
+                path,
+                localized: Some(chain),
+                ..
+            } => crate::backend::projection_generator::localized_key_expr(
+                jsonb_column,
+                path,
+                chain,
+                None,
+            ),
+            GroupByExpression::JsonbPath {
                 jsonb_column, path, ..
             } => Ok(self.jsonb_extract_sql(jsonb_column, path)),
             GroupByExpression::TemporalBucket { column, bucket, .. } => {

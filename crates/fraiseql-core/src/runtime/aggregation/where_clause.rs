@@ -83,6 +83,32 @@ impl AggregationSqlGenerator {
             WhereClause::InHierarchy { context, inner } => {
                 self.node_id_where(context, inner, metadata, params)
             },
+            // A localized dimension (#1524): its label through the chain, collated, compared
+            // as any text key is.
+            WhereClause::Localized {
+                chain,
+                collation,
+                inner,
+            } => {
+                let WhereClause::Field {
+                    path,
+                    operator,
+                    value,
+                } = inner.as_ref()
+                else {
+                    return Err(FraiseQLError::validation(
+                        "a localized filter wraps a single field comparison",
+                    ));
+                };
+                let db_path: Vec<String> = path.iter().map(|k| to_snake_case(k)).collect();
+                let key = crate::backend::projection_generator::localized_key_expr(
+                    &metadata.dimensions.name,
+                    &db_path,
+                    chain,
+                    collation.as_deref(),
+                )?;
+                self.generate_key_where_parameterized(&key, operator, value, params)
+            },
             // Reason: non_exhaustive requires catch-all for cross-crate matches
             _ => Err(crate::FraiseQLError::Validation {
                 message: "Unknown WhereClause variant".to_string(),
@@ -190,11 +216,22 @@ impl AggregationSqlGenerator {
             keys => keys.to_vec(),
         };
         let jsonb_extract = self.jsonb_extract_sql(jsonb_column, &db_path);
+        self.generate_key_where_parameterized(&jsonb_extract, operator, value, params)
+    }
 
+    /// Parameterized WHERE comparing a text-valued SQL expression `jsonb_extract` (a
+    /// dimension's `->>` extraction, or a localized dimension's label, #1524).
+    fn generate_key_where_parameterized(
+        &self,
+        jsonb_extract: &str,
+        operator: &WhereOperator,
+        value: &serde_json::Value,
+        params: &mut Vec<serde_json::Value>,
+    ) -> Result<String> {
         if let Some(test) = null_test(operator, value)? {
             return Ok(format!("{jsonb_extract} {test}"));
         }
-        if let Some(sql) = self.ltree_where(&jsonb_extract, operator, value, params)? {
+        if let Some(sql) = self.ltree_where(jsonb_extract, operator, value, params)? {
             return Ok(sql);
         }
 
@@ -205,7 +242,7 @@ impl AggregationSqlGenerator {
                 FraiseQLError::validation("Case-insensitive operators require string values")
             })?;
             return self.generate_case_insensitive_where_parameterized(
-                &jsonb_extract,
+                jsonb_extract,
                 operator,
                 s,
                 params,

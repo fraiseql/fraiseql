@@ -40,6 +40,79 @@ fn collate_text_group_keys(
     }
 }
 
+/// The stored keys of the localized fields of `metadata`'s type, as dimension keys (#1524).
+fn localized_dimension_keys(
+    schema: &crate::schema::CompiledSchema,
+    metadata: &crate::compiler::fact_table::FactTableMetadata,
+) -> Vec<String> {
+    use crate::compiler::fact_table::dimension_key;
+    metadata
+        .type_name
+        .as_deref()
+        .and_then(|name| schema.find_type(name))
+        .map_or_else(Vec::new, |t| {
+            t.fields
+                .iter()
+                .filter(|f| f.localized)
+                .map(|f| dimension_key(f.name.as_str()))
+                .collect()
+        })
+}
+
+/// Whether a dimension `path` reads one of `keys` (a localized field), whole.
+fn reads_localized(path: &[String], keys: &[String]) -> bool {
+    matches!(path, [key] if keys.contains(&crate::compiler::fact_table::dimension_key(key)))
+}
+
+/// Group a localized dimension by its label through `chain` (#1524): the stored locale map
+/// would make every distinct map a group, and report the map as the key.
+fn localize_group_by(
+    plan: &mut crate::compiler::aggregation::AggregationPlan,
+    keys: &[String],
+    chain: &[String],
+) {
+    use crate::compiler::aggregation::GroupByExpression;
+    for expr in &mut plan.group_by_expressions {
+        if let GroupByExpression::JsonbPath {
+            path, localized, ..
+        } = expr
+        {
+            if reads_localized(path, keys) {
+                *localized = Some(chain.to_vec());
+            }
+        }
+    }
+}
+
+/// Read a filter on a localized dimension through `chain`, under `collation` (#1524): the
+/// label is compared, as on any read of the field, never the stored map.
+fn localize_where(
+    clause: WhereClause,
+    keys: &[String],
+    chain: &[String],
+    collation: Option<&str>,
+) -> WhereClause {
+    match clause {
+        WhereClause::Field { ref path, .. } if reads_localized(path, keys) => {
+            WhereClause::Localized {
+                chain:     chain.to_vec(),
+                collation: collation.map(str::to_string),
+                inner:     Box::new(clause),
+            }
+        },
+        WhereClause::And(clauses) => WhereClause::And(
+            clauses.into_iter().map(|c| localize_where(c, keys, chain, collation)).collect(),
+        ),
+        WhereClause::Or(clauses) => WhereClause::Or(
+            clauses.into_iter().map(|c| localize_where(c, keys, chain, collation)).collect(),
+        ),
+        WhereClause::Not(inner) => {
+            WhereClause::Not(Box::new(localize_where(*inner, keys, chain, collation)))
+        },
+        other => other,
+    }
+}
+
 /// Runner for aggregate and window analytics queries.
 pub(in super::super) struct AggregateRunner {
     ctx: Arc<ExecutorContext>,
@@ -276,6 +349,19 @@ impl AggregateRunner {
             security_context,
         )?;
 
+        // 1a''. A localized dimension is read as its label in the request locale (#1524): in the
+        //       caller's filter here, in the grouping once planned. The policy's own clause is
+        //       composed below and never names one.
+        let localized_keys = localized_dimension_keys(&self.ctx.schema, metadata);
+        let chain = crate::runtime::localization_chain(&self.ctx.schema).unwrap_or_default();
+        if !localized_keys.is_empty() {
+            if let Some(clause) = request.where_clause.take() {
+                let collation = self.request_collation();
+                request.where_clause =
+                    Some(localize_where(clause, &localized_keys, &chain, collation.as_deref()));
+            }
+        }
+
         // 1a'. Node-id filters resolve through the hierarchy their column declares (#1498).
         //      The caller's clause only: the policy below never carries one.
         if let Some(clause) = request.where_clause.take() {
@@ -335,8 +421,9 @@ impl AggregateRunner {
         }
 
         // 3. Standard path: generate execution plan
-        let plan =
+        let mut plan =
             crate::compiler::aggregation::AggregationPlanner::plan(request, metadata.clone())?;
+        localize_group_by(&mut plan, &localized_keys, &chain);
 
         // 4. Generate parameterized SQL
         let sql_generator =
@@ -406,10 +493,16 @@ impl AggregateRunner {
             .and_then(|split| split.remaining);
 
         // Generate execution plan (for GROUP BY / aggregate expression resolution)
-        let plan = crate::compiler::aggregation::AggregationPlanner::plan(
+        let mut plan = crate::compiler::aggregation::AggregationPlanner::plan(
             request.clone(),
             metadata.clone(),
         )?;
+        // A localized dimension groups by its label (#1524), as on the standard path.
+        localize_group_by(
+            &mut plan,
+            &localized_dimension_keys(&self.ctx.schema, metadata),
+            &crate::runtime::localization_chain(&self.ctx.schema).unwrap_or_default(),
+        );
 
         // Generate UNION ALL SQL
         let sql_generator =
@@ -511,6 +604,18 @@ impl AggregateRunner {
             security_context,
         )?;
 
+        // 1a'. A localized dimension is read as its label (#1524): in the caller's filter here,
+        //      and wherever the plan selects, partitions or orders by it.
+        let localized_keys = localized_dimension_keys(&self.ctx.schema, metadata);
+        let chain = crate::runtime::localization_chain(&self.ctx.schema).unwrap_or_default();
+        let collation = self.request_collation();
+        if !localized_keys.is_empty() {
+            if let Some(clause) = request.where_clause.take() {
+                request.where_clause =
+                    Some(localize_where(clause, &localized_keys, &chain, collation.as_deref()));
+            }
+        }
+
         // 1b. Evaluate RLS policy and compose with user-supplied WHERE.
         //     RLS WHERE is always AND-composed first so it cannot be bypassed.
         if let Some(ctx) = security_context {
@@ -541,7 +646,11 @@ impl AggregateRunner {
         let plan = crate::compiler::window_functions::WindowPlanner::plan_in_locale(
             request,
             metadata,
-            self.request_collation().as_deref(),
+            crate::compiler::window_functions::WindowLocale {
+                collation: collation.as_deref(),
+                localized: &localized_keys,
+                chain:     &chain,
+            },
         )?;
 
         // 3. Generate SQL

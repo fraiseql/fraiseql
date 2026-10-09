@@ -619,7 +619,7 @@ pub enum FrameExclusion {
 }
 
 mod codegen;
-pub use self::codegen::WindowPlanner;
+pub use self::codegen::{WindowLocale, WindowPlanner};
 
 #[cfg(test)]
 mod tests;

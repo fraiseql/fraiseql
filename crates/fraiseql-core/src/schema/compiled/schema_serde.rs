@@ -304,10 +304,10 @@ impl CompiledSchema {
         violations
     }
 
-    /// The uses of a localized field that would read its stored locale map where a label is
-    /// meant (#1513), each refused until its follow-up issue gives it a meaning: an aggregate
-    /// dimension or measure (#1524), a subscription filter (#1525), a federation `@key`
-    /// (#1526).
+    /// The uses of a localized field that have no meaning (#1513): a fact-table measure (a
+    /// label is text, and a measure is a number aggregated, #1524), a subscription filter
+    /// until #1525 gives it one, and a federation `@key` (#1526). A localized dimension groups
+    /// by its label (#1524).
     fn localized_use_violations(&self) -> Vec<String> {
         use crate::compiler::fact_table::dimension_key;
         let localized_of = |type_name: &str| -> Vec<&str> {
@@ -328,16 +328,11 @@ impl CompiledSchema {
             };
             for field in localized_of(type_name) {
                 let key = dimension_key(field);
-                let names = ft
-                    .dimensions
-                    .paths
-                    .iter()
-                    .map(|p| p.name.as_str())
-                    .chain(ft.measures.iter().map(|m| m.name.as_str()));
-                if names.into_iter().any(|n| dimension_key(n) == key) {
+                if ft.measures.iter().any(|m| dimension_key(&m.name) == key) {
                     violations.push(format!(
-                        "fact table `{}` aggregates `{type_name}.{field}`, which is localized: \
-                         grouping or measuring by a localized field is not supported yet (#1524)",
+                        "fact table `{}` has a measure `{field}`, but `{type_name}.{field}` is \
+                         localized: a measure is a number aggregated, and a label is text (group \
+                         by it as a dimension instead, #1524)",
                         ft.table_name
                     ));
                 }

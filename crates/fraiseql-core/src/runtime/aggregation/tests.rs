@@ -265,6 +265,7 @@ mod native_groupby {
                 jsonb_column: "data".to_string(),
                 path:         vec!["status".to_string()],
                 alias:        "status".to_string(),
+                localized:    None,
             },
         ];
         let gen = AggregationSqlGenerator::new(DatabaseType::PostgreSQL);
@@ -449,6 +450,7 @@ mod native_orderby {
                 jsonb_column: "data".to_string(),
                 path:         vec!["status".to_string()],
                 alias:        "status".to_string(),
+                localized:    None,
             },
         ];
 

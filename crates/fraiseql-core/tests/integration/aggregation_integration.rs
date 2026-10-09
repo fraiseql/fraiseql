@@ -257,6 +257,7 @@ fn test_result_projection() {
             jsonb_column: "data".to_string(),
             path:         vec!["category".to_string()],
             alias:        "category".to_string(),
+            localized:    None,
         }],
         aggregate_expressions: vec![AggregateExpression::Count {
             alias: "count".to_string(),

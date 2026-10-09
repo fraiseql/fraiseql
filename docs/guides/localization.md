@@ -59,9 +59,12 @@ read, collation included, so the planner can use it.
 `fraiseql doctor --against-db` plans a probe for each (field, locale) and names the pairs no
 index serves, so an equivalent index under another name counts.
 
-Not localizable yet: an aggregate dimension or measure (#1524) and a subscription filter
-(#1525), each refused at compile with its issue number. A federation `@key` is never
-localizable (#1526): it is refused at compile.
+An aggregate or window grouped, partitioned, sorted or filtered by a localized dimension reads
+its label in the request locale: two rows sharing a French label are one group in `fr-FR`
+and two in `en-US` if their English labels differ. A fact-table measure cannot be localized
+(a label is text, and a measure is a number aggregated). A subscription filter on a
+localized field is not supported yet (#1525), and a federation `@key` never is (#1526);
+each is refused at compile.
 
 A field gate covers the translations sibling too: `nameTranslations` is gated as `name` is
 (`requires_scope`, `on_deny`, `authorize`). A masked field's sibling reads `[]`; a refused
