@@ -302,7 +302,8 @@ pub(in super::super) fn apply_anonymous_field_rbac_filtering(
         // Masked fields keep their requested position; only their value is
         // withheld.
         projected.push(name.clone());
-        let Some(field) = type_def.fields.iter().find(|f| &f.name == name) else {
+        // A translations sibling is gated by the field it lists (#1523).
+        let Some(field) = crate::schema::gated_field(&type_def.fields, name) else {
             continue;
         };
 

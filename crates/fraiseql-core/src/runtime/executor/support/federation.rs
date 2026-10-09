@@ -234,7 +234,11 @@ impl Executor {
                     continue;
                 };
                 if !masked.is_empty() {
-                    super::super::null_masked_fields(entity, masked);
+                    super::super::null_masked_fields(
+                        entity,
+                        masked,
+                        self.ctx.schema.find_type(&rep.typename),
+                    );
                 }
             }
         }

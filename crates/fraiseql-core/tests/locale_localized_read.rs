@@ -613,8 +613,9 @@ async fn translations_through_the_rust_projector() {
     assert_eq!(rows.into_iter().map(|(_, v)| v).collect::<Vec<_>>(), all_labels(), "{response}");
 }
 
-/// An invalid sibling selection is refused before any statement: no sub-selection,
-/// an undeclared sub-field, a field that is not localized, and a field-gated one (#1523).
+/// An invalid sibling selection is refused before any statement: no sub-selection, an
+/// undeclared sub-field, and a field that is not localized. (A field-gated one is gated as its
+/// field is, #1523: `locale_translations_gate`.)
 #[tokio::test]
 async fn an_invalid_translations_selection_is_refused_before_any_sql() {
     let adapter = Arc::new(fraiseql_test_utils::failing_adapter::FailingAdapter::new());
@@ -623,11 +624,6 @@ async fn an_invalid_translations_selection_is_refused_before_any_sql() {
         ("{ products { id nameTranslations } }", "nameTranslations"),
         ("{ products { id nameTranslations { bogus } } }", "bogus"),
         ("{ products { id idTranslations { value } } }", "idTranslations"),
-        ("{ products { id mottoTranslations { value } } }", "#1523"),
-        (
-            "{ productsConnection(first: 1) { edges { node { mottoTranslations { value } } } } }",
-            "#1523",
-        ),
     ] {
         let err = with_request_locale("fr-CA", executor.execute(query, None))
             .await

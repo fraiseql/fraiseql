@@ -320,6 +320,19 @@ pub(in super::super) fn type_read_refusal(
     actor_refused.then_some("whose read is restricted to actor types the request is not")
 }
 
+/// What a masked field reads as: `null`, or `[]` for a translations sibling, whose
+/// `[LocalizedString!]!` has no `null` (#1523).
+pub(in super::super) fn masked_value(
+    type_def: Option<&crate::schema::TypeDefinition>,
+    field: &str,
+) -> serde_json::Value {
+    if type_def.and_then(|t| t.translations_of(field)).is_some() {
+        serde_json::Value::Array(Vec::new())
+    } else {
+        serde_json::Value::Null
+    }
+}
+
 fn null_masked_at(
     value: &mut serde_json::Value,
     type_name: &str,
@@ -339,7 +352,7 @@ fn null_masked_at(
                 let key = sel.response_key();
                 if masked.contains(&(type_name.to_string(), sel.name.clone())) {
                     if let Some(slot) = object.get_mut(key) {
-                        *slot = serde_json::Value::Null;
+                        *slot = masked_value(type_def, &sel.name);
                     }
                     continue;
                 }

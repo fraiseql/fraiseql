@@ -145,13 +145,17 @@ pub trait FieldAuthorizer: Send + Sync {
 /// [`null_masked_fields`](crate::runtime::executor)).
 pub(crate) struct GatedField {
     /// GraphQL field name — used for the authorizer request and the static-mask check.
-    pub(crate) field_name: String,
+    pub(crate) field_name:   String,
     /// Response key (alias) when the selection aliased the field. The projected key is
     /// the field name on the query path (no alias applied) or the response key on the
     /// mutation path; enforcement tries both so masking is correct on either path.
-    pub(crate) alias:      Option<String>,
+    pub(crate) alias:        Option<String>,
     /// The field's GraphQL arguments as a JSON object, when any are present.
-    pub(crate) arguments:  Option<JsonValue>,
+    pub(crate) arguments:    Option<JsonValue>,
+    /// The selection is the field's translations sibling (#1523): `field_name` is the base
+    /// field the authorizer decides on, `alias` the sibling's response key, the only key it
+    /// projects to, and a mask reads `[]`.
+    pub(crate) translations: Option<String>,
 }
 
 /// Resolve the object type a (possibly list-wrapped) field points to, if any.
@@ -211,7 +215,7 @@ pub(crate) fn selection_set_selects_gated_field(
     // fragment (interface/union member, e.g. a cascade `entity { ... on Post {
     // gated } }` or a union mutation's `... on Post { gated }`) is not invisible.
     effective_selections(fields, type_name, schema).iter().any(|sel| {
-        type_def.fields.iter().any(|f| f.name.as_str() == sel.name && f.authorize)
+        crate::schema::gated_field(&type_def.fields, &sel.name).is_some_and(|f| f.authorize)
             || selection_field_has_gated_descendant(schema, type_name, sel)
     })
 }
@@ -241,10 +245,8 @@ fn selection_field_has_gated_descendant(
     effective_selections(&sel.nested_fields, child_type, schema)
         .iter()
         .any(|child_sel| {
-            child_def
-                .fields
-                .iter()
-                .any(|f| f.name.as_str() == child_sel.name && f.authorize)
+            crate::schema::gated_field(&child_def.fields, &child_sel.name)
+                .is_some_and(|f| f.authorize)
                 || selection_field_has_gated_descendant(schema, child_type, child_sel)
         })
 }
@@ -280,12 +282,22 @@ pub(crate) fn collect_top_level_gated_fields(
     };
     effective_selections(fields, type_name, schema)
         .into_iter()
-        .filter(|sel| type_def.fields.iter().any(|f| f.name.as_str() == sel.name && f.authorize))
-        .map(|sel| {
+        .filter_map(|sel| {
+            let field = crate::schema::gated_field(&type_def.fields, &sel.name)?;
+            field.authorize.then_some((sel, field))
+        })
+        .map(|(sel, field)| {
+            // A translations sibling is decided as the field it lists (#1523).
+            let sibling = (field.name.as_str() != sel.name).then(|| sel.name.clone());
             Ok(GatedField {
-                field_name: sel.name.clone(),
-                alias:      sel.alias.clone(),
-                arguments:  field_arguments_json(sel, variables)?,
+                field_name:   field.name.to_string(),
+                alias:        if sibling.is_some() {
+                    Some(sel.response_key().to_string())
+                } else {
+                    sel.alias.clone()
+                },
+                arguments:    field_arguments_json(sel, variables)?,
+                translations: sibling,
             })
         })
         .collect()
@@ -450,7 +462,13 @@ fn enforce_row(
     for gf in gated {
         // Resolve the projected key: the field name (query path) or the alias
         // (mutation path applies response keys). Absent → not in this row, nothing to gate.
-        let projected_key = if map.contains_key(&gf.field_name) {
+        // A translations sibling projects only under its own response key (#1523).
+        let projected_key = if gf.translations.is_some() {
+            match gf.alias.as_ref().filter(|a| map.contains_key(a.as_str())) {
+                Some(key) => key.clone(),
+                None => continue,
+            }
+        } else if map.contains_key(&gf.field_name) {
             gf.field_name.clone()
         } else if let Some(alias) = gf.alias.as_ref().filter(|a| map.contains_key(a.as_str())) {
             alias.clone()
@@ -458,13 +476,19 @@ fn enforce_row(
             continue;
         };
         // AND-composition: the static gate already masked this field → already denied.
-        if statically_masked.iter().any(|m| m == &gf.field_name) {
+        let selected = gf.translations.as_ref().unwrap_or(&gf.field_name);
+        if statically_masked.iter().any(|m| m == selected) {
             continue;
         }
         if adjudicate_field(authorizer, principal, type_name, gf, parent)?
             == FieldDisposition::Masked
         {
-            map.insert(projected_key, JsonValue::Null);
+            let masked = if gf.translations.is_some() {
+                JsonValue::Array(Vec::new())
+            } else {
+                JsonValue::Null
+            };
+            map.insert(projected_key, masked);
         }
     }
     Ok(())

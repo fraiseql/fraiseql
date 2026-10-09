@@ -809,3 +809,36 @@ fn an_event_that_cannot_be_completed_is_null_with_an_error() {
     let complete = planned.deliver(&event()).unwrap();
     assert!(complete.errors.is_empty(), "{complete:?}");
 }
+
+/// #1523: a masked localized field's translations sibling is `[]` in every event served to
+/// a subscriber without its scope, and every label to one with it.
+#[test]
+fn a_masked_localized_fields_translations_are_empty_without_its_scope() {
+    let mut schema = schema();
+    let mut motto = FieldDefinition::nullable("motto", FieldType::String);
+    motto.localized = true;
+    motto.requires_scope = Some("read:note".to_string());
+    motto.on_deny = FieldDenyPolicy::Mask;
+    schema.types[0].fields.push(motto);
+    schema.locale = Some(
+        crate::schema::LocaleConfig::new(
+            "en-US",
+            vec!["en-US".into(), "fr-FR".into()],
+            std::collections::BTreeMap::new(),
+            vec![],
+        )
+        .unwrap(),
+    );
+    schema.build_indexes();
+    let exec = executor(schema, RuntimeConfig::default());
+    let query = "subscription { orderCreated { id mottoTranslations { value } } }";
+    let event = json!({"id": "o1", "motto": {"en-US": "Hi", "fr-FR": "Salut"}});
+
+    let anonymous = plan(&exec, query, &json!({}), None).unwrap();
+    assert_eq!(anonymous.deliver(&event).unwrap().data["mottoTranslations"], json!([]));
+    let analyst = plan(&exec, query, &json!({}), Some(&principal(&["analyst"]))).unwrap();
+    assert_eq!(
+        analyst.deliver(&event).unwrap().data["mottoTranslations"],
+        json!([{"value": "Hi"}, {"value": "Salut"}])
+    );
+}

@@ -259,8 +259,7 @@ impl TypeDefinition {
     /// sibling: the schema is refused at load when one would.
     #[must_use]
     pub fn translations_of(&self, name: &str) -> Option<&FieldDefinition> {
-        let base = name.strip_suffix(super::TRANSLATIONS_SUFFIX)?;
-        self.find_field(base).filter(|f| f.localized)
+        translations_base(&self.fields, name)
     }
 
     /// Find the field that publishes the SQL column `column`.
@@ -857,4 +856,27 @@ impl UnionDefinition {
     pub fn contains_type(&self, type_name: &str) -> bool {
         self.member_types.iter().any(|t| t == type_name)
     }
+}
+
+/// The localized field among `fields` that `name` is the translations sibling of
+/// (`nameTranslations` → `name`, #1513), or `None`.
+#[must_use]
+pub fn translations_base<'a>(
+    fields: &'a [FieldDefinition],
+    name: &str,
+) -> Option<&'a FieldDefinition> {
+    let base = name.strip_suffix(super::TRANSLATIONS_SUFFIX)?;
+    fields.iter().find(|f| f.name == base && f.localized)
+}
+
+/// The field whose gate a selection of `name` is subject to (#1523).
+///
+/// The field of that name, or the localized field a translations sibling lists: the sibling
+/// reads every label of it, so it is gated by its `requires_scope`, `on_deny` and `authorize`.
+#[must_use]
+pub fn gated_field<'a>(fields: &'a [FieldDefinition], name: &str) -> Option<&'a FieldDefinition> {
+    fields
+        .iter()
+        .find(|f| f.name == name)
+        .or_else(|| translations_base(fields, name))
 }

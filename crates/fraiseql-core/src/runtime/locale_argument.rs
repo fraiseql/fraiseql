@@ -22,7 +22,7 @@ use fraiseql_db::TranslationPart;
 use crate::{
     error::{FraiseQLError, Result},
     graphql::{FieldSelection, GraphQLArgument},
-    schema::{CompiledSchema, FieldDefinition, FieldType, LOCALIZED_STRING_TYPE},
+    schema::{CompiledSchema, FieldType, LOCALIZED_STRING_TYPE},
 };
 
 /// The argument's name.
@@ -73,8 +73,8 @@ fn resolve_at(
             continue;
         }
         let label = format!("{type_name}.{}", sel.name);
-        if let Some(base) = type_def.translations_of(&sel.name) {
-            check_translations(&label, base, sel)?;
+        if type_def.translations_of(&sel.name).is_some() {
+            check_translations(&label, sel)?;
             continue;
         }
         let Some(field) = type_def.find_field(&sel.name) else {
@@ -111,17 +111,10 @@ fn resolve_at(
     Ok(())
 }
 
-/// A translations sibling (`nameTranslations { locale value }`): it takes no argument, its
-/// sub-selection names only `LocalizedString`'s fields, and its base field carries no field
-/// gate, which the sibling would otherwise read around (#1523).
-fn check_translations(label: &str, base: &FieldDefinition, sel: &FieldSelection) -> Result<()> {
-    if base.requires_scope.is_some() || base.authorize {
-        return Err(refusal(format!(
-            "{label} lists every label of `{}`, which is field-gated: a gated field's \
-             translations are not served yet (#1523)",
-            base.name
-        )));
-    }
+/// A translations sibling (`nameTranslations { locale value }`): it takes no argument, and
+/// its sub-selection names only `LocalizedString`'s fields. A gated base field gates it too,
+/// under its own name, at every classifier (`schema::gated_field`, #1523).
+fn check_translations(label: &str, sel: &FieldSelection) -> Result<()> {
     if let Some(argument) = sel.arguments.first() {
         return Err(refusal(format!("Unknown argument '{}' on {label}", argument.name)));
     }
@@ -135,7 +128,7 @@ fn check_translations(label: &str, base: &FieldDefinition, sel: &FieldSelection)
             )));
         }
         if name == LOCALIZED_STRING_TYPE {
-            check_translations(label, base, sub)?;
+            check_translations(label, sub)?;
         }
     }
     Ok(())

@@ -1618,7 +1618,7 @@ mod masking {
     #[test]
     fn test_null_masked_fields_object() {
         let mut value = serde_json::json!({"id": 1, "email": "alice@example.com", "name": "Alice"});
-        null_masked_fields(&mut value, &["email".to_string()]);
+        null_masked_fields(&mut value, &["email".to_string()], None);
         assert_eq!(value, serde_json::json!({"id": 1, "email": null, "name": "Alice"}));
     }
 
@@ -1628,7 +1628,7 @@ mod masking {
             {"id": 1, "email": "a@b.com", "salary": 100_000},
             {"id": 2, "email": "c@d.com", "salary": 120_000},
         ]);
-        null_masked_fields(&mut value, &["email".to_string(), "salary".to_string()]);
+        null_masked_fields(&mut value, &["email".to_string(), "salary".to_string()], None);
         assert_eq!(
             value,
             serde_json::json!([
@@ -1642,7 +1642,7 @@ mod masking {
     fn test_null_masked_fields_no_masked() {
         let mut value = serde_json::json!({"id": 1, "name": "Alice"});
         let original = value.clone();
-        null_masked_fields(&mut value, &[]);
+        null_masked_fields(&mut value, &[], None);
         assert_eq!(value, original);
     }
 }

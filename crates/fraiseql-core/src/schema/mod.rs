@@ -89,7 +89,8 @@ pub use field_type::{
 };
 pub use graphql_type_defs::{
     EnumDefinition, EnumValueDefinition, InputFieldDefinition, InputObjectDefinition,
-    InterfaceDefinition, SqlProjectionHint, TypeDefinition, UnionDefinition,
+    InterfaceDefinition, SqlProjectionHint, TypeDefinition, UnionDefinition, gated_field,
+    translations_base,
 };
 pub use graphql_value::GraphQLValue;
 pub use hierarchy::{HierarchiesConfig, HierarchyDefinition};

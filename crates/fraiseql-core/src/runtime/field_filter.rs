@@ -58,7 +58,8 @@ pub fn classify_field_access(
     let mut masked = Vec::new();
 
     for name in requested {
-        let field_def = fields.iter().find(|f| f.name == name);
+        // A translations sibling is gated by the field it lists (#1523).
+        let field_def = crate::schema::gated_field(fields, &name);
 
         let Some(field) = field_def else {
             // Field not in type definition — pass through (may be a built-in like __typename)

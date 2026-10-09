@@ -380,7 +380,7 @@ impl Walk<'_> {
             let present = map.contains_key(key);
             // Taken in place, never removed and re-inserted: the response keeps the
             // document's field order (§ 6.3).
-            let value = map.get_mut(key).map(Value::take).unwrap_or(Value::Null);
+            let value = map.get_mut(key).map_or(Value::Null, Value::take);
             path.push(Value::String(key.to_string()));
             let label = format!("{concrete}.{}", child.name);
             let completed = self.position(value, field_ref, child, &label, path, errors, depth + 1);

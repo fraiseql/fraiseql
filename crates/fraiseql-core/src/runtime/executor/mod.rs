@@ -324,18 +324,22 @@ pub(in crate::runtime::executor) fn root_type_name(operation_type: &str) -> &'st
 /// query path masks through `SelectionAccess` (`runners/query_nested`), at every level and
 /// by response key, so without `federation` this has no caller.
 #[cfg_attr(not(feature = "federation"), allow(dead_code))]
-fn null_masked_fields(value: &mut serde_json::Value, masked: &[String]) {
+fn null_masked_fields(
+    value: &mut serde_json::Value,
+    masked: &[String],
+    type_def: Option<&crate::schema::TypeDefinition>,
+) {
     match value {
         serde_json::Value::Object(map) => {
             for field_name in masked {
-                if map.contains_key(field_name) {
-                    map.insert(field_name.clone(), serde_json::Value::Null);
+                if let Some(slot) = map.get_mut(field_name) {
+                    *slot = runners::query_nested::masked_value(type_def, field_name);
                 }
             }
         },
         serde_json::Value::Array(items) => {
             for item in items {
-                null_masked_fields(item, masked);
+                null_masked_fields(item, masked, type_def);
             }
         },
         _ => {},

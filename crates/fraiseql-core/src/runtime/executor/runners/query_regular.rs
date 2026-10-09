@@ -778,10 +778,14 @@ impl QueryRunner {
         // 11. Project results. Masked fields stay in the projection, in their requested position,
         //     and are nulled below — GraphQL requires the response's field order to follow the
         //     query's.
-        let mut projected = if composed {
-            // Stored documents with their gated levels merged in: projected the way a
-            // nested list element always was, at every depth — aliases, recasing and
-            // `__typename` included.
+        let mut projected = if composed || gated_present {
+            // Stored documents with their gated levels merged in, or read whole because a
+            // policy-gated field bypassed the SQL projection: projected the way a nested
+            // list element always was, at every depth — aliases, recasing, `__typename`, a
+            // localized field in its selection's locale and its translations sibling
+            // included. The mapper below reads stored keys by name, so it dropped a
+            // sibling and read a localized field in the request locale whatever its
+            // `locale:` argument asked.
             super::query_nested::project_documents(
                 &results,
                 &query_match.query_def.return_type,

@@ -41,6 +41,12 @@ disagreed, and the promise was the part that was wrong.
   `name(locale: "de-DE")` reads one field in another allowed locale (refused before any
   statement when the locale is not allowed), and `nameTranslations { locale value }` lists every
   allowed label in `allowed`'s order. Introspection and SDL show both.
+- **A gated localized field's translations sibling is served under its field's gate
+  (#1523).** `<field>Translations` was refused when `<field>` carried `requires_scope` or
+  `authorize`. It is now gated as its field, on every read path (queries, relay,
+  `_entities`, subscriptions, mutation payloads): a mask reads `[]`, a `reject` refuses, and
+  the field authorizer is asked about the base field.
+
 - **`where` and `orderBy` on a localized field read the label (#1513).** Comparisons and sorts
   use the request locale's label under its collation. `fraiseql compile` prints the expression
   index each allowed locale's filter or sort reads, and `fraiseql doctor --against-db` names
