@@ -517,27 +517,29 @@ impl CompiledSchema {
                 sdl.push('\n');
             }
 
+            // Output types and the root operation types are rendered from the model
+            // introspection publishes, so `__type` and the SDL cannot disagree on a field's
+            // name, arguments or type (#1522): responses are completed against that model,
+            // and an SDL that published other nullability would advertise what the runtime
+            // refuses. A type it does not carry is rendered with no fields.
+            let introspection = crate::schema::IntrospectionBuilder::build(self);
+            let published = |name: &str| {
+                introspection
+                    .types
+                    .iter()
+                    .find(|t| t.name.as_deref() == Some(name))
+                    .and_then(|t| t.fields.as_ref())
+            };
+            let render_fields = |sdl: &mut String, name: &str| {
+                for field in published(name).into_iter().flatten() {
+                    let _ = writeln!(sdl, "  {}", sdl_field(field));
+                }
+            };
+
             // Add output/object types
             for type_def in &self.types {
                 let _ = writeln!(sdl, "type {} {{", type_def.name);
-                for field in &type_def.fields {
-                    // #1513: a localized field takes `locale:`, as introspection shows.
-                    let args = if field.localized {
-                        "(locale: String)"
-                    } else {
-                        ""
-                    };
-                    let _ = writeln!(sdl, "  {}{args}: {}", field.name, field.field_type);
-                    if field.localized {
-                        let _ = writeln!(
-                            sdl,
-                            "  {}{}: [{}!]!",
-                            field.name,
-                            crate::schema::TRANSLATIONS_SUFFIX,
-                            crate::schema::LOCALIZED_STRING_TYPE
-                        );
-                    }
-                }
+                render_fields(&mut sdl, type_def.name.as_str());
                 sdl.push_str("}\n\n");
             }
             if self.types.iter().any(|t| t.fields.iter().any(|f| f.localized)) {
@@ -548,36 +550,15 @@ impl CompiledSchema {
                 );
             }
 
-            // Root Query type (rendered from `self.queries`, never present in `types`)
+            // Root Query and Mutation types (never present in `types`).
             if !self.queries.is_empty() {
                 sdl.push_str("type Query {\n");
-                for q in &self.queries {
-                    let _ = writeln!(
-                        sdl,
-                        "  {}",
-                        render_operation_field(
-                            &q.name,
-                            &q.graphql_arguments(self),
-                            &q.return_type,
-                            q.returns_list,
-                            q.nullable,
-                        )
-                    );
-                }
+                render_fields(&mut sdl, "Query");
                 sdl.push_str("}\n\n");
             }
-
-            // Root Mutation type (rendered from `self.mutations`). Mutation payloads
-            // are single, non-null values, so they render as `Name(args): Return!`.
             if !self.mutations.is_empty() {
                 sdl.push_str("type Mutation {\n");
-                for m in &self.mutations {
-                    let _ = writeln!(
-                        sdl,
-                        "  {}",
-                        render_operation_field(&m.name, &m.arguments, &m.return_type, false, false)
-                    );
-                }
+                render_fields(&mut sdl, "Mutation");
                 sdl.push_str("}\n\n");
             }
 
@@ -675,40 +656,33 @@ impl CompiledSchema {
     }
 }
 
-/// Render a root operation as a GraphQL SDL field: `name(arg: T!, …): Return`.
-///
-/// `return_type` is a bare type name; list-ness and nullability are applied here so
-/// the rendered signature matches GraphQL conventions (`[User!]!`, `User`, `User!`).
-fn render_operation_field(
-    name: &str,
-    arguments: &[crate::schema::ArgumentDefinition],
-    return_type: &str,
-    returns_list: bool,
-    nullable: bool,
-) -> String {
-    let non_null = if nullable { "" } else { "!" };
-    let ret = if returns_list {
-        format!("[{return_type}!]{non_null}")
-    } else {
-        format!("{return_type}{non_null}")
-    };
-    if arguments.is_empty() {
-        return format!("{name}: {ret}");
+/// A published type reference as SDL: `NON_NULL(LIST(Edge))` is `[Edge]!`.
+fn sdl_type(t: &crate::schema::IntrospectionType) -> String {
+    use crate::schema::TypeKind;
+    let inner = || t.of_type.as_deref().map_or_else(String::new, sdl_type);
+    match t.kind {
+        TypeKind::NonNull => format!("{}!", inner()),
+        TypeKind::List => format!("[{}]", inner()),
+        _ => t.name.clone().unwrap_or_default(),
     }
-    let args = arguments
+}
+
+/// One published field as an SDL field definition: `name(arg: Type = default): Type`.
+fn sdl_field(field: &crate::schema::IntrospectionField) -> String {
+    let ty = sdl_type(&field.field_type);
+    if field.args.is_empty() {
+        return format!("{}: {ty}", field.name);
+    }
+    let args = field
+        .args
         .iter()
         .map(|a| {
-            // #1513: a localized argument takes `LocalizedInput`.
-            let arg_type = if a.localized {
-                crate::schema::LOCALIZED_INPUT_TYPE.to_string()
-            } else {
-                a.arg_type.to_string()
-            };
-            format!("{}: {arg_type}{}", a.name, if a.nullable { "" } else { "!" })
+            let default = a.default_value.as_ref().map_or_else(String::new, |d| format!(" = {d}"));
+            format!("{}: {}{default}", a.name, sdl_type(&a.input_type))
         })
         .collect::<Vec<_>>()
         .join(", ");
-    format!("{name}({args}): {ret}")
+    format!("{}({args}): {ty}", field.name)
 }
 
 /// Strip GraphQL list and non-null markers from a rendered type string, leaving the

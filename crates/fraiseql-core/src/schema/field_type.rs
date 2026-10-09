@@ -803,6 +803,19 @@ impl FieldDefinition {
         self.alias.as_deref().unwrap_or(self.name.as_str())
     }
 
+    /// Whether the schema publishes this field as nullable (#1522): declared nullable, or
+    /// gated with `on_deny = mask`, which answers it `null` for a caller the gate refuses.
+    ///
+    /// Introspection and the SDL publish this, and responses are completed against what
+    /// they publish (§ 6.4.4), so a masked `null` is a value the field may take rather than a
+    /// non-null violation that would null its whole row.
+    #[must_use]
+    pub const fn published_nullable(&self) -> bool {
+        self.nullable
+            || (matches!(self.on_deny, FieldDenyPolicy::Mask)
+                && (self.requires_scope.is_some() || self.authorize))
+    }
+
     /// Get the JSONB key name for this field.
     ///
     /// This is always `name`, regardless of alias. Used for:

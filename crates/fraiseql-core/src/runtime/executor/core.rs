@@ -363,6 +363,7 @@ impl Executor {
         // with `@inaccessible` fields filtered out. Shared with the relay
         // constructor so both paths apply the identical filtering (L-relay-inaccessible).
         let introspection = build_introspection(&schema);
+        let output_types = crate::runtime::completion::OutputTypes::from_schema(&schema);
 
         // Build O(1) node-type index: return_type → sql_source.
         // The first query with a matching return_type and a non-None sql_source wins
@@ -398,6 +399,7 @@ impl Executor {
             planner,
             config,
             introspection,
+            output_types,
             node_type_index,
             gate1,
             parse_cache: MokaCache::new(PARSE_CACHE_CAPACITY),

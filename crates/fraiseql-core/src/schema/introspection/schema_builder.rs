@@ -240,6 +240,19 @@ fn build_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> Intros
 
     let return_type = type_ref(&query.return_type);
     let return_type = if query.returns_list {
+        // `[T!]`: list items are non-null (#1522), as the SDL and generated clients publish.
+        let item = IntrospectionType {
+            kind:               TypeKind::NonNull,
+            name:               None,
+            description:        None,
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            Some(Box::new(return_type)),
+            specified_by_u_r_l: None,
+        };
         IntrospectionType {
             kind:               TypeKind::List,
             name:               None,
@@ -249,7 +262,7 @@ fn build_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> Intros
             possible_types:     None,
             enum_values:        None,
             input_fields:       None,
-            of_type:            Some(Box::new(return_type)),
+            of_type:            Some(Box::new(item)),
             specified_by_u_r_l: None,
         }
     } else {

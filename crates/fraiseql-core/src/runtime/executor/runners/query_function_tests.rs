@@ -655,14 +655,23 @@ async fn a_document_unrelated_to_the_declared_type_is_refused() {
 ///
 /// The negative direction, and the one that keeps the check from becoming a rule
 /// that a function must return every field — which would refuse a nullable field an
-/// author deliberately omitted.
+/// author deliberately omitted. An omitted **non-null** field the client selected is
+/// still answered by § 6.4.4 (#1522): a field error at its path, nulling the nullable
+/// `quotePreview`, not a refusal of the request.
 #[tokio::test]
 async fn a_partial_document_is_accepted() {
     let resolver = StubResolver::answering(serde_json::json!({"id": "q-1"}));
     let executor = executor_with(quote_schema(), Some(Arc::clone(&resolver)));
 
-    let response = executor.execute(DOCUMENT, None).await.unwrap();
+    let response = executor
+        .execute(r#"{ quotePreview(sku: "ABC-1") { id } }"#, None)
+        .await
+        .unwrap();
     assert_eq!(response["data"]["quotePreview"]["id"], "q-1");
+
+    let response = executor.execute(DOCUMENT, None).await.unwrap();
+    assert_eq!(response["data"]["quotePreview"], serde_json::Value::Null, "{response}");
+    assert_eq!(response["errors"][0]["path"], serde_json::json!(["quotePreview", "total"]));
 }
 
 /// An unrelated **list element** is refused on the same terms.

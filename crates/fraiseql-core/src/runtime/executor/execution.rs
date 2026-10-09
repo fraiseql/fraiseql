@@ -339,7 +339,7 @@ impl Executor {
         variables: Option<&serde_json::Value>,
         security_context: Option<&SecurityContext>,
     ) -> Result<serde_json::Value> {
-        let (query_type, parsed, _) = self.classify_cached(query, None)?;
+        let (query_type, parsed, _, _) = self.classify_cached(query, None)?;
         if matches!(query_type, QueryType::Mutation { .. }) {
             return Err(FraiseQLError::Authorization {
                 message:  "the before:mutation read bridge is read-only: this document is a \
@@ -427,7 +427,7 @@ impl Executor {
         // GATE-1 itself parses with (`validate_with_variables`, and
         // `parse_graphql_document` again for `max_operation_cost`), so the
         // parser sees nothing it was not already going to see.
-        let (query_type, maybe_parsed, variable_defaults) =
+        let (query_type, maybe_parsed, variable_defaults, completion) =
             self.classify_cached(query, operation_name)?;
 
         // GraphQL § 6.4.1 (#1504): a variable the request omits takes its declared
@@ -461,8 +461,12 @@ impl Executor {
             )?;
         }
 
-        // 2. Route to appropriate handler, threading the (optional) principal.
-        match query_type {
+        // 2. Route to appropriate handler, threading the (optional) principal. The meta-field
+        //    answers (`__schema`, `__type`, a root `__typename`) are the schema's own description
+        //    and are not completed against it.
+        let completes =
+            !matches!(query_type, QueryType::Introspection | QueryType::TypeName { .. });
+        let mut response = match query_type {
             QueryType::Regular => {
                 // Detect multi-root queries and dispatch them in parallel.
                 // `maybe_parsed` is always Some for Regular queries (see
@@ -501,16 +505,17 @@ impl Executor {
                     )?;
                     let pr = self.execute_parallel(&parsed, variables, security_context).await?;
                     let data = pr.merge_into_data_map();
-                    return Ok(serde_json::json!({ "data": data }));
+                    Ok(serde_json::json!({ "data": data }))
+                } else {
+                    self.query_runner()
+                        .execute_regular_query_maybe_security(
+                            query,
+                            variables,
+                            security_context,
+                            operation_name,
+                        )
+                        .await
                 }
-                self.query_runner()
-                    .execute_regular_query_maybe_security(
-                        query,
-                        variables,
-                        security_context,
-                        operation_name,
-                    )
-                    .await
             },
             QueryType::Aggregate(query_name) => {
                 self.aggregate_runner()
@@ -585,7 +590,23 @@ impl Executor {
                 }
                 Ok(serde_json::json!({ "data": data }))
             },
+        }?;
+
+        // 3. § 6.4.4 (#1522): a `null` in a non-null position is a field error that nulls the
+        //    nearest nullable ancestor, on every operation that reaches this dispatch.
+        if let (true, Some(target)) = (completes, completion.as_deref()) {
+            let variables: std::collections::HashMap<String, serde_json::Value> = variables
+                .and_then(serde_json::Value::as_object)
+                .map(|map| map.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+                .unwrap_or_default();
+            self.ctx.output_types.complete(
+                &mut response,
+                target.root_type,
+                &target.selections,
+                &variables,
+            );
         }
+        Ok(response)
     }
 
     /// Execute a GraphQL query with user context for field-level access control.

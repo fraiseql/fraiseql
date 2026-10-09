@@ -12,8 +12,24 @@ use crate::{
 
 /// A classified document: its type, its AST where the dispatch needs it, and its
 /// variables' declared defaults.
-pub(in crate::runtime::executor) type Classification =
-    (QueryType, Option<crate::graphql::ParsedQuery>, Vec<(String, serde_json::Value)>);
+pub(in crate::runtime::executor) type Classification = (
+    QueryType,
+    Option<crate::graphql::ParsedQuery>,
+    Vec<(String, serde_json::Value)>,
+    Option<std::sync::Arc<CompletionTarget>>,
+);
+
+/// What a response is completed against (§ 6.4.4, #1522): the operation's root type and
+/// its root selection set, fragment spreads expanded. Computed once per document, with its
+/// classification, for every operation type; `None` when the spreads cannot be expanded
+/// (the document is refused elsewhere).
+#[derive(Debug, Clone)]
+pub(in crate::runtime::executor) struct CompletionTarget {
+    /// `Query`, `Mutation` or `Subscription`.
+    pub(in crate::runtime::executor) root_type:  &'static str,
+    /// The root selection set, spreads expanded, directives not yet evaluated.
+    pub(in crate::runtime::executor) selections: Vec<crate::graphql::FieldSelection>,
+}
 
 impl Executor {
     /// Classify a GraphQL query into its operation type for routing.
@@ -80,8 +96,25 @@ impl Executor {
         let parsed = parse_query_with_operation_name(query, operation_name)
             .map_err(|e| operation_selection_error(&e))?;
         let defaults = value_json::variable_defaults(&parsed.variables)?;
+        let root_type = match parsed.operation_type.as_str() {
+            "mutation" => "Mutation",
+            "subscription" => "Subscription",
+            _ => "Query",
+        };
+        let completion = crate::graphql::selection_set::resolve(
+            &parsed.selections,
+            &parsed.fragments,
+            self.max_query_depth(),
+        )
+        .ok()
+        .map(|selections| {
+            std::sync::Arc::new(CompletionTarget {
+                root_type,
+                selections,
+            })
+        });
         let (query_type, parsed) = self.classify_parsed(parsed)?;
-        Ok((query_type, parsed, defaults))
+        Ok((query_type, parsed, defaults, completion))
     }
 
     /// The routing half of [`classify_query_with_parse`](Self::classify_query_with_parse).

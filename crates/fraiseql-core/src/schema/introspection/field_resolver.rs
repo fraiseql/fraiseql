@@ -29,7 +29,10 @@ pub(super) fn build_field(field: &FieldDefinition) -> IntrospectionField {
         } else {
             vec![]
         },
-        field_type:         field_type_to_introspection(&field.field_type, field.nullable),
+        field_type:         output_type_to_introspection(
+            &field.field_type,
+            field.published_nullable(),
+        ),
         is_deprecated:      field.is_deprecated(),
         deprecation_reason: field.deprecation_reason().map(ToString::to_string),
     }
@@ -181,6 +184,47 @@ fn locale_argument() -> IntrospectionInputValue {
         is_deprecated:      false,
         deprecation_reason: None,
         validation_rules:   vec![],
+    }
+}
+
+/// Convert an **output** field's `FieldType` to its introspection type: as
+/// [`field_type_to_introspection`], with list items non-null (#1522). That is what the SDL,
+/// the compiler's relay types (`edges: [XEdge!]!`) and every generated client (`T[]`,
+/// `Vec<T>`) publish, and what responses are completed against.
+pub(super) fn output_type_to_introspection(
+    field_type: &FieldType,
+    nullable: bool,
+) -> IntrospectionType {
+    let FieldType::List(inner) = field_type else {
+        return field_type_to_introspection(field_type, nullable);
+    };
+    let list = IntrospectionType {
+        kind:               TypeKind::List,
+        name:               None,
+        description:        None,
+        fields:             None,
+        interfaces:         None,
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            Some(Box::new(output_type_to_introspection(inner, false))),
+        specified_by_u_r_l: None,
+    };
+    if nullable {
+        list
+    } else {
+        IntrospectionType {
+            kind:               TypeKind::NonNull,
+            name:               None,
+            description:        None,
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       None,
+            of_type:            Some(Box::new(list)),
+            specified_by_u_r_l: None,
+        }
     }
 }
 

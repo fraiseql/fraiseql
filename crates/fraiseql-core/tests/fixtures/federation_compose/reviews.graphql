@@ -1,19 +1,19 @@
 extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@key", "@external", "@requires", "@provides", "@shareable", "@inaccessible", "@override", "@extends"])
 
 type Money @shareable {
-  amount: Int
-  currency: String
+  amount: Int!
+  currency: String!
 }
 
 type Review @key(fields: "id") {
-  id: ID
-  body: String
-  rating: Int
+  id: ID!
+  body: String!
+  rating: Int!
 }
 
 extend type Product @key(fields: "id") {
-  id: ID @external
-  reviews: [Review]
+  id: ID! @external
+  reviews: [Review!]!
 }
 
 type Query {

@@ -79,6 +79,10 @@ pub(super) struct ExecutorContext {
     /// Pre-built introspection responses cached for `__schema` and `__type` queries.
     pub(super) introspection: IntrospectionResponses,
 
+    /// The output types introspection publishes, which every response is completed
+    /// against (§ 6.4.4, #1522).
+    pub(super) output_types: crate::runtime::completion::OutputTypes,
+
     /// O(1) lookup index for Relay `node(id)` queries.
     pub(super) node_type_index: HashMap<String, Arc<str>>,
 

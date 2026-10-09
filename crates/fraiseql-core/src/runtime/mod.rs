@@ -53,6 +53,7 @@ mod argument_validation;
 /// Argument-value validation for a root field (GraphQL § 5.6.1, § 5.8.5, § 6.1.2).
 mod argument_value_validation;
 pub mod cascade;
+pub(crate) mod completion;
 mod embed_selection;
 mod executor;
 mod explain;

@@ -129,7 +129,8 @@ fn alices_order() -> Value {
 }
 
 fn mallorys_order() -> Value {
-    json!({"id": 11, "owner": "u-mallory", "margin": 8, "cost_price": 91})
+    // `items` is `[Item]!`: a row without it is one no server stores (#1522).
+    json!({"id": 11, "owner": "u-mallory", "margin": 8, "cost_price": 91, "items": []})
 }
 
 /// What `v_user` materialises: alice's user with both orders embedded.

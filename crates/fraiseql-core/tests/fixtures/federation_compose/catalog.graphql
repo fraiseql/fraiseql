@@ -119,35 +119,35 @@ input StringFilter {
 }
 
 type Money @shareable {
-  amount: Int
-  currency: String
+  amount: Int!
+  currency: String!
 }
 
 type Product @key(fields: "id") {
-  id: ID
-  name: String
-  price: Money
-  createdAt: DateTime
+  id: ID!
+  name: String!
+  price: Money!
+  createdAt: DateTime!
 }
 
 type EntityChangeLog {
-  id: ID
-  pkEntityChangeLog: Int
+  id: ID!
+  pkEntityChangeLog: Int!
   fkCustomerOrg: String
   fkContact: String
-  objectType: String
-  objectId: String
-  modificationType: String
+  objectType: String!
+  objectId: String!
+  modificationType: String!
   changeStatus: String
-  objectData: JSON
+  objectData: JSON!
   extraMetadata: JSON
-  createdAt: DateTime
+  createdAt: DateTime!
 }
 
 type TransportCheckpoint {
-  transportName: String
-  lastPk: Int
-  updatedAt: DateTime
+  transportName: String!
+  lastPk: Int!
+  updatedAt: DateTime!
 }
 
 type Query {
@@ -157,7 +157,7 @@ type Query {
 }
 
 type Mutation {
-  upsertTransportCheckpoint(transportName: String!, lastPk: Int!): TransportCheckpoint!
+  upsertTransportCheckpoint(transportName: String!, lastPk: Int!): TransportCheckpoint
 }
 
 
