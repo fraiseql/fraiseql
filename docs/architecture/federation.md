@@ -205,6 +205,42 @@ failure_threshold = 10
 > The legacy integer form `apollo_version = 2` is still accepted (`2` ⇒ `"v2"`);
 > prefer the `version` string. When both are set, `version` wins.
 
+### Giving a gateway the subgraph's SDL
+
+`_service { sdl }` is authorized like any other read: on a secured subgraph it is served
+to the principals the subgraph serves anything to, and refused to an anonymous or unknown
+caller. There is no setting that makes it public, by design (ADR-0016 §6: a permissive
+case is named and opted into, and the subgraph's SDL lists every type, field and entity key).
+
+**Composing offline** (a CI composition gate, `rover supergraph compose`) needs no running
+subgraph and no principal: print exactly what `_service { sdl }` serves, from the artifact.
+
+```bash
+fraiseql federation sdl schema.compiled.json > users.graphql
+```
+
+**A gateway fetching SDL at runtime** authenticates as a
+[service account](../adr/0018-service-account-identities.md): a named identity whose
+secret lives in the environment, presented on `x-api-key`, with a ceiling that grants no
+more than reading the schema needs.
+
+```toml
+[service_accounts.gateway]
+secret_env = "FRAISEQL_SA_GATEWAY_SECRET"
+roles      = []
+scopes     = []
+```
+
+```bash
+curl -s https://users.example.com/graphql \
+  -H "x-api-key: $FRAISEQL_SA_GATEWAY_SECRET" -H 'content-type: application/json' \
+  -d '{"query":"{ _service { sdl } }"}'
+```
+
+The gateway is then a named principal in the audit trail (`service_account:gateway`)
+rather than an anonymous one. Where the subgraph requires an enriched identity before it
+serves anything (ADR-0016), the account needs one, like any other principal.
+
 ## Related Docs
 
 - [Federation Saga Guide](../guides/federation-saga.md)
