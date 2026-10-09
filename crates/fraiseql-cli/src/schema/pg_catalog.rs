@@ -182,6 +182,19 @@ pub struct SecurityInvokerAudit {
     pub views_without_invoker: Vec<String>,
 }
 
+/// A row-level security policy whose expression reads a session setting.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PolicySettingRead {
+    /// The policy's table schema.
+    pub schema:  String,
+    /// The policy's table.
+    pub table:   String,
+    /// The policy's name.
+    pub policy:  String,
+    /// The setting its `USING` or `WITH CHECK` expression reads.
+    pub setting: String,
+}
+
 /// A live `PostgreSQL` connection pool for catalog introspection.
 pub struct PgCatalog {
     pool: Pool,
@@ -484,6 +497,44 @@ impl PgCatalog {
             is_owner:    row.get("is_owner"),
             role_name:   row.get("role_name"),
         }))
+    }
+
+    /// The row-level security policies whose `USING` or `WITH CHECK` expression calls
+    /// `current_setting` on one of `settings`, one entry per (policy, setting).
+    ///
+    /// Read from the expression text `pg_policies` deparses (`current_setting('app.x'::text,
+    /// true)`), case-insensitively. A policy that reads the setting through a function it
+    /// calls is not seen.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection or the catalog query fails.
+    pub async fn policies_reading_settings(
+        &self,
+        settings: &[String],
+    ) -> Result<Vec<PolicySettingRead>> {
+        let client = self.pool.get().await.context("failed to acquire DB connection")?;
+        let rows = client
+            .query(
+                "SELECT p.schemaname::text AS schema_name, p.tablename::text AS table_name, \
+                        p.policyname::text AS policy_name, s.name AS setting \
+                 FROM pg_policies p CROSS JOIN unnest($1::text[]) AS s(name) \
+                 WHERE strpos(lower(coalesce(p.qual, '') || ' ' || coalesce(p.with_check, '')), \
+                              'current_setting(''' || lower(s.name) || '''') > 0 \
+                 ORDER BY 1, 2, 3, 4",
+                &[&settings],
+            )
+            .await
+            .context("failed to read policy expressions from pg_policies")?;
+        Ok(rows
+            .iter()
+            .map(|r| PolicySettingRead {
+                schema:  r.get("schema_name"),
+                table:   r.get("table_name"),
+                policy:  r.get("policy_name"),
+                setting: r.get("setting"),
+            })
+            .collect())
     }
 
     /// Audit the given `sql_source` views (bare relnames) for `security_invoker`.

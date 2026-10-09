@@ -458,4 +458,67 @@ fn localized_doctor_schema(table: &str) -> fraiseql_core::schema::CompiledSchema
 #[test]
 fn the_document_loads_without_a_database() {
     assert!(localized_doctor_schema("tv_product").locale.is_some());
+    assert_eq!(header_doctor_schema().session_variables.variables.len(), 2);
+}
+
+/// #1520: `doctor --against-db` warns for each RLS policy that reads a `source = "header"`
+/// session variable (a client-controlled value), and not for one that reads a `jwt` one.
+#[tokio::test]
+async fn doctor_warns_when_a_policy_reads_a_header_variable() {
+    const TABLE: &str = "tb_doctor_header_policy";
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1520 doctor test: no DATABASE_URL");
+        return;
+    };
+    let (client, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
+    tokio::spawn(connection);
+    client
+        .batch_execute(&format!(
+            "DROP TABLE IF EXISTS {TABLE}; \
+             CREATE TABLE {TABLE} (region text, tenant text); \
+             ALTER TABLE {TABLE} ENABLE ROW LEVEL SECURITY; \
+             CREATE POLICY by_region ON {TABLE} USING (region = current_setting('App.Region', true)); \
+             CREATE POLICY by_tenant ON {TABLE} FOR INSERT WITH CHECK \
+               (tenant = current_setting('app.tenant_id', true));"
+        ))
+        .await
+        .unwrap();
+    let schema = header_doctor_schema();
+    let tls = fraiseql_db::postgres::PostgresTlsConfig::default();
+    let mut file = Builder::new().suffix(".json").tempfile().unwrap();
+    file.write_all(serde_json::to_string(&schema).unwrap().as_bytes()).unwrap();
+    file.flush().unwrap();
+    let checks: Vec<(CheckStatus, String)> =
+        fraiseql_cli::commands::doctor::against_db_checks(&url, &tls, file.path(), &[])
+            .await
+            .into_iter()
+            .filter(|c| c.name == "Header variable in RLS")
+            .map(|c| (c.status, c.detail))
+            .collect();
+    client.batch_execute(&format!("DROP TABLE {TABLE}")).await.unwrap();
+
+    let warned: Vec<&String> =
+        checks.iter().filter(|(s, _)| *s == CheckStatus::Warn).map(|(_, d)| d).collect();
+    assert!(
+        warned
+            .iter()
+            .any(|d| d.contains(&format!("by_region on public.{TABLE} reads app.region"))),
+        "the policy reading the header variable is named: {checks:?}"
+    );
+    assert!(
+        !warned.iter().any(|d| d.contains("by_tenant")),
+        "a policy reading a jwt variable is not: {checks:?}"
+    );
+}
+
+/// `app.region` from the `x-region` header; `app.tenant_id` from the `tenant_id` claim.
+fn header_doctor_schema() -> fraiseql_core::schema::CompiledSchema {
+    fraiseql_core::schema::CompiledSchema::from_json(
+        r#"{"types": [], "queries": [], "mutations": [], "subscriptions": [],
+            "session_variables": {"variables": [
+              {"name": "app.region", "source": "header", "header": "x-region"},
+              {"name": "app.tenant_id", "source": "jwt", "claim": "tenant_id"}]}}"#,
+        false,
+    )
+    .unwrap()
 }

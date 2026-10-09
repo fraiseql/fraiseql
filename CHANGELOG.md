@@ -75,6 +75,21 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A `source = "header"` session variable reads the request header (#1520).** It used to read
+  a JWT claim of the same name (the header itself was never read), so the variable was unset
+  or held the claim. It now holds the header the request sent, on GraphQL, REST, MCP, gRPC
+  (metadata), SSE `@stream` and async operations (read at submission); a header sent twice,
+  not UTF-8 or over 1024 bytes is refused. A deployment that relied on the claim switches the
+  mapping to `source = "jwt"`. A header is client-controlled: never use one for row-level
+  security; `doctor --against-db` warns for a policy that reads one
+  ([session variables](docs/features/session-variables.md)). Embedders: the server module
+  `request_locale` is `request_scope`, and a transport runs its engine calls in a
+  `RequestScope` (locale and session headers).
+
+- **An anonymous request gets its `literal` and `header` session variables (#1520).** A read or
+  write without a principal set no session variable at all; `jwt` and `enrichment` variables
+  still stay unset without one.
+
 - **The wire backend refuses session variables instead of reading without them (#1115).** A
   `fraiseql-wire` deployment with `[locale]` or `[session_variables]` refuses to boot, and a
   session-scoped read on an adapter that cannot apply its variables is refused. Before, the

@@ -777,8 +777,70 @@ pub async fn against_db_checks(
         .and_then(|c| serde_json::from_str::<CompiledSchema>(&c).map_err(|e| e.to_string()))
     {
         checks.extend(localized_index_checks(url, tls, &compiled).await);
+        checks.extend(header_variable_policy_checks(url, tls, &compiled).await);
     }
     checks
+}
+
+// ─── Header-sourced session variables in RLS policies (#1520) ──────────────────
+
+const HEADER_VARIABLE_POLICY_NAME: &str = "Header variable in RLS";
+
+/// Warn for each row-level security policy that reads a `source = "header"` session
+/// variable.
+///
+/// A header is client-controlled: any caller sends any value, so a policy keyed on one
+/// scopes rows by what the client claims. Warnings, not failures: a policy may use the value
+/// for something other than isolation, and only its author knows. No check when the schema
+/// declares no header source.
+pub async fn header_variable_policy_checks(
+    db_url: &str,
+    tls: &PostgresTlsConfig,
+    schema: &CompiledSchema,
+) -> Vec<DoctorCheck> {
+    let settings: Vec<String> = schema
+        .session_variables
+        .variables
+        .iter()
+        .filter(|m| matches!(m.source, fraiseql_core::schema::SessionVariableSource::Header { .. }))
+        .map(|m| m.name.clone())
+        .collect();
+    if settings.is_empty() {
+        return Vec::new();
+    }
+    let reads = match PgCatalog::connect(db_url, tls).await {
+        Ok(catalog) => catalog.policies_reading_settings(&settings).await,
+        Err(e) => Err(e),
+    };
+    match reads {
+        Ok(reads) if reads.is_empty() => vec![DoctorCheck::pass(
+            HEADER_VARIABLE_POLICY_NAME,
+            format!(
+                "no RLS policy reads a header-sourced session variable ({})",
+                settings.join(", ")
+            ),
+        )],
+        Ok(reads) => reads
+            .into_iter()
+            .map(|read| {
+                DoctorCheck::warn(
+                    HEADER_VARIABLE_POLICY_NAME,
+                    format!(
+                        "policy {} on {}.{} reads {}, which comes from a request header: any \
+                         client can send any value",
+                        read.policy, read.schema, read.table, read.setting
+                    ),
+                    "Scope rows with a `jwt` or `enrichment` session variable; a header must \
+                     never feed row-level security or tenant scoping.",
+                )
+            })
+            .collect(),
+        Err(e) => vec![DoctorCheck::fail(
+            HEADER_VARIABLE_POLICY_NAME,
+            format!("introspection failed: {e}"),
+            "Ensure the connecting role can read pg_policies.",
+        )],
+    }
 }
 
 // ─── Localized field indexes (#1513) ────────────────────────────────────────────
