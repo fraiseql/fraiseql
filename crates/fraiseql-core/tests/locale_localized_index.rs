@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
 
-//! #1513 Phase 05: the index `compile` reports for a localized field is the one the query the
+//! #1513: the index `compile` reports for a localized field is the one the query the
 //! executor generates uses.
 //!
 //! 100k rows on PostgreSQL 18; the reported DDL is applied as reported; the SQL is captured
@@ -145,7 +145,7 @@ async fn seeded() -> Option<(PostgresAdapter, CompiledSchema)> {
     Some((adapter, schema))
 }
 
-/// Cycle 3: one index per (field, allowed locale), and the generated `eq` filter and `ORDER BY
+/// One index per (field, allowed locale), and the generated `eq` filter and `ORDER BY
 /// … LIMIT` under `fr-FR` read the `fr-FR` one.
 #[tokio::test]
 async fn the_reported_index_is_the_one_the_query_reads() {
@@ -190,7 +190,7 @@ async fn the_reported_index_is_the_one_the_query_reads() {
     assert!(!definition.contains("current_setting"), "{definition}");
 }
 
-/// Cycle 3: index names are deterministic and fit PostgreSQL's 63-byte identifiers.
+/// Index names are deterministic and fit PostgreSQL's 63-byte identifiers.
 #[test]
 fn index_names_are_deterministic_and_bounded() {
     let mut long = schema();

@@ -153,7 +153,7 @@ async fn names(executor: &Executor, locale: &str, query: &str) -> Vec<Value> {
     rows.into_iter().map(|(_, name)| name).collect()
 }
 
-/// Cycle 1: returned in the request locale, through the chain.
+/// Returned in the request locale, through the chain.
 #[tokio::test]
 async fn a_localized_field_is_the_request_locales_label() {
     let Some(executor) = executor().await else {
@@ -171,7 +171,7 @@ async fn a_localized_field_is_the_request_locales_label() {
     );
 }
 
-/// Cycle 1: a non-null localized field with no label in the chain is a GraphQL non-null error,
+/// A non-null localized field with no label in the chain is a GraphQL non-null error,
 /// not a `null` in a non-null position. The engine completes no output field against its
 /// declared nullability today, localized or not (#1522).
 #[tokio::test]
@@ -219,7 +219,7 @@ async fn read(executor: &Executor, query: &str, root: &str, path: &[&str]) -> Ve
     out.into_iter().map(|(_, v)| v).collect()
 }
 
-/// Cycle 2: a relay connection's nodes.
+/// A relay connection's nodes.
 #[tokio::test]
 async fn a_relay_node_is_localized() {
     // Seeds the rows; the relay runner needs an executor built with it.
@@ -242,7 +242,7 @@ async fn a_relay_node_is_localized() {
     );
 }
 
-/// Cycle 2: a localized field of a nested object, at any depth of the stored document.
+/// A localized field of a nested object, at any depth of the stored document.
 #[tokio::test]
 async fn a_nested_objects_localized_field_is_localized() {
     let Some(executor) = executor().await else {
@@ -260,7 +260,7 @@ async fn a_nested_objects_localized_field_is_localized() {
     );
 }
 
-/// Cycle 2: a localized field of an element of a nested list.
+/// A localized field of an element of a nested list.
 #[tokio::test]
 async fn a_nested_list_elements_localized_field_is_localized() {
     let Some(executor) = executor().await else {
@@ -275,7 +275,7 @@ async fn a_nested_list_elements_localized_field_is_localized() {
     assert_eq!(labels, fr_ca());
 }
 
-/// Cycle 2: a read whose selection includes a policy-gated field returns the stored document
+/// A read whose selection includes a policy-gated field returns the stored document
 /// whole and is projected in Rust, not by the SQL projection.
 #[tokio::test]
 async fn a_gated_read_projected_in_rust_is_localized() {
@@ -334,7 +334,7 @@ fn de_de() -> Vec<Value> {
     vec![json!("Apfel"), json!("Pear"), Value::Null, Value::Null]
 }
 
-/// Cycle 3: `locale:` reads one field selection in another allowed locale, whatever the
+/// `locale:` reads one field selection in another allowed locale, whatever the
 /// request locale; two aliases of one field read two locales.
 #[tokio::test]
 async fn a_locale_argument_picks_the_fields_locale() {
@@ -349,7 +349,7 @@ async fn a_locale_argument_picks_the_fields_locale() {
     assert_eq!(labels(&executor, query, json!({}), "name").await, fr_ca(), "unaliased sibling");
 }
 
-/// Cycle 3: the value may come from a variable; an omitted or null one reads the request
+/// The value may come from a variable; an omitted or null one reads the request
 /// locale.
 #[tokio::test]
 async fn a_locale_argument_may_be_a_variable() {
@@ -362,7 +362,7 @@ async fn a_locale_argument_may_be_a_variable() {
     assert_eq!(labels(&executor, query, json!({"l": null}), "name").await, fr_ca(), "null");
 }
 
-/// Cycle 3: the argument reaches the relay node projection and the Rust projector (a gated
+/// The argument reaches the relay node projection and the Rust projector (a gated
 /// read), not only the plain list's SQL projection.
 #[tokio::test]
 async fn a_locale_argument_reaches_relay_and_the_rust_projector() {
@@ -420,7 +420,7 @@ async fn a_locale_argument_reaches_relay_and_the_rust_projector() {
     assert_eq!(rows.into_iter().map(|(_, n)| n).collect::<Vec<_>>(), de_de(), "gated");
 }
 
-/// Cycle 3: a `locale:` outside `allowed` is a validation error naming the allowed set,
+/// A `locale:` outside `allowed` is a validation error naming the allowed set,
 /// literal or variable, and so is `locale:` on a field that is not localized. Each is
 /// refused before any statement: the adapter fails every call, and counts none.
 #[tokio::test]
@@ -458,7 +458,7 @@ async fn a_locale_argument_outside_allowed_is_refused_before_any_sql() {
     assert_eq!(adapter.query_count(), 0, "no statement ran");
 }
 
-/// Cycle 3: introspection and the SDL show `locale: String` on a localized field, and only
+/// Introspection and the SDL show `locale: String` on a localized field, and only
 /// there.
 #[tokio::test]
 async fn introspection_and_sdl_show_the_locale_argument() {
@@ -488,7 +488,7 @@ async fn introspection_and_sdl_show_the_locale_argument() {
     assert!(sdl.contains("name(locale: String): String"), "{sdl}");
 }
 
-/// Cycle 4: every allowed label, in `allowed`'s order, row by row. A stored key outside
+/// Every allowed label, in `allowed`'s order, row by row. A stored key outside
 /// `allowed` and a label that is not a string are not returned.
 fn all_labels() -> Vec<Value> {
     vec![
@@ -503,7 +503,7 @@ fn all_labels() -> Vec<Value> {
     ]
 }
 
-/// Cycle 4: `<field>Translations` lists a localized field's labels, through each projector.
+/// `<field>Translations` lists a localized field's labels, through each projector.
 #[tokio::test]
 async fn translations_list_every_allowed_label_in_order() {
     let Some(executor) = executor().await else {
@@ -551,7 +551,7 @@ async fn translations_list_every_allowed_label_in_order() {
     );
 }
 
-/// Cycle 4: a read projected in Rust (a policy-gated sibling selected) lists the same labels.
+/// A read projected in Rust (a policy-gated sibling selected) lists the same labels.
 #[tokio::test]
 async fn translations_through_the_rust_projector() {
     let Some(executor) = executor().await else {
@@ -592,7 +592,7 @@ async fn translations_through_the_rust_projector() {
     assert_eq!(rows.into_iter().map(|(_, v)| v).collect::<Vec<_>>(), all_labels(), "{response}");
 }
 
-/// Cycle 4: an invalid sibling selection is refused before any statement: no sub-selection,
+/// An invalid sibling selection is refused before any statement: no sub-selection,
 /// an undeclared sub-field, a field that is not localized, and a field-gated one (#1523).
 #[tokio::test]
 async fn an_invalid_translations_selection_is_refused_before_any_sql() {
@@ -620,7 +620,7 @@ async fn an_invalid_translations_selection_is_refused_before_any_sql() {
     assert_eq!(adapter.query_count(), 0, "no statement ran");
 }
 
-/// Cycle 4: introspection and the SDL show `<field>Translations: [LocalizedString!]!` and the
+/// Introspection and the SDL show `<field>Translations: [LocalizedString!]!` and the
 /// `LocalizedString` type.
 #[tokio::test]
 async fn introspection_and_sdl_show_the_translations_sibling() {
@@ -663,7 +663,7 @@ async fn introspection_and_sdl_show_the_translations_sibling() {
     );
 }
 
-/// Cycle 4: a declared field or type that would collide with the sibling or its type is
+/// A declared field or type that would collide with the sibling or its type is
 /// refused at load.
 #[test]
 fn a_name_the_sibling_needs_is_refused_at_load() {
@@ -699,7 +699,7 @@ fn a_name_the_sibling_needs_is_refused_at_load() {
     CompiledSchema::from_json(&schema("", ""), false).expect("control: the plain schema loads");
 }
 
-/// Cycle 5: the stored values the two evaluators must agree on. Maps with every allowed
+/// The stored values the two evaluators must agree on. Maps with every allowed
 /// label, a partial one, keys outside `allowed`, `null` and non-string labels, an empty one,
 /// and stored values that are not maps.
 const CORPUS: &[&str] = &[
@@ -715,7 +715,7 @@ const CORPUS: &[&str] = &[
     r#"["fr", "Pomme"]"#,
 ];
 
-/// Cycle 5: for each stored value × each allowed locale, the label SQL reads and the one the
+/// For each stored value × each allowed locale, the label SQL reads and the one the
 /// in-process evaluator reads are the same; so are the translations each lists.
 #[tokio::test]
 async fn the_sql_and_rust_evaluators_agree() {
@@ -772,7 +772,7 @@ async fn the_sql_and_rust_evaluators_agree() {
     assert_eq!(compared, CORPUS.len() * config.allowed.len(), "every pair was compared");
 }
 
-/// Cycle 6: the uses of a localized field that would read the stored map where a label is
+/// The uses of a localized field that would read the stored map where a label is
 /// meant are refused at load (and so at compile), each naming its follow-up issue: an
 /// aggregate dimension or measure (#1524), a subscription filter (#1525), a federation
 /// `@key` (#1526).

@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
 
-//! #1513 Phase 05: `where` and `orderBy` on a localized field read the label the client sees,
+//! #1513: `where` and `orderBy` on a localized field read the label the client sees,
 //! in the request locale, sorted under the locale's collation.
 //!
 //! `allowed = [en-US, fr-FR, sv-SE]`, `default = en-US`. The labels are chosen so the two
@@ -114,7 +114,7 @@ fn rows(ids: &[u8]) -> Vec<String> {
     ids.iter().map(ToString::to_string).collect()
 }
 
-/// Cycle 1: each operator compares the label the request locale reads, fallback included.
+/// Each operator compares the label the request locale reads, fallback included.
 #[tokio::test]
 async fn a_filter_compares_the_request_locales_label() {
     let Some(executor) = executor().await else {
@@ -135,7 +135,7 @@ async fn a_filter_compares_the_request_locales_label() {
     assert_eq!(matched(e, "fr-FR", "{ isNull: false }").await, rows(&[1, 2, 3]), "not isNull");
 }
 
-/// Cycle 2: `orderBy` sorts the request locale's label under its collation, rows with no
+/// `orderBy` sorts the request locale's label under its collation, rows with no
 /// label last.
 #[tokio::test]
 async fn a_sort_orders_the_label_under_the_locales_collation() {

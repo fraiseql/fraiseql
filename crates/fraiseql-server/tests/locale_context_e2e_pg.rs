@@ -220,7 +220,7 @@ async fn graphql_locale(
     body["data"]["localeProbes"][0]["locale"].clone()
 }
 
-/// Cycle 2: `[locale]` compiles, loads, and reaches SQL. `fr-CA` is not served and has an
+/// `[locale]` compiles, loads, and reaches SQL. `fr-CA` is not served and has an
 /// explicit fallback, which wins over truncating to `fr`; `fr-BE` has none and truncates.
 #[tokio::test]
 async fn the_request_locale_reaches_a_read_transaction() {
@@ -257,7 +257,7 @@ async fn a_hand_written_artifact_with_an_injected_tag_is_refused_at_load() {
     );
 }
 
-/// Cycle 3: the resolution order, one full request per row. `resolve` is argument, then
+/// The resolution order, one full request per row. `resolve` is argument, then
 /// `Accept-Language`, then the enriched `user_locale` (`german` → `de-DE`, `unmatched` → `zz`,
 /// which no rule matches).
 #[tokio::test]
@@ -374,7 +374,7 @@ async fn an_enrichment_source_nothing_produces_refuses_to_boot() {
     );
 }
 
-/// Cycle 4: an anonymous request has no principal and so no session variables of its own, but
+/// An anonymous request has no principal and so no session variables of its own, but
 /// it still has a locale. GraphQL POST and GET.
 #[tokio::test]
 async fn an_anonymous_request_gets_its_locale_too() {
@@ -400,7 +400,7 @@ async fn an_anonymous_request_gets_its_locale_too() {
     assert_eq!(body["data"]["localeProbes"][0]["locale"], json!("fr"), "anonymous GET: {body}");
 }
 
-/// Cycle 4: REST reads resolve the locale from `?locale=` (the explicit argument), the
+/// REST reads resolve the locale from `?locale=` (the explicit argument), the
 /// headers and the identity, for the JSON envelope and for an NDJSON export (whose statement
 /// opens in the handler and whose rows are pulled after it returns).
 #[tokio::test]
@@ -453,7 +453,7 @@ async fn rest_reads_run_in_the_request_locale() {
     assert_eq!(row["locale"], json!("en-GB"), "NDJSON export: {text}");
 }
 
-/// Cycle 4: an MCP tool call runs in the request's locale. Driven through
+/// An MCP tool call runs in the request's locale. Driven through
 /// `call_tool_authenticated`, the seam under `ServerHandler::call_tool`, with the headers the
 /// HTTP transport hands it.
 #[tokio::test]
@@ -486,7 +486,7 @@ async fn an_mcp_tool_call_runs_in_the_request_locale() {
     assert!(text.contains("\"fr-FR\""), "the tool read ran in fr-FR: {text}");
 }
 
-/// Cycle 4: a GraphQL `@stream` over SSE runs its continuation batches after the handler has
+/// A GraphQL `@stream` over SSE runs its continuation batches after the handler has
 /// returned, where no scope reaches. `initialCount: 0` puts the probe row in a continuation.
 #[tokio::test]
 async fn a_streamed_continuation_batch_runs_in_the_request_locale() {
@@ -522,7 +522,7 @@ async fn a_streamed_continuation_batch_runs_in_the_request_locale() {
     assert_eq!(streamed, vec![json!({ "locale": "de-DE" })], "the continuation batch: {text}");
 }
 
-/// Cycle 4: an async operation executes later, on a worker with no request to resolve a locale
+/// An async operation executes later, on a worker with no request to resolve a locale
 /// from. The locale is resolved at submission and stored with the operation.
 #[tokio::test]
 async fn an_async_operation_executes_in_the_locale_it_was_submitted_in() {
@@ -576,7 +576,7 @@ async fn an_async_operation_executes_in_the_locale_it_was_submitted_in() {
     );
 }
 
-/// Cycle 4: a federation `_entities` lookup is a read like any other, through its own
+/// A federation `_entities` lookup is a read like any other, through its own
 /// session-variable builder (one of four copies before #1512 unified them).
 #[cfg(feature = "federation")]
 #[tokio::test]
@@ -783,7 +783,7 @@ async fn audited(url: &str, label: &str) -> Vec<(String, Option<String>)> {
         .collect()
 }
 
-/// Cycle 5, the projection proof: a write never carries the locale. Inside the mutation
+/// The projection proof: a write never carries the locale. Inside the mutation
 /// function and inside a trigger on the written table, `fraiseql.locale` is unset, whatever
 /// the request sent, on every write entry point. A read in the same deployment sees it.
 #[tokio::test]
@@ -862,7 +862,7 @@ async fn a_write_never_carries_the_locale() {
     );
 }
 
-/// Cycle 6: with the result cache on, the same query in two locales is two entries. The
+/// With the result cache on, the same query in two locales is two entries. The
 /// probe's answer depends on the locale, so a shared entry serves one locale the other's.
 #[tokio::test]
 async fn the_result_cache_keeps_each_locale_apart() {
@@ -884,7 +884,7 @@ async fn the_result_cache_keeps_each_locale_apart() {
     }
 }
 
-/// Phase 03: a REST `?sort=` on a text field sorts under the request locale's collation (the
+/// A REST `?sort=` on a text field sorts under the request locale's collation (the
 /// direct-read entry, which REST, exports and gRPC share).
 #[tokio::test]
 async fn a_rest_sort_follows_the_request_locale() {
@@ -968,7 +968,7 @@ async fn a_rest_sort_follows_the_request_locale() {
     assert_eq!(got, oracle, "{body}");
 }
 
-/// Phase 03: an allowed locale whose ICU collation the database lacks refuses the boot, naming
+/// An allowed locale whose ICU collation the database lacks refuses the boot, naming
 /// it. Klingon (`tlh-Latn`) is well-formed BCP 47 and ships no collation.
 #[tokio::test]
 async fn a_locale_without_a_collation_refuses_to_boot() {
@@ -994,7 +994,7 @@ async fn a_locale_without_a_collation_refuses_to_boot() {
     );
 }
 
-/// Phase 04: a `schema.json` with a localized field, compiled with [locale], plus its rows.
+/// A `schema.json` with a localized field, compiled with [locale], plus its rows.
 const LOCALIZED_SCHEMA_JSON: &str = r#"{
   "types": [{
     "name": "LocalizedProduct",
@@ -1058,7 +1058,7 @@ fn names_by_id(rows: &Value) -> Vec<(String, Value)> {
     out
 }
 
-/// Phase 04 sweep: REST (JSON envelope) and MCP read a localized field as the request locale's
+/// REST (JSON envelope) and MCP read a localized field as the request locale's
 /// label.
 #[tokio::test]
 async fn rest_and_mcp_return_localized_labels() {
@@ -1213,7 +1213,7 @@ async fn schema_with_items() -> CompiledSchema {
     schema
 }
 
-/// #1513 Phase 06 Cycle 4: REST writes a localized field as a label for the request locale or
+/// #1513: REST writes a localized field as a label for the request locale or
 /// as the map, refuses a locale outside `allowed`, and answers with the entity's label.
 #[tokio::test]
 async fn rest_writes_a_localized_field() {

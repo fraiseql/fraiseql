@@ -57,7 +57,7 @@ fn in_group(group: i64) -> WhereClause {
     }
 }
 
-/// Cycle 1: a filtered, ordered, paged read returns exactly the expected rows, in order.
+/// A filtered, ordered, paged read returns exactly the expected rows, in order.
 #[tokio::test]
 async fn a_filtered_ordered_paged_read() {
     let Some((_, wire)) = adapter().await else {
@@ -76,7 +76,7 @@ async fn a_filtered_ordered_paged_read() {
     assert_eq!(ids(&rows), vec![19973, 19963, 19953, 19943]);
 }
 
-/// Cycle 2: every session-taking read refuses a non-empty set of session variables, naming
+/// Every session-taking read refuses a non-empty set of session variables, naming
 /// the backend, rather than reading without them (an RLS policy reading `current_setting`
 /// would see none). An empty set still reads.
 #[tokio::test]
@@ -152,7 +152,7 @@ async fn session_variables_are_refused_not_dropped() {
     assert_eq!(rows.len(), 1, "an empty set still reads");
 }
 
-/// Cycle 3: the streaming read is a stream. Its first row arrives while the server-side
+/// The streaming read is a stream. Its first row arrives while the server-side
 /// statement is still running (a buffered read would have finished it), every row arrives in
 /// order, and `offset`/`limit` are honoured.
 #[tokio::test]

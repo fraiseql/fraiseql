@@ -182,7 +182,7 @@ async fn fr_ca() -> Option<(Vec<String>, Executor)> {
     Some((expected, Executor::new_with_relay(schema(), Arc::new(adapter))))
 }
 
-/// Cycle 2: the authenticated list path (a separate runner arm from the anonymous one).
+/// The authenticated list path (a separate runner arm from the anonymous one).
 #[tokio::test]
 async fn an_authenticated_text_sort_follows_the_request_locale() {
     let Some((expected, executor)) = fr_ca().await else {
@@ -198,7 +198,7 @@ async fn an_authenticated_text_sort_follows_the_request_locale() {
     assert_eq!(words_of(&response), expected, "{response}");
 }
 
-/// Cycle 2: a relay connection ordered by a text field.
+/// A relay connection ordered by a text field.
 #[tokio::test]
 async fn a_relay_connection_sorts_in_the_request_locale() {
     let Some((expected, executor)) = fr_ca().await else {
@@ -247,7 +247,7 @@ fn fact_table() -> FactTableMetadata {
     }
 }
 
-/// Cycle 2: an aggregate grouped by a text dimension and ordered by it.
+/// An aggregate grouped by a text dimension and ordered by it.
 #[tokio::test]
 async fn an_aggregate_ordered_by_a_text_dimension_sorts_in_the_request_locale() {
     let Some((expected, executor)) = fr_ca().await else {
@@ -274,7 +274,7 @@ async fn an_aggregate_ordered_by_a_text_dimension_sorts_in_the_request_locale() 
     assert_eq!(words, expected, "{response}");
 }
 
-/// Cycle 2: a window function ordered by a text dimension, and the final ordering by it.
+/// A window function ordered by a text dimension, and the final ordering by it.
 #[tokio::test]
 async fn a_window_ordered_by_a_text_dimension_sorts_in_the_request_locale() {
     let Some((expected, executor)) = fr_ca().await else {
@@ -305,7 +305,7 @@ async fn a_window_ordered_by_a_text_dimension_sorts_in_the_request_locale() {
     assert_eq!(positions, (1..=7).collect::<Vec<i64>>(), "OVER (ORDER BY): {response}");
 }
 
-/// Cycle 3, as far as it can go today: a cursor resumes on the connection's cursor column
+/// As far as it can go today: a cursor resumes on the connection's cursor column
 /// alone, so paging after a cursor under a text `orderBy` skipped and repeated rows in every
 /// collation (#1521). It is refused rather than answered wrong; the first page, which needs no
 /// cursor, still sorts in the request locale (`a_relay_connection_sorts_in_the_request_locale`).

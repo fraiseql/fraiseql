@@ -1,6 +1,6 @@
 #![allow(clippy::unwrap_used, clippy::panic)] // Reason: test code, panics are acceptable
 
-//! #1513 Phase 06: a localized field's mutation input is coerced to a locale map before the
+//! #1513: a localized field's mutation input is coerced to a locale map before the
 //! SQL function runs, and the payload's entity reads back as the request locale's label.
 //!
 //! Two mutations: `updateLocaleProduct(id, name)` takes the localized value as a top-level
@@ -161,7 +161,7 @@ async fn run(executor: &Executor, locale: &str, query: &str) -> Value {
         .unwrap_or_else(|e| panic!("{locale} {query}: {e}"))
 }
 
-/// Cycle 1: a single value is the request locale's label; the function receives a one-key
+/// A single value is the request locale's label; the function receives a one-key
 /// map and merges it, so the stored map keeps its other labels. Writes see no locale, and the
 /// stored value stays a map (the projection proof).
 #[tokio::test]
@@ -211,7 +211,7 @@ async fn a_single_value_becomes_the_request_locales_label() {
     );
 }
 
-/// Cycle 2: a full list of translations reaches the function as the map; a `null` label
+/// A full list of translations reaches the function as the map; a `null` label
 /// removes its key.
 #[tokio::test]
 async fn translations_reach_the_function_as_the_map() {
@@ -243,7 +243,7 @@ async fn translations_reach_the_function_as_the_map() {
     );
 }
 
-/// Cycle 2: an unknown locale, a duplicate one, a value of the wrong type and a shape that is
+/// An unknown locale, a duplicate one, a value of the wrong type and a shape that is
 /// none of the accepted ones are validation errors, with no statement run.
 #[tokio::test]
 async fn an_invalid_localized_input_is_refused_before_any_sql() {
@@ -288,7 +288,7 @@ async fn an_invalid_localized_input_is_refused_before_any_sql() {
     assert_eq!(adapter.query_count(), 0, "no statement ran");
 }
 
-/// Cycle 3: the payload's entity reads its localized field as the request locale's label.
+/// The payload's entity reads its localized field as the request locale's label.
 #[tokio::test]
 async fn the_payload_entity_is_localized() {
     let Some(_adapter) = provision().await else {
