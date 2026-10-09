@@ -139,7 +139,7 @@ jobs:
 
       - name: Download baseline
         if: inputs.compare_against != ''
-        uses: dawidd6/action-download-artifact@b6e2e70617bc3265edd6dab6c906732b2f1ae151  # v21
+        uses: dawidd6/action-download-artifact@eab87c9830c39eff17e5a6eadb20bfb4bc880477  # v27
         with:
           name: perf-baseline-${{ inputs.compare_against }}
           path: /tmp/baseline
