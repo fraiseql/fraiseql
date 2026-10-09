@@ -1,5 +1,6 @@
 //! #1512 on the gRPC transport: a unary read and a server-streaming read run in the request
-//! locale, resolved from the request metadata (`accept-language`).
+//! locale, resolved from the request metadata (`accept-language`). #1520 likewise: a
+//! `source = "header"` session variable is read from the metadata (`x-region`).
 //!
 //! gRPC reads native columns, so the probe view carries the setting as a column. The service is
 //! built with `build_grpc_service` over a real `PostgresAdapter` and driven with
@@ -56,6 +57,7 @@ fn descriptor_set() -> FileDescriptorSet {
             field("id", 1, Type::Int64),
             field("locale", 2, Type::String),
             field("label", 3, Type::String),
+            field("region", 4, Type::String),
         ],
         ..Default::default()
     };
@@ -126,6 +128,7 @@ fn schema(descriptor_path: &str) -> CompiledSchema {
                     label.localized = true;
                     label
                 })
+                .with_field(TestFieldBuilder::nullable("region", FieldType::String).build())
                 .build(),
         )
         .with_query(
@@ -157,6 +160,15 @@ fn schema(descriptor_path: &str) -> CompiledSchema {
         )
         .unwrap(),
     );
+    schema.session_variables = fraiseql_core::schema::SessionVariablesConfig {
+        variables:         vec![fraiseql_core::schema::SessionVariableMapping {
+            name:   "app.region".to_string(),
+            source: fraiseql_core::schema::SessionVariableSource::Header {
+                header: "x-region".to_string(),
+            },
+        }],
+        inject_started_at: false,
+    };
     schema.build_indexes();
     schema
 }
@@ -170,7 +182,7 @@ async fn service(dir: &std::path::Path) -> Option<DynamicGrpcService> {
         format!(
             "CREATE VIEW vr_{VIEW} AS SELECT 1 AS id, current_setting('fraiseql.locale', true) \
              AS locale, '{{\"fr-FR\": \"Pomme\", \"en-US\": \"Apple\"}}'::jsonb AS label, \
-             jsonb_build_object('id', 1) AS data"
+             current_setting('app.region', true) AS region, jsonb_build_object('id', 1) AS data"
         ),
     ] {
         adapter.execute_raw_query(&ddl).await.unwrap();
@@ -193,12 +205,24 @@ async fn service(dir: &std::path::Path) -> Option<DynamicGrpcService> {
 
 /// Call `method` with an empty request and `accept-language`; the response body's frames.
 async fn call(svc: &DynamicGrpcService, method: &str, accept_language: &str) -> Vec<Vec<u8>> {
-    let request = http::Request::builder()
+    call_with(svc, method, &[("accept-language", accept_language)]).await
+}
+
+/// Call `method` with an empty request and `metadata`; the response body's frames.
+async fn call_with(
+    svc: &DynamicGrpcService,
+    method: &str,
+    metadata: &[(&str, &str)],
+) -> Vec<Vec<u8>> {
+    let mut request = http::Request::builder()
         .method("POST")
         .uri(format!("/{SERVICE}/{method}"))
         .header("content-type", "application/grpc")
-        .header("te", "trailers")
-        .header("accept-language", accept_language)
+        .header("te", "trailers");
+    for (name, value) in metadata {
+        request = request.header(*name, *value);
+    }
+    let request = request
         .body(tonic::body::Body::new(axum::body::Body::from(vec![0, 0, 0, 0, 0])))
         .unwrap();
     let response = svc.clone().oneshot(request).await.unwrap();
@@ -281,4 +305,31 @@ async fn grpc_reads_return_localized_labels() {
     let frames = call(&svc, "ListProbeStream", "en-US").await;
     let labels: Vec<String> = frames.iter().map(|f| label_of(&decode(f, "Probe"))).collect();
     assert_eq!(labels, vec!["Apple".to_string()], "server-streaming");
+}
+
+fn region_of(probe: &prost_reflect::DynamicMessage) -> String {
+    probe
+        .get_field_by_name("region")
+        .unwrap()
+        .as_str()
+        .unwrap_or_default()
+        .to_string()
+}
+
+/// #1520: a `source = "header"` session variable is read from the request metadata, for the
+/// unary read and for the server-streaming read (whose statement opens in the handler).
+#[tokio::test]
+async fn grpc_reads_see_a_header_session_variable() {
+    let dir = tempfile::tempdir().unwrap();
+    let Some(svc) = service(dir.path()).await else {
+        return;
+    };
+    let frames = call_with(&svc, "ListProbes", &[("x-region", "eu")]).await;
+    let response = decode(frames.first().unwrap(), "ListProbesResponse");
+    let items = response.get_field_by_name("items").unwrap();
+    assert_eq!(region_of(items.as_list().unwrap()[0].as_message().unwrap()), "eu", "unary");
+
+    let frames = call_with(&svc, "ListProbeStream", &[("x-region", "eu")]).await;
+    let regions: Vec<String> = frames.iter().map(|f| region_of(&decode(f, "Probe"))).collect();
+    assert_eq!(regions, vec!["eu".to_string()], "server-streaming");
 }
