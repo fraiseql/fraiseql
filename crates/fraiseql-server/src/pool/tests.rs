@@ -37,6 +37,11 @@ mod auto_tuner_tests {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl fraiseql_core::db::traits::DatabaseAdapter for MockAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_where_query(
             &self,
             _view: &str,

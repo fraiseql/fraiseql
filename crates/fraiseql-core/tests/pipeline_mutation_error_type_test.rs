@@ -43,6 +43,11 @@ impl ErrorMockAdapter {
 // its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for ErrorMockAdapter {
+    // A test double: the session variables a read carries are accepted (#1115).
+    fn applies_session_variables(&self) -> bool {
+        true
+    }
+
     async fn execute_with_projection(
         &self,
         _view: &str,

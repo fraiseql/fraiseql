@@ -350,6 +350,11 @@ mod app_state_tests {
     // Reason: async_trait required by DatabaseAdapter trait definition
     #[async_trait]
     impl DatabaseAdapter for StubAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_where_query(
             &self,
             _view: &str,
@@ -592,6 +597,11 @@ mod app_state_tests {
     // Reason: async_trait required by DatabaseAdapter trait definition
     #[async_trait]
     impl DatabaseAdapter for TrackingAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_where_query(
             &self,
             _view: &str,
@@ -1033,6 +1043,11 @@ mod tenant_registry_tests {
     // Reason: async_trait required by DatabaseAdapter trait definition
     #[async_trait]
     impl DatabaseAdapter for StubAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_where_query(
             &self,
             _view: &str,

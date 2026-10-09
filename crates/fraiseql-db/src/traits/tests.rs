@@ -46,6 +46,11 @@ mod trait_defaults {
     // Reason: the trait is declared with the async-trait macro; impls must match.
     #[async_trait]
     impl DatabaseAdapter for CollectOnlyAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_where_query(
             &self,
             _view: &str,

@@ -2130,6 +2130,9 @@ func (m *FraiseqlCi) integrationWire(ctx context.Context, source *dagger.Directo
 	for _, bin := range wireBins {
 		lines = append(lines, "cargo test -p fraiseql-wire --test "+bin+" -- --test-threads=1")
 	}
+	// #1115: the server's wire backend (`FraiseWireAdapter` in fraiseql-db) against the same
+	// SCRAM database: reads, the session-variable refusal, and its streaming read.
+	lines = append(lines, "cargo test -p fraiseql-db --features wire-backend,postgres --test wire_adapter_pg -- --test-threads=1")
 	lines = append(lines, "echo 'test-integration OK: wire suite passed'")
 	script := strings.Join(lines, "\n")
 

@@ -851,6 +851,11 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.database_type()
     }
 
+    // The cache answers for the adapter it wraps, session variables included (#1115).
+    fn applies_session_variables(&self) -> bool {
+        self.adapter.applies_session_variables()
+    }
+
     fn serves_reads_from_standbys(&self) -> bool {
         self.adapter.serves_reads_from_standbys()
     }

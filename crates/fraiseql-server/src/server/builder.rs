@@ -283,6 +283,13 @@ impl Server {
         #[cfg(feature = "auth")]
         crate::server::initialization::locale_enrichment_fields_check(&schema, &config)?;
 
+        // #1115: a schema whose reads carry session variables needs an adapter that applies
+        // them.
+        crate::server::initialization::session_variables_supported_check(
+            &schema,
+            adapter.as_ref(),
+        )?;
+
         // #1512: every allowed locale's collation must exist, or the first sorted query in
         // that locale would fail at runtime.
         crate::server::initialization::locale_collations_check(&schema, adapter.as_ref()).await?;

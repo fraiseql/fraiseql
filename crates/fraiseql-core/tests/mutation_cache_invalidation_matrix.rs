@@ -58,6 +58,11 @@ impl SwappableAdapter {
 // its transformed method signatures.
 #[async_trait]
 impl DatabaseAdapter for SwappableAdapter {
+    // A test double: the session variables a read carries are accepted (#1115).
+    fn applies_session_variables(&self) -> bool {
+        true
+    }
+
     async fn execute_with_projection(
         &self,
         _view: &str,

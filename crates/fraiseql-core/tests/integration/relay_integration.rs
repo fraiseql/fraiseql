@@ -75,6 +75,11 @@ impl RelayMockAdapter {
 // its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for RelayMockAdapter {
+    // A test double: the session variables a read carries are accepted (#1115).
+    fn applies_session_variables(&self) -> bool {
+        true
+    }
+
     async fn execute_where_query(
         &self,
         _view: &str,
@@ -810,6 +815,11 @@ impl UuidRelayMockAdapter {
 // its transformed method signatures to satisfy the trait contract
 #[async_trait]
 impl DatabaseAdapter for UuidRelayMockAdapter {
+    // A test double: the session variables a read carries are accepted (#1115).
+    fn applies_session_variables(&self) -> bool {
+        true
+    }
+
     async fn execute_where_query(
         &self,
         _view: &str,
@@ -1247,6 +1257,11 @@ mod relay_security {
     // its transformed method signatures to satisfy the trait contract
     #[async_trait]
     impl DatabaseAdapter for RecordingRelayAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_where_query(
             &self,
             _view: &str,

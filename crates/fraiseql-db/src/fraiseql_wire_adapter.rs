@@ -309,6 +309,49 @@ impl DatabaseAdapter for FraiseWireAdapter {
         DatabaseType::PostgreSQL
     }
 
+    /// The streaming read, as a stream (#1115): the wire `QueryStream` itself, its rows
+    /// mapped as they arrive, `offset` and `limit` applied by skipping and taking. The trait
+    /// default would materialise every row first and replay the buffer.
+    ///
+    /// # Errors
+    ///
+    /// `FraiseQLError::Unsupported` for a non-empty `session_vars` (this backend cannot apply
+    /// them); `FraiseQLError::Database` when the query cannot start. A failure mid-stream is
+    /// an `Err` item.
+    async fn stream_with_projection(
+        &self,
+        request: &crate::traits::ProjectionRequest<'_>,
+        session_vars: &[(&str, &str)],
+        _routing: crate::types::ReadRouting,
+    ) -> Result<crate::traits::JsonbRowStream> {
+        crate::traits::refuse_session_variables(self, session_vars)?;
+        let client = self.factory.create_client().await?;
+        let mut builder =
+            client.query::<serde_json::Value>(request.view).chunk_size(self.chunk_size);
+        if let Some(clause) = request.where_clause {
+            builder = builder.where_sql(WhereSqlGenerator::to_sql(clause)?);
+        }
+        if let Some(columns) = order_by_columns(request.order_by)? {
+            builder = builder.order_by(columns);
+        }
+        let stream = builder.execute().await.map_err(|e| FraiseQLError::Database {
+            message:   format!("fraiseql-wire query failed: {e}"),
+            sql_state: None,
+        })?;
+        let rows = stream
+            .map(|item| {
+                item.map(JsonbValue::new).map_err(|e| FraiseQLError::Database {
+                    message:   format!("Stream error: {e}"),
+                    sql_state: None,
+                })
+            })
+            .skip(request.offset.unwrap_or(0) as usize);
+        Ok(match request.limit {
+            Some(limit) => Box::pin(rows.take(limit as usize)),
+            None => Box::pin(rows),
+        })
+    }
+
     /// Stated rather than inherited, with the reason: a composed read carries every
     /// embedded level's RLS predicate in its `WHERE`, and this adapter binds no parameters —
     /// it escapes values into literal SQL. Composing here would run authorization

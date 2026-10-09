@@ -1445,6 +1445,41 @@ pub fn field_encryption_unsupported_check(schema: &CompiledSchema) -> crate::Res
     )))
 }
 
+/// Refuse a schema whose reads carry session variables on an adapter that cannot apply them
+/// (#1115).
+///
+/// `[locale]` puts `fraiseql.locale` on every read, and declared session variables put
+/// theirs; the adapter would refuse each such read (its session defaults do), so the server
+/// would answer nothing. Refused here instead, naming both. Today that is the
+/// `fraiseql-wire` backend.
+///
+/// # Errors
+///
+/// `ServerError::ConfigError` naming what needs session variables.
+pub fn session_variables_supported_check<A: fraiseql_core::db::DatabaseAdapter + ?Sized>(
+    schema: &CompiledSchema,
+    adapter: &A,
+) -> crate::Result<()> {
+    if adapter.applies_session_variables() {
+        return Ok(());
+    }
+    let mut needs = Vec::new();
+    if schema.locale.is_some() {
+        needs.push("`[locale]` (every read carries `fraiseql.locale`)".to_string());
+    }
+    if !schema.session_variables.variables.is_empty() {
+        needs.push("`[session_variables]` (each read carries them)".to_string());
+    }
+    if needs.is_empty() {
+        return Ok(());
+    }
+    Err(crate::ServerError::ConfigError(format!(
+        "this database backend cannot apply session variables, which {} needs; serve this \
+         schema with the PostgreSQL adapter",
+        needs.join(" and ")
+    )))
+}
+
 /// Refuse to boot when an allowed locale has no ICU collation in the database (#1512).
 ///
 /// A text sort in a locale runs `… COLLATE "<tag>-x-icu"`; PostgreSQL creates those
@@ -1584,3 +1619,8 @@ pub fn enrichment_consumer_without_resolver_check(
             .to_string(),
     ))
 }
+
+// The only adapter that does not apply session variables is the wire backend's.
+#[cfg(all(test, feature = "wire-backend"))]
+#[path = "initialization_tests.rs"]
+mod tests;

@@ -372,6 +372,12 @@ impl DatabaseAdapter for FailingAdapter {
         Ok(self.get_response(view))
     }
 
+    // A test double: it reads canned rows and has no session to scope, so the session
+    // variables a read carries are accepted and ignored rather than refused.
+    fn applies_session_variables(&self) -> bool {
+        true
+    }
+
     fn database_type(&self) -> DatabaseType {
         DatabaseType::PostgreSQL
     }

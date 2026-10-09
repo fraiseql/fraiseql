@@ -35,6 +35,11 @@ mod mutation {
 
     #[async_trait]
     impl DatabaseAdapter for SelectionSetFilterMockAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -158,6 +163,11 @@ mod mutation {
 
     #[async_trait]
     impl DatabaseAdapter for EmptySelectionMockAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -635,6 +645,11 @@ mod mutation {
 
     #[async_trait]
     impl DatabaseAdapter for MutationErrorMockAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -1209,6 +1224,11 @@ mod mutation {
 
     #[async_trait]
     impl DatabaseAdapter for CapturingFunctionCallAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -3137,6 +3157,11 @@ mod mutation_audit {
 
     #[async_trait]
     impl DatabaseAdapter for AuditMockAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -3600,6 +3625,11 @@ mod field_authz {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for GatedEntityAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -5007,6 +5037,11 @@ mod cascade {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for CannedMutationAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
             let mut captured = self.invalidated_views.lock().unwrap();
             captured.extend(views.iter().map(|v| v.as_str().to_string()));
@@ -5664,6 +5699,11 @@ mod before_mutation_enforcement {
 
     #[async_trait]
     impl DatabaseAdapter for MutationCallLog {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -6328,6 +6368,11 @@ mod before_mutation_read_bridge {
 
     #[async_trait]
     impl DatabaseAdapter for ReadEchoAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -6755,6 +6800,11 @@ mod rest_write_body {
 
     #[async_trait]
     impl DatabaseAdapter for ArgLog {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_with_projection(
             &self,
             _view: &str,
@@ -7531,6 +7581,11 @@ mod dry_run {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for DryRunAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn invalidate_views(&self, views: &[fraiseql_db::ViewName]) -> Result<u64> {
             self.invalidation.fetch_add(1, Ordering::SeqCst);
             Ok(views.len() as u64)

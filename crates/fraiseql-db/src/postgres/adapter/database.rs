@@ -716,6 +716,11 @@ fn changelog_prepare_hint(detail: &str) -> &'static str {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl DatabaseAdapter for PostgresAdapter {
+    // Every `*_with_session` read is overridden to apply its variables (#1115).
+    fn applies_session_variables(&self) -> bool {
+        true
+    }
+
     fn serves_reads_from_standbys(&self) -> bool {
         self.read_replicas.is_some()
     }

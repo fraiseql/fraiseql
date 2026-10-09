@@ -697,6 +697,11 @@ mod session_variables {
     // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
     #[async_trait]
     impl DatabaseAdapter for SessionVarCapturingAdapter {
+        // A test double: the session variables a read carries are accepted (#1115).
+        fn applies_session_variables(&self) -> bool {
+            true
+        }
+
         async fn execute_with_projection(
             &self,
             _view: &str,

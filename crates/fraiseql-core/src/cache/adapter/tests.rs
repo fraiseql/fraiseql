@@ -40,6 +40,11 @@ impl MockAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl DatabaseAdapter for MockAdapter {
+    // A test double: the session variables a read carries are accepted (#1115).
+    fn applies_session_variables(&self) -> bool {
+        true
+    }
+
     async fn execute_with_projection(
         &self,
         _view: &str,
@@ -786,6 +791,11 @@ impl BumpAdapter {
 // async_trait: dyn-dispatch required; remove when RTN + Send is stable (RFC 3425)
 #[async_trait]
 impl DatabaseAdapter for BumpAdapter {
+    // A test double: the session variables a read carries are accepted (#1115).
+    fn applies_session_variables(&self) -> bool {
+        true
+    }
+
     async fn execute_where_query(
         &self,
         _view: &str,
@@ -1253,6 +1263,11 @@ impl StreamSpyAdapter {
 // Reason: the trait is declared with the async-trait macro; impls must match.
 #[async_trait]
 impl DatabaseAdapter for StreamSpyAdapter {
+    // A test double: the session variables a read carries are accepted (#1115).
+    fn applies_session_variables(&self) -> bool {
+        true
+    }
+
     async fn execute_with_projection(
         &self,
         _view: &str,
@@ -1466,5 +1481,26 @@ mod session_keyed {
         read(&adapter, &[("app.locale", "fr")], ReadRouting::Primary).await;
         read(&adapter, &[("app.locale", "fr")], ReadRouting::Primary).await;
         assert_eq!(adapter.inner().call_count(), 2);
+    }
+}
+
+/// #1115: the cache answers whether session variables are applied for the adapter it wraps.
+#[test]
+fn the_cache_answers_session_variable_support_for_its_adapter() {
+    let applies = CachedDatabaseAdapter::new(
+        fraiseql_test_utils::failing_adapter::FailingAdapter::new(),
+        QueryResultCache::new(CacheConfig::enabled()),
+        "1.0.0".to_string(),
+    );
+    assert!(applies.applies_session_variables());
+
+    #[cfg(feature = "wire-backend")]
+    {
+        let wire = CachedDatabaseAdapter::new(
+            fraiseql_db::FraiseWireAdapter::new("postgres://localhost/unused"),
+            QueryResultCache::new(CacheConfig::enabled()),
+            "1.0.0".to_string(),
+        );
+        assert!(!wire.applies_session_variables());
     }
 }

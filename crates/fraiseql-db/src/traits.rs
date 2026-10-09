@@ -652,6 +652,18 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     /// Used to identify which database backend is in use.
     fn database_type(&self) -> DatabaseType;
 
+    /// Whether this adapter applies session variables to the reads that carry them (#1115).
+    ///
+    /// The `*_with_session` defaults cannot: they delegate to the session-free read. Rather
+    /// than drop the variables, which would read unscoped where an RLS policy reads
+    /// `current_setting`, they refuse a non-empty set unless the adapter declares it applies
+    /// them, by overriding them (the PostgreSQL adapter) or by being a test double. The
+    /// server refuses at boot a schema that needs them (`[locale]`, session variables) on an
+    /// adapter that does not.
+    fn applies_session_variables(&self) -> bool {
+        false
+    }
+
     /// Whether reads may be served by a hot standby — read replicas are configured (#1390).
     ///
     /// A standby cannot read an UNLOGGED or temporary relation, so a server whose reads go
@@ -777,8 +789,9 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         order_by: Option<&str>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _session_vars: &[(&str, &str)],
+        session_vars: &[(&str, &str)],
     ) -> Result<Vec<Vec<crate::types::ColumnValue>>> {
+        refuse_session_variables(self, session_vars)?;
         self.execute_row_query(view_name, columns, where_sql, order_by, limit, offset)
             .await
     }
@@ -831,9 +844,10 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         &self,
         sql: &str,
         params: &[serde_json::Value],
-        _session_vars: &[(&str, &str)],
+        session_vars: &[(&str, &str)],
         _routing: ReadRouting,
     ) -> Result<Vec<std::collections::HashMap<String, serde_json::Value>>> {
+        refuse_session_variables(self, session_vars)?;
         self.execute_parameterized_aggregate(sql, params).await
     }
 
@@ -983,9 +997,10 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         limit: Option<u32>,
         offset: Option<u32>,
         order_by: Option<&[OrderByClause]>,
-        _session_vars: &[(&str, &str)],
+        session_vars: &[(&str, &str)],
         _routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
+        refuse_session_variables(self, session_vars)?;
         self.execute_where_query_arc(view, where_clause, limit, offset, order_by).await
     }
 
@@ -1046,9 +1061,10 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
     async fn execute_with_projection_arc_with_session(
         &self,
         request: &ProjectionRequest<'_>,
-        _session_vars: &[(&str, &str)],
+        session_vars: &[(&str, &str)],
         _routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
+        refuse_session_variables(self, session_vars)?;
         self.execute_with_projection_arc(request).await
     }
 
@@ -1193,8 +1209,9 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         order_by: Option<&str>,
         limit: Option<u32>,
         offset: Option<u32>,
-        _session_vars: &[(&str, &str)],
+        session_vars: &[(&str, &str)],
     ) -> Result<ColumnRowStream> {
+        refuse_session_variables(self, session_vars)?;
         self.stream_row_query(view_name, columns, where_sql, order_by, limit, offset)
             .await
     }
@@ -1365,3 +1382,22 @@ pub fn row_to_column_values<S: std::hash::BuildHasher>(
 
 #[cfg(test)]
 mod tests;
+
+/// Refuse `session_vars` on an adapter that cannot apply them (#1115): reading without
+/// them would read unscoped.
+pub(crate) fn refuse_session_variables<A: DatabaseAdapter + ?Sized>(
+    adapter: &A,
+    session_vars: &[(&str, &str)],
+) -> Result<()> {
+    if session_vars.is_empty() || adapter.applies_session_variables() {
+        return Ok(());
+    }
+    Err(fraiseql_error::FraiseQLError::Unsupported {
+        message: format!(
+            "the {} adapter ({}) cannot apply session variables, and a read without them \
+             would ignore every policy that reads them; refused rather than read unscoped",
+            std::any::type_name::<A>(),
+            adapter.database_type()
+        ),
+    })
+}
