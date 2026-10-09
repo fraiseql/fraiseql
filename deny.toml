@@ -31,7 +31,7 @@ ignore = [
   # outside gcs.rs. Not fixed by switching jsonwebtoken to `aws_lc_rs`: M-dual-crypto keeps
   # the default build on ring alone.
   # deadline: 2027-01-31 — check for a constant-time rsa release (0.10, crypto-bigint) and move to it.
-  {id = "RUSTSEC-2023-0071", reason = "rsa used for RS256 public-key verification (unaffected) and GCS service-account signing only; no caller-triggerable private-key operation (#1110, gated by check-crypto-providers.sh). Deadline 2027-01-31."}
+  { id = "RUSTSEC-2023-0071", reason = "rsa used for RS256 public-key verification (unaffected) and GCS service-account signing only; no caller-triggerable private-key operation (#1110, gated by check-crypto-providers.sh). Deadline 2027-01-31." }
 ]
 unmaintained = "workspace"
 
