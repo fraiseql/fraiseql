@@ -1030,6 +1030,9 @@ func (m *FraiseqlCi) Test(
 		// reaches (fraiseql-server is excluded from the workspace sweep).
 		"echo '### cargo test -p fraiseql-server graphql idempotency binary (SYNC:SERVER_FEATURES; not covered by --lib) — P19 #747 receiver gate'",
 		"cargo test -p fraiseql-server --features '" + serverTestFeatures + "' --test graphql_idempotency_e2e_test",
+		// #1159: over the SDK conformance fixture, compiled by the real compiler, every
+		// sorting query's orderBy enum is exactly the keys both readers accept. No database.
+		"cargo test -p fraiseql-server --test order_by_conformance_parity",
 		// #992: the in-process test binaries. ~60 of fraiseql-server's tests/*.rs
 		// files ran in NO leg (the crate is excluded from the workspace run and
 		// only enumerated binaries execute). Everything here passed a service-less

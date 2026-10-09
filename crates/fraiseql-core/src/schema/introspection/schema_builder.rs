@@ -386,7 +386,7 @@ fn build_relay_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> 
         of_type:            None,
         specified_by_u_r_l: None,
     };
-    let relay_args = vec![
+    let mut relay_args = vec![
         IntrospectionInputValue {
             name:               "first".to_string(),
             description:        Some("Return the first N items.".to_string()),
@@ -424,6 +424,9 @@ fn build_relay_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> 
             validation_rules:   vec![],
         },
     ];
+    // #1159: a connection sorts like a list, through the same derived `orderBy` (ordered
+    // relay paging resumes past the sort keys since #1521).
+    relay_args.extend(query.order_by_argument(schema).as_ref().map(build_arg_input_value));
 
     IntrospectionField {
         name:               schema.display_name(&query.name),

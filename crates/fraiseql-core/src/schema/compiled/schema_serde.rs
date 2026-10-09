@@ -495,6 +495,19 @@ impl CompiledSchema {
                 path:    Some("security.inject_params".to_string()),
             });
         }
+        // #1159: a query's `orderBy.field` enum lists exactly its sort keys. Derivation never
+        // overwrites a name already taken, so an author's type of the same name, or two owners
+        // deriving one name, would hand a query someone else's keys: refused, naming it.
+        let violations = self.order_by_violations();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "a query's sort keys cannot be published as derived:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("queries.orderBy".to_string()),
+            });
+        }
         let violations = self.subscription_policy_violations();
         if !violations.is_empty() {
             return Err(FraiseQLError::Validation {
@@ -602,6 +615,57 @@ impl CompiledSchema {
     /// intermediate schema has no field for it and no SDK emits one. The only way a
     /// policy reaches a deployment is a hand-written compiled schema, which is exactly
     /// the input this path accepts.
+    /// Every sorting query whose derived `orderBy` item names an enum that is not exactly its
+    /// sort keys, or a name another kind of type also takes (#1159). An item type the author
+    /// declared is their surface, and not checked.
+    fn order_by_violations(&self) -> Vec<String> {
+        use crate::schema::derived_inputs::{order_by_type_names, sortable_keys};
+        let is_name = |key: &str| {
+            let mut chars = key.chars();
+            chars.next().is_some_and(|c| c == '_' || c.is_ascii_alphabetic())
+                && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
+                && !matches!(key, "true" | "false" | "null")
+        };
+        let mut out = Vec::new();
+        for query in &self.queries {
+            let Some((item, field)) = order_by_type_names(self, query) else {
+                continue;
+            };
+            let derived = self.find_input_type(&item).is_some_and(|input| {
+                input.fields.iter().any(|f| f.name == "field" && f.field_type == field)
+            });
+            if !derived {
+                continue;
+            }
+            let keys =
+                sortable_keys(self, &query.return_type, &query.native_columns).unwrap_or_default();
+            if let Some(bad) = keys.iter().find(|k| !is_name(k)) {
+                out.push(format!(
+                    "`{}`: the sort key `{bad}` is not a GraphQL name, so `{field}` cannot list it",
+                    query.name
+                ));
+            }
+            let listed = self
+                .find_enum(&field)
+                .map(|e| e.values.iter().map(|v| v.name.as_str()).collect::<Vec<_>>());
+            let taken = self.find_type(&field).is_some()
+                || self.find_input_type(&field).is_some()
+                || self.find_interface(&field).is_some()
+                || self.find_union(&field).is_some();
+            if taken
+                || listed.as_deref()
+                    != Some(keys.iter().map(String::as_str).collect::<Vec<_>>().as_slice())
+            {
+                out.push(format!(
+                    "`{}`: its sort keys need the enum `{field}`, and another declaration takes \
+                     that name; rename the query or the other type",
+                    query.name
+                ));
+            }
+        }
+        out
+    }
+
     fn subscription_policy_violations(&self) -> Vec<String> {
         self.types
             .iter()

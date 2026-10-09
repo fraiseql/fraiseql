@@ -209,7 +209,8 @@ pub fn derive(schema: &CompiledSchema) -> DerivedInputs {
     }
 
     let mut input_types = entities;
-    input_types.extend(order_by_inputs(schema));
+    let (order_by_items, order_by_fields) = order_by_inputs(schema);
+    input_types.extend(order_by_items);
     // A leaf filter is collected while walking an entity, including an entity
     // whose own filter is already present — so the "already declared" check has
     // to happen here rather than at collection time, or a second `build_indexes`
@@ -221,7 +222,7 @@ pub fn derive(schema: &CompiledSchema) -> DerivedInputs {
             .map(LeafFilter::into_input_object),
     );
 
-    let mut enums = Vec::new();
+    let mut enums = order_by_fields;
     if input_types.iter().any(|i| i.name.ends_with("OrderByInput"))
         && schema.find_enum(SORT_DIRECTION_ENUM).is_none()
     {
@@ -236,33 +237,164 @@ pub fn derive(schema: &CompiledSchema) -> DerivedInputs {
     DerivedInputs { input_types, enums }
 }
 
-/// The `orderBy` item type for every entity a sortable query returns.
+/// The enum an `orderBy` item's `field` is typed with, for an owner (an entity, or a query
+/// whose keys differ from its siblings').
+#[must_use]
+pub fn order_by_field_enum_name(owner: &str) -> String {
+    format!("{owner}OrderByField")
+}
+
+/// The keys an `orderBy` accepts on a query over `return_type` with `native_columns` (#1159).
 ///
-/// Follows queries rather than the relation closure: `orderBy` applies at the
-/// query's own level and never nests.
-fn order_by_inputs(schema: &CompiledSchema) -> Vec<InputObjectDefinition> {
-    let mut out: Vec<InputObjectDefinition> = Vec::new();
+/// The type's fields that order meaningfully, in declaration order, then the native columns a
+/// client can name, in name order. **One set, two readers:** the engine accepts exactly these
+/// (`enrich_order_by_clauses`) and the derived `…OrderByField` enum lists exactly these, so the
+/// schema cannot advertise a key the engine refuses, nor the engine accept one the schema
+/// hides.
+///
+/// A native column is named by its key, which reaches the column only when the key is its
+/// own storage key (`snake_case`): the engine resolves a sort key to a native column through
+/// that conversion, so any other spelling never reached it.
+///
+/// `None` when the schema cannot adjudicate the type (#939): absent, or carrying no fields.
+#[must_use]
+pub fn sortable_keys<S: std::hash::BuildHasher>(
+    schema: &CompiledSchema,
+    return_type: &str,
+    native_columns: &HashMap<String, String, S>,
+) -> Option<Vec<String>> {
+    let type_def = adjudicable_type(schema, return_type)?;
+    let mut keys: Vec<String> = type_def
+        .fields
+        .iter()
+        .filter(|f| orders_meaningfully(schema, &f.field_type))
+        .map(|f| f.name.to_string())
+        .collect();
+    let mut native: Vec<&String> = native_columns
+        .keys()
+        .filter(|key| fraiseql_db::utils::to_snake_case(key) == **key)
+        .collect();
+    native.sort();
+    for key in native {
+        if !keys.contains(key) {
+            keys.push(key.clone());
+        }
+    }
+    Some(keys)
+}
+
+/// Whether ordering by a value of this type means anything. A relation, a list, a JSON
+/// document or a vector compares as its serialized text, which is no order a client asked for
+/// (a vector is ranked by `nearest`, not sorted). An `Object` no type declares is not a
+/// relation but an opaque scalar the authoring layer did not map (`datetime`, `IPAddress`,
+/// …), stored and compared as text, as [`classify`] reads it.
+fn orders_meaningfully(schema: &CompiledSchema, field_type: &FieldType) -> bool {
+    match field_type {
+        FieldType::Object(name) => adjudicable_type(schema, name).is_none(),
+        FieldType::String
+        | FieldType::Int
+        | FieldType::Float
+        | FieldType::Boolean
+        | FieldType::Id
+        | FieldType::DateTime
+        | FieldType::Date
+        | FieldType::Time
+        | FieldType::Uuid
+        | FieldType::Decimal
+        | FieldType::Scalar(_)
+        | FieldType::Enum(_) => true,
+        FieldType::Json
+        | FieldType::Vector
+        | FieldType::BitVector
+        | FieldType::HalfVector
+        | FieldType::SparseVector
+        | FieldType::List(_)
+        | FieldType::Input(_)
+        | FieldType::Interface(_)
+        | FieldType::Union(_) => false,
+    }
+}
+
+/// The names `orderBy` publishes on `query`: its item input type and its field enum.
+///
+/// Entity-wide (`{Entity}OrderByInput`, `{Entity}OrderByField`) when every sortable query
+/// returning the entity accepts the same keys; the query's own (`{Query}OrderByInput`,
+/// `{Query}OrderByField`, the name in `PascalCase`) when they differ, so no query is advertised
+/// a sibling's key. `None` when the query does not sort, its type cannot be adjudicated, or it
+/// accepts no key (it then publishes no `orderBy` at all).
+#[must_use]
+pub fn order_by_type_names(
+    schema: &CompiledSchema,
+    query: &super::QueryDefinition,
+) -> Option<(String, String)> {
+    if !query.auto_params.has_order_by {
+        return None;
+    }
+    let keys = sortable_keys(schema, &query.return_type, &query.native_columns)?;
+    if keys.is_empty() {
+        return None;
+    }
+    let owner = if entity_sort_keys_agree(schema, &query.return_type) {
+        query.return_type.clone()
+    } else {
+        pascal_case(&query.name)
+    };
+    Some((order_by_input_type_name(&owner), order_by_field_enum_name(&owner)))
+}
+
+/// Whether every sortable query returning `entity` accepts the same keys.
+fn entity_sort_keys_agree(schema: &CompiledSchema, entity: &str) -> bool {
+    let mut sets = schema
+        .queries
+        .iter()
+        .filter(|q| q.return_type == entity && q.auto_params.has_order_by)
+        .filter_map(|q| sortable_keys(schema, entity, &q.native_columns))
+        .filter(|keys| !keys.is_empty());
+    let Some(first) = sets.next() else {
+        return true;
+    };
+    sets.all(|keys| keys == first)
+}
+
+/// `itemsByRank` → `ItemsByRank`.
+fn pascal_case(name: &str) -> String {
+    let camel = crate::utils::casing::to_camel_case(name);
+    let mut chars = camel.chars();
+    chars
+        .next()
+        .map_or_else(String::new, |first| first.to_uppercase().chain(chars).collect())
+}
+
+/// The `orderBy` item types and their field enums, for every sortable query (relay
+/// connections included): see [`order_by_type_names`].
+///
+/// Follows queries rather than the relation closure: `orderBy` applies at the query's own
+/// level and never nests. A name the author declared is not derived over.
+fn order_by_inputs(schema: &CompiledSchema) -> (Vec<InputObjectDefinition>, Vec<EnumDefinition>) {
+    let mut items: Vec<InputObjectDefinition> = Vec::new();
+    let mut fields: Vec<EnumDefinition> = Vec::new();
     for query in &schema.queries {
-        if query.relay || !query.auto_params.has_order_by {
+        let Some((item, field)) = order_by_type_names(schema, query) else {
+            continue;
+        };
+        if schema.find_input_type(&item).is_some() || items.iter().any(|i| i.name == item) {
             continue;
         }
-        let name = order_by_input_type_name(&query.return_type);
-        if schema.find_input_type(&name).is_some() || out.iter().any(|i| i.name == name) {
-            continue;
+        let keys =
+            sortable_keys(schema, &query.return_type, &query.native_columns).unwrap_or_default();
+        if schema.find_enum(&field).is_none() {
+            fields.push(
+                keys.iter()
+                    .fold(EnumDefinition::new(field.as_str()), |e, key| {
+                        e.with_value(EnumValueDefinition::new(key.as_str()))
+                    })
+                    .with_description(format!("A key `{}` can be sorted by.", query.return_type)),
+            );
         }
-        if adjudicable_type(schema, &query.return_type).is_none() {
-            continue;
-        }
-        out.push(
-            InputObjectDefinition::new(name)
+        items.push(
+            InputObjectDefinition::new(item)
                 .with_fields(vec![
-                    // `String!`, not an enum of sortable fields:
-                    // `enrich_order_by_clauses` accepts a declared field *or* a
-                    // native column, and a native column need not be a declared
-                    // field. An enum would advertise a narrower sort surface
-                    // than the engine's on exactly the queries compiled with
-                    // `--database`.
-                    InputFieldDefinition::new("field", "String")
+                    InputFieldDefinition::new("field", field)
                         .with_nullable(false)
                         .with_description("Field to sort by."),
                     InputFieldDefinition::new("direction", SORT_DIRECTION_ENUM)
@@ -272,7 +404,7 @@ fn order_by_inputs(schema: &CompiledSchema) -> Vec<InputObjectDefinition> {
                 .with_description(format!("One sort key over `{}`.", query.return_type)),
         );
     }
-    out
+    (items, fields)
 }
 
 /// Entities a `where`-enabled query returns.

@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`orderBy.field` is an enum of the keys the query accepts (#1159).** Clients get
+  completion and validation on sort keys, and the schema lists exactly what the engine
+  accepts: one set feeds both (`derived_inputs::sortable_keys`). Entity-wide
+  `{Entity}OrderByField` when every query on the entity agrees; per-query
+  `{Query}OrderByField` / `{Query}OrderByInput` when their native columns differ. Relay
+  connections now advertise their `orderBy` (accepted before, never published). Introspection,
+  SDL and `federation sdl` agree. See `docs/features/pagination.md#sort-keys`.
 - **`[validation] max_offset`: an opt-in ceiling on offset depth (#1306).** `OFFSET n` reads
   `n` rows to discard them, however the read is ordered, so a deep offset page costs its depth.
   Set, an offset beyond the ceiling is refused before any statement, with a message naming the
@@ -167,6 +174,14 @@ disagreed, and the promise was the part that was wrong.
   gain `localized: bool`, and `WhereClause` gains `Localized { chain, collation, inner }`: struct
   literals add `localized: false`, and exhaustive matches add the arm (the leaf is in `inner`).
 
+- **`{Entity}OrderByInput.field` is an enum, not `String!` (#1159),** and sort keys are held to
+  it on every transport. A key that is a relation, a list, a `JSON` document or a vector is
+  refused (it sorted by serialized text); a native column is accepted under its key only (a
+  second spelling that `snake_case`d to it is refused); a query whose type has no sortable key
+  publishes no `orderBy` and refuses one; a query whose native columns differ from its
+  siblings' gets `{Query}OrderByInput` in place of the entity's. A compiled schema in which a
+  declaration takes a derived sort-key enum's name is refused at load. Typed clients
+  regenerate; documents writing `field: "name"` as a string keep executing.
 - **A server configuration's `[validation] max_page_size` or `max_offset` is refused at boot
   (#1306).** Both ceilings belong to the compiled schema and their environment overrides
   (`FRAISEQL_MAX_PAGE_SIZE`, `FRAISEQL_MAX_OFFSET`), which every hot reload re-derives. A

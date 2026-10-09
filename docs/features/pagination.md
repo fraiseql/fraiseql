@@ -192,6 +192,28 @@ when a batch would start past it. `FRAISEQL_MAX_OFFSET` overrides the compiled v
 `none` lifts it). The setting belongs in `fraiseql.toml`: a server configuration's
 `[validation] max_offset` is refused at boot, since a hot reload would drop it.
 
+## Sort keys
+
+A query with `orderBy` (a list or a relay connection) takes a list of
+`{ field, direction }` items, and `field` is an enum of exactly the keys it accepts:
+
+```graphql
+enum ItemOrderByField { id name rank label }
+input ItemOrderByInput { field: ItemOrderByField!, direction: SortDirection = ASC }
+```
+
+The keys are the type's fields that order meaningfully (not a relation, a list, a `JSON`
+document or a vector, whose order would be that of their serialized text), plus the
+native columns the query reads with `--database`, named by their key. The engine accepts
+exactly these on every transport (GraphQL, REST `?sort=`, gRPC), and the enum lists exactly
+these: one set, so the schema never advertises a key the engine refuses.
+
+When every query returning an entity accepts the same keys, they share
+`{Entity}OrderByField` and `{Entity}OrderByInput`. When they differ (one reads a native
+column the others do not), each query has its own, named after it
+(`ItemsByRankOrderByField`), so no query is offered a sibling's key. A query whose type has
+no sortable key publishes no `orderBy`.
+
 ## Relay connections
 
 A `relay = true` query is paginated by keyset on `relay_cursor_column`

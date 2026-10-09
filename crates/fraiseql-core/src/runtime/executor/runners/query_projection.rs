@@ -276,10 +276,11 @@ const fn scalar_cast_hint(ft: &crate::schema::FieldType) -> ScalarFieldType {
 /// The client received rows in whatever order the plan happened to produce, with
 /// no signal that its sort had been discarded.
 ///
-/// A key is now refused when it is **neither** a declared field on the type
-/// **nor** a native column — the second half matters, because the statement
-/// below this one routes a native column straight to a real column, so a sort
-/// key can be legitimate without being a declared type field.
+/// A key is refused unless it is one of the query's
+/// [`sortable_keys`](crate::schema::derived_inputs::sortable_keys): a declared field that
+/// orders meaningfully, or a native column (a sort key can be legitimate without being a
+/// declared field, since the statement below routes a native column straight to its
+/// column). The derived `…OrderByField` enum is the same set (#1159).
 ///
 /// # Errors
 ///
@@ -294,10 +295,11 @@ pub fn enrich_order_by_clauses(
     security_context: Option<&crate::security::SecurityContext>,
 ) -> crate::error::Result<Vec<OrderByClause>> {
     let type_def = schema.find_type(return_type);
-    // The schema can adjudicate only when the type was found *and* carries
-    // fields. Both absences produce "no field list", and rejecting on an absence
-    // of evidence is what #939 forbids.
-    let can_adjudicate = type_def.is_some_and(|td| !td.fields.is_empty());
+    // #1159: the keys the derived `…OrderByField` enum lists, and no other. `None` when the
+    // schema cannot adjudicate (the type is absent or carries no fields): rejecting on an
+    // absence of evidence is what #939 forbids.
+    let sortable =
+        crate::schema::derived_inputs::sortable_keys(schema, return_type, native_columns);
     // #1512: a text key sorts under the request locale's collation, when there is one.
     let collation = schema
         .locale
@@ -306,11 +308,9 @@ pub fn enrich_order_by_clauses(
         .and_then(|(config, locale)| config.collation(&locale));
 
     for clause in &mut clauses {
-        if can_adjudicate {
-            let declared = type_def.is_some_and(|td| td.find_field(&clause.field).is_some());
-            let native = native_columns.contains_key(&clause.storage_key());
-            if !declared && !native {
-                return Err(unknown_sort_field(&clause.field, return_type, type_def));
+        if let Some(keys) = &sortable {
+            if !keys.contains(&clause.field) {
+                return Err(unknown_sort_field(&clause.field, return_type, keys));
             }
         }
 
@@ -362,14 +362,13 @@ pub(super) fn sorts_as_text(cast: &str) -> bool {
     )
 }
 
-/// The error for a sort key that is neither a declared field nor a native column.
+/// The error for a sort key the query does not accept, suggesting the nearest it does.
 fn unknown_sort_field(
     field: &str,
     return_type: &str,
-    type_def: Option<&crate::schema::TypeDefinition>,
+    sortable: &[String],
 ) -> crate::error::FraiseQLError {
-    let candidates: Vec<&str> =
-        type_def.map_or_else(Vec::new, |td| td.fields.iter().map(|f| f.name.as_str()).collect());
+    let candidates: Vec<&str> = sortable.iter().map(String::as_str).collect();
     let subject = format!("Cannot sort by '{field}' on type '{return_type}'.");
     let message = match super::super::super::suggest_similar(field, &candidates).as_slice() {
         [s] => format!("{subject} Did you mean '{s}'?"),

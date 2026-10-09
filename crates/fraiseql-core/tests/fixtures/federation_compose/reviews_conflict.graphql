@@ -2,6 +2,18 @@ extend schema @link(url: "https://specs.apollo.dev/federation/v2.0", import: ["@
 scalar DateTime
 scalar JSON
 
+enum EntityChangeLogOrderByField {
+  id
+  pkEntityChangeLog
+  fkCustomerOrg
+  fkContact
+  objectType
+  objectId
+  modificationType
+  changeStatus
+  createdAt
+}
+
 enum SortDirection {
   ASC
   DESC
@@ -25,7 +37,7 @@ input EntityChangeLogWhereInput {
 }
 
 input EntityChangeLogOrderByInput {
-  field: String!
+  field: EntityChangeLogOrderByField!
   direction: SortDirection
 }
 

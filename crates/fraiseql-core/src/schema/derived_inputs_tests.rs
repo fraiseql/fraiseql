@@ -278,12 +278,14 @@ fn only_canonical_operator_names_are_advertised() {
 fn an_order_by_enabled_query_derives_an_order_by_input_and_the_direction_enum() {
     let d = derived(&schema());
     let order_by = input(&d, "OrderOrderByInput");
-    // `field` is `String!` on purpose: `enrich_order_by_clauses` accepts a
-    // declared field *or* a native column, and a native column need not be a
-    // declared field. An enum would advertise a narrower surface than the
-    // engine's on exactly the queries compiled with `--database`.
-    assert_eq!(field(order_by, "field").field_type, "String");
+    // #1159: `field` is the enum of exactly the keys the query accepts. Not a relation
+    // (`customer`) or a list (`tags`, `lines`); an opaque `Object("datetime")` is a text
+    // leaf and sorts.
+    assert_eq!(field(order_by, "field").field_type, "OrderOrderByField");
     assert!(!field(order_by, "field").nullable, "a sort key is required");
+    let keys = d.enums.iter().find(|e| e.name == "OrderOrderByField").expect("the key enum");
+    let keys: Vec<&str> = keys.values.iter().map(|v| v.name.as_str()).collect();
+    assert_eq!(keys, ["id", "reference", "total", "status", "placedAt"]);
     assert_eq!(field(order_by, "direction").field_type, "SortDirection");
 
     let direction = d

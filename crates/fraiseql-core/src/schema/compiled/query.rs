@@ -609,13 +609,10 @@ impl QueryDefinition {
                     ),
             );
         }
-        if ap.has_order_by && !declared("orderBy") {
-            args.push(
-                ArgumentDefinition::optional("orderBy", self.order_by_argument_type(schema))
-                    .with_description(
-                        "Sort order: a list of `{ field, direction }` keys, applied in order.",
-                    ),
-            );
+        if let Some(order_by) = self.order_by_argument(schema) {
+            if !declared("orderBy") {
+                args.push(order_by);
+            }
         }
         if ap.has_limit && !declared("limit") {
             args.push(
@@ -649,20 +646,41 @@ impl QueryDefinition {
         }
     }
 
-    /// The type `orderBy` publishes: `[{Entity}OrderByInput!]` when the schema
-    /// carries the item type, `JSON` when it does not.
+    /// The `orderBy` argument this query publishes (list or relay connection alike), or
+    /// `None` when it publishes none.
+    ///
+    /// Typed `[{Owner}OrderByInput!]` when the schema carries the item type
+    /// ([`order_by_type_names`](crate::schema::derived_inputs::order_by_type_names)); `JSON`
+    /// when the schema cannot adjudicate the return type (#939). A query whose type has no
+    /// sortable key publishes no `orderBy` at all: an argument no value of can be served
+    /// would be advertisement of nothing (#1159).
     ///
     /// A list, because `OrderByClause::from_graphql_json`'s array branch is what
     /// takes `{field, direction}` items and applies them in order. The object
     /// branch (`{name: "DESC"}`) keeps executing but has no expression in this
     /// type — its key order is not something a JSON object can promise.
-    fn order_by_argument_type(&self, schema: &super::schema::CompiledSchema) -> FieldType {
-        let name = crate::schema::derived_inputs::order_by_input_type_name(&self.return_type);
-        if schema.find_input_type(&name).is_some() {
-            FieldType::List(Box::new(FieldType::Input(name)))
-        } else {
-            FieldType::Json
+    #[must_use]
+    pub fn order_by_argument(
+        &self,
+        schema: &super::schema::CompiledSchema,
+    ) -> Option<ArgumentDefinition> {
+        use crate::schema::derived_inputs::{order_by_type_names, sortable_keys};
+        if !self.auto_params.has_order_by {
+            return None;
         }
+        let arg_type = match sortable_keys(schema, &self.return_type, &self.native_columns) {
+            None => FieldType::Json,
+            Some(keys) if keys.is_empty() => return None,
+            Some(_) => match order_by_type_names(schema, self) {
+                Some((item, _)) if schema.find_input_type(&item).is_some() => {
+                    FieldType::List(Box::new(FieldType::Input(item)))
+                },
+                _ => FieldType::Json,
+            },
+        };
+        Some(ArgumentDefinition::optional("orderBy", arg_type).with_description(
+            "Sort order: a list of `{ field, direction }` keys, applied in order.",
+        ))
     }
 
     /// The argument names a client document may write on this field
@@ -691,7 +709,7 @@ impl QueryDefinition {
             if self.auto_params.has_where && !names.iter().any(|n| n == "where") {
                 names.push("where".to_string());
             }
-            if self.auto_params.has_order_by && !names.iter().any(|n| n == "orderBy") {
+            if self.order_by_argument(schema).is_some() && !names.iter().any(|n| n == "orderBy") {
                 names.push("orderBy".to_string());
             }
         }

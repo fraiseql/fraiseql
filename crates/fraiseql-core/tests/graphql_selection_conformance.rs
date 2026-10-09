@@ -1563,10 +1563,12 @@ async fn an_unknown_order_by_field_is_a_validation_error() {
         .await
         .expect_err("sorting by a field the type does not declare must not silently do nothing");
 
+    // #1159: `field` is the enum of the keys the query accepts, so the document is refused
+    // against it, naming the type and the keys that exist.
     let msg = err.to_string();
     assert!(
-        msg.contains("totallyBogusField") && msg.contains("User"),
-        "the error must name the field and the type, got: {msg}"
+        msg.contains("UserOrderByField") && msg.contains("name"),
+        "the error must name the sort-key type and what it accepts, got: {msg}"
     );
     assert!(
         adapter.recorded_projections().is_empty(),
