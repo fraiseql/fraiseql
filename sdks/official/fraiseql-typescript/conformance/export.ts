@@ -50,6 +50,8 @@ function authorFull(): void {
         nullable: true,
         description: 'The user\'s "display" name',
         deprecated: "use displayName",
+        // A String stored as a locale map (#1513).
+        localized: true,
       },
       { name: "salary", type: "Float", nullable: true, requires_scope: "read:User.salary" },
       // Two words and a digit segment (#1249). A one-word name spells the same in every
@@ -263,7 +265,7 @@ function authorFull(): void {
     [
       { name: "email", type: "String", nullable: false },
       { name: "name", type: "String", nullable: true },
-      { name: "displayName", type: "String", nullable: true },
+      { name: "displayName", type: "String", nullable: true, localized: true },
     ],
     undefined,
     {

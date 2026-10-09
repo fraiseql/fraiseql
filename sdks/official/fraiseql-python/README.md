@@ -139,6 +139,27 @@ CREATE INDEX ON tf_sales(occurred_at);
 - **Denormalized Filters**: Indexed SQL columns for fast WHERE clauses
 - **No Joins**: All dimensional data denormalized at ETL time
 
+## Localized Fields
+
+A field whose label exists in several languages is stored as a map of locale to label and
+returned to each client as the label of its request locale:
+
+```python
+@fraiseql.type(sql_source="tv_product")
+class Product:
+    id: ID
+    name: fraiseql.Localized[str]                # data->'name' = {"fr-FR": "Pomme", "en-US": "Apple"}
+    description: fraiseql.Localized[str] | None
+
+@fraiseql.mutation(sql_source="fn_rename_product", operation="update")
+def rename_product(id: ID, name: fraiseql.Localized[str]) -> Product: ...
+```
+
+The project's `fraiseql.toml` declares the locales (`[locale]` with `default` and `allowed`).
+A mutation argument or input field marked `Localized` accepts a label for the request locale,
+`{translations: [...]}`, or the map, and the SQL function receives the map. Only `str` can be
+localized; `Localized[int]` raises when the class is decorated.
+
 ## Type Mapping
 
 | Python Type | GraphQL Type |

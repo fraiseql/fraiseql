@@ -460,6 +460,29 @@ fraiseql.registerTypeFields("User", [
 }
 ```
 
+### Localized Fields
+
+A field whose label exists in several languages is stored as a map of locale to label and
+returned to each client as the label of its request locale. Mark it `localized: true`, or
+declare it `"Localized<string>"` in the type-string API:
+
+```typescript
+registerTypeFields("Product", [
+  { name: "id", type: "ID", nullable: false },
+  { name: "name", type: "String", nullable: false, localized: true },
+], undefined, { sqlSource: "tv_product" });
+
+registerMutation("renameProduct", "Product", false, false, [
+  { name: "id", type: "ID", nullable: false },
+  { name: "name", type: "String", nullable: false, localized: true },
+], undefined, { sql_source: "fn_rename_product", operation: "update" });
+```
+
+The project's `fraiseql.toml` declares the locales (`[locale]` with `default` and `allowed`).
+A mutation argument or input field marked localized accepts a label for the request locale,
+`{translations: [...]}`, or the map, and the SQL function receives the map. Only strings can
+be localized; `Localized<number>` throws at the declaration.
+
 ### Manual Registration Functions
 
 When decorators alone don't provide enough type information:

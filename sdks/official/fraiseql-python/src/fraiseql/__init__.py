@@ -92,6 +92,7 @@ from fraiseql.scalars import (
 )
 from fraiseql.schema import Federation, export_schema, export_types, get_schema_dict
 from fraiseql.scope import ScopeValidationError, describe_scope_format, validate_scope
+from fraiseql.types import Localized
 from fraiseql.validators import (
     ScalarValidationError,
     get_all_custom_scalars,
@@ -132,6 +133,7 @@ __all__ = [
     "HTTPStatusError",
     "HalfVector",
     "Json",
+    "Localized",
     "NetworkError",
     "RateLimitError",
     "Relationship",

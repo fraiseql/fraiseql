@@ -50,8 +50,9 @@ from fraiseql.scalars import (  # noqa: TC001 — deferred annotations are resol
 class User:
     id: ID
     email: str
+    # Localized (#1513): a String stored as a locale map. Field metadata still applies.
     name: Annotated[
-        str | None,
+        fraiseql.Localized[str] | None,
         fraiseql.field(description='The user\'s "display" name', deprecated="use displayName"),
     ] = None
     salary: Annotated[float | None, fraiseql.field(requires_scope="read:User.salary")] = None
@@ -253,7 +254,7 @@ def paged_derived() -> list[User]:
     # half of the gate unauthorable with nothing saying so (#1123).
     requires_actor=["service_account"],
 )
-def create_user(email: str, name: str | None, display_name: str | None) -> User:
+def create_user(email: str, name: str | None, display_name: fraiseql.Localized[str] | None) -> User:
     pass
 
 

@@ -134,6 +134,7 @@ class SchemaRegistry:
             "federation",
             "vector_config",
             "vector_distance",
+            "localized",
         )
         for key in optional_keys:
             if key in field_info:

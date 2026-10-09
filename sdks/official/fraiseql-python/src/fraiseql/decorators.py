@@ -1552,7 +1552,8 @@ def input(cls: type[T]) -> type[T]:
                 "takes deprecated= and description="
             )
             raise TypeError(msg)
-        for key in ("deprecated", "description"):
+        # `localized` (#1513) is an input option too: the value is coerced to a locale map.
+        for key in ("deprecated", "description", "localized"):
             if key in info:
                 field[key] = info[key]
 

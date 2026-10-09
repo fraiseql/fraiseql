@@ -55,7 +55,9 @@
         "./conformance"
       ],
       "unsupported": {
-        "type_crud": "the SDK ships no CRUD generation at all \u2014 `grep -rn crud sdks/official/fraiseql-go` matches nothing, and its builders expose no flag for it. Nine of the eleven SDKs have a generator; adding a tenth is a feature, not a key rename, so the gap is declared rather than papered over (#1182)."
+        "type_crud": "the SDK ships no CRUD generation at all \u2014 `grep -rn crud sdks/official/fraiseql-go` matches nothing, and its builders expose no flag for it. Nine of the eleven SDKs have a generator; adding a tenth is a feature, not a key rename, so the gap is declared rather than papered over (#1182).",
+        "field_localized": "the SDK has no `localized` field authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527.",
+        "mutation_argument_localized": "the SDK has no `localized` argument authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527."
       }
     },
     "php": {
@@ -67,7 +69,9 @@
         "{ [ -d vendor ] || composer install --prefer-dist --no-progress --no-interaction --quiet; } && php conformance/export.php"
       ],
       "unsupported": {
-        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
+        "field_localized": "the SDK has no `localized` field authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527.",
+        "mutation_argument_localized": "the SDK has no `localized` argument authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527."
       },
       "container": "composer:2",
       "container_env": [
@@ -87,7 +91,9 @@
         "-DfailIfNoTests=false"
       ],
       "unsupported": {
-        "fact_tables": "the SDK authors no fact table: `@GraphQLFactTable` registers the annotated class as an ordinary type and emits no `fact_tables` entry, so there is no table to link to its type (AF 1). Fact-table authoring is a feature, not a key rename."
+        "fact_tables": "the SDK authors no fact table: `@GraphQLFactTable` registers the annotated class as an ordinary type and emits no `fact_tables` entry, so there is no table to link to its type (AF 1). Fact-table authoring is a feature, not a key rename.",
+        "field_localized": "the SDK has no `localized` field authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527.",
+        "mutation_argument_localized": "the SDK has no `localized` argument authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527."
       },
       "container": "maven:3.9-eclipse-temurin-21",
       "container_env": [
@@ -108,7 +114,9 @@
       ],
       "unsupported": {
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
-        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
+        "field_localized": "the SDK has no `localized` field authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527.",
+        "mutation_argument_localized": "the SDK has no `localized` argument authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527."
       },
       "container": "mcr.microsoft.com/dotnet/sdk:9.0",
       "container_env": [
@@ -133,7 +141,9 @@
       ],
       "unsupported": {
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
-        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
+        "field_localized": "the SDK has no `localized` field authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527.",
+        "mutation_argument_localized": "the SDK has no `localized` argument authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527."
       },
       "container": "mcr.microsoft.com/dotnet/sdk:9.0",
       "container_env": [
@@ -154,7 +164,9 @@
       ],
       "unsupported": {
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
-        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
+        "field_localized": "the SDK has no `localized` field authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527.",
+        "mutation_argument_localized": "the SDK has no `localized` argument authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527."
       },
       "container": "elixir:1.17",
       "container_env": [
@@ -172,7 +184,9 @@
       ],
       "unsupported": {
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
-        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
+        "field_localized": "the SDK has no `localized` field authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527.",
+        "mutation_argument_localized": "the SDK has no `localized` argument authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527."
       },
       "container": "ruby:3.3"
     },
@@ -186,7 +200,9 @@
       ],
       "unsupported": {
         "subscriptions": "the SDK ships no subscription authoring surface at all \u2014 no builder, no decorator, no registry entry. Five of the eleven SDKs have one (Python, TypeScript, Go, PHP, Java); adding a sixth is a feature, not a key rename, so the gap is declared rather than papered over (#1024).",
-        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
+        "field_localized": "the SDK has no `localized` field authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527.",
+        "mutation_argument_localized": "the SDK has no `localized` argument authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527."
       },
       "container": "dart:stable",
       "container_env": [
@@ -227,7 +243,9 @@
         "mutation_requires_actor": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
         "function_definition": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct",
         "function_backed_query": "the Rust SDK is field-level-RBAC focused: it registers types and their field scopes and ships no builder for this construct. Declared alongside `function_definition` of necessity: a function-backed query and the function it names are one declaration the compiler refuses either half of, so an SDK that cannot author a function cannot author the query either",
-        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename."
+        "fact_tables": "the SDK has no fact-table authoring surface \u2014 its only `fact_table` matches are the mutation key `invalidates_fact_tables` (AF 1). Fact-table authoring is a feature, not a key rename.",
+        "field_localized": "the SDK has no `localized` field authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527.",
+        "mutation_argument_localized": "the SDK has no `localized` argument authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527."
       }
     }
   }

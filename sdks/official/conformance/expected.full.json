@@ -43,6 +43,9 @@
   "field_description": {
     "User.name": "The user's \"display\" name"
   },
+  "field_localized": [
+    "User.name"
+  ],
   "field_scope": {
     "User.salary": "read:User.salary"
   },
@@ -104,6 +107,9 @@
       ]
     }
   },
+  "mutation_argument_localized": [
+    "createUser(displayName)"
+  ],
   "mutation_arguments": {
     "createUser": [
       {

@@ -166,6 +166,7 @@ CONSTRUCTS = (
     "field_description",
     "field_scope",
     "field_deprecated",
+    "field_localized",
     "type_relay",
     "type_is_error",
     "type_relationships",
@@ -181,6 +182,7 @@ CONSTRUCTS = (
     "query_pagination_order",
     "mutations",
     "mutation_arguments",
+    "mutation_argument_localized",
     "mutation_invalidates_views",
     "mutation_invalidates_fact_tables",
     "fact_tables",
@@ -306,6 +308,17 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         for f in types[tname].get("fields", [])
         if isinstance(f, dict) and f.get("deprecation")
     }
+
+    # #1513: a localized field compiles to `localized: true` on a String. The flag, not the
+    # type, is the observation: an SDK that drops it still authors a String, so `types`
+    # stays green and this construct alone names the loss.
+    observations["field_localized"] = sorted(
+        f"{tname}.{f['name']}"
+        for tname in AUTHORED_TYPES
+        if tname in types
+        for f in types[tname].get("fields", [])
+        if isinstance(f, dict) and f.get("localized")
+    )
 
     # `relay: true` is not asserted on the authored type alone — the compiler *acts* on
     # it, and the action is the point. A schema that carried the flag but synthesized no
@@ -512,6 +525,15 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         for name in AUTHORED_MUTATIONS
         if name in mutations
     }
+
+    # #1513: a localized mutation argument, which the server coerces to a locale map.
+    observations["mutation_argument_localized"] = sorted(
+        f"{name}({a['name']})"
+        for name in AUTHORED_MUTATIONS
+        if name in mutations
+        for a in mutations[name].get("arguments", [])
+        if isinstance(a, dict) and a.get("localized")
+    )
 
     observations["mutation_invalidates_views"] = {
         name: mutations[name]["invalidates_views"]

@@ -35,8 +35,19 @@
 export const version = "2.16.0";
 
 // Export type system
-export { typeToGraphQL, extractFieldInfo, extractFunctionSignature } from "./types";
-export type { FieldInfo, ArgumentInfo, ReturnTypeInfo, FunctionSignature } from "./types";
+export {
+  typeToGraphQL,
+  extractFieldInfo,
+  extractFunctionSignature,
+  isLocalizedType,
+} from "./types";
+export type {
+  FieldInfo,
+  ArgumentInfo,
+  ReturnTypeInfo,
+  FunctionSignature,
+  Localized,
+} from "./types";
 
 // Export registry
 export { SchemaRegistry } from "./registry";

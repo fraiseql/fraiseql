@@ -49,6 +49,11 @@ export interface VectorConfig {
  */
 export interface FieldMetadata {
   requiresScope?: string | string[];
+  /**
+   * A localized `String` (#1513): stored as a locale map, read as the request locale's label.
+   * On an input field the value is coerced to the map. Requires `[locale]` in `fraiseql.toml`.
+   */
+  localized?: boolean;
   deprecated?: boolean | string;
   description?: string;
   computed?: boolean;
@@ -185,6 +190,8 @@ export interface ArgumentDefinition {
   type: string;
   nullable: boolean;
   default?: unknown;
+  /** A localized `String` (#1513): the server coerces the value to a locale map. */
+  localized?: boolean;
 }
 
 /**
@@ -747,6 +754,7 @@ export class SchemaRegistry {
     "vector_distance",
     "authorize",
     "hierarchy",
+    "localized",
   ]);
 
   private static projectToCompiledFields<T extends Field>(fields: T[]): T[] {

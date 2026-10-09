@@ -23,7 +23,8 @@
           "description": "The user's \"display\" name",
           "deprecated": {
             "reason": "use displayName"
-          }
+          },
+          "localized": true
         },
         {
           "name": "salary",
@@ -407,7 +408,8 @@
         {
           "name": "displayName",
           "type": "String",
-          "nullable": true
+          "nullable": true,
+          "localized": true
         }
       ],
       "invalidates_views": [

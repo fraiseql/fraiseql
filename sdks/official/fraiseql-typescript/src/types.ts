@@ -24,6 +24,11 @@ export function typeToGraphQL(type: unknown): [graphqlType: string, nullable: bo
     throw new Error("Cannot convert null or undefined type");
   }
 
+  // `Localized<string>` (#1513) is a GraphQL String; `isLocalizedType` carries the flag.
+  if (typeof type === "string" && isLocalizedType(type)) {
+    return ["String", type.includes(" | null")];
+  }
+
   // Handle union types (T | null) using string representation
   const typeStr = String(type);
 
@@ -70,11 +75,42 @@ export function typeToGraphQL(type: unknown): [graphqlType: string, nullable: bo
 }
 
 /**
+ * A localized string (#1513): stored as a map of locale to label, returned to each client as
+ * the label of its request locale. Declare a field or argument as `"Localized<string>"` (or
+ * `"Localized<string> | null"`) in the type-string API, or pass `localized: true` in its
+ * field config. The project's `fraiseql.toml` must declare `[locale]`. Only strings can be
+ * localized.
+ */
+export type Localized<T extends string> = T;
+
+const LOCALIZED_TYPE = /^Localized<\s*(\w+)\s*>(\s*\|\s*null)?$/;
+
+/**
+ * Whether a type string declares `Localized<...>`. `Localized` of anything but `string` is
+ * refused here, at the author's declaration, rather than by the compiler later.
+ */
+export function isLocalizedType(type: string): boolean {
+  const match = LOCALIZED_TYPE.exec(type.trim());
+  if (!match) {
+    return false;
+  }
+  if (match[1] !== "string") {
+    throw new Error(
+      `Localized<${match[1]}> is not supported; only Localized<string> can be localized ` +
+        "(a localized field is a String stored as a locale map)"
+    );
+  }
+  return true;
+}
+
+/**
  * Field information extracted from a class with type metadata.
  */
 export interface FieldInfo {
   type: string;
   nullable: boolean;
+  /** `Localized<string>` (#1513). */
+  localized?: boolean;
 }
 
 /**
@@ -103,6 +139,7 @@ export function extractFieldInfo(fields: Record<string, unknown>): Record<string
     result[fieldName] = {
       type: graphqlType,
       nullable,
+      ...(typeof fieldType === "string" && isLocalizedType(fieldType) ? { localized: true } : {}),
     };
   }
 
@@ -117,6 +154,8 @@ export interface ArgumentInfo {
   type: string;
   nullable: boolean;
   default?: unknown;
+  /** `Localized<string>` (#1513): the server coerces the value to a locale map. */
+  localized?: boolean;
 }
 
 /**
@@ -176,6 +215,7 @@ export function extractFunctionSignature(
       name: paramName,
       type: graphqlType,
       nullable,
+      ...(typeof paramType === "string" && isLocalizedType(paramType) ? { localized: true } : {}),
     });
   }
 

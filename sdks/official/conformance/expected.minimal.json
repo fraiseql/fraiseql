@@ -3,6 +3,7 @@
   "fact_tables": {},
   "field_deprecated": {},
   "field_description": {},
+  "field_localized": [],
   "field_scope": {},
   "function_backed_query": {
     "function": {},
@@ -10,6 +11,7 @@
   },
   "function_definition": {},
   "input_types": {},
+  "mutation_argument_localized": [],
   "mutation_arguments": {},
   "mutation_invalidates_fact_tables": {},
   "mutation_invalidates_views": {},

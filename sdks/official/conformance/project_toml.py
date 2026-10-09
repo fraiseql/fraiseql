@@ -29,9 +29,26 @@ def declared_scopes(node: object) -> list[str]:
     return sorted(found)
 
 
+def declares_localized(node: object) -> bool:
+    """Whether an exported schema marks anything `localized` (#1513)."""
+    stack = [node]
+    while stack:
+        item = stack.pop()
+        if isinstance(item, dict):
+            if item.get("localized") is True:
+                return True
+            stack.extend(item.values())
+        elif isinstance(item, list):
+            stack.extend(item)
+    return False
+
+
+LOCALE_SECTION = '[locale]\ndefault = "en-US"\nallowed = ["en-US", "fr-FR"]\n'
+
+
 def project_toml(schema: Path) -> str:
     """The `fraiseql.toml` a project compiling `schema` carries: a role granting each scope
-    the schema declares.
+    the schema declares, and a `[locale]` when it declares a localized field.
 
     A scope is granted only by a role the project's security section defines, and a schema
     declaring `requires_scope` with no such section is one no server can load — so the
@@ -40,11 +57,15 @@ def project_toml(schema: Path) -> str:
     export itself so that a scope an SDK drops or misspells still shows up in the diff of
     observations rather than here.
     """
-    scopes = declared_scopes(json.loads(schema.read_text()))
+    exported = json.loads(schema.read_text())
+    scopes = declared_scopes(exported)
+    # A localized field needs a `[locale]` to resolve through, or the compiler refuses it;
+    # derived from the export for the same reason as the roles below.
+    locale = LOCALE_SECTION if declares_localized(exported) else ""
     if not scopes:
-        return ""
+        return locale
     listed = ", ".join(json.dumps(s) for s in scopes)
-    return (
+    return locale + (
         "[[fraiseql.security.role_definitions]]\n"
         'name = "conformance"\n'
         'description = "Grants every scope the exported schema declares"\n'

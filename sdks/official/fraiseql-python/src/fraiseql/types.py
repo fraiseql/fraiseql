@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 __all__ = [
+    "LOCALIZED",
+    "Localized",
     "extract_field_config",
     "extract_field_info",
     "extract_function_signature",
@@ -12,12 +14,75 @@ __all__ = [
 import inspect
 import sys
 import typing
-from typing import TYPE_CHECKING, Annotated, Any, Union, get_args, get_origin
+from typing import TYPE_CHECKING, Annotated, Any, TypeVar, Union, get_args, get_origin
 
 if TYPE_CHECKING:
     from fraiseql.decorators import FieldConfig
 
 _NULLABLE_UNION_ARG_COUNT = 2
+
+_T = TypeVar("_T")
+
+
+class _LocalizedMarker:
+    """The `Annotated` metadata `Localized[...]` carries."""
+
+    def __repr__(self) -> str:
+        return "LOCALIZED"
+
+
+LOCALIZED = _LocalizedMarker()
+
+Localized = Annotated[_T, LOCALIZED]
+"""A localized string (#1513): stored as a map of locale to label, returned to each client
+as the label of its request locale.
+
+    >>> @fraiseql.type(sql_source="tv_product")
+    ... class Product:
+    ...     name: fraiseql.Localized[str]
+    ...     description: fraiseql.Localized[str] | None
+
+The field is a GraphQL ``String``; the project's ``fraiseql.toml`` must declare
+``[locale]``. On a mutation argument or input field, the value is written as a label for the
+request locale, a list of translations, or a map, and the SQL function receives the map.
+Only ``str`` can be localized.
+"""
+
+
+def localized_base(py_type: Any) -> Any | None:
+    """The type ``Localized[...]`` wraps in ``py_type`` (through ``| None``), or ``None``
+    when ``py_type`` is not localized."""
+    origin = get_origin(py_type)
+    is_union = origin is Union or (hasattr(origin, "__name__") and origin.__name__ == "UnionType")
+    if is_union:
+        for member in get_args(py_type):
+            if member is not type(None):
+                found = localized_base(member)
+                if found is not None:
+                    return found
+        return None
+    if origin is Annotated:
+        args = get_args(py_type)
+        if any(meta is LOCALIZED for meta in args[1:]):
+            return args[0]
+        # `Annotated[Localized[str] | None, field(...)]`: the marker is inside.
+        return localized_base(args[0])
+    return None
+
+
+def _localized_flag(name: str, py_type: Any) -> bool:
+    """Whether ``py_type`` is ``Localized[str]``; refuses ``Localized`` of anything else at
+    the author's line rather than at compile."""
+    base = localized_base(py_type)
+    if base is None:
+        return False
+    if base is not str:
+        raise TypeError(
+            f"{name}: Localized[{getattr(base, '__name__', base)}] is not supported; only "
+            "Localized[str] can be localized (a localized field is a String stored as a "
+            "locale map)"
+        )
+    return True
 
 
 def python_type_to_graphql(py_type: Any) -> tuple[str, bool]:  # noqa: PLR0911 — each return handles a distinct type branch
@@ -256,6 +321,8 @@ def extract_field_info(cls: type) -> dict[str, dict[str, Any]]:
             "type": graphql_type,
             "nullable": nullable,
         }
+        if _localized_flag(field_name, field_type):
+            field_info["localized"] = True
 
         # Check for FieldConfig metadata in Annotated types
         config = extract_field_config(field_type)
@@ -327,6 +394,8 @@ def extract_function_signature(func: Any) -> dict[str, Any]:
             "type": graphql_type,
             "nullable": nullable,
         }
+        if _localized_flag(param_name, param_type):
+            arg_info["localized"] = True
 
         # Add default value if present
         if param.default is not inspect.Parameter.empty:
