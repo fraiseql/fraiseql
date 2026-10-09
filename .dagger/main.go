@@ -1893,6 +1893,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// an undeclared input key) is refused before the function runs, on GraphQL, REST and
 		// MCP; the function's own call log proves it never ran.
 		"cargo test -p fraiseql-server --features rest,mcp --test mutation_value_types_e2e_pg -- --test-threads=1",
+		// #1522 — a stored value missing from a non-null field, on `_entities`, a mutation
+		// payload, REST (refused) and MCP (an error result).
+		"cargo test -p fraiseql-server --features rest,mcp,federation --test non_null_completion_transports_e2e_pg -- --test-threads=1",
 		// P13 — the REST write surface (#865) and the four defects that had to be green
 		// before it could be mounted. Every one of these suites drives real PostgreSQL;
 		// three of them drive the real `Server::serve_on_listener` mount rather than

@@ -117,7 +117,8 @@ fn descriptor_set() -> FileDescriptorSet {
     }
 }
 
-fn schema(descriptor_path: &str) -> CompiledSchema {
+/// The schema, with `must: String!` (a column the probe view stores as `NULL`) when `strict`.
+fn schema_with(descriptor_path: &str, strict: bool) -> CompiledSchema {
     let mut schema = TestSchemaBuilder::new()
         .with_type(
             TestTypeBuilder::new("Probe", VIEW)
@@ -160,6 +161,11 @@ fn schema(descriptor_path: &str) -> CompiledSchema {
         )
         .unwrap(),
     );
+    if strict {
+        for t in &mut schema.types {
+            t.fields.push(TestFieldBuilder::new("must", FieldType::String).build());
+        }
+    }
     schema.session_variables = fraiseql_core::schema::SessionVariablesConfig {
         variables:         vec![fraiseql_core::schema::SessionVariableMapping {
             name:   "app.region".to_string(),
@@ -174,6 +180,10 @@ fn schema(descriptor_path: &str) -> CompiledSchema {
 }
 
 async fn service(dir: &std::path::Path) -> Option<DynamicGrpcService> {
+    service_with(dir, false).await
+}
+
+async fn service_with(dir: &std::path::Path, strict: bool) -> Option<DynamicGrpcService> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
     // gRPC reads the row-shaped `vr_` view of the type's source.
@@ -182,14 +192,15 @@ async fn service(dir: &std::path::Path) -> Option<DynamicGrpcService> {
         format!(
             "CREATE VIEW vr_{VIEW} AS SELECT 1 AS id, current_setting('fraiseql.locale', true) \
              AS locale, '{{\"fr-FR\": \"Pomme\", \"en-US\": \"Apple\"}}'::jsonb AS label, \
-             current_setting('app.region', true) AS region, jsonb_build_object('id', 1) AS data"
+             current_setting('app.region', true) AS region, NULL::text AS must, \
+             jsonb_build_object('id', 1) AS data"
         ),
     ] {
         adapter.execute_raw_query(&ddl).await.unwrap();
     }
     let path = dir.join("descriptor.binpb");
     std::fs::write(&path, descriptor_set().encode_to_vec()).unwrap();
-    let schema = Arc::new(schema(path.to_str().unwrap()));
+    let schema = Arc::new(schema_with(path.to_str().unwrap(), strict));
     let services = grpc::build_grpc_service(
         Arc::clone(&schema),
         Arc::new(Executor::new((*schema).clone(), adapter)),
@@ -332,4 +343,44 @@ async fn grpc_reads_see_a_header_session_variable() {
     let frames = call_with(&svc, "ListProbeStream", &[("x-region", "eu")]).await;
     let regions: Vec<String> = frames.iter().map(|f| region_of(&decode(f, "Probe"))).collect();
     assert_eq!(regions, vec!["eu".to_string()], "server-streaming");
+}
+
+/// The gRPC status and message of `method`'s response: in the headers for a unary call,
+/// in the trailers for a server-streaming one.
+async fn status_of(svc: &DynamicGrpcService, method: &str) -> (Option<String>, String) {
+    let request = http::Request::builder()
+        .method("POST")
+        .uri(format!("/{SERVICE}/{method}"))
+        .header("content-type", "application/grpc")
+        .header("te", "trailers")
+        .body(tonic::body::Body::new(axum::body::Body::from(vec![0, 0, 0, 0, 0])))
+        .unwrap();
+    let response = svc.clone().oneshot(request).await.unwrap();
+    let header = |h: &http::HeaderMap, name: &str| {
+        h.get(name).and_then(|v| v.to_str().ok()).map(str::to_string)
+    };
+    if let Some(code) = header(response.headers(), "grpc-status") {
+        return (Some(code), header(response.headers(), "grpc-message").unwrap_or_default());
+    }
+    let collected = response.into_body().collect().await.unwrap();
+    let trailers = collected.trailers().cloned().unwrap_or_default();
+    (
+        header(&trailers, "grpc-status"),
+        header(&trailers, "grpc-message").unwrap_or_default(),
+    )
+}
+
+/// #1522: protobuf 3 has no `null`, so a row with `NULL` in a non-null column would reach the
+/// client as an empty string. Both reads refuse it instead (`INTERNAL`), naming the field.
+#[tokio::test]
+async fn grpc_reads_refuse_a_null_in_a_non_null_column() {
+    let dir = tempfile::tempdir().unwrap();
+    let Some(svc) = service_with(dir.path(), true).await else {
+        return;
+    };
+    for method in ["ListProbes", "ListProbeStream"] {
+        let (code, message) = status_of(&svc, method).await;
+        assert_eq!(code.as_deref(), Some("13"), "{method}: INTERNAL ({message})");
+        assert!(message.contains("Probe.must"), "{method}: names the field: {message}");
+    }
 }

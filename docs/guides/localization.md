@@ -44,6 +44,11 @@ label, `nameTranslations { locale value }` (in `allowed`'s order; a key outside 
 never listed). A stored plain string reads as itself in every locale, which is how rows
 written before a field became localized keep their value.
 
+A label can be missing for a locale. A field declared non-null (`name: String!`) whose chain
+finds no label is a field error, as any missing non-null value is
+([non-null completion](../features/non-null-completion.md)): declare the field nullable
+(`fraiseql.Localized[str] | None`) when a row may lack a label.
+
 ## Filter, sort, index
 
 `where: {name: {eq: "Pomme"}}` compares the request locale's label, and `orderBy: {name: ASC}`

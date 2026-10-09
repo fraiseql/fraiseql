@@ -372,6 +372,25 @@ mod create_next_message_tests {
             "the subscription's own name must not appear when an alias was given: {payload}"
         );
     }
+
+    /// #1522: an event the plan could not complete carries its errors, each path rooted at
+    /// the client's response key; a complete one carries none.
+    #[test]
+    fn carries_an_incomplete_events_errors_under_the_response_key() {
+        let mut payload = payload_with(None);
+        payload.data = serde_json::Value::Null;
+        payload.event.errors = vec![serde_json::json!({
+            "message": "Cannot return null for non-nullable field Order.status.",
+            "path": ["orderUpdated", "status"],
+        })];
+        let msg = create_next_message("op_1", "order", &payload);
+        let body = msg.payload.expect("next payload");
+        assert_eq!(body["data"]["order"], serde_json::Value::Null, "{body}");
+        assert_eq!(body["errors"][0]["path"], serde_json::json!(["order", "status"]), "{body}");
+
+        let complete = create_next_message("op_1", "order", &payload_with(None));
+        assert!(complete.payload.expect("next payload").get("errors").is_none());
+    }
 }
 
 // =============================================================================

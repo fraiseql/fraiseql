@@ -120,12 +120,22 @@ fn replay_failed_payload(reason: &str) -> serde_json::Value {
 fn frame_for(event: &BridgeEvent, plan: &SubscriptionPlan, stream: &str) -> Option<SseEvent> {
     let wire = StreamEvent::from_bridge_event(event);
     let served = plan.deliver(wire.data)?;
-    let mut frame = SseEvent::default().event(wire.event_type);
+    // § 6.4.4 (#1522): a REST frame is the entity itself, with no place for a partial one,
+    // so an event that cannot be completed is an `error` frame naming why.
+    let mut frame = if served.errors.is_empty() {
+        SseEvent::default().event(wire.event_type)
+    } else {
+        SseEvent::default().event("error")
+    };
     let position = event.change_spine.as_ref().and_then(|envelope| envelope.seq);
     if let Some(id) = position.and_then(|seq| super::stream_token::seal(seq, stream)) {
         frame = frame.id(id);
     }
-    frame.json_data(served).ok()
+    if served.errors.is_empty() {
+        frame.json_data(served.data).ok()
+    } else {
+        frame.json_data(serde_json::json!({ "errors": served.errors })).ok()
+    }
 }
 
 /// The entity events one connection emits: its replay, then the live stream.

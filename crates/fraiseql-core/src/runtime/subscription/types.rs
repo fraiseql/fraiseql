@@ -192,6 +192,13 @@ pub struct SubscriptionEvent {
     /// server-side filtering.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub change_spine: Option<ChangeSpineEnvelope>,
+
+    /// The § 6.4.4 field errors serving this event to its subscriber raised (#1522): `data`
+    /// is `null` when the served document could not be completed against its published
+    /// type, and these say why. Empty for a complete event, and never set on a published
+    /// (unserved) one.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<serde_json::Value>,
 }
 
 impl SubscriptionEvent {
@@ -214,6 +221,7 @@ impl SubscriptionEvent {
             old_data: None,
             tenant_id: None,
             change_spine: None,
+            errors: Vec::new(),
         }
     }
 

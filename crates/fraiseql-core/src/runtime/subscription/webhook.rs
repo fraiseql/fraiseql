@@ -105,6 +105,10 @@ pub struct WebhookPayload {
 
     /// Sequence number for ordering.
     pub sequence_number: u64,
+
+    /// The field errors that left `data` `null` (#1522); omitted when there are none.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub errors: Vec<serde_json::Value>,
 }
 
 impl WebhookPayload {
@@ -121,6 +125,7 @@ impl WebhookPayload {
             old_data:          event.old_data.clone(),
             timestamp:         event.timestamp.to_rfc3339(),
             sequence_number:   event.sequence_number,
+            errors:            event.errors.clone(),
         }
     }
 }

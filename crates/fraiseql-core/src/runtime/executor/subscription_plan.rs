@@ -57,6 +57,16 @@ pub fn suppressed_subscription_events() -> u64 {
     SUPPRESSED.load(Ordering::Relaxed)
 }
 
+/// One event as served to one subscriber.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Served {
+    /// The served document, or `null` when it could not be completed.
+    pub data:   serde_json::Value,
+    /// The § 6.4.4 field errors completing it raised (#1522), their paths rooted at the
+    /// subscription's name; empty for a complete event.
+    pub errors: Vec<serde_json::Value>,
+}
+
 /// A subscription planned for one subscriber: what each event is served as.
 pub struct SubscriptionPlan {
     ctx:          Arc<ExecutorContext>,
@@ -98,9 +108,10 @@ impl SubscriptionPlan {
     }
 
     /// Serve one event's after-image to this subscriber, or `None` when the plan suppresses
-    /// it.
+    /// it. The served value is completed against the published type (§ 6.4.4, #1522): one
+    /// that cannot be is `null`, with the errors that say why.
     #[must_use]
-    pub fn deliver(&self, after_image: &serde_json::Value) -> Option<serde_json::Value> {
+    pub fn deliver(&self, after_image: &serde_json::Value) -> Option<Served> {
         if self.root_rows.as_ref().is_some_and(|rows| !rows.admits(after_image)) {
             SUPPRESSED.fetch_add(1, Ordering::Relaxed);
             return None;
@@ -115,7 +126,13 @@ impl SubscriptionPlan {
                 &self.variables,
             )
         }) {
-            Some(served)
+            let (data, errors) = self.ctx.output_types.complete_value(
+                served,
+                &self.type_name,
+                &self.selections,
+                &self.subscription,
+            );
+            Some(Served { data, errors })
         } else {
             SUPPRESSED.fetch_add(1, Ordering::Relaxed);
             None

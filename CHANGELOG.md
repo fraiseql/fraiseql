@@ -90,6 +90,27 @@ disagreed, and the promise was the part that was wrong.
   write without a principal set no session variable at all; `jwt` and `enrichment` variables
   still stay unset without one.
 
+- **A `null` in a non-null position is a field error (#1522).** A field published `T!` whose
+  stored value is missing or `null` came back `null` under 200. It is now answered as GraphQL
+  § 6.4.4 says: an `errors` entry with the response path, and the `null` moved to the nearest
+  nullable position (a list of `[T!]` items becomes `null`; under a non-null root, `data`
+  does). On every read path: queries, relay, `_entities`, mutation payloads, subscription
+  events (`/ws` `next` messages, webhook and Kafka deliveries carry `errors`; a REST stream
+  sends an `error` frame). REST refuses such a read with `500`; an MCP tool result carrying
+  `errors` is an error result; gRPC refuses a row with `NULL` in a non-null column
+  (`INTERNAL`), where protobuf would have read it as `""` or `0`. See
+  [non-null completion](docs/features/non-null-completion.md).
+
+- **One published contract for nullability (#1522).** Introspection and the SDL disagreed;
+  they now publish the same types, which responses are completed against. Output list items
+  are non-null (`[T!]`) in introspection, as the SDL and generated clients already had; a
+  field gated `on_deny = "mask"` is published nullable (it reads `null` for a refused caller);
+  the SDL marks non-null object fields `!` (it published every field nullable), renders a
+  relay query as its connection, and publishes a mutation as `T` rather than `T!` (a failed
+  root is `null`). Federation subgraph SDL changes accordingly. Embedders:
+  `SubscriptionPlan::deliver` returns `Served { data, errors }`, and `SubscriptionEvent`,
+  `WebhookPayload` and `KafkaMessage` gain `errors`.
+
 - **Mutation values are type-checked before the function runs (#1528).** A value written at a
   mutation argument, or at any field of an input object under one (nested, inside lists), must
   have its declared type: a built-in scalar of the wrong type (`name: String` given an object,

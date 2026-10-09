@@ -13,6 +13,7 @@
 | Deploy on FreeBSD (Jails + ZFS + Caddy) | [`docs/guides/freebsd-deployment.md`](guides/freebsd-deployment.md) |
 | Understand the cache system | [`docs/modules/cache.md`](modules/cache.md) |
 | Serve text in several languages (localized fields, request locale) | [`docs/guides/localization.md`](guides/localization.md) |
+| Understand what a missing non-null value returns | [`docs/features/non-null-completion.md`](features/non-null-completion.md) |
 | Give SQL per-request values (claims, headers, literals) | [`docs/features/session-variables.md`](features/session-variables.md) |
 | Understand how paginated reads are ordered | [`docs/features/pagination.md`](features/pagination.md) |
 | Understand window functions | [`docs/modules/window-functions.md`](modules/window-functions.md) |

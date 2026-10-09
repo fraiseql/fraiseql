@@ -260,6 +260,7 @@ fn test_webhook_payload_from_event() {
         sequence_number: 42,
         tenant_id:       None,
         change_spine:    None,
+        errors:          Vec::new(),
     };
 
     let payload = WebhookPayload::from_event(&event, "order_created");
@@ -336,6 +337,7 @@ fn test_kafka_message_from_event() {
         sequence_number: 100,
         tenant_id:       None,
         change_spine:    None,
+        errors:          Vec::new(),
     };
 
     let message = KafkaMessage::from_event(&event, "user_updated");
@@ -363,6 +365,7 @@ fn test_kafka_message_key() {
         sequence_number: 1,
         tenant_id:       None,
         change_spine:    None,
+        errors:          Vec::new(),
     };
 
     let message = KafkaMessage::from_event(&event, "test_sub");

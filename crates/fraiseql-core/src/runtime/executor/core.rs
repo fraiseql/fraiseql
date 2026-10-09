@@ -781,9 +781,35 @@ impl Executor {
             security_context,
         )?;
 
-        self.query_runner()
+        let response = self
+            .query_runner()
             .execute_query_direct(query_match, variables, security_context, request_budget)
-            .await
+            .await?;
+        self.complete_direct(response, query_match)
+    }
+
+    /// § 6.4.4 for a read with no response document of its own to carry errors (REST, its
+    /// bulk reads): completed as the same read through GraphQL would be (#1522), a value
+    /// that cannot be completed refuses the read, naming the field and where it was.
+    fn complete_direct(
+        &self,
+        mut response: serde_json::Value,
+        query_match: &QueryMatch,
+    ) -> Result<serde_json::Value> {
+        self.ctx.output_types.complete(
+            &mut response,
+            "Query",
+            &query_match.selections,
+            &std::collections::HashMap::new(),
+        );
+        let Some(error) = response.get("errors").and_then(|e| e.get(0)) else {
+            return Ok(response);
+        };
+        let message = error["message"].as_str().unwrap_or("Cannot return null");
+        Err(crate::error::FraiseQLError::Internal {
+            message: format!("{message} At {}: the stored value is missing.", error["path"]),
+            source:  None,
+        })
     }
 
     /// Whether this executor's database adapter can compose related resources into a read
@@ -830,7 +856,8 @@ impl Executor {
             security_context,
         )?;
 
-        self.query_runner()
+        let response = self
+            .query_runner()
             .execute_query_composed(
                 query_match,
                 embeds,
@@ -839,7 +866,8 @@ impl Executor {
                 security_context,
                 request_budget,
             )
-            .await
+            .await?;
+        self.complete_direct(response, query_match)
     }
 
     /// The allowances **one request** holds, to be shared by every read that request

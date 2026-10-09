@@ -78,6 +78,12 @@ pub async fn call_tool(
     };
 
     match exec_result {
+        // A response carrying `errors` (a § 6.4.4 field error, #1522) is reported as an
+        // error result, with the response itself as its content: an agent reads the flag,
+        // and a partial answer must not read as a successful one.
+        Ok(result) if result.get("errors").is_some() => {
+            CallToolResult::error(vec![ContentBlock::text(result.to_string())])
+        },
         Ok(result) => {
             let result_text = result.to_string();
             CallToolResult::success(vec![ContentBlock::text(result_text)])

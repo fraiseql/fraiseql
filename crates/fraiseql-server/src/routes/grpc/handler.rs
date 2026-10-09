@@ -134,6 +134,48 @@ pub fn column_specs_from_type(type_def: &TypeDefinition) -> Vec<ColumnSpec> {
         .collect()
 }
 
+/// Which of `columns` the schema publishes non-null on `type_def` (#1522), positionally.
+#[must_use]
+pub fn non_null_columns(columns: &[ColumnSpec], type_def: &TypeDefinition) -> Vec<bool> {
+    columns
+        .iter()
+        .map(|c| {
+            type_def
+                .fields
+                .iter()
+                .find(|f| f.name.as_str() == c.name)
+                .is_some_and(|f| !f.published_nullable())
+        })
+        .collect()
+}
+
+/// The refusal for a row holding `NULL` in a column the schema publishes non-null, or
+/// `None` for a complete row (#1522).
+///
+/// Protobuf 3 has no `null`: an unset scalar reads as its default (`""`, `0`), so a
+/// missing `name: String!` would reach the client as an empty name, indistinguishable from
+/// one. The RPC is refused instead, naming the field.
+#[must_use]
+pub fn incomplete_row(
+    row: &[ColumnValue],
+    columns: &[ColumnSpec],
+    non_null: &[bool],
+    type_name: &str,
+) -> Option<FraiseQLError> {
+    row.iter()
+        .zip(columns)
+        .zip(non_null)
+        .find(|((value, _), required)| **required && matches!(value, ColumnValue::Null))
+        .map(|((_, column), _)| FraiseQLError::Internal {
+            message: format!(
+                "Cannot return null for non-nullable field {type_name}.{}: the stored value is \
+                 missing.",
+                column.name
+            ),
+            source:  None,
+        })
+}
+
 // ---------------------------------------------------------------------------
 // Filter extraction — protobuf message → WhereClause
 // ---------------------------------------------------------------------------

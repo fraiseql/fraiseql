@@ -197,7 +197,7 @@ pub use runners::query_params::coerce_pagination_arg;
 /// same function that types a top-level one (#1157). Two mappings would drift, and
 /// the drift would be silent: a filter that returns the wrong rows.
 pub use runners::query_projection::field_type_to_where_type;
-pub use subscription_plan::{SubscriptionPlan, suppressed_subscription_events};
+pub use subscription_plan::{Served, SubscriptionPlan, suppressed_subscription_events};
 pub mod security;
 mod support;
 

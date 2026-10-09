@@ -124,9 +124,15 @@ fn a_masked_field_is_null_in_every_event_and_served_to_its_scopes_holder() {
     let exec = executor(schema(), RuntimeConfig::default());
     let query = "subscription { orderCreated { id note } }";
     let anonymous = plan(&exec, query, &json!({}), None).unwrap();
-    assert_eq!(anonymous.deliver(&event()), Some(json!({"id": "o1", "note": null})));
+    assert_eq!(
+        anonymous.deliver(&event()).map(|s| s.data),
+        Some(json!({"id": "o1", "note": null}))
+    );
     let analyst = plan(&exec, query, &json!({}), Some(&principal(&["analyst"]))).unwrap();
-    assert_eq!(analyst.deliver(&event()), Some(json!({"id": "o1", "note": "n"})));
+    assert_eq!(
+        analyst.deliver(&event()).map(|s| s.data),
+        Some(json!({"id": "o1", "note": "n"}))
+    );
 }
 
 #[test]
@@ -214,7 +220,11 @@ fn an_event_the_field_authorizer_rejects_is_suppressed() {
     )
     .unwrap();
     let before = suppressed_subscription_events();
-    assert_eq!(planned.deliver(&event()), None, "a rejected event is not delivered");
+    assert_eq!(
+        planned.deliver(&event()).map(|s| s.data),
+        None,
+        "a rejected event is not delivered"
+    );
     assert!(suppressed_subscription_events() > before, "the suppression is counted");
 }
 
@@ -296,7 +306,7 @@ fn a_root_row_the_subscribers_policy_excludes_is_suppressed() {
     let others = json!({"id": "o2", "tenant_id": "t1", "author_id": "someone-else"});
     assert_eq!(planned.deliver(&others), None, "another owner's order is not the subscriber's");
     let own = json!({"id": "o1", "tenant_id": "t1", "author_id": "user-1"});
-    assert_eq!(planned.deliver(&own), Some(json!({"id": "o1"})));
+    assert_eq!(planned.deliver(&own).map(|s| s.data), Some(json!({"id": "o1"})));
 }
 
 // No principal, no policy to evaluate (#784): refused as a query is.
@@ -509,7 +519,10 @@ fn a_type_stream_reads_every_declared_field_masking_what_the_reader_may_not_read
     schema.types[0].fields.retain(|f| f.name == "id" || f.name == "note");
     let exec = executor(schema, RuntimeConfig::default());
     let planned = exec.plan_type_stream("Order", Some(&principal(&[]))).unwrap();
-    assert_eq!(planned.deliver(&event()), Some(json!({"id": "o1", "note": null})));
+    assert_eq!(
+        planned.deliver(&event()).map(|s| s.data),
+        Some(json!({"id": "o1", "note": null}))
+    );
 }
 
 #[test]
@@ -778,4 +791,21 @@ fn a_type_stream_asks_the_authorizer_as_its_get_does() {
     let exec = executor(schema_with_own_read(None, &[]), RuntimeConfig::default());
     exec.plan_type_stream("Order", Some(&principal(&[])))
         .expect("nothing refuses it");
+}
+
+/// #1522: an event whose served document misses a field published non-null is `null`, with
+/// the error at the field's path; a complete event carries no error.
+#[test]
+fn an_event_that_cannot_be_completed_is_null_with_an_error() {
+    let exec = executor(schema(), RuntimeConfig::default());
+    let planned =
+        plan(&exec, "subscription { orderCreated { id note } }", &json!({}), None).unwrap();
+
+    let served = planned.deliver(&json!({"note": "n"})).unwrap();
+    assert_eq!(served.data, serde_json::Value::Null, "{served:?}");
+    assert_eq!(served.errors.len(), 1, "{served:?}");
+    assert_eq!(served.errors[0]["path"], json!(["orderCreated", "id"]), "{served:?}");
+
+    let complete = planned.deliver(&event()).unwrap();
+    assert!(complete.errors.is_empty(), "{complete:?}");
 }

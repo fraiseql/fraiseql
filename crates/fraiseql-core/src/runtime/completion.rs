@@ -99,8 +99,30 @@ impl OutputTypes {
                     .insert(name.clone(), possible.iter().map(|p| p.name.clone()).collect());
             }
         }
+        types.add_federation(schema);
         types
     }
+
+    /// The federation entry point the subgraph SDL publishes (`_entities(representations:
+    /// [_Any!]!): [_Entity]!`, `union _Entity` of the entity types), which introspection
+    /// does not carry.
+    #[cfg(feature = "federation")]
+    fn add_federation(&mut self, schema: &CompiledSchema) {
+        let Some(metadata) = schema.federation_metadata() else {
+            return;
+        };
+        let entity = TypeRef::Named("_Entity".to_string());
+        self.fields.entry("Query".to_string()).or_default().insert(
+            "_entities".to_string(),
+            TypeRef::NonNull(Box::new(TypeRef::List(Box::new(entity)))),
+        );
+        self.possible
+            .insert("_Entity".to_string(), metadata.types.iter().map(|t| t.name.clone()).collect());
+    }
+
+    #[cfg(not(feature = "federation"))]
+    #[allow(clippy::unused_self)] // Reason: the federation arm reads and writes `self`
+    const fn add_federation(&mut self, _schema: &CompiledSchema) {}
 
     fn field(&self, type_name: &str, field: &str) -> Option<&TypeRef> {
         self.fields.get(type_name)?.get(field)
@@ -159,6 +181,41 @@ impl OutputTypes {
                 }
             },
         }
+    }
+}
+
+impl OutputTypes {
+    /// Complete one value of `type_name` at a nullable position (§ 6.4.4), against the
+    /// sub-selection `selections` (spreads expanded, directives evaluated): the value, or
+    /// `null` when a violation propagated to it, and the errors, their paths rooted at
+    /// `root_key`. A subscription event is one: every subscription field is nullable.
+    #[must_use]
+    pub fn complete_value(
+        &self,
+        value: Value,
+        type_name: &str,
+        selections: &[FieldSelection],
+        root_key: &str,
+    ) -> (Value, Vec<Value>) {
+        let variables = HashMap::new();
+        let walk = Walk {
+            types:     self,
+            variables: &variables,
+        };
+        let sel = FieldSelection {
+            name:          root_key.to_string(),
+            alias:         None,
+            arguments:     Vec::new(),
+            nested_fields: selections.to_vec(),
+            directives:    Vec::new(),
+        };
+        let mut errors = Vec::new();
+        let mut path = vec![Value::String(root_key.to_string())];
+        let field_ref = TypeRef::Named(type_name.to_string());
+        let value = walk
+            .position(value, &field_ref, &sel, root_key, &mut path, &mut errors, 0)
+            .unwrap_or(Value::Null);
+        (value, errors)
     }
 }
 

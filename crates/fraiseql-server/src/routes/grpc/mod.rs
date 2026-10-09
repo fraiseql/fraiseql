@@ -338,6 +338,12 @@ impl DynamicGrpcService {
                 // The engine narrows the projection when field-level RBAC withholds a
                 // field, and `ColumnValue`s are positional — so the response is encoded
                 // with the columns the read *used*, never the ones the table holds.
+                let non_null = handler::non_null_columns(&read.columns, type_def);
+                if let Some(e) = read.rows.iter().find_map(|row| {
+                    handler::incomplete_row(row, &read.columns, &non_null, &op.type_name)
+                }) {
+                    return grpc_error_response(tonic::Code::Internal, &e.to_string());
+                }
                 handler::encode_response(
                     read.rows,
                     &read.columns,

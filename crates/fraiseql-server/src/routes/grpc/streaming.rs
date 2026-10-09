@@ -37,6 +37,10 @@ struct StreamState {
     /// Row groups from the RPC's single statement (#958).
     chunks:         futures::stream::ReadyChunks<fraiseql_core::db::traits::ColumnRowStream>,
     columns:        Vec<ColumnSpec>,
+    /// Which of `columns` are published non-null (#1522).
+    non_null:       Vec<bool>,
+    /// The streamed type, for a refusal's message.
+    type_name:      String,
     row_descriptor: MessageDescriptor,
     /// Set once trailers have been emitted, so the next poll ends the body.
     sent_trailers:  bool,
@@ -124,6 +128,8 @@ pub async fn build_streaming_body(
     let framed = stream::unfold(
         StreamState {
             chunks: rows.ready_chunks(usize::try_from(batch_size.max(1)).unwrap_or(usize::MAX)),
+            non_null: handler::non_null_columns(&columns, type_def),
+            type_name: type_def.name.to_string(),
             columns,
             row_descriptor,
             sent_trailers: false,
@@ -142,6 +148,16 @@ pub async fn build_streaming_body(
             for row in chunk {
                 match row {
                     Ok(row) => {
+                        // A row the schema forbids ends the stream, as a failed read does.
+                        if let Some(e) = handler::incomplete_row(
+                            &row,
+                            &state.columns,
+                            &state.non_null,
+                            &state.type_name,
+                        ) {
+                            state.sent_trailers = true;
+                            return Some((Ok(error_trailers(&e.to_string())), state));
+                        }
                         let row_msg =
                             handler::encode_row(&row, &state.columns, &state.row_descriptor);
                         all_frames.extend_from_slice(&grpc_frame(&row_msg.encode_to_vec()));

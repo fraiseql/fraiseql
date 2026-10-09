@@ -510,12 +510,12 @@ impl SubscriptionManager {
             if self.matches_subscription(&event, &subscription) {
                 // A planned subscription is served through its plan; an event the plan
                 // suppresses is not delivered, and counts as no match.
-                let data = match &subscription.plan {
+                let (data, errors) = match &subscription.plan {
                     Some(plan) => match plan.deliver(&event.data) {
-                        Some(served) => served,
+                        Some(served) => (served.data, served.errors),
                         None => continue,
                     },
-                    None => self.project_event_data(&event, &subscription),
+                    None => (self.project_event_data(&event, &subscription), Vec::new()),
                 };
                 matched += 1;
 
@@ -527,6 +527,7 @@ impl SubscriptionManager {
                 if subscription.plan.is_some() {
                     delivered.data = data.clone();
                     delivered.old_data = None;
+                    delivered.errors = errors;
                 }
                 // Ruling AA 5: the subscriber sees its own delivery position, gap-free —
                 // never the manager's global counter or the Change-Spine `seq`, which count

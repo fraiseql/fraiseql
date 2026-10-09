@@ -2639,3 +2639,77 @@ mod fact_table_hierarchy {
         assert!(err.contains("tf_org.org_path") && err.contains("ltree"), "{err}");
     }
 }
+
+/// #1522: the SDL and introspection publish one contract. Responses are completed against
+/// introspection's types, so every object and root field the SDL declares must carry the
+/// type `__type` gives it: `!` on a non-null field, `[T!]` items, a masked field nullable,
+/// a relay root as its connection, a mutation nullable.
+#[test]
+fn the_sdl_and_introspection_publish_the_same_field_types() {
+    use graphql_parser::schema::{Definition, TypeDefinition as SdlType, parse_schema};
+
+    use crate::schema::{
+        ArgumentDefinition, FieldDefinition, FieldDenyPolicy, FieldType, IntrospectionBuilder,
+        IntrospectionType, TypeKind,
+    };
+
+    fn rendered(t: &IntrospectionType) -> String {
+        let inner = || t.of_type.as_deref().map_or_else(String::new, rendered);
+        match t.kind {
+            TypeKind::NonNull => format!("{}!", inner()),
+            TypeKind::List => format!("[{}]", inner()),
+            _ => t.name.clone().unwrap_or_default(),
+        }
+    }
+
+    let mut schema = CompiledSchema::new();
+    let mut margin = FieldDefinition::new("margin", FieldType::Int);
+    margin.requires_scope = Some("read:margin".to_string());
+    margin.on_deny = FieldDenyPolicy::Mask;
+    let mut order = make_type_def("Order");
+    order.fields = vec![
+        FieldDefinition::new("id", FieldType::Id),
+        FieldDefinition::nullable("note", FieldType::String),
+        FieldDefinition::new("tags", FieldType::List(Box::new(FieldType::String))),
+        margin,
+    ];
+    schema.types.push(order);
+    let mut orders = QueryDefinition::new("orders", "Order").returning_list();
+    orders.nullable = false;
+    let mut by_id = QueryDefinition::new("order", "Order");
+    by_id.nullable = true;
+    by_id.arguments = vec![ArgumentDefinition::new("id", FieldType::Id)];
+    schema.queries.extend([orders, by_id]);
+    schema.mutations.push(MutationDefinition::new("createOrder", "Order"));
+
+    let sdl = schema.raw_schema();
+    let document = parse_schema::<String>(&sdl).unwrap();
+    let introspection = IntrospectionBuilder::build(&schema);
+    let mut compared = 0;
+    for definition in &document.definitions {
+        let Definition::TypeDefinition(SdlType::Object(object)) = definition else {
+            continue;
+        };
+        let published = introspection
+            .types
+            .iter()
+            .find(|t| t.name.as_deref() == Some(object.name.as_str()))
+            .and_then(|t| t.fields.as_ref())
+            .unwrap();
+        for field in &object.fields {
+            let expected = published.iter().find(|f| f.name == field.name).unwrap();
+            assert_eq!(
+                field.field_type.to_string(),
+                rendered(&expected.field_type),
+                "`{}.{}`",
+                object.name,
+                field.name
+            );
+            compared += 1;
+        }
+    }
+    assert!(compared >= 7, "the object and root fields were compared: {compared}\n{sdl}");
+    assert!(sdl.contains("  margin: Int\n"), "a masked field is nullable:\n{sdl}");
+    assert!(sdl.contains("  tags: [String!]!\n"), "list items are non-null:\n{sdl}");
+    assert!(sdl.contains("createOrder: Order\n"), "a mutation is nullable:\n{sdl}");
+}

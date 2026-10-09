@@ -1630,13 +1630,33 @@ fn create_next_message(
     let data = serde_json::json!({
         response_key.to_owned(): payload.data
     });
-    match &payload.event.change_spine {
+    let mut message = match &payload.event.change_spine {
         Some(envelope) => {
             let extensions = serde_json::json!({ "changeSpine": envelope });
             ServerMessage::next_with_extensions(operation_id, data, extensions)
         },
         None => ServerMessage::next(operation_id, data),
+    };
+    // § 6.4.4 (#1522): an event that could not be completed is `null` with its errors, each
+    // path rooted at the key the client asked under rather than the subscription's name.
+    if !payload.event.errors.is_empty() {
+        let errors: Vec<serde_json::Value> = payload
+            .event
+            .errors
+            .iter()
+            .cloned()
+            .map(|mut error| {
+                if let Some(root) = error.pointer_mut("/path/0") {
+                    *root = serde_json::Value::String(response_key.to_owned());
+                }
+                error
+            })
+            .collect();
+        if let Some(body) = message.payload.as_mut().and_then(serde_json::Value::as_object_mut) {
+            body.insert("errors".to_string(), serde_json::Value::Array(errors));
+        }
     }
+    message
 }
 
 /// The root field of a subscription document.

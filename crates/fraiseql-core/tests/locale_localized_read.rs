@@ -180,21 +180,34 @@ async fn a_localized_field_is_the_request_locales_label() {
 }
 
 /// A non-null localized field with no label in the chain is a GraphQL non-null error,
-/// not a `null` in a non-null position. The engine completes no output field against its
-/// declared nullability today, localized or not (#1522).
+/// not a `null` in a non-null position (#1522): rows 3 and 4 have no `en-US` label, so each
+/// is an error at its own path, and `products: [Product!]!` is `null`, and with it `data`.
 #[tokio::test]
-#[ignore = "#1522: non-null output completion is not enforced on any field"]
 async fn a_non_null_localized_field_with_no_label_is_an_error() {
     let Some(executor) = non_null_executor().await else {
         return;
     };
-    let response =
-        with_request_locale("en-US", executor.execute("{ products { id name } }", None)).await;
-    let errored = match &response {
-        Err(_) => true,
-        Ok(body) => body.get("errors").is_some(),
-    };
-    assert!(errored, "row 3 and 4 have no en-US label: {response:?}");
+    let response = with_request_locale(
+        "en-US",
+        executor.execute("{ products(orderBy: {id: ASC}) { id name } }", None),
+    )
+    .await
+    .unwrap();
+    assert_eq!(response["data"], Value::Null, "{response}");
+    let paths: Vec<Value> = response["errors"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|e| e["path"].clone())
+        .collect();
+    assert_eq!(
+        paths,
+        vec![
+            json!(["products", 2, "name"]),
+            json!(["products", 3, "name"])
+        ],
+        "{response}"
+    );
 }
 
 /// The expected fr-CA labels, row by row.
