@@ -18,6 +18,13 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **The `--emit-ddl` directory is a versioned contract (#965).** Every file opens with
+  `-- fraiseql emit-ddl format 1` and the compiler that wrote it, and the bytes are a function
+  of the schema alone (the same files whatever the type order). Confiture's `migrate diff
+  --to <dir>` reads it; the format, its guarantees and its version policy are in
+  `docs/operations/emit-ddl.md`. The localized-field index fragment is not emitted yet:
+  Confiture drops an index whose table its desired state does not declare (confiture#679,
+  #1541).
 - **A short similarity search says so: `vector_on_short_result` (#1314).** pgvector's HNSW
   search keeps `ef_search` candidates; a selective filter can leave fewer than `k` matches
   among them, and with `iterative_scan` off a `k` above `ef_search` is cut to it even
@@ -140,6 +147,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`--emit-ddl` refuses two types that map to one table (#965).** `HTTPServer` and
+  `HttpServer` both become `tb_http_server`; the second type's file used to overwrite the
+  first's silently, so the artifact depended on declaration order. The compile now fails,
+  naming both types, and writes nothing.
 - **A `source = "header"` session variable reads the request header (#1520).** It used to read
   a JWT claim of the same name (the header itself was never read), so the variable was unset
   or held the claim. It now holds the header the request sent, on GraphQL, REST, MCP, gRPC
