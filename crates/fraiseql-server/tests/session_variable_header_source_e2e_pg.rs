@@ -602,3 +602,11 @@ async fn a_federation_entity_lookup_sees_the_header() {
     .await;
     assert_eq!(result["data"]["_entities"][0]["region"], json!("eu"), "{result}");
 }
+
+/// The suite's schemas load with no database.
+#[test]
+fn the_document_loads_without_a_database() {
+    let schema = schema();
+    CompiledSchema::from_json(&serde_json::to_string(&schema).unwrap(), false)
+        .unwrap_or_else(|e| panic!("the header-variable suite's schema must load: {e}"));
+}

@@ -252,3 +252,9 @@ async fn an_mcp_read_of_an_incomplete_row_reports_the_error() {
     assert!(text.contains("Cannot return null for non-nullable field Note.title"), "{text}");
     assert_eq!(result.is_error, Some(true), "{text}");
 }
+
+/// The suite's schema loads with no database.
+#[test]
+fn the_document_loads_without_a_database() {
+    assert!(schema().federation.is_some(), "the transports suite's schema loads");
+}

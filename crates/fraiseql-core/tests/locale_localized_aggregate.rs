@@ -268,3 +268,10 @@ async fn a_window_ordered_by_an_unselected_localized_dimension_sorts_by_its_labe
         .collect();
     assert_eq!(quantities, vec![json!(4), json!(1), json!(2)], "Poire, then Pomme: {response}");
 }
+
+/// The suite's schema loads with no database.
+#[test]
+fn the_document_loads_without_a_database() {
+    CompiledSchema::from_json(&serde_json::to_string(&schema()).unwrap(), false)
+        .unwrap_or_else(|e| panic!("the aggregate suite's schema must load: {e}"));
+}
