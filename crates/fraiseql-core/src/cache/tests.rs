@@ -1707,6 +1707,19 @@ mod key_tests {
         assert_ne!(key_with, key_without, "Projection key must include order_by");
     }
 
+    /// #1314: a page carrying its match count is keyed apart from the same page without
+    /// one, so a cached plain page is never served to a counting read.
+    #[test]
+    fn a_counting_read_is_keyed_apart_from_a_plain_one() {
+        let plain = crate::backend::ProjectionRequest::new("v_doc");
+        let counting = crate::backend::ProjectionRequest {
+            matched_up_to: Some(10),
+            ..crate::backend::ProjectionRequest::new("v_doc")
+        };
+        let key = |request| generate_projection_query_key(request, &[], None, "v1");
+        assert_ne!(key(&plain), key(&counting));
+    }
+
     /// #1512: the request locale is a section of its own. Identical session variables (a
     /// path that did not carry the locale as a setting) still key two locales apart, and
     /// "no locale" is a third key.

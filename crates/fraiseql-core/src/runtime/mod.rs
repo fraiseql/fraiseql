@@ -65,6 +65,7 @@ mod localized_input;
 mod matcher;
 pub mod mutation_result;
 pub(crate) mod native_columns;
+pub mod notices;
 pub mod partial_period;
 mod planner;
 pub(crate) mod projection;
@@ -245,6 +246,11 @@ pub struct RuntimeConfig {
     /// [`crate::FraiseQLError::Validation`] naming the relay connection, before any
     /// statement. `None` (the default) refuses none.
     pub max_offset: Option<u32>,
+
+    /// What a `nearest` search that returned fewer than `k` rows does (#1314):
+    /// a notice (the default), a verified notice, or a refusal of a verified truncation.
+    /// Operator-owned (the server's `vector_on_short_result`), like the vector scan settings.
+    pub nearest_short_result: notices::ShortResultPolicy,
 
     /// Enable performance tracing.
     pub enable_tracing: bool,
@@ -467,6 +473,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("cache_query_plans", &self.cache_query_plans)
             .field("max_page_size", &self.max_page_size)
             .field("max_offset", &self.max_offset)
+            .field("nearest_short_result", &self.nearest_short_result)
             .field("enable_tracing", &self.enable_tracing)
             .field("field_filter", &self.field_filter.is_some())
             .field("rls_policy", &self.rls_policy.is_some())
@@ -496,6 +503,7 @@ impl Default for RuntimeConfig {
             cache_query_plans:          true,
             max_page_size:              Some(1000),
             max_offset:                 None,
+            nearest_short_result:       notices::ShortResultPolicy::Signal,
             enable_tracing:             false,
             field_filter:               None,
             rls_policy:                 None,
@@ -825,6 +833,7 @@ impl RuntimeConfig {
             cache_query_plans,
             max_page_size: _, // schema-derived
             max_offset: _,    // schema-derived
+            nearest_short_result,
             enable_tracing,
             field_filter,
             rls_policy,
@@ -850,6 +859,7 @@ impl RuntimeConfig {
             cache_query_plans,
             max_page_size,
             max_offset,
+            nearest_short_result,
             enable_tracing,
             field_filter,
             rls_policy,

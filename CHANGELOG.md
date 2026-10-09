@@ -18,6 +18,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **A short similarity search says so: `vector_on_short_result` (#1314).** pgvector's HNSW
+  search keeps `ef_search` candidates; a selective filter can leave fewer than `k` matches
+  among them, and with `iterative_scan` off a `k` above `ef_search` is cut to it even
+  unfiltered. The search succeeded with what it found, and nothing told "only three matched"
+  from "stopped at three". A `nearest` search that returns fewer than `k` rows now carries a
+  `nearest_possibly_truncated` notice under the GraphQL response's `extensions.notices`
+  (`path`, `requested`, `returned`, `verified`). The server setting
+  `vector_on_short_result` chooses: `signal` (default; unverified), `verify` (counts the
+  matches up to `k` in the same statement and notices only a real truncation) or `refuse`
+  (refuses a verified truncation). A cache hit keeps the notice. See
+  `docs/operations/vector-search.md`.
 - **`after:ingest` dispatch is at-least-once: the dispatch ledger (#1175).** A message is
   persisted with one `pending` row per `after:ingest` function it triggers
   (`_fraiseql_inbound_dispatch`, created with the spine at boot), in the receiver's

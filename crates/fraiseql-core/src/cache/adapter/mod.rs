@@ -811,6 +811,7 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
             order_by,
             limit,
             offset,
+            matched_up_to: None,
         };
         self.execute_with_projection_impl(&request, &[]).await.map(Arc::unwrap_or_clone)
     }

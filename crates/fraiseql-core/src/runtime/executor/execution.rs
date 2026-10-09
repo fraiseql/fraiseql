@@ -87,24 +87,31 @@ impl Executor {
             security_context,
         )?;
 
-        if self.ctx.config.query_timeout_ms > 0 {
-            let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
-            tokio::time::timeout(
-                timeout_duration,
-                self.execute_dispatch(query, variables, security_context, operation_name),
-            )
-            .await
-            .map_err(|_| {
-                // Truncate query (char-boundary-safe) for error reporting.
-                let query_snippet = crate::utils::text::truncate_for_display(query, 100);
-                FraiseQLError::Timeout {
-                    timeout_ms: self.ctx.config.query_timeout_ms,
-                    query:      Some(query_snippet),
-                }
-            })?
-        } else {
-            self.execute_dispatch(query, variables, security_context, operation_name).await
-        }
+        // #1314: what the served response says about itself (a similarity search that may
+        // have stopped short) rides in `extensions.notices`, collected while it executes.
+        // Boxed: the scope holds the whole dispatch, and every caller awaits this future.
+        let (response, notices) = crate::runtime::notices::collect_notices(Box::pin(async {
+            if self.ctx.config.query_timeout_ms > 0 {
+                let timeout_duration = Duration::from_millis(self.ctx.config.query_timeout_ms);
+                tokio::time::timeout(
+                    timeout_duration,
+                    self.execute_dispatch(query, variables, security_context, operation_name),
+                )
+                .await
+                .map_err(|_| {
+                    // Truncate query (char-boundary-safe) for error reporting.
+                    let query_snippet = crate::utils::text::truncate_for_display(query, 100);
+                    FraiseQLError::Timeout {
+                        timeout_ms: self.ctx.config.query_timeout_ms,
+                        query:      Some(query_snippet),
+                    }
+                })?
+            } else {
+                self.execute_dispatch(query, variables, security_context, operation_name).await
+            }
+        }))
+        .await;
+        Ok(crate::runtime::notices::with_notices(response?, &notices))
     }
 
     /// GATE 1: query-structure validation (depth/complexity/size `DoS` limits).

@@ -49,6 +49,8 @@ pub(super) fn executor_runtime_config(
 ) -> Result<fraiseql_core::runtime::RuntimeConfig, String> {
     let mut rt = fraiseql_core::runtime::RuntimeConfig::from_compiled_schema(schema)?;
     rt.mutation_error_shape_check = config.mutation_error_shape_check;
+    // #1314: operator-owned, so it survives a hot reload and reaches every tenant.
+    rt.nearest_short_result = config.vector_on_short_result;
     if config.validation.is_some() {
         let (depth, complexity) = effective_validation_limits(
             config.validation.as_ref(),

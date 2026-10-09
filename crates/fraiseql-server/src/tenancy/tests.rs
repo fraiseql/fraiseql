@@ -822,6 +822,7 @@ mod runtime_config_drift {
             cache_query_plans,
             max_page_size,
             max_offset,
+            nearest_short_result,
             enable_tracing,
             field_filter,
             rls_policy,
@@ -878,6 +879,10 @@ mod runtime_config_drift {
         // and `vector_scan` are stamped onto every tenant pool (#801, #957, #1116).
         if *cache_query_plans != tenant.cache_query_plans {
             out.push("cache_query_plans");
+        }
+        // #1314: the operator's `vector_on_short_result`, like the vector scan settings.
+        if *nearest_short_result != tenant.nearest_short_result {
+            out.push("nearest_short_result");
         }
         if *enable_tracing != tenant.enable_tracing {
             out.push("enable_tracing");

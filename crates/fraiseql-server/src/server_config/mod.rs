@@ -524,6 +524,19 @@ pub struct ServerConfig {
     #[serde(default)]
     pub vector_hnsw_ef_search: Option<u32>,
 
+    /// What a `nearest` search that returned fewer than `k` rows does (#1314).
+    ///
+    /// The search keeps `vector_hnsw_ef_search` candidates and, without an iterative scan,
+    /// returns at most those: a selective filter can leave fewer than `k` matches among them,
+    /// and a `k` above `ef_search` is cut to it. The rows alone cannot tell that from "only
+    /// these matched". `signal` (the default) serves them with an unverified
+    /// `nearest_possibly_truncated` notice in the GraphQL response's `extensions.notices`;
+    /// `verify` counts, in the same statement, how many rows match (up to `k`) and gives the
+    /// notice only when more matched than came back; `refuse` refuses such a verified
+    /// truncation.
+    #[serde(default)]
+    pub vector_on_short_result: fraiseql_core::runtime::notices::ShortResultPolicy,
+
     /// Enable incremental delivery on the GraphQL endpoint (#387, #958).
     /// Default `false`.
     ///
@@ -1428,6 +1441,7 @@ impl Default for ServerConfig {
             vector_hnsw_iterative_scan: HnswIterativeScan::default(),
             vector_ivfflat_iterative_scan: IvfflatIterativeScan::default(),
             vector_hnsw_ef_search: None,
+            vector_on_short_result: fraiseql_core::runtime::notices::ShortResultPolicy::Signal,
             enable_graphql_incremental: false, // incremental delivery is opt-in (#387)
             graphql_incremental_batch_size: None, // 100 when incremental delivery is enabled
             read_replica_urls: Vec::new(),     // Primary-only by default

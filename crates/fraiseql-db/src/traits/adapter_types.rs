@@ -139,17 +139,52 @@ impl RelayCursor {
 #[derive(Debug, Clone, Copy)]
 pub struct ProjectionRequest<'a> {
     /// View or table name (e.g. `"v_user"`).
-    pub view:         &'a str,
+    pub view:          &'a str,
     /// Projection hint (`SELECT` shape). `None` falls back to `SELECT data`.
-    pub projection:   Option<&'a SqlProjectionHint>,
+    pub projection:    Option<&'a SqlProjectionHint>,
     /// WHERE clause AST. `None` means no filter.
-    pub where_clause: Option<&'a WhereClause>,
+    pub where_clause:  Option<&'a WhereClause>,
     /// ORDER BY clauses. Empty slice (or `None`) means unordered.
-    pub order_by:     Option<&'a [OrderByClause]>,
+    pub order_by:      Option<&'a [OrderByClause]>,
     /// Row limit. `None` means no limit.
-    pub limit:        Option<u32>,
+    pub limit:         Option<u32>,
     /// Row offset. `None` means no offset.
-    pub offset:       Option<u32>,
+    pub offset:        Option<u32>,
+    /// Count, in the same statement as the page, how many rows match (the filter, or the
+    /// whole view without one) up to this bound (#1314), so a similarity search that came
+    /// back short can say whether it stopped short. Each returned document then carries the
+    /// count under [`MATCHED_KEY`], and an empty page comes back as one document marked
+    /// [`EMPTY_PAGE_KEY`]; [`take_matched`] strips both. `None` adds nothing.
+    pub matched_up_to: Option<u32>,
+}
+
+/// The key a [`ProjectionRequest::matched_up_to`] page carries its match count under.
+pub const MATCHED_KEY: &str = "__fraiseql_matched";
+
+/// The key marking the one document a [`ProjectionRequest::matched_up_to`] read returns for
+/// an empty page, which carries the count and no row.
+pub const EMPTY_PAGE_KEY: &str = "__fraiseql_empty_page";
+
+/// A [`ProjectionRequest::matched_up_to`] page as the rows it holds and the count it carried;
+/// `rows` unchanged and `None` when it carries none.
+#[must_use]
+pub fn take_matched(rows: &[JsonbValue]) -> (Vec<JsonbValue>, Option<u64>) {
+    let mut matched = None;
+    let page = rows
+        .iter()
+        .filter_map(|row| {
+            let mut data = row.data.clone();
+            let object = data.as_object_mut()?;
+            if let Some(count) = object.remove(MATCHED_KEY) {
+                matched = count.as_u64().or(matched);
+            }
+            if object.remove(EMPTY_PAGE_KEY).is_some() {
+                return None;
+            }
+            Some(JsonbValue::new(data))
+        })
+        .collect();
+    (page, matched)
 }
 
 impl<'a> ProjectionRequest<'a> {
@@ -164,6 +199,7 @@ impl<'a> ProjectionRequest<'a> {
             order_by: None,
             limit: None,
             offset: None,
+            matched_up_to: None,
         }
     }
 }

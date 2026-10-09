@@ -245,6 +245,7 @@ pub fn generate_projection_query_key(
         order_by,
         limit,
         offset,
+        matched_up_to,
     } = *request;
     let mut h = new_hasher();
     h.write(b"p:");
@@ -282,6 +283,16 @@ pub fn generate_projection_query_key(
     }
     h.write(b"\0b:");
     hash_order_by(&mut h, order_by);
+    // #1314: a page carrying its match count is a different result from the same page
+    // without it, so a cached plain page is never served to a counting read.
+    h.write(b"\0m:");
+    match matched_up_to {
+        Some(bound) => {
+            h.write_u8(1);
+            h.write_u32(bound);
+        },
+        None => h.write_u8(0),
+    }
     h.write(b"\0sv:");
     hash_session_vars(&mut h, session_vars);
     hash_locale(&mut h, locale);

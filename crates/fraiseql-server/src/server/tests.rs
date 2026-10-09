@@ -26,6 +26,36 @@ mod mutation_error_shape_check_tests {
     }
 }
 
+mod vector_on_short_result_tests {
+    use fraiseql_core::{runtime::notices::ShortResultPolicy, schema::CompiledSchema};
+
+    use super::super::initialization::executor_runtime_config;
+    use crate::server_config::ServerConfig;
+
+    /// #1314: `vector_on_short_result` reaches the executor, where a short `nearest` search
+    /// is settled; `signal` unless an operator asks, and an unknown value is refused.
+    #[test]
+    fn the_short_result_key_reaches_the_executor() {
+        let schema = CompiledSchema::default();
+        for (value, policy) in [
+            ("signal", ShortResultPolicy::Signal),
+            ("verify", ShortResultPolicy::Verify),
+            ("refuse", ShortResultPolicy::Refuse),
+        ] {
+            let config: ServerConfig =
+                toml::from_str(&format!("vector_on_short_result = \"{value}\""))
+                    .expect("the key parses");
+            let rt = executor_runtime_config(&schema, &config).expect("valid schema");
+            assert_eq!(rt.nearest_short_result, policy, "{value}");
+        }
+
+        let rt = executor_runtime_config(&schema, &ServerConfig::default()).expect("valid schema");
+        assert_eq!(rt.nearest_short_result, ShortResultPolicy::Signal);
+
+        assert!(toml::from_str::<ServerConfig>("vector_on_short_result = \"warn\"").is_err());
+    }
+}
+
 mod executor_gate_config_tests {
     use fraiseql_core::schema::{CompiledSchema, ValidationConfig};
 

@@ -1736,6 +1736,48 @@ pub(super) fn build_count_sql(
     Ok((sql, typed_params))
 }
 
+/// `page` (a page's `SELECT`, its parameters `params`) widened to count, in the same
+/// statement and so the same snapshot, how many rows of `view` match `where_clause` (every
+/// row, without one), up to `bound` (#1314). Each document carries the count under
+/// [`MATCHED_KEY`](crate::traits::MATCHED_KEY); an empty page comes back as one document
+/// marked [`EMPTY_PAGE_KEY`](crate::traits::EMPTY_PAGE_KEY), so the count survives it.
+///
+/// The count reuses the page's own `WHERE` text and placeholders (both builders number them
+/// from `$1`), and the page keeps its order through an ordinal.
+///
+/// # Errors
+///
+/// As the `WHERE` generator.
+pub(super) fn with_matched_count(
+    page: &str,
+    mut params: Vec<QueryParam>,
+    view: &str,
+    where_clause: Option<&WhereClause>,
+    bound: u32,
+) -> Result<(String, Vec<QueryParam>)> {
+    let where_sql = match where_clause {
+        Some(clause) => {
+            let (sql, _) = PostgresWhereGenerator::new(PostgresDialect).generate(clause)?;
+            format!(" WHERE {sql}")
+        },
+        None => String::new(),
+    };
+    params.push(QueryParam::BigInt(i64::from(bound)));
+    let bound_index = params.len();
+    let matched = crate::traits::MATCHED_KEY;
+    let empty = crate::traits::EMPTY_PAGE_KEY;
+    let sql = format!(
+        "SELECT COALESCE(_p.data, jsonb_build_object('{empty}', true)) \
+         || jsonb_build_object('{matched}', _m.matched) \
+         FROM (SELECT count(*) AS matched FROM (SELECT 1 FROM {view}{where_sql} \
+         LIMIT ${bound_index}) _s) _m \
+         LEFT JOIN LATERAL (SELECT _q.data, row_number() OVER () AS _o FROM ({page}) AS _q(data)) \
+         _p ON true ORDER BY _p._o",
+        view = quote_postgres_identifier(view),
+    );
+    Ok((sql, params))
+}
+
 pub(super) fn build_where_select_sql_ordered(
     view: &str,
     where_clause: Option<&WhereClause>,

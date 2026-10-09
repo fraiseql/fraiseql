@@ -118,6 +118,11 @@ const MANIFEST: &[(&str, &str)] = &[
          PoolPrewarmConfig.vector_scan → the connection startup packet (#1116)",
     ),
     (
+        "vector_on_short_result",
+        "Server::new → RuntimeConfig.nearest_short_result → the `nearest` settle in \
+         query_regular: notice, verify or refuse a short search (#1314)",
+    ),
+    (
         "vector_ivfflat_iterative_scan",
         "main.rs / fraiseql-cli run → ServerConfig::vector_scan() → \
          PoolPrewarmConfig.vector_scan → the connection startup packet (#1116)",

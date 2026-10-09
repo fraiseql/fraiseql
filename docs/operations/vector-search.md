@@ -266,9 +266,51 @@ arbitrary — and real embeddings cluster. The practical procedure:
 3. `ef_search` is left unset by default because it costs latency on *every* search,
    filtered or not, and only you know your corpus.
 
-⚠ Whatever you set, there is still **no signal** when a search gives up early: a client
-that asked for ten nearest and received three sees a successful response carrying three
-rows, indistinguishable from "only three matched". That gap is #1314.
+### A short search says so: `vector_on_short_result`
+
+Whatever you set, a search can still stop short: a client that asked for ten nearest and
+received three sees three rows, which alone cannot say whether only three matched. With
+`iterative_scan` off, a `k` above `ef_search` is cut to `ef_search` even with no filter at
+all. So a `nearest` search that returns fewer than `k` rows is settled by
+`vector_on_short_result` (server configuration, like the settings above):
+
+| value | a short search |
+|---|---|
+| `signal` (default) | served, with an unverified notice. Costs nothing. |
+| `verify` | counts, **in the same statement** (so the same snapshot), how many rows match, up to `k`; served, with a notice only when more matched than came back |
+| `refuse` | as `verify`, and a verified truncation is refused (`Unsupported`, naming this setting and `vector_hnsw_ef_search`); a genuinely short result is served |
+
+The notice rides in the GraphQL response's `extensions`:
+
+```json
+{
+  "data": { "docs": [ { "id": 3 }, { "id": 7 }, { "id": 9 } ] },
+  "extensions": {
+    "notices": [
+      {
+        "path": ["docs"],
+        "kind": "nearest_possibly_truncated",
+        "detail": { "requested": 10, "returned": 3, "verified": true }
+      }
+    ]
+  }
+}
+```
+
+`verified: false` (under `signal`, or for a read with nested relations, which has no
+counting statement) means "fewer than `k` came back, and nobody counted": possibly the
+whole answer. `verified: true` means more rows match than the search returned. A cached
+page carries its count, so a cache hit answers with the same notice. `nearest` is a
+GraphQL argument, so GraphQL is the only transport that carries the notice.
+
+```toml
+# Count, and say so only when a search really stopped short.
+vector_on_short_result = "verify"
+```
+
+The count stops at `k` matches (`SELECT count(*) FROM (… WHERE filter LIMIT k)`), but a
+selective filter no index serves reads rows until it finds them, up to the whole table:
+measure on your corpus before turning it on.
 
 Threshold predicates are a different story: a distance *range* is not what an ANN
 index answers, so no setting makes one index-eligible. Both forms read every row.

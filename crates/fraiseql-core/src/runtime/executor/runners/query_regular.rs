@@ -107,6 +107,11 @@ pub(in super::super) struct ResolvedDirectRead {
     /// value cannot be checked at this point — what a read weighs is not knowable
     /// until it has run — so what travels is the ceiling, not a verdict.
     response_bytes:            Option<u64>,
+    /// A `nearest` search's `k` (#1314), or `None` for any other read.
+    pub(super) nearest_k:      Option<u32>,
+    /// The bound a `nearest` search counts its filter's matches up to, in the same
+    /// statement (`verify` / `refuse`), or `None`.
+    pub(super) nearest_count:  Option<u32>,
 }
 
 impl ResolvedDirectRead {
@@ -134,12 +139,13 @@ impl ResolvedDirectRead {
     /// for reading the whole row still holds.
     fn projection_request(&self) -> crate::backend::ProjectionRequest<'_> {
         crate::backend::ProjectionRequest {
-            view:         &self.sql_source,
-            projection:   self.projection.as_ref(),
-            where_clause: self.composed_where.as_ref(),
-            order_by:     self.order_by.as_deref(),
-            limit:        self.limit,
-            offset:       self.offset,
+            view:          &self.sql_source,
+            projection:    self.projection.as_ref(),
+            where_clause:  self.composed_where.as_ref(),
+            order_by:      self.order_by.as_deref(),
+            limit:         self.limit,
+            offset:        self.offset,
+            matched_up_to: self.nearest_count,
         }
     }
 }
@@ -692,18 +698,20 @@ impl QueryRunner {
         // `nearest` similarity search (#386): lowers to a vector-distance
         // ORDER BY + LIMIT k. Conflicts with limit/orderBy error inside the
         // helper, so overriding both here cannot discard a client value.
-        let (limit, order_by_clauses) = if let Some((clause, k)) = nearest_order_and_limit(
-            &query_match.arguments,
-            &self.ctx.schema,
-            &query_match.query_def,
-            Some(security_context),
-        )? {
+        let (limit, order_by_clauses, nearest_k) = if let Some((clause, k)) =
+            nearest_order_and_limit(
+                &query_match.arguments,
+                &self.ctx.schema,
+                &query_match.query_def,
+                Some(security_context),
+            )? {
             (
                 enforce_max_page_size(Some(k), self.ctx.config.max_page_size, "nearest.k")?,
                 Some(vec![clause]),
+                Some(k),
             )
         } else {
-            (limit, order_by_clauses)
+            (limit, order_by_clauses, None)
         };
 
         // 8c. Generate the SQL projection for the requested fields, after the
@@ -730,6 +738,13 @@ impl QueryRunner {
         //    read's connection (fixes #329 for RLS). With nested levels to gate, the same read is
         //    the root of a composed statement carrying them.
         let composed = !nested_reads.is_empty();
+        // #1314: a composed read has no counting statement; its short result is signalled
+        // unverified.
+        let nearest_count = if composed {
+            None
+        } else {
+            self.nearest_count_bound(nearest_k)
+        };
         let results = if composed {
             self.execute_composed_document_read(
                 crate::backend::ComposedLevel {
@@ -758,12 +773,15 @@ impl QueryRunner {
                         order_by: order_by_clauses.as_deref(),
                         limit,
                         offset,
+                        matched_up_to: nearest_count,
                     },
                     &session_pairs,
                     query_match.query_def.read_routing,
                 )
                 .await?
         };
+        let results =
+            self.settle_nearest(&query_match, nearest_k, nearest_count.is_some(), results)?;
 
         // The response-bytes ceiling (`[validation] max_response_bytes`), on the
         // document path. GATE-1 already scored this request's depth and complexity,
@@ -1169,18 +1187,20 @@ impl QueryRunner {
         // `nearest` similarity search (#386): lowers to a vector-distance
         // ORDER BY + LIMIT k. Conflicts with limit/orderBy error inside the
         // helper, so overriding both here cannot discard a client value.
-        let (limit, order_by_clauses) = if let Some((clause, k)) = nearest_order_and_limit(
-            &query_match.arguments,
-            &self.ctx.schema,
-            &query_match.query_def,
-            None,
-        )? {
+        let (limit, order_by_clauses, nearest_k) = if let Some((clause, k)) =
+            nearest_order_and_limit(
+                &query_match.arguments,
+                &self.ctx.schema,
+                &query_match.query_def,
+                None,
+            )? {
             (
                 enforce_max_page_size(Some(k), self.ctx.config.max_page_size, "nearest.k")?,
                 Some(vec![clause]),
+                Some(k),
             )
         } else {
-            (limit, order_by_clauses)
+            (limit, order_by_clauses, None)
         };
 
         // 3b. Generate the SQL projection, after the `nearest` lowering so a
@@ -1205,6 +1225,7 @@ impl QueryRunner {
         let resolved_session_vars = self.resolve_session_vars(None)?;
         let session_pairs: Vec<(&str, &str)> =
             resolved_session_vars.iter().map(|(k, v)| (k.as_str(), v.as_str())).collect();
+        let nearest_count = self.nearest_count_bound(nearest_k);
         let results = self
             .ctx
             .adapter
@@ -1216,11 +1237,14 @@ impl QueryRunner {
                     order_by: order_by_clauses.as_deref(),
                     limit,
                     offset,
+                    matched_up_to: nearest_count,
                 },
                 &session_pairs,
                 query_match.query_def.read_routing,
             )
             .await?;
+        let results =
+            self.settle_nearest(&query_match, nearest_k, nearest_count.is_some(), results)?;
 
         // The response-bytes ceiling, on the anonymous document entry.
         //
@@ -1318,6 +1342,7 @@ impl QueryRunner {
             security_context,
             &resolved.selection,
         )?;
+        let counted = nested_reads.is_empty() && resolved.nearest_count.is_some();
         let results = if nested_reads.is_empty() {
             self.ctx
                 .adapter
@@ -1348,6 +1373,7 @@ impl QueryRunner {
             )
             .await?
         };
+        let results = self.settle_nearest(query_match, resolved.nearest_k, counted, results)?;
 
         // The response-bytes ceiling, charged on what came back.
         //
@@ -1760,6 +1786,47 @@ impl QueryRunner {
         })
     }
 
+    /// The bound a `nearest` search of `k` counts its matches up to, in the same statement
+    /// (#1314): only under `verify` / `refuse`.
+    fn nearest_count_bound(&self, nearest_k: Option<u32>) -> Option<u32> {
+        nearest_k.filter(|_| {
+            self.ctx.config.nearest_short_result
+                != crate::runtime::notices::ShortResultPolicy::Signal
+        })
+    }
+
+    /// A `nearest` page, settled (#1314): the count it carried stripped (when `counted`),
+    /// and its short result signalled, verified or refused. Any other read passes through.
+    ///
+    /// # Errors
+    ///
+    /// `FraiseQLError::Unsupported` for a verified truncation under `refuse`.
+    fn settle_nearest(
+        &self,
+        query_match: &crate::runtime::matcher::QueryMatch,
+        nearest_k: Option<u32>,
+        counted: bool,
+        results: Arc<Vec<crate::backend::JsonbValue>>,
+    ) -> Result<Arc<Vec<crate::backend::JsonbValue>>> {
+        let Some(k) = nearest_k else {
+            return Ok(results);
+        };
+        let (results, matched) = if counted {
+            let (rows, matched) = crate::backend::traits::take_matched(&results);
+            (Arc::new(rows), matched)
+        } else {
+            (results, None)
+        };
+        crate::runtime::notices::settle_short_nearest(
+            self.ctx.config.nearest_short_result,
+            query_match.response_key(),
+            k,
+            results.len(),
+            matched,
+        )?;
+        Ok(results)
+    }
+
     /// Charge a direct read's projection against `[security.cost_budget]
     /// per_request_max` — the caller's request budget when it lends one, a budget of
     /// this read's own otherwise.
@@ -1991,18 +2058,20 @@ impl QueryRunner {
 
         // `nearest` similarity search (#386) — same lowering as the two
         // GraphQL runners above, so the direct path cannot drift (#739's class).
-        let (limit, order_by_clauses) = if let Some((clause, k)) = nearest_order_and_limit(
-            &query_match.arguments,
-            &self.ctx.schema,
-            &query_match.query_def,
-            security_context,
-        )? {
+        let (limit, order_by_clauses, nearest_k) = if let Some((clause, k)) =
+            nearest_order_and_limit(
+                &query_match.arguments,
+                &self.ctx.schema,
+                &query_match.query_def,
+                security_context,
+            )? {
             (
                 enforce_max_page_size(Some(k), self.ctx.config.max_page_size, "nearest.k")?,
                 Some(vec![clause]),
+                Some(k),
             )
         } else {
-            (limit, order_by_clauses)
+            (limit, order_by_clauses, None)
         };
 
         // #379: the compiled `[security.cost_budget] per_request_max`, on a read that
@@ -2171,6 +2240,8 @@ impl QueryRunner {
             selection,
             projection,
             response_bytes: self.ctx.config.max_response_bytes,
+            nearest_count: self.nearest_count_bound(nearest_k),
+            nearest_k,
         })
     }
 
@@ -2236,7 +2307,11 @@ impl QueryRunner {
             self.ctx
                 .adapter
                 .stream_with_projection(
-                    &resolved.projection_request(),
+                    // A stream cannot carry a count: never asked for one (#1314).
+                    &crate::backend::ProjectionRequest {
+                        matched_up_to: None,
+                        ..resolved.projection_request()
+                    },
                     &session_pairs,
                     query_match.query_def.read_routing,
                 )

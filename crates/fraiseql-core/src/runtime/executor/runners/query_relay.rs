@@ -736,12 +736,13 @@ impl QueryRunner {
                 .adapter
                 .execute_with_projection_arc_with_session(
                     &crate::backend::ProjectionRequest {
-                        view:         &sql_source,
-                        projection:   Some(&projection_hint),
-                        where_clause: Some(&where_clause),
-                        order_by:     None,
-                        limit:        Some(1),
-                        offset:       None,
+                        view:          &sql_source,
+                        projection:    Some(&projection_hint),
+                        where_clause:  Some(&where_clause),
+                        order_by:      None,
+                        limit:         Some(1),
+                        offset:        None,
+                        matched_up_to: None,
                     },
                     &session_pairs,
                     node_qdef.read_routing,

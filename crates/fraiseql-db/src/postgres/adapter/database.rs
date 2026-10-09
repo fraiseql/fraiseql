@@ -1014,6 +1014,43 @@ impl DatabaseAdapter for PostgresAdapter {
         session_vars: &[(&str, &str)],
         routing: ReadRouting,
     ) -> Result<Arc<Vec<JsonbValue>>> {
+        // #1314: a page that also counts what its filter matches, in one statement so the
+        // count and the page see the same snapshot.
+        if let Some(bound) = request.matched_up_to {
+            let (page, params) = match request.projection {
+                Some(projection) => build_projection_select_sql(
+                    projection,
+                    request.view,
+                    request.where_clause,
+                    request.limit,
+                    request.offset,
+                    request.order_by,
+                )?,
+                None => super::build_where_select_sql_ordered(
+                    request.view,
+                    request.where_clause,
+                    request.limit,
+                    request.offset,
+                    request.order_by,
+                )?,
+            };
+            let (sql, typed_params) = super::with_matched_count(
+                &page,
+                params,
+                request.view,
+                request.where_clause,
+                bound,
+            )?;
+            let param_refs = crate::types::as_sql_param_refs(&typed_params);
+            if session_vars.is_empty() {
+                return self.execute_raw(&sql, &param_refs, routing).await.map(Arc::new);
+            }
+            return self
+                .execute_raw_with_session(&sql, &param_refs, session_vars, routing)
+                .await
+                .map(Arc::new);
+        }
+
         // No projection => behave like a plain WHERE query, matching
         // execute_with_projection_impl's fallback.
         let Some(projection) = request.projection else {

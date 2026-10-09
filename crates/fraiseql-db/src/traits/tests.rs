@@ -182,3 +182,31 @@ mod row_query_sql {
         );
     }
 }
+
+/// #1314: a counted page gives back its rows without the count, and the count; the
+/// marker an empty page carries is no row.
+#[test]
+fn take_matched_strips_the_count_and_the_empty_marker() {
+    use serde_json::json;
+
+    use super::{EMPTY_PAGE_KEY, JsonbValue, MATCHED_KEY, take_matched};
+
+    let page = [
+        JsonbValue::new(json!({ "id": 1, MATCHED_KEY: 7 })),
+        JsonbValue::new(json!({ "id": 2, MATCHED_KEY: 7 })),
+    ];
+    let (rows, matched) = take_matched(&page);
+    assert_eq!(matched, Some(7));
+    let rows: Vec<_> = rows.iter().map(|r| r.data.clone()).collect();
+    assert_eq!(rows, [json!({ "id": 1 }), json!({ "id": 2 })]);
+
+    let empty = [JsonbValue::new(
+        json!({ EMPTY_PAGE_KEY: true, MATCHED_KEY: 4 }),
+    )];
+    let (rows, matched) = take_matched(&empty);
+    assert!(rows.is_empty());
+    assert_eq!(matched, Some(4));
+
+    let plain = [JsonbValue::new(json!({ "id": 1 }))];
+    assert_eq!(take_matched(&plain).1, None);
+}
