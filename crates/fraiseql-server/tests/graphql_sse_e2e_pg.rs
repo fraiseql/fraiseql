@@ -19,7 +19,7 @@ use std::sync::Arc;
 use fraiseql_core::{
     db::postgres::PostgresAdapter,
     prelude::DatabaseAdapter as _,
-    schema::{CompiledSchema, FieldType, QueryDefinition, TypeDefinition},
+    schema::{CompiledSchema, FieldType, QueryDefinition, TypeDefinition, ValidationConfig},
 };
 use fraiseql_server::server_config::{Hs256Config, ServerConfig};
 use fraiseql_test_support::try_database_url;
@@ -61,6 +61,16 @@ async fn seed(adapter: &PostgresAdapter) {
         format!(
             "CREATE VIEW {SCHEMA}.v_slow_item AS SELECT id, jsonb_build_object('id', id, \
              'label', label, 'nap', (pg_sleep(0.4))::text) AS data FROM {SCHEMA}.tb_item"
+        ),
+        // #1306: every row raises, so a request refused before any statement is told
+        // so by the ceiling, never by this exception.
+        format!(
+            "CREATE FUNCTION {SCHEMA}.boom(bigint) RETURNS jsonb LANGUAGE plpgsql AS $$ BEGIN \
+             RAISE EXCEPTION 'v_boom_item was read'; END $$"
+        ),
+        format!(
+            "CREATE VIEW {SCHEMA}.v_boom_item AS SELECT id, {SCHEMA}.boom(id) AS data FROM \
+             {SCHEMA}.tb_item"
         ),
         // A row carrying a nested list, for nested `@stream` (#958). The list lives
         // inside the row's own `data` document — which is the whole reason a nested
@@ -109,6 +119,7 @@ fn schema() -> CompiledSchema {
 
     schema.queries.push(list_query("items", "v_item"));
     schema.queries.push(list_query("slowItems", "v_slow_item"));
+    schema.queries.push(list_query("boomItems", "v_boom_item"));
     {
         let mut q = QueryDefinition::new("taggedItems", "SseTaggedItem")
             .returning_list()
@@ -213,10 +224,76 @@ async fn sse_post(server: &TestServer, body: &Value, bearer: Option<&str>) -> re
 }
 
 async fn boot(config: ServerConfig) -> Option<TestServer> {
+    boot_schema(config, schema()).await
+}
+
+async fn boot_schema(config: ServerConfig, schema: CompiledSchema) -> Option<TestServer> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.expect("adapter"));
     seed(&adapter).await;
-    Some(Box::pin(TestServer::start_with_config(config, schema(), adapter)).await)
+    Some(Box::pin(TestServer::start_with_config(config, schema, adapter)).await)
+}
+
+/// The schema under a compiled `[validation] max_offset`.
+fn schema_with_max_offset(max_offset: u32) -> CompiledSchema {
+    let mut schema = schema();
+    schema.validation_config = Some(ValidationConfig {
+        max_offset: Some(max_offset),
+        ..ValidationConfig::default()
+    });
+    schema
+}
+
+// ── #1306: the offset ceiling ───────────────────────────────────────────────
+
+/// A stream bounded by its own `limit` reads its last batch at `offset + limit - 1`; one
+/// that would pass `max_offset` is refused before any statement, naming the cursor path.
+#[tokio::test]
+async fn a_bounded_stream_whose_last_batch_passes_max_offset_is_refused_before_any_statement() {
+    if database_url_or_skip("stream_max_offset_refused").is_none() {
+        return;
+    }
+    let server = Box::pin(boot_schema(sse_config(1), schema_with_max_offset(3))).await.unwrap();
+    let query = "{ boomItems(limit: 5) @stream(initialCount: 1) { id } }";
+    let body = sse_post(&server, &json!({ "query": query }), None).await.text().await.unwrap();
+    // A GraphQL validation error, as the transport answers any planning refusal: no
+    // stream opened, nothing delivered.
+    let refusal: Value =
+        serde_json::from_str(&body).unwrap_or_else(|_| panic!("no stream: {body}"));
+    let message = refusal["errors"].to_string();
+    assert!(refusal.get("data").is_none(), "{body}");
+    assert!(!body.contains("v_boom_item was read"), "before any statement: {body}");
+    assert!(message.contains("max_offset") && message.contains("relay = true"), "{body}");
+}
+
+/// Within the ceiling, the stream is served whole.
+#[tokio::test]
+async fn a_bounded_stream_within_max_offset_is_served() {
+    if database_url_or_skip("stream_max_offset_served").is_none() {
+        return;
+    }
+    let server = Box::pin(boot_schema(sse_config(1), schema_with_max_offset(3))).await.unwrap();
+    let query = "{ items(limit: 4, orderBy: {id: ASC}) @stream(initialCount: 1) { id } }";
+    let body = sse_post(&server, &json!({ "query": query }), None).await.text().await.unwrap();
+    let payloads = next_payloads(&parse_sse(&body));
+    assert_eq!(streamed_ids(&payloads, "items"), vec![1, 2, 3, 4], "{body}");
+}
+
+/// A stream with no `limit` cannot be bounded in advance: it is served until a batch would
+/// start past the ceiling, and that batch's refusal ends it, signalled, never truncated.
+#[tokio::test]
+async fn an_unbounded_stream_ends_with_the_refusal_at_max_offset() {
+    if database_url_or_skip("stream_max_offset_unbounded").is_none() {
+        return;
+    }
+    let server = Box::pin(boot_schema(sse_config(1), schema_with_max_offset(2))).await.unwrap();
+    let query = "{ items(orderBy: {id: ASC}) @stream(initialCount: 1) { id } }";
+    let body = sse_post(&server, &json!({ "query": query }), None).await.text().await.unwrap();
+    let payloads = next_payloads(&parse_sse(&body));
+    assert_eq!(streamed_ids(&payloads, "items"), vec![1, 2, 3], "{body}");
+    let last = payloads.last().unwrap_or_else(|| panic!("{body}"));
+    assert_eq!(last["hasNext"], json!(false), "{body}");
+    assert!(last["errors"].to_string().contains("max_offset"), "{body}");
 }
 
 // ── Transport negotiation ────────────────────────────────────────────────────

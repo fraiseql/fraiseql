@@ -18,6 +18,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`[validation] max_offset`: an opt-in ceiling on offset depth (#1306).** `OFFSET n` reads
+  `n` rows to discard them, however the read is ordered, so a deep offset page costs its depth.
+  Set, an offset beyond the ceiling is refused before any statement, with a message naming the
+  path that pages at any depth: a relay connection (`first`/`after`, which a query gets with
+  `relay = true`). It holds every offset a client chooses: GraphQL `offset:` (anonymous and
+  authenticated), REST `?offset=`, gRPC and MCP (through the same runner), aggregate and window
+  `offset`, and `@stream`, whose batches page at increasing offsets: one bounded by its own
+  `limit` past the ceiling is refused before it opens, and an unbounded one that reaches the
+  ceiling ends with the refusal as its last payload. Unset by default: nothing is refused.
+  `FRAISEQL_MAX_OFFSET` overrides the compiled value (`0`/`none` lifts it). A value of 0 is
+  refused at compile and at load. See `docs/features/pagination.md`.
 - **Request locale as first-class context: `[locale]` (#1512).** Declare the locales a
   deployment serves (`default`, `allowed`, optional `fallback` and `resolve`) in
   `fraiseql.toml`. Every request resolves to one allowed tag, from the explicit `locale`
@@ -156,6 +167,12 @@ disagreed, and the promise was the part that was wrong.
   gain `localized: bool`, and `WhereClause` gains `Localized { chain, collation, inner }`: struct
   literals add `localized: false`, and exhaustive matches add the arm (the leaf is in `inner`).
 
+- **A server configuration's `[validation] max_page_size` or `max_offset` is refused at boot
+  (#1306).** Both ceilings belong to the compiled schema and their environment overrides
+  (`FRAISEQL_MAX_PAGE_SIZE`, `FRAISEQL_MAX_OFFSET`), which every hot reload re-derives. A
+  server configuration's `max_page_size` parsed and was never applied; the refusal names
+  where to set it instead. Embedders: `fraiseql_core::schema::ValidationConfig` and
+  `RuntimeConfig` gain `max_offset` (struct literals add `max_offset: None`).
 - **A relay cursor issued under an `orderBy` carries the row's sort keys, and resumes only that
   ordering (#1521).** It is `base64` of a versioned JSON object (the row's position, its
   sort-key values as text, a fingerprint of the ordering) instead of the bare cursor column. A cursor is

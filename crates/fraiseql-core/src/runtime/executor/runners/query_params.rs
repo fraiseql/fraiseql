@@ -725,6 +725,36 @@ pub fn enforce_max_page_size(
     Ok(value)
 }
 
+/// Refuse an offset deeper than `[validation] max_offset` (#1306), before any statement.
+///
+/// The refusal names the path that pages at any depth: a relay connection, paged with
+/// `first`/`after`, which a query gets by declaring `relay = true`.
+///
+/// # Errors
+///
+/// `FraiseQLError::Validation` when `value` exceeds `max`.
+pub fn enforce_max_offset(
+    value: Option<u32>,
+    max: Option<u32>,
+    arg_name: &str,
+) -> Result<Option<u32>> {
+    if let (Some(v), Some(m)) = (value, max) {
+        if v > m {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "`{arg_name}` {v} exceeds this deployment's `max_offset` of {m}: an offset \
+                     page reads every row before it, so pages this deep are refused. Page with a \
+                     relay connection instead (`first`/`after`, which a query gets by \
+                     declaring `relay = true`); it resumes from its cursor instead of counting \
+                     rows."
+                ),
+                path:    Some(arg_name.to_string()),
+            });
+        }
+    }
+    Ok(value)
+}
+
 /// Give a paginated read the total order its query declares (#1303).
 ///
 /// A `LIMIT`/`OFFSET` page is a slice of a *sequence*. A read with no `ORDER BY`

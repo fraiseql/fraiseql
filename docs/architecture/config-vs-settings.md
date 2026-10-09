@@ -63,6 +63,7 @@ runtime override is:
 | Variable | Overrides |
 |----------|-----------|
 | `FRAISEQL_MAX_PAGE_SIZE` | The compiled page-size ceiling (#421) |
+| `FRAISEQL_MAX_OFFSET` | The compiled offset ceiling, `[validation] max_offset` (#1306); `0`/`none` lifts it |
 | `FRAISEQL_CHANGELOG_ENABLED` | The compiled change-log toggle (composes AND with the compiled value) |
 | `FRAISEQL_FUNCTIONS_DLQ_STORE` | The compiled `[functions] dlq_store` backend |
 | `FRAISEQL_FUNCTIONS_DLQ_MAX_SIZE` | The compiled functions DLQ size cap |

@@ -9,8 +9,8 @@ use super::{
     query::QueryRunner,
     query_params::{
         apply_pagination_order, client_where_argument, coerce_pagination_arg,
-        combine_explicit_arg_where, compute_projection_reduction, enforce_max_page_size,
-        inject_param_where_clause, nearest_order_and_limit,
+        combine_explicit_arg_where, compute_projection_reduction, enforce_max_offset,
+        enforce_max_page_size, inject_param_where_clause, nearest_order_and_limit,
     },
     query_projection::{
         build_typed_projection_fields, enrich_order_by_clauses, merge_computed_fields,
@@ -655,11 +655,16 @@ impl QueryRunner {
             "limit",
         )?;
 
-        let offset = if query_match.query_def.auto_params.has_offset {
-            coerce_pagination_arg("offset", query_match.arguments.get("offset"))?
-        } else {
-            None
-        };
+        // #1306: held to `[validation] max_offset` before any statement.
+        let offset = enforce_max_offset(
+            if query_match.query_def.auto_params.has_offset {
+                coerce_pagination_arg("offset", query_match.arguments.get("offset"))?
+            } else {
+                None
+            },
+            self.ctx.config.max_offset,
+            "offset",
+        )?;
 
         // 8b. Extract order_by from query arguments when has_order_by is enabled,
         //     then enrich each clause with the schema field type so the SQL generator
@@ -1130,11 +1135,16 @@ impl QueryRunner {
             "limit",
         )?;
 
-        let offset = if query_match.query_def.auto_params.has_offset {
-            coerce_pagination_arg("offset", query_match.arguments.get("offset"))?
-        } else {
-            None
-        };
+        // #1306: held to `[validation] max_offset` before any statement.
+        let offset = enforce_max_offset(
+            if query_match.query_def.auto_params.has_offset {
+                coerce_pagination_arg("offset", query_match.arguments.get("offset"))?
+            } else {
+                None
+            },
+            self.ctx.config.max_offset,
+            "offset",
+        )?;
 
         let order_by_clauses = if query_match.query_def.auto_params.has_order_by {
             query_match
@@ -1957,7 +1967,11 @@ impl QueryRunner {
             "limit",
         )?;
 
-        let offset = coerce_pagination_arg("offset", query_match.arguments.get("offset"))?;
+        let offset = enforce_max_offset(
+            coerce_pagination_arg("offset", query_match.arguments.get("offset"))?,
+            self.ctx.config.max_offset,
+            "offset",
+        )?;
 
         let order_by_clauses = query_match
             .arguments

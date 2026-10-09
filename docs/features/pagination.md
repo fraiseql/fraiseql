@@ -156,6 +156,42 @@ ordered. Over GraphQL, a query that passes neither `limit` nor `offset` is not.
 Exports (`Accept: application/x-ndjson`, `text/csv`, XLSX) read the whole filtered
 relation rather than a page, and are unaffected.
 
+### Deep offset
+
+An `OFFSET n` page reads `n` rows to throw them away, whatever it is ordered by and
+whatever index it walks. Measured on PostgreSQL 18, 200 000 rows, a page of 20 ordered by
+the primary key:
+
+| page | rows read | buffers |
+|---|---|---|
+| `OFFSET 0` | 20 | 4 |
+| `OFFSET 10 000` | 10 020 | 164 |
+| `OFFSET 100 000` | 100 020 | 1 610 |
+| `OFFSET 199 980` | 200 000 | 3 216 |
+| keyset, `WHERE pk > 199 980` | 20 | 7 |
+
+A client walking a large list by offset pays for every page before the one it reads. A
+[relay connection](#relay-connections) pages by cursor instead: unordered, it reads only its
+page at any depth, so it is the path for deep walks (declare the query `relay = true` and page
+it with `first`/`after`). Under an `orderBy`, a cursor page costs what the ordering costs to
+walk to (see [Paging under an `orderBy`](#paging-under-an-orderby)).
+
+An operator can refuse deep offset pages outright:
+
+```toml
+[validation]
+max_offset = 10000   # unset by default: no ceiling
+```
+
+An offset beyond it is refused before any statement, with a message naming the relay
+connection. It holds every offset a client chooses: GraphQL `offset:`, REST `?offset=`, gRPC
+and MCP reads, aggregate and window `offset`, and `@stream`. A stream pages its list in
+batches at increasing offsets: one whose own `limit` takes its last batch past the ceiling is
+refused before it opens, and one with no `limit` ends, with the refusal as its last payload,
+when a batch would start past it. `FRAISEQL_MAX_OFFSET` overrides the compiled value (`0` or
+`none` lifts it). The setting belongs in `fraiseql.toml`: a server configuration's
+`[validation] max_offset` is refused at boot, since a hot reload would drop it.
+
 ## Relay connections
 
 A `relay = true` query is paginated by keyset on `relay_cursor_column`

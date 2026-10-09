@@ -113,6 +113,7 @@ pub use executor::{
     // A subscription's read plan (ruling AA 4).
     SubscriptionPlan,
     coerce_pagination_arg,
+    enforce_max_offset,
     mutation::{WriteSelections, mutation_return_selections},
     // Contract errors refused (ruling AJ 3), exported as a metric.
     mutation_contract_errors,
@@ -239,6 +240,11 @@ pub struct RuntimeConfig {
     /// [`crate::FraiseQLError::Validation`]. `None` disables the ceiling. Default
     /// `Some(1000)`.
     pub max_page_size: Option<u32>,
+
+    /// The deepest `offset` a client may page to (#1306): a deeper one is refused with a
+    /// [`crate::FraiseQLError::Validation`] naming the relay connection, before any
+    /// statement. `None` (the default) refuses none.
+    pub max_offset: Option<u32>,
 
     /// Enable performance tracing.
     pub enable_tracing: bool,
@@ -460,6 +466,7 @@ impl std::fmt::Debug for RuntimeConfig {
         f.debug_struct("RuntimeConfig")
             .field("cache_query_plans", &self.cache_query_plans)
             .field("max_page_size", &self.max_page_size)
+            .field("max_offset", &self.max_offset)
             .field("enable_tracing", &self.enable_tracing)
             .field("field_filter", &self.field_filter.is_some())
             .field("rls_policy", &self.rls_policy.is_some())
@@ -488,6 +495,7 @@ impl Default for RuntimeConfig {
         Self {
             cache_query_plans:          true,
             max_page_size:              Some(1000),
+            max_offset:                 None,
             enable_tracing:             false,
             field_filter:               None,
             rls_policy:                 None,
@@ -767,6 +775,12 @@ impl RuntimeConfig {
             schema.validation_config.as_ref().and_then(|v| v.max_page_size),
         );
 
+        // #1306: FRAISEQL_MAX_OFFSET > compiled [validation] max_offset > none.
+        let max_offset = offset_precedence(
+            std::env::var("FRAISEQL_MAX_OFFSET").ok().as_deref(),
+            schema.validation_config.as_ref().and_then(|v| v.max_offset),
+        );
+
         // Change-Spine outbox write toggle (default on): FRAISEQL_CHANGELOG_ENABLED
         // overrides the compiled [changelog] write_enabled.
         let changelog_enabled = std::env::var("FRAISEQL_CHANGELOG_ENABLED")
@@ -810,6 +824,7 @@ impl RuntimeConfig {
         let Self {
             cache_query_plans,
             max_page_size: _, // schema-derived
+            max_offset: _,    // schema-derived
             enable_tracing,
             field_filter,
             rls_policy,
@@ -834,6 +849,7 @@ impl RuntimeConfig {
         Ok(Self {
             cache_query_plans,
             max_page_size,
+            max_offset,
             enable_tracing,
             field_filter,
             rls_policy,
@@ -855,6 +871,26 @@ impl RuntimeConfig {
             root_error_renderer,
         })
     }
+}
+
+/// Resolve the offset ceiling (#1306) by precedence.
+///
+/// `env` is the raw `FRAISEQL_MAX_OFFSET` value when set (a positive integer, or
+/// `"0"`/`"none"` to lift the ceiling). It overrides `compiled` (the `[validation]
+/// max_offset` from the compiled schema). Unset in both, there is no ceiling.
+#[must_use]
+pub fn offset_precedence(env: Option<&str>, compiled: Option<u32>) -> Option<u32> {
+    if let Some(raw) = env {
+        let trimmed = raw.trim();
+        if trimmed.eq_ignore_ascii_case("none") || trimmed == "0" {
+            return None;
+        }
+        if let Ok(n) = trimmed.parse::<u32>() {
+            return Some(n);
+        }
+        tracing::warn!(value = raw, "FRAISEQL_MAX_OFFSET is not a non-negative integer; ignored");
+    }
+    compiled
 }
 
 /// Resolve the top-level page-size ceiling (#421) by precedence.

@@ -82,6 +82,31 @@ pub struct ValidationConfig {
     /// `FRAISEQL_MAX_PAGE_SIZE` environment variable as an override.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_page_size: Option<u32>,
+
+    /// The deepest offset a client may page to (#1306): a GraphQL `offset:`, REST
+    /// `?offset=` or `?rel.offset=` beyond it is refused before any statement, naming the
+    /// relay connection as the path that pages at any depth. `None` (the default) refuses
+    /// none; the server also honours `FRAISEQL_MAX_OFFSET` as an override.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_offset: Option<u32>,
+}
+
+impl ValidationConfig {
+    /// Refuse a `max_offset` of 0: it would refuse every offset page, which is not a
+    /// ceiling. Leave the key unset for none.
+    ///
+    /// # Errors
+    ///
+    /// When `max_offset` is 0.
+    pub fn validate(&self) -> anyhow::Result<()> {
+        if self.max_offset == Some(0) {
+            anyhow::bail!(
+                "[validation] max_offset = 0 would refuse every offset page. Set the deepest \
+                 offset clients may page to, or leave the key unset for no ceiling."
+            );
+        }
+        Ok(())
+    }
 }
 
 /// Debug/development configuration.

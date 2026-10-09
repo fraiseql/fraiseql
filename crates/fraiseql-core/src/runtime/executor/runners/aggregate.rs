@@ -334,6 +334,12 @@ impl AggregateRunner {
         );
         let mut request =
             crate::runtime::AggregateQueryParser::parse(query_json, metadata, &native_columns)?;
+        // #1306: an offset over groups is held to `[validation] max_offset` as a list's is.
+        request.offset = super::query_params::enforce_max_offset(
+            request.offset,
+            self.ctx.config.max_offset,
+            "offset",
+        )?;
         // #1512: an ORDER BY on a text group-by key sorts under the request locale's collation.
         if let Some(collation) = self.request_collation() {
             collate_text_group_keys(&mut request, &collation);
@@ -595,6 +601,12 @@ impl AggregateRunner {
 
         // 1. Parse JSON query into WindowRequest
         let mut request = crate::runtime::WindowQueryParser::parse(query_json, metadata)?;
+        // #1306: as an aggregate's.
+        request.offset = super::query_params::enforce_max_offset(
+            request.offset,
+            self.ctx.config.max_offset,
+            "offset",
+        )?;
 
         // 1a. A linked fact table is read as its type (ruling AB 2), as for an aggregate.
         super::aggregate_gates::refuse_unreadable_window(

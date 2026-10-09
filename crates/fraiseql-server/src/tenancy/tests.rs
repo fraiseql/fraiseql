@@ -821,6 +821,7 @@ mod runtime_config_drift {
         let RuntimeConfig {
             cache_query_plans,
             max_page_size,
+            max_offset,
             enable_tracing,
             field_filter,
             rls_policy,
@@ -903,6 +904,9 @@ mod runtime_config_drift {
         if *max_page_size != tenant.max_page_size {
             out.push("max_page_size");
         }
+        if *max_offset != tenant.max_offset {
+            out.push("max_offset");
+        }
         if *max_operation_cost != tenant.max_operation_cost {
             out.push("max_operation_cost");
         }
@@ -930,6 +934,7 @@ mod runtime_config_drift {
         let populated = RuntimeConfig {
             cache_query_plans: false,
             max_page_size: Some(17),
+            max_offset: Some(23),
             enable_tracing: true,
             query_timeout_ms: 4321,
             max_operation_cost: Some(99),
@@ -950,6 +955,7 @@ mod runtime_config_drift {
             "dry_run_mutations",
             "mutation_error_shape_check",
             "max_page_size",
+            "max_offset",
             "max_operation_cost",
             "max_response_bytes",
             "audit_mutations",

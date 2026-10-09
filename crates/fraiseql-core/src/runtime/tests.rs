@@ -5110,7 +5110,7 @@ mod window_projector_tests {
 mod runtime_config_from_schema_tests {
 
     use crate::{
-        runtime::{RuntimeConfig, page_size_precedence},
+        runtime::{RuntimeConfig, offset_precedence, page_size_precedence},
         schema::{
             ChangelogConfig, CompiledSchema, ProducerVersion, SecurityConfig, ValidationConfig,
         },
@@ -5227,5 +5227,21 @@ mod runtime_config_from_schema_tests {
     #[test]
     fn page_size_unparseable_env_falls_through_to_compiled() {
         assert_eq!(page_size_precedence(Some("lots"), Some(250)), Some(250));
+    }
+
+    // ── offset_precedence (#1306): unset by default, the env over the compiled ──
+    #[test]
+    fn offset_has_no_ceiling_when_nothing_set() {
+        assert_eq!(offset_precedence(None, None), None);
+    }
+
+    #[test]
+    fn offset_env_overrides_compiled_and_can_lift_it() {
+        assert_eq!(offset_precedence(None, Some(250)), Some(250));
+        assert_eq!(offset_precedence(Some("500"), Some(250)), Some(500));
+        assert_eq!(offset_precedence(Some("500"), None), Some(500));
+        assert_eq!(offset_precedence(Some("none"), Some(250)), None);
+        assert_eq!(offset_precedence(Some("0"), Some(250)), None);
+        assert_eq!(offset_precedence(Some("deep"), Some(250)), Some(250));
     }
 }

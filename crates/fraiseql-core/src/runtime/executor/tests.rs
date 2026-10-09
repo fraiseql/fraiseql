@@ -71,6 +71,7 @@ mod query {
 
             cache_query_plans:          false,
             max_page_size:              Some(1000),
+            max_offset:                 None,
             enable_tracing:             true,
             field_filter:               None,
             rls_policy:                 None,
@@ -1242,6 +1243,7 @@ mod config {
 
             cache_query_plans:          false,
             max_page_size:              Some(1000),
+            max_offset:                 None,
             enable_tracing:             true,
             field_filter:               None,
             rls_policy:                 None,
@@ -1278,6 +1280,7 @@ mod config {
 
             cache_query_plans:          false,
             max_page_size:              Some(1000),
+            max_offset:                 None,
             enable_tracing:             true,
             field_filter:               None,
             rls_policy:                 None,
@@ -1758,6 +1761,7 @@ mod gate1_schema_derived {
             max_query_depth:      depth,
             max_query_complexity: complexity,
             max_page_size:        None,
+            max_offset:           None,
             max_response_bytes:   None,
         });
         schema

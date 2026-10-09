@@ -9,6 +9,7 @@ Audit of all GraphQL query complexity and abuse protections in FraiseQL.
 | **Alias amplification** | 30 aliases | No (hardcoded) | `crates/fraiseql-server/src/validation.rs:459` |
 | **Query depth** | 10 levels | Yes (`max_query_depth` in `fraiseql.toml`) | `crates/fraiseql-server/src/validation.rs:457` |
 | **Top-level page size** | 1000 rows | Yes (`max_page_size` in `[validation]`, `FRAISEQL_MAX_PAGE_SIZE` env) | `crates/fraiseql-core/src/runtime/executor/runners/query_params.rs` (`enforce_max_page_size`) |
+| **Offset depth** | none | Yes (`max_offset` in `[validation]`, `FRAISEQL_MAX_OFFSET` env) | `crates/fraiseql-core/src/runtime/executor/runners/query_params.rs` (`enforce_max_offset`); see [pagination](../features/pagination.md#deep-offset) |
 | **Complexity error rate** | 30 errors/60s per key | Yes (`complexity_errors_max_requests`) | `crates/fraiseql-core/src/validation/rate_limiting.rs:67` |
 | **Federation batch** | 1000 representations | No (hardcoded) | `crates/fraiseql-server/src/federation/` |
 
@@ -150,6 +151,9 @@ max_query_depth = 11
 # Max rows a top-level first/last/limit may request (default: 1000). #421
 # Overridable at runtime with FRAISEQL_MAX_PAGE_SIZE (a number, or 0/none to disable).
 max_page_size = 1000
+# Deepest offset a client may page to (default: none). #1306
+# Overridable at runtime with FRAISEQL_MAX_OFFSET (a number, or 0/none to lift it).
+# max_offset = 10000
 
 [security.cost_budget]
 # Hard per-operation cost ceiling, enforced inside the executor for every

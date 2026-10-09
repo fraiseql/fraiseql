@@ -38,6 +38,7 @@ mod executor_gate_config_tests {
                 max_query_depth:      depth,
                 max_query_complexity: complexity,
                 max_page_size:        None,
+                max_offset:           None,
                 max_response_bytes:   None,
             }),
             ..CompiledSchema::default()
@@ -71,6 +72,7 @@ mod executor_gate_config_tests {
                 max_query_depth:      None,
                 max_query_complexity: Some(500),
                 max_page_size:        None,
+                max_offset:           None,
                 max_response_bytes:   None,
             }),
             ..ServerConfig::default()
@@ -97,6 +99,7 @@ mod executor_gate_config_tests {
                 max_query_depth:      None,
                 max_query_complexity: Some(500),
                 max_page_size:        None,
+                max_offset:           None,
                 max_response_bytes:   None,
             }),
             ..ServerConfig::default()
@@ -141,6 +144,7 @@ mod executor_gate_config_tests {
                 max_query_depth:      None,
                 max_query_complexity: Some(500),
                 max_page_size:        None,
+                max_offset:           None,
                 max_response_bytes:   None,
             }),
             ..ServerConfig::default()
@@ -154,6 +158,68 @@ mod executor_gate_config_tests {
             schema.validation_config.as_ref(),
         );
         assert_eq!(depth, Some(fraiseql_core::schema::DEFAULT_MAX_QUERY_DEPTH));
+    }
+}
+
+mod runtime_ceiling_tests {
+    use fraiseql_core::schema::{CompiledSchema, ValidationConfig};
+
+    use super::super::initialization::executor_runtime_config;
+    use crate::server_config::ServerConfig;
+
+    /// #1306: the page-size and offset ceilings belong to the compiled schema and their
+    /// environment overrides, which every hot reload re-derives. A server configuration's
+    /// `[validation]` value for either would hold until the first reload, so it is refused
+    /// at boot, naming where it does take effect. `max_page_size` used to parse and do
+    /// nothing at all.
+    #[test]
+    fn a_runtime_page_size_or_offset_ceiling_is_refused_naming_where_it_belongs() {
+        for (validation, key, env) in [
+            (
+                ValidationConfig {
+                    max_page_size: Some(10),
+                    ..ValidationConfig::default()
+                },
+                "max_page_size",
+                "FRAISEQL_MAX_PAGE_SIZE",
+            ),
+            (
+                ValidationConfig {
+                    max_offset: Some(10),
+                    ..ValidationConfig::default()
+                },
+                "max_offset",
+                "FRAISEQL_MAX_OFFSET",
+            ),
+        ] {
+            let config = ServerConfig {
+                validation: Some(validation),
+                ..ServerConfig::default()
+            };
+            let err = executor_runtime_config(&CompiledSchema::default(), &config)
+                .expect_err("refused at boot");
+            assert!(
+                err.contains(key) && err.contains("fraiseql.toml") && err.contains(env),
+                "{err}"
+            );
+        }
+    }
+
+    /// The compiled ceiling is the one in force.
+    #[test]
+    fn the_compiled_offset_ceiling_reaches_the_executor() {
+        let schema = CompiledSchema {
+            validation_config: Some(ValidationConfig {
+                max_offset: Some(500),
+                ..ValidationConfig::default()
+            }),
+            ..CompiledSchema::default()
+        };
+        let rt = executor_runtime_config(&schema, &ServerConfig::default()).expect("valid schema");
+        assert_eq!(rt.max_offset, Some(500));
+        let rt = executor_runtime_config(&CompiledSchema::default(), &ServerConfig::default())
+            .expect("valid schema");
+        assert_eq!(rt.max_offset, None, "unset by default");
     }
 }
 

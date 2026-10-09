@@ -447,6 +447,16 @@ impl CompiledSchema {
                 path:    Some("schema.names".to_string()),
             });
         }
+        // #1306: a ceiling of 0 refuses every offset page; the compiler refuses it, and a
+        // hand-written artifact is held to the same rule.
+        if self.validation_config.as_ref().and_then(|v| v.max_offset) == Some(0) {
+            return Err(FraiseQLError::Validation {
+                message: "`max_offset` of 0 would refuse every offset page; leave it unset for \
+                          no ceiling"
+                    .to_string(),
+                path:    Some("validation_config.max_offset".to_string()),
+            });
+        }
         // #1512: a tag reaches SQL text, so the compiled `[locale]` is checked again here,
         // where a hand-written artifact passes too, and its chains are derived (never read).
         self.validate_locale()?;

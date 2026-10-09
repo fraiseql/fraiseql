@@ -421,6 +421,12 @@ pub struct ValidationConfig {
     /// environment variable as an override.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_page_size:        Option<u32>,
+    /// The deepest offset a client may page to (#1306). `OFFSET n` reads `n` rows to
+    /// discard them, so a deep offset page costs its depth however it is ordered; a
+    /// relay connection pages by cursor at any depth. Unset (the default), no offset is
+    /// refused; the server also honours `FRAISEQL_MAX_OFFSET` as an override.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub max_offset:           Option<u32>,
 }
 
 /// MCP (Model Context Protocol) server configuration (compiled from `[mcp]` in `fraiseql.toml`).

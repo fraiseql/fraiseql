@@ -75,6 +75,23 @@ pub(super) fn executor_runtime_config(
     if let Some(bytes) = config.validation.as_ref().and_then(|v| v.max_response_bytes) {
         rt.max_response_bytes = Some(bytes);
     }
+    // The page-size (#421) and offset (#1306) ceilings are owned by the compiled schema and
+    // their environment overrides, and re-derived from those on every hot reload. A runtime
+    // `[validation]` value for either would hold until the first reload and then vanish, so
+    // it is refused here rather than parsed and ignored, which `max_page_size` used to be.
+    if let Some(runtime) = config.validation.as_ref() {
+        for (key, set, env) in [
+            ("max_page_size", runtime.max_page_size.is_some(), "FRAISEQL_MAX_PAGE_SIZE"),
+            ("max_offset", runtime.max_offset.is_some(), "FRAISEQL_MAX_OFFSET"),
+        ] {
+            if set {
+                return Err(format!(
+                    "the server configuration's [validation] {key} is not applied: set it in \
+                     fraiseql.toml before compiling, or override it with {env}"
+                ));
+            }
+        }
+    }
 
     // A mutation with several roots reports a failing root inside a `200` body, which
     // the handler's sanitizer never sees: render that entry with the sanitizer the

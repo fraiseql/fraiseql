@@ -830,6 +830,23 @@ fn plan_stream(
         .map_err(|e| bad_request(&format!("@stream planning failed: {e}")))?
         .map_or(0, u64::from);
 
+    // #1306: a stream reads its list in batches at increasing offsets, each held to
+    // `[validation] max_offset` by the engine. One whose own `limit` takes its last batch
+    // past the ceiling is refused here, before any statement; one with no `limit` that
+    // reaches it ends with the engine's refusal, which names the cursor path.
+    let deepest = client_limit
+        .map_or(client_offset, |total| client_offset.saturating_add(total.saturating_sub(1)));
+    fraiseql_core::runtime::enforce_max_offset(
+        Some(u32::try_from(deepest).unwrap_or(u32::MAX)),
+        executor.config().max_offset,
+        "offset",
+    )
+    .map_err(|e| {
+        bad_request(&format!(
+            "@stream reads its list in batches, the last at offset {deepest}: {e}"
+        ))
+    })?;
+
     Ok(Some(StreamPlan {
         response_key: matched.response_key().to_string(),
         initial_count,

@@ -552,6 +552,7 @@ impl TomlSchema {
 
         self.server.validate()?;
         self.database.validate()?;
+        self.validation.validate()?;
 
         self.validate_circuit_breaker()?;
 
