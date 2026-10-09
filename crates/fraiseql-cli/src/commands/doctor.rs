@@ -735,16 +735,7 @@ pub async fn run_with_db_checks(
         None
     };
     if let (Some(url), Some(tls)) = (against_db, tls.as_ref()) {
-        checks.extend(changelog_contract_checks(url, tls).await);
-        checks.extend(changelog_rls_checks(url, tls).await);
-        checks.extend(changelog_public_grants_checks(url, tls).await);
-        checks.extend(changelog_actor_checks(url, tls).await);
-        checks.extend(capture_fn_security_checks(url, tls).await);
-        checks.extend(body_resolution_checks(url, tls, schemas).await);
-        checks.extend(mutation_contract_checks(url, tls, schema).await);
-        checks.extend(view_drift_checks(url, tls, schema).await);
-        checks.extend(rls_security_invoker_checks(url, tls, schema).await);
-        checks.extend(pagination_index_checks(url, tls, schema).await);
+        checks.extend(against_db_checks(url, tls, schema, schemas).await);
     }
 
     // Runtime smoke (#501): actually execute each probeable root operation. Prefers
@@ -760,6 +751,101 @@ pub async fn run_with_db_checks(
     }
 
     checks.iter().all(|c| c.status != CheckStatus::Fail)
+}
+
+/// The checks `doctor --against-db` runs against the live database at `url`.
+pub async fn against_db_checks(
+    url: &str,
+    tls: &PostgresTlsConfig,
+    schema: &Path,
+    schemas: &[String],
+) -> Vec<DoctorCheck> {
+    let mut checks = Vec::new();
+    checks.extend(changelog_contract_checks(url, tls).await);
+    checks.extend(changelog_rls_checks(url, tls).await);
+    checks.extend(changelog_public_grants_checks(url, tls).await);
+    checks.extend(changelog_actor_checks(url, tls).await);
+    checks.extend(capture_fn_security_checks(url, tls).await);
+    checks.extend(body_resolution_checks(url, tls, schemas).await);
+    checks.extend(mutation_contract_checks(url, tls, schema).await);
+    checks.extend(view_drift_checks(url, tls, schema).await);
+    checks.extend(rls_security_invoker_checks(url, tls, schema).await);
+    checks.extend(pagination_index_checks(url, tls, schema).await);
+    // A schema that does not parse is reported by the checks above.
+    if let Ok(compiled) = std::fs::read_to_string(schema)
+        .map_err(|e| e.to_string())
+        .and_then(|c| serde_json::from_str::<CompiledSchema>(&c).map_err(|e| e.to_string()))
+    {
+        checks.extend(localized_index_checks(url, tls, &compiled).await);
+    }
+    checks
+}
+
+// ─── Localized field indexes (#1513) ────────────────────────────────────────────
+
+const LOCALIZED_INDEX_NAME: &str = "Localized index";
+
+/// Name each (localized field, allowed locale) whose filter and sort no index serves.
+///
+/// Judged by plan, not by name: for each pair the key `compile` reports is probed with
+/// `enable_seqscan = off`, so an equivalent index the operator created under any name counts.
+/// Warnings, never failures: the query is correct either way. A view's pairs are skipped:
+/// its index belongs on a base table the schema does not name.
+pub async fn localized_index_checks(
+    db_url: &str,
+    tls: &PostgresTlsConfig,
+    schema: &CompiledSchema,
+) -> Vec<DoctorCheck> {
+    let report = schema.localized_index_report();
+    if report.is_empty() {
+        return Vec::new();
+    }
+    let catalog = match crate::schema::pg_catalog::PgCatalog::connect(db_url, tls).await {
+        Ok(c) => c,
+        Err(e) => {
+            return vec![DoctorCheck::fail(
+                LOCALIZED_INDEX_NAME,
+                format!("cannot connect: {e}"),
+                "Pass a reachable postgres:// URL to --against-db",
+            )];
+        },
+    };
+    let mut checks = Vec::new();
+    let mut indexed = 0_usize;
+    for advice in &report {
+        let Some(index) = &advice.index else {
+            continue;
+        };
+        let subject = format!(
+            "{}.{} [{}] on {}",
+            advice.type_name, advice.field, advice.locale, advice.table
+        );
+        let probe = format!(
+            "SELECT 1 FROM {} WHERE {} = ''",
+            fraiseql_db::quote_postgres_identifier(&advice.table),
+            index.key
+        );
+        match catalog.plan_reads_an_index(&probe).await {
+            Ok(true) => indexed += 1,
+            Ok(false) => checks.push(DoctorCheck::warn(
+                LOCALIZED_INDEX_NAME,
+                format!("{subject}: no index serves a filter or sort on it"),
+                index.ddl.clone(),
+            )),
+            Err(e) => checks.push(DoctorCheck::warn(
+                LOCALIZED_INDEX_NAME,
+                format!("{subject}: could not plan a probe — {e}"),
+                "Check that the table exists and the role can read it",
+            )),
+        }
+    }
+    if checks.is_empty() {
+        checks.push(DoctorCheck::pass(
+            LOCALIZED_INDEX_NAME,
+            format!("{indexed} localized (field, locale) pairs are indexed"),
+        ));
+    }
+    checks
 }
 
 // ─── Pagination index advice (#1307) ────────────────────────────────────────────

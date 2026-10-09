@@ -206,6 +206,27 @@ impl PgCatalog {
         Ok(Self { pool })
     }
 
+    /// Whether the plan of `select` reads any index once sequential scans are priced out
+    /// (#1513): the question "is there an index that serves this", asked of the planner
+    /// rather than of index names, so an equivalent index under any name counts.
+    ///
+    /// Runs in a read-only transaction that is rolled back; `enable_seqscan = off` is
+    /// local to it.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection fails or `select` does not plan (a missing
+    /// relation).
+    pub async fn plan_reads_an_index(&self, select: &str) -> Result<bool> {
+        let mut client = self.pool.get().await.context("failed to acquire DB connection")?;
+        let tx = client.build_transaction().read_only(true).start().await?;
+        tx.batch_execute("SET LOCAL enable_seqscan = off").await?;
+        let row = tx.query_one(&format!("EXPLAIN (FORMAT JSON) {select}"), &[]).await?;
+        let plan: serde_json::Value = row.try_get(0)?;
+        tx.rollback().await?;
+        Ok(plan_reads_index(&plan))
+    }
+
     /// Resolve all overloads of a (possibly schema-qualified) function name.
     ///
     /// Unqualified names resolve against the connection's `search_path`
@@ -656,5 +677,16 @@ fn split_qualified(sql_source: &str) -> (Option<String>, String) {
     match sql_source.split_once('.') {
         Some((schema, name)) => (Some(schema.to_string()), name.to_string()),
         None => (None, sql_source.to_string()),
+    }
+}
+
+/// Whether any node of an `EXPLAIN (FORMAT JSON)` plan reads an index.
+fn plan_reads_index(plan: &serde_json::Value) -> bool {
+    match plan {
+        serde_json::Value::Object(node) => {
+            node.contains_key("Index Name") || node.values().any(plan_reads_index)
+        },
+        serde_json::Value::Array(items) => items.iter().any(plan_reads_index),
+        _ => false,
     }
 }

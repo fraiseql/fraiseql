@@ -371,3 +371,80 @@ async fn change_log_actor_stats_sees_null_unknown_and_constraint() {
         "probe rows removed — the rogue token is gone: {s:?}"
     );
 }
+
+/// #1513: `doctor --against-db` names each (localized field, allowed locale) whose filter and
+/// sort no index serves, judged by the plan. An index on the same key under another name
+/// counts; with all present the check passes. The table holds three rows, as a fresh
+/// deployment's does, so a planner left to choose scans it: the check must price the scan out
+/// to see the index.
+#[tokio::test]
+async fn doctor_names_each_missing_localized_index() {
+    use fraiseql_cli::commands::doctor::localized_index_checks;
+
+    const TABLE: &str = "tv_doctor_locale_product";
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        eprintln!("skipping #1513 doctor test: no DATABASE_URL");
+        return;
+    };
+    let schema = fraiseql_core::schema::CompiledSchema::from_json(
+        &format!(
+            r#"{{"types": [{{"name": "Product", "sql_source": "{TABLE}", "fields": [
+                {{"name": "id", "field_type": "ID", "nullable": false}},
+                {{"name": "name", "field_type": "String", "nullable": true, "localized": true}}]}}],
+              "queries": [], "mutations": [], "subscriptions": [],
+              "locale": {{"default": "en-US", "allowed": ["en-US", "fr-FR", "sv-SE"]}}}}"#
+        ),
+        false,
+    )
+    .unwrap();
+    let (client, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
+    tokio::spawn(connection);
+    client
+        .batch_execute(&format!(
+            "DROP TABLE IF EXISTS {TABLE}; CREATE TABLE {TABLE} (pk bigint, data jsonb); \
+             INSERT INTO {TABLE} SELECT i, jsonb_build_object('name', jsonb_build_object('fr-FR', \
+             'Nom ' || i)) FROM generate_series(1, 3) AS i; ANALYZE {TABLE};"
+        ))
+        .await
+        .unwrap();
+    let report = schema.localized_index_report();
+    let fr = report.iter().find(|a| a.locale == "fr-FR").unwrap().index.clone().unwrap();
+    // The fr-FR index, under a name of the operator's own: judged by plan, not by name.
+    client
+        .batch_execute(&fr.ddl.replace(&fr.name, "operator_named_fr_index"))
+        .await
+        .unwrap();
+    client.batch_execute(&format!("ANALYZE {TABLE}")).await.unwrap();
+
+    let tls = fraiseql_db::postgres::PostgresTlsConfig::default();
+    // `doctor --against-db` runs the check, from the compiled schema file.
+    let mut file = Builder::new().suffix(".json").tempfile().unwrap();
+    file.write_all(serde_json::to_string(&schema).unwrap().as_bytes()).unwrap();
+    file.flush().unwrap();
+    let from_doctor: Vec<String> =
+        fraiseql_cli::commands::doctor::against_db_checks(&url, &tls, file.path(), &[])
+            .await
+            .into_iter()
+            .filter(|c| c.name == "Localized index" && c.status == CheckStatus::Warn)
+            .map(|c| c.detail)
+            .collect();
+    let missing: Vec<String> = localized_index_checks(&url, &tls, &schema)
+        .await
+        .into_iter()
+        .filter(|c| c.status == CheckStatus::Warn)
+        .map(|c| c.detail)
+        .collect();
+    assert_eq!(missing.len(), 2, "{missing:?}");
+    assert!(missing.iter().any(|d| d.contains("[en-US]")), "{missing:?}");
+    assert!(missing.iter().any(|d| d.contains("[sv-SE]")), "{missing:?}");
+    assert_eq!(from_doctor, missing, "doctor --against-db reports the same");
+
+    for advice in &report {
+        if advice.locale != "fr-FR" {
+            client.batch_execute(&advice.index.as_ref().unwrap().ddl).await.unwrap();
+        }
+    }
+    let checks = localized_index_checks(&url, &tls, &schema).await;
+    client.batch_execute(&format!("DROP TABLE {TABLE}")).await.unwrap();
+    assert!(checks.iter().all(|c| c.status == CheckStatus::Pass), "{checks:?}");
+}

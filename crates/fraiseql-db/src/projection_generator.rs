@@ -365,6 +365,9 @@ pub struct LocalizedIndex {
     pub name: String,
     /// `CREATE INDEX CONCURRENTLY IF NOT EXISTS …`, on exactly the key queries read.
     pub ddl:  String,
+    /// The indexed key, [`localized_key_expr`] over the table's `data` column: what a check
+    /// plans a probe against to tell whether any index serves it.
+    pub key:  String,
 }
 
 /// The index a filter or sort on a localized field reads in one locale (#1513).
@@ -407,7 +410,7 @@ pub fn localized_index(
         "CREATE INDEX CONCURRENTLY IF NOT EXISTS {} ON {quoted_table} (({key}));",
         crate::identifier::quote_postgres_identifier(&name)
     );
-    Ok(LocalizedIndex { name, ddl })
+    Ok(LocalizedIndex { name, ddl, key })
 }
 
 /// The SQL a localized field's translations sibling is read with (#1513).
