@@ -72,8 +72,9 @@ The server checks at boot that every allowed locale has its collation in the dat
 (`pg_collation`) and refuses to start, naming the missing ones, when it doesn't. A
 PostgreSQL built with ICU provides them for the locales ICU knows.
 
-Paging a relay connection with `after`/`before` under an `orderBy` on another field than
-its cursor column is refused for now (#1521). Request the first page with `orderBy`.
+A relay connection pages under a text `orderBy` in the request locale's collation. Its
+cursors belong to that locale: one issued in `fr-CA` is refused in `sv-SE`, whose order
+differs ([pagination](pagination.md#paging-under-an-orderby)).
 
 ## In SQL: reads only
 

@@ -27,7 +27,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        traits::{CursorValue, DatabaseAdapter, RelayDatabaseAdapter},
+        traits::{DatabaseAdapter, RelayCursor, RelayDatabaseAdapter},
         types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -265,16 +265,30 @@ impl RelayDatabaseAdapter for RecordingAdapter {
         &self,
         _view: &str,
         _cursor_column: &str,
-        _after: Option<CursorValue>,
-        _before: Option<CursorValue>,
+        _after: Option<RelayCursor>,
+        _before: Option<RelayCursor>,
         _limit: u32,
         _forward: bool,
         _where_clause: Option<&WhereClause>,
-        _order_by: Option<&[fraiseql_core::compiler::aggregation::OrderByClause]>,
+        order_by: Option<&[fraiseql_core::compiler::aggregation::OrderByClause]>,
         include_total_count: bool,
     ) -> Result<fraiseql_core::db::traits::RelayPageResult> {
+        // Under an ordering the adapter carries each row's sort-key values (#1521), and so
+        // does this double, read off the row as text.
+        let mut row = alice_row();
+        if let Some(clauses) = order_by.filter(|c| !c.is_empty()) {
+            let keys: Vec<serde_json::Value> = clauses
+                .iter()
+                .map(|c| match row.data.get(c.storage_key()) {
+                    None | Some(serde_json::Value::Null) => serde_json::Value::Null,
+                    Some(serde_json::Value::String(s)) => json!(s),
+                    Some(other) => json!(other.to_string()),
+                })
+                .collect();
+            row.data[fraiseql_core::db::SORT_KEYS_KEY] = json!(keys);
+        }
         Ok(fraiseql_core::db::traits::RelayPageResult::new(
-            vec![alice_row()],
+            vec![row],
             include_total_count.then_some(1),
         ))
     }

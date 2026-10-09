@@ -15,7 +15,7 @@ use std::{
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        CursorValue, DatabaseAdapter, DatabaseType, RelayDatabaseAdapter, WhereClause,
+        DatabaseAdapter, DatabaseType, RelayCursor, RelayDatabaseAdapter, WhereClause,
         WriteRequest, Writer,
         traits::{MutationRowGate, RelayPageResult},
         types::{ColumnSpec, ColumnValue, JsonbValue, OrderByClause, PoolMetrics},
@@ -462,8 +462,8 @@ impl RelayDatabaseAdapter for FailingAdapter {
         &'a self,
         view: &'a str,
         _cursor_column: &'a str,
-        _after: Option<CursorValue>,
-        _before: Option<CursorValue>,
+        _after: Option<RelayCursor>,
+        _before: Option<RelayCursor>,
         limit: u32,
         _forward: bool,
         _where_clause: Option<&'a WhereClause>,

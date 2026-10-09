@@ -13,7 +13,7 @@ use std::{collections::HashMap, sync::Arc};
 use async_trait::async_trait;
 use fraiseql_core::{
     db::{
-        traits::{CursorValue, DatabaseAdapter, RelayDatabaseAdapter},
+        traits::{CursorValue, DatabaseAdapter, RelayCursor, RelayDatabaseAdapter},
         types::{DatabaseType, JsonbValue, OrderByClause, PoolMetrics},
         where_clause::WhereClause,
     },
@@ -201,8 +201,8 @@ impl RelayDatabaseAdapter for RelayMockAdapter {
         &self,
         _view: &str,
         cursor_column: &str,
-        after: Option<CursorValue>,
-        before: Option<CursorValue>,
+        after: Option<RelayCursor>,
+        before: Option<RelayCursor>,
         limit: u32,
         forward: bool,
         _where_clause: Option<&fraiseql_core::db::WhereClause>,
@@ -218,14 +218,14 @@ impl RelayDatabaseAdapter for RelayMockAdapter {
 
         // Apply cursor filter for the page rows (Int64 only in this mock).
         let after_pk = after.and_then(|c| {
-            if let CursorValue::Int64(v) = c {
+            if let CursorValue::Int64(v) = c.position {
                 Some(v)
             } else {
                 None
             }
         });
         let before_pk = before.and_then(|c| {
-            if let CursorValue::Int64(v) = c {
+            if let CursorValue::Int64(v) = c.position {
                 Some(v)
             } else {
                 None
@@ -245,11 +245,16 @@ impl RelayDatabaseAdapter for RelayMockAdapter {
             })
             .collect();
 
+        // A backward page is the `limit` rows nearest the cursor, returned in connection
+        // order, as the relay adapter contract and the PostgreSQL adapter have it.
         if !forward {
             filtered.reverse();
         }
-
-        let rows = filtered.into_iter().take(limit as usize).cloned().collect();
+        let mut rows: Vec<JsonbValue> =
+            filtered.into_iter().take(limit as usize).cloned().collect();
+        if !forward {
+            rows.reverse();
+        }
 
         Ok(fraiseql_core::db::traits::RelayPageResult::new(rows, total_count))
     }
@@ -914,8 +919,8 @@ impl RelayDatabaseAdapter for UuidRelayMockAdapter {
         &self,
         _view: &str,
         cursor_column: &str,
-        after: Option<CursorValue>,
-        before: Option<CursorValue>,
+        after: Option<RelayCursor>,
+        before: Option<RelayCursor>,
         limit: u32,
         forward: bool,
         _where_clause: Option<&fraiseql_core::db::WhereClause>,
@@ -929,14 +934,14 @@ impl RelayDatabaseAdapter for UuidRelayMockAdapter {
         };
 
         let after_uuid = after.and_then(|c| {
-            if let CursorValue::Uuid(v) = c {
+            if let CursorValue::Uuid(v) = c.position {
                 Some(v)
             } else {
                 None
             }
         });
         let before_uuid = before.and_then(|c| {
-            if let CursorValue::Uuid(v) = c {
+            if let CursorValue::Uuid(v) = c.position {
                 Some(v)
             } else {
                 None
@@ -956,11 +961,16 @@ impl RelayDatabaseAdapter for UuidRelayMockAdapter {
             })
             .collect();
 
+        // A backward page is the `limit` rows nearest the cursor, returned in connection
+        // order, as the relay adapter contract and the PostgreSQL adapter have it.
         if !forward {
             filtered.reverse();
         }
-
-        let rows = filtered.into_iter().take(limit as usize).cloned().collect();
+        let mut rows: Vec<JsonbValue> =
+            filtered.into_iter().take(limit as usize).cloned().collect();
+        if !forward {
+            rows.reverse();
+        }
         Ok(fraiseql_core::db::traits::RelayPageResult::new(rows, total_count))
     }
 }
@@ -1356,8 +1366,8 @@ mod relay_security {
             &self,
             _view: &str,
             cursor_column: &str,
-            after: Option<CursorValue>,
-            before: Option<CursorValue>,
+            after: Option<RelayCursor>,
+            before: Option<RelayCursor>,
             limit: u32,
             forward: bool,
             where_clause: Option<&fraiseql_core::db::WhereClause>,
@@ -1383,7 +1393,7 @@ mod relay_security {
             };
 
             let after_pk = after.and_then(|c| {
-                if let CursorValue::Int64(v) = c {
+                if let CursorValue::Int64(v) = c.position {
                     Some(v)
                 } else {
                     None
@@ -1406,8 +1416,11 @@ mod relay_security {
             if !forward {
                 filtered.reverse();
             }
-
-            let rows = filtered.into_iter().take(limit as usize).cloned().collect();
+            let mut rows: Vec<JsonbValue> =
+                filtered.into_iter().take(limit as usize).cloned().collect();
+            if !forward {
+                rows.reverse();
+            }
             Ok(fraiseql_core::db::traits::RelayPageResult::new(rows, total_count))
         }
     }

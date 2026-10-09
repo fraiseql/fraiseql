@@ -57,7 +57,10 @@ impl QueryRunner {
     ) -> Result<serde_json::Value> {
         use crate::{
             compiler::aggregation::OrderByClause,
-            runtime::relay::{decode_edge_cursor, decode_uuid_cursor, encode_edge_cursor},
+            runtime::relay::{
+                KEYSET_CURSOR_VERSION, KeysetCursor, encode_edge_cursor, encode_keyset_cursor,
+                ordering_fingerprint,
+            },
             schema::CursorType,
         };
 
@@ -221,60 +224,6 @@ impl QueryRunner {
         let after_cursor: Option<&str> = args.get("after").and_then(serde_json::Value::as_str);
         let before_cursor: Option<&str> = args.get("before").and_then(serde_json::Value::as_str);
 
-        // Decode base64 cursors — type depends on relay_cursor_type.
-        // If a cursor string is provided but fails to decode, return a validation
-        // error immediately. Silently ignoring an invalid cursor would return a
-        // full result set, violating the client's pagination intent.
-        let (after_pk, before_pk) =
-            match query_def.relay_cursor_type {
-                CursorType::Int64 => {
-                    let after = match after_cursor {
-                        Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
-                            || FraiseQLError::Validation {
-                                message: format!("invalid relay cursor for `after`: {s:?}"),
-                                path:    Some("after".to_string()),
-                            },
-                        )?),
-                        None => None,
-                    };
-                    let before = match before_cursor {
-                        Some(s) => Some(decode_edge_cursor(s).map(CursorValue::Int64).ok_or_else(
-                            || FraiseQLError::Validation {
-                                message: format!("invalid relay cursor for `before`: {s:?}"),
-                                path:    Some("before".to_string()),
-                            },
-                        )?),
-                        None => None,
-                    };
-                    (after, before)
-                },
-                CursorType::Uuid => {
-                    let after = match after_cursor {
-                        Some(s) => {
-                            Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(|| {
-                                FraiseQLError::Validation {
-                                    message: format!("invalid relay cursor for `after`: {s:?}"),
-                                    path:    Some("after".to_string()),
-                                }
-                            })?)
-                        },
-                        None => None,
-                    };
-                    let before = match before_cursor {
-                        Some(s) => {
-                            Some(decode_uuid_cursor(s).map(CursorValue::Uuid).ok_or_else(|| {
-                                FraiseQLError::Validation {
-                                    message: format!("invalid relay cursor for `before`: {s:?}"),
-                                    path:    Some("before".to_string()),
-                                }
-                            })?)
-                        },
-                        None => None,
-                    };
-                    (after, before)
-                },
-            };
-
         // Determine direction and limit.
         // Forward pagination takes priority; fallback to 20 if neither first/last given.
         let (forward, page_size) = if last.is_some() && first.is_none() {
@@ -310,7 +259,9 @@ impl QueryRunner {
 
         // Parse optional `orderBy`, enriched with schema type info.
         let order_by = if query_def.auto_params.has_order_by {
+            // An explicit `orderBy: null` is the argument's absence (GraphQL §2.9.5).
             args.get("orderBy")
+                .filter(|value| !value.is_null())
                 .map(OrderByClause::from_graphql_json)
                 .transpose()?
                 .map(|clauses| {
@@ -326,25 +277,27 @@ impl QueryRunner {
         } else {
             None
         };
-        // #1521: the keyset resumes on the cursor column alone, so a page after a cursor is
-        // only correct when the connection is ordered by that column. Under any other
-        // ordering it skips and repeats rows; refused until the cursor carries the sort key.
-        if (after_cursor.is_some() || before_cursor.is_some())
-            && order_by.as_deref().is_some_and(|clauses| {
-                clauses.iter().any(|c| !c.identity && c.storage_key() != cursor_column)
-            })
-        {
-            return Err(FraiseQLError::Validation {
-                message: format!(
-                    "`{}`: paging with `after`/`before` is not supported together with an \
-                     `orderBy` on another field than the connection's cursor (`{cursor_column}`) \
-                     yet: the next page would skip and repeat rows (#1521). Request the first \
-                     page with `orderBy`, or page without it.",
-                    query_def.name
-                ),
-                path:    Some(format!("{}.orderBy", query_def.name)),
-            });
-        }
+        // #1521: under an `orderBy` the page resumes past the cursor row's sort-key values,
+        // which its cursor carries along with the fingerprint of the ordering they belong to.
+        let ordering = {
+            let keys = crate::backend::keyset::keyset_keys(order_by.as_deref())?;
+            (!keys.is_empty())
+                .then(|| ordering_fingerprint(&crate::backend::keyset::keyset_signature(&keys)))
+        };
+        let decode = |argument: &str, cursor: Option<&str>| {
+            cursor
+                .map(|s| {
+                    decode_cursor(s, &query_def.relay_cursor_type, ordering.as_deref()).map_err(
+                        |reason| FraiseQLError::Validation {
+                            message: format!("invalid relay cursor for `{argument}`: {reason}"),
+                            path:    Some(argument.to_string()),
+                        },
+                    )
+                })
+                .transpose()
+        };
+        let after_pk = decode("after", after_cursor)?;
+        let before_pk = decode("before", before_cursor)?;
 
         // Detect whether the client selected `totalCount` inside the connection.
         // Named fragment spreads are already expanded by the matcher's FragmentResolver.
@@ -431,7 +384,15 @@ impl QueryRunner {
 
         // Detect whether there are more pages.
         let has_extra = page.len() > page_size as usize;
-        let rows: Vec<_> = page.into_iter().take(page_size as usize).collect();
+        // The adapter returns a page in connection order, so a backward page's extra row,
+        // the one past the page, is its first: dropping the last instead lost the row next
+        // to the `before` cursor on every backward page that had a previous one.
+        let extra = if forward {
+            0
+        } else {
+            page.len().saturating_sub(page_size as usize)
+        };
+        let rows: Vec<_> = page.into_iter().skip(extra).take(page_size as usize).collect();
 
         let (has_next_page, has_previous_page) = if forward {
             (has_extra, had_after)
@@ -444,12 +405,18 @@ impl QueryRunner {
         let mut start_cursor_str: Option<String> = None;
         let mut end_cursor_str: Option<String> = None;
 
-        for (i, row) in rows.iter().enumerate() {
+        for (i, mut row) in rows.into_iter().enumerate() {
+            // The row's sort-key values, which the adapter adds to the document of a page
+            // with an ordering; never part of the node.
+            let sort_keys = row
+                .data
+                .as_object_mut()
+                .and_then(|obj| obj.remove(crate::backend::keyset::SORT_KEYS_KEY));
             let data = &row.data;
 
             let col_val = data.as_object().and_then(|obj| obj.get(cursor_column));
 
-            let cursor_str = match query_def.relay_cursor_type {
+            let position = match query_def.relay_cursor_type {
                 CursorType::Int64 => col_val
                     .and_then(|v| v.as_i64())
                     .map(encode_edge_cursor)
@@ -472,6 +439,16 @@ impl QueryRunner {
                         ),
                         path: None,
                     })?,
+            };
+
+            let cursor_str = match &ordering {
+                None => position,
+                Some(ordering) => encode_keyset_cursor(&KeysetCursor {
+                    version:   KEYSET_CURSOR_VERSION,
+                    ordering:  ordering.clone(),
+                    sort_keys: sort_key_values(sort_keys, &query_def.name)?,
+                    position:  col_val.cloned().unwrap_or_default(),
+                }),
             };
 
             if i == 0 {
@@ -1012,6 +989,94 @@ impl QueryRunner {
         }
         Ok(())
     }
+}
+
+/// A client's `after`/`before` cursor as the page it resumes: the row's position, and its
+/// sort-key values when the connection is read under an `ordering` (its fingerprint).
+///
+/// A cursor resumes only the ordering it was issued under (#1521). Under another one, its
+/// values would be compared with other keys' and the page would skip and repeat rows, so a
+/// mismatch is refused, saying how to recover: request the first page again.
+fn decode_cursor(
+    cursor: &str,
+    cursor_type: &crate::schema::CursorType,
+    ordering: Option<&str>,
+) -> std::result::Result<crate::backend::RelayCursor, String> {
+    use crate::{
+        runtime::relay::{
+            KEYSET_CURSOR_VERSION, decode_edge_cursor, decode_keyset_cursor, decode_uuid_cursor,
+        },
+        schema::CursorType,
+    };
+
+    const RESTART: &str = "request the first page again, without `after`/`before`";
+    let keyset = decode_keyset_cursor(cursor);
+    let (position, sort_keys) = match (ordering, keyset) {
+        (None, None) => {
+            let position = match cursor_type {
+                CursorType::Int64 => decode_edge_cursor(cursor).map(CursorValue::Int64),
+                CursorType::Uuid => decode_uuid_cursor(cursor).map(CursorValue::Uuid),
+            };
+            return position
+                .map(crate::backend::RelayCursor::at)
+                .ok_or_else(|| format!("{cursor:?} is not a cursor of this connection"));
+        },
+        (None, Some(_)) => {
+            return Err(format!(
+                "it was issued under an `orderBy`, and this page has none: repeat that \
+                 `orderBy`, or {RESTART}"
+            ));
+        },
+        (Some(_), None) => {
+            return Err(format!(
+                "it was issued without an `orderBy` (or before 2.17), and this page has one: \
+                 {RESTART}"
+            ));
+        },
+        (_, Some(keyset)) if keyset.version != KEYSET_CURSOR_VERSION => {
+            return Err(format!(
+                "its format (version {}) is not one this server reads: {RESTART}",
+                keyset.version
+            ));
+        },
+        (Some(ordering), Some(keyset)) if keyset.ordering != ordering => {
+            return Err(format!(
+                "it was issued under another `orderBy` or locale than this page's: {RESTART}"
+            ));
+        },
+        (Some(_), Some(keyset)) => (keyset.position, keyset.sort_keys),
+    };
+    let position = match cursor_type {
+        CursorType::Int64 => position.as_i64().map(CursorValue::Int64),
+        CursorType::Uuid => position.as_str().map(|s| CursorValue::Uuid(s.to_string())),
+    }
+    .ok_or_else(|| format!("{cursor:?} is not a cursor of this connection"))?;
+    Ok(crate::backend::RelayCursor {
+        position,
+        sort_keys,
+    })
+}
+
+/// A page row's sort-key values, as the adapter added them to its document.
+fn sort_key_values(values: Option<serde_json::Value>, query: &str) -> Result<Vec<Option<String>>> {
+    let missing = || FraiseQLError::Database {
+        message:   format!(
+            "Relay query '{query}': the page row carries no sort-key values to build its cursor \
+             from"
+        ),
+        sql_state: None,
+    };
+    let serde_json::Value::Array(values) = values.ok_or_else(missing)? else {
+        return Err(missing());
+    };
+    values
+        .into_iter()
+        .map(|value| match value {
+            serde_json::Value::Null => Ok(None),
+            serde_json::Value::String(s) => Ok(Some(s)),
+            _ => Err(missing()),
+        })
+        .collect()
 }
 
 /// What a connection's `node` selects: the sub-selection of every `node` under every

@@ -122,6 +122,10 @@ pub mod db {
         identifier::quote_postgres_identifier,
         // Introspection, as the CLI's schema tooling consumes it.
         introspector::{self, RelationInfo, RelationKind},
+        // The key a `RelayDatabaseAdapter` writes each row's sort-key values under on a
+        // page with an ordering (#1521): part of the trait's contract, so an implementer
+        // names it.
+        keyset::SORT_KEYS_KEY,
         // JSONB path escaping and projection SQL, which the CLI's generators and the
         // projection parity tests build against.
         path_escape,
@@ -130,8 +134,8 @@ pub mod db {
         // `ResultCacheStats` is here as the return type of `Executor::result_cache_stats`,
         // not as a way to reach the cache: the executor mediates every operation on it.
         traits::{
-            self, ArcDatabaseAdapter, CursorValue, DatabaseAdapter, RelayDatabaseAdapter,
-            ResultCacheStats, WriteMode, WriteRequest, Writer,
+            self, ArcDatabaseAdapter, CursorValue, DatabaseAdapter, RelayCursor,
+            RelayDatabaseAdapter, ResultCacheStats, WriteMode, WriteRequest, Writer,
         },
         types::{
             self, DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

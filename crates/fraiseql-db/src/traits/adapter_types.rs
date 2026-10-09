@@ -94,6 +94,31 @@ pub enum CursorValue {
     Uuid(String),
 }
 
+/// Where a relay page resumes (#1521): past the row at `position` in the ordering the page is
+/// read in, whose sort-key values were `sort_keys`.
+///
+/// `sort_keys` holds one entry per clause of the ordering, as text (`None` for NULL), in the
+/// form a page's rows carry them under [`SORT_KEYS_KEY`](crate::keyset::SORT_KEYS_KEY). Empty
+/// for a connection ordered by its cursor column alone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RelayCursor {
+    /// The cursor column's value on the row the page resumes past.
+    pub position:  CursorValue,
+    /// That row's sort-key values, in ordering order.
+    pub sort_keys: Vec<Option<String>>,
+}
+
+impl RelayCursor {
+    /// A cursor at `position` in a connection ordered by its cursor column alone.
+    #[must_use]
+    pub const fn at(position: CursorValue) -> Self {
+        Self {
+            position,
+            sort_keys: Vec::new(),
+        }
+    }
+}
+
 /// Parameters for an `execute_with_projection_arc` call (F043).
 ///
 /// Consolidates the six positional parameters of the projection-execution path

@@ -156,11 +156,21 @@ disagreed, and the promise was the part that was wrong.
   gain `localized: bool`, and `WhereClause` gains `Localized { chain, collation, inner }`: struct
   literals add `localized: false`, and exhaustive matches add the arm (the leaf is in `inner`).
 
-- **A relay page after a cursor, under an `orderBy` on another field than the connection's
-  cursor column, is refused (#1521).** The keyset resumed on the cursor column alone, so such a
-  page skipped and repeated rows (measured: a 7-row walk returned 3 rows), in every collation.
-  The first page with `orderBy` is unaffected. Paging under such an ordering needs a composite
-  cursor, tracked in #1521.
+- **A relay cursor issued under an `orderBy` carries the row's sort keys, and resumes only that
+  ordering (#1521).** It is `base64` of a versioned JSON object (the row's position, its
+  sort-key values as text, a fingerprint of the ordering) instead of the bare cursor column. A cursor is
+  refused, saying to request the first page again, when it meets another ordering than the one
+  it was issued under: another `orderBy` or direction, another locale (whose collation or label
+  sorts differently), no `orderBy`, or a plain cursor (issued without `orderBy`, or before
+  2.17) under one. Clients holding cursors across the upgrade restart from the first page. An
+  unordered connection keeps the plain cursor, and old ones still resume it.
+- **`RelayDatabaseAdapter::execute_relay_page{,_with_session}` take `Option<RelayCursor>` for
+  `after`/`before` (#1521),** and `ComposedKeyset::cursor` is one: the position (the former
+  `CursorValue`, as `RelayCursor::at(position)`) and the cursor row's sort-key values. A page
+  under an ordering resumes past both, and returns each row's sort-key values in its document
+  under `fraiseql_db::keyset::SORT_KEYS_KEY`. `OrderByClause` gains `native_type`. Adapters
+  return a backward page in connection order, as the PostgreSQL adapter always has; test doubles
+  that returned it reversed now return it in order.
 
 - **`fraiseql_core::cache::generate_view_query_key` and `generate_projection_query_key` take
   the request locale (#1512).** A new `locale: Option<&str>` argument, before
@@ -187,6 +197,25 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A relay connection paged under an `orderBy` returns every row once, in order (#1521).** The
+  keyset resumed past the cursor column alone, as if the connection were ordered by it, so a
+  page after a cursor under any other ordering (or under the cursor column descending) skipped
+  and repeated rows. It now resumes past the cursor row's sort-key values, then its position,
+  key by key in each key's direction, with NULLs where the `ORDER BY` places them (last for
+  `ASC`, first for `DESC`). A key compares as the `ORDER BY` sorts it: its native column and
+  type, its typed JSON value, its collation in the request locale (#1512), a localized key's
+  label (#1513). Forward and backward, flat and composed (a connection selecting a row-gated
+  nested level).
+- **A backward relay page no longer drops the row next to its `before` cursor.** The page is
+  read with one extra row to tell whether there is a previous page; that row is the farthest
+  from the cursor, but the extra was cut from the near end, so every backward page that had a
+  previous one returned the wrong window and a `last`/`before` walk lost a row per page.
+- **A relay connection whose cursor column is a `uuid` pages past its first page.** The cursor
+  was bound as text into `$n::uuid`, which makes PostgreSQL expect a uuid's binary encoding, so
+  every `after`/`before` page failed (`incorrect binary data format in bind parameter`). Only
+  mocks and generated-SQL assertions had covered it; it is now walked on PostgreSQL.
+- **A relay connection's `orderBy: null` is the argument's absence.** It was refused
+  (`orderBy must be an object or array`); a client passing an unset variable got an error.
 - **Federation `_entities` selects a field written with arguments or a minified alias.** The
   scanner that picks an entity's columns dropped `label(locale: "en-US")` and `en:label`
   (the field came back absent under a 200) and read tokens inside an argument list as fields.

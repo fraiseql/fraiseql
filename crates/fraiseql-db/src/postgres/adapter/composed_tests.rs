@@ -407,7 +407,7 @@ fn keyset_root(cursor: Option<CursorValue>, forward: bool) -> ComposedLevel {
         limit: Some(6),
         keyset: Some(ComposedKeyset {
             cursor_column: "pk_user".to_string(),
-            cursor,
+            cursor: cursor.map(crate::traits::RelayCursor::at),
             forward,
         }),
         embeds: vec![embed("orders", EmbedShape::Many, level("v_order"))],
@@ -426,7 +426,7 @@ fn a_forward_keyset_root_is_paged_past_its_cursor_before_it_is_joined() {
     let page = &sql[..page_end];
     assert!(page.contains(r#"row_number() OVER (ORDER BY "pk_user" ASC) AS "_o""#), "{sql}");
     assert!(
-        page.contains(r#"AND "pk_user" > $2"#),
+        page.contains(r#"AND ("pk_user" > $2)"#),
         "the cursor, AND-ed after the predicate: {sql}"
     );
     assert!(page.contains(r#"ORDER BY "_o" LIMIT $3"#), "{sql}");
@@ -444,7 +444,7 @@ fn a_backward_keyset_root_is_read_descending_and_returned_ascending() {
     let cursor = CursorValue::Uuid("00000000-0000-0000-0000-000000000007".to_string());
     let (sql, _) = build_composed_select_sql(&keyset_root(Some(cursor), false)).unwrap();
 
-    assert!(sql.contains(r#""pk_user" < $2::uuid"#), "{sql}");
+    assert!(sql.contains(r#""pk_user" < $2::text::uuid"#), "{sql}");
     assert!(sql.contains(r#"ORDER BY "pk_user" DESC LIMIT $3"#), "{sql}");
     assert!(sql.contains(r#"row_number() OVER (ORDER BY _k._cursor ASC) AS "_o""#), "{sql}");
 }

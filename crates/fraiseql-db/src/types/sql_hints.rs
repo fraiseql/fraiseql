@@ -104,6 +104,11 @@ pub struct OrderByClause {
     /// enabling index support and correct typing without casts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub native_column: Option<String>,
+    /// The PostgreSQL type of [`native_column`](Self::native_column) (`int8`, `uuid`, …),
+    /// when the view declares it: a keyset value compared with the column is cast to it
+    /// (#1521). `None` reads it as the field's scalar type.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub native_type:   Option<String>,
     /// Vector-distance ordering (#386): when set, this clause orders by
     /// `{column} {operator} '{query_vector}'::vector` — the pgvector ANN shape.
     /// Requires [`native_column`](Self::native_column) (a JSONB-extracted text
@@ -266,6 +271,7 @@ impl OrderByClause {
             direction,
             field_type: ScalarFieldType::default(),
             native_column: None,
+            native_type: None,
             vector: None,
             relevance: None,
             identity: false,
@@ -291,6 +297,7 @@ impl OrderByClause {
             direction: OrderDirection::Asc,
             field_type: ScalarFieldType::Text,
             native_column,
+            native_type: None,
             vector: None,
             relevance: None,
             identity: true,
@@ -315,6 +322,7 @@ impl OrderByClause {
             direction:     OrderDirection::Desc,
             field_type:    ScalarFieldType::default(),
             native_column: None,
+            native_type:   None,
             vector:        None,
             relevance:     Some(relevance),
             identity:      false,

@@ -201,35 +201,7 @@ pub fn render_order_by_columns(
                 .expect("write to String is infallible");
             continue;
         }
-        OrderByClause::validate_field_name(&clause.field)?;
-        // Vector-distance ordering (#386): `{col} {op} '{vec}'::vector` — the
-        // pgvector ANN shape. Only valid against a native column (a JSONB
-        // extraction would re-parse text per row and defeat every index).
-        if let Some(distance) = vector_distance_expr(clause, db_type)? {
-            // Reason: fmt::Write for String is infallible
-            write!(columns, "{} {}", distance.as_sql(), clause.direction.as_sql())
-                .expect("write to String is infallible");
-            continue;
-        }
-        // When a native typed column is available, use it directly — this
-        // enables index support and avoids JSON extraction + cast overhead.
-        let expr = if let Some(ref col) = clause.native_column {
-            col.clone()
-        } else {
-            let key = clause.storage_key();
-            db_type.typed_json_field_expr(&key, clause.field_type)
-        };
-        // #1513: a localized key sorts the label its chain reads, collated, by the one
-        // builder the filter and the index report use.
-        let key = match &clause.localized {
-            Some(chain) => crate::projection_generator::localized_key_expr(
-                "data",
-                &[clause.storage_key()],
-                chain,
-                clause.collation.as_deref(),
-            )?,
-            None => collated(&expr, clause.collation.as_deref())?,
-        };
+        let key = sort_expr(clause, db_type)?;
         // Reason: fmt::Write for String is infallible
         write!(columns, "{key} {}", clause.direction.as_sql())
             .expect("write to String is infallible");
@@ -243,6 +215,46 @@ pub fn render_order_by_columns(
         write!(columns, ", {expr} ASC").expect("write to String is infallible");
     }
     Ok(Some(RenderedOrderBy { columns, params }))
+}
+
+/// The sort key a clause orders by, without its direction: a vector distance, a native
+/// column, or a typed JSON extraction; a localized key's label (#1513); collated (#1512).
+///
+/// The one rendering of a key: the `ORDER BY` and the keyset that resumes a relay page after
+/// a cursor (#1521) both read it, so a page resumes on exactly what it was sorted by.
+/// A relevance clause is not a key of a field and is rendered by its caller.
+///
+/// # Errors
+///
+/// A field name outside the identifier set, a malformed vector operand, a collation
+/// name outside the locale set.
+pub fn sort_expr(clause: &OrderByClause, db_type: DatabaseType) -> crate::Result<String> {
+    OrderByClause::validate_field_name(&clause.field)?;
+    // Vector-distance ordering (#386): `{col} {op} '{vec}'::vector` — the
+    // pgvector ANN shape. Only valid against a native column (a JSONB
+    // extraction would re-parse text per row and defeat every index).
+    if let Some(distance) = vector_distance_expr(clause, db_type)? {
+        return Ok(distance.as_sql().to_string());
+    }
+    // When a native typed column is available, use it directly — this
+    // enables index support and avoids JSON extraction + cast overhead.
+    let expr = if let Some(ref col) = clause.native_column {
+        col.clone()
+    } else {
+        let key = clause.storage_key();
+        db_type.typed_json_field_expr(&key, clause.field_type)
+    };
+    // #1513: a localized key sorts the label its chain reads, collated, by the one
+    // builder the filter and the index report use.
+    match &clause.localized {
+        Some(chain) => crate::projection_generator::localized_key_expr(
+            "data",
+            &[clause.storage_key()],
+            chain,
+            clause.collation.as_deref(),
+        ),
+        None => collated(&expr, clause.collation.as_deref()),
+    }
 }
 
 /// `expr` as a sort key under `collation`: `(expr) COLLATE "<name>"`, or `expr` unchanged.

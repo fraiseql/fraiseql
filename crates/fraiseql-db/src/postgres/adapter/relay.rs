@@ -7,8 +7,8 @@ use crate::{
     dialect::PostgresDialect,
     identifier::quote_postgres_identifier,
     postgres::{pg_detail, where_generator::PostgresWhereGenerator},
-    traits::{CursorValue, RelayDatabaseAdapter, RelayPageResult},
-    types::{DatabaseType, QueryParam, ReadRouting, sql_hints::OrderByClause},
+    traits::{RelayCursor, RelayDatabaseAdapter, RelayPageResult},
+    types::{QueryParam, ReadRouting, sql_hints::OrderByClause},
     where_clause::WhereClause,
 };
 
@@ -46,8 +46,8 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         &self,
         view: &str,
         cursor_column: &str,
-        after: Option<CursorValue>,
-        before: Option<CursorValue>,
+        after: Option<RelayCursor>,
+        before: Option<RelayCursor>,
         limit: u32,
         forward: bool,
         where_clause: Option<&WhereClause>,
@@ -76,8 +76,8 @@ impl RelayDatabaseAdapter for PostgresAdapter {
         &self,
         view: &str,
         cursor_column: &str,
-        after: Option<CursorValue>,
-        before: Option<CursorValue>,
+        after: Option<RelayCursor>,
+        before: Option<RelayCursor>,
         limit: u32,
         forward: bool,
         where_clause: Option<&WhereClause>,
@@ -148,8 +148,8 @@ impl PostgresAdapter {
         client: &C,
         view: &str,
         cursor_column: &str,
-        after: Option<CursorValue>,
-        before: Option<CursorValue>,
+        after: Option<RelayCursor>,
+        before: Option<RelayCursor>,
         limit: u32,
         forward: bool,
         where_clause: Option<&WhereClause>,
@@ -162,127 +162,92 @@ impl PostgresAdapter {
         let quoted_view = quote_postgres_identifier(view);
         let quoted_col = quote_postgres_identifier(cursor_column);
 
-        // ── Cursor condition (page query only, NOT the count query) ────────────
+        // #1284: a relevance-ranked read cannot be paged by cursor (refused by
+        // `keyset_keys`). Each key is rendered by the same rules the offset path's
+        // `ORDER BY` uses (#832): storage key, declared type's cast, native column,
+        // collation, localized label.
+        let keys = crate::keyset::keyset_keys(order_by)?;
+
+        // ── Keyset condition (page query only, NOT the count query) ────────────
         //
-        // Per the Relay spec, totalCount ignores cursor position. The cursor
-        // condition is therefore excluded from the count query.
-        //
-        // The cursor occupies at most one parameter slot ($1) at the front of the
-        // page query's parameter list.
-        //
-        // UUID cursors use `$1::uuid` cast; BIGINT cursors use plain `$1`.
-        let cursor_param: Option<QueryParam>;
-        let cursor_where_part: Option<String>;
+        // Per the Relay spec, totalCount ignores cursor position, so the count query
+        // leaves this out. The page resumes past the cursor row's sort-key values,
+        // then past its position (#1521): its parameters lead the page query's list,
+        // the key values (as text) then the position.
+        let mut page_typed_params: Vec<QueryParam> = Vec::new();
         let active_cursor = if forward { after } else { before };
-        match active_cursor {
-            None => {
-                cursor_param = None;
-                cursor_where_part = None;
+        let keyset_where = match active_cursor {
+            None => None,
+            Some(cursor) => {
+                let (position, placeholder) = crate::keyset::position_param(&cursor.position);
+                let (predicate, key_params, _) = crate::keyset::keyset_predicate(
+                    &keys,
+                    &cursor.sort_keys,
+                    &quoted_col,
+                    placeholder,
+                    forward,
+                    1,
+                )?;
+                page_typed_params.extend(key_params.into_iter().map(QueryParam::Text));
+                page_typed_params.push(position);
+                Some(predicate)
             },
-            Some(CursorValue::Int64(pk)) => {
-                let op = if forward { ">" } else { "<" };
-                cursor_param = Some(QueryParam::BigInt(pk));
-                cursor_where_part = Some(format!("{quoted_col} {op} $1"));
-            },
-            Some(CursorValue::Uuid(uuid)) => {
-                let op = if forward { ">" } else { "<" };
-                cursor_param = Some(QueryParam::Text(uuid));
-                cursor_where_part = Some(format!("{quoted_col} {op} $1::uuid"));
-            },
-        }
-        let cursor_param_count: usize = usize::from(cursor_param.is_some());
+        };
+        let keyset_param_count = page_typed_params.len();
 
         // ── User WHERE clause ──────────────────────────────────────────────────
         //
         // Used in BOTH the count query (offset 0) and the page query (offset by
-        // cursor_param_count so parameter indices don't collide).
-        let mut user_where_json_params: Vec<serde_json::Value> = Vec::new();
+        // the keyset's parameters so indices don't collide).
         let page_user_where_sql: Option<String> = if let Some(clause) = where_clause {
             let generator = PostgresWhereGenerator::new(PostgresDialect);
-            let (sql, params) = generator.generate_with_param_offset(clause, cursor_param_count)?;
-            user_where_json_params = params;
+            let (sql, params) = generator.generate_with_param_offset(clause, keyset_param_count)?;
+            page_typed_params.extend(params.into_iter().map(QueryParam::from));
             Some(sql)
         } else {
             None
         };
-        let user_param_count = user_where_json_params.len();
-
-        // ── ORDER BY clause ────────────────────────────────────────────────────
-        //
-        // Custom sort columns first, then cursor column as tiebreaker for stable
-        // keyset pagination.
-        // Rendered by the SAME helper the offset path uses (#832): it converts
-        // the camelCase GraphQL field name to its snake_case JSONB storage key,
-        // applies the declared type's cast, and prefers a native column. The
-        // hand-rolled builder that used to live here did none of that, so a
-        // relay `orderBy` extracted a key that does not exist — NULL on every
-        // row, every row tied, sort silently dropped.
-        // #1284: a relevance-ranked read cannot be paged by cursor; the rule
-        // and its reasoning live with the ordering itself, next to the renderer
-        // this builder cannot use for it.
-        crate::order_by::refuse_relevance_under_cursor_pagination(order_by)?;
-        // `Tiebreak::None`: keyset paging resumes from the last row's sort key, so
-        // this ordering must end with the cursor column and nothing after it. The
-        // tie-breaker the offset path appends is this builder's `quoted_col`, added
-        // below — asking the renderer for one too would put a term between the sort
-        // key and the cursor the next page resumes from (#1287).
-        let rendered_order = crate::order_by::render_order_by_columns(
-            order_by,
-            DatabaseType::PostgreSQL,
-            1,
-            crate::order_by::Tiebreak::None,
-        )?;
-        let order_sql = if let Some(rendered) = rendered_order {
-            let columns = rendered.columns;
-            let primary_dir = if forward { "ASC" } else { "DESC" };
-            format!(" ORDER BY {columns}, {quoted_col} {primary_dir}")
-        } else {
-            let dir = if forward { "ASC" } else { "DESC" };
-            format!(" ORDER BY {quoted_col} {dir}")
-        };
 
         // ── Page WHERE SQL ─────────────────────────────────────────────────────
-        //
-        // Combines cursor condition AND user filter with offset parameter indices.
-        let cursor_part = cursor_where_part.as_deref().unwrap_or("");
-        let user_part =
-            page_user_where_sql.as_deref().map(|s| format!("({s})")).unwrap_or_default();
-        let page_where_sql = if cursor_part.is_empty() && user_part.is_empty() {
+        let conditions: Vec<String> = keyset_where
+            .into_iter()
+            .chain(page_user_where_sql.map(|s| format!("({s})")))
+            .collect();
+        let page_where_sql = if conditions.is_empty() {
             String::new()
-        } else if cursor_part.is_empty() {
-            format!(" WHERE {user_part}")
-        } else if user_part.is_empty() {
-            format!(" WHERE {cursor_part}")
         } else {
-            format!(" WHERE {cursor_part} AND {user_part}")
+            format!(" WHERE {}", conditions.join(" AND "))
         };
 
-        // ── LIMIT parameter index ──────────────────────────────────────────────
-        let limit_idx = cursor_param_count + user_param_count + 1;
+        // ── LIMIT parameter ────────────────────────────────────────────────────
+        page_typed_params.push(QueryParam::BigInt(i64::from(limit)));
+        let limit_idx = page_typed_params.len();
 
         // ── Page SQL ───────────────────────────────────────────────────────────
         //
-        // Backward pagination wraps the inner query in a subquery to re-sort
-        // the descending page back to ascending order.
+        // The ordering ends with the cursor column, which makes it total, and nothing
+        // after it: the next page resumes from exactly these terms (#1287). Each row's
+        // document carries its sort-key values, which the next page's cursor is built
+        // from. A backward page reads the ordering reversed from the cursor, then the
+        // outer query restores the requested order.
+        let document = crate::keyset::with_sort_keys("data", &keys);
+        let order_sql = crate::keyset::keyset_order(&keys, &quoted_col, forward);
         let page_sql = if forward {
-            format!("SELECT data FROM {quoted_view}{page_where_sql}{order_sql} LIMIT ${limit_idx}")
+            format!(
+                "SELECT {document} AS data FROM {quoted_view}{page_where_sql} \
+                 ORDER BY {order_sql} LIMIT ${limit_idx}"
+            )
         } else {
+            let (key_columns, outer_keys) =
+                crate::keyset::carried_keys(&keys, "_relay_k", "_relay_page");
             let inner = format!(
-                "SELECT data, {quoted_col} AS _relay_cursor \
-                 FROM {quoted_view}{page_where_sql}{order_sql} LIMIT ${limit_idx}"
+                "SELECT {document} AS data, {quoted_col} AS _relay_cursor{key_columns} \
+                 FROM {quoted_view}{page_where_sql} ORDER BY {order_sql} LIMIT ${limit_idx}"
             );
-            format!("SELECT data FROM ({inner}) _relay_page ORDER BY _relay_cursor ASC")
+            let outer_order =
+                crate::keyset::keyset_order(&outer_keys, "_relay_page._relay_cursor", true);
+            format!("SELECT data FROM ({inner}) _relay_page ORDER BY {outer_order}")
         };
-
-        // ── Page params: [cursor?, user_where_params..., limit] ────────────────
-        let mut page_typed_params: Vec<QueryParam> = Vec::new();
-        if let Some(cp) = cursor_param {
-            page_typed_params.push(cp);
-        }
-        for v in &user_where_json_params {
-            page_typed_params.push(QueryParam::from(v.clone()));
-        }
-        page_typed_params.push(QueryParam::BigInt(i64::from(limit)));
 
         // ── Execute page query (on the caller-provided client / transaction) ────
         let page_param_refs = crate::types::as_sql_param_refs(&page_typed_params);

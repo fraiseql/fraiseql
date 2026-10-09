@@ -18,7 +18,7 @@ use futures::future::BoxFuture;
 
 use crate::{
     backend::{
-        CursorValue, RelayDatabaseAdapter, WhereClause, traits::RelayPageResult, types::ReadRouting,
+        RelayCursor, RelayDatabaseAdapter, WhereClause, traits::RelayPageResult, types::ReadRouting,
     },
     compiler::aggregation::OrderByClause,
     error::Result,
@@ -32,8 +32,8 @@ pub(in crate::runtime::executor) trait RelayDispatch:
         &'a self,
         view: &'a str,
         cursor_column: &'a str,
-        after: Option<CursorValue>,
-        before: Option<CursorValue>,
+        after: Option<RelayCursor>,
+        before: Option<RelayCursor>,
         limit: u32,
         forward: bool,
         where_clause: Option<&'a WhereClause>,
@@ -54,8 +54,8 @@ impl<A: RelayDatabaseAdapter + Send + Sync + 'static> RelayDispatch for RelayDis
         &'a self,
         view: &'a str,
         cursor_column: &'a str,
-        after: Option<CursorValue>,
-        before: Option<CursorValue>,
+        after: Option<RelayCursor>,
+        before: Option<RelayCursor>,
         limit: u32,
         forward: bool,
         where_clause: Option<&'a WhereClause>,

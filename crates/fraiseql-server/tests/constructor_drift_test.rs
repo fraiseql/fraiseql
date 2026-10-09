@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use fraiseql_core::{
     db::{
         DatabaseAdapter, DatabaseType, WhereClause,
-        traits::{CursorValue, RelayDatabaseAdapter, RelayPageResult},
+        traits::{RelayCursor, RelayDatabaseAdapter, RelayPageResult},
         types::{JsonbValue, OrderByClause, PoolMetrics},
     },
     error::Result as FraiseQLResult,
@@ -121,8 +121,8 @@ impl RelayDatabaseAdapter for NoopRelayAdapter {
         &self,
         _view: &str,
         _cursor_column: &str,
-        _after: Option<CursorValue>,
-        _before: Option<CursorValue>,
+        _after: Option<RelayCursor>,
+        _before: Option<RelayCursor>,
         _limit: u32,
         _forward: bool,
         _where_clause: Option<&WhereClause>,

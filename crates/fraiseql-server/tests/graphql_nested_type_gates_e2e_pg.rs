@@ -920,6 +920,7 @@ fn relay_schema(user_view: &str) -> CompiledSchema {
             .with_sql_source(format!("{SCHEMA}.{view}"));
         query.relay = true;
         query.relay_cursor_column = Some("id".to_string());
+        query.auto_params.has_order_by = true;
         schema.queries.push(query);
     }
     schema.build_indexes();
@@ -1108,6 +1109,48 @@ async fn a_composed_relay_page_is_the_page_the_flat_read_returns() {
         .cloned()
         .unwrap_or_else(|| panic!("no folder 3: {from_start}"));
     assert!(three["parent"].is_null(), "folder 3's parent is mallory's: {from_start}");
+}
+
+/// #1521: under an `orderBy`, the composed root resumes past the cursor row in that order,
+/// as the flat read does. `id: DESC` is the sharp case: it orders by the cursor column, which
+/// the keyset used to compare ascending whatever the ordering, so the page after `58` was
+/// `59, 60` rather than `57` on down.
+#[tokio::test]
+async fn a_composed_relay_page_resumes_past_its_cursor_in_the_requested_order() {
+    let executor = relay_rig_or_skip!("v_user_fk", Policy::Owner);
+    let page = |args: &str, node: &str| {
+        format!(
+            "{{ foldersPage({args}, orderBy: {{id: DESC}}) {{ pageInfo {{ startCursor \
+             endCursor }} edges {{ cursor node {{ {node} }} }} }} }}"
+        )
+    };
+    let ids = |out: &Value| -> Vec<i64> {
+        relay_nodes(out, "foldersPage")
+            .iter()
+            .map(|n| n["id"].as_i64().unwrap())
+            .collect()
+    };
+    let cursor = |out: &Value, i: usize| -> String {
+        out["data"]["foldersPage"]["edges"][i]["cursor"].as_str().unwrap().to_string()
+    };
+    let first = graphql(&executor, &page("first: 5", "id parent { id }")).await.unwrap();
+    assert_eq!(ids(&first), [60, 59, 58, 57, 56], "{first}");
+    let last = graphql(&executor, &page("last: 5", "id parent { id }")).await.unwrap();
+    assert_eq!(ids(&last), [6, 5, 4, 3, 1], "mallory's 2 is on no page: {last}");
+
+    for (args, expected) in [
+        (format!(r#"first: 5, after: "{}""#, cursor(&first, 2)), [57, 56, 55, 54, 53]),
+        (format!(r#"last: 5, before: "{}""#, cursor(&last, 2)), [9, 8, 7, 6, 5]),
+    ] {
+        let composed = graphql(&executor, &page(&args, "id parent { id }")).await.unwrap();
+        let flat = graphql(&executor, &page(&args, "id")).await.unwrap();
+        assert_eq!(ids(&composed), expected, "{args}: {composed}");
+        assert_eq!(ids(&flat), expected, "{args}: {flat}");
+        assert_eq!(
+            composed["data"]["foldersPage"]["pageInfo"], flat["data"]["foldersPage"]["pageInfo"],
+            "{args}"
+        );
+    }
 }
 
 /// A connection that stops above the row-gated level is served: the refusal is the

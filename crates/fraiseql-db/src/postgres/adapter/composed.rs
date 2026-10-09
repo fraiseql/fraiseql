@@ -47,7 +47,7 @@ use crate::{
     path_escape::escape_postgres_jsonb_segment,
     traits::{
         COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ComposedEmbed, ComposedKeyset, ComposedLevel,
-        CursorValue, EmbedShape, EmbedSource, LevelKeys,
+        EmbedShape, EmbedSource, LevelKeys,
     },
     types::{DatabaseType, QueryParam},
 };
@@ -187,28 +187,32 @@ impl Renderer {
                 path:    None,
             });
         }
-        crate::order_by::refuse_relevance_under_cursor_pagination(level.order_by.as_deref())?;
+        // Refuses a relevance ordering (#1284); each key rendered as the `ORDER BY` renders it.
+        let keys = crate::keyset::keyset_keys(level.order_by.as_deref())?;
 
-        let document = level.projection.as_deref().unwrap_or("data");
+        let document =
+            crate::keyset::with_sort_keys(level.projection.as_deref().unwrap_or("data"), &keys);
         let column = quote_postgres_identifier(&keyset.cursor_column);
-        let direction = if keyset.forward { "ASC" } else { "DESC" };
 
         let mut conditions = Vec::new();
         let where_sql = self.where_sql(level, None)?;
         if let Some(predicate) = where_sql.strip_prefix(" WHERE ") {
             conditions.push(format!("({predicate})"));
         }
-        let comparison = if keyset.forward { ">" } else { "<" };
-        match &keyset.cursor {
-            None => {},
-            Some(CursorValue::Int64(pk)) => {
-                let p = self.bind(QueryParam::BigInt(*pk));
-                conditions.push(format!("{column} {comparison} {p}"));
-            },
-            Some(CursorValue::Uuid(uuid)) => {
-                let p = self.bind(QueryParam::Text(uuid.clone()));
-                conditions.push(format!("{column} {comparison} {p}::uuid"));
-            },
+        // #1521: past the cursor row's sort-key values, then its position.
+        if let Some(cursor) = &keyset.cursor {
+            let (position, placeholder) = crate::keyset::position_param(&cursor.position);
+            let (predicate, key_params, _) = crate::keyset::keyset_predicate(
+                &keys,
+                &cursor.sort_keys,
+                &column,
+                placeholder,
+                keyset.forward,
+                self.params.len() + 1,
+            )?;
+            self.params.extend(key_params.into_iter().map(QueryParam::Text));
+            self.params.push(position);
+            conditions.push(predicate);
         }
         let where_sql = if conditions.is_empty() {
             String::new()
@@ -216,18 +220,7 @@ impl Renderer {
             format!(" WHERE {}", conditions.join(" AND "))
         };
 
-        let order = match render_order_by_columns(
-            level.order_by.as_deref(),
-            DatabaseType::PostgreSQL,
-            self.params.len() + 1,
-            Tiebreak::None,
-        )? {
-            Some(rendered) => {
-                self.params.extend(rendered.params.into_iter().map(QueryParam::Text));
-                format!("{}, {column} {direction}", rendered.columns)
-            },
-            None => format!("{column} {direction}"),
-        };
+        let order = crate::keyset::keyset_order(&keys, &column, keyset.forward);
         let limit = match level.limit {
             Some(limit) => format!(" LIMIT {}", self.bind(QueryParam::BigInt(i64::from(limit)))),
             None => String::new(),
@@ -240,10 +233,13 @@ impl Renderer {
                  FROM {view}{where_sql} ORDER BY {ORDINAL}{limit}"
             )
         } else {
+            // Read reversed from the cursor, then numbered in the requested order.
+            let (key_columns, outer_keys) = crate::keyset::carried_keys(&keys, "_k", "_k");
+            let outer_order = crate::keyset::keyset_order(&outer_keys, "_k._cursor", true);
             format!(
-                "SELECT _k.data AS data, row_number() OVER (ORDER BY _k._cursor ASC) AS {ORDINAL} \
-                 FROM (SELECT {document} AS data, {column} AS _cursor FROM {view}{where_sql} \
-                 ORDER BY {order}{limit}) AS _k"
+                "SELECT _k.data AS data, row_number() OVER (ORDER BY {outer_order}) AS {ORDINAL} \
+                 FROM (SELECT {document} AS data, {column} AS _cursor{key_columns} FROM \
+                 {view}{where_sql} ORDER BY {order}{limit}) AS _k"
             )
         })
     }

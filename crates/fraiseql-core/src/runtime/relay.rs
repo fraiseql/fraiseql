@@ -9,6 +9,11 @@
 //!
 //! Example: `pk_user = 42` → cursor = `base64("42")` = `"NDI="`
 //!
+//! A connection read with an `orderBy` resumes past the row's sort-key values, not its key
+//! alone (#1521), so its cursor carries them: `base64` of a JSON object holding the row's
+//! position, its sort-key values, and a fingerprint of the ordering they belong to
+//! ([`KeysetCursor`]). An unordered connection keeps the plain cursor.
+//!
 //! ## Node ID (global object identification)
 //!
 //! Used in the `Node.id` field and the `node(id: ID!)` global query.
@@ -22,6 +27,53 @@
 //! - [Cursor Connections](https://relay.dev/graphql/connections.htm)
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+
+/// The [`KeysetCursor`] format this release issues and reads. A plain cursor (the cursor
+/// column alone) is the format before it, and has no version.
+pub const KEYSET_CURSOR_VERSION: u8 = 2;
+
+/// A relay edge cursor under an `orderBy` (#1521): where its row sits in that ordering.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeysetCursor {
+    /// The format, [`KEYSET_CURSOR_VERSION`] when issued by this release.
+    #[serde(rename = "v")]
+    pub version:   u8,
+    /// The [`ordering_fingerprint`] of the ordering the cursor was issued under.
+    #[serde(rename = "o")]
+    pub ordering:  String,
+    /// The row's sort-key values as text, in ordering order; `None` for NULL.
+    #[serde(rename = "k")]
+    pub sort_keys: Vec<Option<String>>,
+    /// The row's position: the connection's cursor column (an integer or a UUID string).
+    #[serde(rename = "c")]
+    pub position:  serde_json::Value,
+}
+
+/// A short, stable fingerprint of an ordering's signature (`fraiseql_db::keyset`): the first
+/// 64 bits of its SHA-256, in hex.
+#[must_use]
+pub fn ordering_fingerprint(signature: &str) -> String {
+    let digest = Sha256::digest(signature.as_bytes());
+    let mut first = [0_u8; 8];
+    first.copy_from_slice(&digest[..8]);
+    format!("{:016x}", u64::from_be_bytes(first))
+}
+
+/// Encode a [`KeysetCursor`] as an opaque edge cursor.
+#[must_use]
+pub fn encode_keyset_cursor(cursor: &KeysetCursor) -> String {
+    // Reason: a struct of strings and a JSON value always serializes.
+    BASE64.encode(serde_json::to_vec(cursor).unwrap_or_default())
+}
+
+/// Decode an edge cursor issued under an ordering, of any version; `None` for any other string,
+/// a plain cursor included.
+#[must_use]
+pub fn decode_keyset_cursor(cursor: &str) -> Option<KeysetCursor> {
+    serde_json::from_slice(&BASE64.decode(cursor).ok()?).ok()
+}
 
 /// Encode a BIGINT primary key value as a Relay edge cursor.
 ///

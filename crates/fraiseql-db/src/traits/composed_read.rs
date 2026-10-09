@@ -33,7 +33,7 @@
 
 use fraiseql_error::FraiseQLError;
 
-use crate::{CursorValue, OrderByClause, ScalarFieldType, WhereClause};
+use crate::{OrderByClause, ScalarFieldType, WhereClause};
 
 /// The refusal a composed read of `view` gets from an adapter that cannot compose.
 ///
@@ -99,7 +99,7 @@ pub struct ComposedKeyset {
     /// The native column the page is keyed on (`relay_cursor_column`).
     pub cursor_column: String,
     /// The cursor the page starts past: `after` when forward, `before` when backward.
-    pub cursor:        Option<CursorValue>,
+    pub cursor:        Option<super::RelayCursor>,
     /// `true` for `first`/`after`, `false` for `last`/`before`.
     pub forward:       bool,
 }

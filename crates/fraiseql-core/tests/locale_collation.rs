@@ -305,34 +305,73 @@ async fn a_window_ordered_by_a_text_dimension_sorts_in_the_request_locale() {
     assert_eq!(positions, (1..=7).collect::<Vec<i64>>(), "OVER (ORDER BY): {response}");
 }
 
-/// As far as it can go today: a cursor resumes on the connection's cursor column
-/// alone, so paging after a cursor under a text `orderBy` skipped and repeated rows in every
-/// collation (#1521). It is refused rather than answered wrong; the first page, which needs no
-/// cursor, still sorts in the request locale (`a_relay_connection_sorts_in_the_request_locale`).
+/// One page of `wordsConnection` in `locale`, ordered by `word`: its words and `pageInfo`.
+async fn word_page(executor: &Executor, locale: &str, window: &str) -> (Vec<String>, Value) {
+    let query = format!(
+        "{{ wordsConnection({window}, orderBy: {{word: ASC}}) {{ edges {{ node {{ word }} }} \
+         pageInfo {{ hasNextPage hasPreviousPage startCursor endCursor }} }} }}"
+    );
+    let response = with_request_locale(locale, executor.execute(&query, None))
+        .await
+        .unwrap_or_else(|e| panic!("{window}: {e}"));
+    let connection = &response["data"]["wordsConnection"];
+    let words = connection["edges"]
+        .as_array()
+        .unwrap_or_else(|| panic!("{response}"))
+        .iter()
+        .map(|e| e["node"]["word"].as_str().unwrap().to_string())
+        .collect();
+    (words, connection["pageInfo"].clone())
+}
+
+/// #1521: a connection ordered by a text field, walked one row per page with `after` and then
+/// with `before`, returns every word once in the request locale's order. The keyset compares
+/// each cursor's word under the same collation the `ORDER BY` sorts by.
 #[tokio::test]
-async fn paging_after_a_cursor_under_a_text_order_is_refused_not_answered_wrong() {
+async fn a_relay_walk_under_a_text_order_follows_the_request_locale() {
+    let Some((expected, executor)) = fr_ca().await else {
+        return;
+    };
+    let mut forward = Vec::new();
+    let mut window = "first: 1".to_string();
+    for _ in 0..=WORDS.len() {
+        let (words, info) = word_page(&executor, "fr-CA", &window).await;
+        forward.extend(words);
+        if info["hasNextPage"] != Value::Bool(true) {
+            break;
+        }
+        window = format!("first: 1, after: {}", info["endCursor"]);
+    }
+    assert_eq!(forward, expected, "forward");
+
+    let mut backward = Vec::new();
+    let mut window = "last: 1".to_string();
+    for _ in 0..=WORDS.len() {
+        let (words, info) = word_page(&executor, "fr-CA", &window).await;
+        backward.splice(0..0, words);
+        if info["hasPreviousPage"] != Value::Bool(true) {
+            break;
+        }
+        window = format!("last: 1, before: {}", info["startCursor"]);
+    }
+    assert_eq!(backward, expected, "backward");
+}
+
+/// A cursor resumes only the ordering it was issued under: in another locale the same
+/// `orderBy` sorts by another collation, and its word would be compared out of place.
+#[tokio::test]
+async fn a_cursor_issued_in_one_locale_is_refused_in_another() {
     let Some((_, executor)) = fr_ca().await else {
         return;
     };
-    let first = with_request_locale(
-        "fr-CA",
-        executor.execute(
-            "{ wordsConnection(first: 1, orderBy: {word: ASC}) { edges { cursor } } }",
-            None,
-        ),
-    )
-    .await
-    .unwrap();
-    let cursor = first["data"]["wordsConnection"]["edges"][0]["cursor"]
-        .as_str()
-        .unwrap_or_else(|| panic!("{first}"))
-        .to_string();
-    let next = format!(
-        "{{ wordsConnection(first: 1, after: \"{cursor}\", orderBy: {{word: ASC}}) {{ edges {{ node \
-         {{ word }} }} }} }}"
+    let (_, info) = word_page(&executor, "fr-CA", "first: 1").await;
+    let query = format!(
+        "{{ wordsConnection(first: 1, after: {}, orderBy: {{word: ASC}}) {{ edges {{ node {{ word \
+         }} }} }} }}",
+        info["endCursor"]
     );
-    let err = with_request_locale("fr-CA", executor.execute(&next, None))
+    let err = with_request_locale("sv-SE", executor.execute(&query, None))
         .await
-        .expect_err("a cursor page under a non-cursor ordering is refused");
-    assert!(err.to_string().contains("#1521"), "{err}");
+        .expect_err("a cursor from another locale's ordering is refused");
+    assert!(err.to_string().contains("another `orderBy` or locale"), "{err}");
 }

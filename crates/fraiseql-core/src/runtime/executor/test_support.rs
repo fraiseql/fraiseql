@@ -14,7 +14,7 @@ use indexmap::IndexMap;
 
 use crate::{
     backend::{
-        CursorValue, MutationRowGate, RelayPageResult, WriteRequest, Writer,
+        MutationRowGate, RelayCursor, RelayPageResult, WriteRequest, Writer,
         traits::{DatabaseAdapter, RelayDatabaseAdapter},
         types::{DatabaseType, JsonbValue, PoolMetrics, sql_hints::OrderByClause},
         where_clause::WhereClause,
@@ -478,8 +478,8 @@ impl RelayDatabaseAdapter for MockAdapter {
         &'a self,
         _view: &'a str,
         _cursor_column: &'a str,
-        _after: Option<CursorValue>,
-        _before: Option<CursorValue>,
+        _after: Option<RelayCursor>,
+        _before: Option<RelayCursor>,
         _limit: u32,
         _forward: bool,
         _where_clause: Option<&'a WhereClause>,

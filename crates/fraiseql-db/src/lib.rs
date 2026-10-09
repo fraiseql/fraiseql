@@ -47,6 +47,7 @@ pub mod utils;
 
 // DB adapter modules (from the old db/ directory)
 pub mod identifier;
+pub mod keyset;
 pub mod order_by;
 pub mod path_escape;
 pub mod projection_generator;
@@ -88,8 +89,9 @@ pub use traits::{
     AdminSqlOutcome, AdminSqlRequest, ArcDatabaseAdapter, BoxDatabaseAdapter,
     COMPOSED_DOCUMENT_KEY, COMPOSED_EMBEDS_KEY, ChangeLogWrite, ColumnRowStream, ComposedEmbed,
     ComposedKeyset, ComposedLevel, CursorValue, DatabaseAdapter, EmbedShape, EmbedSource,
-    JsonbRowStream, LevelKeys, MutationRowGate, ProjectionRequest, RelayDatabaseAdapter,
-    RelayPageResult, ResultCacheStats, WriteMode, WriteRequest, Writer, composed_read_unsupported,
+    JsonbRowStream, LevelKeys, MutationRowGate, ProjectionRequest, RelayCursor,
+    RelayDatabaseAdapter, RelayPageResult, ResultCacheStats, WriteMode, WriteRequest, Writer,
+    composed_read_unsupported,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

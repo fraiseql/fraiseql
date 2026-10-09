@@ -343,7 +343,9 @@ pub fn enrich_order_by_clauses(
         // Check if the query definition has a native column mapping for this field.
         // `native_columns` keys are the GraphQL argument names (camelCase).
         let storage_key = clause.storage_key();
-        if native_columns.contains_key(&storage_key) {
+        if let Some(native_type) = native_columns.get(&storage_key) {
+            // #1521: the keyset binds the cursor's value for this key as this type.
+            clause.native_type = Some(native_type.clone());
             clause.native_column = Some(storage_key);
         }
     }

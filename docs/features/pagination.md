@@ -167,6 +167,26 @@ cursor column and nothing is appended after it. This is the durable answer to de
 pagination — an `OFFSET` of 200 000 still reads 200 000 rows to discard them,
 whatever it is ordered by — and a client walking a large relation should prefer it.
 
+### Paging under an `orderBy`
+
+A connection with an `orderBy` is ordered by its keys, then by the cursor column, which
+makes the order total. A page after (or before) a cursor resumes past the cursor row's
+key values, key by key in each key's direction, then past its cursor column. NULLs sit
+where PostgreSQL puts them: last for `ASC`, first for `DESC`. Each key compares as the
+`ORDER BY` sorts it: by its native column and type, by its typed JSON value, under the
+request locale's collation, and by a localized field's label.
+
+Such a cursor carries the row's key values and a fingerprint of the ordering, so it
+resumes only the ordering it came from. Under another `orderBy`, another direction,
+another locale, or none, it is refused with a message saying to request the first page
+again. An unordered connection's cursor is the cursor column alone.
+
+The resume predicate is spelled out key by key (an `OR` per key), which is what lets keys
+mix directions and hold NULLs. PostgreSQL cannot seek an index with it, though: at best it
+walks an index that matches the ordering from the start and filters. So a page deep into a
+large connection under an `orderBy` costs about what an offset page that deep costs. The
+seek that makes keyset paging the answer to deep pagination is the unordered connection's.
+
 A relay connection never accepts `limit`/`offset`, and never carries a
 `pagination_order`.
 
