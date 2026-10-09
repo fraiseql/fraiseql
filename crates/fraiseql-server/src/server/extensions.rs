@@ -12,10 +12,8 @@ use fraiseql_core::{
 };
 #[cfg(feature = "observers")]
 use tokio::sync::RwLock;
-#[cfg(any(feature = "observers", feature = "mcp"))]
-use tracing::info;
 #[cfg(feature = "observers")]
-use tracing::warn;
+use tracing::{info, warn};
 
 #[cfg(feature = "observers")]
 use super::{ObserverRuntime, ObserverRuntimeConfig};
