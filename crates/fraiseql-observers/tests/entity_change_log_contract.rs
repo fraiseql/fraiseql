@@ -472,3 +472,76 @@ async fn actor_type_constraint_tolerates_legacy_bad_rows_but_blocks_new_ones() {
     .await
     .expect_err("new out-of-range actor_type must be refused after the migration");
 }
+
+/// The version of the change-log row id stored for `object_type`.
+async fn id_version(pool: &PgPool, object_type: &str) -> i32 {
+    sqlx::query_scalar::<_, i16>(
+        "SELECT uuid_extract_version(id)::int2 FROM core.tb_entity_change_log WHERE object_type = $1",
+    )
+    .bind(object_type)
+    .fetch_one(pool)
+    .await
+    .unwrap()
+    .into()
+}
+
+async fn insert_row(pool: &PgPool, object_type: &str) {
+    sqlx::query(
+        "INSERT INTO core.tb_entity_change_log (object_type, modification_type) VALUES ($1, 'INSERT')",
+    )
+    .bind(object_type)
+    .execute(pool)
+    .await
+    .unwrap();
+}
+
+/// #1469: the change log's ids default to time-ordered `uuidv7()` (measured on PG18: 2.2–2.5×
+/// the insert rate at 10M rows, a third less WAL, a fifth smaller index). A fresh install gets
+/// it, an existing install whose `id` defaulted to `gen_random_uuid()` is switched for new rows,
+/// and the rows it already holds keep their ids.
+#[tokio::test]
+#[ignore = "requires PostgreSQL — run with --ignored --test-threads=1"]
+async fn new_change_log_ids_are_uuidv7_and_existing_ids_are_kept() {
+    let pool = pool().await;
+
+    drop_contract(&pool).await;
+    sqlx::raw_sql(entity_change_log_contract_sql()).execute(&pool).await.unwrap();
+    insert_row(&pool, "uuid_fresh").await;
+    assert_eq!(id_version(&pool, "uuid_fresh").await, 7, "a fresh install");
+
+    // An install made by the previous contract: `id` defaulting to v4, one row already in.
+    drop_contract(&pool).await;
+    sqlx::query(
+        "CREATE TABLE core.tb_entity_change_log (
+            pk_entity_change_log BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+            object_type          TEXT NOT NULL,
+            modification_type    TEXT NOT NULL,
+            id                   UUID NOT NULL DEFAULT gen_random_uuid()
+        )",
+    )
+    .execute(&pool)
+    .await
+    .unwrap();
+    insert_row(&pool, "uuid_before").await;
+    let before: uuid::Uuid = sqlx::query_scalar(
+        "SELECT id FROM core.tb_entity_change_log WHERE object_type = 'uuid_before'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+
+    sqlx::raw_sql(entity_change_log_contract_sql()).execute(&pool).await.unwrap();
+    insert_row(&pool, "uuid_after").await;
+
+    assert_eq!(id_version(&pool, "uuid_after").await, 7, "an existing install, new row");
+    let kept: uuid::Uuid = sqlx::query_scalar(
+        "SELECT id FROM core.tb_entity_change_log WHERE object_type = 'uuid_before'",
+    )
+    .fetch_one(&pool)
+    .await
+    .unwrap();
+    assert_eq!(kept, before, "an existing row keeps its id");
+    assert_eq!(id_version(&pool, "uuid_before").await, 4);
+    drop_contract(&pool).await;
+    sqlx::raw_sql(entity_change_log_contract_sql()).execute(&pool).await.unwrap();
+}
