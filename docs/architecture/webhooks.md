@@ -98,6 +98,26 @@ existed. The extension point is
 [`SignatureVerifier`](https://docs.rs/fraiseql-webhooks), which since #1321 is handed the
 whole request and returns **what it authenticated** rather than a boolean.
 
+### What each scheme is verified against
+
+Every scheme is tested with deliveries signed locally. Beyond that:
+
+| Scheme | Verified against |
+|---|---|
+| `standard-webhooks` / `clerk` | the two published test vectors (the Svix docs and its Rust reference library); not yet a captured Clerk delivery |
+| `hanko`, `kinde`, `fusionauth` | **synthetic tokens only**: not yet one delivery captured from the provider and checked against its own key (#1419) |
+
+Until a capture settles them, three choices are the conservative ones:
+
+* **`audience` is optional** for the JWT presets. Requiring it is the stronger defence
+  against a token minted for something else, but neither Kinde nor FusionAuth is confirmed
+  to send `aud`. Each preset's claim guard (below) always applies, so a session token signed
+  by the same key set is refused either way.
+* **`max_age_secs` needs an `iat`.** A route setting it refuses, at runtime, every token
+  without one, and Kinde documents none.
+* **A Svix sender that spells its event type `event_type`** records an empty event type;
+  Clerk's `type` is read.
+
 A scheme whose sender is not on this list, but which signs the raw body with a shared
 secret, is `hmac-sha256` (or `hmac-sha1`) plus configuration — see
 [Describing a scheme yourself](#describing-a-scheme-yourself) below. That is how Lago,

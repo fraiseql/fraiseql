@@ -11,6 +11,13 @@
 //!                                             `request_body_sha256` claim
 //! ```
 //!
+//! # Verified against synthetic tokens only
+//!
+//! Every preset is tested with tokens signed locally. None is yet checked against a delivery
+//! captured from the provider and verified with its own key (#1419), so where a capture would
+//! settle a choice the conservative one is taken: `audience` is optional (the per-preset claim
+//! guard always applies), and `max_age_secs` refuses a token without `iat`.
+//!
 //! # The two shapes, and why the last column is not a detail
 //!
 //! A scheme here either **binds the body** or it does not, and that single fact
