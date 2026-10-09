@@ -698,3 +698,76 @@ fn a_name_the_sibling_needs_is_refused_at_load() {
     assert!(err.to_string().contains("`LocalizedString`"), "{err}");
     CompiledSchema::from_json(&schema("", ""), false).expect("control: the plain schema loads");
 }
+
+/// Cycle 5: the stored values the two evaluators must agree on. Maps with every allowed
+/// label, a partial one, keys outside `allowed`, `null` and non-string labels, an empty one,
+/// and stored values that are not maps.
+const CORPUS: &[&str] = &[
+    r#"{"en-US": "Apple", "fr": "Pomme", "fr-CA": "Pomme QC", "fr-FR": "Pomme FR", "de-DE": "Apfel"}"#,
+    r#"{"fr-FR": "Pomme", "en-US": "Apple"}"#,
+    r#"{"it-IT": "Mela", "fr-BE": "Pomme BE", "EN-US": "upper"}"#,
+    r#"{"fr-CA": null, "fr-FR": 7, "fr": true, "en-US": "Apple"}"#,
+    r#"{"fr-CA": {"x": 1}, "fr-FR": ["a"], "fr": "", "en-US": "Apple"}"#,
+    r"{}",
+    r#""a plain string""#,
+    r"5",
+    r"null",
+    r#"["fr", "Pomme"]"#,
+];
+
+/// Cycle 5: for each stored value × each allowed locale, the label SQL reads and the one the
+/// in-process evaluator reads are the same; so are the translations each lists.
+#[tokio::test]
+async fn the_sql_and_rust_evaluators_agree() {
+    use fraiseql_core::db::projection_generator::{
+        LocalizedRead, TranslationPart, localized_text_expr, localized_translations_expr,
+    };
+    let Some(pg) = fraiseql_test_support::postgres().await else {
+        return;
+    };
+    let adapter = PostgresAdapter::new(pg.url()).await.unwrap();
+    let schema = schema();
+    let config = schema.locale.as_ref().unwrap();
+    let rows: Vec<String> = CORPUS
+        .iter()
+        .enumerate()
+        .map(|(i, v)| format!("({i}, '{}'::jsonb)", v.replace('\'', "''")))
+        .collect();
+    let allowed = &config.allowed;
+    let keys = vec![
+        ("locale".to_string(), TranslationPart::Locale),
+        ("value".to_string(), TranslationPart::Value),
+    ];
+    let read = LocalizedRead::Translations {
+        allowed: allowed.clone(),
+        keys:    keys.clone(),
+    };
+    let mut compared = 0;
+    for tag in &config.allowed {
+        let chain = config.chain(tag).unwrap().to_vec();
+        let sql = format!(
+            "SELECT jsonb_build_object('i', m.i, 'label', {}, 'all', {}) AS data FROM (VALUES {}) \
+             AS m(i, v)",
+            localized_text_expr("m.v", &chain).unwrap(),
+            localized_translations_expr("m.v", allowed, &keys).unwrap(),
+            rows.join(", ")
+        );
+        for row in adapter.execute_raw_query(&sql).await.unwrap() {
+            let row = &row["data"];
+            let i = usize::try_from(row["i"].as_u64().unwrap()).unwrap();
+            let stored: Value = serde_json::from_str(CORPUS[i]).unwrap();
+            assert_eq!(
+                row["label"],
+                fraiseql_core::runtime::localize(&stored, &chain),
+                "label of {stored} in {tag}"
+            );
+            assert_eq!(
+                row["all"],
+                fraiseql_core::runtime::translations(&stored, &read),
+                "translations of {stored}"
+            );
+            compared += 1;
+        }
+    }
+    assert_eq!(compared, CORPUS.len() * config.allowed.len(), "every pair was compared");
+}

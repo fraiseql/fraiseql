@@ -291,9 +291,13 @@ fn checked_tag(tag: &str) -> Result<&str> {
 /// `chain = [fr-CA, fr-FR, en-US]`:
 ///
 /// ```text
-/// COALESCE(CASE WHEN jsonb_typeof("data"->'name'->'fr-CA') = 'string'
-///               THEN "data"->'name'->>'fr-CA' END, …, … 'en-US' … END)
+/// CASE WHEN jsonb_typeof("data"->'name') = 'string' THEN "data"->'name' #>> '{}'
+///      ELSE COALESCE(CASE WHEN jsonb_typeof("data"->'name'->'fr-CA') = 'string'
+///                         THEN "data"->'name'->>'fr-CA' END, …, … 'en-US' … END) END
 /// ```
+///
+/// A stored plain string is its own label in every locale: a field declared localized after
+/// its rows were written reads them as they were until they are rewritten as maps.
 ///
 /// Only a string counts: `->>` would render a number, a boolean or a nested object as text, and
 /// the in-process evaluator (`fraiseql_core::runtime::localize`) treats them as absent, so the
@@ -320,7 +324,11 @@ pub fn localized_text_expr(field_path: &str, chain: &[String]) -> Result<String>
             ))
         })
         .collect::<Result<Vec<_>>>()?;
-    Ok(format!("COALESCE({})", arms.join(", ")))
+    Ok(format!(
+        "CASE WHEN jsonb_typeof({field_path}) = 'string' THEN {field_path} #>> '{{}}' ELSE \
+         COALESCE({}) END",
+        arms.join(", ")
+    ))
 }
 
 /// The SQL a localized field's translations sibling is read with (#1513).

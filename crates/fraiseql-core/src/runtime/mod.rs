@@ -124,8 +124,9 @@ pub use field_filter::{
     FieldAccessResult, can_access_field, can_reference_field, classify_field_access, filter_fields,
 };
 pub use jsonb_strategy::{JsonbOptimizationOptions, JsonbStrategy};
+pub use locale_argument::translations;
 pub(crate) use locale_argument::{
-    LOCALE_ARGUMENT, resolve_locale_arguments, selection_chain, translations, translations_read,
+    LOCALE_ARGUMENT, resolve_locale_arguments, selection_chain, translations_read,
 };
 pub use matcher::{QueryMatch, QueryMatcher, suggest_similar};
 pub use mutation_result::{MutationErrorShapeCheck, mutation_error_shape_violations};

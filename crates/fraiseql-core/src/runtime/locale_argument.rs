@@ -227,9 +227,10 @@ fn translation_keys(selections: &[FieldSelection]) -> Vec<(String, TranslationPa
     keys
 }
 
-/// The translations sibling of a stored locale map, in process: the twin of
-/// `fraiseql_db::projection_generator::localized_translations_expr`, for a document
-/// projected in Rust. A value that is not a map lists nothing.
+/// The translations sibling of a stored locale map, in process.
+///
+/// The twin of `fraiseql_db::projection_generator::localized_translations_expr`, for a
+/// document projected in Rust. A value that is not a map lists nothing.
 #[must_use]
 pub fn translations(
     value: &serde_json::Value,

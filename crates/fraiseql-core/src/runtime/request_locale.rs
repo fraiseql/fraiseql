@@ -35,8 +35,9 @@ pub fn localization_chain(schema: &CompiledSchema) -> Option<Vec<String>> {
 
 /// A localized field's stored value read through `chain` (#1513).
 ///
-/// The first locale whose label is a JSON string, `null` when none is. A value that is not a
-/// locale map (a label SQL already resolved, or a stored non-map) is returned unchanged.
+/// The first locale whose label is a JSON string, `null` when none is. A string is its own
+/// label (a label SQL already resolved, or a stored plain string, which SQL reads the same
+/// way), so applying this twice changes nothing. Any other value is `null`.
 ///
 /// The in-process twin of `fraiseql_db::projection_generator::localized_text_expr`, for
 /// values that never pass through that SQL (a mutation's returned entity, a composed read
@@ -44,8 +45,10 @@ pub fn localization_chain(schema: &CompiledSchema) -> Option<Vec<String>> {
 /// over one corpus on PostgreSQL.
 #[must_use]
 pub fn localize(value: &serde_json::Value, chain: &[String]) -> serde_json::Value {
-    let serde_json::Value::Object(map) = value else {
-        return value.clone();
+    let map = match value {
+        serde_json::Value::Object(map) => map,
+        serde_json::Value::String(_) => return value.clone(),
+        _ => return serde_json::Value::Null,
     };
     chain
         .iter()
