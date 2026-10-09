@@ -796,6 +796,11 @@ impl Executor {
         mut response: serde_json::Value,
         query_match: &QueryMatch,
     ) -> Result<serde_json::Value> {
+        // A single resource with no row is "not found", which the transport answers in its
+        // own way; only a row that exists is completed against its type.
+        if response["data"][query_match.response_key()].is_null() {
+            return Ok(response);
+        }
         self.ctx.output_types.complete(
             &mut response,
             "Query",

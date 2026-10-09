@@ -860,7 +860,7 @@ async fn require_auth_false_still_serves_an_unauthenticated_caller() {
 #[tokio::test]
 async fn test_x_request_id_echoed() {
     let adapter = FailingAdapter::new()
-        .with_response("v_user", vec![JsonbValue::new(json!({"pk_user_id": 1}))]);
+        .with_response("v_user", vec![JsonbValue::new(json!({"pk_user_id": 1, "name": "Ada"}))]);
 
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
@@ -876,7 +876,7 @@ async fn test_x_request_id_echoed() {
 #[tokio::test]
 async fn test_x_request_id_generated_when_absent() {
     let adapter = FailingAdapter::new()
-        .with_response("v_user", vec![JsonbValue::new(json!({"pk_user_id": 1}))]);
+        .with_response("v_user", vec![JsonbValue::new(json!({"pk_user_id": 1, "name": "Ada"}))]);
 
     let schema = build_rest_schema();
     let router = build_router(adapter, schema);
