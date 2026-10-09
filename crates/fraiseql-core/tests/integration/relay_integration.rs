@@ -1377,8 +1377,8 @@ mod relay_security {
             // Record the whole call for assertion.
             self.calls.lock().unwrap().push(RecordedPage {
                 where_clause: where_clause.cloned(),
-                after: after.as_ref().map(|c| format!("{c:?}")),
-                before: before.as_ref().map(|c| format!("{c:?}")),
+                after: after.as_ref().map(|c| format!("{:?}", c.position)),
+                before: before.as_ref().map(|c| format!("{:?}", c.position)),
                 limit,
                 forward,
                 order_by: order_by.map(<[OrderByClause]>::to_vec),
@@ -1420,6 +1420,21 @@ mod relay_security {
                 filtered.into_iter().take(limit as usize).cloned().collect();
             if !forward {
                 rows.reverse();
+            }
+            // Under an ordering the adapter carries each row's sort-key values (#1521), and
+            // so does this double, read off the row as text.
+            if let Some(clauses) = order_by.filter(|c| !c.is_empty()) {
+                for row in &mut rows {
+                    let keys: Vec<serde_json::Value> = clauses
+                        .iter()
+                        .map(|c| match row.data.get(c.storage_key()) {
+                            None | Some(serde_json::Value::Null) => serde_json::Value::Null,
+                            Some(serde_json::Value::String(s)) => json!(s),
+                            Some(other) => json!(other.to_string()),
+                        })
+                        .collect();
+                    row.data[fraiseql_core::db::SORT_KEYS_KEY] = json!(keys);
+                }
             }
             Ok(fraiseql_core::db::traits::RelayPageResult::new(rows, total_count))
         }
@@ -1826,13 +1841,13 @@ mod relay_security {
         #[tokio::test]
         async fn inline_order_by_reaches_the_adapter() {
             let inline = page_for(
-                r#"{ users(first: 2, orderBy: { name: "DESC" }) { edges { node { id } } } }"#,
+                r"{ users(first: 2, orderBy: [{ field: name, direction: DESC }]) { edges { node { id } } } }",
                 None,
             )
             .await;
             let via_variable = page_for(
-                "query($o: UserOrderBy) { users(first: 2, orderBy: $o) { edges { node { id } } } }",
-                Some(json!({"o": {"name": "DESC"}})),
+                "query($o: [UserOrderByInput!]) { users(first: 2, orderBy: $o) { edges { node { id } } } }",
+                Some(json!({"o": [{"field": "name", "direction": "DESC"}]})),
             )
             .await;
 
