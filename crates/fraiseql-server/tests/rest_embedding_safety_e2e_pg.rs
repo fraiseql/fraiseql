@@ -136,7 +136,7 @@ fn schema_with(embedded_client_where: bool) -> CompiledSchema {
     let mut post = TypeDefinition::new("Post", format!("{SCHEMA}.v_post"));
     post.fields = vec![
         FieldDefinition::new("id", FieldType::Int),
-        FieldDefinition::new("fk_author", FieldType::Int),
+        FieldDefinition::nullable("fk_author", FieldType::Int),
         FieldDefinition::new("title", FieldType::String),
     ];
     post.relationships = vec![

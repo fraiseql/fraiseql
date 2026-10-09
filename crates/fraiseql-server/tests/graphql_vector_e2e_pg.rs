@@ -307,7 +307,7 @@ fn doc_fields_with_similarity(schema: &mut CompiledSchema) {
     // on. That is the branch where a distance has to be added to the stored row
     // instead of replacing it; see the authenticated test below.
     doc.fields
-        .push(FieldDefinition::new("gated", FieldType::String).with_authorize(true));
+        .push(FieldDefinition::nullable("gated", FieldType::String).with_authorize(true));
 }
 
 async fn setup() -> Option<Router> {

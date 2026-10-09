@@ -299,21 +299,21 @@ fn schema(user_view: &str) -> CompiledSchema {
     member.fields = vec![
         FieldDefinition::new("id", FieldType::Int),
         FieldDefinition::new("tenant_id", FieldType::String),
-        FieldDefinition::new("team", FieldType::Object("Team".to_string())),
+        FieldDefinition::nullable("team", FieldType::Object("Team".to_string())),
     ];
     schema.types.push(member);
     let mut holder = TypeDefinition::new("Holder", format!("{SCHEMA}.v_holder"));
     holder.fields = vec![
         FieldDefinition::new("id", FieldType::Int),
         FieldDefinition::new("tenant_id", FieldType::String),
-        FieldDefinition::new("team", FieldType::Object("Team".to_string())),
+        FieldDefinition::nullable("team", FieldType::Object("Team".to_string())),
     ];
     schema.types.push(holder);
     let mut badge = TypeDefinition::new("Badge", format!("{SCHEMA}.v_badge"));
     badge.fields = vec![
         FieldDefinition::new("id", FieldType::Int),
         FieldDefinition::new("tenant_id", FieldType::String),
-        FieldDefinition::new("holder", FieldType::Object("Holder".to_string())),
+        FieldDefinition::nullable("holder", FieldType::Object("Holder".to_string())),
     ];
     schema.types.push(badge);
     let mut folder = TypeDefinition::new("Folder", format!("{SCHEMA}.v_folder"));
@@ -323,7 +323,7 @@ fn schema(user_view: &str) -> CompiledSchema {
         FieldDefinition::new("owner", FieldType::String),
         scoped("margin", "read:margin", FieldDenyPolicy::Mask),
         scoped("cost_price", "read:cost", FieldDenyPolicy::Reject),
-        FieldDefinition::new("parent", FieldType::Object("Folder".to_string())),
+        FieldDefinition::nullable("parent", FieldType::Object("Folder".to_string())),
     ];
     schema.types.push(folder);
 
