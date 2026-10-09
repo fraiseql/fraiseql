@@ -16,6 +16,7 @@
 | Understand how paginated reads are ordered | [`docs/features/pagination.md`](features/pagination.md) |
 | Understand window functions | [`docs/modules/window-functions.md`](modules/window-functions.md) |
 | Understand analytics fact tables | [`docs/modules/fact-table.md`](modules/fact-table.md) |
+| See the PostgreSQL 18 feature measurements (uuidv7, SQL/JSON, RETURNING) | [`docs/benchmarks/pg18-evaluations.md`](benchmarks/pg18-evaluations.md) |
 | Check database feature compatibility | [`docs/database-compatibility.md`](database-compatibility.md) |
 | Review the threat model | [`docs/security/`](security/) |
 | Check SLA commitments | [`docs/sla.md`](sla.md) |
