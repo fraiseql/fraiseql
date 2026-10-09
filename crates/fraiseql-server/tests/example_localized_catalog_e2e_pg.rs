@@ -325,3 +325,10 @@ fn the_localization_guide_quotes_the_example() {
         );
     }
 }
+
+/// The example compiles and loads with no database.
+#[tokio::test]
+async fn the_document_loads_without_a_database() {
+    let compiled = compile_example().await;
+    assert!(compiled.locale.is_some(), "the example declares [locale]");
+}

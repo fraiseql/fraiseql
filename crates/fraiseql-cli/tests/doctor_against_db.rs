@@ -386,17 +386,7 @@ async fn doctor_names_each_missing_localized_index() {
         eprintln!("skipping #1513 doctor test: no DATABASE_URL");
         return;
     };
-    let schema = fraiseql_core::schema::CompiledSchema::from_json(
-        &format!(
-            r#"{{"types": [{{"name": "Product", "sql_source": "{TABLE}", "fields": [
-                {{"name": "id", "field_type": "ID", "nullable": false}},
-                {{"name": "name", "field_type": "String", "nullable": true, "localized": true}}]}}],
-              "queries": [], "mutations": [], "subscriptions": [],
-              "locale": {{"default": "en-US", "allowed": ["en-US", "fr-FR", "sv-SE"]}}}}"#
-        ),
-        false,
-    )
-    .unwrap();
+    let schema = localized_doctor_schema(TABLE);
     let (client, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
     tokio::spawn(connection);
     client
@@ -447,4 +437,25 @@ async fn doctor_names_each_missing_localized_index() {
     let checks = localized_index_checks(&url, &tls, &schema).await;
     client.batch_execute(&format!("DROP TABLE {TABLE}")).await.unwrap();
     assert!(checks.iter().all(|c| c.status == CheckStatus::Pass), "{checks:?}");
+}
+
+/// The localized schema the `doctor` index check is run against, over `table`.
+fn localized_doctor_schema(table: &str) -> fraiseql_core::schema::CompiledSchema {
+    fraiseql_core::schema::CompiledSchema::from_json(
+        &format!(
+            r#"{{"types": [{{"name": "Product", "sql_source": "{table}", "fields": [
+                {{"name": "id", "field_type": "ID", "nullable": false}},
+                {{"name": "name", "field_type": "String", "nullable": true, "localized": true}}]}}],
+              "queries": [], "mutations": [], "subscriptions": [],
+              "locale": {{"default": "en-US", "allowed": ["en-US", "fr-FR", "sv-SE"]}}}}"#
+        ),
+        false,
+    )
+    .unwrap()
+}
+
+/// The doctor suite's localized schema loads with no database.
+#[test]
+fn the_document_loads_without_a_database() {
+    assert!(localized_doctor_schema("tv_product").locale.is_some());
 }

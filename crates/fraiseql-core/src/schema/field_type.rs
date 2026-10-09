@@ -393,6 +393,7 @@ pub enum FieldDenyPolicy {
 ///     encryption: None,
 ///     hierarchy: None,
 ///     unique: false,
+///     localized: false,
 /// };
 /// ```
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -468,6 +469,7 @@ pub struct FieldDefinition {
     ///     encryption: None,
     ///     hierarchy: None,
     ///     unique: false,
+    ///     localized: false,
     /// };
     /// ```
     #[serde(default, skip_serializing_if = "Option::is_none")]

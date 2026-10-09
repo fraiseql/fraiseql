@@ -1289,3 +1289,13 @@ async fn rest_writes_a_localized_field() {
         json!({"fr-FR": "Pomme", "de-DE": "Apfel", "en-US": "Apple"})
     );
 }
+
+/// Every schema this suite serves compiles and loads with no database.
+#[tokio::test]
+async fn the_document_loads_without_a_database() {
+    compile(LOCALE_TOML).await.unwrap();
+    for schema in [schema_with_writes().await, schema_with_items().await] {
+        CompiledSchema::from_json(&serde_json::to_string(&schema).unwrap(), false)
+            .unwrap_or_else(|e| panic!("a locale suite schema must load: {e}"));
+    }
+}

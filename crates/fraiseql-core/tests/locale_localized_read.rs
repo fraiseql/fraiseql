@@ -94,6 +94,14 @@ fn schema_with(nullable: bool) -> CompiledSchema {
         fraiseql_core::schema::InterfaceDefinition::new("Node")
             .with_field(FieldDefinition::new("id", FieldType::Id)),
     );
+    // The role that grants the gated fields' scopes: a schema declaring `requires_scope` with
+    // no such role is one no server loads.
+    let mut security = fraiseql_core::schema::SecurityConfig::new();
+    security.add_role(fraiseql_core::schema::RoleDefinition::new(
+        "reader",
+        vec!["read:secret".to_string(), "read:motto".to_string()],
+    ));
+    schema.security = Some(security);
     schema.locale = Some(
         LocaleConfig::new(
             "en-US",
@@ -846,4 +854,11 @@ fn uses_that_would_read_the_stored_map_are_refused_at_load() {
         CompiledSchema::from_json(&schema(&extra), false)
             .unwrap_or_else(|e| panic!("control must load: {extra}: {e}"));
     }
+}
+
+/// The suite's schema loads as the server loads a compiled schema, with no database.
+#[test]
+fn the_document_loads_without_a_database() {
+    CompiledSchema::from_json(&serde_json::to_string(&schema()).unwrap(), false)
+        .unwrap_or_else(|e| panic!("the localized-read schema must load: {e}"));
 }

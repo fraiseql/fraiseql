@@ -409,3 +409,10 @@ fn an_unservable_localized_input_is_refused_at_load() {
     CompiledSchema::from_json(&base(string_arg, string_field, true, ""), false)
         .expect("control: a localized String argument and field load");
 }
+
+/// The suite's schema loads as the server loads a compiled schema, with no database.
+#[test]
+fn the_document_loads_without_a_database() {
+    CompiledSchema::from_json(&serde_json::to_string(&schema()).unwrap(), false)
+        .unwrap_or_else(|e| panic!("the localized-write schema must load: {e}"));
+}
