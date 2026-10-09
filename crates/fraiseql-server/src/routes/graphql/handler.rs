@@ -557,15 +557,17 @@ async fn execute_graphql_request(
     // first one, whatever the client named.
     let operation_name = request.operation_name.as_deref();
     // #1512: the request's locale, from the explicit `extensions` argument, the headers and
-    // the resolved identity, under this tenant's `[locale]`.
-    let locale = crate::request_locale::resolve(
+    // the resolved identity, under this tenant's `[locale]`; #1520: the headers its session
+    // variables name.
+    let scope = crate::request_scope::RequestScope::resolve(
         executor.schema(),
         Some(headers),
-        Some(&crate::request_locale::json_argument(request.extensions.as_ref())),
+        Some(&crate::request_scope::json_argument(request.extensions.as_ref())),
         security_context.as_ref(),
-    );
+    )
+    .map_err(|e| ErrorResponse::from_error(GraphQLError::from_fraiseql_error(&e)))?;
     // Boxed for the reason the stages above are: the executor future is deep.
-    let exec_result = Box::pin(crate::request_locale::scoped(locale, async {
+    let exec_result = Box::pin(crate::request_scope::scoped(scope, async {
         if let Some(sec_ctx) = security_context {
             executor
                 .execute_operation_with_security(

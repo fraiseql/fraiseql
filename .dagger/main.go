@@ -1885,6 +1885,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// through a view, on every transport the suite drives; never on a write.
 		"cargo test -p fraiseql-server --features rest,mcp,federation --test locale_context_e2e_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server --features grpc --test locale_grpc_e2e_pg -- --test-threads=1",
+		// #1520 — a `source = "header"` session variable is the request's header, never a
+		// claim of the same name, on every transport the suite drives; an anonymous request
+		// gets its header and literal variables.
+		"cargo test -p fraiseql-server --features rest,mcp,grpc --test session_variable_header_source_e2e_pg -- --test-threads=1",
 		// P13 — the REST write surface (#865) and the four defects that had to be green
 		// before it could be mounted. Every one of these suites drives real PostgreSQL;
 		// three of them drive the real `Server::serve_on_listener` mount rather than

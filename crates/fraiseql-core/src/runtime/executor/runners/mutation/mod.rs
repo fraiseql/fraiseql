@@ -1674,21 +1674,19 @@ pub(in super::super) async fn execute_mutation_impl(
         //     it on a separate pooled connection left it invisible to the function).
         //
         // Only resolved when there are variables to inject or inject_started_at is
-        // enabled, and only on the authenticated path (security context present).
-        // The no-op default on non-PostgreSQL adapters means an empty slice here is
-        // effectively free there.
+        // enabled. An anonymous write gets its `literal` and `header` sources and the
+        // timestamp (#1520); claim and enrichment sources need a principal.
         let resolved_session_vars = {
             let sv = &ctx.schema.session_variables;
-            match security_ctx {
-                Some(sec_ctx) if !sv.variables.is_empty() || sv.inject_started_at => {
-                    crate::runtime::executor::support::security::resolve_session_variables(
-                        sv,
-                        sec_ctx,
-                        ctx.schema.tenant_claim(),
-                        crate::runtime::executor::support::security::SessionPurpose::Write,
-                    )?
-                },
-                _ => Vec::new(),
+            if sv.variables.is_empty() && !sv.inject_started_at {
+                Vec::new()
+            } else {
+                crate::runtime::executor::support::security::resolve_session_variables(
+                    sv,
+                    security_ctx,
+                    ctx.schema.tenant_claim(),
+                    crate::runtime::executor::support::security::SessionPurpose::Write,
+                )?
             }
         };
         let session_pairs: Vec<(&str, &str)> =

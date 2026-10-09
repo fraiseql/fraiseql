@@ -71,6 +71,7 @@ pub mod query_function;
 pub mod query_tracing;
 pub mod relay;
 mod request_locale;
+mod session_headers;
 pub mod sql_logger;
 pub mod subscription;
 pub mod tenant_enforcer;
@@ -145,6 +146,10 @@ pub use query_tracing::{
 pub use request_locale::{
     localization_chain, localize, request_locale, scoped_request_locale, with_request_locale,
     with_request_locale_sync,
+};
+pub use session_headers::{
+    MAX_SESSION_HEADER_BYTES, SessionHeaders, scoped_session_header, scoped_session_headers,
+    with_session_headers, with_session_headers_sync,
 };
 pub use sql_logger::{SqlOperation, SqlQueryLog, SqlQueryLogBuilder, create_sql_span};
 pub use subscription::{

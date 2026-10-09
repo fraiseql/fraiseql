@@ -117,13 +117,18 @@ impl QueryExecutor for PolicyGatedExecutor {
         //    the server's sanitiser, as `/graphql`'s does: Flight hands its text to the client, and
         //    the kind (so the gRPC status) is kept. It runs in the request's locale (#1512): with
         //    no headers and no argument channel, that is the identity's (an `enrichment` source) or
-        //    the default.
-        let locale =
-            crate::request_locale::resolve(executor.schema(), None, None, Some(security_context));
-        crate::request_locale::scoped(
-            locale,
+        //    the default. For the same reason a `source = "header"` session variable is unset here,
+        //    as for a request that sent no such header (#1520).
+        let scope = crate::request_scope::RequestScope::resolve(
+            executor.schema(),
+            None,
+            None,
+            Some(security_context),
+        )?;
+        Box::pin(crate::request_scope::scoped(
+            scope,
             executor.execute_with_security(query, variables, security_context),
-        )
+        ))
         .await
         .map_err(|e| {
             tracing::warn!(error = %e, "Flight GraphQL execution failed");

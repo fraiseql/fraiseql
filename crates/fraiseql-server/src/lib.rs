@@ -69,7 +69,7 @@ pub mod migration_lock;
 /// functions — to run guest mutations under a `run_as` identity (#573, #594).
 #[cfg(feature = "functions-runtime")]
 pub mod query_bridge;
-pub mod request_locale;
+pub mod request_scope;
 pub mod routes;
 pub mod schema;
 pub mod server;

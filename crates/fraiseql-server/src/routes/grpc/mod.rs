@@ -192,15 +192,19 @@ impl DynamicGrpcService {
 
         // Collect the body bytes.
         // #1512: everything that reaches the engine runs in the request's locale. gRPC has
-        // no explicit locale argument; the metadata (headers) and the identity apply.
-        let locale = crate::request_locale::resolve(
+        // no explicit locale argument; the metadata (headers) and the identity apply. The
+        // metadata also carries the headers session variables name (#1520).
+        let scope = match crate::request_scope::RequestScope::resolve(
             self.executor.schema(),
             Some(req.headers()),
             None,
             security_context.as_ref(),
-        );
-        crate::request_locale::scoped(
-            locale,
+        ) {
+            Ok(scope) => scope,
+            Err(e) => return grpc_error_response(tonic::Code::InvalidArgument, &e.to_string()),
+        };
+        crate::request_scope::scoped(
+            scope,
             Box::pin(self.handle_authenticated(method, op, req, security_context)),
         )
         .await

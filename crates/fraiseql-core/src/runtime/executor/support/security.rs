@@ -76,21 +76,23 @@ pub(in super::super) enum SessionPurpose {
     Write,
 }
 
-/// Resolve session variable mappings against the current security context.
+/// Resolve session variable mappings for the current request.
 ///
 /// Returns a list of `(name, value)` pairs to inject as PostgreSQL transaction-scoped
 /// session variables via `set_config()`.
 ///
 /// Resolution rules:
-/// - [`SessionVariableSource::Jwt`] — looks up the claim in `security_context.attributes`; falls
-///   back to `user_id` for `"sub"` and to `tenant_id` for `"tenant_id"`.  Missing claims are
-///   silently skipped.
-/// - [`SessionVariableSource::Header`] — looks up the header name in `security_context.attributes`.
-///   Missing headers are silently skipped.
-/// - [`SessionVariableSource::Literal`] — uses the fixed value as-is.
+/// - [`SessionVariableSource::Jwt`] — the claim as the principal's token carried it; falls back to
+///   `user_id` for `"sub"` and to `tenant_id` for `"tenant_id"`. Missing claims are skipped;
+///   without a principal (`security_context` is `None`) the variable is unset.
+/// - [`SessionVariableSource::Header`] — the request header the transport scoped with
+///   [`with_session_headers`](crate::runtime::with_session_headers) (#1520), never a claim of the
+///   same name. A header the request did not send is skipped. Principal or not.
+/// - [`SessionVariableSource::Literal`] — uses the fixed value as-is. Principal or not.
 /// - [`SessionVariableSource::Enrichment`] — reads the reserved `fraiseql.enriched.*` attribute
 ///   namespace with **no** fallback; a missing enriched field is a hard error, never a
-///   silently-skipped/empty GUC (#539).
+///   silently-skipped/empty GUC (#539). Without a principal the variable is unset: there is no
+///   identity to enrich.
 ///
 /// When `config.inject_started_at` is `true`, the pair
 /// `(STARTED_AT_VAR, CLOCK_TIMESTAMP_DIRECTIVE)` is **prepended** to the returned
@@ -110,7 +112,7 @@ pub(in super::super) enum SessionPurpose {
 /// one rather than silently skipped.
 pub(in super::super) fn resolve_session_variables(
     config: &SessionVariablesConfig,
-    security_context: &SecurityContext,
+    security_context: Option<&SecurityContext>,
     tenant_claim: &str,
     purpose: SessionPurpose,
 ) -> Result<Vec<(String, String)>> {
@@ -127,23 +129,22 @@ pub(in super::super) fn resolve_session_variables(
         let value: Option<String> = match &mapping.source {
             SessionVariableSource::Jwt { claim } => {
                 // The one claim resolver (#1388): the claim as the token carried it.
-                security_context.jwt_claim(claim, tenant_claim).map(|v| match v {
-                    serde_json::Value::String(s) => s,
-                    other => other.to_string(),
+                security_context.and_then(|sec| {
+                    sec.jwt_claim(claim, tenant_claim).map(|v| match v {
+                        serde_json::Value::String(s) => s,
+                        other => other.to_string(),
+                    })
                 })
             },
+            // The header itself, as the transport scoped it; `attributes` holds claims.
             SessionVariableSource::Header { header } => {
-                // HTTP headers are forwarded into attributes
-                security_context.attributes.get(header.as_str()).map(|v| {
-                    if let serde_json::Value::String(s) = v {
-                        s.clone()
-                    } else {
-                        v.to_string()
-                    }
-                })
+                crate::runtime::scoped_session_header(header)
             },
             SessionVariableSource::Literal { value } => Some(value.clone()),
             SessionVariableSource::Enrichment { field } => {
+                let Some(security_context) = security_context else {
+                    continue;
+                };
                 // Read ONLY the reserved namespace — no fallback to a raw claim or
                 // a well-known field. The extractor strips `fraiseql.` claims, so
                 // this key can only have been written by the server's identity
@@ -176,7 +177,8 @@ pub(in super::super) fn resolve_session_variables(
 }
 
 /// The session settings a **read** runs under: the configured session variables resolved
-/// against the principal (none without one), then the request locale as
+/// for the request (an anonymous one gets its `literal` and `header` sources), then the
+/// request locale as
 /// [`LOCALE_SESSION_VAR`](crate::schema::LOCALE_SESSION_VAR) when the schema declares
 /// `[locale]` (#1512), principal or not.
 ///
@@ -192,13 +194,17 @@ pub(in super::super) fn read_session_variables(
     security_context: Option<&SecurityContext>,
 ) -> Result<Vec<(String, String)>> {
     let sv = &schema.session_variables;
-    let mut vars = match security_context {
-        // A read carries request context only; the mutation timestamp is never set on one
-        // (#1373).
-        Some(sec) if !sv.variables.is_empty() => {
-            resolve_session_variables(sv, sec, schema.tenant_claim(), SessionPurpose::Read)?
-        },
-        _ => Vec::new(),
+    // A read carries request context only; the mutation timestamp is never set on one
+    // (#1373).
+    let mut vars = if sv.variables.is_empty() {
+        Vec::new()
+    } else {
+        resolve_session_variables(
+            sv,
+            security_context,
+            schema.tenant_claim(),
+            SessionPurpose::Read,
+        )?
     };
     if let Some(locale) = crate::runtime::request_locale(schema) {
         vars.push((crate::schema::LOCALE_SESSION_VAR.to_string(), locale));

@@ -248,12 +248,18 @@ async fn submit(
             );
         },
     };
-    // #1512: the locale is resolved now, from this request, and stored with the operation:
-    // the worker that executes it has no request to resolve one from.
-    // The tenant's executor, read without charging its quotas a second time.
-    let locale = match state.app.executor_for_tenant(tenant_key.as_deref()) {
-        Ok(executor) => {
-            crate::request_locale::resolve(executor.schema(), Some(&headers), None, Some(&ctx))
+    // #1512, #1520: the request's scope (locale, session headers) is resolved now, from this
+    // request, and stored with the operation: the worker that executes it has no request to
+    // resolve one from. The tenant's executor, read without charging its quotas a second time.
+    let scope = match state.app.executor_for_tenant(tenant_key.as_deref()) {
+        Ok(executor) => match crate::request_scope::RequestScope::resolve(
+            executor.schema(),
+            Some(&headers),
+            None,
+            Some(&ctx),
+        ) {
+            Ok(scope) => scope,
+            Err(e) => return error_response(StatusCode::BAD_REQUEST, &e.to_string()),
         },
         Err(e) => return error_response(tenant_refusal_status(&e), &e.to_string()),
     };
@@ -267,7 +273,7 @@ async fn submit(
             &body.query,
             body.variables.as_ref(),
             &ctx_json,
-            locale.as_deref(),
+            &scope,
             state.runtime.config.max_attempts,
         )
         .await

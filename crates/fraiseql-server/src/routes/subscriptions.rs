@@ -1329,10 +1329,10 @@ async fn handle_client_message(
                     // #1513: planned in the subscriber's locale, which the plan keeps for
                     // every event it serves.
                     let executor = live();
-                    let request_locale = crate::request_locale::resolve(
+                    let request_locale = crate::request_scope::resolve(
                         executor.schema(),
                         Some(locale.headers),
-                        Some(&crate::request_locale::json_argument(locale.init_payload)),
+                        Some(&crate::request_scope::json_argument(locale.init_payload)),
                         principal,
                     );
                     match fraiseql_core::runtime::with_request_locale_sync(request_locale, || {

@@ -313,15 +313,19 @@ impl FraiseQLMcpService {
 
         // #1512: the call runs in the request's locale. MCP has no explicit locale argument
         // (a tool's arguments are its operation's); headers and the identity apply, and the
-        // stdio transport, which carries no headers, gets the identity's or the default.
-        let locale = crate::request_locale::resolve(
+        // stdio transport, which carries no headers, gets the identity's or the default. The
+        // headers its session variables name come from the same headers (#1520).
+        let scope = match crate::request_scope::RequestScope::resolve(
             dispatch.executor.schema(),
             Some(headers),
             None,
             security_context,
-        );
-        let mut result = crate::request_locale::scoped(
-            locale,
+        ) {
+            Ok(scope) => scope,
+            Err(e) => return error_result(&sanitize(sanitizer, &e)),
+        };
+        let mut result = crate::request_scope::scoped(
+            scope,
             Box::pin(super::executor::call_tool(
                 tool_name,
                 arguments,

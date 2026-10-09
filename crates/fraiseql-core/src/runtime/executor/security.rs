@@ -17,7 +17,8 @@ use crate::{
 /// Resolution follows each mapping's [`SessionVariableSource`]: a `Jwt` claim is
 /// looked up in the context's attributes, falling back to `user_id` for
 /// `sub`/`user_id` and to `tenant_id`/`email`/`name` for their own claims; a
-/// `Header` is read from attributes; a `Literal` is used as-is; and an
+/// `Header` is the request header in scope (none in a console preview, which has no
+/// request to read one from); a `Literal` is used as-is; and an
 /// `Enrichment` field reads the reserved `fraiseql.enriched.*` namespace with
 /// **no** fallback — a missing enriched field is an error, never a silently
 /// absent GUC (#539). With `inject_started_at`, the started-at directive is
@@ -42,7 +43,7 @@ pub fn resolve_session_variables(
     // everything the executor would set for a write.
     support::security::resolve_session_variables(
         &schema.session_variables,
-        security_context,
+        Some(security_context),
         schema.tenant_claim(),
         support::security::SessionPurpose::Write,
     )
@@ -316,7 +317,7 @@ mod session_variable_tests {
     ) -> Result<Vec<(String, String)>> {
         super::support::security::resolve_session_variables(
             config,
-            ctx,
+            Some(ctx),
             crate::schema::security_config::DEFAULT_TENANT_CLAIM,
             super::support::security::SessionPurpose::Write,
         )
@@ -464,10 +465,34 @@ mod session_variable_tests {
             }],
             inject_started_at: false,
         };
-        let vars = resolve_session_variables(&config, &ctx).unwrap();
-        assert_eq!(vars.len(), 1);
-        assert_eq!(vars[0].0, "app.tenant");
-        assert_eq!(vars[0].1, "header-tenant");
+        // The context carries a *claim* named `x-tenant-id`; the request sent the header.
+        let headers = crate::runtime::SessionHeaders::resolve(&config, &|name| {
+            if name == "x-tenant-id" {
+                vec![Some("sent".to_string())]
+            } else {
+                vec![]
+            }
+        })
+        .unwrap();
+        let vars = crate::runtime::with_session_headers_sync(headers, || {
+            resolve_session_variables(&config, &ctx).unwrap()
+        });
+        assert_eq!(vars, vec![("app.tenant".to_string(), "sent".to_string())]);
+    }
+
+    #[test]
+    fn a_header_source_never_reads_a_claim_of_the_same_name() {
+        let ctx = make_context();
+        let config = SessionVariablesConfig {
+            variables:         vec![SessionVariableMapping {
+                name:   "app.tenant".to_string(),
+                source: SessionVariableSource::Header {
+                    header: "x-tenant-id".to_string(),
+                },
+            }],
+            inject_started_at: false,
+        };
+        assert!(resolve_session_variables(&config, &ctx).unwrap().is_empty());
     }
 
     #[test]

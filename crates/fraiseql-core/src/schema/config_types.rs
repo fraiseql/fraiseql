@@ -630,7 +630,11 @@ pub enum SessionVariableSource {
         /// JWT claim name to look up (e.g. `"sub"`, `"tenant_id"`).
         claim: String,
     },
-    /// Pull from an HTTP request header forwarded via `SecurityContext.attributes`.
+    /// Pull from an HTTP request header (gRPC metadata on gRPC), read by the transport.
+    ///
+    /// A header is **client-controlled**: any caller can send any value. Never use one for
+    /// row-level security or tenant scoping; use [`Jwt`](Self::Jwt) or
+    /// [`Enrichment`](Self::Enrichment) for those.
     Header {
         /// HTTP header name (e.g. `"x-tenant-id"`).
         header: String,

@@ -29,7 +29,7 @@ pub async fn run(runtime: AsyncOperationsRuntime, state: AppState) {
             },
         };
         for op in claimed {
-            execute_claimed(&runtime, &state, op).await;
+            Box::pin(execute_claimed(&runtime, &state, op)).await;
         }
 
         match runtime.store.sweep_finished(runtime.config.result_ttl_secs).await {
@@ -108,9 +108,12 @@ async fn execute_claimed(
     let hb_store = Arc::clone(&store);
     let hb_interval = Duration::from_secs((runtime.config.stuck_threshold_secs / 3).max(1));
     let op_id = op.op_id;
-    // Run in the locale resolved at submission (#1512).
-    let execution = crate::request_locale::scoped(
-        op.locale.clone(),
+    // Run in the scope resolved at submission (#1512, #1520).
+    let execution = crate::request_scope::scoped(
+        crate::request_scope::RequestScope {
+            locale:          op.locale.clone(),
+            session_headers: op.session_headers.clone(),
+        },
         dispatch
             .executor
             .execute_with_security(&op.document, op.variables.as_ref(), &ctx),
