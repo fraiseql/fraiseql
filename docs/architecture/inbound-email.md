@@ -9,6 +9,10 @@ same path the webhook adapter uses, with a different transport at the edge.
 
 It is opt-in behind the `inbound-email` Cargo feature.
 
+Each new message's `after:ingest:email` dispatches are recorded in the dispatch ledger in the
+same transaction as its emit and the cursor advance, so a dispatch lost to a crash is run
+again by the sweep (see [webhooks.md](webhooks.md#dispatch-is-at-least-once-the-dispatch-ledger)).
+
 ```text
   IMAP mailbox ─poll─► fetch(uid > cursor) ─► normalize ─► spine ─► after:ingest:email
   (transport)          (UID watermark)        (pure MIME)  (emit)   (durable dispatch)

@@ -36,8 +36,9 @@ mod tests;
 /// One call must, **atomically**: emit the batch's messages onto the durable spine
 /// (deduplicated by idempotency key) and advance the cursor from `from` to the
 /// batch's `next_cursor`, in a single transaction; then, once committed, dispatch
-/// `after:ingest` for the newly-persisted messages. The messages are durable; their dispatch
-/// is not replayed if the process dies before it (#1175).
+/// `after:ingest` for the newly-persisted messages. Each dispatch is recorded in the server's
+/// dispatch ledger with its message, so one the process dies before settling is run again by
+/// the ledger's sweep: at-least-once (#1175).
 ///
 /// Implemented by the server, where the spine and the `after:ingest` dispatcher
 /// live. Splitting it out keeps this crate free of the database driver and lets the

@@ -1194,6 +1194,54 @@ impl Server {
         }
     }
 
+    /// Start the `after:ingest` dispatch-ledger sweep (#1175) on the server's
+    /// [`JoinSet`](tokio::task::JoinSet): once now (the startup scan), then on its interval.
+    /// It re-runs every recorded dispatch whose lease ran out before it settled, which is
+    /// what makes inbound dispatch at-least-once. A no-op unless an inbound path records
+    /// dispatches: a database, a webhook route or polled mailbox, and function hooks.
+    #[cfg(feature = "inbound")]
+    pub(crate) fn spawn_inbound_dispatch_sweep(
+        &mut self,
+        state: &crate::routes::graphql::AppState,
+    ) {
+        let (Some(pool), Some(hooks)) = (self.db_pool.clone(), state.before_mutation_hooks.clone())
+        else {
+            return;
+        };
+        #[cfg(feature = "inbound-email")]
+        let mailboxes = self.config.mailbox.values().any(|mailbox| mailbox.imap.is_some());
+        #[cfg(not(feature = "inbound-email"))]
+        let mailboxes = false;
+        if self.config.webhooks.is_empty() && !mailboxes {
+            return;
+        }
+        // Validated in `provision_persistent_schemas`, which every entry point runs first.
+        let Ok(settings) = self.config.inbound_dispatch.settings() else {
+            return;
+        };
+        let dispatcher =
+            std::sync::Arc::new(crate::routes::after_mutation::HooksIngestDispatcher::new(
+                hooks,
+                Some(crate::routes::after_mutation::make_query_executor_factory(
+                    state.executor.clone(),
+                )),
+            ));
+        self.tasks
+            .spawn(crate::inbound::dispatch_ledger::run_sweeper(pool, dispatcher, settings));
+        tracing::info!(
+            lease_secs = settings.lease.as_secs(),
+            sweep_interval_secs = settings.sweep_interval.as_secs(),
+            "after:ingest dispatch sweep started"
+        );
+    }
+
+    /// How many lifecycle tasks the server holds (test observability for what a serve
+    /// entry point starts).
+    #[cfg(all(test, feature = "inbound"))]
+    pub(crate) fn lifecycle_task_count(&self) -> usize {
+        self.tasks.len()
+    }
+
     /// Build the async-operations subsystem from `[async_operations]` (#391).
     ///
     /// `None` when the section is absent. A configured section without a

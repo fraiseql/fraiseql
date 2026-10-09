@@ -351,6 +351,10 @@ impl Server {
             &self.webhook_routes,
             |name| std::env::var(name).ok(),
         );
+        // #1175: validated in `provision_persistent_schemas`, so the error arm is unreachable.
+        if let Ok(settings) = self.config.inbound_dispatch.settings() {
+            inbound_state = inbound_state.with_dispatch_lease(settings.lease);
+        }
         if let Some(ref hooks) = state.before_mutation_hooks {
             inbound_state = inbound_state.with_hooks(std::sync::Arc::clone(hooks));
             // #594: thread the request-path executor factory so after:ingest

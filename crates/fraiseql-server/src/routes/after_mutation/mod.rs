@@ -538,7 +538,7 @@ pub fn make_query_executor_factory(
 ///   fresh processing timestamp.
 #[cfg(feature = "functions-runtime")]
 #[must_use]
-fn dispatch_idempotency_token(
+pub fn dispatch_idempotency_token(
     key: Option<&[u8]>,
     source: fraiseql_observers::DispatchSource,
     function_name: &str,
@@ -553,6 +553,18 @@ fn dispatch_idempotency_token(
         &trigger_identity,
         &payload.data,
     )
+}
+
+/// How one durable dispatch ended (#1175): what the inbound dispatch ledger records.
+#[cfg(feature = "functions-runtime")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DispatchOutcome {
+    /// The function ran (or, re-runnable, made its one attempt, which is all it asks for).
+    Dispatched,
+    /// It failed permanently or exhausted its retries, and is in the dead-letter queue.
+    DeadLettered,
+    /// It failed and could not be dead-lettered either: nothing records it but the caller.
+    Unsettled,
 }
 
 /// Runs after:mutation function plans durably: retry transient failures with
@@ -671,7 +683,7 @@ impl DurableDispatcher {
         live
     }
 
-    /// Dispatch a single plan under its [`FunctionDispatchSetting`].
+    /// Dispatch a single plan under its [`FunctionDispatchSetting`], and say how it ended.
     ///
     /// Re-runnable → one attempt, errors logged and dropped. Durable → retry
     /// transient failures per the policy; on a permanent error or exhausted
@@ -681,7 +693,7 @@ impl DurableDispatcher {
         module: FunctionModule,
         payload: EventPayload,
         setting: &FunctionDispatchSetting,
-    ) {
+    ) -> DispatchOutcome {
         let function_name = module.name.clone();
         // Wall-clock for the dispatch (all retry attempts included), reported on the
         // run-duration histogram under whichever outcome branch is taken below.
@@ -723,7 +735,7 @@ impl DurableDispatcher {
                 },
             };
             crate::function_metrics::record_dispatch(&function_name, trigger_kind, result, elapsed);
-            return;
+            return DispatchOutcome::Dispatched;
         }
 
         // Durable dispatch: retry transient failures with backoff.
@@ -768,7 +780,7 @@ impl DurableDispatcher {
                 crate::function_metrics::RESULT_OK,
                 started.elapsed().as_secs_f64(),
             );
-            return;
+            return DispatchOutcome::Dispatched;
         };
 
         // Exhausted (or permanently failed): dead-letter for inspection/replay.
@@ -792,20 +804,26 @@ impl DurableDispatcher {
             attempts,
         );
         match self.dlq.push_function(record).await {
-            Ok(_) => tracing::error!(
-                error = %error,
-                function = %function_name,
-                idempotency_token = %dead_letter_token,
-                attempts,
-                "function dead-lettered after exhausting retries"
-            ),
-            Err(dlq_error) => tracing::error!(
-                error = %error,
-                dlq_error = %dlq_error,
-                function = %function_name,
-                idempotency_token = %dead_letter_token,
-                "function failed and could not be dead-lettered"
-            ),
+            Ok(_) => {
+                tracing::error!(
+                    error = %error,
+                    function = %function_name,
+                    idempotency_token = %dead_letter_token,
+                    attempts,
+                    "function dead-lettered after exhausting retries"
+                );
+                DispatchOutcome::DeadLettered
+            },
+            Err(dlq_error) => {
+                tracing::error!(
+                    error = %error,
+                    dlq_error = %dlq_error,
+                    function = %function_name,
+                    idempotency_token = %dead_letter_token,
+                    "function failed and could not be dead-lettered"
+                );
+                DispatchOutcome::Unsettled
+            },
         }
     }
 }
@@ -840,7 +858,8 @@ pub fn spawn_after_mutation(
     );
 }
 
-/// Spawn each planned `after:ingest` invocation as a background task.
+/// Spawn each planned `after:ingest` invocation of the spine message `message_id` as a
+/// background task, and settle its dispatch-ledger row when it ends (#1175).
 ///
 /// The inbound-ingestion analogue of [`spawn_after_mutation`]: it runs each
 /// function on the same I/O-capable [`LiveHostContext`] with the same durability
@@ -848,6 +867,8 @@ pub fn spawn_after_mutation(
 /// `after:ingest` handler can classify a message and issue a mutation with the
 /// same reliability guarantees. Dead-letter records are tagged
 /// [`DispatchSource::AfterIngest`](fraiseql_observers::DispatchSource::AfterIngest).
+/// A dispatch that never settles (the process dies first) is run again by the ledger's
+/// sweep once its lease runs out.
 ///
 /// [`LiveHostContext`]: fraiseql_functions::host::live::LiveHostContext
 // Gated on `inbound` (not merely `functions-runtime`): the after:ingest dispatcher
@@ -857,18 +878,99 @@ pub fn spawn_after_mutation(
 #[cfg(feature = "inbound")]
 pub fn spawn_after_ingest(
     hooks: &BeforeMutationHooks,
+    message_id: uuid::Uuid,
     plans: Vec<AfterMutationDispatch>,
-    query_executor_factory: Option<QueryExecutorFactory>,
+    query_executor_factory: Option<&QueryExecutorFactory>,
+    pool: &sqlx::PgPool,
 ) {
-    // Background path — no triggering caller; the host runs as the function's
-    // `run_as` identity (#803).
-    spawn_dispatch(
+    let base = base_dispatcher(
         hooks,
-        plans,
         fraiseql_observers::DispatchSource::AfterIngest,
-        query_executor_factory,
+        query_executor_factory.cloned(),
         None,
     );
+    for plan in plans {
+        let (dispatcher, setting) = plan_dispatcher(&base, hooks, &plan);
+        let pool = pool.clone();
+        tokio::spawn(async move {
+            let function = plan.module.name.clone();
+            let outcome = dispatcher.dispatch(plan.module, plan.payload, &setting).await;
+            if let Err(error) =
+                crate::inbound::dispatch_ledger::settle(&pool, message_id, &function, outcome).await
+            {
+                tracing::warn!(
+                    %error,
+                    function = %function,
+                    "after:ingest dispatch ran but could not be settled; the sweep will run it \
+                     again"
+                );
+            }
+        });
+    }
+}
+
+/// The ledger sweep's dispatcher (#1175): runs an `after:ingest` function on a persisted
+/// message exactly as the post-commit dispatch does, to completion.
+#[cfg(feature = "inbound")]
+pub struct HooksIngestDispatcher {
+    hooks:                  std::sync::Arc<BeforeMutationHooks>,
+    query_executor_factory: Option<QueryExecutorFactory>,
+}
+
+#[cfg(feature = "inbound")]
+impl HooksIngestDispatcher {
+    /// A dispatcher over the server's function hooks and its `fraiseql_query` bridge.
+    #[must_use]
+    pub const fn new(
+        hooks: std::sync::Arc<BeforeMutationHooks>,
+        query_executor_factory: Option<QueryExecutorFactory>,
+    ) -> Self {
+        Self {
+            hooks,
+            query_executor_factory,
+        }
+    }
+
+    async fn run(
+        &self,
+        message: &fraiseql_functions::InboundMessage,
+        function_name: &str,
+    ) -> DispatchOutcome {
+        let Some(plan) = plan_after_ingest_dispatch(&self.hooks, message)
+            .into_iter()
+            .find(|plan| plan.module.name == function_name)
+        else {
+            // The function was removed, or no longer triggers on this message, since the
+            // dispatch was recorded: there is nothing left to run, and sweeping it forever
+            // would only repeat this line. Terminal, and said loudly.
+            tracing::warn!(
+                function = %function_name,
+                idempotency_key = %message.idempotency_key,
+                "after:ingest dispatch replay found no such function for its message; recorded \
+                 as dead-lettered without running"
+            );
+            return DispatchOutcome::DeadLettered;
+        };
+        let base = base_dispatcher(
+            &self.hooks,
+            fraiseql_observers::DispatchSource::AfterIngest,
+            self.query_executor_factory.clone(),
+            None,
+        );
+        let (dispatcher, setting) = plan_dispatcher(&base, &self.hooks, &plan);
+        dispatcher.dispatch(plan.module, plan.payload, &setting).await
+    }
+}
+
+#[cfg(feature = "inbound")]
+impl crate::inbound::dispatch_ledger::IngestDispatcher for HooksIngestDispatcher {
+    fn dispatch<'a>(
+        &'a self,
+        message: &'a fraiseql_functions::InboundMessage,
+        function_name: &'a str,
+    ) -> std::pin::Pin<Box<dyn std::future::Future<Output = DispatchOutcome> + Send + 'a>> {
+        Box::pin(self.run(message, function_name))
+    }
 }
 
 /// Spawn each planned `after:capture` invocation as a background task (#366).
@@ -897,11 +999,6 @@ pub fn spawn_after_capture(
 }
 
 /// Spawn each plan on a durable dispatcher tagged with `source`.
-///
-/// Each plan's dispatcher is resolved with the function's own `run_as` ceiling from
-/// `hooks.run_as` (#594), so its `fraiseql_query` bridge — built via
-/// `query_executor_factory` — writes under that function's identity (or fail-closed
-/// anonymous when the function declares none).
 #[cfg(feature = "functions-runtime")]
 fn spawn_dispatch(
     hooks: &BeforeMutationHooks,
@@ -910,7 +1007,27 @@ fn spawn_dispatch(
     query_executor_factory: Option<QueryExecutorFactory>,
     caller: Option<fraiseql_core::security::SecurityContext>,
 ) {
-    let dispatcher = DurableDispatcher {
+    let base = base_dispatcher(hooks, source, query_executor_factory, caller);
+    for plan in plans {
+        let (dispatcher, setting) = plan_dispatcher(&base, hooks, &plan);
+        tokio::spawn(async move {
+            // `after:mutation` and `after:capture` keep no ledger: the outcome is in the
+            // log, the metrics and the dead-letter queue.
+            let _outcome = dispatcher.dispatch(plan.module, plan.payload, &setting).await;
+        });
+    }
+}
+
+/// The durable dispatcher the plans of one trigger share, tagged with `source`, before each
+/// plan's own `run_as` ceiling is set ([`plan_dispatcher`]).
+#[cfg(feature = "functions-runtime")]
+fn base_dispatcher(
+    hooks: &BeforeMutationHooks,
+    source: fraiseql_observers::DispatchSource,
+    query_executor_factory: Option<QueryExecutorFactory>,
+    caller: Option<fraiseql_core::security::SecurityContext>,
+) -> DurableDispatcher {
+    DurableDispatcher {
         observer: std::sync::Arc::clone(&hooks.observer),
         host_config: host_context_config(),
         limits: fraiseql_functions::ResourceLimits::default(),
@@ -920,19 +1037,28 @@ fn spawn_dispatch(
         email_transport: hooks.email_transport.clone(),
         idempotency_key: hooks.idempotency_key.clone(),
         query_executor_factory,
-        // Set per-plan below from the function's definition.
+        // Set per-plan by `plan_dispatcher`, from the function's definition.
         run_as: None,
         caller,
-    };
-
-    for plan in plans {
-        let setting = hooks.dispatch_settings.get(&plan.module.name).cloned().unwrap_or_default();
-        let mut dispatcher = dispatcher.clone();
-        dispatcher.run_as = hooks.run_as.get(&plan.module.name).cloned();
-        tokio::spawn(async move {
-            dispatcher.dispatch(plan.module, plan.payload, &setting).await;
-        });
     }
+}
+
+/// The dispatcher one plan runs on, and its settings.
+///
+/// The dispatcher is resolved with the function's own `run_as` ceiling from
+/// `hooks.run_as` (#594), so its `fraiseql_query` bridge — built via the factory —
+/// writes under that function's identity (or fail-closed anonymous when the function
+/// declares none).
+#[cfg(feature = "functions-runtime")]
+fn plan_dispatcher(
+    base: &DurableDispatcher,
+    hooks: &BeforeMutationHooks,
+    plan: &AfterMutationDispatch,
+) -> (DurableDispatcher, FunctionDispatchSetting) {
+    let mut dispatcher = base.clone();
+    dispatcher.run_as = hooks.run_as.get(&plan.module.name).cloned();
+    let setting = hooks.dispatch_settings.get(&plan.module.name).cloned().unwrap_or_default();
+    (dispatcher, setting)
 }
 
 /// Build the host-context config for after:mutation functions.

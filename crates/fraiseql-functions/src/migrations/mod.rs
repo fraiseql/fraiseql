@@ -5,7 +5,8 @@
 //! - `_fraiseql_cron_state` — persists cron scheduler state between server restarts
 //!   ([`cron_migration_sql`]).
 //! - `_fraiseql_inbound_message` — the durable inbound spine that normalized
-//!   [`InboundMessage`](crate::InboundMessage)s land on before `after:ingest` dispatch
+//!   [`InboundMessage`](crate::InboundMessage)s land on before `after:ingest` dispatch, and
+//!   `_fraiseql_inbound_dispatch`, the ledger that makes that dispatch at-least-once
 //!   ([`inbound_migration_sql`]).
 //! - `_fraiseql_send_status` + `_fraiseql_suppression` — the delivery-feedback stores that
 //!   correlate an inbound bounce/challenge/reply back to a tracked send and hold the do-not-contact
@@ -60,15 +61,16 @@ CREATE INDEX IF NOT EXISTS idx_cron_state_next_fire
 "
 }
 
-/// Returns the SQL DDL to create the durable inbound-message spine table.
+/// Returns the SQL DDL to create the durable inbound-message spine and its dispatch ledger.
 ///
 /// This is the inbound mirror of the outbound `tb_entity_change_log` outbox: a
 /// normalized [`InboundMessage`](crate::InboundMessage) is persisted here inside
 /// the receiver's transaction, deduplicated by `(source, idempotency_key)`: a message is
-/// durable and stored once. Its `after:ingest` is dispatched once, after the row commits; a
-/// process that dies in between loses that dispatch, and nothing replays it yet (#1175).
-/// The DDL uses `IF NOT EXISTS` for
-/// idempotency — running it multiple times is safe.
+/// durable and stored once. Beside it, in the same transaction, the dispatch ledger
+/// (`_fraiseql_inbound_dispatch`) records one `pending` row per `after:ingest` function the
+/// message triggers, leased to the receiving process; a dispatch that has not settled when
+/// its lease expires is re-dispatched by the server's sweep (#1175). The DDL uses
+/// `IF NOT EXISTS` for idempotency — running it multiple times is safe.
 ///
 /// # Table Schema
 ///
@@ -85,6 +87,10 @@ CREATE INDEX IF NOT EXISTS idx_cron_state_next_fire
 ///
 /// The `UNIQUE (source, idempotency_key)` constraint is the dedup key: an
 /// `INSERT … ON CONFLICT DO NOTHING` against it discards a redelivery.
+///
+/// `_fraiseql_inbound_dispatch`, keyed `(fk_inbound_message, function_name)`: `state`
+/// (`pending` → `dispatched` | `dead_lettered`), `attempts`, `lease_until` (while it is in the
+/// future, a dispatch is in flight somewhere), `created_at`, `settled_at`.
 ///
 /// # Example
 ///
@@ -113,6 +119,23 @@ CREATE INDEX IF NOT EXISTS idx_inbound_message_thread
 
 CREATE INDEX IF NOT EXISTS idx_inbound_message_received
     ON _fraiseql_inbound_message (received_at);
+
+CREATE TABLE IF NOT EXISTS _fraiseql_inbound_dispatch (
+    fk_inbound_message BIGINT      NOT NULL
+        REFERENCES _fraiseql_inbound_message (pk_inbound_message) ON DELETE CASCADE,
+    function_name      TEXT        NOT NULL,
+    state              TEXT        NOT NULL DEFAULT 'pending'
+        CHECK (state IN ('pending', 'dispatched', 'dead_lettered')),
+    attempts           INTEGER     NOT NULL DEFAULT 1,
+    lease_until        TIMESTAMPTZ NOT NULL,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    settled_at         TIMESTAMPTZ,
+    PRIMARY KEY (fk_inbound_message, function_name)
+);
+
+CREATE INDEX IF NOT EXISTS idx_inbound_dispatch_due
+    ON _fraiseql_inbound_dispatch (lease_until)
+    WHERE state = 'pending';
 "
 }
 

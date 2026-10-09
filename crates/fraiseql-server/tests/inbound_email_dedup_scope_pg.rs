@@ -67,7 +67,10 @@ async fn setup() -> Option<PgPool> {
     // The sink advances its per-source cursor in the same transaction as the spine
     // emit, so the cursor table has to exist or the whole ingest rolls back.
     PostgresSourceCursorStore::new(pool.clone()).init().await.unwrap();
-    sqlx::query("TRUNCATE _fraiseql_inbound_message").execute(&pool).await.unwrap();
+    sqlx::query("TRUNCATE _fraiseql_inbound_message CASCADE")
+        .execute(&pool)
+        .await
+        .unwrap();
     // Distinct source_name per mailbox in each test, but clear cursors so a prior
     // run's watermark cannot reject a first-write (version 0) advance.
     sqlx::query("TRUNCATE _fraiseql_source_cursor").execute(&pool).await.unwrap();

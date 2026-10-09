@@ -38,7 +38,10 @@ use fraiseql_webhooks::{
 use serde_json::{Value, json};
 use sqlx::{PgPool, Postgres, Transaction};
 
-use crate::{config::WebhookRouteConfig, inbound::spine::emit_in_tx};
+use crate::{
+    config::WebhookRouteConfig,
+    inbound::spine::{Emitted, emit_in_tx},
+};
 
 /// A push [`Source`] for one configured webhook route.
 ///
@@ -120,12 +123,32 @@ impl PushSource for WebhookSource {
     }
 }
 
+/// What the spine handler needs to record dispatches in the receiver's transaction
+/// (#1175): the function hooks, attached after the pipeline is built, and the lease.
+#[derive(Default)]
+pub(crate) struct LedgerPlan {
+    hooks: std::sync::OnceLock<Arc<crate::subsystems::BeforeMutationHooks>>,
+    lease: std::sync::OnceLock<std::time::Duration>,
+}
+
+/// A message the spine newly recorded, with its durable id: what the route dispatches on
+/// and settles the ledger by.
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+struct RecordedMessage {
+    id:      uuid::Uuid,
+    message: InboundMessage,
+}
+
 /// The [`EventHandler`] that persists a normalized message onto the spine.
 ///
 /// The route pre-normalizes the delivery and passes the [`InboundMessage`] as the
 /// delivery params; this handler runs inside the pipeline's transaction, so its
-/// spine write is atomic with the pipeline's idempotency claim.
-struct SpineEventHandler;
+/// spine write, and the dispatch-ledger rows of the `after:ingest` functions the message
+/// triggers (#1175), are atomic with the pipeline's idempotency claim.
+#[derive(Default)]
+pub(crate) struct SpineEventHandler {
+    ledger: Arc<LedgerPlan>,
+}
 
 impl EventHandler for SpineEventHandler {
     async fn handle(
@@ -152,7 +175,7 @@ impl EventHandler for SpineEventHandler {
         // job prunes one table and not the other, if another caller drives
         // `WebhookPipeline` with a different derivation, or if the two drift —
         // which is exactly what #1046 was.
-        if !emitted.is_new() {
+        let Emitted::New(id) = emitted else {
             tracing::warn!(
                 source = ?message.source,
                 idempotency_key = %message.idempotency_key,
@@ -161,10 +184,25 @@ impl EventHandler for SpineEventHandler {
                  after:ingest not dispatched."
             );
             return Ok(Handled::Duplicate);
+        };
+        // #1175: one pending ledger row per function the message triggers, leased to the
+        // dispatch this process runs after the commit.
+        if let Some(hooks) = self.ledger.hooks.get() {
+            let functions: Vec<String> =
+                crate::routes::after_mutation::plan_after_ingest_dispatch(hooks, &message)
+                    .into_iter()
+                    .map(|plan| plan.module.name)
+                    .collect();
+            let lease = self.ledger.lease.get().copied().unwrap_or_else(|| {
+                crate::inbound::dispatch_ledger::LedgerSettings::default().lease
+            });
+            crate::inbound::dispatch_ledger::record_pending_in_tx(tx, id, &functions, lease)
+                .await
+                .map_err(|error| WebhookError::Database(error.to_string()))?;
         }
 
-        // Hand the normalized message back so the route can dispatch `after:ingest`.
-        Ok(Handled::Recorded(serde_json::to_value(&message)?))
+        // Hand the message and its id back so the route can dispatch `after:ingest`.
+        Ok(Handled::Recorded(serde_json::to_value(RecordedMessage { id, message })?))
     }
 }
 
@@ -362,6 +400,11 @@ type InboundPipeline =
 #[derive(Clone)]
 pub struct WebhookInboundState {
     pipeline:               Arc<InboundPipeline>,
+    /// The pool the spine and its dispatch ledger live in.
+    pool:                   PgPool,
+    /// Shared with the pipeline's handler, so hooks and lease attached after it is built
+    /// reach the transaction that records the ledger rows.
+    ledger:                 Arc<LedgerPlan>,
     /// Path segment (`/webhooks/{segment}`) → the route built at boot.
     routes:                 Arc<BTreeMap<String, BuiltRoute>>,
     /// Function-dispatch hooks used to fire `after:ingest` on a persisted
@@ -431,21 +474,40 @@ impl WebhookInboundState {
         }
 
         let store = PostgresIdempotencyStore::new(pool.clone());
-        let pipeline = WebhookPipeline::new(pool, secrets, store, SpineEventHandler);
+        let ledger = Arc::new(LedgerPlan::default());
+        let handler = SpineEventHandler {
+            ledger: Arc::clone(&ledger),
+        };
+        let pipeline = WebhookPipeline::new(pool.clone(), secrets, store, handler);
 
         Self {
-            pipeline:               Arc::new(pipeline),
-            routes:                 Arc::new(mounted),
-            hooks:                  None,
+            pipeline: Arc::new(pipeline),
+            pool,
+            ledger,
+            routes: Arc::new(mounted),
+            hooks: None,
             query_executor_factory: None,
         }
     }
 
     /// Attach the function-dispatch hooks so a persisted message fires its
-    /// `after:ingest[:<source>]` functions on the I/O-capable host context.
+    /// `after:ingest[:<source>]` functions on the I/O-capable host context, each recorded
+    /// in the dispatch ledger with the message (#1175).
     #[must_use]
     pub fn with_hooks(mut self, hooks: Arc<crate::subsystems::BeforeMutationHooks>) -> Self {
+        // Set once, at mount; a second call keeps the first (the pipeline's handler reads
+        // the same cell).
+        let _ = self.ledger.hooks.set(Arc::clone(&hooks));
         self.hooks = Some(hooks);
+        self
+    }
+
+    /// The lease a dispatch recorded by this route takes before the sweep may run it again
+    /// (#1175; default
+    /// [`LedgerSettings::default`](crate::inbound::dispatch_ledger::LedgerSettings)).
+    #[must_use]
+    pub fn with_dispatch_lease(self, lease: std::time::Duration) -> Self {
+        let _ = self.ledger.lease.set(lease);
         self
     }
 
@@ -903,8 +965,8 @@ pub async fn webhook_handler(
             // It comes back from the handler's own return value, so what is
             // dispatched is the row that was written rather than a copy built
             // beside it — the two could only differ by being derived twice.
-            match serde_json::from_value::<InboundMessage>(recorded) {
-                Ok(message) => dispatch_after_ingest(&state, &message),
+            match serde_json::from_value::<RecordedMessage>(recorded) {
+                Ok(recorded) => dispatch_after_ingest(&state, recorded.id, &recorded.message),
                 Err(error) => tracing::error!(
                     route = %segment,
                     %error,
@@ -946,7 +1008,7 @@ pub async fn webhook_handler(
 ///
 /// A no-op when no function-dispatch hooks are attached (the message is still
 /// persisted; there is simply nothing to dispatch).
-fn dispatch_after_ingest(state: &WebhookInboundState, message: &InboundMessage) {
+fn dispatch_after_ingest(state: &WebhookInboundState, id: uuid::Uuid, message: &InboundMessage) {
     let Some(ref hooks) = state.hooks else {
         return;
     };
@@ -958,8 +1020,10 @@ fn dispatch_after_ingest(state: &WebhookInboundState, message: &InboundMessage) 
         // bridge fails loud, the pre-#594 behavior).
         crate::routes::after_mutation::spawn_after_ingest(
             hooks,
+            id,
             plans,
-            state.query_executor_factory.clone(),
+            state.query_executor_factory.as_ref(),
+            &state.pool,
         );
     }
 }

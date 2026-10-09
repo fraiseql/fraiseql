@@ -43,7 +43,7 @@ ROOT_STRUCT = "ServerConfig"
 
 # The discovered-struct count, asserted so the walk cannot quietly measure less.
 # Bump it deliberately, with the section that was added.
-EXPECTED_REACHABLE = 47  # -1: [observers.runtime.transport] is ObserverTransportConfig, which has no [bridge] (#1496)
+EXPECTED_REACHABLE = 48  # +1: [inbound_dispatch], the after:ingest ledger sweep (#1175)
 
 # Types that are not config structs of ours.
 LEAF_TYPES = {

@@ -6,33 +6,23 @@
 //! of an already-committed message is discarded by the unique-key claim rather than
 //! re-emitted.
 //!
-//! # What is durable here, and what is not (#1047)
+//! # What is durable here (#1047, #1175)
 //!
-//! **Persistence is durable and deduplicated. Dispatch is not at-least-once.**
+//! **Persistence is durable and deduplicated. Dispatch is at-least-once, through the
+//! dispatch ledger** ([`dispatch_ledger`](super::dispatch_ledger)).
 //!
-//! This module previously described itself as the inbound mirror of the outbound
-//! `tb_entity_change_log` outbox and claimed that "if the process dies after the
-//! commit but before dispatch, the message survives for replay". The row does
-//! survive — but nothing reads it back. There is no reaper, no startup scan and no
-//! replay surface anywhere in the tree; the only non-test statement against this
-//! table is the `INSERT` below. Writing before dispatching makes *persistence*
-//! durable; at-least-once *dispatch* additionally requires a reader, and there is
-//! none.
+//! This module once claimed that "if the process dies after the commit but before dispatch,
+//! the message survives for replay" while nothing read the row back: a crash between the
+//! commit and the dispatch lost the dispatch for good, and the provider's redelivery was
+//! answered `duplicate` (#1047). The ledger closes that. In the same transaction as the
+//! spine row, the receiver records one `pending` dispatch per `after:ingest` function the
+//! message triggers, leased to the dispatch it runs after the commit; one that has not
+//! settled when its lease runs out is run again by the server's sweep. A redelivery is
+//! still answered `duplicate`: recovering the dispatch is the sweep's job, not the
+//! redelivery's.
 //!
-//! The consequence is worth stating plainly, because the committed claim makes it
-//! unrecoverable: `after:ingest` is dispatched only after the transaction commits,
-//! so a crash any time between the commit and the dispatch's completion loses that
-//! dispatch permanently. The provider's redelivery — and a manual redelivery from
-//! the provider's dashboard — then finds the committed row and is answered
-//! `duplicate` with no dispatch. The table also carries no dispatch-state column,
-//! so an operator cannot even distinguish dispatched rows from undispatched ones by
-//! hand.
-//!
-//! The same shape applies to the email pull adapter, which advances its cursor in
-//! the same transaction as the emit and dispatches post-commit.
-//!
-//! Building the replay path is tracked as #1175; do not restore the at-least-once
-//! wording without it.
+//! The same holds for the email pull adapter, which records its dispatches in the same
+//! transaction as its emits and its cursor advance.
 //!
 //! The claim ([`emit_in_tx`]) is an `INSERT … ON CONFLICT DO NOTHING RETURNING id`
 //! and is designed to run *inside the receiver's transaction* (the

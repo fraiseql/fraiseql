@@ -19,7 +19,10 @@ use tracing::warn;
 
 use super::tracking::SendCorrelator;
 use crate::{
-    inbound::spine::emit_in_tx,
+    inbound::{
+        dispatch_ledger::record_pending_in_tx,
+        spine::{Emitted, emit_in_tx},
+    },
     routes::after_mutation::{plan_after_ingest_dispatch, spawn_after_ingest},
     subsystems::BeforeMutationHooks,
 };
@@ -49,6 +52,9 @@ pub struct EmailIngestSink {
     address_hash_key:         Option<Arc<[u8]>>,
     /// The per-recipient unanswered-challenge suppression threshold (`N`).
     challenge_suppress_after: u32,
+    /// The lease a recorded `after:ingest` dispatch takes before the sweep may run it again
+    /// (#1175).
+    dispatch_lease:           std::time::Duration,
 }
 
 impl EmailIngestSink {
@@ -75,7 +81,26 @@ impl EmailIngestSink {
             correlator,
             address_hash_key,
             challenge_suppress_after,
+            dispatch_lease: crate::inbound::dispatch_ledger::LedgerSettings::default().lease,
         }
+    }
+
+    /// The lease a recorded `after:ingest` dispatch takes before the sweep may run it again
+    /// (#1175).
+    #[must_use]
+    pub const fn with_dispatch_lease(mut self, lease: std::time::Duration) -> Self {
+        self.dispatch_lease = lease;
+        self
+    }
+
+    /// The `after:ingest:email` functions `message` triggers.
+    fn functions_for(&self, message: &InboundMessage) -> Vec<String> {
+        self.hooks.as_ref().map_or_else(Vec::new, |hooks| {
+            plan_after_ingest_dispatch(hooks, message)
+                .into_iter()
+                .map(|plan| plan.module.name)
+                .collect()
+        })
     }
 
     /// The attached `fraiseql_query` bridge factory, if any (test observability for
@@ -114,8 +139,9 @@ impl EmailIngestSink {
         }
     }
 
-    /// Fire the `after:ingest:email` functions for a persisted message.
-    fn dispatch(&self, message: &InboundMessage) {
+    /// Fire the `after:ingest:email` functions for the persisted message `id`, settling
+    /// each one's ledger row when it ends (#1175).
+    fn dispatch(&self, id: uuid::Uuid, message: &InboundMessage) {
         let Some(ref hooks) = self.hooks else {
             return;
         };
@@ -123,7 +149,7 @@ impl EmailIngestSink {
         if !plans.is_empty() {
             // #594: after:ingest functions write back under their `run_as` ceiling via
             // the request-path executor factory threaded onto the sink at mount time.
-            spawn_after_ingest(hooks, plans, self.query_executor_factory.clone());
+            spawn_after_ingest(hooks, id, plans, self.query_executor_factory.as_ref(), &self.pool);
         }
     }
 }
@@ -142,11 +168,20 @@ impl IngestSink for EmailIngestSink {
             .map_err(|error| FraiseQLError::database(format!("email ingest begin: {error}")))?;
 
         // Emit every message onto the spine; collect the genuinely-new ones for
-        // post-commit correlation + dispatch (a redelivery is deduped and skipped).
-        let mut fresh: Vec<InboundMessage> = Vec::new();
+        // post-commit correlation + dispatch (a redelivery is deduped and skipped). Each new
+        // one's `after:ingest` dispatches are recorded in the ledger in this transaction, so
+        // a crash after the commit leaves them for the sweep (#1175).
+        let mut fresh: Vec<(uuid::Uuid, InboundMessage)> = Vec::new();
         for message in &batch.messages {
-            if emit_in_tx(&mut tx, message).await?.is_new() {
-                fresh.push(message.clone());
+            if let Emitted::New(id) = emit_in_tx(&mut tx, message).await? {
+                record_pending_in_tx(
+                    &mut tx,
+                    id,
+                    &self.functions_for(message),
+                    self.dispatch_lease,
+                )
+                .await?;
+                fresh.push((id, message.clone()));
             }
         }
 
@@ -172,9 +207,9 @@ impl IngestSink for EmailIngestSink {
 
         // Post-commit, per genuinely-new message: correlate first (not idempotent),
         // then dispatch the app `after:ingest:email` functions.
-        for message in &fresh {
+        for (id, message) in &fresh {
             self.correlate(message).await;
-            self.dispatch(message);
+            self.dispatch(*id, message);
         }
         Ok(true)
     }

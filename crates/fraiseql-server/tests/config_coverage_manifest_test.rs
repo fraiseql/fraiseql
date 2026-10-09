@@ -102,6 +102,12 @@ const MANIFEST: &[(&str, &str)] = &[
     ("pool_max_size", "DB pool max size"),
     ("pool_timeout_secs", "DB pool acquire timeout"),
     (
+        "inbound_dispatch*",
+        "Server::spawn_inbound_dispatch_sweep → InboundDispatchConfig::settings → \
+         dispatch_ledger::LedgerSettings: the lease, the sweep interval and the batch \
+         (#1175); validated in provision_persistent_schemas",
+    ),
+    (
         "vector_hnsw_iterative_scan",
         "main.rs / fraiseql-cli run → ServerConfig::vector_scan() → \
          PoolPrewarmConfig.vector_scan → the connection startup packet (#1116)",

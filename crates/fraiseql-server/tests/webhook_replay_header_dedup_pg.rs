@@ -104,7 +104,7 @@ async fn setup() -> Option<PgPool> {
     // was refused by the spine. That was invisible until #1176 stopped reporting a
     // spine refusal as `processed`; the sibling suite
     // (`webhook_route_dedup_scope_pg.rs`) has always truncated both.
-    sqlx::query("TRUNCATE _fraiseql_inbound_message RESTART IDENTITY")
+    sqlx::query("TRUNCATE _fraiseql_inbound_message RESTART IDENTITY CASCADE")
         .execute(&pool)
         .await
         .unwrap();

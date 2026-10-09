@@ -114,7 +114,7 @@ async fn setup() -> Option<PgPool> {
         .execute(&pool)
         .await
         .unwrap();
-    sqlx::query("TRUNCATE _fraiseql_inbound_message RESTART IDENTITY")
+    sqlx::query("TRUNCATE _fraiseql_inbound_message RESTART IDENTITY CASCADE")
         .execute(&pool)
         .await
         .unwrap();

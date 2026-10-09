@@ -22,11 +22,13 @@
 #   4. roadmap.md carries no version status line; versions are CHANGELOG.md's job.
 #   5. README.md's "parity suite: N authoring SDKs" equals the number of SDK directories
 #      sdks/official/tests/run_parity.sh names.
-#   6. Nothing says `after:ingest` dispatch is at-least-once (#1175): it is dispatched once,
-#      after the spine row commits, and a process that dies in between loses it. Positional:
+#   6. `after:ingest` dispatch is called at-least-once only next to what makes it so: the
+#      dispatch ledger (#1175), which records each dispatch with its message and re-runs one a
+#      crash left unsettled. Before the ledger the claim was false, and its bare form could
+#      return without it. Positional:
 #      "at-least-once" counts only on a doc line (a `.rs` comment, or markdown) whose sentence
 #      (the line, joined to the line above when that one runs on into it) names both
-#      `after:ingest` and its dispatch, so at-least-once
+#      `after:ingest` and its dispatch, and does not name the ledger, so at-least-once
 #      *ingestion* (a pull source re-polling into the deduplicating spine), a provider's
 #      at-least-once delivery, and outbound delivery stay legitimate.
 #
@@ -142,12 +144,12 @@ else
       { doc = (f !~ /\.rs$/) || ($0 ~ /^[[:space:]]*\/\//) }
       # The sentence this line ends: the line above too, unless that line ended its own.
       { window = (prev != "" && prev !~ /[.:;][[:space:]]*$/) ? prev " " $0 : $0 }
-      doc && /at-least-once/ && window !~ /#1175/ && window ~ /after:ingest/ \
-          && window ~ /dispatch/ { print f ":" NR ": " $0 }
+      doc && /at-least-once/ && window !~ /ledger|_fraiseql_inbound_dispatch/ \
+          && window ~ /after:ingest/ && window ~ /dispatch/ { print f ":" NR ": " $0 }
       { prev = doc ? $0 : "" }' "$f"
   done)
   if [ -n "$claims" ]; then
-    fail "rule 6: after:ingest dispatch claimed at-least-once; it is dispatched once after commit and a crash in between loses it (#1175):"
+    fail "rule 6: after:ingest dispatch claimed at-least-once without naming the dispatch ledger that makes it so (#1175):"
     printf '%s\n' "$claims" | report
   fi
 fi

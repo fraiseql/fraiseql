@@ -55,6 +55,11 @@ impl Server {
     /// in-memory counters with a warning, because losing metering is not worth
     /// refusing to serve traffic.
     pub(super) async fn provision_persistent_schemas(&mut self) -> Result<()> {
+        // #1175: refused before anything mounts, so the router, the email pollers and the
+        // dispatch sweep can read the ledger settings without failing.
+        #[cfg(feature = "inbound")]
+        self.config.inbound_dispatch.settings().map_err(ServerError::ConfigError)?;
+
         // Ensure RBAC schema exists before the router mounts RBAC endpoints.
         // Must run here (async context) rather than inside build_router() (sync).
         #[cfg(feature = "observers")]
@@ -425,6 +430,8 @@ impl Server {
         // and is reclaimed after the staleness threshold — the P19 recovery
         // path, exercised on every deploy).
         self.spawn_async_operation_workers(&app_state);
+        #[cfg(feature = "inbound")]
+        self.spawn_inbound_dispatch_sweep(&app_state);
 
         // Start the poll-IMAP email workers.
         // Each configured `[mailbox.<name>.imap]` half runs a background poll loop
@@ -504,6 +511,10 @@ impl Server {
                     Some(&correlator),
                     address_hash_key.as_ref(),
                     self.config.send.challenge_suppress_after,
+                    self.config.inbound_dispatch.settings().map_or(
+                        crate::inbound::dispatch_ledger::LedgerSettings::default().lease,
+                        |settings| settings.lease,
+                    ),
                     |name| std::env::var(name).ok(),
                 );
                 let started = pollers.len();
@@ -1008,6 +1019,8 @@ impl Server {
         // not drift (#858's construction-path rule): a test harness that mounts
         // the routes but never executes submissions would green a dead surface.
         self.spawn_async_operation_workers(&app_state);
+        #[cfg(feature = "inbound")]
+        self.spawn_inbound_dispatch_sweep(&app_state);
         // #571: drain live subscription connections here too, so the in-process
         // test harness exercises the same graceful teardown as production.
         let subscription_drain = std::sync::Arc::clone(&self.subscription_drain);

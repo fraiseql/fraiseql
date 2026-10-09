@@ -23,6 +23,55 @@ pub mod storage;
 pub mod subscription_kafka;
 pub mod tls;
 
+/// `[inbound_dispatch]` (#1175): the dispatch ledger's lease, sweep interval and batch.
+#[cfg(feature = "inbound")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct InboundDispatchConfig {
+    /// Seconds a recorded dispatch runs before the sweep may run it again (default 300).
+    /// Keep it longer than a dispatch's own retries take, or a slow dispatch runs twice.
+    pub lease_secs:          u64,
+    /// Seconds between sweeps for dispatches whose lease ran out (default 30). A sweep also
+    /// runs at startup.
+    pub sweep_interval_secs: u64,
+    /// Dispatches one sweep claims at most (default 100).
+    pub batch_size:          u32,
+}
+
+#[cfg(feature = "inbound")]
+impl Default for InboundDispatchConfig {
+    fn default() -> Self {
+        let defaults = crate::inbound::dispatch_ledger::LedgerSettings::default();
+        Self {
+            lease_secs:          defaults.lease.as_secs(),
+            sweep_interval_secs: defaults.sweep_interval.as_secs(),
+            batch_size:          defaults.batch_size,
+        }
+    }
+}
+
+#[cfg(feature = "inbound")]
+impl InboundDispatchConfig {
+    /// The ledger settings this configures.
+    ///
+    /// # Errors
+    ///
+    /// When a value is 0: a zero lease or interval would sweep in-flight dispatches
+    /// continuously, and a zero batch would sweep nothing.
+    pub fn settings(&self) -> Result<crate::inbound::dispatch_ledger::LedgerSettings, String> {
+        if self.lease_secs == 0 || self.sweep_interval_secs == 0 || self.batch_size == 0 {
+            return Err("[inbound_dispatch] lease_secs, sweep_interval_secs and batch_size \
+                        must each be at least 1"
+                .to_string());
+        }
+        Ok(crate::inbound::dispatch_ledger::LedgerSettings {
+            lease:          std::time::Duration::from_secs(self.lease_secs),
+            sweep_interval: std::time::Duration::from_secs(self.sweep_interval_secs),
+            batch_size:     self.batch_size,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests;
 
@@ -960,6 +1009,13 @@ pub struct ServerConfig {
     #[serde(default)]
     pub webhooks: HashMap<String, crate::config::WebhookRouteConfig>,
 
+    /// How the dispatch ledger makes `after:ingest` dispatch at-least-once (`[inbound_dispatch]`,
+    /// #1175): the lease a recorded dispatch takes, how often the sweep re-runs those whose
+    /// lease ran out, and how many one sweep claims. Requires the `inbound` feature.
+    #[cfg(feature = "inbound")]
+    #[serde(default)]
+    pub inbound_dispatch: InboundDispatchConfig,
+
     /// Connected mailbox accounts (`[mailbox.<name>]`), keyed by account name.
     ///
     /// Each account carries an optional poll-IMAP receive half
@@ -1414,6 +1470,8 @@ impl Default for ServerConfig {
             files: HashMap::new(),   // No file-upload routes by default
             #[cfg(feature = "inbound")]
             webhooks: HashMap::new(), // No inbound webhook routes by default
+            #[cfg(feature = "inbound")]
+            inbound_dispatch: InboundDispatchConfig::default(),
             #[cfg(feature = "inbound-email")]
             mailbox: HashMap::new(), // No connected mailboxes by default
             #[cfg(feature = "inbound-email")]

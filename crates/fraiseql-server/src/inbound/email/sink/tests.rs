@@ -352,3 +352,91 @@ mod after_ingest_bridge {
         );
     }
 }
+
+/// #1175 on the pull path: a polled message that triggers an `after:ingest` function records
+/// its dispatch in the ledger in the ingest transaction, and the post-commit dispatch settles
+/// it. The function is re-runnable, so its one attempt is all it asks for.
+#[tokio::test]
+async fn a_polled_message_records_its_dispatch_and_the_dispatch_settles_it() {
+    let Some((pool, _svc)) = connect_pool().await else {
+        eprintln!("SKIP a_polled_message_records_its_dispatch: no postgres");
+        return;
+    };
+    ready(&pool).await;
+
+    let definitions = vec![fraiseql_functions::FunctionDefinition {
+        name:        "triage".to_string(),
+        trigger:     "after:ingest".to_string(),
+        runtime:     fraiseql_functions::RuntimeType::Wasm,
+        timeout_ms:  None,
+        run_as:      None,
+        when:        Vec::new(),
+        re_runnable: true,
+        retry:       None,
+    }];
+    let module = fraiseql_functions::FunctionModule {
+        name:        "triage".to_string(),
+        source_hash: "test".to_string(),
+        bytecode:    bytes::Bytes::new(),
+        runtime:     fraiseql_functions::RuntimeType::Wasm,
+    };
+    let mut hooks = crate::subsystems::BeforeMutationHooks::new(
+        fraiseql_functions::TriggerRegistry::load_from_definitions(&definitions).unwrap(),
+        std::iter::once(("triage".to_string(), module)).collect(),
+        Arc::new(fraiseql_functions::FunctionObserver::new()),
+    );
+    hooks.dispatch_settings.insert(
+        "triage".to_string(),
+        crate::routes::after_mutation::FunctionDispatchSetting {
+            re_runnable: true,
+            ..Default::default()
+        },
+    );
+
+    let mailbox = format!("test-{}", uuid::Uuid::new_v4());
+    let key = uuid::Uuid::new_v4().to_string();
+    let source = imap_source(
+        &mailbox,
+        FakeFetcher {
+            uid_validity: 1,
+            messages:     vec![FetchedMessage {
+                uid: 7,
+                raw: raw(&key),
+            }],
+        },
+    );
+    let sink = EmailIngestSink::new(
+        mailbox.clone(),
+        pool.clone(),
+        Some(Arc::new(hooks)),
+        None,
+        None,
+        None,
+        2,
+    );
+    let store = PostgresSourceCursorStore::new(pool.clone());
+    let runner = LeaseGuardedRunner::postgres(pool.clone(), mailbox.clone());
+    run_source_once(&runner, &store, &source, &sink).await.unwrap();
+
+    let state_of = || async {
+        sqlx::query_scalar::<_, String>(
+            "SELECT d.state FROM _fraiseql_inbound_dispatch d \
+             JOIN _fraiseql_inbound_message m ON m.pk_inbound_message = d.fk_inbound_message \
+             WHERE m.idempotency_key LIKE $1 || ':sha256:%' AND d.function_name = 'triage'",
+        )
+        .bind(&key)
+        .fetch_optional(&pool)
+        .await
+        .unwrap()
+    };
+    let mut seen = state_of().await;
+    assert!(seen.is_some(), "the dispatch is recorded with the spine row");
+    for _ in 0..100 {
+        if seen.as_deref() != Some("pending") {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        seen = state_of().await;
+    }
+    assert_eq!(seen.as_deref(), Some("dispatched"), "the post-commit dispatch settles it");
+}

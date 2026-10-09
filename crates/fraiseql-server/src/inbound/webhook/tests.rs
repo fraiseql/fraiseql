@@ -829,7 +829,7 @@ mod spine_handler_disposition {
         // This delivery's ledger claim was fresh (the handler only runs then), but
         // the spine already owns the key.
         let mut tx = pool.begin().await.unwrap();
-        let handled = SpineEventHandler
+        let handled = SpineEventHandler::default()
             .handle("stripe", serde_json::to_value(&msg).unwrap(), &mut tx)
             .await
             .expect("a duplicate is an answer, not a failure");
@@ -855,7 +855,7 @@ mod spine_handler_disposition {
 
         let msg = message(&uuid::Uuid::new_v4().to_string());
         let mut tx = pool.begin().await.unwrap();
-        let handled = SpineEventHandler
+        let handled = SpineEventHandler::default()
             .handle("stripe", serde_json::to_value(&msg).unwrap(), &mut tx)
             .await
             .unwrap();
@@ -865,7 +865,7 @@ mod spine_handler_disposition {
             panic!("a fresh key must be recorded, got {handled:?}");
         };
         assert_eq!(
-            value.get("idempotency_key").and_then(serde_json::Value::as_str),
+            value["message"].get("idempotency_key").and_then(serde_json::Value::as_str),
             Some(msg.idempotency_key.as_str()),
             "the normalized message is what the route dispatches on: {value}"
         );
@@ -986,15 +986,22 @@ mod the_event_is_what_the_scheme_authenticated {
         let secrets =
             StaticSecretProvider::new().with_secret(SECRET_ENV.to_string(), SECRET.to_string());
         let store = PostgresIdempotencyStore::new(pool.clone());
+        // One cell, read by the handler and set by `with_hooks`, as `WebhookInboundState::new`
+        // builds it.
+        let ledger = Arc::new(crate::inbound::webhook::LedgerPlan::default());
         WebhookInboundState {
-            pipeline:               Arc::new(WebhookPipeline::new(
-                pool,
+            pipeline: Arc::new(WebhookPipeline::new(
+                pool.clone(),
                 secrets,
                 store,
-                SpineEventHandler,
+                SpineEventHandler {
+                    ledger: Arc::clone(&ledger),
+                },
             )),
-            routes:                 Arc::new(routes),
-            hooks:                  None,
+            pool,
+            ledger,
+            routes: Arc::new(routes),
+            hooks: None,
             query_executor_factory: None,
         }
     }
@@ -1108,6 +1115,86 @@ mod the_event_is_what_the_scheme_authenticated {
             "the durable payload is what the scheme authenticated — the envelope's \
              own `note` field must not be in it; got: {stored}"
         );
+    }
+
+    /// #1175 through the route: a delivery that triggers an `after:ingest` function records
+    /// its dispatch in the ledger with the spine row, and the post-commit dispatch settles it.
+    /// The function is re-runnable, so its one attempt is all it asks for.
+    #[tokio::test]
+    async fn a_delivery_records_its_dispatch_and_the_dispatch_settles_it() {
+        let Some(pool) = setup().await else {
+            eprintln!("skipping a_delivery_records_its_dispatch: DATABASE_URL unset");
+            return;
+        };
+        let definitions = vec![fraiseql_functions::FunctionDefinition {
+            name:        "classify".to_string(),
+            trigger:     "after:ingest".to_string(),
+            runtime:     fraiseql_functions::RuntimeType::Wasm,
+            timeout_ms:  None,
+            run_as:      None,
+            when:        Vec::new(),
+            re_runnable: true,
+            retry:       None,
+        }];
+        let module = fraiseql_functions::FunctionModule {
+            name:        "classify".to_string(),
+            source_hash: "test".to_string(),
+            bytecode:    bytes::Bytes::new(),
+            runtime:     fraiseql_functions::RuntimeType::Wasm,
+        };
+        let mut hooks = crate::subsystems::BeforeMutationHooks::new(
+            fraiseql_functions::TriggerRegistry::load_from_definitions(&definitions).unwrap(),
+            std::iter::once(("classify".to_string(), module)).collect(),
+            Arc::new(fraiseql_functions::FunctionObserver::new()),
+        );
+        hooks.dispatch_settings.insert(
+            "classify".to_string(),
+            crate::routes::after_mutation::FunctionDispatchSetting {
+                re_runnable: true,
+                ..Default::default()
+            },
+        );
+        let router = webhook_router(state(pool.clone()).with_hooks(Arc::new(hooks)));
+
+        let run = unique();
+        let body = serde_json::to_vec(&json!({
+            "event": { "id": format!("ledger-{run}"), "type": "ledger.event" },
+        }))
+        .unwrap();
+        let mut mac = Hmac::<Sha256>::new_from_slice(SECRET.as_bytes()).unwrap();
+        mac.update(&body);
+        let request = Request::builder()
+            .method("POST")
+            .uri(format!("/webhooks/{SEGMENT}"))
+            .header(SIGNATURE_HEADER, hex::encode(mac.finalize().into_bytes()))
+            .header("content-type", "application/json")
+            .body(Body::from(body))
+            .unwrap();
+        let response = router.oneshot(request).await.unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let key = format!("{}:{SEGMENT}:ledger-{run}", SEGMENT.len());
+        let state_of = || async {
+            sqlx::query_scalar::<_, String>(
+                "SELECT d.state FROM _fraiseql_inbound_dispatch d \
+                 JOIN _fraiseql_inbound_message m ON m.pk_inbound_message = d.fk_inbound_message \
+                 WHERE m.idempotency_key = $1 AND d.function_name = 'classify'",
+            )
+            .bind(&key)
+            .fetch_optional(&pool)
+            .await
+            .unwrap()
+        };
+        let mut seen = state_of().await;
+        assert!(seen.is_some(), "the dispatch is recorded with the spine row");
+        for _ in 0..100 {
+            if seen.as_deref() != Some("pending") {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+            seen = state_of().await;
+        }
+        assert_eq!(seen.as_deref(), Some("dispatched"), "the post-commit dispatch settles it");
     }
 }
 
@@ -1232,15 +1319,22 @@ mod the_credential_need_not_be_a_header_and_the_body_need_not_be_json {
         let secrets =
             StaticSecretProvider::new().with_secret(SECRET_ENV.to_string(), SECRET.to_string());
         let store = PostgresIdempotencyStore::new(pool.clone());
+        // One cell, read by the handler and set by `with_hooks`, as `WebhookInboundState::new`
+        // builds it.
+        let ledger = Arc::new(crate::inbound::webhook::LedgerPlan::default());
         WebhookInboundState {
-            pipeline:               Arc::new(WebhookPipeline::new(
-                pool,
+            pipeline: Arc::new(WebhookPipeline::new(
+                pool.clone(),
                 secrets,
                 store,
-                SpineEventHandler,
+                SpineEventHandler {
+                    ledger: Arc::clone(&ledger),
+                },
             )),
-            routes:                 Arc::new(routes),
-            hooks:                  None,
+            pool,
+            ledger,
+            routes: Arc::new(routes),
+            hooks: None,
             query_executor_factory: None,
         }
     }

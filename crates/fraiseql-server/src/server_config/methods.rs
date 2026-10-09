@@ -14,6 +14,7 @@ const FEATURE_GATED_SECTIONS: &[(&str, &str, bool)] = &[
     ("observers", "observers", cfg!(feature = "observers")),
     ("sources", "sources", cfg!(feature = "sources")),
     ("webhooks", "inbound", cfg!(feature = "inbound")),
+    ("inbound_dispatch", "inbound", cfg!(feature = "inbound")),
     ("mailbox", "inbound-email", cfg!(feature = "inbound-email")),
     ("send", "inbound-email", cfg!(feature = "inbound-email")),
     ("export", "rest", cfg!(feature = "rest")),

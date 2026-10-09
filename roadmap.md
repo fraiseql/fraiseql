@@ -17,7 +17,6 @@ The next release is tagged when the open backlog is closed:
 |---|---|---|
 | Webhooks | [#1323](https://github.com/fraiseql/fraiseql/issues/1323) | Standard Webhooks signature scheme, used by Clerk and every other Svix sender |
 | Webhooks | [#1322](https://github.com/fraiseql/fraiseql/issues/1322) | `jwt-jwks` signature scheme, used by Hanko, Kinde and FusionAuth |
-| Inbound spine | [#1175](https://github.com/fraiseql/fraiseql/issues/1175) | A replay path so `after:ingest` dispatch is at-least-once |
 | Auth | [#1088](https://github.com/fraiseql/fraiseql/issues/1088), [#1089](https://github.com/fraiseql/fraiseql/issues/1089) | Tenant-scoped account store and admin principal for SAML deployments |
 | Tenancy | [#633](https://github.com/fraiseql/fraiseql/issues/633) | Metering and enforcement of `max_storage_bytes`, advisory today |
 | Tenancy | [#444](https://github.com/fraiseql/fraiseql/issues/444) | Optional per-schema change-log tables for schema-per-tenant deployments |

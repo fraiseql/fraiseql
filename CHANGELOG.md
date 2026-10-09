@@ -18,6 +18,17 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`after:ingest` dispatch is at-least-once: the dispatch ledger (#1175).** A message is
+  persisted with one `pending` row per `after:ingest` function it triggers
+  (`_fraiseql_inbound_dispatch`, created with the spine at boot), in the receiver's
+  transaction, on the webhook and poll-IMAP paths alike. A dispatch that succeeds or is
+  dead-lettered settles its row; one a crash or a shutdown left `pending` is run again, once
+  its lease runs out, by a sweep the server runs at startup and on an interval (`FOR UPDATE
+  SKIP LOCKED`, so replicas share it). A replay hands the function the same idempotency
+  token as the first run; handlers must be idempotent, since a lease that expires during a
+  slow first run dispatches twice. `[inbound_dispatch]` sets `lease_secs` (300),
+  `sweep_interval_secs` (30) and `batch_size` (100). Before this, a crash between the commit
+  and the dispatch lost the dispatch, and the provider's redelivery was answered `duplicate`.
 - **`orderBy.field` is an enum of the keys the query accepts (#1159).** Clients get
   completion and validation on sort keys, and the schema lists exactly what the engine
   accepts: one set feeds both (`derived_inputs::sortable_keys`). Entity-wide
@@ -180,6 +191,10 @@ disagreed, and the promise was the part that was wrong.
   gain `localized: bool`, and `WhereClause` gains `Localized { chain, collation, inner }`: struct
   literals add `localized: false`, and exhaustive matches add the arm (the leaf is in `inner`).
 
+- **`_fraiseql_inbound_message` is referenced by the dispatch ledger (#1175).** A `TRUNCATE`
+  of the spine needs `CASCADE` (deleting rows cascades on its own). Embedders:
+  `routes::after_mutation::spawn_after_ingest` takes the spine message's id and the pool to
+  settle its ledger rows in, and `inbound::email::build_pollers` the dispatch lease.
 - **Observer actions of type `sms`, `push` and `search` are refused when a config is parsed
   (#428).** They had no transport (H24): the variants were kept so such a config still
   deserialized, and `validate()` then rejected it. They are gone; the parse error names the

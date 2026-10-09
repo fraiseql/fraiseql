@@ -95,7 +95,8 @@ pub async fn init_cursor_store(pool: &sqlx::PgPool) -> fraiseql_error::Result<()
 /// skipped with a warning rather than started without credentials. `get_env`
 /// resolves the password env (in production, [`std::env::var`]); `attachment_sink`
 /// is the storage backend attachments stream into (`None` drops attachments);
-/// `hooks` fire `after:ingest:email` (`None` ingests without dispatch).
+/// `hooks` fire `after:ingest:email` (`None` ingests without dispatch), each recorded in the
+/// dispatch ledger under `dispatch_lease` (#1175).
 ///
 /// Each poller is keyed on the mailbox name, so its advisory lease and cursor row
 /// are per-mailbox — multiple replicas poll each mailbox exactly once between them.
@@ -110,6 +111,7 @@ pub fn build_pollers<S: std::hash::BuildHasher>(
     correlator: Option<&Arc<dyn SendCorrelator>>,
     address_hash_key: Option<&Arc<[u8]>>,
     challenge_suppress_after: u32,
+    dispatch_lease: Duration,
     get_env: impl Fn(&str) -> Option<String>,
 ) -> Vec<(MailboxPoller, Duration)> {
     let mut pollers = Vec::new();
@@ -156,7 +158,8 @@ pub fn build_pollers<S: std::hash::BuildHasher>(
             correlator.cloned(),
             address_hash_key.cloned(),
             challenge_suppress_after,
-        );
+        )
+        .with_dispatch_lease(dispatch_lease);
         let store = fraiseql_observers::PostgresSourceCursorStore::new(pool.clone());
         // Lease + cursor are keyed on the mailbox name (single-firing per mailbox).
         let runner = fraiseql_observers::LeaseGuardedRunner::postgres(pool.clone(), name.clone());

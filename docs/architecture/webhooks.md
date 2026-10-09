@@ -54,11 +54,33 @@ Each normalized delivery is deduplicated by `(source, idempotency_key)` on the s
 I/O-capable host context as `after:mutation`, reusing the durable dispatch path (retry +
 dead-letter).
 
-> **Durability boundary.** "Durable dispatch" means dispatch *failures* are retried and
-> land in the dead-letter queue. It does not mean dispatch survives process death: the
-> spine row is committed before dispatch, but nothing reads it back, so a crash between
-> the commit and the dispatch's completion loses that dispatch — and the committed row
-> makes the provider's redelivery a `duplicate`. See the `inbound::spine` module docs. A declared routing rule maps a message to an entity by dedicated address +
+#### Dispatch is at-least-once: the dispatch ledger
+
+A failed dispatch is retried and, when its retries run out, dead-lettered. A dispatch the
+process dies in the middle of is recovered by the **dispatch ledger**
+(`_fraiseql_inbound_dispatch`, #1175). In the same transaction as the spine row, the
+receiver records one `pending` row per `after:ingest` function the message triggers,
+leased to the dispatch it runs after the commit. A dispatch that succeeds marks its row
+`dispatched`; one that is dead-lettered marks it `dead_lettered`. A row still `pending`
+when its lease runs out was lost (the process died, or shut down mid-dispatch), and the
+server's sweep, which runs once at startup and then on an interval, dispatches it again.
+
+So with the ledger, `after:ingest` dispatch is at-least-once: a function runs once per
+message, or more than once when a lease expires while a slow first run is still going,
+never zero times. **Handlers must be idempotent.** Each dispatch hands its function an
+idempotency token derived from the function and the message, the same on every retry and
+every replay, to key the side effect on. A provider's redelivery of a committed message is
+still answered `duplicate`: recovering the dispatch is the sweep's job, not the
+redelivery's.
+
+```toml
+[inbound_dispatch]          # server configuration; these are the defaults
+lease_secs = 300            # longer than a dispatch's own retries take, or a slow one runs twice
+sweep_interval_secs = 30
+batch_size = 100            # dispatches one sweep claims at most
+```
+
+A declared routing rule maps a message to an entity by dedicated address +
 plus-tag (`support+ticket-42@…` → `Ticket`/`42`); an `after:ingest` handler receives the
 whole message and can route it itself. See `docs/architecture/inbound-email.md` for the
 poll-IMAP adapter and `docs/architecture/functions.md` for the `after:ingest` host surface.

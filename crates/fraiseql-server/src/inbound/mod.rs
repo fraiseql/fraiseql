@@ -17,9 +17,12 @@
 //!
 //! ## Modules
 //!
-//! - [`spine`] — the durable inbound-message store (persist + dedup, at-least-once).
+//! - [`spine`] — the durable inbound-message store (persist + dedup).
+//! - [`dispatch_ledger`] — the `after:ingest` dispatch ledger and its sweep, which make dispatch
+//!   at-least-once (#1175).
 //! - [`webhook`] — the `fraiseql-webhooks` push adapter (`POST /webhooks/{provider}`).
 
+pub mod dispatch_ledger;
 #[cfg(feature = "inbound-email")]
 pub mod email;
 pub mod spine;
