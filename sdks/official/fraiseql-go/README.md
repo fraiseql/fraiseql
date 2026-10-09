@@ -277,25 +277,31 @@ fraiseql.NewMutation("createUser").
 For analytics / OLAP workloads:
 
 ```go
-fraiseql.NewFactTable("sales").
+fraiseql.NewFactTable("data").            // the JSONB dimensions column
     TableName("tf_sales").
-    Measure("revenue", "sum", "avg", "max").
-    Measure("quantity", "sum", "count", "avg").
-    Measure("cost", "sum", "avg").
+    Measure("revenue", "numeric", false).
+    Measure("quantity", "bigint", false).
+    Measure("cost", "numeric", true).
     Dimension("category", "data->>'category'", "text").
     Dimension("region", "data->>'region'", "text").
-    Dimension("year_month", "date_trunc('month', occurred_at)::text", "text").
+    Dimension("year_month", "data->>'year_month'", "text").
     Description("Sales fact table for OLAP analysis").
     Register()
 ```
 
+A dimension path reads a key stored in the dimensions column
+(`data->'key'->>'key'`, any number of `->'key'` steps); the compiler refuses any other
+expression, so a computed dimension such as a month is stored as a key at load time.
+
 Methods:
 
+- `NewFactTable(dimensionsColumn string)` - Start a fact table whose dimensions live in that JSONB column
 - `TableName(string)` - Underlying database table name
-- `Measure(name string, aggregates ...string)` - Add a measure (specify aggregation functions like "sum", "avg", "count", "min", "max")
-- `Dimension(name, jsonPath, dataType string)` - Add a dimension with JSON path and data type
+- `TypeName(string)` - The type the fact table is read as
+- `Measure(name, sqlType string, nullable bool)` - Add a measure column
+- `Dimension(name, jsonPath, dataType string)` - Add a dimension path reading the dimensions column
+- `DenormalizedFilter(name, sqlType string, indexed bool)` - Add a filter column
 - `Description(string)` - Set description
-- `Config(map[string]interface{})` - Set custom configuration
 - `Register()` - Register the fact table
 
 ### Aggregate Query Builder

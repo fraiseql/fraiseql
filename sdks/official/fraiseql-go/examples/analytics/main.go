@@ -27,25 +27,27 @@ type Event struct {
 }
 
 func init() {
-	// Register fact tables for analytics
-	fraiseql.NewFactTable("sales").
+	// Register fact tables for analytics. `NewFactTable` names the JSONB dimensions column
+	// (`data`), and each dimension path reads a key stored in it (#1517): a computed
+	// expression is not a dimension path, so the month is stored as a key at load time.
+	fraiseql.NewFactTable("data").
 		TableName("tf_sales").
 		Measure("revenue", "numeric", false).
 		Measure("quantity", "bigint", false).
 		Measure("cost", "numeric", true).
 		Dimension("category", "data->>'category'", "text").
 		Dimension("region", "data->>'region'", "text").
-		Dimension("year_month", "date_trunc('month', occurred_at)::text", "text").
+		Dimension("year_month", "data->>'year_month'", "text").
 		Description("Sales fact table for OLAP analysis").
 		Register()
 
-	fraiseql.NewFactTable("events").
+	fraiseql.NewFactTable("data").
 		TableName("tf_events").
 		Measure("event_count", "bigint", false).
 		Measure("duration", "numeric", true).
-		Dimension("event_type", "event_type", "text").
-		Dimension("user_id", "user_id", "text").
-		Dimension("date", "date_trunc('day', occurred_at)::text", "text").
+		Dimension("event_type", "data->>'event_type'", "text").
+		Dimension("user_id", "data->>'user_id'", "text").
+		Dimension("date", "data->>'date'", "text").
 		Description("Events fact table for user behavior analysis").
 		Register()
 

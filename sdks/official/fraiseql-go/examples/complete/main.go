@@ -160,13 +160,14 @@ func init() {
 		Register()
 
 	// Register fact tables for analytics
-	fraiseql.NewFactTable("revenue").
+	// `NewFactTable` names the JSONB dimensions column; each path reads a key stored in it.
+	fraiseql.NewFactTable("data").
 		TableName("tf_revenue").
 		Measure("amount", "numeric", false).
 		Measure("count", "bigint", false).
 		Dimension("category", "data->>'category'", "text").
 		Dimension("region", "data->>'region'", "text").
-		Dimension("date", "date_trunc('day', date)::text", "text").
+		Dimension("date", "data->>'date'", "text").
 		Description("Revenue fact table for financial analytics").
 		Register()
 
