@@ -21,6 +21,8 @@
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates and drops its own database.
+// The tenant locale comes from the identity enrichment.
+#![cfg(feature = "auth")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
 use std::{path::PathBuf, sync::Arc};

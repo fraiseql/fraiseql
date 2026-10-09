@@ -10,6 +10,8 @@
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates and drops its own `v_locale_probe` view and sets a process-global
 //! env var for the HS256 secret → run `--test-threads=1`.
+// REST writes, MCP and the identity enrichment are all driven here.
+#![cfg(all(feature = "rest", feature = "mcp", feature = "auth"))]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::print_stderr)] // Reason: test code — panics and skip diagnostics are acceptable
 
 use std::sync::Arc;

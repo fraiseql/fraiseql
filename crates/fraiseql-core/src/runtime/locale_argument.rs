@@ -189,7 +189,8 @@ pub fn selection_chain(schema: &CompiledSchema, selection: &FieldSelection) -> O
         .arguments
         .iter()
         .find(|a| a.name == LOCALE_ARGUMENT)
-        .and_then(|a| serde_json::from_str::<String>(&a.value_json).ok())
+        .and_then(|a| crate::graphql::value_json::decode(&a.value_json).ok())
+        .and_then(|value| value.as_str().map(str::to_string))
         .and_then(|tag| schema.locale.as_ref()?.chain(&tag).map(<[String]>::to_vec));
     argued.or_else(|| crate::runtime::localization_chain(schema))
 }

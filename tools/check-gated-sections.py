@@ -66,6 +66,12 @@ SERVABLE_EVERYWHERE: dict[str, str] = {
     "subscribable": "read by the subscription manager, ungated",
     "operation_cost_weights": "the #379 cost estimator in fraiseql-core, ungated",
     "security": "field filters, RLS, role and actor gates all live in fraiseql-core",
+    "locale": (
+        "request-locale resolution (argument, header), the read session setting, collation "
+        "and localized-field projection live in fraiseql-core and every transport (#1512, "
+        "#1513); an `enrichment` source reads the enriched identity, which the `auth` "
+        "feature's boot check already ties to its resolver"
+    ),
     "auth": "`auth` is a default feature; a build without it mounts no auth surface at all",
     "subscriptions_config": "read by the subscription manager, ungated",
     "validation_config": "the #379 executor gate in fraiseql-core, ungated",
