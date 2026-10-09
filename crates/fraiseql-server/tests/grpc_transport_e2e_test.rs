@@ -2162,3 +2162,51 @@ async fn a_page_under_the_compiled_ceiling_is_read_on_the_streaming_arm() {
 
     assert_eq!(adapter.recorded_queries(), vec!["vr_tb_users".to_string()]);
 }
+
+/// #1528: a gRPC mutation meets the chokepoint's value check like every other write. The
+/// descriptor carries `name` as a string while the schema declares it `Int` (a descriptor
+/// out of step with the schema): refused before any function call.
+#[tokio::test]
+async fn a_wrong_typed_grpc_mutation_argument_is_refused_before_the_function() {
+    let tmp = tempfile::tempdir().unwrap();
+    let desc_path = write_descriptor(tmp.path());
+    let mut schema = build_grpc_schema(&desc_path);
+    let create = schema.mutations.iter_mut().find(|m| m.name == "createUser").unwrap();
+    create.arguments = vec![fraiseql_core::schema::ArgumentDefinition::optional(
+        "name",
+        fraiseql_core::schema::FieldType::Int,
+    )];
+    schema.build_indexes();
+
+    let adapter = Arc::new(
+        FailingAdapter::new()
+            .with_function_response("fn_create_user", vec![std::collections::HashMap::default()]),
+    );
+    let schema = Arc::new(schema);
+    let svc = build_grpc_service_for_test(
+        Arc::clone(&schema),
+        Arc::new(Executor::new((*schema).clone(), Arc::clone(&adapter))),
+        None,
+        None,
+    )
+    .unwrap()
+    .unwrap()
+    .service;
+
+    let fds = build_descriptor_set();
+    let pool = prost_reflect::DescriptorPool::decode(fds.encode_to_vec().as_slice()).unwrap();
+    let req_desc = pool.get_message_by_name("fraiseql.v1.CreateUserRequest").unwrap();
+    let mut req_msg = prost_reflect::DynamicMessage::new(req_desc.clone());
+    req_msg.set_field(
+        &req_desc.get_field_by_name("name").unwrap(),
+        prost_reflect::Value::String("Charlie".into()),
+    );
+    let (_, grpc_status, _) = send_grpc(&svc, "CreateUser", &req_msg.encode_to_vec()).await;
+
+    assert_eq!(grpc_status.as_deref(), Some("3"), "INVALID_ARGUMENT");
+    assert!(
+        !adapter.recorded_queries().iter().any(|q| q.contains("fn_create_user")),
+        "the function never ran: {:?}",
+        adapter.recorded_queries()
+    );
+}

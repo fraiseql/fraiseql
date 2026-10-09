@@ -1889,6 +1889,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// claim of the same name, on every transport the suite drives; an anonymous request
 		// gets its header and literal variables.
 		"cargo test -p fraiseql-server --features rest,mcp,federation --test session_variable_header_source_e2e_pg -- --test-threads=1",
+		// #1528 — a mutation value of the wrong type (top-level, nested in a list of inputs,
+		// an undeclared input key) is refused before the function runs, on GraphQL, REST and
+		// MCP; the function's own call log proves it never ran.
+		"cargo test -p fraiseql-server --features rest,mcp --test mutation_value_types_e2e_pg -- --test-threads=1",
 		// P13 — the REST write surface (#865) and the four defects that had to be green
 		// before it could be mounted. Every one of these suites drives real PostgreSQL;
 		// three of them drive the real `Server::serve_on_listener` mount rather than

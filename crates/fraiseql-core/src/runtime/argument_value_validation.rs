@@ -68,9 +68,10 @@
 //! * **Nullability.** An explicit `null` is accepted for every argument, including a non-null one.
 //!   That is § 5.6.1's other half; it changes which *documents* are valid rather than which
 //!   *answers* are correct, so it is not folded in here.
-//! * **Mutations**, for the scalar check. Their arguments are input objects almost without
-//!   exception, which the paragraph above excludes anyway. The *enum* check does cover them, from
-//!   the mutation chokepoint rather than from here — see [`validate_enum_argument_values`].
+//! * **Mutations** are adjudicated in full, from the mutation chokepoint rather than from here —
+//!   see [`validate_mutation_argument_values`]. A write's input object is a record the function
+//!   binds field by field, so a built-in scalar inside one is as positively declared as one at the
+//!   argument, and a key the input type does not declare is refused (#1528).
 //!
 //! # Variable *values* are the half a spec-shaped fix would miss
 //!
@@ -181,7 +182,14 @@ impl Scalar {
         if self == Self::Int && value.is_i64() {
             return Some(format!("an Int outside the 32-bit range ({}..={})", i32::MIN, i32::MAX));
         }
-        Some(format!("a {} value", json_shape(value)))
+        if self == Self::Uuid && value.is_string() {
+            return Some("a String that is not a UUID".to_string());
+        }
+        Some(match json_shape(value) {
+            shape @ ("a list" | "an object") => shape.to_string(),
+            "Int" => "an Int value".to_string(),
+            shape => format!("a {shape} value"),
+        })
     }
 
     /// Does `value` belong to this scalar's value space?
@@ -199,9 +207,11 @@ impl Scalar {
             // overflowed `u32` at the read site and dropped the clause.
             Self::Int => value.as_i64().is_some_and(|v| i32::try_from(v).is_ok()),
             Self::Float => value.is_number(),
-            Self::String | Self::Uuid | Self::DateTime | Self::Date | Self::Time => {
-                value.is_string()
-            },
+            Self::String | Self::DateTime | Self::Date | Self::Time => value.is_string(),
+            // A UUID's value space is fully specified, like an enum's (#1362): a string that
+            // does not parse as one is contradicted by the type, not a project's choice. It
+            // reached PostgreSQL as a cast error that quotes the value (#1528).
+            Self::Uuid => value.as_str().is_some_and(|s| uuid::Uuid::parse_str(s).is_ok()),
             Self::Boolean => value.is_boolean(),
             // § 3.5.5: ID serializes as a String but accepts an integer input.
             Self::Id => value.is_string() || value.as_i64().is_some(),
@@ -449,8 +459,9 @@ const MAX_WALK_DEPTH: usize = 32;
 /// At most this many members are named in a refusal before it summarises.
 const MAX_MEMBERS_LISTED: usize = 12;
 
-/// Adjudicate enum membership for the values written at a field's arguments,
-/// from a **resolved** argument map (#1362).
+/// Adjudicate the values written at a mutation's arguments, from a **resolved**
+/// argument map: enum membership (#1362), built-in scalars at every depth, and the keys
+/// of every input object (#1528).
 ///
 /// This is the entry the mutation chokepoint uses, and the reason it takes a map
 /// rather than a document's `[GraphQLArgument]`: `execute_mutation_impl` is where
@@ -461,13 +472,22 @@ const MAX_MEMBERS_LISTED: usize = 12;
 ///
 /// `provided` is the map arguments are read out of — the value under each
 /// argument's own name. An argument with no entry is not adjudicated; whether it
-/// was required is the mutation runner's question, asked a few lines later.
+/// was required is the mutation runner's question, asked a few lines later. A
+/// `localized` argument or input field is skipped: its value is a locale map by the
+/// time this runs, checked by its own strict pass (`localized_input`).
+///
+/// Wider than the read path's walk on purpose. A read's input objects are predicates
+/// (`where:`) with their own operators and surface; a write's are records whose every
+/// field is bound into the function, so a value of the wrong type there is a wrong
+/// value in the database (or a cast error quoting it), and an undeclared key is data
+/// the function was never written to receive.
 ///
 /// # Errors
 ///
 /// Returns [`FraiseQLError::Validation`] naming the path to the offending field
-/// and the members its enum declares.
-pub fn validate_enum_argument_values(
+/// and, as the case may be, the members its enum declares, the scalar type it
+/// declares, or that its input type does not declare the key.
+pub fn validate_mutation_argument_values(
     schema: &CompiledSchema,
     field_label: &str,
     declared: &[ArgumentDefinition],
@@ -476,20 +496,34 @@ pub fn validate_enum_argument_values(
     let Some(map) = provided.and_then(Value::as_object) else {
         return Ok(());
     };
-    for arg in declared {
+    for arg in declared.iter().filter(|arg| !arg.localized) {
         let Some(value) = map.get(&arg.name) else {
             continue;
         };
-        walk_field_type(schema, field_label, &arg.name, &arg.arg_type, value, 0)?;
+        walk_field_type(schema, Rules::WRITE, field_label, &arg.name, &arg.arg_type, value, 0)?;
     }
     Ok(())
+}
+
+/// What a walk adjudicates besides enum membership, which every walk does.
+#[derive(Debug, Clone, Copy)]
+struct Rules {
+    /// Built-in scalars under input objects and lists, and undeclared input keys.
+    write: bool,
+}
+
+impl Rules {
+    /// The read paths: enum membership only (module header).
+    const READ: Self = Self { write: false };
+    /// A mutation's arguments: everything (#1528).
+    const WRITE: Self = Self { write: true };
 }
 
 /// Adjudicate enum membership for the **literals** a document writes at a field's
 /// arguments (#1362).
 ///
-/// The read path's counterpart to [`validate_enum_argument_values`]. A value that
-/// is a variable *reference* is skipped here and adjudicated by
+/// The read path's counterpart to [`validate_mutation_argument_values`], for enums only. A value
+/// that is a variable *reference* is skipped here and adjudicated by
 /// [`validate_enum_variable_values`] against its own declaration, so neither
 /// check has to resolve the other's half and a reference cannot be mistaken for
 /// an object whose single key happens to be the variable marker.
@@ -511,7 +545,7 @@ pub fn validate_enum_argument_literals(
         if value_json::variable_name(&value).is_some() {
             continue;
         }
-        walk_field_type(schema, field_label, &arg.name, &def.arg_type, &value, 0)?;
+        walk_field_type(schema, Rules::READ, field_label, &arg.name, &def.arg_type, &value, 0)?;
     }
     Ok(())
 }
@@ -542,14 +576,16 @@ pub fn validate_enum_variable_values(
             continue;
         };
         let subject = format!("Variable `${}`{}", def.name, operation_label(operation_name));
-        walk_type_ref(schema, &subject, "", &def.var_type.name, value, 0)?;
+        walk_type_ref(schema, Rules::READ, &subject, "", &def.var_type.name, value, 0)?;
     }
     Ok(())
 }
 
-/// Walk a compiled [`FieldType`] against `value`, adjudicating every enum under it.
+/// Walk a compiled [`FieldType`] against `value`, adjudicating every enum under it
+/// (and, under [`Rules::WRITE`], every built-in scalar and input key).
 fn walk_field_type(
     schema: &CompiledSchema,
+    rules: Rules,
     subject: &str,
     path: &str,
     declared: &FieldType,
@@ -561,7 +597,7 @@ fn walk_field_type(
     }
     match declared {
         FieldType::List(inner) => walk_list(schema, subject, path, value, depth, |v, p, d| {
-            walk_field_type(schema, subject, p, inner, v, d)
+            walk_field_type(schema, rules, subject, p, inner, v, d)
         }),
         FieldType::Enum(name) => check_membership(schema, subject, path, name, value),
         // The compiler emits an input-type reference as `Object`, never `Input`
@@ -569,9 +605,12 @@ fn walk_field_type(
         // through the input registry — the same pairing `execute_mutation_impl`
         // makes when it decides whether an argument is a structured input.
         FieldType::Object(name) | FieldType::Input(name) => {
-            walk_input_object(schema, subject, path, name, value, depth)
+            walk_input_object(schema, rules, subject, path, name, value, depth)
         },
-        _ => Ok(()),
+        other => match Scalar::from_field_type(other) {
+            Some(scalar) if rules.write => check_scalar(subject, path, scalar, value),
+            _ => Ok(()),
+        },
     }
 }
 
@@ -582,6 +621,7 @@ fn walk_field_type(
 /// [`FieldType`], so the wrappers are peeled here rather than matched.
 fn walk_type_ref(
     schema: &CompiledSchema,
+    rules: Rules,
     subject: &str,
     path: &str,
     declared: &str,
@@ -595,11 +635,11 @@ fn walk_type_ref(
     // `!` before `[`: `[X]!` peels to `[X]` and then to `X`, and `[X!]` to `X!`
     // to `X`. Peeling brackets first would leave a stray `!` on the inner name.
     if let Some(inner) = declared.strip_suffix('!') {
-        return walk_type_ref(schema, subject, path, inner, value, depth);
+        return walk_type_ref(schema, rules, subject, path, inner, value, depth);
     }
     if let Some(inner) = declared.strip_prefix('[').and_then(|s| s.strip_suffix(']')) {
         return walk_list(schema, subject, path, value, depth, |v, p, d| {
-            walk_type_ref(schema, subject, p, inner, v, d)
+            walk_type_ref(schema, rules, subject, p, inner, v, d)
         });
     }
     if value.is_null() {
@@ -608,7 +648,10 @@ fn walk_type_ref(
     if schema.find_enum(declared).is_some() {
         return check_membership(schema, subject, path, declared, value);
     }
-    walk_input_object(schema, subject, path, declared, value, depth)
+    if let (true, Some(scalar)) = (rules.write, Scalar::from_type_name(declared)) {
+        return check_scalar(subject, path, scalar, value);
+    }
+    walk_input_object(schema, rules, subject, path, declared, value, depth)
 }
 
 /// Apply `walk` to each element of a list value.
@@ -643,6 +686,7 @@ fn walk_list(
 /// not declare is not this check's business.
 fn walk_input_object(
     schema: &CompiledSchema,
+    rules: Rules,
     subject: &str,
     path: &str,
     name: &str,
@@ -652,7 +696,35 @@ fn walk_input_object(
     let (Some(input_type), Some(object)) = (schema.find_input_type(name), value.as_object()) else {
         return Ok(());
     };
+    let child_path = |key: &str| {
+        if path.is_empty() {
+            key.to_string()
+        } else {
+            format!("{path}.{key}")
+        }
+    };
+    if rules.write {
+        // § 5.6.2: every key must name a field the input type declares, under its surface
+        // name or its stored one (the two spellings the loop below accepts).
+        let declares = |key: &str| {
+            input_type
+                .fields
+                .iter()
+                .any(|f| f.name == key || schema.display_name(&f.name) == key)
+        };
+        if let Some(key) = object.keys().find(|key| !declares(key)) {
+            let at = child_path(key);
+            return Err(FraiseQLError::Validation {
+                message: format!("{subject} at `{at}`: input type `{name}` declares no such field"),
+                path:    Some(at),
+            });
+        }
+    }
     for field in &input_type.fields {
+        // A localized field holds a locale map by now, checked by its own pass.
+        if rules.write && field.localized {
+            continue;
+        }
         // The client writes the *surface* name, which under `camelCase` differs
         // from the stored one. Both are accepted: `display_name` is what the
         // required-field check (#414) looks the value up by, and the canonical
@@ -666,14 +738,25 @@ fn walk_input_object(
         let Some(value) = value else {
             continue;
         };
-        let child = if path.is_empty() {
-            surface
-        } else {
-            format!("{path}.{surface}")
-        };
-        walk_type_ref(schema, subject, &child, &field.field_type, value, depth + 1)?;
+        let child = child_path(&surface);
+        walk_type_ref(schema, rules, subject, &child, &field.field_type, value, depth + 1)?;
     }
     Ok(())
+}
+
+/// A built-in scalar at `path` must hold a value of its type (#1528).
+fn check_scalar(subject: &str, path: &str, scalar: Scalar, value: &Value) -> Result<()> {
+    match scalar.rejection(value) {
+        None => Ok(()),
+        // The value is described, never quoted back (#1197).
+        Some(reason) => Err(FraiseQLError::Validation {
+            message: format!(
+                "{subject} at `{path}` has type `{}`, but the request wrote {reason}",
+                scalar.name()
+            ),
+            path:    Some(path.to_string()),
+        }),
+    }
 }
 
 /// The adjudication itself: `value` must name a member of `enum_name`.

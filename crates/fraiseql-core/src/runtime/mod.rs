@@ -91,8 +91,8 @@ pub use aggregate_projector::AggregationProjector;
 pub use aggregation::{AggregationSqlGenerator, ParameterizedAggregationSql};
 pub use argument_validation::validate_argument_names;
 pub use argument_value_validation::{
-    validate_argument_values, validate_enum_argument_literals, validate_enum_argument_values,
-    validate_enum_variable_values, validate_variable_values,
+    validate_argument_values, validate_enum_argument_literals, validate_enum_variable_values,
+    validate_mutation_argument_values, validate_variable_values,
 };
 pub use embed_selection::{CountSelection, EmbedSelection};
 pub(crate) use executor::field_type_to_where_type;

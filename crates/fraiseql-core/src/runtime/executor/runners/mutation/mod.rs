@@ -1407,15 +1407,17 @@ pub(in super::super) async fn execute_mutation_impl(
 
     let vars_obj = variables.and_then(|v| v.as_object());
 
-    // #1362: an enum written at an argument — or at a field of the input object
-    // under one — must name a member the schema declares. Here rather than in the
-    // GraphQL matcher because this is the seam every transport that writes passes
-    // through (#1327): REST, gRPC and MCP arrive with a JSON payload and no
-    // document, so a check that reads `[GraphQLArgument]` would cover one caller in
-    // four. Before the branch below, so the single-JSONB path and the flatten path
-    // are adjudicated by one call — the two differ in how the value reaches SQL,
-    // never in whether it should.
-    crate::runtime::validate_enum_argument_values(
+    // #1362, #1528: every value written at an argument — or at a field of the input
+    // object under one, at any depth — must have its declared type: an enum must name a
+    // member, a built-in scalar must hold one, and an input object may carry only the
+    // fields it declares. Here rather than in the GraphQL matcher because this is the
+    // seam every transport that writes passes through (#1327): REST, gRPC and MCP arrive
+    // with a JSON payload and no document, so a check that reads `[GraphQLArgument]`
+    // would cover one caller in four. After the localized coercion above (a localized
+    // value is a locale map by now, and is skipped), and before the branch below, so the
+    // single-JSONB path and the flatten path are adjudicated by one call — the two differ
+    // in how the value reaches SQL, never in whether it should.
+    crate::runtime::validate_mutation_argument_values(
         &ctx.schema,
         &format!("Mutation.{}", ctx.schema.display_name(mutation_name)),
         &mutation_def.arguments,

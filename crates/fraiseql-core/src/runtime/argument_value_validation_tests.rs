@@ -300,7 +300,7 @@ fn status_arg() -> Vec<ArgumentDefinition> {
 fn a_non_member_at_an_enum_input_field_is_refused() {
     let schema = enum_schema();
     let values = json!({"input": {"reference": "r-1", "status": "BANANA"}});
-    let err = message(validate_enum_argument_values(
+    let err = message(validate_mutation_argument_values(
         &schema,
         "Mutation.createOrder",
         &input_arg(),
@@ -323,7 +323,7 @@ fn a_member_at_an_enum_input_field_is_accepted() {
     let schema = enum_schema();
     let values = json!({"input": {"reference": "r-1", "status": "SHIPPED"}});
     assert!(
-        validate_enum_argument_values(&schema, "M.m", &input_arg(), Some(&values)).is_ok(),
+        validate_mutation_argument_values(&schema, "M.m", &input_arg(), Some(&values)).is_ok(),
         "a declared member must pass"
     );
 }
@@ -341,7 +341,7 @@ fn the_reported_non_member_spellings_are_each_refused() {
     ] {
         let values = json!({"input": {"status": wrote}});
         assert!(
-            validate_enum_argument_values(&schema, "M.m", &input_arg(), Some(&values)).is_err(),
+            validate_mutation_argument_values(&schema, "M.m", &input_arg(), Some(&values)).is_err(),
             "{wrote} is not a member of OrderStatus and must be refused"
         );
     }
@@ -351,7 +351,8 @@ fn the_reported_non_member_spellings_are_each_refused() {
 fn a_non_member_inside_a_list_of_enums_is_refused() {
     let schema = enum_schema();
     let values = json!({"input": {"history": ["PENDING", "BANANA"]}});
-    let err = message(validate_enum_argument_values(&schema, "M.m", &input_arg(), Some(&values)));
+    let err =
+        message(validate_mutation_argument_values(&schema, "M.m", &input_arg(), Some(&values)));
     assert!(err.contains("input.history[1]"), "the refusal must name the element: {err}");
 }
 
@@ -361,14 +362,17 @@ fn a_non_member_inside_a_list_of_enums_is_refused() {
 fn a_bare_non_member_written_at_a_list_of_enums_is_refused() {
     let schema = enum_schema();
     let values = json!({"input": {"history": "BANANA"}});
-    assert!(validate_enum_argument_values(&schema, "M.m", &input_arg(), Some(&values)).is_err());
+    assert!(
+        validate_mutation_argument_values(&schema, "M.m", &input_arg(), Some(&values)).is_err()
+    );
 }
 
 #[test]
 fn a_non_member_nested_one_input_object_deeper_is_refused() {
     let schema = enum_schema();
     let values = json!({"input": {"nested": {"status": "BANANA"}}});
-    let err = message(validate_enum_argument_values(&schema, "M.m", &input_arg(), Some(&values)));
+    let err =
+        message(validate_mutation_argument_values(&schema, "M.m", &input_arg(), Some(&values)));
     assert!(err.contains("input.nested.status"), "the refusal must name the path: {err}");
 }
 
@@ -376,7 +380,9 @@ fn a_non_member_nested_one_input_object_deeper_is_refused() {
 fn a_non_member_at_a_bare_enum_argument_is_refused() {
     let schema = enum_schema();
     let values = json!({"status": "BANANA"});
-    assert!(validate_enum_argument_values(&schema, "Q.q", &status_arg(), Some(&values)).is_err());
+    assert!(
+        validate_mutation_argument_values(&schema, "Q.q", &status_arg(), Some(&values)).is_err()
+    );
 }
 
 #[test]
@@ -387,7 +393,7 @@ fn an_absent_or_null_enum_field_is_left_to_the_required_field_rule() {
         json!({"input": {"status": null}}),
     ] {
         assert!(
-            validate_enum_argument_values(&schema, "M.m", &input_arg(), Some(&values)).is_ok(),
+            validate_mutation_argument_values(&schema, "M.m", &input_arg(), Some(&values)).is_ok(),
             "nullability is #414's question, not this one"
         );
     }
@@ -406,7 +412,7 @@ fn a_field_whose_type_the_schema_does_not_declare_is_not_adjudicated() {
         FieldType::Object("Loose".to_string()),
     )];
     let values = json!({"input": {"whatever": "anything at all"}});
-    assert!(validate_enum_argument_values(&schema, "M.m", &declared, Some(&values)).is_ok());
+    assert!(validate_mutation_argument_values(&schema, "M.m", &declared, Some(&values)).is_ok());
 }
 
 // ── the literal path ─────────────────────────────────────────────────────────
@@ -477,5 +483,59 @@ fn a_schema_declaring_no_enums_adjudicates_nothing() {
     let defs = [var("s", "OrderStatus", true)];
     assert!(
         validate_enum_variable_values(&schema, None, &defs, Some(&json!({"s": "BANANA"}))).is_ok()
+    );
+}
+
+// ── The write walk: scalars at every depth, declared keys only (#1528) ───────
+
+#[test]
+fn a_wrong_scalar_nested_in_a_mutation_input_is_refused_with_its_path() {
+    let schema = enum_schema();
+    let values = json!({"input": {"nested": {"reference": ["r"]}}});
+    let err =
+        message(validate_mutation_argument_values(&schema, "M.m", &input_arg(), Some(&values)));
+    assert!(err.contains("`input.nested.reference`"), "names the path: {err}");
+    assert!(
+        err.contains("`String`") && err.contains("wrote a list"),
+        "names the types: {err}"
+    );
+}
+
+#[test]
+fn an_undeclared_key_in_a_mutation_input_is_refused() {
+    let schema = enum_schema();
+    let values = json!({"input": {"reference": "r", "colour": "red"}});
+    let err =
+        message(validate_mutation_argument_values(&schema, "M.m", &input_arg(), Some(&values)));
+    assert!(
+        err.contains("`input.colour`") && err.contains("declares no such field"),
+        "{err}"
+    );
+}
+
+#[test]
+fn a_localized_input_field_is_left_to_its_own_pass() {
+    let mut schema = enum_schema();
+    let mut name = InputFieldDefinition::new("name", "String");
+    name.localized = true;
+    schema.input_types[0].fields.push(name);
+    let values = json!({"input": {"name": {"fr-FR": "Pomme"}}});
+    assert!(validate_mutation_argument_values(&schema, "M.m", &input_arg(), Some(&values)).is_ok());
+}
+
+#[test]
+fn a_string_that_is_not_a_uuid_is_refused_at_a_uuid_argument() {
+    let declared = vec![ArgumentDefinition::optional("id", FieldType::Uuid)];
+    let args = [literal("id", "string", "\"x\"")];
+    let err = message(validate_argument_values("Query.thing", &declared, &args, &[]));
+    assert!(err.contains("not a UUID"), "{err}");
+    let ok = [literal(
+        "id",
+        "string",
+        "\"3f2504e0-4f89-11d3-9a0c-0305e82c3301\"",
+    )];
+    assert!(
+        validate_argument_values("Query.thing", &declared, &ok, &[]).is_ok(),
+        "a UUID passes"
     );
 }

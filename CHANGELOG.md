@@ -90,6 +90,19 @@ disagreed, and the promise was the part that was wrong.
   write without a principal set no session variable at all; `jwt` and `enrichment` variables
   still stay unset without one.
 
+- **Mutation values are type-checked before the function runs (#1528).** A value written at a
+  mutation argument, or at any field of an input object under one (nested, inside lists), must
+  have its declared type: a built-in scalar of the wrong type (`name: String` given an object,
+  `qty: Int` given `"3"` or `3.5`) is a validation error naming the path and the type, on every
+  write transport, and the function is not called. It used to reach the function as JSON text,
+  or fail inside PostgreSQL. A key the input type does not declare is refused the same way
+  (it was dropped, or forwarded to the function on the single-JSONB path). Localized values keep
+  their own check. Embedders: `fraiseql_core::runtime::validate_enum_argument_values` is
+  `validate_mutation_argument_values`.
+
+- **A `UUID` argument must hold a UUID (#1528).** A string that does not parse as one is a
+  validation error on reads and writes alike. It reached PostgreSQL as a cast error.
+
 - **The wire backend refuses session variables instead of reading without them (#1115).** A
   `fraiseql-wire` deployment with `[locale]` or `[session_variables]` refuses to boot, and a
   session-scoped read on an adapter that cannot apply its variables is refused. Before, the
