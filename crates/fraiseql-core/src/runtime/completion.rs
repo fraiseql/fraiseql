@@ -378,16 +378,19 @@ impl Walk<'_> {
             };
             let key = child.response_key();
             let present = map.contains_key(key);
-            let value = map.remove(key).unwrap_or(Value::Null);
+            // Taken in place, never removed and re-inserted: the response keeps the
+            // document's field order (§ 6.3).
+            let value = map.get_mut(key).map(Value::take).unwrap_or(Value::Null);
             path.push(Value::String(key.to_string()));
             let label = format!("{concrete}.{}", child.name);
             let completed = self.position(value, field_ref, child, &label, path, errors, depth + 1);
             path.pop();
             match completed {
-                Ok(v) if present => {
-                    map.insert(key.to_string(), v);
+                Ok(v) => {
+                    if let (true, Some(slot)) = (present, map.get_mut(key)) {
+                        *slot = v;
+                    }
                 },
-                Ok(_) => {},
                 Err(Propagate) => propagated = true,
             }
         }

@@ -72,3 +72,16 @@ fn a_type_introspection_does_not_publish_is_passed_through() {
     types.complete(&mut response, "Query", &selections, &HashMap::new());
     assert_eq!(response, json!({"data": {"unknown": [{"name": null}]}}));
 }
+
+#[test]
+fn completion_keeps_the_documents_field_order() {
+    let types = OutputTypes::from_schema(&schema());
+    let mut response = json!({"data": {"products": [{"name": "a", "id": "1", "note": "n"}]}});
+    let selections = [sel(
+        "products",
+        vec![sel("name", vec![]), sel("id", vec![]), sel("note", vec![])],
+    )];
+    types.complete(&mut response, "Query", &selections, &HashMap::new());
+    let keys: Vec<&String> = response["data"]["products"][0].as_object().unwrap().keys().collect();
+    assert_eq!(keys, ["name", "id", "note"], "{response}");
+}
