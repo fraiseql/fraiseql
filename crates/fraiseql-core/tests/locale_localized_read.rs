@@ -790,7 +790,7 @@ async fn the_sql_and_rust_evaluators_agree() {
 }
 
 /// The uses of a localized field with no meaning are refused at load (and so at compile):
-/// a fact-table measure (#1524), a subscription filter (#1525), a federation `@key` (#1526).
+/// a fact-table measure (#1524) and a federation `@key` (#1526).
 #[test]
 fn uses_that_would_read_the_stored_map_are_refused_at_load() {
     let schema = |extra: &str| {
@@ -827,24 +827,15 @@ fn uses_that_would_read_the_stored_map_are_refused_at_load() {
     refused(fact_table("price", "name"), "a label is text");
     CompiledSchema::from_json(&schema(&fact_table("name", "price")), false)
         .expect("a localized dimension loads (#1524)");
-    refused(
-        subscription(
-            r#""filter_fields": ["name"], "arguments": [{"name": "name", "arg_type": "String", "nullable": true}]"#,
-        ),
-        "#1525",
-    );
-    refused(
-        subscription(
-            r#""filter": {"argument_paths": {"label": "/name"}, "static_filters": []}, "arguments": [{"name": "label", "arg_type": "String", "nullable": true}]"#,
-        ),
-        "#1525",
-    );
-    refused(
-        subscription(
-            r#""filter": {"argument_paths": {}, "static_filters": [{"path": "/name", "operator": "eq", "value": "x"}]}"#,
-        ),
-        "#1525",
-    );
+    // A subscription filter on a localized field compares its label (#1525): it loads.
+    for filter in [
+        r#""filter_fields": ["name"], "arguments": [{"name": "name", "arg_type": "String", "nullable": true}]"#,
+        r#""filter": {"argument_paths": {"label": "/name"}, "static_filters": []}, "arguments": [{"name": "label", "arg_type": "String", "nullable": true}]"#,
+        r#""filter": {"argument_paths": {}, "static_filters": [{"path": "/name", "operator": "eq", "value": "x"}]}"#,
+    ] {
+        CompiledSchema::from_json(&schema(&subscription(filter)), false)
+            .unwrap_or_else(|e| panic!("{filter}: {e}"));
+    }
     refused(
         r#", "federation": {"enabled": true, "version": "v2", "entities": [{"name": "Product", "key_fields": ["id name"]}]}"#
             .to_string(),

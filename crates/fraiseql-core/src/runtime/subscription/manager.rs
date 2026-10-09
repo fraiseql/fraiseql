@@ -649,10 +649,10 @@ impl SubscriptionManager {
                 // Get the variable value provided by the client
                 if let Some(expected_value) = subscription.variables.get(arg_name) {
                     // Get the actual value from event data using JSON pointer
-                    let actual_value = get_json_pointer_value(&event.data, path);
+                    let actual_value = self.filter_value(subscription, &event.data, path);
 
                     // Compare values
-                    if actual_value != Some(expected_value) {
+                    if actual_value.as_deref() != Some(expected_value) {
                         tracing::trace!(
                             subscription_id = %subscription.id,
                             arg_name = arg_name,
@@ -667,9 +667,13 @@ impl SubscriptionManager {
 
             // Check static filter conditions
             for condition in &filter.static_filters {
-                let actual_value = get_json_pointer_value(&event.data, &condition.path);
+                let actual_value = self.filter_value(subscription, &event.data, &condition.path);
 
-                if !evaluate_filter_condition(actual_value, condition.operator, &condition.value) {
+                if !evaluate_filter_condition(
+                    actual_value.as_deref(),
+                    condition.operator,
+                    &condition.value,
+                ) {
                     tracing::trace!(
                         subscription_id = %subscription.id,
                         path = condition.path,
@@ -684,6 +688,37 @@ impl SubscriptionManager {
         }
 
         true
+    }
+
+    /// The value a filter compares at `path` of an event's `data` (#1525): a localized
+    /// field's label in the subscriber's locale (the locale its plan was made in; the default
+    /// locale for one with no plan), never the stored locale map, which no filter value
+    /// equals.
+    fn filter_value<'a>(
+        &self,
+        subscription: &ActiveSubscription,
+        data: &'a serde_json::Value,
+        path: &str,
+    ) -> Option<std::borrow::Cow<'a, serde_json::Value>> {
+        let value = get_json_pointer_value(data, path)?;
+        let mut segments = path.trim_start_matches('/').split(['/', '.']);
+        let (Some(field), None) = (segments.next(), segments.next()) else {
+            return Some(std::borrow::Cow::Borrowed(value));
+        };
+        let localized = self
+            .schema
+            .find_type(&subscription.definition.return_type)
+            .and_then(|t| t.find_field(field))
+            .is_some_and(|f| f.localized);
+        if !localized {
+            return Some(std::borrow::Cow::Borrowed(value));
+        }
+        let locale = subscription.plan.as_ref().and_then(|p| p.locale().map(str::to_string));
+        let chain = crate::runtime::with_request_locale_sync(locale, || {
+            crate::runtime::localization_chain(&self.schema)
+        })
+        .unwrap_or_default();
+        Some(std::borrow::Cow::Owned(crate::runtime::localize(value, &chain)))
     }
 
     /// Project event data to subscription's field selection.

@@ -305,19 +305,15 @@ impl CompiledSchema {
     }
 
     /// The uses of a localized field that have no meaning (#1513): a fact-table measure (a
-    /// label is text, and a measure is a number aggregated, #1524), a subscription filter
-    /// until #1525 gives it one, and a federation `@key` (#1526). A localized dimension groups
-    /// by its label (#1524).
+    /// label is text, and a measure is a number aggregated, #1524) and a federation `@key`
+    /// (#1526). A localized dimension groups by its label (#1524), and a subscription filter
+    /// compares it (#1525).
     fn localized_use_violations(&self) -> Vec<String> {
         use crate::compiler::fact_table::dimension_key;
         let localized_of = |type_name: &str| -> Vec<&str> {
             self.find_type(type_name).map_or_else(Vec::new, |t| {
                 t.fields.iter().filter(|f| f.localized).map(|f| f.name.as_str()).collect()
             })
-        };
-        // The field a JSON pointer (`/name/fr`) or a dotted path starts at.
-        let first_segment = |path: &str| {
-            path.trim_start_matches('/').split(['/', '.']).next().unwrap_or("").to_string()
         };
         let mut violations = Vec::new();
         let mut fact_tables: Vec<_> = self.fact_tables.values().collect();
@@ -334,27 +330,6 @@ impl CompiledSchema {
                          localized: a measure is a number aggregated, and a label is text (group \
                          by it as a dimension instead, #1524)",
                         ft.table_name
-                    ));
-                }
-            }
-        }
-        for sub in &self.subscriptions {
-            let localized = localized_of(&sub.return_type);
-            let paths = sub.filter_fields.iter().map(|f| first_segment(f)).chain(
-                sub.filter.iter().flat_map(|filter| {
-                    filter
-                        .argument_paths
-                        .values()
-                        .map(|p| first_segment(p))
-                        .chain(filter.static_filters.iter().map(|c| first_segment(&c.path)))
-                }),
-            );
-            for path in paths {
-                if localized.contains(&path.as_str()) {
-                    violations.push(format!(
-                        "subscription `{}` filters on `{}.{path}`, which is localized: a \
-                         subscription filter on a localized field is not supported yet (#1525)",
-                        sub.name, sub.return_type
                     ));
                 }
             }

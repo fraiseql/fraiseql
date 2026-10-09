@@ -97,6 +97,13 @@ impl SubscriptionPlan {
         &self.subscription
     }
 
+    /// The subscriber's request locale, captured when the plan was made (#1513): the locale
+    /// a filter on a localized field reads its label in (#1525).
+    #[must_use]
+    pub(crate) fn locale(&self) -> Option<&str> {
+        self.locale.as_deref()
+    }
+
     /// The subscriber's own identity in the form a Change-Spine `acting_for` is stamped in
     /// (a UUID `sub`, ruling AI): `None` for an anonymous plan or a subject that is not a
     /// UUID, which no delegation can name.

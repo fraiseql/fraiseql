@@ -62,9 +62,12 @@ index serves, so an equivalent index under another name counts.
 An aggregate or window grouped, partitioned, sorted or filtered by a localized dimension reads
 its label in the request locale: two rows sharing a French label are one group in `fr-FR`
 and two in `en-US` if their English labels differ. A fact-table measure cannot be localized
-(a label is text, and a measure is a number aggregated). A subscription filter on a
-localized field is not supported yet (#1525), and a federation `@key` never is (#1526);
-each is refused at compile.
+(a label is text, and a measure is a number aggregated), and a federation `@key` cannot be a
+localized field (#1526); each is refused at compile.
+
+A subscription filter on a localized field compares the event's label in the subscriber's
+locale (the one its subscription was made in): `productChanged(name: "Pomme")` receives an
+event named `Pomme` in French, for a French subscriber only.
 
 A field gate covers the translations sibling too: `nameTranslations` is gated as `name` is
 (`requires_scope`, `on_deny`, `authorize`). A masked field's sibling reads `[]`; a refused

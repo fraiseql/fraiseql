@@ -47,6 +47,11 @@ disagreed, and the promise was the part that was wrong.
   `_entities`, subscriptions, mutation payloads): a mask reads `[]`, a `reject` refuses, and
   the field authorizer is asked about the base field.
 
+- **A subscription filter on a localized field compares its label (#1525).** `filter_fields`,
+  `argument_paths` and static filters on a localized field were refused at compile and
+  load. They now compare the event's label in the subscriber's locale (the locale its
+  subscription was planned in; the default locale for an unplanned one).
+
 - **Aggregates and windows over a localized dimension read its label (#1524).** A fact-table
   dimension that is a localized field was refused at compile and load. It now groups,
   partitions, sorts (under the request locale's collation) and filters by its label through
