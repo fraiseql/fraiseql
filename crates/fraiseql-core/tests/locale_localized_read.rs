@@ -771,3 +771,79 @@ async fn the_sql_and_rust_evaluators_agree() {
     }
     assert_eq!(compared, CORPUS.len() * config.allowed.len(), "every pair was compared");
 }
+
+/// Cycle 6: the uses of a localized field that would read the stored map where a label is
+/// meant are refused at load (and so at compile), each naming its follow-up issue: an
+/// aggregate dimension or measure (#1524), a subscription filter (#1525), a federation
+/// `@key` (#1526).
+#[test]
+fn uses_that_would_read_the_stored_map_are_refused_at_load() {
+    let schema = |extra: &str| {
+        format!(
+            r#"{{"types": [{{"name": "Product", "sql_source": "tv_product", "fields": [
+                {{"name": "id", "field_type": "ID", "nullable": false}},
+                {{"name": "name", "field_type": "String", "nullable": true, "localized": true}},
+                {{"name": "price", "field_type": "Float", "nullable": true}}
+            ]}}],
+              "queries": [], "mutations": [],
+              "locale": {{"default": "en-US", "allowed": ["en-US", "fr"]}}{extra}}}"#
+        )
+    };
+    let fact_table = |dimension: &str, measure: &str| {
+        format!(
+            r#", "fact_tables": {{"tf_product": {{"table_name": "tf_product", "type_name": "Product",
+                "measures": [{{"name": "{measure}", "sql_type": "Decimal", "nullable": true}}],
+                "dimensions": {{"name": "data", "paths": [
+                    {{"name": "{dimension}", "json_path": "data->>'{dimension}'", "data_type": "text"}}]}},
+                "denormalized_filters": []}}}}"#
+        )
+    };
+    let subscription = |filter: &str| {
+        format!(
+            r#", "subscriptions": [{{"name": "productChanged", "return_type": "Product", {filter}}}]"#
+        )
+    };
+    let refused = |extra: String, needle: &str| {
+        let err = CompiledSchema::from_json(&schema(&extra), false)
+            .expect_err(&format!("must not load: {extra}"));
+        assert!(err.to_string().contains(needle), "{needle}: {err}");
+    };
+    refused(fact_table("name", "price"), "#1524");
+    refused(fact_table("price", "name"), "#1524");
+    refused(
+        subscription(
+            r#""filter_fields": ["name"], "arguments": [{"name": "name", "arg_type": "String", "nullable": true}]"#,
+        ),
+        "#1525",
+    );
+    refused(
+        subscription(
+            r#""filter": {"argument_paths": {"label": "/name"}, "static_filters": []}, "arguments": [{"name": "label", "arg_type": "String", "nullable": true}]"#,
+        ),
+        "#1525",
+    );
+    refused(
+        subscription(
+            r#""filter": {"argument_paths": {}, "static_filters": [{"path": "/name", "operator": "eq", "value": "x"}]}"#,
+        ),
+        "#1525",
+    );
+    refused(
+        r#", "federation": {"enabled": true, "version": "v2", "entities": [{"name": "Product", "key_fields": ["id name"]}]}"#
+            .to_string(),
+        "#1526",
+    );
+
+    // Control: the same uses of a field that is not localized load.
+    for extra in [
+        fact_table("price", "price"),
+        subscription(
+            r#""filter_fields": ["price"], "arguments": [{"name": "price", "arg_type": "Float", "nullable": true}]"#,
+        ),
+        r#", "federation": {"enabled": true, "version": "v2", "entities": [{"name": "Product", "key_fields": ["id"]}]}"#
+            .to_string(),
+    ] {
+        CompiledSchema::from_json(&schema(&extra), false)
+            .unwrap_or_else(|e| panic!("control must load: {extra}: {e}"));
+    }
+}

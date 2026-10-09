@@ -243,6 +243,84 @@ impl CompiledSchema {
         violations
     }
 
+    /// The uses of a localized field that would read its stored locale map where a label is
+    /// meant (#1513), each refused until its follow-up issue gives it a meaning: an aggregate
+    /// dimension or measure (#1524), a subscription filter (#1525), a federation `@key`
+    /// (#1526).
+    fn localized_use_violations(&self) -> Vec<String> {
+        use crate::compiler::fact_table::dimension_key;
+        let localized_of = |type_name: &str| -> Vec<&str> {
+            self.find_type(type_name).map_or_else(Vec::new, |t| {
+                t.fields.iter().filter(|f| f.localized).map(|f| f.name.as_str()).collect()
+            })
+        };
+        // The field a JSON pointer (`/name/fr`) or a dotted path starts at.
+        let first_segment = |path: &str| {
+            path.trim_start_matches('/').split(['/', '.']).next().unwrap_or("").to_string()
+        };
+        let mut violations = Vec::new();
+        let mut fact_tables: Vec<_> = self.fact_tables.values().collect();
+        fact_tables.sort_by(|a, b| a.table_name.cmp(&b.table_name));
+        for ft in fact_tables {
+            let Some(type_name) = ft.type_name.as_deref() else {
+                continue;
+            };
+            for field in localized_of(type_name) {
+                let key = dimension_key(field);
+                let names = ft
+                    .dimensions
+                    .paths
+                    .iter()
+                    .map(|p| p.name.as_str())
+                    .chain(ft.measures.iter().map(|m| m.name.as_str()));
+                if names.into_iter().any(|n| dimension_key(n) == key) {
+                    violations.push(format!(
+                        "fact table `{}` aggregates `{type_name}.{field}`, which is localized: \
+                         grouping or measuring by a localized field is not supported yet (#1524)",
+                        ft.table_name
+                    ));
+                }
+            }
+        }
+        for sub in &self.subscriptions {
+            let localized = localized_of(&sub.return_type);
+            let paths = sub.filter_fields.iter().map(|f| first_segment(f)).chain(
+                sub.filter.iter().flat_map(|filter| {
+                    filter
+                        .argument_paths
+                        .values()
+                        .map(|p| first_segment(p))
+                        .chain(filter.static_filters.iter().map(|c| first_segment(&c.path)))
+                }),
+            );
+            for path in paths {
+                if localized.contains(&path.as_str()) {
+                    violations.push(format!(
+                        "subscription `{}` filters on `{}.{path}`, which is localized: a \
+                         subscription filter on a localized field is not supported yet (#1525)",
+                        sub.name, sub.return_type
+                    ));
+                }
+            }
+        }
+        if let Some(federation) = &self.federation {
+            for entity in &federation.entities {
+                let localized = localized_of(&entity.name);
+                let keyed = entity.key_fields.iter().flat_map(|k| {
+                    k.split(|c: char| !(c.is_alphanumeric() || c == '_')).filter(|t| !t.is_empty())
+                });
+                for field in keyed.filter(|t| localized.contains(t)) {
+                    violations.push(format!(
+                        "federation entity `{}` is keyed by `{field}`, which is localized: a \
+                         localized field cannot be an `@key` (#1526)",
+                        entity.name
+                    ));
+                }
+            }
+        }
+        violations
+    }
+
     /// Validate `[locale]` and derive its chains; refuse a session variable that would
     /// shadow the setting the server owns (#1512).
     fn validate_locale(&mut self) -> std::result::Result<(), FraiseQLError> {
@@ -294,6 +372,7 @@ impl CompiledSchema {
                  field's translations sibling: rename the type"
             ));
         }
+        localized.extend(self.localized_use_violations());
         if !localized.is_empty() {
             return Err(FraiseQLError::Validation {
                 message: format!(
