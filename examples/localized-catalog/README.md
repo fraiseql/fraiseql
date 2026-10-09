@@ -5,9 +5,9 @@ is **stored** once, as a map of locale to label, and **returned** to every clien
 string in the locale of its request (#1512, #1513).
 
 ```
-schema.py                            Python SDK authoring (exports schema.json)
-schema.json                          the export, committed; check_examples.sh keeps it fresh
-fraiseql.toml                        [locale]: allowed locales, fallback, resolution order
+schema.py                            Python SDK authoring (exports catalog.json)
+catalog.json                         the export, committed; check_examples.sh keeps it fresh
+fraiseql.toml                        includes catalog.json; [locale]: locales, fallback, order
 sql/01_schema.sql                    tables, the tenant order view, the rename function
 sql/check_locale_free_projections.sql  the projection gate (see below)
 ```
@@ -70,7 +70,7 @@ Two checks keep that true, and both are run by the example's test:
 ```bash
 make db-up
 createdb localized_catalog && psql -d localized_catalog -f sql/01_schema.sql
-fraiseql compile schema.json --config fraiseql.toml
+fraiseql compile fraiseql.toml
 ```
 
 Then serve `schema.compiled.json` with the enrichment above and an HS256 or OIDC issuer whose

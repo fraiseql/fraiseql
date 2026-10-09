@@ -1,10 +1,12 @@
 # FraiseQL localized catalog example (#1512, #1513).
 #
 # A shared catalog stores each product name as a map of locale to label; every client reads
-# the label of its request locale. See README.md.
+# the label of its request locale. See README.md. Compile with `fraiseql compile fraiseql.toml`
+# from this directory.
 
-[fraiseql]
-schema_file = "schema.json"
+# The types, queries and mutation, authored with the Python SDK (schema.py).
+[includes]
+types = ["catalog.json"]
 
 [locale]
 allowed = ["en-US", "fr", "fr-CA", "fr-FR", "de-DE"]
@@ -19,5 +21,7 @@ resolve = [
   {enrichment = "tenant_locale"}
 ]
 
-[project]
+[schema]
+database_target = "postgresql"
 name = "localized-catalog"
+version = "1.0.0"

@@ -118,10 +118,10 @@ done
 
 echo
 echo "== Repository examples authored with an SDK =="
-# A repository example whose committed `schema.json` is exported by an SDK script: the script
-# must run, reproduce the committed file byte for byte (a stale export would let the example's
-# e2e test exercise a schema its author can no longer produce), and compile with the
-# example's own `fraiseql.toml`.
+# A repository example whose committed export is written by an SDK script: the script must
+# run, reproduce the committed file byte for byte (a stale export would let the example's e2e
+# test exercise a schema its author can no longer produce), and the example's `fraiseql.toml`,
+# which includes it, must compile.
 REPO_ROOT="$(cd "$SDK_ROOT/../.." && pwd)"
 for example in "$REPO_ROOT"/examples/localized-catalog; do
   label="examples/$(basename "$example")"
@@ -133,13 +133,13 @@ for example in "$REPO_ROOT"/examples/localized-catalog; do
     failures=$((failures + 1))
     continue
   fi
-  if ! diff -u "$example/schema.json" "$workdir/schema.json" >"$WORK/diff.log"; then
-    printf 'FAIL  %s (committed schema.json is stale; re-run schema.py)\n' "$label"
+  if ! diff -u "$example/catalog.json" "$workdir/catalog.json" >"$WORK/diff.log"; then
+    printf 'FAIL  %s (committed catalog.json is stale; re-run schema.py)\n' "$label"
     sed 's/^/        /' "$WORK/diff.log" | head -20
     failures=$((failures + 1))
     continue
   fi
-  if "$CLI" compile "$example/schema.json" --config "$example/fraiseql.toml" -o "$WORK/out.json" >"$WORK/compile.log" 2>&1; then
+  if (cd "$example" && "$CLI" compile fraiseql.toml -o "$WORK/out.json") >"$WORK/compile.log" 2>&1; then
     printf 'ok    %s\n' "$label"
     compiled=$((compiled + 1))
   else

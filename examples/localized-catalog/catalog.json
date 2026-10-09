@@ -43,7 +43,7 @@
           "nullable": true
         }
       ],
-      "description": "An order of the caller's tenant, its product label rendered in the tenant's own locale\nby the view (a stored fact, not the request's locale)."
+      "description": "An order of the caller's tenant, labelled in the tenant's stored locale by the view."
     }
   ],
   "enums": [],

@@ -1,9 +1,9 @@
 """A shared product catalog with localized labels, authored with the Python SDK.
 
-    uv run --project ../../sdks/official/fraiseql-python python schema.py   # writes schema.json
+    uv run --project ../../sdks/official/fraiseql-python python schema.py   # writes catalog.json
 
-`schema.json` is committed; `sdks/official/conformance/check_examples.sh` re-exports it and
-fails when the two differ.
+`catalog.json` is committed and included by `fraiseql.toml`;
+`sdks/official/conformance/check_examples.sh` re-exports it and fails when the two differ.
 """
 
 import fraiseql
@@ -21,8 +21,7 @@ class Product:
 
 @fraiseql.type(sql_source="v_tenant_order")
 class TenantOrder:
-    """An order of the caller's tenant, its product label rendered in the tenant's own locale
-    by the view (a stored fact, not the request's locale)."""
+    """An order of the caller's tenant, labelled in the tenant's stored locale by the view."""
 
     id: ID
     quantity: int
@@ -45,4 +44,4 @@ def rename_product(id: ID, name: fraiseql.Localized[str]) -> Product:
 
 
 if __name__ == "__main__":
-    fraiseql.export_schema("schema.json")
+    fraiseql.export_schema("catalog.json")

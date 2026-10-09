@@ -1,5 +1,5 @@
 //! `examples/localized-catalog` end to end (#1512, #1513): the shipped example's SQL applied
-//! to a scratch PostgreSQL 18 database, its Python-authored `schema.json` compiled through
+//! to a scratch PostgreSQL 18 database, its Python-authored `catalog.json` compiled through
 //! the production compile path with its own `fraiseql.toml`, and the server serving it over
 //! HTTP.
 //!
@@ -48,17 +48,19 @@ fn example_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/localized-catalog")
 }
 
-/// The example compiled the way `fraiseql compile` compiles it: its `schema.json` with its
-/// `fraiseql.toml` beside it.
+/// The working directory, which `[includes]` resolves against, is the process's; the two tests
+/// that compile take turns with it.
+static COMPILE_IN_EXAMPLE_DIR: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+/// The example compiled the way `fraiseql compile fraiseql.toml` compiles it, from its own
+/// directory: its `fraiseql.toml`, which includes the SDK-authored `catalog.json`.
 async fn compile_example() -> CompiledSchema {
-    let dir = tempfile::TempDir::new().unwrap();
-    for file in ["schema.json", "fraiseql.toml"] {
-        std::fs::copy(example_dir().join(file), dir.path().join(file)).unwrap();
-    }
-    let input = dir.path().join("schema.json");
-    let (artifact, _) = compile_to_schema(CompileOptions::new(input.to_str().unwrap()))
-        .await
-        .unwrap_or_else(|e| panic!("compile the example: {e:#}"));
+    let _turn = COMPILE_IN_EXAMPLE_DIR.lock().await;
+    let previous = std::env::current_dir().unwrap();
+    std::env::set_current_dir(example_dir()).unwrap();
+    let compiled = compile_to_schema(CompileOptions::new("fraiseql.toml")).await;
+    std::env::set_current_dir(previous).unwrap();
+    let (artifact, _) = compiled.unwrap_or_else(|e| panic!("compile the example: {e:#}"));
     CompiledSchema::from_json(&serde_json::to_string(&artifact.schema).unwrap(), false)
         .unwrap_or_else(|e| panic!("load the example: {e}"))
 }
