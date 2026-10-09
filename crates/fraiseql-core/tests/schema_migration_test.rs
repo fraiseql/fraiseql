@@ -112,15 +112,28 @@ fn test_v2_0_schema_optional_fields_are_none() {
 fn test_v2_0_schema_enums_accessible() {
     let schema = v2_0_artifact();
 
-    // The fixture declares one enum. Loading also *derives* `SortDirection`,
-    // because the fixture's queries enable `orderBy` (#1154) — so this asserts
-    // the authored enum survived rather than counting the whole list, which
-    // would be a count of the derivation and not of the fixture.
+    // The fixture declares one enum. Loading also *derives* enums from the
+    // fixture's queries (`SortDirection` since #1154, each entity's
+    // `…OrderByField` since #1159) — so this asserts the authored enum survived
+    // rather than counting the whole list, which would be a count of the
+    // derivation and not of the fixture. The derived set is whatever the
+    // derivation makes of the raw artifact, not a list of names kept here.
+    let raw: CompiledSchema =
+        serde_json::from_str(include_str!("fixtures/schemas/compiled_v2_0.json")).unwrap();
+    let derived: Vec<String> = fraiseql_core::schema::derived_inputs::derive(&raw)
+        .enums
+        .into_iter()
+        .map(|e| e.name)
+        .collect();
+    assert!(
+        !derived.is_empty(),
+        "the fixture's queries derive enums; else this filters nothing"
+    );
     let authored: Vec<&str> = schema
         .enums
         .iter()
         .map(|e| e.name.as_str())
-        .filter(|name| *name != fraiseql_core::schema::derived_inputs::SORT_DIRECTION_ENUM)
+        .filter(|name| !derived.iter().any(|d| d == name))
         .collect();
     assert_eq!(authored, ["UserRole"], "fixture has 1 authored enum: UserRole");
     assert!(schema.find_enum("UserRole").is_some(), "UserRole enum must be findable");
