@@ -584,7 +584,7 @@ impl QueryDefinition {
     ///
     /// Relay connection queries are returned unchanged — their pagination surface
     /// (`first`/`after`/`last`/`before`) is owned by each renderer's dedicated
-    /// relay path, not by `auto_params`.
+    /// relay path, which adds [`connection_arguments`](Self::connection_arguments).
     ///
     /// [`derived_inputs::derive`]: crate::schema::derived_inputs::derive
     #[must_use]
@@ -600,14 +600,10 @@ impl QueryDefinition {
         let declared = |name: &str| self.arguments.iter().any(|a| a.name == name);
         let ap = &self.auto_params;
 
-        if ap.has_where && !declared("where") {
-            args.push(
-                ArgumentDefinition::optional("where", self.where_argument_type(schema))
-                    .with_description(
-                        "Filter predicate: a nested object of `{ field: { operator: value } }`, \
-                         combined with `_and`/`_or`/`_not`.",
-                    ),
-            );
+        if let Some(filter) = self.where_argument(schema) {
+            if !declared("where") {
+                args.push(filter);
+            }
         }
         if let Some(order_by) = self.order_by_argument(schema) {
             if !declared("orderBy") {
@@ -628,6 +624,39 @@ impl QueryDefinition {
         }
 
         args
+    }
+
+    /// The `where` argument this query publishes (list or relay connection alike), or `None`
+    /// when it reads none.
+    #[must_use]
+    pub fn where_argument(
+        &self,
+        schema: &super::schema::CompiledSchema,
+    ) -> Option<ArgumentDefinition> {
+        self.auto_params.has_where.then(|| {
+            ArgumentDefinition::optional("where", self.where_argument_type(schema))
+                .with_description(
+                    "Filter predicate: a nested object of `{ field: { operator: value } }`, \
+                     combined with `_and`/`_or`/`_not`.",
+                )
+        })
+    }
+
+    /// What a relay connection publishes beyond its cursor window: the `where` and `orderBy`
+    /// the relay runner reads, typed exactly as a list's are (#1159, #1535). Empty for a
+    /// list query, whose arguments are [`graphql_arguments`](Self::graphql_arguments).
+    #[must_use]
+    pub fn connection_arguments(
+        &self,
+        schema: &super::schema::CompiledSchema,
+    ) -> Vec<ArgumentDefinition> {
+        if !self.relay {
+            return Vec::new();
+        }
+        self.where_argument(schema)
+            .into_iter()
+            .chain(self.order_by_argument(schema))
+            .collect()
     }
 
     /// The type `where` publishes: the derived `{Entity}WhereInput` when the

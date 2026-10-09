@@ -25,6 +25,12 @@ disagreed, and the promise was the part that was wrong.
   `{Query}OrderByField` / `{Query}OrderByInput` when their native columns differ. Relay
   connections now advertise their `orderBy` (accepted before, never published). Introspection,
   SDL and `federation sdl` agree. See `docs/features/pagination.md#sort-keys`.
+- **Relay connections publish their `where` (#1535).** A connection whose query enables
+  `where` was filtered by it but published no such argument, so a client validating against
+  introspection refused a filter the server serves. It now publishes `where:
+  {Entity}WhereInput` (or `JSON` for a type the schema cannot adjudicate), exactly as a list
+  does, in introspection, the SDL and `federation sdl`; the entity's `{Entity}WhereInput` is
+  derived for a connection too.
 - **`[validation] max_offset`: an opt-in ceiling on offset depth (#1306).** `OFFSET n` reads
   `n` rows to discard them, however the read is ordered, so a deep offset page costs its depth.
   Set, an offset beyond the ceiling is refused before any statement, with a message naming the

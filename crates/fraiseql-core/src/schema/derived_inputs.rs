@@ -407,15 +407,13 @@ fn order_by_inputs(schema: &CompiledSchema) -> (Vec<InputObjectDefinition>, Vec<
     (items, fields)
 }
 
-/// Entities a `where`-enabled query returns.
-///
-/// Relay connections are excluded: their argument surface is owned by each
-/// renderer's relay path, and `graphql_arguments` returns them unchanged.
+/// Entities a `where`-enabled query returns, list or relay connection (#1535): both
+/// publish the filter through `QueryDefinition::where_argument`.
 fn filterable_entities(schema: &CompiledSchema) -> Vec<String> {
     schema
         .queries
         .iter()
-        .filter(|q| !q.relay && q.auto_params.has_where)
+        .filter(|q| q.auto_params.has_where)
         .map(|q| q.return_type.clone())
         .collect()
 }

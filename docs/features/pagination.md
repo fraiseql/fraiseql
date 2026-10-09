@@ -225,6 +225,9 @@ cursor column and nothing is appended after it. This is the durable answer to de
 pagination — an `OFFSET` of 200 000 still reads 200 000 rows to discard them,
 whatever it is ordered by — and a client walking a large relation should prefer it.
 
+A connection takes the same `where` and `orderBy` a list does, published with the same
+types (`{Entity}WhereInput`, `[{Entity}OrderByInput!]`), when the query enables them.
+
 ### Paging under an `orderBy`
 
 A connection with an `orderBy` is ordered by its keys, then by the cursor column, which

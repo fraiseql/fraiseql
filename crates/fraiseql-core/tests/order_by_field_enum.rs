@@ -7,7 +7,8 @@
 //! fields that order meaningfully, so not an object or a list) and its native columns. When
 //! every query returning an entity accepts the same set, the entity has one
 //! `{Entity}OrderByField`; when they differ, each query has its own, and each refuses the
-//! other's key. A relay connection is advertised `orderBy` like a list.
+//! other's key. A relay connection is advertised `orderBy` like a list, and its `where` too
+//! (#1535).
 //!
 //! **Execution engine:** `PostgreSQL` · **Infrastructure:** `DATABASE_URL` ·
 //! **Parallelism:** creates and drops its own `tv_obf_*` tables.
@@ -134,6 +135,11 @@ fn enum_values(t: &Value) -> Vec<String> {
 
 /// The type `orderBy` publishes on root field `field`, unwrapped to the item's name.
 async fn order_by_item(executor: &Executor, field: &str) -> Option<String> {
+    argument_type(executor, field, "orderBy").await
+}
+
+/// The named type root field `field`'s argument `argument` publishes, under its wrappers.
+async fn argument_type(executor: &Executor, field: &str, argument: &str) -> Option<String> {
     let response = executor
         .execute(
             r#"{ __type(name: "Query") { fields { name args { name type { kind name ofType { kind name ofType { name } } } } } } }"#,
@@ -146,7 +152,7 @@ async fn order_by_item(executor: &Executor, field: &str) -> Option<String> {
         .unwrap_or_else(|| panic!("{response}"))
         .clone();
     let root = fields.iter().find(|f| f["name"] == field).unwrap_or_else(|| panic!("{field}"));
-    let arg = root["args"].as_array().unwrap().iter().find(|a| a["name"] == "orderBy")?;
+    let arg = root["args"].as_array().unwrap().iter().find(|a| a["name"] == argument)?;
     // A list of the item input: the first named type under the wrappers.
     let mut t = &arg["type"];
     while t["name"].is_null() {
@@ -257,6 +263,57 @@ fn the_sdl_types_the_sort_key_with_the_enum() {
     let connection = sdl.lines().find(|l| l.trim_start().starts_with("itemsConnection("));
     let connection = connection.unwrap_or_else(|| panic!("{sdl}"));
     assert!(connection.contains("orderBy: [ItemOrderByInput"), "{connection}");
+}
+
+/// #1535: a connection publishes the `where` its runner reads, typed as a list's is, in
+/// introspection and the SDL; a variable typed by it passes validation.
+#[tokio::test]
+async fn a_connection_publishes_the_where_it_reads() {
+    let mut filtered = connection("itemsConnection");
+    filtered.auto_params.has_where = true;
+    let schema =
+        with_node(TestSchemaBuilder::new().with_type(item_type()).with_query(filtered).build());
+
+    let sdl = schema.raw_schema();
+    let line = sdl.lines().find(|l| l.trim_start().starts_with("itemsConnection("));
+    let line = line.unwrap_or_else(|| panic!("{sdl}"));
+    assert!(line.contains("where: ItemWhereInput"), "{line}");
+
+    let executor = offline(schema);
+    assert_eq!(
+        argument_type(&executor, "itemsConnection", "where").await.as_deref(),
+        Some("ItemWhereInput")
+    );
+    assert_eq!(introspect(&executor, "ItemWhereInput").await["kind"], json!("INPUT_OBJECT"));
+
+    let typed = executor
+        .execute(
+            "query($w: ItemWhereInput) { itemsConnection(first: 1, where: $w) { edges { node { id } } } }",
+            Some(&json!({ "w": { "name": { "eq": "a" } } })),
+        )
+        .await;
+    // The offline adapter has no relay path, so the read fails past variable validation;
+    // what must not happen is the variable's type being called unknown.
+    let refusal = typed.expect_err("the offline adapter serves no page").to_string();
+    assert!(!refusal.contains("declares unknown type"), "{refusal}");
+}
+
+/// #1535: a connection over a type the schema cannot adjudicate publishes `where: JSON`, and
+/// the SDL declares the scalar it references.
+#[test]
+fn an_unadjudicable_connection_publishes_where_as_json() {
+    let opaque = TestTypeBuilder::new("Blob", "tv_obf_blob").relay_node().build();
+    let mut filtered = TestQueryBuilder::new("blobsConnection", "Blob")
+        .returns_list(true)
+        .with_sql_source("tv_obf_blob")
+        .relay_cursor_column("pk")
+        .build();
+    filtered.auto_params.has_where = true;
+    let sdl = with_node(TestSchemaBuilder::new().with_type(opaque).with_query(filtered).build())
+        .raw_schema();
+    let line = sdl.lines().find(|l| l.trim_start().starts_with("blobsConnection("));
+    assert!(line.unwrap_or_else(|| panic!("{sdl}")).contains("where: JSON"), "{sdl}");
+    assert!(sdl.contains("scalar JSON"), "{sdl}");
 }
 
 /// Served on PostgreSQL: a sort by an enum value orders the rows.

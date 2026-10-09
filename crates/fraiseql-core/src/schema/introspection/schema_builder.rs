@@ -424,9 +424,9 @@ fn build_relay_query_field(query: &QueryDefinition, schema: &CompiledSchema) -> 
             validation_rules:   vec![],
         },
     ];
-    // #1159: a connection sorts like a list, through the same derived `orderBy` (ordered
-    // relay paging resumes past the sort keys since #1521).
-    relay_args.extend(query.order_by_argument(schema).as_ref().map(build_arg_input_value));
+    // A connection filters and sorts like a list, through the same derived `where` and
+    // `orderBy` (#1159, #1535; ordered relay paging resumes past the sort keys since #1521).
+    relay_args.extend(query.connection_arguments(schema).iter().map(build_arg_input_value));
 
     IntrospectionField {
         name:               schema.display_name(&query.name),
