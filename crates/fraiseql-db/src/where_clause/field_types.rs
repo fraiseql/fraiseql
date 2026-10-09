@@ -127,6 +127,20 @@ pub struct WhereFieldInfo {
     /// (`hierarchy = "<name>"` + `[hierarchies.<name>]`) — what `descendantOfId` /
     /// `ancestorOfId` on it resolve against (#1396).
     pub hierarchy:     Option<crate::where_generator::HierarchyContext>,
+    /// The field is localized (#1513): a comparison reads the label the request locale
+    /// chooses from its stored locale map, which the parser takes from the schema's
+    /// [`LocaleReading`].
+    pub localized:     bool,
+}
+
+/// How the request a `where` is parsed for reads localized fields (#1513): its locale's
+/// fallback chain and collation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct LocaleReading {
+    /// The request locale's fallback chain.
+    pub chain:     Vec<String>,
+    /// The request locale's collation, when the schema names one.
+    pub collation: Option<String>,
 }
 
 /// The declared `where` keys of every type a nested predicate can descend into,
@@ -167,9 +181,24 @@ pub struct WhereFieldSchema {
     /// what this did at every depth before the derived filter surface made the
     /// target type nameable.
     relations: RelationFieldMaps,
+    /// The request's locale reading, for a filter on a localized field.
+    locale:    Option<LocaleReading>,
 }
 
 impl WhereFieldSchema {
+    /// The same schema, parsing a localized field's comparisons as `locale` reads them.
+    #[must_use]
+    pub fn with_locale(mut self, locale: LocaleReading) -> Self {
+        self.locale = Some(locale);
+        self
+    }
+
+    /// The request's locale reading, when one was given.
+    #[must_use]
+    pub const fn locale(&self) -> Option<&LocaleReading> {
+        self.locale.as_ref()
+    }
+
     /// A schema that cannot adjudicate field names: casts only, no allowlist.
     ///
     /// This is the honest constructor for a caller that has type information but
@@ -180,6 +209,7 @@ impl WhereFieldSchema {
             casts,
             known: None,
             relations: RelationFieldMaps::default(),
+            locale: None,
         }
     }
 
@@ -197,6 +227,7 @@ impl WhereFieldSchema {
             casts,
             known: Some(Arc::new(known)),
             relations: RelationFieldMaps::default(),
+            locale: None,
         }
     }
 
@@ -215,6 +246,7 @@ impl WhereFieldSchema {
             casts,
             known: Some(Arc::new(known)),
             relations,
+            locale: None,
         }
     }
 

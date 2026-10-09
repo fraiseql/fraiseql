@@ -331,6 +331,33 @@ pub fn localized_text_expr(field_path: &str, chain: &[String]) -> Result<String>
     ))
 }
 
+/// The key a filter, a sort and a reported index read a localized field by (#1513): its label
+/// through `chain` ([`localized_text_expr`]), under `collation` when there is one.
+///
+/// `path` is the field's storage path under the JSONB `column` (`["name"]`,
+/// `["category", "label"]`). The one builder of this key: the `where` generator, the `ORDER
+/// BY` renderer and the index report all call it, so an index matches the query that
+/// should use it, `COLLATE` included (an index under one collation does not serve a
+/// comparison under another).
+///
+/// # Errors
+///
+/// As [`localized_text_expr`] and [`crate::order_by::collate_suffix`].
+pub fn localized_key_expr(
+    column: &str,
+    path: &[String],
+    chain: &[String],
+    collation: Option<&str>,
+) -> Result<String> {
+    let mut map = column.to_string();
+    for segment in path {
+        map.push_str("->'");
+        map.push_str(&crate::path_escape::escape_postgres_jsonb_segment(segment));
+        map.push('\'');
+    }
+    crate::order_by::collated(&localized_text_expr(&map, chain)?, collation)
+}
+
 /// The SQL a localized field's translations sibling is read with (#1513).
 ///
 /// A JSON array with one object per locale of `allowed` whose label is a JSON string, in

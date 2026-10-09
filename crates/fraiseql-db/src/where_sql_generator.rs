@@ -75,6 +75,13 @@ impl WhereSqlGenerator {
             } => Self::to_sql_typed(inner, Some(subtree_types), guards),
             // The wire path refuses the ID-based ltree operators on the leaf itself.
             WhereClause::InHierarchy { inner, .. } => Self::to_sql_typed(inner, types, guards),
+            // A localized label is read through the request locale, which the wire backend
+            // does not carry (#1513).
+            WhereClause::Localized { .. } => Err(FraiseQLError::Validation {
+                message: "a filter on a localized field is not supported on the wire backend"
+                    .to_string(),
+                path:    None,
+            }),
             // Ruling AH: a path through `under` reads its value only where `guard` holds.
             WhereClause::Guarded {
                 under,

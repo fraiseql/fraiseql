@@ -589,6 +589,7 @@ fn adjudicating() -> WhereFieldSchema {
                 relation_type: None,
                 cast: None,
                 hierarchy: None,
+                localized: false,
             },
         );
     }
@@ -633,6 +634,7 @@ fn declared_camel_case() -> WhereFieldSchema {
             relation_type: None,
             cast:          None,
             hierarchy:     None,
+            localized:     false,
         },
     );
     WhereFieldSchema::with_known_keys(SharedFieldTypes::default(), known)
@@ -687,6 +689,7 @@ fn a_field_the_schema_declares_in_snake_case_still_passes() {
             relation_type: None,
             cast:          None,
             hierarchy:     None,
+            localized:     false,
         },
     );
     let schema = WhereFieldSchema::with_known_keys(SharedFieldTypes::default(), known);
@@ -770,6 +773,7 @@ fn adjudicating_nested() -> WhereFieldSchema {
                 relation_type: target.map(ToString::to_string),
                 cast: None,
                 hierarchy: None,
+                localized: false,
             },
         )
     };
@@ -1130,6 +1134,7 @@ fn with_hierarchy() -> WhereFieldSchema {
                 relation_type: None,
                 cast: None,
                 hierarchy,
+                localized: false,
             },
         );
     }

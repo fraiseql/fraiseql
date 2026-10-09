@@ -284,7 +284,43 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
                 path,
                 operator,
                 value,
-            } => self.visit_field(path, operator, value, params, hierarchy_ctx, types, guards),
+            } => {
+                let field_expr = self.resolve_field_expr(path);
+                self.visit_field(
+                    path,
+                    field_expr,
+                    operator,
+                    value,
+                    params,
+                    hierarchy_ctx,
+                    types,
+                    guards,
+                )
+            },
+            // #1513: the leaf compares the label the request locale reads, collated.
+            WhereClause::Localized {
+                chain,
+                collation,
+                inner,
+            } => {
+                let WhereClause::Field {
+                    path,
+                    operator,
+                    value,
+                } = inner.as_ref()
+                else {
+                    return Err(FraiseQLError::validation(
+                        "a localized filter wraps a field comparison".to_string(),
+                    ));
+                };
+                let label = crate::projection_generator::localized_key_expr(
+                    "data",
+                    path,
+                    chain,
+                    collation.as_deref(),
+                )?;
+                self.visit_field(path, label, operator, value, params, hierarchy_ctx, types, guards)
+            },
             WhereClause::NativeField {
                 column,
                 pg_cast,
@@ -620,9 +656,11 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
 
     // ── Field visitor ─────────────────────────────────────────────────────────
 
+    #[allow(clippy::too_many_arguments)] // Reason: one leaf's full context; a struct would only rename them
     fn visit_field(
         &self,
         path: &[String],
+        field_expr: String,
         operator: &WhereOperator,
         value: &serde_json::Value,
         params: &mut Vec<serde_json::Value>,
@@ -630,7 +668,7 @@ impl<D: SqlDialect> GenericWhereGenerator<D> {
         types: Option<&FieldTypeMap>,
         guards: &[(&[String], &WhereClause)],
     ) -> Result<String> {
-        let field_expr = self.guarded_expr(self.resolve_field_expr(path), path, params, guards)?;
+        let field_expr = self.guarded_expr(field_expr, path, params, guards)?;
 
         match operator {
             // ── Comparison ────────────────────────────────────────────────────

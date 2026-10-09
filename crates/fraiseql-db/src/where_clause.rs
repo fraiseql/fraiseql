@@ -10,7 +10,8 @@ use serde::{Deserialize, Serialize};
 
 pub use self::{
     field_types::{
-        FieldTypeMap, RelationFieldMaps, SharedFieldTypes, WhereFieldInfo, WhereFieldSchema,
+        FieldTypeMap, LocaleReading, RelationFieldMaps, SharedFieldTypes, WhereFieldInfo,
+        WhereFieldSchema,
     },
     operator_table::{OperatorCategory, WHERE_OPERATORS, WhereOperatorSpec, operator_spec},
 };
@@ -144,6 +145,24 @@ pub enum WhereClause {
         inner: Box<WhereClause>,
     },
 
+    /// A leaf on a localized field (#1513): its value is the label `chain` reads from the
+    /// stored locale map, compared under `collation`, not the map.
+    ///
+    /// The parser wraps the leaf when the schema marks the field localized, with the chain
+    /// and collation of the request locale the schema it parses against carries. Like
+    /// [`Typed`], it is a node of the clause so that no seam the clause travels through can
+    /// drop it.
+    ///
+    /// [`Typed`]: WhereClause::Typed
+    Localized {
+        /// The request locale's fallback chain.
+        chain:     Vec<String>,
+        /// The request locale's collation, when the schema names one.
+        collation: Option<String>,
+        /// The leaf, a [`WhereClause::Field`].
+        inner:     Box<WhereClause>,
+    },
+
     /// Whether the key stored at `path` is among the `target_key` values of the rows of
     /// `view` that satisfy `predicate`, both compared as `key_type` (ruling AL).
     ///
@@ -179,7 +198,8 @@ impl WhereClause {
             Self::And(clauses) | Self::Or(clauses) => clauses.is_empty(),
             Self::Typed { inner, .. }
             | Self::Guarded { inner, .. }
-            | Self::InHierarchy { inner, .. } => inner.is_empty(),
+            | Self::InHierarchy { inner, .. }
+            | Self::Localized { inner, .. } => inner.is_empty(),
             Self::Not(_) | Self::Field { .. } | Self::NativeField { .. } | Self::KeyIn { .. } => {
                 false
             },
@@ -215,7 +235,10 @@ impl WhereClause {
                     c.collect_native_column_names(out);
                 }
             },
-            Self::Not(inner) | Self::Typed { inner, .. } | Self::InHierarchy { inner, .. } => {
+            Self::Not(inner)
+            | Self::Typed { inner, .. }
+            | Self::InHierarchy { inner, .. }
+            | Self::Localized { inner, .. } => {
                 inner.collect_native_column_names(out);
             },
             Self::Guarded { guard, inner, .. } => {
@@ -467,11 +490,31 @@ impl WhereClause {
                                 });
                             },
                             Ok(operator) => {
-                                conditions.push(Self::Field {
+                                let leaf = Self::Field {
                                     path: field_path.clone(),
                                     operator,
                                     value: op_val.clone(),
-                                });
+                                };
+                                // #1513: a localized field compares the request locale's
+                                // label. Without a reading there is no label to compare.
+                                if level.and_then(|l| l.get(&snake)).is_some_and(|i| i.localized) {
+                                    let reading = schema.locale().ok_or_else(|| {
+                                        FraiseQLError::Validation {
+                                            message: format!(
+                                                "'{field_name}' is localized, and this filter \
+                                                 was parsed without a request locale"
+                                            ),
+                                            path:    None,
+                                        }
+                                    })?;
+                                    conditions.push(Self::Localized {
+                                        chain:     reading.chain.clone(),
+                                        collation: reading.collation.clone(),
+                                        inner:     Box::new(leaf),
+                                    });
+                                } else {
+                                    conditions.push(leaf);
+                                }
                             },
                             Err(_) if op_val.is_object() => {
                                 // Nested relation/object filter: recurse with extended path.

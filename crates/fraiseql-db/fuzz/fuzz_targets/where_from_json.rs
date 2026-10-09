@@ -26,6 +26,7 @@ fn scalar(name: &str, cast: ScalarFieldType) -> (String, WhereFieldInfo) {
             relation_type: None,
             cast:          Some(cast),
             hierarchy:     None,
+            localized:     false,
         },
     )
 }
@@ -41,6 +42,7 @@ fn relation(name: &str, target: &str) -> (String, WhereFieldInfo) {
             relation_type: Some(target.to_string()),
             cast:          None,
             hierarchy:     None,
+            localized:     false,
         },
     )
 }

@@ -170,7 +170,21 @@ pub fn where_field_types(schema: &CompiledSchema, return_type: &str) -> WhereFie
     // schema says is not there.
     let known = crate::schema::derived_inputs::where_keys_of(schema, type_def);
 
-    WhereFieldSchema::with_relations(casts, known, Arc::clone(&schema.where_relation_fields))
+    let fields =
+        WhereFieldSchema::with_relations(casts, known, Arc::clone(&schema.where_relation_fields));
+    // #1513: a filter on a localized field reads the request locale's label, collated.
+    match (
+        crate::runtime::localization_chain(schema),
+        crate::runtime::request_locale(schema),
+    ) {
+        (Some(chain), Some(locale)) => {
+            fields.with_locale(fraiseql_db::where_clause::LocaleReading {
+                chain,
+                collation: schema.locale.as_ref().and_then(|l| l.collation(&locale)),
+            })
+        },
+        _ => fields,
+    }
 }
 
 /// Map a schema [`FieldType`] to the ORDER BY cast hint.

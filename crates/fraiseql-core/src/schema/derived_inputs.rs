@@ -541,6 +541,8 @@ pub(crate) fn where_keys_of(
                             }
                         })
                     }),
+                    // #1513: a comparison on a localized field reads its label.
+                    localized: f.localized,
                 },
             )
         })
