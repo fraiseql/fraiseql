@@ -138,11 +138,28 @@ fn rows() -> Vec<JsonbValue> {
 }
 
 fn executor(authorizer: Arc<Recording>) -> Executor {
+    executor_over(authorizer, rows())
+}
+
+fn executor_over(authorizer: Arc<Recording>, rows: Vec<JsonbValue>) -> Executor {
     let schema = schema();
     let config = RuntimeConfig::from_compiled_schema(&schema)
         .unwrap()
         .with_authorizer(authorizer);
-    Executor::read_only_with_config(schema, Arc::new(CapturingMockAdapter::new(rows())), config)
+    Executor::read_only_with_config(schema, Arc::new(CapturingMockAdapter::new(rows)), config)
+}
+
+/// `rows()` as a composed read returns them: each level's document under `d`, its embedded
+/// levels under `e` (a plain row is no shape an adapter answers a composed read with, and
+/// projects to `null`).
+fn composed_rows() -> Vec<JsonbValue> {
+    vec![JsonbValue::new(json!({
+        "d": {"id": 1, "name": "alice"},
+        "e": {"orders": [
+            {"d": {"id": 10, "total": 5}, "e": {}},
+            {"d": {"id": 11, "total": 6}, "e": {}},
+        ]},
+    }))]
 }
 
 async fn graphql(authorizer: &Arc<Recording>, query: &str) -> Result<Value> {
@@ -153,7 +170,7 @@ async fn graphql(authorizer: &Arc<Recording>, query: &str) -> Result<Value> {
 
 /// `users?select=id,orders(id)`, as REST resolves it.
 async fn rest_embed(authorizer: &Arc<Recording>) -> Result<Value> {
-    let executor = executor(authorizer.clone());
+    let executor = executor_over(authorizer.clone(), composed_rows());
     let schema = executor.schema();
     let users = schema.queries.iter().find(|q| q.name == "users").unwrap().clone();
     let query_match = QueryMatch::from_operation(
