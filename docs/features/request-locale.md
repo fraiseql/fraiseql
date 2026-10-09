@@ -1,5 +1,8 @@
 # Request locale (`[locale]`)
 
+Localized fields, which read their label in the request locale, are covered in
+[Localization](../guides/localization.md).
+
 Every request resolves to one locale that your deployment declares, whether it is
 anonymous or authenticated and whatever transport it arrives on. SQL reads the resolved
 locale as the `fraiseql.locale` setting on read transactions, and the result cache keeps

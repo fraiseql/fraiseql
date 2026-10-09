@@ -1994,6 +1994,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// and asserts two tenants never cross — connecting as the examples' own
 		// unprivileged role, because the harness role bypasses RLS entirely.
 		"cargo test -p fraiseql-server --test example_multitenant_rls_e2e_pg -- --test-threads=1",
+		// #1512/#1513: the localized-catalog example, Python-authored, compiled and served:
+		// labels per request locale and per tenant's stored locale, a merged localized
+		// write under the example's write-session guard, and its projection catalog check.
+		"cargo test -p fraiseql-server --test example_localized_catalog_e2e_pg -- --test-threads=1",
 		// #748/#769/#768: the RBAC management API had never executed one statement
 		// against PostgreSQL — its schema DDL did not parse, so setting `admin_token`
 		// made the shipped -full binary refuse to boot. Its four test files were ~90

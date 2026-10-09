@@ -1,0 +1,112 @@
+{
+  "types": [
+    {
+      "name": "Product",
+      "sql_source": "tv_product",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "sku",
+          "type": "String",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false,
+          "localized": true
+        }
+      ],
+      "description": "A product of the shared catalog. Its name is stored in every language at once."
+    },
+    {
+      "name": "TenantOrder",
+      "sql_source": "v_tenant_order",
+      "fields": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "quantity",
+          "type": "Int",
+          "nullable": false
+        },
+        {
+          "name": "productLabel",
+          "type": "String",
+          "nullable": true
+        }
+      ],
+      "description": "An order of the caller's tenant, its product label rendered in the tenant's own locale\nby the view (a stored fact, not the request's locale)."
+    }
+  ],
+  "enums": [],
+  "input_types": [],
+  "interfaces": [],
+  "unions": [],
+  "queries": [
+    {
+      "name": "products",
+      "return_type": "Product",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "The catalog, labelled in the request locale.",
+      "sql_source": "tv_product",
+      "auto_params": {
+        "where": true,
+        "order_by": true,
+        "limit": true,
+        "offset": true
+      },
+      "cache_ttl_seconds": 60
+    },
+    {
+      "name": "tenantOrders",
+      "return_type": "TenantOrder",
+      "returns_list": true,
+      "nullable": false,
+      "arguments": [],
+      "description": "The caller's tenant's orders.",
+      "sql_source": "v_tenant_order",
+      "inject_params": {
+        "tenant_id": {
+          "source": "jwt",
+          "claim": "tenant_id"
+        }
+      }
+    }
+  ],
+  "mutations": [
+    {
+      "name": "renameProduct",
+      "return_type": "Product",
+      "returns_list": false,
+      "nullable": false,
+      "arguments": [
+        {
+          "name": "id",
+          "type": "ID",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "String",
+          "nullable": false,
+          "localized": true
+        }
+      ],
+      "description": "Set one or more of a product's labels; the others are kept.",
+      "sql_source": "fn_rename_product",
+      "operation": "update"
+    }
+  ],
+  "subscriptions": [],
+  "naming_convention": "camelCase"
+}

@@ -1,0 +1,23 @@
+# FraiseQL localized catalog example (#1512, #1513).
+#
+# A shared catalog stores each product name as a map of locale to label; every client reads
+# the label of its request locale. See README.md.
+
+[fraiseql]
+schema_file = "schema.json"
+
+[locale]
+allowed = ["en-US", "fr", "fr-CA", "fr-FR", "de-DE"]
+default = "en-US"
+fallback = {"fr-CA" = "fr-FR"}
+# An explicit `locale` (GraphQL `extensions.locale`, REST `?locale=`) wins, then the
+# browser's `Accept-Language`, then the locale stored for the caller's tenant (read by the
+# server's `[identity.enrichment]`, see README.md).
+resolve = [
+  {argument = "locale"},
+  {header = "accept-language"},
+  {enrichment = "tenant_locale"}
+]
+
+[project]
+name = "localized-catalog"

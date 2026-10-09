@@ -12,6 +12,7 @@
 | Run the server in production | [`docs/runbooks/`](runbooks/) — 15 incident response runbooks |
 | Deploy on FreeBSD (Jails + ZFS + Caddy) | [`docs/guides/freebsd-deployment.md`](guides/freebsd-deployment.md) |
 | Understand the cache system | [`docs/modules/cache.md`](modules/cache.md) |
+| Serve text in several languages (localized fields, request locale) | [`docs/guides/localization.md`](guides/localization.md) |
 | Understand how paginated reads are ordered | [`docs/features/pagination.md`](features/pagination.md) |
 | Understand window functions | [`docs/modules/window-functions.md`](modules/window-functions.md) |
 | Understand analytics fact tables | [`docs/modules/fact-table.md`](modules/fact-table.md) |
