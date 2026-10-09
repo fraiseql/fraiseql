@@ -36,10 +36,14 @@ const SCHEMA_JSON: &str = r#"{
 
 const LOCALE: &str = "\n[locale]\ndefault = \"en-US\"\nallowed = [\"en-US\", \"fr-FR\"]\n";
 
-/// The compiled schema, the files `--emit-ddl` writes (name → bytes), and the capture-trigger DDL.
-async fn emitted(locale: &str) -> (serde_json::Value, Vec<(String, Vec<u8>)>, String) {
+/// The compiled schema, the files `--emit-ddl` writes (name → bytes), and the capture-trigger DDL,
+/// for `schema` compiled with `locale`.
+async fn emitted_from(
+    schema: &str,
+    locale: &str,
+) -> (serde_json::Value, Vec<(String, Vec<u8>)>, String) {
     let dir = TempDir::new().unwrap();
-    std::fs::write(dir.path().join("schema.json"), SCHEMA_JSON).unwrap();
+    std::fs::write(dir.path().join("schema.json"), schema).unwrap();
     std::fs::write(
         dir.path().join("fraiseql.toml"),
         format!("[project]\nname = \"p\"\n\n[fraiseql]\nschema_file = \"schema.json\"\n{locale}"),
@@ -60,6 +64,29 @@ async fn emitted(locale: &str) -> (serde_json::Value, Vec<(String, Vec<u8>)>, St
     files.sort();
     let triggers = build_ddl(&artifact.schema, true);
     (serde_json::to_value(&artifact.schema).unwrap(), files, triggers)
+}
+
+async fn emitted(locale: &str) -> (serde_json::Value, Vec<(String, Vec<u8>)>, String) {
+    emitted_from(SCHEMA_JSON, locale).await
+}
+
+/// #1513's projection proof: a localized field's chain, sibling and literals live in reads only.
+/// The project with `name` localized (and the `[locale]` that requires) emits the same DDL as
+/// without either: a view, table or trigger built from it stores the whole locale map.
+#[tokio::test]
+async fn the_ddl_emitters_ignore_localized_fields() {
+    let localized = SCHEMA_JSON.replace(
+        r#"{"name": "name", "type": "String", "nullable": false}"#,
+        r#"{"name": "name", "type": "String", "nullable": false, "localized": true}"#,
+    );
+    assert_ne!(localized, SCHEMA_JSON, "the fixture marks `name` localized");
+    let (plain_schema, plain_ddl, plain_triggers) = emitted("").await;
+    let (localized_schema, localized_ddl, localized_triggers) =
+        emitted_from(&localized, LOCALE).await;
+
+    assert_ne!(plain_schema, localized_schema, "`localized` reached the compiled schema");
+    assert_eq!(plain_ddl, localized_ddl, "--emit-ddl output is the same for a localized field");
+    assert_eq!(plain_triggers, localized_triggers, "capture triggers are the same");
 }
 
 #[tokio::test]
