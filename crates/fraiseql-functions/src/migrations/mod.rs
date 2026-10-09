@@ -64,8 +64,10 @@ CREATE INDEX IF NOT EXISTS idx_cron_state_next_fire
 ///
 /// This is the inbound mirror of the outbound `tb_entity_change_log` outbox: a
 /// normalized [`InboundMessage`](crate::InboundMessage) is persisted here inside
-/// the receiver's transaction, deduplicated by `(source, idempotency_key)`, so
-/// `after:ingest` dispatch is at-least-once. The DDL uses `IF NOT EXISTS` for
+/// the receiver's transaction, deduplicated by `(source, idempotency_key)`: a message is
+/// durable and stored once. Its `after:ingest` is dispatched once, after the row commits; a
+/// process that dies in between loses that dispatch, and nothing replays it yet (#1175).
+/// The DDL uses `IF NOT EXISTS` for
 /// idempotency — running it multiple times is safe.
 ///
 /// # Table Schema

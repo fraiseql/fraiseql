@@ -31,6 +31,9 @@ clean_root() {
     printf '# roadmap\n- open epics only\n' > "$r/roadmap.md"
     printf 'Cross-SDK parity suite: 2 authoring SDKs produce identical schema JSON\n' > "$r/README.md"
     printf 'emit fraiseql-a\nemit fraiseql-b\nfraiseql-cli compile\n' > "$r/sdks/official/tests/run_parity.sh"
+    mkdir -p "$r/crates/fraiseql-functions/src"
+    printf '/// Persists a message, then dispatches `after:ingest` once it commits.\n' \
+        > "$r/crates/fraiseql-functions/src/spine.rs"
 }
 
 # assert_gate <name> <expected-rc> <expected-substring> <root>
@@ -87,6 +90,33 @@ assert_gate "rule 5: README count differing from the suite is red" 1 "covers 9 S
 
 r="$WORK/no_sentence"; clean_root "$r"; printf 'nothing here\n' > "$r/README.md"
 assert_gate "rule 5: README without the sentence is red" 1 "no 'parity suite" "$r"
+
+r="$WORK/ingest"; clean_root "$r"
+printf '/// so `after:ingest` dispatch is at-least-once.\n' >> "$r/crates/fraiseql-functions/src/spine.rs"
+assert_gate "rule 6: at-least-once dispatch claimed on one line is red" 1 "rule 6" "$r"
+
+r="$WORK/ingest_wrapped"; clean_root "$r"
+printf '/// then dispatch `after:ingest`\n/// for the new messages (durable, at-least-once).\n' \
+    >> "$r/crates/fraiseql-functions/src/spine.rs"
+assert_gate "rule 6: a claim wrapped onto the next line is red" 1 "rule 6" "$r"
+
+r="$WORK/ingest_md"; clean_root "$r"
+printf 'Its `after:ingest` dispatch is at-least-once.\n' >> "$r/docs/guide.md"
+assert_gate "rule 6: the claim in markdown is red" 1 "rule 6" "$r"
+
+r="$WORK/ingest_ok"; clean_root "$r"
+printf '/// Re-polling the window into the spine makes ingestion at-least-once.\n' \
+    >> "$r/crates/fraiseql-functions/src/spine.rs"
+printf '/// A provider retries, so delivery is at-least-once and `after:ingest` handlers\n' \
+    >> "$r/crates/fraiseql-functions/src/spine.rs"
+printf '/// `after:ingest` dispatch is not at-least-once until #1175 replays it.\n' \
+    >> "$r/crates/fraiseql-functions/src/spine.rs"
+printf 'let s = "after:ingest dispatch is at-least-once";\n' \
+    >> "$r/crates/fraiseql-functions/src/spine.rs"
+assert_gate "rule 6: ingestion, provider delivery, #1175 and code are not the claim" 0 "doc claims: ok" "$r"
+
+r="$WORK/ingest_none"; clean_root "$r"; rm "$r/crates/fraiseql-functions/src/spine.rs"
+assert_gate "rule 6: no after:ingest doc to check is red" 1 "rule 6: no document" "$r"
 
 r="$WORK/no_md"; mkdir -p "$r"
 assert_gate "empty tree is red on every rule, not green" 1 "rule 1: no markdown" "$r"

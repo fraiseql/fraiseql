@@ -41,7 +41,7 @@ fn emitted_new_reports_is_new_and_carries_id() {
 }
 
 /// The core guarantee: a message is durable and deduplicated by its
-/// idempotency key, so `after:ingest` dispatch is at-least-once.
+/// idempotency key. (Its `after:ingest` dispatch is a separate matter: #1175.)
 #[tokio::test]
 async fn emit_persists_once_and_deduplicates_by_idempotency_key() {
     let Some((pool, _svc)) = connect_pool().await else {

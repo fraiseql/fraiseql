@@ -22,6 +22,13 @@
 #   4. roadmap.md carries no version status line; versions are CHANGELOG.md's job.
 #   5. README.md's "parity suite: N authoring SDKs" equals the number of SDK directories
 #      sdks/official/tests/run_parity.sh names.
+#   6. Nothing says `after:ingest` dispatch is at-least-once (#1175): it is dispatched once,
+#      after the spine row commits, and a process that dies in between loses it. Positional:
+#      "at-least-once" counts only on a doc line (a `.rs` comment, or markdown) whose sentence
+#      (the line, joined to the line above when that one runs on into it) names both
+#      `after:ingest` and its dispatch, so at-least-once
+#      *ingestion* (a pull source re-polling into the deduplicating spine), a provider's
+#      at-least-once delivery, and outbound delivery stay legitimate.
 #
 # A rule with nothing to check is a failure, not a pass: no markdown, no architecture.md, no
 # names in it, no observers crate, no roadmap, no README sentence.
@@ -121,8 +128,32 @@ else
   fi
 fi
 
+# --- Rule 6: after:ingest dispatch is not claimed at-least-once (#1175) ----------------------
+ingest_docs=$( { grep -rln --include='*.rs' 'after:ingest' crates 2>/dev/null;
+                 find . \( -path '*/target' -o -path './.git' -o -path './.phases' -o -path './.claude' \
+                        -o -path './docs/adr' \) -prune -o -name '*.md' -print 2>/dev/null \
+                   | grep -v '^\./CHANGELOG\.md$' | xargs -d '\n' grep -l 'after:ingest' 2>/dev/null; } \
+               | sed 's#^\./##' | sort -u || true)
+if [ -z "$ingest_docs" ]; then
+  fail "rule 6: no document names after:ingest to check"
+else
+  claims=$(printf '%s\n' "$ingest_docs" | while IFS= read -r f; do
+    awk -v f="$f" '
+      { doc = (f !~ /\.rs$/) || ($0 ~ /^[[:space:]]*\/\//) }
+      # The sentence this line ends: the line above too, unless that line ended its own.
+      { window = (prev != "" && prev !~ /[.:;][[:space:]]*$/) ? prev " " $0 : $0 }
+      doc && /at-least-once/ && window !~ /#1175/ && window ~ /after:ingest/ \
+          && window ~ /dispatch/ { print f ":" NR ": " $0 }
+      { prev = doc ? $0 : "" }' "$f"
+  done)
+  if [ -n "$claims" ]; then
+    fail "rule 6: after:ingest dispatch claimed at-least-once; it is dispatched once after commit and a crash in between loses it (#1175):"
+    printf '%s\n' "$claims" | report
+  fi
+fi
+
 if [ "$failures" -gt 0 ]; then
   echo "doc claims: $failures rule failure(s)" >&2
   exit 1
 fi
-echo "doc claims: ok — backends, architecture names, observer actions, roadmap status and the parity count all match the tree"
+echo "doc claims: ok — backends, architecture names, observer actions, roadmap status, the parity count and the after:ingest guarantee all match the tree"
