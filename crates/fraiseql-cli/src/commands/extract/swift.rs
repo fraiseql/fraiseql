@@ -163,6 +163,7 @@ pub(super) fn extract_swift_query_args(
             default: None,
             description: None,
             deprecated: None,
+            localized: false,
         });
     }
     args

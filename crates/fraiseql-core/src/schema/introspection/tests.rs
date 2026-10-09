@@ -71,6 +71,7 @@ fn test_schema() -> crate::schema::CompiledSchema {
             default_value: None,
             description:   Some("User ID".to_string()),
             deprecation:   None,
+            localized:     false,
         }],
         sql_source:          Some("v_user".to_string()),
         description:         Some("Get user by ID".to_string()),
@@ -384,6 +385,7 @@ fn test_input_object_introspection() {
                 default_value:    None,
                 deprecation:      None,
                 validation_rules: Vec::new(),
+                localized:        false,
             },
             InputFieldDefinition {
                 name:             "email".to_string(),
@@ -393,6 +395,7 @@ fn test_input_object_introspection() {
                 default_value:    None,
                 deprecation:      None,
                 validation_rules: Vec::new(),
+                localized:        false,
             },
             InputFieldDefinition {
                 name:             "limit".to_string(),
@@ -402,6 +405,7 @@ fn test_input_object_introspection() {
                 default_value:    Some("10".to_string()),
                 deprecation:      None,
                 validation_rules: Vec::new(),
+                localized:        false,
             },
         ],
         metadata:    None,
@@ -845,6 +849,7 @@ fn test_deprecated_query_introspection() {
                 default_value: None,
                 description:   Some("Number of results to return".to_string()),
                 deprecation:   None,
+                localized:     false,
             },
             ArgumentDefinition {
                 name:          "limit".to_string(),
@@ -855,6 +860,7 @@ fn test_deprecated_query_introspection() {
                 deprecation:   Some(DeprecationInfo {
                     reason: Some("Use 'first' instead".to_string()),
                 }),
+                localized:     false,
             },
         ],
         sql_source:          Some("v_user".to_string()),
@@ -933,6 +939,7 @@ fn test_deprecated_input_field_introspection() {
                 description:      Some("User name".to_string()),
                 deprecation:      None,
                 validation_rules: Vec::new(),
+                localized:        false,
             },
             InputFieldDefinition {
                 name:             "oldEmail".to_string(),
@@ -944,6 +951,7 @@ fn test_deprecated_input_field_introspection() {
                     reason: Some("Use 'email' instead".to_string()),
                 }),
                 validation_rules: Vec::new(),
+                localized:        false,
             },
         ],
         metadata:    None,

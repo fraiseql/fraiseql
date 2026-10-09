@@ -117,6 +117,7 @@ pub(super) fn extract_csharp_query_args(annotation_body: &str) -> Vec<Intermedia
             default:     None,
             description: None,
             deprecated:  None,
+            localized:   false,
         });
     }
     args

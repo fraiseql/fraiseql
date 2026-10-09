@@ -443,6 +443,7 @@ impl SchemaConverter {
             default_value,
             description: intermediate.description,
             deprecation,
+            localized: intermediate.localized,
         })
     }
 

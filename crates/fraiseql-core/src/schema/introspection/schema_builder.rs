@@ -54,6 +54,10 @@ impl IntrospectionBuilder {
         for input_def in &schema.input_types {
             types.push(build_input_object_type(input_def, schema));
         }
+        // The input types of localized arguments and input fields (#1513).
+        if schema.has_localized_inputs() {
+            types.extend(super::field_resolver::build_localized_input_types());
+        }
 
         // Add interface types
         for interface_def in &schema.interfaces {

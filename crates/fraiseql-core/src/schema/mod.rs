@@ -100,8 +100,8 @@ pub use introspection::{
     published_scalar_names,
 };
 pub use locale::{
-    LOCALE_SESSION_VAR, LOCALIZED_STRING_TYPE, LocaleConfig, LocaleInputs, LocaleSource,
-    TRANSLATIONS_SUFFIX,
+    LOCALE_SESSION_VAR, LOCALIZED_INPUT_TYPE, LOCALIZED_STRING_INPUT_TYPE, LOCALIZED_STRING_TYPE,
+    LocaleConfig, LocaleInputs, LocaleSource, TRANSLATIONS_SUFFIX,
 };
 pub use observer_types::{ObserverDefinition, RetryConfig};
 pub use scalar_types::{RICH_SCALARS, is_known_scalar};

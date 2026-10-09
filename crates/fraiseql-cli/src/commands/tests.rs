@@ -206,6 +206,7 @@ mod compile_tests {
             default_value: None,
             description:   None,
             deprecation:   None,
+            localized:     false,
         }];
         schema.mutations.push(m);
         schema

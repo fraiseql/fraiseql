@@ -618,6 +618,13 @@ pub struct InputFieldDefinition {
     /// Validation rules applied to this field (from @validate directives).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub validation_rules: Vec<ValidationRule>,
+
+    /// A localized value (#1513), as for [`ArgumentDefinition::localized`]: coerced to a
+    /// locale map before the SQL function runs. The field's type stays `String`.
+    ///
+    /// [`ArgumentDefinition::localized`]: super::ArgumentDefinition::localized
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub localized: bool,
 }
 
 impl InputFieldDefinition {
@@ -632,6 +639,7 @@ impl InputFieldDefinition {
             default_value:    None,
             deprecation:      None,
             validation_rules: Vec::new(),
+            localized:        false,
         }
     }
 

@@ -248,7 +248,12 @@ pub(super) fn build_input_object_type(
             // The field's own trailing `!` is dropped rather than read: `nullable`
             // is what carries requiredness (#414), and a filter operator field can
             // legitimately be optional while its type string is non-null.
-            let named = input_type_ref(f.field_type.trim_end_matches('!'), schema);
+            // #1513: a localized input field takes `LocalizedInput`.
+            let named = if f.localized {
+                type_ref_with_kind(crate::schema::LOCALIZED_INPUT_TYPE, TypeKind::InputObject)
+            } else {
+                input_type_ref(f.field_type.trim_end_matches('!'), schema)
+            };
             let input_type = if f.nullable {
                 named
             } else {

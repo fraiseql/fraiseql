@@ -32,6 +32,13 @@ pub struct ArgumentDefinition {
     /// clients are encouraged to migrate to alternatives.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deprecation: Option<DeprecationInfo>,
+
+    /// A localized value (#1513): a mutation receives it as a locale map. The client writes a
+    /// single label for the request locale, a list of translations, or (REST) the map itself;
+    /// each is validated against `[locale]` and coerced to the map before the SQL function
+    /// runs. The argument's type stays `String`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub localized: bool,
 }
 
 impl ArgumentDefinition {
@@ -45,6 +52,7 @@ impl ArgumentDefinition {
             default_value: None,
             description: None,
             deprecation: None,
+            localized: false,
         }
     }
 
@@ -58,6 +66,7 @@ impl ArgumentDefinition {
             default_value: None,
             description: None,
             deprecation: None,
+            localized: false,
         }
     }
 

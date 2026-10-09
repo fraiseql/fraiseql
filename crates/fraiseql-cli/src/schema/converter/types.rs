@@ -306,6 +306,7 @@ impl SchemaConverter {
                     description: field.description,
                     default:     None,
                     deprecated:  None,
+                    localized:   field.localized,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -357,6 +358,7 @@ impl SchemaConverter {
             default_value,
             deprecation,
             validation_rules: Vec::new(),
+            localized: intermediate.localized,
         }
     }
 

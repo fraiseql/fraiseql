@@ -109,6 +109,7 @@ fn a_request_query_payload_is_a_discriminated_union_of_its_fields() {
         default_value: None,
         description: None,
         deprecation: None,
+        localized: false,
     };
 
     let specs = vec![FunctionTypeSpec {

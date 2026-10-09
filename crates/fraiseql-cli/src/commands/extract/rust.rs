@@ -159,6 +159,7 @@ pub(super) fn extract_rust_query_args(source: &str, fn_start: usize) -> Vec<Inte
             default: None,
             description: None,
             deprecated: None,
+            localized: false,
         });
     }
     args

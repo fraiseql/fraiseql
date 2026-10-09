@@ -551,6 +551,7 @@ mod schema_validator_tests {
             default:     None,
             description: None,
             deprecated:  None,
+            localized:   false,
         }
     }
 

@@ -125,6 +125,7 @@ fn function_backed_query() -> QueryDefinition {
             default_value: None,
             description:   None,
             deprecation:   None,
+            localized:     false,
         }],
         sql_source:          None,
         description:         None,

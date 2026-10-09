@@ -483,11 +483,25 @@ impl CompiledSchema {
             for input in &self.input_types {
                 let _ = writeln!(sdl, "input {} {{", input.name);
                 for field in &input.fields {
-                    let base = field.field_type.trim_end_matches('!');
+                    let base = if field.localized {
+                        crate::schema::LOCALIZED_INPUT_TYPE
+                    } else {
+                        field.field_type.trim_end_matches('!')
+                    };
                     let non_null = if field.nullable { "" } else { "!" };
                     let _ = writeln!(sdl, "  {}: {base}{non_null}", field.name);
                 }
                 sdl.push_str("}\n\n");
+            }
+            if self.has_localized_inputs() {
+                let _ = writeln!(
+                    sdl,
+                    "input {} {{\n  value: String\n  translations: [{}!]\n}}\n\ninput {} {{\n  \
+                     locale: String!\n  value: String\n}}\n",
+                    crate::schema::LOCALIZED_INPUT_TYPE,
+                    crate::schema::LOCALIZED_STRING_INPUT_TYPE,
+                    crate::schema::LOCALIZED_STRING_INPUT_TYPE
+                );
             }
 
             // Union types (covers synthesized mutation result unions)
@@ -683,7 +697,15 @@ fn render_operation_field(
     }
     let args = arguments
         .iter()
-        .map(|a| format!("{}: {}{}", a.name, a.arg_type, if a.nullable { "" } else { "!" }))
+        .map(|a| {
+            // #1513: a localized argument takes `LocalizedInput`.
+            let arg_type = if a.localized {
+                crate::schema::LOCALIZED_INPUT_TYPE.to_string()
+            } else {
+                a.arg_type.to_string()
+            };
+            format!("{}: {arg_type}{}", a.name, if a.nullable { "" } else { "!" })
+        })
         .collect::<Vec<_>>()
         .join(", ");
     format!("{name}({args}): {ret}")

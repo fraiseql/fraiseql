@@ -160,6 +160,7 @@ pub(super) fn extract_go_query_args(body: &str) -> Vec<IntermediateArgument> {
             default:     None,
             description: None,
             deprecated:  None,
+            localized:   false,
         });
     }
     args

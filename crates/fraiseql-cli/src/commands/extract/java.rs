@@ -150,6 +150,7 @@ pub(super) fn extract_java_query_args(annotation_body: &str) -> Vec<Intermediate
             default:     None,
             description: None,
             deprecated:  None,
+            localized:   false,
         });
     }
     args

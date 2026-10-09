@@ -748,6 +748,7 @@ fn test_convert_query_with_arguments() {
                 default:     Some(serde_json::json!(10)),
                 description: None,
                 deprecated:  None,
+                localized:   false,
             }],
             description:             Some("Get users".to_string()),
             sql_source:              Some("v_user".to_string()),
@@ -1212,6 +1213,7 @@ fn test_convert_input_object() {
                     description: None,
                     default:     None,
                     deprecated:  None,
+                    localized:   false,
                 },
                 IntermediateInputField {
                     name:        "active".to_string(),
@@ -1220,6 +1222,7 @@ fn test_convert_input_object() {
                     description: Some("Filter by active status".to_string()),
                     default:     Some(serde_json::json!(true)),
                     deprecated:  None,
+                    localized:   false,
                 },
                 IntermediateInputField {
                     name:        "oldField".to_string(),
@@ -1230,6 +1233,7 @@ fn test_convert_input_object() {
                     deprecated:  Some(IntermediateDeprecation {
                         reason: Some("Use newField instead".to_string()),
                     }),
+                    localized:   false,
                 },
             ],
             description: Some("User filter input".to_string()),
@@ -2061,6 +2065,7 @@ fn promote_input_type_args_rewrites_object_to_input() {
         default_value: None,
         description: None,
         deprecation: None,
+        localized: false,
     };
 
     let mut schema = CompiledSchema {

@@ -3242,6 +3242,7 @@ mod enum_membership {
             default_value: None,
             description:   None,
             deprecation:   None,
+            localized:     false,
         }
     }
 

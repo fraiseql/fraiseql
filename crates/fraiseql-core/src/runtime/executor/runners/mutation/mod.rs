@@ -1395,6 +1395,16 @@ pub(in super::super) async fn execute_mutation_impl(
     // not the `{"$var": …}` reference marker (#903).
     let authz_variables = crate::runtime::matcher::QueryMatcher::extract_arguments(variables);
 
+    // #1513: a localized value is coerced to the locale map its function receives, and
+    // refused if it is not one, before any statement. Every transport's arguments meet here.
+    let localized = crate::runtime::coerce_localized_arguments(
+        &ctx.schema,
+        &format!("Mutation.{}", ctx.schema.display_name(mutation_name)),
+        &mutation_def.arguments,
+        variables,
+    )?;
+    let variables = localized.as_ref().or(variables);
+
     let vars_obj = variables.and_then(|v| v.as_object());
 
     // #1362: an enum written at an argument — or at a field of the input object

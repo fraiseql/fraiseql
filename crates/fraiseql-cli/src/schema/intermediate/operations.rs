@@ -282,6 +282,11 @@ pub struct IntermediateArgument {
     /// Deprecation info (from @deprecated directive)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub deprecated: Option<IntermediateDeprecation>,
+
+    /// A localized `String` (#1513): written as a label, translations or a locale map, and
+    /// received by the SQL function as the map.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub localized: bool,
 }
 
 impl From<&crate::config::toml_schema::ArgumentDefinition> for IntermediateArgument {
@@ -307,6 +312,7 @@ impl From<&crate::config::toml_schema::ArgumentDefinition> for IntermediateArgum
             default:     arg.default.clone(),
             description: arg.description.clone(),
             deprecated:  None,
+            localized:   false,
         }
     }
 }

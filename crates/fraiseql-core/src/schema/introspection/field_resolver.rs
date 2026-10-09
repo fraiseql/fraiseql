@@ -4,7 +4,10 @@
 //! schema into their `__Field`, `__InputValue`, and related introspection types.
 
 use super::{
-    super::{FieldDefinition, FieldType, LOCALIZED_STRING_TYPE, TRANSLATIONS_SUFFIX},
+    super::{
+        FieldDefinition, FieldType, LOCALIZED_INPUT_TYPE, LOCALIZED_STRING_INPUT_TYPE,
+        LOCALIZED_STRING_TYPE, TRANSLATIONS_SUFFIX,
+    },
     types::{
         IntrospectionField, IntrospectionInputValue, IntrospectionType,
         IntrospectionValidationRule, TypeKind,
@@ -86,6 +89,68 @@ pub(super) fn build_localized_string_type() -> IntrospectionType {
         of_type:            None,
         specified_by_u_r_l: None,
     }
+}
+
+/// `LocalizedInput` and `LocalizedStringInput`, the input types of localized arguments and
+/// input fields (#1513).
+pub(super) fn build_localized_input_types() -> [IntrospectionType; 2] {
+    let value =
+        |name: &str, description: &str, input_type: IntrospectionType| IntrospectionInputValue {
+            name: name.to_string(),
+            description: Some(description.to_string()),
+            input_type,
+            default_value: None,
+            is_deprecated: false,
+            deprecation_reason: None,
+            validation_rules: vec![],
+        };
+    let input_object =
+        |name: &str, description: &str, fields: Vec<IntrospectionInputValue>| IntrospectionType {
+            kind:               TypeKind::InputObject,
+            name:               Some(name.to_string()),
+            description:        Some(description.to_string()),
+            fields:             None,
+            interfaces:         None,
+            possible_types:     None,
+            enum_values:        None,
+            input_fields:       Some(fields),
+            of_type:            None,
+            specified_by_u_r_l: None,
+        };
+    let list_of_translations = IntrospectionType {
+        kind:               TypeKind::List,
+        name:               None,
+        description:        None,
+        fields:             None,
+        interfaces:         None,
+        possible_types:     None,
+        enum_values:        None,
+        input_fields:       None,
+        of_type:            Some(Box::new(non_null(type_ref_with_kind(
+            LOCALIZED_STRING_INPUT_TYPE,
+            TypeKind::InputObject,
+        )))),
+        specified_by_u_r_l: None,
+    };
+    [
+        input_object(
+            LOCALIZED_INPUT_TYPE,
+            "A localized value: exactly one of `value` (the request locale's label) and \
+             `translations`.",
+            vec![
+                value("value", "The request locale's label.", type_ref("String")),
+                value("translations", "Labels by locale.", list_of_translations),
+            ],
+        ),
+        input_object(
+            LOCALIZED_STRING_INPUT_TYPE,
+            "One locale's label; a null value removes it.",
+            vec![
+                value("locale", "An allowed locale.", non_null(type_ref("String"))),
+                value("value", "The label, or null to remove it.", type_ref("String")),
+            ],
+        ),
+    ]
 }
 
 /// `inner`, wrapped in `NON_NULL`.
@@ -429,10 +494,17 @@ pub(super) fn build_validation_rule(
 pub(super) fn build_arg_input_value(
     arg: &super::super::ArgumentDefinition,
 ) -> IntrospectionInputValue {
+    // #1513: a localized argument takes `LocalizedInput`.
+    let localized = FieldType::Input(LOCALIZED_INPUT_TYPE.to_string());
+    let arg_type = if arg.localized {
+        &localized
+    } else {
+        &arg.arg_type
+    };
     IntrospectionInputValue {
         name:               arg.name.clone(),
         description:        arg.description.clone(),
-        input_type:         field_type_to_introspection(&arg.arg_type, arg.nullable),
+        input_type:         field_type_to_introspection(arg_type, arg.nullable),
         default_value:      arg.default_value.as_ref().map(|v| v.to_string()),
         is_deprecated:      arg.is_deprecated(),
         deprecation_reason: arg.deprecation_reason().map(ToString::to_string),

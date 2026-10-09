@@ -180,6 +180,7 @@ pub(super) fn extract_ts_query_args(body: &str) -> Vec<IntermediateArgument> {
             default:     None,
             description: None,
             deprecated:  None,
+            localized:   false,
         });
     }
     args

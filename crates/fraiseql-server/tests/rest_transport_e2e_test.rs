@@ -70,6 +70,7 @@ fn arg(name: &str, ty: FieldType) -> ArgumentDefinition {
         default_value: None,
         description:   None,
         deprecation:   None,
+        localized:     false,
     }
 }
 

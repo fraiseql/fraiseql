@@ -1366,6 +1366,7 @@ mod mutation {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("update_user", "User")
         });
@@ -1410,6 +1411,7 @@ mod mutation {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("update_user", "User")
         });
@@ -1445,6 +1447,7 @@ mod mutation {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("create_user", "User")
         });
@@ -1619,6 +1622,7 @@ mod mutation {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("update_resource", "Resource")
         });
@@ -1804,6 +1808,7 @@ mod mutation {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("create_server", "Server")
         });
@@ -1890,6 +1895,7 @@ mod mutation {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("save_user", "User")
         });
@@ -2054,6 +2060,7 @@ mod mutation {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("create_order", "Order")
         });
@@ -2128,6 +2135,7 @@ mod mutation {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("createOrder", "Order")
         });
@@ -2195,6 +2203,7 @@ mod mutation {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("createOrder", "Order")
         });
@@ -2259,6 +2268,7 @@ mod mutation {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("createOrder", "Order")
         });
@@ -2345,6 +2355,7 @@ mod mutation {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("createOrder", "Order")
         });
@@ -2520,6 +2531,7 @@ mod mutation {
                 default_value: None,
                 description: None,
                 deprecation: None,
+                localized: false,
             }],
             ..MutationDefinition::new("m", "Res")
         });
@@ -2723,6 +2735,7 @@ mod mutation {
                     default_value: None,
                     description:   None,
                     deprecation:   None,
+                    localized:     false,
                 },
                 crate::schema::ArgumentDefinition {
                     name:          "metadata".to_string(),
@@ -2731,6 +2744,7 @@ mod mutation {
                     default_value: None,
                     description:   None,
                     deprecation:   None,
+                    localized:     false,
                 },
             ],
             ..MutationDefinition::new("m", "Res")
@@ -2792,6 +2806,7 @@ mod mutation {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("create_price", "Price")
         });
@@ -2951,6 +2966,7 @@ mod mutation {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("create_user", "User")
         });
@@ -5845,6 +5861,7 @@ mod before_mutation_enforcement {
                     default_value: None,
                     description:   None,
                     deprecation:   None,
+                    localized:     false,
                 }],
                 ..MutationDefinition::new(name, "User")
             });
@@ -5870,6 +5887,7 @@ mod before_mutation_enforcement {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("guarded", "User")
         });
@@ -6448,6 +6466,7 @@ mod before_mutation_read_bridge {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("guarded", "User")
         });
@@ -6886,6 +6905,7 @@ mod rest_write_body {
             default_value: None,
             description:   None,
             deprecation:   None,
+            localized:     false,
         };
 
         s.mutations.push(MutationDefinition {
@@ -6910,6 +6930,7 @@ mod rest_write_body {
                     default_value: None,
                     description:   None,
                     deprecation:   None,
+                    localized:     false,
                 },
                 input_arg(),
             ],
@@ -6930,6 +6951,7 @@ mod rest_write_body {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("renameUser", "User")
         });
@@ -6948,6 +6970,7 @@ mod rest_write_body {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("envelopeWrite", "MutationResponse")
         });
@@ -7392,6 +7415,7 @@ mod enum_membership {
                 default_value: None,
                 description:   None,
                 deprecation:   None,
+                localized:     false,
             }],
             ..MutationDefinition::new("createOrder", "Order")
         });

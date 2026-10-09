@@ -58,6 +58,7 @@ fn required_arg(name: &str, ty: FieldType) -> ArgumentDefinition {
         default_value: None,
         description:   None,
         deprecation:   None,
+        localized:     false,
     }
 }
 

@@ -30,6 +30,14 @@ pub const TRANSLATIONS_SUFFIX: &str = "Translations";
 /// The type of a translations sibling's elements: `LocalizedString { locale value }`.
 pub const LOCALIZED_STRING_TYPE: &str = "LocalizedString";
 
+/// The input type a localized argument or input field takes: exactly one of
+/// `{value: String}` (the request locale's label) or `{translations: [LocalizedStringInput!]}`.
+pub const LOCALIZED_INPUT_TYPE: &str = "LocalizedInput";
+
+/// One translation in a [`LOCALIZED_INPUT_TYPE`]: `{locale: String!, value: String}`, a `null`
+/// value removing the locale's label.
+pub const LOCALIZED_STRING_INPUT_TYPE: &str = "LocalizedStringInput";
+
 /// The longest `Accept-Language` value considered. A longer header is ignored (the source
 /// falls through) rather than parsed: no browser sends one, and the parse stays bounded.
 pub const MAX_ACCEPT_LANGUAGE_BYTES: usize = 1024;

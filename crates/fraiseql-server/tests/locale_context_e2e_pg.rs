@@ -1108,3 +1108,184 @@ async fn rest_and_mcp_return_localized_labels() {
     let body: Value = serde_json::from_str(&text).unwrap();
     assert_eq!(names_by_id(&body["data"]["localizedProducts"]), expected, "MCP: {text}");
 }
+
+/// The schema the localized-write fixture lives in.
+const ITEM_SCHEMA: &str = "locale_items";
+const ITEM: &str = "00000000-0000-0000-0000-0000000000a1";
+
+/// `tb_item (id, name jsonb)` seeded with an English and a German label, and two functions
+/// that record the `name` they receive and merge it into the stored map.
+async fn provision_items(adapter: &PostgresAdapter) {
+    provision_writes(adapter).await;
+    let body = |verb: &str, write: &str| {
+        format!(
+            "RETURNS app.mutation_response LANGUAGE plpgsql AS $$ DECLARE v app.mutation_response; \
+             BEGIN INSERT INTO {ITEM_SCHEMA}.tb_audit VALUES ('{verb}', p_name); {write}; \
+             v.succeeded := true; v.state_changed := true; v.message := '{verb}'; \
+             v.entity_type := 'LocaleItem'; v.entity_id := p_id; v.entity := (SELECT data FROM \
+             {ITEM_SCHEMA}.v_item WHERE id = p_id); RETURN v; END $$"
+        )
+    };
+    for stmt in [
+        format!("DROP SCHEMA IF EXISTS {ITEM_SCHEMA} CASCADE"),
+        format!("CREATE SCHEMA {ITEM_SCHEMA}"),
+        format!("CREATE TABLE {ITEM_SCHEMA}.tb_audit (verb text, name jsonb)"),
+        format!("CREATE TABLE {ITEM_SCHEMA}.tb_item (id uuid PRIMARY KEY, name jsonb NOT NULL)"),
+        format!(
+            "CREATE VIEW {ITEM_SCHEMA}.v_item AS SELECT id, jsonb_build_object('id', id, 'name', \
+             name) AS data FROM {ITEM_SCHEMA}.tb_item"
+        ),
+        format!(
+            "CREATE FUNCTION {ITEM_SCHEMA}.fn_create_item(p_id uuid, p_name jsonb) {}",
+            body(
+                "create",
+                &format!(
+                    "INSERT INTO {ITEM_SCHEMA}.tb_item VALUES (p_id, jsonb_strip_nulls(p_name))"
+                )
+            )
+        ),
+        format!(
+            "CREATE FUNCTION {ITEM_SCHEMA}.fn_update_item(p_id uuid, p_name jsonb) {}",
+            body(
+                "update",
+                &format!(
+                    "UPDATE {ITEM_SCHEMA}.tb_item SET name = jsonb_strip_nulls(name || \
+                     coalesce(p_name, '{{}}')) WHERE id = p_id"
+                )
+            )
+        ),
+    ] {
+        adapter.execute_raw_query(&stmt).await.unwrap_or_else(|e| panic!("{stmt}: {e}"));
+    }
+}
+
+/// `LocaleItem { id, name (localized) }`, its queries, and `createLocaleItem` /
+/// `updateLocaleItem` taking `name` localized, served over REST.
+async fn schema_with_items() -> CompiledSchema {
+    use fraiseql_core::schema::{
+        ArgumentDefinition, FieldDefinition, FieldType, MutationDefinition, MutationOperation,
+        QueryDefinition, TypeDefinition,
+    };
+    let mut schema = compile(LOCALE_TOML).await.unwrap();
+    let view = format!("{ITEM_SCHEMA}.v_item");
+    let mut item = TypeDefinition::new("LocaleItem", view.clone());
+    let mut name = FieldDefinition::nullable("name", FieldType::String);
+    name.localized = true;
+    item.fields = vec![FieldDefinition::new("id", FieldType::Id), name];
+    schema.types.push(item);
+    schema.queries.push(
+        QueryDefinition::new("items", "LocaleItem")
+            .returning_list()
+            .with_sql_source(view.clone()),
+    );
+    let mut one = QueryDefinition::new("item", "LocaleItem").with_sql_source(view);
+    one.arguments = vec![ArgumentDefinition::new("id", FieldType::Id)];
+    schema.queries.push(one);
+    for (name, function, operation) in [
+        (
+            "createLocaleItem",
+            "fn_create_item",
+            MutationOperation::Insert {
+                table: "tb_item".to_string(),
+            },
+        ),
+        (
+            "updateLocaleItem",
+            "fn_update_item",
+            MutationOperation::Update {
+                table: "tb_item".to_string(),
+            },
+        ),
+    ] {
+        let mut mutation = MutationDefinition::new(name, "LocaleItem");
+        mutation.sql_source = Some(format!("{ITEM_SCHEMA}.{function}"));
+        mutation.operation = operation;
+        let mut label = ArgumentDefinition::optional("name", FieldType::String);
+        label.localized = true;
+        mutation.arguments = vec![ArgumentDefinition::new("id", FieldType::Id), label];
+        schema.mutations.push(mutation);
+    }
+    schema.rest_config = Some(RestConfig {
+        enabled: true,
+        ..RestConfig::default()
+    });
+    schema.build_indexes();
+    schema
+}
+
+/// #1513 Phase 06 Cycle 4: REST writes a localized field as a label for the request locale or
+/// as the map, refuses a locale outside `allowed`, and answers with the entity's label.
+#[tokio::test]
+async fn rest_writes_a_localized_field() {
+    let Some(url) = try_database_url() else {
+        return;
+    };
+    provision_items(&PostgresAdapter::new(&url).await.unwrap()).await;
+    let Some(server) = start(schema_with_items().await, Auth::None).await else {
+        return;
+    };
+    let client = reqwest::Client::new();
+    let send = |request: reqwest::RequestBuilder| async move {
+        let response = request.send().await.unwrap();
+        let status = response.status();
+        (status, response.json::<Value>().await.unwrap_or(Value::Null))
+    };
+
+    // POST: a label, for the request locale; the response reads it back in that locale.
+    let (status, body) = send(
+        client
+            .post(format!("{}/rest/v1/items", server.base))
+            .header("accept-language", "fr-FR")
+            .json(&json!({ "id": ITEM, "name": "Pomme" })),
+    )
+    .await;
+    assert!(status.is_success(), "POST: {status} {body}");
+    assert!(body.to_string().contains("\"Pomme\""), "POST answers the label: {body}");
+
+    // PATCH: the map itself.
+    let (status, body) = send(
+        client
+            .patch(format!("{}/rest/v1/items/{ITEM}", server.base))
+            .header("accept-language", "de-DE")
+            .json(&json!({ "name": { "de-DE": "Apfel", "en-US": "Apple" } })),
+    )
+    .await;
+    assert!(status.is_success(), "PATCH: {status} {body}");
+    assert!(body.to_string().contains("\"Apfel\""), "PATCH answers the de-DE label: {body}");
+
+    // A locale outside `allowed` is refused, and nothing is written.
+    let (status, body) = send(
+        client
+            .patch(format!("{}/rest/v1/items/{ITEM}", server.base))
+            .json(&json!({ "name": { "xx": "?" } })),
+    )
+    .await;
+    assert!(status.is_client_error(), "unknown locale: {status} {body}");
+    assert!(body.to_string().contains("xx"), "{body}");
+
+    let adapter = PostgresAdapter::new(&url).await.unwrap();
+    let audited = adapter
+        .execute_raw_query(&format!(
+            "SELECT jsonb_build_object('verb', verb, 'name', name) AS data FROM \
+             {ITEM_SCHEMA}.tb_audit ORDER BY verb"
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        audited.iter().map(|r| r["data"].clone()).collect::<Vec<_>>(),
+        vec![
+            json!({"verb": "create", "name": {"fr-FR": "Pomme"}}),
+            json!({"verb": "update", "name": {"de-DE": "Apfel", "en-US": "Apple"}}),
+        ]
+    );
+    let stored = adapter
+        .execute_raw_query(&format!(
+            "SELECT jsonb_build_object('name', name) AS data FROM {ITEM_SCHEMA}.tb_item"
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        stored[0]["data"]["name"],
+        json!({"fr-FR": "Pomme", "de-DE": "Apfel", "en-US": "Apple"})
+    );
+}

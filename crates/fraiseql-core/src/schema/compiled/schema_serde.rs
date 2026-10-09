@@ -243,6 +243,67 @@ impl CompiledSchema {
         violations
     }
 
+    /// A localized argument or input field (#1513) is a `String` written as a locale map,
+    /// coerced through `[locale]`: on another type, or without `[locale]`, there is nothing to
+    /// coerce it with. And the names its input types are published under are the schema's.
+    fn localized_input_violations(&self) -> Vec<String> {
+        let mut violations = Vec::new();
+        let mut check = |at: String, is_string: bool| {
+            if !is_string {
+                violations.push(format!(
+                    "`{at}` is localized but is not a String (a localized input is a String \
+                     written as a locale map)"
+                ));
+            } else if self.locale.is_none() {
+                violations.push(format!(
+                    "`{at}` is localized, but the schema declares no [locale]: add [locale] to \
+                     fraiseql.toml"
+                ));
+            }
+        };
+        let operations = self
+            .queries
+            .iter()
+            .map(|q| (q.name.as_str(), &q.arguments))
+            .chain(self.mutations.iter().map(|m| (m.name.as_str(), &m.arguments)))
+            .chain(self.subscriptions.iter().map(|s| (s.name.as_str(), &s.arguments)));
+        for (operation, arguments) in operations {
+            for argument in arguments.iter().filter(|a| a.localized) {
+                check(
+                    format!("{operation}({})", argument.name),
+                    matches!(argument.arg_type, crate::schema::FieldType::String),
+                );
+            }
+        }
+        for input in &self.input_types {
+            for field in input.fields.iter().filter(|f| f.localized) {
+                check(
+                    format!("{}.{}", input.name, field.name),
+                    field.field_type.trim_end_matches('!') == "String",
+                );
+            }
+        }
+        if self.has_localized_inputs() {
+            for name in [
+                crate::schema::LOCALIZED_INPUT_TYPE,
+                crate::schema::LOCALIZED_STRING_INPUT_TYPE,
+            ] {
+                let declared = self.types.iter().any(|t| t.name == name)
+                    || self.enums.iter().any(|e| e.name == name)
+                    || self.input_types.iter().any(|i| i.name == name)
+                    || self.interfaces.iter().any(|i| i.name == name)
+                    || self.unions.iter().any(|u| u.name == name);
+                if declared {
+                    violations.push(format!(
+                        "`{name}` is declared, but it is the input type of every localized \
+                         argument and input field: rename the type"
+                    ));
+                }
+            }
+        }
+        violations
+    }
+
     /// The uses of a localized field that would read its stored locale map where a label is
     /// meant (#1513), each refused until its follow-up issue gives it a meaning: an aggregate
     /// dimension or measure (#1524), a subscription filter (#1525), a federation `@key`
@@ -373,6 +434,7 @@ impl CompiledSchema {
             ));
         }
         localized.extend(self.localized_use_violations());
+        localized.extend(self.localized_input_violations());
         if !localized.is_empty() {
             return Err(FraiseQLError::Validation {
                 message: format!(

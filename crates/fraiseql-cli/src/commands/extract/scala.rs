@@ -157,6 +157,7 @@ pub(super) fn extract_scala_query_args(source: &str, fn_start: usize) -> Vec<Int
             default: None,
             description: None,
             deprecated: None,
+            localized: false,
         });
     }
     args

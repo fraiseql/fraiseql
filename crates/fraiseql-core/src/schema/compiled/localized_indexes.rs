@@ -25,6 +25,20 @@ pub struct LocalizedIndexAdvice {
 }
 
 impl CompiledSchema {
+    /// Whether any argument or input field is localized (#1513): the schema then publishes
+    /// `LocalizedInput` and `LocalizedStringInput`.
+    #[must_use]
+    pub fn has_localized_inputs(&self) -> bool {
+        let arguments = self
+            .queries
+            .iter()
+            .flat_map(|q| &q.arguments)
+            .chain(self.mutations.iter().flat_map(|m| &m.arguments))
+            .chain(self.subscriptions.iter().flat_map(|s| &s.arguments));
+        arguments.into_iter().any(|a| a.localized)
+            || self.input_types.iter().any(|i| i.fields.iter().any(|f| f.localized))
+    }
+
     /// Every index a filter or sort on a localized field reads: one per (type, field,
     /// allowed locale), in declaration order.
     #[must_use]

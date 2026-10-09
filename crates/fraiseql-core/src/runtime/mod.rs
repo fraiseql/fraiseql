@@ -60,6 +60,7 @@ pub mod field_filter;
 pub mod input_validator;
 pub mod jsonb_strategy;
 mod locale_argument;
+mod localized_input;
 mod matcher;
 pub mod mutation_result;
 pub(crate) mod native_columns;
@@ -128,6 +129,7 @@ pub use locale_argument::translations;
 pub(crate) use locale_argument::{
     LOCALE_ARGUMENT, resolve_locale_arguments, selection_chain, translations_read,
 };
+pub(crate) use localized_input::coerce_localized_arguments;
 pub use matcher::{QueryMatch, QueryMatcher, suggest_similar};
 pub use mutation_result::{MutationErrorShapeCheck, mutation_error_shape_violations};
 pub use planner::{ExecutionPlan, QueryPlanner};

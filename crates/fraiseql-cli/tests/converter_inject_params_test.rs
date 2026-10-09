@@ -236,6 +236,7 @@ fn parse_inject_source_arg_conflict_returns_error() {
                 default:     None,
                 description: None,
                 deprecated:  None,
+                localized:   false,
             }],
             inject,
             ..Default::default()

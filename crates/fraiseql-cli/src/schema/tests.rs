@@ -2075,6 +2075,7 @@ mod optimizer_tests {
                     default_value: None,
                     description:   None,
                     deprecation:   None,
+                    localized:     false,
                 }],
                 sql_source:          Some("users".to_string()),
                 description:         None,
