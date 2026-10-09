@@ -67,9 +67,8 @@ The header is not covered by `X-FraiseQL-Signature-256`, which signs the timesta
 body only. Verify the signature first, and rely on its timestamp tolerance to bound how long
 a captured request can be replayed.
 
-Other action types (`email`, `slack`, `sms`, `push`) deliver to a person or a provider and
-do not carry the id. `search` and `cache` actions are idempotent by construction: they
-re-index or invalidate the same entity.
+Other action types (`email`, `slack`) deliver to a person or a provider and do not carry the
+id. A `cache` action is idempotent by construction: it invalidates the same entity.
 
 ---
 

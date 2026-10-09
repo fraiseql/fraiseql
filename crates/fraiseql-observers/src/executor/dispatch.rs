@@ -304,17 +304,6 @@ impl ActionDispatcher for DefaultActionDispatcher {
                     level,
                     message_template,
                 } => Ok(dispatch_log(level, message_template, event)),
-                // SMS / Push / Search have no real transport wired. They
-                // previously delegated to stub actions that fabricated
-                // `success: true` and sent nothing (H24). They now fail loud here
-                // too (belt-and-suspenders with `ActionConfig::validate`, which
-                // rejects them at config-load). Real transports are tracked as
-                // follow-up work.
-                ActionConfig::Sms { .. }
-                | ActionConfig::Push { .. }
-                | ActionConfig::Search { .. } => Err(ObserverError::UnsupportedActionType {
-                    action_type: action.action_type().to_string(),
-                }),
             }
         })
     }

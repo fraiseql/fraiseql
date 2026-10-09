@@ -6,7 +6,7 @@ A comprehensive, event-driven observer system for FraiseQL that enables post-mut
 
 - **Event-Driven Architecture**: React to database mutations (INSERT, UPDATE, DELETE) in real-time
 - **Actions**: webhook, Slack, email, cache invalidation, database function and log
-  - SMS, push and search are rejected at config load as unsupported (H24); their transports are #428
+  - SMS, push and search are not action types: they had no transport (H24) and were removed (#428)
 - **Condition Evaluation**: DSL for conditional action execution
   - Field comparisons: `status = 'shipped'`, `total > 100`
   - Change detection: `CHANGED(status)`, `CHANGED_TO(status, 'active')`
@@ -163,8 +163,8 @@ println!("Executed {} actions, {} succeeded, {} failed",
 }
 ```
 
-SMS, push and search action types are rejected at config load as unsupported (H24); their
-real transports are tracked in #428, so there is no working example to show for them.
+SMS, push and search are not action types: they had no transport (H24), and a config naming
+one is rejected when it is parsed (#428).
 
 #### Cache
 
@@ -410,7 +410,6 @@ impl DeadLetterQueue for CustomDLQ {
 
 ## Future Enhancements
 
-- [ ] SMS, push and search transports (#428; those action types are rejected until then)
 - [ ] Cache backends (Redis, Memcached)
 - [ ] Scheduled actions
 - [ ] Action dependencies

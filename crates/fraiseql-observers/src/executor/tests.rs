@@ -883,63 +883,7 @@ async fn test_dispatch_email_missing_subject_returns_invalid_config() {
     );
 }
 
-// H24: SMS / Push / Search have no real transport. They previously fabricated
-// `success: true` at dispatch and sent nothing; dispatch now fails loud with
-// `UnsupportedActionType` even for well-formed configs. Cache gained a real
-// Redis transport (#428) but still fails loud when no backend is wired.
-
-#[tokio::test]
-async fn test_dispatch_sms_returns_unsupported() {
-    let executor = create_test_executor();
-    let action = ActionConfig::Sms {
-        phone:            Some("+15551234567".to_string()),
-        phone_template:   None,
-        message_template: Some("Hi".to_string()),
-    };
-    let event = test_event();
-
-    let result = executor.execute_action_internal(&action, &event).await;
-
-    assert!(
-        matches!(result, Err(ObserverError::UnsupportedActionType { .. })),
-        "SMS dispatch must fail loud as unsupported, never fabricate success: {result:?}"
-    );
-}
-
-#[tokio::test]
-async fn test_dispatch_push_returns_unsupported() {
-    let executor = create_test_executor();
-    let action = ActionConfig::Push {
-        device_token:   Some("token".to_string()),
-        title_template: Some("title".to_string()),
-        body_template:  Some("body".to_string()),
-    };
-    let event = test_event();
-
-    let result = executor.execute_action_internal(&action, &event).await;
-
-    assert!(
-        matches!(result, Err(ObserverError::UnsupportedActionType { .. })),
-        "Push dispatch must fail loud as unsupported: {result:?}"
-    );
-}
-
-#[tokio::test]
-async fn test_dispatch_search_returns_unsupported() {
-    let executor = create_test_executor();
-    let action = ActionConfig::Search {
-        index:       "users".to_string(),
-        id_template: None,
-    };
-    let event = test_event();
-
-    let result = executor.execute_action_internal(&action, &event).await;
-
-    assert!(
-        matches!(result, Err(ObserverError::UnsupportedActionType { .. })),
-        "Search dispatch must fail loud as unsupported: {result:?}"
-    );
-}
+// Cache has a real Redis transport (#428) but fails loud when no backend is wired.
 
 #[tokio::test]
 async fn test_dispatch_cache_without_backend_fails_loud() {

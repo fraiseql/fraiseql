@@ -59,7 +59,7 @@ pub struct EventHandler {
     pub name:           String,
     /// Event type to handle
     pub event:          String,
-    /// Action to perform (slack, email, sms, webhook, push, etc.)
+    /// Action to perform: an observer action type, such as `webhook`, `slack` or `email`
     pub action:         String,
     /// Webhook URL for webhook actions
     pub webhook_url:    Option<String>,

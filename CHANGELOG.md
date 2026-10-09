@@ -180,6 +180,12 @@ disagreed, and the promise was the part that was wrong.
   gain `localized: bool`, and `WhereClause` gains `Localized { chain, collation, inner }`: struct
   literals add `localized: false`, and exhaustive matches add the arm (the leaf is in `inner`).
 
+- **Observer actions of type `sms`, `push` and `search` are refused when a config is parsed
+  (#428).** They had no transport (H24): the variants were kept so such a config still
+  deserialized, and `validate()` then rejected it. They are gone; the parse error names the
+  type and the action types that exist (`webhook`, `slack`, `email`, `cache`, `database`,
+  `log`). Embedders: `fraiseql_observers::config::ActionConfig` loses `Sms`, `Push` and
+  `Search`.
 - **`{Entity}OrderByInput.field` is an enum, not `String!` (#1159),** and sort keys are held to
   it on every transport. A key that is a relation, a list, a `JSON` document or a vector is
   refused (it sorted by serialized text); a native column is accepted under its key only (a

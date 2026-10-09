@@ -374,34 +374,6 @@ pub enum ActionConfig {
         reply_to:         Option<String>,
     },
 
-    /// SMS action. Rejected at config load as unsupported (H24); see #428.
-    Sms {
-        /// Phone number to send to
-        phone:            Option<String>,
-        /// Template for phone number
-        phone_template:   Option<String>,
-        /// Message template
-        message_template: Option<String>,
-    },
-
-    /// Push notification action. Rejected at config load as unsupported (H24); see #428.
-    Push {
-        /// Device token
-        device_token:   Option<String>,
-        /// Title template
-        title_template: Option<String>,
-        /// Body template
-        body_template:  Option<String>,
-    },
-
-    /// Search index action. Rejected at config load as unsupported (H24); see #428.
-    Search {
-        /// Index name
-        index:       String,
-        /// Document ID template
-        id_template: Option<String>,
-    },
-
     /// Cache invalidation action, dispatched through the cache transport (#632).
     Cache {
         /// Cache key pattern
@@ -450,9 +422,6 @@ impl ActionConfig {
             Self::Webhook { .. } => "webhook",
             Self::Slack { .. } => "slack",
             Self::Email { .. } => "email",
-            Self::Sms { .. } => "sms",
-            Self::Push { .. } => "push",
-            Self::Search { .. } => "search",
             Self::Cache { .. } => "cache",
             Self::Database { .. } => "database",
             Self::Log { .. } => "log",
@@ -607,16 +576,6 @@ impl ActionConfig {
                     });
                 }
                 Ok(())
-            },
-            // Not implemented: no real transport is wired for these action types.
-            // They previously fabricated `success: true` at dispatch and sent
-            // nothing (H24). Reject them at config-load time so a misconfigured
-            // observer refuses to start rather than silently no-op. Real
-            // transports are tracked as follow-up work.
-            Self::Sms { .. } | Self::Push { .. } | Self::Search { .. } => {
-                Err(ObserverError::UnsupportedActionType {
-                    action_type: self.action_type().to_string(),
-                })
             },
         }
     }
