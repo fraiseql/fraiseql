@@ -99,6 +99,7 @@ impl OutputTypes {
                     .insert(name.clone(), possible.iter().map(|p| p.name.clone()).collect());
             }
         }
+        #[cfg(feature = "federation")]
         types.add_federation(schema);
         types
     }
@@ -119,10 +120,6 @@ impl OutputTypes {
         self.possible
             .insert("_Entity".to_string(), metadata.types.iter().map(|t| t.name.clone()).collect());
     }
-
-    #[cfg(not(feature = "federation"))]
-    #[allow(clippy::unused_self)] // Reason: the federation arm reads and writes `self`
-    const fn add_federation(&mut self, _schema: &CompiledSchema) {}
 
     fn field(&self, type_name: &str, field: &str) -> Option<&TypeRef> {
         self.fields.get(type_name)?.get(field)
