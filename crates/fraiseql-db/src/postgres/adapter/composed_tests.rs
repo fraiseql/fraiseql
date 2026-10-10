@@ -217,7 +217,7 @@ fn a_to_one_embed_is_one_row_and_a_count_is_a_count() {
         "the count's page is not bound"
     );
     assert!(
-        sql.contains("jsonb_build_object('author', _l0_e0.v, 'comments_count', _l0_e1.v)"),
+        sql.contains("jsonb_build_object('author', _l0_e0.v,'comments_count', _l0_e1.v)"),
         "{sql}"
     );
 }

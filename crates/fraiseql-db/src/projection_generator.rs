@@ -45,6 +45,28 @@ pub enum FieldKind {
     /// Object or list — extracted with `->` to preserve JSONB structure.
     Composite,
 }
+/// The most key/value pairs one `jsonb_build_object` call can carry.
+///
+/// PostgreSQL refuses a function call with more than 100 arguments (`FUNC_MAX_ARGS`,
+/// SQLSTATE 54023), and each pair is two (#1544).
+const MAX_PAIRS_PER_CALL: usize = 50;
+
+/// A JSONB object built from `pairs` (each `'key', <expr>`), however many there are.
+///
+/// One `jsonb_build_object` call up to [`MAX_PAIRS_PER_CALL`]; past it, one call per chunk,
+/// concatenated with `||`. The keys are distinct, so the concatenation is the object a single
+/// call would have built (verified on PostgreSQL 18). Every site that builds an object from
+/// a variable number of pairs goes through here: a selection of 51 fields used to fail.
+pub(crate) fn jsonb_object_sql(pairs: &[String]) -> String {
+    if pairs.len() <= MAX_PAIRS_PER_CALL {
+        return format!("jsonb_build_object({})", pairs.join(","));
+    }
+    let calls: Vec<String> = pairs
+        .chunks(MAX_PAIRS_PER_CALL)
+        .map(|chunk| format!("jsonb_build_object({})", chunk.join(",")))
+        .collect();
+    format!("({})", calls.join(" || "))
+}
 
 /// A SQL expression a projection may emit verbatim, in place of reading a key
 /// out of the JSONB column (#959).
@@ -548,7 +570,7 @@ impl PostgresProjectionGenerator {
             .collect();
 
         // Format: jsonb_build_object('field1', data->>'field1', 'field2', data->>'field2', ...)
-        Ok(format!("jsonb_build_object({})", field_pairs.join(",")))
+        Ok(jsonb_object_sql(&field_pairs))
     }
 
     /// Generate type-aware PostgreSQL projection SQL.
@@ -592,7 +614,7 @@ impl PostgresProjectionGenerator {
             .map(|field| Self::render_field(field, &path))
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(format!("jsonb_build_object({})", field_pairs.join(",")))
+        Ok(jsonb_object_sql(&field_pairs))
     }
 
     /// Project the whole JSONB column **plus** a set of computed fields (#959).
@@ -617,7 +639,7 @@ impl PostgresProjectionGenerator {
             .iter()
             .map(|field| Self::render_field(field, &path))
             .collect::<Result<Vec<_>>>()?;
-        Ok(format!("{path} || jsonb_build_object({})", pairs.join(",")))
+        Ok(format!("{path} || {}", jsonb_object_sql(&pairs)))
     }
 
     /// Recursively render one projection field as a `'key', <expr>` pair for
@@ -667,10 +689,10 @@ impl PostgresProjectionGenerator {
                 .map(|sf| Self::render_field(sf, &nested_path))
                 .collect::<Result<Vec<_>>>()?;
             return Ok(format!(
-                "'{}', CASE WHEN jsonb_typeof({}) = 'object' THEN jsonb_build_object({}) END",
+                "'{}', CASE WHEN jsonb_typeof({}) = 'object' THEN {} END",
                 resp_key,
                 nested_path,
-                inner.join(",")
+                jsonb_object_sql(&inner)
             ));
         }
 

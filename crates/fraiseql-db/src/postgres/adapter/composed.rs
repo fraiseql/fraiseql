@@ -352,11 +352,11 @@ impl Renderer {
         }
 
         Ok(format!(
-            "SELECT jsonb_build_object({}, {document}, {}, jsonb_build_object({})) AS data, \
+            "SELECT jsonb_build_object({}, {document}, {}, {}) AS data, \
              {alias}.{ORDINAL} AS {ORDINAL} FROM ({page}) AS {alias}{joins}",
             literal(COMPOSED_DOCUMENT_KEY),
             literal(COMPOSED_EMBEDS_KEY),
-            embeds.join(", "),
+            crate::projection_generator::jsonb_object_sql(&embeds),
         ))
     }
 
@@ -482,7 +482,10 @@ fn document_sql(alias: &str, keys: &LevelKeys) -> String {
             // of the database for this caller.
             let masked_sql =
                 masked.iter().map(|k| format!("{}, NULL", literal(k))).collect::<Vec<_>>();
-            format!("({kept_sql} || jsonb_build_object({}))", masked_sql.join(", "))
+            format!(
+                "({kept_sql} || {})",
+                crate::projection_generator::jsonb_object_sql(&masked_sql)
+            )
         },
     }
 }

@@ -312,6 +312,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A read selecting more than 50 fields is served (#1544).** Every projection built its
+  object with one `jsonb_build_object(k1, v1, …)`, and PostgreSQL refuses a call with more
+  than 100 arguments, so 51 fields (a wide type, a sub-selection, a REST embed's masked keys
+  or its embeds) failed with "cannot pass more than 100 arguments to a function", served as an
+  internal error. The object is now built 50 pairs per call and concatenated.
 - **An aggregate or window query reads `limit` and `offset` as a list does (#1532).**
   `limit: -1`, `1.5` or `"10"` returned every group under a `200`, `2^32` silently became
   `u32::MAX`, and `limit` had no page ceiling. Both parsers now read through the list
