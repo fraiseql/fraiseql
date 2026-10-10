@@ -127,6 +127,7 @@ This produces `schema.compiled.json` which you load into the FraiseQL Rust serve
 | `description:` | string | nil | Human-readable description |
 | `requires_scope:` | string | nil | Single OAuth scope required |
 | `requires_scopes:` | list | nil | List of OAuth scopes (any one satisfies) |
+| `localized:` | boolean | false | A String stored as a locale map (`[locale]` in `fraiseql.toml`); any other type fails to compile |
 
 ### `argument` options
 
@@ -134,6 +135,7 @@ This produces `schema.compiled.json` which you load into the FraiseQL Rust serve
 |--------|------|---------|-------------|
 | `nullable:` | boolean | false | Whether argument is optional |
 | `description:` | string | nil | Human-readable description |
+| `localized:` | boolean | false | A String received as a locale map; any other type fails to compile |
 
 ## Type Mapping
 

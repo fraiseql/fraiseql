@@ -52,7 +52,8 @@ defmodule Conformance.FullSchema do
     field(:name, :string,
       nullable: true,
       description: ~s(The user's "display" name),
-      deprecated: "use displayName"
+      deprecated: "use displayName",
+      localized: true
     )
     field(:salary, :float, nullable: true, requires_scope: "read:User.salary")
     # Two words and a digit segment (#1249). An Elixir field name is a snake_case atom,
@@ -212,7 +213,7 @@ defmodule Conformance.FullSchema do
                     requires_actor: ["service_account"] do
     argument(:email, :string, nullable: false)
     argument(:name, :string, nullable: true)
-    argument(:display_name, :string, nullable: true)
+    argument(:display_name, :string, nullable: true, localized: true)
   end
 
   fraiseql_mutation(:place_order,

@@ -85,6 +85,7 @@ defmodule FraiseQL.FieldDefinition do
       is refused, not answered with null.
     * `:deprecated` — `true` for deprecated with no stated reason, or the reason as a
       string. Surfaces as `isDeprecated` / `deprecationReason` through introspection.
+    * `:localized` — `true` on a String stored as a locale map (#1527)
   """
 
   @enforce_keys [:name, :type]
@@ -98,7 +99,8 @@ defmodule FraiseQL.FieldDefinition do
     computed: false,
     vector_config: nil,
     vector_distance: nil,
-    deprecated: nil
+    deprecated: nil,
+    localized: false
   ]
 
   @type t :: %__MODULE__{
@@ -111,7 +113,8 @@ defmodule FraiseQL.FieldDefinition do
           computed: boolean(),
           vector_config: FraiseQL.VectorConfig.t() | nil,
           vector_distance: String.t() | nil,
-          deprecated: boolean() | String.t() | nil
+          deprecated: boolean() | String.t() | nil,
+          localized: boolean()
         }
 end
 
@@ -125,16 +128,18 @@ defmodule FraiseQL.ArgumentDefinition do
     * `:type` — the GraphQL type string, e.g. `"ID"`, `"String"`
     * `:nullable` — whether the argument is optional; defaults to `false`
     * `:description` — optional human-readable description
+    * `:localized` — `true` on a String the function receives as a locale map (#1527)
   """
 
   @enforce_keys [:name, :type]
-  defstruct [:name, :type, nullable: false, description: nil]
+  defstruct [:name, :type, nullable: false, description: nil, localized: false]
 
   @type t :: %__MODULE__{
           name: String.t(),
           type: String.t(),
           nullable: boolean(),
-          description: String.t() | nil
+          description: String.t() | nil,
+          localized: boolean()
         }
 end
 

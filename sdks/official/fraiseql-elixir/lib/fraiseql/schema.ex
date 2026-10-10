@@ -449,6 +449,9 @@ defmodule FraiseQL.Schema do
     # reference would point at a name no longer in the schema (#1249).
     vector_distance = vector_distance && FraiseQL.TypeMapper.to_camel_case(vector_distance)
 
+    localized = Keyword.get(opts, :localized, false)
+    refuse_localized_non_string!(localized, field_name, field_type)
+
     quote do
       @__fraiseql_field_buffer %FraiseQL.FieldDefinition{
         name: unquote(field_name),
@@ -465,7 +468,8 @@ defmodule FraiseQL.Schema do
         computed: unquote(Keyword.get(opts, :computed, false)),
         vector_config: unquote(vector_config),
         vector_distance: unquote(vector_distance),
-        deprecated: unquote(opts[:deprecated])
+        deprecated: unquote(opts[:deprecated]),
+        localized: unquote(localized)
       }
     end
   end
@@ -488,16 +492,30 @@ defmodule FraiseQL.Schema do
     # authored as a snake_case atom, published camelCase (#1255).
     arg_name = FraiseQL.TypeMapper.to_camel_case(name)
     arg_type = FraiseQL.TypeMapper.to_graphql_type(type)
+    localized = Keyword.get(opts, :localized, false)
+    refuse_localized_non_string!(localized, arg_name, arg_type)
 
     quote do
       @__fraiseql_arg_buffer %FraiseQL.ArgumentDefinition{
         name: unquote(arg_name),
         type: unquote(arg_type),
         nullable: unquote(Keyword.get(opts, :nullable, false)),
-        description: unquote(opts[:description])
+        description: unquote(opts[:description]),
+        localized: unquote(localized)
       }
     end
   end
+
+  # A locale map holds strings (#1527): `localized` on any other type is refused where it
+  # is declared, at compile time, as the Python SDK refuses `Localized[int]`.
+  @doc false
+  def refuse_localized_non_string!(true, name, type) when type != "String" do
+    raise ArgumentError,
+          "#{name} is localized but is a #{type}; only a String can be localized " <>
+            "(a localized field is a String stored as a locale map)"
+  end
+
+  def refuse_localized_non_string!(_localized, _name, _type), do: :ok
 
   # ---------------------------------------------------------------------------
   # Identity canonicalization (called at compile time from field/3 expansion)

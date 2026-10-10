@@ -93,7 +93,7 @@ defmodule FraiseQL.CrudGenerator do
         fields
         |> Enum.reject(& &1.computed)
         |> Enum.map(fn f ->
-          %FieldDefinition{name: f.name, type: f.type, nullable: f.nullable}
+          %FieldDefinition{name: f.name, type: f.type, nullable: f.nullable, localized: f.localized}
         end)
     }
   end
@@ -110,7 +110,7 @@ defmodule FraiseQL.CrudGenerator do
            |> Enum.drop(1)
            |> Enum.reject(& &1.computed)
            |> Enum.map(fn f ->
-             %FieldDefinition{name: f.name, type: f.type, nullable: true}
+             %FieldDefinition{name: f.name, type: f.type, nullable: true, localized: f.localized}
            end))
     }
   end

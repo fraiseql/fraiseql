@@ -222,7 +222,12 @@ defmodule FraiseQL.SchemaExporter do
     |> maybe_put("vector_config", vector_config_to_map(f.vector_config))
     |> maybe_put("vector_distance", f.vector_distance)
     |> maybe_put("deprecated", deprecation_to_map(f.deprecated))
+    |> maybe_put("localized", localized(f.localized))
   end
+
+  # Only `true` is written: an unlocalized field or argument carries no key.
+  defp localized(true), do: true
+  defp localized(_), do: nil
 
   # `IntermediateField.deprecated` has been readable since #1025. `true` means deprecated
   # with no stated reason, which the compiler models as an absent `reason`; `false` and
@@ -316,7 +321,9 @@ defmodule FraiseQL.SchemaExporter do
       "nullable" => a.nullable
     }
 
-    maybe_put(base, "description", a.description)
+    base
+    |> maybe_put("description", a.description)
+    |> maybe_put("localized", localized(a.localized))
   end
 
   defp maybe_put(map, _key, nil), do: map
