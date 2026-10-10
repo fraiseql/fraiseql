@@ -483,3 +483,20 @@ fold_unreleased_into_version() {
     fi
     mv "$out" "$changelog"
 }
+
+# Stage the release files git tracks; skip the rest.
+#
+# The release file list is globs over the tree, and a local build can leave a file they match
+# that git ignores (a fuzz crate's own `Cargo.lock`). `git add` refuses an ignored path, which
+# aborted the 2.17.0 prepare commit with the version already bumped. A path git does not track
+# is not a release file, so it is skipped rather than forced in.
+#
+# Usage: stage_release_files <path>...
+stage_release_files() {
+    local tracked
+    tracked=$(git ls-files -- "$@")
+    if [[ -n "$tracked" ]]; then
+        # shellcheck disable=SC2086 # Reason: one tracked path per line, none with spaces.
+        git add -- $tracked
+    fi
+}

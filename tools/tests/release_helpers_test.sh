@@ -647,6 +647,30 @@ rc=$?
 set -e
 check "fold: a version with no section is refused"       "$rc" "1"
 
+# ── stage_release_files ────────────────────────────────────────────────────────
+
+# A release file list is globs over the tree, and a local build can leave a file the
+# globs match that git ignores (a fuzz crate's own Cargo.lock): `git add` refuses it, which
+# aborted the 2.17.0 prepare commit. Only tracked paths are staged; the rest are skipped.
+STAGE="$WORK/stage"
+git init -q "$STAGE"
+(
+    cd "$STAGE"
+    git config user.email t@t && git config user.name t
+    echo "Cargo.lock" > .gitignore
+    echo 1 > tracked.toml
+    git add .gitignore tracked.toml && git commit -qm init
+    echo 2 > tracked.toml
+    echo local > Cargo.lock
+    set +e
+    stage_release_files tracked.toml Cargo.lock absent.json >/dev/null 2>&1
+    echo $? > rc
+    set -e
+)
+check "stage: succeeds beside an ignored file"      "$(cat "$STAGE/rc")" "0"
+check "stage: the tracked file is staged"           "$(git -C "$STAGE" diff --cached --name-only)" "tracked.toml"
+check "stage: the ignored file is left untracked"   "$(git -C "$STAGE" ls-files Cargo.lock)" ""
+
 # ── Summary ────────────────────────────────────────────────────────────────────
 
 echo ""

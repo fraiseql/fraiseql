@@ -146,11 +146,16 @@ echo "      Bumped Dockerfile label + Helm chart/values + Compose and runbook im
 # The federation pair is booted by `integration (federation)`, not by a workflow: the
 # Dagger leg mounts them and starts a subgraph server on each. They were unstamped when
 # #1304 landed and took that leg down; a bump that skipped them would do it again.
-bump_compiled_schema_stamps "$VERSION" \
-    docker/e2e/schema.compiled.json \
-    docker/e2e/schema.with-source.compiled.json \
-    crates/fraiseql-server/tests/fixtures/federation/schema_users.json \
+#
+# One list for the restamp and for the release commit (step 5): the 2.16.0 and 2.17.0 cuts
+# restamped these and left them out of the commit.
+STAMPED_SCHEMAS=(
+    docker/e2e/schema.compiled.json
+    docker/e2e/schema.with-source.compiled.json
+    crates/fraiseql-server/tests/fixtures/federation/schema_users.json
     crates/fraiseql-server/tests/fixtures/federation/schema_reviews.json
+)
+bump_compiled_schema_stamps "$VERSION" "${STAMPED_SCHEMAS[@]}"
 echo "      Restamped the CI-booted compiled schemas."
 
 # Rewrite the docs' `vX.Y.Z released` status lines. tools/check-docs-version.sh enforces
@@ -248,6 +253,7 @@ RELEASE_FILES=(
     docs/runbooks/*.md
     docs/value-proposition.md
     docs/architecture/overview.md
+    "${STAMPED_SCHEMAS[@]}"
     "$CHANGELOG"
     "$README"
 )
@@ -255,7 +261,7 @@ RELEASE_FILES=(
 if git diff --cached --quiet && git diff --quiet -- "${RELEASE_FILES[@]}"; then
     echo "      Nothing to commit — release files already up to date."
 else
-    git add Cargo.lock "${RELEASE_FILES[@]}"
+    stage_release_files Cargo.lock "${RELEASE_FILES[@]}"
     git commit -m "$COMMIT_MSG"
     echo "      Committed: ${COMMIT_MSG}"
 fi
