@@ -2713,3 +2713,33 @@ fn the_sdl_and_introspection_publish_the_same_field_types() {
     assert!(sdl.contains("  tags: [String!]!\n"), "list items are non-null:\n{sdl}");
     assert!(sdl.contains("createOrder: Order\n"), "a mutation is nullable:\n{sdl}");
 }
+
+/// The `fraiseql.` setting namespace is the server's own (`fraiseql.locale`,
+/// `fraiseql.started_at`): a session variable there would overwrite what the server sets,
+/// from a header any caller controls. Refused at load in any case spelling, since
+/// PostgreSQL resolves a setting name case-insensitively; another name loads.
+#[test]
+fn a_session_variable_in_the_servers_namespace_is_refused_at_load() {
+    let load = |name: &str| {
+        CompiledSchema::from_json(
+            &format!(
+                r#"{{"types":[],"queries":[],"mutations":[],"subscriptions":[],
+                "session_variables":{{"variables":[
+                    {{"name":"{name}","source":"header","header":"x-value"}}]}}}}"#
+            ),
+            false,
+        )
+    };
+    for name in [
+        "fraiseql.locale",
+        "Fraiseql.Locale",
+        "fraiseql.started_at",
+        "FRAISEQL.STARTED_AT",
+        "fraiseql.anything",
+    ] {
+        let refusal = load(name).expect_err(name).to_string();
+        assert!(refusal.contains(name), "names the variable: {refusal}");
+        assert!(refusal.contains("`fraiseql.`"), "names the namespace: {refusal}");
+    }
+    load("app.region").expect("another namespace loads");
+}

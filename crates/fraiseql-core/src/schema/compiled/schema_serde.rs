@@ -6,6 +6,10 @@ use tracing::{info, warn};
 use super::schema::CompiledSchema;
 use crate::error::FraiseQLError;
 
+/// The setting namespace the server sets its own session settings in (`fraiseql.locale`,
+/// `fraiseql.started_at`), closed to `[[session_variables.variables]]`.
+const RESERVED_SETTING_PREFIX: &str = "fraiseql.";
+
 /// Recursively sort all JSON object keys to produce a canonical representation.
 ///
 /// This guarantees deterministic serialization regardless of `HashMap` iteration
@@ -414,17 +418,25 @@ impl CompiledSchema {
                 path:    Some("types.fields.localized".to_string()),
             });
         }
-        if let Some(mapping) = self
-            .session_variables
-            .variables
-            .iter()
-            .find(|m| m.name == crate::schema::LOCALE_SESSION_VAR)
-        {
+        // The `fraiseql.` setting namespace is the server's own: `fraiseql.locale` on every
+        // read, `fraiseql.started_at` before a mutation. A session variable there would
+        // overwrite it, from a header any caller controls. PostgreSQL resolves a setting
+        // name case-insensitively, so the comparison is too.
+        if let Some(mapping) = self.session_variables.variables.iter().find(|m| {
+            m.name
+                .get(..RESERVED_SETTING_PREFIX.len())
+                .is_some_and(|prefix| prefix.eq_ignore_ascii_case(RESERVED_SETTING_PREFIX))
+        }) {
+            let advice = if mapping.name.eq_ignore_ascii_case(crate::schema::LOCALE_SESSION_VAR) {
+                "; configure the request locale with [locale] instead"
+            } else {
+                ""
+            };
             return Err(FraiseQLError::Validation {
                 message: format!(
-                    "[[session_variables.variables]] declares `{}`, the setting the server sets \
-                     to the request locale on every read; configure the locale with [locale] \
-                     instead",
+                    "[[session_variables.variables]] declares `{}`, in the `fraiseql.` \
+                     namespace the server sets its own settings in (`fraiseql.locale`, \
+                     `fraiseql.started_at`): name it in another namespace{advice}",
                     mapping.name
                 ),
                 path:    Some("session_variables".to_string()),

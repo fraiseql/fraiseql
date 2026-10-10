@@ -146,6 +146,13 @@ disagreed, and the promise was the part that was wrong.
   ids stay random v4.
 
 ### Breaking
+- **A session variable in the `fraiseql.` namespace is refused.** That namespace is the
+  server's own (`fraiseql.locale` on reads, `fraiseql.started_at` before a mutation). Only
+  `fraiseql.locale` was refused, and only in that exact case, while PostgreSQL resolves a
+  setting name case-insensitively; `fraiseql.started_at` was not refused at all, and the
+  server sets it before the declared variables, so a declared one overwrote it. With the
+  `header` source (#1520), a caller could set either. Any `fraiseql.` name, in any case, is
+  now refused at compile and at load, naming it.
 
 - **`--emit-ddl` refuses two types that map to one table (#965).** `HTTPServer` and
   `HttpServer` both become `tb_http_server`; the second type's file used to overwrite the

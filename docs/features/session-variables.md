@@ -66,5 +66,7 @@ event, so no session variable reaches them.
 
 Reads and writes both carry the variables. A write also carries `fraiseql.started_at`
 ([mutation timing](mutation-timing.md)); a read also carries `fraiseql.locale`
-([request locale](request-locale.md)); declaring a variable named `fraiseql.locale` is
-refused.
+([request locale](request-locale.md)). The `fraiseql.` namespace is the server's: a variable
+declared in it (`fraiseql.locale`, `fraiseql.started_at`, or any other `fraiseql.` name, in
+any case, since PostgreSQL resolves setting names case-insensitively) would overwrite the
+server's own setting, so it is refused at compile and at load.
