@@ -903,6 +903,19 @@ pub trait DatabaseAdapter: Send + Sync + 'static {
         })
     }
 
+    /// The physical health of every TVIEW one of `sources` reads (#1392), from
+    /// `tviews.pg_tviews_profile()`; empty when there is none, or no `pg_tviews`.
+    ///
+    /// The default reports none. **A wrapping adapter must forward this**, or `/metrics`
+    /// loses the TVIEW health in silence.
+    ///
+    /// # Errors
+    ///
+    /// The database errors of the catalog read.
+    async fn tview_profiles(&self, _sources: &[String]) -> Result<Vec<TviewProfile>> {
+        Ok(Vec::new())
+    }
+
     /// Invalidate cached query results for the specified views.
     ///
     /// Called by the executor after a mutation succeeds, so that stale cache
@@ -1436,4 +1449,26 @@ pub(crate) fn refuse_session_variables<A: DatabaseAdapter + ?Sized>(
             adapter.database_type()
         ),
     })
+}
+
+/// One TVIEW's physical health, from `tviews.pg_tviews_profile()` (#1392).
+///
+/// The columns `fraiseql doctor` and `/metrics` read. The profile's columns are a stable
+/// contract (`pg_tviews` `docs/reference/profile.md`).
+#[derive(Debug, Clone, PartialEq)]
+pub struct TviewProfile {
+    /// The TVIEW entity (`book` for `tv_book`).
+    pub entity:        String,
+    /// The schema-qualified `tv_*` table.
+    pub tview:         String,
+    /// HOT updates / updates since the statistics reset; `None` without updates.
+    pub hot_ratio:     Option<f64>,
+    /// Dead tuples, from `pg_stat_all_tables`.
+    pub n_dead_tup:    Option<i64>,
+    /// Updates since the statistics reset.
+    pub n_tup_upd:     Option<i64>,
+    /// HOT updates since the statistics reset.
+    pub n_tup_hot_upd: Option<i64>,
+    /// `pg_tviews`' advice for it; empty when it has none.
+    pub warnings:      Vec<String>,
 }

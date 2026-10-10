@@ -827,6 +827,17 @@ impl Executor {
         self.ctx.adapter.supports_composed_reads()
     }
 
+    /// The physical health of every TVIEW this schema reads (#1392), from
+    /// `tviews.pg_tviews_profile()`: the server's `/metrics` reports it. Empty when the schema
+    /// reads none, or the database has no `pg_tviews`.
+    ///
+    /// # Errors
+    ///
+    /// The database errors of the catalog read.
+    pub async fn tview_profiles(&self) -> Result<Vec<crate::backend::TviewProfile>> {
+        self.ctx.adapter.tview_profiles(&self.ctx.schema.read_sources()).await
+    }
+
     /// Execute a pre-resolved query match with related resources composed into it —
     /// the REST `?select=` embed.
     ///

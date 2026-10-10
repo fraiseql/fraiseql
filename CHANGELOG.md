@@ -20,6 +20,15 @@ disagreed, and the promise was the part that was wrong.
 
 ### Added
 
+- **`doctor` and `/metrics` report the health of the TVIEWs the schema reads (#1392).** From
+  `tviews.pg_tviews_profile()`: `doctor --against-db` warns with each piece of advice
+  (missing propagation index, unused GIN on `data`, low HOT ratio, UNLOGGED, …), and index
+  advice on a TVIEW's `data` states that it disables HOT updates and names the structural
+  column alternative. `/metrics` exports `fraiseql_tview_hot_ratio`, `_dead_tuples`,
+  `_updates`, `_hot_updates` and `_warnings` per TVIEW. TVIEWs are recognised from pg_tviews'
+  catalog through the views the schema reads. `DatabaseAdapter` gains `tview_profiles`
+  (default: none; a wrapping adapter forwards it).
+
 - **A cascade mutation can serve the rows pg_tviews refreshed (#1391).** With
   `cascade_source = "pg_tviews"` (Python `cascade_source=`, TypeScript `cascadeSource`), the
   executor calls `tviews.pg_tviews_flush_and_report()` before the commit and merges its

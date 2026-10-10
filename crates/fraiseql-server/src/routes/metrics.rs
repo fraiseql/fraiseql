@@ -491,6 +491,13 @@ pub async fn metrics_handler(State(state): State<AppState>) -> impl IntoResponse
         sub_rejected = subs.subscriptions_rejected,
     );
 
+    // #1392: the physical health of every TVIEW the schema reads (`pg_tviews_profile()`,
+    // catalogs only). Nothing when the schema reads none.
+    match state.executor().tview_profiles().await {
+        Ok(profiles) => append_tview_health(&mut output, &profiles),
+        Err(e) => tracing::warn!(error = %e, "could not read pg_tviews_profile() for /metrics"),
+    }
+
     // Append `metrics`-facade emissions captured by the Prometheus recorder
     // (e.g. fraiseql-wire's ~40 counters/histograms). Empty unless the recorder
     // was installed at startup (audit H45).
@@ -546,4 +553,50 @@ pub async fn metrics_json_handler(State(state): State<AppState>) -> impl IntoRes
     };
 
     Json(response)
+}
+
+/// One per-TVIEW reading.
+type TviewReading = fn(&fraiseql_core::db::TviewProfile) -> Option<f64>;
+
+/// The per-TVIEW gauges of #1392, labelled by the schema-qualified TVIEW table.
+fn append_tview_health(output: &mut String, profiles: &[fraiseql_core::db::TviewProfile]) {
+    if profiles.is_empty() {
+        return;
+    }
+    let label = |tview: &str| tview.replace('\\', "\\\\").replace('"', "\\\"");
+    #[allow(clippy::cast_precision_loss)]
+    // Reason: tuple counts as Prometheus floats; exact far past any table's row count.
+    let series: [(&str, &str, TviewReading); 5] = [
+        (
+            "fraiseql_tview_hot_ratio",
+            "HOT updates / updates of a TVIEW the schema reads, since the statistics reset",
+            |p| p.hot_ratio,
+        ),
+        ("fraiseql_tview_dead_tuples", "Dead tuples in a TVIEW the schema reads", |p| {
+            p.n_dead_tup.map(|n| n as f64)
+        }),
+        (
+            "fraiseql_tview_updates",
+            "Updates of a TVIEW the schema reads, since the statistics reset",
+            |p| p.n_tup_upd.map(|n| n as f64),
+        ),
+        (
+            "fraiseql_tview_hot_updates",
+            "HOT updates of a TVIEW the schema reads, since the statistics reset",
+            |p| p.n_tup_hot_upd.map(|n| n as f64),
+        ),
+        (
+            "fraiseql_tview_warnings",
+            "pg_tviews_profile() advice for a TVIEW the schema reads",
+            |p| Some(p.warnings.len() as f64),
+        ),
+    ];
+    for (name, help, value) in &series {
+        let _ = write!(output, "\n# HELP {name} {help}\n# TYPE {name} gauge\n");
+        for profile in profiles {
+            if let Some(v) = value(profile) {
+                let _ = writeln!(output, "{name}{{tview=\"{}\"}} {v}", label(&profile.tview));
+            }
+        }
+    }
 }

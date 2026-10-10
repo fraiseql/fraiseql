@@ -2031,6 +2031,10 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// #1391: a cascade derived from pg_tviews' affected set, against a real pg_tviews
 		// (pgTviewsService); its runtime-absent case reads DATABASE_URL, which has none.
 		"cargo test -p fraiseql-server --features metrics --test tviews_cascade_e2e_pg -- --test-threads=1",
+		// #1391/#1392, the CLI side: compile --database with and without pg_tviews, and
+		// doctor's pg_tviews health (both databases are bound in this leg).
+		"cargo test -p fraiseql-cli --test cascade_source_compile_test -- --test-threads=1",
+		"cargo test -p fraiseql-cli --features test-postgres --test doctor_pg_tviews_pg -- --test-threads=1",
 		// #809: schema-per-tenant isolation was a single session `SET search_path` on
 		// one pooled connection. Every other connection resolved against `public`, so
 		// the leak is only visible under concurrency — a single-connection test passes

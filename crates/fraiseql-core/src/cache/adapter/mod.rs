@@ -917,6 +917,10 @@ impl<A: DatabaseAdapter> DatabaseAdapter for CachedDatabaseAdapter<A> {
         self.adapter.describe_constraint(violation).await
     }
 
+    async fn tview_profiles(&self, sources: &[String]) -> Result<Vec<fraiseql_db::TviewProfile>> {
+        self.adapter.tview_profiles(sources).await
+    }
+
     async fn count_where_query(
         &self,
         view: &str,

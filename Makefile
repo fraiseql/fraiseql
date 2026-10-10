@@ -927,6 +927,9 @@ test-pg-tviews:
 	TVIEWS_DATABASE_URL=postgresql://fraiseql_test:fraiseql_test_password@localhost:5441/test_fraiseql \
 	DATABASE_URL=$${DATABASE_URL:-postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql} \
 	cargo test -p fraiseql-server --features metrics --test tviews_cascade_e2e_pg -- --test-threads=1
+	TVIEWS_DATABASE_URL=postgresql://fraiseql_test:fraiseql_test_password@localhost:5441/test_fraiseql \
+	DATABASE_URL=$${DATABASE_URL:-postgresql://fraiseql_test:fraiseql_test_password@localhost:5433/test_fraiseql} \
+	cargo test -p fraiseql-cli --features test-postgres --test cascade_source_compile_test --test doctor_pg_tviews_pg -- --test-threads=1
 
 .PHONY: lint-dagger-apt
 lint-dagger-apt:

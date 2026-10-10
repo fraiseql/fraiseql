@@ -91,7 +91,7 @@ pub use traits::{
     ComposedKeyset, ComposedLevel, ConstraintDescription, CursorValue, DERIVED_CASCADE_KEY,
     DatabaseAdapter, DerivedCascade, EmbedShape, EmbedSource, JsonbRowStream, LevelKeys,
     MutationRowGate, ProjectionRequest, RelayCursor, RelayDatabaseAdapter, RelayPageResult,
-    ResultCacheStats, WriteMode, WriteRequest, Writer, composed_read_unsupported,
+    ResultCacheStats, TviewProfile, WriteMode, WriteRequest, Writer, composed_read_unsupported,
 };
 pub use types::{
     DatabaseType, JsonbValue, PoolMetrics, QueryStatEntry,

@@ -778,6 +778,7 @@ pub async fn against_db_checks(
     {
         checks.extend(localized_index_checks(url, tls, &compiled).await);
         checks.extend(semi_additive_index_checks(url, tls, &compiled).await);
+        checks.extend(pg_tviews_health_checks(url, tls, &compiled).await);
         checks.extend(header_variable_policy_checks(url, tls, &compiled).await);
     }
     checks
@@ -911,6 +912,64 @@ pub async fn localized_index_checks(
     checks
 }
 
+// ─── pg_tviews physical health (#1392) ────────────────────────────────────────────
+
+const PG_TVIEWS_HEALTH_NAME: &str = "pg_tviews health";
+
+/// Report `tviews.pg_tviews_profile()`'s advice for every TVIEW the schema reads (#1392).
+///
+/// One warning per piece of advice, a pass when they have none, nothing at all when the
+/// schema reads no TVIEW. Warnings, never failures: the reads are correct either way.
+pub async fn pg_tviews_health_checks(
+    db_url: &str,
+    tls: &PostgresTlsConfig,
+    schema: &CompiledSchema,
+) -> Vec<DoctorCheck> {
+    let introspector =
+        match crate::commands::compile::build_postgres_introspector(db_url, tls).await {
+            Ok(i) => i,
+            Err(e) => {
+                return vec![DoctorCheck::fail(
+                    PG_TVIEWS_HEALTH_NAME,
+                    format!("cannot connect: {e}"),
+                    "Pass a reachable postgres:// URL to --against-db",
+                )];
+            },
+        };
+    let profiles = match introspector.tview_profiles(&schema.read_sources()).await {
+        Ok(p) => p,
+        Err(e) => {
+            return vec![DoctorCheck::warn(
+                PG_TVIEWS_HEALTH_NAME,
+                format!("could not read pg_tviews_profile(): {e}"),
+                "Check that the role can execute tviews.pg_tviews_profile()",
+            )];
+        },
+    };
+    if profiles.is_empty() {
+        return Vec::new();
+    }
+    let mut checks: Vec<DoctorCheck> = profiles
+        .iter()
+        .flat_map(|p| {
+            p.warnings.iter().map(move |w| {
+                DoctorCheck::warn(
+                    PG_TVIEWS_HEALTH_NAME,
+                    format!("{}: {w}", p.tview),
+                    "See pg_tviews docs/reference/profile.md for the advice",
+                )
+            })
+        })
+        .collect();
+    if checks.is_empty() {
+        checks.push(DoctorCheck::pass(
+            PG_TVIEWS_HEALTH_NAME,
+            format!("{} TVIEW(s) the schema reads have no pg_tviews advice", profiles.len()),
+        ));
+    }
+    checks
+}
+
 // ─── Semi-additive seek index (#1459) ────────────────────────────────────────────
 
 const SEMI_ADDITIVE_INDEX_NAME: &str = "Semi-additive index";
@@ -1013,6 +1072,11 @@ pub async fn semi_additive_index_checks(
 
 const PAGINATION_INDEX_NAME: &str = "Pagination index";
 
+/// What an index on a TVIEW's `data` costs (#1392), appended to advice that proposes one.
+const TVIEW_DATA_INDEX_COST: &str = " (a TVIEW: every refresh rewrites `data`, so an index on \
+     it disables HOT updates for the table; promote the key to a structural column of the \
+     TVIEW and index that instead)";
+
 /// Report the indexes that would remove a sort from every paginated read.
 ///
 /// Since #1287 a client sort over a non-unique key is tie-broken by the entity
@@ -1113,6 +1177,12 @@ async fn pagination_index_checks(
         };
 
         examined += 1;
+        // #1392: on a TVIEW every refresh rewrites `data`, so an index on it costs every
+        // write its HOT update. Recognised through the view, from pg_tviews' catalog.
+        let tview_backed = introspector
+            .tview_profiles(&[view.to_string()])
+            .await
+            .is_ok_and(|profiles| !profiles.is_empty());
         for found in advise(query, base, &indexes) {
             let detail = match &found.advice {
                 Advice::TieBreakUnindexed { tie_break } => format!(
@@ -1128,7 +1198,11 @@ async fn pagination_index_checks(
                     sort_keys.join(", ")
                 ),
             };
-            checks.push(DoctorCheck::warn(PAGINATION_INDEX_NAME, detail, found.ddl.join(" ")));
+            let mut remedy = found.ddl.join(" ");
+            if tview_backed && found.ddl.iter().any(|ddl| ddl.contains("data")) {
+                remedy.push_str(TVIEW_DATA_INDEX_COST);
+            }
+            checks.push(DoctorCheck::warn(PAGINATION_INDEX_NAME, detail, remedy));
         }
     }
 

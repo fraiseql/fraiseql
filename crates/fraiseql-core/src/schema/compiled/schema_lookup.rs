@@ -15,6 +15,22 @@ use crate::schema::{
 };
 
 impl CompiledSchema {
+    /// The relations this schema reads: every type's and every query's `sql_source`,
+    /// sorted, once each (#1392: the relations whose `pg_tviews` health is reported).
+    #[must_use]
+    pub fn read_sources(&self) -> Vec<String> {
+        let mut sources: Vec<String> = self
+            .types
+            .iter()
+            .map(|t| t.sql_source.as_str().to_string())
+            .chain(self.queries.iter().filter_map(|q| q.sql_source.clone()))
+            .filter(|s| !s.is_empty())
+            .collect();
+        sources.sort();
+        sources.dedup();
+        sources
+    }
+
     /// Whether this schema declares any consumer of enriched identity — a
     /// [`SessionVariableSource::Enrichment`] mapping or an
     /// [`InjectedParamSource::Enrichment`] parameter (#539).

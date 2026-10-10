@@ -897,6 +897,11 @@ impl DatabaseAdapter for PostgresAdapter {
         true
     }
 
+    async fn tview_profiles(&self, sources: &[String]) -> Result<Vec<crate::traits::TviewProfile>> {
+        let client = self.acquire_connection_with_retry().await?;
+        crate::postgres::introspector::query_tview_profiles(&client, sources).await
+    }
+
     async fn describe_constraint(
         &self,
         violation: &fraiseql_error::ConstraintViolation,

@@ -42,6 +42,8 @@ pub struct IndexInfo {
     pub keys:   Vec<String>,
 }
 
+use crate::traits::TviewProfile;
+
 impl PostgresIntrospector {
     /// Create new PostgreSQL introspector from connection pool.
     #[must_use]
@@ -481,6 +483,20 @@ impl PostgresIntrospector {
             .collect())
     }
 
+    /// The health of every TVIEW one of `sources` reads (#1392): a source that is a TVIEW
+    /// table, or a view whose rewrite depends on one. Recognised from `pg_tviews`' own
+    /// report, never by a `tv_` prefix. Empty when `pg_tviews` is not installed.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FraiseQLError::Database`] if a catalog query or the profile fails.
+    pub async fn tview_profiles(&self, sources: &[String]) -> Result<Vec<TviewProfile>> {
+        let client = self.pool.get().await.map_err(|e| FraiseQLError::ConnectionPool {
+            message: format!("Failed to acquire connection: {e}"),
+        })?;
+        query_tview_profiles(&client, sources).await
+    }
+
     /// The tables and materialized views a view reads from (#1307).
     ///
     /// A query binds to `v_invoice`, and `v_invoice` has no indexes — the indexes
@@ -571,4 +587,62 @@ impl PostgresIntrospector {
 
         Ok(columns)
     }
+}
+
+/// The health of every TVIEW one of `sources` reads, on `client` (#1392): see
+/// [`PostgresIntrospector::tview_profiles`]. Shared by the introspector (`doctor`) and the
+/// adapter (`/metrics`), so the two cannot disagree on what a TVIEW-backed source is.
+///
+/// # Errors
+///
+/// Returns [`FraiseQLError::Database`] if a catalog query or the profile fails.
+pub async fn query_tview_profiles(
+    client: &tokio_postgres::Client,
+    sources: &[String],
+) -> Result<Vec<TviewProfile>> {
+    let installed: bool = client
+        .query_one(
+            // By name: the profile's argument types are pg_tviews' to change.
+            "SELECT EXISTS (SELECT 1 FROM pg_proc p JOIN pg_namespace n ON n.oid = \
+             p.pronamespace WHERE n.nspname = 'tviews' AND p.proname = 'pg_tviews_profile')",
+            &[],
+        )
+        .await
+        .map_err(|e| crate::postgres::database_error(format!("pg_tviews probe failed: {e}"), &e))?
+        .get(0);
+    if !installed || sources.is_empty() {
+        return Ok(Vec::new());
+    }
+    let query = r"
+        WITH src AS (
+            SELECT to_regclass(s) AS oid FROM unnest($1::text[]) AS s
+        ), rel AS (
+            SELECT oid FROM src WHERE oid IS NOT NULL
+            UNION
+            SELECT d.refobjid
+            FROM src
+            JOIN pg_rewrite r ON r.ev_class = src.oid
+            JOIN pg_depend d ON d.objid = r.oid AND d.refclassid = 'pg_class'::regclass
+        )
+        SELECT p.entity, p.tview, p.hot_ratio, p.n_dead_tup, p.n_tup_upd, p.n_tup_hot_upd,
+               coalesce(p.warnings, '{}') AS warnings
+        FROM tviews.pg_tviews_profile() AS p
+        WHERE to_regclass(p.tview) IN (SELECT oid FROM rel)
+        ORDER BY p.entity
+    ";
+    let rows = client.query(query, &[&sources]).await.map_err(|e| {
+        crate::postgres::database_error(format!("pg_tviews_profile() failed: {e}"), &e)
+    })?;
+    Ok(rows
+        .iter()
+        .map(|row| TviewProfile {
+            entity:        row.get("entity"),
+            tview:         row.get("tview"),
+            hot_ratio:     row.get("hot_ratio"),
+            n_dead_tup:    row.get("n_dead_tup"),
+            n_tup_upd:     row.get("n_tup_upd"),
+            n_tup_hot_upd: row.get("n_tup_hot_upd"),
+            warnings:      row.get("warnings"),
+        })
+        .collect())
 }

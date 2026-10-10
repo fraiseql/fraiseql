@@ -122,6 +122,31 @@ own, so introspecting the `sql_source` directly could only ever report "no index
 A view that reads more than one relation is reported as such rather than guessed at:
 there is no single table to index without reading the view body.
 
+## `doctor --against-db` — the health of the TVIEWs the schema reads (#1392)
+
+When a source the schema reads is a pg_tviews TVIEW, or a view over one (recognised from
+pg_tviews' catalog, never by a `tv_` prefix), `doctor` reports each piece of advice
+`tviews.pg_tviews_profile()` gives for it:
+
+```text
+[!] pg_tviews health   p1392.tv_book: fk_author has no index: a cascade into p1392.tv_book
+                       scans the whole table. Run pg_tviews_ensure_propagation_indexes('book')
+[!] pg_tviews health   p1392.tv_book: GIN index tv_book_data_gin on data never scanned since
+                       statistics reset (never)
+```
+
+A TVIEW with no advice passes; a schema that reads none gets no check. Index advice for a
+TVIEW (the pagination index above) states the write cost when the advised key reads
+`data`: every refresh rewrites `data`, so such an index disables HOT updates for the table,
+and the alternative is a structural column of the TVIEW.
+
+The server reports the same TVIEWs on `/metrics`, labelled by TVIEW:
+`fraiseql_tview_hot_ratio`, `fraiseql_tview_dead_tuples`, `fraiseql_tview_updates`,
+`fraiseql_tview_hot_updates` and `fraiseql_tview_warnings` (the number of pieces of advice).
+The profile reads catalogs only (about 5 ms for two TVIEWs on PostgreSQL 18). pg_tviews'
+per-refresh counters (`view_recomputes`, `refresh_noop_skipped`, direct patches) are kept
+per database session, so a pooled server cannot report them per TVIEW and does not.
+
 ## Suggested CI usage
 
 ```bash

@@ -244,15 +244,24 @@ async fn serve() -> Option<Running> {
 }
 
 async fn serve_as(url: String) -> Running {
+    serve_schema(url, schema()).await
+}
+
+/// The `/metrics` bearer token every server here is started with.
+const METRICS_TOKEN: &str = "p1391-metrics-token-0123456789-0123456789";
+
+async fn serve_schema(url: String, schema: CompiledSchema) -> Running {
     let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
     let config = ServerConfig {
         database_url: url,
         cors_enabled: false,
+        metrics_enabled: true,
+        metrics_token: Some(METRICS_TOKEN.to_string()),
         ..ServerConfig::default()
     };
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let port = listener.local_addr().unwrap().port();
-    let server = Box::pin(Server::new(config, schema(), adapter, None)).await.unwrap();
+    let server = Box::pin(Server::new(config, schema, adapter, None)).await.unwrap();
     let (tx, rx) = tokio::sync::oneshot::channel::<()>();
     tokio::spawn(async move {
         server
@@ -472,7 +481,7 @@ async fn without_pg_tviews_an_opted_in_write_fails_loudly() {
              CREATE TYPE p1391_absent.mutation_response AS (succeeded boolean, state_changed
                boolean, error_class text, status_detail text, http_status smallint, message
                text, entity_id uuid, entity_type text, entity jsonb, updated_fields text[],
-               cascade jsonb, error_detail jsonb, metadata jsonb, result jsonb);
+               cascade jsonb, error_detail jsonb, metadata jsonb);
              CREATE TABLE p1391_absent.tb_post (id uuid PRIMARY KEY, title text);
              INSERT INTO p1391_absent.tb_post VALUES ('00000000-0000-0000-0000-000000001391', 'a');
              CREATE VIEW p1391_absent.v_post AS SELECT id, jsonb_build_object('id', id,
@@ -616,6 +625,62 @@ async fn a_type_truncated_in_part_lists_none_of_its_rows() {
         body["data"]["renamePosts"]["cascade"]["invalidations"],
         json!([{ "queryName": "posts", "scope": "PREFIX" }, { "queryName": "users", "scope": "PREFIX" }]),
         "{body}"
+    );
+}
+
+async fn metrics(server: &Running) -> String {
+    reqwest::Client::new()
+        .get(format!("{}/metrics", server.base))
+        .bearer_auth(METRICS_TOKEN)
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap()
+}
+
+/// #1392: each TVIEW the schema reads reports its health on `/metrics`, labelled by TVIEW;
+/// a schema that reads none reports no TVIEW metric at all.
+#[tokio::test]
+async fn metrics_report_the_health_of_each_tview_read() {
+    let Some(server) = serve().await else {
+        return;
+    };
+    run(&server, "updatePost", "measured").await;
+    // A backend's update counts reach the cumulative statistics on its next flush, not at
+    // commit; `hot_ratio` is NULL until they do.
+    let mut rendered = metrics(&server).await;
+    for _ in 0..50 {
+        if rendered.contains("fraiseql_tview_hot_ratio{tview=\"p1391.tv_user\"}") {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        rendered = metrics(&server).await;
+    }
+    for (metric, tview) in [
+        ("fraiseql_tview_dead_tuples", "p1391.tv_post"),
+        ("fraiseql_tview_dead_tuples", "p1391.tv_user"),
+        ("fraiseql_tview_updates", "p1391.tv_user"),
+        ("fraiseql_tview_hot_updates", "p1391.tv_user"),
+        ("fraiseql_tview_hot_ratio", "p1391.tv_user"),
+        ("fraiseql_tview_warnings", "p1391.tv_post"),
+    ] {
+        assert!(
+            rendered.contains(&format!("{metric}{{tview=\"{tview}\"}}")),
+            "{metric} {tview}: {rendered}"
+        );
+    }
+
+    let url = tviews_database_url().unwrap();
+    let mut unrelated = CompiledSchema::new();
+    unrelated
+        .types
+        .push(fraiseql_core::schema::TypeDefinition::new("Other", "pg_catalog.pg_class"));
+    let quiet = serve_schema(url, unrelated).await;
+    assert!(
+        !metrics(&quiet).await.contains("fraiseql_tview_"),
+        "no TVIEW read, no TVIEW metric"
     );
 }
 

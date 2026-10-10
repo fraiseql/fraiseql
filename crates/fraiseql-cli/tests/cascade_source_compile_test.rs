@@ -64,26 +64,11 @@ fn a_cascade_source_with_nothing_to_merge_into_fails_the_compile() {
     assert!(err.contains("triggers"), "{err}");
 }
 
-/// `compile --database` refuses a `pg_tviews` cascade source against a database that has no
-/// `tviews.pg_tviews_flush_and_report()`: the mutation's first write would fail. The
-/// function itself satisfies the contract, so the refusal is `pg_tviews`' alone.
-#[tokio::test]
-async fn compile_against_a_database_without_pg_tviews_refuses_the_source() {
-    let Some(url) = fraiseql_test_support::try_database_url() else {
-        return;
-    };
-    let (client, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
+/// Provision `p1391_compile` (a view and a function that satisfy the mutation contract) in
+/// `url`, then compile the `pg_tviews`-sourced schema against it.
+async fn compile_against(url: &str) -> Result<(), String> {
+    let (client, connection) = tokio_postgres::connect(url, tokio_postgres::NoTls).await.unwrap();
     tokio::spawn(connection);
-    let has_pg_tviews: bool = client
-        .query_one(
-            "SELECT to_regprocedure('tviews.pg_tviews_flush_and_report(integer,boolean,boolean)') \
-             IS NOT NULL",
-            &[],
-        )
-        .await
-        .unwrap()
-        .get(0);
-    assert!(!has_pg_tviews, "this database must be one without pg_tviews");
     client
         .batch_execute(
             "DROP SCHEMA IF EXISTS p1391_compile CASCADE; CREATE SCHEMA p1391_compile;
@@ -108,20 +93,43 @@ async fn compile_against_a_database_without_pg_tviews_refuses_the_source() {
     let dir = tempfile::TempDir::new().unwrap();
     let path = dir.path().join("schema.json");
     std::fs::write(&path, schema.to_string()).unwrap();
-    let result = compile_to_schema(CompileOptions {
+    compile_to_schema(CompileOptions {
         skip_hash: true,
-        database: Some(&url),
+        database: Some(url),
         ..CompileOptions::new(path.to_str().unwrap())
     })
-    .await;
-    let Err(err) = result.map(|_| ()) else {
+    .await
+    .map(|_| ())
+    .map_err(|e| format!("{e:#}"))
+}
+
+/// `compile --database` refuses a `pg_tviews` cascade source against a database that has no
+/// `tviews.pg_tviews_flush_and_report()`: the mutation's first write would fail. The
+/// function itself satisfies the contract, so the refusal is `pg_tviews`' alone.
+#[tokio::test]
+async fn compile_against_a_database_without_pg_tviews_refuses_the_source() {
+    let Some(url) = fraiseql_test_support::try_database_url() else {
+        return;
+    };
+    let Err(err) = compile_against(&url).await else {
         panic!("compiled against a database without pg_tviews")
     };
-    let err = format!("{err:#}");
     assert!(
         err.contains("`updatePost`") && err.contains("pg_tviews_flush_and_report"),
         "{err}"
     );
+}
+
+/// Against a database that has `pg_tviews`, the same schema compiles.
+#[tokio::test]
+async fn compile_against_a_database_with_pg_tviews_accepts_the_source() {
+    let Some(url) = std::env::var("TVIEWS_DATABASE_URL").ok().filter(|u| !u.is_empty()) else {
+        return;
+    };
+    let (client, connection) = tokio_postgres::connect(&url, tokio_postgres::NoTls).await.unwrap();
+    tokio::spawn(connection);
+    client.batch_execute("CREATE EXTENSION IF NOT EXISTS pg_tviews").await.unwrap();
+    compile_against(&url).await.unwrap();
 }
 
 /// The suite's document compiles with no database.
