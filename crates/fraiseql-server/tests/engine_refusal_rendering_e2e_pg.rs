@@ -241,7 +241,7 @@ async fn mcp_reports_an_oversized_response_as_the_response_ceiling() {
 /// Both documents are what the rigs serve, so each must declare its ceiling where there is no
 /// database.
 #[tokio::test]
-async fn the_documents_load_without_a_database() {
+async fn the_document_loads_without_a_database() {
     let bytes = compile(Ceiling::Bytes).await;
     assert_eq!(bytes.validation_config.as_ref().and_then(|v| v.max_response_bytes), Some(1000));
     let cost = compile(Ceiling::Cost).await;

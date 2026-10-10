@@ -249,3 +249,15 @@ async fn every_rich_scalar_compiles_introspects_and_serves_as_a_scalar() {
     }
     assert!(wrong.is_empty(), "{wrong:#?}\nserved: {served}");
 }
+
+/// The document is what the rig serves, so it must compile and load where there is no
+/// database, with the issue's `Host` fields typed as their scalars.
+#[tokio::test]
+async fn the_document_loads_without_a_database() {
+    let schema = compile().await;
+    let host = schema.find_type("Host").expect("Host compiled");
+    for (field, scalar) in [("hostname", "Hostname"), ("address", "IPAddress")] {
+        let declared = host.fields.iter().find(|f| f.name == field).unwrap();
+        assert_eq!(declared.field_type, FieldType::Scalar(scalar.to_string()), "{field}");
+    }
+}

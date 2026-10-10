@@ -254,15 +254,15 @@ with. Measured on PostgreSQL 18 (60 000 rows, a page 55 000 deep): the expanded 
 55 001 rows by filter over 55 364 buffers; the row comparison read 13. The conditions, and
 why each is required:
 
-- **A native column**: a key read from the document (`data->>'key'`) can be absent, so it can
+* **A native column**: a key read from the document (`data->>'key'`) can be absent, so it can
   be NULL. A key is native when the query reads it as a column, which `compile --database`
   records for the query's arguments and inject parameters that name a column.
-- **Proven `NOT NULL`**: `compile --database` reads the catalog. Only a base relation proves
+* **Proven `NOT NULL`**: `compile --database` reads the catalog. Only a base relation proves
   it: PostgreSQL 18 reports every column of a **view** nullable, even over a `NOT NULL`
   column, so a view-backed connection keeps the expanded form. Back the connection with a
   table (a `tv_` table) to seek. A NULL in a row comparison would drop its row from every page
   silently, which is why a column nothing proves is never compared as a row.
-- **Ascending**: the cursor column always sorts ascending, and one row comparison reads every
+* **Ascending**: the cursor column always sorts ascending, and one row comparison reads every
   term in one direction.
 
 Any other ordering keeps the expanded form, and is exact. An unordered connection always

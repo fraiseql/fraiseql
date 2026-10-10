@@ -14,15 +14,18 @@
 //! `scalar Name`, so the federation SDL is type-complete. The property under
 //! test is that the **two surfaces agree**, which is why the central assertion
 //! compares them rather than checking either alone.
+//!
+//! Since #1530 a field typed as an *object* no type declares is refused (the compiler
+//! fails, and a hand-written artifact is refused at load), so the leaves here are what
+//! such names compile to now: scalars the schema references without defining.
 
 use std::collections::BTreeSet;
 
 use fraiseql_core::schema::{CompiledSchema, IntrospectionBuilder, TypeKind};
 use serde_json::json;
 
-/// A compiled schema whose `Order` type references three leaf names that no type
-/// defines — the shape an authoring layer emits when it writes a host-language
-/// type name into a field position.
+/// A compiled schema whose `Order` type references three scalar leaf names that no type
+/// defines (declared custom scalars compile to this shape).
 fn schema_with_dangling_leaves() -> CompiledSchema {
     let raw = json!({
         "types": [{
@@ -30,9 +33,9 @@ fn schema_with_dangling_leaves() -> CompiledSchema {
             "sql_source": "v_order",
             "fields": [
                 {"name": "id", "field_type": "ID", "nullable": false},
-                {"name": "placedAt", "field_type": {"Object": "datetime"}, "nullable": true},
-                {"name": "dueOn", "field_type": {"Object": "date"}, "nullable": true},
-                {"name": "metadata", "field_type": {"Object": "dict"}, "nullable": true},
+                {"name": "placedAt", "field_type": {"Scalar": "datetime"}, "nullable": true},
+                {"name": "dueOn", "field_type": {"Scalar": "date"}, "nullable": true},
+                {"name": "metadata", "field_type": {"Scalar": "dict"}, "nullable": true},
                 {"name": "customer", "field_type": {"Object": "Customer"}, "nullable": true}
             ]
         }, {
