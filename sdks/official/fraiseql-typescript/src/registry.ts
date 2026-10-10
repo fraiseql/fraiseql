@@ -499,6 +499,37 @@ export interface FunctionPredicate {
 /**
  * Complete schema definition.
  */
+/**
+ * Refuse `localized` on anything but a `String` (#1527): a locale map holds strings. The
+ * type-string API refuses `Localized<number>` where it is declared; the `localized: true`
+ * option is checked here, at export, for every field, input field and mutation argument.
+ */
+function refuseLocalizedNonStrings(schema: Schema): void {
+  const declared: Array<[string, { name: string; type: string; localized?: boolean }]> = [
+    ...schema.types.flatMap((t) =>
+      (t.fields as unknown as Array<{ name: string; type: string; localized?: boolean }>).map(
+        (f) => [t.name, f] as [string, { name: string; type: string; localized?: boolean }]
+      )
+    ),
+    ...(schema.input_types ?? []).flatMap((t) =>
+      (t.fields as unknown as Array<{ name: string; type: string; localized?: boolean }>).map(
+        (f) => [t.name, f] as [string, { name: string; type: string; localized?: boolean }]
+      )
+    ),
+    ...schema.mutations.flatMap((m) =>
+      m.arguments.map((a) => [m.name, a] as [string, ArgumentDefinition])
+    ),
+  ];
+  for (const [owner, field] of declared) {
+    if (field.localized === true && field.type !== "String") {
+      throw new Error(
+        `${owner}.${field.name} is localized but is a ${field.type}; only a String can be ` +
+          "localized (a localized field is a String stored as a locale map)"
+      );
+    }
+  }
+}
+
 export interface Schema {
   types: TypeDefinition[];
   queries: QueryDefinition[];
@@ -1500,6 +1531,7 @@ export class SchemaRegistry {
       schema.customScalars = customScalars;
     }
 
+    refuseLocalizedNonStrings(schema);
     return schema;
   }
 

@@ -1,5 +1,5 @@
 import { SchemaRegistry } from "../registry";
-import { registerTypeFields } from "../decorators";
+import { registerMutation, registerTypeFields } from "../decorators";
 import { extractFieldInfo, extractFunctionSignature } from "../types";
 
 /**
@@ -56,6 +56,38 @@ describe("localized authoring", () => {
   it("refuses Localized of anything but string at the declaration", () => {
     expect(() => extractFieldInfo({ stock: "Localized<number>" })).toThrow(
       /Localized<number> is not supported/
+    );
+  });
+
+  // The `localized: true` option bypasses the type-string check above, so the export
+  // refuses it on anything but a String, wherever it was declared (#1527).
+  it("refuses the `localized` option on a non-String type field at export", () => {
+    registerTypeFields(
+      "Priced",
+      [{ name: "price", type: "Float", nullable: false, localized: true }],
+      undefined,
+      { sqlSource: "v_priced" }
+    );
+    expect(() => SchemaRegistry.getSchema()).toThrow(
+      /price.*only a String can be localized/
+    );
+  });
+
+  it("refuses the `localized` option on a non-String input field at export", () => {
+    SchemaRegistry.registerInputType("PriceInput", [
+      { name: "amount", type: "Float", nullable: false, localized: true },
+    ]);
+    expect(() => SchemaRegistry.getSchema()).toThrow(
+      /amount.*only a String can be localized/
+    );
+  });
+
+  it("refuses the `localized` option on a non-String mutation argument at export", () => {
+    registerMutation("setPrice", "Product", false, false, [
+      { name: "amount", type: "Float", nullable: false, localized: true },
+    ]);
+    expect(() => SchemaRegistry.getSchema()).toThrow(
+      /amount.*only a String can be localized/
     );
   });
 });
