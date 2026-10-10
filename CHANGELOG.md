@@ -149,6 +149,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A response-size or cost refusal from the engine has its own status (#1543).** On
+  `/graphql`, SSE, MCP and async operations a read over `[validation] max_response_bytes` is
+  `413 PAYLOAD_TOO_LARGE` (was `500 INTERNAL_SERVER_ERROR`, "An internal error occurred"), and
+  the engine's `[security.cost_budget]` refusal is `OPERATION_COST_EXCEEDED` /
+  `COST_BUDGET_EXHAUSTED`; on gRPC both are `RESOURCE_EXHAUSTED` (was `INTERNAL`), on the unary
+  and the streaming arm. A client or retry policy keyed on the old 500 sees the new code.
 - **Every `--emit-ddl` file opens with two header lines (#965):** `-- fraiseql emit-ddl format 1`
   and the compiler that wrote it. They are SQL comments, so a reader that parses the SQL is
   unaffected (Confiture's generated migration is byte-identical); a consumer that compares the
@@ -295,6 +301,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An engine refusal is reported as the refusal it is (#1543).** `max_response_bytes` and
+  `per_request_max` are enforced in the engine, so they bind on every transport, but only REST
+  rendered them: the shared GraphQL conversion and gRPC's code map had no arm for either, so a
+  client refused for asking too much was told the server broke, and the sanitizer withheld
+  why. Both now carry the ceiling's message and a non-retryable status (429 for a spent
+  rolling window).
 - **An anonymous relay page reads with its session variables.** The connection path passed
   none when the request had no principal, so a view reading `current_setting()` saw neither
   the `literal` and `header` variables #1520 gives an anonymous read nor the request locale;

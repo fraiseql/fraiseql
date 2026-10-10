@@ -451,6 +451,16 @@ impl GraphQLError {
                 message,
                 retry_after,
             } => Self::service_unavailable(message.clone(), *retry_after),
+            // The engine enforces both ceilings on every transport (#379, #1351), so its
+            // refusal reaches here from `/graphql`, SSE, MCP and async operations. Each is
+            // the caller's request, refused by policy: never a server fault (#1543).
+            E::CostExceeded {
+                retry_after_secs, ..
+            } => match retry_after_secs {
+                Some(secs) => Self::cost_budget_exhausted(err.to_string(), *secs),
+                None => Self::operation_cost_exceeded(err.to_string()),
+            },
+            E::ResponseTooLarge { .. } => Self::new(err.to_string(), ErrorCode::PayloadTooLarge),
             // Cancelled, Configuration, Internal, and any future variants
             _ => Self::internal(err.to_string()),
         }

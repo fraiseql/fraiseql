@@ -1,6 +1,7 @@
-//! #1512 on the gRPC transport: a unary read and a server-streaming read run in the request
-//! locale, resolved from the request metadata (`accept-language`). #1520 likewise: a
-//! `source = "header"` session variable is read from the metadata (`x-region`).
+//! The gRPC transport, end to end. #1512: a unary read and a server-streaming read run in the
+//! request locale, resolved from the request metadata (`accept-language`). #1520 likewise: a
+//! `source = "header"` session variable is read from the metadata (`x-region`). #1543: a read
+//! over `[validation] max_response_bytes` is refused as `RESOURCE_EXHAUSTED` on both arms.
 //!
 //! gRPC reads native columns, so the probe view carries the setting as a column. The service is
 //! built with `build_grpc_service` over a real `PostgresAdapter` and driven with
@@ -184,6 +185,17 @@ async fn service(dir: &std::path::Path) -> Option<DynamicGrpcService> {
 }
 
 async fn service_with(dir: &std::path::Path, strict: bool) -> Option<DynamicGrpcService> {
+    service_bounded(dir, strict, None).await
+}
+
+/// The service, with `[validation] max_response_bytes` declared when `max_response_bytes` is
+/// set. The executor then runs under the schema-derived runtime config, which is where the
+/// ceiling is installed; `Executor::new` would leave it out.
+async fn service_bounded(
+    dir: &std::path::Path,
+    strict: bool,
+    max_response_bytes: Option<u64>,
+) -> Option<DynamicGrpcService> {
     let url = try_database_url()?;
     let adapter = Arc::new(PostgresAdapter::new(&url).await.unwrap());
     // gRPC reads the row-shaped `vr_` view of the type's source.
@@ -200,10 +212,21 @@ async fn service_with(dir: &std::path::Path, strict: bool) -> Option<DynamicGrpc
     }
     let path = dir.join("descriptor.binpb");
     std::fs::write(&path, descriptor_set().encode_to_vec()).unwrap();
-    let schema = Arc::new(schema_with(path.to_str().unwrap(), strict));
+    let mut schema = schema_with(path.to_str().unwrap(), strict);
+    let executor = if let Some(bytes) = max_response_bytes {
+        schema.validation_config = Some(fraiseql_core::schema::ValidationConfig {
+            max_response_bytes: Some(bytes),
+            ..fraiseql_core::schema::ValidationConfig::default()
+        });
+        let runtime = fraiseql_core::runtime::RuntimeConfig::from_compiled_schema(&schema).unwrap();
+        Executor::with_config(schema.clone(), adapter, runtime)
+    } else {
+        Executor::new(schema.clone(), adapter)
+    };
+    let schema = Arc::new(schema);
     let services = grpc::build_grpc_service(
         Arc::clone(&schema),
-        Arc::new(Executor::new((*schema).clone(), adapter)),
+        Arc::new(executor),
         None,
         None,
         #[cfg(feature = "auth")]
@@ -382,5 +405,21 @@ async fn grpc_reads_refuse_a_null_in_a_non_null_column() {
         let (code, message) = status_of(&svc, method).await;
         assert_eq!(code.as_deref(), Some("13"), "{method}: INTERNAL ({message})");
         assert!(message.contains("Probe.must"), "{method}: names the field: {message}");
+    }
+}
+
+/// #1543: a read over `[validation] max_response_bytes` is refused as `RESOURCE_EXHAUSTED`
+/// (8), naming the ceiling, on both arms. It used to be `INTERNAL` (13): a caller refused for
+/// asking too much was told the server broke.
+#[tokio::test]
+async fn grpc_reads_refuse_an_oversized_response_as_resource_exhausted() {
+    let dir = tempfile::tempdir().unwrap();
+    let Some(svc) = service_bounded(dir.path(), false, Some(1)).await else {
+        return;
+    };
+    for method in ["ListProbes", "ListProbeStream"] {
+        let (code, message) = status_of(&svc, method).await;
+        assert_eq!(code.as_deref(), Some("8"), "{method}: RESOURCE_EXHAUSTED ({message})");
+        assert!(message.contains("max_response_bytes"), "{method}: names the ceiling: {message}");
     }
 }

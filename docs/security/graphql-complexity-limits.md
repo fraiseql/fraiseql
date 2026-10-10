@@ -89,7 +89,7 @@ levels:
 
 | Level | Config | Rejection | Scope |
 |-------|--------|-----------|-------|
-| Schema-wide per-request ceiling | `[security.cost_budget] per_request_max` | `OPERATION_COST_EXCEEDED` (200 + `errors[]`, not retryable); `BAD_REQUEST` 400 over REST | **Inside the executor** — every transport that executes a GraphQL document (`/graphql` POST/GET/QUERY, MCP, the functions bridge, direct embedders), **and** every direct read that never had a document (the REST read surface, both gRPC read arms) |
+| Schema-wide per-request ceiling | `[security.cost_budget] per_request_max` | `OPERATION_COST_EXCEEDED` (200 + `errors[]`, not retryable); `BAD_REQUEST` 400 over REST; `RESOURCE_EXHAUSTED` over gRPC | **Inside the executor** — every transport that executes a GraphQL document (`/graphql` POST/GET/QUERY, MCP, the functions bridge, direct embedders), **and** every direct read that never had a document (the REST read surface, both gRPC read arms) |
 | Per-tenant per-request budget | tenant-quota admin API `cost_budget` | `OPERATION_COST_EXCEEDED` | `/graphql`, at the shared tenant-dispatch seam |
 | Per-tenant rolling minute window | tenant-quota admin API `cost_budget_per_minute`, defaulted by `[security.cost_budget] per_tenant_per_minute_default` | `COST_BUDGET_EXHAUSTED` (429 + `Retry-After`) | `/graphql`, same seam |
 
@@ -154,6 +154,11 @@ max_page_size = 1000
 # Deepest offset a client may page to (default: none). #1306
 # Overridable at runtime with FRAISEQL_MAX_OFFSET (a number, or 0/none to lift it).
 # max_offset = 10000
+# Most bytes one read may deliver (default: none). Charged on the rows that come back,
+# inside the executor, so it binds on every transport that returns rows. Refused as
+# 413 PAYLOAD_TOO_LARGE (GraphQL, SSE, MCP, async operations, REST) and
+# RESOURCE_EXHAUSTED (gRPC, both arms). #1351, #1543
+# max_response_bytes = 10485760
 
 [security.cost_budget]
 # Hard per-operation cost ceiling, enforced inside the executor for every

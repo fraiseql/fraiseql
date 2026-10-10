@@ -516,6 +516,26 @@ mod error_tests {
         assert_eq!(graphql_err.code.status_code(), StatusCode::SERVICE_UNAVAILABLE);
     }
 
+    /// #1543: the engine's cost refusal keeps the two codes the HTTP stage gives the same
+    /// refusal. A spent rolling window is retryable (429); a per-request ceiling is not.
+    /// The per-request half is driven end to end in `engine_refusal_rendering_e2e_pg`;
+    /// the window half is only reachable from a tenant's budget, which `/graphql` checks
+    /// before the engine runs.
+    #[test]
+    fn test_from_fraiseql_error_cost_exceeded_keeps_its_codes() {
+        use fraiseql_core::error::FraiseQLError;
+        let refusal = |retry_after_secs| FraiseQLError::CostExceeded {
+            message: "over budget".into(),
+            cost: 10,
+            limit: 1,
+            retry_after_secs,
+        };
+        let window = GraphQLError::from_fraiseql_error(&refusal(Some(30)));
+        assert_eq!(window.code, ErrorCode::CostBudgetExhausted);
+        let per_request = GraphQLError::from_fraiseql_error(&refusal(None));
+        assert_eq!(per_request.code, ErrorCode::OperationCostExceeded);
+    }
+
     #[test]
     fn test_from_fraiseql_error_database_maps_to_database_code() {
         use fraiseql_core::error::FraiseQLError;

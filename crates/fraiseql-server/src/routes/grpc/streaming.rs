@@ -164,9 +164,14 @@ pub async fn build_streaming_body(
                     },
                     Err(e) => {
                         // Rows encoded before the failure still go out; the client
-                        // learns the delivery was cut short from the trailers.
+                        // learns the delivery was cut short from the trailers, coded as
+                        // the unary arm codes the same error: a read over
+                        // `max_response_bytes` is cut here, as it is charged (#1543).
                         state.sent_trailers = true;
-                        return Some((Ok(error_trailers(&e.to_string())), state));
+                        return Some((
+                            Ok(error_trailers_coded(super::grpc_code_for(&e), &e.to_string())),
+                            state,
+                        ));
                     },
                 }
             }
@@ -187,8 +192,13 @@ fn ok_trailers() -> http::HeaderMap {
 
 /// `grpc-status: 13 (INTERNAL)` carrying `message`.
 fn error_trailers(message: &str) -> Frame<Bytes> {
+    error_trailers_coded(tonic::Code::Internal, message)
+}
+
+/// `grpc-status: <code>` carrying `message`.
+fn error_trailers_coded(code: tonic::Code, message: &str) -> Frame<Bytes> {
     let mut trailers = http::HeaderMap::new();
-    trailers.insert("grpc-status", http::HeaderValue::from_static("13"));
+    trailers.insert("grpc-status", http::HeaderValue::from(code as i32));
     if let Ok(msg) = http::HeaderValue::from_str(message) {
         trailers.insert("grpc-message", msg);
     }
