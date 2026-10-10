@@ -905,11 +905,15 @@ pub struct ServerConfig {
     #[serde(default)]
     pub security_contact: Option<String>,
 
-    /// Query validation overrides (depth and complexity limits).
+    /// Query validation overrides (depth and complexity limits, and the response-bytes
+    /// ceiling).
     ///
     /// When present, these values take precedence over the limits baked into
     /// the compiled schema, allowing operators to tune validation without
-    /// recompiling.
+    /// recompiling. They hold across a hot reload and bind every tenant executor
+    /// the server registers, whatever the tenant's own schema declares (#1534).
+    /// `max_page_size` and `max_offset` are refused here: set them in
+    /// `fraiseql.toml` or with their environment overrides.
     ///
     /// # Example (TOML)
     ///
@@ -917,6 +921,7 @@ pub struct ServerConfig {
     /// [validation]
     /// max_query_depth = 15
     /// max_query_complexity = 200
+    /// max_response_bytes = 10485760
     /// ```
     #[serde(default)]
     pub validation: Option<fraiseql_core::schema::ValidationConfig>,

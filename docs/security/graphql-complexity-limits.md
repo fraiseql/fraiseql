@@ -158,6 +158,8 @@ max_page_size = 1000
 # inside the executor, so it binds on every transport that returns rows. Refused as
 # 413 PAYLOAD_TOO_LARGE (GraphQL, SSE, MCP, async operations, REST) and
 # RESOURCE_EXHAUSTED (gRPC, both arms). #1351, #1543
+# The server's runtime config may override it under its own [validation]; that value
+# holds across a hot reload (SIGUSR1) and binds every registered tenant. #1534
 # max_response_bytes = 10485760
 
 [security.cost_budget]

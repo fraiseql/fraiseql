@@ -309,7 +309,10 @@ pub async fn create_tenant_executor_with_adapter<A: FromPoolConfig + Writer>(
     //    `with_compiled_schema` re-derives the schema-owned settings on top of the live
     //    config, so the split is exactly right: the operator's policy is carried
     //    through, and `[validation]` / `[security.cost_budget]` / `[changelog]` come
-    //    from **this tenant's** schema rather than the server's.
+    //    from **this tenant's** schema rather than the server's — except the ceilings
+    //    the operator sets in the server configuration, which bind every tenant. Today
+    //    that is the runtime `[validation] max_response_bytes` (#1534), carried as
+    //    `RuntimeConfig::operator_max_response_bytes`.
     let config = runtime_config
         .clone()
         .with_compiled_schema(&schema)

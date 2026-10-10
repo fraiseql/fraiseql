@@ -30,14 +30,17 @@ pub(super) fn effective_validation_limits(
 
 /// Build the executor's [`RuntimeConfig`] for a server constructor (#379).
 ///
-/// Wraps [`RuntimeConfig::from_compiled_schema`] (the H16 seam) and, when a
+/// Wraps [`RuntimeConfig::with_compiled_schema`] (the H16 seam) and, when a
 /// runtime `[validation]` override is configured, installs the per-field merged
 /// limits as the executor's caller-set gate. Without this, the executor's
 /// schema-derived gate would silently negate a runtime override that loosens a
 /// compiled limit — the stage would admit the query and the engine would then
-/// reject it. Reload safety: `validation_config` is boot-frozen (the reload
-/// gate refuses a schema that changes it), so the values installed here cannot
-/// go stale across a hot reload.
+/// reject it. Reload safety: everything installed here is caller-owned on
+/// [`RuntimeConfig`](fraiseql_core::runtime::RuntimeConfig), which a hot reload and
+/// a tenant executor rebuild from with `with_compiled_schema`, so it is carried
+/// through every rebuild rather than recomputed from the rebuilt schema. That
+/// includes the response-bytes override, which used to be written over the
+/// schema-derived value and was dropped by the first `SIGUSR1` (#1534).
 ///
 /// # Errors
 ///
@@ -47,7 +50,19 @@ pub(super) fn executor_runtime_config(
     schema: &CompiledSchema,
     config: &crate::server_config::ServerConfig,
 ) -> Result<fraiseql_core::runtime::RuntimeConfig, String> {
-    let mut rt = fraiseql_core::runtime::RuntimeConfig::from_compiled_schema(schema)?;
+    // The response-bytes ceiling takes the same runtime-over-compiled precedence as
+    // the limits below. `ServerConfig::validation` is the *same* `ValidationConfig`
+    // struct the schema carries, so without this an operator could write `[validation]
+    // max_response_bytes` in the runtime TOML, have it parse, and have it do nothing.
+    // It is installed as the operator's ceiling, caller-owned, before the schema is
+    // applied: `with_compiled_schema` then lets it win here and on every later rebuild
+    // (a hot reload, each tenant executor), where writing it over the schema-derived
+    // value lasted only until the first rebuild (#1534).
+    let mut rt = fraiseql_core::runtime::RuntimeConfig {
+        operator_max_response_bytes: config.validation.as_ref().and_then(|v| v.max_response_bytes),
+        ..fraiseql_core::runtime::RuntimeConfig::default()
+    }
+    .with_compiled_schema(schema)?;
     rt.mutation_error_shape_check = config.mutation_error_shape_check;
     // #1314: operator-owned, so it survives a hot reload and reaches every tenant.
     rt.nearest_short_result = config.vector_on_short_result;
@@ -66,17 +81,6 @@ pub(super) fn executor_runtime_config(
         }
     }
 
-    // The response-bytes ceiling takes the same runtime-over-compiled precedence as
-    // the limits above it. `from_compiled_schema` has already installed the compiled
-    // value, so this only has to apply an override that exists — but it has to apply
-    // it, because `ServerConfig::validation` is the *same* `ValidationConfig` struct
-    // the schema carries. Without this an operator could write
-    // `[validation] max_response_bytes` in the runtime TOML, have it parse, and have
-    // it do nothing: a control configured, accepted and not in force, which is the
-    // defect class this whole change is closing.
-    if let Some(bytes) = config.validation.as_ref().and_then(|v| v.max_response_bytes) {
-        rt.max_response_bytes = Some(bytes);
-    }
     // The page-size (#421) and offset (#1306) ceilings are owned by the compiled schema and
     // their environment overrides, and re-derived from those on every hot reload. A runtime
     // `[validation]` value for either would hold until the first reload and then vanish, so

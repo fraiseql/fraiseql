@@ -318,10 +318,11 @@ pub struct RuntimeConfig {
 
     /// Hard ceiling on the bytes a single read may deliver.
     ///
-    /// **Schema-derived** — recomputed from the compiled `[validation]
-    /// max_response_bytes` on every
+    /// **Schema-derived** — recomputed on every
     /// [`with_compiled_schema`](Self::with_compiled_schema), never set by the
-    /// caller.
+    /// caller: the operator's
+    /// [`operator_max_response_bytes`](Self::operator_max_response_bytes) when one is
+    /// set, otherwise the compiled `[validation] max_response_bytes`.
     ///
     /// Unlike [`max_operation_cost`](Self::max_operation_cost) this is not scored
     /// before the database runs: what a read weighs is not recoverable from the
@@ -331,6 +332,17 @@ pub struct RuntimeConfig {
     /// carry a document to score. See
     /// [`ResponseBudget`](crate::security::ResponseBudget).
     pub max_response_bytes: Option<u64>,
+
+    /// The operator's response-bytes ceiling (#1534): the server configuration's runtime
+    /// `[validation] max_response_bytes`.
+    ///
+    /// **Caller-owned**, so a hot reload and every tenant executor built from this config
+    /// keep it: when set, [`max_response_bytes`](Self::max_response_bytes) is this value on
+    /// every [`with_compiled_schema`](Self::with_compiled_schema), whatever the compiled
+    /// schema being applied declares. Before it existed the override was written straight
+    /// into `max_response_bytes` at boot, and the first rebuild recomputed it from the schema
+    /// alone. `None` leaves the compiled value in force.
+    pub operator_max_response_bytes: Option<u64>,
 
     /// Emit structured `tracing` events for every successfully-executed mutation.
     ///
@@ -484,6 +496,7 @@ impl std::fmt::Debug for RuntimeConfig {
             .field("query_validation", &self.query_validation)
             .field("max_operation_cost", &self.max_operation_cost)
             .field("max_response_bytes", &self.max_response_bytes)
+            .field("operator_max_response_bytes", &self.operator_max_response_bytes)
             .field("audit_mutations", &self.audit_mutations)
             .field("changelog_enabled", &self.changelog_enabled)
             .field("dry_run_mutations", &self.dry_run_mutations)
@@ -500,29 +513,30 @@ impl std::fmt::Debug for RuntimeConfig {
 impl Default for RuntimeConfig {
     fn default() -> Self {
         Self {
-            cache_query_plans:          true,
-            max_page_size:              Some(1000),
-            max_offset:                 None,
-            nearest_short_result:       notices::ShortResultPolicy::Signal,
-            enable_tracing:             false,
-            field_filter:               None,
-            rls_policy:                 None,
-            field_authorizer:           None,
-            authorizer:                 None,
-            query_timeout_ms:           30_000, // 30 second default timeout
-            jsonb_optimization:         JsonbOptimizationOptions::default(),
-            query_validation:           None,
-            max_operation_cost:         None,
-            max_response_bytes:         None,
-            audit_mutations:            false,
-            changelog_enabled:          true,
-            dry_run_mutations:          false,
-            mutation_error_shape_check: mutation_result::MutationErrorShapeCheck::Off,
-            cascade_limits:             CascadeLimits::default(),
-            before_mutation_gate:       None,
-            query_function_resolver:    None,
-            after_mutation_observer:    None,
-            root_error_renderer:        None,
+            cache_query_plans:           true,
+            max_page_size:               Some(1000),
+            max_offset:                  None,
+            nearest_short_result:        notices::ShortResultPolicy::Signal,
+            enable_tracing:              false,
+            field_filter:                None,
+            rls_policy:                  None,
+            field_authorizer:            None,
+            authorizer:                  None,
+            query_timeout_ms:            30_000, // 30 second default timeout
+            jsonb_optimization:          JsonbOptimizationOptions::default(),
+            query_validation:            None,
+            max_operation_cost:          None,
+            max_response_bytes:          None,
+            operator_max_response_bytes: None,
+            audit_mutations:             false,
+            changelog_enabled:           true,
+            dry_run_mutations:           false,
+            mutation_error_shape_check:  mutation_result::MutationErrorShapeCheck::Off,
+            cascade_limits:              CascadeLimits::default(),
+            before_mutation_gate:        None,
+            query_function_resolver:     None,
+            after_mutation_observer:     None,
+            root_error_renderer:         None,
         }
     }
 }
@@ -822,11 +836,12 @@ impl RuntimeConfig {
             .and_then(|s| s.cost_budget.as_ref())
             .and_then(|c| c.per_request_max);
 
-        // The response-bytes ceiling is declared in the compiled [validation] and
-        // owned by the schema, exactly as the cost ceiling above is owned by
-        // [security.cost_budget]. Both are recomputed here rather than carried
-        // through, so a hot reload cannot leave a stale ceiling in force.
-        let max_response_bytes =
+        // The response-bytes ceiling is declared in the compiled [validation], and the
+        // operator may override it at runtime (#1534). The override is caller-owned and
+        // carried through below; the compiled value is recomputed here. The ceiling in
+        // force is the override when there is one, so neither a hot reload nor a tenant's
+        // own schema can drop it.
+        let compiled_max_response_bytes =
             schema.validation_config.as_ref().and_then(|v| v.max_response_bytes);
 
         let Self {
@@ -844,8 +859,9 @@ impl RuntimeConfig {
             query_validation,
             max_operation_cost: _, // schema-derived
             max_response_bytes: _, // schema-derived
-            audit_mutations: _,    // schema-derived
-            changelog_enabled: _,  // schema-derived
+            operator_max_response_bytes,
+            audit_mutations: _,   // schema-derived
+            changelog_enabled: _, // schema-derived
             dry_run_mutations,
             mutation_error_shape_check,
             cascade_limits,
@@ -869,7 +885,8 @@ impl RuntimeConfig {
             jsonb_optimization,
             query_validation,
             max_operation_cost,
-            max_response_bytes,
+            max_response_bytes: operator_max_response_bytes.or(compiled_max_response_bytes),
+            operator_max_response_bytes,
             audit_mutations,
             changelog_enabled,
             dry_run_mutations,

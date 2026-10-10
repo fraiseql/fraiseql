@@ -833,6 +833,7 @@ mod runtime_config_drift {
             query_validation,
             max_operation_cost,
             max_response_bytes,
+            operator_max_response_bytes,
             audit_mutations,
             changelog_enabled,
             dry_run_mutations,
@@ -883,6 +884,11 @@ mod runtime_config_drift {
         // #1314: the operator's `vector_on_short_result`, like the vector scan settings.
         if *nearest_short_result != tenant.nearest_short_result {
             out.push("nearest_short_result");
+        }
+        // #1534: the operator's runtime `[validation] max_response_bytes` binds every
+        // tenant, whatever its own schema declares.
+        if *operator_max_response_bytes != tenant.operator_max_response_bytes {
+            out.push("operator_max_response_bytes");
         }
         if *enable_tracing != tenant.enable_tracing {
             out.push("enable_tracing");
@@ -944,6 +950,7 @@ mod runtime_config_drift {
             query_timeout_ms: 4321,
             max_operation_cost: Some(99),
             max_response_bytes: Some(4096),
+            operator_max_response_bytes: Some(2048),
             audit_mutations: true,
             changelog_enabled: false,
             dry_run_mutations: true,
@@ -963,6 +970,7 @@ mod runtime_config_drift {
             "max_offset",
             "max_operation_cost",
             "max_response_bytes",
+            "operator_max_response_bytes",
             "audit_mutations",
             "changelog_enabled",
         ] {
@@ -1026,6 +1034,11 @@ mod runtime_config_drift {
             before_mutation_gate: Some(Arc::new(AbortAll)),
             root_error_renderer: Some(Arc::new(|_| serde_json::json!({}))),
             query_timeout_ms: 4321,
+            // #1534: a runtime `[validation] max_response_bytes`, as the boot seam installs
+            // it (the operator's ceiling, and therefore the one in force). The tenant's
+            // schema declares none; it must still run under this one.
+            operator_max_response_bytes: Some(2048),
+            max_response_bytes: Some(2048),
             ..RuntimeConfig::default()
         }
     }

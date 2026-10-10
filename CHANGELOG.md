@@ -149,6 +149,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **A server's runtime `[validation] max_response_bytes` binds its tenants (#1534).** A tenant
+  executor used its own compiled ceiling; it now runs under the operator's override when the
+  server configuration sets one, whatever the tenant's schema declares (a tenant declaring a
+  tighter one is held to the operator's, the same precedence the server's own schema has).
+  `RuntimeConfig` gains the public field `operator_max_response_bytes`: a struct literal that
+  lists every field must add it.
 - **A response-size or cost refusal from the engine has its own status (#1543).** On
   `/graphql`, SSE, MCP and async operations a read over `[validation] max_response_bytes` is
   `413 PAYLOAD_TOO_LARGE` (was `500 INTERNAL_SERVER_ERROR`, "An internal error occurred"), and
@@ -301,6 +307,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **A runtime `max_response_bytes` survives a hot reload (#1534).** The server
+  configuration's `[validation] max_response_bytes` was written over the compiled value at
+  boot, and every rebuild (`SIGUSR1`, the admin reload endpoint, each tenant executor)
+  recomputed the ceiling from the compiled schema alone, so the operator's value was gone
+  after the first reload, with nothing said. It is now the operator's ceiling, carried
+  through every rebuild like the other caller-owned settings.
 - **An engine refusal is reported as the refusal it is (#1543).** `max_response_bytes` and
   `per_request_max` are enforced in the engine, so they bind on every transport, but only REST
   rendered them: the shared GraphQL conversion and gRPC's code map had no arm for either, so a

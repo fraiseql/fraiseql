@@ -1999,6 +1999,7 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		// GraphQL, REST and an embedded level. Owns its p1306_offset schema → serial.
 		"cargo test -p fraiseql-server --features rest --test offset_ceiling_e2e_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server --features mcp --test engine_refusal_rendering_e2e_pg -- --test-threads=1",
+		"cargo test -p fraiseql-server --test response_bytes_override_e2e_pg -- --test-threads=1",
 		// #809: schema-per-tenant isolation was a single session `SET search_path` on
 		// one pooled connection. Every other connection resolved against `public`, so
 		// the leak is only visible under concurrency — a single-connection test passes
