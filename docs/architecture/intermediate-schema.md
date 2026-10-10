@@ -497,6 +497,13 @@ OLAP-style fact table for aggregate queries.
 A fact table gives the `<name>_aggregate` root field. There is no `aggregate_queries`
 section: the compiler refuses one.
 
+The `<name>_aggregate` and `<name>_window` root fields take their request (`table`,
+`groupBy` or `select`, `aggregates` or `windows`, `where`, `orderBy`, `limit`, `offset`)
+from the request's **variables**; an argument written on the root field is refused, never
+ignored. `limit` and `offset` are read as a list's: a value that is not a non-negative `Int`
+is refused, `limit` is held to `[validation] max_page_size` and `offset` to `max_offset`, all
+before any statement (#1532, #1306).
+
 ---
 
 ## Worked examples

@@ -334,6 +334,12 @@ impl AggregateRunner {
         );
         let mut request =
             crate::runtime::AggregateQueryParser::parse(query_json, metadata, &native_columns)?;
+        // #1532: a page of groups is held to `[validation] max_page_size` as a list's is.
+        request.limit = super::query_params::enforce_max_page_size(
+            request.limit,
+            self.ctx.config.max_page_size,
+            "limit",
+        )?;
         // #1306: an offset over groups is held to `[validation] max_offset` as a list's is.
         request.offset = super::query_params::enforce_max_offset(
             request.offset,
@@ -601,6 +607,12 @@ impl AggregateRunner {
 
         // 1. Parse JSON query into WindowRequest
         let mut request = crate::runtime::WindowQueryParser::parse(query_json, metadata)?;
+        // #1532: as an aggregate's.
+        request.limit = super::query_params::enforce_max_page_size(
+            request.limit,
+            self.ctx.config.max_page_size,
+            "limit",
+        )?;
         // #1306: as an aggregate's.
         request.offset = super::query_params::enforce_max_offset(
             request.offset,

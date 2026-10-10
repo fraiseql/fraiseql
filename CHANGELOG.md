@@ -149,6 +149,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **Aggregate and window paging is validated and bounded (#1532).** A `limit` or `offset`
+  that is negative, fractional, a string, a boolean or above `2^32 - 1` is refused (it meant
+  *no limit*, or saturated), and a `limit` above `[validation] max_page_size` is refused (it
+  had no ceiling). An argument written on an `_aggregate` / `_window` root field is refused
+  (it was ignored): the request goes in the variables.
 - **A server's runtime `[validation] max_response_bytes` binds its tenants (#1534).** A tenant
   executor used its own compiled ceiling; it now runs under the operator's override when the
   server configuration sets one, whatever the tenant's schema declares (a tenant declaring a
@@ -307,6 +312,11 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **An aggregate or window query reads `limit` and `offset` as a list does (#1532).**
+  `limit: -1`, `1.5` or `"10"` returned every group under a `200`, `2^32` silently became
+  `u32::MAX`, and `limit` had no page ceiling. Both parsers now read through the list
+  runners' coercion and the ceiling is enforced beside `max_offset`, before any statement;
+  `sales_aggregate(limit: 1)`, whose inline argument nothing read, is refused.
 - **A runtime `max_response_bytes` survives a hot reload (#1534).** The server
   configuration's `[validation] max_response_bytes` was written over the compiled value at
   boot, and every rebuild (`SIGUSR1`, the admin reload endpoint, each tenant executor)

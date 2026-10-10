@@ -119,15 +119,13 @@ impl WindowQueryParser {
         };
 
         // Parse LIMIT/OFFSET
-        let limit = query_json
-            .get("limit")
-            .and_then(|v| v.as_u64())
-            .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
+        // #1532: read as a list's are. A value that is not a non-negative Int is refused;
+        // `as_u64()` read `-1`, `1.5` and `"10"` as no limit and saturated `2^32`.
+        let limit =
+            crate::runtime::executor::coerce_pagination_arg("limit", query_json.get("limit"))?;
 
-        let offset = query_json
-            .get("offset")
-            .and_then(|v| v.as_u64())
-            .map(|n| u32::try_from(n).unwrap_or(u32::MAX));
+        let offset =
+            crate::runtime::executor::coerce_pagination_arg("offset", query_json.get("offset"))?;
 
         Ok(WindowRequest {
             table_name,
