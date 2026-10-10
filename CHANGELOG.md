@@ -177,16 +177,18 @@ disagreed, and the promise was the part that was wrong.
 ### Breaking
 
 - **Partial-period aggregation is removed (#1519).** `FactTableMetadata::partial_period`,
-  `PartialPeriodConfig`, `TemporalGrain` and `fraiseql_core::runtime::partial_period` are gone:
+  `PartialPeriodConfig`, `TemporalGrain`, `AggregationSqlGenerator::generate_partial_period` and
+  `fraiseql_core::runtime::partial_period` are gone:
   nothing produced the config (no SDK or compile path wrote it), its `UNION ALL` could not
   execute on PostgreSQL, and its branches would not have recombined into one answer. A compiled
   artifact whose fact table still carries `partial_period` is refused at load, by name; an
   embedder constructing `FactTableMetadata` drops the field.
 - **Fact-table measures carry `additivity`; the aggregate plan a `time_reduction` (#1459).**
   `MeasureColumn` gains `additivity` (`Additive` by default, omitted from the artifact),
-  `AggregationPlan` gains `time_reduction`, and `RuntimeConfig` and
-  `fraiseql_core::schema::ValidationConfig` gain `max_semi_additive_cells`: a struct literal
-  that lists every field adds them. A server configuration's `[validation]
+  `AggregationPlan` gains `time_reduction`, `RuntimeConfig` and
+  `fraiseql_core::schema::ValidationConfig` gain `max_semi_additive_cells`, and the CLI's
+  compile input `IntermediateMeasure` gains `additivity`: a struct literal that lists every
+  field adds them. A server configuration's `[validation]
   max_semi_additive_cells` is refused at boot, as `max_offset` is: the bound belongs to the
   compiled schema.
 - **A violated constraint is named in the mutation's typed error by default (#1531).** The
