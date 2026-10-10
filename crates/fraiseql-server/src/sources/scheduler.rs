@@ -9,8 +9,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use arc_swap::ArcSwap;
-use fraiseql_core::{runtime::Executor, schema::SourceDefinition};
+use fraiseql_core::schema::SourceDefinition;
 use fraiseql_functions::{
     FunctionModule, ResourceLimits,
     host::live::{HostContextConfig, QueryExecutor},
@@ -118,7 +117,8 @@ fn schedulable<'a>(
 /// Build one [`SourcePoller`] per enabled Model B source in the compiled schema.
 ///
 /// Each poller runs under the source's `run_as` identity (via
-/// [`SourceQueryExecutor`] over the hot-reloadable `executor`), reads/advances the
+/// [`SourceQueryExecutor`] over the server's executor source: the serving executor, or a
+/// message's tenant's under the tenancy runtime, #1550), reads/advances the
 /// shared durable cursor store, and single-fires across replicas on a
 /// `PostgreSQL` advisory lease keyed on the source name. The caller spawns each
 /// returned poller's [`run_forever`](SourcePoller::run_forever) on the server's
@@ -135,7 +135,7 @@ fn schedulable<'a>(
 pub fn build_source_pollers(
     sources: &[SourceDefinition],
     db_pool: &sqlx::PgPool,
-    executor: &Arc<ArcSwap<Executor>>,
+    executor: &crate::query_bridge::ExecutorSource,
     hooks: &BeforeMutationHooks,
     host_config: &HostContextConfig,
     limits: &ResourceLimits,
@@ -148,7 +148,7 @@ pub fn build_source_pollers(
             // request-id correlates the source in the audit envelope.
             let identity = source.identity(source.name.as_str());
             let query_executor: Arc<dyn QueryExecutor> =
-                Arc::new(SourceQueryExecutor::new(Arc::clone(executor), identity.clone()));
+                Arc::new(SourceQueryExecutor::new(executor.clone(), identity.clone()));
             SourcePoller::new(
                 source.name.clone(),
                 // The declared `cursor` override, falling back to the source name. Keeps the

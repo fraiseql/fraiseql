@@ -134,8 +134,10 @@ async fn a_bridge_write_runs_at_dispatch_depth_one() {
     let mutation = "mutation { updateOrder { id } }";
 
     executor.execute(mutation, None).await.unwrap();
-    let bridge =
-        super::RunAsQueryExecutor::new(Arc::new(ArcSwap::from(Arc::clone(&executor))), base(None));
+    let bridge = super::RunAsQueryExecutor::new(
+        super::ExecutorSource::single(Arc::new(ArcSwap::from(Arc::clone(&executor)))),
+        base(None),
+    );
     bridge.execute_query(mutation, None).await.unwrap();
 
     assert_eq!(*depths.0.lock().unwrap(), [0, 1]);

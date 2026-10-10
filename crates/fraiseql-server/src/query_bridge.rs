@@ -20,9 +20,10 @@
 //!
 //! Two properties matter:
 //!
-//! - **Hot-reload-safe.** It holds the same `Arc<ArcSwap<Executor>>` the request path holds and
-//!   `load`s a fresh snapshot per call, so a schema reload is picked up by the next firing rather
-//!   than pinned at construction.
+//! - **Hot-reload-safe and tenant-scoped.** It resolves its executor per call from the server's
+//!   [`ExecutorSource`](crate::query_bridge::ExecutorSource): the serving executor's current
+//!   snapshot, or, under the tenancy runtime, the executor of the tenant the write's identity
+//!   carries (#1550). A schema reload or a tenant registration is picked up by the next firing.
 //! - **Per-message tenant seam.** The identity is not a frozen field. A single `execute_query`
 //!   re-scopes to a per-message tenant carried in the reserved
 //!   [`SOURCE_TENANT_VAR`](crate::query_bridge::SOURCE_TENANT_VAR) variable — the runtime half of
@@ -48,15 +49,117 @@ use serde_json::Value;
 /// sides agree on. Event-dispatched functions do not set it.
 pub const SOURCE_TENANT_VAR: &str = "__source_tenant";
 
+/// Where a bridged write finds its executor (#1550): the tenant's, when the tenancy
+/// runtime is on.
+///
+/// Built only from the server's state ([`ExecutorSource::of`]), so no dispatch path can
+/// bridge to the default executor while tenants are registered. With the runtime off,
+/// every write runs on the hot-reloadable serving executor; with it on, a write whose
+/// identity carries a tenant runs on that tenant's executor (its pool and
+/// `search_path`), and an unregistered or suspended tenant is refused exactly as
+/// `/graphql` refuses it.
+#[derive(Clone)]
+pub struct ExecutorSource(Source);
+
+#[derive(Clone)]
+enum Source {
+    /// No tenancy runtime: the one serving executor.
+    Single(Arc<ArcSwap<Executor>>),
+    /// The tenancy runtime: the registry, whose default is the serving executor.
+    Tenants(Arc<TenantExecutorRegistry>),
+}
+
+use crate::routes::graphql::tenant_registry::TenantExecutorRegistry;
+
+impl ExecutorSource {
+    /// The source the server's request path uses.
+    #[must_use]
+    pub fn of(state: &crate::routes::graphql::AppState) -> Self {
+        Self(match state.tenant_registry() {
+            Some(registry) => Source::Tenants(Arc::clone(registry)),
+            None => Source::Single(state.executor.clone()),
+        })
+    }
+
+    /// The executor a write by a principal of `tenant` runs on.
+    ///
+    /// # Errors
+    ///
+    /// Under the tenancy runtime, `Authorization` for an unregistered tenant and
+    /// `ServiceUnavailable` for a suspended one.
+    pub fn executor_for(&self, tenant: Option<&str>) -> Result<Arc<Executor>> {
+        match &self.0 {
+            Source::Single(executor) => Ok(executor.load_full()),
+            Source::Tenants(registry) => Ok(Arc::clone(&*registry.executor_for(tenant)?)),
+        }
+    }
+
+    /// The tenant registry this source dispatches through, under the tenancy runtime.
+    #[must_use]
+    pub const fn registry(&self) -> Option<&Arc<TenantExecutorRegistry>> {
+        match &self.0 {
+            Source::Tenants(registry) => Some(registry),
+            Source::Single(_) => None,
+        }
+    }
+
+    /// The serving executor handle, when there is no tenancy runtime.
+    #[must_use]
+    pub const fn serving(&self) -> Option<&Arc<ArcSwap<Executor>>> {
+        match &self.0 {
+            Source::Single(executor) => Some(executor),
+            Source::Tenants(_) => None,
+        }
+    }
+
+    /// A source over one executor, for tests of the bridge itself.
+    #[cfg(test)]
+    pub(crate) const fn single(executor: Arc<ArcSwap<Executor>>) -> Self {
+        Self(Source::Single(executor))
+    }
+
+    /// A handle that does not keep the executors alive, for a holder the executor itself
+    /// owns (the after-mutation observer), so the two do not form a cycle.
+    #[must_use]
+    pub fn downgrade(&self) -> WeakExecutorSource {
+        WeakExecutorSource(match &self.0 {
+            Source::Single(executor) => WeakSource::Single(Arc::downgrade(executor)),
+            Source::Tenants(registry) => WeakSource::Tenants(Arc::downgrade(registry)),
+        })
+    }
+}
+
+/// [`ExecutorSource`] without ownership; see [`ExecutorSource::downgrade`].
+#[derive(Clone)]
+pub struct WeakExecutorSource(WeakSource);
+
+#[derive(Clone)]
+enum WeakSource {
+    Single(std::sync::Weak<ArcSwap<Executor>>),
+    Tenants(std::sync::Weak<TenantExecutorRegistry>),
+}
+
+impl WeakExecutorSource {
+    /// The source, while the server that owns it is alive.
+    #[must_use]
+    pub fn upgrade(&self) -> Option<ExecutorSource> {
+        Some(ExecutorSource(match &self.0 {
+            WeakSource::Single(executor) => Source::Single(executor.upgrade()?),
+            WeakSource::Tenants(registry) => Source::Tenants(registry.upgrade()?),
+        }))
+    }
+}
+
 /// Adapts the server's [`Executor`] to the functions [`QueryExecutor`] so a background
 /// dispatch's mutations run under a `run_as` identity (#573, #594).
 ///
 /// Shared by scheduled sources and event-dispatched functions (after:mutation /
 /// after:ingest / cron / after:capture) — the identity distinguishes them.
 pub struct RunAsQueryExecutor {
-    /// The hot-reloadable executor — the exact handle the request path uses, so a
-    /// schema swap is reflected on the next firing (loaded per call).
-    executor: Arc<ArcSwap<Executor>>,
+    /// Where each write finds its executor: the hot-reloadable serving executor, or the
+    /// tenant's (#1550). Resolved per call, so a schema swap or a tenant's registration
+    /// is reflected on the next firing.
+    source:   ExecutorSource,
     /// The base `run_as` identity (a `SystemJob` context). A per-message tenant may
     /// re-scope it, but never widen its roles/scopes.
     identity: SecurityContext,
@@ -69,8 +172,8 @@ impl RunAsQueryExecutor {
     /// or a function's
     /// [`FunctionDefinition::identity`](fraiseql_functions::FunctionDefinition::identity)).
     #[must_use]
-    pub const fn new(executor: Arc<ArcSwap<Executor>>, identity: SecurityContext) -> Self {
-        Self { executor, identity }
+    pub const fn new(source: ExecutorSource, identity: SecurityContext) -> Self {
+        Self { source, identity }
     }
 }
 
@@ -116,16 +219,16 @@ impl QueryExecutor for RunAsQueryExecutor {
     ) -> Pin<Box<dyn Future<Output = Result<Value>> + Send + '_>> {
         // Snapshot the current executor (hot-reload-safe) and resolve the identity
         // for this call, then own everything so the future borrows nothing.
-        let executor = self.executor.load_full();
         let (variables, tenant) = split_tenant_override(variables);
         let identity = resolve_identity(&self.identity, tenant.as_deref());
+        let executor = self.source.executor_for(identity.tenant_id.as_ref().map(|t| t.0.as_str()));
         let query = query.to_owned();
         // Every write a bridge makes is a dispatched function's or a scheduled source's,
         // never a request's, so it runs at dispatch depth 1: the after-mutation observer
         // does not dispatch on it (M-bridge), and a function writing the entity it is
         // triggered by cannot trigger itself (#1340, #1440).
         Box::pin(fraiseql_core::runtime::dispatched_at(1, async move {
-            executor.execute_with_security(&query, variables.as_ref(), &identity).await
+            executor?.execute_with_security(&query, variables.as_ref(), &identity).await
         }))
     }
 }

@@ -53,9 +53,52 @@ async fn the_serving_executor_dispatches_through_a_bound_observer() {
         .as_ref()
         .and_then(|observer| observer.bound_executor())
         .expect("the observer must be bound to an executor");
+    let bound = bound
+        .serving()
+        .expect("no tenancy runtime: the observer must be bound to the serving executor");
     assert!(
-        Arc::ptr_eq(&bound, &state.executor),
+        Arc::ptr_eq(bound, &state.executor),
         "the observer must hold the serving state's executor, so dispatched functions query \
          the schema that is being served"
     );
+}
+
+/// #1550: under the tenancy runtime the observer is bound to the tenant registry, so a
+/// dispatched function's write runs on its tenant's executor rather than the default one.
+#[tokio::test]
+async fn under_the_tenancy_runtime_the_observer_dispatches_through_the_registry() {
+    let modules = tempfile::tempdir().unwrap();
+    std::fs::write(modules.path().join("onOrder.wasm"), b"\0asm\x01\0\0\0").unwrap();
+    let functions: FunctionsConfig = serde_json::from_value(serde_json::json!({
+        "module_dir": modules.path(),
+        "definitions": [
+            { "name": "onOrder", "trigger": "after:mutation:Order", "runtime": "Wasm" }
+        ]
+    }))
+    .unwrap();
+    let mut config = ServerConfig {
+        cors_enabled: false,
+        ..ServerConfig::default()
+    };
+    config.tenancy.runtime.enabled = true;
+    let mut server = Box::pin(Server::new(
+        config,
+        CompiledSchema::new(),
+        Arc::new(FailingAdapter::new()),
+        None,
+    ))
+    .await
+    .unwrap()
+    .with_functions_config(Some(functions));
+
+    let state = server.provisioned_app_state().await.unwrap();
+    let bound = server
+        .after_mutation_observer
+        .as_ref()
+        .and_then(|observer| observer.bound_executor())
+        .expect("the observer must be bound");
+    let bound = bound
+        .registry()
+        .expect("the tenancy runtime is on: the observer must be bound to the registry");
+    assert!(Arc::ptr_eq(bound, state.tenant_registry().unwrap()), "the serving registry");
 }

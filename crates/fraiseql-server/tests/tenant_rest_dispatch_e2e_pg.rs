@@ -433,6 +433,84 @@ async fn a_re_registered_tenant_is_served_its_new_routes() {
     assert_eq!(status, StatusCode::NOT_FOUND, "{body}");
 }
 
+/// A dispatched function's `fraiseql_query` write runs on its tenant's executor (#1550): the
+/// bridge (after:mutation, after:ingest, cron, after:capture) took the default executor
+/// whatever tenant its `run_as` identity carried.
+#[cfg(feature = "functions-runtime")]
+mod function_writes {
+    use fraiseql_core::security::SecurityContext;
+    use fraiseql_functions::host::live::QueryExecutor as _;
+    use fraiseql_server::query_bridge::{ExecutorSource, RunAsQueryExecutor};
+
+    use super::*;
+
+    const WRITE: &str = r#"mutation { createProbe(label: "BRIDGED") { id } }"#;
+
+    fn run_as(tenant: Option<&str>) -> SecurityContext {
+        SecurityContext::system_job(
+            "p1550_fn",
+            "p1550_req",
+            Vec::new(),
+            Vec::new(),
+            tenant.map(Into::into),
+        )
+    }
+
+    /// A tenant's function write lands in the tenant's schema.
+    #[tokio::test]
+    async fn a_tenants_function_write_lands_in_its_own_schema() {
+        let Some((admin, state)) = setup().await else {
+            return;
+        };
+        let bridge = RunAsQueryExecutor::new(ExecutorSource::of(&state), run_as(Some(TENANT)));
+        bridge.execute_query(WRITE, None).await.expect("the write runs");
+        assert_eq!(
+            labels_in(&admin, &format!("tenant_{TENANT}")).await,
+            ["BRIDGED", TENANT_ROW],
+            "the tenant's"
+        );
+        assert_eq!(labels_in(&admin, "public").await, [PUBLIC_DECOY], "public is untouched");
+    }
+
+    /// A function of no tenant writes through the default executor.
+    #[tokio::test]
+    async fn a_function_of_no_tenant_writes_through_the_default_executor() {
+        let Some((admin, state)) = setup().await else {
+            return;
+        };
+        let bridge = RunAsQueryExecutor::new(ExecutorSource::of(&state), run_as(None));
+        bridge.execute_query(WRITE, None).await.expect("the write runs");
+        assert_eq!(labels_in(&admin, "public").await, ["BRIDGED", PUBLIC_DECOY]);
+    }
+
+    /// An unregistered or suspended tenant's write is refused, never sent to the default.
+    #[tokio::test]
+    async fn an_unregistered_or_suspended_tenants_function_write_is_refused() {
+        let Some((admin, state)) = setup().await else {
+            return;
+        };
+        let unknown =
+            RunAsQueryExecutor::new(ExecutorSource::of(&state), run_as(Some("p1550nobody")));
+        assert!(unknown.execute_query(WRITE, None).await.is_err(), "unregistered");
+        state.tenant_registry().unwrap().suspend(TENANT).unwrap();
+        let suspended = RunAsQueryExecutor::new(ExecutorSource::of(&state), run_as(Some(TENANT)));
+        assert!(suspended.execute_query(WRITE, None).await.is_err(), "suspended");
+        assert_eq!(labels_in(&admin, "public").await, [PUBLIC_DECOY], "nothing reached public");
+    }
+
+    /// A multi-tenant source's per-message tenant reaches the tenant's executor too.
+    #[tokio::test]
+    async fn a_per_message_tenant_reaches_its_own_executor() {
+        let Some((admin, state)) = setup().await else {
+            return;
+        };
+        let bridge = RunAsQueryExecutor::new(ExecutorSource::of(&state), run_as(None));
+        let variables = json!({ fraiseql_server::query_bridge::SOURCE_TENANT_VAR: TENANT });
+        bridge.execute_query(WRITE, Some(&variables)).await.expect("the write runs");
+        assert_eq!(labels_in(&admin, &format!("tenant_{TENANT}")).await, ["BRIDGED", TENANT_ROW]);
+    }
+}
+
 /// The suite's document compiles with no database.
 #[test]
 fn the_document_loads_without_a_database() {

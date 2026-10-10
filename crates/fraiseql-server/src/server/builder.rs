@@ -1223,7 +1223,7 @@ impl Server {
             std::sync::Arc::new(crate::routes::after_mutation::HooksIngestDispatcher::new(
                 hooks,
                 Some(crate::routes::after_mutation::make_query_executor_factory(
-                    state.executor.clone(),
+                    crate::query_bridge::ExecutorSource::of(state),
                 )),
             ));
         self.tasks

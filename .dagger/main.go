@@ -2028,8 +2028,9 @@ func (m *FraiseqlCi) integrationServer(ctx context.Context, source *dagger.Direc
 		"cargo test -p fraiseql-server --test rich_scalar_serving_e2e_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server --features rest,mcp --test constraint_violation_identifier_e2e_pg -- --test-threads=1",
 		"cargo test -p fraiseql-server --features rest,mcp --test mutation_success_fields_e2e_pg -- --test-threads=1",
-		// #1550: a tenant's REST request runs on its own executor (schema mode, public decoys).
-		"cargo test -p fraiseql-server --features rest --test tenant_rest_dispatch_e2e_pg -- --test-threads=1",
+		// #1550: a tenant's REST request and function write run on its own executor
+		// (schema mode, public decoys).
+		"cargo test -p fraiseql-server --features rest,functions-runtime --test tenant_rest_dispatch_e2e_pg -- --test-threads=1",
 		// #1391: a cascade derived from pg_tviews' affected set, against a real pg_tviews
 		// (pgTviewsService); its runtime-absent case reads DATABASE_URL, which has none.
 		"cargo test -p fraiseql-server --features metrics --test tviews_cascade_e2e_pg -- --test-threads=1",

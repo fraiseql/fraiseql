@@ -361,7 +361,9 @@ impl Server {
             // functions can `fraiseql_query` write back under their `run_as` ceiling
             // — the same factory the after:mutation route handlers use.
             inbound_state = inbound_state.with_query_executor_factory(
-                crate::routes::after_mutation::make_query_executor_factory(state.executor.clone()),
+                crate::routes::after_mutation::make_query_executor_factory(
+                    crate::query_bridge::ExecutorSource::of(state),
+                ),
             );
         }
         info!(

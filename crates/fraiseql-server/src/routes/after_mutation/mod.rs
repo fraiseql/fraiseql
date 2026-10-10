@@ -123,11 +123,11 @@ pub fn plan_after_mutation_dispatch(
 #[cfg(feature = "functions-runtime")]
 pub struct FunctionDispatchObserver {
     hooks:    std::sync::Arc<BeforeMutationHooks>,
-    /// The hot-reloadable executor the dispatched functions' `fraiseql_query` bridge runs
-    /// against. Bound once the `AppState` owning it exists, and held weakly: the executor
-    /// holds this observer, so a strong handle would be a reference cycle.
-    executor:
-        std::sync::OnceLock<std::sync::Weak<arc_swap::ArcSwap<fraiseql_core::runtime::Executor>>>,
+    /// Where the dispatched functions' `fraiseql_query` bridge finds its executor: the
+    /// serving one, or the tenant's under the tenancy runtime (#1550). Bound once the
+    /// `AppState` owning it exists, and held weakly: the executor holds this observer, so a
+    /// strong handle would be a reference cycle.
+    executor: std::sync::OnceLock<crate::query_bridge::WeakExecutorSource>,
 }
 
 #[cfg(feature = "functions-runtime")]
@@ -142,21 +142,16 @@ impl FunctionDispatchObserver {
         }
     }
 
-    /// Give dispatched functions a `fraiseql_query` bridge over `executor`. The first
-    /// binding wins: there is one serving executor per server.
-    pub fn bind_executor(
-        &self,
-        executor: &std::sync::Arc<arc_swap::ArcSwap<fraiseql_core::runtime::Executor>>,
-    ) {
-        let _ = self.executor.set(std::sync::Arc::downgrade(executor));
+    /// Give dispatched functions a `fraiseql_query` bridge over `source`. The first
+    /// binding wins: there is one serving state per server.
+    pub fn bind_executor(&self, source: &crate::query_bridge::ExecutorSource) {
+        let _ = self.executor.set(source.downgrade());
     }
 
-    /// The executor this observer is bound to, if it is still alive.
+    /// The source this observer is bound to, if it is still alive.
     #[cfg(test)]
-    pub(crate) fn bound_executor(
-        &self,
-    ) -> Option<std::sync::Arc<arc_swap::ArcSwap<fraiseql_core::runtime::Executor>>> {
-        self.executor.get().and_then(std::sync::Weak::upgrade)
+    pub(crate) fn bound_executor(&self) -> Option<crate::query_bridge::ExecutorSource> {
+        self.executor.get().and_then(crate::query_bridge::WeakExecutorSource::upgrade)
     }
 
     /// The dispatches a committed write calls for: none for a bridge write (M-bridge, see
@@ -181,7 +176,7 @@ impl AfterMutationObserver for FunctionDispatchObserver {
         let query_executor_factory = self
             .executor
             .get()
-            .and_then(std::sync::Weak::upgrade)
+            .and_then(crate::query_bridge::WeakExecutorSource::upgrade)
             .map(make_query_executor_factory);
         spawn_after_mutation(
             &self.hooks,
@@ -503,23 +498,21 @@ pub type QueryExecutorFactory = std::sync::Arc<
         + Sync,
 >;
 
-/// Build a [`QueryExecutorFactory`] over the request-path executor handle (#594).
+/// Build a [`QueryExecutorFactory`] over the server's executor source (#594, #1550).
 ///
-/// Captures the hot-reloadable `Arc<ArcSwap<Executor>>` so each dispatched
-/// function's `fraiseql_query` runs against the current schema snapshot under its own
-/// `run_as` identity — the same [`RunAsQueryExecutor`](crate::query_bridge::RunAsQueryExecutor)
-/// scheduled sources use. Called from the route handlers (which know the adapter `A`)
-/// and passed into [`spawn_after_mutation`] / [`spawn_after_ingest`].
+/// Each dispatched function's `fraiseql_query` runs against the current schema snapshot,
+/// on its tenant's executor under the tenancy runtime, under its own `run_as` identity — the same
+/// [`RunAsQueryExecutor`](crate::query_bridge::RunAsQueryExecutor) scheduled sources use. Called
+/// from the route handlers (which know the adapter `A`) and passed into [`spawn_after_mutation`] /
+/// [`spawn_after_ingest`].
 #[cfg(feature = "functions-runtime")]
 #[must_use]
 pub fn make_query_executor_factory(
-    executor: std::sync::Arc<arc_swap::ArcSwap<fraiseql_core::runtime::Executor>>,
+    source: crate::query_bridge::ExecutorSource,
 ) -> QueryExecutorFactory {
     std::sync::Arc::new(move |identity| {
-        std::sync::Arc::new(crate::query_bridge::RunAsQueryExecutor::new(
-            std::sync::Arc::clone(&executor),
-            identity,
-        )) as std::sync::Arc<dyn fraiseql_functions::host::live::QueryExecutor>
+        std::sync::Arc::new(crate::query_bridge::RunAsQueryExecutor::new(source.clone(), identity))
+            as std::sync::Arc<dyn fraiseql_functions::host::live::QueryExecutor>
     })
 }
 

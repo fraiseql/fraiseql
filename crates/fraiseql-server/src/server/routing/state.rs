@@ -29,7 +29,7 @@ impl Server {
         // is made.
         #[cfg(feature = "functions-runtime")]
         if let Some(observer) = &self.after_mutation_observer {
-            observer.bind_executor(&state.executor);
+            observer.bind_executor(&crate::query_bridge::ExecutorSource::of(&state));
         }
         Ok(state)
     }

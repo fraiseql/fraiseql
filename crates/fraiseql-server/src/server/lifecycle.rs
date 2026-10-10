@@ -499,7 +499,7 @@ impl Server {
                 // meaningful when function-dispatch hooks are present.
                 let query_executor_factory = hooks.as_ref().map(|_| {
                     crate::routes::after_mutation::make_query_executor_factory(
-                        app_state.executor.clone(),
+                        crate::query_bridge::ExecutorSource::of(&app_state),
                     )
                 });
                 let pollers = email::build_pollers(
@@ -556,7 +556,7 @@ impl Server {
                     let pollers = crate::sources::build_source_pollers(
                         &sources,
                         db_pool,
-                        &app_state.executor,
+                        &crate::query_bridge::ExecutorSource::of(&app_state),
                         hooks.as_ref(),
                         &host_config,
                         &fraiseql_functions::ResourceLimits::default(),
@@ -622,7 +622,7 @@ impl Server {
                     let host_config = crate::routes::after_mutation::host_context_config();
                     let pollers = crate::cron::build_cron_pollers(
                         db_pool,
-                        &app_state.executor,
+                        &crate::query_bridge::ExecutorSource::of(&app_state),
                         hooks.as_ref(),
                         &host_config,
                         &fraiseql_functions::ResourceLimits::default(),
@@ -756,7 +756,7 @@ impl Server {
                 if let Some(hooks) = app_state.before_mutation_hooks.as_ref() {
                     let hooks = std::sync::Arc::clone(hooks);
                     let factory = crate::routes::after_mutation::make_query_executor_factory(
-                        app_state.executor.clone(),
+                        crate::query_bridge::ExecutorSource::of(&app_state),
                     );
                     guard.set_capture_dispatch(std::sync::Arc::new(move |event| {
                         if let Some((fn_event, cdc)) =

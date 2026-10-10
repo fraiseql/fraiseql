@@ -386,7 +386,7 @@ impl CronPoller {
 /// cross-restart guard that cannot load its state is not a guard.
 pub async fn build_cron_pollers(
     db_pool: &sqlx::PgPool,
-    executor: &Arc<arc_swap::ArcSwap<fraiseql_core::runtime::Executor>>,
+    executor: &crate::query_bridge::ExecutorSource,
     hooks: &BeforeMutationHooks,
     host_config: &HostContextConfig,
     limits: &ResourceLimits,
@@ -416,7 +416,7 @@ pub async fn build_cron_pollers(
         let run_as = hooks.run_as.get(&trigger.function_name).cloned().unwrap_or_default();
         let identity = run_as.identity(&trigger.function_name, &trigger.function_name);
         let query_executor: Arc<dyn QueryExecutor> =
-            Arc::new(RunAsQueryExecutor::new(Arc::clone(executor), identity.clone()));
+            Arc::new(RunAsQueryExecutor::new(executor.clone(), identity.clone()));
 
         // The cross-restart guard: resume this function's window state from the
         // durable record before the first tick.
