@@ -901,9 +901,10 @@ impl SchemaConverter {
                 .measures
                 .into_iter()
                 .map(|m| MeasureColumn {
-                    name:     m.name,
-                    sql_type: Self::parse_sql_type(&m.sql_type),
-                    nullable: m.nullable,
+                    name:       m.name,
+                    sql_type:   Self::parse_sql_type(&m.sql_type),
+                    nullable:   m.nullable,
+                    additivity: m.additivity,
                 })
                 .collect(),
             dimensions:               DimensionColumn {

@@ -63,9 +63,10 @@ fn schema_with_fact_table() -> crate::schema::CompiledSchema {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             measures:                 vec![MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
+                name:       "revenue".to_string(),
+                sql_type:   SqlType::Decimal,
+                nullable:   false,
+                additivity: crate::compiler::fact_table::Additivity::Additive,
             }],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),

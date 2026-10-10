@@ -129,9 +129,10 @@ impl FactTableDetector {
                     // Skip common non-measure columns
                     if name != "id" && !name.ends_with("_id") {
                         measures.push(MeasureColumn {
-                            name:     name.clone(),
-                            sql_type: sql_type.clone(),
-                            nullable: *is_nullable,
+                            name:       name.clone(),
+                            sql_type:   sql_type.clone(),
+                            nullable:   *is_nullable,
+                            additivity: crate::compiler::fact_table::Additivity::Additive,
                         });
                     }
 
@@ -629,10 +630,13 @@ impl FactTableDetector {
                     // Skip id column
                     if name != "id" && !name.ends_with("_id") {
                         // This is a measure
+                        // Introspection cannot tell a balance from a flow: additive until the
+                        // author declares otherwise (#1459).
                         measures.push(MeasureColumn {
                             name: name.to_string(),
                             sql_type,
                             nullable,
+                            additivity: crate::compiler::fact_table::Additivity::Additive,
                         });
                     } else if name != "id" {
                         // This is a filter (_id columns)

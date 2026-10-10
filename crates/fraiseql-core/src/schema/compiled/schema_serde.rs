@@ -527,6 +527,18 @@ impl CompiledSchema {
                 path:    Some("security.requires_role".to_string()),
             });
         }
+        // #1459: a measure's declared additivity must be one the planner can honour.
+        let violations: Vec<String> =
+            self.fact_tables.values().flat_map(|ft| ft.additivity_violations()).collect();
+        if !violations.is_empty() {
+            return Err(FraiseQLError::Validation {
+                message: format!(
+                    "a measure's additivity cannot be planned:\n  - {}",
+                    violations.join("\n  - ")
+                ),
+                path:    Some("fact_tables.measures.additivity".to_string()),
+            });
+        }
         // #1530: a field typed as an object no type declares would be served with no value.
         let violations = self.unresolved_field_type_violations();
         if !violations.is_empty() {

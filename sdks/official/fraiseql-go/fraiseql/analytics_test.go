@@ -1,6 +1,9 @@
 package fraiseql
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+)
 
 // onlyFactTable returns the one fact table the registry emits.
 func onlyFactTable(t *testing.T) map[string]interface{} {
@@ -47,5 +50,42 @@ func TestFactTableWithoutTypeNameOmitsTheKey(t *testing.T) {
 
 	if got, present := onlyFactTable(t)["type_name"]; present {
 		t.Errorf("type_name: want the key absent, got %v", got)
+	}
+}
+
+// #1459: a measure declares how it aggregates over time. A balance is reduced per account
+// and per bucket (its last known value), then summed across accounts: summed across days it
+// is wrong. The declaration travels to the compiler under `additivity`; an additive measure
+// emits no key.
+func TestMeasureAdditivityIsEmitted(t *testing.T) {
+	Reset()
+	err := NewFactTable("data").
+		TableName("tf_account_day").
+		SemiAdditiveMeasure("closing_balance", "numeric", false, "day", ReduceLast, "account_id").
+		DeltaMeasure("odometer", "numeric", false, "day", "account_id").
+		NonAdditiveMeasure("rate", "numeric", true).
+		Measure("deposits", "numeric", false).
+		DenormalizedFilter("account_id", "bigint", true).
+		DenormalizedFilter("day", "date", true).
+		Register()
+	if err != nil {
+		t.Fatal(err)
+	}
+	measures, ok := onlyFactTable(t)["measures"].([]interface{})
+	if !ok || len(measures) != 4 {
+		t.Fatalf("measures: want four, got %v", onlyFactTable(t)["measures"])
+	}
+	want := []string{
+		`{"entity":["account_id"],"kind":"semi_additive","over":"day","using":"last"}`,
+		`{"entity":["account_id"],"kind":"delta","over":"day"}`,
+		`{"kind":"non_additive"}`,
+		`null`,
+	}
+	for i, raw := range measures {
+		m, _ := raw.(map[string]interface{})
+		got, _ := json.Marshal(m["additivity"])
+		if string(got) != want[i] {
+			t.Errorf("measure %v: additivity %s, want %s", m["name"], got, want[i])
+		}
 	}
 }

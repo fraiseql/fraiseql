@@ -75,6 +75,9 @@ export type {
   SourceDefinition,
   SourceRunAs,
   Schema,
+  Additivity,
+  SemiAdditiveReduction,
+  Measure,
 } from "./registry";
 
 // Export decorators

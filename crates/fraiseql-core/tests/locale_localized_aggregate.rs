@@ -33,9 +33,10 @@ fn fact_table() -> FactTableMetadata {
         table_name:               TABLE.to_string(),
         type_name:                Some("Sale".to_string()),
         measures:                 vec![MeasureColumn {
-            name:     "qty".to_string(),
-            sql_type: SqlType::BigInt,
-            nullable: false,
+            name:       "qty".to_string(),
+            sql_type:   SqlType::BigInt,
+            nullable:   false,
+            additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -162,9 +163,10 @@ fn a_localized_dimension_loads_and_a_localized_measure_does_not() {
     let mut measured = schema();
     let mut table = fact_table();
     table.measures.push(MeasureColumn {
-        name:     "name".to_string(),
-        sql_type: SqlType::Text,
-        nullable: true,
+        name:       "name".to_string(),
+        sql_type:   SqlType::Text,
+        nullable:   true,
+        additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
     });
     measured.fact_tables.insert(TABLE.to_string(), table);
     let err = CompiledSchema::from_json(&serde_json::to_string(&measured).unwrap(), false)

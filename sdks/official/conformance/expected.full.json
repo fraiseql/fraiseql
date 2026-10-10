@@ -7,6 +7,40 @@
     ]
   },
   "fact_tables": {
+    "tf_account_day": {
+      "denormalized_filters": [
+        {
+          "indexed": true,
+          "name": "account_id",
+          "sql_type": "BigInt"
+        },
+        {
+          "indexed": true,
+          "name": "day",
+          "sql_type": "Date"
+        }
+      ],
+      "dimensions": {
+        "name": "data",
+        "paths": []
+      },
+      "measures": [
+        {
+          "additivity": {
+            "entity": [
+              "account_id"
+            ],
+            "kind": "semi_additive",
+            "over": "day",
+            "using": "last"
+          },
+          "name": "closing_balance",
+          "nullable": false,
+          "sql_type": "Decimal"
+        }
+      ],
+      "type_name": null
+    },
     "tf_sale": {
       "denormalized_filters": [
         {
@@ -27,6 +61,7 @@
       },
       "measures": [
         {
+          "additivity": null,
           "name": "total",
           "nullable": false,
           "sql_type": "Decimal"

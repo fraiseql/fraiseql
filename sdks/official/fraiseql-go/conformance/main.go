@@ -254,6 +254,17 @@ func authorFull() error {
 		return err
 	}
 
+	// #1459: an unlinked fact table of balances. A balance is reduced per account and per
+	// bucket (its last known value) before it is summed across accounts.
+	if err := fraiseql.NewFactTable("data").
+		TableName("tf_account_day").
+		SemiAdditiveMeasure("closing_balance", "numeric", false, "day", fraiseql.ReduceLast, "account_id").
+		DenormalizedFilter("account_id", "bigint", true).
+		DenormalizedFilter("day", "date", true).
+		Register(); err != nil {
+		return err
+	}
+
 	// #1329: the function half of `quotePreview`. `request:query` is the one trigger
 	// that names a capability rather than an event, and it names no query — the binding
 	// lives on the query, so there is one copy of it.

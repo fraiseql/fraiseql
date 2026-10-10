@@ -565,6 +565,40 @@
           "indexed": true
         }
       ]
+    },
+    {
+      "table_name": "tf_account_day",
+      "measures": [
+        {
+          "name": "closing_balance",
+          "sql_type": "numeric",
+          "nullable": false,
+          "additivity": {
+            "kind": "semi_additive",
+            "over": "day",
+            "using": "last",
+            "entity": [
+              "account_id"
+            ]
+          }
+        }
+      ],
+      "dimensions": {
+        "name": "data",
+        "paths": []
+      },
+      "denormalized_filters": [
+        {
+          "name": "account_id",
+          "sql_type": "bigint",
+          "indexed": true
+        },
+        {
+          "name": "day",
+          "sql_type": "date",
+          "indexed": true
+        }
+      ]
     }
   ]
 }

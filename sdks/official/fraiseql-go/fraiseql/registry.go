@@ -150,7 +150,32 @@ type MeasureDefinition struct {
 	Name     string `json:"name"`
 	SqlType  string `json:"sql_type"`
 	Nullable bool   `json:"nullable"`
+	// Additivity says how the measure aggregates over time (#1459); nil: additive.
+	Additivity *Additivity `json:"additivity,omitempty"`
 }
+
+// Additivity says how a measure aggregates over time (#1459). A balance or a stock level is
+// "semi_additive": reduced per Entity and per bucket of Over first, then aggregated across
+// entities. A cumulative counter is "delta" (last - first within the bucket). A ratio is
+// "non_additive": every aggregate over it is refused. Over is a denormalized time column;
+// Entity names denormalized columns.
+type Additivity struct {
+	Kind   string   `json:"kind"`
+	Over   string   `json:"over,omitempty"`
+	Using  string   `json:"using,omitempty"`
+	Entity []string `json:"entity,omitempty"`
+}
+
+// The ways a semi-additive measure's values for one entity within one time bucket reduce
+// to one (#1459). ReduceLast and ReduceFirst carry the last known value forward into a
+// bucket the entity has no row in; the others reduce the bucket's own values.
+const (
+	ReduceLast  = "last"
+	ReduceFirst = "first"
+	ReduceAvg   = "avg"
+	ReduceMin   = "min"
+	ReduceMax   = "max"
+)
 
 // DimensionPathDefinition locates one dimension inside the fact table's JSONB.
 type DimensionPathDefinition struct {

@@ -88,6 +88,48 @@ pub struct FactTableMetadata {
 }
 
 impl FactTableMetadata {
+    /// The measures whose declared additivity cannot be planned (#1459): `over` must be a
+    /// denormalized time column (`date`, `timestamp`), and `entity` must name at least one
+    /// denormalized column, each declared. One message per fault.
+    #[must_use]
+    pub fn additivity_violations(&self) -> Vec<String> {
+        let mut violations = Vec::new();
+        for measure in &self.measures {
+            let (over, entity) = match &measure.additivity {
+                Additivity::SemiAdditive { over, entity, .. }
+                | Additivity::Delta { over, entity } => (over, entity),
+                Additivity::Additive | Additivity::NonAdditive => continue,
+            };
+            let prefix = format!("fact table `{}`, measure `{}`", self.table_name, measure.name);
+            match self.denormalized_filters.iter().find(|f| f.name == *over) {
+                None => violations.push(format!(
+                    "{prefix}: `over` names `{over}`, which is not a denormalized column"
+                )),
+                Some(f) if !matches!(f.sql_type, SqlType::Date | SqlType::Timestamp) => {
+                    violations.push(format!(
+                        "{prefix}: `over` names `{over}`, which is not a time column (date or \
+                         timestamp)"
+                    ));
+                },
+                Some(_) => {},
+            }
+            if entity.is_empty() {
+                violations.push(format!(
+                    "{prefix}: `entity` names no column; name the columns that identify what the \
+                     value belongs to"
+                ));
+            }
+            for column in entity {
+                if !self.denormalized_filters.iter().any(|f| f.name == *column) {
+                    violations.push(format!(
+                        "{prefix}: `entity` names `{column}`, which is not a denormalized column"
+                    ));
+                }
+            }
+        }
+        violations
+    }
+
     /// Where the declared dimension path named `field` (in either casing) is read: its
     /// [`DimensionPath::segments`]. `None` when no declared path has that name (#1517).
     ///
@@ -119,11 +161,74 @@ pub fn dimension_key(key: &str) -> String {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct MeasureColumn {
     /// Column name (e.g., "revenue")
-    pub name:     String,
+    pub name:       String,
     /// SQL data type
-    pub sql_type: SqlType,
+    pub sql_type:   SqlType,
     /// Is nullable
-    pub nullable: bool,
+    pub nullable:   bool,
+    /// How the measure aggregates over time (#1459). Omitted: [`Additivity::Additive`].
+    #[serde(default, skip_serializing_if = "Additivity::is_additive")]
+    pub additivity: Additivity,
+}
+
+/// How a measure aggregates over time (#1459).
+///
+/// A balance or a stock level is not a flow: summed across entities it is meaningful, summed
+/// across days it is not. The planner reduces such a measure per entity and per time bucket
+/// first, then applies the requested function across entities.
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case", deny_unknown_fields)]
+#[non_exhaustive]
+pub enum Additivity {
+    /// Sums across every dimension, time included: a flow (revenue, quantity).
+    #[default]
+    Additive,
+    /// Reduced over `over` per `entity` with `using`, then aggregated across entities.
+    SemiAdditive {
+        /// The denormalized time column the measure is reduced over.
+        over:   String,
+        /// How the values of one entity within a bucket reduce to one.
+        using:  SemiAdditiveReduction,
+        /// The denormalized columns that identify the entity the value belongs to.
+        entity: Vec<String>,
+    },
+    /// The change within a bucket (`last - first`) per `entity`, then aggregated across
+    /// entities: a cumulative counter (an odometer, a lifetime total).
+    Delta {
+        /// The denormalized time column.
+        over:   String,
+        /// The denormalized columns that identify the entity.
+        entity: Vec<String>,
+    },
+    /// Aggregates across nothing (a ratio, a percentile): every aggregate over it is refused.
+    NonAdditive,
+}
+
+impl Additivity {
+    /// Whether this is the default, [`Additivity::Additive`].
+    #[must_use]
+    pub const fn is_additive(&self) -> bool {
+        matches!(self, Self::Additive)
+    }
+}
+
+/// How the values of one entity within one time bucket reduce to one (#1459).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+#[non_exhaustive]
+pub enum SemiAdditiveReduction {
+    /// The last known value up to the bucket's end, carried forward from an earlier bucket
+    /// when the entity has no row in this one (a closing balance).
+    Last,
+    /// The first value in the bucket, or the last known value before it when the entity has
+    /// no row in the bucket (an opening balance).
+    First,
+    /// The mean of the entity's values within the bucket.
+    Avg,
+    /// The least of the entity's values within the bucket.
+    Min,
+    /// The greatest of the entity's values within the bucket.
+    Max,
 }
 
 /// SQL data types

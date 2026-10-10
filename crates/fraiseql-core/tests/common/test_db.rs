@@ -169,14 +169,16 @@ pub fn create_sales_metadata() -> FactTableMetadata {
         type_name:                None,
         measures:                 vec![
             MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
+                name:       "revenue".to_string(),
+                sql_type:   SqlType::Decimal,
+                nullable:   false,
+                additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
             },
             MeasureColumn {
-                name:     "quantity".to_string(),
-                sql_type: SqlType::Int,
-                nullable: false,
+                name:       "quantity".to_string(),
+                sql_type:   SqlType::Int,
+                nullable:   false,
+                additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
             },
         ],
         dimensions:               DimensionColumn {

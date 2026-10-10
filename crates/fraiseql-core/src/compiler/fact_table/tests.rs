@@ -20,9 +20,10 @@ fn test_validate_valid_fact_table() {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "revenue".to_string(),
-            sql_type: SqlType::Decimal,
-            nullable: false,
+            name:       "revenue".to_string(),
+            sql_type:   SqlType::Decimal,
+            nullable:   false,
+            additivity: crate::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
@@ -65,9 +66,10 @@ fn test_validate_non_numeric_measure() {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "category".to_string(),
-            sql_type: SqlType::Text, // Wrong type for measure!
-            nullable: false,
+            name:       "category".to_string(),
+            sql_type:   SqlType::Text, // Wrong type for measure!
+            nullable:   false,
+            additivity: crate::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
@@ -753,9 +755,10 @@ fn test_native_measures_roundtrip() {
         table_name:               "mv_daily_sales".to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "volume".to_string(),
-            sql_type: SqlType::BigInt,
-            nullable: false,
+            name:       "volume".to_string(),
+            sql_type:   SqlType::BigInt,
+            nullable:   false,
+            additivity: crate::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),

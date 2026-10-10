@@ -156,14 +156,16 @@ fn test_schema_with_fact_tables_validation() {
             type_name:                None,
             measures:                 vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
+                    name:       "revenue".to_string(),
+                    sql_type:   SqlType::Decimal,
+                    nullable:   false,
+                    additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
+                    name:       "quantity".to_string(),
+                    sql_type:   SqlType::Int,
+                    nullable:   false,
+                    additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
                 },
             ],
             dimensions:               DimensionColumn {
@@ -195,9 +197,10 @@ fn test_validator_rejects_invalid_fact_table_prefix() {
             table_name:               "sales".to_string(),
             type_name:                None,
             measures:                 vec![MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
+                name:       "revenue".to_string(),
+                sql_type:   SqlType::Decimal,
+                nullable:   false,
+                additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
             }],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -381,9 +384,10 @@ async fn test_executor_classifies_aggregate_query() {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             measures:                 vec![MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
+                name:       "revenue".to_string(),
+                sql_type:   SqlType::Decimal,
+                nullable:   false,
+                additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
             }],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -503,9 +507,10 @@ fn create_test_fact_table_metadata() -> FactTableMetadata {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "revenue".to_string(),
-            sql_type: SqlType::Decimal,
-            nullable: false,
+            name:       "revenue".to_string(),
+            sql_type:   SqlType::Decimal,
+            nullable:   false,
+            additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),

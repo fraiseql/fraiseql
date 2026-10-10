@@ -310,6 +310,25 @@ function authorFull(): void {
     { typeName: "Order" }
   );
 
+  // #1459: an unlinked fact table of balances. A balance is reduced per account and per
+  // bucket (its last known value) before it is summed across accounts.
+  SchemaRegistry.registerFactTable(
+    "tf_account_day",
+    [
+      {
+        name: "closing_balance",
+        sql_type: "numeric",
+        nullable: false,
+        additivity: { kind: "semi_additive", over: "day", using: "last", entity: ["account_id"] },
+      },
+    ],
+    { name: "data", paths: [] },
+    [
+      { name: "account_id", sql_type: "bigint", indexed: true },
+      { name: "day", sql_type: "date", indexed: true },
+    ]
+  );
+
   // #1325: the function authoring path, through the decorator — the documented
   // surface. It is declared INSIDE this function on purpose: a class at module scope
   // would run its decorators at import time, before `SchemaRegistry.clear()` below,

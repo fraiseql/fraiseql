@@ -2213,14 +2213,16 @@ mod introspect_facts_tests {
             type_name:                None,
             measures:                 vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
+                    name:       "revenue".to_string(),
+                    sql_type:   SqlType::Decimal,
+                    nullable:   false,
+                    additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
+                    name:       "quantity".to_string(),
+                    sql_type:   SqlType::Int,
+                    nullable:   false,
+                    additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
                 },
             ],
             dimensions:               DimensionColumn {
@@ -3682,14 +3684,16 @@ mod validate_facts_tests {
         let declared = make_metadata(
             vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
+                    name:       "revenue".to_string(),
+                    sql_type:   SqlType::Decimal,
+                    nullable:   false,
+                    additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
+                    name:       "quantity".to_string(),
+                    sql_type:   SqlType::Int,
+                    nullable:   false,
+                    additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
                 },
             ],
             "data",
@@ -3712,14 +3716,16 @@ mod validate_facts_tests {
         let declared = make_metadata(
             vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
+                    name:       "revenue".to_string(),
+                    sql_type:   SqlType::Decimal,
+                    nullable:   false,
+                    additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
                 },
                 MeasureColumn {
-                    name:     "profit".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
+                    name:       "profit".to_string(),
+                    sql_type:   SqlType::Decimal,
+                    nullable:   false,
+                    additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
                 },
             ],
             "data",
@@ -3727,9 +3733,10 @@ mod validate_facts_tests {
         );
         let actual = make_metadata(
             vec![MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
+                name:       "revenue".to_string(),
+                sql_type:   SqlType::Decimal,
+                nullable:   false,
+                additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
             }],
             "data",
             vec![],

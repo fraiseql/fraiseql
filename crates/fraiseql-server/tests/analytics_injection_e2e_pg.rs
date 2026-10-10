@@ -56,9 +56,10 @@ fn sales_metadata() -> FactTableMetadata {
         table_name:               FACT_TABLE.to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "revenue".to_string(),
-            sql_type: SqlType::Decimal,
-            nullable: false,
+            name:       "revenue".to_string(),
+            sql_type:   SqlType::Decimal,
+            nullable:   false,
+            additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),

@@ -51,6 +51,35 @@ func (b *FactTableBuilder) Measure(name, sqlType string, nullable bool) *FactTab
 	return b
 }
 
+// SemiAdditiveMeasure adds a measure reduced per entity and per bucket of over with using
+// (one of ReduceLast, ReduceFirst, ReduceAvg, ReduceMin, ReduceMax), then aggregated across
+// entities (#1459): a balance, a stock level. over is a denormalized time column; entity
+// names the denormalized columns that identify what the value belongs to.
+func (b *FactTableBuilder) SemiAdditiveMeasure(name, sqlType string, nullable bool, over, using string, entity ...string) *FactTableBuilder {
+	return b.measure(name, sqlType, nullable, &Additivity{Kind: "semi_additive", Over: over, Using: using, Entity: entity})
+}
+
+// DeltaMeasure adds a measure whose change within a bucket (last - first) per entity is
+// aggregated across entities (#1459): a cumulative counter.
+func (b *FactTableBuilder) DeltaMeasure(name, sqlType string, nullable bool, over string, entity ...string) *FactTableBuilder {
+	return b.measure(name, sqlType, nullable, &Additivity{Kind: "delta", Over: over, Entity: entity})
+}
+
+// NonAdditiveMeasure adds a measure every aggregate over which is refused (#1459): a ratio.
+func (b *FactTableBuilder) NonAdditiveMeasure(name, sqlType string, nullable bool) *FactTableBuilder {
+	return b.measure(name, sqlType, nullable, &Additivity{Kind: "non_additive"})
+}
+
+func (b *FactTableBuilder) measure(name, sqlType string, nullable bool, additivity *Additivity) *FactTableBuilder {
+	b.measures = append(b.measures, MeasureDefinition{
+		Name:       name,
+		SqlType:    sqlType,
+		Nullable:   nullable,
+		Additivity: additivity,
+	})
+	return b
+}
+
 // Dimension adds a dimension with its JSONB path and data type.
 func (b *FactTableBuilder) Dimension(name, jsonPath, dataType string) *FactTableBuilder {
 	b.dimensions = append(b.dimensions, DimensionPathDefinition{

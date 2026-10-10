@@ -227,9 +227,10 @@ fn fact_table() -> FactTableMetadata {
         table_name:               VIEW.to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "pk_word".to_string(),
-            sql_type: SqlType::BigInt,
-            nullable: false,
+            name:       "pk_word".to_string(),
+            sql_type:   SqlType::BigInt,
+            nullable:   false,
+            additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),

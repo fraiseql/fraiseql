@@ -926,9 +926,10 @@ fn create_native_metadata() -> fraiseql_core::compiler::fact_table::FactTableMet
         table_name:               "tf_metrics".to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "raw_value".to_string(),
-            sql_type: SqlType::Decimal,
-            nullable: false,
+            name:       "raw_value".to_string(),
+            sql_type:   SqlType::Decimal,
+            nullable:   false,
+            additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),

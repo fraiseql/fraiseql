@@ -13,9 +13,10 @@ fn create_aggregation_test_metadata() -> crate::compiler::fact_table::FactTableM
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "revenue".to_string(),
-            sql_type: SqlType::Decimal,
-            nullable: false,
+            name:       "revenue".to_string(),
+            sql_type:   SqlType::Decimal,
+            nullable:   false,
+            additivity: crate::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -38,9 +39,10 @@ fn create_test_plan() -> AggregationPlan {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "revenue".to_string(),
-            sql_type: SqlType::Decimal,
-            nullable: false,
+            name:       "revenue".to_string(),
+            sql_type:   SqlType::Decimal,
+            nullable:   false,
+            additivity: crate::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
@@ -728,9 +730,10 @@ fn test_parameterized_postgres_placeholder_numbering() {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "revenue".to_string(),
-            sql_type: SqlType::Decimal,
-            nullable: false,
+            name:       "revenue".to_string(),
+            sql_type:   SqlType::Decimal,
+            nullable:   false,
+            additivity: crate::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "dimensions".to_string(),
@@ -864,9 +867,10 @@ fn test_aggregation_plan_uses_native_measure() {
         table_name:               "mv_daily_sales".to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "volume".to_string(),
-            sql_type: SqlType::BigInt,
-            nullable: false,
+            name:       "volume".to_string(),
+            sql_type:   SqlType::BigInt,
+            nullable:   false,
+            additivity: crate::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -967,9 +971,10 @@ fn test_non_native_measure_unchanged() {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "revenue".to_string(),
-            sql_type: SqlType::Decimal,
-            nullable: false,
+            name:       "revenue".to_string(),
+            sql_type:   SqlType::Decimal,
+            nullable:   false,
+            additivity: crate::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),

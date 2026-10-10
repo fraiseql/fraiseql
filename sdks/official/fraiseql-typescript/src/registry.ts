@@ -222,12 +222,33 @@ export interface MutationDefinition {
 }
 
 /**
+ * How a semi-additive measure's values for one entity within one time bucket reduce to one
+ * (#1459): `last` and `first` carry the last known value forward into a bucket the entity
+ * has no row in; `avg`, `min` and `max` reduce the bucket's own values.
+ */
+export type SemiAdditiveReduction = "last" | "first" | "avg" | "min" | "max";
+
+/**
+ * How a measure aggregates over time (#1459). Omitted, a measure is additive (a flow:
+ * revenue, quantity). A balance or a stock level is `semi_additive`: reduced per `entity` and
+ * per bucket of `over` first, then aggregated across entities. A cumulative counter is
+ * `delta` (`last - first` within the bucket). A ratio is `non_additive`: every aggregate over
+ * it is refused. `over` is a denormalized time column; `entity` names denormalized columns.
+ */
+export type Additivity =
+  | { kind: "semi_additive"; over: string; using: SemiAdditiveReduction; entity: string[] }
+  | { kind: "delta"; over: string; entity: string[] }
+  | { kind: "non_additive" };
+
+/**
  * Measure definition in a fact table.
  */
 export interface Measure {
   name: string;
   sql_type: string;
   nullable: boolean;
+  /** How the measure aggregates over time; omitted: additive. */
+  additivity?: Additivity;
 }
 
 /**

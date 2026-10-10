@@ -689,8 +689,15 @@ def project(compiled: dict[str, Any]) -> dict[str, Any]:
         dimensions = table.get("dimensions") or {}
         return {
             "type_name": table.get("type_name"),
+            # #1459: a measure's `additivity` is asserted by value. An SDK that drops it emits
+            # a schema that compiles and sums a balance across days under a `200`.
             "measures": [
-                {"name": m.get("name"), "sql_type": m.get("sql_type"), "nullable": m.get("nullable")}
+                {
+                    "name": m.get("name"),
+                    "sql_type": m.get("sql_type"),
+                    "nullable": m.get("nullable"),
+                    "additivity": m.get("additivity"),
+                }
                 for m in table.get("measures", [])
                 if isinstance(m, dict)
             ],

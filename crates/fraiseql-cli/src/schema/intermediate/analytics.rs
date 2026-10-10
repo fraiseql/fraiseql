@@ -37,11 +37,17 @@ pub struct IntermediateFactTable {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct IntermediateMeasure {
     /// Measure column name
-    pub name:     String,
+    pub name:       String,
     /// SQL data type of the measure
-    pub sql_type: String,
+    pub sql_type:   String,
     /// Whether the column can be NULL
-    pub nullable: bool,
+    pub nullable:   bool,
+    /// How the measure aggregates over time (#1459). Omitted: additive.
+    #[serde(
+        default,
+        skip_serializing_if = "fraiseql_core::compiler::fact_table::Additivity::is_additive"
+    )]
+    pub additivity: fraiseql_core::compiler::fact_table::Additivity,
 }
 
 /// Dimensions metadata

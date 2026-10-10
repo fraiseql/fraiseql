@@ -297,9 +297,10 @@ fn aggregate_sum_produces_correct_sql() {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "amount".to_string(),
-            sql_type: SqlType::Decimal,
-            nullable: false,
+            name:       "amount".to_string(),
+            sql_type:   SqlType::Decimal,
+            nullable:   false,
+            additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),
@@ -364,9 +365,10 @@ fn aggregate_group_by_produces_correct_sql() {
         table_name:               "tf_sales".to_string(),
         type_name:                None,
         measures:                 vec![MeasureColumn {
-            name:     "amount".to_string(),
-            sql_type: SqlType::Decimal,
-            nullable: false,
+            name:       "amount".to_string(),
+            sql_type:   SqlType::Decimal,
+            nullable:   false,
+            additivity: fraiseql_core::compiler::fact_table::Additivity::Additive,
         }],
         dimensions:               DimensionColumn {
             name:  "data".to_string(),

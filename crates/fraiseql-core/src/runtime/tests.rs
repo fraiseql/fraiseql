@@ -26,14 +26,16 @@ mod aggregate_parser_tests {
             type_name:                None,
             measures:                 vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
+                    name:       "revenue".to_string(),
+                    sql_type:   SqlType::Decimal,
+                    nullable:   false,
+                    additivity: crate::compiler::fact_table::Additivity::Additive,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
+                    name:       "quantity".to_string(),
+                    sql_type:   SqlType::Int,
+                    nullable:   false,
+                    additivity: crate::compiler::fact_table::Additivity::Additive,
                 },
             ],
             dimensions:               DimensionColumn {
@@ -479,9 +481,10 @@ mod aggregate_parser_tests {
             table_name:               "mv_daily_sales".to_string(),
             type_name:                None,
             measures:                 vec![MeasureColumn {
-                name:     "volume".to_string(),
-                sql_type: SqlType::BigInt,
-                nullable: false,
+                name:       "volume".to_string(),
+                sql_type:   SqlType::BigInt,
+                nullable:   false,
+                additivity: crate::compiler::fact_table::Additivity::Additive,
             }],
             dimensions:               DimensionColumn {
                 name:  "data".to_string(),
@@ -538,9 +541,10 @@ mod aggregate_projector_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             measures:                 vec![MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
+                name:       "revenue".to_string(),
+                sql_type:   SqlType::Decimal,
+                nullable:   false,
+                additivity: crate::compiler::fact_table::Additivity::Additive,
             }],
             dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
@@ -4581,14 +4585,16 @@ mod window_parser_tests {
             type_name:                None,
             measures:                 vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
+                    name:       "revenue".to_string(),
+                    sql_type:   SqlType::Decimal,
+                    nullable:   false,
+                    additivity: crate::compiler::fact_table::Additivity::Additive,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
+                    name:       "quantity".to_string(),
+                    sql_type:   SqlType::Int,
+                    nullable:   false,
+                    additivity: crate::compiler::fact_table::Additivity::Additive,
                 },
             ],
             dimensions:               DimensionColumn {

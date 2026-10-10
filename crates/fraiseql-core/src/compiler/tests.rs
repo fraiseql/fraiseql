@@ -884,9 +884,10 @@ mod validator_tests {
             "tf_sales".to_string(),
             make_fact_table(
                 vec![MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
+                    name:       "revenue".to_string(),
+                    sql_type:   SqlType::Decimal,
+                    nullable:   false,
+                    additivity: crate::compiler::fact_table::Additivity::Additive,
                 }],
                 "data",
             ),
@@ -904,9 +905,10 @@ mod validator_tests {
             "sales".to_string(),
             make_fact_table(
                 vec![MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
+                    name:       "revenue".to_string(),
+                    sql_type:   SqlType::Decimal,
+                    nullable:   false,
+                    additivity: crate::compiler::fact_table::Additivity::Additive,
                 }],
                 "data",
             ),
@@ -938,9 +940,10 @@ mod validator_tests {
             "tf_sales".to_string(),
             make_fact_table(
                 vec![MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
+                    name:       "revenue".to_string(),
+                    sql_type:   SqlType::Decimal,
+                    nullable:   false,
+                    additivity: crate::compiler::fact_table::Additivity::Additive,
                 }],
                 "",
             ),
@@ -1787,14 +1790,16 @@ mod aggregate_types_tests {
             type_name:                None,
             measures:                 vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
+                    name:       "revenue".to_string(),
+                    sql_type:   SqlType::Decimal,
+                    nullable:   false,
+                    additivity: crate::compiler::fact_table::Additivity::Additive,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
+                    name:       "quantity".to_string(),
+                    sql_type:   SqlType::Int,
+                    nullable:   false,
+                    additivity: crate::compiler::fact_table::Additivity::Additive,
                 },
             ],
             dimensions:               DimensionColumn {
@@ -1899,9 +1904,10 @@ mod aggregate_types_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             measures:                 vec![MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
+                name:       "revenue".to_string(),
+                sql_type:   SqlType::Decimal,
+                nullable:   false,
+                additivity: crate::compiler::fact_table::Additivity::Additive,
             }],
             dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
@@ -1979,9 +1985,10 @@ mod aggregate_types_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             measures:                 vec![MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
+                name:       "revenue".to_string(),
+                sql_type:   SqlType::Decimal,
+                nullable:   false,
+                additivity: crate::compiler::fact_table::Additivity::Additive,
             }],
             dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
@@ -2063,9 +2070,10 @@ mod aggregate_types_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             measures:                 vec![MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
+                name:       "revenue".to_string(),
+                sql_type:   SqlType::Decimal,
+                nullable:   false,
+                additivity: crate::compiler::fact_table::Additivity::Additive,
             }],
             dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
@@ -2155,9 +2163,10 @@ mod aggregate_types_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             measures:                 vec![MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
+                name:       "revenue".to_string(),
+                sql_type:   SqlType::Decimal,
+                nullable:   false,
+                additivity: crate::compiler::fact_table::Additivity::Additive,
             }],
             dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
@@ -2219,14 +2228,16 @@ mod window_allowlist_tests {
             type_name:                None,
             measures:                 vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
+                    name:       "revenue".to_string(),
+                    sql_type:   SqlType::Decimal,
+                    nullable:   false,
+                    additivity: crate::compiler::fact_table::Additivity::Additive,
                 },
                 MeasureColumn {
-                    name:     "units".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
+                    name:       "units".to_string(),
+                    sql_type:   SqlType::Int,
+                    nullable:   false,
+                    additivity: crate::compiler::fact_table::Additivity::Additive,
                 },
             ],
             dimensions:               DimensionColumn {
@@ -2348,14 +2359,16 @@ mod aggregation_tests {
             type_name:                None,
             measures:                 vec![
                 MeasureColumn {
-                    name:     "revenue".to_string(),
-                    sql_type: SqlType::Decimal,
-                    nullable: false,
+                    name:       "revenue".to_string(),
+                    sql_type:   SqlType::Decimal,
+                    nullable:   false,
+                    additivity: crate::compiler::fact_table::Additivity::Additive,
                 },
                 MeasureColumn {
-                    name:     "quantity".to_string(),
-                    sql_type: SqlType::Int,
-                    nullable: false,
+                    name:       "quantity".to_string(),
+                    sql_type:   SqlType::Int,
+                    nullable:   false,
+                    additivity: crate::compiler::fact_table::Additivity::Additive,
                 },
             ],
             dimensions:               DimensionColumn {
@@ -2727,9 +2740,10 @@ mod window_order_by_allowlist_tests {
             table_name:               "tf_sales".to_string(),
             type_name:                None,
             measures:                 vec![MeasureColumn {
-                name:     "revenue".to_string(),
-                sql_type: SqlType::Decimal,
-                nullable: false,
+                name:       "revenue".to_string(),
+                sql_type:   SqlType::Decimal,
+                nullable:   false,
+                additivity: crate::compiler::fact_table::Additivity::Additive,
             }],
             dimensions:               DimensionColumn {
                 name:  "dimensions".to_string(),
