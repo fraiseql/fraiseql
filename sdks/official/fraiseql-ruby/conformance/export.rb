@@ -43,7 +43,7 @@ def author_full
     t.field :id, :id, nullable: false
     t.field :email, :string, nullable: false
     t.field :name, :string, nullable: true, description: 'The user\'s "display" name',
-                           deprecated: "use displayName"
+                           deprecated: "use displayName", localized: true
     t.field :salary, :float, nullable: true, requires_scope: "read:User.salary"
     # Two words and a digit segment (#1249). A Ruby field name is a snake_case symbol,
     # so this is one of the fixtures that actually discriminates: `:last_login_at` must
@@ -164,7 +164,7 @@ def author_full
                                 requires_actor: %w[service_account] do |m|
     m.argument :email, :string, nullable: false
     m.argument :name, :string, nullable: true
-    m.argument :display_name, :string, nullable: true
+    m.argument :display_name, :string, nullable: true, localized: true
   end
 
   schema.mutation :place_order, return_type: "Order", sql_source: "fn_place_order",

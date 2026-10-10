@@ -30,7 +30,7 @@ reason shown here, and the suite fails if a declared gap is no longer true.
 | `fraiseql-csharp/` | C# / .NET 8+ | — (source-only) | 28/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
 | `fraiseql-fsharp/` | F# / .NET 8+ | — (source-only) | 28/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
 | `fraiseql-elixir/` | Elixir | — (source-only) | 26/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; field_localized, mutation_argument_localized: no `localized` authoring yet (#1527) |
-| `fraiseql-ruby/` | Ruby 3.2+ | — (source-only) | 26/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; field_localized, mutation_argument_localized: no `localized` authoring yet (#1527) |
+| `fraiseql-ruby/` | Ruby 3.2+ | — (source-only) | 28/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring |
 | `fraiseql-dart/` | Dart / Flutter | — (source-only) | 26/30 | subscriptions: the SDK ships no subscription authoring surface at all (#1024); fact_tables: no fact-table authoring; field_localized, mutation_argument_localized: no `localized` authoring yet (#1527) |
 | `fraiseql-rust/` | Rust | crates.io | 5/30 | queries, mutations, subscriptions, enums, input types, CRUD, relationships, Relay and error-type flags, serverless functions, fact tables, localized fields and arguments (#1527): the Rust SDK is field-level-RBAC focused and ships no builder for them |
 

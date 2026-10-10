@@ -68,6 +68,11 @@ schema.type 'User', sql_source: 'users' do |t|
 end
 ```
 
+A String stored as a locale map (`[locale]` in `fraiseql.toml`) takes `localized: true`, on
+a field (`t.field :name, :string, localized: true`, input types included) or a mutation
+argument (`m.argument :display_name, :string, localized: true`). Only a String can be
+localized; any other type is refused where it is declared.
+
 ## Compile and Serve
 
 ```bash

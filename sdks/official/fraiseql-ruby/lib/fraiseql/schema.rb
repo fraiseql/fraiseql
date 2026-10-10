@@ -175,7 +175,9 @@ module FraiseQL
           "description" => input[:description],
           "is_input" => true,
           "fields" => input[:fields].map do |f|
-            { "name" => f[:name], "type" => f[:type], "nullable" => f[:nullable] }
+            wire = { "name" => f[:name], "type" => f[:type], "nullable" => f[:nullable] }
+            wire["localized"] = true if f[:localized]
+            wire
           end
         }
       end
@@ -194,6 +196,16 @@ module FraiseQL
           else value
           end
       end
+    end
+
+    # A locale map holds strings (#1527): `localized` on any other type is refused where it
+    # is declared, as the Python SDK refuses `Localized[int]`.
+    def self.refuse_localized_non_string(name, graphql_type)
+      return if graphql_type == "String"
+
+      raise ArgumentError,
+            "#{name} is localized but is a #{graphql_type}; only a String can be localized " \
+            "(a localized field is a String stored as a locale map)"
     end
 
     # Declares a GraphQL enum type.
@@ -440,8 +452,12 @@ module FraiseQL
       # and is emitted as `{ reason: ... }` — the shape `IntermediateField` reads since
       # #1025. There was no parameter here at all, so a Ruby author could not deprecate a
       # field through the path the exporter actually runs.
+      #
+      # `localized: true` marks a String stored as a locale map (#1527); any other type is
+      # refused here, where it is declared.
       def field(name, type, nullable: true, description: nil, requires_scope: nil, on_deny: nil,
-                vector_config: nil, vector_distance: nil, deprecated: false, computed: false)
+                vector_config: nil, vector_distance: nil, deprecated: false, computed: false,
+                localized: false)
         definition = {
           # camelCase on the way out (#1249). A field is declared as a snake_case symbol
           # because that is the Ruby idiom, and it used to reach the GraphQL API spelled
@@ -457,13 +473,16 @@ module FraiseQL
         # runs before export. `IntermediateField` has no `computed` member and denies
         # unknown fields, so emitting it would make the whole document uncompilable — the
         # defect #927 fixed in Python and #1183 found still live in TypeScript and C#.
+        Schema.refuse_localized_non_string(name, definition["type"]) if localized
         @crud_fields << {
-          name: definition["name"], type: definition["type"], nullable: nullable, computed: computed
+          name: definition["name"], type: definition["type"], nullable: nullable, computed: computed,
+          localized: localized
         }
         definition["description"] = description if description
         definition["requires_scope"] = requires_scope.to_s if requires_scope
         definition["on_deny"] = on_deny.to_s if on_deny
         definition["deprecated"] = (deprecated.is_a?(String) ? { "reason" => deprecated } : {}) if deprecated
+        definition["localized"] = true if localized
 
         add_vector(definition, name, vector_config, vector_distance)
 
@@ -522,7 +541,8 @@ module FraiseQL
         @arguments = []
       end
 
-      def argument(name, type, nullable: true, description: nil)
+      # `localized: true` marks a String the function receives as a locale map (#1527).
+      def argument(name, type, nullable: true, description: nil, localized: false)
         definition = {
           # An argument name follows the same rule as an operation name and a field name:
           # authored as a snake_case symbol, published camelCase (#1255).
@@ -530,7 +550,9 @@ module FraiseQL
           "type" => Schema.graphql_type(type),
           "nullable" => nullable
         }
+        Schema.refuse_localized_non_string(name, definition["type"]) if localized
         definition["description"] = description if description
+        definition["localized"] = true if localized
 
         @arguments << definition
         definition

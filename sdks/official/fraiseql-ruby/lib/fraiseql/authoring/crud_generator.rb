@@ -112,7 +112,10 @@ module FraiseQL
         name: create_input_name,
         description: "Input for creating a new #{type_name}.",
         fields: fields.reject { |f| f[:computed] }
-                      .map { |f| { name: snake_to_camel(f[:name]), type: f[:type], nullable: f[:nullable] } }
+                      .map do |f|
+                        { name: snake_to_camel(f[:name]), type: f[:type], nullable: f[:nullable],
+                          localized: f[:localized] }
+                      end
       }
       create = {
         name: snake_to_camel("create_#{snake}"),
@@ -134,7 +137,10 @@ module FraiseQL
         description: "Input for updating an existing #{type_name}.",
         fields: [{ name: snake_to_camel(pk[:name]), type: pk[:type], nullable: false }] +
                 fields[1..].reject { |f| f[:computed] }
-                           .map { |f| { name: snake_to_camel(f[:name]), type: f[:type], nullable: true } }
+                           .map do |f|
+                             { name: snake_to_camel(f[:name]), type: f[:type], nullable: true,
+                               localized: f[:localized] }
+                           end
       }
       update = {
         name: snake_to_camel("update_#{snake}"),
