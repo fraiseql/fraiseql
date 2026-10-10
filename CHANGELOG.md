@@ -183,7 +183,17 @@ disagreed, and the promise was the part that was wrong.
   transactions never carry `fraiseql.locale`.
 - **`Localized` in the Python and TypeScript SDKs (#1513).** `fraiseql.Localized[str]`
   (Python) and `localized: true` / `"Localized<string>"` (TypeScript); observed by the
-  conformance suite, with the nine other SDKs declaring the gap (#1527).
+  conformance suite.
+- **`localized` in the nine other SDKs (#1527).** Go (`FieldInfo.Localized`, the tag
+  `localized=true`, `MutationBuilder.LocalizedArg`), Java (`@GraphQLField(localized = true)`,
+  `localizedArg`), C# (`[GraphQLField(Localized = true)]`, `LocalizedArgument`), F#
+  (`Localized = true`, the DSL's `localized` / `localizedArg`, `withLocalizedArgument`), Ruby,
+  PHP, Elixir (`localized: true` on a field or argument), Dart
+  (`FieldType.string(localized: true)`) and Rust (`Field::with_localized`, fields only: the
+  Rust SDK has no mutation builder). Every SDK refuses `localized` on anything but a
+  `String`, where it is declared or at export, and CRUD-generated input fields carry their
+  field's `localized`. The conformance suite observes both constructs in all eleven SDKs
+  but Rust's arguments.
 - **`examples/localized-catalog` and `docs/guides/localization.md` (#1513).** A Python-authored
   catalog served end to end, with a write-session guard and a copyable catalog check that no
   view, index or trigger reads `fraiseql.locale`.
@@ -216,6 +226,12 @@ disagreed, and the promise was the part that was wrong.
   ids stay random v4.
 
 ### Breaking
+
+- **SDK field and argument shapes gain `localized` (#1527).** A positional or exhaustive
+  construction adds it: Rust's `Field` (published on crates.io) in a struct literal, F#'s
+  `FieldDefinition` and `ArgumentDefinition` in every record literal, Go's `FieldInfo` and
+  `ArgumentDefinition` in an unkeyed literal. Elixir's structs, C#'s records (an optional
+  trailing parameter) and the other SDKs' keyword or builder APIs are unaffected.
 
 - **Partial-period aggregation is removed (#1519).** `FactTableMetadata::partial_period`,
   `PartialPeriodConfig`, `TemporalGrain`, `AggregationSqlGenerator::generate_partial_period` and
@@ -436,6 +452,10 @@ disagreed, and the promise was the part that was wrong.
   `path: vec!["category".into()]`.
 
 ### Fixed
+
+- **The TypeScript SDK's `localized: true` option is refused on a non-String (#1527).** The
+  type-string API refused `Localized<number>`, but the option was exported on any type and
+  only the compiler caught it; `SchemaRegistry.getSchema` now refuses it, naming the field.
 
 - **A constraint violation served as the typed error names the constraint (#1531).** A
   class-23 SQLSTATE answered by the mutation's error member (#1424) said only "conflict" or

@@ -36,8 +36,12 @@ class Product:
 ```
 
 `data->'name'` holds `{"fr-FR": "Pomme", "en-US": "Apple", …}`. Clients see `name: String`.
-The TypeScript SDK spells it `localized: true` on the field (or `"Localized<string>"`). The
-compiler refuses `localized` on anything but a `String`, and on any schema without `[locale]`.
+The TypeScript SDK spells it `localized: true` on the field (or `"Localized<string>"`); every
+other SDK has its own spelling (Go `Localized: true`, Java and C# `localized`/`Localized` on
+the field attribute, Ruby, PHP and Elixir `localized: true`, Dart
+`FieldType.string(localized: true)`, Rust `Field::with_localized()`), and each refuses it on a
+non-`String`. The compiler refuses `localized` on anything but a `String`, and on any schema
+without `[locale]`.
 
 A selection may read another locale for one field, `name(locale: "de-DE")`, or every allowed
 label, `nameTranslations { locale value }` (in `allowed`'s order; a key outside `allowed` is
