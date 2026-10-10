@@ -61,7 +61,15 @@ module MutationBuilder =
 
     /// Adds an argument to this mutation.
     let withArgument (name: string) (type_: string) (isNullable: bool) (s: MutationState) : MutationState =
-        let arg: ArgumentDefinition = { name = name; type_ = type_; nullable = isNullable }
+        let arg: ArgumentDefinition =
+            { name = name; type_ = type_; nullable = isNullable; localized = None }
+        { s with arguments = s.arguments @ [ arg ] }
+
+    /// Adds a String argument the function receives as a locale map (#1527). A localized
+    /// argument is always a String, so it takes no type.
+    let withLocalizedArgument (name: string) (isNullable: bool) (s: MutationState) : MutationState =
+        let arg: ArgumentDefinition =
+            { name = name; type_ = "String"; nullable = isNullable; localized = Some true }
         { s with arguments = s.arguments @ [ arg ] }
 
     /// Sets the optional REST endpoint annotation.

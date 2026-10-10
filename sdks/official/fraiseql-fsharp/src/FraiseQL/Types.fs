@@ -136,9 +136,12 @@ type FieldDefinition =
         /// here to put them in and `reflectFields` never read them, so neither reached
         /// the exported schema.
         deprecated: DeprecationInfo option
+        /// `Some true` on a String stored as a locale map (#1527); `None` (omitted)
+        /// otherwise. Only a String can be localized: the exporter refuses anything else.
+        localized: bool option
     }
 
-/// Represents an argument on a GraphQL query or mutation.
+/// Represents an argument on a GraphQL query or mutation, and a field of an input type.
 [<CLIMutable>]
 type ArgumentDefinition =
     {
@@ -149,6 +152,9 @@ type ArgumentDefinition =
         type_: string
         /// Whether this argument is optional.
         nullable: bool
+        /// `Some true` on a String received as a locale map (#1527); `None` (omitted)
+        /// otherwise.
+        localized: bool option
     }
 
 /// Represents a GraphQL object type compiled from a SQL view.

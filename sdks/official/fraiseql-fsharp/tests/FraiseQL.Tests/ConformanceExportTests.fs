@@ -45,7 +45,8 @@ type ConformanceUser() =
     [<GraphQLField(Type = "String",
                    Nullable = true,
                    Description = "The user's \"display\" name",
-                   DeprecationReason = "use displayName")>]
+                   DeprecationReason = "use displayName",
+                   Localized = true)>]
     member val Name = "" with get, set
 
     [<GraphQLField(Type = "Float", Nullable = true, Scope = "read:User.salary")>]
@@ -161,13 +162,13 @@ let private authorFull () =
             name = "CreateUserInput"
             fields =
                 [
-                    { name = "email"; type_ = "String"; nullable = false }
-                    { name = "name"; type_ = "String"; nullable = true }
+                    { name = "email"; type_ = "String"; nullable = false; localized = None }
+                    { name = "name"; type_ = "String"; nullable = true; localized = None }
                     // Two words (#1255). Unlike an object type, whose members are
                     // PascalCase and lowered on emit, `registerInput` takes the wire name
                     // as a literal — so there is nothing to translate here. The field
                     // exists so the comparator covers the hand-authored input path at all.
-                    { name = "displayName"; type_ = "String"; nullable = true }
+                    { name = "displayName"; type_ = "String"; nullable = true; localized = None }
                 ]
             description = None
         }
@@ -248,7 +249,7 @@ let private authorFull () =
     |> MutationBuilder.operation "insert"
     |> MutationBuilder.withArgument "email" "String" false
     |> MutationBuilder.withArgument "name" "String" true
-    |> MutationBuilder.withArgument "displayName" "String" true
+    |> MutationBuilder.withLocalizedArgument "displayName" true
     |> MutationBuilder.invalidatesViews [ "v_user"; "v_user_summary" ]
     |> MutationBuilder.invalidatesFactTables [ "tf_signup" ]
     // #1253: the role gate on the write side, implemented in all eleven mutation builders

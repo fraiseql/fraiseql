@@ -130,6 +130,11 @@ type GraphQLFieldAttribute() =
     /// Human-readable reason for the deprecation, shown in introspection.
     member val DeprecationReason: string = "" with get, set
 
+    /// When true, this String field is stored as a locale map (#1527): served in the
+    /// request's locale, written per locale. Only a String can be localized; exporting any
+    /// other localized field is refused.
+    member val Localized: bool = false with get, set
+
     /// When true, this field is server-computed and excluded from CRUD input types.
     ///
     /// Computed fields (e.g. auto-generated slugs, view aggregations) are never

@@ -88,6 +88,15 @@ let schema =
 SchemaExporter.exportSchemaToFile "schema.json" schema
 ```
 
+## Localized Strings
+
+A String stored as a locale map (`[locale]` in `fraiseql.toml`) is declared localized:
+`[<GraphQLField(Type = "String", Localized = true)>]` or the DSL's `localized` on a field,
+`MutationBuilder.withLocalizedArgument "displayName" true` or the DSL's
+`localizedArg "displayName" true` on a mutation argument, and `localized = Some true` on an
+input field. Only a String can be localized; exporting any other localized field, input
+field or argument is refused.
+
 ## Type Mapping
 
 | F# Type | GraphQL Type |

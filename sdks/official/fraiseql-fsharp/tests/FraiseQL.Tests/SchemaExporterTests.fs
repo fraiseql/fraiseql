@@ -31,6 +31,7 @@ let private singleField =
         vector_config = None
         vector_distance = None
         deprecated = None
+        localized = None
     }
 
 let private singleType =
@@ -277,7 +278,7 @@ let ``export query includes cache_ttl_seconds when present`` () =
 
 [<Fact>]
 let ``export query includes argument with type key`` () =
-    let arg: ArgumentDefinition = { name = "id"; type_ = "ID"; nullable = false }
+    let arg: ArgumentDefinition = { name = "id"; type_ = "ID"; nullable = false; localized = None }
 
     let queryWithArg = { singleQuery with arguments = [ arg ] }
     let schema = { emptySchema with queries = [ queryWithArg ] }

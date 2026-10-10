@@ -71,7 +71,8 @@ module QueryBuilder =
 
     /// Adds an argument to this query.
     let withArgument (name: string) (type_: string) (isNullable: bool) (s: QueryState) : QueryState =
-        let arg: ArgumentDefinition = { name = name; type_ = type_; nullable = isNullable }
+        let arg: ArgumentDefinition =
+            { name = name; type_ = type_; nullable = isNullable; localized = None }
         { s with arguments = s.arguments @ [ arg ] }
 
     /// Sets the optional REST endpoint annotation.

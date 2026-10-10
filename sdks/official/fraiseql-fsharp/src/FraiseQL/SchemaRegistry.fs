@@ -174,6 +174,7 @@ module SchemaRegistry =
                     vector_config = vectorConfig
                     vector_distance = vectorDistance
                     deprecated = deprecated
+                    localized = if fieldAttr.Localized then Some true else None
                 }))
         |> Array.toList
 

@@ -41,6 +41,7 @@ module Dsl =
             vectorConfig: VectorConfig option
             vectorDistance: string option
             deprecated: DeprecationInfo option
+            localized: bool option
         }
 
     /// Computation expression builder for a single <see cref="FieldDefinition"/>.
@@ -59,6 +60,7 @@ module Dsl =
                 vectorConfig = None
                 vectorDistance = None
                 deprecated = None
+                localized = None
             }
 
         member this.Zero() : FieldState = this.Yield(())
@@ -76,6 +78,7 @@ module Dsl =
                 vector_config = s.vectorConfig
                 vector_distance = s.vectorDistance
                 deprecated = s.deprecated
+                localized = s.localized
             }
 
         /// Sets whether this field may be null.
@@ -96,6 +99,10 @@ module Dsl =
         /// Sets the single scope required to read this field.
         [<CustomOperation("scope")>]
         member _.Scope(s: FieldState, v: string) : FieldState = { s with scope = Some v }
+
+        /// Marks this String field as stored as a locale map (#1527).
+        [<CustomOperation("localized")>]
+        member _.Localized(s: FieldState) : FieldState = { s with localized = Some true }
 
         /// Marks this field as server-computed; excluded from CRUD input types.
         [<CustomOperation("computed")>]
@@ -295,7 +302,8 @@ module Dsl =
         /// Adds an argument to this query.
         [<CustomOperation("arg")>]
         member _.Arg(s: QueryCEAccState, name: string, type_: string, isNullable: bool) =
-            let a: ArgumentDefinition = { name = name; type_ = type_; nullable = isNullable }
+            let a: ArgumentDefinition =
+                { name = name; type_ = type_; nullable = isNullable; localized = None }
             { s with arguments = s.arguments @ [ a ] }
 
         /// Sets the optional REST endpoint annotation.
@@ -384,7 +392,16 @@ module Dsl =
         /// Adds an argument to this mutation.
         [<CustomOperation("arg")>]
         member _.Arg(s: MutationCEAccState, name: string, type_: string, isNullable: bool) =
-            let a: ArgumentDefinition = { name = name; type_ = type_; nullable = isNullable }
+            let a: ArgumentDefinition =
+                { name = name; type_ = type_; nullable = isNullable; localized = None }
+            { s with arguments = s.arguments @ [ a ] }
+
+        /// Adds a String argument the function receives as a locale map (#1527). A
+        /// localized argument is always a String, so it takes no type.
+        [<CustomOperation("localizedArg")>]
+        member _.LocalizedArg(s: MutationCEAccState, name: string, isNullable: bool) =
+            let a: ArgumentDefinition =
+                { name = name; type_ = "String"; nullable = isNullable; localized = Some true }
             { s with arguments = s.arguments @ [ a ] }
 
         /// Sets the optional REST endpoint annotation.

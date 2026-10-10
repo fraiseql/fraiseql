@@ -42,8 +42,30 @@ module SchemaExporter =
     let private prettyOptions = buildOptions true
     let private compactOptions = buildOptions false
 
+    /// Refuses `localized` on anything but a String (#1527): a locale map holds strings.
+    /// Every serialization goes through here, whichever builder declared the field.
+    let private refuseLocalizedNonStrings (schema: IntermediateSchema) : unit =
+        let declared =
+            [ for t in schema.types do
+                  for f in t.fields -> t.name, f.name, f.type_, f.localized
+              for t in schema.input_types do
+                  for f in t.fields -> t.name, f.name, f.type_, f.localized
+              for m in schema.mutations do
+                  for a in m.arguments -> m.name, a.name, a.type_, a.localized ]
+
+        for owner, name, type_, localized in declared do
+            if localized = Some true && type_ <> "String" then
+                invalidOp (
+                    sprintf
+                        "%s.%s is localized but is a %s; only a String can be localized (a localized field is a String stored as a locale map)"
+                        owner
+                        name
+                        type_
+                )
+
     /// Serializes an <see cref="IntermediateSchema"/> to a pretty-printed JSON string.
     let fromSchema (schema: IntermediateSchema) : string =
+        refuseLocalizedNonStrings schema
         JsonSerializer.Serialize(schema, prettyOptions)
 
     /// Serializes an <see cref="IntermediateSchema"/> to a pretty-printed JSON string.
@@ -52,6 +74,7 @@ module SchemaExporter =
 
     /// Serializes an <see cref="IntermediateSchema"/> to a compact (non-indented) JSON string.
     let exportSchemaCompact (schema: IntermediateSchema) : string =
+        refuseLocalizedNonStrings schema
         JsonSerializer.Serialize(schema, compactOptions)
 
     /// Serializes an <see cref="IntermediateSchema"/> and writes it to the given file path.

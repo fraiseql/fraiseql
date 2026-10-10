@@ -93,6 +93,7 @@ module CrudGenerator =
                             name = f.name
                             type_ = f.type_
                             nullable = f.nullable
+                            localized = f.localized
                         })
                 description = Some(sprintf "Input for creating a new %s." typeName)
             }
@@ -103,7 +104,7 @@ module CrudGenerator =
             {
                 name = updateInputName
                 fields =
-                    { name = pkField.name; type_ = pkField.type_; nullable = false }
+                    { name = pkField.name; type_ = pkField.type_; nullable = false; localized = None }
                     :: (fields
                         |> List.tail
                         |> List.filter (fun f -> not f.computed)
@@ -112,6 +113,7 @@ module CrudGenerator =
                                 name = f.name
                                 type_ = f.type_
                                 nullable = true
+                                localized = f.localized
                             }))
                 description = Some(sprintf "Input for updating an existing %s." typeName)
             }
@@ -131,6 +133,7 @@ module CrudGenerator =
                                 name = pkField.name
                                 type_ = pkField.type_
                                 nullable = false
+                                localized = None
                             }
                         ]
                     cache_ttl_seconds = None
@@ -177,6 +180,7 @@ module CrudGenerator =
                                 name = "input"
                                 type_ = createInputName
                                 nullable = false
+                                localized = None
                             }
                         ]
                     description = Some(sprintf "Create a new %s." typeName)
@@ -200,6 +204,7 @@ module CrudGenerator =
                                 name = "input"
                                 type_ = updateInputName
                                 nullable = false
+                                localized = None
                             }
                         ]
                     description = Some(sprintf "Update an existing %s." typeName)
@@ -223,6 +228,7 @@ module CrudGenerator =
                                 name = pkField.name
                                 type_ = pkField.type_
                                 nullable = false
+                                localized = None
                             }
                         ]
                     description = Some(sprintf "Delete a %s." typeName)
