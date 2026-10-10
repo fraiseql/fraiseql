@@ -281,8 +281,7 @@ func (m *FraiseqlCi) imageBootPgService() *dagger.Service {
 func (m *FraiseqlCi) imageBootClient(source *dagger.Directory, v imageVariant) *dagger.Container {
 	return dag.Container().
 		From(pgImage).
-		WithExec([]string{"apt-get", "update"}).
-		WithExec([]string{"apt-get", "install", "-y", "--no-install-recommends", "curl", "jq", "ca-certificates"}).
+		WithExec(aptInstall("curl", "jq", "ca-certificates")).
 		WithFile("/fixture/init-postgres.sql", source.File("docker/e2e/init-postgres.sql")).
 		WithEnvVariable("PGPASSWORD", pgPassword).
 		WithEnvVariable("IMAGE_VARIANT", v.name)
@@ -553,8 +552,7 @@ echo "own HEALTHCHECK polls, served $n chapter(s) of real content, and served it
 
 	return dag.Container().
 		From(pgImage).
-		WithExec([]string{"apt-get", "update"}).
-		WithExec([]string{"apt-get", "install", "-y", "--no-install-recommends", "curl", "jq", "ca-certificates"}).
+		WithExec(aptInstall("curl", "jq", "ca-certificates")).
 		WithServiceBinding(tutorialBindHost, site).
 		WithExec([]string{"bash", "-c", script}).
 		Stdout(ctx)

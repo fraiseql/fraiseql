@@ -219,11 +219,10 @@ pub fn __lint_routes_fixture() {
 func (m *FraiseqlCi) lintBase() *dagger.Container {
 	return dag.Container().
 		From(ubuntuImage).
-		WithExec([]string{"apt-get", "update"}).
-		WithExec([]string{
-			"apt-get", "install", "-y", "--no-install-recommends",
+		WithExec(aptInstall(
+
 			"git", "gawk", "findutils", "grep", "ca-certificates",
-		})
+		))
 }
 
 // ── Phase 02: Fast Gates ──────────────────────────────────────────────────────
@@ -396,9 +395,9 @@ func (m *FraiseqlCi) CheckRExamples(
 	source *dagger.Directory,
 ) (string, error) {
 	return m.shellBase().
-		WithExec([]string{
-			"apt-get", "install", "-y", "--no-install-recommends", "r-base-core",
-		}).
+		WithExec(aptInstall(
+			"r-base-core",
+		)).
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
 		WithExec([]string{"bash", "tools/check-r-examples-parse.sh"}).
@@ -506,6 +505,11 @@ func (m *FraiseqlCi) ShellGates(
 		// reachable from dev and failed on their first line (#1219).
 		"bash tools/check-compose-references.sh",
 		"bash tools/tests/compose_references_test.sh",
+		// Every apt install refreshes its index in the same exec: one layered on a
+		// separately cached `apt-get update` 404'd this very leg on every run once
+		// Ubuntu replaced a package the cached index still named (2026-10-10).
+		"bash tools/check-dagger-apt.sh",
+		"bash tools/tests/dagger_apt_test.sh",
 		// A bare `image: fraiseql:...` in a fenced code block resolves to
 		// docker.io/library/fraiseql, which this project cannot publish to — #1129's
 		// defect, in the one place the file-level gates do not read (#1220).
@@ -844,9 +848,8 @@ func (m *FraiseqlCi) rustBase() *dagger.Container {
 
 	return dag.Container().
 		From(rustImage).
-		WithExec([]string{"apt-get", "update"}).
-		WithExec([]string{
-			"apt-get", "install", "-y", "--no-install-recommends",
+		WithExec(aptInstall(
+
 			"mold", "clang", "pkg-config", "libssl-dev", "cmake",
 			"protobuf-compiler", "python3", "libsasl2-dev", "zlib1g-dev",
 			// libxml2-dev + libxmlsec1-dev: samael's `xmlsec` backend (the #381
@@ -854,7 +857,7 @@ func (m *FraiseqlCi) rustBase() *dagger.Container {
 			// `--all-features`, which turns auth-saml on, so the C stack must live in
 			// the base. Mirrors the local requirement (`pacman -S xmlsec` on Arch).
 			"libxml2-dev", "libxmlsec1-dev",
-		}).
+		)).
 		// rustfmt + clippy on the pinned stable, plus rust-analyzer to satisfy
 		// rust-toolchain.toml (avoids a mid-run auto-install); a minimal nightly
 		// carrying only rustfmt, pinned by fmtNightly.
@@ -880,15 +883,29 @@ func (m *FraiseqlCi) rustBase() *dagger.Container {
 // shellBase is the minimal container for the non-Rust lint gates: bash + make + the
 // grep/awk/find toolchain the `make lint-*` recipes and check-*.sh scripts use
 // (gawk, not mawk, for the load-bearing multi-line route-syntax pass — see lintBase).
+// aptInstall is ONE exec that refreshes the package index and installs pkgs.
+//
+// An `apt-get update` exec of its own is cached as a layer, and an install exec layered on
+// it reads that index whenever the install misses the cache. Once Ubuntu's security pocket
+// replaced libpng (1.6.43-5ubuntu0.6), the cached index still named the old .deb, and the R
+// examples' install 404'd on every run of preflight until the cache was evicted
+// (2026-10-10). In one exec the index is as fresh as the install. tools/check-dagger-apt.sh
+// refuses any other form.
+func aptInstall(pkgs ...string) []string {
+	return []string{
+		"sh", "-c",
+		"apt-get update && apt-get install -y --no-install-recommends " + strings.Join(pkgs, " "),
+	}
+}
+
 func (m *FraiseqlCi) shellBase() *dagger.Container {
 	return dag.Container().
 		From(ubuntuImage).
-		WithExec([]string{"apt-get", "update"}).
-		WithExec([]string{
-			"apt-get", "install", "-y", "--no-install-recommends",
+		WithExec(aptInstall(
+
 			// python3: the suite-coverage gate (tools/check-suite-coverage.py).
 			"make", "git", "gawk", "findutils", "grep", "ca-certificates", "python3",
-		})
+		))
 }
 
 // ── Phase 03: Workspace Test Suite ────────────────────────────────────────────
@@ -1377,8 +1394,7 @@ func (m *FraiseqlCi) integrationQuickstart(ctx context.Context, source *dagger.D
 		// psql applies the doc's setup.sql, curl issues the doc's query.
 		// python3-httpx is the SDK's one third-party import (the doc's
 		// `pip install fraiseql` is substituted with the in-repo SDK).
-		WithExec([]string{"apt-get", "update"}).
-		WithExec([]string{"apt-get", "install", "-y", "--no-install-recommends", "postgresql-client", "curl", "python3-httpx"}).
+		WithExec(aptInstall("postgresql-client", "curl", "python3-httpx")).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithEnvVariable("SMOKE_DATABASE_URL", dbURL).
 		WithExec([]string{"bash", "-c", script}).
@@ -1433,8 +1449,7 @@ func (m *FraiseqlCi) integrationExamples(ctx context.Context, source *dagger.Dir
 		// authoring SDK's one third-party import, and every example authors through
 		// it — five example schema.py files still did `from fraiseql import key` when
 		// this landed, and nothing had run them since v1.
-		WithExec([]string{"apt-get", "update"}).
-		WithExec([]string{"apt-get", "install", "-y", "--no-install-recommends", "postgresql-client", "curl", "python3-httpx"}).
+		WithExec(aptInstall("postgresql-client", "curl", "python3-httpx")).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		// examples-smoke.sh CREATEs and DROPs a database per example, so it needs a
 		// URL it can connect to while doing that — the maintenance database, not one
@@ -1780,7 +1795,7 @@ func (m *FraiseqlCi) integrationFederationCompose(ctx context.Context, source *d
 	}, "\n")
 
 	return m.shellBase().
-		WithExec([]string{"apt-get", "install", "-y", "--no-install-recommends", "nodejs", "npm"}).
+		WithExec(aptInstall("nodejs", "npm")).
 		WithMountedDirectory("/src", source).
 		WithWorkdir("/src").
 		WithExec([]string{"bash", "-c", script}).
@@ -2267,10 +2282,10 @@ func (m *FraiseqlCi) integrationStorage(ctx context.Context, source *dagger.Dire
 		// therefore never vendored into the crate). Installed here rather than
 		// in rustBase: only this leg needs them, and rustBase is shared by
 		// every heavy leg.
-		WithExec([]string{
-			"apt-get", "install", "-y", "--no-install-recommends",
+		WithExec(aptInstall(
+
 			"nodejs", "npm", "fonts-dejavu-core",
-		}).
+		)).
 		WithServiceBinding(pgBindHost, m.pgService(source)).
 		WithServiceBinding(azuriteBindHost, m.azuriteService()).
 		WithServiceBinding(fakeGcsBindHost, m.fakeGcsService()).

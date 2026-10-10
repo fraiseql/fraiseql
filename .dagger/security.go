@@ -320,11 +320,10 @@ func (m *FraiseqlCi) gitleaksBase() *dagger.Container {
 
 	return dag.Container().
 		From(ubuntuImage).
-		WithExec([]string{"apt-get", "update"}).
-		WithExec([]string{
-			"apt-get", "install", "-y", "--no-install-recommends",
+		WithExec(aptInstall(
+
 			"curl", "ca-certificates",
-		}).
+		)).
 		WithExec([]string{"bash", "-c", install})
 }
 
