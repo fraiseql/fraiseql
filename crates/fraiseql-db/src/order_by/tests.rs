@@ -122,16 +122,17 @@ fn test_append_order_by_datetime_cast_postgres() {
 fn test_append_order_by_native_column() {
     let mut sql = "SELECT data FROM tv_user".to_string();
     let clause = OrderByClause {
-        field:         "createdAt".to_string(),
-        direction:     OrderDirection::Desc,
-        field_type:    crate::types::sql_hints::ScalarFieldType::DateTime,
-        native_column: Some("created_at".to_string()),
-        native_type:   None,
-        vector:        None,
-        relevance:     None,
-        identity:      false,
-        collation:     None,
-        localized:     None,
+        field:           "createdAt".to_string(),
+        direction:       OrderDirection::Desc,
+        field_type:      crate::types::sql_hints::ScalarFieldType::DateTime,
+        native_column:   Some("created_at".to_string()),
+        native_type:     None,
+        native_not_null: false,
+        vector:          None,
+        relevance:       None,
+        identity:        false,
+        collation:       None,
+        localized:       None,
     };
     let bound =
         append_order_by(&mut sql, Some(&[clause]), DatabaseType::PostgreSQL, 1, Tiebreak::Identity)
@@ -148,16 +149,17 @@ fn test_append_order_by_mixed_native_and_jsonb() {
     let mut sql = "SELECT data FROM tv_user".to_string();
     let clauses = [
         OrderByClause {
-            field:         "createdAt".to_string(),
-            direction:     OrderDirection::Desc,
-            field_type:    ScalarFieldType::DateTime,
-            native_column: Some("created_at".to_string()),
-            native_type:   None,
-            vector:        None,
-            relevance:     None,
-            identity:      false,
-            collation:     None,
-            localized:     None,
+            field:           "createdAt".to_string(),
+            direction:       OrderDirection::Desc,
+            field_type:      ScalarFieldType::DateTime,
+            native_column:   Some("created_at".to_string()),
+            native_type:     None,
+            native_not_null: false,
+            vector:          None,
+            relevance:       None,
+            identity:        false,
+            collation:       None,
+            localized:       None,
         },
         {
             let mut c = OrderByClause::new("name".to_string(), OrderDirection::Asc);
@@ -539,16 +541,17 @@ mod pagination_tiebreak {
 
     fn native(field: &str, column: &str) -> OrderByClause {
         OrderByClause {
-            field:         field.to_string(),
-            direction:     OrderDirection::Asc,
-            field_type:    crate::types::sql_hints::ScalarFieldType::Text,
-            native_column: Some(column.to_string()),
-            native_type:   None,
-            vector:        None,
-            relevance:     None,
-            identity:      false,
-            collation:     None,
-            localized:     None,
+            field:           field.to_string(),
+            direction:       OrderDirection::Asc,
+            field_type:      crate::types::sql_hints::ScalarFieldType::Text,
+            native_column:   Some(column.to_string()),
+            native_type:     None,
+            native_not_null: false,
+            vector:          None,
+            relevance:       None,
+            identity:        false,
+            collation:       None,
+            localized:       None,
         }
     }
 

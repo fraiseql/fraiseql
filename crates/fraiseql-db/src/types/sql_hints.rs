@@ -93,28 +93,34 @@ pub enum ScalarFieldType {
 #[non_exhaustive]
 pub struct OrderByClause {
     /// Field to order by (GraphQL camelCase name).
-    pub field:         String,
+    pub field:           String,
     /// Sort direction.
-    pub direction:     OrderDirection,
+    pub direction:       OrderDirection,
     /// Field type for SQL cast generation. `Text` (default) means no cast.
     #[serde(default)]
-    pub field_type:    ScalarFieldType,
+    pub field_type:      ScalarFieldType,
     /// Native column name if the view exposes this field as a typed column.
     /// When set, ORDER BY uses this column directly instead of JSONB extraction,
     /// enabling index support and correct typing without casts.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub native_column: Option<String>,
+    pub native_column:   Option<String>,
     /// The PostgreSQL type of [`native_column`](Self::native_column) (`int8`, `uuid`, …),
     /// when the view declares it: a keyset value compared with the column is cast to it
     /// (#1521). `None` reads it as the field's scalar type.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub native_type:   Option<String>,
+    pub native_type:     Option<String>,
+    /// Whether PostgreSQL proves [`native_column`](Self::native_column) `NOT NULL`, as
+    /// `compile --database` recorded it (#1533). Only such a key lets a relay page seek its
+    /// index with a row comparison: a NULL in a row comparison drops the row silently. Never
+    /// set from a client's `orderBy`.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub native_not_null: bool,
     /// Vector-distance ordering (#386): when set, this clause orders by
     /// `{column} {operator} '{query_vector}'::vector` — the pgvector ANN shape.
     /// Requires [`native_column`](Self::native_column) (a JSONB-extracted text
     /// value would defeat every vector index and re-parse per row).
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub vector:        Option<VectorDistanceOrder>,
+    pub vector:          Option<VectorDistanceOrder>,
     /// Full-text relevance ordering (#1284): when set, this clause orders by
     /// `ts_rank(to_tsvector(document), websearch_to_tsquery($n))`, where the
     /// document is built from the searchable fields the same `?search=`
@@ -123,7 +129,7 @@ pub struct OrderByClause {
     /// [`field`](Self::field) is **not read** for such a clause — there is no
     /// single field a relevance rank belongs to — and is empty by construction.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub relevance:     Option<RelevanceOrder>,
+    pub relevance:       Option<RelevanceOrder>,
     /// This clause **is** the entity identity, whatever it is spelled as (#1303).
     ///
     /// Set only by [`identity`](Self::identity), which the runtime uses to lower
@@ -136,18 +142,18 @@ pub struct OrderByClause {
     /// would append its own `data->>'id'` on top of a `pk_user` ordering — a
     /// second, redundant sort key on every paged read of every Trinity view.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub identity:      bool,
+    pub identity:        bool,
     /// The collation a text key sorts under (#1512): the request locale's ICU collation
     /// (`fr-CA-x-icu`), rendered as `… COLLATE "fr-CA-x-icu"`. Set by the runtime, only for a
     /// text key and only from a configured locale; `None` sorts under the column's own
     /// collation, as before.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub collation:     Option<String>,
+    pub collation:       Option<String>,
     /// A localized key's fallback chain (#1513): the clause sorts the label the chain reads
     /// from the stored locale map, under [`collation`](Self::collation), rather than the
     /// map. Set by the runtime from the request locale.
     #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub localized:     Option<Vec<String>>,
+    pub localized:       Option<Vec<String>>,
 }
 
 /// The full-text operand of an ORDER BY clause (#1284).
@@ -272,6 +278,7 @@ impl OrderByClause {
             field_type: ScalarFieldType::default(),
             native_column: None,
             native_type: None,
+            native_not_null: false,
             vector: None,
             relevance: None,
             identity: false,
@@ -298,6 +305,7 @@ impl OrderByClause {
             field_type: ScalarFieldType::Text,
             native_column,
             native_type: None,
+            native_not_null: false,
             vector: None,
             relevance: None,
             identity: true,
@@ -318,16 +326,17 @@ impl OrderByClause {
     #[must_use]
     pub fn by_relevance(relevance: RelevanceOrder) -> Self {
         Self {
-            field:         String::new(),
-            direction:     OrderDirection::Desc,
-            field_type:    ScalarFieldType::default(),
-            native_column: None,
-            native_type:   None,
-            vector:        None,
-            relevance:     Some(relevance),
-            identity:      false,
-            collation:     None,
-            localized:     None,
+            field:           String::new(),
+            direction:       OrderDirection::Desc,
+            field_type:      ScalarFieldType::default(),
+            native_column:   None,
+            native_type:     None,
+            native_not_null: false,
+            vector:          None,
+            relevance:       Some(relevance),
+            identity:        false,
+            collation:       None,
+            localized:       None,
         }
     }
 

@@ -396,7 +396,7 @@ mod compile_tests {
         sql_source: Option<&str>,
         jsonb_column: &str,
         args: Vec<(&str, FieldType)>,
-        native_columns: std::collections::HashMap<String, String>,
+        native_columns: std::collections::HashMap<String, fraiseql_core::schema::NativeColumn>,
     ) -> QueryDefinition {
         QueryDefinition {
             name: name.to_string(),
@@ -487,7 +487,7 @@ mod compile_tests {
         };
         infer_native_columns_from_arg_types(&mut schema);
         assert_eq!(
-            schema.queries[0].native_columns.get("id").map(String::as_str),
+            schema.queries[0].native_columns.get("id").map(|c| c.pg_type.as_str()),
             Some("uuid"),
             "ID-typed arg should be inferred as uuid native column"
         );
@@ -507,7 +507,7 @@ mod compile_tests {
         };
         infer_native_columns_from_arg_types(&mut schema);
         assert_eq!(
-            schema.queries[0].native_columns.get("userId").map(String::as_str),
+            schema.queries[0].native_columns.get("userId").map(|c| c.pg_type.as_str()),
             Some("uuid")
         );
     }
@@ -515,7 +515,7 @@ mod compile_tests {
     #[test]
     fn test_infer_does_not_override_explicit_declaration() {
         let mut explicit = std::collections::HashMap::new();
-        explicit.insert("id".to_string(), "text".to_string());
+        explicit.insert("id".to_string(), fraiseql_core::schema::NativeColumn::nullable("text"));
         let mut schema = CompiledSchema {
             queries: vec![make_query(
                 "user",
@@ -528,7 +528,7 @@ mod compile_tests {
         };
         infer_native_columns_from_arg_types(&mut schema);
         assert_eq!(
-            schema.queries[0].native_columns.get("id").map(String::as_str),
+            schema.queries[0].native_columns.get("id").map(|c| c.pg_type.as_str()),
             Some("text"),
             "explicit native_columns declaration must win over inference"
         );

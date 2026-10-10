@@ -592,7 +592,7 @@ mod rls_composition {
         inject.insert("tenant_id".to_string(), InjectedParamSource::Jwt("tenant_id".to_string()));
         let mut schema = CompiledSchema::new();
         let mut native_cols = HashMap::new();
-        native_cols.insert("tenant_id".to_string(), "uuid".to_string());
+        native_cols.insert("tenant_id".to_string(), crate::schema::NativeColumn::nullable("uuid"));
         schema.queries.push(QueryDefinition {
             function: None,
 

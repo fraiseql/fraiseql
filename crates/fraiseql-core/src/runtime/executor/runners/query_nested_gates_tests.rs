@@ -737,7 +737,9 @@ async fn a_nested_types_native_column_scope_is_not_evaluated_over_embedded_docum
     orders
         .inject_params
         .insert("owner".to_string(), InjectedParamSource::Jwt("sub".to_string()));
-    orders.native_columns.insert("owner".to_string(), "text".to_string());
+    orders
+        .native_columns
+        .insert("owner".to_string(), crate::schema::NativeColumn::nullable("text"));
     schema.build_indexes();
 
     let (result, _) = run(

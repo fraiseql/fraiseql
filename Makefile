@@ -253,6 +253,7 @@ test-integration-postgres: db-up db-failover-reset
 	@cargo test -p fraiseql-cli --features test-postgres --test init_first_run_pg -- --test-threads=1
 	@cargo test -p fraiseql-cli --features test-postgres --test generate_views_validate_pg -- --test-threads=1
 	@cargo test -p fraiseql-cli --features test-postgres --test compile_drift_fail_pg -- --test-threads=1
+	@cargo test -p fraiseql-cli --features test-postgres --test native_column_nullability_pg -- --test-threads=1
 	@cargo test -p fraiseql-cli --features test-postgres --test mutation_contract_against_db -- --test-threads=1
 	@cargo test -p fraiseql-cli --features test-postgres --test doctor_against_db -- --test-threads=1
 	@cargo test -p fraiseql-cli --features test-postgres --test source_probe_against_db -- --test-threads=1

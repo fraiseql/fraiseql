@@ -3891,7 +3891,8 @@ fn count_sibling_inherits_the_lists_restrictions() {
         fraiseql_core::schema::security_config::InjectedParamSource::Jwt("org_id".to_string()),
     );
     list.additional_views = vec!["v_org".to_string()];
-    list.native_columns.insert("tenant_id".to_string(), "uuid".to_string());
+    list.native_columns
+        .insert("tenant_id".to_string(), fraiseql_core::schema::NativeColumn::nullable("uuid"));
 
     let count = list.count_sibling();
 

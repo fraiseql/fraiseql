@@ -1394,7 +1394,11 @@ pub(crate) fn infer_native_columns_from_arg_types(schema: &mut CompiledSchema) {
                 continue; // already explicitly declared — don't override
             }
             if matches!(arg.arg_type, FieldType::Id | FieldType::Uuid) {
-                query.native_columns.insert(arg.name.clone(), "uuid".to_string());
+                // Inferred from the argument's type: nothing proves the column NOT NULL.
+                query.native_columns.insert(
+                    arg.name.clone(),
+                    fraiseql_core::schema::NativeColumn::nullable("uuid"),
+                );
             }
         }
     }

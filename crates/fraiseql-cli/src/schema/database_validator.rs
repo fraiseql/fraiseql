@@ -39,7 +39,7 @@ pub struct DatabaseValidationReport {
     ///
     /// Only contains entries for queries that have at least one direct argument
     /// with a matching native column on their `sql_source`.
-    pub native_columns:    HashMap<String, HashMap<String, String>>,
+    pub native_columns:    HashMap<String, HashMap<String, fraiseql_core::schema::NativeColumn>>,
     /// Cheaper page orderings discovered per query during L2 validation (#1303).
     ///
     /// Key: query name. Value: the ordering to replace the compiler's offline
@@ -671,7 +671,8 @@ pub async fn validate_schema_against_database(
     ];
 
     let mut warnings = Vec::new();
-    let mut native_columns: HashMap<String, HashMap<String, String>> = HashMap::new();
+    let mut native_columns: HashMap<String, HashMap<String, fraiseql_core::schema::NativeColumn>> =
+        HashMap::new();
     let mut pagination_orders: HashMap<String, PaginationOrder> = HashMap::new();
     let db_type = introspector.database_type();
 
@@ -697,6 +698,13 @@ pub async fn validate_schema_against_database(
             // Pass the full source (possibly schema-qualified like "benchmark.tv_post") so
             // the introspector can use the explicit schema when present.
             let columns = introspector.get_columns(source).await?;
+            // The columns PostgreSQL proves `NOT NULL` (#1533). A view's are none: the
+            // catalog reports every view column nullable, so only a base relation proves it.
+            let not_null: std::collections::HashSet<String> = columns
+                .iter()
+                .filter(|(_, _, nullable)| !nullable)
+                .map(|(name, _, _)| name.clone())
+                .collect();
             let column_map: HashMap<String, String> =
                 columns.into_iter().map(|(name, dtype, _)| (name, dtype)).collect();
 
@@ -813,6 +821,7 @@ pub async fn validate_schema_against_database(
                 &direct_args,
                 query.inject_params.keys().map(String::as_str),
                 &column_map,
+                &not_null,
             );
             // An inject key or argument with no column falls back to `data->>'key'` at
             // runtime. If the JSON does not carry it either, the predicate is false for every
@@ -842,7 +851,8 @@ pub async fn validate_schema_against_database(
             // column whose SQL type cannot cleanly drive the predicate is a likely
             // authoring bug (e.g. an `Int` argument filtering a `uuid` column).
             for arg in &query.arguments {
-                if let Some(col_type) = query_native.get(&arg.name) {
+                if let Some(native) = query_native.get(&arg.name) {
+                    let col_type = &native.pg_type;
                     if !arg_type_convertible(&arg.arg_type, col_type) {
                         warnings.push(DatabaseWarning::TypeConvertibility {
                             query_name:   query.name.clone(),
@@ -1315,8 +1325,13 @@ fn detect_query_native_columns<'a>(
     direct_arg_names: &[&str],
     inject_param_names: impl Iterator<Item = &'a str>,
     column_map: &HashMap<String, String>,
-) -> (HashMap<String, String>, Vec<String>) {
-    let mut native: HashMap<String, String> = HashMap::new();
+    not_null: &std::collections::HashSet<String>,
+) -> (HashMap<String, fraiseql_core::schema::NativeColumn>, Vec<String>) {
+    let native_column = |column: &str, col_type: &String| fraiseql_core::schema::NativeColumn {
+        pg_type:  col_type.clone(),
+        not_null: not_null.contains(column),
+    };
+    let mut native: HashMap<String, fraiseql_core::schema::NativeColumn> = HashMap::new();
     let mut arg_fallbacks: Vec<String> = Vec::new();
 
     for arg in direct_arg_names {
@@ -1324,8 +1339,9 @@ fn detect_query_native_columns<'a>(
         // (`combine_explicit_arg_where`, #486), so that is the column to look up (#1394):
         // `customerId` must find `customer_id`, never miss it and fall back to a key that
         // the view's `data` does not carry.
-        if let Some(col_type) = column_map.get(&fraiseql_core::utils::to_snake_case(arg)) {
-            native.insert((*arg).to_string(), col_type.clone());
+        let column = fraiseql_core::utils::to_snake_case(arg);
+        if let Some(col_type) = column_map.get(&column) {
+            native.insert((*arg).to_string(), native_column(&column, col_type));
         } else {
             arg_fallbacks.push((*arg).to_string());
         }
@@ -1333,7 +1349,7 @@ fn detect_query_native_columns<'a>(
 
     for name in inject_param_names {
         if let Some(col_type) = column_map.get(name) {
-            native.insert(name.to_string(), col_type.clone());
+            native.insert(name.to_string(), native_column(name, col_type));
         }
     }
 

@@ -415,16 +415,16 @@ const fn is_vector_field(field: &crate::schema::FieldDefinition) -> bool {
 pub fn inject_param_where_clause(
     col: &str,
     value: serde_json::Value,
-    native_columns: &std::collections::HashMap<String, String>,
+    native_columns: &std::collections::HashMap<String, crate::schema::NativeColumn>,
 ) -> WhereClause {
-    if let Some(pg_type) = native_columns.get(col) {
+    if let Some(native) = native_columns.get(col) {
         WhereClause::NativeField {
             // `native_columns` is keyed by the GraphQL-surface name (camelCase
             // under `naming_convention = "camelCase"`); the SQL column it was
             // resolved from is snake_case. Recase like the JSONB path below —
             // idempotent for as-authored snake_case names.
             column: crate::utils::to_snake_case(col),
-            pg_cast: pg_type_to_cast(pg_type).to_string(),
+            pg_cast: pg_type_to_cast(&native.pg_type).to_string(),
             operator: WhereOperator::Eq,
             value,
         }
@@ -578,21 +578,21 @@ pub fn combine_explicit_arg_where(
     existing: Option<WhereClause>,
     defined_args: &[crate::schema::ArgumentDefinition],
     provided_args: &std::collections::HashMap<String, serde_json::Value>,
-    native_columns: &std::collections::HashMap<String, String>,
+    native_columns: &std::collections::HashMap<String, crate::schema::NativeColumn>,
 ) -> Option<WhereClause> {
     let explicit_conditions: Vec<WhereClause> = defined_args
         .iter()
         .filter(|arg| !AUTO_PARAM_NAMES.contains(&arg.name.as_str()))
         .filter_map(|arg| {
             provided_args.get(&arg.name).map(|value| {
-                if let Some(pg_type) = native_columns.get(&arg.name) {
+                if let Some(native) = native_columns.get(&arg.name) {
                     WhereClause::NativeField {
                         // Same recasing as the JSONB branch below: the map key is
                         // the GraphQL argument name, not the SQL column name.
                         // `comments(postId: …)` must emit `WHERE post_id = …`,
                         // never `WHERE "postId" = …` (column does not exist).
                         column:   crate::utils::to_snake_case(&arg.name),
-                        pg_cast:  pg_type_to_cast(pg_type).to_string(),
+                        pg_cast:  pg_type_to_cast(&native.pg_type).to_string(),
                         operator: WhereOperator::Eq,
                         value:    value.clone(),
                     }

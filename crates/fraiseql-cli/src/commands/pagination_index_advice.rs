@@ -143,13 +143,15 @@ pub fn advise(query: &QueryDefinition, relation: &str, indexes: &[IndexInfo]) ->
     }
 
     if query.auto_params.has_order_by {
+        // The map is keyed by the argument name and valued by the column's *type*: the
+        // column is the key's snake_case (#1533; the values used to be read as columns).
         let mut sort_keys: Vec<String> = query
             .native_columns
-            .values()
+            .keys()
+            .map(|key| fraiseql_core::utils::to_snake_case(key))
             .filter(|column| !keys_match(column, &tie_break))
             .filter(|column| leads_with(indexes, column))
             .filter(|column| !leads_with_pair(indexes, column, &tie_break))
-            .cloned()
             .collect();
         // `native_columns` is a HashMap, so its iteration order is not stable and
         // an unsorted report would differ between runs of the same schema.

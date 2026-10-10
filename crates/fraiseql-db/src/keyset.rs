@@ -63,6 +63,9 @@ pub struct KeysetKey {
     pub direction: OrderDirection,
     /// The cast a bound value takes, applied to a text placeholder.
     cast:          Cast,
+    /// Whether the key is a native column PostgreSQL proves `NOT NULL` (#1533): the only
+    /// kind a row comparison may read, since a NULL in one drops the row.
+    seekable:      bool,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -166,10 +169,12 @@ pub fn keyset_keys(order_by: Option<&[OrderByClause]>) -> crate::Result<Vec<Keys
             } else {
                 Cast::Scalar(clause.field_type)
             };
+            let seekable = matches!(cast, Cast::Native(_)) && clause.native_not_null;
             Ok(KeysetKey {
                 expr,
                 direction: clause.direction,
                 cast,
+                seekable,
             })
         })
         .collect()
@@ -222,6 +227,11 @@ pub fn keyset_predicate(
         )));
     }
     let dialect = PostgresDialect;
+    if let Some(seek) =
+        row_comparison(keys, values, position, &position_param, forward, first_param)
+    {
+        return Ok(seek);
+    }
     let mut params = Vec::new();
     let mut disjuncts = Vec::new();
     let mut equal_so_far: Vec<String> = Vec::new();
@@ -257,6 +267,49 @@ pub fn keyset_predicate(
     let position_value = position_param(&dialect.placeholder(position_index));
     disjuncts.push(conjunction(&equal_so_far, format!("{position} {comparison} {position_value}")));
     Ok((format!("({})", disjuncts.join(" OR ")), params, position_index))
+}
+
+/// The keyset predicate as one row comparison, `(k1, …, kn, position) > ($1, …, $n, $p)`
+/// (`<` for a backward page), which PostgreSQL seeks an index with (#1533); `None` when the
+/// expanded form is required.
+///
+/// It is the expanded form's meaning only when no key can be NULL (a NULL in a row comparison
+/// is NULL, so the row would be dropped from every page after the cursor) and every key reads
+/// in the position's direction, which is ascending: so every key is a native column proven
+/// `NOT NULL`, every key is `ASC`, and the cursor carries a value for each.
+fn row_comparison(
+    keys: &[KeysetKey],
+    values: &[Option<String>],
+    position: &str,
+    position_param: &impl Fn(&str) -> String,
+    forward: bool,
+    first_param: usize,
+) -> Option<(String, Vec<String>, usize)> {
+    let seekable = !keys.is_empty()
+        && keys
+            .iter()
+            .all(|key| key.seekable && matches!(key.direction, OrderDirection::Asc));
+    if !seekable {
+        return None;
+    }
+    let values: Vec<&String> = values.iter().map(Option::as_ref).collect::<Option<_>>()?;
+    let dialect = PostgresDialect;
+    let mut left: Vec<&str> = keys.iter().map(|key| key.expr.as_str()).collect();
+    left.push(position);
+    let mut right: Vec<String> = keys
+        .iter()
+        .enumerate()
+        .map(|(i, key)| key.param(&dialect.placeholder(first_param + i)))
+        .collect();
+    let position_index = first_param + keys.len();
+    right.push(position_param(&dialect.placeholder(position_index)));
+    let comparison = if forward { ">" } else { "<" };
+    let params = values.into_iter().cloned().collect();
+    Some((
+        format!("(({}) {comparison} ({}))", left.join(", "), right.join(", ")),
+        params,
+        position_index,
+    ))
 }
 
 /// `prefix AND last`, parenthesized when there is a prefix.

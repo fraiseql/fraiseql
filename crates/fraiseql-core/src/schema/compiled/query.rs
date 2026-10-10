@@ -391,8 +391,9 @@ pub struct QueryDefinition {
 
     /// Native columns detected at compile time for direct query arguments.
     ///
-    /// Maps argument name → PostgreSQL cast suffix (e.g., `"uuid"`, `"int4"`, `""`).
-    /// An empty string means the column exists but needs no type cast (e.g. `text`).
+    /// Maps argument name → the column's [`NativeColumn`]: its PostgreSQL type (e.g.,
+    /// `"uuid"`, `"int4"`, `""`; an empty string means no type cast is needed, e.g. `text`)
+    /// and whether PostgreSQL proves it `NOT NULL`.
     ///
     /// At runtime, arguments present in this map generate `WHERE col = $N` (native column
     /// lookup) instead of `WHERE data->>'col' = $N` (JSONB extraction), enabling B-tree
@@ -401,7 +402,32 @@ pub struct QueryDefinition {
     /// Only populated when `fraiseql compile --database <url>` is used. Schemas compiled
     /// without a database URL omit this field and fall back to JSONB extraction.
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
-    pub native_columns: HashMap<String, String>,
+    pub native_columns: HashMap<String, NativeColumn>,
+}
+
+/// A native column a query reads directly instead of through its JSONB document.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct NativeColumn {
+    /// The column's PostgreSQL type, as a cast suffix (`"uuid"`, `"int4"`); empty for a column
+    /// that needs no cast.
+    pub pg_type:  String,
+    /// Whether PostgreSQL proves the column `NOT NULL` (#1533): a base relation's column
+    /// declared so, as `compile --database` reads it from the catalog. A view's column is
+    /// never proven (PostgreSQL reports every view column nullable), nor is one inferred
+    /// without a database. An ordered relay page seeks its index with a row comparison only
+    /// when every sort key is a proven `NOT NULL` column.
+    pub not_null: bool,
+}
+
+impl NativeColumn {
+    /// A native column nothing proves `NOT NULL`.
+    #[must_use]
+    pub fn nullable(pg_type: impl Into<String>) -> Self {
+        Self {
+            pg_type:  pg_type.into(),
+            not_null: false,
+        }
+    }
 }
 
 impl QueryDefinition {

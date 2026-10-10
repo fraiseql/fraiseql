@@ -187,7 +187,7 @@ fn explicit_native_arg_column(arg_name: &str) -> String {
     let mut provided = HashMap::new();
     provided.insert(arg_name.to_string(), serde_json::json!("x"));
     let mut native = HashMap::new();
-    native.insert(arg_name.to_string(), "uuid".to_string());
+    native.insert(arg_name.to_string(), crate::schema::NativeColumn::nullable("uuid"));
     let clause = combine_explicit_arg_where(None, &args, &provided, &native)
         .expect("single explicit arg yields a clause");
     match clause {
@@ -217,7 +217,7 @@ fn explicit_native_arg_snake_is_unchanged() {
 #[test]
 fn inject_param_native_camel_is_recased_to_snake_column() {
     let mut native = HashMap::new();
-    native.insert("tenantId".to_string(), "uuid".to_string());
+    native.insert("tenantId".to_string(), crate::schema::NativeColumn::nullable("uuid"));
     let clause = inject_param_where_clause("tenantId", serde_json::json!("t"), &native);
     match clause {
         WhereClause::NativeField { column, .. } => assert_eq!(column, "tenant_id"),

@@ -28,7 +28,9 @@ fn invoices() -> QueryDefinition {
         has_limit: true,
         ..AutoParams::default()
     };
-    q.native_columns.insert("status".to_string(), "status".to_string());
+    // As `compile --database` records it: keyed by the argument, valued by the column's type.
+    q.native_columns
+        .insert("status".to_string(), fraiseql_core::schema::NativeColumn::nullable("text"));
     q
 }
 
@@ -182,8 +184,15 @@ fn a_composite_over_the_json_identity_names_the_expression_second() {
 #[test]
 fn the_sort_keys_are_reported_in_a_stable_order() {
     let mut q = invoices();
-    for c in ["status", "issued_at", "amount"] {
-        q.native_columns.insert(c.to_string(), c.to_string());
+    // Keyed by argument name (`issuedAt` under camelCase), valued by type: the column is the
+    // key's snake_case, never the type a value holds.
+    for (key, pg_type) in [
+        ("status", "text"),
+        ("issuedAt", "timestamptz"),
+        ("amount", "numeric"),
+    ] {
+        q.native_columns
+            .insert(key.to_string(), fraiseql_core::schema::NativeColumn::nullable(pg_type));
     }
     let indexes = [
         index("ix_pk", &["pk_invoice"]),

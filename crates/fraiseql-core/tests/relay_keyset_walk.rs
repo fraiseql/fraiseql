@@ -60,8 +60,12 @@ fn schema() -> CompiledSchema {
         .relay_cursor_type(CursorType::Uuid)
         .build();
     by_uid.auto_params.has_order_by = true;
-    by_uid.native_columns.insert("rank".to_string(), "integer".to_string());
-    by_uid.native_columns.insert("uid".to_string(), "uuid".to_string());
+    by_uid
+        .native_columns
+        .insert("rank".to_string(), fraiseql_core::schema::NativeColumn::nullable("integer"));
+    by_uid
+        .native_columns
+        .insert("uid".to_string(), fraiseql_core::schema::NativeColumn::nullable("uuid"));
     let mut schema = TestSchemaBuilder::new()
         .with_type(item)
         .with_query(connection)

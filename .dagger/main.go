@@ -1607,6 +1607,8 @@ func (m *FraiseqlCi) integrationPostgres(ctx context.Context, source *dagger.Dir
 		// reports the same drift as structured JSON. Proves both directions.
 		"echo '### cargo test -p fraiseql-cli --test compile_drift_fail_pg (#384 drift linter can fail)'",
 		"cargo test -p fraiseql-cli --features test-postgres --test compile_drift_fail_pg -- --test-threads=1",
+		"echo '### cargo test -p fraiseql-cli --test native_column_nullability_pg (#1533 NOT NULL recorded where proven)'",
+		"cargo test -p fraiseql-cli --features test-postgres --test native_column_nullability_pg -- --test-threads=1",
 		// #384 verification suites that had NEVER run with a database in any leg:
 		// each self-skips without DATABASE_URL, and the workspace test leg (which
 		// compiles them under --all-features) binds no Postgres — so all three read

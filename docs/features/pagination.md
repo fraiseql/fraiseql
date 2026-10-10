@@ -245,8 +245,28 @@ again. An unordered connection's cursor is the cursor column alone.
 The resume predicate is spelled out key by key (an `OR` per key), which is what lets keys
 mix directions and hold NULLs. PostgreSQL cannot seek an index with it, though: at best it
 walks an index that matches the ordering from the start and filters. So a page deep into a
-large connection under an `orderBy` costs about what an offset page that deep costs. The
-seek that makes keyset paging the answer to deep pagination is the unordered connection's.
+large connection under an `orderBy` costs about what an offset page that deep costs.
+
+**When a page seeks instead (#1533).** When every key is a native column PostgreSQL proves
+`NOT NULL`, and every key is ascending, the predicate is one row comparison,
+`(key, cursor_column) > ($1, $2)`, which PostgreSQL seeks an index on `(key, cursor_column)`
+with. Measured on PostgreSQL 18 (60 000 rows, a page 55 000 deep): the expanded form removed
+55 001 rows by filter over 55 364 buffers; the row comparison read 13. The conditions, and
+why each is required:
+
+- **A native column**: a key read from the document (`data->>'key'`) can be absent, so it can
+  be NULL. A key is native when the query reads it as a column, which `compile --database`
+  records for the query's arguments and inject parameters that name a column.
+- **Proven `NOT NULL`**: `compile --database` reads the catalog. Only a base relation proves
+  it: PostgreSQL 18 reports every column of a **view** nullable, even over a `NOT NULL`
+  column, so a view-backed connection keeps the expanded form. Back the connection with a
+  table (a `tv_` table) to seek. A NULL in a row comparison would drop its row from every page
+  silently, which is why a column nothing proves is never compared as a row.
+- **Ascending**: the cursor column always sorts ascending, and one row comparison reads every
+  term in one direction.
+
+Any other ordering keeps the expanded form, and is exact. An unordered connection always
+seeks on its cursor column.
 
 A relay connection never accepts `limit`/`offset`, and never carries a
 `pagination_order`.

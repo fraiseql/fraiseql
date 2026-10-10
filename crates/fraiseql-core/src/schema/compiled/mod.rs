@@ -31,7 +31,7 @@ pub use fact_table_links::fact_field;
 pub use federation_keys::FederationKeyProblem;
 pub use localized_indexes::LocalizedIndexAdvice;
 pub use mutation::{InputStyle, MutationDefinition, MutationOperation};
-pub use query::{CursorType, PaginationOrder, QueryDefinition};
+pub use query::{CursorType, NativeColumn, PaginationOrder, QueryDefinition};
 pub use schema::{
     AppleSocialConfig, AuthClientConfig, CURRENT_FRAISEQL_VERSION, CompiledSchema,
     DiscordSocialConfig, FacebookSocialConfig, GitHubSocialConfig, GoogleSocialConfig,

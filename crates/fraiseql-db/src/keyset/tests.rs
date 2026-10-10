@@ -7,6 +7,7 @@ fn key(expr: &str, direction: OrderDirection) -> KeysetKey {
         expr: expr.to_string(),
         direction,
         cast: Cast::Text,
+        seekable: false,
     }
 }
 
@@ -69,6 +70,7 @@ fn every_bound_value_is_resolved_as_text_before_its_cast() {
         expr: "k".to_string(),
         direction: OrderDirection::Asc,
         cast,
+        seekable: false,
     };
     assert_eq!(cast(Cast::Scalar(ScalarFieldType::Boolean)).param("$1"), "($1::text)::boolean");
     assert_eq!(cast(Cast::Scalar(ScalarFieldType::Uuid)).param("$1"), "$1::text");
@@ -86,6 +88,7 @@ fn the_cursor_probe_asks_about_each_cast_value_with_its_bound_type() {
         expr: "k".to_string(),
         direction: OrderDirection::Asc,
         cast,
+        seekable: false,
     };
     let keys = [
         key(Cast::Native("integer".to_string())),

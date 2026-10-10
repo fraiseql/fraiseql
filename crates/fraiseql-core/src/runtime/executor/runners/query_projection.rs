@@ -291,7 +291,7 @@ pub fn enrich_order_by_clauses(
     mut clauses: Vec<OrderByClause>,
     schema: &CompiledSchema,
     return_type: &str,
-    native_columns: &std::collections::HashMap<String, String>,
+    native_columns: &std::collections::HashMap<String, crate::schema::NativeColumn>,
     security_context: Option<&crate::security::SecurityContext>,
 ) -> crate::error::Result<Vec<OrderByClause>> {
     let type_def = schema.find_type(return_type);
@@ -329,7 +329,7 @@ pub fn enrich_order_by_clauses(
                 if matches!(field_def.field_type, crate::schema::FieldType::String)
                     && native_columns
                         .get(&clause.storage_key())
-                        .is_none_or(|cast| sorts_as_text(cast))
+                        .is_none_or(|native| sorts_as_text(&native.pg_type))
                 {
                     clause.collation.clone_from(&collation);
                 }
@@ -343,9 +343,11 @@ pub fn enrich_order_by_clauses(
         // Check if the query definition has a native column mapping for this field.
         // `native_columns` keys are the GraphQL argument names (camelCase).
         let storage_key = clause.storage_key();
-        if let Some(native_type) = native_columns.get(&storage_key) {
+        if let Some(native) = native_columns.get(&storage_key) {
             // #1521: the keyset binds the cursor's value for this key as this type.
-            clause.native_type = Some(native_type.clone());
+            clause.native_type = Some(native.pg_type.clone());
+            // #1533: whether the keyset may seek on this key.
+            clause.native_not_null = native.not_null;
             clause.native_column = Some(storage_key);
         }
     }
@@ -654,7 +656,7 @@ mod order_by_validation {
     #[test]
     fn a_native_column_that_is_not_a_type_field_passes() {
         let mut native = HashMap::new();
-        native.insert("pk_order".to_string(), "int4".to_string());
+        native.insert("pk_order".to_string(), crate::schema::NativeColumn::nullable("int4"));
         let enriched = enrich_order_by_clauses(
             clause("pk_order"),
             &schema_with_order(),
@@ -668,6 +670,31 @@ mod order_by_validation {
             Some("pk_order"),
             "the native mapping must still be applied"
         );
+    }
+
+    /// #1533: a native column's `NOT NULL` proof reaches the clause the keyset reads, and
+    /// only a proof does: the relay seeks its index on that flag alone.
+    #[test]
+    fn a_native_columns_not_null_proof_reaches_the_clause() {
+        for not_null in [true, false] {
+            let mut native = HashMap::new();
+            native.insert(
+                "pk_order".to_string(),
+                crate::schema::NativeColumn {
+                    pg_type: "int4".to_string(),
+                    not_null,
+                },
+            );
+            let enriched = enrich_order_by_clauses(
+                clause("pk_order"),
+                &schema_with_order(),
+                "Order",
+                &native,
+                None,
+            )
+            .expect("a native column is a legitimate sort key");
+            assert_eq!(enriched[0].native_not_null, not_null);
+        }
     }
 
     #[test]

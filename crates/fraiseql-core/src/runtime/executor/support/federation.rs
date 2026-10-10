@@ -633,7 +633,9 @@ impl Executor {
                 )?;
                 let pg_cast = qdef
                     .and_then(|q| q.native_columns.get(col))
-                    .map(|t| crate::runtime::native_columns::pg_type_to_cast(t).to_string())
+                    .map(|t| {
+                        crate::runtime::native_columns::pg_type_to_cast(&t.pg_type).to_string()
+                    })
                     .unwrap_or_default();
                 conditions.push(WhereClause::NativeField {
                     column: col.clone(),

@@ -141,6 +141,12 @@ disagreed, and the promise was the part that was wrong.
 
 ### Changed
 
+- **An ordered relay page seeks its index when its keys allow (#1533).** When every sort key
+  is a native column PostgreSQL proves `NOT NULL` (a table's, recorded by `compile
+  --database`) and every key is ascending, the page resumes with one row comparison, which
+  PostgreSQL seeks with (55 364 buffers to 13, measured 55 000 rows deep). Any other ordering
+  keeps the expanded predicate. A view never proves `NOT NULL` on PostgreSQL 18.
+
 - **Change-log ids are time-ordered (`uuidv7()`) (#1469).** Migration 08 defaults
   `core.tb_entity_change_log.id` to `uuidv7()` and switches an existing table's default; rows
   already stored keep their ids. Measured on PostgreSQL 18 at 10M rows: 2.2–2.5× the insert rate,
@@ -149,6 +155,10 @@ disagreed, and the promise was the part that was wrong.
 
 ### Breaking
 
+- **`native_columns` records nullability (#1533).** In the compiled schema each entry is
+  `{"pg_type": …, "not_null": …}` (was the type string), and `QueryDefinition::native_columns`
+  is a `HashMap<String, NativeColumn>`; `OrderByClause` gains `native_not_null`. Recompile;
+  an embedder reading the map reads `.pg_type`.
 - **A field type declared nowhere fails the compile (#1530).** It was a warning (#724), and
   the field compiled to an object reference the server answered with no value. A server also
   refuses, at load, an artifact whose field names an undeclared object, interface or union.
@@ -331,6 +341,9 @@ disagreed, and the promise was the part that was wrong.
 
 ### Fixed
 
+- **`fraiseql doctor`'s pagination index advice names columns (#1533).** It read the values
+  of `native_columns`, which are column *types*, as column names, so it could advise
+  `CREATE INDEX ON t (uuid, …)`; it now reads the keys.
 - **A field typed with one of the engine's rich scalars is served (#1530).** `Hostname`,
   `IPAddress`, `Email` and every other name in `RICH_SCALARS` compiled to an object reference,
   so the field came back `{}` (2.15.0) or `null` (2.16.0) under a `200`; the stdlib

@@ -261,7 +261,7 @@ pub fn order_by_field_enum_name(owner: &str) -> String {
 pub fn sortable_keys<S: std::hash::BuildHasher>(
     schema: &CompiledSchema,
     return_type: &str,
-    native_columns: &HashMap<String, String, S>,
+    native_columns: &HashMap<String, crate::schema::NativeColumn, S>,
 ) -> Option<Vec<String>> {
     let type_def = adjudicable_type(schema, return_type)?;
     let mut keys: Vec<String> = type_def
@@ -285,9 +285,9 @@ pub fn sortable_keys<S: std::hash::BuildHasher>(
 
 /// Whether ordering by a value of this type means anything. A relation, a list, a JSON
 /// document or a vector compares as its serialized text, which is no order a client asked for
-/// (a vector is ranked by `nearest`, not sorted). An `Object` no type declares is not a
-/// relation but an opaque scalar the authoring layer did not map (`datetime`, `IPAddress`,
-/// …), stored and compared as text, as [`classify`] reads it.
+/// (a vector is ranked by `nearest`, not sorted). An `Object` no type declares cannot come
+/// from the compiler or a loaded artifact (#1530 refuses both); a hand-built schema's is read
+/// as text, as [`classify`] reads it.
 fn orders_meaningfully(schema: &CompiledSchema, field_type: &FieldType) -> bool {
     match field_type {
         FieldType::Object(name) => adjudicable_type(schema, name).is_none(),

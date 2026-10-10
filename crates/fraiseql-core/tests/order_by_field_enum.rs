@@ -93,10 +93,14 @@ fn uniform_schema() -> CompiledSchema {
 /// `itemsByRank` also accepts its native `rank_n` column, so the sets differ.
 fn diverging_schema() -> CompiledSchema {
     let mut by_rank = list("itemsByRank");
-    by_rank.native_columns.insert("rank_n".to_string(), "integer".to_string());
+    by_rank
+        .native_columns
+        .insert("rank_n".to_string(), fraiseql_core::schema::NativeColumn::nullable("integer"));
     // A key no spelling reaches: the engine resolves a sort key to a native column through
     // `snake_case`, which never yields `rankAlt`. Neither listed nor accepted.
-    by_rank.native_columns.insert("rankAlt".to_string(), "integer".to_string());
+    by_rank
+        .native_columns
+        .insert("rankAlt".to_string(), fraiseql_core::schema::NativeColumn::nullable("integer"));
     with_node(
         TestSchemaBuilder::new()
             .with_type(item_type())
