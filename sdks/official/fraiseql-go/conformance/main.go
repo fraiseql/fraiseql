@@ -45,6 +45,7 @@ func authorFull() error {
 			Nullable:    true,
 			Description: `The user's "display" name`,
 			Deprecated:  &fraiseql.DeprecationInfo{Reason: "use displayName"},
+			Localized:   true,
 		},
 		{Name: "salary", Type: "Float", Nullable: true, Scope: "read:User.salary"},
 		// Two words and a digit segment (#1249). Go's author writes the wire name, so
@@ -195,7 +196,7 @@ func authorFull() error {
 		Operation("insert").
 		Arg("email", "String", nil, false).
 		Arg("name", "String", nil, true).
-		Arg("displayName", "String", nil, true).
+		LocalizedArg("displayName", true).
 		InvalidatesViews([]string{"v_user", "v_user_summary"}).
 		InvalidatesFactTables([]string{"tf_signup"}).
 		// #1253: the role gate on the write side. `MutationDefinition` had no

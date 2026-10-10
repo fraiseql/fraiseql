@@ -399,6 +399,14 @@ func (mb *MutationBuilder) Arg(name string, graphQLType string, defaultValue int
 	return mb
 }
 
+// LocalizedArg adds a String argument the function receives as a locale map (#1527).
+// A localized argument is always a String, so it takes no type.
+func (mb *MutationBuilder) LocalizedArg(name string, nullable bool) *MutationBuilder {
+	mb.addArg(name, "String", nil, nullable)
+	mb.arguments[len(mb.arguments)-1].Localized = true
+	return mb
+}
+
 // Description sets the description for the mutation
 func (mb *MutationBuilder) Description(desc string) *MutationBuilder {
 	mb.setDescription(desc)

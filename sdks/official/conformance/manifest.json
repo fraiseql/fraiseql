@@ -55,9 +55,7 @@
         "./conformance"
       ],
       "unsupported": {
-        "type_crud": "the SDK ships no CRUD generation at all \u2014 `grep -rn crud sdks/official/fraiseql-go` matches nothing, and its builders expose no flag for it. Nine of the eleven SDKs have a generator; adding a tenth is a feature, not a key rename, so the gap is declared rather than papered over (#1182).",
-        "field_localized": "the SDK has no `localized` field authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527.",
-        "mutation_argument_localized": "the SDK has no `localized` argument authoring yet (#1513 shipped it in the Python and TypeScript SDKs first); tracked in #1527."
+        "type_crud": "the SDK ships no CRUD generation at all \u2014 `grep -rn crud sdks/official/fraiseql-go` matches nothing, and its builders expose no flag for it. Nine of the eleven SDKs have a generator; adding a tenth is a feature, not a key rename, so the gap is declared rather than papered over (#1182)."
       }
     },
     "php": {

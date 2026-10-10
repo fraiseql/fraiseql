@@ -36,6 +36,10 @@ type FieldInfo struct {
 	// readable since #1025 and there was simply no field here to put a reason in, so a
 	// Go author could not deprecate anything.
 	Deprecated *DeprecationInfo `json:"deprecated,omitempty"`
+	// Localized marks a String field stored as a locale map (#1527): served in the
+	// request's locale, written per locale. Only a String can be localized; registering
+	// anything else is refused.
+	Localized bool `json:"localized,omitempty"`
 }
 
 // VectorConfig is the pgvector configuration of a vector field.
@@ -290,6 +294,8 @@ func parseFieldTag(tag string, fieldName string, fieldType reflect.Type) (FieldI
 			fieldInfo.Type = value
 		case "nullable":
 			fieldInfo.Nullable = value == "true"
+		case "localized":
+			fieldInfo.Localized = value == "true"
 		case "scope":
 			if value == "" {
 				return FieldInfo{}, fmt.Errorf("empty scope value for field %s", fieldName)

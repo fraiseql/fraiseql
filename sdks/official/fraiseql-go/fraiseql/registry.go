@@ -15,6 +15,8 @@ type ArgumentDefinition struct {
 	Nullable  bool        `json:"nullable"`
 	Default   interface{} `json:"default,omitempty"`
 	IsDefault bool        `json:"-"` // Track whether default was set
+	// Localized marks a String argument the function receives as a locale map (#1527).
+	Localized bool `json:"localized,omitempty"`
 }
 
 // DeprecationInfo carries the deprecation reason for a query or mutation.
@@ -361,6 +363,23 @@ func toSnakeCase(s string) string {
 // search's result was from the query vector, and a column has at least one dimension.
 // Which metrics a field type admits and which index types have an operator class for
 // them depends on pgvector's own tables, and is checked once, in the compiler.
+// validateFieldDeclarations refuses the field declarations the compiler would refuse, at
+// the registration that made them: every type, error type and input type goes through it.
+func validateFieldDeclarations(typeName string, fields []FieldInfo) error {
+	if err := validateVectorFields(typeName, fields); err != nil {
+		return err
+	}
+	for _, f := range fields {
+		if f.Localized && f.Type != "String" {
+			return fmt.Errorf(
+				"field %q of type %q is localized but is a %s; only a String can be localized "+
+					"(a localized field is a String stored as a locale map)",
+				f.Name, typeName, f.Type)
+		}
+	}
+	return nil
+}
+
 func validateVectorFields(typeName string, fields []FieldInfo) error {
 	for _, f := range fields {
 		if f.Vector != nil && f.VectorDistance != "" {
@@ -382,7 +401,7 @@ func validateVectorFields(typeName string, fields []FieldInfo) error {
 // sql_source is automatically derived as "v_" + snake_case(name).
 // Returns an error if a type with the same name is already registered.
 func RegisterType(name string, fields []FieldInfo, description string, relay ...bool) error {
-	if err := validateVectorFields(name, fields); err != nil {
+	if err := validateFieldDeclarations(name, fields); err != nil {
 		return err
 	}
 	reg := getInstance()
@@ -458,7 +477,7 @@ func RegisterTypeRelationships(typeName string, relationships ...Relationship) e
 // Error types are used to return structured error responses from mutations.
 // Returns an error if a type with the same name is already registered.
 func RegisterErrorType(name string, fields []FieldInfo, description string) error {
-	if err := validateVectorFields(name, fields); err != nil {
+	if err := validateFieldDeclarations(name, fields); err != nil {
 		return err
 	}
 	reg := getInstance()
@@ -698,7 +717,7 @@ func Enum(name string, members ...string) {
 // RegisterInputType registers a GraphQL input object type with the schema registry.
 // Returns an error if a name is registered twice.
 func RegisterInputType(name string, fields []FieldInfo, description string) error {
-	if err := validateVectorFields(name, fields); err != nil {
+	if err := validateFieldDeclarations(name, fields); err != nil {
 		return err
 	}
 	reg := getInstance()

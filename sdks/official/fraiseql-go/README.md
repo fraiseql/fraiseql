@@ -233,6 +233,7 @@ Methods:
 - `Nullable(bool)` - Whether result can be null (default: false)
 - `Config(map[string]interface{})` - Set configuration (sql_source, auto_params, etc.)
 - `Arg(name, graphqlType string, defaultValue interface{}, nullable ...bool)` - Add argument
+- `LocalizedArg(name string, nullable bool)` - Add a String argument received as a locale map (mutations; a field takes `Localized: true` or the tag `localized=true`)
 - `Description(string)` - Set description
 - `Register()` - Register the query
 
